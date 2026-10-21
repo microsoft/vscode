@@ -1291,6 +1291,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				diffEditorPool: this._diffEditorPool,
 				currentWidth: this._currentLayoutWidth,
 				onDidChangeVisibility: this._onDidChangeVisibility.event,
+				progressMessageAction: this.rendererOptions.progressMessageAction,
 				inlineTextModels: this._inlineTextModels,
 				codeBlockStartIndex: 0,
 				treeStartIndex: 0,
@@ -1303,6 +1304,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			?.findLast(candidate => candidate instanceof ChatWorkingProgressAnchor && candidate.part === part)?.domNode;
 		const inlineAnchor = anchor?.isConnected ? anchor : undefined;
 		const clamped = this.isWorkingProgressBelowViewport?.(response, inlineAnchor) ?? false;
+		const activeElement = dom.getActiveElement();
+		const focusedElement = dom.isHTMLElement(activeElement) && part.domNode.contains(activeElement) ? activeElement : undefined;
 		this.clampedProgressRow?.classList.remove('chat-working-progress-clamped');
 		this.clampedProgressRow = undefined;
 		if (clamped) {
@@ -1321,6 +1324,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		} else {
 			part.domNode.remove();
+		}
+		if (focusedElement?.isConnected && dom.getActiveElement() !== focusedElement) {
+			focusedElement.focus({ preventScroll: true });
 		}
 	}
 

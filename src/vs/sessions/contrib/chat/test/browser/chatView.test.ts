@@ -3182,56 +3182,93 @@ suite('Sessions - Chat View', () => {
 		});
 	}
 
-	for (const hostSelector of ['.part.sessionspart', '.chat-editor-relative']) {
-		test(`keeps reverse sticky progress aligned with transcript content in ${hostSelector}`, () => {
+	for (const { hostSelector, width, activityBarInset } of [
+		{ hostSelector: '.part.sessionspart', width: 400, activityBarInset: 0 },
+		{ hostSelector: '.part.sessionspart', width: 400, activityBarInset: 30 },
+		{ hostSelector: '.part.sessionspart', width: 1200, activityBarInset: 0 },
+		{ hostSelector: '.part.sessionspart', width: 1200, activityBarInset: 30 },
+		{ hostSelector: '.chat-editor-relative', width: 400, activityBarInset: 0 },
+		{ hostSelector: '.chat-editor-relative', width: 1200, activityBarInset: 0 },
+	]) {
+		test(`keeps reverse sticky progress aligned with composer and references in ${hostSelector} at width ${width} with inset ${activityBarInset}`, () => {
 			const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
+			workbench.style.setProperty('--session-activity-bar-content-inset', `${activityBarInset}px`);
+			workbench.style.setProperty('--vscode-spacing-size20', '2px');
 			workbench.style.setProperty('--vscode-spacing-size240', '24px');
 			workbench.style.setProperty('--vscode-spacing-size40', '4px');
 			workbench.style.setProperty('--vscode-spacing-size60', '6px');
 			workbench.style.setProperty('--vscode-spacing-size80', '8px');
 			workbench.style.setProperty('--vscode-spacing-size400', '40px');
 			workbench.style.setProperty('--vscode-strokeThickness', '1px');
+			workbench.style.setProperty('--vscode-chat-persistent-content-height', '36px');
+			workbench.style.setProperty('--vscode-chat-list-background', '#123456');
 			const host = dom.append(workbench, dom.$(hostSelector));
-			host.style.width = '400px';
-			const widget = dom.append(host, dom.$('.chat-widget'));
+			host.style.width = `${width}px`;
+			const view = dom.append(host, dom.$('.chat-view.chat-view-chat'));
+			const widget = dom.append(view, dom.$('.chat-view-widget.chat-widget'));
 			const session = dom.append(widget, dom.$('.interactive-session.chat-floating-persistent-content'));
 			const list = dom.append(session, dom.$('.interactive-list'));
 			list.style.height = '200px';
-			const listRow = dom.append(list, dom.$('.monaco-list-row'));
-			const row = dom.append(listRow, dom.$('.interactive-item-container'));
+			const tree = dom.append(list, dom.$('.monaco-list'));
+			const scrollable = dom.append(tree, dom.$('.monaco-scrollable-element'));
+			const rows = dom.append(scrollable, dom.$('.monaco-list-rows'));
+			const listRow = dom.append(rows, dom.$('.monaco-list-row'));
+			const treeRow = dom.append(listRow, dom.$('.monaco-tl-row'));
+			const contents = dom.append(treeRow, dom.$('.monaco-tl-contents'));
+			const row = dom.append(contents, dom.$('.interactive-item-container'));
 			const rowContent = dom.append(row, dom.$('.value'));
 			const stack = dom.append(session, dom.$('.interactive-input-part.chat-input-surface-stack'));
-			stack.style.cssText = 'display: flex; flex-direction: column; width: 100%; padding-inline: 24px; box-sizing: border-box';
+			stack.style.cssText = 'display: flex; flex-direction: column';
 			const sticky = dom.append(list, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));
 			sticky.style.bottom = '36px';
 			const progress = dom.append(sticky, dom.$('.progress-container'));
 			const label = dom.append(progress, dom.$('span'));
 			label.textContent = 'Working';
+			const pet = dom.append(stack, dom.$('.chat-pet-overlay.chat-pet-run-layer'));
 			const references = dom.append(stack, dom.$('.chat-input-persistent-content.chat-persistent-content-visible'));
+			references.prepend(sticky);
+			sticky.style.bottom = '';
 			const pills = dom.append(references, dom.$('.session-chat-input-toolbar'));
 			pills.style.height = '28px';
-			dom.append(stack, dom.$('.chat-input-container'));
+			const input = dom.append(stack, dom.$('.chat-input-container'));
 			dom.getWindow(workbench).document.body.appendChild(workbench);
 			disposables.add(toDisposable(() => workbench.remove()));
 
 			const stickyStyle = dom.getWindow(sticky).getComputedStyle(sticky);
 			const rowStyle = dom.getWindow(row).getComputedStyle(row);
+			const maskStyle = dom.getWindow(sticky).getComputedStyle(sticky, '::before');
 			assert.deepStrictEqual({
 				progressOffset: label.getBoundingClientRect().left - rowContent.getBoundingClientRect().left,
+				composerOffset: progress.getBoundingClientRect().left - input.getBoundingClientRect().left,
+				referencesOffset: progress.getBoundingClientRect().left - pills.getBoundingClientRect().left,
 				stickyPadding: stickyStyle.paddingLeft,
 				rowPadding: rowStyle.paddingLeft,
 				stickyPosition: stickyStyle.position,
 				rowPosition: rowStyle.position,
 				statusBeforeReferences: sticky.getBoundingClientRect().bottom <= pills.getBoundingClientRect().top,
-				listOwned: sticky.parentElement === list,
+				sharedContainer: sticky.parentElement === pills.parentElement,
+				sharedMask: maskStyle.backgroundColor,
+				maskExtendsThroughReferences: maskStyle.bottom,
+				separateStatusSurface: dom.getWindow(progress).getComputedStyle(progress, '::before').content,
+				referenceBackground: dom.getWindow(references).getComputedStyle(references).backgroundColor,
+				referenceUnderlay: dom.getWindow(references).getComputedStyle(references, '::before').content,
+				petUnderlay: dom.getWindow(pet).getComputedStyle(pet, '::before').content,
 			}, {
 				progressOffset: 0,
-				stickyPadding: '24px',
+				composerOffset: 0,
+				referencesOffset: 0,
+				stickyPadding: '0px',
 				rowPadding: '24px',
-				stickyPosition: 'absolute',
+				stickyPosition: 'relative',
 				rowPosition: 'relative',
 				statusBeforeReferences: true,
-				listOwned: true,
+				sharedContainer: true,
+				sharedMask: 'rgb(18, 52, 86)',
+				maskExtendsThroughReferences: '-36px',
+				separateStatusSurface: 'none',
+				referenceBackground: 'rgba(0, 0, 0, 0)',
+				referenceUnderlay: 'none',
+				petUnderlay: 'none',
 			});
 		});
 	}
@@ -3464,7 +3501,7 @@ suite('Sessions - Chat View', () => {
 		});
 	});
 
-	test('keeps the floating persistent content transparent only over chat backgrounds', () => {
+	test('keeps floating references transparent without sticky progress', () => {
 		const workbench = dom.$('.monaco-workbench.vs-dark.agent-sessions-workbench');
 		const createPersistentContent = (hasBackground: boolean) => {
 			const part = dom.append(workbench, dom.$(`.part.sessionspart${hasBackground ? '.has-chat-background' : ''}`));
@@ -3483,7 +3520,7 @@ suite('Sessions - Chat View', () => {
 			plain: dom.getWindow(plain).getComputedStyle(plain, '::before').content,
 		}, {
 			background: 'none',
-			plain: '""',
+			plain: 'none',
 		});
 	});
 

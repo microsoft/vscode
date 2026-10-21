@@ -857,7 +857,8 @@
 	}
 }
 
-.interactive-item-container .value .rendered-markdown {
+.interactive-item-container .value .rendered-markdown,
+.interactive-item-container.chat-sticky-progress .rendered-markdown {
 	line-height: 1.5em;
 	font-size: var(--vscode-chat-font-size-body-m);
 	font-family: var(--vscode-chat-font-family, inherit);
@@ -2394,49 +2395,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	z-index: 0;
 }
 
-/* Separate floating controls from transcript content without masking the list,
-	so the treatment remains stable while content streams or scrolls. During the
-	pet's run cycle, the overlay paints the same fade beneath the pet. */
-.interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content.chat-persistent-content-visible::before,
-.interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-pet-overlay.chat-pet-run-layer::before {
-	content: '';
-	position: absolute;
-	inset-inline: 0;
-	z-index: 0;
-	pointer-events: none;
-	background: linear-gradient(
-		to bottom,
-		transparent 0,
-		var(--vscode-chat-list-background, var(--vscode-editor-background)) var(--vscode-spacing-size160)
-	);
-}
-
-.interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content.chat-persistent-content-visible::before {
-	top: calc(-1 * var(--vscode-spacing-size160));
-	bottom: 0;
-}
-
-.interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-pet-overlay.chat-pet-run-layer::before {
-	bottom: calc(100% - var(--vscode-spacing-size40));
-	height: calc(var(--vscode-chat-persistent-content-height, 0px) + var(--vscode-spacing-size160));
-}
-
-.interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-pet-overlay.chat-pet-run-layer ~ .chat-input-persistent-content.chat-persistent-content-visible::before {
-	content: none;
-}
-
 .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content > * {
 	position: relative;
 	z-index: 1;
-}
-
-.hc-black .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content.chat-persistent-content-visible::before,
-.hc-light .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content.chat-persistent-content-visible::before,
-.hc-black .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-pet-overlay.chat-pet-run-layer::before,
-.hc-light .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-pet-overlay.chat-pet-run-layer::before {
-	background: var(--vscode-chat-list-background, var(--vscode-editor-background));
-	border-top: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder);
-	box-sizing: border-box;
 }
 
 .interactive-session .interactive-input-part.chat-input-hidden > :not(.chat-input-persistent-content, .chat-tool-confirmation-carousel-container) {
@@ -3525,6 +3486,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	box-sizing: border-box;
 	z-index: 2;
 	min-width: 0;
+	padding-block: 0;
 	overflow-wrap: anywhere;
 	pointer-events: none;
 }
@@ -3538,20 +3500,44 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-sticky-progress > .progress-container {
+	position: relative;
+	isolation: isolate;
 	box-sizing: border-box;
 	width: fit-content;
-	max-width: calc(100% - var(--vscode-spacing-size400));
-	margin: 0;
-	margin-inline-start: calc(-1 * (var(--vscode-spacing-size80) + var(--vscode-strokeThickness)));
-	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
-	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);
-	border-radius: var(--vscode-cornerRadius-circle);
-	background: var(--vscode-chat-list-background, var(--vscode-editor-background));
+	max-width: calc(100% - max(var(--vscode-spacing-size400), var(--chat-sticky-progress-pet-width, 0px) + var(--vscode-spacing-size320) + var(--vscode-spacing-size160)));
+	margin-bottom: var(--vscode-spacing-size60);
 	pointer-events: auto;
 }
 
-.interactive-session .chat-sticky-progress > .progress-container > .chat-progress-icon {
+.interactive-session .chat-sticky-progress > .progress-container::before {
+	content: '';
+	position: absolute;
+	inset: calc(-1 * var(--vscode-spacing-size20)) calc(-1 * var(--vscode-spacing-size80)) calc(-1 * var(--vscode-spacing-size20)) 0;
+	z-index: -1;
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);
+	border-radius: var(--vscode-cornerRadius-medium);
+	background: var(--vscode-chat-list-background, var(--vscode-editor-background));
+}
+
+.interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content > .chat-sticky-progress.interactive-item-container {
+	position: relative;
+	inset: auto;
+	width: auto;
+	max-width: none;
 	margin: 0;
+	padding: 0;
+}
+
+.interactive-session.chat-floating-persistent-content .chat-input-persistent-content > .chat-sticky-progress::before {
+	content: '';
+	position: absolute;
+	inset: calc(-1 * var(--vscode-spacing-size20)) 0 calc(-1 * var(--vscode-chat-persistent-content-height, 0px));
+	z-index: -1;
+	background: var(--vscode-chat-list-background, var(--vscode-editor-background));
+}
+
+.interactive-session.chat-floating-persistent-content .chat-input-persistent-content > .chat-sticky-progress > .progress-container::before {
+	content: none;
 }
 
 .interactive-item-container .progress-container > .chat-progress-action {
@@ -4155,7 +4141,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session:not(.chat-widget > .interactive-session) {
 
-	.interactive-list .interactive-item-container {
+	.interactive-list .interactive-item-container:where(:not(.chat-sticky-progress)) {
 		padding: var(--vscode-spacing-size60) var(--vscode-spacing-size160);
 	}
 

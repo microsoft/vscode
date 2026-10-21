@@ -41,6 +41,7 @@
 
 /* Their existing auto margins center them. */
 .agent-sessions-workbench .part.sessionspart .chat-view-chat .interactive-session > .interactive-input-part,
+.agent-sessions-workbench .part.sessionspart .chat-view-chat .interactive-session > .interactive-list > .chat-sticky-progress,
 .agent-sessions-workbench .part.sessionspart .chat-view-chat .interactive-session > .chat-suggest-next-widget {
 	width: calc(100% - 2 * var(--session-activity-bar-content-inset, 0px));
 	margin-left: auto;

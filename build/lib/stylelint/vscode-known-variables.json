@@ -1062,6 +1062,7 @@
 		"--chat-response-height-rounding",
 		"--chat-smooth-delay",
 		"--chat-smooth-duration",
+		"--chat-sticky-progress-pet-width",
 		"--connected-tab-min-name-width",
 		"--connected-tab-min-width",
 		"--inline-chat-frame-progress",

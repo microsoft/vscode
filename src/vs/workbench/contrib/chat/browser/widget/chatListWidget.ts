@@ -311,6 +311,9 @@ export interface IChatListWidgetOptions {
 	/** Scrollable space kept below the last item, for content floating over the list. */
 	readonly paddingBottom?: number;
 
+	/** Bottom inset for the working status, independent of transcript padding for the pet. */
+	readonly stickyProgressBottom?: number;
+
 	/** Tab index applied to the transcript tree root. */
 	readonly tabIndex?: 0 | -1;
 }
@@ -397,6 +400,7 @@ export class ChatListWidget extends Disposable {
 	private readonly _useTreeHierarchy: boolean;
 	/** Scrollable space kept below the last item, see {@link IChatListWidgetOptions.paddingBottom}. */
 	private _paddingBottom: number;
+	private _stickyProgressBottom: number;
 	private _effectivePaddingBottom: number;
 	private _scrollHeightReservation: { response: IChatResponseViewModel; height: number } | undefined;
 	private readonly _pendingScrollHeightRelease = this._register(new MutableDisposable<IDisposable>());
@@ -497,6 +501,7 @@ export class ChatListWidget extends Disposable {
 		this._getCurrentModeInfo = options.getCurrentModeInfo;
 		this._useTreeHierarchy = !options.filter;
 		this._paddingBottom = options.paddingBottom ?? 0;
+		this._stickyProgressBottom = options.stickyProgressBottom ?? this._paddingBottom;
 		this._effectivePaddingBottom = this._paddingBottom;
 		this._lastItemIdContextKey = ChatContextKeys.lastItemId.bindTo(this.contextKeyService);
 		this._container = container;
@@ -654,17 +659,18 @@ export class ChatListWidget extends Disposable {
 		if (options.stickyProgress) {
 			this._workingProgressContainer = dom.append(this._container, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));
 			this._register(toDisposable(() => this._workingProgressContainer?.remove()));
-			this._workingProgressContainer.style.bottom = `${this._paddingBottom}px`;
+			this._workingProgressContainer.style.bottom = `${this._stickyProgressBottom}px`;
+			this._workingProgressContainer.style.setProperty('--chat-sticky-progress-pet-width', `${Math.max(0, this._paddingBottom - this._stickyProgressBottom)}px`);
 			this._renderer.setWorkingProgressContainer(this._workingProgressContainer, (response, footer) => {
-				if (!this._visible || this._tree.renderHeight <= this._paddingBottom || !this._tree.hasElement(response)) {
+				if (!this._visible || this._tree.renderHeight <= this._stickyProgressBottom || !this._tree.hasElement(response)) {
 					return false;
 				}
 				if (footer) {
-					return footer.getBoundingClientRect().bottom > this._tree.getHTMLElement().getBoundingClientRect().bottom - this._paddingBottom;
+					return footer.getBoundingClientRect().bottom > this._tree.getHTMLElement().getBoundingClientRect().bottom - this._stickyProgressBottom;
 				}
 				const responseTop = this._tree.getElementTop(response);
 				return responseTop !== undefined && responseTop + (response.currentRenderedHeight ?? this._delegate.getHeight(response))
-					> this._tree.scrollTop + this._tree.renderHeight - this._paddingBottom;
+					> this._tree.scrollTop + this._tree.renderHeight - this._stickyProgressBottom;
 			});
 		}
 		if (options.tabIndex !== undefined) {
@@ -1411,15 +1417,29 @@ export class ChatListWidget extends Disposable {
 		}
 	}
 
-	setPaddingBottom(paddingBottom: number): void {
+	setStickyProgressContainer(container: HTMLElement | undefined): void {
+		const progress = this._workingProgressContainer;
+		const parent = container ?? this._container;
+		if (!progress || progress.parentElement === parent) {
+			return;
+		}
+		parent.prepend(progress);
+		progress.style.bottom = container ? '' : `${this._stickyProgressBottom}px`;
+		this._renderer.updateStickyProgress();
+	}
+
+	setPaddingBottom(paddingBottom: number, stickyProgressBottom = paddingBottom): void {
 		const value = Math.max(0, paddingBottom);
-		if (value === this._paddingBottom) {
+		const progressBottom = Math.max(0, stickyProgressBottom);
+		if (value === this._paddingBottom && progressBottom === this._stickyProgressBottom) {
 			return;
 		}
 		const wasScrolledToBottom = this.isScrolledToBottom;
 		this._paddingBottom = value;
+		this._stickyProgressBottom = progressBottom;
 		if (this._workingProgressContainer) {
-			this._workingProgressContainer.style.bottom = `${value}px`;
+			this._workingProgressContainer.style.bottom = this._workingProgressContainer.parentElement === this._container ? `${progressBottom}px` : '';
+			this._workingProgressContainer.style.setProperty('--chat-sticky-progress-pet-width', `${Math.max(0, value - progressBottom)}px`);
 		}
 		this.updateBottomPadding();
 		this._renderer.updateStickyProgress();

@@ -1115,8 +1115,8 @@ export class ChatView extends AbstractChatView {
 		const pillsNode = this._chatPills.element;
 		const bannersNode = this._banners.domNode;
 		const comparisonResultNode = this._comparisonResult.domNode;
-		if (persistentContentContainer.firstChild !== pillsNode) {
-			persistentContentContainer.insertBefore(pillsNode, persistentContentContainer.firstChild);
+		if (persistentContentContainer.lastChild !== pillsNode) {
+			persistentContentContainer.appendChild(pillsNode);
 		}
 		if (persistentContentContainer.nextSibling !== bannersNode) {
 			inputPartElement.insertBefore(bannersNode, persistentContentContainer.nextSibling);

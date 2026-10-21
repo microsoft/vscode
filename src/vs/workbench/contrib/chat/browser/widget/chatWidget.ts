@@ -2353,9 +2353,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				getCurrentModeInfo: () => this.input.currentModeInfo,
 				getEditingValue: () => this.input.inputEditor.getValue(),
 				paddingBottom: this._getListPaddingBottom(),
+				stickyProgressBottom: this._persistentContentHeight,
 				tabIndex: this.viewOptions.transcriptTabIndex,
 			}
 		));
+
+		this._applyListPaddingBottom();
 
 		// Wire up ChatWidget-specific list widget events
 		this._register(this.listWidget.onDidClickRequest(item => this.handleRequestClick(item)));
@@ -3008,7 +3011,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private _applyListPaddingBottom(): void {
-		this.listWidget?.setPaddingBottom(this._getListPaddingBottom());
+		this.listWidget?.setStickyProgressContainer(this._persistentContentHeight > 0 ? this.input.persistentContentContainerElement : undefined);
+		this.listWidget?.setPaddingBottom(this._getListPaddingBottom(), this._persistentContentHeight);
 	}
 
 	setModel(model: IChatModel | undefined): void {

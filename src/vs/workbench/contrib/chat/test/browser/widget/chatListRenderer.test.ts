@@ -7025,6 +7025,43 @@ suite('ChatListRenderer', () => {
 		});
 	}
 
+	test('sticky progress retains its action and keyboard focus when relocated', () => {
+		const calls: string[] = [];
+		const action = observableValue('progressAction', { label: 'Show Log', run: () => calls.push('old') });
+		const { container, model, request, renderer, template, node } = createPersistentProgressRenderer({ rendererOptions: { progressMessageAction: action } });
+		const host = dom.append(container, dom.$('.chat-sticky-progress.interactive-item-container'));
+		let belowViewport = false;
+		renderer.setWorkingProgressContainer(host, () => belowViewport);
+		renderer.renderElement(node, 0, template);
+		const link = template.value.querySelector<HTMLElement>('.chat-progress-action .monaco-link');
+		assert.ok(link);
+		link.focus();
+		const snapshot = () => ({
+			inline: template.value.contains(link),
+			sticky: host.contains(link),
+			focused: dom.getActiveElement() === link,
+		});
+		const inline = snapshot();
+		belowViewport = true;
+		renderer.updateStickyProgress();
+		const clamped = snapshot();
+		action.set({ label: 'Show Log', run: () => calls.push('new') }, undefined);
+		model.acceptResponseProgress(request, { kind: 'progressMessage', content: new MarkdownString('Updated provider detail') });
+		renderer.renderElement(node, 0, template);
+		const updated = snapshot();
+		link.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+		belowViewport = false;
+		renderer.updateStickyProgress();
+		assert.deepStrictEqual({ inline, clamped, updated, returned: snapshot(), calls }, {
+			inline: { inline: true, sticky: false, focused: true },
+			clamped: { inline: false, sticky: true, focused: true },
+			updated: { inline: false, sticky: true, focused: true },
+			returned: { inline: true, sticky: false, focused: true },
+			calls: ['new'],
+		});
+		request.response?.complete();
+	});
+
 	test('in-place progress announces changed phases only when verbose progress is enabled', () => {
 		const action = observableValue('progressAction', { label: 'Show Log', run: () => { } });
 		const { disposables, configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer({ rendererOptions: { progressMessageAction: action } });

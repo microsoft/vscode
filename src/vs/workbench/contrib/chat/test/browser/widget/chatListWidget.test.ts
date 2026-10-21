@@ -317,13 +317,16 @@ suite('ChatListWidget', () => {
 			}, isSessionsWindow);
 			container.classList.add('interactive-session', 'interactive-list');
 			container.style.setProperty('--vscode-spacing-size60', '6px');
+			container.style.setProperty('--vscode-spacing-size20', '2px');
 			container.style.setProperty('--vscode-spacing-size80', '8px');
 			container.style.setProperty('--vscode-spacing-size160', '16px');
 			container.style.setProperty('--vscode-spacing-size280', '28px');
+			container.style.setProperty('--vscode-spacing-size320', '32px');
 			container.style.setProperty('--vscode-spacing-size400', '40px');
 			container.style.setProperty('--vscode-chat-font-size-body-m', '13px');
 			container.style.setProperty('--vscode-strokeThickness', '1px');
 			container.style.setProperty('--vscode-cornerRadius-circle', '9999px');
+			container.style.setProperty('--vscode-cornerRadius-medium', '6px');
 			container.style.setProperty('--vscode-chat-list-background', 'rgb(18, 52, 86)');
 			const addRequest = (text: string) => model.addRequest({
 				text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
@@ -353,6 +356,17 @@ suite('ChatListWidget', () => {
 				assert.strictEqual(overlay.childElementCount, 0);
 			}, 10, 100);
 			const footer = container.querySelector('.chat-working-progress')!;
+			const appearance = () => {
+				const icon = footer.querySelector('.chat-progress-icon')!;
+				const label = footer.querySelector('.progress-step')!;
+				return {
+					iconLeft: icon.getBoundingClientRect().left,
+					labelLeft: label.getBoundingClientRect().left,
+					labelHeight: label.getBoundingClientRect().height,
+					lineHeight: mainWindow.getComputedStyle(label).lineHeight,
+				};
+			};
+			const inlineAppearance = appearance();
 			const atEnd = {
 				inline: !!footer.closest('.monaco-list-row'),
 				overlayEmpty: overlay.childElementCount === 0,
@@ -360,15 +374,38 @@ suite('ChatListWidget', () => {
 			};
 			widget.scrollTop -= 80;
 			await retry(async () => assert.ok(overlay.contains(footer)), 10, 100);
+			assert.deepStrictEqual(appearance(), inlineAppearance);
 			const clamped = {
 				sameFooter: overlay.querySelector('.chat-working-progress') === footer,
 				logos: container.querySelectorAll('.chat-working-logo').length,
 				bottom: Math.abs(overlay.getBoundingClientRect().bottom - container.getBoundingClientRect().bottom + 36) < 1,
 			};
+			const references = container.appendChild(mainWindow.document.createElement('div'));
+			references.className = 'chat-input-persistent-content';
+			widget.setStickyProgressContainer(references);
+			widget.setPaddingBottom(60, 36);
+			const grouped = {
+				sameFooter: overlay.querySelector('.chat-working-progress') === footer,
+				referencesOwned: overlay.parentElement === references,
+				noListOffset: overlay.style.bottom === '',
+			};
+			widget.setStickyProgressContainer(undefined);
+			references.remove();
+			const ungrouped = {
+				sameFooter: overlay.querySelector('.chat-working-progress') === footer,
+				listOwned: overlay.parentElement === container,
+				restoredOffset: overlay.style.bottom === '36px',
+			};
 			widget.setPaddingBottom(60);
 			const changedPadding = {
 				sameFooter: overlay.querySelector('.chat-working-progress') === footer,
 				bottom: Math.abs(overlay.getBoundingClientRect().bottom - container.getBoundingClientRect().bottom + 60) < 1,
+			};
+			const paddedContentHeight = widget.contentHeight;
+			widget.setPaddingBottom(60, 36);
+			const independentInset = {
+				bottom: Math.abs(overlay.getBoundingClientRect().bottom - container.getBoundingClientRect().bottom + 36) < 1,
+				sameTranscriptPadding: widget.contentHeight === paddedContentHeight,
 			};
 			widget.setPaddingBottom(36);
 			widget.scrollTop = 0;
@@ -387,18 +424,18 @@ suite('ChatListWidget', () => {
 			widget.layout(300, 220);
 			const button = container.querySelector<HTMLElement>('.chat-scroll-down')!;
 			const petPadding = getChatPetListPadding(true, true, 1);
-			widget.setPaddingBottom(36 + petPadding);
+			widget.setPaddingBottom(36 + petPadding, 36);
 			const buttonBox = button.getBoundingClientRect();
 			const footerBox = footer.getBoundingClientRect();
-			const pillStyle = mainWindow.getComputedStyle(footer);
+			const pillStyle = mainWindow.getComputedStyle(footer, '::before');
 			const hitTarget = container.ownerDocument.elementFromPoint(buttonBox.x + buttonBox.width / 2, buttonBox.y + buttonBox.height / 2);
-			const besidePill = container.ownerDocument.elementFromPoint(footerBox.right + 4, footerBox.y + footerBox.height / 2);
+			const besidePill = container.ownerDocument.elementFromPoint(footerBox.right + 12, footerBox.y + footerBox.height / 2);
 			const floatingPill = {
 				independentButton: button.parentElement === container && overlay.parentElement === container,
 				visible: button.style.display === 'flex' && buttonBox.height > 0,
 				hitTarget: !!hitTarget && button.contains(hitTarget),
 				noOverlap: footerBox.right <= buttonBox.left || footerBox.bottom <= buttonBox.top,
-				clearsPetAndChips: Math.abs(overlay.getBoundingClientRect().bottom - container.getBoundingClientRect().bottom + 36 + petPadding) < 1,
+				staysAboveChips: Math.abs(overlay.getBoundingClientRect().bottom - container.getBoundingClientRect().bottom + 36) < 1,
 				fitsContent: footerBox.width < overlay.clientWidth / 2,
 				background: pillStyle.backgroundColor,
 				radius: pillStyle.borderRadius,
@@ -421,13 +458,16 @@ suite('ChatListWidget', () => {
 			current.response!.complete();
 			widget.refresh();
 			await retry(async () => assert.strictEqual(overlay.childElementCount, 0), 10, 100);
-			assert.deepStrictEqual({ shortResponse, atEnd, clamped, changedPadding, virtualized, floatingPill, returned, completed: overlay.childElementCount }, {
+			assert.deepStrictEqual({ shortResponse, atEnd, clamped, grouped, ungrouped, changedPadding, independentInset, virtualized, floatingPill, returned, completed: overlay.childElementCount }, {
 				shortResponse: { scrollable: false, overlayEmpty: true },
 				atEnd: { inline: true, overlayEmpty: true, providerDetails: false },
 				clamped: { sameFooter: true, logos: 1, bottom: true },
+				grouped: { sameFooter: true, referencesOwned: true, noListOffset: true },
+				ungrouped: { sameFooter: true, listOwned: true, restoredOffset: true },
 				changedPadding: { sameFooter: true, bottom: true },
+				independentInset: { bottom: true, sameTranscriptPadding: true },
 				virtualized: { visible: true, logos: 1 },
-				floatingPill: { independentButton: true, visible: true, hitTarget: true, noOverlap: true, clearsPetAndChips: true, fitsContent: true, background: 'rgb(18, 52, 86)', radius: '9999px', noMask: true, unusedAreaClickable: true },
+				floatingPill: { independentButton: true, visible: true, hitTarget: true, noOverlap: true, staysAboveChips: true, fitsContent: true, background: 'rgb(18, 52, 86)', radius: '6px', noMask: true, unusedAreaClickable: true },
 				returned: { inline: true, overlayEmpty: true, logos: 1 },
 				completed: 0,
 			});
@@ -435,13 +475,13 @@ suite('ChatListWidget', () => {
 
 		test(`reverse sticky progress pill wraps long status messages (sessions=${isSessionsWindow})`, async () => {
 			const phrase = 'Reviewing the workspace changes and checking that the requested adjustments preserve the existing behavior';
-			const { model, container, widget } = createWidget({ stickyProgress: true, paddingBottom: 84 }, configuration => {
+			const { model, container, widget } = createWidget({ stickyProgress: true, paddingBottom: 84, stickyProgressBottom: 36 }, configuration => {
 				configuration.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
 				configuration.setUserConfiguration(ChatConfiguration.ThinkingPhrases, { mode: 'replace', phrases: [phrase] });
 			}, isSessionsWindow);
 			container.classList.add('interactive-session', 'interactive-list');
 			container.style.width = '220px';
-			for (const [name, value] of [['60', '6px'], ['80', '8px'], ['160', '16px'], ['400', '40px']]) {
+			for (const [name, value] of [['60', '6px'], ['80', '8px'], ['160', '16px'], ['320', '32px'], ['400', '40px']]) {
 				container.style.setProperty(`--vscode-spacing-size${name}`, value);
 			}
 			container.style.setProperty('--vscode-chat-font-size-body-m', '13px');
@@ -460,7 +500,7 @@ suite('ChatListWidget', () => {
 			assert.deepStrictEqual({
 				fullText: footer.textContent?.replace(/\u00a0/g, ' '),
 				withinViewport: box.left >= container.getBoundingClientRect().left && box.right <= container.getBoundingClientRect().right,
-				noOverflow: footer.scrollWidth <= footer.clientWidth,
+				noOverflow: footer.querySelector<HTMLElement>('.progress-step')!.scrollWidth <= footer.querySelector<HTMLElement>('.progress-step')!.clientWidth,
 				wrapped: box.height > 40,
 			}, { fullText: phrase, withinViewport: true, noOverflow: true, wrapped: true });
 		});
