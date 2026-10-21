@@ -63,7 +63,10 @@ suite('EditorGroupWatermark', () => {
 		for (const type of [EventType.KEY_DOWN, EventType.KEY_UP]) {
 			const event = new KeyboardEvent(type, { key, code: key === ' ' ? 'Space' : key, bubbles: true, cancelable: true });
 			// StandardKeyboardEvent reads the legacy keyCode, which some constructors ignore.
-			Object.defineProperty(event, 'keyCode', { get: () => keyCode });
+			Object.defineProperties(event, {
+				keyCode: { value: keyCode },
+				which: { value: keyCode },
+			});
 			target.dispatchEvent(event);
 		}
 	}
@@ -180,7 +183,7 @@ suite('EditorGroupWatermark', () => {
 		});
 	});
 
-	test('clicking shortcut contents executes each command exactly once', () => {
+	test('clicking shortcut contents executes the command exactly once per click', () => {
 		render();
 		for (const selector of ['.watermark-icon', '.watermark-label', '.watermark-keybinding']) {
 			container.querySelector<HTMLElement>(`.watermark-entry ${selector}`)!.click();
