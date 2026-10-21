@@ -230,6 +230,11 @@ function findScratchFolderOrAncestor(folder: URI, isScratchFolder: (candidate: s
 	return candidate;
 }
 
+/** How a folder is named in messages: its file system path for a local folder, else its URI. */
+function folderLabel(folder: URI): string {
+	return folder.scheme === Schemas.file ? folder.fsPath : folder.toString();
+}
+
 const RECENT_LOCAL_SESSION_UPDATE_LIMIT = 2;
 /** A scratch folder allocated for a chat being created: kept by `commit`, removed by `abort`. */
 interface IAllocatedScratchFolder {
@@ -6514,18 +6519,19 @@ export class AgentService extends Disposable implements IAgentService {
 				state?.chats.flatMap(chat => chat.workingDirectories ?? []) ?? []),
 			...readSessionScratchFolders(state?._meta),
 		].map(scratch => URI.parse(scratch));
-		// Any chat's recorded folder, of this session or another, that is the folder or one of its ancestors.
+		// The scratch folder that refuses `folder`, in order: a scratch folder of this session that is `folder` itself; the
+		// nearest recorded scratch folder of any chat, of this session or another, that is `folder` or one of its
+		// ancestors; then a scratch folder of this session that contains `folder`, such as its workspace-less primary.
 		const scratch = sessionScratchFolders.find(candidate => isEqual(candidate, folder))
 			?? findScratchFolderOrAncestor(folder, isRecordedScratchFolder)
 			?? sessionScratchFolders.find(candidate => isEqualOrParent(folder, candidate));
 		if (scratch) {
-			const label = (resource: URI) => resource.scheme === Schemas.file ? resource.fsPath : resource.toString();
 			if (isEqual(scratch, folder)) {
 				this._logService.info(`[AgentService] ${operation}: refused ${folder.toString()}, a chat's own scratch folder`);
-				throw new Error(`'${label(folder)}' is a chat's own scratch folder; pick No Workspace for a scratch folder of its own.`);
+				throw new Error(`'${folderLabel(folder)}' is a chat's own scratch folder; pick No Workspace for a scratch folder of its own.`);
 			}
 			this._logService.info(`[AgentService] ${operation}: refused ${folder.toString()}, inside the chat's own scratch folder ${scratch.toString()}`);
-			throw new Error(`'${label(folder)}' is inside '${label(scratch)}', a chat's own scratch folder; pick No Workspace for a scratch folder of its own.`);
+			throw new Error(`'${folderLabel(folder)}' is inside '${folderLabel(scratch)}', a chat's own scratch folder; pick No Workspace for a scratch folder of its own.`);
 		}
 	}
 
