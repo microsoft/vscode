@@ -29,12 +29,12 @@ export async function resolveSessionDirsForTerminal(
 	terminal: vscode.Terminal,
 ): Promise<Uri[]> {
 	const activeIds = sessionTracker.getSessionIds();
+	const sessionTerminals = await Promise.all(activeIds.map(id => sessionTracker.getTerminal(id)));
 	const matching: Uri[] = [];
 	const rest: Uri[] = [];
-	for (const id of activeIds) {
-		const sessionTerminal = await sessionTracker.getTerminal(id);
-		const dir = Uri.file(getCopilotCLISessionDir(id));
-		if (sessionTerminal === terminal) {
+	for (let i = 0; i < activeIds.length; i++) {
+		const dir = Uri.file(getCopilotCLISessionDir(activeIds[i]));
+		if (sessionTerminals[i] === terminal) {
 			matching.push(dir);
 		} else {
 			rest.push(dir);
@@ -79,7 +79,7 @@ export function registerCopilotCLITerminalCommands(
 	return disposableStore;
 }
 
-function getSourceControlRootUri(sourceControlContext?: unknown): vscode.Uri | undefined {
+function getSourceControlRootUri(sourceControlContext?: unknown): Uri | undefined {
 	if (!sourceControlContext) {
 		return undefined;
 	}
