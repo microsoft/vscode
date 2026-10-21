@@ -43,6 +43,14 @@ const firstShardSuite = 'Agents Window (WSL Dev Container AgentHost)';
 const lastShardExtraDuration = process.platform === 'darwin' ? 270 : 0;
 
 /**
+ * Suites that change machine-wide state, such as the native policy, go to the same
+ * shard, so that they never run at the same time when shards run on one machine.
+ */
+function getShardGroup(suiteTitle: string): string {
+	return suiteTitle.startsWith('Policy Plumbing (') ? 'Policy Plumbing' : suiteTitle;
+}
+
+/**
  * Parses a `--shard` value of the form `<index>/<total>`, e.g. `1/2`.
  */
 export function parseShard(value: string): Shard {
@@ -65,29 +73,38 @@ function estimateDuration(suite: Suite): number {
 }
 
 /**
- * Returns the suites of the given shard, in their original order. Suites go
- * longest first to the shard with the least estimated time. Every shard
- * computes the same assignment, so each suite runs exactly once.
+ * Returns the suites of the given shard, in their original order. Groups of
+ * suites (see {@link getShardGroup}) go longest first to the shard with the
+ * least estimated time. Every shard computes the same assignment, so each
+ * suite runs exactly once.
  */
 export function selectShardSuites(suites: readonly Suite[], shard: Shard): Suite[] {
 	const durations = suites.map(estimateDuration);
-	const shardDurations = new Array<number>(shard.total).fill(0);
-	shardDurations[shard.total - 1] += lastShardExtraDuration;
-	const assignments: (number | undefined)[] = suites.map(suite => suite.title === firstShardSuite ? 0 : undefined);
-	assignments.forEach((target, suiteIndex) => {
-		if (target !== undefined) {
-			shardDurations[target] += durations[suiteIndex];
-		}
+	const groups = new Map<string, { readonly firstIndex: number; duration: number }>();
+	suites.forEach((suite, index) => {
+		const key = getShardGroup(suite.title);
+		const group = groups.get(key) ?? { firstIndex: index, duration: 0 };
+		group.duration += durations[index];
+		groups.set(key, group);
 	});
 
-	const order = suites.map((_, index) => index)
-		.filter(index => assignments[index] === undefined)
-		.sort((a, b) => durations[b] - durations[a] || a - b);
-	for (const suiteIndex of order) {
-		const target = shardDurations.indexOf(Math.min(...shardDurations));
-		assignments[suiteIndex] = target;
-		shardDurations[target] += durations[suiteIndex];
+	const shardDurations = new Array<number>(shard.total).fill(0);
+	shardDurations[shard.total - 1] += lastShardExtraDuration;
+	const assignments = new Map<string, number>();
+	const firstShardGroup = groups.get(getShardGroup(firstShardSuite));
+	if (firstShardGroup) {
+		assignments.set(getShardGroup(firstShardSuite), 0);
+		shardDurations[0] += firstShardGroup.duration;
 	}
 
-	return suites.filter((_, suiteIndex) => assignments[suiteIndex] === shard.index - 1);
+	const order = [...groups.entries()]
+		.filter(([key]) => !assignments.has(key))
+		.sort(([, a], [, b]) => b.duration - a.duration || a.firstIndex - b.firstIndex);
+	for (const [key, group] of order) {
+		const target = shardDurations.indexOf(Math.min(...shardDurations));
+		assignments.set(key, target);
+		shardDurations[target] += group.duration;
+	}
+
+	return suites.filter(suite => assignments.get(getShardGroup(suite.title)) === shard.index - 1);
 }
