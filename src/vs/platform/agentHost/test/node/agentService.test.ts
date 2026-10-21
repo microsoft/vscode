@@ -35904,6 +35904,44 @@ suite('AgentService (node dispatcher)', () => {
 					});
 				});
 
+				test('a restored session publishes the scratch folders of its chats, also for a chat that was moved in before the restart', async () => {
+					const orchestratorDatabase = new AgentHostDatabase(':memory:');
+					const sessionDataService = createSessionDataService(new TestSessionDatabase());
+					const files = disposables.add(new FileService(new NullLogService()));
+					disposables.add(files.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+					const createService = () => {
+						const created = disposables.add(createTestAgentService(new NullLogService(), files, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+							undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, orchestratorDatabase));
+						registerTestAgentProvider(created, disposables.add(new class extends MovingAgent {
+							override async getChatMetadata(chat: URI): Promise<IAgentChatMetadata | undefined> {
+								return { chat, startTime: 1, modifiedTime: 1 };
+							}
+						}('copilot', true)));
+						getConfigurationService(created).updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
+						return created;
+					};
+					const first = createService();
+					const source = await first.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/source')] });
+					const target = await first.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+					const nested = URI.parse(buildChatUri(source, 'nested'));
+					await first.createChat(source, nested, { workspace: { kind: 'scratch' } });
+					await timeout(0);
+					await first.moveChat(source, nested, { kind: 'session', session: target, after: undefined });
+					const [row] = await orchestratorDatabase.listScratchFolders();
+					await first.whenCatalogReconciliationIdle();
+					await getTestSessionStateStore(first).whenIdle(undefined);
+
+					const restarted = createService();
+					await (restarted as unknown as { _scratchFoldersLoaded: Promise<void> })._scratchFoldersLoaded;
+					await restarted.listSessions();
+					await restarted.restoreSession(target);
+
+					assert.deepStrictEqual({
+						restored: readSessionScratchFolders(getStateManager(restarted).getSessionState(target.toString())?._meta),
+						listed: readSessionScratchFolders((await restarted.listSessions()).find(entry => entry.session.toString() === target.toString())?._meta),
+					}, { restored: [row.folder], listed: [row.folder] });
+				});
+
 				/** `orchestrator`: a database that stores opaque chats by their storage spelling, as the host's does. */
 				async function setupWorkspaceless(orchestrator?: CompatibleAgentHostDatabase) {
 					const db = new TestSessionDatabase();

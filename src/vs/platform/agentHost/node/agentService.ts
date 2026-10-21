@@ -13471,6 +13471,11 @@ export class AgentService extends Disposable implements IAgentService {
 		}));
 		const workingDirectories = withChatWorkingDirectories(parseSessionWorkingDirectories(persistedWorkingDirectories) ?? meta.workingDirectories?.map(d => d.toString()), centralChatCatalog);
 		restoredMeta = withPublishedWorkingDirectoryIdentities(restoredMeta, workingDirectories, centralChatCatalog);
+		// Scratch folders are never persisted: a restored session publishes the recorded ones its and its chats' folders include, as a listing does.
+		const restoredScratchFolders = publishedScratchFolders(folder => this._stateManager.isScratchFolder(folder), readSessionWorkspaceless(restoredMeta), workingDirectories ?? [], centralChatCatalog?.flatMap(chat => chat.workingDirectories ?? []) ?? []);
+		if (restoredScratchFolders.length > 0) {
+			restoredMeta = withSessionScratchFolders(restoredMeta, restoredScratchFolders);
+		}
 		if (agent.id === CODEX_AGENT_PROVIDER_ID) {
 			restoredMeta = withCodexSessionModel(restoredMeta, agent.chats.getModel?.(defaultChatUri, this._chatContext(session, defaultChatUri, defaultChatStorage)) ?? meta.model);
 		}
