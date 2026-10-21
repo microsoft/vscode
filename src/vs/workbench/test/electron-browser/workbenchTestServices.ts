@@ -142,6 +142,7 @@ export class TestNativeHostService implements INativeHostService {
 	async pickFolderAndOpen(options: INativeOpenDialogOptions): Promise<void> { }
 	async pickWorkspaceAndOpen(options: INativeOpenDialogOptions): Promise<void> { }
 	async showItemInFolder(path: string): Promise<void> { }
+	async startFileDrag(path: string): Promise<void> { }
 	async setRepresentedFilename(path: string): Promise<void> { }
 	async isAdmin(): Promise<boolean> { return false; }
 	async writeElevated(source: URI, target: URI): Promise<void> { }

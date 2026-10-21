@@ -11,6 +11,7 @@ import {
 	computerUsePermissionStates,
 	computerUseSetupStates,
 	type IComputerUseErrorV1,
+	type IComputerUseHelperAppV1,
 	type IComputerUseOperationV1,
 	type IComputerUsePermissionStatusV1,
 	type IComputerUseSetupActionV1,
@@ -26,6 +27,9 @@ import type { ChatInputRequest } from '../../state/protocol/channels-chat/state.
 
 const MAX_ID_LENGTH = 256;
 const MAX_URI_LENGTH = 4096;
+const MAX_PATH_LENGTH = 4096;
+const MAX_ICON_LENGTH = 512 * 1024;
+const PNG_DATA_URL_PREFIX = 'data:image/png;base64,';
 const MAX_CODE_LENGTH = 100;
 const MAX_MESSAGE_LENGTH = 1000;
 const MAX_SETUPS = 32;
@@ -92,6 +96,17 @@ function readSetup(value: unknown): IComputerUseSetupV1 | undefined {
 	return { id, chat, state, round, actions, ...(error ? { error } : {}) };
 }
 
+/** Only an absolute path to a macOS app bundle, and a PNG data URL for its icon. */
+function readHelperApp(value: unknown): IComputerUseHelperAppV1 | undefined {
+	const bag = asBag(value);
+	const path = boundedString(bag?.path, MAX_PATH_LENGTH);
+	if (!path?.startsWith('/') || !path.endsWith('.app')) {
+		return undefined;
+	}
+	const icon = boundedString(bag?.icon, MAX_ICON_LENGTH);
+	return icon?.startsWith(PNG_DATA_URL_PREFIX) && /^[A-Za-z0-9+/]+={0,2}$/.test(icon.slice(PNG_DATA_URL_PREFIX.length)) ? { path, icon } : { path };
+}
+
 function readPermissions(value: unknown): readonly IComputerUsePermissionStatusV1[] {
 	const entries = Array.isArray(value) ? value.map(asBag) : [];
 	return computerUsePermissions.map(permission => {
@@ -115,12 +130,14 @@ export function readComputerUseStatus(value: unknown): IComputerUseStatusV1 | un
 	}
 	const verifiedAt = typeof bag.verifiedAt === 'number' && Number.isFinite(bag.verifiedAt) && bag.verifiedAt >= 0 ? bag.verifiedAt : undefined;
 	const operation = readOperation(bag.operation);
+	const helperApp = readHelperApp(bag.helperApp);
 	return {
 		schemaVersion: 1,
 		permissions: readPermissions(bag.permissions),
 		...(verifiedAt !== undefined ? { verifiedAt } : {}),
 		...(operation ? { operation } : {}),
 		setups,
+		...(helperApp ? { helperApp } : {}),
 	};
 }
 

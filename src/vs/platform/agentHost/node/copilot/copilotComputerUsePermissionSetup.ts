@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ElicitationResult, ElicitationSchema } from '@github/copilot-sdk';
-import { DeferredPromise } from '../../../../base/common/async.js';
+import { DeferredPromise, RunOnceScheduler } from '../../../../base/common/async.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { runOnChange } from '../../../../base/common/observable.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
@@ -15,6 +16,7 @@ import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../comm
 import { withComputerUseSetupCard } from '../../common/meta/computerUse.js';
 import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputResponseKind, type ChatInputAnswer, type ChatInputRequest } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
+import { IAgentHostMacAccessibilityTrustService } from '../agentHostMacAccessibilityTrustService.js';
 
 // #region The plugin's permission prompt
 
@@ -192,8 +194,8 @@ function stillNotGrantedError(missing: ReadonlySet<ComputerUsePermission>): ICom
 	return {
 		code: 'stillNotGranted',
 		message: permissions.length === 1
-			? localize('computerUse.error.stillNotGranted.one', "macOS still reports {0} as off. Turn on Copilot Computer Use under {0} in System Settings, then check again.", permissions[0])
-			: localize('computerUse.error.stillNotGranted.both', "macOS still reports {0} and {1} as off. Turn on Copilot Computer Use under both in System Settings, then check again.", permissions[0], permissions[1]),
+			? localize('computerUse.error.stillNotGranted.one', "macOS still reports {0} as off.", permissions[0])
+			: localize('computerUse.error.stillNotGranted.both', "macOS still reports {0} and {1} as off.", permissions[0], permissions[1]),
 	};
 }
 
@@ -221,6 +223,13 @@ export interface ICopilotComputerUseSetupChat {
 	completeInput(requestId: string, response: ChatInputResponseKind): void;
 }
 
+/** The app that holds the permissions; see {@link IComputerUseStatusV1.helperApp}. */
+export interface ICopilotComputerUseHelperApp {
+	readonly path: string;
+	/** Reads the app's icon as a PNG data URL; `undefined` while the app or its icon is missing. Never rejects. */
+	readIcon(): Promise<string | undefined>;
+}
+
 interface IPendingPrompt {
 	readonly offered: IComputerUsePermissionPrompt;
 	/** The ordinary form of the prompt, which the chat input request carries for clients without the setup UI. */
@@ -239,17 +248,25 @@ interface ISetup {
 	prompt: IPendingPrompt | undefined;
 	/** The action sent for the previous prompt. Its outcome is the next prompt, or the plugin moving past its check. */
 	sent: IComputerUseSetupActionV1 | undefined;
+	/** Whether the host sent {@link sent} on its own, not for the user. */
+	sentAutomatically: boolean;
 	error: IComputerUseErrorV1 | undefined;
 }
 
 interface IQueuedAction extends IComputerUseSetupActionV1 {
 	readonly setupId: string;
 	readonly round: number;
+	/** Sent by the host on its own, so an outcome that changed nothing is no error. */
+	readonly automatic?: boolean;
 }
 
 const MAX_REMEMBERED_NONCES = 128;
 const MAX_QUEUED_ACTIONS = 16;
 const MAX_FINISHED_SETUPS = 8;
+/** Coalesces the bursts of Accessibility changes one switch in System Settings can cause. */
+const ACCESSIBILITY_CHANGE_DEBOUNCE_MS = 500;
+/** How long after asking macOS for Accessibility a change may only mean that macOS added the app to its list. */
+const ACCESSIBILITY_PROMPT_SETTLE_MS = 2000;
 
 /**
  * Turns the plugin's repeated permission prompts into one setup per waiting turn, shared by every chat of the local
@@ -259,6 +276,9 @@ const MAX_FINISHED_SETUPS = 8;
  * clearing the key before acting. Actions only answer the plugin's pending prompts, so everything runs through the
  * plugin's MCP connection, which the Copilot runtime owns; nothing here starts processes or grants anything. Actions
  * run one at a time across all setups, so native prompts never overlap; a request for an older round is dropped.
+ *
+ * When macOS reports an Accessibility change, every setup that waits for Accessibility checks again on its own, so a
+ * grant in System Settings shows up without the user asking.
  */
 export class CopilotComputerUsePermissionSetup extends Disposable {
 
@@ -271,14 +291,29 @@ export class CopilotComputerUsePermissionSetup extends Disposable {
 	private _verifiedAt: number | undefined;
 	/** The setup whose action is in flight. */
 	private _working: ISetup | undefined;
+	/** When the plugin last answered a request for Accessibility, which shows macOS's prompt. */
+	private _accessibilityRequestedAt: number | undefined;
+	private _helperAppIcon: string | undefined;
+	private _readingHelperAppIcon = false;
 
 	constructor(
+		/** The app that holds the permissions, and how to read its icon once the plugin installed it. */
+		private readonly _helperApp: ICopilotComputerUseHelperApp | undefined,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@ILogService private readonly _logService: ILogService,
+		@IAgentHostMacAccessibilityTrustService accessibilityTrust: IAgentHostMacAccessibilityTrustService,
 	) {
 		super();
 		this._discardStaleRequest();
 		this._register(this._configurationService.onDidRootConfigChange(() => this._handleRequest()));
+		const accessibilityCheck = this._register(new RunOnceScheduler(() => this._checkAccessibilityAgain(), ACCESSIBILITY_CHANGE_DEBOUNCE_MS));
+		this._register(runOnChange(accessibilityTrust.changes, () => {
+			if (this._isAskingForAccessibility()) {
+				this._logService.info('[ComputerUse] Ignoring an Accessibility change while macOS asks for Accessibility');
+			} else {
+				accessibilityCheck.schedule();
+			}
+		}));
 		this._register(toDisposable(() => {
 			for (const setup of this._setups.values()) {
 				setup.prompt?.result.complete({ action: 'cancel' });
@@ -308,14 +343,21 @@ export class CopilotComputerUsePermissionSetup extends Disposable {
 		// still open in the chat was abandoned; the new prompt replaces it in the same setup.
 		let setup = this._working?.chat === chat ? this._working : this._activeSetups(chat)[0];
 		if (!setup) {
-			setup = { id: generateUuid(), chat, state: 'needsPermissions', round: 0, cardId: undefined, prompt: undefined, sent: undefined, error: undefined };
+			setup = { id: generateUuid(), chat, state: 'needsPermissions', round: 0, cardId: undefined, prompt: undefined, sent: undefined, sentAutomatically: false, error: undefined };
 			this._setups.set(setup.id, setup);
 		}
 		setup.prompt?.result.complete({ action: 'cancel' });
+		if (setup.sent?.action === 'request' && setup.sent.permission === 'accessibility') {
+			this._accessibilityRequestedAt = Date.now();
+		}
+		// The plugin installed its helper app before it could find permissions missing.
+		this._readHelperAppIcon();
 		this._recordVerified(offered.missing);
-		setup.error = setup.sent?.action === 'recheck' ? stillNotGrantedError(offered.missing) : undefined;
+		// Only a check the user asked for reports that it changed nothing.
+		setup.error = setup.sent?.action === 'recheck' && !setup.sentAutomatically ? stillNotGrantedError(offered.missing) : undefined;
 		setup.round++;
 		setup.sent = undefined;
+		setup.sentAutomatically = false;
 		setup.state = 'needsPermissions';
 		setup.prompt = { offered, input, result: new DeferredPromise<ElicitationResult>() };
 		if (this._working === setup) {
@@ -401,6 +443,49 @@ export class CopilotComputerUsePermissionSetup extends Disposable {
 			setup.cardId = undefined;
 			this._end(setup, notWaitingError(), 'cancel');
 		}
+	}
+
+	/**
+	 * macOS changed which apps it trusts for Accessibility, perhaps because the user turned on Copilot Computer Use in
+	 * System Settings. The change names no app, so every setup that waits for Accessibility checks again once.
+	 */
+	private _checkAccessibilityAgain(): void {
+		if (this._isAskingForAccessibility()) {
+			this._logService.info('[ComputerUse] Ignoring an Accessibility change while macOS asks for Accessibility');
+			return;
+		}
+		for (const setup of this._setups.values()) {
+			if (setup.state === 'needsPermissions' && setup.prompt?.offered.missing.has('accessibility')) {
+				this._logService.info(`[ComputerUse] Setup ${setup.id} round ${setup.round}: macOS changed Accessibility, checking again`);
+				this._enqueue({ setupId: setup.id, round: setup.round, action: 'recheck', automatic: true });
+			}
+		}
+	}
+
+	/**
+	 * Whether macOS may be asking for Accessibility. Asking adds the app to macOS's list, a change of its own, and shows
+	 * a prompt that the helper holds open; an automatic check restarts the helper, which would close that prompt.
+	 */
+	private _isAskingForAccessibility(): boolean {
+		const asks = (action: IComputerUseSetupActionV1 | undefined) => action?.action === 'request' && action.permission === 'accessibility';
+		return asks(this._working?.sent)
+			|| this._queue.some(asks)
+			|| (this._accessibilityRequestedAt !== undefined && Date.now() - this._accessibilityRequestedAt < ACCESSIBILITY_PROMPT_SETTLE_MS);
+	}
+
+	private _readHelperAppIcon(): void {
+		const helperApp = this._helperApp;
+		if (!helperApp || this._helperAppIcon || this._readingHelperAppIcon) {
+			return;
+		}
+		this._readingHelperAppIcon = true;
+		void helperApp.readIcon().then(icon => {
+			this._readingHelperAppIcon = false;
+			if (icon && !this._store.isDisposed) {
+				this._helperAppIcon = icon;
+				this._publish();
+			}
+		});
 	}
 
 	private _activeSetups(chat: ICopilotComputerUseSetupChat): ISetup[] {
@@ -505,6 +590,17 @@ export class CopilotComputerUsePermissionSetup extends Disposable {
 	}
 
 	private _enqueue(action: IQueuedAction): void {
+		// Every action makes the plugin verify again, so an automatic check adds nothing to a setup with an action
+		// waiting, and running one first would make the user's action stale.
+		if (action.automatic && this._queue.some(queued => queued.setupId === action.setupId)) {
+			return;
+		}
+		if (!action.automatic) {
+			const waiting = this._queue.findIndex(queued => queued.setupId === action.setupId && queued.automatic);
+			if (waiting !== -1) {
+				this._queue.splice(waiting, 1);
+			}
+		}
 		if (this._queue.length >= MAX_QUEUED_ACTIONS) {
 			this._logService.warn(`[ComputerUse] Dropping a '${action.action}' request: too many requests are waiting`);
 			return;
@@ -531,10 +627,15 @@ export class CopilotComputerUsePermissionSetup extends Disposable {
 				}
 				continue;
 			}
-			this._logService.info(`[ComputerUse] Setup ${setup.id} round ${setup.round}: sending '${choice}'`);
+			if (next.automatic && this._isAskingForAccessibility()) {
+				this._logService.info(`[ComputerUse] Setup ${setup.id}: not checking again on its own while macOS asks for Accessibility`);
+				continue;
+			}
+			this._logService.info(`[ComputerUse] Setup ${setup.id} round ${setup.round}: sending '${choice}'${next.automatic ? ' on its own' : ''}`);
 			setup.prompt = undefined;
 			setup.state = 'working';
 			setup.sent = next.permission ? { action: next.action, permission: next.permission } : { action: next.action };
+			setup.sentAutomatically = !!next.automatic;
 			setup.error = undefined;
 			this._working = setup;
 			this._publish();
@@ -562,6 +663,7 @@ export class CopilotComputerUsePermissionSetup extends Disposable {
 				actions: setup.state === 'needsPermissions' && setup.prompt ? offeredActions(setup.prompt.offered) : [],
 				...(setup.error ? { error: setup.error } : {}),
 			})),
+			...(this._helperApp ? { helperApp: { path: this._helperApp.path, ...(this._helperAppIcon ? { icon: this._helperAppIcon } : {}) } } : {}),
 		};
 		this._configurationService.publishRootTransientValues?.({ [COMPUTER_USE_STATUS_KEY]: status });
 	}

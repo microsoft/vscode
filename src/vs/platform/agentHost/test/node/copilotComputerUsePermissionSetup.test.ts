@@ -7,13 +7,15 @@ import assert from 'assert';
 import type { ElicitationResult, ElicitationSchema } from '@github/copilot-sdk';
 import { timeout } from '../../../../base/common/async.js';
 import { hasKey } from '../../../../base/common/types.js';
+import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { COMPUTER_USE_REQUEST_KEY, type ComputerUsePermission } from '../../common/computerUse.js';
 import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { readComputerUseSetupCard } from '../../common/meta/computerUse.js';
 import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ChatInputRequest } from '../../common/state/sessionState.js';
-import { classifyComputerUsePrompt, CopilotComputerUsePermissionSetup, parseComputerUsePermissionPrompt, type ICopilotComputerUseSetupChat } from '../../node/copilot/copilotComputerUsePermissionSetup.js';
+import { AgentHostMacAccessibilityTrustService } from '../../node/agentHostMacAccessibilityTrustService.js';
+import { classifyComputerUsePrompt, CopilotComputerUsePermissionSetup, parseComputerUsePermissionPrompt, type ICopilotComputerUseHelperApp, type ICopilotComputerUseSetupChat } from '../../node/copilot/copilotComputerUsePermissionSetup.js';
 import { computerUsePermissionSchema, TestComputerUseConfiguration } from './copilotComputerUseTestUtils.js';
 
 class TestSetupChat implements ICopilotComputerUseSetupChat {
@@ -52,10 +54,11 @@ function promptInput(missing: readonly ComputerUsePermission[], settings: readon
 suite('CopilotComputerUsePermissionSetup', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createSetup() {
+	function createSetup(helperApp?: ICopilotComputerUseHelperApp) {
 		const configuration = store.add(new TestComputerUseConfiguration());
-		const setup = store.add(new CopilotComputerUsePermissionSetup(configuration, new NullLogService()));
-		return { configuration, setup };
+		const accessibilityTrust = new AgentHostMacAccessibilityTrustService();
+		const setup = store.add(new CopilotComputerUsePermissionSetup(helperApp, configuration, new NullLogService(), accessibilityTrust));
+		return { configuration, setup, accessibilityTrust };
 	}
 
 	function prompt(setup: CopilotComputerUsePermissionSetup, chat: ICopilotComputerUseSetupChat, missing: readonly ComputerUsePermission[], settings: readonly ComputerUsePermission[] = []) {
@@ -261,6 +264,101 @@ suite('CopilotComputerUsePermissionSetup', () => {
 		});
 	});
 
+	test('publishes the helper app, with its icon once the plugin found permissions missing', async () => {
+		const path = '/Users/me/.copilot/computer-use/Copilot Computer Use.app';
+		const icon = 'data:image/png;base64,iVBORw0KGgo=';
+		const reads: string[] = [];
+		const { configuration, setup } = createSetup({ path, readIcon: async () => { reads.push(path); return icon; } });
+		await timeout(0);
+		const beforePrompt = { helperApp: configuration.status?.helperApp, reads: reads.length };
+		prompt(setup, new TestSetupChat('chat:a'), ['accessibility']);
+		await timeout(0);
+		prompt(setup, new TestSetupChat('chat:b'), ['accessibility']);
+		await timeout(0);
+		assert.deepStrictEqual({ beforePrompt, afterPrompts: { helperApp: configuration.status?.helperApp, reads: reads.length }, unknown: createSetup().configuration.status?.helperApp }, {
+			beforePrompt: { helperApp: { path }, reads: 0 },
+			afterPrompts: { helperApp: { path, icon }, reads: 1 },
+			unknown: undefined,
+		});
+	});
+
+	test('checks again on its own when macOS changes Accessibility, except while macOS asks for it', () => runWithFakedTimers({}, async () => {
+		const { configuration, setup, accessibilityTrust } = createSetup();
+		const chat = new TestSetupChat('chat:a');
+		const first = prompt(setup, chat, ['accessibility', 'screenRecording']);
+		const screenRecordingOnly = prompt(setup, new TestSetupChat('chat:b'), ['screenRecording']);
+		const setupId = configuration.status?.setups[0]?.id ?? '';
+
+		// One switch in System Settings can report several changes; the setup checks once, after they settle.
+		accessibilityTrust.reportChange();
+		await timeout(300);
+		accessibilityTrust.reportChange();
+		await timeout(400);
+		const settling = first.results.length;
+		await timeout(600);
+		const checked = { settling, first: first.results, screenRecordingOnly: screenRecordingOnly.results };
+		const second = prompt(setup, chat, ['accessibility', 'screenRecording']);
+		const unchanged = { state: configuration.status?.setups[0]?.state, error: configuration.status?.setups[0]?.error };
+
+		// Asking for Accessibility adds the app to macOS's list while macOS shows its prompt, which the helper holds.
+		configuration.send({ setupId, round: 2, action: 'request', permission: 'accessibility' });
+		accessibilityTrust.reportChange();
+		await timeout(1000);
+		const third = prompt(setup, chat, ['accessibility', 'screenRecording'], ['accessibility']);
+		accessibilityTrust.reportChange();
+		await timeout(1600);
+		accessibilityTrust.reportChange();
+		await timeout(1000);
+		const whileAsking = third.results.length;
+		accessibilityTrust.reportChange();
+		await timeout(1000);
+
+		assert.deepStrictEqual({ checked, unchanged, second: second.results, whileAsking, third: third.results }, {
+			checked: { settling: 0, first: [{ action: 'accept', content: { choice: 'try_again' } }], screenRecordingOnly: [] },
+			unchanged: { state: 'needsPermissions', error: undefined },
+			second: [{ action: 'accept', content: { choice: 'request_accessibility' } }],
+			whileAsking: 0,
+			third: [{ action: 'accept', content: { choice: 'try_again' } }],
+		});
+	}));
+
+	test('ignores an Accessibility change reported behind a request for Accessibility', () => runWithFakedTimers({}, async () => {
+		const { configuration, setup, accessibilityTrust } = createSetup();
+		const [chatA, chatB, chatC] = [new TestSetupChat('chat:a'), new TestSetupChat('chat:b'), new TestSetupChat('chat:c')];
+		prompt(setup, chatA, ['screenRecording']);
+		prompt(setup, chatB, ['accessibility']);
+		const c = prompt(setup, chatC, ['accessibility']);
+		const [setupA, setupB] = configuration.status?.setups.map(candidate => candidate.id) ?? [];
+
+		// A's request runs while B's waits; a check queued now would run as macOS shows B's prompt.
+		configuration.send({ setupId: setupA, round: 1, action: 'request', permission: 'screenRecording' });
+		configuration.send({ setupId: setupB, round: 1, action: 'request', permission: 'accessibility' });
+		accessibilityTrust.reportChange();
+		await timeout(1000);
+		prompt(setup, chatA, ['screenRecording'], ['screenRecording']);
+		prompt(setup, chatB, ['accessibility'], ['accessibility']);
+		await timeout(1000);
+
+		assert.deepStrictEqual(c.results, []);
+	}));
+
+	test('lets the user\'s action replace an automatic check waiting for its setup', () => runWithFakedTimers({}, async () => {
+		const { configuration, setup, accessibilityTrust } = createSetup();
+		const [chatA, chatB] = [new TestSetupChat('chat:a'), new TestSetupChat('chat:b')];
+		prompt(setup, chatA, ['accessibility']);
+		const b = prompt(setup, chatB, ['accessibility'], ['accessibility']);
+		const setupB = configuration.status?.setups[1]?.id ?? '';
+
+		// A's automatic check runs while B's waits, and B's user asks for System Settings meanwhile.
+		accessibilityTrust.reportChange();
+		await timeout(1000);
+		configuration.send({ setupId: setupB, round: 1, action: 'openSettings', permission: 'accessibility' });
+		prompt(setup, chatA, ['accessibility']);
+		await timeout(0);
+
+		assert.deepStrictEqual(b.results, [{ action: 'accept', content: { choice: 'settings_accessibility' } }]);
+	}));
+
 	test('runs one action at a time across chats so native prompts never overlap', async () => {
 		const { configuration, setup } = createSetup();
 		const chatA = new TestSetupChat('chat:a');
@@ -355,7 +453,7 @@ suite('CopilotComputerUsePermissionSetup', () => {
 	test('withdraws its status and cancels waiting prompts when disposed, and discards a request from before it existed', async () => {
 		const configuration = store.add(new TestComputerUseConfiguration());
 		configuration.values[COMPUTER_USE_REQUEST_KEY] = { nonce: 'early', setupId: 'unknown', round: 1, action: 'recheck' };
-		const setup = new CopilotComputerUsePermissionSetup(configuration, new NullLogService());
+		const setup = new CopilotComputerUsePermissionSetup(undefined, configuration, new NullLogService(), new AgentHostMacAccessibilityTrustService());
 		const discarded = configuration.values[COMPUTER_USE_REQUEST_KEY];
 		const pending = prompt(setup, new TestSetupChat('chat:a'), ['accessibility']);
 		setup.dispose();

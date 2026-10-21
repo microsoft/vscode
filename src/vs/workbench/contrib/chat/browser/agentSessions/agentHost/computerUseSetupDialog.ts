@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/computerUseSetup.css';
-import { $, append } from '../../../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventType, getWindow, hide, show } from '../../../../../../base/browser/dom.js';
 import { alert, status } from '../../../../../../base/browser/ui/aria/aria.js';
 import { Button, type IButton } from '../../../../../../base/browser/ui/button/button.js';
-import { Dialog } from '../../../../../../base/browser/ui/dialog/dialog.js';
+import { Dialog, DialogContentsAlignment } from '../../../../../../base/browser/ui/dialog/dialog.js';
+import type { CodeWindow } from '../../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
@@ -17,15 +18,24 @@ import { localize } from '../../../../../../nls.js';
 import { computerUsePermissions, type ComputerUsePermission, type ComputerUsePermissionState, type IComputerUseSetupActionV1, type IComputerUseSetupV1, type IComputerUseStatusV1 } from '../../../../../../platform/agentHost/common/computerUse.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { ILayoutService } from '../../../../../../platform/layout/browser/layoutService.js';
-import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { defaultButtonStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import { createWorkbenchDialogOptions } from '../../../../../browser/parts/dialogs/dialog.js';
 import { IHostService } from '../../../../../services/host/browser/host.js';
+
+/** Lets the setup modal hand Copilot Computer Use to System Settings by hand; only desktop clients can. */
+export interface IComputerUseHelperAppSupport {
+	/** Drags the app at `path` out of `targetWindow` as a file; call it from a `dragstart` handler that cancels the HTML drag. */
+	startDrag(path: string, targetWindow: CodeWindow): void;
+	/** Shows the app at `path` in Finder. */
+	reveal(path: string): void;
+}
 
 /** The status the setup modal shows and the actions it sends. */
 export interface IComputerUseSetupModel {
 	/** The local Agent Host's setup status; `undefined` while it publishes none. */
 	readonly status: IObservable<IComputerUseStatusV1 | undefined>;
+	/** Present when this client can hand Copilot Computer Use to System Settings by hand. */
+	readonly helperApp?: IComputerUseHelperAppSupport;
 	/** Sends `action` for the current round of setup `setupId`; `false` when the setup doesn't offer it now. */
 	request(setupId: string, action: IComputerUseSetupActionV1): boolean;
 }
@@ -44,7 +54,7 @@ export interface IComputerUseSetupRowView {
 	readonly state: ComputerUsePermissionState;
 	/** What the user can do for this permission now. */
 	readonly action?: IComputerUseSetupActionV1;
-	/** Whether the action in flight is for this permission. */
+	/** Whether the action in flight covers this permission. */
 	readonly busy: boolean;
 }
 
@@ -52,6 +62,7 @@ export interface IComputerUseSetupView {
 	readonly phase: ComputerUseSetupPhase;
 	readonly setupId?: string;
 	readonly rows: readonly IComputerUseSetupRowView[];
+	/** What the rows don't show: progress, a failure, or the outcome. Empty while the rows say it all. */
 	readonly message: string;
 	readonly messageKind: 'info' | 'progress' | 'error' | 'success';
 	readonly canRecheck: boolean;
@@ -60,12 +71,8 @@ export interface IComputerUseSetupView {
 	 * lets the waiting task continue, so the modal offers it as Continue.
 	 */
 	readonly canContinue: boolean;
-}
-
-/** The permission the user last acted on in a setup, whose next step the modal explains until it is granted. */
-export interface IComputerUseSetupGuidance {
-	readonly setupId: string;
-	readonly permission: ComputerUsePermission;
+	/** The permission the user turns on in System Settings, because macOS's own prompt didn't. */
+	readonly settingsStep?: ComputerUsePermission;
 }
 
 export function getComputerUsePermissionLabel(permission: ComputerUsePermission): string {
@@ -77,8 +84,15 @@ export function getComputerUsePermissionLabel(permission: ComputerUsePermission)
 
 function getPermissionDescription(permission: ComputerUsePermission): string {
 	switch (permission) {
-		case 'accessibility': return localize('computerUseSetup.accessibility.description', "Lets Copilot Computer Use interact with apps");
-		case 'screenRecording': return localize('computerUseSetup.screenRecording.description', "Lets Copilot Computer Use capture app windows");
+		case 'accessibility': return localize('computerUseSetup.accessibility.description', "Click and type in apps");
+		case 'screenRecording': return localize('computerUseSetup.screenRecording.description', "See app windows");
+	}
+}
+
+function getPermissionIcon(permission: ComputerUsePermission): ThemeIcon {
+	switch (permission) {
+		case 'accessibility': return Codicon.cursor;
+		case 'screenRecording': return Codicon.eye;
 	}
 }
 
@@ -92,8 +106,8 @@ function getStateLabel(state: ComputerUsePermissionState): string {
 
 function getActionLabel({ action }: IComputerUseSetupActionV1): string {
 	switch (action) {
-		case 'request': return localize('computerUseSetup.action.request', "Request Access");
-		case 'openSettings': return localize('computerUseSetup.action.openSettings', "Open System Settings");
+		case 'request': return localize('computerUseSetup.action.request', "Allow");
+		case 'openSettings': return localize('computerUseSetup.action.openSettings', "Open Settings");
 		case 'recheck': return localize('computerUseSetup.action.recheck', "Check Again");
 	}
 }
@@ -101,7 +115,7 @@ function getActionLabel({ action }: IComputerUseSetupActionV1): string {
 function getActionAriaLabel({ action, permission }: IComputerUseSetupActionV1): string {
 	const label = permission && getComputerUsePermissionLabel(permission);
 	switch (action) {
-		case 'request': return localize('computerUseSetup.action.request.aria', "Request {0} Access", label);
+		case 'request': return localize('computerUseSetup.action.request.aria', "Allow {0}", label);
 		case 'openSettings': return localize('computerUseSetup.action.openSettings.aria', "Open {0} in System Settings", label);
 		case 'recheck': return localize('computerUseSetup.action.recheck.aria', "Check Permissions Again");
 	}
@@ -126,7 +140,7 @@ export function findComputerUseSetup(status: IComputerUseStatusV1 | undefined, s
 }
 
 /** Derives what the modal shows for setup `setupId` from the host's status; every value is host-verified. */
-export function getComputerUseSetupView(status: IComputerUseStatusV1 | undefined, setupId: string | undefined, guidance?: IComputerUseSetupGuidance): IComputerUseSetupView {
+export function getComputerUseSetupView(status: IComputerUseStatusV1 | undefined, setupId: string | undefined): IComputerUseSetupView {
 	if (!status) {
 		return {
 			phase: 'unavailable',
@@ -138,17 +152,17 @@ export function getComputerUseSetupView(status: IComputerUseStatusV1 | undefined
 		};
 	}
 	const setup = setupId !== undefined ? status.setups.find(candidate => candidate.id === setupId) : undefined;
+	const operation = setup?.state === 'working' && status.operation?.setupId === setup.id ? status.operation : undefined;
 	const rows = computerUsePermissions.map((permission): IComputerUseSetupRowView => {
 		const state = status.permissions.find(candidate => candidate.permission === permission)?.state ?? 'unknown';
 		// Another chat may already have verified a grant this setup still offers; checking again picks it up.
 		const offered = state === 'granted' ? undefined : setup?.actions.filter(candidate => candidate.permission === permission);
 		const action = offered?.find(candidate => candidate.action === 'openSettings') ?? offered?.find(candidate => candidate.action === 'request');
-		const operation = status.operation;
 		return {
 			permission,
 			state,
 			...(action ? { action } : {}),
-			busy: setup?.state === 'working' && operation?.setupId === setup.id && operation.permission === permission,
+			busy: !!operation && (operation.permission === permission || (!operation.permission && state !== 'granted')),
 		};
 	});
 	if (!setup) {
@@ -158,21 +172,25 @@ export function getComputerUseSetupView(status: IComputerUseStatusV1 | undefined
 	switch (setup.state) {
 		case 'needsPermissions': {
 			if (canRecheck && rows.every(row => row.state === 'granted')) {
-				return { phase: setup.state, setupId: setup.id, rows, message: localize('computerUseSetup.canContinue', "macOS confirmed both permissions. Continue to resume your task."), messageKind: 'success', canRecheck, canContinue: true };
+				return { phase: setup.state, setupId: setup.id, rows, message: localize('computerUseSetup.canContinue', "macOS turned on both permissions."), messageKind: 'success', canRecheck, canContinue: true };
 			}
-			if (setup.error) {
-				return { phase: setup.state, setupId: setup.id, rows, message: setup.error.message, messageKind: 'error', canRecheck, canContinue: false };
-			}
-			const guided = guidance?.setupId === setup.id && rows.some(row => row.permission === guidance.permission && row.state !== 'granted') ? guidance.permission : undefined;
-			const message = guided
-				? localize('computerUseSetup.guidance', "Turn on Copilot Computer Use under {0} in System Settings, then come back. Copilot checks again when you return.", getComputerUsePermissionLabel(guided))
-				: localize('computerUseSetup.needsPermissions', "Turn on Copilot Computer Use for each permission. Copilot continues once macOS confirms both.");
-			return { phase: setup.state, setupId: setup.id, rows, message, messageKind: 'info', canRecheck, canContinue: false };
+			// The plugin offers System Settings once macOS's own prompt didn't turn a permission on.
+			const settingsStep = rows.find(row => row.action?.action === 'openSettings')?.permission;
+			return {
+				phase: setup.state,
+				setupId: setup.id,
+				rows,
+				message: setup.error?.message ?? '',
+				messageKind: setup.error ? 'error' : 'info',
+				canRecheck,
+				canContinue: false,
+				...(settingsStep ? { settingsStep } : {}),
+			};
 		}
 		case 'working':
 			return { phase: setup.state, setupId: setup.id, rows, message: getWorkingMessage(status, setup.id), messageKind: 'progress', canRecheck: false, canContinue: false };
 		case 'ready':
-			return { phase: setup.state, setupId: setup.id, rows, message: localize('computerUseSetup.ready', "Computer Use is ready. Copilot is continuing your task."), messageKind: 'success', canRecheck: false, canContinue: false };
+			return { phase: setup.state, setupId: setup.id, rows, message: localize('computerUseSetup.ready', "Computer Use is ready."), messageKind: 'success', canRecheck: false, canContinue: false };
 		case 'ended':
 			return {
 				phase: setup.state,
@@ -191,14 +209,13 @@ export function getComputerUseSetupView(status: IComputerUseStatusV1 | undefined
 // #region Panel
 
 export interface IComputerUseSetupPanelOptions {
-	readonly productName: string;
 	/** Fires `true` when the window gains focus and `false` when it loses it. */
 	readonly onDidChangeWindowFocus: Event<boolean>;
 }
 
 interface IRowElements {
-	readonly icon: HTMLElement;
-	readonly state: HTMLElement;
+	readonly row: HTMLElement;
+	readonly status: HTMLElement;
 	readonly actionContainer: HTMLElement;
 	readonly button: Button;
 }
@@ -206,13 +223,20 @@ interface IRowElements {
 /**
  * The body of the setup modal. It renders the host's status for one setup and sends the user's explicit actions; it
  * never decides whether a permission is granted. After the user goes to macOS to grant a permission, it checks again
- * once when the window regains focus.
+ * once when the window regains focus, unless macOS confirmed the permission meanwhile.
  */
 export class ComputerUseSetupPanel extends Disposable {
 
 	readonly element: HTMLElement;
+	/** Copilot Computer Use's icon, which the modal shows above its title. */
+	readonly appIcon: HTMLElement;
 
+	private readonly _appIconImage: HTMLImageElement;
 	private readonly _rows = new Map<ComputerUsePermission, IRowElements>();
+	private readonly _settingsStep: HTMLElement;
+	private readonly _settingsStepCaption: HTMLElement;
+	private readonly _helperApp: HTMLElement;
+	private readonly _helperAppIcon: HTMLImageElement;
 	private readonly _message: HTMLElement;
 	private readonly _recheckContainer: HTMLElement;
 	private readonly _recheck: Button;
@@ -222,10 +246,13 @@ export class ComputerUseSetupPanel extends Disposable {
 	private _requested: string | undefined;
 	private _pinned: string | undefined;
 	private _view: IComputerUseSetupView | undefined;
-	private _guidance: IComputerUseSetupGuidance | undefined;
+	/** The System Settings step shown, which stays while the step's outcome is checked. */
+	private _shownSettingsStep: ComputerUsePermission | undefined;
+	/** The app the modal offers for dragging into System Settings, if any. */
+	private _helperAppPath: string | undefined;
 	/** Set when the user went to macOS to grant a permission: once the window loses and regains focus, check again. */
-	private _returnWatch: { readonly setupId: string; blurred: boolean } | undefined;
-	private _recheckOnReturn: string | undefined;
+	private _returnWatch: { readonly setupId: string; readonly permission: ComputerUsePermission; blurred: boolean } | undefined;
+	private _recheckOnReturn: { readonly setupId: string; readonly permission: ComputerUsePermission } | undefined;
 
 	constructor(
 		private readonly _model: IComputerUseSetupModel,
@@ -234,24 +261,41 @@ export class ComputerUseSetupPanel extends Disposable {
 	) {
 		super();
 		this._requested = setupId;
+
+		this.appIcon = $(`.computer-use-setup-app-icon${ThemeIcon.asCSSSelector(Codicon.copilotLarge)}`, { 'aria-hidden': 'true' });
+		this._appIconImage = append(this.appIcon, $<HTMLImageElement>('img', { alt: '' }));
+
 		this.element = $('.computer-use-setup');
-		append(this.element, $('p.computer-use-setup-description', undefined,
-			localize('computerUseSetup.description', "Copilot Computer Use needs these macOS permissions to work with apps for you. macOS grants them to Copilot Computer Use, not to {0}.", options.productName)));
+		append(this.element, $('p.computer-use-setup-description', undefined, localize('computerUseSetup.description', "Copilot Computer Use needs these permissions to use apps on your Mac.")));
 
 		const list = append(this.element, $('.computer-use-setup-permissions', { role: 'list', 'aria-label': localize('computerUseSetup.permissions', "Required permissions") }));
 		for (const permission of computerUsePermissions) {
 			const row = append(list, $('.computer-use-setup-permission', { role: 'listitem' }));
-			const icon = append(row, $('span.computer-use-setup-permission-icon', { 'aria-hidden': 'true' }));
-			const text = append(row, $('.computer-use-setup-permission-text'));
-			const heading = append(text, $('.computer-use-setup-permission-heading'));
-			append(heading, $('span.computer-use-setup-permission-name', undefined, getComputerUsePermissionLabel(permission)));
-			const state = append(heading, $('span.computer-use-setup-permission-state'));
+			append(row, $(`span.computer-use-setup-permission-icon${ThemeIcon.asCSSSelector(getPermissionIcon(permission))}`, { 'aria-hidden': 'true' }));
+			const text = append(row, $('.computer-use-setup-permission-text', { 'aria-hidden': 'true' }));
+			append(text, $('span.computer-use-setup-permission-name', undefined, getComputerUsePermissionLabel(permission)));
 			append(text, $('span.computer-use-setup-permission-description', undefined, getPermissionDescription(permission)));
+			const status = append(row, $('span.computer-use-setup-permission-status', { 'aria-hidden': 'true' }));
 			const actionContainer = append(row, $('.computer-use-setup-permission-action'));
-			const button = this._register(new Button(actionContainer, { ...defaultButtonStyles, secondary: true }));
+			const button = this._register(new Button(actionContainer, { ...defaultButtonStyles, secondary: true, small: true }));
 			this._register(button.onDidClick(() => this._runRowAction(permission)));
-			this._rows.set(permission, { icon, state, actionContainer, button });
+			this._rows.set(permission, { row, status, actionContainer, button });
 		}
+
+		// macOS lists the app under a permission once the app asked for it, but the user may have removed it since. Only a
+		// mouse can drag, so Finder is offered too.
+		this._settingsStep = append(this.element, $('.computer-use-setup-settings-step'));
+		this._settingsStepCaption = append(this._settingsStep, $('span.computer-use-setup-settings-step-caption'));
+		this._helperApp = append(this._settingsStep, $('.computer-use-setup-helper-app'));
+		const chip = append(this._helperApp, $('.computer-use-setup-helper-app-chip', { draggable: 'true', 'aria-hidden': 'true' }));
+		append(chip, $(`span.computer-use-setup-helper-app-grip${ThemeIcon.asCSSSelector(Codicon.gripper)}`));
+		this._helperAppIcon = append(chip, $<HTMLImageElement>(`img.computer-use-setup-helper-app-icon`, { alt: '' }));
+		append(chip, $('span.computer-use-setup-helper-app-name', undefined, localize('computerUseSetup.helperApp.name', "Copilot Computer Use")));
+		this._register(addDisposableListener(chip, EventType.DRAG_START, e => this._startHelperAppDrag(e, chip)));
+		const reveal = this._register(new Button(append(this._helperApp, $('.computer-use-setup-helper-app-action')), { ...defaultButtonStyles, secondary: true, small: true }));
+		reveal.label = localize('computerUseSetup.helperApp.reveal', "Show in Finder");
+		reveal.setAriaLabel(localize('computerUseSetup.helperApp.reveal.aria', "Show Copilot Computer Use in Finder"));
+		this._register(reveal.onDidClick(() => this._revealHelperApp()));
 
 		this._message = append(this.element, $('.computer-use-setup-message'));
 		this._recheckContainer = append(this.element, $('.computer-use-setup-actions'));
@@ -294,7 +338,7 @@ export class ComputerUseSetupPanel extends Disposable {
 		if (row) {
 			return this._rows.get(row.permission)?.button;
 		}
-		if (view?.phase === 'needsPermissions' && view.canRecheck) {
+		if (view?.phase === 'needsPermissions' && this._recheck.element.isConnected) {
 			return this._recheck;
 		}
 		return this._dismiss;
@@ -304,21 +348,28 @@ export class ComputerUseSetupPanel extends Disposable {
 		if (this._requested === undefined && this._pinned === undefined) {
 			this._pinned = findComputerUseSetup(status, undefined)?.id;
 		}
-		const setupId = this._requested ?? this._pinned;
-		const view = getComputerUseSetupView(status, setupId, this._guidance);
+		const view = getComputerUseSetupView(status, this._requested ?? this._pinned);
 		const previous = this._view;
 		const hadFocus = this.element.contains(this.element.ownerDocument.activeElement);
 		this._view = view;
+
+		const icon = status?.helperApp?.icon;
+		this.appIcon.classList.toggle('has-image', !!icon);
+		this._appIconImage.src = icon ?? '';
+		this._helperAppIcon.src = icon ?? '';
+		this._helperAppIcon.classList.toggle('missing', !icon);
 
 		const enabled = view.phase === 'needsPermissions';
 		const firstActionable = view.rows.find(row => row.action)?.permission;
 		for (const row of view.rows) {
 			const elements = this._rows.get(row.permission)!;
-			elements.icon.className = `computer-use-setup-permission-icon ${row.state}`;
-			elements.icon.classList.add(...ThemeIcon.asClassNameArray(row.busy
-				? ThemeIcon.modify(Codicon.loading, 'spin')
-				: row.state === 'granted' ? Codicon.passFilled : row.state === 'notGranted' ? Codicon.circleLargeOutline : Codicon.question));
-			elements.state.textContent = getStateLabel(row.state);
+			elements.row.setAttribute('aria-label', localize('computerUseSetup.row', "{0}, {1}. {2}", getComputerUsePermissionLabel(row.permission), getStateLabel(row.state), getPermissionDescription(row.permission)));
+			elements.status.className = 'computer-use-setup-permission-status';
+			if (row.busy) {
+				elements.status.classList.add(...ThemeIcon.asClassNameArray(ThemeIcon.modify(Codicon.loading, 'spin')));
+			} else if (row.state === 'granted') {
+				elements.status.classList.add('granted', ...ThemeIcon.asClassNameArray(Codicon.passFilled));
+			}
 			if (row.action) {
 				elements.button.label = getActionLabel(row.action);
 				elements.button.setAriaLabel(getActionAriaLabel(row.action));
@@ -326,17 +377,47 @@ export class ComputerUseSetupPanel extends Disposable {
 				if (!elements.button.element.isConnected) {
 					elements.actionContainer.appendChild(elements.button.element);
 				}
-			} else if (view.phase !== 'working') {
+			} else if (view.phase !== 'working' || row.state === 'granted') {
 				elements.button.element.remove();
 			}
 			// While a step runs the host offers nothing, so the controls stay put, disabled, and keep focus.
 			elements.button.enabled = enabled;
 		}
 
-		this._message.textContent = view.message;
-		this._message.className = `computer-use-setup-message ${view.messageKind}`;
+		// Likewise the System Settings step stays while its outcome is checked.
+		const settingsStep = view.settingsStep ?? (view.phase === 'working' ? this._shownSettingsStep : undefined);
+		this._shownSettingsStep = settingsStep;
+		this._helperAppPath = settingsStep && this._model.helperApp ? status?.helperApp?.path : undefined;
+		if (settingsStep) {
+			const label = getComputerUsePermissionLabel(settingsStep);
+			this._settingsStepCaption.textContent = this._helperAppPath
+				? localize('computerUseSetup.settingsStep.drag', "Turn on Copilot Computer Use under {0} in System Settings, or drag it into the list.", label)
+				: localize('computerUseSetup.settingsStep', "Turn on Copilot Computer Use under {0} in System Settings.", label);
+			show(this._settingsStep);
+		} else {
+			hide(this._settingsStep);
+		}
+		if (this._helperAppPath) {
+			if (!this._helperApp.isConnected) {
+				this._settingsStep.appendChild(this._helperApp);
+			}
+		} else {
+			// Removed, not hidden: the modal moves focus itself across every link in its body, hidden ones too.
+			this._helperApp.remove();
+		}
 
-		const showRecheck = view.canRecheck || (view.phase === 'working' && this._recheck.element.isConnected);
+		// Progress shows in the rows, so the message only reports failures and outcomes.
+		this._message.textContent = view.messageKind === 'progress' ? '' : view.message;
+		this._message.className = `computer-use-setup-message ${view.messageKind}`;
+		if (this._message.textContent) {
+			show(this._message);
+		} else {
+			hide(this._message);
+		}
+
+		const showRecheck = view.canContinue
+			|| (view.canRecheck && (!!view.settingsStep || view.messageKind === 'error'))
+			|| (view.phase === 'working' && this._recheck.element.isConnected);
 		this._recheck.enabled = enabled && view.canRecheck;
 		if (view.phase !== 'working') {
 			this._recheck.label = view.canContinue ? localize('computerUseSetup.continueTask', "Continue") : getActionLabel({ action: 'recheck' });
@@ -373,12 +454,13 @@ export class ComputerUseSetupPanel extends Disposable {
 	}
 
 	private _announce(previous: IComputerUseSetupView | undefined, view: IComputerUseSetupView): void {
-		if (!previous || (previous.phase === view.phase && previous.setupId === view.setupId && previous.message === view.message && previous.rows.every((row, index) => row.state === view.rows[index]?.state))) {
+		if (!previous || (previous.phase === view.phase && previous.setupId === view.setupId && previous.message === view.message && previous.settingsStep === view.settingsStep && previous.rows.every((row, index) => row.state === view.rows[index]?.state))) {
 			return;
 		}
 		if (view.phase === 'needsPermissions') {
 			const summary = view.rows.map(row => localize('computerUseSetup.rowAnnouncement', "{0}: {1}.", getComputerUsePermissionLabel(row.permission), getStateLabel(row.state))).join(' ');
-			(view.messageKind === 'error' ? alert : status)(`${summary} ${view.message}`);
+			const step = this._settingsStepCaption.isConnected && view.settingsStep ? this._settingsStepCaption.textContent : '';
+			(view.messageKind === 'error' ? alert : status)([summary, view.message, step].filter(Boolean).join(' '));
 		} else if (view.phase === 'ended') {
 			alert(view.message);
 		} else {
@@ -392,10 +474,23 @@ export class ComputerUseSetupPanel extends Disposable {
 		if (!view?.setupId || !action || !this._model.request(view.setupId, action)) {
 			return;
 		}
-		// The user goes to macOS to grant it; explain where, and check again when they come back.
-		this._guidance = { setupId: view.setupId, permission };
-		this._returnWatch = { setupId: view.setupId, blurred: false };
+		// The user goes to macOS to grant it; check again when they come back.
+		this._returnWatch = { setupId: view.setupId, permission, blurred: false };
 		this._recheckOnReturn = undefined;
+	}
+
+	private _startHelperAppDrag(e: DragEvent, chip: HTMLElement): void {
+		// Only a native drag hands System Settings the app itself.
+		e.preventDefault();
+		if (this._helperAppPath) {
+			this._model.helperApp?.startDrag(this._helperAppPath, getWindow(chip));
+		}
+	}
+
+	private _revealHelperApp(): void {
+		if (this._helperAppPath) {
+			this._model.helperApp?.reveal(this._helperAppPath);
+		}
 	}
 
 	private _runRecheck(): void {
@@ -418,20 +513,22 @@ export class ComputerUseSetupPanel extends Disposable {
 		}
 		if (watch.blurred) {
 			this._returnWatch = undefined;
-			this._recheckOnReturn = watch.setupId;
+			this._recheckOnReturn = { setupId: watch.setupId, permission: watch.permission };
 			this._recheckIfReturned(this._view);
 		}
 	}
 
 	/** Checks again once the user came back, as soon as the plugin waits for the setup's next step. */
 	private _recheckIfReturned(view: IComputerUseSetupView | undefined): void {
-		const setupId = this._recheckOnReturn;
-		if (!setupId || view?.setupId !== setupId || view.phase === 'working') {
+		const pending = this._recheckOnReturn;
+		if (!pending || view?.setupId !== pending.setupId || view.phase === 'working') {
 			return;
 		}
 		this._recheckOnReturn = undefined;
-		if (view.phase === 'needsPermissions' && view.canRecheck) {
-			this._model.request(setupId, { action: 'recheck' });
+		// The host checks Accessibility on its own when macOS changes it, so it may be confirmed already.
+		const confirmed = view.rows.some(row => row.permission === pending.permission && row.state === 'granted');
+		if (view.phase === 'needsPermissions' && view.canRecheck && !confirmed) {
+			this._model.request(pending.setupId, { action: 'recheck' });
 		}
 	}
 }
@@ -443,6 +540,7 @@ export class ComputerUseSetupDialog extends Disposable {
 
 	private readonly _panel: ComputerUseSetupPanel;
 	private readonly _dialog: Dialog;
+	private _dismissButton: IButton | undefined;
 
 	constructor(
 		model: IComputerUseSetupModel,
@@ -450,24 +548,21 @@ export class ComputerUseSetupDialog extends Disposable {
 		@ILayoutService layoutService: ILayoutService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IHostService hostService: IHostService,
-		@IProductService productService: IProductService,
 	) {
 		super();
-		this._panel = this._register(new ComputerUseSetupPanel(model, setupId, {
-			productName: productService.nameLong,
-			onDidChangeWindowFocus: hostService.onDidChangeFocus,
-		}));
+		this._panel = this._register(new ComputerUseSetupPanel(model, setupId, { onDidChangeWindowFocus: hostService.onDidChangeFocus }));
 		this._dialog = this._register(new Dialog(
 			layoutService.activeContainer,
 			localize('computerUseSetup.title', "Set Up Computer Use"),
 			[localize('computerUseSetup.notNow', "Not Now")],
 			createWorkbenchDialogOptions({
 				type: 'none',
-				icon: Codicon.shield,
+				alignment: DialogContentsAlignment.Vertical,
+				renderIcon: container => container.appendChild(this._panel.appIcon),
 				extraClasses: ['computer-use-setup-dialog'],
 				cancelId: 0,
 				renderBody: body => body.appendChild(this._panel.element),
-				buttonOptions: [{ styleButton: button => this._panel.setDismissButton(button) }],
+				buttonOptions: [{ styleButton: button => { this._dismissButton = button; } }],
 			}, keybindingService, layoutService, hostService),
 		));
 	}
@@ -475,6 +570,10 @@ export class ComputerUseSetupDialog extends Disposable {
 	/** Shows the modal; resolves when the user closes it. */
 	async show(): Promise<void> {
 		const closed = this._dialog.show();
+		// The dialog labels its buttons only after styling them, so the panel takes the button over once it has.
+		if (this._dismissButton) {
+			this._panel.setDismissButton(this._dismissButton);
+		}
 		this._panel.focus();
 		await closed;
 	}

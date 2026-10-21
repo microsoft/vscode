@@ -5,7 +5,7 @@
 
 import { structuralEquals } from '../../../../../../base/common/equals.js';
 import { Event, Relay } from '../../../../../../base/common/event.js';
-import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IObservable, observableFromEventOpts } from '../../../../../../base/common/observable.js';
 import { isMacintosh, isNative } from '../../../../../../base/common/platform.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
@@ -17,7 +17,7 @@ import { ActionType } from '../../../../../../platform/agentHost/common/state/se
 import { ROOT_STATE_URI, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { createDecorator, IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
-import { ComputerUseSetupDialog, type IComputerUseSetupModel } from './computerUseSetupDialog.js';
+import { ComputerUseSetupDialog, type IComputerUseHelperAppSupport, type IComputerUseSetupModel } from './computerUseSetupDialog.js';
 
 export const IComputerUseSetupService = createDecorator<IComputerUseSetupService>('computerUseSetupService');
 
@@ -30,6 +30,9 @@ export interface IComputerUseSetupService extends IComputerUseSetupModel {
 
 	/** Opens the setup modal for setup `setupId`, or for the latest setup that waits; an open modal switches to it instead. */
 	open(setupId?: string): void;
+
+	/** Lets the setup modal hand Copilot Computer Use to System Settings by hand; desktop clients register it. */
+	registerHelperAppSupport(support: IComputerUseHelperAppSupport): IDisposable;
 }
 
 /** Whether this client can show the macOS permission setup: only native macOS windows, whose local Agent Host shares their machine. */
@@ -49,6 +52,11 @@ export class ComputerUseSetupService extends Disposable implements IComputerUseS
 	declare readonly _serviceBrand: undefined;
 
 	readonly status: IObservable<IComputerUseStatusV1 | undefined>;
+
+	private _helperApp: IComputerUseHelperAppSupport | undefined;
+	get helperApp(): IComputerUseHelperAppSupport | undefined {
+		return this._helperApp;
+	}
 
 	private readonly _dialog = this._register(new MutableDisposable<ComputerUseSetupDialog>());
 
@@ -84,6 +92,15 @@ export class ComputerUseSetupService extends Disposable implements IComputerUseS
 			config: { [COMPUTER_USE_REQUEST_KEY]: request },
 		});
 		return true;
+	}
+
+	registerHelperAppSupport(support: IComputerUseHelperAppSupport): IDisposable {
+		this._helperApp = support;
+		return toDisposable(() => {
+			if (this._helperApp === support) {
+				this._helperApp = undefined;
+			}
+		});
 	}
 
 	open(setupId?: string): void {

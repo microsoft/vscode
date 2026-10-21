@@ -104,7 +104,7 @@ import { readCopilotSessionEvents, restoreStoredShellOutputsForChat } from './co
 import { mapSessionEvents } from './mapSessionEvents.js';
 import { subagentChatUri } from '../../common/agentHostChatMinting.js';
 import { createCopilotCliEnvironment, setLocalModelRequestHandlerEnvironment } from './copilotCliEnvironment.js';
-import { COMPUTER_USE_PLUGIN_RELEASE, CopilotComputerUsePlugin } from './copilotComputerUsePlugin.js';
+import { COMPUTER_USE_PLUGIN_RELEASE, CopilotComputerUsePlugin, getComputerUseHelperAppPath, readMacAppIcon } from './copilotComputerUsePlugin.js';
 import { CopilotComputerUsePermissionSetup } from './copilotComputerUsePermissionSetup.js';
 import { ILocalModelSetupService } from './localModelBridge/localModelSetupService.js';
 import { readLocalModelRootConfig, selectLocalModelProvider, type ILocalModelProvider } from './localModelBridge/localModelProvider.js';
@@ -808,6 +808,8 @@ const MAX_STARTUP_CONFIG_RETRIES = 1;
 const MAX_SESSION_RESTORE_ATTEMPTS = 5;
 /** Bounds the background Computer Use plugin download, including a stalled response body. */
 const COMPUTER_USE_DOWNLOAD_TIMEOUT_MS = 2 * 60 * 1000;
+/** Clients show the helper app's icon at up to 64 pixels, so 128 stays sharp on Retina displays. */
+const COMPUTER_USE_HELPER_APP_ICON_SIZE = 128;
 
 /** `origin` value written by the VS Code extension-host Copilot CLI feature. */
 const EXTENSION_HOST_CLI_MARKER_ORIGIN = 'vscode';
@@ -1744,7 +1746,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (!this._lastStartupConfig.computerUse || this._hostPlatform !== 'darwin') {
 			this._computerUsePermissionSetup.clear();
 		} else if (!this._computerUsePermissionSetup.value) {
-			this._computerUsePermissionSetup.value = this._instantiationService.createInstance(CopilotComputerUsePermissionSetup);
+			// The runtime hands the plugin this process's environment and the Copilot home as `COPILOT_HOME`.
+			const path = getComputerUseHelperAppPath(process.env['COPILOT_COMPUTER_USE_HOME'], this._copilotHomeService.home.fsPath, os.homedir());
+			this._computerUsePermissionSetup.value = this._instantiationService.createInstance(CopilotComputerUsePermissionSetup, { path, readIcon: () => readMacAppIcon(path, COMPUTER_USE_HELPER_APP_ICON_SIZE) });
 		}
 	}
 

@@ -926,6 +926,11 @@ export interface IAgentHostManagementService {
 	 * machine is fully awake, rather than asleep or in a background maintenance wake.
 	 */
 	setSystemFullyAwake(fullyAwake: boolean): Promise<void>;
+	/**
+	 * Local-only bridge for the owning client process to report that macOS changed which apps it trusts to control the
+	 * computer through Accessibility.
+	 */
+	reportMacAccessibilityTrustChange(): Promise<void>;
 	shutdown(): Promise<void>;
 	getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo>;
 	getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]>;

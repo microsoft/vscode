@@ -110,6 +110,16 @@ export interface IComputerUseStatusV1 {
 	readonly operation?: IComputerUseOperationV1;
 	/** Setups that wait for the user, run an action, or finished recently; oldest first. */
 	readonly setups: readonly IComputerUseSetupV1[];
+	/** The app that macOS grants the permissions to. */
+	readonly helperApp?: IComputerUseHelperAppV1;
+}
+
+/** Copilot Computer Use, the app macOS lists under each permission in System Settings. */
+export interface IComputerUseHelperAppV1 {
+	/** Absolute path of the app bundle. Clients that can drag files offer it for dragging into a System Settings list that doesn't show it. */
+	readonly path: string;
+	/** The app's icon as a PNG data URL, once the host read it. */
+	readonly icon?: string;
 }
 
 // #endregion

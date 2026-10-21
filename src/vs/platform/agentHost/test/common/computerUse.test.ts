@@ -50,6 +50,15 @@ suite('Computer Use setup contract', () => {
 			status,
 			otherVersion: readComputerUseStatus({ schemaVersion: 2, permissions: [], setups: [] }),
 			notAnObject: readComputerUseStatus('status'),
+			helperApps: [
+				{ path: '/Users/me/.copilot/computer-use/Copilot Computer Use.app', icon: 'data:image/png;base64,iVBORw0KGgo=' },
+				{ path: '/Users/me/.copilot/computer-use/Copilot Computer Use.app', icon: 'https://example.com/icon.png' },
+				{ path: '/Users/me/.copilot/computer-use/Copilot Computer Use.app', icon: 'data:image/png;base64,<svg>' },
+				{ path: 'relative/Copilot Computer Use.app' },
+				{ path: '/Users/me/.copilot/computer-use/helper' },
+				{ path: `/${'x'.repeat(4096)}.app` },
+				'/Users/me/.copilot/computer-use/Copilot Computer Use.app',
+			].map(helperApp => readComputerUseStatus({ schemaVersion: 1, permissions: [], setups: [], helperApp })?.helperApp),
 		}, {
 			status: {
 				schemaVersion: 1,
@@ -62,6 +71,15 @@ suite('Computer Use setup contract', () => {
 			},
 			otherVersion: undefined,
 			notAnObject: undefined,
+			helperApps: [
+				{ path: '/Users/me/.copilot/computer-use/Copilot Computer Use.app', icon: 'data:image/png;base64,iVBORw0KGgo=' },
+				{ path: '/Users/me/.copilot/computer-use/Copilot Computer Use.app' },
+				{ path: '/Users/me/.copilot/computer-use/Copilot Computer Use.app' },
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+			],
 		});
 	});
 

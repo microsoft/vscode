@@ -354,6 +354,12 @@ export interface ICommonNativeHostService {
 
 	// OS
 	showItemInFolder(path: string): Promise<void>;
+	/**
+	 * Drags the file or folder at absolute `path` out of the window, as if the user dragged it from the file manager, so
+	 * other apps can take it. Call it from a `dragstart` handler that cancels the HTML drag, while the mouse button is
+	 * still down. Does nothing for a path that doesn't exist.
+	 */
+	startFileDrag(path: string, options?: INativeHostOptions): Promise<void>;
 	setRepresentedFilename(path: string, options?: INativeHostOptions): Promise<void>;
 	setDocumentEdited(edited: boolean, options?: INativeHostOptions): Promise<void>;
 	/**

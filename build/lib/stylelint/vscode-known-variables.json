@@ -1321,6 +1321,7 @@
 		"--comment-thread-editor-font-weight",
 		"--comment-thread-state-color",
 		"--comment-thread-state-background-color",
+		"--computer-use-setup-stroke",
 		"--inline-edit-border-radius",
 		"--vscode-inline-chat-affordance-height",
 		"--collapse-from-width",
