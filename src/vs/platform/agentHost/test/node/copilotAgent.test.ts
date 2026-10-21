@@ -4086,6 +4086,12 @@ suite('CopilotAgent', () => {
 				modulePath: '/workspace/.github/extensions/preview/extension.mjs',
 				source: 'project',
 			});
+			const deniedSessionLaunch = await clientOptions?.extensionLaunchProvider?.resolve({
+				id: 'session:session-id:preview',
+				name: 'preview',
+				modulePath: '/home/test/.copilot/session-state/session-id/extensions/preview/extension.mjs',
+				source: 'session',
+			});
 			assert.deepStrictEqual({
 				kind: connection?.kind,
 				sdkRuntime: runtimePath?.includes('/node_modules/@github/copilot-sdk-'),
@@ -4094,6 +4100,7 @@ suite('CopilotAgent', () => {
 				extensionBootstrap: launch?.launch?.args[0].replaceAll('\\', '/').endsWith('/preloads/extension_bootstrap.mjs'),
 				extensionEnvironment: launch?.launch?.env,
 				projectLaunchDenied: deniedProjectLaunch?.launch === undefined,
+				sessionLaunchDenied: deniedSessionLaunch?.launch === undefined,
 			}, {
 				kind: 'stdio',
 				sdkRuntime: true,
@@ -4105,9 +4112,102 @@ suite('CopilotAgent', () => {
 					...(process.versions.electron ? { ELECTRON_RUN_AS_NODE: '1' } : {}),
 				},
 				projectLaunchDenied: true,
+				sessionLaunchDenied: true,
 			});
 		} finally {
 			await disposeAgent(agent);
+		}
+	});
+
+	test('admits project and session extensions only for active launch roots', async () => {
+		const root = await fs.mkdtemp(`${os.tmpdir()}/copilot-extension-launch-`);
+		const projectRoot = join(root, 'project');
+		const copilotHome = join(root, 'copilot-home');
+		const sessionId = 'active-session';
+		const projectExtension = join(projectRoot, '.github', 'extensions', 'project-preview', 'extension.mjs');
+		const sessionExtension = join(copilotHome, 'session-state', sessionId, 'extensions', 'session-preview', 'extension.mjs');
+		const otherSessionExtension = join(copilotHome, 'session-state', 'other-session', 'extensions', 'session-preview', 'extension.mjs');
+		const escapedSessionId = '../escaped-session';
+		const escapedSessionExtension = join(copilotHome, 'escaped-session', 'extensions', 'session-preview', 'extension.mjs');
+		await Promise.all([
+			fs.mkdir(dirname(projectExtension), { recursive: true }),
+			fs.mkdir(dirname(sessionExtension), { recursive: true }),
+			fs.mkdir(dirname(otherSessionExtension), { recursive: true }),
+			fs.mkdir(dirname(escapedSessionExtension), { recursive: true }),
+		]);
+		await Promise.all([
+			fs.writeFile(projectExtension, ''),
+			fs.writeFile(sessionExtension, ''),
+			fs.writeFile(otherSessionExtension, ''),
+			fs.writeFile(escapedSessionExtension, ''),
+		]);
+		const client = new TestCopilotClient([]);
+		const agent = createTestAgent(disposables, { copilotClient: client, copilotHome }) as TestableCopilotAgent;
+		let admission: IDisposable | undefined;
+		try {
+			await agent.listChatsToMigrate();
+			const provider = getCreatedClientOptions(agent).at(-1)?.extensionLaunchProvider;
+			admission = await agent['_acquireExtensionLaunchAdmission']([URI.file(projectRoot)], sessionId);
+			const projectLaunch = await provider?.resolve({
+				id: 'project:project-preview',
+				name: 'project-preview',
+				modulePath: projectExtension,
+				source: 'project',
+			});
+			const sessionLaunch = await provider?.resolve({
+				id: `session:${sessionId}:session-preview`,
+				name: 'session-preview',
+				modulePath: sessionExtension,
+				source: 'session',
+			});
+			const wrongSessionId = await provider?.resolve({
+				id: 'session:other-session:session-preview',
+				name: 'session-preview',
+				modulePath: sessionExtension,
+				source: 'session',
+			});
+			const wrongSessionPath = await provider?.resolve({
+				id: `session:${sessionId}:session-preview`,
+				name: 'session-preview',
+				modulePath: otherSessionExtension,
+				source: 'session',
+			});
+			const escapedAdmission = await agent['_acquireExtensionLaunchAdmission']([], escapedSessionId);
+			const escapedSessionPath = await provider?.resolve({
+				id: `session:${escapedSessionId}:session-preview`,
+				name: 'session-preview',
+				modulePath: escapedSessionExtension,
+				source: 'session',
+			});
+			escapedAdmission.dispose();
+			admission.dispose();
+			admission = undefined;
+			const disposedSessionLaunch = await provider?.resolve({
+				id: `session:${sessionId}:session-preview`,
+				name: 'session-preview',
+				modulePath: sessionExtension,
+				source: 'session',
+			});
+
+			assert.deepStrictEqual({
+				projectLaunch: projectLaunch?.launch?.env.EXTENSION_PATH,
+				sessionLaunch: sessionLaunch?.launch?.env.EXTENSION_PATH,
+				wrongSessionId: wrongSessionId?.launch,
+				wrongSessionPath: wrongSessionPath?.launch,
+				escapedSessionPath: escapedSessionPath?.launch,
+				disposedSessionLaunch: disposedSessionLaunch?.launch,
+			}, {
+				projectLaunch: projectExtension,
+				sessionLaunch: sessionExtension,
+				wrongSessionId: undefined,
+				wrongSessionPath: undefined,
+				escapedSessionPath: undefined,
+				disposedSessionLaunch: undefined,
+			});
+		} finally {
+			admission?.dispose();
+			await disposeAgent(agent);
+			await fs.rm(root, { recursive: true, force: true });
 		}
 	});
 

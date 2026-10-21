@@ -1140,6 +1140,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * session cannot revoke a root that another session still admits.
 	 */
 	private readonly _extensionLaunchRoots = new Map<string, number>();
+	/** SDK session IDs with active session-extension launch admission. */
+	private readonly _sessionExtensionLaunchIds = new Map<string, number>();
 	private readonly _workingDirectoryMutations = new ResourceMap<CopilotAgentSession>();
 
 	/** Exact chat -> its owner as the host context recorded it (read at use), for fork/restore paths that only know the chat URI. */
@@ -2270,7 +2272,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return new CopilotClient(options);
 	}
 
-	private async _acquireExtensionLaunchAdmission(directories: readonly URI[]): Promise<IDisposable> {
+	private async _acquireExtensionLaunchAdmission(directories: readonly URI[], sessionId: string): Promise<IDisposable> {
 		const roots: string[] = [];
 		for (const directory of directories) {
 			if (directory.scheme !== Schemas.file) {
@@ -2285,6 +2287,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		for (const root of roots) {
 			this._extensionLaunchRoots.set(root, (this._extensionLaunchRoots.get(root) ?? 0) + 1);
 		}
+		this._sessionExtensionLaunchIds.set(sessionId, (this._sessionExtensionLaunchIds.get(sessionId) ?? 0) + 1);
 		return toDisposable(() => {
 			for (const root of roots) {
 				const count = this._extensionLaunchRoots.get(root);
@@ -2294,22 +2297,34 @@ export class CopilotAgent extends Disposable implements IAgent {
 					this._extensionLaunchRoots.set(root, count - 1);
 				}
 			}
+			const sessionCount = this._sessionExtensionLaunchIds.get(sessionId);
+			if (sessionCount === undefined || sessionCount <= 1) {
+				this._sessionExtensionLaunchIds.delete(sessionId);
+			} else {
+				this._sessionExtensionLaunchIds.set(sessionId, sessionCount - 1);
+			}
 		});
 	}
 
-	private async _resolveExtensionLaunch(modulePath: string, source: 'project' | 'user' | 'plugin' | 'session', extensionBootstrapPath: string) {
-		if (!isAbsolute(modulePath) || resourceBasename(URI.file(modulePath)) !== 'extension.mjs' || source === 'session') {
+	private async _resolveExtensionLaunch(extensionId: string, modulePath: string, source: 'project' | 'user' | 'plugin' | 'session', extensionBootstrapPath: string) {
+		if (!isAbsolute(modulePath) || resourceBasename(URI.file(modulePath)) !== 'extension.mjs') {
 			return {};
 		}
-		if (source === 'project') {
+		if (source === 'project' || source === 'session') {
 			let canonicalModulePath: string;
 			try {
 				canonicalModulePath = await fs.realpath(modulePath);
 			} catch {
 				return {};
 			}
-			if (resourceBasename(URI.file(canonicalModulePath)) !== 'extension.mjs'
-				|| ![...this._extensionLaunchRoots.keys()].some(root => isEqualOrParent(URI.file(canonicalModulePath), URI.file(root)))) {
+			const canonicalModuleResource = URI.file(canonicalModulePath);
+			if (resourceBasename(canonicalModuleResource) !== 'extension.mjs') {
+				return {};
+			}
+			if (source === 'project' && ![...this._extensionLaunchRoots.keys()].some(root => isEqualOrParent(canonicalModuleResource, URI.file(root)))) {
+				return {};
+			}
+			if (source === 'session' && !await this._isAdmittedSessionExtension(extensionId, canonicalModuleResource)) {
 				return {};
 			}
 		}
@@ -2323,6 +2338,30 @@ export class CopilotAgent extends Disposable implements IAgent {
 				},
 			},
 		};
+	}
+
+	private async _isAdmittedSessionExtension(extensionId: string, canonicalModuleResource: URI): Promise<boolean> {
+		let sessionStateRoot: URI;
+		try {
+			sessionStateRoot = URI.file(await fs.realpath(resourceJoinPath(this._copilotHomeService.home, 'session-state').fsPath));
+		} catch {
+			return false;
+		}
+		for (const sessionId of this._sessionExtensionLaunchIds.keys()) {
+			if (!extensionId.startsWith(`session:${sessionId}:`)) {
+				continue;
+			}
+			try {
+				const sessionStatePath = URI.file(await fs.realpath(resourceJoinPath(sessionStateRoot, sessionId).fsPath));
+				const extensionRoot = URI.file(join(sessionStatePath.fsPath, 'extensions'));
+				if (isEqualOrParent(sessionStatePath, sessionStateRoot) && isEqualOrParent(canonicalModuleResource, extensionRoot)) {
+					return true;
+				}
+			} catch {
+				// The runtime cannot discover a session extension without its state directory.
+			}
+		}
+		return false;
 	}
 
 	// ---- auth ---------------------------------------------------------------
@@ -4146,7 +4185,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				enableRemoteSessions: scoped?.kind !== 'storage' && startupConfig.sessionSync,
 				...(extensionBootstrapPath && extensionSdkPath ? {
 					extensionLaunchProvider: {
-						resolve: request => this._resolveExtensionLaunch(request.modulePath, request.source, extensionBootstrapPath),
+						resolve: request => this._resolveExtensionLaunch(request.id, request.modulePath, request.source, extensionBootstrapPath),
 					},
 				} : {}),
 				onGetTraceContext: () => this._otelService.getCurrentTraceContext() ?? {},
@@ -8918,7 +8957,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			session.dispose();
 			throw new CancellationError();
 		}
-		const extensionLaunchAdmission = await this._acquireExtensionLaunchAdmission(session.extensionLaunchDirectories);
+		const extensionLaunchAdmission = await this._acquireExtensionLaunchAdmission(session.extensionLaunchDirectories, session.sessionId);
 		if (this._isShuttingDown || token.isCancellationRequested) {
 			extensionLaunchAdmission.dispose();
 			session.dispose();

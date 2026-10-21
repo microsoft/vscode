@@ -4329,7 +4329,7 @@ export class CopilotAgentSession extends Disposable {
 		return result.canvases.map(canvas => ({
 			canvasId: canvas.canvasId,
 			extensionId: canvas.extensionId,
-			extensionSource: extensionSources.get(canvas.extensionId) ?? 'unknown',
+			extensionSource: extensionSources.get(canvas.extensionId) ?? this._canvasExtensionSourceFromId(canvas.extensionId),
 			...(canvas.extensionName ? { extensionName: canvas.extensionName } : {}),
 			displayName: canvas.displayName,
 			description: canvas.description,
@@ -4455,6 +4455,11 @@ export class CopilotAgentSession extends Disposable {
 			case 'plugin': return 'plugin';
 			default: return 'unknown';
 		}
+	}
+
+	private _canvasExtensionSourceFromId(extensionId: string): AgentCanvasExtensionSource {
+		const separator = extensionId.indexOf(':');
+		return this._canvasExtensionSource(separator === -1 ? '' : extensionId.slice(0, separator));
 	}
 
 	private _canvasRequiresInput(inputSchema: JsonValue | undefined): boolean {
