@@ -18,7 +18,7 @@ import { IThemeService } from '../../../../../platform/theme/common/themeService
 import { isDark } from '../../../../../platform/theme/common/theme.js';
 import { IMicCaptureService } from './micCaptureService.js';
 import { ITtsPlaybackService } from './ttsPlaybackService.js';
-import { readVoiceGlowIntensity, resolveVoiceGlowColors, shouldRenderVoiceInputGlow, VoiceGlowState } from './voiceGlow.js';
+import { readVoiceGlowIntensity, resolveVoiceGlowColors, shouldRenderVoiceInputGlow } from './voiceGlow.js';
 import { createVoiceGlowController, IVoiceGlowController } from './voiceGlowController.js';
 import { IVoiceSessionController } from './voiceSessionController.js';
 
@@ -114,11 +114,11 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 			const voiceState = voiceSessionController.voiceState.get();
 
 			const analyser = ttsPlaybackService.analyserNode
-				?? (voiceState === 'listening' ? micCaptureService.analyserNode : null)
+				?? (voiceState === 'listening' && !voiceSessionController.isMuted.get() ? micCaptureService.analyserNode : null)
 				?? null;
 			const intensity = readVoiceGlowIntensity(analyser, glowDataArrayRef);
 
-			glowController.render(voiceState, intensity, accessibilityService.isMotionReduced());
+			glowController.render(intensity, accessibilityService.isMotionReduced());
 		};
 		animFrameId = win.requestAnimationFrame(animate);
 	};
@@ -132,15 +132,9 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 
 	store.add(autorun(reader => {
 		const connected = voiceSessionController.isConnected.read(reader);
-		const voiceState = voiceSessionController.voiceState.read(reader);
 		const active = isActive.read(reader);
 		const ownsVoice = isSurfaceOwner(reader);
-		// A muted mic isn't heard, so the listening rim would misleadingly react to
-		// the user's voice; treat muted-listening as idle (no glow) until unmuted.
-		// Only read the mute observable while listening, so idle/disconnected surfaces
-		// don't depend on it.
-		const glowState: VoiceGlowState = voiceState === 'listening' && voiceSessionController.isMuted.read(reader) ? 'idle' : voiceState;
-		if (shouldRenderVoiceInputGlow(connected, active, ownsVoice, glowState)) {
+		if (shouldRenderVoiceInputGlow(connected, active, ownsVoice)) {
 			startGlowAnimation();
 		} else {
 			stopGlowAnimation();
@@ -171,16 +165,12 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 				return;
 			}
 			const handsFree = configurationService.getValue<boolean>('agents.voice.handsFree') === true;
-			if (!showTranscript && voiceState === 'listening') {
-				// Transcript is disabled: surface a minimal "Listening..." overlay
-				// while listening so the user has feedback. Cleared in any other state.
+			if (!showTranscript && voiceState === 'listening' && voiceSessionController.isMuted.read(reader)) {
 				transcriptOverlayNode.style.display = '';
 				transcriptOverlayNode.classList.remove('has-transcript');
 				transcriptOverlay.replaceChildren();
 				const listening = dom.$('span.listening');
-				listening.textContent = voiceSessionController.isMuted.read(reader)
-					? localize('voiceMode.mutedUnmuteToSpeak', "Unmute to speak...")
-					: localize('voiceMode.listening', "Listening...");
+				listening.textContent = localize('voiceMode.mutedUnmuteToSpeak', "Unmute to speak...");
 				transcriptOverlay.append(listening);
 				transcriptScrollable.scanDomNode();
 			} else if (!showTranscript && voiceState === 'speaking') {

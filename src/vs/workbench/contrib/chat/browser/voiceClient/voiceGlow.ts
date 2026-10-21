@@ -18,20 +18,11 @@ import { inputBackground } from '../../../../../platform/theme/common/colors/inp
 import { IColorTheme } from '../../../../../platform/theme/common/themeService.js';
 import { chatVoiceGlowBaseColor, chatVoiceListeningGlow, chatVoiceSpeakingGlow } from '../../common/widget/chatColors.js';
 
-export type VoiceGlowState = 'idle' | 'listening' | 'processing' | 'speaking' | 'error';
-
 /**
- * Glow states that render the audio-reactive rim.
+ * Whether the connected voice input owns a visible surface.
  */
-export function isGlowingVoiceState(voiceState: VoiceGlowState): boolean {
-	return voiceState === 'listening' || voiceState === 'speaking';
-}
-
-/**
- * Whether the input glow should be rendered for the current voice state.
- */
-export function shouldRenderVoiceInputGlow(connected: boolean, active: boolean, ownsVoice: boolean, voiceState: VoiceGlowState): boolean {
-	return connected && active && ownsVoice && isGlowingVoiceState(voiceState);
+export function shouldRenderVoiceInputGlow(connected: boolean, active: boolean, ownsVoice: boolean): boolean {
+	return connected && active && ownsVoice;
 }
 
 /**
@@ -108,14 +99,6 @@ export function resolveVoiceGlowColors(theme: Pick<IColorTheme, 'getColor'>): IV
 	};
 }
 
-/**
- * The accent for the current state. Only the talking states carry one; anything
- * else renders no glow, so it never reaches this.
- */
-export function voiceGlowStateColor(voiceState: VoiceGlowState, colors: IVoiceGlowColors): Color {
-	return voiceState === 'speaking' ? colors.speaking : colors.listening;
-}
-
 // --- The rim accent ----------------------------------------------------------
 
 /** Which of the two talking states a rim is showing. */
@@ -181,8 +164,8 @@ export interface IVoiceRimAccent {
  * Box-shadow for a voice mic/icon button glow, shared by surfaces that light up
  * the microphone glyph in addition to the input border.
  */
-export function computeVoiceMicGlowBoxShadow(voiceState: VoiceGlowState, intensity: number, colors: IVoiceGlowColors = DEFAULT_VOICE_GLOW_COLORS): string {
-	const { r, g, b } = voiceGlowStateColor(voiceState, colors).rgba;
+export function computeVoiceMicGlowBoxShadow(intensity: number, colors: IVoiceGlowColors = DEFAULT_VOICE_GLOW_COLORS): string {
+	const { r, g, b } = colors.listening.rgba;
 	const shadowSpread = 3 + intensity * 8;
 	const shadowAlpha = 0.2 + intensity * 0.45;
 	return `0 0 ${shadowSpread}px rgba(${r},${g},${b},${shadowAlpha})`;
