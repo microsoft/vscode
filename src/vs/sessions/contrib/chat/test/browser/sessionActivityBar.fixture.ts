@@ -215,6 +215,7 @@ async function renderActivityBar(context: ComponentFixtureContext, options: IFix
 	});
 	await waitForFixtureCondition(() => !!view.element.querySelector('.interactive-item-container.interactive-response .rendered-markdown'), 'The chat response did not render');
 	const { listWidget } = renderedChat!;
+	activityBar.setScrollDownButton(listWidget.scrollDownButtonDomNode);
 	let previousHeight = -1;
 	let stableFrames = 0;
 	await waitForFixtureCondition(() => {

@@ -111,6 +111,7 @@ import { AgentHostSessionListContribution } from '../../../browser/agentSessions
 import { IComputerUseSetupService } from '../../../browser/agentSessions/agentHost/computerUseSetup.js';
 import { AgentHostSessionListController } from '../../../browser/agentSessions/agentHost/agentHostSessionListController.js';
 import { AgentHostSessionListStore, type IAgentHostSessionListConnection } from '../../../browser/agentSessions/agentHost/agentHostSessionListStore.js';
+import { AgentHostSnapshotController } from '../../../browser/agentSessions/agentHost/agentHostSnapshotController.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { TestChatEntitlementService, TestFileService } from '../../../../../test/common/workbenchTestServices.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
@@ -1091,6 +1092,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	});
 	instantiationService.stub(IChatEditingService, {
 		registerEditingSessionProvider: () => toDisposable(() => { }),
+		createEditingSession: () => upcastPartial<IChatEditingSession>({ entries: constObservable([]), requestDisablement: constObservable([]), dispose: () => { } }),
 	});
 	instantiationService.stub(IChatResponseFileChangesService, {
 		registerProvider: () => toDisposable(() => { }),
@@ -18835,6 +18837,7 @@ suite('AgentHostChatContribution', () => {
 				onDidChangePendingRequests: Event.None,
 				getPendingRequests: () => [],
 				getRequests: () => [upcastPartial<IChatRequestModel>({ id: serverTurnId, response })],
+				startEditingSession: () => { },
 			}));
 
 			agentHostService.fireAction({
@@ -18918,6 +18921,35 @@ suite('AgentHostChatContribution', () => {
 				isComplete: false,
 				markdown: ['new response'],
 			});
+		}));
+
+		test('a server-initiated steering request is undone with the checkpoint it follows', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService, chatService } = createContribution(disposables);
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-steered-checkpoint' });
+			const controller = disposables.add(new AgentHostSnapshotController(sessionResource, 'local', undefined, new NullLogService(), disposables.add(new TestFileService())));
+			chatService.setSession(sessionResource, upcastPartial<IChatModel>({
+				sessionResource,
+				editingSession: controller,
+				getRequests: () => [],
+				onDidChangePendingRequests: Event.None,
+				getPendingRequests: () => [],
+			}));
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
+			const steeringTurnId = 'server-steering-turn';
+			agentHostService.fireAction({
+				channel: session!,
+				action: { type: 'chat/turnStarted', startedAt: '2025-01-01T00:00:00.000Z', session, turnId: steeringTurnId, message: { text: 'Steering', origin: { kind: MessageKind.User } } } as ChatAction,
+				serverSeq: 3,
+				origin: undefined,
+			});
+			await timeout(10);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId: steeringTurnId } as ChatAction);
+			await turnPromise;
+
+			// Start Over restores the checkpoint before the first request.
+			await controller.restoreSnapshot(turnId!, undefined);
+
+			assert.deepStrictEqual(controller.requestDisablement.get().map(disablement => disablement.requestId), [turnId, steeringTurnId]);
 		}));
 
 		test('stale client completion does not complete a server-initiated steering response', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -22153,7 +22185,7 @@ suite('AgentHostChatContribution', () => {
 			chatAgentService: MockChatAgentService,
 			resource: URI,
 			seq: { v: number },
-			opts?: { customizations?: unknown[] },
+			opts?: { customizations?: unknown[]; routingServers?: unknown; routingChanges?: readonly (readonly string[])[] },
 		): Promise<IChatMcpAuthenticationRequired[]> {
 			const chatSession = await sessionHandler.provideChatSessionContent(resource, CancellationToken.None);
 			disposables.add(toDisposable(() => chatSession.dispose()));
@@ -22174,6 +22206,17 @@ suite('AgentHostChatContribution', () => {
 			// Echo turnStarted to clear the pending write-ahead entry.
 			agentHostService.fireAction({ channel: dispatch.channel.toString(), action: dispatch.action, serverSeq: seq.v++, origin: { clientId: agentHostService.clientId, clientSeq: dispatch.clientSeq } });
 
+			if (opts && Object.hasOwn(opts, 'routingServers')) {
+				agentHostService.fireAction({
+					channel: mintedTestChatOwner(dispatch.channel.toString())!,
+					action: {
+						type: ActionType.SessionMetaChanged,
+						_meta: { 'vscode.mcpRoutingServers': { [dispatch.channel.toString()]: opts.routingServers } },
+					},
+					serverSeq: seq.v++,
+					origin: undefined,
+				});
+			}
 			if (opts?.customizations) {
 				const sessionChannel = mintedTestChatOwner(dispatch.channel.toString())!;
 				agentHostService.fireAction({
@@ -22185,6 +22228,15 @@ suite('AgentHostChatContribution', () => {
 			}
 			// Let the async auto-grant filter resolve.
 			await timeout(50);
+			for (const routingServers of opts?.routingChanges ?? []) {
+				agentHostService.fireAction({
+					channel: mintedTestChatOwner(dispatch.channel.toString())!,
+					action: { type: ActionType.SessionMetaChanged, _meta: { 'vscode.mcpRoutingServers': { [dispatch.channel.toString()]: routingServers } } },
+					serverSeq: seq.v++,
+					origin: undefined,
+				});
+				await timeout(50);
+			}
 			const promptParts = collected.flat().filter((p): p is IChatMcpAuthenticationRequired => p.kind === 'mcpAuthenticationRequired');
 
 			agentHostService.fireAction({ channel: dispatch.channel.toString(), action: { type: 'chat/turnComplete', turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction, serverSeq: seq.v++, origin: undefined });
@@ -22388,7 +22440,7 @@ suite('AgentHostChatContribution', () => {
 			assert.deepStrictEqual(prompts.map(prompt => prompt.servers.read(undefined).map(server => server.id)), [['/mcp-1']]);
 		}));
 
-		test('does not surface an unsolicited authentication prompt when MCP tool routing is enabled', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		test('surfaces an authentication prompt when MCP tool routing is enabled but no routing tool is registered', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
 				configOverrides: { [AgentHostMcpToolRoutingEnabledSettingId]: true },
 			});
@@ -22396,7 +22448,66 @@ suite('AgentHostChatContribution', () => {
 			const seq = { v: 1 };
 
 			const prompts = await runTurn(sessionHandler, agentHostService, chatAgentService, resource, seq, { customizations: [authRequiredCustomization()] });
-			assert.deepStrictEqual(prompts, []);
+			assert.deepStrictEqual(prompts.map(prompt => prompt.servers.read(undefined).map(server => server.id)), [['/mcp-1']]);
+		}));
+
+		for (const routingServers of [['GitHub MCP'], ['other-server'], [], 'GitHub MCP', ['GitHub MCP', 1]]) {
+			test(`uses actual routing registration for sign-in hints: ${JSON.stringify(routingServers)}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
+					configOverrides: { [AgentHostMcpToolRoutingEnabledSettingId]: true },
+				});
+				const resource = URI.from({ scheme: 'agent-host-copilot', path: '/mcp-auth-routing-registered' });
+				const prompts = await runTurn(sessionHandler, agentHostService, chatAgentService, resource, { v: 1 }, {
+					customizations: [authRequiredCustomization()],
+					routingServers,
+				});
+				const hasRouting = Array.isArray(routingServers) && routingServers.length === 1 && routingServers[0] === 'GitHub MCP';
+				assert.deepStrictEqual(prompts.map(prompt => prompt.servers.read(undefined).map(server => server.id)), hasRouting ? [] : [['/mcp-1']]);
+			}));
+		}
+
+		test('shows sign-in hints again when routing registration is removed during a turn', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
+				configOverrides: { [AgentHostMcpToolRoutingEnabledSettingId]: true },
+			});
+			const prompts = await runTurn(sessionHandler, agentHostService, chatAgentService, URI.from({ scheme: 'agent-host-copilot', path: '/mcp-routing-removed' }), { v: 1 }, {
+				customizations: [authRequiredCustomization()],
+				routingServers: ['GitHub MCP'],
+				routingChanges: [[]],
+			});
+			assert.deepStrictEqual(prompts.map(prompt => prompt.servers.read(undefined).map(server => server.id)), [['/mcp-1']]);
+		}));
+
+		test('resurfaces a previous sign-in hint after routing is registered and removed', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
+				configOverrides: { [AgentHostMcpToolRoutingEnabledSettingId]: true },
+			});
+			const prompts = await runTurn(sessionHandler, agentHostService, chatAgentService, URI.from({ scheme: 'agent-host-copilot', path: '/mcp-routing-restored' }), { v: 1 }, {
+				customizations: [authRequiredCustomization()],
+				routingChanges: [['GitHub MCP'], []],
+			});
+			assert.deepStrictEqual(prompts.map(prompt => ({
+				isUsed: prompt.isUsed,
+				servers: prompt.servers.read(undefined).map(server => server.id),
+			})), [
+				{ isUsed: true, servers: [] },
+				{ isUsed: false, servers: ['/mcp-1'] },
+			]);
+		}));
+
+		test('preserves sign-in hint deduplication for servers without routing tools', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const resource = URI.from({ scheme: 'agent-host-copilot', path: '/mcp-auth-deduplication' });
+			const seq = { v: 1 };
+			const first = await runTurn(sessionHandler, agentHostService, chatAgentService, resource, seq, {
+				customizations: [authRequiredCustomization()],
+			});
+			first[0].isUsed = true;
+			const second = await runTurn(sessionHandler, agentHostService, chatAgentService, resource, seq, {
+				customizations: [authRequiredCustomization()],
+				routingChanges: [['other-server'], []],
+			});
+			assert.deepStrictEqual({ firstCount: first.length, secondCount: second.length }, { firstCount: 1, secondCount: 0 });
 		}));
 	});
 

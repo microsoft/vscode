@@ -46,7 +46,7 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { parseGitHubPullRequestUrl } from '../../../../../platform/github/common/githubUrls.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { WorkbenchList, WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
-import { IStyleOverride, defaultButtonStyles, defaultFindWidgetStyles, defaultInputBoxStyles, defaultKeybindingLabelStyles, defaultToggleStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { IStyleOverride, defaultButtonStyles, defaultFindWidgetStyles, defaultInputBoxStyles, defaultKeybindingLabelStyles, defaultToggleStyles, getButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { chartsOrange } from '../../../../../platform/theme/common/colors/chartsColors.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -363,10 +363,10 @@ function getChatListDiffStats(chat: IChat, reader: IReader): ISessionChangesStat
 		: undefined;
 }
 
-/** Includes side-chat activity on the parent row and uses the session aggregate for collapsed peer progress. */
+/** Uses the session aggregate when collapsed and main/side-chat activity when expanded. */
 function getSessionRowStatus(session: ISession, reader: IReader | undefined, deriveFromMainChat: boolean, collapsed = true): SessionStatus {
 	const sessionStatus = session.status.read(reader);
-	if (!deriveFromMainChat) {
+	if (!deriveFromMainChat || collapsed) {
 		return sessionStatus;
 	}
 	let rowStatus = session.mainChat.read(reader).status.read(reader);
@@ -374,14 +374,12 @@ function getSessionRowStatus(session: ISession, reader: IReader | undefined, der
 		return rowStatus;
 	}
 	const chats = session.chats.read(reader);
-	let excludedSideChatInProgress = false;
 	// Side chats have no list rows of their own, even when peer chats are expanded.
 	for (const chat of chats) {
 		if (chat.origin?.kind !== ChatOriginKind.SideChat) {
 			continue;
 		}
 		if (chat.isArchived.read(reader) || chat.interactivity.read(reader) === ChatInteractivity.Hidden) {
-			excludedSideChatInProgress ||= collapsed && sessionStatus === SessionStatus.InProgress && chat.status.read(reader) === SessionStatus.InProgress;
 			continue;
 		}
 		const status = chat.status.read(reader);
@@ -390,14 +388,6 @@ function getSessionRowStatus(session: ISession, reader: IReader | undefined, der
 		}
 		if (status === SessionStatus.InProgress) {
 			rowStatus = status;
-		}
-	}
-	if (rowStatus === SessionStatus.InProgress) {
-		return rowStatus;
-	}
-	if (collapsed && sessionStatus === SessionStatus.InProgress) {
-		if (!excludedSideChatInProgress || chats.some(chat => chat.origin?.kind !== ChatOriginKind.SideChat && chat.status.read(reader) === SessionStatus.InProgress)) {
-			return SessionStatus.InProgress;
 		}
 	}
 	return rowStatus;
@@ -546,7 +536,7 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 	private static readonly ITEM_HEIGHT_PHONE = 76;
 	private static readonly SECTION_HEIGHT = 26;
 	private static readonly COMPARISON_SECTION_HEIGHT = 44;
-	private static readonly SHOW_MORE_HEIGHT = 26;
+	static readonly SHOW_MORE_HEIGHT = 26;
 	private static readonly PLACEHOLDER_HEIGHT = SessionsTreeDelegate.ITEM_HEIGHT_QUICK_CHAT;
 
 	constructor(
@@ -1812,13 +1802,19 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore |
 			if (eligible && mode !== ExternalSessionApplicationBadgeMode.Off) {
 				this.options.reportExternalApplicationBadgeShowFromExperimentTrigger?.();
 			}
-			template.externalApplicationBadge.classList.toggle('visible', eligible && mode === ExternalSessionApplicationBadgeMode.Title);
+			// Rows without a details row (compact rows, compact quick-chat rows, comparison attempts) show the badge next to the title instead.
+			const hasDetailsRow = comparisonAttemptLabel === undefined
+				&& !((element.isQuickChat?.read(reader) ?? false) && this.options.useCompactQuickChatRows)
+				&& !this.options.compact();
+			const showInTitle = mode === ExternalSessionApplicationBadgeMode.Title
+				|| (mode === ExternalSessionApplicationBadgeMode.Details && !hasDetailsRow);
+			template.externalApplicationBadge.classList.toggle('visible', showInTitle);
 			const badgeLabel = getExternalApplicationBadgeLabel(
 				element.application.read(reader).label,
 				this.options.externalApplicationBadgeShowFrom?.read(reader) ?? true,
 			);
 			template.externalApplicationBadgeLabel.textContent = badgeLabel;
-			if (mode === ExternalSessionApplicationBadgeMode.Title) {
+			if (showInTitle) {
 				reader.store.add(this.hoverService.setupDelayedHover(template.externalApplicationBadge, { content: badgeLabel }, { groupId: 'sessions-list' }));
 			}
 		}));
@@ -2952,6 +2948,25 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 
 //#region Show More Renderer
 
+function getSessionShowMoreLabel(element: ISessionShowMore): string {
+	if (element.mode === 'less') {
+		return element.kind === 'folders'
+			? localize('showLessWorkspacesCompact', "Show fewer workspaces")
+			: element.kind === 'repositories'
+				? localize('showLessRepositoriesCompact', "Show fewer repositories")
+				: localize('showLessCompact', "Show less");
+	}
+	return element.kind === 'folders'
+		? element.remainingCount === 1
+			? localize('showMoreWorkspaceCompact', "+{0} more workspace", element.remainingCount)
+			: localize('showMoreWorkspacesCompact', "+{0} more workspaces", element.remainingCount)
+		: element.kind === 'repositories'
+			? element.remainingCount === 1
+				? localize('showMoreRepositoryCompact', "+{0} more repository", element.remainingCount)
+				: localize('showMoreRepositoriesCompact', "+{0} more repositories", element.remainingCount)
+			: localize('showMoreCompact', "+{0} more", element.remainingCount);
+}
+
 class SessionShowMoreRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, HTMLElement> {
 	static readonly TEMPLATE_ID = 'session-show-more';
 	readonly templateId = SessionShowMoreRenderer.TEMPLATE_ID;
@@ -2967,9 +2982,9 @@ class SessionShowMoreRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		return DOM.append(container, $('span.session-show-more-label'));
 	}
 
-	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: HTMLElement): void {
+	renderElement(node: ITreeNode<SessionListItem | null, FuzzyScore>, _index: number, template: HTMLElement): void {
 		const element = node.element;
-		if (!isSessionShowMore(element)) {
+		if (!element || !isSessionShowMore(element)) {
 			return;
 		}
 		const container = template.parentElement;
@@ -2977,23 +2992,7 @@ class SessionShowMoreRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 			setSessionGroupDepth(container, this.getGroupDepth(element));
 		}
 		container?.classList.toggle('session-show-more-folders', element.kind !== 'sessions');
-		if (element.mode === 'less') {
-			template.textContent = element.kind === 'folders'
-				? localize('showLessWorkspacesCompact', "Show fewer workspaces")
-				: element.kind === 'repositories'
-					? localize('showLessRepositoriesCompact', "Show fewer repositories")
-					: localize('showLessCompact', "Show less");
-		} else {
-			template.textContent = element.kind === 'folders'
-				? element.remainingCount === 1
-					? localize('showMoreWorkspaceCompact', "+{0} more workspace", element.remainingCount)
-					: localize('showMoreWorkspacesCompact', "+{0} more workspaces", element.remainingCount)
-				: element.kind === 'repositories'
-					? element.remainingCount === 1
-						? localize('showMoreRepositoryCompact', "+{0} more repository", element.remainingCount)
-						: localize('showMoreRepositoriesCompact', "+{0} more repositories", element.remainingCount)
-					: localize('showMoreCompact', "+{0} more", element.remainingCount);
-		}
+		template.textContent = getSessionShowMoreLabel(element);
 	}
 
 	disposeTemplate(_template: HTMLElement): void { }
@@ -3993,6 +3992,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private static readonly SESSION_GROUP_LIMIT_TREATMENT = 'sessions.workspaceGroupLimit';
 
 	private readonly listContainer: HTMLElement;
+	private readonly stickyShowMoreContainer: HTMLElement;
+	private readonly stickyShowMoreButton: Button;
+	private readonly stickyShowMoreLabel: HTMLElement;
+	private readonly showMoreRenderer: SessionShowMoreRenderer;
+	private stickyShowMoreItem: ISessionShowMore | undefined;
 	private pendingOpenRequest: IListOpenRequest | undefined;
 	protected readonly tree: WorkbenchObjectTree<SessionListItem, FuzzyScore>;
 	private readonly navigationList: WorkbenchList<ISessionSection> | undefined;
@@ -4274,6 +4278,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this._sessionRenderer = sessionRenderer;
 
 		const showMoreRenderer = new SessionShowMoreRenderer(element => this.getRowGroupDepth(element));
+		this.showMoreRenderer = showMoreRenderer;
 		const placeholderRenderer = new SessionPlaceholderRenderer(hoverService, element => this.getRowGroupDepth(element));
 		const chatRenderer = new SessionChatItemRenderer(
 			hoverService,
@@ -4574,6 +4579,44 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.focusedChatCanMoveUpContext = SessionChatItemCanMoveUpContext.bindTo(this.tree.contextKeyService);
 		this.focusedChatCanMoveDownContext = SessionChatItemCanMoveDownContext.bindTo(this.tree.contextKeyService);
 		this.tree.updateOptions({ indent: 0, defaultIndent: 0, expandOnDoubleClick: false });
+		this.stickyShowMoreContainer = DOM.append(this.listContainer, $('.sessions-list-sticky-show-more'));
+		this.stickyShowMoreContainer.hidden = true;
+		this.stickyShowMoreButton = this._register(new Button(this.stickyShowMoreContainer, getButtonStyles({
+			buttonBackground: undefined,
+			buttonHoverBackground: undefined,
+			buttonForeground: undefined,
+			buttonBorder: undefined,
+		})));
+		this.stickyShowMoreLabel = showMoreRenderer.renderTemplate(this.stickyShowMoreButton.element);
+		this._register(this.stickyShowMoreButton.onDidClick(() => {
+			const item = this.stickyShowMoreItem;
+			if (!item) {
+				return;
+			}
+			const parent = this.tree.getParentElement(item);
+			const reference = parent && isSessionGroupItem(parent) ? { group: parent.group.id }
+				: parent && isSessionSection(parent) ? { section: parent.id } : undefined;
+			const scrollTop = this.tree.scrollTop;
+			this.toggleShowMore(item);
+			const header = reference && this.findItem(reference);
+			if (header && item.mode === 'less') {
+				this.tree.setFocus([header]);
+				this.tree.reveal(header);
+			}
+			this.tree.domFocus();
+			if (item.mode === 'more') {
+				this.tree.scrollTop = scrollTop;
+			}
+		}));
+		this._register(this.stickyShowMoreButton.onDidEscape(() => this.tree.domFocus()));
+		this._register(this.tree.onDidScroll(() => this.updateStickyShowMore()));
+		this._register(this.tree.onDidChangeContentHeight(() => this.updateStickyShowMore()));
+		this._register(this.tree.onDidChangeFocus(e => {
+			const element = e.elements[0];
+			if (element && e.browserEvent && DOM.isKeyboardEvent(e.browserEvent)) {
+				this.revealAboveStickyShowMore(element);
+			}
+		}));
 		if (this.options.onDidScroll) {
 			this._register(this.tree.onDidScroll(() => this.options.onDidScroll?.()));
 		}
@@ -4644,12 +4687,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				return;
 			}
 			if (isSessionShowMore(element)) {
-				if (element.kind !== 'sessions') {
-					this.expandedMoreFolders = element.mode === 'more';
-				} else {
-					this.saveSessionGroupExpanded(element.stateId, element.mode === 'more');
-				}
-				this.update();
+				this.toggleShowMore(element);
 				return;
 			}
 			if (isSessionPlaceholder(element)) {
@@ -4743,6 +4781,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					this.saveSessionCollapseState(element, e.node.collapsed);
 				}
 			}
+			this.updateStickyShowMore();
 		}));
 
 		let isFindOpen = false;
@@ -5410,7 +5449,66 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.reconcileChatRowHeights();
 		this.tryPendingMoveReveal?.();
 		this.updateFocusedChatMoveContexts();
+		this.updateStickyShowMore();
 		this._onDidUpdate.fire();
+	}
+
+	private toggleShowMore(element: ISessionShowMore): void {
+		if (element.kind !== 'sessions') {
+			this.expandedMoreFolders = element.mode === 'more';
+		} else {
+			this.saveSessionGroupExpanded(element.stateId, element.mode === 'more');
+		}
+		this.update();
+	}
+
+	private updateStickyShowMore(): void {
+		const rowHeight = SessionsTreeDelegate.SHOW_MORE_HEIGHT + INSET_ROW_GAP;
+		const lastVisible = this.tree.renderHeight > rowHeight * 2 && this.tree.firstVisibleElement !== undefined ? this.tree.lastVisibleElement : undefined;
+		let item: ISessionShowMore | undefined;
+		if (lastVisible && this.tree.hasElement(lastVisible)) {
+			for (let element: SessionListItem | null = lastVisible; element; element = this.tree.getParentElement(element)) {
+				const node = this.tree.getNode(element);
+				if (node.collapsed || (!isSessionSection(element) && !isSessionGroupItem(element))) {
+					continue;
+				}
+				const lastChild = node.children.at(-1)?.element;
+				if (lastChild && isSessionShowMore(lastChild) && lastChild.kind === 'sessions') {
+					const top = this.tree.getElementTop(lastChild);
+					if (top !== undefined && top + rowHeight > this.tree.scrollTop + this.tree.renderHeight) {
+						item = lastChild;
+					}
+					break;
+				}
+			}
+		}
+		if ((!item || item.stateId !== this.stickyShowMoreItem?.stateId) && DOM.isAncestorOfActiveElement(this.stickyShowMoreContainer)) {
+			this.tree.domFocus();
+		}
+		this.stickyShowMoreItem = item;
+		this.stickyShowMoreContainer.hidden = !item;
+		if (item) {
+			this.showMoreRenderer.renderElement(this.tree.getNode(item), 0, this.stickyShowMoreLabel);
+			this.stickyShowMoreContainer.style.lineHeight = `${rowHeight}px`;
+			this.stickyShowMoreButton.element.setAttribute('aria-label', item.mode === 'less'
+				? localize('stickyShowLessAria', "Show fewer sessions in {0}", item.sectionLabel)
+				: item.remainingCount === 1
+					? localize('stickyShowMoreSessionAria', "Show {0} more session in {1}", item.remainingCount, item.sectionLabel)
+					: localize('stickyShowMoreSessionsAria', "Show {0} more sessions in {1}", item.remainingCount, item.sectionLabel));
+		}
+	}
+
+	private revealAboveStickyShowMore(element: SessionListItem): void {
+		this.tree.reveal(element);
+		if (this.stickyShowMoreContainer.hidden) {
+			return;
+		}
+		const top = this.tree.getElementTop(element);
+		const height = this._delegate.getHeight(element);
+		const visibleHeight = this.tree.renderHeight - SessionsTreeDelegate.SHOW_MORE_HEIGHT - INSET_ROW_GAP;
+		if (top !== undefined && height <= visibleHeight && top + height > this.tree.scrollTop + visibleHeight) {
+			this.tree.scrollTop = top + height - visibleHeight;
+		}
 	}
 
 	/**
@@ -5749,7 +5847,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	layout(height: number, width: number): void {
 		this.layoutNavigation(width);
+		this.listContainer.style.height = `${height}px`;
 		this.tree.layout(height, width);
+		this.updateStickyShowMore();
 	}
 
 	setCompact(): void {

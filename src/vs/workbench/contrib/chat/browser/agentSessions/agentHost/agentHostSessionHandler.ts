@@ -39,7 +39,7 @@ import { isLocation, type Location } from '../../../../../../editor/common/langu
 import type { ITextModel } from '../../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../../nls.js';
-import { AgentHostAllowSignedOutWhenUsableSettingId, AgentHostMcpToolRoutingEnabledSettingId, AgentProvider, AgentSession, CODEX_AGENT_PROVIDER_ID, COPILOT_CLI_AGENT_PROVIDER_ID, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostAllowSignedOutWhenUsableSettingId, AgentProvider, AgentSession, CODEX_AGENT_PROVIDER_ID, COPILOT_CLI_AGENT_PROVIDER_ID, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostCanvasCollection, getAgentHostCanvasDefinitionsChangedEvent } from '../../../../canvases/common/agentHostCanvas.js';
 import { ICanvasContext, ICanvasOwner, isCanvasOwner } from '../../../../canvases/common/canvas.js';
 import { CanvasReference } from '../../../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
@@ -52,6 +52,7 @@ import { AgentHostElementAttachmentDisplayKind, getElementAttachmentCorrelationI
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { BrowserViewAttachmentDisplayKind, BrowserViewAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
 import { readToolCallMeta, readAgentToolOutputDelta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
+import { readMcpRoutingServers } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import { filterSessionConfigValues } from '../../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { readAttachmentDetail, withAttachmentDetail } from '../../../../../../platform/agentHost/common/meta/attachmentMeta.js';
 import { AgentPermissionDecisionSource, readAgentPermissionResponseMeta, toAgentPermissionResponseMeta } from '../../../../../../platform/agentHost/common/meta/agentPermissionResponseMeta.js';
@@ -2918,6 +2919,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const turnStore = new DisposableStore();
 			turnProgressDisposable.value = turnStore;
 			this._trackServerTurnProgress(backendSession, activeTurn.id, chatSession, turnStore);
+			// Restore Checkpoint and Start Over disable later requests through their checkpoints, as for requests this client sends.
+			this._ensureSnapshotController(sessionResource)?.ensureRequestCheckpoint(activeTurn.id);
 		};
 		disposables.add(sessionSub.onDidChange(onChange));
 		disposables.add(chatSub.onDidChange(onChange));
@@ -3922,6 +3925,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const mcpAuthRequired$ = derivedOpts({ equalsFn: equals }, reader => {
 			return getMcpAuthenticationRequiredServers(opts.sessionResource, opts.backendSession, mergedState$.read(reader));
 		});
+		const mcpRoutingServers$ = derivedOpts({ equalsFn: equals }, reader => readMcpRoutingServers(mergedState$.read(reader), opts.chatURI.toString()));
 		const mcpStarting$ = derivedOpts({ equalsFn: equals }, reader => {
 			const state = mergedState$.read(reader);
 			const sessionServers = this._customizationService.getMcpServers(opts.sessionResource);
@@ -4032,9 +4036,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			let lastAutoModeResolution: IChatAutoModeResolutionPart | undefined;
 			const modelLookup = this._createTurnModelLookup(opts.sessionResource, undefined);
 
-			if (this._configurationService.getValue<boolean>(AgentHostMcpToolRoutingEnabledSettingId) !== true) {
-				this._setupMcpAuthPrompt(mcpAuthRequired$, store, opts);
-			}
+			this._setupMcpAuthPrompt(mcpAuthRequired$, mcpRoutingServers$, store, opts);
 
 			// Surface the host's chat activity — e.g. the live "Creating
 			// isolated worktree (42%)" progress reported while the session's
@@ -4313,6 +4315,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	private _setupMcpAuthPrompt(
 		mcpAuthRequired$: IObservable<readonly IChatMcpAuthenticationRequiredServer[]>,
+		mcpRoutingServers$: IObservable<readonly string[]>,
 		store: DisposableStore,
 		opts: IObserveTurnOptions,
 	): void {
@@ -4322,8 +4325,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		store.add(autorun(reader => {
 			const pendingAuth = mcpAuthRequired$.read(reader);
+			const routingServers = mcpRoutingServers$.read(reader);
+			const surfaced = this._getSurfacedMcpAuthServers(opts.sessionResource);
+			for (const server of pendingAuth) {
+				if (routingServers.includes(server.name)) {
+					surfaced.delete(server.id);
+					ownedIds.delete(server.id);
+				}
+			}
 			const currentRunId = ++runId;
-			this._filterAutoGrantedMcpAuthentication(opts.sessionResource, pendingAuth).then(servers => {
+			this._filterAutoGrantedMcpAuthentication(opts.sessionResource, pendingAuth.filter(server => !routingServers.includes(server.name))).then(servers => {
 				if (currentRunId !== runId) {
 					return;
 				}

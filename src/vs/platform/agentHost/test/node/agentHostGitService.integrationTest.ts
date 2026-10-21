@@ -15,7 +15,7 @@
 
 import assert from 'assert';
 import * as cp from 'child_process';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync } from 'fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'fs';
 import { rm } from 'fs/promises';
 import { createServer, type Socket } from 'net';
 import { tmpdir } from 'os';
@@ -24,6 +24,7 @@ import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { mock } from '../../../../base/test/common/mock.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -33,6 +34,9 @@ import { autorun } from '../../../../base/common/observable.js';
 import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, GitRefType } from '../../common/agentHostGitService.js';
 import type { ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentHostGitService } from '../../node/agentHostGitService.js';
+import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { GitRepositoryRootsContribution } from '../../node/chatContributions/gitRepositoryRoots/gitRepositoryRootsContribution.js';
+import type { IAgentHostChatContributionContext, ITurnEnd } from '../../common/agentHostChatContributionsService.js';
 
 class TestLogService extends NullLogService {
 	readonly warnings: string[] = [];
@@ -183,7 +187,104 @@ suite('AgentHostGitService - getRepositoryRoot (real git)', () => {
 		assert.deepStrictEqual({ before, after: after?.fsPath, lookups: logService.repositoryRootLookups }, {
 			before: undefined,
 			after: expectedRoot,
+			lookups: 1,
+		});
+	});
+
+	(hasGit ? test : test.skip)('does not spawn git or warn for a missing directory, including with refreshIfNone', async () => {
+		const directory = URI.file(join(tmpRoot, 'deleted-worktree'));
+		const availability = service.hasGitRoot(directory);
+		const results = [
+			await service.getRepositoryRoot(directory),
+			await service.getRepositoryRoot(directory, { refreshIfNone: true }),
+			await service.getRepositoryRoot(directory, { refreshIfNone: true }),
+		];
+
+		assert.deepStrictEqual({ results, availability: availability.get(), lookups: logService.repositoryRootLookups, warnings: logService.warnings }, {
+			results: [undefined, undefined, undefined],
+			availability: undefined,
+			lookups: 0,
+			warnings: [],
+		});
+	});
+
+	(hasGit ? test : test.skip)('treats a path below a regular file as missing', async () => {
+		writeFileSync(join(tmpRoot, 'file'), '');
+		const root = await service.getRepositoryRoot(URI.file(join(tmpRoot, 'file', 'nested')), { refreshIfNone: true });
+
+		assert.deepStrictEqual({ root, lookups: logService.repositoryRootLookups, warnings: logService.warnings }, {
+			root: undefined,
+			lookups: 0,
+			warnings: [],
+		});
+	});
+
+	(hasGit ? test : test.skip)('picks up a worktree recreated at the same path after it was missing', async () => {
+		const directoryPath = join(tmpRoot, 'recreated');
+		const directory = URI.file(directoryPath);
+		const whileMissing = await service.getRepositoryRoot(directory, { refreshIfNone: true });
+		mkdirSync(directoryPath);
+		const asPlainDirectory = await service.getRepositoryRoot(directory, { refreshIfNone: true });
+		const expectedRoot = initRepository(directoryPath);
+		const asRepository = await service.getRepositoryRoot(directory, { refreshIfNone: true });
+
+		assert.deepStrictEqual({ whileMissing, asPlainDirectory, asRepository: asRepository?.fsPath, lookups: logService.repositoryRootLookups }, {
+			whileMissing: undefined,
+			asPlainDirectory: undefined,
+			asRepository: expectedRoot,
 			lookups: 2,
+		});
+	});
+
+	(hasGit ? test : test.skip)('does not cache a missing directory as a non-repository', async () => {
+		const directoryPath = join(tmpRoot, 'later-created');
+		const directory = URI.file(directoryPath);
+		const availability = service.hasGitRoot(directory);
+		await service.getRepositoryRoot(directory, { refreshIfNone: true });
+		mkdirSync(directoryPath);
+		const expectedRoot = initRepository(directoryPath);
+		const root = await service.getRepositoryRoot(directory);
+
+		assert.deepStrictEqual({ root: root?.fsPath, availability: availability.get(), lookups: logService.repositoryRootLookups }, {
+			root: expectedRoot,
+			availability: true,
+			lookups: 1,
+		});
+	});
+
+	(hasGit ? test : test.skip)('GitRepositoryRootsContribution only probes existing working directories', async () => {
+		const repositoryPath = join(tmpRoot, 'repo');
+		const plainPath = join(tmpRoot, 'plain');
+		mkdirSync(repositoryPath);
+		mkdirSync(plainPath);
+		const expectedRoot = initRepository(repositoryPath);
+		const directories = [
+			URI.file(repositoryPath).toString(),
+			URI.file(join(tmpRoot, 'missing-1')).toString(),
+			URI.file(plainPath).toString(),
+			URI.file(join(tmpRoot, 'missing-2')).toString(),
+		];
+		class TestConfigurationService extends mock<IAgentConfigurationService>() {
+			override getEffectiveWorkingDirectories(): readonly string[] {
+				return directories;
+			}
+		}
+		const context: IAgentHostChatContributionContext = {
+			contributionId: GitRepositoryRootsContribution.id,
+			memento: () => { throw new Error('unused'); },
+			deleteMemento: () => { throw new Error('unused'); },
+		};
+		const contribution = disposables.add(new GitRepositoryRootsContribution(context, service, new TestConfigurationService(), logService));
+
+		const turnEnd: ITurnEnd = { session: 'agenthost:/session', channel: 'agenthost:/session', turnId: undefined, reason: { kind: 'success' } };
+		contribution.onTurnEnd(turnEnd);
+		contribution.onTurnEnd(turnEnd);
+		const roots = await Promise.all(directories.map(directory => service.getRepositoryRoot(URI.parse(directory))));
+
+		assert.deepStrictEqual({ roots: roots.map(root => root?.fsPath), lookups: logService.repositoryRootLookups, resolveFailures: logService.warnings.filter(warning => warning.includes('Failed to resolve repository root')) }, {
+			roots: [expectedRoot, undefined, undefined, undefined],
+			lookups: 3,
+			resolveFailures: [],
 		});
 	});
 
@@ -244,7 +345,7 @@ suite('AgentHostGitService - getRepositoryRoot (real git)', () => {
 		initRepository(directoryPath);
 		await service.getRepositoryRoot(directory);
 
-		assert.deepStrictEqual({ values, lookups: logService.repositoryRootLookups }, { values: [undefined, true], lookups: 2 });
+		assert.deepStrictEqual({ values, lookups: logService.repositoryRootLookups }, { values: [undefined, true], lookups: 1 });
 	});
 
 	(hasGit ? test : test.skip)('a failed negative refresh changes availability to unknown instead of retaining false', async () => {

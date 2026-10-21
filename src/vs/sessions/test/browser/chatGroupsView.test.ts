@@ -409,7 +409,7 @@ suite('Sessions - ChatGroupsView', () => {
 		assert.strictEqual(view['_mainChatResource'], undefined);
 	});
 
-	test('aligns transcript overlays with full-width split chats', () => {
+	test('aligns transcript context with full-width split chats', () => {
 		const workbench = mainWindow.document.createElement('div');
 		workbench.classList.add('agent-sessions-workbench');
 		workbench.style.setProperty('--session-view-content-horizontal-padding', '24px');
@@ -419,14 +419,12 @@ suite('Sessions - ChatGroupsView', () => {
 		groups.classList.add('chat-groups-view');
 		const session = mainWindow.document.createElement('div');
 		session.classList.add('interactive-session');
-		const scrollDown = mainWindow.document.createElement('button');
-		scrollDown.classList.add('chat-scroll-down');
 		const list = mainWindow.document.createElement('div');
 		list.classList.add('interactive-list');
 		const transcriptContext = mainWindow.document.createElement('div');
 		transcriptContext.classList.add('chat-transcript-context');
 		list.appendChild(transcriptContext);
-		session.append(scrollDown, list);
+		session.appendChild(list);
 		groups.appendChild(session);
 		sessionsPart.appendChild(groups);
 		workbench.appendChild(sessionsPart);
@@ -434,10 +432,8 @@ suite('Sessions - ChatGroupsView', () => {
 		disposables.add(toDisposable(() => workbench.remove()));
 
 		assert.deepStrictEqual({
-			scrollDownRight: mainWindow.getComputedStyle(scrollDown).right,
 			transcriptContextMaxWidth: mainWindow.getComputedStyle(transcriptContext).maxWidth,
 		}, {
-			scrollDownRight: '24px',
 			transcriptContextMaxWidth: 'none',
 		});
 	});

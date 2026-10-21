@@ -71,6 +71,7 @@ suite('Sessions - Bulk archive undo', () => {
 			override readonly onDidReplaceNewDraftSession = Event.None;
 			override readonly onDidStartSession = Event.None;
 			override readonly onDidDiscardNewSession = Event.None;
+			override readonly onDidMoveChat = Event.None;
 			override getSessions() { return sessions.map(entry => entry.session); }
 			override getInFlightNewSessionRequests() { return []; }
 			override getSession(resource: URI) {
@@ -447,6 +448,7 @@ suite('Sessions - Delete group undo', () => {
 			override readonly onDidReplaceNewDraftSession = Event.None;
 			override readonly onDidStartSession = Event.None;
 			override readonly onDidDiscardNewSession = Event.None;
+			override readonly onDidMoveChat = Event.None;
 			override getSessions() { return sessions; }
 			override getInFlightNewSessionRequests() { return []; }
 		});

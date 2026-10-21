@@ -106,7 +106,7 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/2c7bdd5be84d32e0b3bc7daeafc769044cfeeb79bf5fee43d7c82744cdc7df71)
 
 #### sessions/chat/newWidget/newChatWidget/ConnectorRecommendationsPhoneWithNotices/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/54636b19193f1715561b921e53d9bce47bc06fccaec8ff3ea049d69582260e14)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/0f5932d21d6ea7913cdda9d7c72bcf9bc983765a68ebeb6987916d0e91aa9175)
 
 #### sessions/chat/newWidget/newChatWidget/ConnectorRecommendationsWithNotices/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/a948352d01a47298eca294adb82e2d80b6862252aae2287e1842d5b17ece45e3)
@@ -127,7 +127,7 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/eafaa778655afaf24d160cf70f904738ce2e9909327433651de4273b343e7303)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionExperimentalComposerBackground/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/26a9bd337f48dd61dd0c5e8f77871fb584e99dce75f15434f0313dc111810824)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/c4427494780e97f24c059cd931e57e14e2694826958a9cf3f4b1bd21b7423f59)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionGitHubContextPicker/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/eccd31eef410163ecbf200c0830a70c142a7c74c2f28ae123485627385503b99)
@@ -136,7 +136,7 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/4b05abe9f3cd5edd1af987628b73d59c80418d02ecf0d68fb943e9a5f4690eeb)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionPhoneExperimentalComposer/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/277cef0f7c1097d1aca0f2207ed62866ee6814728c93d6c6e69357dd66bd1bcc)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/e4d58fa48aa5774fc7ee8b204be606bd6e81709da310a415e2a3f8d70992b121)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionPhoneSettingsDisabled/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/70b8b515b79c73019a2efc31491532c9af089d3d9fa6736ab20eb222a352691a)

@@ -3166,13 +3166,9 @@ export class AgentHostStateManager extends Disposable {
 
 	/**
 	 * Aggregates a session's chat catalog into the derived session-summary
-	 * fields per the protocol rules: activity bits come from the default chat
-	 * (else the most recently modified chat) with `InputNeeded`/`Error`/
-	 * `InProgress` promoted whenever any chat raises them; the `activity` string
-	 * follows the chat driving the resulting status; `modifiedAt` is the max
-	 * across chats. Promotion precedence is `InputNeeded` > `Error` >
-	 * `InProgress`, so a running peer (sub) chat surfaces as `InProgress` on the
-	 * session even when the default chat is idle.
+	 * fields, promoting `InputNeeded` before `InProgress` over the default chat's
+	 * status (else the most recently modified chat's). Activity follows the
+	 * driving chat; `modifiedAt` is the max across chats.
 	 */
 	private _aggregateChatSummaries(chats: readonly ChatSummary[], defaultChat: URI | undefined): { status?: SessionStatus; activity?: string; modifiedAt?: number } {
 		if (chats.length === 0) {
@@ -3183,7 +3179,6 @@ export class AgentHostStateManager extends Disposable {
 			?? chats.reduce((a, b) => Date.parse(b.modifiedAt) > Date.parse(a.modifiedAt) ? b : a);
 		let status = base.status & activityMask;
 		let driver = base;
-		const errorChat = chats.find(c => (c.status & SessionStatus.Error) === SessionStatus.Error);
 		const inputChat = chats.find(c => (c.status & SessionStatus.InputNeeded) === SessionStatus.InputNeeded);
 		// `InputNeeded` is a superset of the `InProgress` bit, so exclude
 		// input-needed chats here to find one that is purely streaming.
@@ -3191,9 +3186,6 @@ export class AgentHostStateManager extends Disposable {
 		if (inputChat) {
 			status = SessionStatus.InputNeeded;
 			driver = inputChat;
-		} else if (errorChat) {
-			status = SessionStatus.Error;
-			driver = errorChat;
 		} else if (inProgressChat) {
 			status = SessionStatus.InProgress;
 			driver = inProgressChat;
