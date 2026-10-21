@@ -33,6 +33,8 @@ import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/k
 import { TestSessionsList } from './testSessionsList.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { ISessionsListModelService, SessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
+import { ISessionGroupsService, SessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
+import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
 import { SessionsView, SessionsViewId } from '../../browser/views/sessionsView.js';
 import { PROMOTE_CHAT_TO_SESSION_ACTION_ID } from '../../browser/sessionsActions.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
@@ -556,8 +558,9 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 	 * Renders the sessions list with moving chats on, recording the moves it makes and any dialog it shows. With
 	 * `realListModel`, the list keeps its state in the real list model service, recording the storage keys it writes.
 	 * With `cappedGroup`, the group shows its first sessions behind "Show more", as after the user chose "Show less".
+	 * With `realGroups`, the `grouped` sessions are in a group of the real groups service.
 	 */
-	function render(sessions: ISession[], options?: { readonly pinned?: readonly string[]; readonly grouped?: readonly string[]; readonly cappedGroup?: boolean; readonly sorting?: SessionsSorting; readonly height?: number; readonly simulateMoves?: boolean; readonly fixed?: readonly string[]; readonly realListModel?: boolean; readonly notice?: boolean }) {
+	function render(sessions: ISession[], options?: { readonly pinned?: readonly string[]; readonly grouped?: readonly string[]; readonly cappedGroup?: boolean; readonly sorting?: SessionsSorting; readonly height?: number; readonly simulateMoves?: boolean; readonly fixed?: readonly string[]; readonly realListModel?: boolean; readonly realGroups?: boolean; readonly notice?: boolean }) {
 		const moves: string[] = [];
 		// With `notice`, the list reports its moves in a notice that records what it shows.
 		const notices: string[] = [];
@@ -598,6 +601,13 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 			override readonly onDidChangeSessions = sessionsChanged.event;
 			override readonly onDidMoveChat = chatMoved.event;
 			override readonly onDidDeleteSession = Event.None;
+			override readonly onDidArchiveSession = Event.None;
+			override readonly onWillSendRequest = Event.None;
+			override readonly onDidReplaceNewDraftSession = Event.None;
+			override readonly onDidReplaceSession = Event.None;
+			override readonly onDidStartSession = Event.None;
+			override readonly onDidDiscardNewSession = Event.None;
+			override getInFlightNewSessionRequests(): readonly ISession[] { return []; }
 			override canMoveChat(session: ISession, chat: IChat): boolean { return chat !== session.mainChat.get() && !options?.fixed?.includes(chat.title.get()); }
 			override canMoveSessionUnder(session: ISession): boolean { return session.chats.get().length <= 1; }
 			override async moveChat(session: ISession, chat: IChat, destination: ISessionChatMoveTarget): Promise<void> {
@@ -631,6 +641,12 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 				chatMoved.fire({ from: { session, chat: main.resource }, to: { session: destination, chat: arrived.resource } });
 			}
 		}(sessions));
+		if (options?.realGroups) {
+			harness.instantiationService.stub(ISessionSectionOrderService, harness.store.add(harness.instantiationService.createInstance(SessionSectionOrderService)));
+			const groupsService = harness.store.add(harness.instantiationService.createInstance(SessionGroupsService));
+			harness.instantiationService.stub(ISessionGroupsService, groupsService);
+			groupsService.createGroup(group.name, options.grouped ?? []);
+		}
 		const writtenStorageKeys: string[] = [];
 		if (options?.realListModel) {
 			const storageService = harness.instantiationService.get(IStorageService);
@@ -727,7 +743,11 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 			.sort((a, b) => parseFloat(a.style.top) - parseFloat(b.style.top))
 			.map(labelOf)
 			.join(' ');
-		return { list, instantiationService: harness.instantiationService, moves, notices, notice, undo: () => undo!(), writtenStorageKeys, chatRows, setExpanded, expandSection, dragOver, nestedFeedback, find, closeFind, labels, rendered, sortChanges: harness.sortChanges, rowOf, dispose: () => harness.store.dispose() };
+		/** The labels of the rows the list renders, top to bottom, nested chat rows indented. */
+		const rows = () => [...container.querySelectorAll<HTMLElement>('.monaco-list-row')]
+			.sort((a, b) => parseFloat(a.style.top) - parseFloat(b.style.top))
+			.map(row => `${row.querySelector('.session-chat-title') ? '  ' : ''}${labelOf(row)}`);
+		return { list, rows, instantiationService: harness.instantiationService, moves, notices, notice, undo: () => undo!(), writtenStorageKeys, chatRows, setExpanded, expandSection, dragOver, nestedFeedback, find, closeFind, labels, rendered, sortChanges: harness.sortChanges, rowOf, dispose: () => harness.store.dispose() };
 	}
 
 	test('a nested session dropped anywhere on a session row goes to its end, highlighting the session like a folder', async () => {
@@ -1167,6 +1187,23 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 			moves: ['promoted -> new session'],
 			// The new session, created last, is the list's last row: scrolled to it and selected it.
 			selected: ['promoted'],
+		});
+	});
+
+	test('a nested session dropped on empty space moves into a new session in its session\'s custom group', async () => {
+		const own = listSession('Own', ['promoted', 'kept']);
+		const other = listSession('Other', []);
+		const list = render([own, other], { grouped: [own.sessionId], simulateMoves: true, realGroups: true });
+		list.setExpanded('Own', true);
+		const before = list.rows();
+
+		await list.dragOver('promoted', undefined).drop();
+		await settle();
+
+		assert.deepStrictEqual({ before, after: list.rows(), moves: list.moves }, {
+			before: ['Move Demo', 'Own', '  promoted', '  kept', 'Recent', 'Other'],
+			after: ['Move Demo', 'Own', '  kept', 'promoted', 'Recent', 'Other'],
+			moves: ['promoted -> new session'],
 		});
 	});
 

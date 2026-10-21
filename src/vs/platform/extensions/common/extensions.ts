@@ -294,6 +294,12 @@ export interface IExtensionCapabilities {
 
 export const EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY = 'extensions.experimental.enableAgentsWindowCapability';
 
+/**
+ * Lets users choose which extensions run in the Agents window. When disabled, extensions that do not
+ * support the Agents window stay disabled there and saved choices are ignored.
+ */
+export const EXTENSIONS_AGENTS_WINDOW_MANAGEMENT = 'extensions.experimental.agentsWindowManagement';
+
 export const ALL_EXTENSION_KINDS: readonly ExtensionKind[] = ['ui', 'workspace', 'web'];
 
 export type LimitedWorkspaceSupportType = 'limited';

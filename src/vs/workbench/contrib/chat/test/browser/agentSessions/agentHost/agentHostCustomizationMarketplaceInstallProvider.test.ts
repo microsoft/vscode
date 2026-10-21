@@ -11,7 +11,7 @@ import { observableValue } from '../../../../../../../base/common/observable.js'
 import { URI } from '../../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import { IAgentCustomizationInstallation } from '../../../../../../../platform/agentHost/common/agent.js';
+import { IAgentCustomizationInstallation, IAgentCustomizationMarketplaceSearchRequest } from '../../../../../../../platform/agentHost/common/agent.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentHostService } from '../../../../../../../platform/agentHost/common/agentService.js';
 import { CustomizationMarketplaceRecoveryGroup } from '../../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
@@ -25,6 +25,63 @@ import { IAgentPlugin, IAgentPluginService } from '../../../../common/plugins/ag
 
 suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('routes saved feeds through the owning session and preserves SDK identities and authentication recovery', async () => {
+		const requests: { session: string; request: IAgentCustomizationMarketplaceSearchRequest }[] = [];
+		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+			'copilotcli',
+			async () => true,
+			new class extends mock<IAgentHostService>() {
+				override readonly onAgentHostStart = Event.None;
+				override readonly onAgentHostExit = Event.None;
+				override async searchCustomizationMarketplace(_provider: string, session: URI, request: IAgentCustomizationMarketplaceSearchRequest) {
+					requests.push({ session: session.toString(), request });
+					if (request.feedId === 'feed_auth') {
+						return { kind: 'unavailable' as const, reason: 'authentication' as const };
+					}
+					return {
+						kind: 'page' as const,
+						items: [{
+							selectionId: 'selection', identifier: 'feed-resource', kind: 'mcp' as const, displayName: 'Figma',
+							installable: true, iconUrl: 'https://raw.githubusercontent.com/example/icons/main/figma.png', categories: ['build'],
+						}],
+					};
+				}
+			}(),
+			new class extends mock<IAgentHostConnectionsService>() {
+				override resolveSessionResourceIdentity() {
+					return { connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY, backendSession: URI.parse('vendor-session://host/opaque-session') };
+				}
+			}(),
+			new class extends mock<IAgentHostCustomizationService>() {
+				override readonly onDidChangeCustomizations = Event.None;
+			}(),
+			new class extends mock<IAgentPluginService>() {
+				override readonly plugins = observableValue<readonly IAgentPlugin[]>('plugins', []);
+			}(),
+			new class extends mock<IDialogService>() { }(),
+			new NullLogService(),
+		));
+		const session = URI.parse('agent-host-copilotcli:/frontend');
+		await assert.rejects(provider.getFeed(session, 'feed_auth', CancellationToken.None), /Sign in to Copilot/);
+		const page = await provider.getFeed(session, 'feed_editorial', CancellationToken.None);
+		const item = page.items[0];
+		assert.deepStrictEqual({
+			requests,
+			item: { identifier: item.identifier, tags: item.tags, icon: URI.isUri(item.icon) ? item.icon.toString() : undefined, installation: item.installation },
+			recovery: provider.getRecoveryAction()?.kind,
+		}, {
+			requests: ['feed_auth', 'feed_editorial'].map(feedId => ({
+				session: 'vendor-session://host/opaque-session',
+				request: { query: '', mediaType: undefined, limit: 30, cursor: undefined, feedId },
+			})),
+			item: {
+				identifier: 'feed-resource', tags: ['build'], icon: 'https://raw.githubusercontent.com/example/icons/main/figma.png',
+				installation: { kind: 'providerCatalog', resourceKind: 'mcp', selectionId: 'selection', itemUrl: undefined, installable: true },
+			},
+			recovery: 'signIn',
+		});
+	});
 
 	test('routes marketplace management through the Agent Host provider', async () => {
 		const calls: { readonly operation: string; readonly args: readonly unknown[] }[] = [];
@@ -279,6 +336,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 							{
 								selectionId: 'selection',
 								kind: 'skill' as const,
+								identifier: 'https://example.test/demo-skill',
 								displayName: 'Demo Skill',
 								description: 'Demo',
 								publisher: 'octo-org',
@@ -363,7 +421,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			},
 			page: {
 				items: [{
-					identifier: 'selection',
+					identifier: 'https://example.test/demo-skill',
 					displayName: 'Demo Skill',
 					description: 'Demo',
 					mediaType: 'application/ai-skill',
@@ -376,7 +434,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 					publisher: 'octo-org',
 					publisherUrl: 'https://github.com/octo-org',
 					icon: 'https://github.com/octo-org.png',
-					installation: { kind: 'providerCatalog', resourceKind: 'skill', selectionId: 'selection', itemUrl: undefined },
+					installation: { kind: 'providerCatalog', resourceKind: 'skill', selectionId: 'selection', itemUrl: undefined, installable: true },
 				}, {
 					identifier: 'https://api.mcp.github.com/oss/v0.1/servers/microsoft%2Fplaywright-mcp/versions/latest',
 					displayName: 'Playwright',
@@ -396,6 +454,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 						resourceKind: 'mcp',
 						selectionId: 'playwright',
 						itemUrl: 'https://api.mcp.github.com/oss/v0.1/servers/microsoft%2Fplaywright-mcp/versions/latest',
+						installable: true,
 					},
 				}],
 				nextCursor: 'next',
@@ -555,6 +614,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 				override async applyCustomizationInstallation(_provider: string, operationId: string) {
 					applied.push(operationId);
 					installed = true;
+					return { kind: 'receipt' as const, installationId: 'installation' };
 				}
 			}(),
 			new class extends mock<IAgentHostConnectionsService>() {
@@ -619,6 +679,145 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		});
 	});
 
+	test('routes a retained catalog plugin through verified SDK review and apply', async () => {
+		const session = URI.parse('agent-host-copilotcli:/frontend-session');
+		const requests: unknown[] = [];
+		const applied: string[] = [];
+		const confirmations: { message: string; detail?: string }[] = [];
+		const plugins = observableValue<readonly IAgentPlugin[]>('plugins', []);
+		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+			'copilotcli',
+			async () => true,
+			new class extends mock<IAgentHostService>() {
+				override readonly onAgentHostStart = Event.None;
+				override readonly onAgentHostExit = Event.None;
+				override async prepareCustomizationInstallation(_provider: string, _session: URI, request: unknown) {
+					requests.push(request);
+					return {
+						operationId: 'plugin-operation',
+						action: 'install' as const,
+						kind: 'plugin' as const,
+						displayName: 'Demo Plugin',
+						description: 'A demo plugin',
+						version: '1.2.3',
+						source: 'github/demo-plugin@0123456789abcdef',
+						target: '~/.copilot/installed-plugins/_direct/github--demo-plugin',
+						fileCount: 2,
+						totalBytes: 256,
+						installsDisabled: true,
+						mcpServerCount: 1,
+					};
+				}
+				override async applyCustomizationInstallation(_provider: string, operationId: string) {
+					applied.push(operationId);
+					return {
+						kind: 'plugin' as const,
+						name: 'demo-plugin',
+						repository: 'github/demo-plugin',
+						ref: '0123456789abcdef',
+						path: 'plugins/demo',
+					};
+				}
+			}(),
+			new class extends mock<IAgentHostConnectionsService>() {
+				override resolveSessionResourceIdentity() {
+					return { connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY, backendSession: URI.parse('ahp-session:/backend-session') };
+				}
+			}(),
+			new class extends mock<IAgentHostCustomizationService>() {
+				override readonly onDidChangeCustomizations = Event.None;
+			}(),
+			new class extends mock<IAgentPluginService>() {
+				override readonly plugins = plugins;
+			}(),
+			new class extends mock<IDialogService>() {
+				override async confirm(confirmation: Parameters<IDialogService['confirm']>[0]) {
+					confirmations.push({ message: confirmation.message, detail: typeof confirmation.detail === 'string' ? confirmation.detail : confirmation.detail?.value });
+					return { confirmed: true };
+				}
+			}(),
+			new NullLogService(),
+		));
+
+		const resource = {
+			sourceId: 'agentFinder',
+			identifier: 'demo-plugin',
+			displayName: 'Demo Plugin',
+			description: 'A demo plugin',
+			version: '1.2.3',
+			mediaType: 'application/vnd.github.copilot-plugin',
+			tags: [],
+			capabilities: [],
+			representativeQueries: [],
+			installation: { kind: 'providerCatalog', resourceKind: 'plugin', selectionId: 'plugin-selection', catalogIdentity: 'github/demo-plugin' },
+		} as const;
+		await provider.getInstallations(session, CancellationToken.None);
+		await provider.install(session, resource, CancellationToken.None);
+		plugins.set([
+			new class extends mock<IAgentPlugin>() {
+				override readonly uri = URI.file('/plugins/unrelated');
+				override readonly label = 'Unrelated Plugin';
+				override readonly copilotCliInstallation = {
+					name: 'unrelated-plugin',
+					marketplace: '',
+					directSourceId: 'unrelated-plugin-source',
+					source: { kind: 'github' as const, repository: 'github/unrelated-plugin', sha: 'fedcba9876543210' },
+				};
+			}(),
+			new class extends mock<IAgentPlugin>() {
+				override readonly uri = URI.file('/plugins/demo');
+				override readonly label = 'Demo Plugin';
+				override readonly copilotCliInstallation = {
+					name: 'demo-plugin',
+					marketplace: '',
+					directSourceId: 'demo-plugin-source',
+					source: { kind: 'github' as const, repository: 'github/demo-plugin', ref: '0123456789abcdef', path: '/plugins/demo/' },
+				};
+			}(),
+		], undefined);
+		const inventory = await provider.getInstallations(session, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			requests,
+			applied,
+			confirmations,
+			inventory: inventory.map(item => ({
+				installationId: item.installationId,
+				identifier: item.resource.identifier,
+				installation: item.resource.installation,
+				target: item.state.target,
+			})),
+		}, {
+			requests: [{
+				mediaType: 'application/vnd.github.copilot-plugin',
+				identifier: 'demo-plugin',
+				displayName: 'Demo Plugin',
+				description: 'A demo plugin',
+				version: '1.2.3',
+				itemUrl: undefined,
+				selectionId: 'plugin-selection',
+				catalogIdentity: 'github/demo-plugin',
+				installation: { kind: 'plugin' },
+			}],
+			applied: ['plugin-operation'],
+			confirmations: [{
+				message: 'Install \'Demo Plugin\'?',
+				detail: 'Plugins can supply agents, skills, hooks, and MCP servers. Only install resources from sources you trust.\n\nSource: github/demo-plugin@0123456789abcdef\nDestination: ~/.copilot/installed-plugins/_direct/github--demo-plugin\nFiles: 2\nSize: 256 bytes\n\nThe plugin will be installed disabled.\nDeclared MCP servers: 1',
+			}],
+			inventory: [{
+				installationId: 'plugin:direct:unrelated-plugin-source',
+				identifier: 'unrelated-plugin-source',
+				installation: { kind: 'plugin', repository: 'github/unrelated-plugin', ref: 'fedcba9876543210', path: '' },
+				target: { kind: 'plugin', uri: URI.file('/plugins/unrelated'), name: 'unrelated-plugin' },
+			}, {
+				installationId: 'plugin:direct:demo-plugin-source',
+				identifier: 'demo-plugin',
+				installation: { kind: 'providerCatalog', resourceKind: 'plugin', selectionId: 'plugin-selection', catalogIdentity: 'github/demo-plugin' },
+				target: { kind: 'plugin', uri: URI.file('/plugins/demo'), name: 'demo-plugin' },
+			}],
+		});
+	});
+
 	test('routes MCP Gallery installation through the Agent Host SDK card flow', async () => {
 		const session = URI.parse('agent-host-copilotcli:/frontend-session');
 		const calls: string[] = [];
@@ -647,6 +846,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 				}
 				override async applyCustomizationInstallation() {
 					calls.push('apply');
+					return { kind: 'receipt' as const, installationId: 'installation' };
 				}
 			}(),
 			new class extends mock<IAgentHostConnectionsService>() {
