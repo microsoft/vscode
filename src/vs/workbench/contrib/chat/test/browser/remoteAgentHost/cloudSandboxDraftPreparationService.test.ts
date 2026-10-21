@@ -157,6 +157,49 @@ suite('CloudSandboxDraftPreparationService', () => {
 		};
 	}
 
+	for (const claimed of [true, false]) {
+		test(`retains a confirmed ${claimed ? 'claim' : 'fallback'} only for its draft lifetime without restoring deletion ownership`, async () => {
+			const fixture = createFixture();
+			fixture.service.prepare(editorDraft, 'owner/repo');
+			const reservation = await fixture.service.take(editorDraft, CancellationToken.None);
+			assert.ok(reservation);
+			const beforeConfirmation = fixture.service.getSubmittedDraft(editorDraft);
+			const created = { ...reservedSession(claimed ? 'env-1' : 'fallback'), claimed };
+			fixture.service.markSubmitted(reservation, created, 'owner/repo');
+			await fixture.service.clear();
+			await fixture.setConfiguration(CloudSandboxEarlyPreparationSettingId, false);
+			fixture.service.updateRepository(editorDraft, 'another/repo');
+			await assert.rejects(fixture.service.release(reservation), /submitted cloud task cannot be released/);
+			const retained = fixture.service.getSubmittedDraft(editorDraft);
+			await fixture.service.forget(editorDraft);
+
+			assert.deepStrictEqual({
+				beforeConfirmation, retained, forgotten: fixture.service.getSubmittedDraft(editorDraft), calls: fixture.calls,
+			}, {
+				beforeConfirmation: undefined,
+				retained: { reservation, created, repoNwo: 'owner/repo' },
+				forgotten: undefined, calls: ['reserve'],
+			});
+		});
+	}
+
+	test('a late confirmed response does not recreate a forgotten draft record', async () => {
+		const fixture = createFixture();
+		fixture.service.prepare(editorDraft);
+		const reservation = await fixture.service.take(editorDraft, CancellationToken.None);
+		assert.ok(reservation);
+		await fixture.service.forget(editorDraft);
+		fixture.service.markSubmitted(reservation, { ...reservedSession('env-1'), claimed: true }, undefined);
+		assert.deepStrictEqual({ submitted: fixture.service.getSubmittedDraft(editorDraft), calls: fixture.calls }, {
+			submitted: undefined, calls: ['reserve'],
+		});
+	});
+
+	test('cannot confirm a receipt that was not handed off', () => {
+		const fixture = createFixture();
+		assert.throws(() => fixture.service.markSubmitted(prepared, { ...reservedSession('env-1'), claimed: true }, undefined), /not handed off/);
+	});
+
 	for (const enabled of [false, true, undefined]) {
 		test(`logs experiment exposure in the eligible input path with setting ${enabled}`, async () => {
 			const fixture = createFixture({ configuration: { [CloudSandboxEarlyPreparationSettingId]: enabled } });

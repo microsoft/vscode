@@ -21,6 +21,7 @@ import {
 	CloudSandboxAutoConnectOnOpenSettingId,
 	CloudSandboxSessionFeedEnabledSettingId,
 	CloudSandboxAuthenticationRequiredError,
+	CloudSandboxRequestError,
 	cloudSandboxAddress,
 	type CloudSandboxTaskCreationPath,
 	ICloudSandboxAgentHostService,
@@ -118,6 +119,7 @@ export function discoveredSessionProject(repoName: string | undefined): IAgentSe
 export interface ICloudSandboxSessionList extends IDisposable {
 	readonly connectionStatus: IObservable<RemoteAgentHostConnectionStatus>;
 	seedSessions(sessions: readonly IAgentSessionMetadata[], options?: { readonly updateExisting?: boolean; readonly workspaceless?: boolean }): void;
+	/** Timestamp of a listed or provisional session, or undefined when it is absent. */
 	getSessionModifiedTime(sessionId: string): number | undefined;
 	setLabel?(label: string): void;
 	setConnection(connection: IAgentConnection, defaultDirectory: string | undefined): void;
@@ -1060,6 +1062,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		let created: ICloudSandboxCreatedSession;
 		let taskCreationPath: CloudSandboxTaskCreationPath;
 		let reservationWaitMs: number;
+		let reused: boolean;
 		let enabledToken: CancellationToken;
 		let provisioningStartedAt: number;
 		let phase: 'preparation' | 'creation' = 'preparation';
@@ -1076,7 +1079,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			progress?.report(localize('sandbox.provisioningContainer', "Setting up cloud container"));
 			provisioningStartedAt = Date.now();
 			phase = 'creation';
-			({ created, taskCreationPath, reservationWaitMs } = await this._createTaskForDraft(request, draftResource, accountKey, token));
+			({ created, taskCreationPath, reservationWaitMs, reused } = await this._createTaskForDraft(request, draftResource, accountKey, token));
 		} catch (error) {
 			if (isCancellationError(error) || token.isCancellationRequested) {
 				throw new CancellationError();
@@ -1084,7 +1087,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			this._logService.error(`${LOG_PREFIX} Cloud session ${phase} failed.`, error);
 			throw this._instantiationService.createInstance(CloudSandboxStartupError, error, phase);
 		}
-		this._logService.info(`${LOG_PREFIX} event=taskSubmitted taskCreationPath=${taskCreationPath} taskId=${JSON.stringify(created.taskId)} environmentId=${JSON.stringify(created.environmentId)} reservationWaitMs=${reservationWaitMs} durationMs=${Math.max(0, Date.now() - provisioningStartedAt)}`);
+		this._logService.info(`${LOG_PREFIX} event=${reused ? 'taskReused' : 'taskSubmitted'} taskCreationPath=${taskCreationPath} taskId=${JSON.stringify(created.taskId)} environmentId=${JSON.stringify(created.environmentId)} reservationWaitMs=${reservationWaitMs} durationMs=${Math.max(0, Date.now() - provisioningStartedAt)}`);
 		const name = request.repoNwo ?? created.taskId;
 		const title = newSessionTitle(request.prompt, name);
 		const address = cloudSandboxAddress(created.environmentId);
@@ -1101,20 +1104,26 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			if (!provider) {
 				throw new Error(`No sessions provider was registered for sandbox environment ${created.environmentId}`);
 			}
-			const project = discoveredSessionProject(request.repoNwo);
-			provider.seedProvisionalSession?.({
-				session: AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, created.sessionId),
-				provider: CLOUD_SANDBOX_AGENT_PROVIDER,
-				_meta: withSessionWorkspaceless(undefined, request.repoNwo === undefined),
-				startTime: now,
-				modifiedTime: now,
-				summary: title,
-				...(project ? { project } : {}),
-			});
+			if (!reused || provider.getSessionModifiedTime(created.sessionId) === undefined) {
+				const project = discoveredSessionProject(request.repoNwo);
+				provider.seedProvisionalSession?.({
+					session: AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, created.sessionId),
+					provider: CLOUD_SANDBOX_AGENT_PROVIDER,
+					_meta: withSessionWorkspaceless(undefined, request.repoNwo === undefined),
+					startTime: now,
+					modifiedTime: now,
+					summary: title,
+					...(project ? { project } : {}),
+				});
+			}
 			seededProvider = provider;
 			this._persistInventory();
 			progress?.report(localize('sandbox.connectingContainer', "Connecting to cloud container"));
-			connectionAttempt = this.connect({ environmentId: created.environmentId, sessionId: created.sessionId, name, connectionSource: 'created', provisioningStartedAt, taskCreationPath, reservationWaitMs });
+			connectionAttempt = this.connect({
+				environmentId: created.environmentId, sessionId: created.sessionId, name, taskCreationPath, reservationWaitMs,
+				connectionSource: reused ? 'existing' : 'created',
+				provisioningStartedAt: reused ? undefined : provisioningStartedAt,
+			});
 			await raceCancellationError(connectionAttempt, token);
 			if (token.isCancellationRequested || !this._isEnabled() || this._providerInstances.get(address) !== provider) {
 				throw new CancellationError();
@@ -1140,10 +1149,10 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		}
 	}
 
-	private async _createTaskForDraft(request: ICloudSandboxCreateSessionRequest, draftResource: URI | undefined, accountKey: string, token: CancellationToken): Promise<{ readonly created: ICloudSandboxCreatedSession; readonly taskCreationPath: CloudSandboxTaskCreationPath; readonly reservationWaitMs: number }> {
+	private async _createTaskForDraft(request: ICloudSandboxCreateSessionRequest, draftResource: URI | undefined, accountKey: string, token: CancellationToken): Promise<{ readonly created: ICloudSandboxCreatedSession; readonly taskCreationPath: CloudSandboxTaskCreationPath; readonly reservationWaitMs: number; readonly reused: boolean }> {
 		if (!draftResource) {
 			const created = await this._apiService.createSession(request, token);
-			return { created, taskCreationPath: getCloudSandboxTaskCreationPath(request, created), reservationWaitMs: 0 };
+			return { created, taskCreationPath: getCloudSandboxTaskCreationPath(request, created), reservationWaitMs: 0, reused: false };
 		}
 		const store = new DisposableStore();
 		const source = store.add(new CancellationTokenSource(token));
@@ -1154,6 +1163,26 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		try {
 			if (request.expectedAccountKey !== undefined && request.expectedAccountKey !== accountKey) {
 				throw new CancellationError();
+			}
+			const submitted = this._draftPreparationService.getSubmittedDraft(draftResource);
+			if (submitted) {
+				if (source.token.isCancellationRequested || submitted.reservation.expectedAccountKey !== accountKey) {
+					throw new CancellationError();
+				}
+				if (request.environmentId !== undefined
+					|| (request.reservedTaskId !== undefined && request.reservedTaskId.trim() !== submitted.reservation.taskId)
+					|| !equalsIgnoreCase(request.repoNwo ?? '', submitted.repoNwo ?? '')) {
+					throw new CloudSandboxRequestError(undefined, localize('cloudSandbox.submittedDraftChanged', "This draft already started a cloud session with different settings. Open that session or start a new chat."), undefined, { code: 'invalid_request' });
+				}
+				if (this._deletedTaskIds.has(submitted.created.taskId)) {
+					throw new CloudSandboxRequestError(404, localize('cloudSandbox.submittedTaskDeleted', "The cloud task created for this draft has been deleted. Start a new chat."), undefined, { code: 'task_not_found' });
+				}
+				return {
+					created: submitted.created,
+					taskCreationPath: getCloudSandboxTaskCreationPath({ ...request, reservedTaskId: submitted.reservation.taskId }, submitted.created),
+					reservationWaitMs: 0,
+					reused: true,
+				};
 			}
 			if (request.environmentId === undefined) {
 				const startedAt = Date.now();
@@ -1176,8 +1205,11 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			const created = await this._apiService.createSession(taskRequest, source.token, () => {
 				taskRequestStarted = true;
 			});
+			if (prepared) {
+				this._draftPreparationService.markSubmitted(prepared, created, request.repoNwo);
+			}
 			// A fallback may mean another Send claimed the reservation; do not release it here.
-			return { created, taskCreationPath: getCloudSandboxTaskCreationPath(taskRequest, created), reservationWaitMs };
+			return { created, taskCreationPath: getCloudSandboxTaskCreationPath(taskRequest, created), reservationWaitMs, reused: false };
 		} catch (error) {
 			if (prepared && !taskRequestStarted) {
 				try {

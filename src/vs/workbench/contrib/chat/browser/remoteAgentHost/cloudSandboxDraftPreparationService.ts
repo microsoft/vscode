@@ -10,7 +10,7 @@ import { Disposable, DisposableStore, IDisposable } from '../../../../../base/co
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { CloudSandboxAuthenticationRequiredError, CloudSandboxEarlyPreparationSettingId, CloudSandboxEnabledSettingId, ICloudSandboxApiService, ICloudSandboxDraftPreparationService, ICloudSandboxPreparedReservation, isCloudSandboxEnabled } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CloudSandboxAuthenticationRequiredError, CloudSandboxEarlyPreparationSettingId, CloudSandboxEnabledSettingId, ICloudSandboxApiService, ICloudSandboxCreatedSession, ICloudSandboxDraftPreparationService, ICloudSandboxPreparedReservation, ICloudSandboxSubmittedDraft, isCloudSandboxEnabled } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ChatAIDisabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -40,6 +40,7 @@ interface IPreparation {
 	expiresAt?: number;
 	expiry?: IDisposable;
 	cleanup?: Promise<void>;
+	submitted?: ICloudSandboxSubmittedDraft;
 }
 
 export class CloudSandboxDraftPreparationService extends Disposable implements ICloudSandboxDraftPreparationService {
@@ -269,10 +270,26 @@ export class CloudSandboxDraftPreparationService extends Disposable implements I
 		}
 	}
 
+	getSubmittedDraft(draftResource: URI): ICloudSandboxSubmittedDraft | undefined {
+		const entry = this._entries.get(draftResource);
+		return entry && entry !== 'unavailable' ? entry.submitted : undefined;
+	}
+
+	markSubmitted(reservation: ICloudSandboxPreparedReservation, created: ICloudSandboxCreatedSession, repoNwo: string | undefined): void {
+		const entry = this._claims.get(reservation);
+		if (!entry || entry.state !== 'transferred') {
+			throw new Error(localize('cloudSandbox.unknownPreparedReservation', "This reservation was not handed off by draft preparation."));
+		}
+		entry.submitted = { reservation, created, repoNwo };
+	}
+
 	async release(prepared: ICloudSandboxPreparedReservation): Promise<void> {
 		const entry = this._claims.get(prepared);
 		if (!entry) {
 			throw new Error(localize('cloudSandbox.unknownPreparedReservation', "This reservation was not handed off by draft preparation."));
+		}
+		if (entry.submitted) {
+			throw new Error(localize('cloudSandbox.submittedReservation', "A submitted cloud task cannot be released as unused preparation."));
 		}
 		await this._release(entry, 'returnedBeforeSubmit');
 	}

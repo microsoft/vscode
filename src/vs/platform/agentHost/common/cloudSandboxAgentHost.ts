@@ -137,9 +137,16 @@ export interface ICloudSandboxPreparedReservation extends ICloudSandboxReservedS
 	readonly expectedAccountKey: string;
 }
 
+/** A confirmed reservation submission retained until its logical draft is disposed. */
+export interface ICloudSandboxSubmittedDraft {
+	readonly reservation: ICloudSandboxPreparedReservation;
+	readonly created: ICloudSandboxCreatedSession;
+	readonly repoNwo: string | undefined;
+}
+
 export const ICloudSandboxDraftPreparationService = createDecorator<ICloudSandboxDraftPreparationService>('cloudSandboxDraftPreparationService');
 
-/** Owns unsubmitted task reservations independently of either chat UI. */
+/** Owns draft reservations and confirmed submission identities independently of either chat UI. */
 export interface ICloudSandboxDraftPreparationService {
 	readonly _serviceBrand: undefined;
 
@@ -152,6 +159,12 @@ export interface ICloudSandboxDraftPreparationService {
 	/** Take preparation once for Send and wait for its receipt, not environment readiness. Missing or failed optional preparation returns undefined. */
 	take(draftResource: URI, token: CancellationToken): Promise<ICloudSandboxPreparedReservation | undefined>;
 
+	/** Get a confirmed submission for retry without claiming or creating another task. */
+	getSubmittedDraft(draftResource: URI): ICloudSandboxSubmittedDraft | undefined;
+
+	/** Retain the confirmed response for a handed-off reservation; this never restores deletion ownership. */
+	markSubmitted(reservation: ICloudSandboxPreparedReservation, created: ICloudSandboxCreatedSession, repoNwo: string | undefined): void;
+
 	/** Return the receipt from take for cleanup only when task creation was not dispatched. */
 	release(prepared: ICloudSandboxPreparedReservation): Promise<void>;
 
@@ -161,7 +174,7 @@ export interface ICloudSandboxDraftPreparationService {
 	/** Release all unused preparations, retaining one-shot draft records and leaving Send's claims alone. */
 	clear(): Promise<void>;
 
-	/** Release unused preparation and forget the record when the logical draft is disposed. */
+	/** Forget the logical draft, including confirmed submission identities, while releasing only unused preparation. */
 	forget(draftResource: URI): Promise<void>;
 }
 

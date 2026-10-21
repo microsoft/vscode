@@ -1882,6 +1882,48 @@ suite('Editor cloud sandbox discovery', () => {
 		assert.deepStrictEqual({ created: h.calls.created, connected: h.calls.connected.length, commits: h.contribution.commits }, { created: 1, connected: 1, commits: [] });
 	});
 
+	for (const claimed of [true, false]) {
+		test(`editor reuses a confirmed ${claimed ? 'claim' : 'fallback'} after connection failure`, async () => {
+			const created: ICloudSandboxCreatedSession = {
+				taskId: claimed ? 'new-task' : 'fallback-task', sessionId: claimed ? 'new-session' : 'fallback-session',
+				environmentId: discovered.environmentId, claimed,
+			};
+			const h = createHarness(store, {
+				earlyPreparation: true, workspaceFolders: [], repositories: [],
+				listSessions: async () => ({ kind: 'complete', sessions: [] }),
+				createSession: async () => created,
+				connect: async () => {
+					if (!h.state.connectError) {
+						h.contentProviders.set(sessionType, upcastPartial<IChatSessionContentProvider>({}));
+					}
+				},
+			});
+			await h.workspaceTrust.setWorkspaceTrust(true);
+			await h.refresh();
+			h.state.online = true;
+			h.state.connectError = new Error('relay unavailable');
+			h.addDraftWidget().setInput('first prompt');
+			await h.whenAllocationStarted;
+			await assert.rejects(h.startDraft('first prompt'), /couldn't connect/);
+			const beforeRetry = { commits: [...h.contribution.commits], sends: [...h.sends] };
+			h.state.connectError = undefined;
+			await h.startDraft('retry prompt');
+			const committedResource = URI.from({ scheme: sessionType, path: `/${created.sessionId}` }).toString();
+
+			assert.deepStrictEqual({
+				beforeRetry, allocations: h.allocations.length, tasks: h.calls.created,
+				connections: h.calls.connected.map(options => ({ environmentId: options.environmentId, sessionId: options.sessionId, source: options.connectionSource })),
+				sends: h.sends.map(send => ({ session: send.session, message: send.message })),
+				commits: h.contribution.commits.map(commit => commit.session),
+				deleted: h.calls.deletedTasks,
+			}, {
+				beforeRetry: { commits: [], sends: [] }, allocations: 1, tasks: 1,
+				connections: ['created', 'existing'].map(source => ({ environmentId: created.environmentId, sessionId: created.sessionId, source })),
+				sends: [{ session: committedResource, message: 'retry prompt' }], commits: [committedResource], deleted: [],
+			});
+		});
+	}
+
 	test('a creation failure offers safe details in the editor transcript without sending a turn', async () => {
 		const h = createHarness(store, {
 			createSession: async () => {
