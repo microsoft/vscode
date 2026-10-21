@@ -266,12 +266,16 @@ suite('WorktreeIsolation', () => {
 			namedFlattened: getWorktreeName('agents/feature/sub-topic'),
 			namedNoPrefix: getWorktreeName('plain-branch'),
 			namedWithBranchPrefix: getWorktreeName('users/alice/agents/add-config', 'users/alice/'),
+			gitPolicy: getWorktreeName('users/alice/agents/add-config', 'users/alice/', true),
+			emptyGitPrefix: getWorktreeName('agents/add-config', '', true),
 		}, {
 			root: URI.file('/src/vscode.worktrees').fsPath,
 			named: 'add-config',
 			namedFlattened: 'feature-sub-topic',
 			namedNoPrefix: 'plain-branch',
 			namedWithBranchPrefix: 'add-config',
+			gitPolicy: 'agents-add-config',
+			emptyGitPrefix: 'agents-add-config',
 		});
 	});
 
@@ -1840,7 +1844,8 @@ suite('WorktreeIsolation', () => {
 		]);
 	});
 
-	test('resolveWorkingDirectory avoids an existing worktree directory', async () => {
+	for (const useGitSettings of [false, true]) {
+	test(`resolveWorkingDirectory avoids an existing worktree directory (Git policy=${useGitSettings})`, async () => {
 		const collisionSessionId = '12345678-aaaa-bbbb-cccc-123456789abc';
 		const collisionSessionUri = URI.parse(`agent-session://test/${collisionSessionId}`);
 		const existingWorktree = URI.joinPath(worktreesRoot, 'add-feature');
@@ -1854,7 +1859,13 @@ suite('WorktreeIsolation', () => {
 			sessionUri: collisionSessionUri,
 			sessionId: collisionSessionId,
 			workingDirectory: repoRoot,
-			config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' },
+			config: {
+				[SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main',
+				...(useGitSettings ? {
+					[SessionConfigKey.WorktreeBranchPrefix]: 'team/',
+					[SessionConfigKey.WorktreeBranchNaming]: { useGitSettings: true, preferredBranchName: 'team/add-feature' },
+				} : {}),
+			},
 			prompt: 'Add feature',
 		});
 
@@ -1862,10 +1873,11 @@ suite('WorktreeIsolation', () => {
 			branchName: addWorktreeCalls[0]?.newBranchName,
 			worktree: resolved?.toString(),
 		}, {
-			branchName: 'agents/add-feature-12345678',
+			branchName: `${useGitSettings ? 'team/' : 'agents/'}add-feature-12345678`,
 			worktree: URI.joinPath(worktreesRoot, 'add-feature-12345678').toString(),
 		});
 	});
+	}
 
 	test('resolveWorkingDirectory treats a failed branch check as a collision', async () => {
 		const collisionSessionId = '12345678-aaaa-bbbb-cccc-123456789abc';

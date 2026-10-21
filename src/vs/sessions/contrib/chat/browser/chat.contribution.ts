@@ -638,6 +638,12 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('chat.agentHost.runWorktreeCreatedTasks', "Whether to automatically run tasks tagged with `\"runOptions\": { \"runOn\": \"worktreeCreated\" }` when a new agent host session worktree is created. Manual `Run Task` invocations are unaffected."),
 		},
+		'chat.agentHost.branchName.useGitSettings': {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.RESOURCE,
+			markdownDescription: localize('chat.agentHost.branchName.useGitSettings', "Use `#git.branchPrefix#` as the complete namespace for new Agent Host branches, without adding `agents/`. For local Agent Host sessions with the Git extension available, also use `#git.branchRandomName.enable#` and `#git.branchRandomName.dictionary#` to generate names. Otherwise, derive the topic from the prompt. Does not change existing branches, base-branch selection, or branch validation settings."),
+		},
 		[AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING]: {
 			type: 'boolean',
 			default: true,

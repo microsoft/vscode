@@ -85,7 +85,7 @@ class TestBranchNameGenerator implements IAgentBranchNameGenerator {
 
 	async generateBranchName(request: IAgentBranchNameGeneratorRequest): Promise<string> {
 		this.requests.push(request);
-		const branchName = `${request.branchPrefix ?? ''}agents/add-retry-logic`;
+		const branchName = request.preferredBranchName ?? `${request.branchPrefix ?? ''}${request.useGitSettings ? '' : 'agents/'}add-retry-logic`;
 		await request.branchNameCollides?.(branchName);
 		return branchName;
 	}
@@ -1589,6 +1589,30 @@ suite('AgentHostPullRequestOperationHandler', () => {
 			createHead: 'users/test/agents/add-retry-logic',
 			createBase: 'main',
 			createdBranches: ['users/test/agents/add-retry-logic'],
+		});
+	});
+
+	test('folder-session PR creation forwards its persisted Git naming candidate', async () => {
+		const gitService = new TestGitService();
+		gitService.uncommitted = true;
+		gitService.gitState = { branchName: 'main', baseBranchName: 'main' };
+		gitService.gitStateAfterBranchCreation = { branchName: 'team/quiet-otter', baseBranchName: 'main' };
+		const { handler, session, stateManager, createdBranches, branchNameGenerator } = setup(disposables, gitService, new TestGitHubClient(), { withCopilotToken: true });
+		stateManager.setSessionConfig(session.toString(), {
+			schema: { type: 'object', properties: {} },
+			values: {
+				[SessionConfigKey.Isolation]: 'folder',
+				[SessionConfigKey.WorktreeBranchPrefix]: 'team/',
+				[SessionConfigKey.WorktreeBranchNaming]: { useGitSettings: true, preferredBranchName: 'team/quiet-otter' },
+			},
+		});
+		await handler.invoke({ channel: buildSessionChangesetUri(session.toString()), operationId: AgentHostPullRequestOperationHandler.OPERATION_CREATE_PR }, CancellationToken.None);
+		assert.deepStrictEqual({
+			branches: createdBranches,
+			naming: branchNameGenerator.requests.map(request => ({ prefix: request.branchPrefix, useGitSettings: request.useGitSettings, preferredBranchName: request.preferredBranchName })),
+		}, {
+			branches: ['team/quiet-otter'],
+			naming: [{ prefix: 'team/', useGitSettings: true, preferredBranchName: 'team/quiet-otter' }],
 		});
 	});
 

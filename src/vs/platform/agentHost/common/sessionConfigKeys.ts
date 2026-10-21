@@ -5,6 +5,27 @@
 
 import { isObject } from '../../../base/common/types.js';
 
+export interface IAgentBranchNaming {
+	readonly useGitSettings: boolean;
+	readonly preferredBranchName?: string;
+}
+
+/** Reads the optional client-prepared naming policy. */
+export function getAgentBranchNaming(config: Record<string, unknown> | undefined): IAgentBranchNaming | undefined {
+	const value = config?.[SessionConfigKey.WorktreeBranchNaming];
+	if (value === undefined) {
+		return undefined;
+	}
+	if (!isObject(value)) {
+		throw new Error('Invalid agent branch naming configuration');
+	}
+	const naming = value as Record<string, unknown>;
+	if (typeof naming.useGitSettings !== 'boolean' || (naming.preferredBranchName !== undefined && typeof naming.preferredBranchName !== 'string')) {
+		throw new Error('Invalid agent branch naming configuration');
+	}
+	return { useGitSettings: naming.useGitSettings, preferredBranchName: naming.useGitSettings ? naming.preferredBranchName : undefined };
+}
+
 /**
  * Well-known keys used in the agent-host configuration value bag.
  *
@@ -33,6 +54,8 @@ export const enum SessionConfigKey {
 	Mode = 'mode',
 	/** `'worktreeBranchPrefix'` — host-owned prefix for the worktree branch name. */
 	WorktreeBranchPrefix = 'worktreeBranchPrefix',
+	/** Client-prepared Git naming policy for newly created branches. */
+	WorktreeBranchNaming = 'worktreeBranchNaming',
 	/** `'worktreeIncludeFiles'` — host-owned `.gitignore`-syntax patterns for git-ignored files copied into a new worktree. */
 	WorktreeIncludeFiles = 'worktreeIncludeFiles',
 	/** `'worktreeSymlinkFolders'` — host-owned `.gitignore`-syntax patterns for git-ignored folders symlinked into a new worktree. */
@@ -122,6 +145,7 @@ const automationDefinitionOwnedConfigKeys = [
 	SessionConfigKey.Isolation,
 	SessionConfigKey.Branch,
 	SessionConfigKey.WorktreeBranchPrefix,
+	SessionConfigKey.WorktreeBranchNaming,
 	SessionConfigKey.WorktreeIncludeFiles,
 	SessionConfigKey.WorktreeSymlinkFolders,
 	SessionConfigKey.PullRequestUrl,

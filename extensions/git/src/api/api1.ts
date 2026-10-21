@@ -7,7 +7,7 @@ import { Model } from '../model';
 import { Repository as BaseRepository, Resource } from '../repository';
 import type { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, Ref, Submodule, Commit, Change, RepositoryUIState, LogOptions, APIState, CommitOptions, CredentialsProvider, BranchQuery, PushErrorHandler, PublishEvent, FetchOptions, RemoteSourceProvider, RemoteSourcePublisher, PostCommitCommandsProvider, RefQuery, BranchProtectionProvider, InitOptions, SourceControlHistoryItemDetailsProvider, CloneOptions, CommitShortStat, DiffChange, Worktree, RepositoryKind, RepositoryAccessDetails } from './git';
 import { ForcePushMode, GitErrorCodes, RefType, Status } from './git.constants';
-import { Event, SourceControlInputBox, Uri, SourceControl, Disposable, commands, CancellationToken } from 'vscode';
+import { Event, SourceControlInputBox, Uri, SourceControl, Disposable, commands, CancellationToken, workspace } from 'vscode';
 import { combinedDisposable, filterEvent, mapEvent } from '../util';
 import { toGitUri } from '../uri';
 import { GitExtensionImpl } from './extension';
@@ -622,6 +622,28 @@ export function registerAPICommands(extension: GitExtensionImpl): Disposable {
 
 	disposables.push(commands.registerCommand('git.api.getRemoteSources', (opts?: PickRemoteSourceOptions) => {
 		return commands.executeCommand('git-base.api.getRemoteSources', opts);
+	}));
+
+	disposables.push(commands.registerCommand('git.api.generateRandomBranchName', async (uri: string): Promise<{ branchName: string; branchPrefix: string } | undefined> => {
+		const model = extension.model;
+		const resource = Uri.parse(uri);
+		if (!model || resource.scheme !== 'file') {
+			return undefined;
+		}
+
+		await model.openRepository(resource.fsPath, true, true);
+		const repository = model.getRepository(resource);
+		if (!repository) {
+			return undefined;
+		}
+
+		const branchName = await repository.generateRandomBranchName();
+		if (branchName === undefined) {
+			return undefined;
+		}
+
+		const branchPrefix = workspace.getConfiguration('git', Uri.file(repository.root)).get<string>('branchPrefix', '');
+		return { branchName, branchPrefix };
 	}));
 
 	return Disposable.from(...disposables);

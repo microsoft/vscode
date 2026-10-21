@@ -22,7 +22,7 @@ import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSy
 import { ISchemaProperty, schemaProperty } from '../../common/agentHostSchema.js';
 import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
 import { IAgentHostSessionStateStore, type ISessionStateWorktreeCoOwner, SessionStateMirrorFlush } from '../../common/agentHostSessionStateStore.js';
-import { getSessionPullRequestUrl, SessionConfigKey } from '../../common/sessionConfigKeys.js';
+import { getAgentBranchNaming, getSessionPullRequestUrl, IAgentBranchNaming, SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { DETACHED_WORKTREE_OWNER_SCHEME, DEV_CONTAINER_WORKTREE_DATA_ID_PREFIX, isAgentDevContainerWorktreeHandle } from '../../common/meta/agentDevContainerWorktreeMeta.js';
 import { getRepositoryRootFromWorktree, getWorktreesRoot } from '../../common/worktreePaths.js';
 import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, ResponsePart, ResponsePartKind, Turn } from '../../common/state/sessionState.js';
@@ -259,19 +259,22 @@ export { getWorktreesRoot };
 
 /**
  * Derives the on-disk worktree directory name from a branch name: strips the
- * caller-supplied prefix (e.g. the user's `git.branchPrefix`) and the built-in
- * `agents/` prefix so the directory stays concise, then flattens any remaining
- * path separators.
+ * caller-supplied prefix and, unless using Git naming policy, the built-in
+ * `agents/` prefix, then flattens remaining path separators.
  */
-export function getWorktreeName(branchName: string, branchPrefix: string = ''): string {
+export function getWorktreeName(branchName: string, branchPrefix: string = '', useGitSettings = false): string {
 	let name = branchName;
 	if (branchPrefix && name.startsWith(branchPrefix)) {
 		name = name.substring(branchPrefix.length);
 	}
-	if (name.startsWith(AGENT_BRANCH_PREFIX)) {
+	if (!useGitSettings && name.startsWith(AGENT_BRANCH_PREFIX)) {
 		name = name.substring(AGENT_BRANCH_PREFIX.length);
 	}
-	return name.replace(/\//g, '-');
+	const leaf = name.replace(/\//g, '-');
+	if (useGitSettings && (!leaf || leaf === '.' || leaf === '..' || leaf.includes('\\'))) {
+		throw new Error(`Invalid worktree directory name for branch: ${branchName}`);
+	}
+	return leaf;
 }
 
 /**
@@ -279,8 +282,8 @@ export function getWorktreeName(branchName: string, branchPrefix: string = ''): 
  * It is unique per session, so a local branch named after the pull request is
  * never touched; the session branch tracks the pull request's head branch.
  */
-export function getPullRequestSessionBranchName(pullRequestNumber: number, sessionId: string, branchPrefix: string = ''): string {
-	return `${branchPrefix}${AGENT_BRANCH_PREFIX}pr-${pullRequestNumber}-${getSessionWorktreeSuffix(sessionId)}`;
+export function getPullRequestSessionBranchName(pullRequestNumber: number, sessionId: string, branchPrefix: string = '', useGitSettings = false): string {
+	return `${branchPrefix}${useGitSettings ? '' : AGENT_BRANCH_PREFIX}pr-${pullRequestNumber}-${getSessionWorktreeSuffix(sessionId)}`;
 }
 
 /**
@@ -484,6 +487,7 @@ export interface IIsolationConfigContribution {
 	 * isolation (see {@link WorktreeIsolation.resolveWorkingDirectory}).
 	 */
 	readonly worktreeBranchPrefixProperty: ISchemaProperty<string> | undefined;
+	readonly worktreeBranchNamingProperty?: ISchemaProperty<IAgentBranchNaming>;
 	/** Read-only carrier for the client's `git.worktreeIncludeFiles`. */
 	readonly worktreeIncludeFilesProperty: ISchemaProperty<readonly string[]> | undefined;
 	/** Read-only carrier for the client's `git.worktreeSymlinkFolders`. */
@@ -1005,6 +1009,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		let branchDefault: string | undefined;
 		let branchProperty: ISchemaProperty<string> | undefined;
 		let worktreeBranchPrefixProperty: ISchemaProperty<string> | undefined;
+		let worktreeBranchNamingProperty: ISchemaProperty<IAgentBranchNaming> | undefined;
 		let worktreeIncludeFilesProperty: ISchemaProperty<readonly string[]> | undefined;
 		let worktreeSymlinkFoldersProperty: ISchemaProperty<readonly string[]> | undefined;
 
@@ -1056,6 +1061,18 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 				sessionMutable: false,
 			});
 
+			worktreeBranchNamingProperty = schemaProperty<IAgentBranchNaming>({
+				type: 'object',
+				title: localize('agentHost.sessionConfig.worktreeBranchNaming', "Branch Naming"),
+				properties: {
+					useGitSettings: { type: 'boolean', title: localize('agentHost.sessionConfig.useGitSettings', "Use Git Settings") },
+					preferredBranchName: { type: 'string', title: localize('agentHost.sessionConfig.preferredBranchName', "Preferred Branch Name") },
+				},
+				required: ['useGitSettings'],
+				readOnly: true,
+				sessionMutable: false,
+			});
+
 			worktreeIncludeFilesProperty = schemaProperty<readonly string[]>({
 				type: 'array',
 				title: localize('agentHost.sessionConfig.worktreeIncludeFiles', "Worktree Include Files"),
@@ -1081,7 +1098,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			});
 		}
 
-		return { isolationProperty, branchProperty, worktreeBranchPrefixProperty, worktreeIncludeFilesProperty, worktreeSymlinkFoldersProperty, pullRequestUrlProperty, isolationValue, branchDefault, branchValue };
+		return { isolationProperty, branchProperty, worktreeBranchPrefixProperty, worktreeBranchNamingProperty, worktreeIncludeFilesProperty, worktreeSymlinkFoldersProperty, pullRequestUrlProperty, isolationValue, branchDefault, branchValue };
 	}
 
 	/**
@@ -1173,11 +1190,12 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 				message: prompt,
 				githubToken,
 				branchPrefix: worktreeBranchPrefix,
+				...getAgentBranchNaming(config),
 				branchNameCollides: async candidate => {
 					if (await this._gitService.branchExists(repositoryRoot, candidate).catch(() => true)) {
 						return true;
 					}
-					const candidateWorktree = URI.joinPath(worktreesRoot, getWorktreeName(candidate, worktreeBranchPrefix));
+					const candidateWorktree = URI.joinPath(worktreesRoot, getWorktreeName(candidate, worktreeBranchPrefix, getAgentBranchNaming(config)?.useGitSettings));
 					return fileExists(candidateWorktree.fsPath);
 				},
 			});
@@ -1187,7 +1205,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			// first percentage arrives.
 			onProgress?.(buildWorktreeProgressText(WorktreeCreationPhase.CheckingOut));
 
-			const worktreePath = URI.joinPath(worktreesRoot, getWorktreeName(newBranchName, worktreeBranchPrefix));
+			const worktreePath = URI.joinPath(worktreesRoot, getWorktreeName(newBranchName, worktreeBranchPrefix, getAgentBranchNaming(config)?.useGitSettings));
 			await request.onWillCreate?.({ repositoryRoot, worktreePath, baseBranch, branchName: newBranchName });
 			await fs.mkdir(worktreesRoot.fsPath, { recursive: true });
 
@@ -1252,7 +1270,8 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		const worktreeBranchPrefix = typeof request.config?.[SessionConfigKey.WorktreeBranchPrefix] === 'string'
 			? request.config[SessionConfigKey.WorktreeBranchPrefix] as string
 			: undefined;
-		const branchName = getPullRequestSessionBranchName(pullRequest.number, sessionId, worktreeBranchPrefix);
+		const useGitSettings = getAgentBranchNaming(request.config)?.useGitSettings;
+		const branchName = getPullRequestSessionBranchName(pullRequest.number, sessionId, worktreeBranchPrefix, useGitSettings);
 		const baseBranch = `${remote.name}/${pullRequest.baseRef}`;
 		const worktreePath = await this._worktreeCreationSequencer.queue(repositoryRoot.toString(), async () => {
 			try {
@@ -1267,7 +1286,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			}
 
 			const worktreesRoot = getWorktreesRoot(repositoryRoot);
-			const worktreePath = URI.joinPath(worktreesRoot, getWorktreeName(branchName, worktreeBranchPrefix));
+			const worktreePath = URI.joinPath(worktreesRoot, getWorktreeName(branchName, worktreeBranchPrefix, useGitSettings));
 			onProgress?.(buildWorktreeProgressText(WorktreeCreationPhase.CheckingOut));
 			await request.onWillCreate?.({ repositoryRoot, worktreePath, baseBranch, branchName });
 			await fs.mkdir(worktreesRoot.fsPath, { recursive: true });

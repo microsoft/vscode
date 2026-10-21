@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IExtensionService } from '../../../../../../workbench/services/extensions/common/extensions.js';
 import { getAgentHostChatId } from '../../../../../../platform/agentHost/common/agentHostChatIdentity.js';
 import { agentModelConfigurationReportKey } from '../../../../../../platform/agentHost/common/agentModelConfiguration.js';
 import { resolveSignedOutWindowGate, SignedOutWindowGate } from '../../../../../browser/sessionsAuthGate.js';
@@ -120,6 +122,7 @@ function createVSCodeSessionConfigSchema(overrides: SessionConfigSchema['propert
 			autoApprove: { type: 'string', title: 'Permissions', enum: ['default', 'assisted', 'autoApprove', 'autopilot'], sessionMutable: true },
 			mode: { type: 'string', title: 'Mode', enum: ['interactive', 'plan', 'autopilot'], sessionMutable: true },
 			worktreeBranchPrefix: { type: 'string', title: 'Branch prefix', readOnly: true, sessionMutable: false },
+			worktreeBranchNaming: { type: 'object', title: 'Branch naming', readOnly: true, sessionMutable: false },
 			worktreeIncludeFiles: { type: 'array', title: 'Included files', items: { type: 'string', title: 'Pattern' }, readOnly: true, sessionMutable: false },
 			worktreeSymlinkFolders: { type: 'array', title: 'Symlinked folders', items: { type: 'string', title: 'Pattern' }, readOnly: true, sessionMutable: false },
 			pullRequestUrl: { type: 'string', title: 'Pull request', readOnly: true, sessionMutable: false },
@@ -728,6 +731,10 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IAgentHostService, agentHostService);
+	instantiationService.stub(ICommandService, new class extends mock<ICommandService>() { }());
+	instantiationService.stub(IExtensionService, new class extends mock<IExtensionService>() {
+		override async getExtension() { return undefined; }
+	}());
 	instantiationService.stub(IAgentHostConnectionsService, new class extends mock<IAgentHostConnectionsService>() {
 		private readonly _resources = new ResourceMap<URI>();
 		private readonly _changed = disposables.add(new Emitter<void>());
@@ -8170,6 +8177,107 @@ suite('LocalAgentHostSessionsProvider', () => {
 			discovery: undefined,
 			forwardedToAgentHost: { isolation: 'worktree', worktreeBranchPrefix: 'user/', worktreeIncludeFiles: ['product.overrides.json', '**/node_modules/**'], worktreeSymlinkFolders: ['node_modules/**', '.cache/**'] },
 		});
+	});
+
+		for (const enabled of [false, true]) {
+			test(`Git branch naming is opt-in even when random names are already enabled (opt-in=${enabled})`, async () => {
+				const configService = new TestConfigurationService();
+				configService.setUserConfiguration('chat.agentHost.branchName.useGitSettings', enabled);
+				configService.setUserConfiguration('git.branchRandomName.enable', true);
+				const provider = createProvider(disposables, agentHost, undefined, { configurationService: configService });
+				const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+				await provider.whenSessionConfigResolved(session.sessionId, CancellationToken.None);
+				assert.deepStrictEqual(provider.getSessionConfig(session.sessionId, session.mainChat.get().resource)?.values[SessionConfigKey.WorktreeBranchNaming],
+					enabled ? { useGitSettings: true } : undefined);
+			});
+		}
+
+		test('prepares a random Git name only on first send and forwards the complete candidate and its prefix', async () => {
+			const requests: string[] = [];
+			class NamingProvider extends LocalAgentHostSessionsProvider {
+				protected override async _prepareRandomBranchName(resource: URI) {
+					requests.push(resource.toString());
+					return { branchName: 'repo/quiet-otter', branchPrefix: 'repo/' };
+				}
+			}
+			const configService = new TestConfigurationService();
+			configService.setUserConfiguration('chat.agentHost.branchName.useGitSettings', true);
+			configService.setUserConfiguration('git.branchRandomName.enable', true);
+			let sentConfig: Record<string, unknown> | undefined;
+			const provider = createProvider(disposables, agentHost, undefined, {
+				configurationService: configService,
+				providerCtor: NamingProvider,
+				openSession: true,
+				sendRequest: async (resource, _message, options): Promise<ChatSendResult> => {
+					sentConfig = options?.agentHostSessionConfig;
+					agentHost.addSession(createSession(AgentSession.id(resource), { summary: 'Created From Send' }));
+					return { kind: 'sent', data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
+				},
+			});
+			const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+			await provider.whenSessionConfigResolved(session.sessionId, CancellationToken.None);
+			const chat = await provider.createNewChat(session.sessionId);
+			assert.deepStrictEqual(requests, []);
+			await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+			assert.deepStrictEqual({
+				requests,
+				naming: sentConfig?.[SessionConfigKey.WorktreeBranchNaming],
+				prefix: sentConfig?.[SessionConfigKey.WorktreeBranchPrefix],
+			}, {
+				requests: ['file:///home/user/project'],
+				naming: { useGitSettings: true, preferredBranchName: 'repo/quiet-otter' },
+				prefix: 'repo/',
+			});
+		});
+
+	for (const [optIn, randomEnabled] of [[false, true], [true, false], [true, true]]) {
+		test(`first send retains prompt naming without applicable Git random support (opt-in=${optIn}, random=${randomEnabled})`, async () => {
+			const configService = new TestConfigurationService();
+			configService.setUserConfiguration('chat.agentHost.branchName.useGitSettings', optIn);
+			configService.setUserConfiguration('git.branchRandomName.enable', randomEnabled);
+			configService.setUserConfiguration('git.branchPrefix', 'team/');
+			let sentConfig: Record<string, unknown> | undefined;
+			const provider = createProvider(disposables, agentHost, undefined, {
+				configurationService: configService,
+				openSession: true,
+				sendRequest: async (resource, _message, options): Promise<ChatSendResult> => {
+					sentConfig = options?.agentHostSessionConfig;
+					agentHost.addSession(createSession(AgentSession.id(resource), { summary: 'Created From Send' }));
+					return { kind: 'sent', data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
+				},
+			});
+			const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+			await provider.whenSessionConfigResolved(session.sessionId, CancellationToken.None);
+			const chat = await provider.createNewChat(session.sessionId);
+			await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+			assert.deepStrictEqual({
+				naming: sentConfig?.[SessionConfigKey.WorktreeBranchNaming],
+				prefix: sentConfig?.[SessionConfigKey.WorktreeBranchPrefix],
+			}, { naming: optIn ? { useGitSettings: true } : undefined, prefix: 'team/' });
+		});
+	}
+
+	test('disposing a draft discards a pending Git naming candidate', async () => {
+		const started = new DeferredPromise<void>();
+		const candidate = new DeferredPromise<{ branchName: string; branchPrefix: string }>();
+		class PendingNamingProvider extends LocalAgentHostSessionsProvider {
+			protected override async _prepareRandomBranchName() {
+				started.complete();
+				return candidate.p;
+			}
+		}
+		const configService = new TestConfigurationService();
+		configService.setUserConfiguration('chat.agentHost.branchName.useGitSettings', true);
+		configService.setUserConfiguration('git.branchRandomName.enable', true);
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService: configService, providerCtor: PendingNamingProvider });
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await provider.whenSessionConfigResolved(session.sessionId, CancellationToken.None);
+		const chat = await provider.createNewChat(session.sessionId);
+		const sent = assert.rejects(provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' }), /disposed/);
+		await started.p;
+		provider.deleteNewSession(session.sessionId);
+		candidate.complete({ branchName: 'team/quiet-otter', branchPrefix: 'team/' });
+		await sent;
 	});
 
 	test('createNewSession forwards enabled custom hook and agent locations', async () => {
