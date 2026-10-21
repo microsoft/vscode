@@ -63,7 +63,7 @@ jobs:
         id: cache-node-modules
         uses: ./.github/actions/restore-node-modules
         with:
-          key-prefix: node_modules-compile
+          key-prefix: node_modules-compile-validate-miss
           key-args: "compile $(node -p process.arch)"
 
       - name: Install build tools
@@ -498,7 +498,7 @@ jobs:
         id: cache-node-modules
         uses: ./.github/actions/restore-node-modules
         with:
-          key-prefix: copilot-node_modules-linux
+          key-prefix: copilot-node_modules-linux-validate-miss
           key-args: "$(node -p process.platform) $(node -p process.arch)"
 
       - name: Install root dependencies
@@ -585,7 +585,7 @@ jobs:
         id: cache-node-modules
         uses: ./.github/actions/restore-node-modules
         with:
-          key-prefix: copilot-node_modules-linux
+          key-prefix: copilot-node_modules-linux-validate-miss
           key-args: "$(node -p process.platform) $(node -p process.arch)"
 
       - name: Install root dependencies
@@ -680,7 +680,7 @@ jobs:
         id: cache-node-modules
         uses: ./.github/actions/restore-node-modules
         with:
-          key-prefix: copilot-node_modules-windows
+          key-prefix: copilot-node_modules-windows-validate-miss
           key-args: "$(node -p process.platform) $(node -p process.arch)"
 
       - name: Install root dependencies

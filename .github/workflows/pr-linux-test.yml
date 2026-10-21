@@ -84,7 +84,7 @@ jobs:
         id: cache-node-modules
         uses: ./.github/actions/restore-node-modules
         with:
-          key-prefix: node_modules-linux
+          key-prefix: node_modules-linux-validate-miss
           key-args: "linux ${{ env.VSCODE_ARCH }} $(node -p process.arch)"
 
       - name: Install build dependencies
