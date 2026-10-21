@@ -234,14 +234,14 @@ suite('CopilotCanvasesWidget', () => {
 		assert.ok(disable);
 		disable.click();
 		await timeout(20);
+		const accessible = harness.widget.getAccessibilityContent();
 
 		assert.deepStrictEqual({
 			confirmation: harness.confirmations.map(confirmation => ({ message: confirmation.message, detail: confirmation.detail })),
 			requests: harness.setRequests.map(request => ({ session: request.session.toString(), extensionId: request.extensionId, enabled: request.enabled })),
-			rows: [...harness.container.querySelectorAll<HTMLElement>('.copilot-canvas-tree-item')].map(row => ({
-				name: row.querySelector('.copilot-customization-tree-label')?.textContent,
-				checked: row.querySelector('[role="switch"]')?.getAttribute('aria-checked'),
-			})),
+			visibleSwitchChecked: harness.container.querySelector('[aria-label="Enable canvas PR Review Board"]')?.getAttribute('aria-checked'),
+			retainedCanvases: ['PR Review Board', 'Release Notes Draft'].filter(name => accessible.includes(name)),
+			disabledCount: accessible.split('Disabled').length - 1,
 		}, {
 			confirmation: [{
 				message: 'Disable \'PR Review Board\'?',
@@ -252,10 +252,9 @@ suite('CopilotCanvasesWidget', () => {
 				extensionId: 'project:pr-tools',
 				enabled: false,
 			}],
-			rows: [
-				{ name: 'PR Review Board', checked: 'false' },
-				{ name: 'Release Notes Draft', checked: 'false' },
-			],
+			visibleSwitchChecked: 'false',
+			retainedCanvases: ['PR Review Board', 'Release Notes Draft'],
+			disabledCount: 2,
 		});
 	});
 
