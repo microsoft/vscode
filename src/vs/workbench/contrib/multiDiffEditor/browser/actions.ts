@@ -37,16 +37,22 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(MultiDiffEditor.ID), IsSessionsWindowContext.toNegated()),
 });
 
-const filesViewAndPositionMenu = new MenuId('MultiDiffEditorFilesViewAndPosition');
-const filesViewWhen = ContextKeyExpr.and(
+/** The submenu that switches the changed files list between a list and a tree, and moves it to either side of the diffs. */
+export const MultiDiffEditorFilesViewAndPositionMenu = new MenuId('MultiDiffEditorFilesViewAndPosition');
+
+/** Whether the active editor is a multi diff editor that supports the changed files list. */
+export const ActiveMultiDiffEditorHasFileListContext = ContextKeyExpr.and(
 	ActiveEditorContext.isEqualTo(MultiDiffEditor.ID),
 	ContextKeyExpr.has(`config.${multiDiffEditorExperimentalFileListSetting}`),
 	MultiDiffEditorFileListAvailableContext,
-	IsSessionsWindowContext.toNegated(),
-);
+)!;
+
+// The Agents window offers Toggle Details instead of Toggle Files, and contributes
+// the Files View & Position submenu to its own editor title menu.
+const filesViewWhen = ContextKeyExpr.and(ActiveMultiDiffEditorHasFileListContext, IsSessionsWindowContext.toNegated());
 
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
-	submenu: filesViewAndPositionMenu,
+	submenu: MultiDiffEditorFilesViewAndPositionMenu,
 	title: localize('filesViewAndPosition', "Files View & Position"),
 	group: 'z_files',
 	when: filesViewWhen,
@@ -260,9 +266,9 @@ abstract class SetFileListViewModeAction extends Action2 {
 			id,
 			title,
 			toggled: MultiDiffEditorFileListViewModeContext.isEqualTo(_viewMode),
-			precondition: filesViewWhen,
+			precondition: ActiveMultiDiffEditorHasFileListContext,
 			menu: {
-				id: filesViewAndPositionMenu,
+				id: MultiDiffEditorFilesViewAndPositionMenu,
 				group: '1_view',
 				order: _viewMode === 'list' ? 1 : 2,
 			},
@@ -292,9 +298,9 @@ abstract class SetFileListPositionAction extends Action2 {
 			id,
 			title,
 			toggled: MultiDiffEditorFileListPositionContext.isEqualTo(_position),
-			precondition: filesViewWhen,
+			precondition: ActiveMultiDiffEditorHasFileListContext,
 			menu: {
-				id: filesViewAndPositionMenu,
+				id: MultiDiffEditorFilesViewAndPositionMenu,
 				group: '2_position',
 				order: _position === 'left' ? 1 : 2,
 			},

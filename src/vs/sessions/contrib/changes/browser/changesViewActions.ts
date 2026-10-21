@@ -22,11 +22,11 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { DIFF_VIEW_MODE_INLINE_TEMPORARY, SET_DIFF_VIEW_MODE_AUTOMATIC, SET_DIFF_VIEW_MODE_INLINE, SET_DIFF_VIEW_MODE_SIDE_BY_SIDE, TOGGLE_DIFF_SIDE_BY_SIDE } from '../../../../workbench/browser/parts/editor/diffEditorCommands.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext, TextCompareEditorActiveContext } from '../../../../workbench/common/contextkeys.js';
-import { IEditorCommandsContext } from '../../../../workbench/common/editor.js';
+import { IEditorCommandsContext, isEditorCommandsContext } from '../../../../workbench/common/editor.js';
 import { DiffEditorInput } from '../../../../workbench/common/editor/diffEditorInput.js';
 import { readTransientState, writeTransientState } from '../../../../workbench/contrib/codeEditor/browser/toggleWordWrap.js';
 import { TEXT_FILE_EDITOR_ID } from '../../../../workbench/contrib/files/common/files.js';
-import { OpenMultiDiffEditorLayoutDebugAction } from '../../../../workbench/contrib/multiDiffEditor/browser/actions.js';
+import { ActiveMultiDiffEditorHasFileListContext, MultiDiffEditorFilesViewAndPositionMenu, OpenMultiDiffEditorLayoutDebugAction } from '../../../../workbench/contrib/multiDiffEditor/browser/actions.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
@@ -277,8 +277,8 @@ class ToggleSessionsEditorWordWrapAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, context?: IEditorCommandsContext): Promise<void> {
-		await toggleSessionsWordWrap(accessor, 'editor', context);
+	async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		await toggleSessionsWordWrap(accessor, 'editor', args.find(isEditorCommandsContext));
 	}
 }
 
@@ -291,8 +291,8 @@ class ToggleSessionsDiffEditorWordWrapAction extends Action2 {
 			title: localize2('agentSessions.diffEditorWordWrap', "Word Wrap"),
 			f1: false,
 			menu: [{
-				id: Menus.SessionsEditorHeaderLayout,
-				group: 'secondary/1_diff',
+				id: Menus.SessionsEditorTitle,
+				group: '1_diff',
 				order: 20,
 				when: desktopMultiDiffEditorTitleVisible,
 			}, {
@@ -305,8 +305,9 @@ class ToggleSessionsDiffEditorWordWrapAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, context?: IEditorCommandsContext): Promise<void> {
-		await toggleSessionsWordWrap(accessor, 'diffEditor', context);
+	async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		// Editor title menus pass the active editor's resource before the editor context.
+		await toggleSessionsWordWrap(accessor, 'diffEditor', args.find(isEditorCommandsContext));
 	}
 }
 
@@ -504,12 +505,19 @@ registerAction2(ExpandAllSessionChangesDiffsAction);
 // user's keybinding for it carries over here (issue #324765). The sessions override of
 // IDiffEditorCommandsService updates the Changes editor's own preferred layout.
 
-MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderLayout, {
+MenuRegistry.appendMenuItem(Menus.SessionsEditorTitle, {
 	submenu: Menus.SessionsDiffEditorView,
 	title: localize('diffView', "Diff View"),
-	group: 'secondary/1_diff',
+	group: '1_diff',
 	order: 30,
 	when: desktopDiffEditorTitleVisible,
+});
+MenuRegistry.appendMenuItem(Menus.SessionsEditorTitle, {
+	submenu: MultiDiffEditorFilesViewAndPositionMenu,
+	title: localize('filesViewAndPosition', "Files View & Position"),
+	group: '2_viewMode',
+	order: 10,
+	when: ContextKeyExpr.and(desktopMultiDiffEditorTitle, MainEditorAreaVisibleContext, ActiveMultiDiffEditorHasFileListContext),
 });
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	submenu: Menus.SessionsDiffEditorView,
