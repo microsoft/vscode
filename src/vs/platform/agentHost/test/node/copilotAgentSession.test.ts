@@ -48,6 +48,7 @@ import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { readImageGenerationToolMetadata } from '../../common/meta/agentImageGenerationMeta.js';
 import { readMcpServerConnectorName, readMcpServerControllingSetting, readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin } from '../../common/meta/mcpCustomizationMeta.js';
 import { agentModelCallMetaKey, readAgentModelCallDiagnostics } from '../../common/meta/agentModelCallMeta.js';
+import { readAgentModelExecution } from '../../common/meta/agentModelProvider.js';
 import { readAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
 import { agentModelConfigurationReportKey, readAgentModelConfigurationReport } from '../../common/agentModelConfiguration.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, readAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
@@ -5728,6 +5729,24 @@ suite('CopilotAgentSession', () => {
 			{ apiCallId: 'old-call', turnId: 'old-turn', duration: 150, ttft: 30, output: 50 },
 			{ apiCallId: 'unmapped-call', turnId: undefined, duration: 150, ttft: 30, output: 50 },
 		]);
+	});
+
+	test('retains actual model-provider attribution for calls with the same raw model id', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		session.resetTurnState('provider-attribution-turn');
+		const providers = [
+			{ id: 'copilot', kind: 'copilot', label: 'GitHub Copilot' },
+			{ id: 'account-bound-provider', kind: 'loki', label: 'Microsoft 365 Copilot' },
+		] as const;
+		for (const provider of providers) {
+			mockSession.fire('assistant.usage', {
+				model: 'same-model', provider, modelDisplayName: 'Shared Model', inputTokens: 10, outputTokens: 2,
+			}, { id: provider.id });
+		}
+		const executions = getActions(signals)
+			.filter((action): action is ChatUsageAction => action.type === ActionType.ChatUsage)
+			.map(action => readAgentModelExecution(action.usage));
+		assert.deepStrictEqual(executions, providers.map(provider => ({ provider, modelId: 'same-model', modelDisplayName: 'Shared Model' })));
 	});
 
 	test('observed request usage retains the ultra reasoning-effort tier', async () => {
