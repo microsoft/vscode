@@ -105,6 +105,7 @@ suite('AgentHost canvases', () => {
 		store.add(context.definitionProvider.onDidChangeDefinitions(() => changeCount++));
 
 		const definitions = await context.definitionProvider.listCanvases();
+		assert.ok(definitions);
 		await context.definitionProvider.openCanvas(definitions[0], 'stable-preview');
 		definitionsChanged.fire();
 

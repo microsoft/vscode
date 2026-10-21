@@ -4121,6 +4121,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}];
 
 		const canvases = await provider.listCanvases(session.sessionId, peer.resource);
+		assert.ok(canvases);
 		await provider.openCanvas(session.sessionId, peer.resource, canvases[0], 'project-preview');
 		const liveCanvas: ISessionCanvas = { resource: URI.parse('ahp-canvas://another-host/documents/preview'), instanceId: 'project-preview', title: 'Preview', source: undefined };
 		await provider.closeCanvas(session.sessionId, peer.resource, liveCanvas);
@@ -4170,6 +4171,29 @@ suite('LocalAgentHostSessionsProvider', () => {
 				chat: peerBackend,
 				resource: 'ahp-canvas://another-host/documents/preview',
 			}],
+		});
+	});
+
+	suite('canvas definition registry stability', () => {
+		test('reports canvas inventory as unsettled while session or chat routing is unavailable', async () => {
+			agentHost.addSession(createSession('canvas-unsettled-route', { summary: 'Canvas Unsettled Route' }));
+			const provider = createProvider(disposables, agentHost);
+			await timeout(0);
+			const session = provider.getSessions().find(candidate => candidate.title.get() === 'Canvas Unsettled Route');
+			assert.ok(session);
+
+			const missingSession = await provider.listCanvases('missing-session', session.mainChat.get().resource);
+			const missingChat = await provider.listCanvases(session.sessionId, session.resource.with({ fragment: 'missing-chat' }));
+
+			assert.deepStrictEqual({
+				missingSession,
+				missingChat,
+				listRequests: agentHost.canvasListRequests.length,
+			}, {
+				missingSession: undefined,
+				missingChat: undefined,
+				listRequests: 0,
+			});
 		});
 	});
 

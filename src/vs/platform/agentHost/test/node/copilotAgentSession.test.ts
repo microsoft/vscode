@@ -161,8 +161,10 @@ class MockCopilotSession {
 	canvasCloseGate: Promise<void> | undefined;
 	extensionListGate: Promise<void> | undefined;
 	extensionListError: Error | undefined;
+	canvasListGate: Promise<void> | undefined;
 	canvasListError: Error | undefined;
 	onExtensionList: (() => void) | undefined;
+	onCanvasList: (() => void) | undefined;
 	/** Runs when `rpc.canvas.listOpen` is requested, before it returns {@link listedOpenCanvases}. */
 	onCanvasListOpen: (() => void) | undefined;
 	extensionReloadCalls = 0;
@@ -520,12 +522,14 @@ class MockCopilotSession {
 		},
 		extensions: {
 			list: async () => {
+				const extensions = [...this.extensions];
+				const gate = this.extensionListGate;
 				this.onExtensionList?.();
-				await this.extensionListGate;
+				await gate;
 				if (this.extensionListError) {
 					throw this.extensionListError;
 				}
-				return { extensions: this.extensions };
+				return { extensions };
 			},
 			reload: async () => {
 				this.extensionReloadCalls++;
@@ -536,10 +540,14 @@ class MockCopilotSession {
 		},
 		canvas: {
 			list: async () => {
+				const canvases = [...this.canvases];
+				const gate = this.canvasListGate;
+				this.onCanvasList?.();
+				await gate;
 				if (this.canvasListError) {
 					throw this.canvasListError;
 				}
-				return { canvases: this.canvases };
+				return { canvases };
 			},
 			listOpen: async () => {
 				this.onCanvasListOpen?.();
@@ -3619,6 +3627,154 @@ suite('CopilotAgentSession', () => {
 		session.dispose();
 	});
 
+	suite('canvas definition registry stability', () => {
+		test('withholds transient registry listings until extension reload settles', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables, {
+				configureMockSession: mock => {
+					mock.extensions.push({ id: 'project:preview', name: 'Preview extension', source: 'project', status: 'running' });
+					mock.canvases.push({
+						canvasId: 'preview',
+						extensionId: 'project:preview',
+						displayName: 'Preview',
+						description: 'Preview generated content.',
+					});
+				},
+			});
+			const beforeReload = await session.listCanvases();
+
+			mockSession.onExtensionList = () => {
+				mockSession.onExtensionList = undefined;
+				mockSession.fire('session.extensions_loaded', { extensions: [...mockSession.extensions] });
+			};
+			const duringGenerationChange = await session.listCanvases();
+			const afterGenerationChange = await session.listCanvases();
+
+			mockSession.extensions.splice(0, mockSession.extensions.length, {
+				id: 'project:preview',
+				name: 'Preview extension',
+				source: 'project',
+				status: 'starting',
+			});
+			mockSession.canvases.length = 0;
+			mockSession.fire('session.canvas.registry_changed', { canvases: [] });
+			const whileReloading = await session.listCanvases();
+
+			mockSession.extensions.length = 0;
+			mockSession.fire('session.extensions_loaded', { extensions: [] });
+			const afterSettledRemoval = await session.listCanvases();
+
+			assert.deepStrictEqual({
+				beforeReload: beforeReload?.map(canvas => canvas.canvasId),
+				duringGenerationChange,
+				afterGenerationChange: afterGenerationChange?.map(canvas => canvas.canvasId),
+				whileReloading,
+				afterSettledRemoval,
+				membershipInvalidations: getActions(signals).filter(action => action.type === ActionType.ChatCanvasesChanged).length,
+			}, {
+				beforeReload: ['preview'],
+				duringGenerationChange: undefined,
+				afterGenerationChange: ['preview'],
+				whileReloading: undefined,
+				afterSettledRemoval: [],
+				membershipInvalidations: 3,
+			});
+			session.dispose();
+		});
+
+		test('republishes after concurrent callers observe unsettled and settled registries', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables, {
+				configureMockSession: mock => {
+					mock.extensions.push({ id: 'project:preview', name: 'Preview extension', source: 'project', status: 'running' });
+					mock.canvases.push({
+						canvasId: 'preview',
+						extensionId: 'project:preview',
+						displayName: 'Preview',
+						description: 'Preview generated content.',
+					});
+				},
+			});
+			mockSession.extensions.splice(0, mockSession.extensions.length, {
+				id: 'project:preview',
+				name: 'Preview extension',
+				source: 'project',
+				status: 'starting',
+			});
+			const firstStarted = new DeferredPromise<void>();
+			const firstGate = new DeferredPromise<void>();
+			mockSession.extensionListGate = firstGate.p;
+			mockSession.onExtensionList = () => firstStarted.complete();
+			const first = session.listCanvases();
+			await firstStarted.p;
+
+			const secondStarted = new DeferredPromise<void>();
+			const secondGate = new DeferredPromise<void>();
+			mockSession.extensions.splice(0, mockSession.extensions.length, {
+				id: 'project:preview',
+				name: 'Preview extension',
+				source: 'project',
+				status: 'running',
+			});
+			mockSession.extensionListGate = secondGate.p;
+			mockSession.onExtensionList = () => secondStarted.complete();
+			const second = session.listCanvases();
+			await secondStarted.p;
+
+			firstGate.complete();
+			const unsettled = await first;
+			secondGate.complete();
+			const settled = await second;
+
+			assert.deepStrictEqual({
+				unsettled,
+				settled: settled?.map(canvas => canvas.canvasId),
+				membershipInvalidations: getActions(signals).filter(action => action.type === ActionType.ChatCanvasesChanged).length,
+			}, {
+				unsettled: undefined,
+				settled: ['preview'],
+				membershipInvalidations: 1,
+			});
+			session.dispose();
+		});
+
+		test('withholds a listing that completes after its runtime hands off', async () => {
+			const { session, mockSession } = await createAgentSession(disposables, {
+				configureMockSession: mock => {
+					mock.extensions.push({ id: 'project:preview', name: 'Preview extension', source: 'project', status: 'running' });
+					mock.canvases.push({
+						canvasId: 'preview',
+						extensionId: 'project:preview',
+						displayName: 'Preview',
+						description: 'Preview generated content.',
+					});
+				},
+			});
+			mockSession.fire('session.canvas.opened', {
+				instanceId: 'preview',
+				extensionId: 'project:preview',
+				canvasId: 'preview',
+				url: 'https://example.test/previous',
+			});
+			const listStarted = new DeferredPromise<void>();
+			const listGate = new DeferredPromise<void>();
+			mockSession.canvasListGate = listGate.p;
+			mockSession.onCanvasList = () => listStarted.complete();
+			const listing = session.listCanvases();
+			await listStarted.p;
+
+			const handoff = session.takeCanvasProjection();
+			listGate.complete();
+
+			assert.deepStrictEqual({
+				hasHandoff: !!handoff,
+				listing: await listing,
+			}, {
+				hasHandoff: true,
+				listing: undefined,
+			});
+			session.dispose();
+		});
+	});
+
 	test('republishes live canvas membership when the registry changes', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
 
@@ -3740,11 +3896,12 @@ suite('CopilotAgentSession', () => {
 				},
 			});
 			const resource = handoff.projections[0].resource.toString();
+			const adopted = replacement.session.adoptCanvasHandoff(handoff);
 
 			assert.deepStrictEqual({
 				previous: summarizeCanvasSignals(previousSignals),
 				replacement: summarizeCanvasSignals(replacement.signals),
-				adopted: replacement.session.adoptCanvasHandoff(handoff),
+				adopted,
 			}, {
 				previous: {
 					states: [{ resource, url: 'https://example.test/previous' }, { resource, url: undefined }],
@@ -3752,7 +3909,7 @@ suite('CopilotAgentSession', () => {
 				},
 				replacement: {
 					states: [{ resource, url: undefined }, { resource, url: 'https://example.test/replacement' }],
-					membership: [],
+					membership: [[resource]],
 				},
 				adopted: true,
 			});
@@ -3846,7 +4003,7 @@ suite('CopilotAgentSession', () => {
 					{ resource, url: 'https://example.test/discarded' },
 					{ resource, url: undefined },
 				],
-				membership: [],
+				membership: [[resource]],
 			});
 		});
 
@@ -3889,7 +4046,7 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual({ adopted: replacement.session.adoptCanvasHandoff(handoff), ...summarizeCanvasSignals(replacement.signals) }, {
 				adopted: true,
 				states: [{ resource, url: undefined }],
-				membership: [],
+				membership: [[resource]],
 			});
 			replacement.session.dispose();
 		});
