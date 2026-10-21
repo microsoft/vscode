@@ -56,7 +56,7 @@ function createMockEditingSession(files: { uri: string; added: number; removed: 
 	});
 
 	return new class extends mock<IChatEditingSession>() {
-		override readonly isGlobalEditingSession = false;
+		override readonly isGlobalEditingSession = constObservable(false);
 		override readonly chatSessionResource = URI.parse('chat-session:test-session');
 		override readonly onDidDispose = Event.None;
 		override readonly state = observableValue('state', ChatEditingSessionState.Idle);

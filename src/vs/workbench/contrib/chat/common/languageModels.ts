@@ -277,8 +277,8 @@ export interface ILanguageModelChatMetadata {
 	 * in {@link tooltip} instead.
 	 */
 	readonly autoModelDiscountPercent?: number;
-	/** How the agent host presents its Auto model as Fusion, when it does. */
-	readonly autoModelFusion?: { readonly balanceUsesHydraFusion: boolean };
+	/** Whether the agent host presents its Auto model as Copilot Fusion. */
+	readonly autoModelFusion?: boolean;
 	/** Set only on the agent host's Auto model presented as Fusion. */
 	readonly autoModelTierPromotions?: readonly IAutoModelTierPromotion[];
 	/** Auto's tiers come from the provider, which may hide some, including HydraFusion ones. */
@@ -497,14 +497,8 @@ export namespace ILanguageModelChatMetadata {
 	 *
 	 * @param discountPercent Whole-number percentage (e.g. `10` for 10%).
 	 * @param tierLabel The label of Auto's selected tier, e.g. "Efficiency".
-	 * @param fusion Whether Auto is presented as Fusion.
 	 */
-	export function getAutoModelDiscountDescription(discountPercent: number, tierLabel?: string, fusion?: boolean): string {
-		if (fusion) {
-			return tierLabel
-				? localize('autoModel.fusionTierDiscount', "Models routed via Copilot Fusion {0} receive a {1}% discount.", tierLabel, discountPercent)
-				: localize('autoModel.fusionDiscount', "Models routed via Copilot Fusion receive a {0}% discount.", discountPercent);
-		}
+	export function getAutoModelDiscountDescription(discountPercent: number, tierLabel?: string): string {
 		return tierLabel
 			? localize('autoModel.tierDiscount', "Models routed via Auto {0} receive a {1}% discount.", tierLabel, discountPercent)
 			: localize('autoModel.discount', "Models routed via auto receive a {0}% discount.", discountPercent);

@@ -43,6 +43,10 @@ export interface IGitHubTransport {
 	invalidateAccount(account: AccountHandle, reason?: unknown): void;
 }
 
+export function isSamlEnforcementError(message: string): boolean {
+	return message.toLowerCase().includes('saml enforcement');
+}
+
 export interface GitHubRestRequest extends GitHubRequestOptions {
 	readonly method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 	readonly url: string;
