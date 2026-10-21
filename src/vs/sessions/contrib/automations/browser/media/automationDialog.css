@@ -883,6 +883,63 @@
 	min-height: 1em;
 }
 
+.automation-form-cron-error {
+	color: var(--vscode-errorForeground);
+}
+
+.automation-cron-segments {
+	display: flex;
+	border: var(--vscode-strokeThickness) solid var(--vscode-input-border, var(--vscode-contrastBorder, transparent));
+	border-radius: var(--vscode-cornerRadius-small);
+	background: var(--vscode-input-background);
+	margin-bottom: var(--vscode-spacing-size60);
+}
+
+.automation-cron-segment {
+	position: relative;
+	flex: 1;
+	min-width: 0;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+}
+
+.automation-cron-segment > .monaco-inputbox {
+	width: 100%;
+}
+
+.automation-cron-segment .monaco-inputbox input {
+	text-align: center;
+	font-family: var(--monaco-monospace-font);
+}
+
+.monaco-workbench .automation-cron-segment .monaco-inputbox input:focus {
+	outline: none;
+}
+
+.automation-cron-caption {
+	position: absolute;
+	left: 50%;
+	bottom: 0;
+	transform: translate(-50%, 50%);
+	padding: 0 var(--vscode-spacing-size40);
+	background: var(--vscode-input-background);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+}
+
+.automation-cron-segments:focus-within {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.automation-cron-segments.invalid {
+	border-color: var(--vscode-inputValidation-errorBorder);
+	outline-color: var(--vscode-inputValidation-errorBorder);
+}
+
+.automation-cron-segments.all-selected {
+	background: var(--vscode-editor-selectionBackground);
+}
+
 /*
  * Host for the native `InputBox` widget. The widget owns its own
  * `<input>` and styling (border, padding, focus ring); the host just

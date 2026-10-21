@@ -32,7 +32,7 @@ import { MessageKind } from '../common/state/protocol/channels-chat/state.js';
 import { IAgentHostStateManager, type AgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 import { IAgentHostStorageService } from './agentHostStorageService.js';
-import { nextAutomationCronOccurrence, validateAutomationCron } from './automationCron.js';
+import { nextAutomationCronOccurrence, validateAutomationCron } from '../common/automationCron.js';
 import { AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY, migrateLegacyAutomationSessionConfig } from '../common/automationConfig.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { getModelTelemetryContext } from './agentHostTurnTelemetryContext.js';

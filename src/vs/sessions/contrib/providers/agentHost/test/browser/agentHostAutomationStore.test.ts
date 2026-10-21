@@ -1170,6 +1170,37 @@ suite('AgentHostAutomationStore', () => {
 		});
 	});
 
+	test('round trips cron expressions and their time zone through host create and update', async () => {
+		const connection = disposables.add(new TestAutomationConnection());
+		const storage = disposables.add(new InMemoryStorageService());
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+		const schedule = {
+			interval: 'cron' as const, cronExpression: '*/2 * * * MON-FRI', cronTimeZone: 'Europe/Berlin',
+			scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0,
+		};
+		const created = await store.createAutomation({
+			name: 'Cron review', prompt: 'Review changes.', schedule,
+			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' },
+		});
+		const updated = await store.updateAutomation(created.id, { name: 'Renamed cron review', schedule: created.schedule });
+		const create = connection.dispatched[0].action;
+		const trigger = create.type === ActionType.AutomationCreateRequested ? create.definition.triggers[0] : undefined;
+		assert.deepStrictEqual({
+			created: created.schedule,
+			updated: updated.schedule,
+			wire: trigger?.kind === AutomationTriggerKind.Schedule ? trigger.schedule : undefined,
+		}, {
+			created: schedule,
+			updated: schedule,
+			wire: { expression: schedule.cronExpression, timeZone: schedule.cronTimeZone },
+		});
+		for (const change of [{ cronExpression: '*/3 * * * MON-FRI' }, { cronTimeZone: 'UTC' }]) {
+			const current = store.getAutomation(created.id)!;
+			await store.updateAutomation(created.id, { schedule: { ...current.schedule, ...change } });
+			assert.strictEqual((await store.updateAutomationIfUnchanged(created.id, { name: 'Stale edit' }, current)).kind, 'conflict');
+		}
+	});
+
 	test('does not forward generic chat modes to Agent Host session config', async () => {
 		const connection = disposables.add(new TestAutomationConnection());
 		const storage = disposables.add(new InMemoryStorageService());
@@ -1669,7 +1700,22 @@ suite('AgentHostAutomationStore', () => {
 				connection.setAutomation(entry);
 				const id = 'local-agent-host:ahp-automation:/host-weekdays';
 				const automation = store.getAutomation(id)!;
-				if (foreignTimeZone || day === '1-6') {
+				if (day === '1-6') {
+					// Presets cannot express this day field, so the cron editor owns it and must round trip the host expression and zone.
+					await store.updateAutomation(id, { name: 'Renamed' });
+					const update = connection.dispatched.at(-1)?.action;
+					assert.deepStrictEqual({
+						schedule: automation.schedule, canUpdate: store.canUpdateAutomation(id),
+						triggers: update?.type === ActionType.AutomationUpdateRequested ? update.changes.triggers : undefined,
+					}, {
+						schedule: {
+							interval: 'cron', cronExpression: `30 9 * * ${day}`, cronTimeZone: timeZone,
+							scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0,
+						},
+						canUpdate: true,
+						triggers: [{ ...triggers[0], id: 'schedule', schedule: { expression: `30 9 * * ${day}`, timeZone } }],
+					});
+				} else if (foreignTimeZone) {
 					await assert.rejects(store.updateAutomation(id, { name: 'Renamed' }), /cannot be edited in VS Code/);
 					assert.deepStrictEqual({
 						schedule: automation.schedule, canUpdate: store.canUpdateAutomation(id),
@@ -1695,59 +1741,66 @@ suite('AgentHostAutomationStore', () => {
 	}
 
 	for (const variant of ['omitted policy', 'skip policy', 'companion schedule', 'companion event']) {
-		test(`preserves weekday trigger semantics with ${variant}`, async () => {
-			const connection = disposables.add(new TestAutomationConnection());
-			const storage = disposables.add(new InMemoryStorageService());
-			const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
-			const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-			const triggers: AutomationEntry['definition']['triggers'] = [{
-				id: 'host-weekdays', kind: AutomationTriggerKind.Schedule,
-				schedule: { expression: '30 9 * * MON-FRI', timeZone },
-				...(variant === 'skip policy' ? { misfirePolicy: AutomationMisfirePolicy.Skip } : {}),
-			}];
-			if (variant === 'companion schedule') {
-				triggers.push({ id: 'weekend', kind: AutomationTriggerKind.Schedule, schedule: { expression: '0 10 * * 6', timeZone } });
-			} else if (variant === 'companion event') {
-				triggers.unshift({ id: 'event', kind: AutomationTriggerKind.Event, type: 'host.event', title: 'Host event', events: [] });
-			}
-			const timestamp = new Date().toISOString();
-			connection.setAutomation({
-				resource: 'ahp-automation:/host-weekdays',
-				definition: {
-					title: 'Host weekdays', message: { text: 'Review changes.', origin: { kind: MessageKind.Automation } },
-					session: { provider: 'mock' }, enabled: true, triggers,
-				},
-				runs: [],
-				operations: [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run],
-				createdAt: timestamp, modifiedAt: timestamp,
+		// `1-6` has no preset, so it exercises the cron editor's own trigger-loss guard rather than the weekdays one.
+		for (const { shape, expression } of [{ shape: 'weekdays', expression: '30 9 * * MON-FRI' }, { shape: 'cron', expression: '30 9 * * 1-6' }]) {
+			test(`preserves ${shape} trigger semantics with ${variant}`, async () => {
+				const connection = disposables.add(new TestAutomationConnection());
+				const storage = disposables.add(new InMemoryStorageService());
+				const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+				const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+				const triggers: AutomationEntry['definition']['triggers'] = [{
+					id: 'host-weekdays', kind: AutomationTriggerKind.Schedule,
+					schedule: { expression, timeZone },
+					...(variant === 'skip policy' ? { misfirePolicy: AutomationMisfirePolicy.Skip } : {}),
+				}];
+				if (variant === 'companion schedule') {
+					triggers.push({ id: 'weekend', kind: AutomationTriggerKind.Schedule, schedule: { expression: '0 10 * * 6', timeZone } });
+				} else if (variant === 'companion event') {
+					triggers.unshift({ id: 'event', kind: AutomationTriggerKind.Event, type: 'host.event', title: 'Host event', events: [] });
+				}
+				const timestamp = new Date().toISOString();
+				connection.setAutomation({
+					resource: 'ahp-automation:/host-weekdays',
+					definition: {
+						title: 'Host weekdays', message: { text: 'Review changes.', origin: { kind: MessageKind.Automation } },
+						session: { provider: 'mock' }, enabled: true, triggers,
+					},
+					runs: [],
+					operations: [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run],
+					createdAt: timestamp, modifiedAt: timestamp,
+				});
+				const id = 'local-agent-host:ahp-automation:/host-weekdays';
+				if (variant === 'omitted policy') {
+					const updated = await store.updateAutomation(id, { name: 'Renamed' });
+					const update = connection.dispatched.at(-1)?.action;
+					assert.deepStrictEqual({
+						schedule: updated.schedule,
+						triggers: update?.type === ActionType.AutomationUpdateRequested ? update.changes.triggers : undefined,
+					}, {
+						schedule: shape === 'weekdays'
+							? { interval: 'weekdays', scheduleHour: 9, scheduleMinute: 30, scheduleDay: 0 }
+							: { interval: 'cron', cronExpression: expression, cronTimeZone: timeZone, scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+						triggers: [{
+							id: 'schedule', kind: AutomationTriggerKind.Schedule,
+							schedule: { expression: shape === 'weekdays' ? '30 9 * * 1-5' : expression, timeZone },
+							misfirePolicy: AutomationMisfirePolicy.RunOnce,
+						}],
+					});
+				} else {
+					// Saving replaces every trigger, so anything the editor cannot faithfully rewrite must stay read-only.
+					const automation = store.getAutomation(id)!;
+					await assert.rejects(store.updateAutomation(id, { name: 'Renamed' }), /cannot be edited in VS Code/);
+					await assert.rejects(store.updateAutomationIfUnchanged(id, { enabled: false }, automation), /cannot be edited in VS Code/);
+					assert.deepStrictEqual({
+						schedule: automation.schedule, canUpdate: store.canUpdateAutomation(id),
+						dispatched: connection.dispatched, automation: store.getAutomation(id),
+					}, {
+						schedule: { interval: 'custom', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+						canUpdate: false, dispatched: [], automation,
+					});
+				}
 			});
-			const id = 'local-agent-host:ahp-automation:/host-weekdays';
-			if (variant === 'omitted policy') {
-				const updated = await store.updateAutomation(id, { name: 'Renamed' });
-				const update = connection.dispatched.at(-1)?.action;
-				assert.deepStrictEqual({
-					schedule: updated.schedule,
-					triggers: update?.type === ActionType.AutomationUpdateRequested ? update.changes.triggers : undefined,
-				}, {
-					schedule: { interval: 'weekdays', scheduleHour: 9, scheduleMinute: 30, scheduleDay: 0 },
-					triggers: [{
-						id: 'schedule', kind: AutomationTriggerKind.Schedule,
-						schedule: { expression: '30 9 * * 1-5', timeZone }, misfirePolicy: AutomationMisfirePolicy.RunOnce,
-					}],
-				});
-			} else {
-				const automation = store.getAutomation(id)!;
-				await assert.rejects(store.updateAutomation(id, { name: 'Renamed' }), /cannot be edited in VS Code/);
-				await assert.rejects(store.updateAutomationIfUnchanged(id, { enabled: false }, automation), /cannot be edited in VS Code/);
-				assert.deepStrictEqual({
-					schedule: automation.schedule, canUpdate: store.canUpdateAutomation(id),
-					dispatched: connection.dispatched, automation: store.getAutomation(id),
-				}, {
-					schedule: { interval: 'custom', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
-					canUpdate: false, dispatched: [], automation,
-				});
-			}
-		});
+		}
 	}
 
 	test('keeps host-authored Weekdays in other time zones read-only without changing triggers', async () => {

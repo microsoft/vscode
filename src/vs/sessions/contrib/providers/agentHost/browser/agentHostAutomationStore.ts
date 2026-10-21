@@ -846,19 +846,26 @@ function projectSchedule(triggers: AutomationDefinition['triggers']): IAutomatio
 		return { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
 	}
 	const [minuteValue, hourValue, dayOfMonth, month, dayValue, ...remaining] = trigger.schedule.expression.trim().split(/\s+/);
+	// Saving replaces every trigger with a single one, so only offer the cron editor when nothing else would be lost.
+	const unrepresentable: IAutomationSchedule = triggers.length === 1 && (trigger.misfirePolicy === undefined || trigger.misfirePolicy === AutomationMisfirePolicy.RunOnce)
+		? {
+			interval: 'cron', cronExpression: trigger.schedule.expression, cronTimeZone: trigger.schedule.timeZone,
+			scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0,
+		}
+		: { interval: 'custom', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
 	if (remaining.length > 0 || dayOfMonth !== '*' || month !== '*') {
-		return { interval: 'custom', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
+		return unrepresentable;
 	}
 	const scheduleMinute = parseCronValue(minuteValue, 0, 59);
 	if (scheduleMinute === undefined) {
-		return { interval: 'custom', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
+		return unrepresentable;
 	}
 	if (hourValue === '*' && dayValue === '*') {
 		return { interval: 'hourly', scheduleHour: 0, scheduleMinute, scheduleDay: 0 };
 	}
 	const scheduleHour = parseCronValue(hourValue, 0, 23);
 	if (scheduleHour === undefined) {
-		return { interval: 'custom', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
+		return unrepresentable;
 	}
 	if (dayValue === '*') {
 		return { interval: 'daily', scheduleHour, scheduleMinute, scheduleDay: 0 };
@@ -873,7 +880,7 @@ function projectSchedule(triggers: AutomationDefinition['triggers']): IAutomatio
 	}
 	const scheduleDay = parseCronValue(dayValue, 0, 6);
 	return scheduleDay === undefined
-		? { interval: 'custom', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 }
+		? unrepresentable
 		: { interval: 'weekly', scheduleHour, scheduleMinute, scheduleDay };
 }
 
@@ -892,9 +899,15 @@ function scheduleTrigger(schedule: IAutomationSchedule): AutomationDefinition['t
 	if (schedule.interval === 'manual') {
 		return [];
 	}
-	const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+	const timeZone = (schedule.interval === 'cron' ? schedule.cronTimeZone : undefined) ?? (Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC');
 	let expression: string;
 	switch (schedule.interval) {
+		case 'cron':
+			if (!schedule.cronExpression?.trim()) {
+				throw new Error('A cron expression is required.');
+			}
+			expression = schedule.cronExpression.trim();
+			break;
 		case 'hourly':
 			expression = `${schedule.scheduleMinute} * * * *`;
 			break;

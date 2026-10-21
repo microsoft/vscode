@@ -22,6 +22,7 @@ import { AutomationInterval, AutomationTarget, AutomationWorkspaceIsolation, IAu
 import { IAutomationRunDispatch, IAutomationRunner } from '../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { type AutomationCatalogueState, type AutomationMutationGuard, AutomationMutationUncertainError, AutomationToolCatalog, AutomationSessionTemplateAuthorityError, AutomationUnavailableError, assertAutomationTargetAuthority, ConfigureAutomationToolReferenceName, IAutomationProviderConfiguration, IAutomationService, ICreateAutomationOptions, IUpdateAutomationOptions, serializeAutomationEditableState } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatAutomationsEnabledContext, CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+import { getAutomationCronValidationError } from '../../../../workbench/contrib/chat/common/automations/schedule.js';
 import { IChatAutomationConfiguredData } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
@@ -37,7 +38,7 @@ export const DeleteAutomationToolId = 'vscode_deleteAutomation';
 
 const automationToolWhen = ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext);
 const deleteAutomationConfirmationId = 'delete';
-const automationIntervals: readonly AutomationInterval[] = ['manual', 'hourly', 'daily', 'weekdays', 'weekly'];
+const automationIntervals: readonly AutomationInterval[] = ['manual', 'hourly', 'daily', 'weekdays', 'weekly', 'cron'];
 const automationIsolationKinds: readonly AutomationWorkspaceIsolation['kind'][] = ['default', 'folder', 'worktree'];
 const chatPermissionLevels: readonly ChatPermissionLevel[] = [ChatPermissionLevel.Default, ChatPermissionLevel.Assisted, ChatPermissionLevel.AutoApprove, ChatPermissionLevel.Autopilot];
 const MAX_SESSION_TEMPLATE_CONFIG_DEPTH = 32;
@@ -521,7 +522,15 @@ The change uses the current tool-approval policy. When approval is required, the
 							interval: {
 								type: 'string',
 								enum: [...automationIntervals],
-								description: 'manual, hourly, daily, weekdays, or weekly. Weekdays runs Monday-Friday at the same local time on an Agent Host; it is not supported by Cloud.',
+								description: 'manual, hourly, daily, weekdays, weekly, or cron. Weekdays runs Monday-Friday at the same local time on an Agent Host; it is not supported by Cloud. Cron is also Agent Host only.',
+							},
+							cronExpression: {
+								type: 'string',
+								description: 'Required for cron: five fields (minute, hour, day of month, month, day of week). Supports *, lists, ascending ranges, and positive steps on * or ranges; JAN-DEC and SUN-SAT names are accepted.',
+							},
+							cronTimeZone: {
+								type: 'string',
+								description: 'IANA time zone for cron. Defaults to the local time zone when creating; preserved when updating.',
 							},
 							scheduleHour: {
 								type: 'integer',
@@ -979,7 +988,7 @@ function parseSchedule(input: Record<string, unknown>, existing: IAutomationSche
 		return undefined;
 	}
 
-	assertKnownProperties(value, ['interval', 'scheduleHour', 'scheduleMinute', 'scheduleDay', 'timeZone'], '"schedule"');
+	assertKnownProperties(value, ['interval', 'scheduleHour', 'scheduleMinute', 'scheduleDay', 'timeZone', 'cronExpression', 'cronTimeZone'], '"schedule"');
 	const interval = readOptionalEnum(value, 'interval', automationIntervals) ?? existing?.interval;
 	if (!interval) {
 		throw new AutomationToolInputError('"schedule.interval" is required when creating an automation.');
@@ -987,6 +996,18 @@ function parseSchedule(input: Record<string, unknown>, existing: IAutomationSche
 	const scheduleHour = readOptionalInteger(value, 'scheduleHour', 0, 23) ?? existing?.scheduleHour ?? 9;
 	const scheduleMinute = readOptionalInteger(value, 'scheduleMinute', 0, 59) ?? existing?.scheduleMinute ?? 0;
 	const scheduleDay = readOptionalInteger(value, 'scheduleDay', 0, 6) ?? existing?.scheduleDay ?? 1;
+	if (interval === 'cron') {
+		const cronExpression = readOptionalNonEmptyString(value, 'cronExpression') ?? existing?.cronExpression;
+		const cronTimeZone = readOptionalNonEmptyString(value, 'cronTimeZone') ?? existing?.cronTimeZone;
+		if (!cronExpression?.trim()) {
+			throw new AutomationToolInputError('"schedule.cronExpression" is required for cron schedules.');
+		}
+		const error = getAutomationCronValidationError(cronExpression, cronTimeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone);
+		if (error) {
+			throw new AutomationToolInputError(error);
+		}
+		return { interval, scheduleHour, scheduleMinute, scheduleDay, cronExpression, ...(cronTimeZone !== undefined ? { cronTimeZone } : {}) };
+	}
 
 	const timeZone = readOptionalEnum(value, 'timeZone', ['UTC'] as const) ?? existing?.timeZone;
 	if (interval === 'weekdays' && timeZone !== undefined) {

@@ -1210,7 +1210,7 @@ suite('Automation dialog creation', () => {
 		dialog.saveButton.click();
 		await timeout(0);
 		assert.deepStrictEqual({ ...initial, commits }, {
-			options: ['Choose a trigger', 'Manual', 'Hourly', 'Daily', 'Weekdays', 'Weekly'],
+			options: ['Choose a trigger', 'Manual', 'Hourly', 'Daily', 'Weekdays', 'Weekly', 'Cron'],
 			selected: 'Choose a trigger', placeholderDisabled: true, saveDisabled: 'true',
 			error: 'Choose a supported schedule.',
 			commits: 0,
@@ -1221,7 +1221,7 @@ suite('Automation dialog creation', () => {
 			options: Array.from(interval.options, option => option.textContent),
 			selected: interval.selectedOptions[0].textContent,
 			saveDisabled: dialog.saveButton.getAttribute('aria-disabled'),
-		}, { options: ['Manual', 'Hourly', 'Daily', 'Weekdays', 'Weekly'], selected: 'Weekdays', saveDisabled: 'false' });
+		}, { options: ['Manual', 'Hourly', 'Daily', 'Weekdays', 'Weekly', 'Cron'], selected: 'Weekdays', saveDisabled: 'false' });
 		dialog.saveButton.click();
 		const result = await dialog.result;
 		assert.deepStrictEqual({ kind: result?.kind, schedule: result?.value.schedule, commits }, {
@@ -2669,6 +2669,7 @@ suite('Automation dialog layout', () => {
 				'automation-trigger-required-fields',
 				'automation-target-error',
 				'automation-advanced',
+				'automation-form-row automation-form-cron-row',
 			],
 			enabledCheckbox: null,
 			targetLabel: 'Target',
@@ -2757,6 +2758,49 @@ suite('Automation dialog layout', () => {
 		const previousValidationCalls = validationCalls;
 		sessionTypesChanged.fire();
 		assert.ok(validationCalls > previousValidationCalls, 'session capabilities must revalidate even when the selected host is unchanged');
+
+		const scheduleSelect = form.querySelector<HTMLSelectElement>('.automation-form-schedule-select-container select')!;
+		const cronRow = form.querySelector<HTMLElement>('.automation-form-cron-row')!;
+		const cronInput = cronRow.querySelector('input')!;
+		const cronInputs = Array.from(cronRow.querySelectorAll('input'));
+		const cronError = cronRow.querySelector('.automation-form-cron-error')!;
+		const targetWindow = DOM.getWindow(form);
+		const selectInterval = (label: string) => {
+			scheduleSelect.selectedIndex = Array.from(scheduleSelect.options).findIndex(option => option.textContent === label);
+			scheduleSelect.dispatchEvent(new targetWindow.Event('change'));
+		};
+		const enterCron = (value: string) => {
+			const parts = value ? value.split(' ') : [];
+			for (const [index, input] of cronInputs.entries()) {
+				input.value = parts[index] ?? '';
+				input.dispatchEvent(new targetWindow.Event('input'));
+			}
+			return {
+				value: state.cronExpression,
+				invalid: cronInput.getAttribute('aria-invalid'),
+				error: cronError.textContent,
+				borderError: !!cronRow.querySelector('.automation-cron-segments.invalid'),
+			};
+		};
+		selectInterval('Cron');
+		const empty = enterCron('');
+		assert.strictEqual(cronInput.placeholder, '*');
+		cronInput.dispatchEvent(new FocusEvent('focus'));
+		assert.strictEqual(cronRow.querySelector('#automation-cron-hint')?.textContent, 'Every minute (*), 0-59, or */2 for every two minutes.');
+		assert.notStrictEqual(cronRow.style.display, 'none');
+		const invalid = enterCron('0 24 * * *');
+		const valid = enterCron('*/2 * * * *');
+		const disallowed = new InputEvent('beforeinput', { data: '?', inputType: 'insertText', cancelable: true });
+		cronInput.dispatchEvent(disallowed);
+		selectInterval('Daily');
+		const hidden = cronRow.style.display === 'none';
+		selectInterval('Cron');
+		assert.deepStrictEqual({ empty, invalid, valid, prevented: disallowed.defaultPrevented, hidden, restored: cronInputs.map(input => input.value).join(' ') }, {
+			empty: { value: '', invalid: 'false', error: '', borderError: false },
+			invalid: { value: '0 24 * * *', invalid: 'true', error: 'Hour value is outside 0-23: 24', borderError: true },
+			valid: { value: '*/2 * * * *', invalid: 'false', error: '', borderError: false },
+			prevented: true, hidden: true, restored: '*/2 * * * *',
+		});
 	});
 
 	test('editing honors Update without create capability and reacts when update authority is lost', () => {
@@ -3530,6 +3574,29 @@ suite('Automation workspace trust', () => {
 suite('Automation dialog target validation', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('blocks empty and invalid cron schedules without marking empty input invalid', () => {
+		const service = upcastPartial<ISessionsManagementService>({ isQuickChatTargetAvailable: () => true });
+		const state = createFormState({ interval: 'cron', isQuickChat: true, cronTimeZone: 'UTC' });
+		const validation: IValidationState = { nameError: undefined, promptError: undefined, folderError: undefined, sessionTypeError: undefined, branchError: undefined };
+		const form = DOM.$('form');
+		const saveButton = disposables.add(new Button(form, defaultButtonStyles));
+		const results = ['', '  ', '0 24 * * *', '*/2 * * * *'].map(expression => {
+			state.cronExpression = expression;
+			updateSaveButtonState(saveButton, state, validation, form, () => 'prompt', () => undefined, service);
+			return { enabled: saveButton.enabled, error: validation.cronError };
+		});
+		state.interval = 'daily';
+		state.cronExpression = 'invalid';
+		updateSaveButtonState(saveButton, state, validation, form, () => 'prompt', () => undefined, service);
+		assert.deepStrictEqual([...results, { enabled: saveButton.enabled, error: validation.cronError }], [
+			{ enabled: false, error: undefined },
+			{ enabled: false, error: undefined },
+			{ enabled: false, error: 'Hour value is outside 0-23: 24' },
+			{ enabled: true, error: undefined },
+			{ enabled: true, error: undefined },
+		]);
+	});
+
 	test('an offset outside the quarter-hour grid blocks cloud save with an explicit schedule error', () => {
 		const state = createFormState({ timeZone: 'UTC', timezoneOffset: 44, hour: 9, minute: 45, isolationMode: undefined });
 		const validation: IValidationState = { nameError: undefined, promptError: undefined, folderError: undefined, sessionTypeError: undefined, branchError: undefined };
@@ -4012,6 +4079,7 @@ suite('Automation branch picker', () => {
 		}, {
 			validTarget: {
 				scheduleError: undefined,
+				cronError: undefined,
 				nameError: undefined,
 				promptError: undefined,
 				folderError: undefined,
@@ -4020,6 +4088,7 @@ suite('Automation branch picker', () => {
 			},
 			missingTarget: {
 				scheduleError: undefined,
+				cronError: undefined,
 				nameError: undefined,
 				promptError: undefined,
 				folderError: undefined,
@@ -4042,6 +4111,7 @@ suite('Automation branch picker', () => {
 		updateSaveButtonState(undefined, state, validation, document.createElement('form'), () => 'prompt', () => undefined, sessionsManagementService);
 
 		assert.deepStrictEqual(validation, {
+			cronError: undefined,
 			nameError: undefined,
 			promptError: undefined,
 			folderError: undefined,

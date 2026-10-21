@@ -107,6 +107,8 @@ function areAutomationTemplatesEqual(first: readonly IAutomationTemplate[], seco
 			&& template.prompt === other.prompt
 			&& template.enabled === other.enabled
 			&& template.schedule.interval === other.schedule.interval
+			&& template.schedule.cronExpression === other.schedule.cronExpression
+			&& template.schedule.cronTimeZone === other.schedule.cronTimeZone
 			&& template.schedule.scheduleHour === other.schedule.scheduleHour
 			&& template.schedule.scheduleMinute === other.schedule.scheduleMinute
 			&& template.schedule.scheduleDay === other.schedule.scheduleDay
@@ -2111,6 +2113,7 @@ function formatSchedule(schedule: IAutomationSchedule): string {
 	const { interval, scheduleHour, scheduleMinute } = localSchedule;
 	const time = formatHourMinute(scheduleHour, scheduleMinute);
 	switch (interval) {
+		case 'cron': return localize('scheduleCron', "Cron: {0}", schedule.cronExpression);
 		case 'hourly': return localize('scheduleHourly', "Hourly");
 		case 'daily': return localize('scheduleDailyAt', "Daily at {0}", time);
 		case 'weekdays': return localize('scheduleWeekdaysAt', "Weekdays at {0}", time);

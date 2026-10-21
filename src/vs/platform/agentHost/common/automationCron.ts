@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from '../../../nls.js';
+
 const MINUTE_MS = 60_000;
 const DATE_SEARCH_STEP_MS = 12 * 60 * MINUTE_MS;
 const MAX_SEARCH_MS = 10 * 366 * 24 * 60 * MINUTE_MS;
@@ -91,17 +93,17 @@ export function nextAutomationCronOccurrence(expression: string, timeZone: strin
 function parseAutomationCron(expression: string): IAutomationCron {
 	const fields = expression.trim().split(/\s+/);
 	if (fields.length !== 5) {
-		throw new Error(`Automation schedule must contain exactly five fields: ${expression}`);
+		throw new Error(localize('automationCron.fields', "Automation schedule must contain exactly five fields: minute, hour, day of month, month, day of week."));
 	}
 	const cron: IAutomationCron = {
-		minute: parseField(fields[0], 0, 59),
-		hour: parseField(fields[1], 0, 23),
-		dayOfMonth: parseField(fields[2], 1, 31),
-		month: parseField(fields[3], 1, 12, MONTH_NAMES),
-		dayOfWeek: parseField(fields[4], 0, 7, WEEKDAY_NAMES, value => value === 7 ? 0 : value),
+		minute: parseField(fields[0], localize('automationCron.minute', "Minute"), 0, 59),
+		hour: parseField(fields[1], localize('automationCron.hour', "Hour"), 0, 23),
+		dayOfMonth: parseField(fields[2], localize('automationCron.dayOfMonth', "Day of month"), 1, 31),
+		month: parseField(fields[3], localize('automationCron.month', "Month"), 1, 12, MONTH_NAMES),
+		dayOfWeek: parseField(fields[4], localize('automationCron.dayOfWeek', "Day of week"), 0, 7, WEEKDAY_NAMES, value => value === 7 ? 0 : value),
 	};
 	if (!hasPossibleCalendarDay(cron)) {
-		throw new Error(`Automation schedule cannot match a real calendar date: ${expression}`);
+		throw new Error(localize('automationCron.calendar', "Automation schedule cannot match a real calendar date: {0}", expression));
 	}
 	return cron;
 }
@@ -124,6 +126,7 @@ function hasPossibleCalendarDay(cron: IAutomationCron): boolean {
 
 function parseField(
 	field: string,
+	label: string,
 	minimum: number,
 	maximum: number,
 	names: ReadonlyMap<string, number> = new Map(),
@@ -132,11 +135,11 @@ function parseField(
 	const values = new Set<number>();
 	for (const segment of field.split(',')) {
 		if (!segment) {
-			throw new Error(`Automation schedule contains an empty field segment: ${field}`);
+			throw new Error(localize('automationCron.emptySegment', "{0} contains an empty list item: {1}", label, field));
 		}
 		const stepParts = segment.split('/');
 		if (stepParts.length > 2) {
-			throw new Error(`Automation schedule contains an invalid step: ${segment}`);
+			throw new Error(localize('automationCron.invalidStep', "{0} contains an invalid step: {1}", label, segment));
 		}
 		const step = stepParts[1] === undefined ? 1 : parsePositiveInteger(stepParts[1], segment);
 		const base = stepParts[0];
@@ -149,18 +152,18 @@ function parseField(
 			const range = base.split('-');
 			if (range.length === 1) {
 				if (stepParts.length > 1) {
-					throw new Error(`Automation schedule steps require '*' or a range: ${segment}`);
+					throw new Error(localize('automationCron.stepBase', "{0} steps require '*' or a range: {1}", label, segment));
 				}
-				start = parseValue(range[0], minimum, maximum, names);
+				start = parseValue(range[0], label, minimum, maximum, names);
 				end = start;
 			} else if (range.length === 2) {
-				start = parseValue(range[0], minimum, maximum, names);
-				end = parseValue(range[1], minimum, maximum, names);
+				start = parseValue(range[0], label, minimum, maximum, names);
+				end = parseValue(range[1], label, minimum, maximum, names);
 				if (start > end) {
-					throw new Error(`Automation schedule ranges must be ascending: ${segment}`);
+					throw new Error(localize('automationCron.ascending', "{0} ranges must be ascending: {1}", label, segment));
 				}
 			} else {
-				throw new Error(`Automation schedule contains an invalid range: ${segment}`);
+				throw new Error(localize('automationCron.invalidRange', "{0} contains an invalid range: {1}", label, segment));
 			}
 		}
 		for (let value = start; value <= end; value += step) {
@@ -170,11 +173,11 @@ function parseField(
 	return { values, unrestricted: field === '*' };
 }
 
-function parseValue(value: string, minimum: number, maximum: number, names: ReadonlyMap<string, number>): number {
+function parseValue(value: string, label: string, minimum: number, maximum: number, names: ReadonlyMap<string, number>): number {
 	const named = names.get(value.toUpperCase());
 	const parsed = named ?? (/^\d+$/.test(value) ? Number(value) : Number.NaN);
 	if (!Number.isInteger(parsed) || parsed < minimum || parsed > maximum) {
-		throw new Error(`Automation schedule value is outside ${minimum}-${maximum}: ${value}`);
+		throw new Error(localize('automationCron.range', "{0} value is outside {1}-{2}: {3}", label, minimum, maximum, value));
 	}
 	return parsed;
 }
@@ -182,7 +185,7 @@ function parseValue(value: string, minimum: number, maximum: number, names: Read
 function parsePositiveInteger(value: string, segment: string): number {
 	const parsed = /^\d+$/.test(value) ? Number(value) : Number.NaN;
 	if (!Number.isInteger(parsed) || parsed <= 0) {
-		throw new Error(`Automation schedule step must be a positive integer: ${segment}`);
+		throw new Error(localize('automationCron.positiveStep', "Automation schedule step must be a positive integer: {0}", segment));
 	}
 	return parsed;
 }
@@ -200,7 +203,7 @@ function createDateFormatter(timeZone: string): Intl.DateTimeFormat {
 			hourCycle: 'h23',
 		});
 	} catch (error) {
-		throw new Error(`Automation schedule uses an invalid time zone: ${timeZone}`, { cause: error });
+		throw new Error(localize('automationCron.timeZone', "Automation schedule uses an invalid time zone: {0}", timeZone), { cause: error });
 	}
 }
 
