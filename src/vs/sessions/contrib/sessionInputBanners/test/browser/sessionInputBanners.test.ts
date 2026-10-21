@@ -160,12 +160,12 @@ suite('SessionInputBanners', () => {
 				dropdownActions = delegate.getActions?.() ?? [];
 			},
 		}));
-		let revealedPullRequest: { commandId: string; pullRequest: unknown } | undefined;
+		let revealedPullRequest: { commandId: string; args: readonly unknown[] } | undefined;
 		const commandService = new class extends mock<ICommandService>() {
 			override async executeCommand<T>(commandId: string, ...args: unknown[]): Promise<T | undefined> {
 				const [options] = args;
 				assert.ok(options !== null && typeof options === 'object' && hasKey(options, { pullRequest: true }), 'Expected the reveal command argument to contain a pullRequest');
-				revealedPullRequest = { commandId, pullRequest: options.pullRequest };
+				revealedPullRequest = { commandId, args };
 				return undefined;
 			}
 		}();
@@ -225,7 +225,7 @@ suite('SessionInputBanners', () => {
 			fixRequested: ciModels.get(42)?.fixRequested.get(),
 		}, {
 			dropdownLabels: ['Fix Checks', 'Address Comments', 'Reveal Checks', 'Reveal Comments'],
-			revealedPullRequest: { commandId: OPEN_PULL_REQUEST_ACTION_ID, pullRequest: pullRequests[0] },
+			revealedPullRequest: { commandId: OPEN_PULL_REQUEST_ACTION_ID, args: [{ pullRequest: pullRequests[0] }] },
 			revealedFeedback: { sessionResource, feedbackId: 'pr-42-a' },
 			submitted: undefined,
 			fixRequested: false,
