@@ -97,8 +97,9 @@ async function checkDistroCommit(): Promise<void> {
 		console.log(`✓ Distro commit matches branch HEAD`);
 	} else {
 		// Issue a warning using Azure DevOps logging commands
+		// Warn only: a lagging pin is routine until the automated "Update distro commit" PR merges, and it
+		// should not mark otherwise clean official builds as partially succeeded.
 		console.log(`##vso[task.logissue type=warning]Distro commit mismatch: package.json has ${distroCommit.substring(0, 8)} but ${branch} HEAD is ${distroBranchHead.substring(0, 8)}`);
-		console.log(`##vso[task.complete result=SucceededWithIssues;]Distro commit does not match branch HEAD`);
 		console.log('');
 		console.log(`⚠️  WARNING: Distro commit in package.json does not match the HEAD of branch '${branch}' in vscode-distro`);
 		console.log(`   package.json distro: ${distroCommit}`);
