@@ -75,7 +75,7 @@ import { IAdditionalWorktreeLifecycleService } from './chatContributions/additio
 import { IAgentHostWorktreeCleanupService } from './agentHostWorktreeCleanupService.js';
 import type { WorktreeRemovalMode } from './agentHostWorktreeRemovalDatabase.js';
 import { AgentHostAutomationService } from './agentHostAutomationService.js';
-import { createAgentChatContext } from './agentChatContext.js';
+import { createAgentChatContext, inheritedChatFolders } from './agentChatContext.js';
 import { captureCredentialSource, parseCredentialPrincipal, type IAgentHostAuthenticationScope, type IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 import { AgentHostDebugLogsCollector, type IAgentHostDebugLogsEnvironment } from './agentHostDebugLogs.js';
 import { withAgentHostDebugLogsProgress } from '../common/meta/agentHostDebugLogsMeta.js';
@@ -7536,6 +7536,7 @@ export class AgentService extends Disposable implements IAgentService {
 				// Read when committing, so a retry after importing older-build edits sees the chats and folders they added.
 				const commit = async () => {
 					const sourceFolders = this._stateManager.getSessionSummary(sourceKey)?.workingDirectories ?? [];
+					const inheritedFolders = this._sessionFoldersOfChatWithoutOwn(sourceKey);
 					const folders = {
 						source: sourceFolders,
 						target: this._stateManager.getSessionSummary(targetKey)?.workingDirectories ?? targetFolders,
@@ -7543,7 +7544,7 @@ export class AgentService extends Disposable implements IAgentService {
 						chatHadOwnFolders: sourceSummary?.workingDirectories !== undefined,
 						remaining: sessionMove ? [] : (this._stateManager.getSessionState(sourceKey)?.chats ?? [])
 							.filter(candidate => !moved.includes(candidate.resource) && candidate.origin?.kind !== ChatOriginKind.Tool)
-							.map(candidate => candidate.workingDirectories ?? sourceFolders),
+							.map(candidate => candidate.workingDirectories ?? inheritedFolders),
 					};
 					const move = {
 						source: session,
@@ -7893,25 +7894,28 @@ export class AgentService extends Disposable implements IAgentService {
 				if (config) {
 					values.configValues = JSON.stringify(getPersistedSessionConfigValues(config.values, this._configurationService.getSessionSandboxEnabled(sourceKey), undefined));
 				}
-				const commit = async () => this._sessionStateStore.promoteChat({
-					source: session,
-					target,
-					chat,
-					provider: provider.id,
-					startTime: Date.now(),
-					expectedSourceCatalogRevision,
-					values,
-					folders: {
-						source: sourceFolders,
-						chat: chatFolders,
-						chatHadOwnFolders: sourceSummary?.workingDirectories !== undefined,
-						remaining: (this._stateManager.getSessionState(sourceKey)?.chats ?? [])
-							.filter(candidate => !moved.includes(candidate.resource) && candidate.origin?.kind !== ChatOriginKind.Tool)
-							.map(candidate => candidate.workingDirectories ?? sourceFolders),
-					},
-					coOwnedWorktrees: plan.coOwned,
-					worktreeLists: this._movedWorktreeLists(chatKey, plan, undefined, false, undefined),
-				});
+				const commit = async () => {
+					const inheritedFolders = this._sessionFoldersOfChatWithoutOwn(sourceKey);
+					return this._sessionStateStore.promoteChat({
+						source: session,
+						target,
+						chat,
+						provider: provider.id,
+						startTime: Date.now(),
+						expectedSourceCatalogRevision,
+						values,
+						folders: {
+							source: sourceFolders,
+							chat: chatFolders,
+							chatHadOwnFolders: sourceSummary?.workingDirectories !== undefined,
+							remaining: (this._stateManager.getSessionState(sourceKey)?.chats ?? [])
+								.filter(candidate => !moved.includes(candidate.resource) && candidate.origin?.kind !== ChatOriginKind.Tool)
+								.map(candidate => candidate.workingDirectories ?? inheritedFolders),
+						},
+						coOwnedWorktrees: plan.coOwned,
+						worktreeLists: this._movedWorktreeLists(chatKey, plan, undefined, false, undefined),
+					});
+				};
 				let result = await commit();
 				if (result.status === 'olderBuildEdits') {
 					// An older build edited the source's chat list since the promotion read it: import its edits, then try once more.
@@ -8141,10 +8145,9 @@ export class AgentService extends Disposable implements IAgentService {
 			?? this._sessionFoldersOfChatWithoutOwn(sourceKey);
 	}
 
-	/** The folders a chat without folders of its own works in: its session's, or only the scratch folder of a workspace-less session (nested chats own theirs). */
+	/** The folders a chat without folders of its own works in (see {@link inheritedChatFolders}): never another chat's scratch folder. */
 	private _sessionFoldersOfChatWithoutOwn(sessionKey: string): readonly string[] {
-		const folders = this._stateManager.getSessionSummary(sessionKey)?.workingDirectories ?? [];
-		return readSessionWorkspaceless(this._stateManager.getSessionState(sessionKey)?._meta) ? folders.slice(0, 1) : folders;
+		return inheritedChatFolders(this._stateManager, this._stateManager.getSessionSummary(sessionKey)?.workingDirectories ?? [], readSessionWorkspaceless(this._stateManager.getSessionState(sessionKey)?._meta));
 	}
 
 	/**
@@ -8193,7 +8196,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * validating and the source's chats in memory, so a move runs it again right before committing.
 	 */
 	private _planMoveWorktrees(sourceKey: string, chat: string, moved: readonly string[], subtreeFolders: readonly string[], worktrees: ISessionWorktreeRecords, targetPrimary: string | undefined, sessionMove: boolean, targetHasOlderBuildCopy: boolean): IWorktreeMoveDecisions {
-		const sourceFolders = this._stateManager.getSessionSummary(sourceKey)?.workingDirectories ?? [];
+		const inheritedFolders = this._sessionFoldersOfChatWithoutOwn(sourceKey);
 		const plan = planWorktreeMove({
 			kind: sessionMove ? 'session' : 'chat',
 			chat,
@@ -8201,7 +8204,7 @@ export class AgentService extends Disposable implements IAgentService {
 			chatFolders: subtreeFolders,
 			remainingFolders: (this._stateManager.getSessionState(sourceKey)?.chats ?? [])
 				.filter(candidate => !moved.includes(candidate.resource) && candidate.origin?.kind !== ChatOriginKind.Tool)
-				.map(candidate => candidate.workingDirectories ?? sourceFolders),
+				.map(candidate => candidate.workingDirectories ?? inheritedFolders),
 			source: worktrees,
 			targetPrimary,
 			targetHasOlderBuildCopy,
@@ -10766,7 +10769,7 @@ export class AgentService extends Disposable implements IAgentService {
 			workingDirectories: catalogChat.workingDirectories?.slice(),
 		}));
 		const chatDirectories = this._getChatFamilyWorkingDirectories(chats, chat, true);
-		const usedScopes = this._getWorkingDirectoriesInUse(chats, chat);
+		const usedScopes = this._getWorkingDirectoriesInUse(chats, chat, inheritedChatFolders(this._stateManager, data.workingDirectories, readSessionWorkspaceless(data._meta)));
 		if (!data.workingDirectories.length || !chatDirectories.length || usedScopes.some(scope => scope === undefined)) {
 			return undefined;
 		}
@@ -11522,7 +11525,7 @@ export class AgentService extends Disposable implements IAgentService {
 				const workingDirectories = this._stateManager.getSessionSummary(sessionKey)?.workingDirectories;
 				const isDirectory = (candidate: string) => isEqual(URI.parse(candidate), directory);
 				if (!state || !workingDirectories?.some(isDirectory)
-					|| this._getWorkingDirectoriesInUse(state.chats, undefined).some(scope => scope === undefined || scope.some(isDirectory))
+					|| this._getWorkingDirectoriesInUse(state.chats, undefined, this._sessionFoldersOfChatWithoutOwn(sessionKey)).some(scope => scope === undefined || scope.some(isDirectory))
 					|| this._isChatWorkingDirectoryReserved(session, directory)) {
 					return;
 				}
@@ -11665,7 +11668,7 @@ export class AgentService extends Disposable implements IAgentService {
 			return;
 		}
 		const { capability } = this._getChatWorkingDirectoryContext(session);
-		const usedScopes = this._getWorkingDirectoriesInUse(chats, chat);
+		const usedScopes = this._getWorkingDirectoriesInUse(chats, chat, this._sessionFoldersOfChatWithoutOwn(sessionKey));
 		if (usedScopes.some(scope => scope === undefined)) {
 			return;
 		}
@@ -11696,10 +11699,10 @@ export class AgentService extends Disposable implements IAgentService {
 	 * A subagent's own folders are never considered: it works in the folders of
 	 * the chat that spawned it. A side chat works in its own folders, or else in
 	 * those of its spawning chat. Both are in use only while their spawning chat
-	 * is. `undefined` marks a chat that inherits the complete session workspace,
-	 * or whose spawning chat is unknown.
+	 * is. A chat without folders of its own works in `inheritedFolders` (see
+	 * {@link inheritedChatFolders}). `undefined` marks a chat whose spawning chat is unknown.
 	 */
-	private _getWorkingDirectoriesInUse(chats: readonly ChatSummary[], excludedChat: string | undefined): readonly (readonly string[] | undefined)[] {
+	private _getWorkingDirectoriesInUse(chats: readonly ChatSummary[], excludedChat: string | undefined, inheritedFolders: readonly string[]): readonly (readonly string[] | undefined)[] {
 		const byResource = new Map(chats.map(chat => [chat.resource, chat]));
 		const ownWorkingDirectories = (chat: ChatSummary | undefined) => chat?.origin?.kind === ChatOriginKind.Tool ? undefined : chat?.workingDirectories;
 		const scopes: (readonly string[] | undefined)[] = [];
@@ -11717,7 +11720,7 @@ export class AgentService extends Disposable implements IAgentService {
 			if (ownerResource === excludedChat || (owner && isSessionChatArchived(owner))) {
 				continue;
 			}
-			scopes.push(workingDirectories);
+			scopes.push(workingDirectories ?? (owner ? inheritedFolders : undefined));
 		}
 		return scopes;
 	}

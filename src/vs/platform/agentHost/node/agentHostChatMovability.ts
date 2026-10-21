@@ -16,6 +16,7 @@ import { readSessionMovable, withSessionMovable } from '../common/meta/agentHost
 import { ActionType, type StateAction } from '../common/state/sessionActions.js';
 import { ChatOriginKind, isSessionStatusArchived, readSessionWorkspaceless, type ChatSummary, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import type { IAgentConfigurationService } from './agentConfigurationService.js';
+import { inheritedChatFolders } from './agentChatContext.js';
 import type { AgentHostStateManager } from './agentHostStateManager.js';
 import { AdditionalWorktreeUsers } from './agentHostWorktreeCoOwnership.js';
 import { ADDITIONAL_WORKTREES_METADATA_KEY, type ISessionAdditionalWorktree, parseSessionAdditionalWorktrees } from './shared/sessionAdditionalWorktrees.js';
@@ -90,9 +91,9 @@ const SESSION_INPUT_ACTIONS: ReadonlySet<StateAction['type']> = new Set([
 	ActionType.SessionWorkingDirectoryReplaced,
 ]);
 
-/** The folders a chat without folders of its own works in: its session's, or only the scratch folder of a workspace-less one (nested chats own theirs). */
-function ownFolders(context: ISourceSessionContext): readonly string[] {
-	return context.workspaceless ? context.folders.slice(0, 1) : context.folders;
+/** The folders a chat without folders of its own works in (see {@link inheritedChatFolders}). */
+function ownFolders(stateManager: AgentHostStateManager, context: ISourceSessionContext): readonly string[] {
+	return inheritedChatFolders(stateManager, context.folders, context.workspaceless);
 }
 
 /** Whether `folder` is recorded as a scratch folder, or is the default scratch folder (the primary one) of a workspace-less session. */
@@ -298,7 +299,7 @@ export class AgentHostChatMovability extends Disposable {
 		}
 		// A chat without folders of its own works in its current owner's; a move to `owner` pins those (`_movedChatFolders`).
 		const folders = this._stateManager.getChatState(chat)?.workingDirectories ?? summary.workingDirectories
-			?? ownFolders(current === owner ? context : currentContext);
+			?? ownFolders(this._stateManager, current === owner ? context : currentContext);
 		const subtree = subtreeOf(currentContext.children, chat);
 		return isChatMovable({
 			...structural,
@@ -338,7 +339,7 @@ export class AgentHostChatMovability extends Disposable {
 		if (!context.scratchFolderUsers) {
 			const users = new Map<string, Set<ProtocolURI>>();
 			for (const summary of context.summaries.values()) {
-				addScratchFolderUser(users, context, summary.resource, summary.workingDirectories ?? ownFolders(context), this._stateManager);
+				addScratchFolderUser(users, context, summary.resource, summary.workingDirectories ?? ownFolders(this._stateManager, context), this._stateManager);
 			}
 			context.scratchFolderUsers = users;
 		}
@@ -397,7 +398,7 @@ export class AgentHostChatMovability extends Disposable {
 				}
 			}
 			if (context.scratchFolderUsers) {
-				addScratchFolderUser(context.scratchFolderUsers, context, chat, summary.workingDirectories ?? ownFolders(context), this._stateManager);
+				addScratchFolderUser(context.scratchFolderUsers, context, chat, summary.workingDirectories ?? ownFolders(this._stateManager, context), this._stateManager);
 			}
 			if (context.worktreeUsers && summary.origin?.kind !== ChatOriginKind.Tool) {
 				context.worktreeUsers.addChat(chat, summary.workingDirectories ?? context.folders);

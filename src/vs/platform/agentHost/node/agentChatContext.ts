@@ -77,6 +77,15 @@ export function createChatOwnerRef(stateManager: AgentHostStateManager, chat: UR
 }
 
 /**
+ * The folders a chat without folders of its own works in: the session's own scratch folder (its primary) in a
+ * workspace-less session, else the session's folders without the scratch folders other chats brought (recorded rows).
+ * Another chat's scratch folder is never an inheriting chat's.
+ */
+export function inheritedChatFolders(stateManager: AgentHostStateManager, sessionFolders: readonly string[], sessionWorkspaceless: boolean): readonly string[] {
+	return sessionWorkspaceless ? sessionFolders.slice(0, 1) : sessionFolders.filter(folder => !stateManager.isScratchFolder(folder));
+}
+
+/**
  * Whether `chat` is workspace-less, decided per chat from recorded data: its own
  * primary folder is a recorded scratch folder; a chat with no folder of its own,
  * or one sharing the default chat's folder, follows the session's marker

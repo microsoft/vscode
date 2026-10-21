@@ -35218,6 +35218,84 @@ suite('AgentService (node dispatcher)', () => {
 			suite('workspace-less moves (Block 9)', () => {
 				const chatsRoot = workspacelessChatsRoot(URI.file('/home'));
 
+				test('a scratch chat of a workspace session with a folderless chat moves, also after a restart: the folderless chat never inherits its scratch folder', async () => {
+					const orchestratorDatabase = new AgentHostDatabase(':memory:');
+					const sessionDataService = createSessionDataService(new TestSessionDatabase());
+					const files = disposables.add(new FileService(new NullLogService()));
+					disposables.add(files.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+					const sessionFolders = new Map<string, URI[]>();
+					const createService = () => {
+						const created = disposables.add(createTestAgentService(new NullLogService(), files, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+							undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, orchestratorDatabase));
+						// Describes every chat after the restart too, with a started conversation, as a provider that persisted it does.
+						registerTestAgentProvider(created, disposables.add(new class extends MovingAgent {
+							override async getChatMetadata(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatMetadata | undefined> {
+								// Only a session's default chat reports folders: its session's.
+								const owner = resolveAgentChatContext(context, chat).owner.get();
+								const folders = chat.toString() === buildDefaultChatUri(owner) ? sessionFolders.get(owner.toString()) : undefined;
+								return { chat, startTime: 1, modifiedTime: 1, ...(folders ? { workingDirectories: folders } : {}) };
+							}
+							override getDescriptor() {
+								const base = super.getDescriptor();
+								return { ...base, capabilities: { ...base.capabilities, multipleWorkingDirectories: { immutablePrimary: true } } };
+							}
+						}('copilot')));
+						getConfigurationService(created).updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
+						return created;
+					};
+					const inherited = (service: AgentService, session: URI) => (service as unknown as { _sessionFoldersOfChatWithoutOwn(session: string): readonly string[] })._sessionFoldersOfChatWithoutOwn(session.toString());
+					const first = createService();
+					const repo = URI.file('/repo');
+					const source = await first.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [repo] });
+					const target = await first.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/other')] });
+					sessionFolders.set(source.toString(), [repo]);
+					sessionFolders.set(target.toString(), [URI.file('/other')]);
+					const folderless = URI.parse(buildChatUri(source, 'folderless'));
+					const scratch = URI.parse(buildChatUri(source, 'scratch'));
+					await first.createChat(source, scratch, { workspace: { kind: 'scratch' } });
+					// Created after the scratch chat, the folderless chat is pinned to nothing: it inherits the session's folders.
+					await first.createChat(source, folderless);
+					await timeout(0);
+					completeTurn(first, folderless);
+					completeTurn(first, scratch);
+					await timeout(0);
+					const chatOf = (service: AgentService, session: URI, chat: URI) => getStateManager(service).getSessionState(session.toString())?.chats.find(candidate => candidate.resource === chat.toString());
+					const scratchFolder = chatOf(first, source, scratch)?.workingDirectories?.[0];
+					const before = {
+						folderlessHasOwnFolders: chatOf(first, source, folderless)?.workingDirectories !== undefined,
+						sessionHasScratch: !!scratchFolder && !!getStateManager(first).getSessionSummary(source.toString())?.workingDirectories?.includes(scratchFolder),
+						movable: chatOf(first, source, scratch)?.movable,
+						inherited: inherited(first, source),
+					};
+					await first.whenCatalogReconciliationIdle();
+					await getTestSessionStateStore(first).whenIdle(undefined);
+
+					const restarted = createService();
+					await (restarted as unknown as { _scratchFoldersLoaded: Promise<void> })._scratchFoldersLoaded;
+					await restarted.listSessions();
+					const loadedBefore = getStateManager(restarted).getSessionUris().includes(source.toString());
+					await restarted.restoreSession(target);
+					const reason = await refusalOf(restarted.moveChat(source, scratch, { kind: 'session', session: target, after: undefined }));
+
+					assert.deepStrictEqual({
+						before,
+						loadedBefore,
+						reason,
+						owner: getStateManager(restarted).getChatOwner(scratch.toString()),
+						sourceFolders: getStateManager(restarted).getSessionSummary(source.toString())?.workingDirectories,
+						folderlessFolders: chatOf(restarted, source, folderless)?.workingDirectories,
+						inheritedAfter: inherited(restarted, source),
+					}, {
+						before: { folderlessHasOwnFolders: false, sessionHasScratch: true, movable: true, inherited: [repo.toString()] },
+						loadedBefore: false,
+						reason: 'moved',
+						owner: target.toString(),
+						sourceFolders: [repo.toString()],
+						folderlessFolders: undefined,
+						inheritedAfter: [repo.toString()],
+					});
+				});
+
 				async function setupWorkspaceless() {
 					const db = new TestSessionDatabase();
 					const files = disposables.add(new FileService(new NullLogService()));
