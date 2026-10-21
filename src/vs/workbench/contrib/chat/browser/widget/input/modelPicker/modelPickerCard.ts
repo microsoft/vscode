@@ -662,6 +662,8 @@ export class ModelCard extends DisposableStore {
 			: localize('chat.modelPicker.unavailableOptionNoReason', "{0} is not available.", choice.label));
 		if (unavailableReasons.length) {
 			control.domNode.setAttribute('aria-description', unavailableReasons.join(' '));
+		} else {
+			control.domNode.removeAttribute('aria-description');
 		}
 	}
 

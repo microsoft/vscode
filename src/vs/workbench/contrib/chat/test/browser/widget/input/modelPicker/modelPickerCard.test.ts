@@ -1105,7 +1105,7 @@ suite('ModelCard', () => {
 		}, { badge: 'Research preview', context: undefined });
 	});
 
-	test('an unavailable Auto tier shows its reason only on hover, and its group describes it for screen readers', () => {
+	test('an unavailable Auto tier shows its reason only on hover, and its group describes it for screen readers until it is available', () => {
 		const auto = createAutoModel();
 		const tier = auto.metadata.configurationSchema!.properties!.tier;
 		const model = {
@@ -1125,17 +1125,25 @@ suite('ModelCard', () => {
 				},
 			},
 		};
-		const { card } = createCard({ tier: 'balance' }, { model });
+		const { card, update } = createCard({ tier: 'balance' }, { model });
 		const radios = Array.from(card.element.querySelectorAll<HTMLElement>('[role="radio"]'));
-
-		assert.deepStrictEqual({
+		const unavailable = {
 			visibleReasons: card.element.querySelectorAll('.chat-model-card-unavailable-description').length,
 			groupDescription: radios[0].parentElement?.getAttribute('aria-description'),
 			disabled: radios.map(radio => radio.getAttribute('aria-disabled') === 'true'),
+		};
+		update({ model: { ...model, metadata: { ...model.metadata, configurationSchema: { properties: { tier: { ...model.metadata.configurationSchema.properties.tier, enumItemDisabled: undefined } } } } } });
+
+		assert.deepStrictEqual({
+			unavailable,
+			available: card.element.querySelector('[role="radio"]')?.parentElement?.getAttribute('aria-description'),
 		}, {
-			visibleReasons: 0,
-			groupDescription: 'Max: This tier requires models that the user does not have access to. Premium is not available.',
-			disabled: [false, false, true, true],
+			unavailable: {
+				visibleReasons: 0,
+				groupDescription: 'Max: This tier requires models that the user does not have access to. Premium is not available.',
+				disabled: [false, false, true, true],
+			},
+			available: null,
 		});
 	});
 

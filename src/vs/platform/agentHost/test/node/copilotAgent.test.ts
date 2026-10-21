@@ -15495,14 +15495,15 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('configSchema offers the provider Auto tiers from models.list in its order and default', async () => {
+	test('configSchema offers the provider Auto tiers from models.list in its order and default, naming and describing any it leaves unnamed or undescribed', async () => {
 		const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
 		client.autoTierMetadata = {
 			defaultTier: 'premium-v2',
 			tiers: [
 				{ id: 'balance', displayName: 'Balanced', description: 'Server balance', type: 'auto', status: { enabled: true } },
-				{ id: 'hydrafusion', displayName: 'High', description: 'Server fusion', type: 'fusion', status: { enabled: true } },
-				{ id: 'premium-v2', displayName: 'Premium', description: '', type: 'auto', status: { enabled: true } },
+				{ id: 'hydrafusion', displayName: '', description: 'Server fusion', type: 'fusion', status: { enabled: true } },
+				// As the service's JSON can send it, without a description.
+				JSON.parse('{ "id": "premium-v2", "displayName": "Premium", "type": "auto", "status": { "enabled": true } }'),
 				{ id: 'intelligence', displayName: 'Careful', description: 'Disabled', type: 'auto', status: { enabled: false, message: 'Contact admin' } },
 				{ id: 'fast', displayName: 'Fast', description: 'Integrator only', type: 'auto', status: { enabled: true } },
 				{ id: 'ensemble', displayName: 'Ensemble', description: 'Unknown execution', type: 'ensemble', status: { enabled: true } },
