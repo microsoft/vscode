@@ -374,9 +374,9 @@ export class RemoteNewSession extends Disposable implements ICopilotChatSession 
 		// Set workspace data
 		this._workspaceData.set(sessionWorkspace, undefined);
 		this._repoUri = sessionWorkspace?.folders[0]?.root;
-		if (this._repoUri) {
-			const id = this.repoNwo ?? this._repoUri.path.substring(1);
-			this.setOption('repositories', { id, name: id });
+		const repoNwo = this.repoNwo;
+		if (repoNwo) {
+			this.setOption('repositories', { id: repoNwo, name: repoNwo });
 		}
 
 		this.mainChat = observableValue<IChat>(this, buildChatFromSession(this));
