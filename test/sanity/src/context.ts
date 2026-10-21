@@ -97,6 +97,12 @@ const capturedLogNames: ReadonlySet<string> = new Set([
 	'network.log',
 ]);
 
+/** How much of each captured log file {@link TestContext.captureLogs} keeps, from its end. */
+const maxCapturedLogFileBytes = 2 * 1024 * 1024;
+
+/** How many bytes of logs {@link TestContext.captureLogs} copies at most per capture. */
+const maxCapturedLogBytes = 10 * 1024 * 1024;
+
 /**
  * Provides context and utilities for VS Code sanity tests.
  */
@@ -1452,7 +1458,7 @@ export class TestContext {
 	 * earlier copy for the same test. Each file keeps at most its last `maxFileBytes` bytes, and
 	 * copying stops once `maxTotalBytes` are copied.
 	 */
-	public captureLogs(logsDir: string, maxFileBytes = 2 * 1024 * 1024, maxTotalBytes = 10 * 1024 * 1024) {
+	public captureLogs(logsDir: string, maxFileBytes = maxCapturedLogFileBytes, maxTotalBytes = maxCapturedLogBytes) {
 		if (!this.currentTestName) {
 			return;
 		}
