@@ -95,8 +95,7 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 
 	private readonly _connections = new Map<string, IAgentHostClientProxyConnection>();
 	private _configurationValues: Record<string, unknown> = {};
-	private _proxyResolver: ReturnType<typeof createProxyResolver> | undefined;
-	private _proxyAgentParams: ProxyAgentParams | undefined;
+	private _proxyResolver: { readonly params: ProxyAgentParams; readonly resolver: ReturnType<typeof createProxyResolver> } | undefined;
 	private _fetch: typeof globalThis.fetch | undefined;
 	private _webSocket: typeof globalThis.WebSocket | undefined;
 
@@ -137,26 +136,26 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 	}
 
 	resolveProxy(url: string): Promise<string | undefined> {
-		return this._getProxyResolver().resolveProxyURL(url);
+		return this._getProxyResolver().resolver.resolveProxyURL(url);
 	}
 
 	fetch(input: string | URL | Request, init?: RequestInit): Promise<Response> {
 		if (!this._fetch) {
-			const proxyResolver = this._getProxyResolver();
-			this._fetch = createFetchPatch(this._proxyAgentParams!, globalThis.fetch, proxyResolver.resolveProxyURL);
+			const { params, resolver } = this._getProxyResolver();
+			this._fetch = createFetchPatch(params, globalThis.fetch, resolver.resolveProxyURL);
 		}
 		return this._fetch(input, init);
 	}
 
 	createWebSocket(url: string, protocol: string): InstanceType<typeof globalThis.WebSocket> {
 		if (!this._webSocket) {
-			const proxyResolver = this._getProxyResolver();
-			this._webSocket = createWebSocketPatch(this._proxyAgentParams!, globalThis.WebSocket, proxyResolver.resolveProxyURL);
+			const { params, resolver } = this._getProxyResolver();
+			this._webSocket = createWebSocketPatch(params, globalThis.WebSocket, resolver.resolveProxyURL);
 		}
 		return new this._webSocket(url, protocol);
 	}
 
-	private _getProxyResolver(): ReturnType<typeof createProxyResolver> {
+	private _getProxyResolver(): { readonly params: ProxyAgentParams; readonly resolver: ReturnType<typeof createProxyResolver> } {
 		if (!this._proxyResolver) {
 			const proxyLog = createUrlRedactingProxyLog(this._logService);
 			// Mirror `workbench/api/node/proxyResolver.ts`.
@@ -200,8 +199,7 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 				getNetworkInterfaceCheckInterval: () => 300 * 1000,
 				env: process.env,
 			};
-			this._proxyAgentParams = params;
-			this._proxyResolver = createProxyResolver(params);
+			this._proxyResolver = { params, resolver: createProxyResolver(params) };
 		}
 		return this._proxyResolver;
 	}

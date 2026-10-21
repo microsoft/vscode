@@ -385,7 +385,7 @@ export class MissionControlHost extends Disposable {
 						interruptedClients: relay.interruptedClients,
 					} : {}),
 				});
-				const relayDetail = relay ? `; reason=${relay.reason}${relay.closeCode === undefined ? '' : ` code=${relay.closeCode}`} clients=${relay.activeClients} attempts=${relay.attempts}${relay.interruptedClients ? ` interrupted=${relay.interruptedClients}` : ''}` : '';
+				const relayDetail = relay ? `; reason=${relay.reason}${relay.closeCode === undefined ? '' : ` code=${relay.closeCode}`} clients=${relay.activeClients} attempts=${relay.attempts}${relay.interruptedClients === undefined ? '' : ` interrupted=${relay.interruptedClients}`}` : '';
 				const message = `[AgentHost] Mission Control ${event.phase} ${event.outcome}; durationMs=${event.durationMs ?? 'unknown'}${relayDetail}`;
 				if (event.error) {
 					this._logService.warn(`${message}: ${formatConnectionDiagnosticError(event.error)}`);

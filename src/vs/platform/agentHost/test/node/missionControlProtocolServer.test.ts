@@ -451,6 +451,25 @@ suite('Mission Control WPS', () => {
 			}
 		});
 
+		test('treats a failed liveness ping as a lost socket instead of throwing from the timer', async () => {
+			const { key } = signingFixture();
+			const clock = sinon.useFakeTimers();
+			try {
+				const { server, sockets, urls, connect } = createRecoverableServer(key);
+				await connect();
+				sinon.stub(sockets[0], 'send').throws(new Error('Socket is closing'));
+				await clock.tickAsync(20_000);
+				await clock.tickAsync(1);
+				sockets[1].emit('open');
+				sockets[1].emit('message', JSON.stringify({ type: 'pong' }));
+				assert.deepStrictEqual({ closed: server.isClosed, sockets: urls.length, previousClosed: sockets[0].closed }, {
+					closed: false, sockets: 2, previousClosed: true,
+				});
+			} finally {
+				clock.restore();
+			}
+		});
+
 		test('closes an outage whose resumed socket never confirms within the recovery deadline', async () => {
 			const { key } = signingFixture();
 			const clock = sinon.useFakeTimers();

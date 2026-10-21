@@ -95,31 +95,51 @@ export function toMissionControlSocket(socket: GlobalWebSocket): IMissionControl
 	// WHATWG sockets cannot be forcibly aborted; detaching on close keeps an unresponsive peer from retaining the relay.
 	const listeners = new AbortController();
 	const signal = listeners.signal;
+	function on(event: 'open', listener: () => void): void;
+	function on(event: 'message', listener: (data: Buffer | string) => void): void;
+	function on(event: 'close', listener: (code: number) => void): void;
+	function on(event: 'error', listener: (error: Error) => void): void;
+	function on(event: 'open' | 'message' | 'close' | 'error', listener: ((data: Buffer | string) => void) | ((code: number) => void) | ((error: Error) => void)): void {
+		switch (event) {
+			case 'open': {
+				const onOpen = listener as () => void;
+				socket.addEventListener('open', () => onOpen(), { signal });
+				break;
+			}
+			case 'message': {
+				const onMessage = listener as (data: Buffer | string) => void;
+				socket.addEventListener('message', e => onMessage(typeof e.data === 'string' ? e.data : Buffer.from(e.data as ArrayBuffer)), { signal });
+				break;
+			}
+			case 'close': {
+				const onClose = listener as (code: number) => void;
+				socket.addEventListener('close', e => onClose(e.code), { signal });
+				break;
+			}
+			case 'error': {
+				const onError = listener as (error: Error) => void;
+				socket.addEventListener('error', () => onError(toSocketError(socket)), { signal });
+				break;
+			}
+		}
+	}
 	return {
 		send: data => socket.send(data),
 		close: () => {
 			listeners.abort();
 			socket.close();
 		},
-		on: (event: 'open' | 'message' | 'close' | 'error', listener: (value: never) => void) => {
-			if (event === 'open') {
-				socket.addEventListener('open', () => (listener as () => void)(), { signal });
-			} else if (event === 'message') {
-				socket.addEventListener('message', e => (listener as (data: Buffer | string) => void)(typeof e.data === 'string' ? e.data : Buffer.from(e.data as ArrayBuffer)), { signal });
-			} else if (event === 'close') {
-				socket.addEventListener('close', e => (listener as (code: number) => void)(e.code), { signal });
-			} else {
-				socket.addEventListener('error', () => {
-					// The proxy-aware WebSocket exposes the underlying network failure and HTTP status for diagnostics.
-					const details = socket as GlobalWebSocket & { networkError?: unknown; responseStatusCode?: unknown };
-					const cause = details.networkError as { code?: unknown; cause?: { code?: unknown } } | undefined;
-					const code = typeof cause?.code === 'string' ? cause.code : typeof cause?.cause?.code === 'string' ? cause.cause.code : undefined;
-					const status = typeof details.responseStatusCode === 'number' ? details.responseStatusCode : undefined;
-					(listener as (error: Error) => void)(Object.assign(new Error('Mission Control WPS socket error'), { code, status, cause: details.networkError }));
-				}, { signal });
-			}
-		},
+		on,
 	};
+}
+
+/** The proxy-aware WebSocket exposes the underlying network failure and HTTP status for diagnostics. */
+function toSocketError(socket: GlobalWebSocket): Error {
+	const details = socket as GlobalWebSocket & { networkError?: unknown; responseStatusCode?: unknown };
+	const cause = details.networkError as { code?: unknown; cause?: { code?: unknown } } | undefined;
+	const code = typeof cause?.code === 'string' ? cause.code : typeof cause?.cause?.code === 'string' ? cause.cause.code : undefined;
+	const status = typeof details.responseStatusCode === 'number' ? details.responseStatusCode : undefined;
+	return Object.assign(new Error('Mission Control WPS socket error'), { code, status, cause: details.networkError });
 }
 
 const relayKeepAliveTimeoutMs = 15 * 60_000;
@@ -568,15 +588,19 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 		this._startLiveness();
 		// Unacknowledged requests are resent with their original IDs; the service acknowledges ones it already processed as duplicates.
 		const now = Date.now();
-		for (const [ackId, group] of this._joins) {
-			this._socket!.send(JSON.stringify({ type: 'joinGroup', group, ackId }));
-		}
 		if (this._joins.size) {
 			this._ackDeadline = now + publishAckTimeoutMs;
 		}
 		for (const pending of this._pending.values()) {
 			pending.deadline = now + publishAckTimeoutMs;
-			this._socket!.send(pending.publish.frame);
+		}
+		this._confirming = recovering;
+		const resent = [...this._joins].map(([ackId, group]) => JSON.stringify({ type: 'joinGroup', group, ackId }))
+			.concat([...this._pending.values()].map(pending => pending.publish.frame));
+		for (const frame of resent) {
+			if (!this._sendRecoverable(frame)) {
+				return;
+			}
 		}
 		this._scheduleAckTimeout();
 		// Lanes whose chunked transfers may be incomplete are closed so their clients reconnect and resynchronize.
@@ -589,8 +613,9 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 		recovering.interruptedClients = new Set();
 		// The service can accept the WebSocket and then reject the resumption, so success is reported on its first
 		// frame. A ping makes the service reply promptly when nothing else is outstanding.
-		this._confirming = recovering;
-		this._socket!.send(JSON.stringify({ type: 'ping' }));
+		if (!this._sendRecoverable(JSON.stringify({ type: 'ping' }))) {
+			return;
+		}
 		this._drain();
 		this._mirror?.resumePublishing();
 	}
@@ -621,9 +646,23 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 			if (idle >= relayLivenessTimeoutMs) {
 				this._lost('livenessTimeout', undefined, new Error('Mission Control WPS connection stopped responding'));
 			} else if (idle >= relayPingIntervalMs) {
-				this._socket.send(JSON.stringify({ type: 'ping' }));
+				this._sendRecoverable(JSON.stringify({ type: 'ping' }));
 			}
 		}, relayPingIntervalMs);
+	}
+
+	/** Sends a frame whose failure means the socket is lost, which a ready relay can recover from. */
+	private _sendRecoverable(frame: string): boolean {
+		const socket = this._socket;
+		try {
+			socket!.send(frame);
+			return true;
+		} catch (error) {
+			if (this._socket === socket) {
+				this._lost('sendFailure', undefined, error instanceof Error ? error : new Error(String(error)));
+			}
+			return false;
+		}
 	}
 
 	private _fail(reason: MissionControlRelayCloseReason, error?: Error, closeCode?: number, attempts = 0, activeClients = this._lanes.size): void {
