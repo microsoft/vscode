@@ -2847,7 +2847,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// Managed plugins are prepared per SDK session, so there is no client-level fallback.
 		const liveSession = this._findPluginOperationSession(session, chat);
 		if (!liveSession) {
-			throw new Error(`Retrying managed plugins requires a live Copilot chat: ${(chat ?? session).toString()}`);
+			this._logService.warn(`[Copilot] Cannot retry managed plugins without a live chat: session=${session.toString()} chat=${chat?.toString() ?? '(default)'}`);
+			throw new Error(localize('copilot.retryManagedPlugins.chatNotActive', "This chat is not active. Send a message in it, then try again."));
 		}
 		return liveSession.retryManagedPlugins();
 	}

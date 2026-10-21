@@ -2246,7 +2246,7 @@ suite('CopilotAgent', () => {
 			assert.deepStrictEqual({ plugins, calls, otherSession }, {
 				plugins: [{ spec: 'security-guard@contoso', status: 'installed' }],
 				calls: ['agent-host-copilotcli:/retry-session#peer'],
-				otherSession: 'Retrying managed plugins requires a live Copilot chat: agent-host-copilotcli:/retry-session#peer',
+				otherSession: 'This chat is not active. Send a message in it, then try again.',
 			});
 		} finally {
 			await disposeAgent(agent);
