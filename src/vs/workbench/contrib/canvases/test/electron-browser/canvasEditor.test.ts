@@ -15,6 +15,7 @@ import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAccessibleViewService, AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IOpenerService, OpenOptions } from '../../../../../platform/opener/common/opener.js';
 import { IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
@@ -27,7 +28,7 @@ import { CanvasEditor } from '../../electron-browser/canvasEditor.js';
 suite('CanvasEditor', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createHarness(options?: { readonly isSessionsWindow?: boolean }) {
+	function createHarness(harnessOptions?: { readonly isSessionsWindow?: boolean; readonly openerResult?: boolean }) {
 		const parent = $('.canvas-test-parent');
 		parent.style.width = '400px';
 		parent.style.height = '200px';
@@ -40,6 +41,9 @@ suite('CanvasEditor', () => {
 		let created = 0;
 		const openExternal = store.add(new Emitter<string>());
 		const opened: Array<{ resource: string; options: OpenOptions | undefined }> = [];
+		const modelAttached = new DeferredPromise<void>();
+		const openerCalled = new DeferredPromise<void>();
+		const warningLogged = new DeferredPromise<string>();
 		const ownerVisible = observableValue('ownerVisible', true);
 		const model = upcastPartial<IBrowserViewModel>({
 			url: 'https://example.test',
@@ -62,18 +66,27 @@ suite('CanvasEditor', () => {
 		instantiationService.stub(IAccessibilityService, { isScreenReaderOptimized: () => false });
 		instantiationService.stub(IAccessibleViewService, {});
 		instantiationService.stub(IOpenerService, {
-			open: async (resource, options) => {
-				opened.push({ resource: resource.toString(), options });
-				return true;
+			open: async (resource, openOptions) => {
+				opened.push({ resource: resource.toString(), options: openOptions });
+				openerCalled.complete();
+				return harnessOptions?.openerResult ?? true;
 			},
 		});
-		if (options?.isSessionsWindow !== undefined) {
-			instantiationService.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: options.isSessionsWindow }));
+		instantiationService.stub(ILogService, {
+			warn: message => warningLogged.complete(String(message)),
+		});
+		if (harnessOptions?.isSessionsWindow !== undefined) {
+			instantiationService.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: harnessOptions.isSessionsWindow }));
 		}
 		instantiationService.stubInstance(WebContentsViewHost, {
 			screenshotElement: $('div'), pauseElement: $('div'),
 			onContainerCreated: () => { },
-			setModel: model => attached.push(model),
+			setModel: value => {
+				attached.push(value);
+				if (value === model) {
+					modelAttached.complete();
+				}
+			},
 			setVisible: value => visible.push(value),
 			layout: () => { },
 			tryFocus: () => false,
@@ -87,7 +100,7 @@ suite('CanvasEditor', () => {
 			resource: URI.parse('canvas:/preview'), instanceId: 'preview', title: 'Preview', source: URI.parse('https://example.test'),
 		}));
 		return {
-			editor, input, model, visible, attached, ownerVisible, openExternal, opened,
+			editor, input, model, visible, attached, ownerVisible, openExternal, opened, modelAttached, openerCalled, warningLogged,
 			get disposed() { return disposed; },
 			get created() { return created; },
 			setView: (value: Promise<IBrowserViewModel>) => view = value,
@@ -138,9 +151,9 @@ suite('CanvasEditor', () => {
 	test('routes external link requests through the workbench opener', async () => {
 		const harness = createHarness();
 		await harness.open();
-		await timeout(0);
+		await harness.modelAttached.p;
 		harness.openExternal.fire('http://localhost:3000/details');
-		await timeout(0);
+		await harness.openerCalled.p;
 		assert.deepStrictEqual(harness.opened, [{
 			resource: 'http://localhost:3000/details',
 			options: {
@@ -151,20 +164,28 @@ suite('CanvasEditor', () => {
 		}]);
 	});
 
+	test('warns when the workbench opener declines an external link request', async () => {
+		const harness = createHarness({ openerResult: false });
+		await harness.open();
+		await harness.modelAttached.p;
+		harness.openExternal.fire('https://example.test/details');
+		assert.strictEqual(await harness.warningLogged.p, '[CanvasEditor] External canvas link was not opened');
+	});
+
 	test('accessibility help describes external links, reopen affordances and closing the canvas itself', () => {
 		const closeHelp = [false, true].map(isSessionsWindow => {
 			const provider = store.add(createHarness({ isSessionsWindow }).editor.createAccessibleProvider(AccessibleViewType.Help));
-			return provider.provideContent().split('\n\n').filter(paragraph => paragraph.startsWith('Links that request') || paragraph.startsWith('Closing the tab') || paragraph.startsWith('To close the canvas'));
+			return provider.provideContent().split('\n\n').filter(paragraph => paragraph.startsWith('User-initiated HTTP') || paragraph.startsWith('Closing the tab') || paragraph.startsWith('To close the canvas'));
 		});
 
 		assert.deepStrictEqual(closeHelp, [
 			[
-				'Links that request a new tab or window open outside the canvas.',
+				'User-initiated HTTP and HTTPS links that request a new tab or window open outside the canvas.',
 				'Closing the tab hides this canvas. Reopen it from its canvas pill or ask the agent to open it again.',
 				'To close the canvas itself, which also notifies the extension that provides it, use Close Canvas from its canvas pill.',
 			],
 			[
-				'Links that request a new tab or window open outside the canvas.',
+				'User-initiated HTTP and HTTPS links that request a new tab or window open outside the canvas.',
 				'Closing the tab hides this canvas. Use the Add Tab menu in the editor toolbar, then Canvas, to open any available canvas or reopen a hidden canvas.',
 				'To close the canvas itself, which also notifies the extension that provides it, use Close Canvas from its canvas pill.',
 			],
