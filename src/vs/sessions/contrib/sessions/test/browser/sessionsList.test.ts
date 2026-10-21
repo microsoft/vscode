@@ -4736,10 +4736,10 @@ suite('Sessions - SessionsList', () => {
 			const { container, list } = renderComparison(undefined, 'all', new Set(), false, SessionsGrouping.Environment);
 
 			assert.deepStrictEqual({
-				sections: [...container.querySelectorAll('.session-section-label')].map(label => label.textContent),
-				comparison: container.querySelector('.session-comparison-group') !== null,
+				sections: [...container.querySelectorAll('.monaco-list-row[aria-level="1"] .session-section-label')].map(label => label.textContent),
+				comparisonLevel: container.querySelector('.session-comparison-group')?.closest('.monaco-list-row')?.getAttribute('aria-level'),
 				sessionCount: list.getVisibleSessions().length,
-			}, { sections: ['This Computer'], comparison: true, sessionCount: 4 });
+			}, { sections: ['This Computer'], comparisonLevel: '2', sessionCount: 4 });
 		});
 
 		test('uses attention wording for blocked comparison participants', () => {

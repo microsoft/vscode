@@ -5108,7 +5108,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				const comparisonSessions = getComparisonSessions(comparison, this._sessionsManagementService);
 				const environmentId = grouping === SessionsGrouping.Environment
 					? comparisonSessions[0]?.environment
-						?? comparison.participants.map(participant => this._sessionsProvidersService.getProvider(participant.harness.providerId)?.environment.id).find(isDefined)
+					?? comparison.participants.map(participant => this._sessionsProvidersService.getProvider(participant.harness.providerId)?.environment.id).find(isDefined)
 					: undefined;
 				const environment = environmentId ? environments.find(environment => environment.id === environmentId) ?? { id: environmentId, label: environmentId } : undefined;
 				if (grouping === SessionsGrouping.Environment && comparison.workspace && !environment) {
