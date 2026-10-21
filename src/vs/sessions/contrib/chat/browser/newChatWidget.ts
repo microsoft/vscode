@@ -1847,6 +1847,18 @@ export class NewChatWidget extends Disposable {
 		this._newChatInput.sessionTypePicker.showPicker();
 	}
 
+	focusBranchPicker(): void {
+		// Branch picker implementation if needed
+	}
+
+	focusWorktreePicker(): void {
+		// Worktree picker implementation if needed
+	}
+
+	focusSyncAction(): void {
+		// Sync action implementation if needed
+	}
+
 	openModelComparison(): void {
 		this._newChatInput.modelPicker?.openComparison?.();
 	}

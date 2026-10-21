@@ -17,12 +17,15 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { HoverStyle } from '../../../../base/browser/ui/hover/hover.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
-import { IsNewChatSessionContext, SessionEnvironmentPickerVisibleContext, SessionHarnessPickerVisibleContext, SessionWorkspacePickerVisibleContext } from '../../../common/contextkeys.js';
+import { IsNewChatSessionContext, SessionEnvironmentPickerVisibleContext, SessionHarnessPickerVisibleContext, SessionWorkspacePickerVisibleContext, SessionBranchPickerVisibleContext, SessionWorktreePickerVisibleContext, SessionSyncActionVisibleContext } from '../../../common/contextkeys.js';
 import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 
 export const FOCUS_NEW_SESSION_WORKSPACE_PICKER_KEYBINDING = KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyF);
 export const FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_KEYBINDING = KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyE);
 export const FOCUS_NEW_SESSION_HARNESS_PICKER_KEYBINDING = KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyH);
+export const FOCUS_NEW_SESSION_BRANCH_PICKER_KEYBINDING = KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyB);
+export const FOCUS_NEW_SESSION_WORKTREE_PICKER_KEYBINDING = KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyT);
+export const FOCUS_SESSION_SYNC_ACTION_KEYBINDING = KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyS);
 
 export const FOCUS_NEW_SESSION_WORKSPACE_PICKER_WHEN = ContextKeyExpr.and(
 	IsSessionsWindowContext,
@@ -48,6 +51,30 @@ export const FOCUS_NEW_SESSION_HARNESS_PICKER_WHEN = ContextKeyExpr.and(
 	ChatContextKeys.inputHasFocus,
 	SessionHarnessPickerVisibleContext,
 	ContextKeyExpr.equals(`config.${UNIFIED_WORKSPACE_PICKER_SETTING}`, true),
+)!;
+
+export const FOCUS_NEW_SESSION_BRANCH_PICKER_WHEN = ContextKeyExpr.and(
+	IsSessionsWindowContext,
+	IsNewChatSessionContext,
+	ChatContextKeys.enabled,
+	ChatContextKeys.inputHasFocus,
+	SessionBranchPickerVisibleContext,
+)!;
+
+export const FOCUS_NEW_SESSION_WORKTREE_PICKER_WHEN = ContextKeyExpr.and(
+	IsSessionsWindowContext,
+	IsNewChatSessionContext,
+	ChatContextKeys.enabled,
+	ChatContextKeys.inputHasFocus,
+	SessionWorktreePickerVisibleContext,
+)!;
+
+export const FOCUS_SESSION_SYNC_ACTION_WHEN = ContextKeyExpr.and(
+	IsSessionsWindowContext,
+	IsNewChatSessionContext,
+	ChatContextKeys.enabled,
+	ChatContextKeys.inputHasFocus,
+	SessionSyncActionVisibleContext,
 )!;
 
 export function registerPickerKeybindingPresentation(
