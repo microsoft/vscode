@@ -12,7 +12,7 @@ import { Disposable, DisposableStore, IDisposable, DisposableMap, IReference, Mu
 import { Schemas } from '../../../../../base/common/network.js';
 import { deepClone } from '../../../../../base/common/objects.js';
 import { isWeb } from '../../../../../base/common/platform.js';
-import { autorun, constObservable, derived, IObservable, ISettableObservable, ITransaction, observableFromPromise, observableValue, observableValueOpts, transaction } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, ITransaction, observableFromPromise, observableValue, observableValueOpts, transaction } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -33,7 +33,7 @@ import { linkKey } from '../../../../common/sessionLinks.js';
 import { getSessionApplication } from '../../../../common/sessionApplication.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
-import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, IPreparedNewSession, ISessionChatMoveDestination, SessionMoveRefusedError, ISendRequestOptions, ISessionChangeEvent, ISessionConfigProvider, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProvider, ISessionsProviderCreateSessionOptions } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, IPreparedNewSession, ISessionChatMoveDestination, SessionMoveRefusedError, ISendRequestOptions, ISessionChangeEvent, ISessionConfigProvider, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProvider, ISessionsProviderCreateSessionOptions, INestedChatFolderInfo, INestedChatWorkspace, INestedChatWorkspaceSupport, NestedChatWorkspaceError } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionOptionGroup } from '../../../chat/browser/newSession.js';
 import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../chat/common/constants.js';
 import { CancellationToken, CancellationTokenSource, cancelOnDispose } from '../../../../../base/common/cancellation.js';
@@ -59,7 +59,7 @@ import { IPullRequestIconCache } from '../../../github/browser/pullRequestIconCa
 import { arrayEquals, structuralEquals } from '../../../../../base/common/equals.js';
 import { createChangesets } from './copilotChatSessionsChangesets.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { CloudSandboxEnabledSettingId, isCloudSandboxEnabled } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CloudSandboxEnabledSettingId, ICloudSandboxDraftPreparationService, isCloudSandboxEnabled } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { getWorkbenchContribution } from '../../../../../workbench/common/contributions.js';
 import { CloudSandboxAgentHostContribution, type ICloudSandboxProvisionedSession } from '../../remoteAgentHost/browser/cloudSandboxAgentHostContribution.js';
@@ -349,8 +349,10 @@ export class RemoteNewSession extends Disposable implements ICopilotChatSession 
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ILanguageModelsService languageModelsService: ILanguageModelsService,
+		@ICloudSandboxDraftPreparationService private readonly draftPreparationService: ICloudSandboxDraftPreparationService,
 	) {
 		super();
+		this._register(toDisposable(() => { void draftPreparationService.forget(this.resource); }));
 		this.modelConfiguration = this._register(new AutomationModelConfiguration(languageModelsService, initialAutomationSessionConfiguration?.sessionTemplate));
 		this.sessionId = toSessionId(providerId, resource);
 		this.providerId = providerId;
@@ -435,6 +437,9 @@ export class RemoteNewSession extends Disposable implements ICopilotChatSession 
 	setOption(optionId: string, value: IChatSessionProviderOptionItem | string): void {
 		if (typeof value !== 'string') {
 			this.selectedOptions.set(optionId, value);
+		}
+		if (optionId === 'repositories') {
+			void this.draftPreparationService.discard(this.resource);
 		}
 		this.chatSessionsService.setSessionOption(this.resource, optionId, value);
 	}
@@ -648,9 +653,7 @@ class AgentSessionAdapter implements ICopilotChatSession {
 		this.providerId = providerId;
 		this.sessionType = session.providerType;
 		this.application = observableValueOpts({ owner: this, equalsFn: structuralEquals },
-			getSessionApplication(typeof session.metadata?.event_type === 'string' && session.metadata.event_type
-				? session.metadata.event_type
-				: this._extractIsExternal(session) ? 'github/autopilot' : 'vscode'));
+			getSessionApplication(this._extractApplication(session) ?? (this._extractIsExternal(session) ? 'github/autopilot' : 'vscode')));
 		this.icon = CopilotCloudSessionType.icon;
 		this.createdAt = new Date(session.timing.created);
 
@@ -781,8 +784,9 @@ class AgentSessionAdapter implements ICopilotChatSession {
 			changed = setIfChanged(this._isRead, session.isRead(), tx) || changed;
 			changed = setIfChanged(this.isAutomation, session.providerType === AgentSessionProviders.Cloud && session.metadata?.isAutomation === true, tx) || changed;
 			changed = setIfChanged(this._isExternal, this._extractIsExternal(session), tx) || changed;
-			if (typeof session.metadata?.event_type === 'string' && session.metadata.event_type) {
-				changed = setIfChanged(this.application, getSessionApplication(session.metadata.event_type), tx, structuralEquals) || changed;
+			const application = this._extractApplication(session);
+			if (application) {
+				changed = setIfChanged(this.application, getSessionApplication(application), tx, structuralEquals) || changed;
 			}
 			changed = setIfChanged(this._description, this._extractDescription(session), tx, markdownStringEquals) || changed;
 			changed = setIfChanged(this._lastTurnEnd, session.timing.lastRequestEnded ? new Date(session.timing.lastRequestEnded) : undefined, tx, dateEquals) || changed;
@@ -824,6 +828,15 @@ class AgentSessionAdapter implements ICopilotChatSession {
 	 */
 	private _extractIsExternal(session: IAgentSession): boolean {
 		return session.providerType === AgentSessionProviders.Cloud && session.metadata?.external === true;
+	}
+
+	private _extractApplication(session: IAgentSession): string | undefined {
+		for (const value of [session.metadata?.application, session.metadata?.event_type]) {
+			if (typeof value === 'string' && value) {
+				return value;
+			}
+		}
+		return undefined;
 	}
 
 	private _extractIssueArtifacts(session: IAgentSession): readonly ISessionArtifact[] {
@@ -1143,6 +1156,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		@IFileService private readonly fileService: IFileService,
 		@IPathService private readonly pathService: IPathService,
 		@IStorageService private readonly storageService: IStorageService,
+		@ICloudSandboxDraftPreparationService private readonly draftPreparationService: ICloudSandboxDraftPreparationService,
 	) {
 		super();
 
@@ -1435,6 +1449,19 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 	createNewSession(workspaceUri: URI, sessionTypeId: string, options?: ISessionsProviderCreateSessionOptions): ISession {
 		return this._createDraftSession(workspaceUri, sessionTypeId, options);
+	}
+
+	prepareNewSessionWhileComposing(sessionId: string): void {
+		const session = this._newSessions.get(sessionId);
+		if (!session || session.isNewSessionRequestInProgress.get()) {
+			return;
+		}
+		const repoNwo = session.repoNwo;
+		if (this._usesSandbox(session) && (repoNwo || (session.isQuickChat.get() && !session.selectedOptions.has('repositories')))) {
+			this.draftPreparationService.prepare(session.resource, repoNwo);
+		} else {
+			void this.draftPreparationService.discard(session.resource);
+		}
 	}
 
 	private _createDraftSession(workspaceUri: URI | undefined, sessionTypeId: string, options?: ISessionsProviderCreateSessionOptions): ISession {
@@ -1955,7 +1982,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		const provisioned = await this._getCloudSandboxContribution().provisionSession({
 			...(session.repoNwo ? { repoNwo: session.repoNwo } : {}),
 			prompt: query,
-		}, token, progress);
+		}, token, progress, session.resource);
 		if (token.isCancellationRequested || this._store.isDisposed || this._newSessions.get(session.sessionId) !== session) {
 			this._publishSandboxSession(provisioned);
 			throw new CancellationError();
@@ -1982,6 +2009,22 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		const newChat = this._withChangesets(buildChatFromSession(session), session.workspace);
 		session.mainChat.set(newChat, undefined);
 		return newChat;
+	}
+
+	getNestedChatWorkspaceSupport(_sessionId: string, _reader: IReader | undefined): INestedChatWorkspaceSupport | undefined {
+		return undefined;
+	}
+
+	async resolveNestedChatFolder(_sessionId: string, _folder: URI, _token: CancellationToken): Promise<INestedChatFolderInfo> {
+		throw NestedChatWorkspaceError.notSupported();
+	}
+
+	async getNestedChatBranches(_sessionId: string, _folder: URI, _query: string, _token: CancellationToken): Promise<readonly string[]> {
+		throw NestedChatWorkspaceError.notSupported();
+	}
+
+	async applyNestedChatWorkspace(_sessionId: string, _chat: URI, _workspace: INestedChatWorkspace, _prompt: string): Promise<void> {
+		throw NestedChatWorkspaceError.notSupported();
 	}
 
 	/** Test seam: the contribution registry is global, so tests override this with a stub. */

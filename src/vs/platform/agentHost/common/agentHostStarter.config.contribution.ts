@@ -225,13 +225,6 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 			agentHost: { key: ChatMoveConfigKey.Enabled },
 		},
-		[ChatMoveSettingId.ConfirmDragAndDrop]: {
-			type: 'boolean',
-			description: nls.localize('chat.agentHost.moveChats.confirmDragAndDrop', "Controls whether the Agents window asks for confirmation before moving a chat or session to another session or into a new session via drag and drop. Reordering chats within a session is never confirmed."),
-			default: true,
-			scope: ConfigurationScope.APPLICATION,
-			tags: ['experimental'],
-		},
 		...titleGenerationConfigurationProperties,
 		...artifactToolsConfigurationProperties,
 		[CanvasesEnabledSettingId]: {
@@ -327,7 +320,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[AgentHostMcpToolRoutingEnabledSettingId]: {
 			type: 'boolean',
-			description: nls.localize('chat.agentHost.experimental.mcpToolRouting', "When enabled, agent-host sessions use cached MCP tool metadata to route requests and only prompt for MCP authentication when a server is relevant. Newly created sessions pick up changes to this setting."),
+			description: nls.localize('chat.agentHost.experimental.mcpToolRouting', "When enabled and tool search is available, agent-host sessions use cached MCP tool metadata to route requests and only prompt for MCP authentication when a server is relevant. Routing tools wait for the selected server's tools to become available. Servers without routing tools retain proactive sign-in hints. Newly created sessions pick up changes to this setting."),
 			default: false,
 			tags: ['experimental', 'advanced'],
 			experiment: { mode: 'auto' },

@@ -357,7 +357,7 @@ export interface IChatSystemNotificationPart {
 	/** Render response timing beside the notification instead of using the response footer. */
 	renderInlineTiming?: boolean;
 	/** Use a quiet transcript boundary or an always-visible workflow introduction instead of a progress row. */
-	presentation?: 'workspaceTransition' | 'workflow' | 'workflowDescription';
+	presentation?: 'workspaceTransition' | 'workflow';
 	/** Workspace folder name emphasized by the transition presentation. */
 	workspaceName?: string;
 	/** Complete accessible description for non-visual presentation and announcements. */
@@ -630,6 +630,11 @@ export interface IChatElicitationRequest {
 	reject?: () => Promise<void>;
 	isHidden?: IObservable<boolean>;
 	hide?(): void;
+	/**
+	 * Keeps the buttons available after one is used while {@link state} stays pending, e.g. an entry point the user may
+	 * reopen; they follow {@link state} and disappear once it settles. By default, using a button hides them.
+	 */
+	readonly keepActionsWhilePending?: boolean;
 	toJSON(): IChatElicitationRequestSerialized;
 }
 
@@ -849,6 +854,8 @@ export type ChatMcpAppData =
 		connectionAuthority: string;
 		/** AHP `mcp://` channel URI for the originating server. */
 		channel: string;
+		/** Host-provided name of the originating server, used to observe availability. */
+		serverName?: string;
 		/**
 		 * Stable identifier for the originating server, used as the
 		 * additional key when computing the webview origin. Typically the

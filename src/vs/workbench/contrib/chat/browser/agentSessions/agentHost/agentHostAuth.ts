@@ -12,8 +12,9 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { IAgentHostMcpOAuthMetadataService } from '../../../../../../platform/agentHost/common/agentHostMcpOAuthMetadataService.js';
-import { authenticationAccountId, authenticationAccountMeta } from '../../../../../../platform/agentHost/common/meta/agentAuthenticationAccount.js';
-import { agentEntitlementHintMeta, type IAgentEntitlementHint } from '../../../../../../platform/agentHost/common/meta/agentEntitlementHintMeta.js';
+import { AgentHostAuthenticationPendingError } from '../../../../../../platform/agentHost/common/agentHostAdvertisedAuthentication.js';
+import { authenticationAccountId, authenticationAccountMeta, readAuthenticationAccount } from '../../../../../../platform/agentHost/common/meta/agentAuthenticationAccount.js';
+import { agentEntitlementHintMeta, readAgentEntitlementHint, type IAgentEntitlementHint } from '../../../../../../platform/agentHost/common/meta/agentEntitlementHintMeta.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import type { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
 import { deriveGitHubEndpoints } from '../../../../../../platform/github/common/githubEndpoints.js';
@@ -23,7 +24,7 @@ import type { AuthenticateTarget, McpServerAuthenticateTarget } from '../../../.
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { copilotConnectorsScope } from '../../../../../../platform/copilotConnectors/common/copilotConnectorsRequestService.js';
+import { copilotConnectorsScope } from '../../../../../../platform/github/common/connectors/connectors.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -200,7 +201,7 @@ export class AgentHostAuthTokenCache {
 type AuthenticationSessionResolution =
 	| { readonly kind: 'resolved'; readonly providerId: string; readonly session: AuthenticationSession; readonly match: 'exact' | 'superset'; readonly entitlementSessionId?: string }
 	| { readonly kind: 'signedOut' }
-	| { readonly kind: 'unavailable' };
+	| { readonly kind: 'unavailable'; readonly reason: 'provider' | 'sessions' };
 
 interface RejectedAuthenticationSession {
 	readonly id: string;
@@ -390,6 +391,7 @@ async function resolveAuthenticationSessionForResource(
 	preferredSessionId?: string,
 ): Promise<AuthenticationSessionResolution> {
 	let hasUnavailableProvider = false;
+	let hasLoadingProvider = false;
 	const requestedSet = new Set(scopes);
 	for (const server of authorizationServers) {
 		const serverUri = URI.parse(server);
@@ -398,6 +400,7 @@ async function resolveAuthenticationSessionForResource(
 			providerId = await authenticationService.getOrActivateProviderIdForServer(serverUri, resourceServer);
 		} catch (error) {
 			hasUnavailableProvider = true;
+			hasLoadingProvider = true;
 			logService.trace(`${logPrefix} Authentication provider is not ready for server: ${server}`, error);
 			continue;
 		}
@@ -408,6 +411,7 @@ async function resolveAuthenticationSessionForResource(
 			);
 			if (declaredProvider) {
 				hasUnavailableProvider = true;
+				hasLoadingProvider = true;
 				logService.trace(`${logPrefix} Authentication provider '${declaredProvider.id}' is not ready for server: ${server}`);
 			} else {
 				logService.trace(`${logPrefix} No authentication provider resolved for server: ${server}`);
@@ -422,6 +426,7 @@ async function resolveAuthenticationSessionForResource(
 			sessions = await authenticationService.getSessions(providerId, [...scopes], { authorizationServer: serverUri }, true);
 		} catch (error) {
 			hasUnavailableProvider = true;
+			hasLoadingProvider ||= !authenticationService.isAuthenticationProviderRegistered(providerId);
 			logService.trace(`${logPrefix} Authentication provider '${providerId}' is not ready to resolve sessions for server: ${server}`, error);
 			continue;
 		}
@@ -442,6 +447,7 @@ async function resolveAuthenticationSessionForResource(
 			allSessions = await authenticationService.getSessions(providerId, undefined, { authorizationServer: serverUri }, true);
 		} catch (error) {
 			hasUnavailableProvider = true;
+			hasLoadingProvider ||= !authenticationService.isAuthenticationProviderRegistered(providerId);
 			logService.trace(`${logPrefix} Authentication provider '${providerId}' is not ready to resolve sessions for server: ${server}`, error);
 			continue;
 		}
@@ -479,7 +485,7 @@ async function resolveAuthenticationSessionForResource(
 			return { kind: 'resolved', providerId, session: bestSession, match: bestExtraScopes === 0 ? 'exact' : 'superset' };
 		}
 	}
-	return hasUnavailableProvider ? { kind: 'unavailable' } : { kind: 'signedOut' };
+	return hasUnavailableProvider ? { kind: 'unavailable', reason: hasLoadingProvider ? 'provider' : 'sessions' } : { kind: 'signedOut' };
 }
 
 export interface IAgentHostAuthenticateRequest {
@@ -569,13 +575,31 @@ async function forwardAuthenticationToken(
 	if (rejectedSession && rejectedSession.id === session?.id && rejectedSession.accessToken === token) {
 		throw new CancellationError();
 	}
+	const request = {
+		...toAuthenticateRequest(resource, scopes, session, providerId, options.getDefaultAccount?.(), entitlementSessionId),
+		...(options.target ? { target: options.target } : {}),
+	};
+	if (options.authTokenCache) {
+		return options.authTokenCache.authenticate(resource, scopes ?? [], token, () => options.authenticate(request), authenticationAccountId(readAuthenticationAccount(request)), readAgentEntitlementHint(request), options.target);
+	}
+	await options.authenticate(request);
+	return true;
+}
+
+function toAuthenticateRequest(
+	resource: string,
+	scopes: readonly string[] | undefined,
+	session: IForwardedAuthenticationSession | undefined,
+	providerId?: string,
+	defaultAccount?: IDefaultAccount | null,
+	entitlementSessionId?: string,
+): IAgentHostAuthenticateRequest {
 	const expiresAfter = session?.expiresAfter;
 	const account = providerId && session?.account?.id ? {
 		providerId,
 		accountId: session.account.id,
 		...(session.authorizationServer ? { authorizationServer: session.authorizationServer.toString() } : {}),
 	} : undefined;
-	const defaultAccount = options.getDefaultAccount?.();
 	let entitlement: IAgentEntitlementHint | undefined;
 	if (defaultAccount) {
 		const matchesProvider = defaultAccount.authenticationProvider.id === providerId;
@@ -587,19 +611,39 @@ async function forwardAuthenticationToken(
 			}
 		}
 	}
-	const request: IAgentHostAuthenticateRequest = {
-		...(options.target ? { target: options.target } : {}),
+	return {
 		resource,
 		scopes,
-		token,
+		token: session?.accessToken ?? '',
 		...(expiresAfter !== undefined && Number.isInteger(expiresAfter) && expiresAfter > 0 ? { expiresIn: Math.ceil(expiresAfter / 1000) } : {}),
 		...((account || entitlement) ? { _meta: { ...(account ? authenticationAccountMeta(account) : {}), ...(entitlement ? agentEntitlementHintMeta(entitlement) : {}) } } : {}),
 	};
-	if (options.authTokenCache) {
-		return options.authTokenCache.authenticate(resource, scopes ?? [], token, () => options.authenticate(request), authenticationAccountId(account), entitlement, options.target);
+}
+
+/** Resolves initial authentication without mistaking an unavailable provider for a signed-out account. */
+export async function resolveProtectedResourceAuthentication(
+	accessor: ServicesAccessor,
+	resource: ProtectedResourceMetadata,
+	logPrefix: string,
+): Promise<IAgentHostAuthenticateRequest | undefined> {
+	const logService = accessor.get(ILogService);
+	const defaultAccountService = accessor.get(IDefaultAccountService);
+	const resolution = await resolveSessionForProtectedResource(accessor.get(IAuthenticationService), logService, resource, {
+		logPrefix,
+		preferConnectorScopedSession: accessor.get(IConfigurationService).getValue<boolean>(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled) === true,
+	});
+	if (resolution.kind === 'unavailable') {
+		if (resolution.reason === 'provider') {
+			throw new AgentHostAuthenticationPendingError(resource.resource);
+		}
+		logService.warn(`${logPrefix} Unable to resolve existing authentication sessions for ${resource.resource}; continuing without a credential`);
+		return undefined;
 	}
-	await options.authenticate(request);
-	return true;
+	if (resolution.kind === 'signedOut') {
+		logAuthenticationSessionResolution(logService, logPrefix, resource.resource, resolution);
+		return undefined;
+	}
+	return toAuthenticateRequest(resource.resource, resource.scopes_supported ?? [], resolution.session, resolution.providerId, defaultAccountService.currentDefaultAccount, resolution.entitlementSessionId);
 }
 
 function throwIfAuthenticationStale(options: Pick<IAgentHostAuthenticationOptions, 'isCurrent'>): void {
@@ -669,7 +713,7 @@ export async function revokeAuthenticationForRemovedSessions(
 	accessor: ServicesAccessor,
 	agents: readonly AgentInfo[],
 	providerId: string,
-	removedSessions: readonly AuthenticationSession[],
+	removedSessions: readonly Pick<AuthenticationSession, 'id' | 'scopes'>[],
 	options: IAgentHostAuthenticationOptions,
 ): Promise<void> {
 	const authenticationService = accessor.get(IAuthenticationService);
@@ -724,7 +768,7 @@ export async function revokeAuthenticationForRemovedSessions(
  * Whether any removed session granted every scope a resource requires, and so
  * could have been the credential backing it.
  */
-function removedSessionsCouldSatisfyResource(removedSessions: readonly AuthenticationSession[], scopes: readonly string[]): boolean {
+function removedSessionsCouldSatisfyResource(removedSessions: readonly Pick<AuthenticationSession, 'id' | 'scopes'>[], scopes: readonly string[]): boolean {
 	return removedSessions.some(session => {
 		const granted = new Set(session.scopes);
 		return scopes.every(scope => granted.has(scope));
@@ -791,7 +835,7 @@ async function resolveSessionForProtectedResource(
 	authenticationService: IAuthenticationService,
 	logService: ILogService,
 	resource: ProtectedResourceMetadata,
-	options: IResolvedAgentHostAuthenticationOptions,
+	options: Pick<IResolvedAgentHostAuthenticationOptions, 'logPrefix' | 'authTokenCache' | 'preferredSessionId' | 'preferConnectorScopedSession'>,
 	rejectedSession: RejectedAuthenticationSession | null = options.authTokenCache?.getRejectedSession(resource.resource, resource.scopes_supported) ?? null,
 ): Promise<AuthenticationSessionResolution> {
 	const resolution = await resolveAuthenticationSessionForResource(
@@ -1028,6 +1072,15 @@ export async function resolveMcpServerAuthentication(
 	const agentHostMeta = options.agentHost
 		? { authority: options.agentHost.authority, label: accessor.get(ILabelService).getHostLabel(options.agentHost.scheme, options.agentHost.authority) }
 		: undefined;
+	if (!protectedResource.authorization_servers?.length) {
+		try {
+			const metadata = await accessor.get(IAgentHostMcpOAuthMetadataService).resolveResource(protectedResource.resource);
+			protectedResource = { ...protectedResource, ...metadata };
+		} catch (error) {
+			logService.warn(`${options.logPrefix} Failed to discover MCP authentication for ${options.mcpServerName}`, error);
+			return false;
+		}
+	}
 	// GitHub MCP supports demand-driven step-up auth, while other servers may reject authorization requests with no scopes.
 	const scopes = options.scopes.length > 0 || isGitHubMcpResource(protectedResource)
 		? options.scopes

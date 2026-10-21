@@ -26,7 +26,7 @@ import { ApiRequestError, MissionControlClient } from '../../common/missionContr
 import { Task } from '../../common/missionControl/tasks.js';
 
 const signal = () => new AbortController().signal;
-const repository = { owner: 'owner', name: 'repo' };
+const repository = { owner: 'owner', repo: 'repo' };
 const apiBaseUri = 'https://api.githubcopilot.com';
 const collection = '/agents/repos/owner/repo/automations';
 const date = '2026-01-01T00:00:00Z';
@@ -323,6 +323,13 @@ suite('Mission Control client', () => {
 		]), [tools, triggers]);
 	});
 
+	for (const wrapped of [false, true]) {
+		test(`trigger catalog accepts ${wrapped ? 'wrapped' : 'array'} responses`, async () => {
+			const { client } = setup(() => Response.json(wrapped ? { triggers: triggerDefinitions } : triggerDefinitions));
+			assert.deepStrictEqual(await client.automations.listTriggers(signal()), triggerDefinitions);
+		});
+	}
+
 	for (const method of ['listTools', 'listTriggers'] as const) {
 		test(`${method} returns an empty catalog without pagination or additional requests`, async () => {
 			const { client, requests } = setup(() => Response.json([], { headers: { link: '<https://example.test/next>; rel="next"' } }));
@@ -346,7 +353,7 @@ suite('Mission Control client', () => {
 		{ method: 'listTools', name: 'a tool without a description', data: [{ id: 'issues', tools: [{ id: 'github/issue_read' }] }] },
 		{ method: 'listTools', name: 'an invalid permission scope', data: [{ id: 'issues', tools: [{ id: 'tool', description: '', scope: 'admin' }] }] },
 		{ method: 'listTools', name: 'a null optional name', data: [{ ...toolGroups[0], name: null }] },
-		{ method: 'listTriggers', name: 'a wrapped catalog', data: { triggers: triggerDefinitions } },
+		{ method: 'listTriggers', name: 'an invalid wrapped catalog', data: { triggers: null } },
 		{ method: 'listTriggers', name: 'missing fields', data: [{ title: 'Schedule', description: '' }] },
 		{ method: 'listTriggers', name: 'a missing required-field flag', data: [{ ...triggerDefinitions[0], fields: [{ name: 'types' }] }] },
 		{ method: 'listTriggers', name: 'non-string options', data: [{ ...triggerDefinitions[0], fields: [{ name: 'types', required: true, options: [1] }] }] },
@@ -792,7 +799,7 @@ suite('Mission Control client', () => {
 			await response.p;
 			return Response.json(emptyPage);
 		});
-		const reads = Array.from({ length: 8 }, (_, index) => client.automations.list({ ...repository, name: `repo-${index}` }, signal()));
+		const reads = Array.from({ length: 8 }, (_, index) => client.automations.list({ ...repository, repo: `repo-${index}` }, signal()));
 		await started.p;
 		await timeout(0);
 		const controller = new AbortController();
@@ -882,6 +889,32 @@ suite('Mission Control client', () => {
 	test('rejects a task response with a different ID', async () => {
 		const { client } = setup(() => Response.json({ ...task, id: 'other-task' }));
 		await assert.rejects(client.tasks.get(task.id, signal()), new SchemaError('Task response did not match the requested task'));
+	});
+
+	test('preserves independent task and session client attribution in lists and details', async () => {
+		const clients = [
+			{ integration_id: 'copilot-developer-cli', slug: 'copilot-cli', creator: false },
+			{ integration_id: 'vscode-chat', slug: 'copilot-vscode', creator: true },
+			{ integration_id: 'future-client', slug: 'future-client', creator: false },
+		];
+		const sessions = [{ id: 'session-1', state: 'idle', created_at: date, clients: clients.map(client => ({ ...client, creator: false })) }];
+		const response = { ...task, clients, sessions };
+		const { client } = setup(request => Response.json(request.url.pathname === '/agents/tasks' ? { tasks: [response] } : response));
+		const listed = await client.tasks.list(signal());
+		const detail = await client.tasks.get(task.id, signal());
+		assert.deepStrictEqual({ listed: listed.data.tasks[0].clients, task: detail.clients, sessions: detail.sessions }, {
+			listed: clients, task: clients, sessions,
+		});
+	});
+
+	test('rejects malformed client attribution rather than dropping it', async () => {
+		for (const clients of [
+			[{ integration_id: 'vscode-chat', slug: 'copilot-vscode', creator: 'true' }],
+			[{ integration_id: 'vscode-chat', slug: '', creator: true }],
+		]) {
+			const { client } = setup(() => Response.json({ ...task, clients }));
+			await assert.rejects(client.tasks.get(task.id, signal()), SchemaError);
+		}
 	});
 
 	test('tasks use their existing contracts and configured service routes', async () => {

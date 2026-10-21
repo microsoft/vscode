@@ -23,34 +23,22 @@ jobs:
         with:
           node-version-file: .nvmrc
 
-      - name: Compute node modules cache key
-        id: nodeModulesCacheKey
-        run: echo "value=$(node build/azure-pipelines/common/computeNodeModulesCacheKey.ts)" >> $GITHUB_OUTPUT
-      - name: Cache node modules
-        id: cacheNodeModules
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+      # Reuse the node_modules cache that .github/workflows/pr-node-modules.yml keeps warm on
+      # `main`. Never save: PR-scoped caches are not shared with other PRs and only evict the
+      # shared ones.
+      - name: Restore node_modules cache
+        id: cache-node-modules
+        uses: ./.github/actions/restore-node-modules
         with:
-          path: "**/node_modules"
-          key: ${{ runner.os }}-cacheNodeModules20-${{ steps.nodeModulesCacheKey.outputs.value }}
-          restore-keys: ${{ runner.os }}-cacheNodeModules20-
-      - name: Get npm cache directory path
-        id: npmCacheDirPath
-        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
-        run: echo "dir=$(npm config get cache)" >> $GITHUB_OUTPUT
-      - name: Cache npm directory
-        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
-        with:
-          path: ${{ steps.npmCacheDirPath.outputs.dir }}
-          key: ${{ runner.os }}-npmCacheDir-${{ steps.nodeModulesCacheKey.outputs.value }}
-          restore-keys: ${{ runner.os }}-npmCacheDir-
+          key-prefix: node_modules-compile
+          key-args: "compile $(node -p process.arch)"
       - name: Install system dependencies
-        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: |
           sudo apt update
           sudo apt install -y libxkbfile-dev pkg-config libkrb5-dev libxss1
       - name: Execute npm
-        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1

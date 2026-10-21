@@ -169,9 +169,15 @@ suite('CodexAgent', () => {
 			};
 			const inputs: UserInput[][] = [];
 			const clientIds: string[] = [];
+			const methods = CodexAgent.prototype as unknown as {
+				setPendingMessages(this: object, chat: URI, steering: PendingMessage, queued: readonly PendingMessage[]): boolean;
+				_sendSteering(this: object, chat: URI, steering: PendingMessage, handBack: boolean): boolean | Promise<boolean>;
+				_takeMatchingPendingSteering(steeringSession: typeof session, text: string, clientId?: string | null): PendingMessage | undefined;
+			};
 			const harness = {
 				_sessions: new Map([[AgentSession.id(sessionUri), session]]),
 				_resolveConversationSession: () => sessionUri,
+				_sendSteering: methods._sendSteering,
 				_connection: {
 					kind: 'ready',
 					client: {
@@ -182,10 +188,6 @@ suite('CodexAgent', () => {
 						},
 					},
 				},
-			};
-			const methods = CodexAgent.prototype as unknown as {
-				setPendingMessages(this: typeof harness, chat: URI, steering: PendingMessage, queued: readonly PendingMessage[]): boolean;
-				_takeMatchingPendingSteering(steeringSession: typeof session, text: string, clientId?: string | null): PendingMessage | undefined;
 			};
 			return {
 				send: (pending: PendingMessage) => methods.setPendingMessages.call(harness, URI.parse(buildDefaultChatUri(sessionUri.toString())), pending, []),
@@ -611,7 +613,7 @@ suite('CodexAgent', () => {
 
 		const result = resolveConversationSession(emptyHarness(), URI.parse('untitled:conversation'), {
 			resource: URI.parse('untitled:conversation'),
-			sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session),
+			sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: false, owner: fixedChatOwnerRef(session),
 		});
 
 		assert.strictEqual(result, undefined);
@@ -642,7 +644,7 @@ suite('CodexAgent', () => {
 			// supplied in host context. That scope does not identify a peer's
 			// independent backing thread.
 			unboundDefaultChat: resolveConversationSession(emptyHarness(), defaultChat)?.toString(),
-			withHostContext: resolveConversationSession(emptyHarness(), defaultChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: defaultChat })?.toString(),
+			withHostContext: resolveConversationSession(emptyHarness(), defaultChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: false, owner: fixedChatOwnerRef(session), resource: defaultChat })?.toString(),
 			foreignUri: resolveConversationSession(emptyHarness(), URI.parse('untitled:unknown'))?.toString(),
 		}, {
 			unboundSessionUri: undefined,

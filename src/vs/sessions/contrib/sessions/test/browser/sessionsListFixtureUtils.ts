@@ -42,7 +42,7 @@ import { MockKeybindingService } from '../../../../../platform/keybinding/test/c
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
-import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { defaultMenuStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { EditorMarkdownCodeBlockRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
@@ -62,7 +62,7 @@ import { Menus } from '../../../../browser/menus.js';
 import { IsPhoneLayoutContext, SessionsListRearrangeContext } from '../../../../common/contextkeys.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
-import { ISessionGroupsService, SessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
+import { getSessionGroupSectionId, ISessionGroupsService, SessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionsListModelService, SessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -104,13 +104,15 @@ export interface ISessionsListFixtureSession extends ITestSessionSpec {
 	readonly approvalCommand?: string;
 }
 
-/** A custom group. Groups render in the order they are listed. */
+/** A custom group. Groups render in the order they are listed, after the group they are nested in. */
 export interface ISessionsListFixtureGroup {
 	/** Fixture-local id used by row references. */
 	readonly id: string;
 	readonly name: string;
 	/** Ids of the member sessions. */
 	readonly sessions?: readonly string[];
+	/** Fixture id of the group this group is nested in, listed before it. */
+	readonly parent?: string;
 }
 
 /**
@@ -154,6 +156,13 @@ export interface ISessionsListFixtureInteraction {
 	readonly renaming?: SessionsListFixtureRow;
 	/** Creates a group from these sessions and shows its name editor, like Create Group. */
 	readonly createGroupFrom?: readonly string[];
+	/** Creates an empty subgroup in this group and shows its name editor, like Create Subgroup. */
+	readonly createSubgroupIn?: string;
+	/**
+	 * Drags the source row over the target row without dropping it, so the list
+	 * shows its drop feedback. `at` is the part of the target row under the pointer.
+	 */
+	readonly dragging?: { readonly source: SessionsListFixtureRow; readonly target: SessionsListFixtureRow; readonly at: 'top' | 'middle' | 'bottom' };
 	/** The row whose production context menu is open, as after a right-click. Applied last, since the menu takes focus. */
 	readonly contextMenu?: SessionsListFixtureRow;
 }
@@ -590,6 +599,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 		colorTheme: context.theme,
 		additionalServices: reg => {
 			registerWorkbenchServices(reg);
+			reg.defineInstance(IStorageService, disposableStore.add(new InMemoryStorageService()));
 			reg.define(IContextKeyService, ContextKeyService);
 			reg.define(IMenuService, SessionsListFixtureMenuService);
 			reg.defineInstance(IActionViewItemService, new FixtureActionViewItemService());
@@ -758,6 +768,8 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 		listHost.style.width = `${width}px`;
 	}
 
+	// Disposed before the list, so a held drag ends while the list can still clear its feedback.
+	const interactionStore = disposableStore.add(new DisposableStore());
 	const list = disposableStore.add(instantiationService.createInstance(TestSessionsList, listHost, {
 		grouping: () => view.grouping ?? SessionsGrouping.Workspace,
 		sorting: () => view.sorting ?? SessionsSorting.Created,
@@ -795,7 +807,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 	}
 
 	await timeout(SETTLE_DELAY);
-	applyInteraction(context, list, interaction, resolve, getSession, groupIds);
+	applyInteraction(context, list, interaction, resolve, getSession, groupIds, interactionStore);
 	await timeout(SETTLE_DELAY);
 
 	return { list, container, listHost, instantiationService, sessions, resolve };
@@ -812,15 +824,27 @@ function seedListState(instantiationService: TestInstantiationService, state: IS
 
 	const groupsService = instantiationService.get(ISessionGroupsService);
 	const groupIds = new Map<string, string>();
-	for (const group of state.groups ?? []) {
-		const created = groupsService.createGroup(group.name, (group.sessions ?? []).map(id => getSession(id).session.sessionId));
-		groupIds.set(group.id, created.id);
-	}
 	// Groups created together share a timestamp, so persist the listed order explicitly.
-	const orderIds = [...groupIds.values()].map(id => `group:${id}`);
-	if (orderIds.length > 1) {
+	const topLevelIds: string[] = [];
+	const lastSubgroupIds = new Map<string, string>();
+	for (const group of state.groups ?? []) {
+		const parentId = group.parent === undefined ? undefined : groupIds.get(group.parent);
+		if (group.parent !== undefined && parentId === undefined) {
+			throw new Error(`Fixture group '${group.id}' must be listed after its parent '${group.parent}'.`);
+		}
+		const created = groupsService.createGroup(group.name, (group.sessions ?? []).map(id => getSession(id).session.sessionId), parentId);
+		groupIds.set(group.id, created.id);
+		if (parentId === undefined) {
+			topLevelIds.push(getSessionGroupSectionId(created.id));
+		} else {
+			const lastSubgroupId = lastSubgroupIds.get(parentId);
+			groupsService.moveGroup(created.id, parentId, lastSubgroupId === undefined ? undefined : { siblingId: lastSubgroupId, position: 'after' });
+			lastSubgroupIds.set(parentId, created.id);
+		}
+	}
+	if (topLevelIds.length > 1) {
 		const sectionOrderService = instantiationService.get(ISessionSectionOrderService);
-		sectionOrderService.reorder(orderIds, orderIds[1], orderIds[0], 'after');
+		sectionOrderService.reorder(topLevelIds, topLevelIds[1], topLevelIds[0], 'after');
 	}
 	return groupIds;
 }
@@ -859,7 +883,7 @@ async function renderHeaderState(container: HTMLElement, instantiationService: T
 	}
 }
 
-function applyInteraction(context: ComponentFixtureContext, list: TestSessionsList, interaction: ISessionsListFixtureInteraction, resolve: (row: SessionsListFixtureRow) => SessionsListItemReference, getSession: (id: string) => ITestSession, groupIds: ReadonlyMap<string, string>): void {
+function applyInteraction(context: ComponentFixtureContext, list: TestSessionsList, interaction: ISessionsListFixtureInteraction, resolve: (row: SessionsListFixtureRow) => SessionsListItemReference, getSession: (id: string) => ITestSession, groupIds: ReadonlyMap<string, string>, interactionStore: DisposableStore): void {
 	if (interaction.selected && !list.setSelectedItems(interaction.selected.map(resolve))) {
 		throw new Error(`Expected selectable session or chat rows for ${JSON.stringify(interaction.selected)}.`);
 	}
@@ -877,6 +901,19 @@ function applyInteraction(context: ComponentFixtureContext, list: TestSessionsLi
 		if (!list.element.querySelector('.session-group-input input')) {
 			throw new Error('Expected the new group to show its name editor.');
 		}
+	}
+	if (interaction.createSubgroupIn) {
+		const parentId = groupIds.get(interaction.createSubgroupIn);
+		if (!parentId) {
+			throw new Error(`Unknown fixture group '${interaction.createSubgroupIn}'.`);
+		}
+		list.createSubgroup(parentId);
+		if (!list.element.querySelector('.session-group-input input')) {
+			throw new Error('Expected the new subgroup to show its name editor.');
+		}
+	}
+	if (interaction.dragging) {
+		simulateDragOver(list, resolve(interaction.dragging.source), resolve(interaction.dragging.target), interaction.dragging.at, interactionStore);
 	}
 	if (interaction.renaming) {
 		startRename(list, interaction.renaming, getSession, groupIds);
@@ -897,6 +934,24 @@ function openContextMenu(container: HTMLElement, list: TestSessionsList, item: S
 	if (!container.querySelector('.context-view .monaco-menu')) {
 		throw new Error(`Expected the context menu of ${JSON.stringify(item)} to open.`);
 	}
+}
+
+/** Starts dragging the source row and holds it over a part of the target row, ending the drag when the fixture is disposed. */
+function simulateDragOver(list: TestSessionsList, source: SessionsListItemReference, target: SessionsListItemReference, at: 'top' | 'middle' | 'bottom', store: DisposableStore): void {
+	const sourceRow = list.getItemRow(source);
+	const targetRow = list.getItemRow(target);
+	if (!sourceRow || !targetRow) {
+		throw new Error(`Expected rows to drag ${JSON.stringify(source)} over ${JSON.stringify(target)}.`);
+	}
+	const dataTransfer = new DataTransfer();
+	sourceRow.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer }));
+	store.add(toDisposable(() => (sourceRow.isConnected ? sourceRow : list.element.querySelector('.monaco-list'))?.dispatchEvent(new DragEvent('dragend', { bubbles: true, cancelable: true, dataTransfer }))));
+	const { left, top, height } = targetRow.getBoundingClientRect();
+	const clientY = top + height * (at === 'top' ? 0.1 : at === 'bottom' ? 0.9 : 0.5);
+	const dragOver = new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer, clientX: left + 10, clientY });
+	// Synthetic events don't compute `offsetY`, which the list reads for the part of the row under the pointer.
+	Object.defineProperty(dragOver, 'offsetY', { value: clientY - top });
+	targetRow.dispatchEvent(dragOver);
 }
 
 function startRename(list: SessionsList, row: SessionsListFixtureRow, getSession: (id: string) => ITestSession, groupIds: ReadonlyMap<string, string>): void {

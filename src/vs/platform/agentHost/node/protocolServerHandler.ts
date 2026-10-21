@@ -30,15 +30,16 @@ import { AHPFileSystemProvider } from '../common/agentHostFileSystemProvider.js'
 import { AgentHostClientType, getAgentHostClientType } from '../common/agentHostClientInfo.js';
 import { AgentHostChatUrisCapabilityMetaKey, AgentHostNativeImplementationMetaKey, AgentHostSessionUrisCapabilityMetaKey, supportsAgentHostChatUris, supportsAgentHostSessionUris } from '../common/meta/agentHostSessionUrisMeta.js';
 import { withSessionInitiator } from '../common/meta/agentSessionInitiatorMeta.js';
+import { readChatWorkspaceValue, readCreateChatWorkspaceMeta } from '../common/meta/agentHostCreateChatWorkspaceMeta.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, readClientConnectionKind, readClientDevDeviceId, readClientMachineId, readClientTelemetryLevel, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
-import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID, type IAgentCreateChatRequestOptions, type IAgentSessionMetadata, type IMcpNotification } from '../common/agent.js';
+import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID, type IAgentCreateChatRequestOptions, type IAgentCreateChatWorkspace, type IAgentSessionMetadata, type IMcpNotification } from '../common/agent.js';
 import type { IAgentHostAuthenticationScope, IAgentHostCredentialPrincipal, IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 import { AgentHostAuthenticationScope } from './agentHostAuthenticationScope.js';
 import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
 import { isAnnotationsUri } from '../common/annotationsUri.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { type IAgentService } from '../common/agentService.js';
-import { CancelWorktreeDiskUsageExtensionMethod, cancelWorktreeDiskUsageParamsValidator, MeasureWorktreeDiskUsageExtensionMethod, measureWorktreeDiskUsageParamsValidator, MoveAgentHostSessionExtensionMethod, moveSessionParamsValidator, CompleteSavedChatContinuationExtensionMethod, completeSavedChatContinuationParamsValidator, CancelAgentHostDebugLogsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, importSessionParamsValidator, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, StopBackgroundWorkExtensionMethod, stopBackgroundWorkParamsValidator, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, type IAgentHostWorkspaceTrustRequest, ReadSavedChatExtensionMethod, readSavedChatParamsValidator } from '../common/agentHostExtensionProtocol.js';
+import { CancelWorktreeDiskUsageExtensionMethod, cancelWorktreeDiskUsageParamsValidator, MeasureWorktreeDiskUsageExtensionMethod, measureWorktreeDiskUsageParamsValidator, MoveAgentHostSessionExtensionMethod, moveSessionParamsValidator, SetChatWorkspaceExtensionMethod, setChatWorkspaceParamsValidator, CompleteSavedChatContinuationExtensionMethod, completeSavedChatContinuationParamsValidator, CancelAgentHostDebugLogsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, importSessionParamsValidator, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, StopBackgroundWorkExtensionMethod, stopBackgroundWorkParamsValidator, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, type IAgentHostWorkspaceTrustRequest, ReadSavedChatExtensionMethod, readSavedChatParamsValidator } from '../common/agentHostExtensionProtocol.js';
 import { savedChatToDto } from '../common/agentHostSavedChat.js';
 import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { agentHostFirstResponseValidator } from '../common/otel/agentHostTiming.js';
@@ -53,6 +54,9 @@ import type { ChatConfigChangedAction, SessionConfigChangedAction } from '../com
 import type { AutomationEntry, RootConfigState } from '../common/state/protocol/state.js';
 import { ActionEnvelope, ActionType, INotification, isAnnotationsAction, isAutomationAction, isAutomationRunAction, isChangesetAction, isChatAction, isSessionAction, isTerminalAction } from '../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
+import { AgentHostTcpBudget } from '../common/agentHostTcpConnection.js';
+import { AgentHostChannelScheduler } from '../common/agentHostChannelDelivery.js';
+import { AgentHostTcpConnections } from './agentHostTcpConnections.js';
 import { getAgentHostSupportedProtocolVersions, negotiateAgentHostProtocolVersion } from '../common/agentHostProtocolCompatibility.js';
 import { VSCODE_UPGRADE_METHOD, type UnsupportedProtocolVersionErrorDataEx } from '../common/state/protocolUpgrade.js';
 import { getAgentHostManagementSocketPath, requestAgentHostUpgrade } from './agentHostUpgradeChannel.js';
@@ -214,9 +218,33 @@ class ChatMoveRefusedProtocolError extends ProtocolError {
 }
 
 /** Logs a failed request: an expected move refusal at info, anything else at error. */
+/**
+ * A chat workspace the host refused or failed to apply: the client gets the message only, never the stack. The request
+ * is logged with the original error and its stack.
+ */
+class ChatWorkspaceProtocolError extends ProtocolError {
+	constructor(readonly original: Error) {
+		super(JSON_RPC_INTERNAL_ERROR, original.message);
+	}
+}
+
+/** Runs a request that applies a chat workspace, so a failure reaches the client as a {@link ChatWorkspaceProtocolError}. */
+async function withChatWorkspaceErrors<T>(work: () => Promise<T>): Promise<T> {
+	try {
+		return await work();
+	} catch (error) {
+		if (error instanceof Error && !(error instanceof ProtocolError) && getErrorCode(error) !== 'policyResolutionFailed') {
+			throw new ChatWorkspaceProtocolError(error);
+		}
+		throw error;
+	}
+}
+
 function logFailedRequest(logService: ILogService, message: string, error: unknown): void {
 	if (error instanceof ChatMoveRefusedProtocolError) {
 		logService.info(`${message}: refused (${error.refusal.reason}): ${error.message}`);
+	} else if (error instanceof ChatWorkspaceProtocolError) {
+		logService.error(message, error.original);
 	} else {
 		logService.error(message, error);
 	}
@@ -375,29 +403,32 @@ type ChannelSubscription =
 	| { readonly kind: ChannelKind.ResourceWatch; readonly uri: string; readonly active: boolean }
 	| { readonly kind: ChannelKind.OtlpLogs; readonly uri: string; readonly level: OtlpLogLevelName };
 
-function projectVSCodeCopilotModel(model: ModelSelection): ModelSelection {
+function projectCopilotModel(model: ModelSelection, vscode: boolean): ModelSelection {
 	if (!model.config) {
 		return model;
 	}
 	const config = { ...model.config };
 	for (const [key, alias] of [['thinkingLevel', 'reasoningEffort'], ['tier', 'autoTier']]) {
-		if (Object.hasOwn(config, alias)) {
-			config[key] = config[key] ?? config[alias];
-			delete config[alias];
+		const source = vscode ? alias : key;
+		const target = vscode ? key : alias;
+		if (Object.hasOwn(config, source)) {
+			// Match the runtime's legacy-key precedence, including persisted selections with both spellings.
+			config[target] = config[key] ?? config[alias] ?? config[source];
+			delete config[source];
 		}
 	}
 	return { ...model, config };
 }
 
-function projectVSCodeCopilotMessage(message: Message): Message {
-	return message?.model ? { ...message, model: projectVSCodeCopilotModel(message.model) } : message;
+function projectCopilotMessage(message: Message, vscode: boolean): Message {
+	return message?.model ? { ...message, model: projectCopilotModel(message.model, vscode) } : message;
 }
 
-function projectVSCodeCopilotTurn<T extends { message: Message }>(turn: T): T {
-	return { ...turn, message: projectVSCodeCopilotMessage(turn.message) };
+function projectCopilotTurn<T extends { message: Message }>(turn: T, vscode: boolean): T {
+	return { ...turn, message: projectCopilotMessage(turn.message, vscode) };
 }
 
-function projectVSCodeCopilotAutomation(automation: AutomationEntry): AutomationEntry {
+function projectCopilotAutomation(automation: AutomationEntry, vscode: boolean): AutomationEntry {
 	const { definition } = automation;
 	if (definition.session.provider !== COPILOT_CLI_AGENT_PROVIDER_ID) {
 		return automation;
@@ -406,10 +437,10 @@ function projectVSCodeCopilotAutomation(automation: AutomationEntry): Automation
 		...automation,
 		definition: {
 			...definition,
-			message: projectVSCodeCopilotMessage(definition.message),
+			message: projectCopilotMessage(definition.message, vscode),
 			session: {
 				...definition.session,
-				...(definition.session.model ? { model: projectVSCodeCopilotModel(definition.session.model) } : {}),
+				...(definition.session.model ? { model: projectCopilotModel(definition.session.model, vscode) } : {}),
 			},
 		},
 	};
@@ -517,6 +548,9 @@ interface IGraceClientRecord {
  * whatever URI form the client sent.
  */
 function classifyChannel(channel: string): ChannelSubscription | undefined {
+	if (channel.startsWith('ahp-tcp:')) {
+		return undefined;
+	}
 	if (channel.toLowerCase().startsWith(`${OTLP_CHANNEL_SCHEME}:`)) {
 		const level = extractLevelFromOtlpLogsUri(channel);
 		if (!level) {
@@ -624,6 +658,8 @@ export interface IProtocolServerConfig {
  * to subscribed clients.
  */
 export class ProtocolServerHandler extends Disposable implements IAgentHostClientConnectionSource {
+	// Different listeners backed by the same host service share socket and write capacity.
+	private static readonly _tcpBudgets = new WeakMap<IAgentService, AgentHostTcpBudget>();
 
 	/**
 	 * Per-client records keyed by clientId. Holds both connected clients
@@ -652,6 +688,8 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	private readonly _telemetryReporter: AgentHostTelemetryReporter;
 	private readonly _managedSettingsOwnerId = generateUuid();
 	private readonly _connectionDisposables = this._register(new DisposableMap<IProtocolTransport, DisposableStore>());
+	private readonly _tcpConnections = new Map<IProtocolTransport, AgentHostTcpConnections>();
+	private readonly _tcpBudget: AgentHostTcpBudget;
 
 	private readonly _onDidChangeConnectionCount = this._register(new Emitter<number>());
 
@@ -673,6 +711,12 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 	) {
 		super();
+		let tcpBudget = ProtocolServerHandler._tcpBudgets.get(_agentService);
+		if (!tcpBudget) {
+			tcpBudget = new AgentHostTcpBudget(512);
+			ProtocolServerHandler._tcpBudgets.set(_agentService, tcpBudget);
+		}
+		this._tcpBudget = tcpBudget;
 		this._telemetryReporter = new AgentHostTelemetryReporter(this._telemetryService);
 		this._register(this._clientConnections.registerSource(this));
 
@@ -725,6 +769,11 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	private _handleNewConnection(transport: IProtocolTransport): void {
 		const disposables = new DisposableStore();
 		this._connectionDisposables.set(transport, disposables);
+		const channels = new AgentHostChannelScheduler(transport, error => this._logService.error('[AgentHostChannels]', error));
+		const tcp = disposables.add(new AgentHostTcpConnections(transport, this._tcpBudget, channels, error => this._logService.error('[AgentHostTcp]', error)));
+		disposables.add(channels);
+		this._tcpConnections.set(transport, tcp);
+		disposables.add(toDisposable(() => this._tcpConnections.delete(transport)));
 		let client: IConnectedClient | undefined;
 
 		if (transport.onDidRelayAuthenticationExpire) {
@@ -829,6 +878,18 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				this._handleRequest(client, msg.method, msg.params, msg.id);
 			} else if (isJsonRpcNotification(msg)) {
 				this._logService.trace(`[ProtocolServer] notification: method=${msg.method}`);
+				if (!channels.checkControl(msg)) {
+					return;
+				}
+				if (client && msg.method !== 'unsubscribe' && channels.acceptMessage(msg, true)) {
+					return;
+				}
+				if (client && typeof msg.params?.channel === 'string' && msg.params.channel.startsWith('ahp-tcp:')) {
+					if (!tcp.notification(msg, true) && msg.method !== 'unsubscribe' && msg.method !== 'tcp/reset') {
+						this._logService.warn('[AgentHostTcp] Notification for an unavailable TCP channel');
+					}
+					return;
+				}
 				if (this._config.relayRoots && msg.method !== 'unsubscribe') {
 					return;
 				}
@@ -922,6 +983,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		disposables: DisposableStore,
 	): { client: IConnectedClient; response: IAgentHostExtensionInitializeResult | Promise<IAgentHostExtensionInitializeResult> } {
 		this._verifyRelayClient(transport, params.clientId);
+		if (params.initialSubscriptions?.some(channel => channel.startsWith('ahp-tcp:'))) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'TCP cannot be included in initialSubscriptions');
+		}
 		if (this._config.relayRoots && params.initialSubscriptions?.some(channel => !isAhpRootChannel(channel))) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Relay subscriptions are not available in this prototype');
 		}
@@ -1040,6 +1104,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				terminalCommandPrefix: this._config.terminalCommandPrefix,
 				telemetry: this._config.otlpLogEmitter ? { logs: OTLP_LOGS_CHANNEL_TEMPLATE } : undefined,
 				automations: this._config.relayRoots || this._config.scopedRelayCredentials ? undefined : this._agentService.automationCapabilities,
+				tcpConnections: this._tcpConnections.get(transport)?.supported && !this._config.relayRoots ? {} : undefined,
 			};
 			return {
 				client,
@@ -1328,11 +1393,17 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		params: ReconnectParams,
 		canReplay: boolean,
 	): Promise<ReconnectResult> {
-		const missing: string[] = [];
+		const missing = [...new Set([
+			...params.subscriptions,
+			...(params.windows?.items.map(item => item.channel) ?? []),
+		].filter(channel => channel.startsWith('ahp-tcp:')))];
 		const restoredUris = new Set<string>();
 		const pendingSubscriptions: { readonly pending: ChannelSubscription; readonly active: ChannelSubscription }[] = [];
 		const snapshots = await Promise.all(params.subscriptions.map(async sub => {
 			const key = sub.toString();
+			if (key.startsWith('ahp-tcp:')) {
+				return undefined;
+			}
 			const classified = classifyChannel(key);
 			if (!classified) {
 				return undefined;
@@ -1953,7 +2024,13 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	 * which are handled during the handshake phase).
 	 */
 	private readonly _requestHandlers: RequestHandlerMap = {
+		createTcpConnection: async (client, params) => {
+			return this._tcpConnections.get(client.transport)!.create(params);
+		},
 		subscribe: async (client, params) => {
+			if (params.channel.startsWith('ahp-tcp:')) {
+				return this._tcpConnections.get(client.transport)!.subscribe(params);
+			}
 			const classified = classifyChannel(params.channel);
 			if (!classified) {
 				// OTLP-flavoured URI we don't understand (e.g. unknown
@@ -2074,22 +2151,38 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			if (!state) {
 				throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${params.channel}`);
 			}
+			const workspace = readCreateChatWorkspaceMeta(params._meta);
+			if (workspace === 'invalid') {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Invalid createChat workspace metadata');
+			}
+			if (workspace && (params.source !== undefined || params.workingDirectories !== undefined)) {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'A createChat workspace cannot be combined with a source or working directories');
+			}
 			// The default chat is created alongside its session; creating it
 			// again is a no-op. Any other chat URI spins up an additional chat.
 			const defaultChat = state.defaultChat ?? this._chatOwnership.getDefaultChat(params.channel);
-			if (defaultChat !== undefined && URI.parse(params.chat).toString() === URI.parse(defaultChat).toString() && params.initialMessage === undefined) {
-				return null;
+			if (defaultChat !== undefined && URI.parse(params.chat).toString() === URI.parse(defaultChat).toString()) {
+				if (workspace) {
+					throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'The default chat cannot get a workspace of its own');
+				}
+				if (params.initialMessage === undefined) {
+					return null;
+				}
 			}
 			const chatUriError = createChatUriError(defaultChat, state.chats.map(existing => existing.resource), params.chat);
 			if (chatUriError !== undefined) {
 				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, chatUriError);
 			}
+			if (workspace) {
+				await this._requireChatWorkspaceGrants(_client, workspace);
+			}
 			const source = params.source;
-			let options: IAgentCreateChatRequestOptions | undefined = params.title !== undefined || params.workingDirectories !== undefined || params.initialMessage !== undefined
+			let options: IAgentCreateChatRequestOptions | undefined = params.title !== undefined || params.workingDirectories !== undefined || params.initialMessage !== undefined || workspace !== undefined
 				? {
 					...(params.title !== undefined ? { title: params.title } : {}),
 					...(params.workingDirectories !== undefined ? { workingDirectories: params.workingDirectories.map(directory => URI.parse(directory)) } : {}),
 					...(params.initialMessage !== undefined ? { initialMessage: params.initialMessage } : {}),
+					...(workspace !== undefined ? { workspace } : {}),
 				}
 				: undefined;
 			if (source) {
@@ -2115,7 +2208,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 						throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Unsupported createChat source kind: ${String((source as { kind?: unknown }).kind)}`);
 				}
 			}
-			await this._agentService.createChat(
+			const create = () => this._agentService.createChat(
 				URI.parse(params.channel),
 				URI.parse(params.chat),
 				options,
@@ -2127,6 +2220,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 						telemetryContext: _client.telemetryContext,
 					},
 			);
+			await (workspace !== undefined ? withChatWorkspaceErrors(create) : create());
 			return null;
 		},
 		moveChat: async (client, params) => {
@@ -2165,9 +2259,6 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				}
 				throw error;
 			}
-		},
-		createTcpConnection: async () => {
-			throw new ProtocolError(JsonRpcErrorCodes.MethodNotFound, 'Method not found: createTcpConnection');
 		},
 		disposeChat: async (_client, params) => {
 			const chat = URI.parse(params.channel);
@@ -2530,6 +2621,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			checkAuthorization();
 			const projected = this._requestResultProjectors[method]?.(client, result) ?? result;
 			client.transport.send(jsonRpcSuccess(id, projected ?? null));
+			if (method === 'subscribe' && isParamsObject(params) && typeof params.channel === 'string' && isParamsObject(result)) {
+				this._tcpConnections.get(client.transport)?.activate(params.channel, this._stateManager.serverSeq, result.flowControl);
+			}
 		}).catch(error => {
 			if (client.disposables.isDisposed) {
 				return;
@@ -2854,7 +2948,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	private _projectRelayRootSnapshot(client: IConnectedClient, snapshot: IStateSnapshot): IStateSnapshot {
-		snapshot = this._projectVSCodeModelSelections(client, this._projectSnapshotChats(client, this._projectSnapshot(snapshot)));
+		snapshot = this._projectModelSelections(client, this._projectSnapshotChats(client, this._projectSnapshot(snapshot)));
 		if (isAhpRootChannel(snapshot.resource) && hasKey(snapshot.state, { agents: true })) {
 			snapshot = { ...snapshot, state: { ...snapshot.state, agents: this._projectModelConfigAliases(client, snapshot.state.agents) } };
 		}
@@ -3026,33 +3120,46 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		});
 	}
 
-	private _usesVSCodeCopilotModelConfig(client: IConnectedClient, channel: string): boolean {
+	private _usesCopilotModelConfig(channel: string): boolean {
 		const session = this._chatOwnership.getChatOwner(channel) ?? channel;
-		return getAgentHostClientType(client.clientInfo) !== AgentHostClientType.Unknown
-			&& this._stateManager.getSessionSummary(session)?.provider === COPILOT_CLI_AGENT_PROVIDER_ID;
+		return this._stateManager.getSessionSummary(session)?.provider === COPILOT_CLI_AGENT_PROVIDER_ID;
 	}
 
-	private _projectVSCodeModelSelections(client: IConnectedClient, snapshot: IStateSnapshot): IStateSnapshot {
-		if (getAgentHostClientType(client.clientInfo) === AgentHostClientType.Unknown) {
-			return snapshot;
-		}
+	private _projectModelSelections(client: IConnectedClient, snapshot: IStateSnapshot): IStateSnapshot {
+		const vscode = getAgentHostClientType(client.clientInfo) !== AgentHostClientType.Unknown;
 		if (isAhpAutomationCatalogChannel(snapshot.resource) && hasKey(snapshot.state, { entries: true })) {
-			return { ...snapshot, state: { ...snapshot.state, entries: snapshot.state.entries.map(projectVSCodeCopilotAutomation) } };
+			return { ...snapshot, state: { ...snapshot.state, entries: snapshot.state.entries.map(entry => projectCopilotAutomation(entry, vscode)) } };
 		}
-		if (!this._usesVSCodeCopilotModelConfig(client, snapshot.resource) || !hasKey(snapshot.state, { turns: true })) {
+		if (!this._usesCopilotModelConfig(snapshot.resource) || !hasKey(snapshot.state, { turns: true })) {
 			return snapshot;
 		}
 		const state = snapshot.state;
 		return {
 			...snapshot, state: {
 				...state,
-				turns: state.turns.map(projectVSCodeCopilotTurn),
-				...(state.activeTurn ? { activeTurn: projectVSCodeCopilotTurn(state.activeTurn) } : {}),
-				...(state.draft ? { draft: projectVSCodeCopilotMessage(state.draft) } : {}),
-				...(state.steeringMessage ? { steeringMessage: { ...state.steeringMessage, message: projectVSCodeCopilotMessage(state.steeringMessage.message) } } : {}),
-				...(state.queuedMessages ? { queuedMessages: state.queuedMessages.map(pending => ({ ...pending, message: projectVSCodeCopilotMessage(pending.message) })) } : {}),
+				turns: state.turns.map(turn => projectCopilotTurn(turn, vscode)),
+				...(state.activeTurn ? { activeTurn: projectCopilotTurn(state.activeTurn, vscode) } : {}),
+				...(state.draft ? { draft: projectCopilotMessage(state.draft, vscode) } : {}),
+				...(state.steeringMessage ? { steeringMessage: { ...state.steeringMessage, message: projectCopilotMessage(state.steeringMessage.message, vscode) } } : {}),
+				...(state.queuedMessages ? { queuedMessages: state.queuedMessages.map(pending => ({ ...pending, message: projectCopilotMessage(pending.message, vscode) })) } : {}),
 			}
 		};
+	}
+
+	/** A requested chat folder joins the session's workspace, so it needs the same grants as a session's folders. */
+	private async _requireChatWorkspaceGrants(client: IConnectedClient, workspace: IAgentCreateChatWorkspace): Promise<void> {
+		if (workspace.kind !== 'folder') {
+			return;
+		}
+		const checkAuthorization = this._captureRelayAuthorization(client);
+		const folder = workspace.folder.toString();
+		if (client.transport.relayClientId !== undefined && this._config.relayResourceRoots && !await this._isGrantedRelayResource(folder, false)) {
+			throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'Chat workspace is outside the host workspace grants');
+		}
+		if (this._config.relayRoots && !await this._isGrantedRelayDirectory(folder)) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Working directory is not an explicitly granted project root');
+		}
+		checkAuthorization();
 	}
 
 	private _requireRelayMutation(client: IConnectedClient): void {
@@ -3220,6 +3327,28 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		}
 	}
 
+	private async _handleSetChatWorkspaceRequest(client: IConnectedClient, params: unknown): Promise<void> {
+		const validated = setChatWorkspaceParamsValidator.validate(params);
+		if (validated.error) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error.message);
+		}
+		const workspace = readChatWorkspaceValue(validated.content.workspace);
+		if (workspace === 'invalid') {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Invalid chat workspace');
+		}
+		const chat = validated.content.chat;
+		if (!isAhpChatChannel(chat) || !this._isChannelVisible(client, chat)) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Not a chat: ${chat}`);
+		}
+		// The recorded ownership is authoritative: a moved chat's URI can name another session.
+		const owner = await this._resolveChatOwner(chat);
+		if (!owner) {
+			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Chat not found: ${chat}`);
+		}
+		await this._requireChatWorkspaceGrants(client, workspace);
+		await withChatWorkspaceErrors(() => this._agentService.setChatWorkspace(owner, URI.parse(chat), workspace, this._config.scopedRelayCredentials ? this._getScopedAuthentication(client) : undefined));
+	}
+
 	private _handleImportSessionRequest(params: unknown): Promise<void> | undefined {
 		if (!this._agentService.importSession) {
 			return undefined;
@@ -3346,6 +3475,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		}
 		if (method === ImportSessionExtensionMethod) {
 			return this._handleImportSessionRequest(params);
+		}
+		if (method === SetChatWorkspaceExtensionMethod) {
+			return this._handleSetChatWorkspaceRequest(client, params);
 		}
 		// Session data, so it works over the renderer's data plane too; relay transports are never offered it. Offered and
 		// routed whether or not moving chats is enabled, which a client may turn on after connecting: a move while it is
@@ -3815,21 +3947,22 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	 * reorder is filtered, since a reorder that does not list every known chat is ignored.
 	 */
 	private _projectActionForClient(client: IConnectedClient, envelope: ActionEnvelope): ActionEnvelope | undefined {
-		if (getAgentHostClientType(client.clientInfo) !== AgentHostClientType.Unknown && envelope.action.type === ActionType.AutomationSet) {
-			envelope = { ...envelope, action: { ...envelope.action, automation: projectVSCodeCopilotAutomation(envelope.action.automation) } };
+		const vscode = getAgentHostClientType(client.clientInfo) !== AgentHostClientType.Unknown;
+		if (envelope.action.type === ActionType.AutomationSet) {
+			envelope = { ...envelope, action: { ...envelope.action, automation: projectCopilotAutomation(envelope.action.automation, vscode) } };
 		}
-		if (this._usesVSCodeCopilotModelConfig(client, envelope.channel)) {
+		if (this._usesCopilotModelConfig(envelope.channel)) {
 			const action = envelope.action;
 			switch (action.type) {
 				case ActionType.ChatTurnStarted:
 				case ActionType.ChatPendingMessageSet:
-					envelope = { ...envelope, action: { ...action, message: projectVSCodeCopilotMessage(action.message) } };
+					envelope = { ...envelope, action: { ...action, message: projectCopilotMessage(action.message, vscode) } };
 					break;
 				case ActionType.ChatDraftChanged:
-					envelope = { ...envelope, action: { ...action, ...(action.draft ? { draft: projectVSCodeCopilotMessage(action.draft) } : {}) } };
+					envelope = { ...envelope, action: { ...action, ...(action.draft ? { draft: projectCopilotMessage(action.draft, vscode) } : {}) } };
 					break;
 				case ActionType.ChatTurnsLoaded:
-					envelope = { ...envelope, action: { ...action, turns: action.turns.map(projectVSCodeCopilotTurn) } };
+					envelope = { ...envelope, action: { ...action, turns: action.turns.map(turn => projectCopilotTurn(turn, vscode)) } };
 					break;
 			}
 		}

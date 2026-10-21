@@ -7,11 +7,12 @@ import { Event } from '../../../../../base/common/event.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { ISettableObservable } from '../../../../../base/common/observable.js';
+import { ISettableObservable, observableFromEvent } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import * as nls from '../../../../../nls.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentHostProtocolClient } from '../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
+import { IAgentHostAdvertisedAuthenticationResolver } from '../../../../../platform/agentHost/common/agentHostAdvertisedAuthentication.js';
 import { type AgentProvider, type AuthenticateParams, type AuthenticateResult } from '../../../../../platform/agentHost/common/agent.js';
 import { type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, getEntryAddress } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -32,6 +33,7 @@ import { IAgentHostActiveClientService } from '../agentSessions/agentHost/agentH
 import { IAgentHostSessionWorkingDirectoryResolver, RequestedWorkingDirectory } from '../agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { AgentCustomizationItemProvider } from '../agentSessions/agentHost/agentCustomizationItemProvider.js';
 import { Target } from '../../common/promptSyntax/promptTypes.js';
+import { readAgentModelCatalogStatus } from '../../../../../platform/agentHost/common/agentModelCatalogStatus.js';
 import { ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { ILanguageModelsService } from '../../common/languageModels.js';
@@ -48,6 +50,7 @@ import { isCloudSandboxConnectionAddress } from './cloudSandboxConnectionCustomi
 import { IRemoteAgentHostAuthenticationService } from './remoteAgentHostAuthentication.js';
 import { CloudSandboxModels } from './cloudSandboxModels.js';
 import { CLOUD_SANDBOX_AGENT_PROVIDER } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { getAgentHostScenarioAutomationToken } from './remoteAgentHostAuthenticationResolver.js';
 
 Registry.as<IAsyncChatSessionActivationRegistry>(ChatSessionsExtensions.AsyncActivation).register({
 	matchSessionType: sessionType => isRemoteAgentHostSessionType(sessionType),
@@ -170,6 +173,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		@IRemoteAgentHostConnectionCustomizationService private readonly _connectionCustomizations: IRemoteAgentHostConnectionCustomizationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IAgentHostAdvertisedAuthenticationResolver private readonly _initialAuthentication: IAgentHostAdvertisedAuthenticationResolver,
 	) {
 		super();
 		this._enableSmokeTestDriver = !!environmentService.enableSmokeTestDriver;
@@ -330,6 +334,16 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		const initialRootState = connection.rootState.value;
 		if (initialRootState && !(initialRootState instanceof Error)) {
 			this._handleRootStateChange(address, connection, initialRootState);
+			for (const removal of this._initialAuthentication.takePendingSessionRemovals(address)) {
+				this._instantiationService.invokeFunction(revokeAuthenticationForRemovedSessions, initialRootState.agents, removal.providerId, removal.sessions, {
+					authTokenCache: connState.authTokenCache,
+					logPrefix: '[RemoteAgentHost]',
+					isCurrent: () => this._connections.get(address) === connState,
+					authenticate: this._authenticateCallback(address, connection),
+				}).catch(error => this._logService.error(`[RemoteAgentHost] Failed to reconcile authentication removed during connection initialization for ${address}`, error));
+			}
+		} else {
+			this._initialAuthentication.takePendingSessionRemovals(address);
 		}
 
 	}
@@ -456,6 +470,8 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		));
 		itemProvider.setDraftCustomAgents(ambientScope.customAgents);
 		itemProvider.setDraftCustomizations(ambientScope.customizations);
+		const modelCatalogueStatus = observableFromEvent(this, connection.rootState.onDidChange, () =>
+			readAgentModelCatalogStatus(connection.rootState.value, agent.provider));
 
 		const harnessDescriptor = createRemoteAgentHarnessDescriptor(
 			sessionType,
@@ -464,6 +480,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			itemProvider,
 			syncProvider,
 			agent.provider === 'copilotcli' ? Target.GitHubCopilot : undefined,
+			modelCatalogueStatus,
 		);
 		agentStore.add(this._customizationHarnessService.registerExternalHarness(harnessDescriptor));
 
@@ -494,6 +511,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			resolveInitialSessionConfig: customization?.resolveInitialSessionConfig,
 			modelIdentifierAliases: customization?.modelIdentifierAliases,
 			isSessionTitlePlaceholder: customization?.isSessionTitlePlaceholder,
+			useSessionTitleForDefaultChat: customization?.useSessionTitleForDefaultChat,
 			onSessionMaterialized: sessionResource => this._chatSessionsService.notifySessionMaterialized?.(sessionResource),
 			resolveAuthentication: (resources) => this._resolveAuthenticationInteractively(address, connection, resources),
 		}));
@@ -578,11 +596,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	}
 
 	private _getScenarioAutomationToken(): string | undefined {
-		if (!this._enableSmokeTestDriver) {
-			return undefined;
-		}
-		const token = this._configurationService.getValue('chat.agentHost.unsafeTestToken');
-		return typeof token === 'string' && token.length > 0 ? token : undefined;
+		return getAgentHostScenarioAutomationToken(this._configurationService, this._enableSmokeTestDriver);
 	}
 
 	private _handleAuthenticationRequiredNotification(address: string, connection: IAgentConnection, notification: INotification): void {

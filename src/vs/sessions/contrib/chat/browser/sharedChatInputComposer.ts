@@ -56,9 +56,11 @@ import { activeSessionViewBackground, activeSessionViewForeground, agentsPanelBa
 import { IWorkspaceSelectionSnapshot } from '../../../common/workspaceSelection.js';
 import { ISessionContext, SessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { ISessionInputPickerVisibility, SessionInputPickerVisibility } from '../../../services/sessions/common/sessionPickerVisibility.js';
+import { WorkbenchHoverDelegate } from '../../../../platform/hover/browser/hover.js';
+import { HoverStyle } from '../../../../base/browser/ui/hover/hover.js';
 import { readNewChatDraftState, writeNewChatDraftState } from '../common/newChatDraftState.js';
 import { MobileSessionTypePicker } from './mobile/mobileSessionTypePicker.js';
-import { getLabeledPickerResponsiveItems, hasSendableNewChatContent, INewChatComposerInputOptions, syncInputGitHubContextAttachments } from './newChatComposerInput.js';
+import { getLabeledPickerResponsiveItems, hasSendableNewChatContent, IComposerRepositoryControls, INewChatComposerInputOptions, syncInputGitHubContextAttachments } from './newChatComposerInput.js';
 import { createSessionModelCommands, INewChatModelPickerService, NewChatModelPickerService } from './newChatModelPicker.js';
 import { INewChatVoiceComposer, INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL, NewChatVoiceInputDecorations } from './newChatVoice.js';
 import { createNewSessionControlToolbar } from './newSessionConfigToolbars.js';
@@ -154,6 +156,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 
 	readonly sessionTypePicker: SessionTypePicker;
 	readonly pickerVisibility: SessionInputPickerVisibility;
+	readonly pickerHoverDelegate: WorkbenchHoverDelegate;
 	readonly sessionResource: IObservable<URI | undefined>;
 
 	private readonly _modelSelection: SessionModelSelection;
@@ -202,6 +205,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
 		super();
+		this.pickerHoverDelegate = this._register(this.instantiationService.createInstance(WorkbenchHoverDelegate, 'element', { instantHover: true }, { style: HoverStyle.Pointer }));
 		this.pickerVisibility = this._register(new SessionInputPickerVisibility());
 		this.sessionResource = derived(this, reader => this.options.session.read(reader)?.resource);
 		this._modelSelection = this._register(this.instantiationService.createInstance(SessionModelSelection, this.options.session, {
@@ -433,10 +437,15 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		const repositoryControlsContainer = this._repositoryControlsContainer = dom.append(secondaryControlsContainer, dom.$('.new-chat-repo-config-container'));
 		this._register(dom.addDisposableListener(repositoryControlsContainer, dom.EventType.KEY_DOWN, event => this._navigateRepositionedRepositoryControls(event)));
 		let repositoryToolbar: MenuWorkbenchToolBar | undefined;
-		if (this.options.renderRepositoryControls !== false) {
+		let hostRepositoryControls: IComposerRepositoryControls | undefined;
+		if (typeof this.options.renderRepositoryControls === 'function') {
+			hostRepositoryControls = this._register(this.options.renderRepositoryControls(repositoryControlsContainer));
+		} else if (this.options.renderRepositoryControls !== false) {
 			const session = this.options.session;
 			repositoryToolbar = this._register(this._scopedInstantiationService.createInstance(MenuWorkbenchToolBar, repositoryControlsContainer, Menus.NewSessionRepositoryConfig, {
 				hiddenItemStrategy: HiddenItemStrategy.NoHide,
+				hoverDelegate: this.pickerHoverDelegate,
+				ariaLabel: localize('sessionsSharedChatInput.repositoryControls', "Repository Controls"),
 				toolbarOptions: {
 					primaryGroup: group => group.startsWith('navigation'),
 					useSeparatorsInPrimaryActions: true,
@@ -465,7 +474,9 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		const useExperimentalLayout = this.options.useExperimentalLayout ?? constObservable(false);
 		const updateVisibility = () => {
 			const sessionControlCount = sessionControlsToolbar?.getItemsLength() ?? 0;
-			const repositoryControlCount = repositoryControlsContainer.parentElement === secondaryControlsContainer ? repositoryToolbar?.getItemsLength() ?? 0 : 0;
+			const repositoryControlCount = repositoryControlsContainer.parentElement === secondaryControlsContainer
+				? (repositoryToolbar?.getItemsLength() ?? 0) + (hostRepositoryControls?.visible.get() ? 1 : 0)
+				: 0;
 			bottomContainer.classList.toggle('empty', sessionControlCount + repositoryControlCount + statusToolbar.getItemsLength() === 0);
 		};
 		this._updateBottomContainerVisibility = updateVisibility;
@@ -478,6 +489,14 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			isCompactionEnabled: () => !isPhoneLayout(this.layoutService),
 			getItems: () => getLabeledPickerResponsiveItems(bottomContainer),
 		}));
+		if (hostRepositoryControls) {
+			const visible = hostRepositoryControls.visible;
+			this._register(autorun(reader => {
+				visible.read(reader);
+				updateVisibility();
+				bottomPickerResponsiveLayout.layout();
+			}));
+		}
 		this._register(autorun(reader => {
 			const experimental = useExperimentalLayout.read(reader);
 			bottomContainer.classList.toggle('standard-new-session-composer-layout', !experimental);
@@ -859,8 +878,11 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		this._userInteractionSource.value = toDisposable(() => userInteraction?.disposeSource());
 		this._sending.set(true, undefined);
 		widget.input.setInputEnabled(false);
+		// The send can dispose the input widget, e.g. when the composer is left while a workspace is
+		// applied or the send waits; the send itself completes and only the gone input is skipped.
+		const isInputAlive = () => this._widget === widget && !!widget.input;
 		const restoreInput = () => {
-			if (!this.getInputValue() && !widget.attachmentModel.attachments.length) {
+			if (isInputAlive() && !this.getInputValue() && !widget.attachmentModel.attachments.length) {
 				this.setInputValue(rawQuery);
 				widget.attachmentModel.addContext(...attachments);
 				// The send cleared the inline references along with the text.
@@ -896,7 +918,9 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 				restoreInput();
 				return false;
 			}
-			this.saveState();
+			if (isInputAlive()) {
+				this.saveState();
+			}
 			return true;
 		} catch (error) {
 			userInteraction?.cancel(isCancellationError(error) ? 'cancelled' : 'error');
@@ -905,7 +929,9 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			return false;
 		} finally {
 			this._userInteractionSource.clear();
-			widget.input.setInputEnabled(true);
+			if (isInputAlive()) {
+				widget.input.setInputEnabled(true);
+			}
 			this._sending.set(false, undefined);
 		}
 	}

@@ -12,6 +12,7 @@ import { Delayer, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError, isCancellationError, onUnexpectedError } from '../../../../../../base/common/errors.js';
+import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, observableSignal } from '../../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../../base/common/platform.js';
@@ -42,6 +43,7 @@ import { IHoverService } from '../../../../../../platform/hover/browser/hover.js
 import { IContextViewService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { IManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { AgentSandboxEnabledSettingValue, AgentSandboxEnabledValue, AgentSandboxSettingId, isAgentSandboxEnabledValue } from '../../../../../../platform/sandbox/common/settings.js';
@@ -51,7 +53,7 @@ import { IWorkspaceContextService } from '../../../../../../platform/workspace/c
 import type { IChatWidget } from '../../chat.js';
 import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '../../../common/constants.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
-import { disableGlobalAutoApproveForPermissionSelection, isAutoApprovePolicyRestricted, isAutoApproveValuePolicyRestricted, normalizeSessionConfigValue } from '../../../common/agentHostConfigPolicy.js';
+import { disableGlobalAutoApproveForPermissionSelection, isApprovalLevelDisabledByKnownPolicy, isAutoApprovePolicyRestricted, isAutoApproveValuePolicyRestricted, normalizeSessionConfigValue } from '../../../common/agentHostConfigPolicy.js';
 import { maybeConfirmElevatedPermissionLevel } from '../../../common/chatPermissionWarnings.js';
 import { getChatSessionType, isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { withChatInputPickerMotion } from '../../widget/input/chatInputPickerActionItem.js';
@@ -65,7 +67,7 @@ import { AgentHostInitialSessionConfig, retrySessionConfigSubscriptionOnCreation
 import { getCompactCodicon } from '../../chatIcons.js';
 import { dispatchAgentHostConfigChange, getAgentHostBackendChat, getAgentHostChatConfig, getAgentHostChatConfigChain, readAgentHostChatSandboxState } from './applyAgentHostSessionConfig.js';
 import { IChatPhoneInputPresenter } from '../../widget/input/chatPhoneInputPresenter.js';
-import { AGENT_HOST_PERMISSIONS_SETTINGS_QUERY, createModePickerModeItems, createModePickerPermissionsItems, getModePermissionsPickerAccessibilityProvider, getModePermissionsPickerOptions, getModePickerAriaLabel, getPermissionLevelBadge, IModePickerPermissions, IModePickerTrigger, isWellKnownAutoApproveSchema, MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE, MODE_SECTION_ID, PERMISSIONS_SECTION_ID, renderModePickerTrigger, shouldCombineModeAndPermissions } from './agentHostModePickerPresentation.js';
+import { AGENT_HOST_PERMISSIONS_SETTINGS_QUERY, createModePickerModeItems, createModePickerPermissionsItems, getModePermissionsPickerAccessibilityProvider, getModePermissionsPickerOptions, getModePickerAriaLabel, getPermissionLevelBadge, getPermissionLevelUnavailablePresentation, IModePickerPermissions, IModePickerTrigger, isWellKnownAutoApproveSchema, MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE, MODE_SECTION_ID, PERMISSIONS_SECTION_ID, renderModePickerTrigger, shouldCombineModeAndPermissions } from './agentHostModePickerPresentation.js';
 import { IPreferencesService } from '../../../../../services/preferences/common/preferences.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 
@@ -88,6 +90,8 @@ interface IConfigPickerItem {
 	readonly description?: string;
 	readonly checked?: boolean;
 	readonly disabled?: boolean;
+	/** Whether enterprise policy known to this client explains why the item is disabled. */
+	readonly disabledByPolicy?: boolean;
 }
 
 interface IConfigPickerTarget {
@@ -152,13 +156,15 @@ function toActionItems(property: string, items: readonly IConfigPickerItem[], cu
 		? ensureSelectedBranchPickerItem(items, currentValue, query)
 		: items;
 	const actionItems: IActionListItem<IConfigPickerItem>[] = pickerItems.map(item => {
-		const disabled = item.disabled === true || (property === SessionConfigKey.AutoApprove && isAutoApproveValuePolicyRestricted(item.value, policyRestricted));
-		const hover = getConfigPickerItemHover(property, item, disabled);
+		const legacyPolicy = property === SessionConfigKey.AutoApprove && isAutoApproveValuePolicyRestricted(item.value, policyRestricted);
+		const disabled = item.disabled === true || legacyPolicy;
+		const hover = getConfigPickerItemHover(property, legacyPolicy ? { ...item, disabledByPolicy: true } : item, disabled);
+		const unavailable = disabled && property === SessionConfigKey.AutoApprove ? getPermissionLevelUnavailablePresentation(legacyPolicy || item.disabledByPolicy === true) : undefined;
 		return {
 			kind: ActionListItemKind.Action,
 			label: item.label,
-			...(property === SessionConfigKey.AutoApprove ? getPermissionLevelBadge(item.value) : {}),
-			detail: disabled ? hover : item.description,
+			...(property === SessionConfigKey.AutoApprove ? getPermissionLevelBadge(item.value, disabled) : {}),
+			...(unavailable ? { description: unavailable.description, ariaDescription: unavailable.ariaDescription } : { detail: disabled && typeof hover === 'string' ? hover : item.description }),
 			group: { title: '', icon: getConfigIcon(property, item.value) },
 			disabled,
 			...(hover ? { hover: { content: hover } } : {}),
@@ -256,9 +262,11 @@ export function getConfigPickerTriggerHover(property: string, schema: SessionCon
 	return hover;
 }
 
-export function getConfigPickerItemHover(property: string, item: IConfigPickerItem, disabled: boolean): string | undefined {
+export function getConfigPickerItemHover(property: string, item: IConfigPickerItem, disabled: boolean): string | IMarkdownString | undefined {
 	if (disabled) {
-		return localize('agentHostChatInputPicker.policyDisabledHover', "Disabled by your organization. Contact your administrator.");
+		return property === SessionConfigKey.AutoApprove
+			? getPermissionLevelUnavailablePresentation(item.disabledByPolicy === true).hover
+			: localize('agentHostChatInputPicker.policyDisabledHover', "Disabled by your organization. Contact your administrator.");
 	}
 	if (property === SessionConfigKey.AutoApprove) {
 		return getAutoApproveHover(item.value, item.description);
@@ -451,6 +459,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
+		@IManagedSettingsService private readonly _managedSettingsService: IManagedSettingsService,
 	) {
 		super();
 
@@ -986,9 +995,12 @@ export class AgentHostChatInputPicker extends Disposable {
 		const policyRestricted = isAutoApprovePolicyRestricted(this._configurationService, context?.configSchema);
 		const approval = property === SessionConfigKey.AutoApprove && context ? getSessionApprovalProperty(context.configSchema) : undefined;
 		const available = approval && context ? getAvailableSessionApprovalValues(approval, context.configSchema, context.values) : undefined;
-		const choices = approval && available ? items.map(item => ({
-			...item, disabled: !available.some(value => readSessionApprovalLevel(approval, value) === item.value),
-		})) : items;
+		const useLocalPolicy = !isWeb && !this._environmentService.remoteAuthority && context?.connection === this._agentHostService
+			&& isCopilotCliSessionType(getChatSessionType(context.sessionResource));
+		const choices = approval && available ? items.map(item => {
+			const disabled = !available.some(value => readSessionApprovalLevel(approval, value) === item.value);
+			return { ...item, disabled, disabledByPolicy: disabled && useLocalPolicy && isApprovalLevelDisabledByKnownPolicy(item.value, this._configurationService, this._managedSettingsService) };
+		}) : items;
 		const actionItems = toActionItems(this._generic ? '' : property, choices, value, policyRestricted, this._generic ? undefined : this._getSandboxStandaloneToggle(property));
 		const permissionsLearnMoreUrl = this._generic ? undefined : getPermissionsLearnMoreUrl(property);
 		if (permissionsLearnMoreUrl) {

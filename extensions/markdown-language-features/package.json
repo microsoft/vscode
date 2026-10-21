@@ -1993,7 +1993,7 @@
   },
   "dependencies": {
     "@vscode/extension-telemetry": "^0.9.8",
-    "@vscode/markdown-editor": "0.0.2-130",
+    "@vscode/markdown-editor": "0.0.2-136",
     "@vscode/observables": "^0.1.1-0",
     "@vscode/web-editors": "^0.0.2-41",
     "dompurify": "^3.4.10",

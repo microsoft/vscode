@@ -14,7 +14,7 @@ import { CustomizationMarketplaceConfiguration } from '../../../../../platform/c
 import { IConfigurationService, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
 import { chatProgressConfigurationProperties } from '../../browser/chatProgressConfiguration.js';
 import { customizationMarketplaceConfigurationProperties, isAgentFinderPublicFeedAvailable, isCustomizationMarketplaceValueFromDefault } from '../../browser/aiCustomization/customizationMarketplaceConfiguration.js';
-import { CopilotCliConfigKey, copilotCliConfigSchema, isImageGenerationEnabledByDefault } from '../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { CopilotImageGenerationEnabledSettingId, CopilotImageGenerationModelSettingId } from '../../../../../platform/agentHost/common/copilotCliConfig.js';
 import '../../browser/agentSessionsConfiguration.js';
 import { IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 
@@ -28,6 +28,7 @@ const unifiedWorkspacePickerSetting = configurationProperties[ChatConfiguration.
 const migrations = Registry.as<IConfigurationMigrationRegistry & { readonly migrations: readonly ConfigurationMigration[] }>(WorkbenchConfigurationExtensions.ConfigurationMigration).migrations;
 const legacyAutoArchiveMigration = migrations.find(migration => migration.key === 'chat.agentSessions.autoArchiveMergedSessionsAfterDays');
 const legacyAutoDeleteArchivedMigration = migrations.find(migration => migration.key === 'chat.agentSessions.autoDeleteArchivedMergedSessionsAfterDays');
+const legacyImageGenerationMigration = migrations.find(migration => migration.key === CopilotImageGenerationEnabledSettingId);
 const legacyProgressAnimationMigration = migrations.find(migration => migration.key === ChatConfiguration.PersistentProgress);
 const legacyProgressVerbosityMigration = migrations.find(migration => migration.key === ChatConfiguration.PersistentProgressVerbosity);
 const persistentProgressSetting = chatProgressConfigurationProperties[ChatConfiguration.PersistentProgress];
@@ -35,27 +36,6 @@ const persistentProgressSetting = chatProgressConfigurationProperties[ChatConfig
 suite('Chat configuration', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('image generation defaults on in Insiders and off in Stable and development', () => {
-		assert.deepStrictEqual(['stable', 'insider', undefined].map(isImageGenerationEnabledByDefault), [false, true, false]);
-	});
-
-	test('the Sunburst setting description includes input/output rates and account availability', () => {
-		const description = copilotCliConfigSchema.definition[CopilotCliConfigKey.ImageGeneration].protocol.description;
-		assert.ok(description, 'The Sunburst setting must have a price description');
-		assert.deepStrictEqual({
-			availability: description.includes('when available to your account'),
-			unit: description.includes('AI credits per 1 million tokens'),
-			textRates: description.includes('**Text tokens:** 500 input / 0 output'),
-			imageRates: description.includes('**Image tokens:** 800 input / 3,000 output'),
-			additional: description.includes('in addition to the conversation model'),
-			variableRates: description.includes('Rates may change'),
-			notPerImage: description.includes('not per-image prices'),
-		}, {
-			availability: true, unit: true, textRates: true, imageRates: true,
-			additional: true, variableRates: true, notPerImage: true,
-		});
-	});
 
 	test('registers Agents Window settings in the shared workbench contribution', () => {
 		assert.deepStrictEqual(registeredAgentSessionsSettings, [true, true, true]);
@@ -297,6 +277,20 @@ suite('Chat configuration', () => {
 			activeAgentOff: [[activeAgentSetting, { value: undefined }], [strategySetting, { value: 'utility' }]],
 			activeAgentOffWithDeferredOn: [[activeAgentSetting, { value: undefined }], [strategySetting, { value: 'agentReview' }]],
 			activeAgentOnWithStrategySet: [[activeAgentSetting, { value: undefined }]],
+		});
+	});
+
+	test('migrates the legacy image generation setting to a model without overwriting it', async () => {
+		assert.deepStrictEqual({
+			includeApplication: legacyImageGenerationMigration?.includeApplication,
+			enabled: await legacyImageGenerationMigration?.migrateFn(true, () => undefined),
+			disabled: await legacyImageGenerationMigration?.migrateFn(false, () => undefined),
+			enabledWithModelSet: await legacyImageGenerationMigration?.migrateFn(true, setting => setting === CopilotImageGenerationModelSettingId ? 'off' : undefined),
+		}, {
+			includeApplication: true,
+			enabled: [[CopilotImageGenerationEnabledSettingId, { value: undefined }], [CopilotImageGenerationModelSettingId, { value: 'gpt-image-2.5-flare' }]],
+			disabled: [[CopilotImageGenerationEnabledSettingId, { value: undefined }], [CopilotImageGenerationModelSettingId, { value: 'off' }]],
+			enabledWithModelSet: [[CopilotImageGenerationEnabledSettingId, { value: undefined }]],
 		});
 	});
 });

@@ -11,7 +11,7 @@ import { IMarkerData, MarkerSeverity, MarkerTag } from '../../../../../../platfo
 import { ChatMode, IChatMode, IChatModeService } from '../../chatModes.js';
 import { ChatModeKind } from '../../constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
-import { ILanguageModelToolsService, SpecedToolAliases } from '../../tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, isToolSet, SpecedToolAliases } from '../../tools/languageModelToolsService.js';
 import { PromptsType, Target } from '../promptTypes.js';
 import { IMapValue, ISequenceValue, IHeaderAttribute, IScalarValue, isPromptFileTildePath, parseCommaSeparatedList, ParsedPromptFile, PromptHeader, IValue, PromptHeaderAttributes } from '../promptFileParser.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
@@ -24,10 +24,11 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { dirname } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { getCanonicalAgentHookName, getValidAgentHookNames } from '../hookTypes.js';
-import { claudeAgentAttributes as promptClaudeAgentAttributes, getAttributeDefinition, GithubPromptHeaderAttributes, githubCopilotAgentAttributes } from './promptFileAttributes.js';
+import { claudeAgentAttributes as promptClaudeAgentAttributes, getAttributeDefinition, GithubPromptHeaderAttributes, githubCopilotAgentAttributes, githubCopilotBodyPlaceholders } from './promptFileAttributes.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IPathService } from '../../../../../services/path/common/pathService.js';
 import { ICustomizationHarnessService } from '../../customizationHarnessService.js';
+import { getAgentFileModelReasoningEfforts, resolveAgentFileModelIdentifier, resolveAgentFileModelIdentifiers, resolveAgentFileModels } from './promptModelResolver.js';
 
 export const MARKERS_OWNER_ID = 'prompts-diagnostics-provider';
 
@@ -171,6 +172,10 @@ export class PromptValidator {
 		const fileReferenceChecks: Promise<void>[] = [];
 		let userHome: URI | undefined;
 		for (const ref of body.fileReferences) {
+			if (target === Target.GitHubCopilot && !ref.isMarkdownLink) {
+				report(toMarker(localize('promptValidator.copilotFileReferenceUnsupported', "Local '#file:' references are not expanded by the GitHub Copilot harness."), ref.range, MarkerSeverity.Hint, [MarkerTag.Unnecessary]));
+				continue;
+			}
 			if (isPromptFileTildePath(ref.content)) {
 				userHome ??= await this.pathService.userHome();
 			}
@@ -192,6 +197,21 @@ export class PromptValidator {
 						this.logger.warn(`Error checking existence of file reference '${ref.content}' resolved to '${resolved.toString()}' in prompt file '${promptAST.uri.toString()}': ${e.message}`);
 					}
 				})());
+			}
+		}
+
+		if (target === Target.GitHubCopilot) {
+			for (const placeholder of body.placeholderReferences) {
+				if (!Object.hasOwn(githubCopilotBodyPlaceholders, placeholder.name)) {
+					report(toMarker(localize('promptValidator.unknownCopilotPlaceholder', "Unknown GitHub Copilot placeholder '{{{0}}}'.", placeholder.name), placeholder.range, MarkerSeverity.Hint, [MarkerTag.Unnecessary]));
+				}
+			}
+			for (const variable of body.variableReferences) {
+				const tool = this.languageModelToolsService.getToolByFullReferenceName(variable.name);
+				const message = tool && isToolSet(tool)
+					? localize('promptValidator.copilotToolSetReferenceUnsupported', "Tool set '{0}' is not supported by the GitHub Copilot harness. List individual tools in the 'tools' frontmatter attribute.", variable.name)
+					: localize('promptValidator.copilotToolReferenceUnsupported', "Local '#tool:' reference '{0}' is not expanded by the GitHub Copilot harness.", variable.name);
+				report(toMarker(message, variable.range, MarkerSeverity.Hint, [MarkerTag.Unnecessary]));
 			}
 		}
 
@@ -371,7 +391,8 @@ export class PromptValidator {
 	}
 
 	private validateCopilotAgent(attributes: IHeaderAttribute[], target: Target, report: (markers: IMarkerData) => void): void {
-		this.validateCopilotModel(attributes, report);
+		this.validateCopilotModel(attributes, target, report);
+		this.validateCopilotReasoningEffort(attributes, target, report);
 		this.validateCopilotModelPolicy(attributes, report);
 		this.validateCopilotInfer(attributes, report);
 		this.validateHooks(attributes, target, report);
@@ -379,28 +400,64 @@ export class PromptValidator {
 		this.validateCopilotMcpServers(attributes, report);
 	}
 
-	private validateCopilotModel(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): void {
+	private validateCopilotModel(attributes: IHeaderAttribute[], target: Target, report: (markers: IMarkerData) => void): void {
 		const attribute = attributes.find(attr => attr.key === PromptHeaderAttributes.model);
 		if (!attribute) {
 			return;
 		}
+		const modelValues: IScalarValue[] = [];
 		if (attribute.value.type === 'scalar') {
 			if (attribute.value.value.trim().length === 0) {
 				report(toMarker(localize('promptValidator.modelMustBeNonEmpty', "The 'model' attribute must be a non-empty string."), attribute.value.range, MarkerSeverity.Error));
+			} else {
+				modelValues.push(attribute.value);
 			}
+		} else if (attribute.value.type !== 'sequence') {
 			return;
-		}
-		if (attribute.value.type !== 'sequence') {
-			return;
-		}
-		if (attribute.value.items.length === 0) {
+		} else if (attribute.value.items.length === 0) {
 			report(toMarker(localize('promptValidator.modelArrayMustNotBeEmpty', "The 'model' array must not be empty."), attribute.value.range, MarkerSeverity.Error));
 			return;
-		}
-		for (const item of attribute.value.items) {
-			if (item.type === 'scalar' && item.value.trim().length === 0) {
-				report(toMarker(localize('promptValidator.modelArrayItemMustBeNonEmpty', "Model names in the array must be non-empty strings."), item.range, MarkerSeverity.Error));
+		} else {
+			for (const item of attribute.value.items) {
+				if (item.type === 'scalar' && item.value.trim().length === 0) {
+					report(toMarker(localize('promptValidator.modelArrayItemMustBeNonEmpty', "Model names in the array must be non-empty strings."), item.range, MarkerSeverity.Error));
+				} else if (item.type === 'scalar') {
+					modelValues.push(item);
+				}
 			}
+		}
+
+		const catalogue = resolveAgentFileModels(target, this.customizationHarnessService, this.languageModelsService);
+		if (!catalogue.isResolved) {
+			return;
+		}
+		for (const model of modelValues) {
+			if (!resolveAgentFileModelIdentifier(model.value, catalogue.models)) {
+				report(toMarker(localize('promptValidator.copilotModelUnavailable', "Model '{0}' is not available for the GitHub Copilot harness.", model.value), model.range, MarkerSeverity.Hint, [MarkerTag.Unnecessary]));
+			}
+		}
+	}
+
+	private validateCopilotReasoningEffort(attributes: IHeaderAttribute[], target: Target, report: (markers: IMarkerData) => void): void {
+		const effort = attributes.find(attribute => attribute.key === PromptHeaderAttributes.reasoningEffort);
+		const modelAttribute = attributes.find(attribute => attribute.key === PromptHeaderAttributes.model);
+		if (effort?.value.type !== 'scalar' || !modelAttribute) {
+			return;
+		}
+		const selectedModelValues = modelAttribute.value.type === 'scalar'
+			? [modelAttribute.value.value]
+			: modelAttribute.value.type === 'sequence'
+				? modelAttribute.value.items.filter((item): item is IScalarValue => item.type === 'scalar').map(item => item.value)
+				: [];
+		const catalogue = resolveAgentFileModels(target, this.customizationHarnessService, this.languageModelsService);
+		if (!catalogue.isResolved) {
+			return;
+		}
+		const selectedModels = selectedModelValues
+			.flatMap(model => resolveAgentFileModelIdentifiers(model, catalogue.models));
+		const allowedEfforts = new Set(selectedModels.flatMap(model => getAgentFileModelReasoningEfforts(model)));
+		if (allowedEfforts.size > 0 && !allowedEfforts.has(effort.value.value)) {
+			report(toMarker(localize('promptValidator.copilotReasoningEffortUnavailable', "Reasoning effort '{0}' is not supported by the selected model.", effort.value.value), effort.value.range, MarkerSeverity.Hint, [MarkerTag.Unnecessary]));
 		}
 	}
 

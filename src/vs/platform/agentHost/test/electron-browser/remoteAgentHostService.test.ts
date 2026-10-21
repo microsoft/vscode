@@ -30,6 +30,9 @@ import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo } from
 import { AHP_UNSUPPORTED_PROTOCOL_VERSION, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { computeReconnectDelay } from '../../common/reconnectPolicy.js';
 import { AgentHostTransportFailureReason, NonReconnectableTransportError } from '../../common/state/sessionTransport.js';
+import { AgentHostAuthenticationPendingError, IAgentHostAdvertisedAuthenticationResolver } from '../../common/agentHostAdvertisedAuthentication.js';
+import type { AgentInfo } from '../../common/state/sessionState.js';
+import type { AuthenticateParams } from '../../common/agent.js';
 
 interface IRemoteAgentHostServiceTestAccess {
 	readonly _reconnectAttempts: Map<string, number>;
@@ -302,6 +305,8 @@ suite('RemoteAgentHostService', () => {
 	let instantiationService: TestInstantiationService;
 	let service: RemoteAgentHostService;
 	let storageService: TestStorageService;
+	let resolveAuthentication: (address: string, agents: readonly AgentInfo[]) => Promise<readonly AuthenticateParams[]>;
+	let createdClientOptions: (IAgentHostProtocolClientOptions | undefined)[];
 
 	setup(() => {
 		configService = new TestConfigurationService();
@@ -309,11 +314,17 @@ suite('RemoteAgentHostService', () => {
 
 		createdClients = [];
 		createdClientInfos = [];
+		createdClientOptions = [];
+		resolveAuthentication = async () => [];
 
 		instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IEnvironmentService, { logsHome: URI.file('/logs') } as Partial<IEnvironmentService>);
 		instantiationService.stub(IConfigurationService, configService as Partial<IConfigurationService>);
+		instantiationService.stub(IAgentHostAdvertisedAuthenticationResolver, {
+			createResolver: address => ({ resolve: agents => resolveAuthentication(address, agents), dispose: () => { } }),
+			takePendingSessionRemovals: () => [],
+		});
 		storageService = disposables.add(new TestStorageService());
 		instantiationService.stub(IStorageService, storageService);
 		registeredFormatters = [];
@@ -340,8 +351,12 @@ suite('RemoteAgentHostService', () => {
 				if (ctorName === 'WebSocketClientTransport') {
 					return disposables.add(new MockTransport());
 				}
+				if (ctorName === 'WebSocketConnectionFactory') {
+					return instantiationService.createInstance(ctor as new (...args: unknown[]) => IRemoteAgentHostConnectionFactory, ...args);
+				}
 				const client = new MockProtocolClient(args[0] as string);
 				createdClientInfos.push((args[2] as IAgentHostProtocolClientOptions | undefined)?.clientInfo);
+				createdClientOptions.push(args[2] as IAgentHostProtocolClientOptions | undefined);
 				disposables.add(client);
 				createdClients.push(client);
 				return client;
@@ -350,6 +365,27 @@ suite('RemoteAgentHostService', () => {
 		instantiationService.stub(IInstantiationService, mockInstantiationService as Partial<IInstantiationService>);
 
 		service = disposables.add(instantiationService.createInstance(RemoteAgentHostService));
+	});
+
+	test('WebSocket connections resolve advertised credentials during their handshake', async () => {
+		const requests = [{ resource: 'https://api.example.com', token: 'existing-token' }];
+		const calls: { address: string; agents: readonly AgentInfo[] }[] = [];
+		resolveAuthentication = async (address, agents) => {
+			calls.push({ address, agents });
+			return requests;
+		};
+		configService.setEntries([{ name: 'Host', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'localhost:8080' } }]);
+		await timeout(0);
+		const agents: AgentInfo[] = [{ provider: 'copilot', displayName: 'Test', description: 'test', models: [] }];
+		assert.deepStrictEqual({
+			requests: await createdClientOptions[0]?.resolveAdvertisedAuthentication?.(agents),
+			calls,
+			incompatible: RemoteAgentHostConnectionStatus.fromConnectError(new AgentHostAuthenticationPendingError('https://api.example.com'), []),
+		}, {
+			requests,
+			calls: [{ address: 'localhost:8080', agents }],
+			incompatible: undefined,
+		});
 	});
 
 	test('round-trips persisted entry types through their configuration', () => {

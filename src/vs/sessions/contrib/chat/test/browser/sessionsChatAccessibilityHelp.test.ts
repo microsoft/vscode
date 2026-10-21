@@ -39,6 +39,7 @@ import { SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT, SessionsListPromoteNewCh
 import { SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
 import { RemoteSessionToolsEnabledSettingId } from '../../../remoteSessions/common/remoteSessions.js';
 import { DevContainerAgentHostEnabledSettingId, DevContainerSamplesEnabledSettingId } from '../../../../common/devContainerAgentHostService.js';
+import { getCloudSandboxPreparationAccessibilityHelp } from '../../../../../workbench/contrib/chat/browser/actions/chatAccessibilityHelp.js';
 suite('SessionsChatAccessibilityHelp', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -68,7 +69,8 @@ suite('SessionsChatAccessibilityHelp', () => {
 			markRead: content.includes('as read<keybinding:agentSession.markRead>'),
 			markUnread: content.includes('or unread<keybinding:agentSession.markUnread> without opening them'),
 			nestedReadState: content.includes('change only the targeted nested sessions, not their parent'),
-		}, { back: true, forward: true, singletonViews: true, parentContext: true, independentDrag: true, newSessionDrag: true, independentVisibility: true, positionalPaneFocus: true, keyboardDetach: true, keyboardMove: true, markRead: true, markUnread: true, nestedReadState: true });
+			earlyPreparation: content.includes(getCloudSandboxPreparationAccessibilityHelp()),
+		}, { back: true, forward: true, singletonViews: true, parentContext: true, independentDrag: true, newSessionDrag: true, independentVisibility: true, positionalPaneFocus: true, keyboardDetach: true, keyboardMove: true, markRead: true, markUnread: true, nestedReadState: true, earlyPreparation: true });
 	});
 
 	test('documents connector recommendations when the marketplace is available', () => {
@@ -87,7 +89,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
 			return store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent()
-				.includes('three connector cards offer Linear, Notion, and WorkIQ');
+				.includes('No connector recommendation appears without a matching URL');
 		});
 
 		assert.deepStrictEqual(enabled, [false, true]);
@@ -106,6 +108,24 @@ suite('SessionsChatAccessibilityHelp', () => {
 		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
 
 		assert.ok(content.includes('When GitHub sandboxes are enabled, choose Cloud in the harness picker to chat without a repository or pull request.'));
+	});
+
+	test('documents nested chats in quick chats and moving chats with their folder', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configuration);
+		stubContextKeyService(instantiationService, configuration);
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
+
+		assert.deepStrictEqual({
+			nested: content.includes('Quick chats can have nested chats: use New Nested Session'),
+			move: content.includes('Chats move between quick chats and workspace sessions and keep their folder.'),
+		}, { nested: true, move: true });
 	});
 
 	test('documents background sandbox waking and connection feedback on input', () => {

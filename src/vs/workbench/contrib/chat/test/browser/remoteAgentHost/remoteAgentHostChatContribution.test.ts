@@ -11,6 +11,7 @@ import { Disposable, toDisposable } from '../../../../../../base/common/lifecycl
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentConnection, type AuthenticateParams } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostAdvertisedAuthenticationResolver } from '../../../../../../platform/agentHost/common/agentHostAdvertisedAuthentication.js';
 import { IAgentHostMcpAuthenticationRequest } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { ICloudSandboxAgentHostService } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -132,6 +133,7 @@ suite('Remote Agent Host silent MCP authentication', () => {
 		}());
 		instantiation.stub(IConfigurationService, new TestConfigurationService());
 		instantiation.stub(ILogService, store.add(new NullLogService()));
+		instantiation.stub(IAgentHostAdvertisedAuthenticationResolver, { takePendingSessionRemovals: () => [] });
 		instantiation.stub(ILabelService, { getHostLabel: () => 'Remote' });
 		instantiation.stub(ITelemetryService, NullTelemetryService);
 		store.add(instantiation.createInstance(RemoteAgentHostContribution));

@@ -349,6 +349,16 @@ export const githubCopilotMcpRemoteServerProperties: Record<string, IAttributeDe
 	deferTools: githubCopilotMcpLocalServerProperties.deferTools,
 };
 
+export const githubCopilotBodyPlaceholders: Record<string, string> = {
+	cwd: localize('promptBody.githubCopilot.cwd', 'Current working directory.'),
+	homedir: localize('promptBody.githubCopilot.homedir', "User's home directory."),
+	configDir: localize('promptBody.githubCopilot.configDir', 'Copilot configuration directory.'),
+	grepToolName: localize('promptBody.githubCopilot.grepToolName', 'Effective file-content search tool name.'),
+	globToolName: localize('promptBody.githubCopilot.globToolName', 'Effective file-globbing tool name.'),
+	shellToolName: localize('promptBody.githubCopilot.shellToolName', 'Effective shell tool name.'),
+	shellCommandExamples: localize('promptBody.githubCopilot.shellCommandExamples', 'Shell-appropriate command examples.'),
+};
+
 // Attribute metadata for skill files (`SKILL.md`).
 export const skillAttributes: Record<string, IAttributeDefinition> = {
 	[PromptHeaderAttributes.name]: {

@@ -46,12 +46,10 @@
 	color: var(--vscode-icon-foreground);
 }
 
-.chat-voice-input-mode-cell.voice.listening {
-	color: var(--voice-color-listening, var(--vscode-charts-blue, #58a6ff));
-}
-
+.chat-voice-input-mode-cell.voice.on,
+.chat-voice-input-mode-cell.voice.listening,
 .chat-voice-input-mode-cell.voice.speaking {
-	color: var(--voice-color-speaking, var(--vscode-charts-purple, #a371f7));
+	color: var(--voice-color-listening, var(--vscode-charts-blue, #58a6ff));
 }
 
 /* Compact glyph size, matching the agent / model picker icons that sit beside the pill.
