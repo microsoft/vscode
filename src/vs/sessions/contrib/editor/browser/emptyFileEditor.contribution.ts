@@ -6,6 +6,8 @@
 import { localize, localize2 } from '../../../../nls.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationNode, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
@@ -22,6 +24,7 @@ import { SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING } from '../../../common/sess
 import { EmptyFileEditor } from './emptyFileEditor.js';
 import { EmptyFileEditorAccessibilityHelp } from './emptyFileEditorAccessibility.js';
 import { EmptyFileEditorInput, EmptyFileEditorSerializer } from './emptyFileEditorInput.js';
+import { EmptyFileEditorSearchPickerFocusedContext } from './emptyFileEditorSearch.js';
 
 /**
  * Registers the empty-file editor (the "Select a file or search with <kbd>" placeholder pane) and
@@ -68,6 +71,13 @@ MenuRegistry.appendMenuItem(Menus.EmptyFileEditorActions, {
 	},
 	group: 'navigation',
 	order: 1,
+});
+// The search picker renders outside the editor area, where Cmd+N otherwise starts a new session.
+KeybindingsRegistry.registerKeybindingRule({
+	id: NEW_UNTITLED_FILE_COMMAND_ID,
+	weight: KeybindingWeight.SessionsContrib + 1,
+	when: EmptyFileEditorSearchPickerFocusedContext,
+	primary: KeyMod.CtrlCmd | KeyCode.KeyN,
 });
 
 export const emptyFileEditorConfiguration = {

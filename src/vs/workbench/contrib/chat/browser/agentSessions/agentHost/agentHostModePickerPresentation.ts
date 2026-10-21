@@ -17,26 +17,11 @@ import { localize } from '../../../../../../nls.js';
 import { ActionListItemKind, IActionListItem, IActionListOptions } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { getSessionApprovalProperty, getSessionModeProperty } from '../../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { SessionConfigPropertySchema } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { TerminalContribSettingId } from '../../../../terminal/terminalContribExports.js';
-import { ChatConfiguration, ChatPermissionLevel } from '../../../common/constants.js';
+import { ChatPermissionLevel } from '../../../common/constants.js';
 import { getCompactCodicon } from '../../chatIcons.js';
 import { renderChatInputPickerSplit } from '../../widget/input/chatInputPickerActionItem.js';
 
-export const AGENT_HOST_PERMISSIONS_SETTINGS_QUERY = `@id:${[
-	ChatConfiguration.DefaultConfiguration,
-	ChatConfiguration.DefaultPermissionLevel,
-	ChatConfiguration.GlobalAutoApprove,
-	ChatConfiguration.AutoApproveEdits,
-	ChatConfiguration.AutoApprovedUrls,
-	ChatConfiguration.EligibleForAutoApproval,
-	'chat.tools.riskAssessment.*',
-	TerminalContribSettingId.EnableAutoApprove,
-	TerminalContribSettingId.AutoApprove,
-	TerminalContribSettingId.AutoApproveWorkspaceNpmScripts,
-	TerminalContribSettingId.IgnoreDefaultAutoApproveRules,
-	TerminalContribSettingId.BlockDetectedFileWrites,
-	'chat.agent.sandbox.*',
-].join(',')}`;
+export const AGENT_HOST_PERMISSIONS_SETTINGS_QUERY = '@tag:chatPermissions';
 
 export interface IModePickerPermissions {
 	readonly label: string;
@@ -55,7 +40,7 @@ export const MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE = 'data-mode-permissions-pic
 
 export function getPermissionLevelBadge(level: string): { readonly badge?: string; readonly className?: string } {
 	return level === ChatPermissionLevel.Assisted ? {
-		badge: localize('agentHostModePicker.experimental', "Experimental"),
+		badge: localize('agentHostModePicker.new', "New"),
 		className: 'agent-host-assisted-permissions',
 	} : {};
 }

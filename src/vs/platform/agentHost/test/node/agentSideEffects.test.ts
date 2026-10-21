@@ -122,6 +122,7 @@ class FakeChangesetService implements IAgentHostChangesetService {
 	refreshChangesetCatalog(session: string): void { /* no-op */ }
 	refreshBranchChangeset(): void { /* no-op */ }
 	refreshSessionChangeset(): void { /* no-op */ }
+	refreshWorkingSetChangeset(): void { }
 	onWorkingDirectoryAvailable(): void { /* no-op */ }
 	recomputeSubscribedChangesets(): void { /* no-op */ }
 	async computeUncommittedChangeset(session: string): Promise<string> { return `${session}/changeset/uncommitted`; }
@@ -142,6 +143,7 @@ class FakeChangesetService implements IAgentHostChangesetService {
 	openTrackedTurnDatabase(): undefined { return undefined; }
 	openTrackedSessionDatabases() { return { sources: [], otherChatDatabases: [], workingDirectories: undefined, folderScope: undefined, dispose: () => { } }; }
 	onFileEditsDiscarded(): void { }
+	onFileEditsAccepted(): void { }
 	ensureChatChangesSummary(): void { }
 	refreshChatChangesSummary(): void { }
 }
@@ -206,6 +208,23 @@ function createNoopCustomizationEnablementService(): IAgentHostCustomizationEnab
 }
 
 let customizationEnablementService = createNoopCustomizationEnablementService();
+
+/** The session state store {@link createTestSideEffects} created for each {@link AgentSideEffects}. */
+const testSessionStateStores = new WeakMap<AgentSideEffects, IAgentHostSessionStateStore>();
+
+/**
+ * Resolves once the metadata writes `sideEffects` has started so far have landed. Session flags and config values
+ * are queued on its session state store, which mirrors them to the session database before its `whenIdle` resolves;
+ * titles are written to the session database directly, so `database`'s in-flight writes are awaited as well.
+ */
+async function whenTestSideEffectsPersisted(sideEffects: AgentSideEffects, database?: SessionDatabase): Promise<void> {
+	const sessionStateStore = testSessionStateStores.get(sideEffects);
+	if (!sessionStateStore) {
+		throw new Error('AgentSideEffects was not created by createTestSideEffects');
+	}
+	await sessionStateStore.whenIdle(undefined);
+	await database?.whenIdle();
+}
 
 /**
  * Constructs an {@link AgentSideEffects} with a minimal local instantiation
@@ -316,7 +335,9 @@ function createTestSideEffects(
 		...options,
 		localTurns,
 	};
-	return disposables.add(instantiationService.createInstance(AgentSideEffects, stateManager, customizationEnablementService, resolvedOptions));
+	const sideEffects = disposables.add(instantiationService.createInstance(AgentSideEffects, stateManager, customizationEnablementService, resolvedOptions));
+	testSessionStateStores.set(sideEffects, sessionStateStore);
+	return sideEffects;
 }
 
 /**
@@ -380,7 +401,7 @@ suite('AgentSideEffects', () => {
 			_meta: meta,
 			defaultChat: buildDefaultChatUri(sessionUri.toString()),
 		});
-		stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString(), false));
+		stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString(), false, false));
 		stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady, });
 	}
 
@@ -1463,7 +1484,7 @@ suite('AgentSideEffects', () => {
 				workingDirectories: [workingDirectory],
 				defaultChat: buildDefaultChatUri(session.toString()),
 			});
-			stateManager.setSessionChangesets(session.toString(), buildDefaultChangesetCatalog(session.toString(), false));
+			stateManager.setSessionChangesets(session.toString(), buildDefaultChangesetCatalog(session.toString(), false, false));
 			stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionReady });
 		}
 
@@ -1887,7 +1908,7 @@ suite('AgentSideEffects', () => {
 				workingDirectories: [repository.toString()],
 				defaultChat: buildDefaultChatUri(sessionUri.toString()),
 			});
-			stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString(), false));
+			stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString(), false, false));
 			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady });
 			const diskFileService = disposables.add(new FileService(new NullLogService()));
 			disposables.add(diskFileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
@@ -1926,7 +1947,7 @@ suite('AgentSideEffects', () => {
 				workingDirectories: [repository.toString()],
 				defaultChat: buildDefaultChatUri(sessionUri.toString()),
 			});
-			stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString(), false));
+			stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString(), false, false));
 			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady });
 			const diskFileService = disposables.add(new FileService(new NullLogService()));
 			disposables.add(diskFileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
@@ -1988,7 +2009,7 @@ suite('AgentSideEffects', () => {
 				workingDirectories: [repository.toString()],
 				defaultChat: buildDefaultChatUri(sessionUri.toString()),
 			});
-			stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString(), false));
+			stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString(), false, false));
 			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady });
 			const diskFileService = disposables.add(new FileService(new NullLogService()));
 			disposables.add(diskFileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
@@ -2036,7 +2057,7 @@ suite('AgentSideEffects', () => {
 				workingDirectories: [repository.toString()],
 				defaultChat: buildDefaultChatUri(sessionUri.toString()),
 			});
-			stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString(), false));
+			stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString(), false, false));
 			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady });
 			const diskFileService = disposables.add(new FileService(new NullLogService()));
 			disposables.add(diskFileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
@@ -3180,7 +3201,7 @@ suite('AgentSideEffects', () => {
 				workingDirectories: [repository.toString()],
 				defaultChat: buildDefaultChatUri(sessionUri.toString()),
 			});
-			stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString(), false));
+			stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString(), false, false));
 			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady });
 			const diskFileService = disposables.add(new FileService(new NullLogService()));
 			disposables.add(diskFileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
@@ -3624,13 +3645,6 @@ suite('AgentSideEffects', () => {
 			return { sideEffects: persisting, db };
 		}
 
-		/** Session flags are written through the state store, so the db write lands asynchronously. */
-		async function waitForDbValue(read: () => Promise<string | undefined> | string | undefined, expected: string): Promise<void> {
-			for (let i = 0; i < 200 && await read() !== expected; i++) {
-				await timeout(5);
-			}
-		}
-
 		test('marks a read session unread when a turn completes', () => {
 			const { sideEffects: persisting } = setupPersisting();
 			setupSession();
@@ -3686,12 +3700,12 @@ suite('AgentSideEffects', () => {
 				action: { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 },
 			});
 
-			await waitForDbValue(() => db.getMetadata('isRead'), '');
+			await whenTestSideEffectsPersisted(persisting);
 			assert.strictEqual(await db.getMetadata('isRead'), '');
 		});
 
 		test('persists read state exactly once for client- and server-dispatched changes', async () => {
-			const { db } = setupPersisting();
+			const { sideEffects: persisting, db } = setupPersisting();
 			setupSession();
 
 			// A client marking the session read (e.g. the user opened it in the
@@ -3702,7 +3716,7 @@ suite('AgentSideEffects', () => {
 			// A rejected client action never reached state and must not persist.
 			stateManager.rejectClientAction(sessionUri.toString(), { type: ActionType.SessionIsReadChanged, isRead: true }, { clientId: 'client-1', clientSeq: 2 }, 'nope');
 
-			await waitForDbValue(() => db.setMetadataCalls.filter(c => c.key === 'isRead').map(c => c.value).join('|'), 'true|');
+			await whenTestSideEffectsPersisted(persisting);
 			assert.deepStrictEqual(db.setMetadataCalls.filter(c => c.key === 'isRead'), [
 				{ key: 'isRead', value: 'true' },
 				{ key: 'isRead', value: '' },
@@ -4649,7 +4663,13 @@ suite('AgentSideEffects', () => {
 				{ type: CustomizationType.Plugin, id: customizationId('file:///plugin-a'), uri: 'file:///plugin-a', name: 'Plugin A', load: { kind: CustomizationLoadStatus.Loaded } },
 			];
 			let fetchCalls = 0;
-			agent.getSessionCustomizations = async () => { fetchCalls++; return makeCustomizations(); };
+			const thirdFetch = new DeferredPromise<void>();
+			agent.getSessionCustomizations = async () => {
+				if (++fetchCalls === 3) {
+					thirdFetch.complete();
+				}
+				return makeCustomizations();
+			};
 
 			const changed: ActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(e => {
@@ -4669,10 +4689,8 @@ suite('AgentSideEffects', () => {
 			// re-publish, even though each fetch returns a brand-new array.
 			agent.fireCustomizationsChange();
 			agent.fireCustomizationsChange();
-			const deadline = Date.now() + 5000;
-			while (fetchCalls < 3 && Date.now() < deadline) {
-				await timeout(5);
-			}
+			// Publishes are serialized per session, so the second re-fetch was compared before the third started.
+			await thirdFetch.p;
 			assert.strictEqual(changed.length, 1, 'identical customizations must not re-publish');
 			assert.ok(fetchCalls >= 3, 'each change still re-fetches to compare');
 		});
@@ -7261,17 +7279,14 @@ suite('AgentSideEffects', () => {
 			sessionDb = disposables.add(await SessionDatabase.open(':memory:'));
 		});
 
-		async function waitForMetadata(key: string, expectedValue?: string): Promise<string> {
-			for (let attempt = 0; attempt < 100; attempt++) {
-				const value = await sessionDb.getMetadata(key);
-				if (value !== undefined && (expectedValue === undefined || value === expectedValue)) {
-					return value;
-				}
-				await timeout(10);
+		/** Reads `key` from the session database once every metadata write `sideEffects` started has landed. */
+		async function readPersistedMetadata(sideEffects: AgentSideEffects, key: string): Promise<string> {
+			await whenTestSideEffectsPersisted(sideEffects, sessionDb);
+			const value = await sessionDb.getMetadata(key);
+			if (value === undefined) {
+				throw new Error(`Session metadata '${key}' was not persisted`);
 			}
-			throw new Error(expectedValue === undefined
-				? `Session metadata '${key}' was not persisted`
-				: `Session metadata '${key}' did not reach '${expectedValue}'`);
+			return value;
 		}
 
 		teardown(async () => {
@@ -7305,7 +7320,7 @@ suite('AgentSideEffects', () => {
 				title: 'Custom Title',
 			});
 
-			assert.strictEqual(await waitForMetadata('customTitle'), 'Custom Title');
+			assert.strictEqual(await readPersistedMetadata(localSideEffects, 'customTitle'), 'Custom Title');
 		});
 
 		test('default chat title change updates and persists the session title', async () => {
@@ -7335,14 +7350,14 @@ suite('AgentSideEffects', () => {
 				title: 'Renamed Default',
 			});
 
-			// Adding the peer persists the inherited default chat title first, so wait for the renamed values.
+			// Adding the peer persists the inherited default chat title first, so the renamed values must win once all writes landed.
 			assert.deepStrictEqual({
 				sessionTitle: localStateManager.getSessionState(sessionUri.toString())?.title,
 				defaultChatTitle: localStateManager.getChatState(defaultChat)?.title,
-				persistedSessionTitle: await waitForMetadata(SESSION_CUSTOM_TITLE_KEY, 'Renamed Default'),
-				persistedSessionSource: await waitForMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY, 'user'),
-				persistedChatTitle: await waitForMetadata(customChatTitleMetadataKey(defaultChat), 'Renamed Default'),
-				persistedChatSource: await waitForMetadata(customChatTitleSourceMetadataKey(defaultChat), 'user'),
+				persistedSessionTitle: await readPersistedMetadata(localSideEffects, SESSION_CUSTOM_TITLE_KEY),
+				persistedSessionSource: await readPersistedMetadata(localSideEffects, SESSION_CUSTOM_TITLE_SOURCE_KEY),
+				persistedChatTitle: await readPersistedMetadata(localSideEffects, customChatTitleMetadataKey(defaultChat)),
+				persistedChatSource: await readPersistedMetadata(localSideEffects, customChatTitleSourceMetadataKey(defaultChat)),
 			}, {
 				sessionTitle: 'Renamed Default',
 				defaultChatTitle: 'Renamed Default',
@@ -7360,7 +7375,7 @@ suite('AgentSideEffects', () => {
 			const localStateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 			const localAgent = new MockAgent();
 			disposables.add(toDisposable(() => localAgent.dispose()));
-			createTestSideEffects(disposables, localStateManager, {
+			const localSideEffects = createTestSideEffects(disposables, localStateManager, {
 				getAgent: () => localAgent,
 				agents: observableValue<readonly IAgent[]>('agents', [localAgent]),
 				sessionDataService,
@@ -7379,8 +7394,8 @@ suite('AgentSideEffects', () => {
 			localStateManager.addChat(sessionUri.toString(), buildChatUri(sessionUri.toString(), 'peer'), creationTimeChatStorageResource(sessionUri.toString(), buildChatUri(sessionUri.toString(), 'peer'), buildDefaultChatUri(sessionUri.toString())), { title: 'Peer' });
 
 			assert.deepStrictEqual({
-				title: await waitForMetadata(customChatTitleMetadataKey(defaultChat)),
-				source: await waitForMetadata(customChatTitleSourceMetadataKey(defaultChat)),
+				title: await readPersistedMetadata(localSideEffects, customChatTitleMetadataKey(defaultChat)),
+				source: await readPersistedMetadata(localSideEffects, customChatTitleSourceMetadataKey(defaultChat)),
 			}, {
 				title: 'Initial',
 				source: 'auto',
@@ -7393,7 +7408,7 @@ suite('AgentSideEffects', () => {
 			const localStateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 			const localAgent = new MockAgent();
 			disposables.add(toDisposable(() => localAgent.dispose()));
-			createTestSideEffects(disposables, localStateManager, {
+			const localSideEffects = createTestSideEffects(disposables, localStateManager, {
 				getAgent: () => localAgent,
 				agents: observableValue<readonly IAgent[]>('agents', [localAgent]),
 				sessionDataService: createSessionDataService(sessionDb),
@@ -7409,7 +7424,7 @@ suite('AgentSideEffects', () => {
 			});
 
 			localStateManager.addChat(sessionUri.toString(), buildChatUri(sessionUri.toString(), 'peer'), creationTimeChatStorageResource(sessionUri.toString(), buildChatUri(sessionUri.toString(), 'peer'), buildDefaultChatUri(sessionUri.toString())), { title: 'Peer' });
-			await timeout(10);
+			await whenTestSideEffectsPersisted(localSideEffects, sessionDb);
 
 			assert.strictEqual(await sessionDb.getMetadata(customChatTitleMetadataKey(defaultChat)), 'Existing');
 		});
@@ -7442,10 +7457,10 @@ suite('AgentSideEffects', () => {
 			});
 
 			assert.deepStrictEqual({
-				chatTitle: await waitForMetadata(customChatTitleMetadataKey(defaultChat), 'Newer'),
-				chatSource: await waitForMetadata(customChatTitleSourceMetadataKey(defaultChat), 'user'),
-				sessionTitle: await waitForMetadata(SESSION_CUSTOM_TITLE_KEY, 'Newer'),
-				sessionSource: await waitForMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY, 'user'),
+				chatTitle: await readPersistedMetadata(localSideEffects, customChatTitleMetadataKey(defaultChat)),
+				chatSource: await readPersistedMetadata(localSideEffects, customChatTitleSourceMetadataKey(defaultChat)),
+				sessionTitle: await readPersistedMetadata(localSideEffects, SESSION_CUSTOM_TITLE_KEY),
+				sessionSource: await readPersistedMetadata(localSideEffects, SESSION_CUSTOM_TITLE_SOURCE_KEY),
 			}, {
 				chatTitle: 'Newer',
 				chatSource: 'user',
@@ -7569,7 +7584,7 @@ suite('AgentSideEffects', () => {
 				config: { autoApprove: 'autoApprove' },
 			});
 
-			const persisted = await waitForMetadata('configValues');
+			const persisted = await readPersistedMetadata(localSideEffects, 'configValues');
 			assert.deepStrictEqual(JSON.parse(persisted), { autoApprove: 'autoApprove' });
 		});
 
@@ -7578,7 +7593,7 @@ suite('AgentSideEffects', () => {
 			const localStateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 			const localAgent = new MockAgent();
 			disposables.add(toDisposable(() => localAgent.dispose()));
-			createTestSideEffects(disposables, localStateManager, {
+			const localSideEffects = createTestSideEffects(disposables, localStateManager, {
 				getAgent: () => localAgent,
 				agents: observableValue<readonly IAgent[]>('agents', [localAgent]),
 				sessionDataService,
@@ -7601,7 +7616,7 @@ suite('AgentSideEffects', () => {
 				config: { mode: 'interactive' },
 			});
 
-			const persisted = await waitForMetadata('configValues');
+			const persisted = await readPersistedMetadata(localSideEffects, 'configValues');
 			assert.deepStrictEqual(JSON.parse(persisted), { mode: 'interactive', autoApprove: 'default' });
 		});
 

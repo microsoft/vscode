@@ -21,7 +21,7 @@ import { localize } from '../../../../nls.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { IAccessibleViewService } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { FileOperationResult, IFileService, IFileStat, toFileOperationResult } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -61,7 +61,6 @@ export class EmptyFileEditorSearch extends Disposable {
 	private workspace: ISessionWorkspace | undefined;
 	private accessibilityHelpHintAnnounced = false;
 	private readonly fileQueryBuilder: QueryBuilder;
-	private readonly pickerFocusedContext: IContextKey<boolean>;
 
 	constructor(
 		container: HTMLElement,
@@ -78,9 +77,6 @@ export class EmptyFileEditorSearch extends Disposable {
 	) {
 		super();
 		this.fileQueryBuilder = instantiationService.createInstance(QueryBuilder);
-		this.pickerFocusedContext = EmptyFileEditorSearchPickerFocusedContext.bindTo(contextKeyService);
-		this._register(toDisposable(() => this.pickerFocusedContext.reset()));
-
 		const scopedContextKeyService = this._register(contextKeyService.createScoped(container));
 		const focusedContext = EmptyFileEditorSearchFocusedContext.bindTo(scopedContextKeyService);
 		const focusTracker = this._register(dom.trackFocus(container));
@@ -118,6 +114,19 @@ export class EmptyFileEditorSearch extends Disposable {
 				this.input.value = '';
 			}
 		}));
+	}
+
+	/**
+	 * Focuses the search input if it has no text. A non-empty input is left alone because
+	 * focusing it would reopen the search results.
+	 * @returns whether the input was focused.
+	 */
+	focusIfEmpty(): boolean {
+		if (this.input.value) {
+			return false;
+		}
+		this.input.focus();
+		return true;
 	}
 
 	setWorkspace(workspace: ISessionWorkspace | undefined): void {
@@ -175,7 +184,9 @@ export class EmptyFileEditorSearch extends Disposable {
 		}
 		const picker = currentQuickInput as IQuickPick<IQuickPickItem, { useSeparators: true }>;
 		this.picker = picker;
-		this.pickerFocusedContext.set(true);
+		// The picker renders outside the editor group, so its context key must be set by the quick input service
+		// (window-wide while visible) to be visible to keybindings and accessibility help evaluated from the picker.
+		picker.contextKey = EmptyFileEditorSearchPickerFocusedContext.key;
 		disposables.add(toDisposable(() => picker.hide()));
 		disposables.add(Event.once(this.quickInputService.onHide)(() => {
 			if (this.picker !== picker) {
@@ -186,7 +197,6 @@ export class EmptyFileEditorSearch extends Disposable {
 			this.setInputValue(picker.value);
 			this.inputContainer.style.visibility = '';
 			this.picker = undefined;
-			this.pickerFocusedContext.reset();
 			this.pickerDisposables.clear();
 			if (restoreInputFocus) {
 				this.input.focus();

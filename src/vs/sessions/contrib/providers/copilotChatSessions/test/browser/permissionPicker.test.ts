@@ -122,12 +122,12 @@ suite('Copilot PermissionPicker', () => {
 
 			assert.deepStrictEqual(levels, [
 				{ label: 'Default permissions', badge: undefined, ariaLabel: null, disabled: false },
-				{ label: 'Assisted permissions', badge: 'Experimental', ariaLabel: 'Assisted permissions, Experimental, Evaluates risk before running tools', disabled: policyRestricted },
+				{ label: 'Assisted permissions', badge: 'New', ariaLabel: 'Assisted permissions, New, Evaluates risk before running tools', disabled: policyRestricted },
 				{ label: 'Allow all', badge: undefined, ariaLabel: null, disabled: policyRestricted },
 			]);
 		});
 
-		test(`offers experimental Assisted permissions by default${policyRestricted ? ' but disables it under enterprise policy' : ''}`, async () => {
+		test(`labels Assisted permissions as new by default${policyRestricted ? ' but disables it under enterprise policy' : ''}`, async () => {
 			const configurationService = new class extends TestConfigurationService {
 				override inspect<T>(key: string): IConfigurationValue<T> {
 					const result = super.inspect<T>(key);
@@ -167,7 +167,7 @@ suite('Copilot PermissionPicker', () => {
 			}, {
 				levels: [
 					{ label: 'Default permissions', badge: undefined, disabled: false },
-					{ label: 'Assisted permissions', badge: 'Experimental', disabled: policyRestricted },
+					{ label: 'Assisted permissions', badge: 'New', disabled: policyRestricted },
 					{ label: 'Allow all', badge: undefined, disabled: policyRestricted },
 				],
 				hover: policyRestricted ? 'Disabled by enterprise policy' : 'An LLM judge evaluates each tool call. Tools it doesn\'t approve require your approval.',

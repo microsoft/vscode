@@ -981,39 +981,10 @@ export default defineConfig(
 				{
 					// Files should (only) be removed from the list once they no longer poll
 					'exclude': [
-						'src/vs/platform/agentHost/test/electron-browser/agentHostProtocolClient.test.ts',
-						'src/vs/platform/agentHost/test/electron-browser/remoteAgentHostService.test.ts',
-						'src/vs/platform/agentHost/test/node/agentHostChangesetService.test.ts',
 						'src/vs/platform/agentHost/test/node/agentHostDebugLogs.test.ts',
-						'src/vs/platform/agentHost/test/node/agentHostSessionStateStore.test.ts',
-						'src/vs/platform/agentHost/test/node/agentHostSessionTitleController.test.ts',
-						'src/vs/platform/agentHost/test/node/agentHostTerminalManager.test.ts',
-						'src/vs/platform/agentHost/test/node/agentHostWorktreeCleanupService.test.ts',
 						'src/vs/platform/agentHost/test/node/agentService.test.ts',
-						'src/vs/platform/agentHost/test/node/agentSessionResidency.test.ts',
-						'src/vs/platform/agentHost/test/node/agentSideEffects.test.ts',
-						'src/vs/platform/agentHost/test/node/codex/codexModelRefresh.test.ts',
-						'src/vs/platform/agentHost/test/node/copilotAgent.test.ts',
-						'src/vs/platform/agentHost/test/node/copilotAgentSession.test.ts',
-						'src/vs/platform/agentHost/test/node/localModelBridge/copilotRequestHandler.test.ts',
-						'src/vs/platform/agentHost/test/node/shared/worktreeIsolation.test.ts',
-						'src/vs/sessions/contrib/automations/test/browser/automationDialog.test.ts',
-						'src/vs/sessions/contrib/editor/test/browser/editor.contribution.test.ts',
 						'src/vs/sessions/contrib/layout/test/browser/chatLayoutOwnership.test.ts',
 						'src/vs/sessions/contrib/layout/test/browser/desktopLayoutController.test.ts',
-						'src/vs/workbench/api/test/browser/mainThreadCustomEditors.test.ts',
-						'src/vs/workbench/contrib/chat/test/browser/agentHostCustomizationSidecar.test.ts',
-						'src/vs/workbench/contrib/chat/test/browser/agentHostUsageSidecar.test.ts',
-						'src/vs/workbench/contrib/chat/test/browser/agentSessions/agentHostClientTools.test.ts',
-						'src/vs/workbench/contrib/chat/test/browser/agentSessions/syncedCustomizationBundler.test.ts',
-						'src/vs/workbench/contrib/chat/test/browser/widget/chatContentParts/chatTerminalToolProgressPart.test.ts',
-						'src/vs/workbench/contrib/chat/test/browser/widget/chatListRenderer.test.ts',
-						'src/vs/workbench/contrib/chat/test/browser/widget/chatPetWidget.test.ts',
-						'src/vs/workbench/contrib/chat/test/browser/widget/chatWorkingLogoAtlas.test.ts',
-						'src/vs/workbench/contrib/chat/test/common/chatService/chatService.test.ts',
-						'src/vs/workbench/contrib/chat/test/common/plugins/fileBackedInstalledPluginsStore.test.ts',
-						'src/vs/workbench/contrib/chat/test/common/plugins/pluginMarketplaceService.test.ts',
-						'src/vs/workbench/services/configuration/test/browser/configurationService.test.ts',
 					]
 				}
 			]
@@ -2664,7 +2635,6 @@ export default defineConfig(
 			'extensions/markdown-language-features/preview-src/**/*.ts',
 			'extensions/mermaid-markdown-features/preview-src/chat/**/*.ts',
 			'extensions/mermaid-markdown-features/src/**/*.ts',
-			'extensions/media-preview/src/**/*.ts',
 			'extensions/simple-browser/**/*.ts',
 			'extensions/typescript-language-features/**/*.ts',
 		],
@@ -2677,10 +2647,7 @@ export default defineConfig(
 					'extensions/markdown-language-features/notebook/tsconfig.json',
 					'extensions/markdown-language-features/preview-src/tsconfig.json',
 
-					// Media preview
-					'extensions/media-preview/tsconfig.json',
-
-					// Media preview
+					// Simple browser
 					'extensions/simple-browser/tsconfig.json',
 					'extensions/simple-browser/preview-src/tsconfig.json',
 

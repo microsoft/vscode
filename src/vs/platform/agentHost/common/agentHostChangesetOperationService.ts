@@ -18,6 +18,7 @@ export const AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID = 'checkout';
 export const AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID = 'commit';
 export const AGENT_HOST_SYNC_CHANGESET_OPERATION_ID = 'sync';
 export const AGENT_HOST_DISCARD_CHANGES_OPERATION_ID = 'discard-changes';
+export const AGENT_HOST_ACCEPT_CHANGES_OPERATION_ID = 'accept-changes';
 
 /**
  * Changeset operations advertised for a branch that already has a pull

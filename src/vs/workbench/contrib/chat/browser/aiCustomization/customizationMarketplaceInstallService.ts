@@ -12,7 +12,6 @@ import { isWeb } from '../../../../../base/common/platform.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { CopilotConnectorsError } from '../../../../../platform/copilotConnectors/common/copilotConnectorsRequestService.js';
 import { CustomizationMarketplaceInstallation, CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, isCustomizationMarketplaceIconEqual } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { normalizeMcpGalleryUrl } from '../../../../../platform/customizationMarketplace/common/mcpGalleryMarketplaceProvider.js';
 import { affectsCustomizationMarketplaceSources, CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources, getVisibleCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
@@ -34,7 +33,7 @@ import { IPluginInstallService } from '../../common/plugins/pluginInstallService
 import { parseMarketplaceReference, parseProviderMarketplaceReference } from '../../common/plugins/marketplaceReference.js';
 import { IMarketplacePlugin, IMarketplaceReference, IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 import { getConnectorRowPresentation } from './connectorPresentation.js';
-import { ICopilotConnectorAccount, ICopilotConnectorsService, toCopilotConnectorMarketplaceEntry } from './copilotConnectorsService.js';
+import { CopilotConnectorsError, ICopilotConnectorAccount, ICopilotConnectorsService, toCopilotConnectorMarketplaceEntry } from './copilotConnectorsService.js';
 import { getGitHubMcpRegistryIdentity, getGitHubMcpRegistryResourceIdentity } from './githubMcpRegistryIcons.js';
 import { getPluginCustomizationMarketplaceSourceIdFromIdentifier, getPluginMarketplaceIdentifier } from './pluginCustomizationMarketplaceProvider.js';
 import { CustomizationMarketplaceInstallationAssociationCache as CustomizationMarketplaceInstallationRecordStore, CustomizationMarketplaceInstallationAssociationTarget as CustomizationMarketplaceInstallationRecordTarget, getInstallationAssociationResourceKey as getInstallationRecordResourceKey, ICustomizationMarketplaceInstallationAssociation as ICustomizationMarketplaceInstallationRecord, removeLegacyCustomizationMarketplaceInstallationRecords, toAssociatedMarketplaceResource as toRecordedMarketplaceResource } from './customizationMarketplaceInstallationAssociation.js';
@@ -146,11 +145,11 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		const providerChanged = this.providerBinding?.provider !== provider || !isEqual(this.providerBinding?.session, session);
 		const hadInstallations = this.providerInstallations.length > 0;
 		this.providerInstallations = [];
-		if (hadInstallations || providerChanged) {
-			this.emitChange();
-		}
 		if (!provider) {
 			this.providerBinding = undefined;
+			if (hadInstallations || providerChanged) {
+				this.emitChange();
+			}
 			return;
 		}
 		const binding: IInstallProviderBinding = {
@@ -159,6 +158,9 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			refreshVersion: 0,
 		};
 		this.providerBinding = binding;
+		if (hadInstallations || providerChanged) {
+			this.emitChange();
+		}
 		const store = new DisposableStore();
 		this.providerRequest.value = store;
 		store.add(provider.onDidChange(() => void this.refreshProviderInstallations(binding)));
@@ -172,6 +174,10 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		try {
 			const installations = await binding.provider.getInstallations(binding.session, cancellation.token);
 			if (binding !== this.providerBinding || refreshVersion !== binding.refreshVersion || cancellation.token.isCancellationRequested || this._store.isDisposed) {
+				return;
+			}
+			// Providers refresh on every customization change, so most refreshes return the same installations.
+			if (JSON.stringify(installations) === JSON.stringify(this.providerInstallations)) {
 				return;
 			}
 			this.providerInstallations = installations;

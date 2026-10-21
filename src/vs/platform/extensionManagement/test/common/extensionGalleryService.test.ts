@@ -7,6 +7,7 @@ import assert from 'assert';
 import { VSBuffer, bufferToStream } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
+import { isWeb } from '../../../../base/common/platform.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isUUID } from '../../../../base/common/uuid.js';
@@ -27,7 +28,7 @@ import { IProductService } from '../../../product/common/productService.js';
 import { AuthInfo, Credentials, IRequestService } from '../../../request/common/request.js';
 import { InMemoryStorageService, IStorageService } from '../../../storage/common/storage.js';
 import { TelemetryConfiguration, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
-import { ExtensionBlockingOrigin } from '../../common/extensionManagement.js';
+import { ExtensionBlockingOrigin, InstallOperation, StatisticType } from '../../common/extensionManagement.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AllowedExtensionsService } from '../../common/allowedExtensionsService.js';
 import { ExtensionGalleryManifestStatus, ExtensionGalleryResourceType, IExtensionGalleryManifest, IExtensionGalleryManifestService } from '../../common/extensionGalleryManifest.js';
@@ -49,11 +50,13 @@ class RecordingRequestService implements IRequestService {
 	readonly _serviceBrand: undefined;
 	readonly onDidCompleteRequest = Event.None;
 	readonly requests: { readonly type: string | undefined; readonly url: string | undefined }[] = [];
+	readonly authorizationHeaders: (string | string[] | undefined)[] = [];
 
 	constructor(private readonly response: (options: IRequestOptions) => IRequestContext) { }
 
 	async request(options: IRequestOptions, _token: CancellationToken): Promise<IRequestContext> {
 		this.requests.push({ type: options.type, url: options.url });
+		this.authorizationHeaders.push(options.headers?.Authorization);
 		return this.response(options);
 	}
 
@@ -129,22 +132,38 @@ function rawLatestExtension(versions = [rawVersion('1.0.0')]) {
 	};
 }
 
-function createExtensionGalleryManifestService(): IExtensionGalleryManifestService {
-	const extensionGalleryManifest: IExtensionGalleryManifest = {
+class TestExtensionGalleryManifestService implements IExtensionGalleryManifestService {
+	declare readonly _serviceBrand: undefined;
+	readonly extensionGalleryManifestStatus = ExtensionGalleryManifestStatus.Available;
+	readonly onDidChangeExtensionGalleryManifestStatus = Event.None;
+	readonly onDidChangeExtensionGalleryManifest = Event.None;
+	private accessToken: string | undefined;
+	private serviceIndexUrl: string | undefined;
+
+	private readonly extensionGalleryManifest: IExtensionGalleryManifest = {
 		version: '1.0.0',
 		resources: [
 			{ id: latestVersionUri, type: ExtensionGalleryResourceType.ExtensionLatestVersionUri },
-			{ id: queryServiceUri, type: ExtensionGalleryResourceType.ExtensionQueryService }
+			{ id: queryServiceUri, type: ExtensionGalleryResourceType.ExtensionQueryService },
+			{ id: 'https://marketplace.test/statistics/{publisher}/{name}/{version}/{statTypeName}', type: ExtensionGalleryResourceType.ExtensionStatisticsUri }
 		],
 		capabilities: { extensionQuery: {} }
 	};
-	return {
-		_serviceBrand: undefined,
-		extensionGalleryManifestStatus: ExtensionGalleryManifestStatus.Available,
-		onDidChangeExtensionGalleryManifestStatus: Event.None,
-		onDidChangeExtensionGalleryManifest: Event.None,
-		getExtensionGalleryManifest: async () => extensionGalleryManifest
-	};
+
+	setAuthorization(accessToken: string | undefined, serviceIndexUrl: string | undefined): void {
+		this.accessToken = accessToken;
+		this.serviceIndexUrl = serviceIndexUrl;
+	}
+
+	async getAccessToken(targetUrl: string): Promise<string | undefined> {
+		return this.accessToken && this.serviceIndexUrl && URI.parse(targetUrl).authority === URI.parse(this.serviceIndexUrl).authority
+			? this.accessToken
+			: undefined;
+	}
+
+	async getExtensionGalleryManifest(): Promise<IExtensionGalleryManifest> {
+		return this.extensionGalleryManifest;
+	}
 }
 
 suite('Extension Gallery Service', () => {
@@ -163,9 +182,9 @@ suite('Extension Gallery Service', () => {
 		productService = { _serviceBrand: undefined, ...product, enableTelemetry: true };
 	});
 
-	function createExtensionGalleryService(requestService: IRequestService, logService = new NullLogService()): ExtensionGalleryServiceWithNoStorageService {
+	function createExtensionGalleryService(requestService: IRequestService, logService = new NullLogService(), manifestService = new TestExtensionGalleryManifestService()): ExtensionGalleryServiceWithNoStorageService {
 		const allowedExtensionsService = disposables.add(new AllowedExtensionsService(productService, configurationService));
-		return new ExtensionGalleryServiceWithNoStorageService(requestService, logService, environmentService, NullTelemetryService, fileService, productService, configurationService, allowedExtensionsService, createExtensionGalleryManifestService());
+		return new ExtensionGalleryServiceWithNoStorageService(requestService, logService, environmentService, NullTelemetryService, fileService, productService, configurationService, allowedExtensionsService, manifestService);
 	}
 
 	test('marketplace machine id', async () => {
@@ -190,6 +209,113 @@ suite('Extension Gallery Service', () => {
 			extensions: []
 		});
 	});
+
+	test('getExtensions authenticates a same-origin query API', async () => {
+		const requestService = new RecordingRequestService(options => options.type === 'POST' ? requestContext(200, galleryQueryResponse([])) : requestContext(404, {}));
+		const manifestService = new TestExtensionGalleryManifestService();
+		manifestService.setAuthorization('resource-token', 'https://marketplace.test');
+		const galleryService = createExtensionGalleryService(requestService, new NullLogService(), manifestService);
+
+		await galleryService.getExtensions([{ id: 'publisher.extension' }], CancellationToken.None);
+
+		assert.deepStrictEqual(requestService.authorizationHeaders, ['Bearer resource-token']);
+	});
+
+	for (const [primaryOrigin, fallbackOrigin, expectedHeaders] of [
+		['https://marketplace.test', 'https://public.test', ['Bearer resource-token', undefined]],
+		['https://public.test', 'https://marketplace.test', [undefined, 'Bearer resource-token']],
+	] as const) {
+		test(`asset fallback scopes authorization from ${primaryOrigin} to ${fallbackOrigin}`, async () => {
+			const requestService = new RecordingRequestService(options => {
+				if (options.url?.includes('/latest')) {
+					return requestContext(200, rawLatestExtension());
+				}
+				return requestContext(options.url === `${primaryOrigin}/readme` ? 500 : 200, {});
+			});
+			const manifestService = new TestExtensionGalleryManifestService();
+			manifestService.setAuthorization('resource-token', 'https://marketplace.test');
+			const galleryService = createExtensionGalleryService(requestService, new NullLogService(), manifestService);
+			const [extension] = await galleryService.getExtensions([{ id: 'publisher.extension', uuid: 'extension-uuid' }], CancellationToken.None);
+
+			await galleryService.getReadme({
+				...extension,
+				assets: { ...extension.assets, readme: { uri: `${primaryOrigin}/readme`, fallbackUri: `${fallbackOrigin}/readme` } },
+			}, CancellationToken.None);
+
+			assert.deepStrictEqual(requestService.authorizationHeaders, ['Bearer resource-token', ...expectedHeaders]);
+		});
+	}
+
+	test('VSIX fallback preserves request headers without forwarding the private token', async () => {
+		const downloadHeaders: IRequestOptions['headers'][] = [];
+		const requestService = new RecordingRequestService(options => {
+			if (options.url?.includes('/latest')) {
+				return requestContext(200, rawLatestExtension());
+			}
+			downloadHeaders.push(options.headers);
+			return requestContext(options.url?.startsWith('https://marketplace.test/') ? 500 : 200, {});
+		});
+		const manifestService = new TestExtensionGalleryManifestService();
+		manifestService.setAuthorization('resource-token', 'https://marketplace.test');
+		const galleryService = createExtensionGalleryService(requestService, new NullLogService(), manifestService);
+		const [extension] = await galleryService.getExtensions([{ id: 'publisher.extension', uuid: 'extension-uuid' }], CancellationToken.None);
+
+		await galleryService.download({
+			...extension,
+			queryContext: { 'X-Market-Search-Activity-Id': 'activity-id' },
+			assets: { ...extension.assets, download: { uri: 'https://marketplace.test/vsix', fallbackUri: 'https://public.test/vsix' } },
+		}, joinPath(environmentService.serviceMachineIdResource, '..', 'extension.vsix'), InstallOperation.Install);
+
+		assert.deepStrictEqual(downloadHeaders.map(headers => ({
+			authorization: headers?.Authorization,
+			activityId: headers?.['X-Market-Search-Activity-Id'],
+			clientId: headers?.['X-Market-Client-Id'],
+		})), [
+			{ authorization: 'Bearer resource-token', activityId: 'activity-id', clientId: `VSCode ${productService.version}` },
+			{ authorization: undefined, activityId: 'activity-id', clientId: `VSCode ${productService.version}` },
+		]);
+	});
+
+	for (const [origin, expectedAuthorization] of [
+		['https://marketplace.test', 'Bearer resource-token'],
+		['https://public.test', undefined],
+	] as const) {
+		test(`control manifest scopes authorization to ${origin}`, async () => {
+			productService = {
+				...productService,
+				extensionsGallery: {
+					serviceUrl: 'https://marketplace.test',
+					controlUrl: `${origin}/control`,
+					extensionUrlTemplate: '',
+					resourceUrlTemplate: '',
+					nlsBaseUrl: '',
+				},
+			};
+			const requestService = new RecordingRequestService(() => requestContext(200, { malicious: [] }));
+			const manifestService = new TestExtensionGalleryManifestService();
+			manifestService.setAuthorization('resource-token', 'https://marketplace.test');
+			const galleryService = createExtensionGalleryService(requestService, new NullLogService(), manifestService);
+
+			await galleryService.getExtensionsControlManifest();
+
+			assert.deepStrictEqual(requestService.authorizationHeaders, [expectedAuthorization]);
+		});
+	}
+
+	if (!isWeb) {
+		test('statistics requests resolve authorization afresh for their target', async () => {
+			const requestService = new RecordingRequestService(() => requestContext(200, {}));
+			const manifestService = new TestExtensionGalleryManifestService();
+			manifestService.setAuthorization('resource-token', 'https://marketplace.test');
+			const galleryService = createExtensionGalleryService(requestService, new NullLogService(), manifestService);
+
+			await galleryService.reportStatistic('publisher', 'extension', '1.0.0', StatisticType.Install);
+			manifestService.setAuthorization('other-token', 'https://public.test');
+			await galleryService.reportStatistic('publisher', 'extension', '1.0.0', StatisticType.Install);
+
+			assert.deepStrictEqual(requestService.authorizationHeaders, ['Bearer resource-token', undefined]);
+		});
+	}
 
 	test('getExtensions uses latest resource API for extension info with uuid', async () => {
 		const requestService = new RecordingRequestService(options => options.type === 'GET' ? requestContext(200, rawLatestExtension()) : requestContext(200, galleryQueryResponse([])));

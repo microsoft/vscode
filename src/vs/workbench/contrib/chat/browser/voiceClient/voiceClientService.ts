@@ -575,7 +575,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			}
 			this._logService.error('[voice] Failed to connect to OpenAI GPT-Live', error);
 			this._onError.fire(error instanceof Error ? error.message : String(error));
-			this._onFatalDisconnect.fire({ code: 0, reason: error instanceof Error ? error.message : String(error), kind: 'fatal', clientSide: true });
+			this._onFatalDisconnect.fire({ code: 0, reason: error instanceof Error ? error.message : String(error), kind: 'fatal' });
 			this._cleanup();
 			return true;
 		}
@@ -907,7 +907,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		if (this._intentionalDisconnect || !this._usingGptLive) {
 			return;
 		}
-		this._onFatalDisconnect.fire({ code: 0, reason, kind: 'fatal', clientSide: true });
+		this._onFatalDisconnect.fire({ code: 0, reason, kind: 'fatal' });
 		this._cleanup();
 	}
 
