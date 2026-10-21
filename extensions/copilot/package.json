@@ -4380,6 +4380,7 @@
             ]
           },
           "github.copilot.chat.debug.promptOverrideString": {
+            "scope": "application",
             "type": [
               "string",
               "null"
@@ -4392,6 +4393,7 @@
             ]
           },
           "github.copilot.chat.debug.promptOverrideFile": {
+            "scope": "application",
             "type": [
               "string",
               "null"
@@ -4821,6 +4823,7 @@
             ]
           },
           "github.copilot.chat.omitBaseAgentInstructions": {
+            "scope": "application",
             "type": "boolean",
             "default": false,
             "markdownDescription": "%github.copilot.config.omitBaseAgentInstructions%",
