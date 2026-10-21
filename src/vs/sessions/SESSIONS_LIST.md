@@ -51,6 +51,7 @@ Archived
   nor an explicit ungrouped preference, it inherits the creator's custom group
   when one becomes available. Subsequent user grouping, ungrouping, and
   reordering are ordinary persisted list state.
+- A session a nested chat was promoted to joins the custom group of the session it was promoted from, whatever started the promotion, unless it already has a placement of its own. It keeps ordinary placement when that session has no group.
 
 The active session remains visible even when a filter would otherwise exclude it.
 
@@ -118,7 +119,7 @@ A session drop resolves to a destination placement: Pinned, a custom group, an u
 - dropping sessions on the archived section archives them with an undo affordance; dropping archived sessions elsewhere restores them;
 - date sections derive from the sort key, so dropping on a date section header places sessions at the top of that section, and dropping below the last row places non-archived sessions at the end of the date sections; because date grouping also promotes recently updated sessions and caps Recent, a drop into a date section is offered only when the sessions will render in that section;
 - dropping a session on a nested chat row places it after that chat's session;
-- nested chats render in their provider's order (by update time under updated-time sorting); the list never stores an order of its own for them. When moving chats by drag and drop is on and the provider can move a chat, the chat may reorder within its session, by dragging or with Move Up and Move Down, or move to another or a new session, and the provider reorders or moves it. A nested chat the provider can't move, or several nested chats together, can't be dropped, and Move Up and Move Down are unavailable for it;
+- nested chats render in their provider's order (by update time under updated-time sorting); the list never stores an order of its own for them. When moving chats by drag and drop is on and the provider can move a chat, the chat may reorder within its session, by dragging or with Move Up and Move Down, or move to another or a new session, and the provider reorders or moves it. No move asks for confirmation first. A nested chat the provider can't move, or several nested chats together, can't be dropped, and Move Up and Move Down are unavailable for it;
 - user groups and workspace or repository sections may reorder where the grouping mode allows, and a user group may move into another group or out to the top level, but never into itself or one of its subgroups;
 - dropping sessions on the Sessions grid opens them through `ISessionsService`.
 
@@ -131,6 +132,8 @@ Rows derive title, status, workspace, changes, capabilities, and quick-chat iden
 Row renderers use tree-supported row classes and APIs rather than traversing tree-owned DOM structure.
 
 Session facades may expose catalog-backed peer-chat identities, titles, interactivity, and status before detailed chat state is loaded. Rendering a virtualized peer-chat row requests provider-neutral chat hydration through `ISessionsManagementService`; collapsed and offscreen sessions therefore do not require eager per-session state loading.
+
+A collapsed session row uses the provider's aggregate status without inspecting individual chat statuses. When expanded, the parent row represents the main chat and visible side chats, while peer rows represent their own chats.
 
 ## Persistence
 

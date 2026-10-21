@@ -74,7 +74,6 @@ import { Direction } from '../../../../base/browser/ui/grid/grid.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ChatMoveSettingId } from '../../../../platform/agentHost/common/agentHostChatMove.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { isChatMoveDndEnabled, runSessionsListMove, SessionsListMove } from './views/sessionsListChatMove.js';
 
@@ -766,15 +765,14 @@ registerAction2(class PromoteChatToSessionAction extends Action2 {
 			return false;
 		}
 		const move: SessionsListMove = { kind: 'chat', session: context.session, chat: context.chat, destination: { kind: 'newSession' } };
-		// Like a drop on the list, reveal and select the new session in the list once it shows it.
-		const revealMoved = getSessionsList(accessor)?.watchMoveForReveal(move);
-		let moved = false;
-		try {
-			moved = await runSessionsListMove(move, sessionsManagementService, accessor.get(IDialogService), configurationService, accessor.get(INotificationService), accessor.get(ILogService));
-		} finally {
-			revealMoved?.(moved);
-		}
-		return moved;
+		const viewsService = accessor.get(IViewsService);
+		const sessionsList = getSessionsList(accessor);
+		// Like a drop on the list, report the move in the list's notice when the list shows, and reveal and select the
+		// new session in the list once it shows it.
+		return runSessionsListMove(move, sessionsManagementService, accessor.get(INotificationService), accessor.get(ILogService), {
+			notice: viewsService.isViewVisible(SessionsViewId) ? viewsService.getViewWithId<SessionsView>(SessionsViewId)?.listNotification : undefined,
+			watch: sessionsList && (watched => sessionsList.watchMoveForReveal(watched)),
+		});
 	}
 });
 

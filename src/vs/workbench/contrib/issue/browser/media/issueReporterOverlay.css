@@ -617,6 +617,21 @@ label/control gap, so the buttons must not add their own margin. */
 	min-height: 50px;
 }
 
+.issue-reporter-wizard .wizard-screenshots.drag-over,
+.issue-reporter-wizard .wizard-screenshots:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.issue-reporter-wizard .wizard-attachment-status {
+	white-space: pre-line;
+	overflow-wrap: anywhere;
+}
+
+.issue-reporter-wizard .wizard-attachment-status.has-errors {
+	color: var(--vscode-errorForeground);
+}
+
 .issue-reporter-wizard .wizard-screenshots-empty {
 	color: var(--vscode-descriptionForeground, #888);
 	font-style: italic;
@@ -684,6 +699,7 @@ label/control gap, so the buttons must not add their own margin. */
 
 .issue-reporter-wizard .wizard-screenshot-add {
 	display: flex;
+	flex-direction: column;
 	align-items: center;
 	justify-content: center;
 	border-style: dashed;
@@ -831,6 +847,10 @@ This keeps the row height constant regardless of which is visible. */
 	font-size: 12px;
 	line-height: 1.4;
 	pointer-events: none;
+}
+
+.issue-reporter-wizard .wizard-target-status {
+	pointer-events: auto;
 }
 
 /* Hide the status while its sibling field-error is visible to avoid overlap. */
@@ -1771,6 +1791,8 @@ extension field is hidden (no fixed-width placeholder needed). */
 	padding: 1px 4px;
 	border-radius: 2px;
 	z-index: 1;
+	max-width: calc(100% - var(--vscode-spacing-size120));
+	overflow-wrap: anywhere;
 }
 
 .issue-reporter-wizard .wizard-required-marker {

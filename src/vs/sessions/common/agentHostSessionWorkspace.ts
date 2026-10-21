@@ -160,7 +160,7 @@ export function withoutScratchFolders(workingDirectories: readonly URI[], scratc
  * Like {@link buildAgentHostChatWorkspace}, for a session that reports host scratch folders.
  * Scratch folders are never shown: a chat working only in scratch folders has no workspace, and a
  * chat with folders of its own in a session without a workspace (a quick chat) gets a workspace of
- * those folders from `buildOwnWorkspace`. Without `scratchFolders` (an older host) this is
+ * those folders from `buildOwnWorkspace`, each reporting its own GitHub info. Without `scratchFolders` (an older host) this is
  * {@link buildAgentHostChatWorkspace}.
  */
 export function buildAgentHostChatWorkspaceWithScratchFolders(
@@ -180,7 +180,8 @@ export function buildAgentHostChatWorkspaceWithScratchFolders(
 		return undefined;
 	}
 	if (!sessionWorkspace) {
-		return buildOwnWorkspace(ownFolders);
+		// Its folders report their own GitHub repository and pull requests, as in a session workspace; `buildOwnWorkspace` applied the Git state.
+		return buildAgentHostChatWorkspace(buildOwnWorkspace(ownFolders), undefined, getFolderGitHubInfo, undefined, false);
 	}
 	return buildAgentHostChatWorkspace(sessionWorkspace, ownFolders, getFolderGitHubInfo, gitState, resolveDetachedFolders);
 }

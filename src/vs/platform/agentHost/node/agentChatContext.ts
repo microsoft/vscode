@@ -94,7 +94,11 @@ export function inheritedChatFolders(stateManager: AgentHostStateManager, sessio
  */
 export function isChatWorkspaceless(stateManager: AgentHostStateManager, chat: ProtocolURI, sessionState: ISessionStateSnapshot | undefined, sessionWorkspaceless: boolean): boolean {
 	const chatEntry = sessionState?.chats.get(chat);
-	const primaryFolder = chatEntry?.launchWorkingDirectories?.[0] ?? chatEntry?.workingDirectories?.[0];
+	return isChatPrimaryFolderWorkspaceless(stateManager, chatEntry?.launchWorkingDirectories?.[0] ?? chatEntry?.workingDirectories?.[0], sessionState, sessionWorkspaceless);
+}
+
+/** {@link isChatWorkspaceless} for a chat whose primary folder is `primaryFolder` (`undefined`: no folder of its own). */
+function isChatPrimaryFolderWorkspaceless(stateManager: AgentHostStateManager, primaryFolder: string | undefined, sessionState: ISessionStateSnapshot | undefined, sessionWorkspaceless: boolean): boolean {
 	const defaultEntry = sessionState && [...sessionState.chats.values()].find(entry => entry.isDefault);
 	const defaultFolder = defaultEntry?.launchWorkingDirectories?.[0] ?? defaultEntry?.workingDirectories?.[0];
 	return primaryFolder !== undefined && stateManager.isScratchFolder(primaryFolder)
@@ -120,6 +124,18 @@ export function isChatWorkspaceless(stateManager: AgentHostStateManager, chat: P
  * (the action pipeline) need not round-trip through {@link URI}.
  */
 export function createAgentChatContext(stateManager: AgentHostStateManager, authenticationService: IAgentHostAuthenticationService, session: URI | ProtocolURI, chat: URI | ProtocolURI, storageResource: ProtocolURI, sessionState: ISessionStateSnapshot | undefined): IAgentChatContext {
+	return buildAgentChatContext(stateManager, authenticationService, session, chat, storageResource, sessionState, undefined);
+}
+
+/**
+ * {@link createAgentChatContext} for creating the backing of `chat` in `workingDirectories`, its own folders: they
+ * decide, not what is recorded for the chat, which a new chat does not have yet and a re-created backing replaces.
+ */
+export function createAgentChatCreationContext(stateManager: AgentHostStateManager, authenticationService: IAgentHostAuthenticationService, session: URI, chat: URI, storageResource: ProtocolURI, sessionState: ISessionStateSnapshot | undefined, workingDirectories: readonly URI[]): IAgentChatContext {
+	return buildAgentChatContext(stateManager, authenticationService, session, chat, storageResource, sessionState, workingDirectories.map(directory => directory.toString()));
+}
+
+function buildAgentChatContext(stateManager: AgentHostStateManager, authenticationService: IAgentHostAuthenticationService, session: URI | ProtocolURI, chat: URI | ProtocolURI, storageResource: ProtocolURI, sessionState: ISessionStateSnapshot | undefined, creationWorkingDirectories: readonly string[] | undefined): IAgentChatContext {
 	const sessionKey = toKey(session);
 	const chatKey = toKey(chat);
 	// A registered chat is addressed under the session that owns it now and with its recorded storage; a chat
@@ -143,10 +159,12 @@ export function createAgentChatContext(stateManager: AgentHostStateManager, auth
 	const sessionSettings = createAgentChatSessionSettings(sessionState);
 	const chatEntry = sessionState?.chats.get(chatKey);
 	// A chat without folders of its own never launches in another chat's scratch folder, also when an older build recorded it.
-	const launch = chatEntry?.workingDirectories === undefined
+	const launch = creationWorkingDirectories ?? (chatEntry?.workingDirectories === undefined
 		? chatEntry?.launchWorkingDirectories?.filter(entry => !stateManager.isScratchFolder(entry))
-		: chatEntry.launchWorkingDirectories;
-	const workspaceless = isChatWorkspaceless(stateManager, chatKey, sessionState, sessionSettings?.workspaceless === true);
+		: chatEntry.launchWorkingDirectories);
+	const workspaceless = creationWorkingDirectories
+		? isChatPrimaryFolderWorkspaceless(stateManager, creationWorkingDirectories[0], sessionState, sessionSettings?.workspaceless === true)
+		: isChatWorkspaceless(stateManager, chatKey, sessionState, sessionSettings?.workspaceless === true);
 	const isToolChat = typeof origin === 'object' && origin !== null && !Array.isArray(origin) && origin.kind === ChatOriginKind.Tool;
 	return {
 		resource: storageResource === sessionKey ? sessionUri : storageResource === chatKey ? toUri(chat) : URI.parse(storageResource),

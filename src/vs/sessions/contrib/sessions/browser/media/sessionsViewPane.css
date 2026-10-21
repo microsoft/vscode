@@ -246,6 +246,13 @@
 		gap: var(--vscode-spacing-size40);
 	}
 
+	.agent-sessions-storage-cleanup-notice-actions > .monaco-button {
+		width: auto;
+		min-width: 0;
+		max-width: 100%;
+		overflow-wrap: anywhere;
+	}
+
 	.agent-sessions-customizations-section {
 		overflow: hidden;
 		min-height: 0;

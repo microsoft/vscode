@@ -364,7 +364,7 @@ suite('Copilot Agent credential sponsorship', function () {
 		}, {
 			history: transcript(live),
 			child: transcript(liveChild),
-			canvases: [],
+			canvases: undefined,
 			traffic: { github: beforeRead.github, model: beforeRead.model, connectors: beforeRead.connectors },
 			clients: [0, 1].map(() => ({ mode: 'empty', token: undefined, stops: 1, errors: 0 })),
 			unexpectedRequests: [],

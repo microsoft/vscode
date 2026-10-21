@@ -12,6 +12,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IRemoteAgentHostLocationPreferenceService } from '../../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
 import { IRemoteAgentHostConnectionFactory, IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { getProtocolMessageSize } from '../../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { type ITunnelConnectResult, type ITunnelGatewaySelection, type ITunnelGatewaySelectionSession, type ITunnelInfo } from '../../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { resolveGatewaySelection, type IGatewaySelectionRequest } from '../../../../../../platform/agentHost/common/tunnelGatewaySelection.js';
 import type { ITunnelDuplexStream } from '../../../../../../platform/agentHost/common/tunnelMessageSocket.js';
@@ -42,7 +43,7 @@ import {
 	type IDevTunnelsWebRequestOptions,
 	type IDevTunnelsWebTunnel,
 } from '../../browser/devTunnelsWebLoader.js';
-import { WebTunnelAgentHostService } from '../../browser/webTunnelAgentHostService.js';
+import { TunnelConnectionTransport, WebTunnelAgentHostService } from '../../browser/webTunnelAgentHostService.js';
 
 const tunnel: ITunnelInfo = {
 	tunnelId: 'tunnel-id',
@@ -432,6 +433,27 @@ suite('BrowserTunnelAgentHostService', () => {
 		connector.relayActivity.fire('other-connection');
 
 		assert.strictEqual(dataEvents, 1);
+	});
+
+	test('both tunnel adapters preserve the original JSON size, including whitespace and escapes', () => {
+		const relay = store.add(new Emitter<{ connectionId: string; data: string }>());
+		const data = store.add(new Emitter<string>());
+		const connector = new class extends FakeConnector {
+			override readonly onDidRelayMessage = relay.event;
+		}(undefined);
+		const browser = store.add(new BrowserTunnelConnectionTransport('connection-id', connector, new NullLogService()));
+		const embedder = store.add(new TunnelConnectionTransport({
+			onMessage: data.event, onClose: Event.None, send() { }, close() { },
+		}, 'tunnel:test', new NullLogService()));
+		const sizes: number[] = [];
+		store.add(browser.onMessage(message => sizes.push(getProtocolMessageSize(message))));
+		store.add(embedder.onMessage(message => sizes.push(getProtocolMessageSize(message))));
+		const text = '{ "jsonrpc":"2.0", "method":"tcp/data", "params": { "channel":"ahp-tcp:/test", "data":"\\u005aA==" } }';
+		relay.fire({ connectionId: 'other', data: text });
+		relay.fire({ connectionId: 'connection-id', data: text });
+		data.fire(text);
+		assert.deepStrictEqual(sizes, [text.length * 2, text.length * 2]);
+		connector.relayActivity.dispose();
 	});
 
 	test('cancels the pending gateway selection when the browser picker is dismissed', async () => {
