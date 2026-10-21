@@ -381,6 +381,8 @@ export class ModelCard extends DisposableStore {
 		const fusionTiers = isAutoModel(this._options.model) && !!metadata.autoModelFusion && !!this._configProperty(MODEL_CONFIG_GROUP_EFFORT);
 		if (this._options.routingAlternatives?.length || fusionTiers) {
 			this._routingBadge = this._renderBadge(header, '', false);
+			// The saved effort level, until the Effort Level control shows the one selected.
+			this._routingBadgeTier = this._configProperty(MODEL_CONFIG_GROUP_EFFORT)?.value;
 			this._updateRoutingBadge();
 		} else {
 			const badgeLabel = isRoutingModel

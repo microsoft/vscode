@@ -194,7 +194,7 @@ suite('ModelCard', () => {
 			return {
 				...createModel({
 					id: 'auto',
-					name: 'Fusion',
+					name: 'Copilot Fusion',
 					...(promotions.length ? { detail } : { detail: '10% discount', autoModelDiscountPercent: 10 }),
 					autoModelFusion: { balanceUsesHydraFusion: true },
 					...(promotions.length && { autoModelTierPromotions: promotions }),

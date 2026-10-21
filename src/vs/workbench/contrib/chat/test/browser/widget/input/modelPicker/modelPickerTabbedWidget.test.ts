@@ -117,7 +117,7 @@ function createFusionModel(balanceUsesHydraFusion = true): ILanguageModelChatMet
 		...auto,
 		metadata: {
 			...auto.metadata,
-			name: 'Fusion',
+			name: 'Copilot Fusion',
 			autoModelFusion: { balanceUsesHydraFusion },
 			configurationSchema: {
 				properties: {
@@ -1586,9 +1586,9 @@ suite('TabbedModelPicker', () => {
 			const fusion = createFusionModel(balanceUsesHydraFusion);
 			const result = createPicker({ models: [...models, fusion, ...(withHydraFusion ? [createHydraFusionModel()] : []), max], selectedModelId: models[0].identifier });
 			const readout = () => Array.from(result.popup.querySelectorAll('.chat-model-picker-model'))
-				.find(row => row.querySelector('.title')?.textContent === 'Fusion')?.querySelector('.action-label')?.textContent;
+				.find(row => row.querySelector('.title')?.textContent === 'Copilot Fusion')?.querySelector('.action-label')?.textContent;
 			const rows = listRows(result.popup);
-			openDetails(result.popup, 'Fusion');
+			openDetails(result.popup, 'Copilot Fusion');
 			const tiers = autoTiers(result.popup);
 			chooseOption(result.popup, option);
 			await timeout(0);
@@ -1599,7 +1599,7 @@ suite('TabbedModelPicker', () => {
 			return { rows, tiers, discount, description, ariaLabel, readout: readout(), selections: result.selections, tier: result.values.get(fusion.identifier)?.tier };
 		};
 		const fusionHigh = {
-			rows: ['Fusion', '--', 'First', 'Fixed', 'Second'], tiers: ['Standard', 'High', 'Max'], discount: undefined,
+			rows: ['Copilot Fusion', '--', 'First', 'Fixed', 'Second'], tiers: ['Standard', 'High', 'Max'], discount: undefined,
 			description: undefined, ariaLabel: 'High', readout: 'High', selections: ['copilot/auto'], tier: 'intelligence',
 		};
 		assert.deepStrictEqual({
@@ -1609,13 +1609,13 @@ suite('TabbedModelPicker', () => {
 			highWithoutHydraFusion: await choose('High', true, false),
 		}, {
 			high: {
-				rows: ['Fusion', '--', 'First', 'Fixed', 'Second'], tiers: ['Standard', 'High', 'Max'], discount: undefined,
+				rows: ['Copilot Fusion', '--', 'First', 'Fixed', 'Second'], tiers: ['Standard', 'High', 'Max'], discount: undefined,
 				description: 'Prioritizes capable models for challenging tasks and deeper reasoning.',
 				ariaLabel: 'High, Prioritizes capable models for challenging tasks and deeper reasoning.',
 				readout: 'High', selections: ['copilot/hydrafusion'], tier: undefined,
 			},
 			max: {
-				rows: ['Fusion', '--', 'First', 'Fixed', 'Second'], tiers: ['Standard', 'High', 'Max'], discount: undefined,
+				rows: ['Copilot Fusion', '--', 'First', 'Fixed', 'Second'], tiers: ['Standard', 'High', 'Max'], discount: undefined,
 				description: 'Prioritizes the most capable models for the most demanding tasks and complex reasoning.',
 				ariaLabel: 'Max, Prioritizes the most capable models for the most demanding tasks and complex reasoning.',
 				readout: 'Max', selections: ['copilot/hydrafusion-max'], tier: undefined,
@@ -1645,10 +1645,10 @@ suite('TabbedModelPicker', () => {
 		};
 		const result = createPicker({ models: [...models, providerFusion, createHydraFusionModel(), createHydraFusionMaxModel()], selectedModelId: models[0].identifier });
 		const rowBadge = () => Array.from(result.popup.querySelectorAll('.chat-model-picker-model'))
-			.find(row => row.querySelector('.title')?.textContent === 'Fusion')?.querySelector('.action-item-badge')?.textContent;
+			.find(row => row.querySelector('.title')?.textContent === 'Copilot Fusion')?.querySelector('.action-item-badge')?.textContent;
 		const cardBadge = () => result.popup.querySelector('.chat-model-card-badge:not([hidden])')?.textContent;
 		const badges = { row: rowBadge(), card: '' };
-		openDetails(result.popup, 'Fusion');
+		openDetails(result.popup, 'Copilot Fusion');
 		badges.card = cardBadge() ?? '';
 		const tiers = autoTiers(result.popup);
 		chooseOption(result.popup, 'Max');
@@ -1684,7 +1684,7 @@ suite('TabbedModelPicker', () => {
 			},
 		};
 		const result = createPicker({ models: [...models, providerFusion, createHydraFusionModel(), createHydraFusionMaxModel()], selectedModelId: models[0].identifier });
-		openDetails(result.popup, 'Fusion');
+		openDetails(result.popup, 'Copilot Fusion');
 		assert.deepStrictEqual(autoTiers(result.popup), ['Standard', 'High']);
 	});
 
@@ -1704,7 +1704,7 @@ suite('TabbedModelPicker', () => {
 		};
 		const choose = async (hydraFusion: ILanguageModelChatMetadataAndIdentifier, tier: string) => {
 			const result = createPicker({ models: [...models, providerFusion, createHydraFusionModel(), createHydraFusionMaxModel()], selectedModelId: hydraFusion.identifier });
-			openDetails(result.popup, 'Fusion');
+			openDetails(result.popup, 'Copilot Fusion');
 			const tiers = autoTiers(result.popup);
 			const checked = result.popup.querySelector('.tabbed-action-list-details [role="radio"][aria-checked="true"]')?.textContent;
 			chooseOption(result.popup, tier);
@@ -2392,7 +2392,7 @@ suite('TabbedModelPicker', () => {
 	for (const { name, routing, requested, expected } of [
 		{ name: 'Auto with tiers', routing: [createAutoModel()], requested: 'auto', expected: { model: 'Auto', groups: ['Optimize for'] } },
 		{ name: 'Auto without a schema', routing: [model('auto', false)], requested: 'auto', expected: { model: 'auto', groups: [] } },
-		{ name: 'HydraFusion as Fusion\'s tier', routing: [createFusionModel(), createHydraFusionModel()], requested: 'hydrafusion', expected: { model: 'Fusion', groups: ['Effort Level'] } },
+		{ name: 'HydraFusion as Fusion\'s tier', routing: [createFusionModel(), createHydraFusionModel()], requested: 'hydrafusion', expected: { model: 'Copilot Fusion', groups: ['Effort Level'] } },
 		{ name: 'HydraFusion with Default and Max', routing: [createAutoModel(), createHydraFusionModel(), createHydraFusionMaxModel()], requested: 'hydrafusion-max', expected: { model: 'HydraFusion', groups: ['HydraFusion tier'] } },
 		{ name: 'HydraFusion without HydraFusion Max', routing: [createAutoModel(), createHydraFusionModel()], requested: 'hydrafusion', expected: undefined },
 		{ name: 'HydraFusion without an Auto to join', routing: [createHydraFusionModel()], requested: 'hydrafusion', expected: undefined },
@@ -2433,7 +2433,7 @@ suite('TabbedModelPicker', () => {
 		const result = createPicker({
 			models: [{ ...fusion, metadata: { ...fusion.metadata, configurationSchema: { properties: { tier: { ...fusion.metadata.configurationSchema!.properties!.tier, readOnly: true } } } } }, createHydraFusionModel(), max, ...models],
 		});
-		openDetails(result.popup, 'Fusion');
+		openDetails(result.popup, 'Copilot Fusion');
 		const disabled = Array.from(result.popup.querySelectorAll('.tabbed-action-list-details [role="radio"]'), option => option.getAttribute('aria-disabled') === 'true');
 		chooseOption(result.popup, 'Standard');
 		await timeout(0);
