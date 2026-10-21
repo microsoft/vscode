@@ -30188,7 +30188,8 @@ suite('AgentService (node dispatcher)', () => {
 			await svc.createChat(session, URI.parse(buildChatUri(session, 'peer')));
 
 			const [row] = await database.listScratchFolders();
-			assert.deepStrictEqual({ before, after: readSessionScratchFolders(getStateManager(svc).getSessionState(session.toString())?._meta) }, { before: [], after: [row.folder] });
+			// A workspace-less session publishes its own scratch folder, its primary, from the start.
+			assert.deepStrictEqual({ before, after: readSessionScratchFolders(getStateManager(svc).getSessionState(session.toString())?._meta) }, { before: [sessionScratchDir.toString()], after: [sessionScratchDir.toString(), row.folder] });
 		});
 
 		test('a nested chat of a workspace-less session gets its own scratch folder, recorded and attached', async () => {
@@ -30355,6 +30356,44 @@ suite('AgentService (node dispatcher)', () => {
 
 			assert.deepStrictEqual(listedScratchFolders(listed, session), []);
 		});
+
+		for (const workspaceless of [true, false]) {
+			test(`a ${workspaceless ? 'workspace-less' : 'workspace'} session ${workspaceless ? 'publishes' : 'does not publish'} its primary folder as scratch: catalog, fallback and live`, async () => {
+				const { svc, orchestrator } = await createServiceWithRecordedFolder('owned');
+				const agent = disposables.add(new ScratchListingAgent('copilot'));
+				registerTestAgentProvider(svc, agent);
+				// The primary is the session's own folder; it is no recorded scratch row.
+				const primary = URI.file(workspaceless ? '/home/.copilot/chats/own' : '/home/work/project');
+				const meta = workspaceless ? withSessionWorkspaceless(undefined, true) : undefined;
+				const catalogSession = AgentSession.uri('copilot', 'catalog');
+				await orchestrator.registerSessionV2(catalogSession.toString(), { provider: 'copilot', startTime: 1, source: 'restore' }, { checkTombstone: true });
+				assert.strictEqual(await orchestrator.upsertSessionV2(catalogEnvelope(catalogSession, {
+					modifiedTime: 1,
+					isRead: true,
+					isArchived: false,
+					workingDirectories: [primary.toString()],
+					...(meta ? { _meta: meta } : {}),
+					chats: [{ uri: buildDefaultChatUri(catalogSession), order: 0, kind: 'default', workingDirectories: [primary.toString()] }],
+				}), undefined), 'applied');
+				const fallbackSession = AgentSession.uri('copilot', 'fallback');
+				const registry = (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry;
+				await registry.register(fallbackSession, { provider: 'copilot', startTime: 1, modifiedTime: 1, source: 'explicit' } as IAgentHostDatabaseSessionOptions, { checkTombstone: true });
+				agent.fallbackFolders = [primary];
+				agent.sessionMetadataOverrides = meta ? { _meta: meta } : {};
+				agent.resolvedWorkingDirectory = workspaceless ? primary : undefined;
+				const live = await svc.createSession({ legacyChatUris: true, provider: 'copilot', ...(workspaceless ? {} : { workingDirectories: [primary] }) });
+
+				const listed = await svc.listSessions();
+
+				const expected = workspaceless ? [primary.toString()] : [];
+				assert.deepStrictEqual({
+					catalog: listedScratchFolders(listed, catalogSession),
+					fallback: listedScratchFolders(listed, fallbackSession),
+					live: readSessionScratchFolders(getStateManager(svc).getSessionState(live.toString())?._meta),
+					liveWorkspaceless: readSessionWorkspaceless(getStateManager(svc).getSessionState(live.toString())?._meta),
+				}, { catalog: expected, fallback: expected, live: expected, liveWorkspaceless: workspaceless });
+			});
+		}
 
 		test('chats that bring their own folder or share one are skipped', async () => {
 			const { svc, agent, database, allocate } = await createScratchService();
@@ -35270,15 +35309,15 @@ suite('AgentService (node dispatcher)', () => {
 					});
 				});
 
-				test('after a move the target publishes the moved chat\'s scratch folder and the source no longer does', async () => {
-					const { service, source, target, nested, database } = await setupWorkspaceless();
+				test('after a move the target publishes the moved chat\'s scratch folder and the source keeps only its own', async () => {
+					const { service, source, target, nested, database, sessionFolder } = await setupWorkspaceless();
 					const [row] = await database.listScratchFolders();
 					const published = (session: URI) => readSessionScratchFolders(getStateManager(service).getSessionState(session.toString())?._meta);
 					const before = published(source);
 
 					await service.moveChat(source, nested, { kind: 'session', session: target, after: undefined });
 
-					assert.deepStrictEqual({ before, source: published(source), target: published(target) }, { before: [row.folder], source: [], target: [row.folder] });
+					assert.deepStrictEqual({ before, source: published(source), target: published(target) }, { before: [sessionFolder.toString(), row.folder], source: [sessionFolder.toString()], target: [row.folder] });
 				});
 
 				test('after moving a workspace-less session under another session the target publishes its folder as scratch', async () => {

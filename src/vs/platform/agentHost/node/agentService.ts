@@ -199,6 +199,22 @@ const SESSION_GC_GRACE_MS = 30_000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const EXTERNAL_SESSION_MAX_AGE_MS = 30 * DAY_MS;
 const RECENT_EXTERNAL_SESSION_LIMIT = 2;
+
+/**
+ * The scratch folders a session publishes (`vscode.scratchFolders`): the primary folder of a workspace-less session
+ * (its own scratch folder, the provider's workspace-less directory) and every recorded scratch folder among its and its chats' folders.
+ */
+function publishedScratchFolders(isRecordedScratchFolder: (folder: string) => boolean, workspaceless: boolean, folders: readonly string[], chatFolders: readonly string[]): string[] {
+	const scratch: string[] = [];
+	const collect = (folder: string, isScratch: boolean) => {
+		if (isScratch && !scratch.includes(folder)) {
+			scratch.push(folder);
+		}
+	};
+	folders.forEach((folder, index) => collect(folder, (workspaceless && index === 0) || isRecordedScratchFolder(folder)));
+	chatFolders.forEach(folder => collect(folder, isRecordedScratchFolder(folder)));
+	return scratch;
+}
 const RECENT_LOCAL_SESSION_UPDATE_LIMIT = 2;
 /** A scratch folder allocated for a chat being created: kept by `commit`, removed by `abort`. */
 interface IAllocatedScratchFolder {
@@ -2656,14 +2672,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * Payloads never persist them: like {@link _publishWorkingDirectoryIdentities}, they are computed at publish time.
 	 */
 	private _withListedScratchFolders(metadata: IAgentSessionMetadata, chatFolders: readonly string[]): IAgentSessionMetadata {
-		const folders: string[] = [];
-		const collect = (folder: string) => {
-			if (this._stateManager.isScratchFolder(folder) && !folders.includes(folder)) {
-				folders.push(folder);
-			}
-		};
-		metadata.workingDirectories?.forEach(folder => collect(folder.toString()));
-		chatFolders.forEach(collect);
+		const folders = publishedScratchFolders(folder => this._stateManager.isScratchFolder(folder), readSessionWorkspaceless(metadata._meta), metadata.workingDirectories?.map(folder => folder.toString()) ?? [], chatFolders);
 		if (folders.length === 0 && readSessionScratchFolders(metadata._meta).length === 0) {
 			return metadata;
 		}
@@ -12201,7 +12210,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const folders = this._stateManager.getSessionSummary(sessionChannel)?.workingDirectories ?? state.workingDirectories;
 		const nextMeta = withSessionScratchFolders(
 			withPublishedWorkingDirectoryIdentities(state._meta, folders, state.chats),
-			[...new Set([...(folders ?? []), ...state.chats.flatMap(chat => chat.workingDirectories ?? [])].filter(folder => this._stateManager.isScratchFolder(folder)))]);
+			publishedScratchFolders(folder => this._stateManager.isScratchFolder(folder), readSessionWorkspaceless(state._meta), folders ?? [], state.chats.flatMap(chat => chat.workingDirectories ?? [])));
 		if (!equals(state._meta, nextMeta)) {
 			this._stateManager.setSessionMeta(sessionChannel, nextMeta);
 		}
