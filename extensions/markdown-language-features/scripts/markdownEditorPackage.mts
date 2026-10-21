@@ -21,6 +21,9 @@ export async function resolveMarkdownEditorPackage(): Promise<{ readonly directo
 	if (!manifest || typeof manifest !== 'object' || !('name' in manifest) || manifest.name !== '@vscode/markdown-editor') {
 		throw new Error(`Not a Markdown editor package: ${directory}`);
 	}
+	if (!('exports' in manifest) || !manifest.exports || typeof manifest.exports !== 'object') {
+		throw new Error(`Markdown editor package must declare exports for package self-reference: ${directory}`);
+	}
 	let commands: esbuild.ResolveResult | undefined;
 	await esbuild.build({
 		stdin: { contents: '' }, write: false, logLevel: 'silent',

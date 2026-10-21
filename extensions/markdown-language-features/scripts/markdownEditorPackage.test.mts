@@ -58,6 +58,8 @@ test('local override uses package exports for commands, JavaScript, and CSS with
 		process.env.VSCODE_MARKDOWN_EDITOR_PATH = root;
 		await writeFile(join(root, 'package.json'), JSON.stringify({ name: 'other-package' }));
 		await assert.rejects(resolveMarkdownEditorPackage(), /Not a Markdown editor package/);
+		await writeFile(join(root, 'package.json'), JSON.stringify({ name: '@vscode/markdown-editor' }));
+		await assert.rejects(resolveMarkdownEditorPackage(), /must declare exports/);
 		await writeFile(join(root, 'package.json'), JSON.stringify({ name: '@vscode/markdown-editor', exports: { './commands': './missing.js' } }));
 		await assert.rejects(resolveMarkdownEditorPackage(), /Could not resolve/);
 	} finally {
