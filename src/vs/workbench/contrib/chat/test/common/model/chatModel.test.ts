@@ -569,6 +569,55 @@ suite('ChatModel', () => {
 		]);
 	});
 
+	test('binding and account-only token updates notify and survive JSON and operation logs', () => {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const request = model.addRequest({ text: 'usage', parts: [] }, { variables: [] }, 0);
+		assert.ok(request.response);
+		const legacy = { id: 'shared-id', kind: 'configured', label: 'Shared provider' };
+		const unknownAccount = { ...legacy, binding: { source: 'configuration' } };
+		const accountA = { ...unknownAccount, binding: { source: 'configuration', accountRef: { selectionId: 'account-a' } } };
+		const accountB = { ...unknownAccount, binding: { source: 'configuration', accountRef: { selectionId: 'account-b' } } };
+		const usage = { kind: 'usage' as const, promptTokens: 3, completionTokens: 2 };
+		const total = { model: 'raw-model', modelDisplayName: 'Shared model', inputTokens: 3, cachedTokens: 1, outputTokens: 2 };
+		model.acceptResponseProgress(request, { ...usage, modelTotals: [{ ...total, provider: legacy }] });
+		const operationLog = new ChatSessionOperationLog();
+		const initial = operationLog.createInitial(model);
+		let updates = 0;
+		testDisposables.add(request.response.onDidChange(() => updates++));
+		const providers = [unknownAccount, accountA, accountB];
+		const restoredSnapshots = providers.map(provider => {
+			model.acceptResponseProgress(request, { ...usage, modelTotals: [{ ...total, provider }] });
+			const restored = testDisposables.add(instantiationService.createInstance(
+				ChatModel, { value: JSON.parse(JSON.stringify(model.toJSON())) as ISerializableChatData3, serializer: undefined! },
+				{ initialLocation: ChatAgentLocation.Chat, canUseTools: true },
+			));
+			return {
+				provider: restored.getRequests()[0].response?.usage?.modelTotals?.[0].provider,
+				tokens: restored.getRequests()[0].response?.completionTokenCount,
+			};
+		});
+		model.acceptResponseProgress(request, {
+			...usage,
+			modelTotals: [{ ...total, provider: { ...accountB, binding: { ...accountB.binding, accountRef: { ...accountB.binding.accountRef } } } }],
+		});
+		const mutation = operationLog.write(model);
+		const logged = operationLog.read(mutation.op === 'replace' ? mutation.data : VSBuffer.concat([initial, mutation.data]));
+
+		assert.deepStrictEqual({
+			updates,
+			restoredSnapshots,
+			logged: logged.requests[0].modelTotals,
+			live: request.response.usage?.modelTotals,
+			tokens: request.response.completionTokenCount,
+		}, {
+			updates: 3,
+			restoredSnapshots: providers.map(provider => ({ provider, tokens: 2 })),
+			logged: [{ ...total, provider: accountB }],
+			live: [{ ...total, provider: accountB }],
+			tokens: 2,
+		});
+	});
+
 	test('subagent credits are folded into parent response usage', () => {
 		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
 		const text = 'hello';

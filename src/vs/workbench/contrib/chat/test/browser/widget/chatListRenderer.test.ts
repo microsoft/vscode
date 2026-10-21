@@ -916,6 +916,29 @@ suite('ChatListRenderer', () => {
 			});
 		});
 
+		test('keeps opaque binding and account references out of token details and accessible labels', () => {
+			const stats = formatResponseTokenStats([{
+				model: 'raw-model',
+				modelDisplayName: 'Display model',
+				provider: {
+					id: 'opaque-binding-id', kind: 'configured', label: 'Configured provider',
+					binding: { source: 'configuration', accountRef: { selectionId: 'opaque-account-id' } },
+				},
+				inputTokens: 3, cachedTokens: 1, outputTokens: 2,
+			}]);
+			const text = 'Response details. Model: Display model. Provider: Configured provider. Input tokens: 3. Cached input tokens: 1. Output tokens: 2';
+
+			assert.deepStrictEqual({
+				markdown: stats?.markdown.value,
+				fallback: stats?.markdownNotSupportedFallback,
+				ariaLabel: stats?.footerAriaLabel,
+			}, {
+				markdown: '**Response details**\n\nModel: Display model\n\nProvider: Configured provider\n\n- Input tokens: 3\n- Cached input tokens: 1\n- Output tokens: 2\n\n',
+				fallback: text,
+				ariaLabel: text,
+			});
+		});
+
 		test('reports no token usage summary when the provider reported none', () => {
 			assert.deepStrictEqual([
 				formatResponseTokenStats(undefined),

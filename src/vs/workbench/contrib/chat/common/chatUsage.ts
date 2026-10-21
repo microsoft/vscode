@@ -36,7 +36,7 @@ export function aggregateChatUsage(usages: readonly (IChatUsage | undefined)[]):
 				inputTokens += total.inputTokens;
 				cachedTokens += total.cachedTokens;
 				outputTokens += total.outputTokens;
-				const key = getAgentModelUsageKey(total.model, total.provider?.id);
+				const key = getAgentModelUsageKey(total.model, total.provider);
 				const current = models.get(key);
 				const modelDisplayName = total.modelDisplayName ?? current?.modelDisplayName;
 				models.set(key, {

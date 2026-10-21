@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IChatUsage } from '../../common/chatService/chatService.js';
+import { IChatUsage, IChatUsageModelTotal } from '../../common/chatService/chatService.js';
 import { aggregateChatUsage } from '../../common/chatUsage.js';
 
 suite('Chat usage aggregation', () => {
@@ -81,6 +81,40 @@ suite('Chat usage aggregation', () => {
 			zero: { inputTokens: 0, cachedTokens: 0, outputTokens: 0, models: zeroTotals, isComplete: true },
 			partial: { inputTokens: 0, outputTokens: 0, models: zeroTotals, isComplete: false },
 			legacy: { inputTokens: 0, outputTokens: 0, models: [], isComplete: false },
+		});
+	});
+
+	test('separates binding accounts, binding identities and legacy provider references', () => {
+		const legacy = { id: 'shared-id', kind: 'configured', label: 'Shared provider' };
+		const unknownAccount = { ...legacy, binding: { source: 'configuration' } };
+		const accountA = { ...unknownAccount, binding: { source: 'configuration', accountRef: { selectionId: 'account-a' } } };
+		const accountB = { ...unknownAccount, binding: { source: 'configuration', accountRef: { selectionId: 'account-b' } } };
+		const otherBinding = { ...accountA, id: 'other-binding' };
+		const renamed = { ...accountA, kind: 'updated-kind', label: 'Renamed provider', binding: { ...accountA.binding, source: 'updated-source' } };
+		const total = (provider: IChatUsageModelTotal['provider'], tokens: number): IChatUsageModelTotal => ({
+			model: 'raw-model',
+			modelDisplayName: 'Shared model',
+			...(provider ? { provider } : {}),
+			inputTokens: tokens * 10, cachedTokens: tokens, outputTokens: tokens,
+		});
+		const providers = [legacy, unknownAccount, accountA, accountB, otherBinding, undefined];
+
+		assert.deepStrictEqual(aggregateChatUsage([
+			usage(providers.map((provider, index) => total(provider, index + 1))),
+			usage([total(renamed, 7)]),
+		]), {
+			inputTokens: 280,
+			cachedTokens: 28,
+			outputTokens: 28,
+			models: [
+				total(legacy, 1),
+				total(unknownAccount, 2),
+				total(renamed, 10),
+				total(accountB, 4),
+				total(otherBinding, 5),
+				total(undefined, 6),
+			],
+			isComplete: true,
 		});
 	});
 

@@ -11,6 +11,7 @@ import { ILanguageModelChatMetadataAndIdentifier } from './languageModels.js';
 /** Presentation for a trusted model source owned by one language-model vendor. */
 export interface ILanguageModelSourcePresentation {
 	readonly ownerVendor: string;
+	/** Opaque source identity, not suitable for display or product telemetry. */
 	readonly sourceId: string;
 	readonly label: string;
 	readonly icon: ThemeIcon;
@@ -28,7 +29,7 @@ class LanguageModelSourcePresentationRegistry implements ILanguageModelSourcePre
 	register(presentation: ILanguageModelSourcePresentation): IDisposable {
 		const key = this._key(presentation.ownerVendor, presentation.sourceId);
 		if (this._presentations.has(key)) {
-			throw new Error(`A language model source presentation is already registered for ${presentation.ownerVendor}/${presentation.sourceId}`);
+			throw new Error('A language model source presentation is already registered for this owner and source.');
 		}
 		this._presentations.set(key, presentation);
 		return toDisposable(() => {

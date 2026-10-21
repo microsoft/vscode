@@ -22,6 +22,7 @@ import { NullOpenerService } from '../../../../../platform/opener/test/common/nu
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IExtensionService, nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
+import { getAgentModelProviderKey } from '../../../../../platform/agentHost/common/meta/agentModelProvider.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -207,6 +208,24 @@ suite('LanguageModels', function () {
 			foreign: 'GPT-5.6 Sol',
 			disposed: 'GPT-5.6 Sol',
 			identity: { identifier: 'opaque-native-selector', id: 'opaque-native-selector', name: 'GPT-5.6 Sol' },
+		});
+	});
+
+	test('duplicate source registration does not expose binding or account references', () => {
+		const presentation = {
+			ownerVendor: 'test-agent-host',
+			sourceId: getAgentModelProviderKey({
+				id: 'opaque-configuration-id', kind: 'configured', label: 'Private provider label',
+				binding: { source: 'configuration', accountRef: { selectionId: 'opaque-account-reference' } },
+			}),
+			label: 'Private provider label',
+			icon: Codicon.server,
+			description: 'Configured models',
+		};
+		store.add(languageModelSourcePresentationRegistry.register(presentation));
+
+		assert.throws(() => languageModelSourcePresentationRegistry.register(presentation), {
+			message: 'A language model source presentation is already registered for this owner and source.',
 		});
 	});
 
