@@ -445,7 +445,7 @@ suite('ModelPickerTelemetry', () => {
 	});
 
 	test('the input shows a HydraFusion tier as Fusion with that tier, or as HydraFusion with its own tier', () => {
-		const fusion: ILanguageModelChatMetadataAndIdentifier = { ...autoModel, metadata: { ...autoModel.metadata, name: 'Fusion', autoModelFusion: { balanceUsesHydraFusion: true }, configurationSchema: { properties: { tier: { type: 'string', group: 'navigation', title: 'Effort Level', enum: ['balance', 'intelligence'], enumItemLabels: ['Standard', 'High'], default: 'balance' } } } } };
+		const fusion: ILanguageModelChatMetadataAndIdentifier = { ...autoModel, metadata: { ...autoModel.metadata, name: 'Copilot Fusion', autoModelFusion: { balanceUsesHydraFusion: true }, configurationSchema: { properties: { tier: { type: 'string', group: 'navigation', title: 'Effort Level', enum: ['balance', 'intelligence'], enumItemLabels: ['Standard', 'High'], default: 'balance' } } } } };
 		const hydraFusion = createModel('hydrafusion', { name: 'HydraFusion', modelGroup: { id: 'copilotcli' }, configurationSchema: undefined });
 		const max = createModel('hydrafusion-max', { name: 'HydraFusion Max', modelGroup: { id: 'copilotcli' }, configurationSchema: undefined });
 		const input = (picker: ReturnType<typeof createPicker>) => {
@@ -458,7 +458,7 @@ suite('ModelPickerTelemetry', () => {
 		// The picker does not offer a Max this build cannot run, so neither tier is shown.
 		// A Fusion this build cannot run is not offered, so HydraFusion keeps its own tiers.
 		const fusionNeedsUpdate = createPicker(max, undefined, [fusion, hydraFusion, max, model], undefined, undefined, undefined, {
-			free: {}, paid: { auto: { label: 'Fusion', exists: true, featured: true, minVSCodeVersion: '99.0.0' } },
+			free: {}, paid: { auto: { label: 'Copilot Fusion', exists: true, featured: true, minVSCodeVersion: '99.0.0' } },
 		});
 		const maxNeedsUpdate = createPicker(hydraFusion, undefined, [autoModel, hydraFusion, max, model], undefined, undefined, undefined, {
 			free: {}, paid: { 'hydrafusion-max': { label: 'HydraFusion Max', exists: true, featured: true, minVSCodeVersion: '99.0.0' } },
@@ -476,9 +476,9 @@ suite('ModelPickerTelemetry', () => {
 			hydraFusionMaxNeedsUpdate: input(maxNeedsUpdate),
 			fusionNeedsUpdate: input(fusionNeedsUpdate),
 		}, {
-			input: ['Fusion', 'Max'],
-			high: ['Fusion', 'High'],
-			standard: ['Fusion', 'Standard'],
+			input: ['Copilot Fusion', 'Max'],
+			high: ['Copilot Fusion', 'High'],
+			standard: ['Copilot Fusion', 'Standard'],
 			hydraFusionMax: ['HydraFusion', 'Max'],
 			hydraFusionDefault: ['HydraFusion', 'Default'],
 			hydraFusionWithoutMax: ['HydraFusion'],
@@ -490,7 +490,7 @@ suite('ModelPickerTelemetry', () => {
 	test('a chat moves between HydraFusion and Fusion\'s High as Fusion routes High', async () => {
 		const hydraFusion = createModel('hydrafusion', { name: 'HydraFusion', modelGroup: { id: 'copilotcli' } });
 		const open = async (balanceUsesHydraFusion: boolean, selected: 'hydraFusion' | 'fusionHigh') => {
-			const fusion = { ...autoModel, metadata: { ...autoModel.metadata, name: 'Fusion', autoModelFusion: { balanceUsesHydraFusion } } };
+			const fusion = { ...autoModel, metadata: { ...autoModel.metadata, name: 'Copilot Fusion', autoModelFusion: { balanceUsesHydraFusion } } };
 			const result = createPicker(selected === 'hydraFusion' ? hydraFusion : model, undefined, [fusion, hydraFusion, model]);
 			if (selected === 'fusionHigh') {
 				result.configurations.set(fusion.identifier, { tier: 'intelligence' });
@@ -517,7 +517,7 @@ suite('ModelPickerTelemetry', () => {
 
 	test('showing HydraFusion as Fusion\'s High is not a selection', async () => {
 		const hydraFusion = createModel('hydrafusion', { name: 'HydraFusion', modelGroup: { id: 'copilotcli' } });
-		const fusion = { ...autoModel, metadata: { ...autoModel.metadata, name: 'Fusion', autoModelFusion: { balanceUsesHydraFusion: false } } };
+		const fusion = { ...autoModel, metadata: { ...autoModel.metadata, name: 'Copilot Fusion', autoModelFusion: { balanceUsesHydraFusion: false } } };
 		const result = createPicker(hydraFusion, undefined, [fusion, hydraFusion, model]);
 		await timeout(0);
 
@@ -565,7 +565,7 @@ suite('ModelPickerTelemetry', () => {
 			const fusion = {
 				...autoModel,
 				metadata: {
-					...autoModel.metadata, name: 'Fusion', autoModelFusion: { balanceUsesHydraFusion: true },
+					...autoModel.metadata, name: 'Copilot Fusion', autoModelFusion: { balanceUsesHydraFusion: true },
 					configurationSchema: {
 						properties: {
 							tier: {
@@ -595,7 +595,7 @@ suite('ModelPickerTelemetry', () => {
 
 	test('normalizing a matching HydraFusion selection does not persist it again', () => {
 		const hydraFusion = createModel('hydrafusion', { name: 'HydraFusion', modelGroup: { id: 'copilotcli' } });
-		const fusion = { ...autoModel, metadata: { ...autoModel.metadata, name: 'Fusion', autoModelFusion: { balanceUsesHydraFusion: true } } };
+		const fusion = { ...autoModel, metadata: { ...autoModel.metadata, name: 'Copilot Fusion', autoModelFusion: { balanceUsesHydraFusion: true } } };
 		const result = createPicker(hydraFusion, undefined, [fusion, hydraFusion, model]);
 		result.picker.setSelectedModel({ ...hydraFusion });
 
