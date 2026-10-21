@@ -306,7 +306,7 @@ function sessionLiveSql(uri: string): string {
 }
 
 /** Whether `directory` is the folder `?1` (no trailing slash) or inside it, case-insensitively. */
-function withinFolderSql(directory: string): string {
+export function withinFolderSql(directory: string): string {
 	return `(lower(${directory}) = lower(?1) OR substr(lower(${directory}), 1, length(?1) + 1) = lower(?1) || '/')`;
 }
 

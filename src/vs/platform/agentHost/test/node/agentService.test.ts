@@ -31359,6 +31359,23 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual({ ...await snapshot(), primary: before.session?.[0], createdListed: getStateManager(svc).getSessionState(session.toString())?.chats.some(entry => entry.resource === created.toString()) }, { ...before, primary: sessionScratch.toString(), createdListed: false });
 		});
 
+		test('a folder inside a chat\'s own scratch folder is refused as a folder workspace, and nothing is prepared or attached', async () => {
+			const { svc, agent, session, peer, database, branches, snapshot } = await createRebindService({ workspaceless: true });
+			const ownerSession = await svc.createSession({ legacyChatUris: true, provider: agent.id, workingDirectories: [primary] });
+			await svc.createChat(ownerSession, URI.parse(buildChatUri(ownerSession, 'owner')), { workspace: { kind: 'scratch' } });
+			const recorded = (await database.listScratchFolders()).find(row => row.chatUri.includes('owner'))!;
+			const created = URI.parse(buildChatUri(session, 'created'));
+			const before = await snapshot();
+			const insideRefusal = /is inside a chat's own scratch folder; pick No Workspace for a scratch folder of its own/;
+
+			for (const folder of [joinPath(URI.parse(recorded.folder), 'sub', 'deeper'), joinPath(URI.file('/home/.copilot/chats/s-a'), 'sub')]) {
+				await assert.rejects(() => svc.setChatWorkspace(session, peer, { kind: 'folder', folder, isolation: 'folder' }), insideRefusal);
+				await assert.rejects(() => svc.createChat(session, created, { workspace: { kind: 'folder', folder, isolation: 'folder' } }), insideRefusal);
+			}
+
+			assert.deepStrictEqual({ ...await snapshot(), branches, createdListed: getStateManager(svc).getSessionState(session.toString())?.chats.some(entry => entry.resource === created.toString()) }, { ...before, branches: [], createdListed: false });
+		});
+
 		test('a folder the session publishes as a scratch folder is refused as a folder workspace', async () => {
 			const { svc, session, peer, snapshot } = await createRebindService();
 			const listed = URI.file('/workspace/listed');
