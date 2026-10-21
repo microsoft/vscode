@@ -213,8 +213,6 @@ describe('ConfigurationServiceImpl - externally configurable advanced settings',
 });
 
 describe('ConfigurationServiceImpl - user-scope-only settings', () => {
-	const promptOverrideString = ConfigKey.Advanced.DebugPromptOverrideString;
-	const promptOverrideFile = ConfigKey.Advanced.DebugPromptOverrideFile;
 	const omitBaseAgentInstructions = ConfigKey.Advanced.OmitBaseAgentInstructions;
 
 	afterEach(() => {
@@ -222,48 +220,25 @@ describe('ConfigurationServiceImpl - user-scope-only settings', () => {
 	});
 
 	function read() {
-		const service = new ConfigurationServiceImpl(fakeTokenStore);
-		return {
-			promptOverrideString: service.getConfig(promptOverrideString),
-			promptOverrideFile: service.getConfig(promptOverrideFile),
-			omitBaseAgentInstructions: service.getConfig(omitBaseAgentInstructions),
-		};
+		return new ConfigurationServiceImpl(fakeTokenStore).getConfig(omitBaseAgentInstructions);
 	}
 
 	test('ignores values set in workspace settings', () => {
 		mockConfigStore.user = {};
 		mockConfigStore.defaults = {};
 		mockConfigStore.workspace = {
-			[promptOverrideString.fullyQualifiedId]: 'systemPrompt: from workspace',
-			[promptOverrideFile.fullyQualifiedId]: '/workspace/prompt.yaml',
 			[omitBaseAgentInstructions.fullyQualifiedId]: true,
 			[omitBaseAgentInstructions.fullyQualifiedOldId!]: true,
 		};
 
-		expect(read()).toEqual({
-			promptOverrideString: null,
-			promptOverrideFile: null,
-			omitBaseAgentInstructions: false,
-		});
+		expect(read()).toBe(false);
 	});
 
 	test('reads values set in user settings', () => {
-		mockConfigStore.user = {
-			[promptOverrideString.fullyQualifiedId]: 'systemPrompt: from user',
-			[promptOverrideFile.fullyQualifiedId]: '/user/prompt.yaml',
-			[omitBaseAgentInstructions.fullyQualifiedId]: true,
-		};
+		mockConfigStore.user = { [omitBaseAgentInstructions.fullyQualifiedId]: true };
 		mockConfigStore.defaults = {};
-		mockConfigStore.workspace = {
-			[promptOverrideString.fullyQualifiedId]: 'systemPrompt: from workspace',
-			[promptOverrideFile.fullyQualifiedId]: '/workspace/prompt.yaml',
-			[omitBaseAgentInstructions.fullyQualifiedId]: false,
-		};
+		mockConfigStore.workspace = { [omitBaseAgentInstructions.fullyQualifiedId]: false };
 
-		expect(read()).toEqual({
-			promptOverrideString: 'systemPrompt: from user',
-			promptOverrideFile: '/user/prompt.yaml',
-			omitBaseAgentInstructions: true,
-		});
+		expect(read()).toBe(true);
 	});
 });
