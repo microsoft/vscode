@@ -2195,6 +2195,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 	}
 
+	private getTranscriptResponseContent(element: IChatResponseViewModel): IChatRendererContent[] {
+		const content = annotateSpecialMarkdownContent(element.response.value);
+		// Progress messages belong to the relocated status, not the transcript.
+		return this.isStickyProgressEnabled()
+			? content.filter(part => part.kind !== 'progressMessage')
+			: content;
+	}
+
 	private renderChatResponseBasic(element: IChatResponseViewModel, index: number, templateData: IChatListItemTemplate) {
 		templateData.rowContainer.classList.toggle('chat-response-loading', (isResponseVM(element) && !element.isComplete));
 
@@ -2206,7 +2214,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			// Always add the references to avoid shifting the content parts when a reference is added, and having to re-diff all the content.
 			// The part will hide itself if the list is empty.
 			content.push({ kind: 'references', references: element.contentReferences });
-			const responseContent = annotateSpecialMarkdownContent(element.response.value);
+			const responseContent = this.getTranscriptResponseContent(element);
 			content.push(...(element.isComplete ? moveResponseOutcomeToolsAfterFinalResponse(responseContent) : responseContent));
 			if (element.codeCitations.length) {
 				content.push({ kind: 'codeCitations', citations: element.codeCitations });
@@ -4028,7 +4036,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// The morpher's own buffer + rAF loop is the sole rate limiter.
 		const incrementalRendering = this.configService.getValue<boolean>(ChatConfiguration.IncrementalRendering) === true;
 
-		const responseContent = annotateSpecialMarkdownContent(element.response.value);
+		const responseContent = this.getTranscriptResponseContent(element);
 		const renderableResponse = element.isComplete ? moveResponseOutcomeToolsAfterFinalResponse(responseContent) : responseContent;
 
 		this.traceLayout('getNextProgressiveRenderContent', `Want to render ${data.numWordsToRender} at ${data.rate} words/s, counting...`);

@@ -3474,9 +3474,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		let elements;
 		if (this.options.renderStyle === 'compact') {
 			elements = dom.h(`.interactive-input-part.${chatInputSurfaceStackClass}`, [
+				dom.h(`.chat-sticky-progress.interactive-item-container.chat-persistent-progress.${chatInputSurfaceStackSlotClass}@workingProgressContainer`),
 				dom.h('.chat-input-persistent-content@persistentContentContainer'),
 				dom.h(`.chat-session-archive-nudge-container.${chatInputSurfaceStackSlotClass}@sessionArchiveNudgeContainer`),
-				dom.h(`.chat-sticky-progress.interactive-item-container.chat-persistent-progress.${chatInputSurfaceStackSlotClass}@workingProgressContainer`),
 				dom.h(`.interactive-input-and-edit-session.${chatInputSurfaceStackClass}`, [
 					dom.h(`.chat-plan-review-widget-container.${chatInputSurfaceStackSlotClass}@chatPlanReviewContainer`),
 					dom.h(`.chat-question-carousel-widget-container.${chatInputSurfaceStackSlotClass}@chatQuestionCarouselContainer`),
@@ -3511,9 +3511,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			]);
 		} else {
 			elements = dom.h(`.interactive-input-part.${chatInputSurfaceStackClass}`, [
+				dom.h(`.chat-sticky-progress.interactive-item-container.chat-persistent-progress.${chatInputSurfaceStackSlotClass}@workingProgressContainer`),
 				dom.h('.chat-input-persistent-content@persistentContentContainer'),
 				dom.h(`.chat-session-archive-nudge-container.${chatInputSurfaceStackSlotClass}@sessionArchiveNudgeContainer`),
-				dom.h(`.chat-sticky-progress.interactive-item-container.chat-persistent-progress.${chatInputSurfaceStackSlotClass}@workingProgressContainer`),
 				dom.h(`.chat-plan-review-widget-container.${chatInputSurfaceStackSlotClass}@chatPlanReviewContainer`),
 				dom.h(`.chat-question-carousel-widget-container.${chatInputSurfaceStackSlotClass}@chatQuestionCarouselContainer`),
 				dom.h(`.chat-tool-confirmation-carousel-container.${chatInputSurfaceStackSlotClass}@chatToolConfirmationCarouselContainer`),

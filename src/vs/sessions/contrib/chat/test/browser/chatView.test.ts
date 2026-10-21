@@ -3190,14 +3190,17 @@ suite('Sessions - Chat View', () => {
 			const host = dom.append(workbench, dom.$(hostSelector));
 			host.style.width = '400px';
 			const widget = dom.append(host, dom.$('.chat-widget'));
-			const session = dom.append(widget, dom.$('.interactive-session'));
+			const session = dom.append(widget, dom.$('.interactive-session.chat-floating-persistent-content'));
 			const list = dom.append(session, dom.$('.interactive-list'));
 			const row = dom.append(list, dom.$('.interactive-item-container'));
 			const stack = dom.append(session, dom.$('.interactive-input-part.chat-input-surface-stack'));
-			stack.style.cssText = 'display: flex; flex-direction: column; width: 100%';
+			stack.style.cssText = 'display: flex; flex-direction: column; width: 100%; padding-inline: 24px; box-sizing: border-box';
 			const sticky = dom.append(stack, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));
 			const progress = dom.append(sticky, dom.$('.progress-container'));
 			progress.textContent = 'Analyzing workspace changes';
+			const references = dom.append(stack, dom.$('.chat-input-persistent-content.chat-persistent-content-visible'));
+			const pills = dom.append(references, dom.$('.session-chat-input-toolbar'));
+			pills.style.height = '28px';
 			const composer = dom.append(stack, dom.$('.chat-input-container'));
 			dom.getWindow(workbench).document.body.appendChild(workbench);
 			disposables.add(toDisposable(() => workbench.remove()));
@@ -3206,14 +3209,20 @@ suite('Sessions - Chat View', () => {
 			const rowStyle = dom.getWindow(row).getComputedStyle(row);
 			assert.deepStrictEqual({
 				progressOffset: progress.getBoundingClientRect().left - composer.getBoundingClientRect().left,
+				referencesOffset: pills.getBoundingClientRect().left - composer.getBoundingClientRect().left,
 				stickyPadding: stickyStyle.paddingLeft,
 				stickyMargin: stickyStyle.marginLeft,
 				rowPadding: rowStyle.paddingLeft,
+				statusBeforeReferences: sticky.getBoundingClientRect().bottom <= pills.getBoundingClientRect().top,
+				referencesBeforeComposer: pills.getBoundingClientRect().bottom <= composer.getBoundingClientRect().top,
 			}, {
 				progressOffset: 0,
+				referencesOffset: 0,
 				stickyPadding: '0px',
 				stickyMargin: '0px',
 				rowPadding: '24px',
+				statusBeforeReferences: true,
+				referencesBeforeComposer: true,
 			});
 		});
 	}

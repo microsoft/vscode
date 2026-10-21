@@ -2394,6 +2394,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	z-index: 0;
 }
 
+/* Keep reference pills in the composer's surface stack below the relocated status. */
+.interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-sticky-progress:not(:empty) ~ .chat-input-persistent-content.chat-persistent-content-visible {
+	position: relative;
+	bottom: auto;
+	padding-inline: 0;
+}
+
 /* Separate floating controls from transcript content without masking the list,
 	so the treatment remains stable while content streams or scrolls. During the
 	pet's run cycle, the overlay paints the same fade beneath the pet. */
@@ -2414,6 +2421,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content.chat-persistent-content-visible::before {
 	top: calc(-1 * var(--vscode-spacing-size160));
 	bottom: 0;
+}
+
+.interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-sticky-progress:not(:empty) ~ .chat-input-persistent-content.chat-persistent-content-visible::before {
+	content: none;
 }
 
 .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-pet-overlay.chat-pet-run-layer::before {

@@ -2648,6 +2648,33 @@ suite('ChatListRenderer', () => {
 		});
 	});
 
+	test('sticky progress relocates the existing provider status without repeating it in the response', () => {
+		const { container, model, request, renderer, template, node } = createPersistentProgressRenderer();
+		model.acceptResponseProgress(request, { kind: 'progressMessage', content: new MarkdownString('Analyzing workspace changes') });
+		renderer.renderElement(node, 0, template);
+		const original = template.value.querySelector('.chat-working-progress .progress-step')?.textContent;
+		const host = dom.append(container, dom.$('.chat-sticky-progress.interactive-item-container'));
+		renderer.setWorkingProgressContainer(host);
+		renderer.renderElement(node, 0, template);
+		const snapshot = () => ({
+			transcriptMessages: [...template.value.querySelectorAll('.progress-step')].map(part => part.textContent),
+			stickyMessages: [...host.querySelectorAll('.progress-step')].map(part => part.textContent),
+			logos: container.querySelectorAll('.chat-working-logo').length,
+		});
+		const relocated = snapshot();
+		model.acceptResponseProgress(request, { kind: 'progressMessage', content: new MarkdownString('Checking workspace changes') });
+		renderer.renderElement(node, 0, template);
+		const updated = snapshot();
+		request.response?.complete();
+		renderer.renderElement(node, 0, template);
+		assert.deepStrictEqual({ original, relocated, updated, completed: snapshot() }, {
+			original: 'Analyzing workspace changes',
+			relocated: { transcriptMessages: [], stickyMessages: ['Analyzing workspace changes'], logos: 1 },
+			updated: { transcriptMessages: [], stickyMessages: ['Checking workspace changes'], logos: 1 },
+			completed: { transcriptMessages: [], stickyMessages: [], logos: 0 },
+		});
+	});
+
 	test('sticky progress survives transcript virtualization and updates without a rendered response', () => {
 		const { container, model, request, renderer, template, node } = createPersistentProgressRenderer();
 		const host = dom.append(container, dom.$('.chat-sticky-progress.interactive-item-container'));
@@ -6836,28 +6863,70 @@ suite('ChatListRenderer', () => {
 		}, { before: 'Working', during: 'Working', after: 'Working', singleFooter: 1 });
 	});
 
-	test('persistent footer shows participant progress text instead of hiding it', () => {
-		const { configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer();
-		model.acceptResponseProgress(request, { kind: 'progressMessage', content: new MarkdownString('Collecting workspace information') });
-		const snapshot = (animation: ChatProgressAnimation) => {
-			configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, animation);
-			renderer.renderElement(node, 0, template);
-			const footer = template.value.querySelector('.chat-working-progress');
-			return {
-				footer: footer?.textContent?.replace(/\u00a0/g, ' ').trim(),
-				visibleRows: [...template.value.querySelectorAll('.progress-container')].filter(row => row !== footer && row.getBoundingClientRect().height > 0).map(row => row.textContent?.replace(/\u00a0/g, ' ').trim()),
+	for (const sticky of [false, true]) {
+		test(`persistent footer shows participant progress text instead of hiding it (sticky=${sticky})`, () => {
+			const { disposables, configurationService, model, request, renderer, template, node, container } = createPersistentProgressRenderer();
+			configurationService.setUserConfiguration('accessibility.verboseChatProgressUpdates', true);
+			const ariaHost = dom.$('div');
+			setARIAContainer(ariaHost);
+			disposables.add(toDisposable(() => ariaHost.remove()));
+			const observer = new MutationObserver(() => { });
+			disposables.add(toDisposable(() => observer.disconnect()));
+			observer.observe(ariaHost, { childList: true, subtree: true });
+			model.acceptResponseProgress(request, { kind: 'progressMessage', id: 'participant-progress', content: new MarkdownString('Collecting workspace information') });
+			const host = sticky ? dom.append(container, dom.$('.chat-sticky-progress.interactive-item-container')) : template.value;
+			if (sticky) {
+				renderer.setWorkingProgressContainer(host);
+			}
+			const snapshot = (animation: ChatProgressAnimation) => {
+				const previousAnimation = configurationService.getValue(ChatConfiguration.PersistentProgress);
+				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, animation);
+				if (previousAnimation !== animation) {
+					configurationService.onDidChangeConfigurationEmitter.fire({
+						source: ConfigurationTarget.USER,
+						affectedKeys: new Set([ChatConfiguration.PersistentProgress]),
+						change: { keys: [ChatConfiguration.PersistentProgress], overrides: [] },
+						affectsConfiguration: section => section === ChatConfiguration.PersistentProgress,
+					});
+				}
+				renderer.renderElement(node, 0, template);
+				const footer = host.querySelector('.chat-working-progress');
+				return {
+					footer: footer?.textContent?.replace(/\u00a0/g, ' ').trim(),
+					visibleRows: [...template.value.querySelectorAll('.progress-container')].filter(row => row !== footer && row.getBoundingClientRect().height > 0).map(row => row.textContent?.replace(/\u00a0/g, ' ').trim()),
+					announcements: observer.takeRecords().flatMap(record => [...record.addedNodes].map(node => node.textContent).filter(Boolean)),
+				};
 			};
-		};
-		const persistent = snapshot(ChatProgressAnimation.Draw);
-		const legacy = snapshot(ChatProgressAnimation.Off);
-		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Here is what I found.') });
-		const afterContent = snapshot(ChatProgressAnimation.Draw);
-		assert.deepStrictEqual({ persistent, legacy, footerStillQuotesProgress: afterContent.footer === 'Collecting workspace information' }, {
-			persistent: { footer: 'Collecting workspace information', visibleRows: [] },
-			legacy: { footer: undefined, visibleRows: ['Collecting workspace information'] },
-			footerStillQuotesProgress: false,
+			const persistent = snapshot(ChatProgressAnimation.Draw);
+			const footer = host.querySelector('.chat-working-progress');
+			const repeated = snapshot(ChatProgressAnimation.Draw);
+			const sameFooter = host.querySelector('.chat-working-progress') === footer;
+			const legacy = snapshot(ChatProgressAnimation.Off);
+			const legacyRow = template.value.querySelector('.progress-container');
+			const restored = snapshot(ChatProgressAnimation.Draw);
+			const legacyRowStillVisible = !!legacyRow?.isConnected && legacyRow.getBoundingClientRect().height > 0;
+			const restoredFooter = host.querySelector('.chat-working-progress');
+			model.acceptResponseProgress(request, { kind: 'progressMessage', id: 'participant-progress', content: new MarkdownString('Reading workspace files') });
+			const updated = snapshot(ChatProgressAnimation.Draw);
+			const reusedFooter = host.querySelector('.chat-working-progress') === restoredFooter;
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Here is what I found.') });
+			const afterContent = snapshot(ChatProgressAnimation.Draw);
+			request.response?.complete();
+			const completed = snapshot(ChatProgressAnimation.Draw);
+			assert.deepStrictEqual({ persistent, repeated, sameFooter, legacy, restored, legacyRowStillVisible, updated, reusedFooter, afterContent, completed }, {
+				persistent: { footer: 'Collecting workspace information', visibleRows: [], announcements: ['Collecting workspace information'] },
+				repeated: { footer: 'Collecting workspace information', visibleRows: [], announcements: [] },
+				sameFooter: true,
+				legacy: { footer: undefined, visibleRows: ['Collecting workspace information'], announcements: ['Collecting workspace information'] },
+				restored: { footer: 'Collecting workspace information', visibleRows: [], announcements: ['Collecting workspace information'] },
+				legacyRowStillVisible: false,
+				updated: { footer: 'Reading workspace files', visibleRows: [], announcements: [] },
+				reusedFooter: true,
+				afterContent: { footer: 'Working', visibleRows: [], announcements: [] },
+				completed: { footer: undefined, visibleRows: [], announcements: [] },
+			});
 		});
-	});
+	}
 
 	for (const animation of [ChatProgressAnimation.Draw, ChatProgressAnimation.Off]) {
 		test(`progress action stays inline and keyboard-focused as progress updates (${animation})`, () => {
