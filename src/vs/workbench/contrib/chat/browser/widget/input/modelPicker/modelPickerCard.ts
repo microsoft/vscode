@@ -24,7 +24,7 @@ import { getModelContextWindowTotal, ILanguageModelChatMetadata, ILanguageModelC
 import { formatModelCost, getCreditsPerMillionTokensLabel, getMaxContextLabel, getModelCostMetrics, renderModelDescription } from './modelPickerDetails.js';
 import { createMessageBanner, HYDRA_FUSION_LEARN_MORE_URL } from './modelPickerHover.js';
 import { getChangedModelConfigProperties, getModelConfigChoices, getModelConfigProperty, IModelConfigProperty, IModelConfigurationAccess, isExtendedContext, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT, ModelConfigChangeListener, setModelConfigValues } from './modelPickerModelConfig.js';
-import { getCategoryLabel, getPriceCategoryLabel, isAutoModel, isHighCostCategory, isHydraFusionModel, isMultiplierPricing } from './modelPickerPresentation.js';
+import { getCategoryLabel, getPriceCategoryLabel, getRoutingModelBadge, isAutoModel, isHighCostCategory, isHydraFusionModel, isMultiplierPricing } from './modelPickerPresentation.js';
 import { IModelSpeedVariants } from './modelPickerVariants.js';
 import { getOrganizationDefaultDescription } from './modelPickerBadges.js';
 import { IModelPickerComparisonVariant } from './modelPickerComparison.js';
@@ -174,6 +174,8 @@ export class ModelCard extends DisposableStore {
 	private _configurationChangeVersion = 0;
 	private _headerActions: ActionBar | undefined;
 	private _routingBadge: HTMLElement | undefined;
+	/** The effort level the routing badge describes: the one shown as selected, which a click changes before it saves. */
+	private _routingBadgeTier: unknown;
 	/** The pricing disclosure's button, rebuilt with the rest of the card on each render. */
 	private _pricingToggle: HTMLElement | undefined;
 	private _pricingChevron: HTMLElement | undefined;
@@ -300,6 +302,7 @@ export class ModelCard extends DisposableStore {
 		this._pricingBody = undefined;
 		this._headerActions = undefined;
 		this._routingBadge = undefined;
+		this._routingBadgeTier = undefined;
 		this._groupControls.clear();
 
 		const { model, isUBB, openerService } = this._options;
@@ -374,7 +377,9 @@ export class ModelCard extends DisposableStore {
 		const name = dom.append(header, dom.$('.chat-model-card-name', undefined, displayName));
 		this._contentDisposables.add(getBaseLayerHoverDelegate().setupManagedHover(getDefaultHoverDelegate('mouse'), name, displayName));
 
-		if (this._options.routingAlternatives?.length) {
+		// Copilot Fusion's badge follows the effort level shown as selected.
+		const fusionTiers = isAutoModel(this._options.model) && !!metadata.autoModelFusion && !!this._configProperty(MODEL_CONFIG_GROUP_EFFORT);
+		if (this._options.routingAlternatives?.length || fusionTiers) {
 			this._routingBadge = this._renderBadge(header, '', false);
 			this._updateRoutingBadge();
 		} else {
@@ -627,6 +632,10 @@ export class ModelCard extends DisposableStore {
 			}
 			if (choice && !alternative) {
 				renderTierDescription(choice, false);
+				if (isAuto && group === MODEL_CONFIG_GROUP_EFFORT) {
+					this._routingBadgeTier = choice.value;
+					this._showRoutingBadge(getRoutingModelBadge(this._options.model.metadata, choice.value));
+				}
 			} else if (tierDescription) {
 				tierDescription.hidden = true;
 			}
@@ -634,6 +643,10 @@ export class ModelCard extends DisposableStore {
 		this._groupControls.set(group, control);
 		section.appendChild(control.domNode);
 		renderTierDescription(choices.find(choice => choice.checked), !!selectedAlternative);
+		if (isAuto && group === MODEL_CONFIG_GROUP_EFFORT) {
+			this._routingBadgeTier = choices.find(choice => choice.checked)?.value;
+			this._updateRoutingBadge();
+		}
 		for (const alternative of alternatives) {
 			const element = renderModelDescription(alternative.description, this._options.openerService, this._contentDisposables).element;
 			element.classList.add('chat-model-card-description', 'chat-model-card-alternative-description');
@@ -734,14 +747,16 @@ export class ModelCard extends DisposableStore {
 		}
 	}
 
-	/** Shows the chosen alternative's badge, otherwise the routing model's own. */
+	/** Shows the chosen alternative's badge, otherwise the routing model's own at the effort level shown as selected. */
 	private _updateRoutingBadge(): void {
-		const alternatives = this._options.routingAlternatives;
-		const badge = this._routingBadge;
-		if (alternatives?.length && badge) {
-			const label = (alternatives.find(alternative => alternative.selected)?.model ?? this._options.model).metadata.detail;
-			badge.textContent = label ?? '';
-			badge.hidden = !label;
+		const alternative = this._options.routingAlternatives?.find(alternative => alternative.selected);
+		this._showRoutingBadge(alternative ? alternative.model.metadata.detail : getRoutingModelBadge(this._options.model.metadata, this._routingBadgeTier));
+	}
+
+	private _showRoutingBadge(label: string | undefined): void {
+		if (this._routingBadge) {
+			this._routingBadge.textContent = label ?? '';
+			this._routingBadge.hidden = !label;
 		}
 	}
 

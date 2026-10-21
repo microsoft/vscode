@@ -226,13 +226,13 @@ suite('ModelCard', () => {
 			promotions: Array.from(card.element.querySelectorAll('.chat-model-card-tier-promotion'), banner => banner.textContent?.replace(/\. Ends .*|\. Starts .*/, '.')),
 		});
 
-		test('a running promotion covering some tiers is announced without a chip, and each tier is described instead of its discount', () => {
+		test('the chip follows the tier shown as selected, naming a running promotion\'s discount only on the tiers it covers', () => {
 			const { card } = createCard({ tier: 'hydrafusion' }, { model: createFusionModel([promotion(iso(-day), iso(day), ['hydrafusion'])]) });
 			const covered = read(card);
 			card.element.querySelectorAll<HTMLElement>('[role="radio"]')[0].click();
 			assert.deepStrictEqual({ covered, uncovered: read(card) }, {
-				covered: { chip: undefined, discount: undefined, tier: 'Prioritizes capable models for challenging tasks and deeper reasoning.', promotions: ['Get 30% off Fusion usage.'] },
-				uncovered: { chip: undefined, discount: undefined, tier: 'Prioritizes versatile models for efficient everyday coding.', promotions: ['Get 30% off Fusion usage.'] },
+				covered: { chip: '30% discount', discount: undefined, tier: 'Prioritizes capable models for challenging tasks and deeper reasoning.', promotions: ['Get 30% off Fusion usage.'] },
+				uncovered: { chip: 'Research preview', discount: undefined, tier: 'Prioritizes versatile models for efficient everyday coding.', promotions: ['Get 30% off Fusion usage.'] },
 			});
 		});
 
@@ -241,10 +241,10 @@ suite('ModelCard', () => {
 			assert.deepStrictEqual(read(card), { chip: '30% discount', discount: undefined, tier: 'Prioritizes versatile models for efficient everyday coding.', promotions: ['Get 30% off Fusion usage.'] });
 		});
 
-		test('a promotion without a message shows no banner', () => {
+		test('a promotion without a message shows its discount in the chip without a banner', () => {
 			const { message: _, ...discountOnly } = promotion(iso(-day), iso(day), ['hydrafusion']);
 			const { card } = createCard({ tier: 'hydrafusion' }, { model: createFusionModel([discountOnly]) });
-			assert.deepStrictEqual(read(card), { chip: undefined, discount: undefined, tier: 'Prioritizes capable models for challenging tasks and deeper reasoning.', promotions: [] });
+			assert.deepStrictEqual(read(card), { chip: '30% discount', discount: undefined, tier: 'Prioritizes capable models for challenging tasks and deeper reasoning.', promotions: [] });
 		});
 
 		test('an upcoming promotion is announced with its start date and no discount, and once it ends Fusion\'s own discount returns', () => {
@@ -256,7 +256,7 @@ suite('ModelCard', () => {
 				upcoming: { ...read(upcoming), text: upcoming.element.querySelector('.chat-model-card-tier-promotion')?.textContent },
 				ended: read(ended),
 			}, {
-				upcoming: { chip: undefined, discount: undefined, tier: 'Prioritizes versatile models for efficient everyday coding.', promotions: ['Get 30% off Fusion usage.'], text: `Get 30% off Fusion usage. Starts ${startsAt}.` },
+				upcoming: { chip: 'Research preview', discount: undefined, tier: 'Prioritizes versatile models for efficient everyday coding.', promotions: ['Get 30% off Fusion usage.'], text: `Get 30% off Fusion usage. Starts ${startsAt}.` },
 				ended: { chip: '10% discount', discount: undefined, tier: 'Prioritizes versatile models for efficient everyday coding.', promotions: [] },
 			});
 		});
