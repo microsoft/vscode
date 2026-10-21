@@ -9,17 +9,13 @@ import type { IAgentModelInfo } from '../../agent.js';
 
 const VSCODE_FUSION_META_KEY = 'vscode.chat.fusion';
 
-/** How the host presents its Auto model as Fusion. */
-export interface IAgentModelFusionMeta {
-	readonly balanceUsesHydraFusion: boolean;
+/** Marks the host's Auto model as presented as Copilot Fusion. */
+export function withAgentModelFusionMeta(meta: Record<string, unknown> | undefined): Record<string, unknown> {
+	// An object, with the retired `balanceUsesHydraFusion` field, for clients that still read it.
+	return { ...meta, [VSCODE_FUSION_META_KEY]: { balanceUsesHydraFusion: false } };
 }
 
-export function withAgentModelFusionMeta(meta: Record<string, unknown> | undefined, fusion: IAgentModelFusionMeta): Record<string, unknown> {
-	return { ...meta, [VSCODE_FUSION_META_KEY]: { balanceUsesHydraFusion: fusion.balanceUsesHydraFusion } };
-}
-
-export function readAgentModelFusionMeta(model: IAgentModelInfo | SessionModelInfo): IAgentModelFusionMeta | undefined {
-	const value = model._meta?.[VSCODE_FUSION_META_KEY];
-	const balanceUsesHydraFusion = isObject(value) ? (value as { balanceUsesHydraFusion?: unknown }).balanceUsesHydraFusion : undefined;
-	return typeof balanceUsesHydraFusion === 'boolean' ? { balanceUsesHydraFusion } : undefined;
+/** Whether the host presents its Auto model as Copilot Fusion. */
+export function isAgentModelFusion(model: IAgentModelInfo | SessionModelInfo): boolean {
+	return isObject(model._meta?.[VSCODE_FUSION_META_KEY]);
 }
