@@ -53,9 +53,9 @@ export function getCopilotApprovalPolicy(
 export const enum ManagedWorkspaceRetrievalAccess {
 	/** No managed permission rule is in force. */
 	Unrestricted = 'unrestricted',
-	/** A managed rule is in force: every call needs a one-time human approval. */
+	/** A managed rule is in force, or no policy has resolved yet: every call needs a one-time human approval. */
 	RequireApproval = 'requireApproval',
-	/** A managed rule denies reads, or the policy could not be determined. */
+	/** A managed rule denies reads, or the runtime reports the policy as fail-closed. */
 	Deny = 'deny',
 }
 
@@ -76,14 +76,14 @@ function getManagedRules(permissions: unknown, key: 'deny' | 'ask' | 'allow'): s
 /**
  * Resolves {@link ManagedWorkspaceRetrievalAccess} from every known managed
  * policy snapshot and the rules bridged from VS Code settings. Retrieval can
- * return excerpts from any workspace file, so any read denial (or an
- * undetermined policy) denies it outright, and any other managed rule requires
- * approval, matching how the runtime treats unmatched reads once managed rules
- * are active.
+ * return excerpts from any workspace file, so any read denial (or a policy the
+ * runtime reports as fail-closed) denies it outright. Any other managed rule
+ * requires approval, matching how the runtime treats unmatched reads once
+ * managed rules are active, and so does having no resolved policy yet.
  */
 export function getManagedWorkspaceRetrievalAccess(policies: readonly (ManagedSettingsResolvedData | undefined)[], bridged: ManagedSettingsPermissions): ManagedWorkspaceRetrievalAccess {
 	const ruleSets: unknown[] = [bridged];
-	let restricted = false;
+	let restricted = !policies.some(policy => policy !== undefined);
 	for (const policy of policies) {
 		if (!policy) {
 			continue;
@@ -133,11 +133,7 @@ export class CopilotSessionApprovalPolicy {
 		this._runtimeModes = this._policy.available;
 	}
 
-	/** Fails closed to approval until a managed policy has been resolved. */
 	getManagedWorkspaceRetrievalAccess(): ManagedWorkspaceRetrievalAccess {
-		if (!this._nativePolicy && !this._runtimePolicy) {
-			return ManagedWorkspaceRetrievalAccess.RequireApproval;
-		}
 		return getManagedWorkspaceRetrievalAccess([this._nativePolicy, this._runtimePolicy], this._bridgedPermissions);
 	}
 

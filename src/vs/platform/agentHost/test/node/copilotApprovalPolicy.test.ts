@@ -108,6 +108,8 @@ suite('Copilot approval policy', () => {
 		};
 		assert.deepStrictEqual({
 			none: getManagedWorkspaceRetrievalAccess([baseline], {}),
+			noPolicies: getManagedWorkspaceRetrievalAccess([], {}),
+			onlyUnresolved: getManagedWorkspaceRetrievalAccess([undefined, undefined], {}),
 			modesOnly: getManagedWorkspaceRetrievalAccess([withPermissions({ disableBypassPermissionsMode: 'disable', defaultMode: 'assisted' })], { disableBypassPermissionsMode: 'disable' }),
 			domainBoundaryOnly: getManagedWorkspaceRetrievalAccess([baseline], { limitTo: ['Domain(example.com)'] }),
 			readDenied: getManagedWorkspaceRetrievalAccess([withPermissions({ deny: ['Read(/denied/**)'] })], {}),
@@ -132,6 +134,8 @@ suite('Copilot approval policy', () => {
 			}),
 		}, {
 			none: 'unrestricted',
+			noPolicies: 'requireApproval',
+			onlyUnresolved: 'requireApproval',
 			modesOnly: 'unrestricted',
 			domainBoundaryOnly: 'unrestricted',
 			readDenied: 'deny',

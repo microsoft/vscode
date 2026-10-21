@@ -202,14 +202,6 @@ function getClientToolSdkPolicy(toolName: string): IClientToolSdkPolicy {
 	return CLIENT_TOOL_SDK_POLICIES.get(toolName) ?? DEFAULT_CLIENT_TOOL_SDK_POLICY;
 }
 
-function getManagedClientToolDeniedResult(toolName: string): ToolResultObject {
-	return {
-		textResultForLlm: `${toolName} is unavailable because the organization's managed permissions restrict file reads in this session. Use the file reading and search tools instead, which the managed permissions govern.`,
-		resultType: 'denied',
-		error: 'Denied by managed permissions',
-	};
-}
-
 interface CopilotExitPlanModeResponse extends ExitPlanModeResult {
 	readonly autoApproveEdits?: ExitPlanModeCompletedData['autoApproveEdits'];
 }
@@ -3760,38 +3752,28 @@ export class CopilotAgentSession extends Disposable {
 		const { toolCallId } = invocation;
 		const access = this._managedClientToolAccess.get(toolCallId) ?? this._getManagedClientToolAccess(toolName);
 		this._managedClientToolAccess.delete(toolCallId);
-		switch (access) {
-			case ManagedWorkspaceRetrievalAccess.Unrestricted:
+		if (access === ManagedWorkspaceRetrievalAccess.Unrestricted) {
+			return undefined;
+		}
+		if (access === ManagedWorkspaceRetrievalAccess.RequireApproval) {
+			this._logService.info(`[Copilot:${this.sessionId}] Managed permissions require approval for client tool ${toolName}: toolCallId=${toolCallId}`);
+			const response = await this._handlePermissionRequest({
+				kind: 'custom-tool',
+				toolCallId,
+				toolName,
+				toolDescription: toolDescription ?? '',
+				...(invocation.arguments !== undefined ? { args: invocation.arguments as JsonValue } : {}),
+			}, undefined, true);
+			const decision = response.kind === 'attributed' ? response.result : response;
+			if (decision.kind === 'approve-once') {
 				return undefined;
-			case ManagedWorkspaceRetrievalAccess.Deny:
-				// Discard any buffered result: a client result must never reach the model.
-				if (this._pendingClientToolCalls.hasBufferedResult(toolCallId)) {
-					void this._pendingClientToolCalls.register(toolCallId);
-				}
-				return getManagedClientToolDeniedResult(toolName);
-			case ManagedWorkspaceRetrievalAccess.RequireApproval: {
-				this._logService.info(`[Copilot:${this.sessionId}] Managed permissions require approval for client tool ${toolName}: toolCallId=${toolCallId}`);
-				const response = await this._handlePermissionRequest({
-					kind: 'custom-tool',
-					toolCallId,
-					toolName,
-					toolDescription: toolDescription ?? '',
-					...(invocation.arguments !== undefined ? { args: invocation.arguments as JsonValue } : {}),
-				}, undefined, true);
-				const decision = response.kind === 'attributed' ? response.result : response;
-				if (decision.kind === 'approve-once') {
-					return undefined;
-				}
-				if (this._pendingClientToolCalls.hasBufferedResult(toolCallId)) {
-					void this._pendingClientToolCalls.register(toolCallId);
-				}
-				return {
-					textResultForLlm: `The user did not approve ${toolName}, which requires approval under the organization's managed permissions.`,
-					resultType: 'denied',
-					error: 'Managed approval was not granted',
-				};
 			}
 		}
+		// Discard any buffered result: a client result must never reach the model.
+		if (this._pendingClientToolCalls.hasBufferedResult(toolCallId)) {
+			void this._pendingClientToolCalls.register(toolCallId);
+		}
+		return { textResultForLlm: `${toolName} was denied by managed permissions.`, resultType: 'denied', error: 'Denied by managed permissions' };
 	}
 
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -11701,6 +11683,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _cancelPendingClientToolCalls(): void {
+		this._managedClientToolAccess.clear();
 		this._pendingClientToolCalls.denyAll({ textResultForLlm: 'Tool call cancelled: session ended', resultType: 'failure', error: 'Session ended' });
 	}
 }
