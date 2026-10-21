@@ -349,7 +349,7 @@ suite('CopilotCustomizationsWidget', () => {
 			commands: [{
 				id: AICustomizationManagementCommands.OpenEditor,
 				args: [{
-					section: AICustomizationManagementSection.Extensions,
+					section: AICustomizationManagementSection.CopilotExtensions,
 					sessionResource: harness.frontendSessionResource,
 				}],
 			}],

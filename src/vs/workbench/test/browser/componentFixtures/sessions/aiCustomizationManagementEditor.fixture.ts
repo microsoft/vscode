@@ -1244,7 +1244,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	const skillUIIntegrations = options.skillUIIntegrations ?? new Map();
 	const managementSections = options.managementSections ?? [
 		AICustomizationManagementSection.Plugins,
-		AICustomizationManagementSection.Extensions,
+		AICustomizationManagementSection.CopilotExtensions,
 		AICustomizationManagementSection.Canvases,
 		AICustomizationManagementSection.McpServers,
 		AICustomizationManagementSection.Skills,
@@ -2102,7 +2102,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			'Featured Browse items did not render before searching.',
 		);
 	}
-	const expectedCopilotRows = options.selectedSection === AICustomizationManagementSection.Extensions
+	const expectedCopilotRows = options.selectedSection === AICustomizationManagementSection.CopilotExtensions
 		? options.copilotExtensionInventory?.extensions.length ?? 0
 		: options.selectedSection === AICustomizationManagementSection.Canvases
 			? options.copilotCanvases?.length ?? 0
@@ -3421,22 +3421,22 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource, marketplaceVisibilityEnabled: true, width: 550, height: 500, expectedDiscoveryContentWidth: 310 }),
 	}),
 
-	ExtensionsTab: defineComponentFixture({
+	CopilotExtensionsTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['Extensions uses the shared customization tree design with User and Plugins groups, standard switches for enabled state, and Refresh in the title row rather than beside search.'],
+		expectedVisualDescriptions: ['Copilot Extensions uses the shared customization tree design with User and Plugins groups, standard switches for enabled state, and Refresh in the title row rather than beside search.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
-			selectedSection: AICustomizationManagementSection.Extensions,
+			selectedSection: AICustomizationManagementSection.CopilotExtensions,
 			copilotExtensionInventory: fixtureCopilotExtensionInventory,
 		}),
 	}),
 
-	ExtensionsTabScrollable: defineComponentFixture({
+	CopilotExtensionsTabScrollable: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['A long Extensions inventory scrolls inside the shared tree with theme-respecting scrollbar colors in both dark and light themes.'],
+		expectedVisualDescriptions: ['A long Copilot Extensions inventory scrolls inside the shared tree with theme-respecting scrollbar colors in both dark and light themes.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
-			selectedSection: AICustomizationManagementSection.Extensions,
+			selectedSection: AICustomizationManagementSection.CopilotExtensions,
 			copilotExtensionInventory: fixtureScrollableCopilotExtensionInventory,
 			height: 420,
 		}),

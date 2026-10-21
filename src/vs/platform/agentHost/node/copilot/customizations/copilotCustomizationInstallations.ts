@@ -27,6 +27,9 @@ const catalogSearchCapabilities = [
 	'trust-snapshot',
 	'ai-skill-discovery',
 	'skill-confirmed-installation',
+];
+const pluginCatalogSearchCapabilities = [
+	...catalogSearchCapabilities,
 	'agent-plugin-discovery',
 	'agent-plugin-formats',
 	'agent-plugin-confirmed-installation',
@@ -262,7 +265,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 					contract: {
 						protocolVersion: 3,
 						requiredCapabilities: kinds.includes('plugin')
-							? [...catalogSearchCapabilities, 'agent-plugin-discovery']
+							? pluginCatalogSearchCapabilities
 							: catalogSearchCapabilities,
 					},
 					policySessionId,
@@ -285,10 +288,10 @@ export class CopilotCustomizationInstallations extends Disposable {
 					}
 					throw new Error(search.message);
 				}
-				const items = search.candidates.flatMap(candidate => candidate.kind === 'plugin'
-					? [this.toPluginCatalogItem(candidate)]
-					: this.isInstallableCatalogCandidate(candidate)
-						? [this.retainCatalogCandidate(client, policySessionId, search.searchId, candidate)]
+				const items = search.candidates.flatMap(candidate => this.isInstallableCatalogCandidate(candidate)
+					? [this.retainCatalogCandidate(client, policySessionId, search.searchId, candidate)]
+					: candidate.kind === 'plugin'
+						? [this.toPluginCatalogItem(candidate)]
 						: []);
 				if (items.length || !search.pagination?.hasNextPage) {
 					const nextCursor = search.pagination?.hasNextPage
@@ -313,7 +316,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 		const result = await client.rpc.catalog.getSavedFeed({
 			contract: {
 				protocolVersion: 3,
-				requiredCapabilities: [...catalogSearchCapabilities, 'catalog-feeds'],
+				requiredCapabilities: [...pluginCatalogSearchCapabilities, 'catalog-feeds'],
 			},
 			policySessionId,
 			feedId,
@@ -955,6 +958,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 			version: candidate.kind === 'plugin' ? candidate.version : undefined,
 			repository: candidate.kind === 'plugin' ? candidate.source?.repository : undefined,
 			path: candidate.kind === 'plugin' ? candidate.source?.path : undefined,
+			tags: candidate.kind === 'plugin' ? candidate.compatibilityTags : undefined,
 			itemUrl: candidate.kind !== 'plugin' && candidate.source.kind === 'url' ? candidate.source.url : undefined,
 			connectorIds: candidate.connectorIds,
 			installable: true,

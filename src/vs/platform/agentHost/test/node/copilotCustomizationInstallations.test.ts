@@ -919,12 +919,15 @@ suite('CopilotCustomizationInstallations', () => {
 						provenance: { authority: 'agentfinder.github.com', observedAt, mediaType: 'application/mcp-server+json' as const },
 					},
 					{
+						handle: 'installable-plugin',
+						handleExpiresAt: expiresAt,
 						kind: 'plugin' as const,
 						mediaType: 'application/vnd.github.copilot-plugin' as const,
 						identity: 'plugin',
+						installability: 'installable' as const,
 						displayName: 'Pinned Plugin',
 						source: { repository: 'owner/repository', path: '.github/plugin/plugin.json' },
-						compatibilityTags: ['github-copilot' as const],
+						compatibilityTags: ['canvas' as const, 'github-copilot' as const],
 						provenance: { authority: 'agentfinder.github.com', observedAt, mediaType: 'application/vnd.github.copilot-plugin' as const },
 					},
 				],
@@ -959,13 +962,13 @@ suite('CopilotCustomizationInstallations', () => {
 		const result = await service.search({ query: 'demo', limit: 10 });
 
 		assert.deepStrictEqual(result.kind === 'page' ? {
-			items: result.items.map(item => ({ kind: item.kind, displayName: item.displayName, itemUrl: item.itemUrl, connectorIds: item.connectorIds, installable: item.installable })),
+			items: result.items.map(item => ({ kind: item.kind, displayName: item.displayName, itemUrl: item.itemUrl, connectorIds: item.connectorIds, tags: item.tags, installable: item.installable })),
 			hasNextCursor: typeof result.nextCursor === 'string',
 		} : result, {
 			items: [
-				{ kind: 'skill', displayName: 'Installable Skill', itemUrl: 'https://example.test/installable-skill', connectorIds: undefined, installable: true },
-				{ kind: 'mcp', displayName: 'Installable MCP', itemUrl: 'https://example.test/installable-mcp', connectorIds: ['githubcopilotfigmamcp'], installable: true },
-				{ kind: 'plugin', displayName: 'Pinned Plugin', itemUrl: undefined, connectorIds: undefined, installable: false },
+				{ kind: 'skill', displayName: 'Installable Skill', itemUrl: 'https://example.test/installable-skill', connectorIds: undefined, tags: undefined, installable: true },
+				{ kind: 'mcp', displayName: 'Installable MCP', itemUrl: 'https://example.test/installable-mcp', connectorIds: ['githubcopilotfigmamcp'], tags: undefined, installable: true },
+				{ kind: 'plugin', displayName: 'Pinned Plugin', itemUrl: undefined, connectorIds: undefined, tags: ['canvas', 'github-copilot'], installable: true },
 			],
 			hasNextCursor: true,
 		});
@@ -1573,9 +1576,6 @@ suite('CopilotCustomizationInstallations', () => {
 				'trust-snapshot',
 				'ai-skill-discovery',
 				'skill-confirmed-installation',
-				'agent-plugin-discovery',
-				'agent-plugin-formats',
-				'agent-plugin-confirmed-installation',
 			]],
 		});
 	});

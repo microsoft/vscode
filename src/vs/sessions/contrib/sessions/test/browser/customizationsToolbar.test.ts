@@ -92,6 +92,22 @@ suite('Customizations toolbar', () => {
 		});
 	});
 
+	test('keeps VS Code Extensions and Copilot Extensions as separate sections', () => {
+		const extensions = CUSTOMIZATION_ITEMS
+			.filter(item => item.section === AICustomizationManagementSection.Extensions || item.section === AICustomizationManagementSection.CopilotExtensions)
+			.map(item => ({ id: item.id, label: item.label, section: item.section }));
+
+		assert.deepStrictEqual(extensions, [{
+			id: 'sessions.customization.copilotExtensions',
+			label: 'Copilot Extensions',
+			section: AICustomizationManagementSection.CopilotExtensions,
+		}, {
+			id: 'sessions.customization.extensions',
+			label: 'Extensions',
+			section: AICustomizationManagementSection.Extensions,
+		}]);
+	});
+
 	test('tracks the active customization total and migration availability', async () => {
 		const enabled = observableValue(disposables, true);
 		const activeSession = observableValue<IActiveSession | undefined>(disposables, upcastPartial<IActiveSession>({

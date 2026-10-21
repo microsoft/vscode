@@ -30,7 +30,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { canvasOwnerKey, getCanvasDefinitionInstanceId, ICanvasContext, ICanvasContextService, ICanvasDefinition, ICanvasService, isCanvasOwner, isOpenableExtensionCanvasDefinition } from '../../../canvases/common/canvas.js';
+import { canvasOwnerKey, type CanvasDefinitionSnapshot, getCanvasDefinitionInstanceId, ICanvasContext, ICanvasContextService, ICanvasDefinition, ICanvasService, isCanvasOwner, isOpenableExtensionCanvasDefinition } from '../../../canvases/common/canvas.js';
 import { CanvasDefinitionStore } from '../../../canvases/common/canvasDefinitionStore.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
@@ -377,7 +377,7 @@ class CopilotCustomizationsWidget extends Disposable implements IAICustomization
 		const header = DOM.append(this.element, $('.section-title-header'));
 		const titleRow = DOM.append(header, $('.section-title-row'));
 		DOM.append(titleRow, $('h2.section-title')).textContent = kind === 'extensions'
-			? localize('copilotExtensions.title', "Extensions")
+			? localize('copilotExtensions.title', "Copilot Extensions")
 			: localize('copilotCanvases.title', "Canvases");
 		const titleActions = DOM.append(titleRow, $('.section-title-actions'));
 		const refreshLabel = localize('copilotCustomizations.refresh', "Refresh");
@@ -635,7 +635,7 @@ class CopilotCustomizationsWidget extends Disposable implements IAICustomization
 
 	getAccessibilityContent(): string {
 		const title = this.kind === 'extensions'
-			? localize('copilotExtensions.title', "Extensions")
+			? localize('copilotExtensions.title', "Copilot Extensions")
 			: localize('copilotCanvases.title', "Canvases");
 		const description = this.kind === 'extensions'
 			? this.getExtensionModeDescription()
@@ -742,7 +742,7 @@ class CopilotCustomizationsWidget extends Disposable implements IAICustomization
 		}
 	}
 
-	private async listCanvasDefinitions(lifetime: ICanvasStoreLifetime, refreshGeneration: number, listCanvases: () => Promise<readonly ICanvasDefinition[]>): Promise<readonly ICanvasDefinition[]> {
+	private async listCanvasDefinitions(lifetime: ICanvasStoreLifetime, refreshGeneration: number, listCanvases: () => Promise<CanvasDefinitionSnapshot>): Promise<CanvasDefinitionSnapshot> {
 		const request = {};
 		lifetime.request = request;
 		const isCurrent = () => !this._store.isDisposed
@@ -750,7 +750,7 @@ class CopilotCustomizationsWidget extends Disposable implements IAICustomization
 			&& lifetime.request === request
 			&& this.canvasStoreLifetimes.get(lifetime.ownerKey) === lifetime;
 		if (!isCurrent()) {
-			return [];
+			return undefined;
 		}
 		const ownerKey = lifetime.ownerKey;
 		this.loadingCanvasOwnerKeys.add(ownerKey);
@@ -959,7 +959,7 @@ class CopilotCustomizationsWidget extends Disposable implements IAICustomization
 	private getCanvasManagementSection(canvas: ICanvasDefinition): AICustomizationManagementSection | undefined {
 		switch (canvas.extensionSource) {
 			case 'plugin': return AICustomizationManagementSection.Plugins;
-			case 'user': return AICustomizationManagementSection.Extensions;
+			case 'user': return AICustomizationManagementSection.CopilotExtensions;
 			default: return undefined;
 		}
 	}

@@ -185,6 +185,7 @@ suite('SessionCanvasService', () => {
 		let changeCount = 0;
 		store.add(context.definitionProvider.onDidChangeDefinitions(() => changeCount++));
 		const definitions = await context.definitionProvider.listCanvases();
+		assert.ok(definitions);
 		await context.definitionProvider.openCanvas(definitions[0], 'preview-instance');
 		const beforeChange = changeCount;
 		harness.canvases.set([], undefined);
