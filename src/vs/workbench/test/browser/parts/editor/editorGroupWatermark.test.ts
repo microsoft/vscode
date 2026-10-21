@@ -34,6 +34,7 @@ suite('EditorGroupWatermark', () => {
 	let configurationService: TestConfigurationService;
 	let instantiationService: ReturnType<typeof workbenchInstantiationService>;
 	let keybindings: Map<string, ResolvedKeybinding>;
+	let keybindingLookups: string[];
 	let keybindingsChanged: Emitter<void>;
 	let workbenchState: WorkbenchState;
 	let chatEnabled: boolean;
@@ -60,7 +61,13 @@ suite('EditorGroupWatermark', () => {
 
 	function pressKey(target: HTMLElement, key: string, keyCode: number): void {
 		for (const type of [EventType.KEY_DOWN, EventType.KEY_UP]) {
-			target.dispatchEvent(new KeyboardEvent(type, { key, keyCode, bubbles: true, cancelable: true }));
+			const event = new KeyboardEvent(type, { key, code: key === ' ' ? 'Space' : key, bubbles: true, cancelable: true });
+			// StandardKeyboardEvent reads the legacy keyCode, which some constructors ignore.
+			Object.defineProperties(event, {
+				keyCode: { value: keyCode },
+				which: { value: keyCode },
+			});
+			target.dispatchEvent(event);
 		}
 	}
 
@@ -76,6 +83,7 @@ suite('EditorGroupWatermark', () => {
 			['workbench.action.showCommands', keybinding(KeyCode.KeyP)],
 			['workbench.action.openSettings', keybinding(KeyCode.Comma)],
 		]);
+		keybindingLookups = [];
 		workbenchState = WorkbenchState.FOLDER;
 		chatEnabled = true;
 		executedCommands = [];
@@ -98,7 +106,10 @@ suite('EditorGroupWatermark', () => {
 		});
 		instantiationService.stub(IKeybindingService, new class extends MockKeybindingService {
 			override get onDidUpdateKeybindings() { return keybindingsChanged.event; }
-			override lookupKeybinding(id: string) { return keybindings.get(id); }
+			override lookupKeybinding(id: string) {
+				keybindingLookups.push(id);
+				return keybindings.get(id);
+			}
 		});
 		instantiationService.stub(IContextKeyService, new class extends MockContextKeyService {
 			override contextMatchesRules() { return chatEnabled; }
@@ -156,6 +167,29 @@ suite('EditorGroupWatermark', () => {
 		}
 
 		assert.deepStrictEqual(executedCommands, ['workbench.action.chat.open', 'workbench.action.showCommands', 'workbench.action.openSettings']);
+	});
+
+	test('renders each shortcut as a single interactive anchor without nested anchors', () => {
+		render();
+
+		assert.deepStrictEqual({
+			anchors: container.querySelectorAll('.watermark-box a').length,
+			nestedAnchors: container.querySelectorAll('.watermark-box a a').length,
+			actionLabels: [...container.querySelectorAll('.watermark-box .action-label')].map(label => label.matches('a.watermark-entry[role="button"]')),
+		}, {
+			anchors: 3,
+			nestedAnchors: 0,
+			actionLabels: [true, true, true],
+		});
+	});
+
+	test('clicking shortcut contents executes the command exactly once per click', () => {
+		render();
+		for (const selector of ['.watermark-icon', '.watermark-label', '.watermark-keybinding']) {
+			container.querySelector<HTMLElement>(`.watermark-entry ${selector}`)!.click();
+		}
+
+		assert.deepStrictEqual(executedCommands, Array(3).fill('workbench.action.chat.open'));
 	});
 
 	test('exposes accessible button labels and a keyboard-reachable toolbar', () => {
@@ -241,6 +275,18 @@ suite('EditorGroupWatermark', () => {
 			icons: 2,
 			keybinding: updatedKeybinding.getAriaLabel(),
 		});
+	});
+
+	test('looks up each shortcut keybinding once per update', () => {
+		render();
+		keybindingLookups = [];
+		keybindingsChanged.fire();
+
+		assert.deepStrictEqual(keybindingLookups, [
+			'workbench.action.chat.open',
+			'workbench.action.showCommands',
+			'workbench.action.openSettings',
+		]);
 	});
 
 	test('keeps chat hidden when its context condition does not match', () => {
