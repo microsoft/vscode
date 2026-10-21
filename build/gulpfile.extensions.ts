@@ -198,7 +198,7 @@ export function createExtensionTasks(tsconfigFile: string, repoRoot = root) {
 
 	const watchTask = task.define(`watch-extension:${name}`, task.series(cleanTask, () => {
 		const nonts = gulp.src(src, srcOpts).pipe(filter(['**', '!**/*.{ts,mts,cts}'], { dot: true }));
-		const watchInput = watcher(src, { ...srcOpts, ...{ readDelay: 200 } });
+		const watchInput = watcher(path.relative(repoRoot, src).split(path.sep).join('/'), { ...srcOpts, ...{ readDelay: 200 } });
 		const watchNonTs = watchInput.pipe(filter(['**', '!**/*.{ts,mts,cts}'], { dot: true })).pipe(gulp.dest(out));
 		const tsgoStream = watchInput.pipe(util.debounce(() => {
 			onExtensionCompilationStart();
