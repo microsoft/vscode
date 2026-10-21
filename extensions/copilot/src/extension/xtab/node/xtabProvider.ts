@@ -901,14 +901,15 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			requestOptions.reasoning_effort = modelServiceConfig.reasoningEffort;
 		}
 
-		// Set token limits. Prediction is not compatible with token limits
+		// Prediction requests do not support token limits.
 		if (!this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderUsePrediction, this.expService)) {
 			const useMaxTokens = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderUseMaxTokens, this.expService);
-			// Explicit undefined suppresses the fetcher's max_tokens default; JSON serialization omits it.
-			if (!useMaxTokens || modelServiceConfig.maxCompletionTokens !== undefined) {
+			if (!useMaxTokens) {
+				// Explicit undefined suppresses the fetcher's default max_tokens limit.
 				requestOptions.max_tokens = undefined;
-			}
-			if (useMaxTokens && modelServiceConfig.maxCompletionTokens !== undefined) {
+			} else if (modelServiceConfig.maxCompletionTokens !== undefined) {
+				// Replace the fetcher's default max_tokens limit for reasoning models.
+				requestOptions.max_tokens = undefined;
 				requestOptions.max_completion_tokens = modelServiceConfig.maxCompletionTokens;
 			}
 		}
