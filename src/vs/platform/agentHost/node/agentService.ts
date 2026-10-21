@@ -217,13 +217,17 @@ function publishedScratchFolders(isRecordedScratchFolder: (folder: string) => bo
 	chatFolders.forEach(folder => collect(folder, isRecordedScratchFolder(folder)));
 	return scratch;
 }
-/** `folder` followed by each of its ancestors, up to its root. */
-function selfAndAncestors(folder: URI): URI[] {
-	const folders = [folder];
-	for (let parent = resourcesDirname(folder); !isEqual(parent, folders[folders.length - 1]); parent = resourcesDirname(parent)) {
-		folders.push(parent);
+/** `folder` or its nearest ancestor that `isScratchFolder` accepts, checked from `folder` up to its root. */
+function findScratchFolderOrAncestor(folder: URI, isScratchFolder: (candidate: string) => boolean): URI | undefined {
+	let candidate = folder;
+	while (!isScratchFolder(candidate.toString())) {
+		const parent = resourcesDirname(candidate);
+		if (isEqual(parent, candidate)) {
+			return undefined;
+		}
+		candidate = parent;
 	}
-	return folders;
+	return candidate;
 }
 
 const RECENT_LOCAL_SESSION_UPDATE_LIMIT = 2;
@@ -6502,20 +6506,26 @@ export class AgentService extends Disposable implements IAgentService {
 		const isRecordedScratchFolder = (candidate: string) => recorded.has(candidate) || this._stateManager.isScratchFolder(candidate);
 		const sessionKey = session.toString();
 		const state = this._stateManager.getSessionState(sessionKey);
-		const scratchFolders = [
-			// Any chat's recorded folder, of this session or another, that is the folder or one of its ancestors.
-			...publishedScratchFolders(isRecordedScratchFolder, false, selfAndAncestors(folder).map(candidate => candidate.toString()), []),
+		const sessionScratchFolders = [
 			...publishedScratchFolders(
 				isRecordedScratchFolder,
 				readSessionWorkspaceless(state?._meta),
 				this._stateManager.getSessionSummary(sessionKey)?.workingDirectories ?? state?.workingDirectories ?? [],
 				state?.chats.flatMap(chat => chat.workingDirectories ?? []) ?? []),
 			...readSessionScratchFolders(state?._meta),
-		].map(scratch => URI.parse(scratch)).filter(scratch => isEqualOrParent(folder, scratch));
-		if (scratchFolders.length) {
-			const inside = !scratchFolders.some(scratch => isEqual(scratch, folder));
-			this._logService.info(`[AgentService] ${operation}: refused ${folder.toString()}, ${inside ? 'inside ' : ''}a chat's own scratch folder`);
-			throw new Error(`'${folder.scheme === Schemas.file ? folder.fsPath : folder.toString()}' is ${inside ? 'inside ' : ''}a chat's own scratch folder; pick No Workspace for a scratch folder of its own.`);
+		].map(scratch => URI.parse(scratch));
+		// Any chat's recorded folder, of this session or another, that is the folder or one of its ancestors.
+		const scratch = sessionScratchFolders.find(candidate => isEqual(candidate, folder))
+			?? findScratchFolderOrAncestor(folder, isRecordedScratchFolder)
+			?? sessionScratchFolders.find(candidate => isEqualOrParent(folder, candidate));
+		if (scratch) {
+			const label = (resource: URI) => resource.scheme === Schemas.file ? resource.fsPath : resource.toString();
+			if (isEqual(scratch, folder)) {
+				this._logService.info(`[AgentService] ${operation}: refused ${folder.toString()}, a chat's own scratch folder`);
+				throw new Error(`'${label(folder)}' is a chat's own scratch folder; pick No Workspace for a scratch folder of its own.`);
+			}
+			this._logService.info(`[AgentService] ${operation}: refused ${folder.toString()}, inside the chat's own scratch folder ${scratch.toString()}`);
+			throw new Error(`'${label(folder)}' is inside '${label(scratch)}', a chat's own scratch folder; pick No Workspace for a scratch folder of its own.`);
 		}
 	}
 
