@@ -28,6 +28,7 @@ import { IEditorService } from '../../../../workbench/services/editor/common/edi
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { BranchChatSessionAction } from './branchChatSessionAction.js';
 import { RunScriptContribution } from './runScriptAction.js';
+import { NextUserMessageSuggestionActions } from './nextUserMessageSuggestionActionViewItem.js';
 import './nullInlineChatSessionService.js';
 import './modelPicker.js';
 import './newSessionOnboardingTargets.js';
@@ -542,6 +543,7 @@ registerAction2(BranchChatSessionAction);
 
 // register workbench contributions
 registerWorkbenchContribution2(RunScriptContribution.ID, RunScriptContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(NextUserMessageSuggestionActions.ID, NextUserMessageSuggestionActions, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(SessionsOpenerParticipantContribution.ID, SessionsOpenerParticipantContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(OpenSessionLinkOpenerContribution.ID, OpenSessionLinkOpenerContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(RegisterDefaultSessionTaskRunnersContribution.ID, RegisterDefaultSessionTaskRunnersContribution, WorkbenchPhase.BlockStartup);
