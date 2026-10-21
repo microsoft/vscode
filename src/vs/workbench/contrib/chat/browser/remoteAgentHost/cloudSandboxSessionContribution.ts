@@ -254,6 +254,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 					// Sessions drafted under the creation type carry its model identifiers into the environment.
 					modelIdentifierAliases: [SessionType.CloudSandbox],
 					isSessionTitlePlaceholder: isCloudSandboxPlaceholderTitle,
+					useSessionTitleForDefaultChat: true,
 				};
 			},
 		));

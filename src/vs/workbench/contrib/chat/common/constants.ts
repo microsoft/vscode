@@ -111,6 +111,7 @@ export enum ChatConfiguration {
 	RevealNextChangeOnResolve = 'chat.editing.revealNextChangeOnResolve',
 	OpenChangedFileInDiffEditor = 'chat.editing.openChangedFileInDiffEditor',
 	EditorWorkingSetEnabled = 'chat.editor.workingSet.enabled',
+	EditorKeepUndoEnabled = 'chat.editor.keepUndo.enabled',
 	GrowthNotificationEnabled = 'chat.growthNotification.enabled',
 	ChatClosedPromoNotification = 'chat.closedPromoNotification',
 	TitleBarSignInEnabled = 'chat.titleBar.signIn.enabled',

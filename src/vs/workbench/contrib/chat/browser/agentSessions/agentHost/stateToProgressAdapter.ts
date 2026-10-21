@@ -19,6 +19,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { getTurnError, MessageKind, ToolCallCancellationReason, ToolCallContributorKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ResponsePartKind, getInlineToolInput, getToolFileEdits, getToolOutputText, getToolSubagentContent, hasReportedUsage, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ActiveTurn, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ICompletedToolCall, type InputRequestResponsePart, type Message, type TerminalCommandResult, type ToolCallPendingConfirmationState, type ToolCallState, type ToolResultSubagentContent, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { readAgentPlanReview, type IAgentPlanReview } from '../../../../../../platform/agentHost/common/meta/agentPlanReview.js';
+import { readComputerUseSetupCard } from '../../../../../../platform/agentHost/common/meta/computerUse.js';
 import { getToolKind as getProtocolToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { copilotCliToolInputContract, readToolCallMeta, readToolCallPresentation, type IAgentToolOutputChunk } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
 import { readImageGenerationToolMetadata } from '../../../../../../platform/agentHost/common/meta/agentImageGenerationMeta.js';
@@ -65,6 +66,7 @@ import type { IRange } from '../../../../../../editor/common/core/range.js';
 import { isSessionReferenceTrajectoryAttachment, restoreSessionReferenceVariableEntryFromAttachment } from './agentHostSessionReferenceAttachment.js';
 import { restoreChatReferenceVariableEntryFromAttachment } from './agentHostChatReferenceAttachment.js';
 import { AGENT_HOST_RETRY_MANAGED_PLUGINS_COMMAND_ID, type IAgentHostManagedPluginRetryTarget } from './agentHostManagedPluginRetry.js';
+import { getComputerUseSetupCardText } from './computerUseSetup.js';
 
 export const BOOLEAN_TRUE_OPTION_ID = 'true';
 export const BOOLEAN_FALSE_OPTION_ID = 'false';
@@ -358,6 +360,20 @@ export function inputRequestResponsePartToProgress(part: InputRequestResponsePar
 			kind: 'elicitationSerialized',
 			title: localize('agentHost.elicit.url.title', "Authorization Required"),
 			message: presentation.message,
+			subtitle: '',
+			source: undefined,
+			state: part.response === ChatInputResponseKind.Accept ? ElicitationState.Accepted : ElicitationState.Rejected,
+			isHidden: false,
+		};
+	}
+
+	if (readComputerUseSetupCard(inputReq)) {
+		// A settled record of the setup; its steps are the host's business, not the transcript's.
+		const { title, message } = getComputerUseSetupCardText();
+		return {
+			kind: 'elicitationSerialized',
+			title,
+			message: new MarkdownString(message),
 			subtitle: '',
 			source: undefined,
 			state: part.response === ChatInputResponseKind.Accept ? ElicitationState.Accepted : ElicitationState.Rejected,

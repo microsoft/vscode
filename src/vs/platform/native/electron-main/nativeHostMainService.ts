@@ -12,7 +12,7 @@ import { memoize } from '../../../base/common/decorators.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { matchesSomeScheme, Schemas } from '../../../base/common/network.js';
-import { dirname, join, posix, resolve, win32 } from '../../../base/common/path.js';
+import { dirname, isAbsolute, join, posix, resolve, win32 } from '../../../base/common/path.js';
 import { isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
 import { AddFirstParameterToFunctions, hasKey } from '../../../base/common/types.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
@@ -701,6 +701,16 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async showItemInFolder(windowId: number | undefined, path: string): Promise<void> {
 		shell.showItemInFolder(path);
+	}
+
+	async startFileDrag(windowId: number | undefined, path: string, options?: INativeHostOptions): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		if (!window?.win || !isAbsolute(path) || !await Promises.exists(path)) {
+			return;
+		}
+		// macOS requires an image under the cursor; the file's own icon shows what the drop adds.
+		const icon = await app.getFileIcon(path, { size: 'normal' });
+		window.win.webContents.startDrag({ file: path, icon });
 	}
 
 	async setRepresentedFilename(windowId: number | undefined, path: string, options?: INativeHostOptions): Promise<void> {

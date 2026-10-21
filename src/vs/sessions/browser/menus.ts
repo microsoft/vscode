@@ -104,9 +104,9 @@ export const Menus = {
 	/**
 	 * The Session Activity Bar, docked at the right edge of the active chat view, grouped by
 	 * {@link SessionActivityBarGroup}. Each tab entry opens or activates its side pane tab, revealing
-	 * the side pane when it is closed; these entries are gated on availability only. The side panel
-	 * toggle above them and the panel toggle below them leave the title bar while the activity bar
-	 * shows its layout actions.
+	 * the side pane when it is closed; these entries are gated on availability only. The terminal
+	 * entry reveals the terminal in the panel. The side panel toggle before the tab entries and the
+	 * panel toggle after the terminal leave the title bar while the activity bar shows its layout actions.
 	 */
 	SessionActivityBar: new MenuId('SessionActivityBar'),
 	/** The Session Activity Bar's context menu, shown after the activity bar's own entry actions. */
@@ -133,7 +133,8 @@ export const SessionHeaderMenus = [Menus.SessionHeaderContext, Menus.SessionBarT
 
 /** The groups of {@link Menus.SessionActivityBar}, top to bottom, each set apart by a separator. */
 export const SessionActivityBarGroup = {
+	/** The side panel toggle, followed by the entries that open its tabs. */
 	SidePanel: '1_sidePanel',
-	Tabs: '2_tabs',
-	Panel: '3_panel',
+	/** The terminal, followed by the panel toggle. */
+	Panel: '2_panel',
 } as const;
