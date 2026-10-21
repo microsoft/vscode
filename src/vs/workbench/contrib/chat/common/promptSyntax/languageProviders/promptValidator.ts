@@ -28,7 +28,7 @@ import { claudeAgentAttributes as promptClaudeAgentAttributes, getAttributeDefin
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IPathService } from '../../../../../services/path/common/pathService.js';
 import { ICustomizationHarnessService } from '../../customizationHarnessService.js';
-import { getAgentFileModelReasoningEfforts, resolveAgentFileModelIdentifier, resolveAgentFileModels } from './promptModelResolver.js';
+import { getAgentFileModelReasoningEfforts, resolveAgentFileModelIdentifier, resolveAgentFileModelIdentifiers, resolveAgentFileModels } from './promptModelResolver.js';
 
 export const MARKERS_OWNER_ID = 'prompts-diagnostics-provider';
 
@@ -454,8 +454,7 @@ export class PromptValidator {
 			return;
 		}
 		const selectedModels = selectedModelValues
-			.map(model => resolveAgentFileModelIdentifier(model, catalogue.models))
-			.filter(model => model !== undefined);
+			.flatMap(model => resolveAgentFileModelIdentifiers(model, catalogue.models));
 		const allowedEfforts = new Set(selectedModels.flatMap(model => getAgentFileModelReasoningEfforts(model)));
 		if (allowedEfforts.size > 0 && !allowedEfforts.has(effort.value.value)) {
 			report(toMarker(localize('promptValidator.copilotReasoningEffortUnavailable', "Reasoning effort '{0}' is not supported by the selected model.", effort.value.value), effort.value.range, MarkerSeverity.Hint, [MarkerTag.Unnecessary]));

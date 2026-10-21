@@ -220,7 +220,7 @@ suite('PromptHoverProvider', () => {
 
 			const hover = await getHover(content, 4, 20, PromptsType.agent);
 
-			assert.strictEqual(hover, 'The reasoning-effort override for this custom agent. Supported values depend on the selected model.\n\nSupported by: `copilot-model`.');
+			assert.strictEqual(hover, 'The reasoning-effort override for this custom agent. Supported values depend on the selected model.\n\nSupported by: `copilot-model` (copilot-test).');
 		});
 
 		test('hover on github-copilot model policy uses schema description', async () => {

@@ -63,14 +63,16 @@ suite('PromptHeaderAutocompletion', () => {
 			{ id: 'gpt-4', name: 'GPT 4', vendor: 'openai', version: '1.0', family: 'gpt', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: false, toolCalling: true }, isDefaultForLocation: { [ChatAgentLocation.Chat]: true } } satisfies ILanguageModelChatMetadata,
 			{ id: 'bg-agent-model', name: 'BG Agent Model', vendor: 'copilot', version: '1.0', family: 'bg', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: { [ChatAgentLocation.Chat]: true }, targetChatSessionType: 'background' } satisfies ILanguageModelChatMetadata,
 			{ id: 'copilot-model', name: 'Copilot Model', vendor: 'copilot-test', version: '1.0', family: 'copilot', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: {}, targetChatSessionType: 'copilot-test', tooltip: 'Copilot model tooltip', configurationSchema: { type: 'object', properties: { reasoningEffort: { type: 'string', enum: ['low', 'high'] } } } } satisfies ILanguageModelChatMetadata,
-			{ id: 'provider/private-model', name: 'Private Model', vendor: 'copilot-test', version: '1.0', family: 'private', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, isBYOK: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: {}, targetChatSessionType: 'copilot-test' } satisfies ILanguageModelChatMetadata,
+			{ id: 'gemini/Google/models/gemini-flash', name: 'Private Model', vendor: 'copilot-test', version: '1.0', family: 'private', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, byokModelIdentifier: 'gemini/Google/models/gemini-flash', maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: {}, targetChatSessionType: 'copilot-test' } satisfies ILanguageModelChatMetadata,
 			{ id: 'other-copilot-model', name: 'Other Copilot Model', vendor: 'other-copilot-test', version: '1.0', family: 'copilot', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: {}, targetChatSessionType: 'other-copilot-test' } satisfies ILanguageModelChatMetadata,
+			{ id: 'copilot-model', name: 'Copilot Model from Other Harness', vendor: 'other-copilot-test', version: '1.0', family: 'copilot', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: {}, targetChatSessionType: 'other-copilot-test', configurationSchema: { type: 'object', properties: { reasoningEffort: { type: 'string', enum: ['max'] } } } } satisfies ILanguageModelChatMetadata,
 		];
 
 		instaService.stub(ILanguageModelsService, {
-			getLanguageModelIds() { return testModels.map(m => m.id); },
-			lookupLanguageModel(name: string) {
-				return testModels.find(m => m.id === name);
+			getLanguageModelIds() { return testModels.map((model, index) => `${model.vendor}:${model.id}:${index}`); },
+			lookupLanguageModel(identifier: string) {
+				const index = Number(identifier.substring(identifier.lastIndexOf(':') + 1));
+				return testModels[index];
 			},
 			hasResolvedVendor: () => true,
 		});
@@ -259,7 +261,7 @@ suite('PromptHeaderAutocompletion', () => {
 
 			assert.deepStrictEqual(actual, [
 				{ label: 'copilot-model', result: 'model: copilot-model' },
-				{ label: 'provider/private-model', result: 'model: provider/private-model' },
+				{ label: 'gemini/Google/models/gemini-flash', result: 'model: gemini/Google/models/gemini-flash' },
 			]);
 		});
 
@@ -276,7 +278,7 @@ suite('PromptHeaderAutocompletion', () => {
 
 			assert.deepStrictEqual(actual, [
 				{ label: 'copilot-model', result: 'model: copilot-model' },
-				{ label: 'provider/private-model', result: 'model: provider/private-model' },
+				{ label: 'gemini/Google/models/gemini-flash', result: 'model: gemini/Google/models/gemini-flash' },
 				{ label: 'other-copilot-model', result: 'model: other-copilot-model' },
 			]);
 		});
@@ -296,6 +298,25 @@ suite('PromptHeaderAutocompletion', () => {
 			assert.deepStrictEqual(actual, [
 				{ label: 'low', result: 'reasoning-effort: low' },
 				{ label: 'high', result: 'reasoning-effort: high' },
+			]);
+		});
+
+		test('aggregate reasoning efforts for the same model ID across matching harnesses', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'model: copilot-model',
+				'reasoning-effort: |',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+
+			assert.deepStrictEqual(actual, [
+				{ label: 'low', result: 'reasoning-effort: low' },
+				{ label: 'high', result: 'reasoning-effort: high' },
+				{ label: 'max', result: 'reasoning-effort: max' },
 			]);
 		});
 

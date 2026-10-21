@@ -29,7 +29,8 @@ import { ICustomAgent, IPromptsService, PromptsStorage } from '../../../../commo
 import { MockChatModeService } from '../../../common/mockChatModeService.js';
 import { MockPromptsService } from '../../../common/promptSyntax/service/mockPromptsService.js';
 import { createVSCodeHarnessDescriptor, ICustomizationHarnessService } from '../../../../common/customizationHarnessService.js';
-import { constObservable } from '../../../../../../../base/common/observable.js';
+import { constObservable, ISettableObservable, observableValue } from '../../../../../../../base/common/observable.js';
+import type { AgentModelCatalogStatus } from '../../../../../../../platform/agentHost/common/agentModelCatalogStatus.js';
 
 suite('PromptValidator', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -37,7 +38,7 @@ suite('PromptValidator', () => {
 	let instaService: TestInstantiationService;
 	let testConfigService: TestConfigurationService;
 	let activeTarget: Target;
-	let modelCatalogueResolved: boolean;
+	let modelCatalogueStatus: ISettableObservable<AgentModelCatalogStatus | undefined>;
 
 	const existingRef1 = URI.parse('myFs://test/reference1.md');
 	const existingRef2 = URI.parse('myFs://test/reference2.md');
@@ -45,7 +46,7 @@ suite('PromptValidator', () => {
 
 	setup(async () => {
 		activeTarget = Target.Undefined;
-		modelCatalogueResolved = false;
+		modelCatalogueStatus = observableValue('modelCatalogueStatus', 'pending');
 
 		testConfigService = new TestConfigurationService();
 		testConfigService.setUserConfiguration(ChatConfiguration.ExtensionToolsEnabled, true);
@@ -131,7 +132,7 @@ suite('PromptValidator', () => {
 			{ id: 'mae-4.1', name: 'MAE 4.1', vendor: 'copilot', version: '1.0', family: 'mae', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: { [ChatAgentLocation.Chat]: true } } satisfies ILanguageModelChatMetadata,
 			{ id: 'mae-3.5-turbo', name: 'MAE 3.5 Turbo', vendor: 'copilot', version: '1.0', family: 'mae', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, isDefaultForLocation: { [ChatAgentLocation.Chat]: true } } satisfies ILanguageModelChatMetadata,
 			{ id: 'copilot-model', name: 'Copilot Model', vendor: 'copilot-test', version: '1.0', family: 'copilot', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: {}, targetChatSessionType: 'copilot-test', configurationSchema: { type: 'object', properties: { reasoningEffort: { type: 'string', enum: ['low', 'high'] } } } } satisfies ILanguageModelChatMetadata,
-			{ id: 'provider/private-model', name: 'Private Model', vendor: 'copilot-test', version: '1.0', family: 'private', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, isBYOK: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: {}, targetChatSessionType: 'copilot-test' } satisfies ILanguageModelChatMetadata,
+			{ id: 'gemini/Google/models/gemini-flash', name: 'Private Model', vendor: 'copilot-test', version: '1.0', family: 'private', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, byokModelIdentifier: 'gemini/Google/models/gemini-flash', maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: {}, targetChatSessionType: 'copilot-test' } satisfies ILanguageModelChatMetadata,
 		];
 
 		instaService.stub(ILanguageModelsService, {
@@ -145,7 +146,7 @@ suite('PromptValidator', () => {
 				}
 				return undefined;
 			},
-			hasResolvedVendor: () => modelCatalogueResolved,
+			hasResolvedVendor: () => true,
 		});
 
 		const customChatMode = new CustomChatMode({
@@ -183,7 +184,7 @@ suite('PromptValidator', () => {
 		promptsService.setCustomModes([customMode]);
 		instaService.stub(IPromptsService, promptsService);
 		const localDescriptor = createVSCodeHarnessDescriptor();
-		const copilotDescriptor = { ...localDescriptor, id: 'copilot-test', customAgentTarget: Target.GitHubCopilot };
+		const copilotDescriptor = { ...localDescriptor, id: 'copilot-test', customAgentTarget: Target.GitHubCopilot, modelCatalogueStatus };
 		instaService.stub(ICustomizationHarnessService, {
 			activeHarness: constObservable('copilot-test'),
 			availableHarnesses: constObservable([localDescriptor, copilotDescriptor]),
@@ -803,7 +804,7 @@ suite('PromptValidator', () => {
 
 		test('github-copilot agent validates models after catalogue resolution', async () => {
 			activeTarget = Target.GitHubCopilot;
-			modelCatalogueResolved = true;
+			modelCatalogueStatus.set('ready', undefined);
 			const content = [
 				'---',
 				'description: Test',
@@ -824,7 +825,7 @@ suite('PromptValidator', () => {
 
 		test('github-copilot agent accepts runtime model identifiers and aliases', async () => {
 			activeTarget = Target.GitHubCopilot;
-			modelCatalogueResolved = true;
+			modelCatalogueStatus.set('ready', undefined);
 			const content = [
 				'---',
 				'description: Test',
@@ -833,7 +834,8 @@ suite('PromptValidator', () => {
 				'  - Copilot Model',
 				'  - Copilot Model (copilot)',
 				'  - copilot-model:defaultReasoningEffort=high',
-				'  - provider/private-model',
+				'  - gemini/Google/models/gemini-flash',
+				'  - gemini/Google/models/gemini-flash:defaultReasoningEffort=high',
 				'  - Private Model',
 				'  - Copilot Model (agent-host-copilotcli)',
 				'---',
@@ -859,9 +861,35 @@ suite('PromptValidator', () => {
 			assert.deepStrictEqual(await validate(content, PromptsType.agent), []);
 		});
 
+		test('github-copilot agent does not validate models after catalogue failure', async () => {
+			activeTarget = Target.GitHubCopilot;
+			modelCatalogueStatus.set('error', undefined);
+			const content = [
+				'---',
+				'description: Test',
+				'model: unavailable-model',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual(await validate(content, PromptsType.agent), []);
+		});
+
+		test('github-copilot agent does not validate models without a host readiness extension', async () => {
+			activeTarget = Target.GitHubCopilot;
+			modelCatalogueStatus.set(undefined, undefined);
+			const content = [
+				'---',
+				'description: Test',
+				'model: unavailable-model',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual(await validate(content, PromptsType.agent), []);
+		});
+
 		test('github-copilot agent validates model-specific reasoning effort', async () => {
 			activeTarget = Target.GitHubCopilot;
-			modelCatalogueResolved = true;
+			modelCatalogueStatus.set('ready', undefined);
 			const content = [
 				'---',
 				'description: Test',

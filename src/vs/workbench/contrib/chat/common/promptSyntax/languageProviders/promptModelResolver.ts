@@ -28,20 +28,20 @@ export function resolveAgentFileModels(
 		? [activeDescriptor]
 		: harnessService.availableHarnesses.get().filter(descriptor => descriptor.customAgentTarget === target);
 	const harnessIds = new Set(descriptors.map(descriptor => descriptor.id));
-	const models = new Map<string, IAgentFileModel>();
+	const models: IAgentFileModel[] = [];
 
 	for (const identifier of languageModelsService.getLanguageModelIds()) {
 		const metadata = languageModelsService.lookupLanguageModel(identifier);
 		const harnessId = metadata?.targetChatSessionType;
-		if (!metadata || !harnessId || !harnessIds.has(harnessId) || metadata.isUserSelectable === false || models.has(metadata.id)) {
+		if (!metadata || !harnessId || !harnessIds.has(harnessId) || metadata.isUserSelectable === false) {
 			continue;
 		}
-		models.set(metadata.id, { id: metadata.id, metadata, harnessId });
+		models.push({ id: metadata.id, metadata, harnessId });
 	}
 
 	return {
-		models: Array.from(models.values()),
-		isResolved: descriptors.length > 0 && descriptors.every(descriptor => languageModelsService.hasResolvedVendor(descriptor.id)),
+		models,
+		isResolved: descriptors.length > 0 && descriptors.every(descriptor => descriptor.modelCatalogueStatus?.get() === 'ready'),
 	};
 }
 
@@ -57,33 +57,35 @@ export function getAgentFileModelReasoningEfforts(model: IAgentFileModel): reado
 }
 
 export function resolveAgentFileModelIdentifier(authoredValue: string, models: readonly IAgentFileModel[]): IAgentFileModel | undefined {
+	return resolveAgentFileModelIdentifiers(authoredValue, models)[0];
+}
+
+export function resolveAgentFileModelIdentifiers(authoredValue: string, models: readonly IAgentFileModel[]): readonly IAgentFileModel[] {
 	const reference = parseAgentFileModelReference(authoredValue);
 	if (reference.qualifier && reference.qualifier !== 'copilot' && reference.qualifier !== 'auto') {
-		return undefined;
+		return [];
 	}
 
-	const byId = new Map<string, IAgentFileModel>();
-	const byDisplayName = new Map<string, IAgentFileModel>();
+	const exactMatches: IAgentFileModel[] = [];
+	const aliasMatches: IAgentFileModel[] = [];
 	for (const model of models) {
-		if (!byId.has(model.id)) {
-			byId.set(model.id, model);
+		if (!reference.qualifier && (model.id === reference.identifier || model.id === reference.normalizedIdentifier)) {
+			exactMatches.push(model);
 		}
-		const displayName = model.metadata.name.toLowerCase();
-		if (!byDisplayName.has(displayName)) {
-			byDisplayName.set(displayName, model);
+		if (model.id === reference.normalizedIdentifier || model.metadata.name.toLowerCase() === reference.normalizedIdentifier) {
+			aliasMatches.push(model);
 		}
 	}
-	const model = byId.get(reference.identifier) ?? byDisplayName.get(reference.identifier);
-	if (!model) {
-		return undefined;
+	if (exactMatches.length > 0) {
+		return exactMatches;
 	}
 
-	const isAlias = reference.qualifier !== undefined || reference.identifier !== model.id;
-	return isAlias && model.metadata.isBYOK ? undefined : model;
+	return aliasMatches.filter(model => !isByokModel(model));
 }
 
 interface IAgentFileModelReference {
 	readonly identifier: string;
+	readonly normalizedIdentifier: string;
 	readonly qualifier?: string;
 }
 
@@ -92,10 +94,16 @@ function parseAgentFileModelReference(authoredValue: string): IAgentFileModelRef
 	const model = colonIndex !== -1 && authoredValue.substring(colonIndex + 1).includes('=')
 		? authoredValue.substring(0, colonIndex)
 		: authoredValue;
-	const normalized = model.trim().toLowerCase();
-	const qualified = /^(?<identifier>.+?)\s*\((?<qualifier>[^)]+)\)\s*$/.exec(normalized);
+	const trimmed = model.trim();
+	const qualified = /^(?<identifier>.+?)\s*\((?<qualifier>[^)]+)\)\s*$/.exec(trimmed);
+	const identifier = qualified?.groups?.identifier?.trim() ?? trimmed;
 	return {
-		identifier: qualified?.groups?.identifier ?? normalized,
-		qualifier: qualified?.groups?.qualifier,
+		identifier,
+		normalizedIdentifier: identifier.toLowerCase(),
+		qualifier: qualified?.groups?.qualifier?.toLowerCase(),
 	};
+}
+
+function isByokModel(model: IAgentFileModel): boolean {
+	return model.metadata.isBYOK === true || model.metadata.byokModelIdentifier !== undefined;
 }

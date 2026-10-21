@@ -20,7 +20,7 @@ import { ClaudeHeaderAttributes, getAttributeDefinition, getTarget, GithubPrompt
 import { getAgentHookMetadata } from '../hookTypes.js';
 import { HOOK_COMMAND_FIELD_DESCRIPTIONS } from '../hookSchema.js';
 import { ICustomizationHarnessService } from '../../customizationHarnessService.js';
-import { getAgentFileModelReasoningEfforts, resolveAgentFileModelIdentifier, resolveAgentFileModels } from './promptModelResolver.js';
+import { getAgentFileModelReasoningEfforts, resolveAgentFileModelIdentifier, resolveAgentFileModelIdentifiers, resolveAgentFileModels } from './promptModelResolver.js';
 
 export class PromptHoverProvider implements HoverProvider {
 	/**
@@ -258,10 +258,9 @@ export class PromptHoverProvider implements HoverProvider {
 		const effort = node.value.value;
 		const catalogue = resolveAgentFileModels(target, this.customizationHarnessService, this.languageModelsService);
 		const supportingModels = (header.model ?? [])
-			.map(model => resolveAgentFileModelIdentifier(model, catalogue.models))
-			.filter(model => model !== undefined)
+			.flatMap(model => resolveAgentFileModelIdentifiers(model, catalogue.models))
 			.filter(model => getAgentFileModelReasoningEfforts(model).includes(effort))
-			.map(model => `\`${model.id}\``);
+			.map(model => `\`${model.id}\` (${model.harnessId})`);
 		const contents = supportingModels.length > 0
 			? localize('promptHeader.agent.reasoningEffort.supportedModels', '{0}\n\nSupported by: {1}.', baseMessage, supportingModels.join(', '))
 			: baseMessage;
