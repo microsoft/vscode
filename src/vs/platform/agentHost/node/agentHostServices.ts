@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SyncDescriptor } from '../../instantiation/common/descriptors.js';
+import { ArtifactIntegrationRegistry, IArtifactIntegrationRegistry } from '../../artifactIntegrations/common/artifactIntegrationRegistry.js';
+import { AgentHostArtifactEventService, IAgentHostArtifactEventService } from './artifactIntegrations/agentHostArtifactRuntime.js';
+import { AgentHostArtifactIntegrationDirectory, IAgentHostArtifactIntegrationDirectory } from './artifactIntegrations/agentHostArtifactIntegrationDirectory.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ICopilotHomeService } from '../../environment/common/copilotHome.js';
 import { CopilotHomeService } from '../../environment/node/copilotHomeService.js';
@@ -102,6 +105,9 @@ export function registerAgentHostCoreServices(services: ServiceCollection, input
 		: ':memory:';
 	services.set(IAgentHostDatabase, inputs.orchestratorDatabase ?? new SyncDescriptor(AgentHostDatabase, [databasePath]));
 	services.set(IAgentSessionRegistry, new SyncDescriptor(AgentSessionRegistry));
+	services.set(IArtifactIntegrationRegistry, new SyncDescriptor(ArtifactIntegrationRegistry));
+	services.set(IAgentHostArtifactEventService, new SyncDescriptor(AgentHostArtifactEventService));
+	services.set(IAgentHostArtifactIntegrationDirectory, new SyncDescriptor(AgentHostArtifactIntegrationDirectory));
 	services.set(IAgentHostFileMonitorService, new SyncDescriptor(AgentHostFileMonitorService));
 	services.set(INetworkDiagnosticsService, new SyncDescriptor(NetworkDiagnosticsService));
 	services.set(IDiffComputeService, new SyncDescriptor(NodeWorkerDiffComputeService));
