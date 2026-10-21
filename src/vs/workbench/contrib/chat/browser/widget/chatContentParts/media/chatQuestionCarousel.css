@@ -399,7 +399,7 @@
 	font-size: var(--vscode-chat-font-size-body-s);
 	color: var(--vscode-descriptionForeground);
 	max-height: min(220px, 25vh);
-	overflow-y: auto;
+	overflow: hidden;
 	overscroll-behavior: contain;
 	user-select: text;
 	-webkit-user-select: text;

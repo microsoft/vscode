@@ -852,7 +852,17 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			const carouselMessage = dom.$('.chat-question-carousel-message');
 			const renderedMessage = questionRenderStore.add(this._markdownRenderer.render(messageMd));
 			carouselMessage.appendChild(renderedMessage.element);
-			headerRow.appendChild(carouselMessage);
+			const messageScrollable = questionRenderStore.add(new DomScrollableElement(carouselMessage, {
+				vertical: ScrollbarVisibility.Auto,
+				horizontal: ScrollbarVisibility.Hidden,
+				consumeMouseWheelIfScrollbarIsNeeded: true,
+			}));
+			const messageScrollableNode = messageScrollable.getDomNode();
+			messageScrollableNode.classList.add('chat-question-carousel-message-scrollable');
+			headerRow.appendChild(messageScrollableNode);
+			const messageResizeObserver = questionRenderStore.add(new dom.DisposableResizeObserver('ChatQuestionCarouselPart.messageScrollable', () => messageScrollable.scanDomNode()));
+			questionRenderStore.add(messageResizeObserver.observe(messageScrollableNode));
+			questionRenderStore.add(messageResizeObserver.observe(renderedMessage.element));
 		}
 
 		const questionText = getDisplayedQuestionText(question);

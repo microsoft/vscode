@@ -1542,6 +1542,14 @@ suite('ChatQuestionCarouselPart', () => {
 	});
 
 	suite('Description and Message', () => {
+		function scrollMessageToEnd(message: HTMLElement): boolean {
+			const wheel = new mainWindow.WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: 10000 });
+			// Chromium gives synthetic wheelDeltaY the opposite sign to trusted wheel events.
+			Object.defineProperty(wheel, 'wheelDeltaY', { value: -10000 });
+			message.dispatchEvent(wheel);
+			return wheel.defaultPrevented;
+		}
+
 		test('renders question description when provided', () => {
 			const carousel = createMockCarousel([
 				{ id: 'q1', type: 'text', title: 'Email', description: 'Enter your email address' }
@@ -1588,7 +1596,99 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.ok(message?.querySelector('.rendered-markdown'), 'Message should be rendered as markdown');
 		});
 
+		for (const longMessage of [false, true]) {
+			test(`uses a workbench scroll area for a ${longMessage ? 'long' : 'short'} carousel message`, async () => {
+				const container = mainWindow.document.createElement('div');
+				container.className = 'interactive-session';
+				container.style.width = '500px';
+				mainWindow.document.body.appendChild(container);
+				store.add(toDisposable(() => container.remove()));
+				const carousel = createMockCarousel([
+					{ id: 'q1', type: 'text', title: 'Name' },
+					{ id: 'q2', type: 'text', title: 'Email' }
+				]);
+				carousel.message = longMessage ? 'Please review these details.\n\n'.repeat(50) : 'Please fill in the following:';
+				createWidget(carousel, undefined, container);
+				await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => mainWindow.requestAnimationFrame(() => resolve())));
 
+				const message = widget.domNode.querySelector<HTMLElement>('.chat-question-carousel-message');
+				const scrollable = widget.domNode.querySelector<HTMLElement>('.chat-question-carousel-message-scrollable');
+				assert.ok(message && scrollable);
+				const wheelConsumed = scrollMessageToEnd(message);
+
+				assert.deepStrictEqual({
+					workbenchScrollable: scrollable.classList.contains('monaco-scrollable-element'),
+					nativeOverflow: getWindow(message).getComputedStyle(message).overflowY,
+					overflows: message.scrollHeight > message.clientHeight,
+					bounded: message.clientHeight <= Math.min(220, mainWindow.innerHeight * 0.25) + 8,
+					scrollTop: message.scrollTop,
+					wheelConsumed,
+				}, {
+					workbenchScrollable: true,
+					nativeOverflow: 'hidden',
+					overflows: longMessage,
+					bounded: true,
+					scrollTop: message.scrollHeight - message.clientHeight,
+					wheelConsumed: longMessage,
+				});
+
+				widget.navigateToNextQuestion();
+				const hiddenOnNextQuestion = !widget.domNode.querySelector('.chat-question-carousel-message-scrollable');
+				widget.navigateToPreviousQuestion();
+				assert.deepStrictEqual({
+					hiddenOnNextQuestion,
+					resetOnReturn: widget.domNode.querySelector('.chat-question-carousel-message')?.scrollTop,
+				}, {
+					hiddenOnNextQuestion: true,
+					resetOnReturn: 0,
+				});
+			});
+		}
+
+		test('updates the message scroll area after resizing and markdown content changes', async () => {
+			const container = mainWindow.document.createElement('div');
+			container.className = 'interactive-session';
+			container.style.width = '500px';
+			mainWindow.document.body.appendChild(container);
+			store.add(toDisposable(() => container.remove()));
+			const carousel = createMockCarousel([{ id: 'q1', type: 'text', title: 'Name' }]);
+			carousel.message = 'Please review these details.\n\n'.repeat(50);
+			createWidget(carousel, undefined, container);
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => mainWindow.requestAnimationFrame(() => resolve())));
+
+			const message = widget.domNode.querySelector<HTMLElement>('.chat-question-carousel-message');
+			const markdown = message?.querySelector<HTMLElement>('.rendered-markdown');
+			assert.ok(message && markdown);
+			message.style.maxHeight = '80px';
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => mainWindow.requestAnimationFrame(() => resolve())));
+			scrollMessageToEnd(message);
+			const afterResize = {
+				viewportHeight: message.clientHeight,
+				scrollTop: message.scrollTop,
+			};
+			const expectedAfterResize = {
+				viewportHeight: 88,
+				scrollTop: message.scrollHeight - message.clientHeight,
+			};
+
+			markdown.appendChild(markdown.cloneNode(true));
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => mainWindow.requestAnimationFrame(() => resolve())));
+			scrollMessageToEnd(message);
+
+			assert.deepStrictEqual({
+				afterResize,
+				afterContentChange: {
+					viewportHeight: message.clientHeight,
+					scrollTop: message.scrollTop,
+				},
+			}, {
+				afterResize: expectedAfterResize,
+				afterContentChange: {
+					viewportHeight: 88,
+					scrollTop: message.scrollHeight - message.clientHeight,
+				},
+			});
+		});
 
 		test('shows required indicator on required questions', () => {
 			const carousel = createMockCarousel([
