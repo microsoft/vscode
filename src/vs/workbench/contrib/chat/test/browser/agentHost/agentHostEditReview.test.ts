@@ -32,7 +32,7 @@ import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../..
 import { fromAgentHostUri, identityAgentHostResourceUriMapper, toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
-import { readWorkingSetVersion, withWorkingSetFileEditing, withWorkingSetVersion } from '../../../../../../platform/agentHost/common/meta/agentWorkingSetFileMeta.js';
+import { withWorkingSetFileEditing } from '../../../../../../platform/agentHost/common/meta/agentWorkingSetFileMeta.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
 import { ChangesetFile, ChangesetOperation, ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, ChangesetState, ChangesetStatus, ComponentToState, SessionState, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -107,8 +107,8 @@ class TestAgentHost extends mock<IAgentConnection>() {
 		this.invokedRequests.push(params);
 		const target = params.target!;
 		const lines = target.kind === ChangesetOperationTargetKind.Range ? ` ${target.side} ${target.range.start.line}-${target.range.end.line}` : '';
-		const version = readWorkingSetVersion(params);
-		this.invoked.push(`${params.operationId === AGENT_HOST_ACCEPT_CHANGES_OPERATION_ID ? 'keep' : 'undo'} ${URI.parse(target.resource).path}${lines}${version ? ` @${version}` : ''}`);
+		const nonce = target.nonce;
+		this.invoked.push(`${params.operationId === AGENT_HOST_ACCEPT_CHANGES_OPERATION_ID ? 'keep' : 'undo'} ${URI.parse(target.resource).path}${lines}${nonce !== undefined ? ` @${nonce}` : ''}`);
 		if (this.failure) {
 			throw new Error(this.failure);
 		}
@@ -206,7 +206,7 @@ suite('AgentHostEditReview', () => {
 	}
 
 	/** A file of the Working Set. Its recorded contents get new URIs each time, like the edit rows of the host. */
-	function workingSetFile(path: string, baseline: string | undefined, current: string | undefined, meta?: Record<string, unknown>): ChangesetFile {
+	function workingSetFile(path: string, baseline: string | undefined, current: string | undefined, nonce?: string): ChangesetFile {
 		version++;
 		const uri = URI.file(path).toString();
 		const record = (part: string, content: string) => {
@@ -221,7 +221,7 @@ suite('AgentHostEditReview', () => {
 				...(current === undefined ? {} : { after: record('after', current) }),
 				diff: { added: 1, removed: 1 },
 			},
-			...(meta ? { _meta: meta } : {}),
+			...(nonce !== undefined ? { nonce } : {}),
 		};
 	}
 
@@ -652,7 +652,7 @@ suite('AgentHostEditReview', () => {
 
 	test('keeps and undoes a single change by its lines in the recorded content', async () => {
 		hostWrites('/a.ts', 'a\nB\nc\nD\n');
-		host.setWorkingSet([workingSetFile('/a.ts', 'a\nb\nc\nd\n', 'a\nB\nc\nD\n')]);
+		host.setWorkingSet([workingSetFile('/a.ts', 'a\nb\nc\nd\n', 'a\nB\nc\nD\n', 'tc1')]);
 		await settle();
 		const entry = getEntry('/a.ts');
 		await getChanges(entry);
@@ -669,25 +669,29 @@ suite('AgentHostEditReview', () => {
 			changes: ['[4,5)', '[6,7)'],
 			kept: true,
 			undone: true,
-			invoked: ['keep /a.ts after 3-4', 'undo /a.ts after 1-2'],
+			invoked: ['keep /a.ts after 3-4 @tc1', 'undo /a.ts after 1-2 @tc1'],
 		});
 	});
 
-	test('names the version of the changes it showed when keeping or undoing them, so the agent host refuses later ones', async () => {
+	test('echoes the nonce of the changes it showed in the operation target', async () => {
 		hostWrites('/a.ts', 'A\n');
-		host.setWorkingSet([workingSetFile('/a.ts', 'a\n', 'A\n', withWorkingSetVersion(undefined, 'tc1'))]);
+		host.setWorkingSet([workingSetFile('/a.ts', 'a\n', 'A\n', 'tc1')]);
 		await settle();
 		const entry = getEntry('/a.ts');
 		await getChanges(entry);
 
 		await entry.accept();
 
-		assert.deepStrictEqual(host.invoked, ['keep /a.ts @tc1']);
+		assert.deepStrictEqual({ invoked: host.invoked, target: host.invokedRequests[0].target, meta: host.invokedRequests[0]._meta }, {
+			invoked: ['keep /a.ts @tc1'],
+			target: { kind: ChangesetOperationTargetKind.Resource, resource: URI.file('/a.ts').toString(), nonce: 'tc1' },
+			meta: undefined,
+		});
 	});
 
 	test('keeps or undoes only the changes that were shown when the user decided, even if the editor updated since', async () => {
 		hostWrites('/a.ts', 'A\nb\n');
-		host.setWorkingSet([workingSetFile('/a.ts', 'a\nb\n', 'A\nb\n', withWorkingSetVersion(undefined, 'tc1'))]);
+		host.setWorkingSet([workingSetFile('/a.ts', 'a\nb\n', 'A\nb\n', 'tc1')]);
 		await settle();
 		const entry = getEntry('/a.ts');
 		await getChanges(entry);
@@ -695,7 +699,7 @@ suite('AgentHostEditReview', () => {
 		// The agent's next edit reaches the editor after the user selected Keep, before the agent host is asked.
 		const kept = review.accept(URI.file('/a.ts'));
 		hostWrites('/a.ts', 'A\nB\n');
-		host.setWorkingSet([workingSetFile('/a.ts', 'a\nb\n', 'A\nB\n', withWorkingSetVersion(undefined, 'tc2'))]);
+		host.setWorkingSet([workingSetFile('/a.ts', 'a\nb\n', 'A\nB\n', 'tc2')]);
 		await kept;
 		const changes = await getChanges(entry);
 
@@ -711,7 +715,7 @@ suite('AgentHostEditReview', () => {
 		for (const pending of ['response', 'settlement'] as const) {
 			test(`${operation} completion leaves a newer revision undecided while awaiting ${pending}`, async () => {
 				hostWrites('/a.ts', 'A\nb\n');
-				host.setWorkingSet([workingSetFile('/a.ts', 'a\nb\n', 'A\nb\n', withWorkingSetVersion(undefined, 'tc1'))]);
+				host.setWorkingSet([workingSetFile('/a.ts', 'a\nb\n', 'A\nb\n', 'tc1')]);
 				await settle();
 				const entry = getEntry('/a.ts');
 				await getChanges(entry);
@@ -724,7 +728,7 @@ suite('AgentHostEditReview', () => {
 				}
 
 				hostWrites('/a.ts', 'A\nB\n');
-				const newer = workingSetFile('/a.ts', 'a\nb\n', 'A\nB\n', withWorkingSetVersion(undefined, 'tc2'));
+				const newer = workingSetFile('/a.ts', 'a\nb\n', 'A\nB\n', 'tc2');
 				host.setWorkingSet([newer]);
 				await settle();
 				await getChanges(entry);
@@ -804,8 +808,8 @@ suite('AgentHostEditReview', () => {
 		// The chat has no response that the agent host could name as the one writing the file.
 		hostWrites('/a.ts', 'A\nb\n');
 		hostWrites('/b.ts', 'B\n');
-		const a = workingSetFile('/a.ts', 'a\nb\n', 'A\nb\n', withWorkingSetVersion(undefined, 'tc1'));
-		const b = workingSetFile('/b.ts', 'b\n', 'B\n', withWorkingSetVersion(undefined, 'tc2'));
+		const a = workingSetFile('/a.ts', 'a\nb\n', 'A\nb\n', 'tc1');
+		const b = workingSetFile('/b.ts', 'b\n', 'B\n', 'tc2');
 		host.setWorkingSet([a, b]);
 		await settle();
 		const entry = getEntry('/a.ts');
@@ -840,7 +844,7 @@ suite('AgentHostEditReview', () => {
 
 	test('marks an edit during recomputation immediately and an earlier diff cannot unlock a later edit', async () => {
 		hostWrites('/a.ts', 'A\nb\n');
-		const initial = workingSetFile('/a.ts', 'a\nb\n', 'A\nb\n', withWorkingSetVersion(undefined, 'tc1'));
+		const initial = workingSetFile('/a.ts', 'a\nb\n', 'A\nb\n', 'tc1');
 		host.setWorkingSet([initial]);
 		await settle();
 		const entry = getEntry('/a.ts');
@@ -849,7 +853,7 @@ suite('AgentHostEditReview', () => {
 		host.setWorkingSet([{ ...initial, _meta: withWorkingSetFileEditing(initial._meta, true) }], createOperations(), ChangesetStatus.Recomputing);
 		const duringRecomputation = !!entry.isCurrentlyBeingModifiedBy.get();
 		hostWritesWithoutReload('/a.ts', 'A\nB\n');
-		const updated = workingSetFile('/a.ts', 'a\nb\n', 'A\nB\n', withWorkingSetVersion(undefined, 'tc2'));
+		const updated = workingSetFile('/a.ts', 'a\nb\n', 'A\nB\n', 'tc2');
 		const gate = diffGate = { started: new DeferredPromise<void>(), release: new DeferredPromise<void>() };
 		host.setWorkingSet([updated]);
 		await gate.started.p;
@@ -986,7 +990,7 @@ suite('AgentHostEditReview', () => {
 		const { model, files, type } = await useRealTextFiles('first\nmiddle\nlast\n');
 		type();
 		await files.writeFile(model.resource, VSBuffer.fromString('FIRST\nmiddle\nlast\n'));
-		host.setWorkingSet([workingSetFile('/dirty.ts', 'first\nmiddle\nlast\n', 'FIRST\nmiddle\nlast\n', withWorkingSetVersion(undefined, 'tc1'))]);
+		host.setWorkingSet([workingSetFile('/dirty.ts', 'first\nmiddle\nlast\n', 'FIRST\nmiddle\nlast\n', 'tc1')]);
 		await waitForEntries('/dirty.ts');
 		const entry = getEntry('/dirty.ts');
 		const changes = await getChanges(entry);
@@ -1006,14 +1010,14 @@ suite('AgentHostEditReview', () => {
 		const { model, files, type } = await useRealTextFiles('first\nmiddle\nlast\n');
 		type();
 		await files.writeFile(model.resource, VSBuffer.fromString('FIRST\nmiddle\nlast\n'));
-		const first = workingSetFile('/dirty.ts', 'first\nmiddle\nlast\n', 'FIRST\nmiddle\nlast\n', withWorkingSetVersion(undefined, 'tc1'));
+		const first = workingSetFile('/dirty.ts', 'first\nmiddle\nlast\n', 'FIRST\nmiddle\nlast\n', 'tc1');
 		host.setWorkingSet([first]);
 		await waitForEntries('/dirty.ts');
 		const entry = getEntry('/dirty.ts');
 		await getChanges(entry);
 		host.setWorkingSet([{ ...first, _meta: withWorkingSetFileEditing(first._meta, true) }]);
 		await files.writeFile(model.resource, VSBuffer.fromString('FIRST\nmiddle\nLAST\n'));
-		host.setWorkingSet([workingSetFile('/dirty.ts', 'first\nmiddle\nlast\n', 'FIRST\nmiddle\nLAST\n', withWorkingSetVersion(undefined, 'tc2'))]);
+		host.setWorkingSet([workingSetFile('/dirty.ts', 'first\nmiddle\nlast\n', 'FIRST\nmiddle\nLAST\n', 'tc2')]);
 		await waitForState(entry.isCurrentlyBeingModifiedBy.map(value => value ? undefined : true));
 		const beforeSave = { text: model.textEditorModel.getValue(), dirty: model.isDirty(), changes: await getChanges(entry), original: entry.originalModel.getValue() };
 		await model.save({ skipSaveParticipants: true, ignoreErrorHandler: true });

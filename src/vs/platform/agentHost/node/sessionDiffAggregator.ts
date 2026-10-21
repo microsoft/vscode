@@ -351,30 +351,28 @@ export async function computeWorkingSetDiffs(
 	return (await computeWorkingSetFiles(sources, diffService, folderScope)).map(file => file.diff);
 }
 
-/** A file of a Working Set changeset, with the version of its changes. */
+/** A file of a Working Set changeset, with the nonce of its changes. */
 export interface IWorkingSetFileDiff {
 	readonly diff: ISessionFileDiff;
-	/** See {@link getWorkingSetFileVersion}. */
-	readonly version: string;
+	/** See {@link getWorkingSetFileNonce}. */
+	readonly nonce: string;
 }
 
-/** Like {@link computeWorkingSetDiffs}, with the version of each file's changes. */
+/** Like {@link computeWorkingSetDiffs}, with the nonce of each file's changes. */
 export async function computeWorkingSetFiles(
 	sources: readonly ISessionDiffSource[],
 	diffService: IDiffComputeService,
 	folderScope?: readonly URI[],
 ): Promise<IWorkingSetFileDiff[]> {
 	return (await computeUnionedFileDiffs(sources, diffService, folderScope, true))
-		.map(({ diff, lastRecord }) => ({ diff, version: getWorkingSetFileVersion(lastRecord) }));
+		.map(({ diff, lastRecord }) => ({ diff, nonce: getWorkingSetFileNonce(lastRecord) }));
 }
 
 /**
- * The version of a file's changes in a Working Set: the tool call ID of the
- * file's last record. Every edit of the file, and accepting or discarding its
- * changes, records a row with a new ID, so the version changes with them.
- * A client names the version it showed when it accepts or discards changes.
+ * Nonce of a Working Set change: the tool call ID of its last edit, accept, or discard record.
+ * Clients can echo this opaque value when deciding on a displayed change.
  */
-export function getWorkingSetFileVersion(lastRecord: Pick<IFileEditRecord, 'toolCallId'>): string {
+export function getWorkingSetFileNonce(lastRecord: Pick<IFileEditRecord, 'toolCallId'>): string {
 	return lastRecord.toolCallId;
 }
 

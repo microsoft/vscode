@@ -55,7 +55,7 @@ import { IAgentHostGitService, resolveDiffBaseBranchName } from '../common/agent
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
 import { NodeWorkerDiffComputeService } from './diffComputeService.js';
 import { computeSessionDiffs, computeTurnDiffs, computeUnionedDiffs, computeWorkingSetFiles, type IIncrementalDiffOptions, type ISessionDiffSource } from './sessionDiffAggregator.js';
-import { isWorkingSetFileEditing, withWorkingSetFileEditing, withWorkingSetVersion } from '../common/meta/agentWorkingSetFileMeta.js';
+import { isWorkingSetFileEditing, withWorkingSetFileEditing } from '../common/meta/agentWorkingSetFileMeta.js';
 import { IAgentHostChangesetService, CHANGES_SUMMARY_METADATA_KEYS, getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY, StaticChangesetKind, ChangesetDiffStrategy, type ITrackedSessionDatabases, type ITrackedTurnDatabase } from '../common/agentHostChangesetService.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
@@ -566,14 +566,15 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			const files = await computeWorkingSetFiles(sources, this._diffComputeService, tracked.folderScope);
 			// A queued refresh may include a completed edit that these snapshots missed.
 			if (!this._store.isDisposed && !this._queuedWorkingSets.has(owner)) {
-				// Clients send a file's version back with an operation on it, so the operation only covers changes they showed.
+				// Clients can echo a file's nonce to bind an operation to the changes they showed.
 				// They also disable operations on a file while an agent edits it, see `_publishWorkingSetEditing`.
-				const versions = new Map(files.map(file => [file.diff, file.version]));
+				const nonces = new Map(files.map(file => [file.diff, file.nonce]));
 				this._publishChangesetDiffs(owner, changesetUri, files.map(file => file.diff), undefined, diff => {
-					const version = versions.get(diff);
 					const id = diff.after?.uri ?? diff.before?.uri;
-					const meta = version ? withWorkingSetVersion(undefined, version) : undefined;
-					return id && this._fileEditCoordinator.isEditing(URI.parse(id)) ? withWorkingSetFileEditing(meta, true) : meta;
+					return {
+						nonce: nonces.get(diff),
+						...(id && this._fileEditCoordinator.isEditing(URI.parse(id)) ? { _meta: withWorkingSetFileEditing(undefined, true) } : {}),
+					};
 				});
 				this._publishedWorkingSets.add(changesetUri);
 			}
@@ -2283,7 +2284,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * (fileSet, fileRemoved) and moves the changeset to `ready` once the
 	 * fresh file list has been applied.
 	 */
-	private _publishChangesetDiffs(session: ProtocolURI, changesetUri: ProtocolURI, diffs: readonly ISessionFileDiff[], reviewed?: { readonly repoRoot: URI; readonly paths: ReadonlySet<string> }, getFileMeta?: (edit: ISessionFileDiff) => Record<string, unknown> | undefined): void {
+	private _publishChangesetDiffs(session: ProtocolURI, changesetUri: ProtocolURI, diffs: readonly ISessionFileDiff[], reviewed?: { readonly repoRoot: URI; readonly paths: ReadonlySet<string> }, getFileDetails?: (edit: ISessionFileDiff) => Pick<ChangesetFile, 'nonce' | '_meta'>): void {
 		// Get the available operations for this changeset. This call assumes that at this point
 		// the git state of the session is up-to-date as it is being used to determine the available
 		// operations. Long term this should be replaced with a more robust mechanism.
@@ -2295,7 +2296,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			if (!id) {
 				continue;
 			}
-			const meta = getFileMeta?.(edit);
+			const details = getFileDetails?.(edit);
 			if (reviewed) {
 				const relPath = relativePath(reviewed.repoRoot, URI.parse(id));
 				files.push({
@@ -2303,10 +2304,10 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 					reviewed: relPath
 						? reviewed.paths.has(relPath)
 						: false,
-					...(meta ? { _meta: meta } : {}),
+					...details,
 				});
 			} else {
-				files.push({ id, edit, ...(meta ? { _meta: meta } : {}) });
+				files.push({ id, edit, ...details });
 			}
 		}
 

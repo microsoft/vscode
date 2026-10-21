@@ -30,7 +30,6 @@ import { branchChangesetLabel, ChangesetKind, resolveChangesetUriTemplate, resol
 import { affectsAgentHostProviderPreference, isLocalAgentHostProviderDisabledByPolicy } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ISessionArtifact, isGitHubArtifactLink, readSessionArtifactsNewestFirst, SessionArtifactType } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { supportsAgentHostArtifactRemoval } from '../../../../../../platform/agentHost/common/meta/agentHostArtifactRemovalMeta.js';
-import { readWorkingSetVersion, withWorkingSetVersion } from '../../../../../../platform/agentHost/common/meta/agentWorkingSetFileMeta.js';
 import { type IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { Changeset, ChangesetOperation, ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, ChangesetState, ChangesetStatus, ChatOriginKind, ChatState, DEFAULT_CHAT_ID, getAgentHostChatId, getSessionChatResource, getSessionRelatedPullRequestUrls, readSessionFolderGitHubState, readSessionGitHubState, SessionLifecycle, SessionState, SessionStatus, SessionSummaryMeta, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
@@ -563,6 +562,8 @@ function isFailingCheck(check: PullRequestCheck): boolean {
 /** Adds Agent Host session metadata pills to a workbench chat input. */
 export class AgentHostSessionInputPills extends Disposable {
 
+	/** Binds operations to the displayed diff, not a newer changeset publication. */
+	private readonly _fileChangeNonces = new WeakMap<IEditSessionEntryDiff, string>();
 	private readonly _browserChanged = observableSignal(this);
 	private readonly _browserListeners = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _pullRequestHoverCache = this._register(new ChatPillHoverCache());
@@ -774,7 +775,13 @@ export class AgentHostSessionInputPills extends Disposable {
 				return [];
 			}
 			return files
-				.map(file => agentHostChangesetFileToEntryDiff(file, currentResolution.connectionAuthority))
+				.map(file => {
+					const diff = agentHostChangesetFileToEntryDiff(file, currentResolution.connectionAuthority);
+					if (diff && file.nonce !== undefined) {
+						this._fileChangeNonces.set(diff, file.nonce);
+					}
+					return diff;
+				})
 				.filter(isDefined);
 		});
 		const workingSetChanges = derived(this, reader => {
@@ -1480,18 +1487,21 @@ export class AgentHostSessionInputPills extends Disposable {
 					// The file's changes are already gone.
 					continue;
 				}
-				if (!isSameSessionFileChange(current, diff)) {
+				const nonce = this._fileChangeNonces.get(diff);
+				if (!isSameSessionFileChange(current, diff) || (nonce !== undefined && nonce !== currentFile?.nonce)) {
 					failures.push({ fileName, message: messages.changed(fileName) });
 					continue;
 				}
 				// The agent may change the file while it works, so a Working Set operation names the changes that were shown.
-				const version = readWorkingSetVersion(currentFile);
 				try {
 					await connection.invokeChangesetOperation({
 						channel: channelKey,
 						operationId: operation.id,
-						target: { kind: ChangesetOperationTargetKind.Resource, resource: connection.resourceUris.toAgentHost(diff.modifiedURI).toString() },
-						...(version !== undefined ? { _meta: withWorkingSetVersion(undefined, version) } : {}),
+						target: {
+							kind: ChangesetOperationTargetKind.Resource,
+							resource: connection.resourceUris.toAgentHost(diff.modifiedURI).toString(),
+							...(nonce !== undefined ? { nonce } : {}),
+						},
 					});
 					succeeded++;
 				} catch (error) {

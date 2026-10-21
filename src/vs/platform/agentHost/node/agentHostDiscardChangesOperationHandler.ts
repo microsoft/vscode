@@ -29,8 +29,8 @@ import { parseGitBlobUri } from './gitDiffContent.js';
 import { createFileEditDiscardRecord, createSessionFileEditDiscardRecords, getUndiscardedFileEditRevertSteps, readFileEditRevertSteps, spanFileEditRevertSteps } from './fileEditDiscard.js';
 import { createFileEditAcceptRecordAfter, fileEditContentEquals, getUnacceptedFileEditRecords, getWorkingSetFileEditRecords, isFileEditAcceptRecord } from './fileEditAccept.js';
 import { FileEditsInProgressError, IAgentHostFileEditCoordinator } from './agentHostFileEditCoordinator.js';
-import { getWorkingSetFileVersion, isPathWithinFolderScope } from './sessionDiffAggregator.js';
-import { createChangedSinceShownError, getShownWorkingSetVersion } from './workingSetVersion.js';
+import { getWorkingSetFileNonce, isPathWithinFolderScope } from './sessionDiffAggregator.js';
+import { createChangedSinceShownError } from './workingSetNonce.js';
 import { computeWorkingSetFileContents, computeWorkingSetRangeChanges } from './workingSetFileContents.js';
 
 /**
@@ -381,10 +381,10 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 		if (!sinceAccepted) {
 			return this._doDiscardSessionFile(owner, session, resource, undefined, false, false, undefined, token);
 		}
-		const shownVersion = getShownWorkingSetVersion(this._stateManager, params, resource, session);
+		const shownNonce = params.target?.nonce;
 		try {
 			// The agent's edit tool calls on the file wait meanwhile, so each one's snapshots and the discard are recorded in order.
-			return await this._fileEditCoordinator.runExclusive(resource, () => this._doDiscardSessionFile(owner, session, resource, range, true, duringTurn, shownVersion, token));
+			return await this._fileEditCoordinator.runExclusive(resource, () => this._doDiscardSessionFile(owner, session, resource, range, true, duringTurn, shownNonce, token));
 		} catch (err) {
 			if (err instanceof FileEditsInProgressError) {
 				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.discardWorkingSetChanges.editInProgress', "The agent is still editing '{0}'. Try again once it has finished.", basename(resource)));
@@ -393,7 +393,7 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 		}
 	}
 
-	private async _doDiscardSessionFile(owner: ProtocolURI, session: ProtocolURI, resource: URI, range: { readonly side?: 'before' | 'after'; readonly range: TextRange } | undefined, sinceAccepted: boolean, duringTurn: boolean, shownVersion: string | undefined, token: CancellationToken): Promise<InvokeChangesetOperationResult> {
+	private async _doDiscardSessionFile(owner: ProtocolURI, session: ProtocolURI, resource: URI, range: { readonly side?: 'before' | 'after'; readonly range: TextRange } | undefined, sinceAccepted: boolean, duringTurn: boolean, shownNonce: string | undefined, token: CancellationToken): Promise<InvokeChangesetOperationResult> {
 		const turnsBefore = this._getSessionTurnsKey(session);
 		const messages = sinceAccepted ? {
 			multiRoot: localize('agentHost.changeset.discardWorkingSetChanges.multiRoot', "Changes that have not been accepted can't be discarded in a session with more than one folder."),
@@ -431,7 +431,7 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, messages.noChanges);
 			}
 			await this._throwIfEditedByOtherChats([...otherMatches.map(other => other.source.db), ...tracked.otherChatDatabases], resource);
-			if (shownVersion !== undefined && shownVersion !== getWorkingSetFileVersion(match.records[match.records.length - 1])) {
+			if (shownNonce !== undefined && shownNonce !== getWorkingSetFileNonce(match.records[match.records.length - 1])) {
 				throw createChangedSinceShownError(resource);
 			}
 
@@ -462,6 +462,10 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 					const discardRowIds = new Set(discardRows.map(row => row.toolCallId));
 					const current = this._getFileEditRecords(await source.db.getAllFileEdits(), resource, tracked.folderScope)
 						.filter(record => !discardRowIds.has(record.toolCallId));
+					const last = current.at(-1);
+					if (shownNonce !== undefined && last && shownNonce !== getWorkingSetFileNonce(last)) {
+						throw createChangedSinceShownError(resource);
+					}
 					if (!equals(current, match.records, (a, b) => a.toolCallId === b.toolCallId)) {
 						throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, this._getChangedDuringDiscardMessage(resource));
 					}

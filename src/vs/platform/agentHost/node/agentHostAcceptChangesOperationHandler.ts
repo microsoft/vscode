@@ -16,11 +16,10 @@ import type { IFileEditContent, IFileEditRecord, ISessionDatabase } from '../com
 import { ChangesetOperationTargetKind, type InvokeChangesetOperationParams, type InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { FileEditKind, type TextRange, type URI as ProtocolURI } from '../common/state/sessionState.js';
-import { resolveChangesetOwnerScope } from './agentHostBranchChangesetScope.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { createFileEditAcceptRecord, createPartialFileEditAcceptRecord, fileEditContentEquals, getWorkingSetFileEditRecords, isFileEditAcceptRecord, readFileEditAcceptedContent, readFileEditEndContent } from './fileEditAccept.js';
-import { getWorkingSetFileVersion, isPathWithinFolderScope } from './sessionDiffAggregator.js';
-import { createChangedSinceShownError, getShownWorkingSetVersion } from './workingSetVersion.js';
+import { getWorkingSetFileNonce, isPathWithinFolderScope } from './sessionDiffAggregator.js';
+import { createChangedSinceShownError } from './workingSetNonce.js';
 import { computeWorkingSetFileContents, computeWorkingSetRangeChanges } from './workingSetFileContents.js';
 
 function isFilePath(path: string | undefined, resource: URI): boolean {
@@ -64,8 +63,7 @@ export class AgentHostAcceptChangesOperationHandler implements IChangesetOperati
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${owner}`);
 		}
 		const resource = URI.parse(target.resource);
-		const session = resolveChangesetOwnerScope(this._stateManager, owner).sessionUri;
-		const shownVersion = getShownWorkingSetVersion(this._stateManager, params, resource, session);
+		const shownNonce = target.nonce;
 		this._throwIfCancelled(token);
 
 		const tracked = this._changesets.openTrackedSessionDatabases(owner);
@@ -95,7 +93,7 @@ export class AgentHostAcceptChangesOperationHandler implements IChangesetOperati
 
 			const { source, records } = match;
 			const last = records[records.length - 1];
-			if (shownVersion !== undefined && shownVersion !== getWorkingSetFileVersion(last)) {
+			if (shownNonce !== undefined && shownNonce !== getWorkingSetFileNonce(last)) {
 				throw createChangedSinceShownError(resource);
 			}
 			const current = await readFileEditEndContent(source.db, last);
@@ -112,6 +110,9 @@ export class AgentHostAcceptChangesOperationHandler implements IChangesetOperati
 				// Accepting must not cover an edit recorded since the file's rows were read, as one of a turn that runs.
 				const rows = (await source.db.getAllFileEdits()).filter(record => isFilePath(record.filePath, resource));
 				const previous = rows.at(-2);
+				if (shownNonce !== undefined && previous && shownNonce !== getWorkingSetFileNonce(previous)) {
+					throw createChangedSinceShownError(resource);
+				}
 				const content = previous && await readFileEditEndContent({ readFileEditContent: readContent }, previous);
 				if (previous?.toolCallId !== last.toolCallId || !fileEditContentEquals(content, current)) {
 					throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.acceptChanges.changedDuringAccept', "'{0}' changed while its changes were being accepted. Try again.", basename(resource)));

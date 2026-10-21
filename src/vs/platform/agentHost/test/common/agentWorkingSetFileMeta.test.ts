@@ -5,34 +5,27 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { isWorkingSetFileEditing, readWorkingSetVersion, withWorkingSetFileEditing, withWorkingSetVersion } from '../../common/meta/agentWorkingSetFileMeta.js';
+import { isWorkingSetFileEditing, withWorkingSetFileEditing } from '../../common/meta/agentWorkingSetFileMeta.js';
 
 suite('agentWorkingSetFileMeta', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('writes a Working Set file version and editing mark, keeping other metadata', () => {
-		const versioned = withWorkingSetVersion({ other: 1 }, 'tc1');
-		const editing = withWorkingSetFileEditing(versioned, true);
-		assert.deepStrictEqual({ versioned, editing, notEditing: withWorkingSetFileEditing(editing, false) }, {
-			versioned: { other: 1, 'vscode.workingSetVersion': 'tc1' },
-			editing: { other: 1, 'vscode.workingSetVersion': 'tc1', 'vscode.workingSetEditing': true },
-			notEditing: { other: 1, 'vscode.workingSetVersion': 'tc1' },
+	test('writes a Working Set editing mark, keeping other metadata', () => {
+		const editing = withWorkingSetFileEditing({ other: 1 }, true);
+		assert.deepStrictEqual({ editing, notEditing: withWorkingSetFileEditing(editing, false) }, {
+			editing: { other: 1, 'vscode.workingSetEditing': true },
+			notEditing: { other: 1 },
 		});
 	});
 
 	test('reads only valid values', () => {
-		const read = (_meta: Record<string, unknown> | undefined) => ({ version: readWorkingSetVersion({ _meta }), editing: isWorkingSetFileEditing({ _meta }) });
+		const read = (_meta: Record<string, unknown> | undefined) => isWorkingSetFileEditing({ _meta });
 		assert.deepStrictEqual([
 			read(undefined),
-			read({ 'vscode.workingSetVersion': 'tc1', 'vscode.workingSetEditing': true }),
-			read({ 'vscode.workingSetVersion': '', 'vscode.workingSetEditing': 'yes' }),
-			read({ 'vscode.workingSetVersion': 1, 'vscode.workingSetEditing': false }),
-		], [
-			{ version: undefined, editing: false },
-			{ version: 'tc1', editing: true },
-			{ version: undefined, editing: false },
-			{ version: undefined, editing: false },
-		]);
+			read({ 'vscode.workingSetEditing': true }),
+			read({ 'vscode.workingSetEditing': 'yes' }),
+			read({ 'vscode.workingSetEditing': false }),
+		], [false, true, false, false]);
 	});
 });

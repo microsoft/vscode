@@ -19,7 +19,7 @@ import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportK
 import { buildBranchChangesetUri, buildDefaultChangesetCatalog, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri, buildFolderChangesetOwnerUri, buildWorkingSetChangesetUri } from '../../common/changesetUri.js';
 import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../common/meta/agentWorkspaceContinuationMeta.js';
-import { isWorkingSetFileEditing, readWorkingSetVersion } from '../../common/meta/agentWorkingSetFileMeta.js';
+import { isWorkingSetFileEditing } from '../../common/meta/agentWorkingSetFileMeta.js';
 import { ActionEnvelope, ActionType } from '../../common/state/sessionActions.js';
 import { ChangesetStatus, FileEditKind, MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, withMessageRequestHiddenFromTranscript, withSessionGitState, type ISessionFileDiff, type ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentHostChangesetService } from '../../node/agentHostChangesetService.js';
@@ -2182,13 +2182,13 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		});
 	});
 
-	test('a subscribed Working Set follows each edit while a turn runs, versioning its files and marking the ones an agent is writing', async () => {
+	test('a subscribed Working Set follows each edit while a turn runs, publishing file nonces and marking the ones an agent is writing', async () => {
 		const edit = (turnId: string, toolCallId: string, path: string, before: string, after: string) => ({ turnId, toolCallId, filePath: path, kind: FileEditKind.Edit, addedLines: undefined, removedLines: undefined, beforeContent: encodeString(before), afterContent: encodeString(after) });
 		const db = new TestSessionDatabase();
 		db.addEdit(edit('turn-1', 'tc1', '/repo/pending.txt', 'c', 'c\nd'));
 		const workingSet = buildWorkingSetChangesetUri(sessionStr);
 		const { svc, stateManager } = build({ workingDirectories: ['file:///repo'], git: createNoopGitService(), checkpoint: NULL_CHECKPOINT_SERVICE, db, subscriptions: [workingSet] });
-		const files = () => stateManager.getChangesetState(workingSet)?.files.map(file => ({ path: URI.parse(file.id).path, meta: file._meta }));
+		const files = () => stateManager.getChangesetState(workingSet)?.files.map(file => ({ path: URI.parse(file.id).path, nonce: file.nonce, meta: file._meta }));
 		svc.refreshWorkingSetChangeset(sessionStr);
 		await waitForChangesetReady(stateManager, workingSet);
 		const initial = files();
@@ -2206,11 +2206,11 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		await waitForChangesetReady(stateManager, workingSet);
 
 		assert.deepStrictEqual({ initial, afterEdit, whileWriting, awaitingRefresh, afterWriting: files() }, {
-			initial: [{ path: '/repo/pending.txt', meta: { 'vscode.workingSetVersion': 'tc1' } }],
-			afterEdit: [{ path: '/repo/pending.txt', meta: { 'vscode.workingSetVersion': 'tc2' } }],
-			whileWriting: [{ path: '/repo/pending.txt', meta: { 'vscode.workingSetVersion': 'tc2', 'vscode.workingSetEditing': true } }],
-			awaitingRefresh: [{ path: '/repo/pending.txt', meta: { 'vscode.workingSetVersion': 'tc2', 'vscode.workingSetEditing': true } }],
-			afterWriting: [{ path: '/repo/pending.txt', meta: { 'vscode.workingSetVersion': 'tc2' } }],
+			initial: [{ path: '/repo/pending.txt', nonce: 'tc1', meta: undefined }],
+			afterEdit: [{ path: '/repo/pending.txt', nonce: 'tc2', meta: undefined }],
+			whileWriting: [{ path: '/repo/pending.txt', nonce: 'tc2', meta: { 'vscode.workingSetEditing': true } }],
+			awaitingRefresh: [{ path: '/repo/pending.txt', nonce: 'tc2', meta: { 'vscode.workingSetEditing': true } }],
+			afterWriting: [{ path: '/repo/pending.txt', nonce: 'tc2', meta: undefined }],
 		});
 	});
 
@@ -2240,12 +2240,12 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		svc.refreshWorkingSetChangeset(sessionStr);
 		await waitForChangesetReady(stateManager, workingSet);
 
-		const published: { version: string | undefined; editing: boolean }[] = [];
+		const published: { nonce: string | undefined; editing: boolean }[] = [];
 		disposables.add(stateManager.onDidEmitEnvelope(envelope => {
 			if (envelope.channel === workingSet) {
 				const files = envelope.action.type === ActionType.ChangesetContentChanged ? envelope.action.files
 					: envelope.action.type === ActionType.ChangesetFileSet ? [envelope.action.file] : [];
-				published.push(...files.map(file => ({ version: readWorkingSetVersion(file), editing: isWorkingSetFileEditing(file) })));
+				published.push(...files.map(file => ({ nonce: file.nonce, editing: isWorkingSetFileEditing(file) })));
 			}
 		}));
 		const writing = disposables.add(await svc.fileEditCoordinator.beginEdit(URI.file('/repo/pending.txt')));
@@ -2263,8 +2263,8 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		await waitForChangesetReady(stateManager, workingSet);
 
 		assert.deepStrictEqual({ awaitingFreshResult, published }, {
-			awaitingFreshResult: [{ version: 'tc1', editing: true }],
-			published: [{ version: 'tc1', editing: true }, { version: 'tc2', editing: false }],
+			awaitingFreshResult: [{ nonce: 'tc1', editing: true }],
+			published: [{ nonce: 'tc1', editing: true }, { nonce: 'tc2', editing: false }],
 		});
 	});
 

@@ -29,7 +29,7 @@ import { AGENT_HOST_ACCEPT_CHANGES_OPERATION_ID, AGENT_HOST_DISCARD_CHANGES_OPER
 import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ChangesetKind, resolveChangesetUriTemplate } from '../../../../../../platform/agentHost/common/changesetUri.js';
-import { isWorkingSetFileEditing, readWorkingSetVersion, withWorkingSetVersion } from '../../../../../../platform/agentHost/common/meta/agentWorkingSetFileMeta.js';
+import { isWorkingSetFileEditing } from '../../../../../../platform/agentHost/common/meta/agentWorkingSetFileMeta.js';
 import { IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, ChangesetState, ChangesetStatus, SessionState, StateComponents, type TextRange } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
@@ -62,7 +62,7 @@ class EditReviewSynchronizationError extends Error { }
 interface IWorkingSetFileChange {
 	readonly diff: IEditSessionEntryDiff;
 	/** Sent back with operations on the file, so they don't cover changes the editor didn't show. Older hosts publish none. */
-	readonly version: string | undefined;
+	readonly nonce: string | undefined;
 	/** Whether an agent's edit tool call is writing the file, so its changes can't be kept or undone meanwhile. */
 	readonly editing: boolean;
 }
@@ -739,15 +739,13 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 				throw new Error(localize('agentHostEditReview.changed', "The changes were updated in the meantime. Try again."));
 			}
 		}
-		const version = shown.version;
+		const target = { resource, ...(shown.nonce !== undefined ? { nonce: shown.nonce } : {}) };
 		await workingSet.connection.invokeChangesetOperation({
 			channel: workingSet.channel.toString(),
 			operationId,
 			target: range
-				? { kind: ChangesetOperationTargetKind.Range, resource, side: 'after', range }
-				: { kind: ChangesetOperationTargetKind.Resource, resource },
-			// The agent may change the file while it works, so the host only acts on the changes the editor showed.
-			...(version !== undefined ? { _meta: withWorkingSetVersion(undefined, version) } : {}),
+				? { kind: ChangesetOperationTargetKind.Range, ...target, side: 'after', range }
+				: { kind: ChangesetOperationTargetKind.Resource, ...target },
 		});
 	}
 
@@ -914,14 +912,14 @@ function isSameWorkingSetFile(a: IWorkingSetFileChange, b: IWorkingSetFileChange
 	return isEqual(a.diff.originalURI, b.diff.originalURI)
 		&& isEqual(a.diff.modifiedSnapshotURI, b.diff.modifiedSnapshotURI)
 		&& !!a.diff.isCreated === !!b.diff.isCreated
-		&& a.version === b.version;
+		&& a.nonce === b.nonce;
 }
 
 /** The files of a Working Set, with the version the host published for each. */
 function toWorkingSetFileChanges(state: ChangesetState, connectionAuthority: string): IWorkingSetFileChange[] {
 	return state.files.map(file => {
 		const diff = agentHostChangesetFileToEntryDiff(file, connectionAuthority);
-		return diff && { diff, version: readWorkingSetVersion(file), editing: isWorkingSetFileEditing(file) };
+		return diff && { diff, nonce: file.nonce, editing: isWorkingSetFileEditing(file) };
 	}).filter(isDefined);
 }
 

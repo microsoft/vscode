@@ -3,4 +3,4 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export { isWorkingSetFileEditing, readWorkingSetVersion, withWorkingSetFileEditing, withWorkingSetVersion } from './vscode/agentWorkingSetFileMeta.js';
+export { isWorkingSetFileEditing, withWorkingSetFileEditing } from './vscode/agentWorkingSetFileMeta.js';
