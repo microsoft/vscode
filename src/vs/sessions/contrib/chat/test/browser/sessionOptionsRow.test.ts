@@ -14,7 +14,7 @@ suite('Sessions - SessionOptionsRow', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('Tab and the arrow keys move through the row\'s buttons and checkboxes in order', () => {
+	test('Tab and the arrow keys move through the row\'s pickers and the disclosure toggle in order', () => {
 		const document = mainWindow.document;
 		const container = document.body.appendChild(document.createElement('div'));
 		store.add(toDisposable(() => container.remove()));
@@ -35,7 +35,7 @@ suite('Sessions - SessionOptionsRow', () => {
 			collapsedShowIcons: constObservable(true),
 			setExpanded: () => { },
 		}));
-		control(sessionOptionsRow.repositoryControlsHost, 'worktree', 'checkbox');
+		control(sessionOptionsRow.repositoryControlsHost, 'isolation', 'button');
 		control(sessionOptionsRow.repositoryControlsHost, 'branch', 'button');
 
 		const visit = (key: string, count: number) => {
@@ -49,8 +49,8 @@ suite('Sessions - SessionOptionsRow', () => {
 		};
 
 		assert.deepStrictEqual({ tab: visit('Tab', 4), arrow: visit('ArrowRight', 5) }, {
-			tab: ['folder', 'worktree', 'branch', 'Hide Session Options'],
-			arrow: ['folder', 'worktree', 'branch', 'Hide Session Options', 'folder'],
+			tab: ['folder', 'isolation', 'branch', 'Hide Session Options'],
+			arrow: ['folder', 'isolation', 'branch', 'Hide Session Options', 'folder'],
 		});
 	});
 });

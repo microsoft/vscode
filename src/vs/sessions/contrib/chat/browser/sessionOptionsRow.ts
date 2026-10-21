@@ -86,8 +86,7 @@ export class SessionOptionsRow extends Disposable {
 			const controls: HTMLElement[] = [];
 			const walker = row.ownerDocument.createTreeWalker(row, NodeFilter.SHOW_ELEMENT);
 			for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-				// Checkboxes too, such as New Worktree: the row's own Tab handling would otherwise skip them.
-				if (dom.isHTMLElement(node) && (node.role === 'button' || node.role === 'checkbox')
+				if (dom.isHTMLElement(node) && node.role === 'button'
 					&& node.getAttribute('aria-disabled') !== 'true'
 					&& !node.closest('[hidden], [inert], .disabled, .loading, .resolving')
 					&& node.checkVisibility()) {

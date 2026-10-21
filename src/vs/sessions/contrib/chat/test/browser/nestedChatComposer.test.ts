@@ -8,12 +8,13 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionListDelegate, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChat, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { INestedChatFolderInfo, INestedChatWorkspace, INestedChatWorkspaceSupport, NestedChatWorkspaceError } from '../../../../services/sessions/common/sessionsProvider.js';
@@ -58,6 +59,7 @@ suite('Sessions - New Nested Session composer', () => {
 			getUriBasenameLabel: (uri: URI) => uri.path.split('/').pop() ?? '',
 			getUriLabel: (uri: URI) => uri.path,
 		} as Partial<ILabelService>);
+		instantiationService.stub(IHoverService, { setupDelayedHover: () => toDisposable(() => { }) } as Partial<IHoverService>);
 		const controls = store.add(instantiationService.createInstance(NestedChatWorkspaceControls, {
 			support: value,
 			resolveFolder: async () => folderInfo,
@@ -77,15 +79,29 @@ suite('Sessions - New Nested Session composer', () => {
 				trigger().click();
 				await new Promise(resolve => setTimeout(resolve, 0));
 			},
+			async pickIsolation(label: string) {
+				pick = label;
+				repositoryContainer.querySelector<HTMLElement>('.sessions-chat-isolation-picker .action-label')!.click();
+				await new Promise(resolve => setTimeout(resolve, 0));
+			},
 			state() {
-				const branch = repositoryContainer.querySelector<HTMLElement>('.nested-chat-branch-picker')!;
+				const repository = repositoryContainer.querySelector<HTMLElement>('.nested-chat-repository-controls')!;
 				return {
 					visible: !trigger().parentElement!.hidden,
 					folder: trigger().textContent,
 					canPickFolder: trigger().tabIndex === 0,
-					worktreeOffered: !branch.hidden && repositoryControls.visible.get(),
+					worktreeOffered: !repository.hidden && repositoryControls.visible.get(),
 					petPlatforms: controls.getChatPetPlatformElements().length,
-					branchChevron: !!branch.querySelector('.codicon-chevron-down'),
+				};
+			},
+			repositoryState() {
+				const isolation = repositoryContainer.querySelector<HTMLElement>('.sessions-chat-isolation-picker .action-label')!;
+				const branch = repositoryContainer.querySelector<HTMLElement>('.nested-chat-branch-picker')!;
+				const branchTrigger = branch.querySelector<HTMLElement>('.action-label')!;
+				return {
+					isolation: `${isolation.getAttribute('aria-label')} [${isolation.role}]`,
+					branch: branch.hidden ? 'hidden' : `${branchTrigger.getAttribute('aria-label')} [${branchTrigger.role}]${branch.querySelector('.codicon-chevron-down') ? ' with chevron' : ''}`,
+					separator: !repositoryContainer.querySelector<HTMLElement>('.nested-chat-repository-separator')!.hidden,
 				};
 			},
 		};
@@ -106,9 +122,9 @@ suite('Sessions - New Nested Session composer', () => {
 			singleFolder: { ...singleFolder.state(), items: singleFolder.shown[0] },
 			oldHostOrCloud: { visible: oldHostOrCloud.state().visible, worktreeOffered: oldHostOrCloud.state().worktreeOffered, petPlatforms: oldHostOrCloud.state().petPlatforms },
 		}, {
-			ws: { visible: true, folder: 'repo', canPickFolder: true, worktreeOffered: true, petPlatforms: 1, branchChevron: false, items: ['repo', 'other', 'recent', 'No Workspace', 'Browse...', 'Open Folder...'] },
-			wl: { visible: true, folder: 'No Workspace', canPickFolder: true, worktreeOffered: false, petPlatforms: 1, branchChevron: false, items: ['other', 'recent', 'No Workspace', 'Browse...', 'Open Folder...'] },
-			singleFolder: { visible: true, folder: 'repo', canPickFolder: false, worktreeOffered: true, petPlatforms: 1, branchChevron: false, items: undefined },
+			ws: { visible: true, folder: 'repo', canPickFolder: true, worktreeOffered: true, petPlatforms: 1, items: ['repo', 'other', 'recent', 'No Workspace', 'Browse...', 'Open Folder...'] },
+			wl: { visible: true, folder: 'No Workspace', canPickFolder: true, worktreeOffered: false, petPlatforms: 1, items: ['other', 'recent', 'No Workspace', 'Browse...', 'Open Folder...'] },
+			singleFolder: { visible: true, folder: 'repo', canPickFolder: false, worktreeOffered: true, petPlatforms: 1, items: undefined },
 			oldHostOrCloud: { visible: false, worktreeOffered: false, petPlatforms: 0 },
 		});
 	});
@@ -133,6 +149,29 @@ suite('Sessions - New Nested Session composer', () => {
 			afterFolderUpdate: { kind: 'folder', folder: other, isolation: 'folder' },
 			afterSessionChange: undefined,
 			label: 'No Workspace',
+		});
+	});
+
+	test('the isolation dropdown offers Branch and New Worktree, and only a worktree shows the branch picker', async () => {
+		const h = createControls(constObservable(support(repo)));
+		await new Promise(resolve => setTimeout(resolve, 0));
+		const initial = { ...h.repositoryState(), workspace: h.controls.getWorkspace() };
+		await h.pickIsolation('New Worktree');
+		await new Promise(resolve => setTimeout(resolve, 0));
+		const worktree = { ...h.repositoryState(), items: h.shown.at(-1), workspace: h.controls.getWorkspace() };
+		await h.pickIsolation('Branch');
+		const folder = { ...h.repositoryState(), workspace: h.controls.getWorkspace() };
+
+		assert.deepStrictEqual({ initial, worktree, folder }, {
+			initial: { isolation: 'Isolation: Branch [button]', branch: 'hidden', separator: false, workspace: undefined },
+			worktree: {
+				isolation: 'Isolation: New Worktree [button]',
+				branch: 'Pick Branch, main [button]',
+				separator: true,
+				items: ['Branch', 'New Worktree'],
+				workspace: { kind: 'folder', folder: repo, isolation: 'worktree', baseBranch: 'main' },
+			},
+			folder: { isolation: 'Isolation: Branch [button]', branch: 'hidden', separator: false, workspace: undefined },
 		});
 	});
 

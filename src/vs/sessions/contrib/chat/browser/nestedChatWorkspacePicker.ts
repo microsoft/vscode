@@ -22,7 +22,8 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ISessionWorkspaceBrowseAction } from '../../../services/sessions/common/session.js';
 import { INestedChatFolderInfo, INestedChatWorkspace, INestedChatWorkspaceSupport } from '../../../services/sessions/common/sessionsProvider.js';
-import { BranchPicker, IBranchPickerState, NEW_WORKTREE_LABEL } from './branchPicker.js';
+import { BranchPicker, IBranchPickerState } from './branchPicker.js';
+import { IsolationPicker } from './isolationPicker.js';
 import { IComposerRepositoryControls } from './newChatComposerInput.js';
 
 // #region --- Model ---
@@ -309,49 +310,57 @@ export class NestedChatWorkspaceControls extends Disposable {
 
 	/**
 	 * Renders the isolation and branch pickers into the composer's repository controls, which the
-	 * composer places like the New Session ones: in the options row or below the input.
+	 * composer places like the New Session ones: in the options row or below the input. The isolation
+	 * picker is New Session's (Branch or New Worktree); the branch picker only applies to a worktree.
 	 */
 	renderRepositoryControls(container: HTMLElement): IComposerRepositoryControls {
 		const store = new DisposableStore();
+		const element = dom.append(container, dom.$('.nested-chat-repository-controls'));
+		store.add(toDisposable(() => element.remove()));
+
+		const isolationPicker = store.add(this._instantiationService.createInstance(IsolationPicker, {
+			user: 'NestedChatIsolationPicker',
+			onSelect: isolation => this._setWorktree(isolation === 'worktree'),
+		}));
+		isolationPicker.render(element);
+
+		const separator = dom.append(element, dom.$('span.nested-chat-repository-separator'));
+		separator.setAttribute('aria-hidden', 'true');
+		const branchSlot = dom.append(element, dom.$('.nested-chat-branch-picker'));
 		const branchPicker = store.add(this._instantiationService.createInstance(BranchPicker, {
 			user: 'NestedChatBranchPicker',
 			onSelectBranch: branch => this._branch.set(branch, undefined),
 			onRetry: () => this._loadBranches(),
-			renderDisabledAsStatic: true,
-			isolation: {
-				label: NEW_WORKTREE_LABEL,
-				ariaLabel: localize('nestedChat.worktree.ariaLabel', "Give the nested session its own Git worktree"),
-				onToggle: checked => {
-					this._worktree.set(checked, undefined);
-					if (checked && this._branches.get() !== 'loading' && this._branches.get().length === 0) {
-						this._loadBranches();
-					}
-				},
-			},
 		}));
-		const branchSlot = dom.append(container, dom.$('.nested-chat-branch-picker'));
-		store.add(toDisposable(() => branchSlot.remove()));
 		branchPicker.render(branchSlot);
 
 		store.add(autorun(reader => {
 			const offersWorktree = this.offersWorktree.read(reader);
-			const worktree = this._worktree.read(reader);
+			const worktree = offersWorktree && this._worktree.read(reader);
 			const branch = this._branch.read(reader);
 			const branches = this._branches.read(reader);
-			branchSlot.hidden = !offersWorktree;
+			element.hidden = !offersWorktree;
+			isolationPicker.update(worktree ? 'worktree' : 'folder');
+			separator.hidden = !worktree;
+			branchSlot.hidden = !worktree;
 			const state: IBranchPickerState = {
 				label: branch ?? localize('nestedChat.branch.default', "Default Branch"),
 				branches: Array.isArray(branches) ? branches.map(name => ({ name, selected: name === branch })) : [],
 				status: branches === 'loading' ? 'loading' : branches === 'error' ? 'error' : branches.length ? 'ready' : 'empty',
-				canOpen: offersWorktree && worktree,
+				canOpen: worktree,
 				// Like the New Session branch picker, which shows no chevron.
 				showChevron: false,
-				disabledReason: offersWorktree && !worktree ? localize('nestedChat.branch.disabled', "Select New Worktree to pick the branch the worktree starts from.") : undefined,
-				isolation: { checked: offersWorktree && worktree, state: offersWorktree ? 'enabled' : 'hidden' },
 			};
 			branchPicker.update(state);
 		}));
 		return { visible: this.offersWorktree, dispose: () => store.dispose() };
+	}
+
+	private _setWorktree(worktree: boolean): void {
+		this._worktree.set(worktree, undefined);
+		if (worktree && this._branches.get() !== 'loading' && this._branches.get().length === 0) {
+			this._loadBranches();
+		}
 	}
 
 	private _getFolderLabel(choice: NestedChatFolderChoice): string {
