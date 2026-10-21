@@ -148,6 +148,7 @@ export class TestNativeHostService implements INativeHostService {
 	async isRunningUnderARM64Translation(): Promise<boolean> { return false; }
 	async getOSProperties(): Promise<IOSProperties> { return Object.create(null); }
 	async getOSStatistics(): Promise<IOSStatistics> { return Object.create(null); }
+	async getFreeDiskSpace(): Promise<number> { throw new Error('Method not implemented.'); }
 	async getOSVirtualMachineHint(): Promise<number> { return 0; }
 	async isGPUCompositingEnabled(): Promise<boolean> { return false; }
 	async getOSColorScheme(): Promise<IColorScheme> { return { dark: true, highContrast: false }; }
@@ -160,6 +161,7 @@ export class TestNativeHostService implements INativeHostService {
 	async updateTouchBar(): Promise<void> { }
 	async moveItemToTrash(): Promise<void> { }
 	async getMediaAccessStatus(_mediaType: 'microphone' | 'camera' | 'screen'): Promise<'not-determined' | 'granted' | 'denied' | 'restricted' | 'unknown'> { return 'granted'; }
+	async requestScreenCaptureAccess(): Promise<boolean> { return true; }
 	async newWindowTab(): Promise<void> { }
 	async showPreviousWindowTab(): Promise<void> { }
 	async showNextWindowTab(): Promise<void> { }

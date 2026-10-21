@@ -49,6 +49,7 @@ import { createAgentModelNoticesMeta } from '../../common/agentModelNotices.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
 import { AgentHostDynamicAutoTiersEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_NAMES, DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, isCopilotHydraFusionModelId, normalizeSkillCharBudget, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
+import { agentModelCatalogStatusKey, type AgentModelCatalogStatus } from '../../common/agentModelCatalogStatus.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { getCopilotApprovalConfig, getCopilotApprovalPolicy } from './copilotApprovalPolicy.js';
 import { AGENT_HOST_COPILOT_CLIENT_NAME, CopilotManagedSettingsResolver, resolveCopilotManagedSettings } from './copilotManagedSettings.js';
@@ -990,6 +991,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _loggedAutoPresentation: string | undefined;
 	private _dynamicAutoTiersExperimentTriggerPending = false;
 	private _byokModels: readonly IAgentModelInfo[] = [];
+	private _lastByokModelsEnabledConfig: unknown = Symbol('uninitialized');
 
 	/** Model IDs whose long-context tier costs the same as the default tier (free long context). */
 	private readonly _freeLongContextModels = new Set<string>();
@@ -1264,6 +1266,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._worktree = worktree;
 		this._configurationService.publishRootTransientValues?.({
 			[CopilotCliVSCodeAssignmentContextKey]: undefined,
+			[agentModelCatalogStatusKey(this.id)]: 'pending',
 		});
 		this._lastStartupConfig = this._readClientStartupConfig();
 		this._sessionTelemetryRevoked = !isCopilotSessionTelemetryEnabled(this._configurationService, this._telemetryService);
@@ -1389,7 +1392,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// set of connected renderer bridges, or any renderer's models, change.
 		this._register(this._byokBridgeRegistry.onDidChangeModels(() => {
 			this._logService.info('[Copilot] BYOK bridge changed; refreshing models');
-			this._refreshByokModels();
+			this._refreshByokModels(true);
 		}));
 		// The BYOK proxy keeps runs going with a capped tool list; tell the user
 		// in the affected session's active turn.
@@ -3445,6 +3448,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private _startModelRefresh(generation: number): Promise<void> {
+		this._publishModelCatalogStatus('pending');
 		const refresh = this._refreshModels(0, generation).finally(() => {
 			if (this._modelRefreshInFlight === refresh) {
 				this._modelRefreshInFlight = undefined;
@@ -3469,6 +3473,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._capiModels = [];
 			this._managedModelPolicy = undefined;
 			this._publishModels();
+			this._publishModelCatalogStatus('ready');
 			return;
 		}
 		try {
@@ -3483,6 +3488,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				this._capiModels = models;
 				this._managedModelPolicy = modelPolicy;
 				this._publishModels();
+				this._publishModelCatalogStatus('ready');
 			}
 		} catch (err) {
 			// Token rotated mid-flight — a newer refresh owns the result — or
@@ -3513,7 +3519,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// shows through.
 			this._logService.error(err, '[Copilot] Failed to refresh models');
 			this._publishModels();
+			this._publishModelCatalogStatus('error');
 		}
+	}
+
+	private _publishModelCatalogStatus(status: AgentModelCatalogStatus): void {
+		this._configurationService.publishRootTransientValues?.({ [agentModelCatalogStatusKey(this.id)]: status });
 	}
 
 	/**
@@ -3639,11 +3650,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * selection round-trips to the per-session provider config synthesized by
 	 * `synthesizeByokSessionConfig`.
 	 */
-	private _refreshByokModels(): void {
+	private _refreshByokModels(force = false): void {
 		if (this._shutdownPromise) {
 			return;
 		}
 		const rootConfigValue = this._configurationService.getRootValue(platformRootSchema, AgentHostByokModelsEnabledConfigKey);
+		if (!force && equals(rootConfigValue, this._lastByokModelsEnabledConfig)) {
+			return;
+		}
+		this._lastByokModelsEnabledConfig = rootConfigValue;
 		const { enabled, trace } = resolveByokLmEnablement(rootConfigValue);
 		this._logService.trace(`[Copilot] BYOK model publication ${trace}`);
 		if (!enabled) {
@@ -8508,6 +8523,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _createAgentSession(launchPlan: CopilotSessionLaunchPlan, customizationDirectory: URI | undefined, activeClient: ActiveClient, identity: ICopilotAgentSessionIdentity, options?: { readonly deferAutoSessionStart?: boolean }): CopilotAgentSession {
 		launchPlan = {
 			...launchPlan,
+			availableModels: () => this._models.get(),
 			modelPolicyModels: () => this._capiModels.map(model => this._asPresented(model)),
 			managedSettingsResolver: this._managedSettingsResolver,
 		};

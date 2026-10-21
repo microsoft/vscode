@@ -119,6 +119,12 @@ suite('SessionStorageCleanupNotice', () => {
 		}, undefined);
 		const buttons = [...notice.domNode.querySelectorAll<HTMLElement>('.monaco-button')];
 		const allActionsKeyboardFocusable = buttons.every(button => button.tabIndex === 0);
+		suggestion.set({
+			...suggestion.get()!,
+			description: 'Your disk is almost full (1.00GB available). Clean up agent session worktrees to free up space.',
+		}, undefined);
+		const lowDiskDescription = notice.domNode.querySelector('.agent-sessions-storage-cleanup-notice-description')?.textContent;
+		const reusesButtons = buttons.every(button => notice.domNode.contains(button));
 		buttons.find(button => button.textContent === 'Open Worktree Cleanup')?.click();
 		buttons.find(button => button.textContent === 'Don\'t Show Again')?.click();
 		notice.domNode.querySelector<HTMLElement>('.agent-sessions-storage-cleanup-notice-dismiss')?.click();
@@ -133,6 +139,8 @@ suite('SessionStorageCleanupNotice', () => {
 			description: notice.domNode.querySelector('.agent-sessions-storage-cleanup-notice-description')?.textContent,
 			dismissAriaLabel: notice.domNode.querySelector('.agent-sessions-storage-cleanup-notice-dismiss')?.getAttribute('aria-label'),
 			allActionsKeyboardFocusable,
+			lowDiskDescription,
+			reusesButtons,
 			announcements,
 			activateCount,
 			manageCount,
@@ -145,10 +153,15 @@ suite('SessionStorageCleanupNotice', () => {
 			visible: true,
 			role: 'region',
 			ariaLabel: 'Session Storage Cleanup Suggestion',
-			description: 'Old worktrees are using storage.',
+			description: 'Your disk is almost full (1.00GB available). Clean up agent session worktrees to free up space.',
 			dismissAriaLabel: 'Dismiss Session Storage Suggestion',
 			allActionsKeyboardFocusable: true,
-			announcements: ['Old worktrees are using storage. Run Open Worktree Cleanup to review it. To stop these suggestions, run Disable Session Storage Cleanup Suggestions.'],
+			lowDiskDescription: 'Your disk is almost full (1.00GB available). Clean up agent session worktrees to free up space.',
+			reusesButtons: true,
+			announcements: [
+				'Old worktrees are using storage. Run Open Worktree Cleanup to review it. To stop these suggestions, run Disable Session Storage Cleanup Suggestions.',
+				'Your disk is almost full (1.00GB available). Clean up agent session worktrees to free up space. Run Open Worktree Cleanup to review it. To stop these suggestions, run Disable Session Storage Cleanup Suggestions.',
+			],
 			activateCount: 1,
 			manageCount: 1,
 			disableCount: 1,

@@ -8,7 +8,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../../../base/common/observable.js';
+import { autorun, observableFromEvent } from '../../../../../../base/common/observable.js';
 import { mark } from '../../../../../../base/common/performance.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
@@ -48,6 +48,7 @@ import { IAgentHostActiveClientService } from './agentHostActiveClientService.js
 import { IAgentHostCustomizationService } from './agentHostCustomizationService.js';
 import { IAgentHostProtectedResourcesService } from './agentHostProtectedResourcesService.js';
 import { AICustomizationManagementSection } from '../../../common/aiCustomizationWorkspaceService.js';
+import { readAgentModelCatalogStatus } from '../../../../../../platform/agentHost/common/agentModelCatalogStatus.js';
 
 const LOCAL_AGENT_HOST_SESSION_TYPE_PREFIX = 'agent-host-';
 
@@ -350,6 +351,8 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		}));
 
 		const syncProvider = this._activeClientService.getSyncProvider(sessionType);
+		const modelCatalogueStatus = observableFromEvent(this, this._agentHostService.rootState.onDidChange, () =>
+			readAgentModelCatalogStatus(this._agentHostService.rootState.value, agent.provider));
 		// The management UI remains ambient while individual sessions use their working-directory scopes.
 		const ambientScope = store.add(this._activeClientService.acquireScope(sessionType, []));
 
@@ -377,6 +380,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			label: agent.displayName,
 			icon: ThemeIcon.fromId(Codicon.server.id),
 			customAgentTarget: agent.provider === 'copilotcli' ? Target.GitHubCopilot : undefined,
+			modelCatalogueStatus,
 			// The Tools section is surfaced for the Copilot CLI agent host only.
 			hiddenSections: agent.provider === 'copilotcli' ? [AICustomizationManagementSection.Prompts] : [AICustomizationManagementSection.Tools, AICustomizationManagementSection.Prompts],
 			hideGenerateButton: true,
