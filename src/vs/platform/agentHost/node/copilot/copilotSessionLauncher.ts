@@ -166,6 +166,8 @@ type PreToolUseHookInput = Parameters<NonNullable<SessionHooks['onPreToolUse']>>
 type PreToolUseHookOutput = Awaited<ReturnType<NonNullable<SessionHooks['onPreToolUse']>>>;
 type PostToolUseHookInput = Parameters<NonNullable<SessionHooks['onPostToolUse']>>[0];
 type PostToolUseHookOutput = Awaited<ReturnType<NonNullable<SessionHooks['onPostToolUse']>>>;
+type PostToolUseFailureHookInput = Parameters<NonNullable<SessionHooks['onPostToolUseFailure']>>[0];
+type PostToolUseFailureHookOutput = Exclude<Awaited<ReturnType<NonNullable<SessionHooks['onPostToolUseFailure']>>>, void>;
 /**
  * Immutable snapshot of the active client's structural contributions at
  * session creation time. Used to detect when the session needs to be
@@ -259,6 +261,7 @@ export interface ICopilotSessionRuntime {
 	requestUnsandboxedCommandConfirmation(request: IUnsandboxedCommandConfirmationRequest): Promise<boolean>;
 	handlePreToolUse(input: PreToolUseHookInput): Promise<PreToolUseHookOutput>;
 	handlePostToolUse(input: PostToolUseHookInput): Promise<PostToolUseHookOutput>;
+	handlePostToolUseFailure(input: PostToolUseFailureHookInput): PostToolUseFailureHookOutput | undefined;
 	handleUserPromptSubmitted(): { readonly additionalContext: string } | undefined;
 	/** Shows a launch-time wait, such as slow managed settings, as the activity of the chat that owns this session; `undefined` clears it. */
 	readonly reportManagedSettingsActivity?: CopilotManagedSettingsActivityReporter;
@@ -330,6 +333,7 @@ interface ICopilotSessionLaunchBase {
 	readonly stageRecorder?: IAgentProviderSendStageRecorder;
 	/** The on-device model provider installed on {@link client} when the user opted in: replaceable direct-selection rows and turn attribution. */
 	readonly localModelProvider?: ILocalModelProvider;
+	readonly availableModels?: () => readonly IAgentModelInfo[];
 	readonly modelPolicyModels?: () => readonly IAgentModelInfo[];
 	readonly managedSettingsResolver?: CopilotManagedSettingsResolver;
 
@@ -836,6 +840,26 @@ export function isCopilotSessionTelemetryEnabled(
 	return effectiveLevel >= TelemetryLevel.USAGE;
 }
 
+/** The HydraFusion features a session runs with. */
+export interface ICopilotHydraFusionConfig {
+	readonly enabled: boolean;
+	readonly v2: boolean;
+	/** The sticky-root hint, which only affects HydraFusion v2 plans. */
+	readonly multiRoot: boolean;
+}
+
+/**
+ * The HydraFusion features the configuration turns on. Dynamic Auto tiers can offer HydraFusion and
+ * HydraFusion Max as Fusion's tiers, so they turn on HydraFusion v2.
+ */
+export function getCopilotHydraFusionConfig(configurationService: Pick<IAgentConfigurationService, 'getRootValue'>): ICopilotHydraFusionConfig {
+	const isOn = (key: CopilotCliConfigKey.DynamicAutoTiers | CopilotCliConfigKey.HydraFusion | CopilotCliConfigKey.HydraFusionV2 | CopilotCliConfigKey.HydraFusionMultiRoot) => configurationService.getRootValue(copilotCliConfigSchema, key) === true;
+	const dynamicAutoTiers = isOn(CopilotCliConfigKey.DynamicAutoTiers);
+	const enabled = dynamicAutoTiers || isOn(CopilotCliConfigKey.HydraFusion);
+	const v2 = enabled && (dynamicAutoTiers || isOn(CopilotCliConfigKey.HydraFusionV2));
+	return { enabled, v2, multiRoot: v2 && isOn(CopilotCliConfigKey.HydraFusionMultiRoot) };
+}
+
 export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 
 	/**
@@ -1201,11 +1225,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// Synthesize BYOK provider/model config (empty when BYOK is gated off or the
 		// renderer reports no BYOK models), merged into the returned config so both
 		// createSession and resumeSession advertise the models to the runtime.
-		// Dynamic Auto tiers can offer HydraFusion and HydraFusion Max as Fusion's tiers, so they turn on HydraFusion v2.
-		const dynamicAutoTiersEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.DynamicAutoTiers) === true;
-		const hydraFusionEnabled = dynamicAutoTiersEnabled || this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusion) === true;
-		const hydraFusionV2Enabled = hydraFusionEnabled && (dynamicAutoTiersEnabled || this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusionV2) === true);
-		const hydraFusionMultiRootEnabled = hydraFusionV2Enabled && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusionMultiRoot) === true;
+		const { enabled: hydraFusionEnabled, v2: hydraFusionV2Enabled, multiRoot: hydraFusionMultiRootEnabled } = getCopilotHydraFusionConfig(this._configurationService);
 		// Throwaway chat surfaces skip memory, like the other heavyweight features they omit.
 		const memoryEnabled = !plan.isEphemeral && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Memory) === true;
 		const localMemoryEnabled = memoryEnabled && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.LocalMemory) === true;
@@ -1252,7 +1272,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// An ephemeral session skips the explicit enumeration (and its file I/O). The SDK can
 		// still discover agents from `pluginDirectories`; suppressing that too would also drop
 		// skills and instructions, so it is left alone.
-		const customAgentsPromise = plan.isEphemeral ? Promise.resolve([]) : toSdkSessionCustomAgents(plugins, this._fileService);
+		const availableModelIds = new Set(plan.availableModels?.().map(model => model.id));
+		const customAgentsPromise = plan.isEphemeral ? Promise.resolve([]) : toSdkSessionCustomAgents(plugins, this._fileService, availableModelIds);
 		const byokPromise = this.resolveByokSessionConfig(plan.sessionId);
 		// These are independent, so resolve them concurrently rather than paying each in turn.
 		const [externalByok, shellTools, pluginCustomAgents] = await Promise.all([byokPromise, shellToolsPromise, customAgentsPromise]);
@@ -1438,6 +1459,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			hooks: toSdkHooks(pluginsWithoutDirs.flatMap(p => p.hooks), {
 				onPreToolUse: input => runtime.handlePreToolUse(input),
 				onPostToolUse: input => runtime.handlePostToolUse(input),
+				onPostToolUseFailure: input => runtime.handlePostToolUseFailure(input),
 				onUserPromptSubmitted: () => runtime.handleUserPromptSubmitted(),
 			}),
 			mcpServers,

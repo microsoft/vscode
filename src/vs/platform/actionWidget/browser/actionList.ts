@@ -221,6 +221,12 @@ export interface IActionListItem<T> {
 	 */
 	readonly className?: string;
 	/**
+	 * Height of the row as a multiple of a single action row's, e.g. 2 for a row
+	 * twice as tall. Overrides the height the item's kind and content would give it;
+	 * values below 1 or that are not finite are ignored.
+	 */
+	readonly heightInLines?: number;
+	/**
 	 * Optional badge text to display after the label (e.g., "New").
 	 */
 	readonly badge?: string;
@@ -816,6 +822,18 @@ export interface IActionListOptions {
 	 */
 	readonly focusFilterOnOpen?: boolean;
 
+	/** Let the owner lay out the list before calling focus, so initial focus does not scroll past section headings. */
+	readonly deferInitialFocus?: boolean;
+
+	/** Controls List range selection independently of checked items. Defaults to true. */
+	readonly multipleSelectionSupport?: boolean;
+
+	/** Prevents the List's synthetic double-click selection from activating an item. */
+	readonly suppressDoubleClickActivation?: boolean;
+
+	/** Exposes multiple checked options without enabling List range selection. */
+	readonly ariaMultiselectable?: boolean;
+
 	/** Optional action item id to focus when the list opens. */
 	readonly initialFocusItemId?: string;
 
@@ -1121,6 +1139,7 @@ export class ActionListWidget<T> extends Disposable {
 			new SeparatorRenderer(this._hoverService),
 		], {
 			keyboardSupport: false,
+			multipleSelectionSupport: this._options?.multipleSelectionSupport ?? true,
 			typeNavigationEnabled: !this._options?.showFilter && !this._options?.onType,
 			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel },
 			accessibilityProvider: {
@@ -1195,6 +1214,9 @@ export class ActionListWidget<T> extends Disposable {
 		}));
 
 		this._list.style(defaultListStyles);
+		if (this._options?.ariaMultiselectable !== undefined) {
+			this._list.getHTMLElement().setAttribute('aria-multiselectable', String(this._options.ariaMultiselectable));
+		}
 
 		this._register(this._list.onKeyDown(() => this._setKeyboardNavigation(true)));
 		this._register(dom.addDisposableListener(this._list.getHTMLElement(), dom.EventType.MOUSE_MOVE, (e: MouseEvent) => {
@@ -1442,7 +1464,7 @@ export class ActionListWidget<T> extends Disposable {
 
 		this._applyFilter();
 
-		if (this._list.length) {
+		if (this._list.length && !this._options?.deferInitialFocus) {
 			this._focusCheckedOrFirst();
 		}
 
@@ -2140,6 +2162,9 @@ export class ActionListWidget<T> extends Disposable {
 
 	/** Row heights depend on the options of the tab the items belong to, not the shown one. */
 	private _itemHeightWith(item: IActionListItem<T>, options: IActionListOptions | undefined): number {
+		if (item.heightInLines !== undefined && Number.isFinite(item.heightInLines) && item.heightInLines >= 1) {
+			return Math.round(item.heightInLines * this._actionLineHeight);
+		}
 		switch (item.kind) {
 			case ActionListItemKind.Header:
 				return this._headerLineHeight;
@@ -2452,6 +2477,10 @@ export class ActionListWidget<T> extends Disposable {
 
 	private onListSelection(e: IListEvent<IActionListItem<T>>): void {
 		if (!e.elements.length) {
+			return;
+		}
+		if (this._options?.suppressDoubleClickActivation && e.browserEvent?.type === dom.EventType.DBLCLICK) {
+			this._list.setSelection([]);
 			return;
 		}
 

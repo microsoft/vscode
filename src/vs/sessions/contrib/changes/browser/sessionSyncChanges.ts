@@ -27,6 +27,9 @@ import { ISessionsPartService } from '../../../services/sessions/browser/session
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { getSessionWorkspaceKind, ISessionChangeset, ISessionChangesetOperation, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionWorkspaceKind, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionInputPickerVisibility } from '../../../services/sessions/common/sessionPickerVisibility.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { FOCUS_SESSION_SYNC_ACTION_COMMAND_ID } from '../../../common/sessionCommands.js';
 
 function getSyncChangesOperation(session: IActiveSession | undefined, reader?: IReader): { changeset: ISessionChangeset; operation: ISessionChangesetOperation } | undefined {
 	const changeset = session?.activeChat.read(reader).changesets.read(reader)?.find(candidate =>
@@ -107,8 +110,12 @@ export class SessionSyncChangesActionViewItem extends ActionViewItem {
 		options: IActionViewItemOptions,
 		@ISessionContext private readonly sessionContext: ISessionContext,
 		@ISessionsPartService private readonly sessionsPartService: ISessionsPartService,
+		@ISessionInputPickerVisibility pickerVisibility: ISessionInputPickerVisibility,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) {
 		super(undefined, action, { ...options, icon: false, label: true });
+		this._register(pickerVisibility.registerPicker('sync', () => this.focus()));
+		this._register(this.keybindingService.onDidUpdateKeybindings(() => this.updateTooltip()));
 
 		this._register(autorun(reader => {
 			const session = sessionContext.session.read(reader);
@@ -145,7 +152,8 @@ export class SessionSyncChangesActionViewItem extends ActionViewItem {
 	}
 
 	protected override getTooltip(): string | undefined {
-		return this._tooltip ?? super.getTooltip();
+		const tooltip = this._tooltip ?? super.getTooltip();
+		return tooltip ? this.keybindingService.appendKeybinding(tooltip, FOCUS_SESSION_SYNC_ACTION_COMMAND_ID) : tooltip;
 	}
 
 	protected override updateLabel(): void {

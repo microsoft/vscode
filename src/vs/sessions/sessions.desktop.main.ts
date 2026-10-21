@@ -233,6 +233,9 @@ import '../workbench/contrib/policyExport/electron-browser/policyExport.contribu
 // Keybindings Export
 import '../workbench/contrib/keybindingsExport/electron-browser/keybindingsExport.contribution.js';
 
+// Computer Use setup: drag Copilot Computer Use into System Settings
+import '../workbench/contrib/chat/electron-browser/agentSessions/computerUseHelperApp.contribution.js';
+
 //#endregion
 
 

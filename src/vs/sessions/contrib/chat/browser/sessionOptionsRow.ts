@@ -5,6 +5,7 @@
 
 import * as dom from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
+import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
@@ -32,6 +33,7 @@ export function storeSessionOptionsExpanded(storageService: IStorageService, exp
 export interface ISessionOptionsRowOptions {
 	/** Names the responsive layout, e.g. for its measurements. */
 	readonly user: string;
+	readonly hoverDelegate?: IHoverDelegate;
 	readonly useExperimentalLayout: IObservable<boolean>;
 	readonly screenReaderOptimized: IObservable<boolean>;
 	readonly expanded: IObservable<boolean>;
@@ -70,7 +72,7 @@ export class SessionOptionsRow extends Disposable {
 		this.repositoryControlsHost = dom.append(sessionOptions, dom.$('.new-chat-repository-controls-host'));
 		const toggle = this.toggle = this._register(new Button(row, {
 			...defaultButtonStyles,
-			hoverDelegate: getDefaultHoverDelegate('mouse'),
+			hoverDelegate: options.hoverDelegate ?? getDefaultHoverDelegate('mouse'),
 			buttonBackground: undefined,
 			buttonHoverBackground: undefined,
 			buttonForeground: undefined,
@@ -79,14 +81,13 @@ export class SessionOptionsRow extends Disposable {
 		toggle.element.classList.add('new-chat-session-options-toggle');
 		toggle.element.setAttribute('aria-controls', sessionOptions.id);
 		this._register(toggle.onDidClick(() => options.setExpanded(!options.expanded.get())));
-		/** The row's enabled, visible picker and toggle buttons, in order. */
-		const getRowControls = (): HTMLElement[] => {
+		const getRowControls = (includeDisabled = false): HTMLElement[] => {
 			const controls: HTMLElement[] = [];
 			const walker = row.ownerDocument.createTreeWalker(row, NodeFilter.SHOW_ELEMENT);
 			for (let node = walker.nextNode(); node; node = walker.nextNode()) {
 				if (dom.isHTMLElement(node) && node.role === 'button'
-					&& node.getAttribute('aria-disabled') !== 'true'
-					&& !node.closest('[hidden], [inert], .disabled, .loading, .resolving')
+					&& (includeDisabled || (node.getAttribute('aria-disabled') !== 'true' && !node.closest('.disabled')))
+					&& !node.closest('[hidden], [inert], .loading, .resolving')
 					&& node.checkVisibility()) {
 					controls.push(node);
 				}
@@ -97,7 +98,7 @@ export class SessionOptionsRow extends Disposable {
 			if (!options.useExperimentalLayout.get() || event.altKey || event.ctrlKey || event.metaKey || !['Tab', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
 				return;
 			}
-			const controls = getRowControls();
+			const controls = getRowControls(event.key !== 'Tab');
 			const activeElement = dom.getActiveElement();
 			const index = controls.findIndex(control => control === activeElement);
 			if (index < 0) {

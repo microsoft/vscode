@@ -28,6 +28,7 @@ import type { IMcpServerCustomizationMigrationCandidate, IMcpServerCustomization
 import type { ICustomizationMarketplaceInstallProvider } from './customizationMarketplaceInstallService.js';
 import type { ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery, ICustomizationMarketplaceSourceRecoveryAction } from '../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import type { IMcpServerConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
+import type { AgentModelCatalogStatus } from '../../../../platform/agentHost/common/agentModelCatalogStatus.js';
 
 
 export const ICustomizationHarnessService = createDecorator<ICustomizationHarnessService>('customizationHarnessService');
@@ -157,6 +158,8 @@ export interface IHarnessDescriptor {
 	 * The target whose custom agent format this harness supports.
 	 */
 	readonly customAgentTarget?: Target;
+	/** Authoritative model discovery state when supplied by the harness. */
+	readonly modelCatalogueStatus?: IObservable<AgentModelCatalogStatus | undefined>;
 	/**
 	 * Management sections that should be hidden when this harness is active.
 	 * For example, Claude does not support prompt files so the Prompts

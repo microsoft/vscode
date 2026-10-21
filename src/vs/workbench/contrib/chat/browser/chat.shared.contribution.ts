@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './agentSessions/agentHost/codexContinuation.contribution.js';
+import './agentSessions/agentHost/computerUseSetup.contribution.js';
 import './agentSessions/agentHost/localModel.contribution.js';
 import { getDefaultModelPolicyDescription } from '../common/modelSelection.js';
 import { CODEX_CONTINUATION_DEFAULT_THRESHOLD } from '../../../services/agentHost/browser/codexContinuation.js';
@@ -608,6 +609,13 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 			agentsWindow: { default: false, readOnly: true },
 		},
+		[ChatConfiguration.EditorKeepUndoEnabled]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.editor.keepUndo.enabled', "Review the file edits of Agent Host chat sessions in the editor window with **Keep** and **Undo**, like local chat edits. The editor shows the session's Working Set, which the working set above the chat input lists too. Keeping or undoing a change or a file asks the agent host to accept or discard it, so the session's changes reflect it. Takes effect for chats opened after the setting changes."),
+			default: false,
+			tags: ['experimental'],
+			agentsWindow: { default: false, readOnly: true },
+		},
 		'chat.tips.enabled': {
 			type: 'boolean',
 			scope: ConfigurationScope.APPLICATION,
@@ -1086,7 +1094,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.ProgressBorder]: {
 			type: 'boolean',
-			default: false,
+			default: true,
 			markdownDescription: nls.localize('chat.progressBorder.enabled', "Show an animated gradient border around the chat input while the agent is working or thinking. Has no effect when reduced motion is enabled."),
 		},
 		...chatProgressConfigurationProperties,
