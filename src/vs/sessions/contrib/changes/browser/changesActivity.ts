@@ -6,8 +6,8 @@
 import './media/changesActivity.css';
 import { $, append } from '../../../../base/browser/dom.js';
 import { IManagedHoverContent } from '../../../../base/browser/ui/hover/hover.js';
-import { mainWindow } from '../../../../base/browser/window.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { Event } from '../../../../base/common/event.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, derivedOpts, IObservable, IReader, ISettableObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -28,7 +28,6 @@ import { diffStatsEqual, IDiffStats } from '../../../../workbench/contrib/chat/b
 import { IconBadge } from '../../../../workbench/services/activity/common/activity.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
-import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionActivityBarActionViewItem } from '../../../browser/parts/sessionActivityBar.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
@@ -171,7 +170,7 @@ export class ChangesActivityContribution extends Disposable implements IWorkbenc
 
 		const seenChanges = this._register(new SeenChangesStore(storageService));
 		const visibleEditorPanes = observableFromEvent(this, editorService.onDidVisibleEditorsChange, () => editorService.visibleEditorPanes);
-		const mainEditorPartVisible = observableFromEvent(this, layoutService.onDidChangePartVisibility, () => layoutService.isVisible(Parts.EDITOR_PART, mainWindow));
+		const mainSidePaneVisible = observableFromEvent(this, Event.any<unknown>(layoutService.onDidChangePartVisibility, layoutService.onDidToggleSidePane), () => layoutService.isSidePaneVisible());
 
 		const active = derived(this, reader => {
 			const session = sessionsService.activeSession.read(reader);
@@ -190,10 +189,10 @@ export class ChangesActivityContribution extends Disposable implements IWorkbenc
 			if (!value || !stats) {
 				return undefined;
 			}
-			// Editors of a hidden main editor part are still reported as visible; auxiliary windows show theirs.
+			// The main window's Changes tab stays a visible editor while the side pane is closed, and can show just its file list in the auxiliary bar while the editor part is hidden.
 			const isViewing = visibleEditorPanes.read(reader).some(pane =>
 				!!pane.input.resource && isEqual(sessionChangesService.getSessionResource(pane.input.resource), value.session.resource)
-				&& (!editorGroupsService.mainPart.getGroup(pane.group.id) || mainEditorPartVisible.read(reader)));
+				&& (!editorGroupsService.mainPart.getGroup(pane.group.id) || mainSidePaneVisible.read(reader)));
 			return { chat: value.chat.resource.toString(), stats, isViewing };
 		});
 
