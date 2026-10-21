@@ -1773,7 +1773,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 */
 	private async _ensureResolvedChatSession(context: IResolvedClaudeChatContext, workingDirectories?: readonly URI[]): Promise<ClaudeAgentSession> {
 		const existing = context.target;
-		if (existing) {
+		if (existing && this._isRecordedScratchFolder(existing.workingDirectory)) {
 			await this._recreateMissingScratchFolder(context, existing.workingDirectory);
 		}
 		if (existing?.isPipelineReady) {
@@ -1785,11 +1785,15 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		return this._resolveOrResumeChatSessionLocked(context, workingDirectories);
 	}
 
+	private _isRecordedScratchFolder(workingDirectory: URI | undefined): workingDirectory is URI {
+		return !!workingDirectory && extUriBiasedIgnorePathCase.isEqualOrParent(workingDirectory, workspacelessChatsRoot(this._environmentService.userHome));
+	}
+
 	/** Recreates (mkdir -p) a recorded scratch folder that was reaped since the chat last ran. */
 	private async _recreateMissingScratchFolder(context: IResolvedClaudeChatContext, workingDirectory: URI | undefined): Promise<void> {
 		// A chat moved under a foldered session keeps working in its folder under the chats root, which only the host allocates.
 		// The path check only guards what may be recreated; it never decides which session or chat owns the folder.
-		if (workingDirectory && extUriBiasedIgnorePathCase.isEqualOrParent(workingDirectory, workspacelessChatsRoot(this._environmentService.userHome))) {
+		if (this._isRecordedScratchFolder(workingDirectory)) {
 			await fs.mkdir(workingDirectory.fsPath, { recursive: true });
 		}
 	}
