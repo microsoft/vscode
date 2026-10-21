@@ -64,15 +64,18 @@ suite('Notebook cell toolbars', () => {
 		}
 
 		const container = $('.cell-title-toolbar');
-		document.body.appendChild(container);
-		disposables.add(toDisposable(() => container.remove()));
+		const notebookContainer = $('.notebook-editor');
+		notebookContainer.tabIndex = -1;
+		notebookContainer.appendChild(container);
+		document.body.appendChild(notebookContainer);
+		disposables.add(toDisposable(() => notebookContainer.remove()));
 		const classes = new Set<string>();
 		const editor = new class extends mock<INotebookEditorDelegate>() {
 			override readonly onDidScroll = Event.None;
 			override readonly onDidChangeLayout = Event.None;
 			override hasModel(): this is IActiveNotebookEditorDelegate { return true; }
 			override getCellByHandle() { return undefined; }
-			override focus(): void { }
+			override focus(): void { notebookContainer.focus(); }
 		};
 		const toolbar = disposables.add(instantiationService.createInstance(CellTitleToolbarPart, container, {
 			toggle: (className, force) => {
@@ -85,13 +88,14 @@ suite('Notebook cell toolbars', () => {
 		}, titleMenu, deleteMenu, editor));
 		const cell = new class extends mock<ICellViewModel>() { };
 		toolbar.didRenderCell(cell);
+		const contextKeyService = instantiationService.get(IContextKeyService);
 		return {
-			container, classes, toolbar, titleMenu, deleteMenu, editor, cell, executeCommand,
+			container, notebookContainer, classes, toolbar, titleMenu, deleteMenu, editor, cell, executeCommand,
 			menus: {
-				title: createMenu.withArgs(titleMenu).firstCall.returnValue,
-				delete: createMenu.withArgs(deleteMenu).firstCall.returnValue
+				title: createMenu.withArgs(titleMenu, contextKeyService).firstCall.returnValue,
+				delete: createMenu.withArgs(deleteMenu, contextKeyService).firstCall.returnValue
 			},
-			contextKeyService: instantiationService.get(IContextKeyService),
+			contextKeyService,
 			getDelegate: () => {
 				assert.ok(delegate);
 				return delegate;
@@ -222,7 +226,7 @@ suite('Notebook cell toolbars', () => {
 	}
 
 	test('context changes update Delete Cell visibility and restore notebook focus', () => runWithFakedTimers({}, async () => {
-		const { container, toolbar, editor, contextKeyService } = createToolbar([action('Title')], [
+		const { container, notebookContainer, toolbar, editor, contextKeyService } = createToolbar([action('Title')], [
 			{ ...action('Delete Cell'), when: ContextKeyExpr.has('test.cellToolbar.canDelete') }
 		]);
 		const focus = sinon.spy(editor, 'focus');
@@ -232,11 +236,16 @@ suite('Notebook cell toolbars', () => {
 		canDelete.set(true);
 		await updated;
 		const visible = labels(container);
+		const focusedAfterShowing = document.activeElement === notebookContainer;
 		const hidden = Event.toPromise(toolbar.onDidUpdateActions);
 		canDelete.set(false);
 		await hidden;
-		assert.deepStrictEqual({ visible, hidden: labels(container), hasActions: toolbar.hasActions, focusCalls: focus.callCount }, {
-			visible: ['Title', 'Delete Cell'], hidden: ['Title'], hasActions: true, focusCalls: 1
+		assert.deepStrictEqual({
+			visible, hidden: labels(container), hasActions: toolbar.hasActions, focusCalls: focus.callCount,
+			focusedAfterShowing, focusedAfterHiding: document.activeElement === notebookContainer
+		}, {
+			visible: ['Title', 'Delete Cell'], hidden: ['Title'], hasActions: true, focusCalls: 1,
+			focusedAfterShowing: true, focusedAfterHiding: true
 		});
 	}));
 
