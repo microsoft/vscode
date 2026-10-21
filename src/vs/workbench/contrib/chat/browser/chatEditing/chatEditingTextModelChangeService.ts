@@ -332,6 +332,32 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		this._didUserEditModelFired = false;
 	}
 
+	public async restorePendingEdits(original: string, modified: string): Promise<void> {
+		if (this.modifiedModel.getValue() === modified) {
+			await this.resetDocumentValues(original, undefined);
+			return;
+		}
+
+		const undo = await this._editorWorkerService.computeStringEditFromDiff(modified, original, { maxComputationTimeMs: 3000 }, 'advanced');
+		while (!this._store.isDisposed && !this.modifiedModel.isDisposed()) {
+			const version = this.modifiedModel.getVersionId();
+			const current = this.modifiedModel.getValue();
+			const outsideEdits = await this._editorWorkerService.computeStringEditFromDiff(modified, current, { maxComputationTimeMs: 3000 }, 'advanced');
+			if (this._store.isDisposed || this.modifiedModel.isDisposed()) {
+				return;
+			}
+			if (this.modifiedModel.getVersionId() !== version) {
+				continue;
+			}
+
+			// Only offer to undo restored edits that do not overlap newer workspace changes.
+			const rebasedOriginal = undo.rebaseSkipConflicting(outsideEdits).apply(current);
+			this._allEditsAreFromUs = false;
+			await this.resetDocumentValues(rebasedOriginal, undefined);
+			return;
+		}
+	}
+
 	public async resetDocumentValues(newOriginal: string | ITextSnapshot | undefined, newModified: string | undefined): Promise<void> {
 		let didChange = false;
 		if (newOriginal !== undefined) {
