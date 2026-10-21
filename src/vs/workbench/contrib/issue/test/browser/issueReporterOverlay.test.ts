@@ -117,6 +117,11 @@ suite('IssueReporterOverlay', () => {
 		return { overlay, container, data, searches, next, back, selectRepository, getMenu: () => menu };
 	}
 
+	function getSelectedRepository(data: IssueReporterData): string {
+		const repository = resolveIssueReporterTarget(data, product)!.repository!;
+		return `${repository.owner}/${repository.repositoryName}`;
+	}
+
 	suite('Media imports', () => {
 		const importedImage = { kind: 'image' as const, image: { dataUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jWZkAAAAASUVORK5CYII=', width: 1, height: 1 } };
 
@@ -540,12 +545,12 @@ suite('IssueReporterOverlay', () => {
 
 	for (const additionalRepositories of [undefined, [], ['microsoft/vscode', 'MICROSOFT/VSCODE']]) {
 		test(`does not reveal a useless repository menu for ${JSON.stringify(additionalRepositories)}`, () => {
-			const { container } = createRepositoryReporter({ additionalRepositories });
+			const { container, data } = createRepositoryReporter({ additionalRepositories });
 			assert.deepStrictEqual({
 				menu: !!container.querySelector('.issue-reporter-repository-picker'),
 				section: !!container.querySelector('.wizard-repository-field'),
 				target: container.querySelector('.wizard-target-status')?.textContent,
-			}, { menu: false, section: false, target: 'Issue will be opened in microsoft/vscode' });
+			}, { menu: false, section: false, target: `Issue will be opened in ${getSelectedRepository(data)}` });
 		});
 	}
 
@@ -558,7 +563,7 @@ suite('IssueReporterOverlay', () => {
 			destination: data.issueRepository,
 			menu: !!container.querySelector('.issue-reporter-repository-picker'),
 			target: container.querySelector('.wizard-target-status')?.textContent,
-		}, { source: IssueSource.AgentsWindow, destination: undefined, menu: true, target: 'Issue will be opened in microsoft/vscode' });
+		}, { source: IssueSource.AgentsWindow, destination: undefined, menu: true, target: `Issue will be opened in ${getSelectedRepository(data)}` });
 	});
 
 	test('late extension reporter overrides do not replace the selected product destination', async () => {
@@ -605,6 +610,7 @@ suite('IssueReporterOverlay', () => {
 		const { overlay, container, data, searches, next, back, getMenu, selectRepository } = createRepositoryReporter({
 			additionalRepositories: ['MICROSOFT/VSCODE', 'owner/second', 'team/third', 'TEAM/THIRD'],
 		});
+		const productRepository = getSelectedRepository(data);
 		const trigger = container.querySelector<HTMLElement>('.issue-reporter-repository-picker')!;
 		trigger.focus();
 		trigger.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', keyCode: 32, bubbles: true }));
@@ -639,9 +645,9 @@ suite('IssueReporterOverlay', () => {
 		}, {
 			initial: {
 				actions: [
-					{ label: 'microsoft/vscode', checked: true }, { label: 'owner/second', checked: false }, { label: 'team/third', checked: false },
+					{ label: productRepository, checked: true }, { label: 'owner/second', checked: false }, { label: 'team/third', checked: false },
 				],
-				expanded: 'true', role: 'button', popup: 'menu', label: 'Choose Issue Repository: microsoft/vscode', section: false,
+				expanded: 'true', role: 'button', popup: 'menu', label: `Choose Issue Repository: ${productRepository}`, section: false,
 			},
 			focusRestored: true,
 			destination: 'team/third',

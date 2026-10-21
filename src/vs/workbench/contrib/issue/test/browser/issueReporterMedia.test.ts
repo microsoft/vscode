@@ -101,12 +101,13 @@ suite('Issue reporter media decoding', () => {
 	}
 
 	for (const extension of ['mp4', 'webm', 'mov'] as const) {
-		test(`decodes real ${extension} or explicitly rejects an unsupported container, with complete cleanup`, async () => {
+		test(`decodes real ${extension} or explicitly rejects an unsupported container or codec, with complete cleanup`, async () => {
 			const video = mainWindow.document.createElement('video');
 			const added = spy(video, 'addEventListener');
 			const removed = spy(video, 'removeEventListener');
 			const mimeType = extension === 'mov' ? 'video/quicktime' : `video/${extension}`;
-			const unsupportedContainer = extension === 'mov' && !video.canPlayType(mimeType);
+			const playbackMimeType = extension === 'webm' ? 'video/webm;codecs=vp8' : mimeType;
+			const unsupportedMedia = !video.canPlayType(playbackMimeType);
 			// WebKit requires a same-origin WebM source to export the thumbnail.
 			const videoUrl = extension === 'webm'
 				? URL.createObjectURL(new Blob([new Uint8Array(decodeBase64(issueReporterVideoFixtures[extension]).buffer)], { type: mimeType }))
@@ -115,7 +116,7 @@ suite('Issue reporter media decoding', () => {
 				store.add(toDisposable(() => URL.revokeObjectURL(videoUrl)));
 			}
 			const operation = readIssueReporterVideo(videoUrl, CancellationToken.None, () => video);
-			if (unsupportedContainer) {
+			if (unsupportedMedia) {
 				await assert.rejects(operation, /could not be decoded/);
 				assert.deepStrictEqual({ source: video.getAttribute('src'), paused: video.paused, listeners: added.callCount - removed.callCount }, { source: null, paused: true, listeners: 0 });
 				return;
@@ -130,7 +131,7 @@ suite('Issue reporter media decoding', () => {
 		});
 	}
 
-	test('does not invent a duration for a playable WebM recording without duration metadata', async () => {
+	test('does not invent a duration for a WebM recording without duration metadata', async () => {
 		const bytes = new Uint8Array(decodeBase64(issueReporterVideoFixtures.webm).buffer);
 		const durationTag = bytes.findIndex((value, index) => value === 0x44 && bytes[index + 1] === 0x89 && bytes[index + 2] === 0x88);
 		assert.ok(durationTag >= 0);
@@ -139,7 +140,14 @@ suite('Issue reporter media decoding', () => {
 		const file = await readIssueReporterMediaFile(recording, CancellationToken.None);
 		const videoUrl = URL.createObjectURL(recording);
 		store.add(toDisposable(() => URL.revokeObjectURL(videoUrl)));
-		const metadata = await readIssueReporterVideo(videoUrl, CancellationToken.None);
+		const video = mainWindow.document.createElement('video');
+		const operation = readIssueReporterVideo(videoUrl, CancellationToken.None, () => video);
+		if (!video.canPlayType('video/webm;codecs=vp8')) {
+			await assert.rejects(operation, /could not be decoded/);
+			assert.strictEqual(file.durationMs, undefined);
+			return;
+		}
+		const metadata = await operation;
 		assert.deepStrictEqual({ width: metadata.width, height: metadata.height, durationMs: file.durationMs, thumbnail: metadata.thumbnailDataUrl.startsWith('data:image/jpeg') }, { width: 48, height: 32, durationMs: undefined, thumbnail: true });
 	});
 
