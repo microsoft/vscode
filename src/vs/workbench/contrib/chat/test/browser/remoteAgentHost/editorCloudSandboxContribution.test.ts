@@ -68,7 +68,8 @@ import { createCloudSandboxSessionConfig } from '../../../browser/remoteAgentHos
 import { CloudSandboxDraftPreparationService } from '../../../browser/remoteAgentHost/cloudSandboxDraftPreparationService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatSessionsService } from '../../../browser/chatSessions/chatSessions.contribution.js';
-import { ChatSendResult, IChatCompleteResponse, IChatModelReference, IChatProgress, IChatSendRequestData, IChatSendRequestOptions, IChatService } from '../../../common/chatService/chatService.js';
+import { ChatSendResult, IChatCommandButton, IChatCompleteResponse, IChatModelReference, IChatProgress, IChatSendRequestData, IChatSendRequestOptions, IChatService } from '../../../common/chatService/chatService.js';
+import { CloudSandboxStartupError } from '../../../browser/remoteAgentHost/cloudSandboxStartupError.js';
 import { IChatWidget, IChatWidgetService, IChatWidgetViewModelChangeEvent } from '../../../browser/chat.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
@@ -233,6 +234,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	const optionGroups = new Map<string, readonly IChatSessionProviderOptionGroup[]>();
 	const sessionOptions = new Map<string, Map<string, string | IChatSessionProviderOptionItem>>();
 	const progressMessages: string[] = [];
+	const progressCommands: IChatCommandButton[] = [];
 	const agents = new Map<string, IChatAgentData & IChatAgentImplementation>();
 	const aliases: { draft: string; session: string }[] = [];
 	const sends: { session: string; message: string; options: IChatSendRequestOptions | undefined }[] = [];
@@ -578,7 +580,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 		contribution.pickRepository = options.pickRepository;
 	}
 	return {
-		instantiationService, contribution, controllers, contributions, contentProviders, optionGroups, sessionOptions, catalogLoads, languageModelVendors, customizations, progressMessages, agents, aliases, sends, completed, chatSessionsService, state, calls, policies, notifications, errorNotifications, resolvers, sentimentChanged, accountChanged, authenticationPending, initialRefreshes, connectionsChanged, focusChanged, discoveryModes, workspaceTrust, preparation, allocations, reservationRequests,
+		instantiationService, contribution, controllers, contributions, contentProviders, optionGroups, sessionOptions, catalogLoads, languageModelVendors, customizations, progressMessages, progressCommands, agents, aliases, sends, completed, chatSessionsService, state, calls, policies, notifications, errorNotifications, resolvers, sentimentChanged, accountChanged, authenticationPending, initialRefreshes, connectionsChanged, focusChanged, discoveryModes, workspaceTrust, preparation, allocations, reservationRequests,
 		whenAllocationStarted: allocationStarted.p,
 		whenTaskDeleted: taskDeleted.p,
 		get taskDispatches() { return taskDispatches; },
@@ -660,6 +662,10 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 			}));
 			const progress = (parts: IChatProgress[]) => {
 				for (const part of parts) {
+					if (part.kind === 'command') {
+						progressCommands.push(part);
+						continue;
+					}
 					assert.strictEqual(part.kind, 'progressMessage');
 					progressMessages.push(part.kind === 'progressMessage' ? part.content.value : '');
 				}
@@ -1057,7 +1063,7 @@ suite('Editor cloud sandbox discovery', () => {
 		});
 		h.state.result = { kind: 'complete', sessions: [] };
 		await h.refresh();
-		await assert.rejects(h.startDraft('Fix the build'), /stop here/);
+		await assert.rejects(h.startDraft('Fix the build'), /Couldn't confirm whether the cloud session was created/);
 		assert.deepStrictEqual({
 			repositoryOptions: h.repositoryOptions(),
 			createRequests: h.calls.createRequests.map(request => request.repoNwo),
@@ -1592,7 +1598,9 @@ suite('Editor cloud sandbox discovery', () => {
 			h.state.online = true;
 			h.addDraftWidget().setInput('hello');
 			await h.whenAllocationStarted;
-			await assert.rejects(h.startDraft('hello'), caught => caught === error);
+			await assert.rejects(h.startDraft('hello'), caught => error instanceof CancellationError
+				? isCancellationError(caught)
+				: caught instanceof CloudSandboxStartupError && caught.message === 'Couldn\'t start the cloud session. Sign in to GitHub to continue.');
 			const afterPreflight = { dispatched: h.taskDispatches, deleted: [...h.calls.deletedTasks] };
 
 			assert.deepStrictEqual(afterPreflight, { dispatched: 0, deleted: ['new-task'] });
@@ -1621,7 +1629,10 @@ suite('Editor cloud sandbox discovery', () => {
 		h.state.online = true;
 		h.addDraftWidget().setInput('hello');
 		await h.whenAllocationStarted;
-		await assert.rejects(h.startDraft('hello'), caught => caught === error);
+		await assert.rejects(h.startDraft('hello'), {
+			name: 'CloudSandboxStartupError',
+			message: 'Couldn\'t start the cloud session. Sign in to GitHub to continue.',
+		});
 
 		assert.deepStrictEqual({
 			dispatched: h.taskDispatches, deletions: h.calls.deletedTasks,
@@ -1643,11 +1654,21 @@ suite('Editor cloud sandbox discovery', () => {
 		h.state.online = true;
 		h.addDraftWidget().setInput('hello');
 		await h.whenAllocationStarted;
-		await assert.rejects(h.startDraft('hello'), /task outcome unknown/);
-		await assert.rejects(h.startDraft('hello'), /already been claimed/);
+		for (const prompt of ['hello', 'retry prompt']) {
+			await assert.rejects(h.startDraft(prompt), {
+				name: 'CloudSandboxStartupError',
+				message: 'Couldn\'t confirm whether the cloud session was created. Check your cloud sessions before starting another.',
+			});
+		}
 
-		assert.deepStrictEqual({ tasks: h.calls.created, allocations: h.allocations.length, deleted: h.calls.deletedTasks }, {
+		assert.deepStrictEqual({
+			tasks: h.calls.created, allocations: h.allocations.length, deleted: h.calls.deletedTasks,
+			errorSteps: h.progressCommands.map(button => button.command.arguments?.[1]),
+			connected: h.calls.connected, sends: h.sends, commits: h.contribution.commits,
+		}, {
 			tasks: 1, allocations: 1, deleted: [],
+			errorSteps: ['Step: Create cloud session', 'Step: Create cloud session'],
+			connected: [], sends: [], commits: [],
 		});
 	});
 
@@ -1769,7 +1790,7 @@ suite('Editor cloud sandbox discovery', () => {
 		h.state.result = { kind: 'complete', sessions: [] };
 		await h.refresh();
 		await assert.rejects(h.startDraft('Fix the build', { token: cts.token }), isCancellationError);
-		assert.deepStrictEqual({ created: h.calls.created, commits: h.contribution.commits, sends: h.sends }, { created: 1, commits: [], sends: [] });
+		assert.deepStrictEqual({ created: h.calls.created, commits: h.contribution.commits, sends: h.sends, details: h.progressCommands }, { created: 1, commits: [], sends: [], details: [] });
 	});
 
 	test('cancelling the draft turn while it is committed does not start the turn in the sandbox', async () => {
@@ -1857,8 +1878,40 @@ suite('Editor cloud sandbox discovery', () => {
 		h.state.result = { kind: 'complete', sessions: [] };
 		h.state.connectError = new Error('relay unavailable');
 		await h.refresh();
-		await assert.rejects(h.startDraft('Fix the build'), /relay unavailable/);
+		await assert.rejects(h.startDraft('Fix the build'), /Cloud setup started, but VS Code couldn't connect/);
 		assert.deepStrictEqual({ created: h.calls.created, connected: h.calls.connected.length, commits: h.contribution.commits }, { created: 1, connected: 1, commits: [] });
+	});
+
+	test('a creation failure offers safe details in the editor transcript without sending a turn', async () => {
+		const h = createHarness(store, {
+			createSession: async () => {
+				throw new CloudSandboxRequestError(404, 'private error body', undefined, { code: 'not_found' });
+			},
+		});
+		await h.refresh();
+		let failure: unknown;
+		try {
+			await h.startDraft('private prompt');
+		} catch (error) {
+			failure = error;
+		}
+		assert.ok(failure instanceof CloudSandboxStartupError);
+		assert.deepStrictEqual({
+			message: failure.message,
+			buttons: h.progressCommands.map(button => ({ label: button.command.title, details: button.command.arguments })),
+			commits: h.contribution.commits,
+			sends: h.sends,
+			connected: h.calls.connected,
+		}, {
+			message: 'Couldn\'t start the cloud session. GitHub couldn\'t find or allow access to a required resource.',
+			buttons: [{
+				label: 'Show Details',
+				details: ['Couldn\'t start the cloud session. GitHub couldn\'t find or allow access to a required resource.', 'Step: Create cloud session\nHTTP status: 404\nError code: not_found'],
+			}],
+			commits: [],
+			sends: [],
+			connected: [],
+		});
 	});
 
 	test('discovers matching repositories without connecting or creating a session', async () => {
@@ -2640,7 +2693,7 @@ suite('Editor cloud sandbox discovery', () => {
 		});
 	});
 
-	test('opens original offline history without waking or replacing the sandbox', async () => {
+	test('opens original offline history for drafting without waking or replacing the sandbox', async () => {
 		const h = createHarness(store);
 		await h.refresh();
 		await h.contribution.activate();
@@ -2649,12 +2702,13 @@ suite('Editor cloud sandbox discovery', () => {
 			resource: session.sessionResource.toString(),
 			title: session.title,
 			readOnly: session.isReadOnly?.get(),
+			blocked: session.isInputBlocked?.get(),
 			requests: session.history.filter(item => item.type === 'request').map(item => item.prompt),
 			history: h.calls.history,
 			connected: h.calls.connected,
 			created: h.calls.created,
 		}, {
-			resource: resource.toString(), title: discovered.name, readOnly: true,
+			resource: resource.toString(), title: discovered.name, readOnly: true, blocked: true,
 			requests: ['Original request'], history: [discovered.taskId], connected: [], created: 0,
 		});
 	});

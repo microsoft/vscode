@@ -287,6 +287,35 @@ suite('CloudSandboxSessionHandler', () => {
 		});
 	});
 
+	test('keeps recorded input blocked through cache refresh until live content is ready', async () => {
+		const fresh = new DeferredPromise<IReplayedTaskHistory>();
+		const pendingLive = new DeferredPromise<IChatSession>();
+		const connection = observableValue<RemoteAgentHostConnectionStatus>('connection', RemoteAgentHostConnectionStatus.connecting);
+		const handler = createHandler((_token, _diagnosticId, onCachedHistory) => {
+			onCachedHistory?.(recordedHistory());
+			return fresh.p;
+		}, undefined, undefined, undefined, undefined, connection);
+		const session = store.add(await handler.provideChatSessionContent(resource, CancellationToken.None));
+		const inputState = () => ({ readOnly: session.isReadOnly?.get(), blocked: session.isInputBlocked?.get() });
+		const cached = inputState();
+		const historyChanged = Event.toPromise(session.onDidChangeHistory!);
+		await fresh.complete(recordedHistory('Refreshed title'));
+		await historyChanged;
+		const refreshed = inputState();
+		connection.set(RemoteAgentHostConnectionStatus.connected, undefined);
+		handler.setLiveProvider({ provideChatSessionContent: () => pendingLive.p });
+		const waitingForLiveContent = inputState();
+		await pendingLive.complete(store.add(new LiveSession()));
+		await waitForState(session.isInputBlocked!, value => !value);
+
+		assert.deepStrictEqual({ cached, refreshed, waitingForLiveContent, live: inputState() }, {
+			cached: { readOnly: true, blocked: true },
+			refreshed: { readOnly: true, blocked: true },
+			waitingForLiveContent: { readOnly: true, blocked: true },
+			live: { readOnly: false, blocked: false },
+		});
+	});
+
 	test('a cached peer miss waits for fresh history instead of showing the default conversation', async () => {
 		const fresh = new DeferredPromise<IReplayedTaskHistory>();
 		const cached = recordedHistory();
@@ -656,7 +685,8 @@ suite('CloudSandboxSessionHandler', () => {
 			assert.deepStrictEqual({
 				prompts: session.history.filter(item => item.type === 'request').map(item => item.prompt),
 				error: session.history.find(item => item.type === 'response')?.errorDetails?.message,
-			}, { prompts: [''], error: `HTTP ${status}` });
+				readOnly: session.isReadOnly?.get(), blocked: session.isInputBlocked?.get(),
+			}, { prompts: [''], error: `HTTP ${status}`, readOnly: true, blocked: true });
 		});
 	}
 
@@ -933,7 +963,7 @@ suite('CloudSandboxSessionHandler', () => {
 		live.isReadOnly.set(true, undefined);
 		handler.setLiveProvider({ provideChatSessionContent: async () => live });
 		await timeout(0);
-		assert.deepStrictEqual({ readOnly: session.isReadOnly?.get(), history: session.history }, { readOnly: true, history: live.history });
+		assert.deepStrictEqual({ readOnly: session.isReadOnly?.get(), blocked: session.isInputBlocked?.get(), history: session.history }, { readOnly: true, blocked: false, history: live.history });
 	});
 
 	test('a late live result is disposed after its recorded session is closed', async () => {

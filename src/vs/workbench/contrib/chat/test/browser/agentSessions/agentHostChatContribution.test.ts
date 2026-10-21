@@ -10918,6 +10918,31 @@ suite('AgentHostChatContribution', () => {
 
 	suite('history loading', () => {
 
+		test('an ordinary existing session returns an authentication history error without waiting for initial authentication', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const resource = URI.parse('agent-host-copilot:/ordinary-auth-race');
+			const backend = AgentSession.uri('copilot', 'ordinary-auth-race');
+			agentHostService.setAuthenticationPending(true);
+			agentHostService.failNextSubscriptionFor.add(backend.toString());
+			agentHostService.failNextSubscriptionError.set(backend.toString(), new Error('authentication required for https://api.github.com'));
+
+			const session = disposables.add(await sessionHandler.provideChatSessionContent(resource, CancellationToken.None));
+			agentHostService.setAuthenticationPending(false);
+
+			assert.deepStrictEqual({
+				history: session.history,
+				error: session.historyLoadError?.message,
+				authenticationPending: agentHostService.authenticationPending.get(),
+			}, {
+				history: [
+					{ type: 'request', prompt: '', participant: 'agent-host-copilot', isSystemInitiated: true, systemInitiatedLabel: 'Couldn\'t open session' },
+					{ type: 'response', parts: [], participant: 'agent-host-copilot', errorDetails: { message: 'authentication required for https://api.github.com' } },
+				],
+				error: 'authentication required for https://api.github.com',
+				authenticationPending: false,
+			});
+		});
+
 		suite('cloud sandbox promotion', () => {
 			async function createSandbox(options?: { cached?: boolean; peer?: boolean; newSession?: boolean }) {
 				const { instantiationService, agentHostService, chatService } = createTestServices(disposables, {
@@ -12266,7 +12291,7 @@ suite('AgentHostChatContribution', () => {
 		test('completed output-only terminal whose command still runs stays attached after the turn ends and the command exits, until the chat closes', async () => {
 			let attachmentDisposed = false;
 			const onDidChange = disposables.add(new Emitter<void>());
-			const source = { onDidChange: onDidChange.event, output: 'tick 1\n', hasExited: false, exitCode: undefined };
+			const source = { onDidChange: onDidChange.event, output: 'tick 1\n', outputPosition: { generation: 0, start: 0 }, hasExited: false, exitCode: undefined };
 			const { sessionHandler, agentHostService, chatAgentService, instantiationService } = createContribution(disposables, {
 				agentHostTerminalServiceOverride: {
 					attachOutputTerminal: () => toDisposable(() => attachmentDisposed = true),

@@ -1173,6 +1173,7 @@ suite('stateToProgressAdapter', () => {
 						resourceUri: 'ui://github-mcp-server/pr-write',
 						connectionAuthority: 'local',
 						serverId: 'github-customization',
+						serverName: undefined,
 						channel: 'mcp://copilot/session/GitHub',
 					},
 				},
@@ -1211,6 +1212,7 @@ suite('stateToProgressAdapter', () => {
 						resourceUri: 'ui://github-mcp-server/get-me',
 						connectionAuthority,
 						serverId: 'github-customization',
+						serverName: 'GitHub',
 						channel: 'mcp://opaque-host-channel/GitHub',
 					},
 				},
@@ -3117,6 +3119,7 @@ suite('stateToProgressAdapter', () => {
 					resourceUri: 'ui://docs/app',
 					connectionAuthority: 'local',
 					serverId: 'docs-customization',
+					serverName: undefined,
 					channel: 'mcp://copilot/test-session-1/docs',
 				},
 			});
@@ -3777,6 +3780,40 @@ suite('stateToProgressAdapter', () => {
 
 			const termData = invocation.toolSpecificData as { kind: 'terminal'; terminalCommandOutput?: { text: string } };
 			assert.strictEqual(termData.terminalCommandOutput?.text, 'line1\r\nline2\r\nline3\r\n');
+		});
+
+		test('keeps a confirmed MCP App visible after completion', () => {
+			const tc = createToolCallState({
+				toolInput: '{"topic":"metadata"}',
+				contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'docs-customization' },
+				_meta: {
+					ui: {
+						resourceUri: 'ui://docs/app',
+						channel: 'mcp://copilot/test-session-1/docs',
+					},
+				},
+			});
+			const invocation = toolCallStateToInvocation({ ...tc, status: ToolCallStatus.PendingConfirmation });
+			const pendingPresentation = invocation.presentation;
+
+			finalizeToolInvocation(invocation, createCompletedToolCall({ ...tc, status: ToolCallStatus.Completed }));
+
+			assert.deepStrictEqual({
+				pendingPresentation,
+				presentation: invocation.presentation,
+				mcpAppData: invocation.toolSpecificData?.kind === 'input' ? invocation.toolSpecificData.mcpAppData : undefined,
+			}, {
+				pendingPresentation: ToolInvocationPresentation.HiddenAfterComplete,
+				presentation: undefined,
+				mcpAppData: {
+					kind: 'agentHost',
+					resourceUri: 'ui://docs/app',
+					connectionAuthority: 'local',
+					serverId: 'docs-customization',
+					serverName: undefined,
+					channel: 'mcp://copilot/test-session-1/docs',
+				},
+			});
 		});
 
 		test('finalizes generic tool with input/output details', () => {
@@ -5246,10 +5283,42 @@ suite('stateToProgressAdapter', () => {
 					resourceUri: 'ui://docs/app',
 					connectionAuthority: 'local',
 					serverId: 'docs-customization',
+					serverName: undefined,
 					channel: 'mcp://copilot/test-session-1/docs',
 				},
 			});
 			disposable.dispose();
+		});
+
+		test('updates MCP App data when the host-provided server name changes', () => {
+			const tc = createToolCallState({
+				contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'docs-customization' },
+				_meta: { ui: { resourceUri: 'ui://docs/app', channel: 'mcp://opaque-host-channel' } },
+			});
+			const invocation = toolCallStateToInvocation(tc);
+			let stateChanges = 0;
+			store.add(autorun(reader => {
+				invocation.state.read(reader);
+				stateChanges++;
+			}));
+			updateRunningToolSpecificData(invocation, {
+				...tc,
+				_meta: { ...tc._meta, mcpServerName: 'docs' },
+			});
+
+			assert.deepStrictEqual(invocation.toolSpecificData, {
+				kind: 'input',
+				rawInput: {},
+				mcpAppData: {
+					kind: 'agentHost',
+					resourceUri: 'ui://docs/app',
+					connectionAuthority: 'local',
+					serverId: 'docs-customization',
+					serverName: 'docs',
+					channel: 'mcp://opaque-host-channel',
+				},
+			});
+			assert.strictEqual(stateChanges, 2);
 		});
 
 		test('does not notify when no subagent content is present', () => {

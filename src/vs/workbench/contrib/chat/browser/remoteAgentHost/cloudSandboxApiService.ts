@@ -938,7 +938,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	private async _requestTaskCreation(request: ICloudSandboxCreateSessionRequest, token: CancellationToken, onRequest?: () => void, reservation?: { readonly taskId?: string }): Promise<IRequestContext> {
 		const repository = parseNwo(request.repoNwo);
 		if (request.repoNwo !== undefined && !repository) {
-			throw new Error(localize('cloudSandbox.invalidRepository', "The sandbox repository must be specified as owner/name."));
+			throw new CloudSandboxRequestError(undefined, localize('cloudSandbox.invalidRepository', "The sandbox repository must be specified as owner/name."), undefined, { code: 'invalid_request' });
 		}
 		if (request.environmentId !== undefined && !isConcreteEnvironmentId(request.environmentId)) {
 			throw new Error(localize('cloudSandbox.invalidEnvironment', "The prepared sandbox environment identifier is invalid."));

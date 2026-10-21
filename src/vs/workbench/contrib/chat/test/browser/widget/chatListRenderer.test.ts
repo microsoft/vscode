@@ -4957,17 +4957,20 @@ suite('ChatListRenderer', () => {
 			for (const [index, tool] of tools.entries()) {
 				const [imageWidth, imageHeight] = dimensions[index % dimensions.length];
 				const value = dom.$<HTMLCanvasElement>('canvas', { width: imageWidth, height: imageHeight }).toDataURL('image/png').split(',')[1];
+				// Tiles take their shape from the image's load event, which WebKit can dispatch after decode() resolves and a frame renders.
+				// This capture listener runs before the batch's own load listener, so measure on the next frame.
+				const loaded = new Promise<void>(resolve => grid.addEventListener('load', () => resolve(), { capture: true, once: true }));
 				await tool.didExecuteTool({
 					content: [], toolSpecificData: { kind: 'generatedImage' },
 					toolResultDetails: { input: '{}', output: [{ type: 'embed', value, mimeType: 'image/png' }] },
 				});
-				await retry(async () => {
-					const images = [...grid.querySelectorAll<HTMLImageElement>('img')];
-					assert.strictEqual(images.length, index + 1);
-					await Promise.all(images.map(image => image.decode()));
-				}, 10, 50);
+				const added = grid.querySelectorAll<HTMLImageElement>('img')[index];
+				const hiddenBeforeLoad = added.hidden;
+				await loaded;
 				await nextFrame();
 				snapshots.push({
+					images: grid.querySelectorAll('img').length,
+					hiddenUntilLoad: hiddenBeforeLoad && !added.hidden,
 					stableRows: heights().every((height, row) => Math.abs(height - initial[row]) < 1),
 					noPaddedTiles: [...grid.querySelectorAll('img')].every(image => {
 						const bounds = image.parentElement!.getBoundingClientRect();
@@ -4976,8 +4979,8 @@ suite('ChatListRenderer', () => {
 					noOverflow: grid.scrollWidth <= grid.clientWidth && grid.scrollHeight <= grid.clientHeight,
 				});
 			}
-			assert.deepStrictEqual(snapshots, tools.map(() => ({
-				stableRows: true, noPaddedTiles: true, noOverflow: true,
+			assert.deepStrictEqual(snapshots, tools.map((_, index) => ({
+				images: index + 1, hiddenUntilLoad: true, stableRows: true, noPaddedTiles: true, noOverflow: true,
 			})));
 		});
 	}

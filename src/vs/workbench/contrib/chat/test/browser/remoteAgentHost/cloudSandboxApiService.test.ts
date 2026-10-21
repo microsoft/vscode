@@ -4836,7 +4836,12 @@ suite('CloudSandboxApiService session creation', () => {
 		test(`rejects an invalid repository instead of provisioning a repo-less sandbox: '${repoNwo}'`, async () => {
 			const { service, requestedUrls } = createService(store, { tasks: [], repositories: new Map() });
 
-			await assert.rejects(service.createSession({ repoNwo, prompt: 'hello' }, CancellationToken.None), /owner\/name/);
+			await assert.rejects(service.createSession({ repoNwo, prompt: 'hello' }, CancellationToken.None), {
+				name: 'CloudSandboxRequestError',
+				message: 'The sandbox repository must be specified as owner/name.',
+				statusCode: undefined,
+				code: 'invalid_request',
+			});
 			assert.deepStrictEqual(requestedUrls, []);
 		});
 	}

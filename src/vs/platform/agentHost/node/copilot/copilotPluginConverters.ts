@@ -356,6 +356,10 @@ function executeHookCommand(hook: IParsedHookCommand, stdin?: string): Promise<s
 		child.stdout.on('data', (data: Buffer) => { stdout += data.toString(); });
 		child.stderr.on('data', (data: Buffer) => { stderr += data.toString(); });
 
+		// Hooks may exit without reading their input, failing the write with
+		// EPIPE (EOF on Windows). The exit code decides the outcome, so don't
+		// surface it as an unhandled stream error.
+		child.stdin.on('error', () => { });
 		if (stdin) {
 			child.stdin.write(stdin);
 			child.stdin.end();
