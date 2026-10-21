@@ -88,7 +88,8 @@ import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARA
 import { migrateLegacyTerminalToolSpecificData } from '../../../common/chat.js';
 import { ChatErrorLevel, ChatRequestQueueKind, ElicitationState, IChatService, IRemotePendingRequest, IChatMarkdownContent, IChatMcpAuthenticationRequired, IChatProgress, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, IChatUsage, ToolConfirmKind, type IChatPlanReviewResult, type IChatResponseErrorDetails } from '../../../common/chatService/chatService.js';
 import { IChatDebugService } from '../../../common/chatDebugService.js';
-import { IChatEditingService, IChatEditingSession } from '../../../common/editing/chatEditingService.js';
+import { IChatEditingService, IChatEditingSession, IChatEditingSessionProvider } from '../../../common/editing/chatEditingService.js';
+import { ITextFileEditorModelManager, ITextFileService } from '../../../../../services/textfile/common/textfiles.js';
 import { IChatResponseFileChangesService } from '../../../browser/chatResponseFileChangesService.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ChatSessionForkError, IChatSessionsService, type IChatSession, type IChatSessionForkOptions, type IChatSessionHistoryItem, type IChatSessionContentProvider, type IChatSessionItemController, type IChatSessionRequestHistoryItem, type IChatSessionServerRequest, type IChatSessionsExtensionPoint } from '../../../common/chatSessionsService.js';
@@ -1090,9 +1091,24 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 			}
 		}
 	});
+	const editingSessionProviders = new Map<string, IChatEditingSessionProvider>();
 	instantiationService.stub(IChatEditingService, {
-		registerEditingSessionProvider: () => toDisposable(() => { }),
+		registerEditingSessionProvider: (scheme: string, provider: IChatEditingSessionProvider) => {
+			editingSessionProviders.set(scheme, provider);
+			return toDisposable(() => editingSessionProviders.delete(scheme));
+		},
 		createEditingSession: () => upcastPartial<IChatEditingSession>({ entries: constObservable([]), requestDisablement: constObservable([]), dispose: () => { } }),
+	});
+	const textFileRetention = { active: 0 };
+	instantiationService.stub(ITextFileService, {
+		files: upcastPartial<ITextFileEditorModelManager>({
+			retainResolvedContent: () => {
+				textFileRetention.active++;
+				return toDisposable(() => textFileRetention.active--);
+			},
+			onDidSave: Event.None,
+			onDidRevert: Event.None,
+		}),
 	});
 	instantiationService.stub(IChatResponseFileChangesService, {
 		registerProvider: () => toDisposable(() => { }),
@@ -1275,7 +1291,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	instantiationService.stub(IOpenerService, openerService as IOpenerService);
 	instantiationService.stub(IEditorService, new class extends mock<IEditorService>() { });
 
-	return { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, activeClientService, seedActiveClient, chatSessionContributions, chatSessionItemControllers, newSessionFolderService, trustController, modelService, workingCopyService, commandService, accessibilitySignalCalls };
+	return { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, activeClientService, seedActiveClient, chatSessionContributions, chatSessionItemControllers, newSessionFolderService, trustController, modelService, workingCopyService, commandService, accessibilitySignalCalls, editingSessionProviders, textFileRetention };
 }
 
 function createSessionListStore(disposables: DisposableStore, instantiationService: TestInstantiationService, connection: IAgentHostSessionListConnection): AgentHostSessionListStore {
@@ -1288,7 +1304,7 @@ function createSessionListController(disposables: DisposableStore, instantiation
 }
 
 function createContribution(disposables: DisposableStore, opts?: { backendSessionScheme?: string; authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>; languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>; configOverrides?: Record<string, unknown>; provider?: string; chatSessionsServiceOverride?: Partial<IChatSessionsService>; chatDebugServiceOverride?: Partial<IChatDebugService>; remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>; customizationServiceOverride?: IAgentHostCustomizationService; agentHostTerminalServiceOverride?: Partial<IAgentHostTerminalService>; languageModelsServiceOverride?: Partial<ILanguageModelsService>; workspaceFolders?: readonly URI[]; hideAutoExplainability?: boolean; pendingTreatment?: Promise<void>; requiresWorkspaceTrust?: boolean; retainConsumedSteeringMessages?: boolean; supportsComputerUseSetup?: boolean; computerUseSetupService?: IComputerUseSetupService; useSessionTitleForDefaultChat?: boolean }) {
-	const { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, trustController, modelService, workingCopyService, accessibilitySignalCalls } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride, opts?.languageModels, opts?.provisionalServiceOverride, false, opts?.languageModelToolsServiceOverride, opts?.configOverrides, opts?.chatSessionsServiceOverride, opts?.chatDebugServiceOverride, opts?.remoteAgentHostServiceOverride, opts?.customizationServiceOverride, opts?.agentHostTerminalServiceOverride, opts?.languageModelsServiceOverride, opts?.workspaceFolders);
+	const { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, trustController, modelService, workingCopyService, accessibilitySignalCalls, editingSessionProviders, textFileRetention } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride, opts?.languageModels, opts?.provisionalServiceOverride, false, opts?.languageModelToolsServiceOverride, opts?.configOverrides, opts?.chatSessionsServiceOverride, opts?.chatDebugServiceOverride, opts?.remoteAgentHostServiceOverride, opts?.customizationServiceOverride, opts?.agentHostTerminalServiceOverride, opts?.languageModelsServiceOverride, opts?.workspaceFolders);
 
 	if (opts?.hideAutoExplainability || opts?.pendingTreatment) {
 		const pending = opts?.pendingTreatment;
@@ -1334,7 +1350,7 @@ function createContribution(disposables: DisposableStore, opts?: { backendSessio
 	}));
 	const contribution = disposables.add(instantiationService.createInstance(AgentHostContribution));
 
-	return { contribution, listController, sessionHandler, agentHostService, chatAgentService, chatWidgetService, chatService, instantiationService, openerService, trustController, modelService, workingCopyService, accessibilitySignalCalls };
+	return { contribution, listController, sessionHandler, agentHostService, chatAgentService, chatWidgetService, chatService, instantiationService, openerService, trustController, modelService, workingCopyService, accessibilitySignalCalls, editingSessionProviders, textFileRetention };
 }
 
 function createByokLanguageModelTestData(groupName?: string): { languageModels: ReadonlyMap<string, ILanguageModelChatMetadata>; languageModelsServiceOverride: Partial<ILanguageModelsService> } {
@@ -17706,6 +17722,67 @@ suite('AgentHostChatContribution', () => {
 					editsAfterNextUpdate: 2,
 				});
 			}));
+		}
+	});
+
+	suite('keep and undo review', () => {
+		for (const enabled of [true, false]) {
+			test(`reviews the edits of chats in the chat view and editors (enabled=${enabled})`, async () => {
+				const { editingSessionProviders, textFileRetention, sessionHandler, agentHostService } = createContribution(disposables, { configOverrides: { [ChatConfiguration.EditorKeepUndoEnabled]: enabled } });
+				const resource = URI.parse('agent-host-copilot:/chat');
+				const session = AgentSession.uri('copilot', 'chat');
+				const defaultChat = 'ahp-chat:/opaque-main';
+				const childChat = 'ahp-chat:/opaque-child';
+				const peerChat = 'ahp-chat:/opaque-peer';
+				agentHostService.defaultChatUri = defaultChat;
+				agentHostService.sessionStates.set(session.toString(), {
+					...createSessionState({ resource: session.toString(), provider: 'copilot', title: 'Review', status: SessionStatus.Idle, createdAt: '', modifiedAt: '' }),
+					lifecycle: SessionLifecycle.Ready,
+					defaultChat,
+					chats: [
+						{ resource: childChat, title: 'Child', status: SessionStatus.Idle, modifiedAt: '', origin: { kind: ChatOriginKind.Tool, chat: defaultChat, toolCallId: 'delegate' } },
+						{ resource: peerChat, title: 'Peer', status: SessionStatus.Idle, modifiedAt: '' },
+					],
+				});
+				disposables.add(await sessionHandler.provideChatSessionContent(resource, CancellationToken.None));
+				const provider = editingSessionProviders.get('agent-host-copilot')!;
+				// The chat service creates the editing session of a chat before it registers the chat model.
+				const chat = disposables.add(provider.createEditingSession(resource, true));
+				const inlineChat = disposables.add(provider.createEditingSession(URI.parse('agent-host-copilot:/inline-chat'), false));
+				const subagentChat = disposables.add(provider.createEditingSession(resource.with({ fragment: childChat }), true));
+				const peer = disposables.add(provider.createEditingSession(resource.with({ query: `${CHAT_SUBAGENT_RESOURCE_QUERY_PARAM}=${encodeURIComponent(peerChat)}` }), true));
+
+				const duringReview = { chat: chat.supportsKeepUndo.get(), inlineChat: inlineChat.supportsKeepUndo.get(), subagentChat: subagentChat.supportsKeepUndo.get(), peer: peer.supportsKeepUndo.get(), retainers: textFileRetention.active };
+				sessionHandler.dispose();
+				const afterHandler = textFileRetention.active;
+				chat.dispose();
+				peer.dispose();
+				assert.deepStrictEqual({ duringReview, afterHandler, afterChat: textFileRetention.active }, {
+					duringReview: { chat: enabled, inlineChat: false, subagentChat: false, peer: enabled, retainers: enabled ? 3 : 0 },
+					afterHandler: enabled ? 2 : 0, afterChat: 0,
+				});
+			});
+		}
+
+		for (const provider of ['copilot', 'claude', 'codex', 'other']) {
+			for (const connectionAuthority of ['local', 'remote.example']) {
+				test(`enables editor review and dirty-buffer retention for ${provider} on ${connectionAuthority}`, () => {
+					const { instantiationService, agentHostService, editingSessionProviders, textFileRetention } = createTestServices(disposables, undefined, undefined, undefined, undefined, false, undefined, { [ChatConfiguration.EditorKeepUndoEnabled]: true });
+					const sessionType = `agent-host-${provider}`;
+					const handler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+						provider, sessionType, agentId: sessionType, fullName: provider, description: 'Test',
+						connection: agentHostService, connectionAuthority,
+					}));
+					const session = disposables.add(editingSessionProviders.get(sessionType)!.createEditingSession(URI.from({ scheme: sessionType, path: '/new-review' }), true));
+					const active = { review: session.supportsKeepUndo.get(), retainers: textFileRetention.active };
+					handler.dispose();
+					session.dispose();
+
+					assert.deepStrictEqual({ active, afterDispose: textFileRetention.active }, {
+						active: { review: true, retainers: 2 }, afterDispose: 0,
+					});
+				});
+			}
 		}
 	});
 

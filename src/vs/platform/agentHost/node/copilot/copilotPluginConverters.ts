@@ -24,6 +24,8 @@ type PreToolUseHookOutput = Awaited<ReturnType<NonNullable<SessionHooks['onPreTo
 type PostToolUseHookInput = Parameters<NonNullable<SessionHooks['onPostToolUse']>>[0];
 type PostToolUseHookOutput = Awaited<ReturnType<NonNullable<SessionHooks['onPostToolUse']>>>;
 type PostToolUseHookResult = Exclude<PostToolUseHookOutput, void>;
+type PostToolUseFailureHookInput = Parameters<NonNullable<SessionHooks['onPostToolUseFailure']>>[0];
+type PostToolUseFailureHookOutput = Exclude<Awaited<ReturnType<NonNullable<SessionHooks['onPostToolUseFailure']>>>, void>;
 type UserPromptSubmittedHookInput = Parameters<NonNullable<SessionHooks['onUserPromptSubmitted']>>[0];
 type SessionStartHookInput = Parameters<NonNullable<SessionHooks['onSessionStart']>>[0];
 type SessionEndHookInput = Parameters<NonNullable<SessionHooks['onSessionEnd']>>[0];
@@ -457,6 +459,7 @@ export function toSdkHooks(
 	editTrackingHooks?: {
 		readonly onPreToolUse: (input: PreToolUseHookInput) => Promise<PreToolUseHookOutput>;
 		readonly onPostToolUse: (input: PostToolUseHookInput) => Promise<PostToolUseHookOutput>;
+		readonly onPostToolUseFailure?: (input: PostToolUseFailureHookInput) => PostToolUseFailureHookOutput | undefined;
 		readonly onUserPromptSubmitted?: () => { readonly additionalContext: string } | undefined;
 	},
 ): SessionHooks {
@@ -494,6 +497,12 @@ export function toSdkHooks(
 			const pluginInput = host?.modifiedResult ? { ...input, toolResult: { ...input.toolResult, ...host.modifiedResult } } : input;
 			return combinePostToolUseOutputs(host, await runHookCommands(postToolCommands, pluginInput));
 		};
+	}
+
+	// Post-tool-use-failure handler, which only the host uses
+	const onPostToolUseFailure = editTrackingHooks?.onPostToolUseFailure;
+	if (onPostToolUseFailure) {
+		hooks.onPostToolUseFailure = async (input: PostToolUseFailureHookInput) => onPostToolUseFailure(input);
 	}
 
 	// User-prompt-submitted handler

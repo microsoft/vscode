@@ -140,6 +140,9 @@ import { IAgentHostSessionWorkingDirectoryResolver, RequestedWorkingDirectory } 
 import { IAgentHostSessionWorkingDirectorySynchronizer } from './agentHostSessionWorkingDirectorySynchronizer.js';
 import { IAgentHostShellInitSynchronizer } from './agentHostShellInitSynchronizer.js';
 import { IAgentHostNewSessionFolderService, computeWorkingDirectories } from './agentHostNewSessionFolderService.js';
+import { AgentHostEditReview } from './agentHostEditReview.js';
+import { ITextFileService } from '../../../../../services/textfile/common/textfiles.js';
+import { observableConfigValue } from '../../../../../../platform/observable/common/platformObservableUtils.js';
 import { AgentHostSnapshotController } from './agentHostSnapshotController.js';
 import { AgentHostResponseFileChangesProvider, resolveTurnChangesetUri } from './agentHostResponseFileChanges.js';
 import type { AgentHostPromptCacheNotification } from './agentHostPromptCacheNotification.js';
@@ -1411,10 +1414,17 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
+		@ITextFileService textFileService: ITextFileService,
 		@IComputerUseSetupService private readonly _computerUseSetupService: IComputerUseSetupService,
 	) {
 		super();
 		this._config = config;
+		const reviewEnabled = observableConfigValue(ChatConfiguration.EditorKeepUndoEnabled, false, this._configurationService);
+		this._register(autorun(reader => {
+			if (reviewEnabled.read(reader)) {
+				reader.store.add(textFileService.files.retainResolvedContent());
+			}
+		}));
 		if (config.supportsCanvasPresentation && config.provider === COPILOT_CLI_AGENT_PROVIDER_ID) {
 			this._canvasProvider = this._register(this._instantiationService.createInstance(AgentHostCanvasCollection, `${config.connectionAuthority}/${config.provider}`, config.connection));
 		}
@@ -1480,8 +1490,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		this._register(this._chatEditingService.registerEditingSessionProvider(
 			config.sessionType,
 			{
-				createEditingSession: (chatSessionResource: URI) => {
-					return this._instantiationService.createInstance(
+				createEditingSession: (chatSessionResource: URI, isGlobalEditingSession: boolean) => {
+					const controller = this._instantiationService.createInstance(
 						AgentHostSnapshotController,
 						chatSessionResource,
 						config.connectionAuthority,
@@ -1490,6 +1500,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 							resolve: requestId => this._resolveTurnFileEdits(chatSessionResource, requestId),
 						} : undefined,
 					);
+					// Inline chat edits are short lived and reviewed by inline chat itself, and a subagent's
+					// chat shares its parent session's Working Set.
+					if (isGlobalEditingSession && this._shouldReviewEdits(chatSessionResource)) {
+						controller.attachReview(this._instantiationService.createInstance(AgentHostEditReview, chatSessionResource));
+					}
+					return controller;
 				},
 			},
 		));
@@ -6337,6 +6353,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			? completedToolCallToEditParts(toolCall, this._config.connectionAuthority, opts.subAgentInvocationId)
 			: this._hydrateFileEdits(opts.sessionResource, opts.turnId, toolCall);
 		opts.sink(editParts);
+	}
+
+	/** Subagent chats share their parent's Working Set instead of owning another editor review. */
+	private _shouldReviewEdits(chatSessionResource: URI): boolean {
+		const session = this._resolveSessionUri(chatSessionResource);
+		const chat = this._getChatURIOrDefault(chatSessionResource, session);
+		return this._configurationService.getValue<boolean>(ChatConfiguration.EditorKeepUndoEnabled) === true
+			&& !this._isSubagentChat(session.toString(), chat);
 	}
 
 	/** Records snapshot data and returns the per-file edit pills for a completed tool call. */
