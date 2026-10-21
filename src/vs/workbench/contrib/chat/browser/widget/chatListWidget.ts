@@ -389,7 +389,6 @@ export class ChatListWidget extends Disposable {
 	private readonly _container: HTMLElement;
 	private readonly _scrollDownButton: Button;
 	private readonly _workingProgressContainer: HTMLElement | undefined;
-	private readonly _bottomControlsContainer: HTMLElement | undefined;
 	private readonly _lastItemIdContextKey: IContextKey<string[]>;
 
 	private readonly _location: ChatAgentLocation | undefined;
@@ -653,11 +652,9 @@ export class ChatListWidget extends Disposable {
 			}
 		));
 		if (options.stickyProgress) {
-			this._container.classList.add('chat-sticky-progress-enabled');
-			this._bottomControlsContainer = dom.append(this._container, dom.$('.chat-bottom-controls'));
-			this._register(toDisposable(() => this._bottomControlsContainer?.remove()));
-			this._bottomControlsContainer.style.setProperty('--chat-list-bottom-padding', `${this._paddingBottom}px`);
-			this._workingProgressContainer = dom.append(this._bottomControlsContainer, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));
+			this._workingProgressContainer = dom.append(this._container, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));
+			this._register(toDisposable(() => this._workingProgressContainer?.remove()));
+			this._workingProgressContainer.style.bottom = `${this._paddingBottom}px`;
 			this._renderer.setWorkingProgressContainer(this._workingProgressContainer, (response, footer) => {
 				if (!this._visible || this._tree.renderHeight <= this._paddingBottom || !this._tree.hasElement(response)) {
 					return false;
@@ -677,7 +674,7 @@ export class ChatListWidget extends Disposable {
 		// Create scroll-down button
 		const scrollToBottomLabel = localize('chat.scrollToBottom', "Scroll to Bottom");
 		const scrollToBottomBackground = asCssVariableWithDefault('chat.list.background', asCssVariable(buttonSecondaryBackground));
-		this._scrollDownButton = this._register(new Button(this._bottomControlsContainer ?? this._container, {
+		this._scrollDownButton = this._register(new Button(this._container, {
 			title: scrollToBottomLabel,
 			ariaLabel: scrollToBottomLabel,
 			buttonBackground: scrollToBottomBackground,
@@ -1421,8 +1418,8 @@ export class ChatListWidget extends Disposable {
 		}
 		const wasScrolledToBottom = this.isScrolledToBottom;
 		this._paddingBottom = value;
-		if (this._bottomControlsContainer) {
-			this._bottomControlsContainer.style.setProperty('--chat-list-bottom-padding', `${value}px`);
+		if (this._workingProgressContainer) {
+			this._workingProgressContainer.style.bottom = `${value}px`;
 		}
 		this.updateBottomPadding();
 		this._renderer.updateStickyProgress();

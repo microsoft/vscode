@@ -3187,6 +3187,10 @@ suite('Sessions - Chat View', () => {
 			const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
 			workbench.style.setProperty('--vscode-spacing-size240', '24px');
 			workbench.style.setProperty('--vscode-spacing-size40', '4px');
+			workbench.style.setProperty('--vscode-spacing-size60', '6px');
+			workbench.style.setProperty('--vscode-spacing-size80', '8px');
+			workbench.style.setProperty('--vscode-spacing-size400', '40px');
+			workbench.style.setProperty('--vscode-strokeThickness', '1px');
 			const host = dom.append(workbench, dom.$(hostSelector));
 			host.style.width = '400px';
 			const widget = dom.append(host, dom.$('.chat-widget'));
@@ -3198,11 +3202,11 @@ suite('Sessions - Chat View', () => {
 			const rowContent = dom.append(row, dom.$('.value'));
 			const stack = dom.append(session, dom.$('.interactive-input-part.chat-input-surface-stack'));
 			stack.style.cssText = 'display: flex; flex-direction: column; width: 100%; padding-inline: 24px; box-sizing: border-box';
-			const bottomControls = dom.append(list, dom.$('.chat-bottom-controls'));
-			bottomControls.style.bottom = '36px';
-			const sticky = dom.append(bottomControls, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));
+			const sticky = dom.append(list, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));
+			sticky.style.bottom = '36px';
 			const progress = dom.append(sticky, dom.$('.progress-container'));
-			progress.textContent = 'Working';
+			const label = dom.append(progress, dom.$('span'));
+			label.textContent = 'Working';
 			const references = dom.append(stack, dom.$('.chat-input-persistent-content.chat-persistent-content-visible'));
 			const pills = dom.append(references, dom.$('.session-chat-input-toolbar'));
 			pills.style.height = '28px';
@@ -3213,18 +3217,18 @@ suite('Sessions - Chat View', () => {
 			const stickyStyle = dom.getWindow(sticky).getComputedStyle(sticky);
 			const rowStyle = dom.getWindow(row).getComputedStyle(row);
 			assert.deepStrictEqual({
-				progressOffset: progress.getBoundingClientRect().left - rowContent.getBoundingClientRect().left,
+				progressOffset: label.getBoundingClientRect().left - rowContent.getBoundingClientRect().left,
 				stickyPadding: stickyStyle.paddingLeft,
 				rowPadding: rowStyle.paddingLeft,
 				stickyPosition: stickyStyle.position,
 				rowPosition: rowStyle.position,
 				statusBeforeReferences: sticky.getBoundingClientRect().bottom <= pills.getBoundingClientRect().top,
-				listOwned: bottomControls.parentElement === list,
+				listOwned: sticky.parentElement === list,
 			}, {
 				progressOffset: 0,
 				stickyPadding: '24px',
 				rowPadding: '24px',
-				stickyPosition: 'relative',
+				stickyPosition: 'absolute',
 				rowPosition: 'relative',
 				statusBeforeReferences: true,
 				listOwned: true,

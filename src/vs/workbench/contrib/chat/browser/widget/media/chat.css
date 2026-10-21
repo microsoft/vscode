@@ -99,8 +99,7 @@
 	background-color: var(--vscode-chat-list-background);
 }
 
-.interactive-list > .chat-scroll-down,
-.chat-bottom-controls > .chat-scroll-down {
+.interactive-list > .chat-scroll-down {
 	padding: 4px;
 }
 
@@ -3520,49 +3519,18 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 }
 
-.interactive-list.chat-sticky-progress-enabled {
-	isolation: isolate;
-}
-
-.interactive-session .chat-bottom-controls {
+.interactive-session .chat-sticky-progress {
 	position: absolute;
 	inset-inline: 0;
-	bottom: var(--chat-list-bottom-padding, 0px);
-	z-index: 2;
-	min-height: calc(var(--vscode-spacing-size280) + var(--vscode-spacing-size160));
-	pointer-events: none;
-}
-
-.interactive-session .chat-sticky-progress {
-	position: relative;
 	box-sizing: border-box;
+	z-index: 2;
 	min-width: 0;
-	min-height: calc(var(--vscode-spacing-size280) + var(--vscode-spacing-size160));
-	justify-content: center;
-	background: var(--vscode-chat-list-background, var(--vscode-editor-background));
 	overflow-wrap: anywhere;
-	pointer-events: auto;
-}
-
-.interactive-session .chat-bottom-controls > .chat-scroll-down {
-	top: 50%;
-	bottom: auto;
-	transform: translateY(-50%);
-	pointer-events: auto;
+	pointer-events: none;
 }
 
 .interactive-session .chat-sticky-progress:empty {
 	display: none;
-}
-
-.interactive-session .chat-sticky-progress:not(:empty)::after {
-	content: '';
-	position: absolute;
-	inset-inline: 0;
-	top: 100%;
-	height: var(--chat-list-bottom-padding, 0px);
-	background: inherit;
-	pointer-events: none;
 }
 
 .interactive-session .chat-working-progress-anchor {
@@ -3570,9 +3538,16 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-sticky-progress > .progress-container {
+	box-sizing: border-box;
+	width: fit-content;
 	max-width: calc(100% - var(--vscode-spacing-size400));
 	margin: 0;
-	padding-top: 0;
+	margin-inline-start: calc(-1 * (var(--vscode-spacing-size80) + var(--vscode-strokeThickness)));
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background: var(--vscode-chat-list-background, var(--vscode-editor-background));
+	pointer-events: auto;
 }
 
 .interactive-session .chat-sticky-progress > .progress-container > .chat-progress-icon {

@@ -313,13 +313,18 @@ suite('ChatListWidget', () => {
 		test(`reverse sticky progress remains inline until it crosses the viewport bottom (sessions=${isSessionsWindow})`, async () => {
 			const { model, container, widget } = createWidget({ stickyProgress: true, paddingBottom: 36 }, configuration => {
 				configuration.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
+				configuration.setUserConfiguration(ChatConfiguration.ThinkingPhrases, { mode: 'replace', phrases: ['Working'] });
 			}, isSessionsWindow);
 			container.classList.add('interactive-session', 'interactive-list');
 			container.style.setProperty('--vscode-spacing-size60', '6px');
+			container.style.setProperty('--vscode-spacing-size80', '8px');
 			container.style.setProperty('--vscode-spacing-size160', '16px');
 			container.style.setProperty('--vscode-spacing-size280', '28px');
 			container.style.setProperty('--vscode-spacing-size400', '40px');
 			container.style.setProperty('--vscode-chat-font-size-body-m', '13px');
+			container.style.setProperty('--vscode-strokeThickness', '1px');
+			container.style.setProperty('--vscode-cornerRadius-circle', '9999px');
+			container.style.setProperty('--vscode-chat-list-background', 'rgb(18, 52, 86)');
 			const addRequest = (text: string) => model.addRequest({
 				text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
 			}, { variables: [] }, 0);
@@ -385,17 +390,20 @@ suite('ChatListWidget', () => {
 			widget.setPaddingBottom(36 + petPadding);
 			const buttonBox = button.getBoundingClientRect();
 			const footerBox = footer.getBoundingClientRect();
-			const reservedSurface = mainWindow.getComputedStyle(overlay, '::after');
+			const pillStyle = mainWindow.getComputedStyle(footer);
 			const hitTarget = container.ownerDocument.elementFromPoint(buttonBox.x + buttonBox.width / 2, buttonBox.y + buttonBox.height / 2);
-			const sharedRow = {
-				sameParent: button.parentElement === overlay.parentElement,
+			const besidePill = container.ownerDocument.elementFromPoint(footerBox.right + 4, footerBox.y + footerBox.height / 2);
+			const floatingPill = {
+				independentButton: button.parentElement === container && overlay.parentElement === container,
 				visible: button.style.display === 'flex' && buttonBox.height > 0,
 				hitTarget: !!hitTarget && button.contains(hitTarget),
-				sameCenter: Math.abs(buttonBox.y + buttonBox.height / 2 - footerBox.y - footerBox.height / 2) < 1,
-				noOverlap: footerBox.right <= buttonBox.left,
+				noOverlap: footerBox.right <= buttonBox.left || footerBox.bottom <= buttonBox.top,
 				clearsPetAndChips: Math.abs(overlay.getBoundingClientRect().bottom - container.getBoundingClientRect().bottom + 36 + petPadding) < 1,
-				reservedSurfaceHeight: reservedSurface.height,
-				isolatedBelowInput: mainWindow.getComputedStyle(container).isolation,
+				fitsContent: footerBox.width < overlay.clientWidth / 2,
+				background: pillStyle.backgroundColor,
+				radius: pillStyle.borderRadius,
+				noMask: mainWindow.getComputedStyle(overlay, '::after').content === 'none',
+				unusedAreaClickable: !!besidePill && !overlay.contains(besidePill),
 			};
 			button.click();
 			await retry(async () => assert.ok(widget.isScrolledToBottom), 10, 100);
@@ -413,16 +421,48 @@ suite('ChatListWidget', () => {
 			current.response!.complete();
 			widget.refresh();
 			await retry(async () => assert.strictEqual(overlay.childElementCount, 0), 10, 100);
-			assert.deepStrictEqual({ shortResponse, atEnd, clamped, changedPadding, virtualized, sharedRow, returned, completed: overlay.childElementCount }, {
+			assert.deepStrictEqual({ shortResponse, atEnd, clamped, changedPadding, virtualized, floatingPill, returned, completed: overlay.childElementCount }, {
 				shortResponse: { scrollable: false, overlayEmpty: true },
 				atEnd: { inline: true, overlayEmpty: true, providerDetails: false },
 				clamped: { sameFooter: true, logos: 1, bottom: true },
 				changedPadding: { sameFooter: true, bottom: true },
 				virtualized: { visible: true, logos: 1 },
-				sharedRow: { sameParent: true, visible: true, hitTarget: true, sameCenter: true, noOverlap: true, clearsPetAndChips: true, reservedSurfaceHeight: `${36 + getChatPetListPadding(true, true, 1)}px`, isolatedBelowInput: 'isolate' },
+				floatingPill: { independentButton: true, visible: true, hitTarget: true, noOverlap: true, clearsPetAndChips: true, fitsContent: true, background: 'rgb(18, 52, 86)', radius: '9999px', noMask: true, unusedAreaClickable: true },
 				returned: { inline: true, overlayEmpty: true, logos: 1 },
 				completed: 0,
 			});
+		});
+
+		test(`reverse sticky progress pill wraps long status messages (sessions=${isSessionsWindow})`, async () => {
+			const phrase = 'Reviewing the workspace changes and checking that the requested adjustments preserve the existing behavior';
+			const { model, container, widget } = createWidget({ stickyProgress: true, paddingBottom: 84 }, configuration => {
+				configuration.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
+				configuration.setUserConfiguration(ChatConfiguration.ThinkingPhrases, { mode: 'replace', phrases: [phrase] });
+			}, isSessionsWindow);
+			container.classList.add('interactive-session', 'interactive-list');
+			container.style.width = '220px';
+			for (const [name, value] of [['60', '6px'], ['80', '8px'], ['160', '16px'], ['400', '40px']]) {
+				container.style.setProperty(`--vscode-spacing-size${name}`, value);
+			}
+			container.style.setProperty('--vscode-chat-font-size-body-m', '13px');
+			const message = { text: 'Review', parts: [new ChatRequestTextPart(new OffsetRange(0, 6), new Range(1, 1, 1, 7), 'Review')] };
+			const earlier = model.addRequest(message, { variables: [] }, 0);
+			model.acceptResponseProgress(earlier, { kind: 'markdownContent', content: new MarkdownString(Array.from({ length: 20 }, () => 'Earlier paragraph.').join('\n\n')) });
+			earlier.response!.complete();
+			model.addRequest(message, { variables: [] }, 0);
+			widget.refresh();
+			widget.layout(300, 220);
+			widget.setScrollLock(false);
+			widget.scrollTop = 0;
+			await retry(async () => assert.ok(container.querySelector('.chat-sticky-progress .chat-working-progress')), 10, 100);
+			const footer = container.querySelector<HTMLElement>('.chat-sticky-progress .chat-working-progress')!;
+			const box = footer.getBoundingClientRect();
+			assert.deepStrictEqual({
+				fullText: footer.textContent?.replace(/\u00a0/g, ' '),
+				withinViewport: box.left >= container.getBoundingClientRect().left && box.right <= container.getBoundingClientRect().right,
+				noOverflow: footer.scrollWidth <= footer.clientWidth,
+				wrapped: box.height > 40,
+			}, { fullText: phrase, withinViewport: true, noOverflow: true, wrapped: true });
 		});
 
 		test(`reverse sticky progress leaves steering and queued rows in the transcript (sessions=${isSessionsWindow})`, async () => {
