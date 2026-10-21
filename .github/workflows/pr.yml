@@ -88,12 +88,9 @@ jobs:
         id: plan
         continue-on-error: true
         timeout-minutes: 5
-        # TEMPORARY, revert before merge: plans a fixed main commit (#342662) so that this pull
-        # request's own run exercises the macOS and Windows selection path.
         run: |
           set -e
-          git fetch --no-tags --depth=2 origin 1c130b96c04670b275c6067e3d8e341a2e4ca74d
-          build/ripple/target/release/ripple plan --config build/ripple/vscode.jsonc --base 1c130b96c04670b275c6067e3d8e341a2e4ca74d^ --head 1c130b96c04670b275c6067e3d8e341a2e4ca74d --out-dir .build/unit-test-plan > /dev/null
+          build/ripple/target/release/ripple plan --config build/ripple/vscode.jsonc --base HEAD^1 --head HEAD --out-dir .build/unit-test-plan > /dev/null
           echo "Linux runs every unit test; macOS and Windows run the selected files. See build/ripple/README.md." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload unit test plan
