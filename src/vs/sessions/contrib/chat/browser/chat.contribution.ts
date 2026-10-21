@@ -52,6 +52,7 @@ import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actio
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { SessionComparisonAccessibleView, SessionsChatAccessibilityHelp } from './sessionsChatAccessibilityHelp.js';
 import { SessionWorktreeCleanupAccessibilityHelp } from '../../sessionInputBanners/browser/sessionWorktreeCleanupAccessibilityHelp.js';
+import { ArtifactDetailsAccessibilityHelp, ArtifactDetailsAccessibleView } from './artifactDetailsContextView.js';
 import { SessionsOpenerParticipantContribution } from './sessionsOpenerParticipant.js';
 import { OpenSessionLinkOpenerContribution } from './openSessionLinkOpener.contribution.js';
 import { WorktreeCreatedTaskDispatcher, AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING } from './worktreeCreatedTaskDispatcher.js';
@@ -668,6 +669,8 @@ registerSingleton(ISessionWorktreeCleanupService, SessionWorktreeCleanupService,
 
 // register accessibility help
 AccessibleViewRegistry.register(new SessionsChatAccessibilityHelp());
+AccessibleViewRegistry.register(new ArtifactDetailsAccessibilityHelp());
+AccessibleViewRegistry.register(new ArtifactDetailsAccessibleView());
 AccessibleViewRegistry.register(new SessionWorktreeCleanupAccessibilityHelp());
 AccessibleViewRegistry.register(new SessionComparisonAccessibleView());
 
