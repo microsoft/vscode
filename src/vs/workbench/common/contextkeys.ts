@@ -260,7 +260,9 @@ abstract class AbstractResourceContextKey {
 
 	set(value: URI | null | undefined) {
 		value = value ?? undefined;
-		if (isEqual(this._value, value)) {
+		// Several instances can share one context key service (e.g. the Explorer and
+		// Open Editors views), so only skip when the shared keys still hold this value
+		if (isEqual(this._value, value) && (this._resourceKey.get() ?? undefined) === value?.toString()) {
 			return;
 		}
 		this._value = value;
