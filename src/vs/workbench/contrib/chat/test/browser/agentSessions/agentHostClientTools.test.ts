@@ -321,7 +321,7 @@ suite('AgentHostClientTools', () => {
 			fullReferenceName: 'browser/clickElement',
 		}, {
 			name: 'createJupyterNotebook',
-			fullReferenceName: 'notebooks/createJupyterNotebook',
+			fullReferenceName: 'notebook/createJupyterNotebook',
 		}, {
 			name: 'problems',
 			fullReferenceName: 'vscode/problems',

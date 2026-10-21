@@ -42,7 +42,7 @@ export function getAgentFileToolReferenceName(tool: IToolData, toolsService: ILa
 		return `browser/${referenceName}`;
 	}
 	if (notebookToolReferenceNames.has(referenceName)) {
-		return `notebooks/${referenceName}`;
+		return `notebook/${referenceName}`;
 	}
 	return `vscode/${referenceName}`;
 }
