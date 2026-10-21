@@ -27,7 +27,7 @@ Use -g or -f command-line options to filter tests to match the host platform.
 |`--grep <pattern>`|`-g`|Only run tests matching the given pattern (Mocha grep)|
 |`--fgrep <string>`|`-f`|Only run tests containing the given string (Mocha fgrep)|
 |`--test-results <path>`|`-t`|Output test results in JUnit format to the specified path|
-|`--screenshots-dir <path>`|`-s`|Save failure screenshots, and the app logs of failed desktop UI tests, to the specified directory|
+|`--screenshots-dir <path>`|`-s`|Save failure screenshots, and the app logs of failed desktop UI tests, to the specified directory. The logs come from the test's throwaway profile, but treat the directory as internal|
 |`--timeout <sec>`||Set the test-case timeout in seconds (default: 600 seconds)|
 |`--artifacts-dir <path>`||Resolve builds from downloaded pipeline artifacts instead of the update service|
 |`--setuid-sandbox`||Launch installed DEB/RPM desktop apps with the namespace sandbox disabled; requires a non-root runner and a root owned `4755` sandbox helper|

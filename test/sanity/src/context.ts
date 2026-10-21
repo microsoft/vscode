@@ -1456,6 +1456,7 @@ export class TestContext {
 			const pending = [logsDir];
 			walk: for (let dir = pending.pop(); dir !== undefined; dir = pending.pop()) {
 				for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+					// Dirent types do not follow symlinks, so a symlink is neither a directory nor a file here and is skipped.
 					const source = path.join(dir, entry.name);
 					if (entry.isDirectory()) {
 						pending.push(source);
