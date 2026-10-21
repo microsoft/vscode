@@ -63,9 +63,11 @@ suite('Voice input decorations', () => {
 		}
 		await configurationService.setUserConfiguration('agents.voice.showTranscript', true);
 		state.set('idle', undefined);
+		await nextFrame();
 		const manualHint = overlay.textContent;
 		await configurationService.setUserConfiguration('agents.voice.showTranscript', false);
 		state.set('listening', undefined);
+		await nextFrame();
 		const listeningOverlayHidden = overlay.style.display === 'none';
 		muted.set(true, undefined);
 		await nextFrame();
@@ -74,14 +76,17 @@ suite('Voice input decorations', () => {
 			hint: overlay.textContent,
 		};
 		owner.set(false, undefined);
+		await nextFrame();
 		const nonOwnerActive = input.classList.contains('voice-active');
 		owner.set(true, undefined);
 		await nextFrame();
 		active.set(false, undefined);
+		await nextFrame();
 		const inactiveActive = input.classList.contains('voice-active');
 		active.set(true, undefined);
 		await nextFrame();
 		connected.set(false, undefined);
+		await nextFrame();
 
 		assert.deepStrictEqual({
 			snapshots,

@@ -54,6 +54,23 @@ suite('VoiceGlow', () => {
 		});
 	});
 
+	test('clears legacy voice classes with or without an active rim', () => {
+		const snapshots = [false, true].map(active => {
+			const target = document.createElement('div');
+			target.classList.add('unrelated', 'voice-active', 'voice-listening', 'voice-processing', 'voice-speaking');
+			const controller = disposables.add(createVoiceGlowController(target));
+			if (active) {
+				controller.render(0.5, true);
+			}
+			controller.clear();
+			return { classes: target.className, accent: target.style.getPropertyValue('--voice-accent') };
+		});
+		assert.deepStrictEqual(snapshots, [
+			{ classes: 'unrelated', accent: '' },
+			{ classes: 'unrelated', accent: '' },
+		]);
+	});
+
 	test('renders in an auxiliary owner document', () => {
 		const iframe = document.createElement('iframe');
 		document.body.appendChild(iframe);

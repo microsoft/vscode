@@ -406,12 +406,15 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 	}
 
 	clear(): void {
-		if (this._disposed || !this._active) {
+		if (this._disposed) {
+			return;
+		}
+		this._target.classList.remove('voice-active', 'voice-listening', 'voice-processing', 'voice-speaking');
+		this._target.style.removeProperty('--voice-accent');
+		if (!this._active) {
 			return;
 		}
 		this._active = false;
-		this._target.classList.remove('voice-active', 'voice-listening');
-		this._target.style.removeProperty('--voice-accent');
 		const previous = this._front;
 		this._front = undefined;
 		if (previous) {
