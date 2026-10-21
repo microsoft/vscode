@@ -781,7 +781,7 @@ export interface TurnModelLookup {
 	/** Returns the chat-layer namespaced model id for a raw AHP model id. */
 	toLanguageModelId(rawModelId: string | undefined): string | undefined;
 	/** Resolves the actual model's registered id when available, without falling back to the selected model. */
-	toActualModelId(rawModelId: string | undefined): string | undefined;
+	toActualModelId(rawModelId: string | undefined, usage?: UsageInfo): string | undefined;
 	/** Returns the registered display name for a raw AHP model id. */
 	toModelDisplayName?(rawModelId: string): string | undefined;
 	/** Resolves response details, optionally naming an orchestration model without rewriting billed usage. */
@@ -798,7 +798,8 @@ export interface TurnModelLookup {
 }
 
 export interface ITurnModelInfo {
-	readonly modelId: string;
+	/** Registered UI identity, when the actual provider is available in the current catalog. */
+	readonly modelId?: string;
 	readonly modelName: string;
 	readonly modelConfiguration?: Record<string, unknown>;
 	readonly runtimeModelConfiguration?: IChatSubagentToolInvocationData['runtimeModelConfiguration'];
@@ -807,6 +808,7 @@ export interface ITurnModelInfo {
 /** Minimal model metadata needed to render a turn's response footer (kept small for unit testing). */
 export interface ITurnResponseModel {
 	readonly name: string;
+	readonly providerLabel?: string;
 	readonly pricing?: string;
 }
 
@@ -881,12 +883,10 @@ export function usageInfoToAutoModeResolution(usage: UsageInfo | undefined, reso
 	};
 }
 
-/** Appends the billed model id (e.g. `Auto (raptor-mini)`) when one is supplied. */
-function formatTurnModelName(model: ITurnResponseModel, billedModelId: string | undefined): string {
-	if (billedModelId) {
-		return localize('agentHost.responseDetails.resolvedModel', "{0} ({1})", model.name, billedModelId);
-	}
-	return model.name;
+/** Formats the billed model and its recorded source without consulting a model catalog. */
+export function formatTurnModelName(model: ITurnResponseModel, billedModelId: string | undefined): string {
+	const name = billedModelId ? localize('agentHost.responseDetails.resolvedModel', "{0} ({1})", model.name, billedModelId) : model.name;
+	return model.providerLabel ? localize('agentHost.responseDetails.modelProvider', "{0} ({1})", name, model.providerLabel) : name;
 }
 
 export function chatUsageToSessionCost(usage: IAgentChatUsage): IChatSessionCost {
@@ -1253,7 +1253,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 
 		const usage = usageInfoToChatUsage(turn.usage, lookup?.toModelDisplayName, turn === turns.at(-1) ? contextUsage : undefined);
 		if (usage) {
-			const actualModelId = lookup?.toActualModelId(rawModelId);
+			const actualModelId = lookup?.toActualModelId(rawModelId, turn.usage);
 			if (actualModelId) {
 				usage.actualModelId = actualModelId;
 			}
