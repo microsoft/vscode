@@ -66,6 +66,7 @@ export const SESSION_GRID_FOCUS_COMMANDS = {
 } as const;
 
 export const FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID = 'sessions.focusNewSessionWorkspacePicker';
+export const OPEN_REMOTES_EDITOR_COMMAND_ID = 'sessions.openRemotes';
 
 export const FOCUS_NEW_SESSION_HARNESS_PICKER_COMMAND_ID = 'sessions.focusNewSessionHarnessPicker';
 export const COMPARE_SESSION_MODELS_COMMAND_ID = 'sessions.compareModels';

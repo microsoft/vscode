@@ -26,7 +26,7 @@ import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../
 import { ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { getEnvironmentWorkspaceProvider, getSessionCreationEnvironments, ISessionCreationEnvironment, SessionEnvironmentPicker } from '../../browser/sessionEnvironmentPicker.js';
-import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { OPEN_REMOTES_EDITOR_COMMAND_ID } from '../../../../common/sessionCommands.js';
 
 suite('SessionEnvironmentPicker', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -181,7 +181,7 @@ suite('SessionEnvironmentPicker', () => {
 					{ label: 'Connect via SSH...', separator: false },
 					...(remotesEnabled ? [{ label: '', separator: true }, { label: 'Manage...', separator: false }] : []),
 				],
-				calls: remotesEnabled ? ['hide', `command:${AICustomizationManagementCommands.OpenEditor}:${AICustomizationManagementSection.Remotes}`] : [],
+				calls: remotesEnabled ? ['hide', `command:${OPEN_REMOTES_EDITOR_COMMAND_ID}:`] : [],
 				selected: 'local', expanded: remotesEnabled ? 'false' : 'true',
 			});
 		});

@@ -26,7 +26,7 @@ import { SESSION_WORKSPACE_GROUP_REMOTE } from '../../../services/sessions/commo
 import { ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IAction } from '../../../../base/common/actions.js';
-import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { OPEN_REMOTES_EDITOR_COMMAND_ID } from '../../../common/sessionCommands.js';
 
 export interface ISessionCreationEnvironment {
 	readonly id: string;
@@ -167,7 +167,7 @@ export class SessionEnvironmentPicker extends Disposable {
 					kind: ActionListItemKind.Action,
 					label: localize('environmentPicker.manage', "Manage..."),
 					group: { title: '', icon: Codicon.settingsGear },
-					item: { run: async () => { await this.commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, AICustomizationManagementSection.Remotes); } },
+					item: { run: async () => { await this.commandService.executeCommand(OPEN_REMOTES_EDITOR_COMMAND_ID); } },
 				},
 			);
 		}

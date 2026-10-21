@@ -26,8 +26,8 @@ const remotes: ICustomizationRemote[] = [
 async function render({ container, disposableStore, theme }: ComponentFixtureContext, width: number, operatingSystem = OS, empty = false, failedKinds: readonly RemoteKind[] = []): Promise<void> {
 	container.style.width = `${width}px`;
 	container.style.height = '640px';
-	container.classList.add('ai-customization-management-editor');
-	const content = dom.append(container, dom.$('.contributed-section-container'));
+	container.classList.add('remotes-editor');
+	const content = dom.append(container, dom.$('.remotes-editor-content'));
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: theme,
 		additionalServices: reg => {

@@ -106,7 +106,7 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 				: localize('sessionsChat.environmentPicker.afterWorkspace', "Above the new-session input, Environment is after Workspace. Collapsing session options hides Environment unless the collapsed icon rail is enabled."));
 			content.push(localize('sessionsChat.environmentPicker', "Choose This Computer, Cloud, a remote host, or an available Dev Container. The workspace and harness choices follow the selected environment. Choose Workspace is shown when no workspace is selected. Cloud uses Copilot. Dev Container lists only supported folders and requires a workspace; it does not fall back to Chat. Compare Agents is unavailable when Dev Container is selected. An incompatible workspace is cleared without sending or discarding your prompt. Use Tab or the Left and Right arrow keys to reach Environment, Enter or Space to open it, arrow keys and Enter to select, and Escape to dismiss. Screen-reader optimized mode keeps session options expanded."));
 			if (configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
-				content.push(localize('sessionsChat.environmentPicker.manage', "Choose Manage at the bottom of the Environment picker to open the Remotes page in Customizations and choose which remotes are shown. This does not change your selected environment."));
+				content.push(localize('sessionsChat.environmentPicker.manage', "Choose Manage at the bottom of the Environment picker to open the Remotes dialog and choose which remotes are shown. This does not change your selected environment."));
 			}
 		}
 		const useAgentPickerInAttachContextMenu = configurationService.getValue<boolean>(AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING);

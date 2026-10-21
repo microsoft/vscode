@@ -21,8 +21,6 @@ The Agents Window contributes:
 - Sessions-specific workspace and harness adapters under `vs/sessions/contrib/chat/`;
 - Sessions sidebar entry points under `vs/sessions/contrib/sessions/`.
 
-The desktop Agents Window also contributes Remotes management from the remote Agent Host provider. Its inventory combines SSH configuration, installed WSL distributions, account tunnels, and local Docker Dev Containers with already registered locations. Selection is owned by the existing remote registration services, not by a separate customization setting or picker filter. Discovery is scoped to the visible section; it neither starts containers nor explicitly connects. Registration may still invoke the existing automatic connection policy, and removal may disconnect a provider. Local Docker discovery is a desktop IPC capability, not an extension of the Agent Host Protocol.
-
 Shared workbench code owns reusable discovery and management behavior. Sessions code adapts active-session context and provider-backed harnesses without adding Sessions dependencies to `vs/workbench`.
 
 ## Service boundary
@@ -146,8 +144,6 @@ The shared workbench `ICustomizationMarketplaceInstallService` routes explicit i
 Harnesses without an install provider can install only resources from existing owning services: configured Plugin marketplaces, MCP Gallery, and Connectors. Skill, direct MCP, direct plugin, and other SDK catalog installation kinds require the harness provider and never fall back to a VS Code-owned installer. Copilot provider-owned MCP installation currently supports only the SDK's user scope; workspace `.mcp.json` ownership requires a future SDK workspace scope and must not fall back to VS Code-side policy or installation. Local associations are window-local and derived from exact configured-plugin identity, MCP registry identity, or connector account state; they are not restored as independent installation truth. Connector connection state remains remotely authoritative, and configured Plugin or MCP Gallery discovery can reconstruct exact associations after restart. Catalog presentation metadata is best effort: installed resources always retain fallback type icons, while custom icons appear after the matching catalog entry has been observed in the current window.
 
 Contributed management sections can declare `enablementSettings` to gate visibility and instantiation on any listed setting being enabled, and implement `setVisible` to scope work to the selected section in a visible editor. Without that property the section is ungated; an empty list never enables it. Disabling the last setting disposes its widget and returns to the active home surface. Sections that perform remote discovery must cancel discovery requests when hidden or disposed and must not start discovery while AI features are disabled. Confirmed installs belong to their services rather than the section widget; skill imports revalidate their initiating context and source-enablement lifetime before and after the final move, removing their new target if cancellation occurs during it.
-
-Contributed sections may expose an observable `count` independently of their widget lifetime. Both the management navigation and Sessions sidebar can consume that same count without creating the page or running discovery. Remotes derives it from enabled, platform-visible registered locations rather than the current search results or connection status.
 
 ## Active-session context
 

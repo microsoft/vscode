@@ -13,8 +13,6 @@ import { Action2, registerAction2 } from '../../../../platform/actions/common/ac
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { ContextKeyExpr, ContextKeyExpression, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys.js';
-import { RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { AICustomizationManagementEditor } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { AICustomizationManagementEditorInput } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
@@ -26,7 +24,7 @@ import { agentIcon, instructionsIcon, mcpServerIcon, pluginIcon, skillIcon, hook
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { $, append } from '../../../../base/browser/dom.js';
-import { autorun, IObservable, IReader } from '../../../../base/common/observable.js';
+import { autorun, IReader } from '../../../../base/common/observable.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
@@ -38,7 +36,6 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 import { SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IAICustomizationMcpServerCountService } from './customizationMcpServerCount.js';
 import { OPEN_AI_CUSTOMIZATIONS_COMMAND_ID } from './customizationsConstants.js';
-import { aiCustomizationManagementSectionRegistry } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementSectionRegistry.js';
 
 export interface ICustomizationItemConfig {
 	readonly id: string;
@@ -50,7 +47,6 @@ export interface ICustomizationItemConfig {
 	readonly isMcp?: boolean;
 	readonly isPlugins?: boolean;
 	readonly isTools?: boolean;
-	readonly count?: IObservable<number>;
 	/** Additional `when` clause beyond the standard harness-visibility gate. */
 	readonly when?: ContextKeyExpression;
 }
@@ -92,7 +88,7 @@ export function readCustomizationCount(
 		const state = toolEnablementService.observe(AGENT_HOST_COPILOT_CLI_SESSION_TYPE).read(reader);
 		return countEnabledCustomizationTools(toolsService.toolSets.read(reader), state, reader);
 	}
-	return config.count?.read(reader) ?? 0;
+	return 0;
 }
 
 export function readTotalCustomizationCount(
@@ -171,16 +167,6 @@ export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		label: localize('harnessSettings', "Codex"),
 		icon: Codicon.openai,
 		section: AICustomizationManagementSection.HarnessSettings,
-	},
-	{
-		id: 'sessions.customization.remotes',
-		label: localize('remotes', "Remotes"),
-		icon: Codicon.remote,
-		section: AICustomizationManagementSection.Remotes,
-		when: ContextKeyExpr.and(IsWebContext.negate(), ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true)),
-		get count() {
-			return aiCustomizationManagementSectionRegistry.getDefault(AICustomizationManagementSection.Remotes)?.count;
-		},
 	},
 ];
 

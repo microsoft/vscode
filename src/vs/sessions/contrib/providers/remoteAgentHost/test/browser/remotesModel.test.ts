@@ -7,9 +7,7 @@ import assert from 'assert';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, observableValue } from '../../../../../../base/common/observable.js';
-import { isWindows, OperatingSystem } from '../../../../../../base/common/platform.js';
+import { isWindows } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -26,69 +24,11 @@ import { InMemoryStorageService, IStorageService } from '../../../../../../platf
 import { IAgentHostSessionsProvider } from '../../../../../common/agentHostSessionsProvider.js';
 import { DevContainerAgentHostEnabledSettingId, IDevContainerAgentHostService } from '../../../../../common/devContainerAgentHostService.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { createEnabledRemotesCount, ICustomizationRemote, IRemotesModel, RemotesModel } from '../../browser/remotesModel.js';
+import { RemotesModel } from '../../browser/remotesModel.js';
 
 suite('RemotesModel', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const tunnel: ITunnelInfo = { tunnelId: 'laptop', clusterId: 'eu', name: 'Laptop', protocolVersion: 6, tags: [], hostConnectionCount: 1 };
-
-	for (const operatingSystem of [OperatingSystem.Windows, OperatingSystem.Macintosh, OperatingSystem.Linux]) {
-		test(`counts only enabled, platform-visible remotes without discovery (${operatingSystem})`, () => {
-			const enabled = observableValue(store, false);
-			const remotes = observableValue<readonly ICustomizationRemote[]>(store, [
-				{ id: 'ssh:build', kind: 'ssh', name: 'Build', detail: '', enabled: true },
-				{ id: 'wsl:Ubuntu', kind: 'wsl', name: 'Ubuntu', detail: '', enabled: true },
-				{ id: 'tunnel:laptop', kind: 'tunnel', name: 'Laptop', detail: '', enabled: false },
-				{ id: 'devcontainer:project', kind: 'devContainer', name: 'Project', detail: '', enabled: true },
-			]);
-			let created = 0;
-			let disposed = 0;
-			let refreshes = 0;
-			const count = createEnabledRemotesCount(enabled, () => {
-				created++;
-				return new class extends Disposable implements IRemotesModel {
-					readonly remotes = remotes;
-					async refresh() { refreshes++; return []; }
-					async setEnabled() { throw new Error('Unexpected mutation'); }
-					override dispose() { disposed++; super.dispose(); }
-				}();
-			}, operatingSystem);
-			const observed: number[] = [];
-			store.add(autorun(reader => observed.push(count.read(reader))));
-			const initiallyCreated = created;
-			enabled.set(true, undefined);
-			remotes.set(remotes.get().map(remote => remote.kind === 'ssh' ? { ...remote, enabled: false } : remote), undefined);
-			enabled.set(false, undefined);
-			assert.deepStrictEqual({ observed, initiallyCreated, created, disposed, refreshes }, {
-				observed: operatingSystem === OperatingSystem.Windows ? [0, 3, 2, 0] : [0, 2, 1, 0],
-				initiallyCreated: 0, created: 1, disposed: 1, refreshes: 0,
-			});
-		});
-	}
-
-	test('shares the count model between navigations and releases it after the last observer', () => {
-		let created = 0;
-		let disposed = 0;
-		const count = createEnabledRemotesCount(observableValue(store, true), () => {
-			created++;
-			return new class extends Disposable implements IRemotesModel {
-				readonly remotes = observableValue<readonly ICustomizationRemote[]>(this, []);
-				async refresh(): Promise<never> { throw new Error('Unexpected discovery'); }
-				async setEnabled() { throw new Error('Unexpected mutation'); }
-				override dispose() { disposed++; super.dispose(); }
-			}();
-		}, OperatingSystem.Macintosh);
-		const initialCount = count.get();
-		const snapshot = { count: initialCount, created, disposed };
-		const sidebar = store.add(autorun(reader => count.read(reader)));
-		const dialog = store.add(autorun(reader => count.read(reader)));
-		sidebar.dispose();
-		const afterSidebarClose = disposed;
-		dialog.dispose();
-		assert.deepStrictEqual({ snapshot, created, afterSidebarClose, disposed }, {
-			snapshot: { count: 0, created: 1, disposed: 1 }, created: 2, afterSidebarClose: 1, disposed: 2,
-		});
-	});
 
 	function setup(discover: (token: CancellationToken) => Promise<readonly IDiscoveredDevContainer[]> = async () => [{ id: 'container', name: 'Project', workspaceFolder: '/project' }], restoreProvidersDuringInitialization = false) {
 		const instantiationService = store.add(new TestInstantiationService());

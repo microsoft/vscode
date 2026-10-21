@@ -3,6 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.remotes-editor {
+	box-sizing: border-box;
+	height: 100%;
+	padding-top: var(--vscode-spacing-size400);
+	background: var(--vscode-agentsPanel-background);
+}
+
+.remotes-editor-content {
+	height: 100%;
+}
+
+.remotes-editor-content > .remotes-widget > * {
+	width: min(calc(100% - var(--vscode-spacing-size400) - var(--vscode-spacing-size400)), 840px);
+	margin-inline: auto;
+}
+
+.remotes-editor-disabled {
+	margin: var(--vscode-spacing-size400);
+	color: var(--vscode-descriptionForeground);
+}
+
 .remotes-widget {
 	min-width: 0;
 	color: var(--vscode-foreground);

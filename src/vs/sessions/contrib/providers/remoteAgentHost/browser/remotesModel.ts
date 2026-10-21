@@ -6,7 +6,7 @@
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { isWindows, OperatingSystem } from '../../../../../base/common/platform.js';
 import { getComparisonKey, isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -52,13 +52,6 @@ export interface IRemotesModel extends IDisposable {
 
 export function getVisibleRemoteKinds(operatingSystem: OperatingSystem): readonly RemoteKind[] {
 	return operatingSystem === OperatingSystem.Windows ? ['wsl', 'ssh', 'tunnel', 'devContainer'] : ['ssh', 'tunnel', 'devContainer'];
-}
-
-/** Counts registered locations without discovery, sharing a model only while the count is observed. */
-export function createEnabledRemotesCount(enabled: IObservable<boolean>, createModel: () => IRemotesModel, operatingSystem: OperatingSystem): IObservable<number> {
-	const kinds = getVisibleRemoteKinds(operatingSystem);
-	const model = derived(reader => enabled.read(reader) ? reader.store.add(createModel()) : undefined);
-	return derived(reader => model.read(reader)?.remotes.read(reader).filter(remote => remote.enabled && kinds.includes(remote.kind)).length ?? 0);
 }
 
 type RemoteTarget =

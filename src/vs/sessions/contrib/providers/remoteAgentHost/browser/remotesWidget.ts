@@ -15,7 +15,7 @@ import { IObjectTreeElement, ObjectTreeElementCollapseState } from '../../../../
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { localize } from '../../../../../nls.js';
@@ -28,7 +28,6 @@ import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listSe
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { AccessibilityVerbositySettingId } from '../../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
-import { IAICustomizationManagementSectionWidget } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementSectionRegistry.js';
 import { CUSTOMIZATION_GROUP_HEADER_HEIGHT, CustomizationGroupHeaderRenderer, ICustomizationGroupHeaderEntry } from '../../../../../workbench/contrib/chat/browser/aiCustomization/customizationGroupHeaderRenderer.js';
 import { CustomizationToggle } from '../../../../../workbench/contrib/chat/browser/aiCustomization/customizationToggle.js';
 import { asTreeRenderer, customizationTreeStyles, getCustomizationTreeContentHeight } from '../../../../../workbench/contrib/chat/browser/aiCustomization/customizationTree.js';
@@ -133,7 +132,7 @@ class RemoteRenderer implements IListRenderer<IRemoteEntry, IRemoteTemplate> {
 	}
 }
 
-export class RemotesWidget extends Disposable implements IAICustomizationManagementSectionWidget {
+export class RemotesWidget extends Disposable {
 	readonly domNode: HTMLElement;
 	private readonly tree: WorkbenchObjectTree<RemoteTreeEntry>;
 	private readonly treeContainer: HTMLElement;
@@ -161,8 +160,6 @@ export class RemotesWidget extends Disposable implements IAICustomizationManagem
 		super();
 		this._register(model);
 		this.kinds = getVisibleRemoteKinds(operatingSystem);
-		container.classList.add('customization-list-content-container');
-		this._register(toDisposable(() => container.classList.remove('customization-list-content-container')));
 		this.domNode = dom.append(container, dom.$('.mcp-list-widget.remotes-widget'));
 		const header = dom.append(this.domNode, dom.$('.section-title-header'));
 		const titleRow = dom.append(header, dom.$('.section-title-row'));

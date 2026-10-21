@@ -8,6 +8,10 @@
 
 Shared Agent Host adaptation is specified in [AGENT_HOST_SESSIONS_PROVIDER.md](../agentHost/AGENT_HOST_SESSIONS_PROVIDER.md).
 
+## Remotes management
+
+The desktop Agents Window owns a standalone Remotes modal editor, opened by Manage in the Environment picker. It is independent of the Customizations editor and its sidebar. The modal combines SSH configuration, installed WSL distributions, account tunnels, local Docker Dev Containers, and already registered locations. Existing remote registration services own show/hide state; there is no separate customization setting or picker filter. Discovery is scoped to the visible modal and does not explicitly connect or start containers. Registration may invoke the existing automatic-connection policy, and hiding a location may disconnect its provider without deleting its container. Local Docker discovery is a desktop IPC capability, not an Agent Host Protocol extension.
+
 ## Registration
 
 Kind-specific contributions create and register one provider for each reusable remote host they own, disposing it when that host is removed. Cloud sandbox environments instead register internal session backends under the logical Cloud creation provider. These backends retain per-environment connections, caches, and routing identities but do not advertise independent workspace or session creation targets. The workbench-owned [RemoteAgentHostContribution](../../../../workbench/contrib/chat/browser/remoteAgentHost/remoteAgentHostChatContribution.ts) observes connections for shared filesystem, agent-discovery, model, terminal, and authentication wiring. The Agents Window owns host management and its native provider adapters; the Editor Window uses this shared integration for cloud sandboxes.

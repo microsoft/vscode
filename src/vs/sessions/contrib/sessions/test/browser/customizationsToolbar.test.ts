@@ -10,25 +10,13 @@ import { Action, IAction } from '../../../../../base/common/actions.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, derived, observableValue } from '../../../../../base/common/observable.js';
-import { isWeb } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
-import { isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
-import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
-import { Context } from '../../../../../platform/contextkey/browser/contextKeyService.js';
-import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IAICustomizationItemsModel } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
-import { aiCustomizationManagementSectionRegistry } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementSectionRegistry.js';
-import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { AICustomizationManagementSection } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IAgentHostToolSetEnablementService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { ICustomizationMigrationHint, ICustomizationMigrationService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
@@ -36,82 +24,14 @@ import { ILanguageModelToolsService, IToolData, IToolSet } from '../../../../../
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IAICustomizationMcpServerCountService } from '../../browser/customizationMcpServerCount.js';
-import { CUSTOMIZATION_ITEMS, CustomizationsToolbarContribution, CustomizationLinkViewItem, readCustomizationCount } from '../../browser/customizationsToolbar.contribution.js';
+import { CUSTOMIZATION_ITEMS, CustomizationLinkViewItem, readCustomizationCount } from '../../browser/customizationsToolbar.contribution.js';
 import { CustomizationsNavigationState } from '../../browser/customizationsNavigationState.js';
-import { Menus } from '../../../../browser/menus.js';
 
 suite('Customizations toolbar', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('renders the shared Remotes count and hides its badge when zero', () => {
-		const count = observableValue(disposables, 0);
-		const config = CUSTOMIZATION_ITEMS.find(item => item.section === AICustomizationManagementSection.Remotes)!;
-		disposables.add(aiCustomizationManagementSectionRegistry.register({
-			id: AICustomizationManagementSection.Remotes,
-			label: 'Remotes', description: '', icon: Codicon.remote, count,
-			supportsHarness: () => true,
-			create: () => { throw new Error('A badge must not create the section widget'); },
-		}));
-		const item = disposables.add(new CustomizationLinkViewItem(
-			disposables.add(new Action(config.id, config.label)),
-			{}, config,
-			new class extends mock<IAICustomizationItemsModel>() { },
-			new class extends mock<IAICustomizationMcpServerCountService>() { },
-			new class extends mock<ILanguageModelToolsService>() { },
-			new class extends mock<IAgentHostToolSetEnablementService>() { },
-		));
-		const container = mainWindow.document.createElement('div');
-		item.render(container);
-		const badges: { text: string | null; hidden: boolean }[] = [];
-		for (const value of [0, 3, 1, 0]) {
-			count.set(value, undefined);
-			const badge = container.querySelector('.customization-link-counts')!;
-			badges.push({ text: badge.textContent, hidden: badge.classList.contains('hidden') });
-		}
-		assert.deepStrictEqual(badges, [
-			{ text: '', hidden: true },
-			{ text: '3', hidden: false },
-			{ text: '1', hidden: false },
-			{ text: '', hidden: true },
-		]);
-	});
-
-	test('contributes a gated Remotes shortcut to the sidebar Customizations menu', () => {
-		const contextKeys = disposables.add(new MockContextKeyService());
-		const descriptor = upcastPartial<IHarnessDescriptor>({ id: 'test', label: 'Test', icon: Codicon.extensions });
-		disposables.add(new CustomizationsToolbarContribution(
-			new class extends mock<IActionViewItemService>() {
-				override register() { return Disposable.None; }
-			}(),
-			disposables.add(new TestInstantiationService()),
-			new class extends mock<ICustomizationHarnessService>() {
-				override readonly activeHarness = constObservable('test');
-				override readonly availableHarnesses = constObservable([descriptor]);
-				override getActiveDescriptor() { return descriptor; }
-			}(),
-			contextKeys,
-		));
-		const config = CUSTOMIZATION_ITEMS.find(item => item.section === AICustomizationManagementSection.Remotes);
-		assert.ok(config);
-		const item = MenuRegistry.getMenuItems(Menus.SidebarCustomizations).filter(isIMenuItem).find(item => item.command.id === config.id);
-		assert.ok(item?.when);
-		const visible = (remotes: boolean, chat: boolean, sectionVisible = true) => {
-			const context = new Context(0, null);
-			context.setValue(`config.${RemoteAgentHostsEnabledSettingId}`, remotes);
-			context.setValue(ChatContextKeys.enabled.key, chat);
-			context.setValue('sessionsCustomizationSectionVisible.remotes', sectionVisible);
-			return item.when!.evaluate(context);
-		};
-		assert.deepStrictEqual({
-			id: config.id,
-			label: config.label,
-			registered: !!CommandsRegistry.getCommand(config.id),
-			supported: contextKeys.getContextKeyValue('sessionsCustomizationSectionVisible.remotes'),
-			visible: [visible(true, true), visible(false, true), visible(true, false), visible(true, true, false)],
-		}, {
-			id: 'sessions.customization.remotes', label: 'Remotes', registered: true, supported: true,
-			visible: [!isWeb, false, false, false],
-		});
+	test('does not include standalone Remotes management in Customizations', () => {
+		assert.ok(CUSTOMIZATION_ITEMS.every(item => item.id !== 'sessions.customization.remotes'));
 	});
 
 	test('includes enabled Tools in customization totals', () => {
