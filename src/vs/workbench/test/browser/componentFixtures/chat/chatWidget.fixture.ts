@@ -1676,7 +1676,18 @@ async function renderPersistentToolPreview(context: ComponentFixtureContext, sta
 	}
 }
 
-async function renderPersistentVerbosityComparison(context: ComponentFixtureContext, verbosity: ChatProgressVerbosity, complete: boolean): Promise<void> {
+interface IVerbosityComparisonOptions {
+	/** Opens the conversation section. */
+	readonly expand?: boolean;
+	/** Names the running tool call with a file link, which renders beside the section's header button. */
+	readonly linkedTitle?: boolean;
+	/** Ends the running response with reasoning that has a summary heading. */
+	readonly reasoningLast?: boolean;
+}
+
+async function renderPersistentVerbosityComparison(context: ComponentFixtureContext, verbosity: ChatProgressVerbosity, complete: boolean, options: IVerbosityComparisonOptions = {}): Promise<void> {
+	const patchComplete = complete || !!options.reasoningLast;
+	const runningPatchMessage = options.linkedTitle ? 'Updating [progress.ts](file:///workspace/src/progress.ts)' : 'Updating the progress renderer...';
 	await renderChatWidget(context, {
 		width: 620,
 		height: 340,
@@ -1692,12 +1703,20 @@ async function renderPersistentVerbosityComparison(context: ComponentFixtureCont
 				{ kind: 'thinking', text: '**Reviewing the progress renderer**\nCheck the tool and reasoning paths before making changes.' },
 				{ kind: 'tool', toolId: 'read_file', displayName: 'Read file', invocationMessage: 'Read `src/progress.ts`', complete: true },
 				{ kind: 'tool', toolId: 'search_workspace', displayName: 'Search workspace', invocationMessage: 'Found 12 progress renderer tests', complete: true },
-				{ kind: 'tool', toolId: 'apply_patch', displayName: 'Apply patch', invocationMessage: complete ? 'Updated the progress renderer' : 'Updating the progress renderer...', complete },
+				{ kind: 'tool', toolId: 'apply_patch', displayName: 'Apply patch', invocationMessage: patchComplete ? 'Updated the progress renderer' : runningPatchMessage, complete: patchComplete },
+				...(options.reasoningLast ? [{ kind: 'thinking' as const, text: '**Checking the related tests**\nConfirm the tests cover the tool and reasoning paths.' }] : []),
 				...(complete ? [{ kind: 'markdown' as const, text: 'Updated the progress renderer and checked the related tests.' }] : []),
 			],
 			responseComplete: complete,
 		}],
 	});
+	if (options.expand) {
+		const button = context.container.querySelector<HTMLElement>('.chat-thinking-conversation > .chat-used-context-label .monaco-button');
+		if (!button) {
+			throw new Error('Conversation progress must render a collapsible section');
+		}
+		button.click();
+	}
 }
 
 async function renderToolFailures(context: ComponentFixtureContext, grouped: boolean, progress = ChatProgressAnimation.Draw, withDenied = false): Promise<void> {
@@ -2719,6 +2738,11 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 			VerboseCompleted: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Verbose, true) }),
 			CompactStreaming: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Compact, false) }),
 			CompactCompleted: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Compact, true) }),
+			ConversationStreaming: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Conversation, false) }),
+			ConversationStreamingLinkedTitle: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Conversation, false, { linkedTitle: true }) }),
+			ConversationStreamingReasoning: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Conversation, false, { reasoningLast: true }) }),
+			ConversationCompleted: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Conversation, true) }),
+			ConversationExpanded: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Conversation, true, { expand: true }) }),
 		}),
 		CollapseHandoff: defineThemedFixtureGroup({
 			ThinkingToMarkdown: defineComponentFixture({ labels: { kind: 'animated' }, virtualTime: { enabled: false }, render: context => renderPersistentProgressHandoff(context, true) }),

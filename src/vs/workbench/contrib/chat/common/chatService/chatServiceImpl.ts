@@ -1275,6 +1275,8 @@ export class ChatService extends Disposable implements IChatService {
 				streamingResponseCompletedAt = undefined;
 			};
 			const processProgress = (progressArray: readonly IChatProgress[], isComplete: boolean) => {
+				// The first observation replays whatever the session did before it was watched.
+				const restoredProgress = wasComplete === undefined;
 				const justCompleted = wasComplete === false && isComplete;
 				wasComplete = isComplete;
 
@@ -1287,7 +1289,7 @@ export class ChatService extends Disposable implements IChatService {
 				if (streamingRequest && progressArray.length > lastProgressLength) {
 					const newProgress = progressArray.slice(lastProgressLength);
 					for (const progress of newProgress) {
-						model?.acceptResponseProgress(streamingRequest, progress);
+						model?.acceptResponseProgress(streamingRequest, progress, undefined, restoredProgress);
 					}
 					lastProgressLength = progressArray.length;
 				}
@@ -2596,7 +2598,7 @@ export class ChatService extends Disposable implements IChatService {
 			model.acceptResponseProgress(request, { content: new MarkdownString(response.message), kind: 'markdownContent' });
 		} else {
 			for (const part of response.message) {
-				model.acceptResponseProgress(request, part, true);
+				model.acceptResponseProgress(request, part, true, true /* restored */);
 			}
 		}
 		model.setResponse(request, response.result || {});

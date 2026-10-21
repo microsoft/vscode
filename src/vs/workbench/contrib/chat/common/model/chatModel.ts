@@ -377,7 +377,7 @@ export interface IChatResponseModel {
 	setResult(result: IChatAgentResult): void;
 	setEditApplied(edit: IChatTextEditGroup, editCount: number): boolean;
 	resolveInlineReference(resolveId: string, resolvedReference: IChatContentInlineReference): boolean;
-	updateContent(progress: IChatProgressResponseContent | IChatTextEdit | IChatNotebookEdit | IChatTask | IChatExternalToolInvocationUpdate, quiet?: boolean): void;
+	updateContent(progress: IChatProgressResponseContent | IChatTextEdit | IChatNotebookEdit | IChatTask | IChatExternalToolInvocationUpdate, quiet?: boolean, restored?: boolean): void;
 	/**
 	 * Adopts any partially-undo {@link response} as the {@link entireResponse}.
 	 * Only valid when {@link isComplete}. This is needed because otherwise an
@@ -1001,7 +1001,7 @@ export class Response extends AbstractResponse implements IDisposable {
 		this._contentChanged(true);
 	}
 
-	updateContent(progress: IChatProgressResponseContent | IChatTextEdit | IChatNotebookEdit | IChatTask | IChatExternalToolInvocationUpdate, quiet?: boolean): void {
+	updateContent(progress: IChatProgressResponseContent | IChatTextEdit | IChatNotebookEdit | IChatTask | IChatExternalToolInvocationUpdate, quiet?: boolean, restored?: boolean): void {
 		// Nested subagent progress renders inside its parent card, so it neither ends the parent's
 		// reasoning section nor its reasoning timer.
 		if (progress.kind !== 'thinking' && !isNestedSubagentResponsePart(progress)) {
@@ -1056,7 +1056,8 @@ export class Response extends AbstractResponse implements IDisposable {
 			const isEmpty = (s: string) => s.length === 0;
 			if (isEmpty(currText)) {
 				this.finalizeReasoningDuration();
-			} else if (!this._activeReasoning) {
+			} else if (!this._activeReasoning && !restored) {
+				// Replayed history keeps its recorded timing; this clock only measures live reasoning.
 				this._activeReasoning = { part: progress, startedAt: Date.now() };
 			}
 
@@ -1119,6 +1120,10 @@ export class Response extends AbstractResponse implements IDisposable {
 			});
 
 		} else if (progress.kind === 'toolInvocation') {
+			// An invocation rebuilt from replayed history was not seen starting.
+			if (restored && progress instanceof ChatToolInvocation) {
+				progress.forgetTiming();
+			}
 			this._toolInvocationDisposables.add(autorun(reader => {
 				if (!IChatToolInvocation.isComplete(progress)) {
 					progress.state.read(reader);
@@ -1142,7 +1147,7 @@ export class Response extends AbstractResponse implements IDisposable {
 				}
 			});
 		} else if (progress.kind === 'externalToolInvocationUpdate') {
-			this._handleExternalToolInvocationUpdate(progress);
+			this._handleExternalToolInvocationUpdate(progress, restored);
 			this._contentChanged(quiet);
 		} else if (progress.kind === 'progressMessage' && progress.id !== undefined) {
 			const idx = this._responseParts.findIndex(p => p.kind === 'progressMessage' && p.id === progress.id);
@@ -1187,14 +1192,16 @@ export class Response extends AbstractResponse implements IDisposable {
 	}
 
 	/**
-	 * Persists the duration of the active reasoning interval.
+	 * Persists the start and duration of the active reasoning interval.
 	 */
 	finalizeReasoningDuration(): void {
 		if (!this._activeReasoning) {
 			return;
 		}
 
-		this._activeReasoning.part.reasoningDurationMs = Math.max(0, Date.now() - this._activeReasoning.startedAt);
+		const { part, startedAt } = this._activeReasoning;
+		part.reasoningStartedAt = startedAt;
+		part.reasoningDurationMs = Math.max(0, Date.now() - startedAt);
 		this._activeReasoning = undefined;
 	}
 
@@ -1252,7 +1259,7 @@ export class Response extends AbstractResponse implements IDisposable {
 		this._responseParts.push({ kind: 'notebookEditGroup', uri, edits: [edits], done, isExternalEdit, ...(editMetadata ? { editMetadata: [editMetadata] } : {}) });
 	}
 
-	private _handleExternalToolInvocationUpdate(progress: IChatExternalToolInvocationUpdate): void {
+	private _handleExternalToolInvocationUpdate(progress: IChatExternalToolInvocationUpdate, restored?: boolean): void {
 		// Look for existing invocation in the response parts
 		const existingInvocation = this._responseParts.findLast(
 			(part): part is ChatToolInvocation => part.kind === 'toolInvocation' && part.toolCallId === progress.toolCallId
@@ -1294,6 +1301,9 @@ export class Response extends AbstractResponse implements IDisposable {
 			{},
 			undefined // chatRequestId
 		);
+		if (restored) {
+			invocation.forgetTiming();
+		}
 
 		if (progress.isComplete) {
 			// Already completed on first push
@@ -1723,9 +1733,10 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 
 	/**
 	 * Apply a progress update to the actual response content.
+	 * @param restored The update replays recorded history rather than live progress.
 	 */
-	updateContent(responsePart: IChatProgressResponseContent | IChatTextEdit | IChatNotebookEdit | IChatExternalToolInvocationUpdate, quiet?: boolean) {
-		this._response.updateContent(responsePart, quiet);
+	updateContent(responsePart: IChatProgressResponseContent | IChatTextEdit | IChatNotebookEdit | IChatExternalToolInvocationUpdate, quiet?: boolean, restored?: boolean) {
+		this._response.updateContent(responsePart, quiet, restored);
 	}
 
 	resolveInlineReference(resolveId: string, resolvedReference: IChatContentInlineReference): boolean {
@@ -3654,7 +3665,10 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._onDidChange.fire({ kind: 'addRequest', request });
 	}
 
-	acceptResponseProgress(request: ChatRequestModel, progress: IChatProgress, quiet?: boolean): void {
+	/**
+	 * @param restored The progress replays recorded history, so it is not timed by the local clock.
+	 */
+	acceptResponseProgress(request: ChatRequestModel, progress: IChatProgress, quiet?: boolean, restored?: boolean): void {
 		if (!request.response) {
 			request.response = new ChatResponseModel({
 				responseContent: [],
@@ -3678,12 +3692,12 @@ export class ChatModel extends Disposable implements IChatModel {
 			this._onDidChange.fire({ kind: 'move', target: progress.uri, range: progress.range });
 		} else if (progress.kind === 'codeblockUri' && progress.isEdit) {
 			request.response.addUndoStop({ id: progress.undoStopId ?? generateUuid(), kind: 'undoStop' });
-			request.response.updateContent(progress, quiet);
+			request.response.updateContent(progress, quiet, restored);
 		} else if (progress.kind === 'progressTaskResult') {
 			// Should have been handled upstream, not sent to model
 			this.logService.error(`Couldn't handle progress: ${JSON.stringify(progress)}`);
 		} else {
-			request.response.updateContent(progress, quiet);
+			request.response.updateContent(progress, quiet, restored);
 		}
 	}
 

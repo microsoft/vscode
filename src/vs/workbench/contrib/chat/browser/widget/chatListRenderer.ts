@@ -150,7 +150,8 @@ export interface IChatListItemTemplate {
 	currentElement?: ChatTreeItem;
 	renderedReadOnly?: boolean;
 	renderedPersistentProgress?: boolean;
-	renderedCollapsedToolChains?: boolean;
+	/** The persistent progress verbosity the template was rendered with, if persistent progress was on. */
+	renderedProgressVerbosity?: ChatProgressVerbosity;
 	/**
 	 * The parts that are currently rendered in the template. Note that these are purposely not added to elementDisposables-
 	 * they are disposed in a separate cycle after diffing with the next content to render.
@@ -1654,7 +1655,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.currentElement = undefined;
 		templateData.renderedReadOnly = undefined;
 		templateData.renderedPersistentProgress = undefined;
-		templateData.renderedCollapsedToolChains = undefined;
+		templateData.renderedProgressVerbosity = undefined;
 		templateData.completedResponseDisclosureOpen = undefined;
 		templateData.completedResponseCollapseEndIndex = undefined;
 		templateData.wasResponseComplete = undefined;
@@ -1663,8 +1664,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private renderChatTreeItem(element: ChatTreeItem, index: number, templateData: IChatListItemTemplate): void {
 		const readOnly = !!this.rendererOptions.readOnly;
 		const persistentProgress = this.rendererOptions.renderStyle !== 'minimal' && this.isPersistentProgressEnabled();
-		const collapsedToolChains = persistentProgress && this.configService.getValue<ChatProgressVerbosity>(ChatConfiguration.PersistentProgressVerbosity) !== ChatProgressVerbosity.Verbose;
-		if (templateData.currentElement && (templateData.currentElement.id !== element.id || templateData.renderedReadOnly !== readOnly || templateData.renderedPersistentProgress !== persistentProgress || templateData.renderedCollapsedToolChains !== collapsedToolChains)) {
+		const progressVerbosity = persistentProgress ? this.getPersistentProgressVerbosity() : undefined;
+		if (templateData.currentElement && (templateData.currentElement.id !== element.id || templateData.renderedReadOnly !== readOnly || templateData.renderedPersistentProgress !== persistentProgress || templateData.renderedProgressVerbosity !== progressVerbosity)) {
 			this.traceLayout('renderChatTreeItem', `Rendering a different element or presentation state into the template, index=${index}`);
 			const mappedTemplateData = this.templateDataByRequestId.get(templateData.currentElement.id);
 			if (mappedTemplateData && (mappedTemplateData.currentElement?.id !== templateData.currentElement.id)) {
@@ -1677,7 +1678,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.currentElement = element;
 		templateData.renderedReadOnly = readOnly;
 		templateData.renderedPersistentProgress = persistentProgress;
-		templateData.renderedCollapsedToolChains = collapsedToolChains;
+		templateData.renderedProgressVerbosity = progressVerbosity;
 		// Don't update the template map for sticky scroll renders - their templates
 		// get disposed independently and would leave stale references.
 		if (!dom.findParentWithClass(templateData.rowContainer, 'monaco-tree-sticky-row')) {
@@ -2065,6 +2066,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private isPersistentProgressEnabled(): boolean {
 		return this.rendererOptions.renderStyle !== 'minimal'
 			&& getConfiguredProgressAnimation(this.configService, this.logService) !== ChatProgressAnimation.Off;
+	}
+
+	/** The persistent progress verbosity setting, treating unknown values as the Compact default. */
+	private getPersistentProgressVerbosity(): ChatProgressVerbosity {
+		const verbosity = this.configService.getValue<ChatProgressVerbosity>(ChatConfiguration.PersistentProgressVerbosity);
+		return verbosity === ChatProgressVerbosity.Verbose || verbosity === ChatProgressVerbosity.Conversation ? verbosity : ChatProgressVerbosity.Compact;
+	}
+
+	/** Whether persistent progress collapses reasoning and tool calls together into conversation sections. */
+	private isConversationProgress(): boolean {
+		return this.isPersistentProgressEnabled() && this.getPersistentProgressVerbosity() === ChatProgressVerbosity.Conversation;
 	}
 
 	private shouldRenderProgressAtBottomOfResponse(): boolean {
@@ -3474,7 +3486,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					renderedParts[contentIndex] = alreadyRenderedPart;
 					return;
 				} else if (!rebuildThinkingGroup && alreadyRenderedPart instanceof ChatThinkingContentPart
-					&& (!this.isPersistentProgressEnabled() || (partToRender.kind !== 'working' && alreadyRenderedPart.isToolChain === (partToRender.kind !== 'thinking')))
+					&& (!this.isPersistentProgressEnabled() || (partToRender.kind !== 'working' && (this.isConversationProgress() || alreadyRenderedPart.isToolChain === (partToRender.kind !== 'thinking'))))
 					&& pinToThinking) {
 					// keep existing thinking part if we are pinning it (combining tool calls into it)
 					renderedParts[contentIndex] = alreadyRenderedPart;
@@ -3527,6 +3539,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				content: contentForThisTurn,
 				contentIndex: contentIndex,
 				suppressProgressShimmer: this.isPersistentProgressEnabled() && this.rendererOptions.renderStyle !== 'minimal',
+				isConversation: this.isConversationProgress(),
 				progressMessageAction: this.rendererOptions.progressMessageAction,
 				onWillCollapse: this.delegate.preserveScrollPosition,
 				container: templateData.rowContainer,
@@ -4093,7 +4106,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				&& (isParentSubagentTool(content) || isImageGenerationToolInvocation(content)) && !!this.getThinkingPartOwner(renderedPart);
 			const groupsStandaloneTool = renderedPart instanceof ChatToolInvocationPart
 				&& this.isPersistentProgressEnabled()
-				&& this.configService.getValue<ChatProgressVerbosity>(ChatConfiguration.PersistentProgressVerbosity) !== ChatProgressVerbosity.Verbose
+				&& this.getPersistentProgressVerbosity() === ChatProgressVerbosity.Compact
 				&& this.shouldGroupToolInvocation(contentToRender, i, element);
 			const groupsImageTool = renderedPart instanceof ChatToolInvocationPart
 				&& (content.kind === 'toolInvocation' || content.kind === 'toolInvocationSerialized')
@@ -4230,7 +4243,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			|| !this.shouldPinPart(tool, element)) {
 			return false;
 		}
-		if (!this.isPersistentProgressEnabled() || this.configService.getValue<ChatProgressVerbosity>(ChatConfiguration.PersistentProgressVerbosity) === ChatProgressVerbosity.Verbose) {
+		// Only Compact leaves a lone tool standalone; other layouts group every pinnable tool.
+		if (!this.isPersistentProgressEnabled() || this.getPersistentProgressVerbosity() !== ChatProgressVerbosity.Compact) {
 			return true;
 		}
 
@@ -4271,7 +4285,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private getLastThinkingPartForGroupedItem(context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): { part: ChatThinkingContentPart | undefined; separatedFromReasoning: boolean } {
 		const lastThinking = this.getLastThinkingPart(templateData.renderedParts?.slice(0, context.contentIndex));
 		const displayMode = getEffectiveThinkingDisplayMode(this.configService, this.contextKeyService, context.readOnly);
-		if (lastThinking && (this.isPersistentProgressEnabled() ? !lastThinking.isToolChain : lastThinking.hasReasoningContent() && shouldStartNewCollapsedThinkingGroup(displayMode, 'reasoning', 'items'))) {
+		// Conversation sections keep tool calls with the reasoning around them.
+		if (lastThinking && !context.isConversation && (this.isPersistentProgressEnabled() ? !lastThinking.isToolChain : lastThinking.hasReasoningContent() && shouldStartNewCollapsedThinkingGroup(displayMode, 'reasoning', 'items'))) {
 			this.finalizeCurrentThinkingPart(context, templateData);
 			return { part: undefined, separatedFromReasoning: true };
 		}
@@ -4301,7 +4316,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			if (isNestedSubagentContent(nextPart)) {
 				continue;
 			}
-			if (context.suppressProgressShimmer && nextPart.kind !== 'undoStop'
+			if (context.suppressProgressShimmer && !context.isConversation && nextPart.kind !== 'undoStop'
 				&& (context.content[context.contentIndex]?.kind === 'thinking') !== (nextPart.kind === 'thinking')) {
 				return true;
 			}
@@ -4525,8 +4540,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private finalizeThinkingPart(thinking: ChatThinkingContentPart, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): void {
 		if (context.suppressProgressShimmer) {
 			// A persistent preview collapses on its own as content streams in, so wait for a keyboard
-			// user to leave it rather than making the content they are on inert.
-			thinking.collapseContentWhenUnfocused();
+			// user to leave it rather than making the content they are on inert. Conversation sections
+			// start collapsed, so one that is open was opened by the user and stays open.
+			if (!context.isConversation) {
+				thinking.collapseContentWhenUnfocused();
+			}
 		} else if (getEffectiveThinkingDisplayMode(this.configService, this.contextKeyService, context.readOnly) === ThinkingDisplayMode.CollapsedPreview) {
 			thinking.collapseContent();
 		}
@@ -4543,7 +4561,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			if (isEmptyThinkingPart(content)) {
 				for (const part of templateData.renderedParts?.slice(0, context.contentIndex) ?? []) {
 					if (part instanceof ChatThinkingContentPart && part.getIsActive()) {
-						this.finalizeThinkingPart(part, context, templateData);
+						// The marker only ends the reasoning; a conversation section continues with the tool calls that follow.
+						if (context.isConversation) {
+							part.resetId();
+						} else {
+							this.finalizeThinkingPart(part, context, templateData);
+						}
 					}
 				}
 				return this.renderNoContent(other => isEmptyThinkingPart(other));
@@ -5025,7 +5048,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				thinkingPart.removeMaterializedItem(toolInvocation.toolCallId);
 				(templateData.movedOutToolParts ??= new DisposableMap()).set(toolInvocation.toolCallId, createdPart);
 			} else {
-				thinkingPart.removeLazyItem(toolInvocation.toolId);
+				thinkingPart.removeLazyItem(toolInvocation.toolId, toolInvocation.toolCallId);
 				const { domNode, part: createdPart } = createToolPart();
 				part = createdPart;
 				(templateData.movedOutToolParts ??= new DisposableMap()).set(toolInvocation.toolCallId, createdPart);
@@ -5774,11 +5797,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// (i.e., there are subsequent parts that won't be pinned to this thinking part)
 		const element = isResponseVM(context.element) ? context.element : undefined;
 		const streamingCompleted = this.isThinkingLookAheadComplete(context, element);
-		const toolChain = !!context.suppressProgressShimmer && context.content[context.contentIndex]?.kind !== 'thinking';
+		const toolChain = !!context.suppressProgressShimmer && !context.isConversation && context.content[context.contentIndex]?.kind !== 'thinking';
 		const thinkingContext = toolChain ? { ...context, isToolChain: true } : context;
 		const renderedPrefix = templateData.renderedParts?.slice(0, context.contentIndex);
 		const lastThinkingPart = this.getLastThinkingPart(renderedPrefix);
-		if (lastThinkingPart && (context.suppressProgressShimmer ? lastThinkingPart.isToolChain !== toolChain
+		if (lastThinkingPart && !context.isConversation && (context.suppressProgressShimmer ? lastThinkingPart.isToolChain !== toolChain
 			: lastThinkingPart.hasGroupedItems() && shouldStartNewCollapsedThinkingGroup(getEffectiveThinkingDisplayMode(this.configService, this.contextKeyService, context.readOnly), 'items', 'reasoning'))) {
 			this.finalizeCurrentThinkingPart(context, templateData);
 		}
@@ -5790,7 +5813,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				lastThinking?.finalizeTitleIfDefault();
 				return this.renderNoContent(other => content.kind === other.kind, lastThinking);
 			}
-			let lastPart: IChatContentPart | undefined;
+			// A conversation section keeps collecting reasoning between response text.
+			let lastPart: IChatContentPart | undefined = context.isConversation ? this.getLastThinkingPart(renderedPrefix) : undefined;
 			for (const item of content.value) {
 				if (item) {
 					const lastThinkingPart = lastPart instanceof ChatThinkingContentPart && lastPart.getIsActive() ? lastPart : undefined;

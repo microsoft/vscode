@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY, COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, IManagedSettingsService, NullManagedSettingsService, TemporaryDefaultToLocalHarnessSettingId } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { AccountPolicyGateState, IAccountPolicyGateService } from '../../../../../services/policies/common/accountPolicyService.js';
-import { spy, stub } from 'sinon';
+import { spy, stub, useFakeTimers } from 'sinon';
 import { DeferredPromise, disposableTimeout, installFakeRunWhenIdle, raceTimeout, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
@@ -69,6 +69,7 @@ import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatModel, IChatModel, ISerializableChatData, ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
+import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatSessionOperationLog } from '../../../common/model/chatSessionOperationLog.js';
 import { IChatSessionIndex } from '../../../common/model/chatSessionStore.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
@@ -76,7 +77,7 @@ import { ChatViewModel, isPendingDividerVM, isRequestVM, isResponseVM } from '..
 import { ChatAgentService, IChatAgent, IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
 import { IConfiguredHooksInfo, IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
-import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { MockChatVariablesService } from '../mockChatVariables.js';
 import { MockPromptsService } from '../promptSyntax/service/mockPromptsService.js';
 import { MockLanguageModelToolsService } from '../tools/mockLanguageModelToolsService.js';
@@ -4606,6 +4607,86 @@ suite('ChatService', () => {
 			await waitForResponse(ref.object, requestId, 'Refreshed');
 
 			assert.deepStrictEqual(ref.object.getRequests().map(request => [request.id, request.response?.response.toString()]), [[requestId, 'Refreshed']]);
+		});
+
+		test('times live reasoning but not reasoning replayed from history', async () => {
+			const progress = observableValue<IChatProgress[]>('progress', []);
+			const isComplete = observableValue('isComplete', false);
+			const { resource } = setupRemoteProvider({
+				history: [
+					{ type: 'request', prompt: 'Earlier', participant: remoteScheme },
+					{ type: 'response', parts: [{ kind: 'thinking', id: 'restored', value: 'Restored reasoning' }, { kind: 'markdownContent', content: new MarkdownString('Earlier answer') }], participant: remoteScheme },
+					{ type: 'request', prompt: 'Now', participant: remoteScheme },
+				],
+				progressObs: progress,
+				isCompleteObs: isComplete,
+				interruptActiveResponseCallback: async () => true,
+			});
+			const service = createChatService();
+			instantiationService.stub(IChatService, service);
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+			await waitForRequestCount(ref.object, 2);
+
+			const clock = useFakeTimers({ now: 5000, toFake: ['Date'] });
+			try {
+				progress.set([{ kind: 'thinking', id: 'live', value: 'Live reasoning' }], undefined);
+				clock.tick(1500);
+				progress.set([{ kind: 'thinking', id: 'live', value: 'Live reasoning' }, { kind: 'markdownContent', content: new MarkdownString('Answer') }], undefined);
+			} finally {
+				clock.restore();
+			}
+			isComplete.set(true, undefined);
+
+			assert.deepStrictEqual(ref.object.getRequests().map(request => request.response?.response.value.flatMap(part => part.kind === 'thinking'
+				? [{ id: part.id, startedAt: part.reasoningStartedAt, durationMs: part.reasoningDurationMs }]
+				: [])), [
+				[{ id: 'restored', startedAt: undefined, durationMs: undefined }],
+				[{ id: 'live', startedAt: 5000, durationMs: 1500 }],
+			]);
+		});
+
+		test('does not time work already underway when it reconnects to a running turn', async () => {
+			const runningTool = new ChatToolInvocation({ invocationMessage: 'Reading a.ts' }, { id: 'read_file', displayName: 'Read file', modelDescription: 'Read file', source: ToolDataSource.Internal }, 'running', undefined, {});
+			const snapshot: IChatProgress[] = [{ kind: 'thinking', id: 'underway', value: 'Reasoning before the reconnect' }, runningTool];
+			const progress = observableValue<IChatProgress[]>('progress', snapshot);
+			const isComplete = observableValue('isComplete', false);
+			const { resource } = setupRemoteProvider({
+				history: [{ type: 'request', prompt: 'Now', participant: remoteScheme }],
+				progressObs: progress,
+				isCompleteObs: isComplete,
+				interruptActiveResponseCallback: async () => true,
+			});
+			const service = createChatService();
+			instantiationService.stub(IChatService, service);
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+			await waitForRequestCount(ref.object, 1);
+
+			const clock = useFakeTimers({ now: 5000, toFake: ['Date'] });
+			try {
+				progress.set([...snapshot, { kind: 'markdownContent', content: new MarkdownString('Between') }, { kind: 'thinking', id: 'live', value: 'Live reasoning' }], undefined);
+				clock.tick(1500);
+				progress.set([...progress.get(), { kind: 'markdownContent', content: new MarkdownString('Answer') }], undefined);
+			} finally {
+				clock.restore();
+			}
+			isComplete.set(true, undefined);
+
+			assert.deepStrictEqual({
+				reasoning: ref.object.getRequests()[0].response?.response.value.flatMap(part => part.kind === 'thinking'
+					? [{ id: part.id, startedAt: part.reasoningStartedAt, durationMs: part.reasoningDurationMs }]
+					: []),
+				runningToolStartedAt: runningTool.startedAt,
+			}, {
+				reasoning: [
+					{ id: 'underway', startedAt: undefined, durationMs: undefined },
+					{ id: 'live', startedAt: 5000, durationMs: 1500 },
+				],
+				runningToolStartedAt: undefined,
+			});
 		});
 
 		test('send waits for a sliced live history refresh while preserving the model', async () => {
