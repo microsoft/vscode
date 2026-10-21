@@ -16,6 +16,7 @@ export class CopilotFusionRequestCorrelation {
 	}
 
 	observe(event: SessionEvent, isKnownResolution = false): void {
+		// Root session errors end the host turn; recovery retains caller-owned workflow mappings, not pending ancestry.
 		if (!event.agentId && (event.type === 'abort' || event.type === 'session.idle' || event.type === 'session.error')) {
 			this.clear();
 			return;

@@ -59,6 +59,10 @@ export interface ICopilotByokSessionConfig {
 export class CopilotSessionWrapper extends Disposable {
 
 	private readonly _onEvent = this._register(new Emitter<SessionEvent>());
+	/**
+	 * Unfiltered SDK events, including provisional and ephemeral events, before catch-all filtering.
+	 * No ordering is guaranteed relative to type-specific wrapper events.
+	 */
 	readonly onEvent = this._onEvent.event;
 	private readonly _handledEventTypes = new Set<SessionEventType>();
 	private readonly _onUnhandledEvent = this._register(new Emitter<SessionEvent>());
