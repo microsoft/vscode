@@ -97,7 +97,7 @@ export const sessionsConfiguration = {
 				localize('sessions.list.externalApplicationBadge.details', "Show the creating application first in the session details."),
 			],
 			description: localize('sessions.list.externalApplicationBadge', "Controls where external sessions created in another application show the creating application."),
-			default: ExternalSessionApplicationBadgeMode.Off,
+			default: ExternalSessionApplicationBadgeMode.Title,
 			experiment: { mode: 'auto' }
 		},
 		[SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING]: {

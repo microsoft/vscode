@@ -57,6 +57,7 @@ export interface IAICustomizationMarketplaceOpenTarget {
 	readonly sourceId?: string;
 	readonly searchQuery?: string;
 	readonly connectorName?: string;
+	readonly connectorDisplayName?: string;
 }
 
 /** Command IDs for the AI Customizations Management Editor. */

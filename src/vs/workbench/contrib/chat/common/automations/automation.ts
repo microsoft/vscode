@@ -105,6 +105,7 @@ export interface IAutomationDescriptor {
 	/** Provider-owned display metadata for targets whose URI basename is not a useful label. */
 	readonly targetDisplay?: { readonly label: string; readonly icon: ThemeIcon };
 	readonly externalResource?: URI;
+	readonly ownership?: 'user' | 'repository';
 
 	/** Complete provider-owned session template. */
 	readonly sessionTemplate?: IAutomationSessionTemplate;

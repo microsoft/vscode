@@ -987,6 +987,7 @@ suite('ExtHostAuthentication', () => {
 					{ issuer: authorizationServer.toString(true), response_types_supported: ['code'], token_endpoint: 'https://issuer.example/token' },
 					undefined, 'original-client', undefined, disposables.add(new Emitter()),
 					[{ access_token: 'expired-token', token_type: 'Bearer', scope: 'read', refresh_token: 'refresh-token', expires_in: 1, created_at: 0 }],
+					undefined,
 					async () => {
 						refreshRequests++;
 						return new Response(JSON.stringify({ error: 'invalid_client' }), { status: 400 });

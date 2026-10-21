@@ -25,7 +25,7 @@ import { isEqualOrParent, joinPath } from '../../../../base/common/resources.js'
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
-import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, ContextKeyExpression, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -1213,6 +1213,13 @@ export function createModelConfigurationActions(
 	return actions;
 }
 
+/** A model resolution for a vendor that is waiting behind another one and can still be joined. */
+interface IQueuedModelResolution {
+	readonly provider: ILanguageModelChatProvider;
+	readonly silent: boolean;
+	readonly promise: Promise<void>;
+}
+
 export class LanguageModelsService implements ILanguageModelsService {
 
 	private static SECRET_KEY_PREFIX = 'chat.lm.secret.';
@@ -1224,6 +1231,8 @@ export class LanguageModelsService implements ILanguageModelsService {
 
 	private readonly _providers = new Map<string, ILanguageModelChatProvider>();
 	private readonly _vendors = new Map<string, ILanguageModelProviderDescriptor>();
+	/** Parsed `when` clauses of {@link _vendors}, by their source text, since {@link getVendors} is read for every model. */
+	private readonly _vendorWhenClauses = new Map<string, ContextKeyExpression | undefined>();
 
 	/** Vendors for which a deprecation notice has already been shown this session. */
 	private readonly _deprecationNoticeShownVendors = new Set<string>();
@@ -1234,6 +1243,11 @@ export class LanguageModelsService implements ILanguageModelsService {
 	private readonly _modelsGroups = new Map<string, ILanguageModelsGroup[]>();
 	private readonly _modelCache = new Map<string, ILanguageModelChatMetadata>();
 	private readonly _resolveLMSequencer = new SequencerByKey<string>();
+	/**
+	 * The resolution each vendor has queued but not started. Requests made meanwhile join it rather
+	 * than queue another, e.g. `selectChatModels` calls that each re-resolve every vendor.
+	 */
+	private readonly _queuedResolutions = new Map<string, IQueuedModelResolution>();
 	private readonly _modelConfigurations = new Map<string, IStringDictionary<unknown>>();
 	private readonly _hasUserSelectableModels: IContextKey<boolean>;
 	private readonly _hasNonCopilotUserSelectableModels: IContextKey<boolean>;
@@ -1407,7 +1421,11 @@ export class LanguageModelsService implements ILanguageModelsService {
 				if (!vendor.when) {
 					return true; // No when clause means always visible
 				}
-				const whenClause = ContextKeyExpr.deserialize(vendor.when);
+				let whenClause = this._vendorWhenClauses.get(vendor.when);
+				if (!this._vendorWhenClauses.has(vendor.when)) {
+					whenClause = ContextKeyExpr.deserialize(vendor.when);
+					this._vendorWhenClauses.set(vendor.when, whenClause);
+				}
 				return whenClause ? this._contextKeyService.contextMatchesRules(whenClause) : false;
 			});
 	}
@@ -1452,7 +1470,16 @@ export class LanguageModelsService implements ILanguageModelsService {
 			return;
 		}
 
-		return this._resolveLMSequencer.queue(vendorId, async () => {
+		// A resolution that has not started yet will see everything that changed before this request.
+		const queued = this._queuedResolutions.get(vendorId);
+		if (queued?.provider === provider && queued.silent === silent) {
+			return queued.promise;
+		}
+
+		const promise = this._resolveLMSequencer.queue(vendorId, async () => {
+			if (this._queuedResolutions.get(vendorId)?.promise === promise) {
+				this._queuedResolutions.delete(vendorId);
+			}
 			if (this._providers.get(vendorId) !== provider) {
 				return;
 			}
@@ -1597,6 +1624,8 @@ export class LanguageModelsService implements ILanguageModelsService {
 				this._logService.trace(`[LM] No changes in language models for vendor ${vendorId}`);
 			}
 		});
+		this._queuedResolutions.set(vendorId, { provider, silent, promise });
+		return promise;
 	}
 
 	private _hasGroupStructureChanged(oldGroups: readonly ILanguageModelsGroup[], newGroups: readonly ILanguageModelsGroup[]): boolean {

@@ -5,8 +5,6 @@
 
 import { createTestSessionStateStore } from './chatMetadataTestHelpers.js';
 import assert from 'assert';
-import { mkdtemp, rm } from 'fs/promises';
-import { tmpdir } from 'os';
 import { match, stub } from 'sinon';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { join } from '../../../../base/common/path.js';
@@ -36,24 +34,24 @@ import { AgentSessionRegistry } from '../../node/agentSessionRegistry.js';
 import { readAgentMessageDelegationMeta, toAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { AgentHostCatalogSyncService, matchesAcknowledgedCatalogReceipt } from '../../node/agentHostCatalogSyncService.js';
 import { createLiveChatOwnership, noOlderBuildCopyParticipant } from './chatOwnershipTestUtils.js';
+import { AgentHostDatabaseTestDirectory } from './agentHostDatabaseTestUtils.js';
 
 suite('Session storage identity compatibility', () => {
 	const store = new DisposableStore();
-	const opened: AgentHostDatabase[] = [];
+	let databases: AgentHostDatabaseTestDirectory;
 	let directory: string;
 
-	setup(async () => directory = await mkdtemp(join(tmpdir(), 'ah-storage-compat-')));
+	setup(async () => {
+		databases = await AgentHostDatabaseTestDirectory.create('ah-storage-compat-');
+		directory = databases.path;
+	});
 	teardown(async () => {
 		store.clear();
-		// Disposing only starts closing a database; Windows cannot delete a file that is still open (`EBUSY`).
-		// The raw database owns the file, and its close does not wait for chat records a test leaves pending.
-		await Promise.all(opened.splice(0).map(database => database.close()));
-		await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+		await databases.remove();
 	});
 
 	function track<T extends AgentHostDatabase | CompatibleAgentHostDatabase>(database: T): T {
-		opened.push(database instanceof CompatibleAgentHostDatabase ? database.raw : database);
-		return store.add(database);
+		return store.add(databases.track(database));
 	}
 	ensureNoDisposablesAreLeakedInTestSuite();
 

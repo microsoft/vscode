@@ -831,6 +831,21 @@ describe('cloud session visibility', () => {
 			expect(items.map(item => item.metadata?.event_type)).toEqual(['github/cli', 'slack', 'teams', 'CUSTOM_EVENT']);
 		});
 
+		it('publishes task client provenance without changing event types or external ownership', async () => {
+			await new CloudTaskOwnership(extensionContext.globalState).record('started-here');
+			fetchSessionList.mockResolvedValue([
+				{ ...session('started-here'), application: 'copilot-cli', eventType: 'slack' },
+				{ ...session('external'), application: 'copilot-vscode', eventType: 'teams' },
+			]);
+			const items = await createProvider().provideChatSessionItems(CancellationToken.None);
+			expect(items.map(item => ({
+				application: item.metadata?.application, eventType: item.metadata?.event_type, external: item.metadata?.external,
+			}))).toEqual([
+				{ application: 'copilot-cli', eventType: 'slack', external: undefined },
+				{ application: 'copilot-vscode', eventType: 'teams', external: true },
+			]);
+		});
+
 		it('marks unrecorded tasks as external until a message adopts them, even when the message fails', async () => {
 			await new CloudTaskOwnership(extensionContext.globalState).record('started-here');
 			fetchSessionList.mockResolvedValue([session('started-here'), session('external')]);
@@ -1456,6 +1471,40 @@ describe('TaskApiBackend', () => {
 		const backend = new TaskApiBackend(new FakeTaskApiClient({ globalTasks: tasks }), new TestLogService(), new MockOctoKitService(), NullCloudBackendInstrumentation);
 		const sessions = await backend.fetchSessionList(undefined, true);
 		expect(sessions.map(session => session.eventType)).toEqual(eventTypes);
+	});
+
+	it.each([
+		{ clients: undefined, application: undefined },
+		{ clients: [], application: undefined },
+		{ clients: [{ integration_id: 'vscode-chat', slug: 'copilot-vscode', creator: false }], application: undefined },
+		{
+			clients: [
+				{ integration_id: 'vscode-chat', slug: 'copilot-vscode', creator: false },
+				{ integration_id: 'copilot-developer-cli', slug: 'copilot-cli', creator: true },
+			],
+			application: 'copilot-cli',
+		},
+		{ clients: [{ integration_id: 'future-client', slug: 'future-client', creator: true }], application: 'future-client' },
+	])('uses task creator attribution in list and detail responses: $application', async ({ clients, application }) => {
+		const task = {
+			...makeTask([], 'idle'),
+			event_type: 'slack',
+			agent_collaborators: [{ slug: 'copilot-developer' }],
+			clients,
+			sessions: [{
+				id: 'session-1', state: 'idle' as const, created_at: '2026-04-01T00:00:00Z',
+				clients: [{ integration_id: 'copilot-developer', slug: 'copilot-web', creator: true }],
+			}],
+		};
+		const client = new FakeTaskApiClient({ globalTasks: [task] });
+		vi.spyOn(client, 'getTask').mockResolvedValue(task);
+		const backend = new TaskApiBackend(client, new TestLogService(), new MockOctoKitService(), NullCloudBackendInstrumentation);
+		const listed = await backend.fetchSessionList(undefined, true);
+		const resolved = await backend.fetchSession(task.id);
+		expect([listed[0], resolved].map(({ application, eventType }) => ({ application, eventType }))).toEqual([
+			{ application, eventType: 'slack' },
+			{ application, eventType: 'slack' },
+		]);
 	});
 
 	it('preserves most recent activity for every task lifecycle state', async () => {
