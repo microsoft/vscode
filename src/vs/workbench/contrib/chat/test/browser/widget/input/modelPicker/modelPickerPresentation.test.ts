@@ -58,19 +58,20 @@ suite('ModelPickerPresentation', () => {
 		}, { hydraFusion: true, max: true, otherProvider: false, ungrouped: false, ordinary: false });
 	});
 
-	test('Fusion names its tiers Standard, High, and Max without renaming Auto or changing runtime values', () => {
-		const fusion: ILanguageModelChatMetadataAndIdentifier['metadata'] = { ...model('copilot/auto', 'auto').metadata, autoModelFusion: { balanceUsesHydraFusion: true }, configurationSchema: { properties: { tier: { type: 'string', enum: ['balance', 'intelligence'] } } } };
+	test('Fusion names HydraFusion by the provider tier it offers, without renaming Auto or changing runtime values', () => {
+		const fusion: ILanguageModelChatMetadataAndIdentifier['metadata'] = { ...model('copilot/auto', 'auto').metadata, autoModelFusion: { balanceUsesHydraFusion: false }, configurationSchema: { properties: { tier: { type: 'string', enum: ['balance', 'hydrafusion', 'hydrafusion-max'], enumItemLabels: ['Standard', 'High', 'Max'] } } } };
+		const withoutHydraFusionTier: ILanguageModelChatMetadataAndIdentifier['metadata'] = { ...fusion, configurationSchema: { properties: { tier: { type: 'string', enum: ['balance'] } } } };
 		assert.deepStrictEqual({
-			fusion: ['balance', 'intelligence'].map(getFusionAutoModeTierLabel),
+			fusion: ['balance', 'hydrafusion', 'hydrafusion-max'].map(getFusionAutoModeTierLabel),
 			auto: ['efficiency', 'balance', 'intelligence'].map(getAutoModeTierLabel),
-			routed: ['hydrafusion', 'hydrafusion-max'].map(id => getFusionTierLabel(fusion, id)),
-			notRouted: getFusionTierLabel({ ...fusion, autoModelFusion: { balanceUsesHydraFusion: false } }, 'hydrafusion'),
+			providerTiers: ['hydrafusion', 'hydrafusion-max'].map(id => getFusionTierLabel(fusion, id)),
+			notOffered: getFusionTierLabel(withoutHydraFusionTier, 'hydrafusion'),
 			notFusion: getFusionTierLabel(model('copilot/auto', 'auto').metadata, 'hydrafusion-max'),
 		}, {
-			fusion: ['Standard', 'High'],
+			fusion: ['Standard', 'High', 'Max'],
 			auto: ['Efficiency', 'Balance', 'Intelligence'],
-			routed: ['High', 'Max'],
-			notRouted: undefined,
+			providerTiers: ['High', 'Max'],
+			notOffered: undefined,
 			notFusion: undefined,
 		});
 	});

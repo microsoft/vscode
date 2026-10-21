@@ -9,7 +9,7 @@ import type { IAgentHostCredentialSource } from '../../common/agentHostCredentia
 import { AgentHostAuthenticationScope } from '../../node/agentHostAuthenticationScope.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Event } from '../../../../base/common/event.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -183,6 +183,7 @@ class RecordingWorktreeCleanupService implements IAgentHostWorktreeCleanupServic
 	async reconcileDetachedWorktrees(): Promise<void> { }
 	async deleteDetachedWorktree(): Promise<void> { }
 	async prepareSessionDeletion(): Promise<readonly IWorktreeRemovalRequest[]> { return []; }
+	trackScratchAllocation(): IDisposable { return Disposable.None; }
 	schedule(): void { }
 	start(): void { }
 	async runPass(): Promise<void> { }

@@ -63,6 +63,11 @@ import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../../common/layoutCons
 import { ChatView, EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE, findInitialTranscriptContextEntry, findTranscriptContextEntry, getSessionChatItemHorizontalPadding, getSessionComparisonRequestSummary, getTranscriptProgress, isFocusChatPillsKeyDown, NewChatView, shouldRenderRunningSessionSecondaryToolbar, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
 import { SessionsChatViewStateService } from '../../browser/chatViewStateService.js';
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
+import { NestedChatWorkspaceControls } from '../../browser/nestedChatWorkspacePicker.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
+import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { SharedChatInputComposer } from '../../browser/sharedChatInputComposer.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
 import '../../../../../workbench/browser/media/style.css';
@@ -2175,6 +2180,9 @@ suite('Sessions - Chat View', () => {
 		const input = Object.assign(Object.create(SharedChatInputComposer.prototype), { dispose: () => { } }) as SharedChatInputComposer;
 		const instantiationService = new class extends mock<IInstantiationService>() {
 			override createInstance = ((ctor: unknown, options: { readonly renderRepositoryControls?: boolean }) => {
+				if (ctor === NestedChatWorkspaceControls) {
+					return { reset: () => { }, dispose: () => { } };
+				}
 				assert.strictEqual(ctor, SharedChatInputComposer);
 				inputOptions = options;
 				return input;
@@ -2188,6 +2196,10 @@ suite('Sessions - Chat View', () => {
 			new TestConfigurationService(),
 			instantiationService,
 			new class extends mock<ILogService>() { }(),
+			new class extends mock<INotificationService>() { }(),
+			new class extends mock<ISessionsProvidersService>() { }(),
+			new class extends mock<ISessionsRecentWorkspacesService>() { }(),
+			new class extends mock<IFileDialogService>() { }(),
 			new class extends mock<ISessionsManagementService>() { }(),
 			sessionsService,
 			new class extends mock<IStorageService>() { }(),

@@ -227,7 +227,7 @@ function hostSessionSettings(session: URI): IAgentChatSessionSettings | undefine
 }
 
 function exactChatContext(session: URI, chat: URI, resource: URI = chat): IAgentChatContext {
-	return { sessionSettings: hostSessionSettings(session), launchWorkingDirectories: undefined, resource, owner: fixedChatOwnerRef(session) };
+	return { sessionSettings: hostSessionSettings(session), launchWorkingDirectories: undefined, workspaceless: false, resource, owner: fixedChatOwnerRef(session) };
 }
 
 /** Like {@link exactChatContext}, with the host's launch directory for a peer that records none of its own. */
@@ -1465,7 +1465,7 @@ class TestableCopilotAgent extends CopilotAgent {
 		this._fakeSessions.set(sessionId, fake);
 	}
 
-	protected override async _resumeSession(sessionId: string, _chatChannelUri: URI, _workingDirectories?: readonly URI[]): Promise<CopilotAgentSession> {
+	protected override async _resumeSession(sessionId: string, _chatChannelUri: URI, _workspaceless: boolean, _workingDirectories?: readonly URI[]): Promise<CopilotAgentSession> {
 		this.resumeCalls.push(sessionId);
 		const fake = this._fakeSessions.get(sessionId);
 		if (!fake) {
@@ -1958,7 +1958,7 @@ suite('CopilotAgent', () => {
 			const primary = URI.file('/workspace/moved');
 			try {
 				await agent['_storeSessionMetadata']({ storage, owner }, undefined, primary, [primary], undefined, undefined);
-				const read = await agent['_readSessionMetadata']({ storage, owner });
+				const read = await agent['_readSessionMetadata']({ storage, owner }, undefined);
 
 				assert.deepStrictEqual({
 					batched: batchedWrites.getCalls().map(call => call.args[0]),
@@ -2513,7 +2513,7 @@ suite('CopilotAgent', () => {
 			const session = AgentSession.uri('copilotcli', 'restored-session');
 			// A recreated session records its default chat with a generation query; restore materializes it under its session.
 			const defaultChat = URI.parse(buildDefaultChatUri(session)).with({ query: 'generation=1' });
-			await agent.materializeChat(defaultChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: session }, JSON.stringify({ sdkSessionId: 'restored-sdk-conversation' }));
+			await agent.materializeChat(defaultChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: false, owner: fixedChatOwnerRef(session), resource: session }, JSON.stringify({ sdkSessionId: 'restored-sdk-conversation' }));
 			const provider = disposables.add(new InMemoryFileSystemProvider());
 			disposables.add(fileService.registerProvider(Schemas.file, provider));
 			await fileService.createFile(URI.file('/home/test/.copilot/session-state/restored-sdk-conversation/events.jsonl'));
@@ -2539,9 +2539,9 @@ suite('CopilotAgent', () => {
 		try {
 			const session = AgentSession.uri('copilotcli', 'agent-host-session-id');
 			// The host stores the default chat under its session and a peer under itself.
-			await agent.materializeChat(URI.parse(buildDefaultChatUri(session)), { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: session }, JSON.stringify({ sdkSessionId: 'sdk-conversation-id' }));
+			await agent.materializeChat(URI.parse(buildDefaultChatUri(session)), { sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: false, owner: fixedChatOwnerRef(session), resource: session }, JSON.stringify({ sdkSessionId: 'sdk-conversation-id' }));
 			const peerChat = URI.parse(buildChatUri(session, 'peer-1'));
-			await agent.materializeChat(peerChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: peerChat }, JSON.stringify({ sdkSessionId: 'peer-sdk-conversation-id' }));
+			await agent.materializeChat(peerChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: false, owner: fixedChatOwnerRef(session), resource: peerChat }, JSON.stringify({ sdkSessionId: 'peer-sdk-conversation-id' }));
 			const defaultStateFile = URI.file('/home/test/.copilot/session-state/sdk-conversation-id/events.jsonl');
 			const peerStateFile = URI.file('/home/test/.copilot/session-state/peer-sdk-conversation-id/events.jsonl');
 			const provider = disposables.add(new InMemoryFileSystemProvider());
@@ -2701,10 +2701,10 @@ suite('CopilotAgent', () => {
 	});
 
 	suite('per-chat customization anchors', () => {
-		interface IAnchorInternalsAnchor { readonly directory: URI; readonly _discovered: { readonly value: { readonly _discovery: { readonly _onDidChange: Emitter<void> } } | undefined } }
+		interface IAnchorInternalsAnchor { readonly directory: URI; readonly _workspaceDirectories: readonly URI[]; readonly _discovered: { readonly value: { readonly _discovery: { readonly _onDidChange: Emitter<void> } } | undefined } }
 		interface IAnchorInternalsController {
 			liveAnchorKeys(): readonly string[];
-			acquireAnchor(directory: URI, additionalDirectories: readonly URI[]): IReference<IAnchorInternalsAnchor>;
+			acquireAnchor(directory: URI, additionalDirectories: readonly URI[], workspaceless: boolean): IReference<IAnchorInternalsAnchor>;
 			getCustomizationsSettled(): Promise<readonly Customization[]>;
 			readonly _anchors: ReadonlyMap<string, { readonly anchor: IAnchorInternalsAnchor }>;
 		}
@@ -2986,13 +2986,32 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('an anchor set discovers workspace folders only for a chat that is not workspace-less', async () => {
+			const fixture = await createAnchorFixture(false);
+			try {
+				const { agent, session, f1, f2 } = fixture;
+				const controller = (agent as unknown as AnchorInternals)._activeClients.get(session)!.pluginController;
+				const workspaceless = controller.acquireAnchor(URI.file(join(dirname(f1.fsPath), 'scratch')), [], true);
+				const foldered = controller.acquireAnchor(f2, [], false);
+				try {
+					const directoriesOf = (anchor: { readonly _workspaceDirectories: readonly URI[] }) => anchor._workspaceDirectories.map(directory => directory.toString());
+					assert.deepStrictEqual({ workspaceless: directoriesOf(workspaceless.object), foldered: directoriesOf(foldered.object) }, { workspaceless: [], foldered: [f2.toString()] });
+				} finally {
+					workspaceless.dispose();
+					foldered.dispose();
+				}
+			} finally {
+				await fixture.dispose();
+			}
+		});
+
 		test('a read overlapping session teardown resolves without discovering', async () => {
 			const fixture = await createAnchorFixture(false);
 			try {
 				const { agent, session, main, f2 } = fixture;
 				const activeClient = (agent as unknown as AnchorInternals)._activeClients.get(session)!;
 				// A snapshot in flight holds its chat's anchor set while the last chat goes and the session finalizes.
-				const anchor = activeClient.pluginController.acquireAnchor(f2, []);
+				const anchor = activeClient.pluginController.acquireAnchor(f2, [], false);
 				try {
 					await agent.chats.disposeChat(main, fixture.context(main));
 					const snapshot = await activeClient.snapshot(main.toString(), anchor.object);
@@ -4928,7 +4947,7 @@ suite('CopilotAgent', () => {
 
 			try {
 				const turns = await agent.chats.getMessages(childChat, {
-					sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session),
+					sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: false, owner: fixedChatOwnerRef(session),
 					resource: childChat,
 					origin: { kind: ChatOriginKind.Tool, chat: parentChat.toString(), toolCallId: 'tool-1' },
 				});
@@ -4963,10 +4982,10 @@ suite('CopilotAgent', () => {
 
 			try {
 				assert.deepStrictEqual({
-					withoutOrigin: await agent.chats.getMessages(childChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: childChat }),
+					withoutOrigin: await agent.chats.getMessages(childChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: false, owner: fixedChatOwnerRef(session), resource: childChat }),
 					subagentCalls,
 					withOrigin: await agent.chats.getMessages(childChat, {
-						sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session),
+						sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: false, owner: fixedChatOwnerRef(session),
 						resource: childChat,
 						origin: { kind: ChatOriginKind.Tool, chat: parentChat.toString(), toolCallId: 'tool-1' },
 					}),
@@ -5140,7 +5159,7 @@ suite('CopilotAgent', () => {
 
 			try {
 				const turns = await agent.chats.getMessages(legacyChild, {
-					sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session),
+					sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: false, owner: fixedChatOwnerRef(session),
 					resource: legacyChild,
 					origin: { kind: ChatOriginKind.Tool, chat: parentChat.toString(), toolCallId: 'tool-7' },
 				});
@@ -8700,7 +8719,7 @@ suite('CopilotAgent', () => {
 				} finally {
 					db.dispose();
 				}
-				const context = exactChatContext(session, chat, session);
+				const context = { ...exactChatContext(session, chat, session), workspaceless: true };
 				await first.chats.sendMessage(chat, 'hello', undefined, undefined, 'turn-1', undefined, context);
 				await first.chats.releaseChat(chat, context);
 				await disposeAgent(first);
@@ -8723,6 +8742,28 @@ suite('CopilotAgent', () => {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 			}
 		}).timeout(30_000);
+
+		test('a host decision of not workspaceless overrides the stored session marker', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]), sessionDataService });
+			try {
+				const session = URI.parse('ahp-session:/workspaceless-nested-own-folder');
+				const db = sessionDataService.openDatabase(session);
+				try {
+					await db.object.setMetadata(AH_META_WORKSPACELESS_DB_KEY, 'true');
+				} finally {
+					db.dispose();
+				}
+				const read = (hostWorkspaceless: boolean | undefined) => (agent as unknown as { _readSessionMetadata(scope: { storage: URI; owner: URI }, host: boolean | undefined): Promise<{ workspaceless?: boolean }> })._readSessionMetadata({ storage: session, owner: session }, hostWorkspaceless);
+				assert.deepStrictEqual({
+					hostSaysNo: (await read(false)).workspaceless,
+					hostSaysYes: (await read(true)).workspaceless,
+					legacyFallsBackToMarker: (await read(undefined)).workspaceless,
+				}, { hostSaysNo: false, hostSaysYes: true, legacyFallsBackToMarker: true });
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
 
 		test('minted peer and fork in a workspaceless session keep the parent system message across resume', async () => {
 			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/qc-mint-home-`));
@@ -8754,14 +8795,15 @@ suite('CopilotAgent', () => {
 				}
 				await agent.chats.sendMessage(parent, 'hello', undefined, undefined, 'turn-1', undefined, exactChatContext(session, parent, session));
 
+				const workspacelessContext = (chat: URI): IAgentChatContext => ({ ...exactChatContext(session, chat), workspaceless: true });
 				const peer = URI.parse(buildChatUri(session, 'peer'));
-				await agent.chats.createChat(peer, exactChatContext(session, peer), { workingDirectories: [scratchDirectory] });
+				await agent.chats.createChat(peer, workspacelessContext(peer), { workingDirectories: [scratchDirectory] });
 				const fork = URI.parse(buildChatUri(session, 'fork'));
-				await agent.chats.createChat(fork, exactChatContext(session, fork), { fork: { source: parent, turnId: 'turn-1' }, workingDirectories: [scratchDirectory] });
+				await agent.chats.createChat(fork, workspacelessContext(fork), { fork: { source: parent, turnId: 'turn-1' }, workingDirectories: [scratchDirectory] });
 
 				for (const chat of [peer, fork]) {
-					await agent.chats.releaseChat(chat, exactChatContext(session, chat));
-					await agent.chats.sendMessage(chat, 'hello again', [scratchDirectory], undefined, `turn-${chat.toString()}`, undefined, exactChatContext(session, chat));
+					await agent.chats.releaseChat(chat, workspacelessContext(chat));
+					await agent.chats.sendMessage(chat, 'hello again', [scratchDirectory], undefined, `turn-${chat.toString()}`, undefined, workspacelessContext(chat));
 				}
 
 				const parentMessage = launches[0]?.systemMessage;
@@ -8817,14 +8859,58 @@ suite('CopilotAgent', () => {
 			db.dispose();
 			const client = new TestCopilotClient([sdkSession(sessionId, scratchDir.fsPath)]);
 			const agent = createTestAgent(disposables, { copilotClient: client, useRealResumePath: true, sessionDataService, userHome });
-			const internals = agent as unknown as { _resumeSession: (id: string, chat: URI) => Promise<unknown> };
+			const internals = agent as unknown as { _resumeSession: (id: string, chat: URI, workspaceless: boolean) => Promise<unknown> };
 			try {
 				await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'token');
 				await assert.rejects(() => fs.access(scratchDir.fsPath));
 				// The stubbed SDK can't finish initializing the resumed session, but
 				// the scratch dir is ensured before that point.
-				await internals._resumeSession(sessionId, sessionBackedChat(sessionId)).catch(() => undefined);
+				await internals._resumeSession(sessionId, sessionBackedChat(sessionId), true).catch(() => undefined);
 				await fs.access(scratchDir.fsPath);
+			} finally {
+				await disposeAgent(agent);
+				await fs.rm(userHome.fsPath, { recursive: true, force: true, maxRetries: 5 });
+			}
+		}).timeout(30_000);
+
+		test('resume recreates a reaped recorded scratch folder from the per-chat decision alone', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/qc-home-`));
+			const sessionId = 'qc-nested-resume';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const scratchDir = URI.joinPath(userHome, '.copilot', 'chats', 'nested-chat-folder');
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const db = sessionDataService.openDatabase(session);
+			await db.object.setMetadata('copilot.workingDirectory', scratchDir.toString());
+			db.dispose();
+			const client = new TestCopilotClient([sdkSession(sessionId, scratchDir.fsPath)]);
+			const agent = createTestAgent(disposables, { copilotClient: client, useRealResumePath: true, sessionDataService, userHome });
+			const internals = agent as unknown as { _resumeSession: (id: string, chat: URI, workspaceless: boolean) => Promise<unknown> };
+			try {
+				await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'token');
+				await internals._resumeSession(sessionId, sessionBackedChat(sessionId), false).catch(() => undefined);
+				await assert.rejects(() => fs.access(scratchDir.fsPath));
+				await internals._resumeSession(sessionId, sessionBackedChat(sessionId), true).catch(() => undefined);
+				await fs.access(scratchDir.fsPath);
+			} finally {
+				await disposeAgent(agent);
+				await fs.rm(userHome.fsPath, { recursive: true, force: true, maxRetries: 5 });
+			}
+		}).timeout(30_000);
+
+		test('a live chat whose recorded scratch folder was deleted gets it recreated, a user folder never', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/qc-home-`));
+			const userFolder = URI.file(await fs.mkdtemp(`${os.tmpdir()}/qc-user-`));
+			const scratchDir = URI.joinPath(userHome, '.copilot', 'chats', 'live-nested-folder');
+			const agent = createTestAgent(disposables, { userHome });
+			const internals = agent as unknown as { _withRecordedScratchFolder: (session: { workingDirectory: URI }, owner: string) => Promise<unknown> };
+			try {
+				await internals._withRecordedScratchFolder({ workingDirectory: scratchDir }, 'owner');
+				await fs.rm(userFolder.fsPath, { recursive: true, force: true });
+				await internals._withRecordedScratchFolder({ workingDirectory: userFolder }, 'owner');
+				assert.deepStrictEqual({
+					scratch: await fs.access(scratchDir.fsPath).then(() => true, () => false),
+					user: await fs.access(userFolder.fsPath).then(() => true, () => false),
+				}, { scratch: true, user: false });
 			} finally {
 				await disposeAgent(agent);
 				await fs.rm(userHome.fsPath, { recursive: true, force: true, maxRetries: 5 });
@@ -9995,7 +10081,7 @@ suite('CopilotAgent', () => {
 						// What a session imported without its launch directories hands the provider.
 						await restored.chats.getMessages(chats[2], {
 							...exactChatContext(session, chats[2], resources[2]),
-							launchWorkingDirectories: undefined,
+							launchWorkingDirectories: undefined, workspaceless: false,
 							sessionSettings: { customizationDirectory: undefined, additionalCustomizationDirectories: [], project: undefined, workspaceless: false, defaultChatWorkingDirectory: undefined, additionalWorktrees: [] },
 						});
 						assert.deepStrictEqual({
@@ -10069,7 +10155,7 @@ suite('CopilotAgent', () => {
 						// A session imported without launch directories; a pinned peer is also told the default chat runs elsewhere.
 						const history = await restored.chats.getMessages(chats[2], {
 							...exactChatContext(session, chats[2], resources[2]),
-							launchWorkingDirectories: undefined,
+							launchWorkingDirectories: undefined, workspaceless: false,
 							sessionSettings: { customizationDirectory: undefined, additionalCustomizationDirectories: [], project: undefined, workspaceless: false, defaultChatWorkingDirectory: pinned ? next : undefined, additionalWorktrees: [] },
 						});
 						assert.deepStrictEqual({
@@ -14390,7 +14476,7 @@ suite('CopilotAgent', () => {
 					}
 				}));
 				const internals = agent as unknown as {
-					_resumeSessionOnce: (id: string, chatChannelUri: URI, acquireClient: () => Promise<CopilotClient>) => Promise<CopilotAgentSession>;
+					_resumeSessionOnce: (id: string, chatChannelUri: URI, workspaceless: boolean, acquireClient: () => Promise<CopilotClient>) => Promise<CopilotAgentSession>;
 					_canvasHandoffs: { get(chat: URI): ICopilotCanvasHandoff | undefined; readonly size: number };
 				};
 
@@ -14409,7 +14495,7 @@ suite('CopilotAgent', () => {
 					const handoffWhileDisconnected = internals._canvasHandoffs.get(chatUri);
 
 					let adopted = false;
-					internals._resumeSessionOnce = async (_id, _chatChannelUri, acquireClient) => {
+					internals._resumeSessionOnce = async (_id, _chatChannelUri, _workspaceless, acquireClient) => {
 						await acquireClient();
 						if (!resumeSucceeds) {
 							throw new Error('resume failed after telemetry revocation');
@@ -20036,7 +20122,7 @@ suite('CopilotAgent', () => {
 				// `_queueSession`) before `initializeSession` fails. The context also
 				// carries a host customization snapshot, so the failure must clear
 				// the retained snapshot along with everything else.
-				await assert.rejects(() => agent.chats.createChat(chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: session, customizations: [plugin] }, {
+				await assert.rejects(() => agent.chats.createChat(chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: false, owner: fixedChatOwnerRef(session), resource: session, customizations: [plugin] }, {
 					workingDirectories: [workingDirectory],
 					deferBacking: false,
 				}), /createSession failed/);
@@ -20077,7 +20163,7 @@ suite('CopilotAgent', () => {
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
 
-				await agent.chats.createChat(defaultChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: session, customizations: [plugin] }, {
+				await agent.chats.createChat(defaultChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: false, owner: fixedChatOwnerRef(session), resource: session, customizations: [plugin] }, {
 					workingDirectories: [workingDirectory],
 					deferBacking: false,
 				});
@@ -21013,7 +21099,7 @@ suite('CopilotAgent', () => {
 	});
 
 	suite('MCP configuration preparation', () => {
-		async function createHarness(options: { cold?: boolean; failSync?: boolean; syncGate?: Promise<void>; telemetryService?: ITelemetryService; sdkSessionId?: string } = {}) {
+		async function createHarness(options: { cold?: boolean; failSync?: boolean; syncGate?: Promise<void>; telemetryService?: ITelemetryService; sdkSessionId?: string; workspaceless?: boolean } = {}) {
 			const fileService = disposables.add(new FileService(new NullLogService()));
 			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
 			const pluginDirectory = URI.file('/late-plugin');
@@ -21088,6 +21174,9 @@ suite('CopilotAgent', () => {
 				try {
 					await database.object.setMetadata('copilot.workingDirectory', URI.file('/workspace').toString());
 					await database.object.setMetadata('copilot.workingDirectories', JSON.stringify([URI.file('/workspace').toString()]));
+					if (options.workspaceless) {
+						await database.object.setMetadata(AH_META_WORKSPACELESS_DB_KEY, 'true');
+					}
 				} finally {
 					database.dispose();
 				}
@@ -21130,6 +21219,26 @@ suite('CopilotAgent', () => {
 				});
 			} finally {
 				gate.complete();
+				await disposeAgent(h.agent);
+			}
+		});
+
+		test('Start resumes a cold workspace-less chat as workspace-less', async () => {
+			const telemetryService = disposables.add(new AgentHostTelemetryService(TelemetryService.createWithLevel({
+				telemetryLevel: TelemetryLevel.USAGE,
+				appenders: [],
+			}, TEST_PRODUCT_SERVICE)));
+			const h = await createHarness({ telemetryService, workspaceless: true });
+			try {
+				h.configurationService.updateRootConfig({
+					[AgentHostTelemetryLevelConfigKey]: telemetryLevelToAgentHostConfigValue(TelemetryLevel.NONE),
+				});
+				await h.disconnectStarted.p;
+				await h.agent.stopMcpServer(h.session, h.serverId);
+				assert.strictEqual(chatEntriesBySdkId(h.agent).has('restored-sdk-session'), false);
+				await h.agent.startMcpServer(h.session, h.serverId);
+				assert.strictEqual(h.live().workspaceless, true);
+			} finally {
 				await disposeAgent(h.agent);
 			}
 		});
@@ -22232,7 +22341,7 @@ suite('CopilotAgent', () => {
 				// default-chat backing. The session has not been resumed into a live
 				// entry yet, so a rename in this window must still correlate on the
 				// SDK id, recovered from the backing rather than a live session.
-				await agent.materializeChat(defaultChatUri(session), { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: session }, JSON.stringify({ sdkSessionId: 'sdk-conversation-id' }));
+				await agent.materializeChat(defaultChatUri(session), { sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: false, owner: fixedChatOwnerRef(session), resource: session }, JSON.stringify({ sdkSessionId: 'sdk-conversation-id' }));
 				const now = new Date().toISOString();
 				stateManager.createSession({ resource: session.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle, createdAt: now, modifiedAt: now, defaultChat: buildDefaultChatUri(session.toString()) });
 				stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionTitleChanged, title: 'Renamed' });
@@ -22270,7 +22379,7 @@ suite('CopilotAgent', () => {
 				agent.getOrCreateActiveClient(chat, session, { clientId: 'client-1' }, undefined);
 				const afterUndefined = internals._retainedHostCustomizations(session).map(c => c.id);
 				// An addressed chat operation's context refreshes it.
-				await agent.chats.getMessages(chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: session, customizations: [{ ...plugin, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }] }] });
+				await agent.chats.getMessages(chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: false, owner: fixedChatOwnerRef(session), resource: session, customizations: [{ ...plugin, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }] }] });
 				const afterChatContext = internals._retainedHostCustomizations(session).map(c =>
 					c.type === CustomizationType.Plugin || c.type === CustomizationType.McpServer ? isCustomizationEnabled(c) : c.enabled
 				);
@@ -22433,7 +22542,7 @@ suite('CopilotAgent', () => {
 
 				const result: ToolCallResult = { success: true, pastTenseMessage: 'subagent done' };
 				agent.onClientToolCallComplete(subagentChat, 'tc-subagent', result, {
-					sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sessionUri),
+					sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: false, owner: fixedChatOwnerRef(sessionUri),
 					resource: subagentChat,
 					origin: { kind: ChatOriginKind.Tool, chat: spawningChat.toString(), toolCallId: 'tool-1' },
 				});
@@ -22456,7 +22565,7 @@ suite('CopilotAgent', () => {
 
 				const result: ToolCallResult = { success: true, pastTenseMessage: 'fallback done' };
 				agent.onClientToolCallComplete(subagentChat, 'tc-fallback', result, {
-					sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sessionUri),
+					sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: false, owner: fixedChatOwnerRef(sessionUri),
 					resource: subagentChat,
 					origin: { kind: ChatOriginKind.Tool, chat: buildChatUri(sessionUri, 'gone'), toolCallId: 'tool-9' },
 				});
@@ -22769,7 +22878,7 @@ suite('CopilotAgent', () => {
 				const provider = disposables.add(new InMemoryFileSystemProvider());
 				disposables.add(fileService.registerProvider(Schemas.file, provider));
 				const session = AgentSession.uri('copilotcli', 'closed-session');
-				await agent.materializeChat(URI.parse(buildDefaultChatUri(session)), { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: session }, JSON.stringify({ sdkSessionId: 'closed-sdk-session' }));
+				await agent.materializeChat(URI.parse(buildDefaultChatUri(session)), { sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: false, owner: fixedChatOwnerRef(session), resource: session }, JSON.stringify({ sdkSessionId: 'closed-sdk-session' }));
 				const stateFile = URI.file('/home/test/.copilot/session-state/closed-sdk-session/events.jsonl');
 				await fileService.writeFile(stateFile, VSBuffer.fromString('persisted event'));
 				const outputDirectory = URI.file('/debug-output');
@@ -23725,7 +23834,7 @@ suite('CopilotAgent', () => {
 					return built.fake;
 				};
 
-				await agent.chats.sendMessage(chatUri, 'continue in the selected workspace', [scratchDirectory], undefined, 'turn-1', undefined, exactChatContext(session, chatUri, session));
+				await agent.chats.sendMessage(chatUri, 'continue in the selected workspace', [scratchDirectory], undefined, 'turn-1', undefined, { ...exactChatContext(session, chatUri, session), workspaceless: true });
 				const storedRef = sessionDataService.openDatabase(session);
 				const metadata = await storedRef.object.getMetadataObject({
 					'copilot.workingDirectory': true,
@@ -25776,7 +25885,7 @@ suite('CopilotAgent', () => {
 			const previousSession = { ...refreshSessionStub([]), requiresRestartAfterWorkingDirectoryChange: true };
 			const replacement = refreshSessionStub([]);
 			const internals = agent as unknown as {
-				_resumeSession: (id: string, chatChannelUri?: URI, workingDirectories?: readonly URI[]) => Promise<CopilotAgentSession>;
+				_resumeSession: (id: string, chatChannelUri: URI, workspaceless: boolean, workingDirectories?: readonly URI[]) => Promise<CopilotAgentSession>;
 			};
 			setDefaultSessionStub(agent, sessionId, previousSession);
 			internals._resumeSession = async () => {
@@ -26111,11 +26220,11 @@ suite('CopilotAgent', () => {
 		test('commits handed-over canvases only to the replacement that survives a restore retry', async () => {
 			const { agent, sessionId, session, chat, membership, internals } = startCanvasRefresh({ useRealResumePath: true });
 			const restore = agent as unknown as {
-				_resumeSessionOnce: (id: string, chatChannelUri: URI, acquireClient: () => Promise<CopilotClient>) => Promise<CopilotAgentSession>;
+				_resumeSessionOnce: (id: string, chatChannelUri: URI, workspaceless: boolean, acquireClient: () => Promise<CopilotClient>) => Promise<CopilotAgentSession>;
 				_requestClientRestart(reason: string): Promise<boolean>;
 			};
 			const attempts: { receivedHandoff: boolean; adoptions: number; sends: string[] }[] = [];
-			restore._resumeSessionOnce = async (_id, _chatChannelUri, acquireClient) => {
+			restore._resumeSessionOnce = async (_id, _chatChannelUri, _workspaceless, acquireClient) => {
 				await acquireClient();
 				const receivedHandoff = internals._canvasHandoffs.get(chat);
 				const attempt = {
@@ -26179,14 +26288,14 @@ suite('CopilotAgent', () => {
 			previousSession.appliedDisabledRootMcpServers = ['private-disabled-server'];
 			const resumeCalls: { sessionId: string; workingDirectories: readonly URI[] | undefined }[] = [];
 			const internals = agent as unknown as {
-				_resumeSession: (id: string, chatChannelUri?: URI, workingDirectories?: readonly URI[]) => Promise<CopilotAgentSession>;
+				_resumeSession: (id: string, chatChannelUri: URI, workspaceless: boolean, workingDirectories?: readonly URI[]) => Promise<CopilotAgentSession>;
 			};
 
 			setDefaultSessionStub(agent, sessionId, previousSession);
 			agent.getOrCreateActiveClient(defaultChatUri(session), session, { clientId: 'client' }).tools = [
 				{ name: 'new_tool', description: 'A newly registered tool', inputSchema: { type: 'object', properties: {} } },
 			];
-			internals._resumeSession = async (id, _chatChannelUri, workingDirectories) => {
+			internals._resumeSession = async (id, _chatChannelUri, _workspaceless, workingDirectories) => {
 				resumeCalls.push({ sessionId: id, workingDirectories });
 				setDefaultSessionStub(agent, sessionId, resumedSession);
 				return resumedSession as unknown as CopilotAgentSession;
@@ -26228,7 +26337,7 @@ suite('CopilotAgent', () => {
 			const currentSession = refreshSessionStub([secondaryB, secondaryA]);
 			let resumeCalls = 0;
 			const internals = agent as unknown as {
-				_resumeSession: (id: string, chatChannelUri?: URI, workingDirectories?: readonly URI[]) => Promise<CopilotAgentSession>;
+				_resumeSession: (id: string, chatChannelUri: URI, workspaceless: boolean, workingDirectories?: readonly URI[]) => Promise<CopilotAgentSession>;
 			};
 
 			setDefaultSessionStub(agent, sessionId, currentSession);
@@ -26307,7 +26416,7 @@ suite('CopilotAgent', () => {
 			let resumeCalls = 0;
 			let providerChatErrors = 0;
 			const internals = agent as unknown as {
-				_resumeSession: (id: string, chatChannelUri?: URI, workingDirectories?: readonly URI[]) => Promise<CopilotAgentSession>;
+				_resumeSession: (id: string, chatChannelUri: URI, workspaceless: boolean, workingDirectories?: readonly URI[]) => Promise<CopilotAgentSession>;
 			};
 			disposables.add(agent.onDidChatProgress(signal => {
 				if (signal.kind === 'action' && signal.action.type === ActionType.ChatError) {

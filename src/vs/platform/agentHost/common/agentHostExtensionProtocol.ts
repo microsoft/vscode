@@ -23,6 +23,7 @@ import { AgentHostAutonomousAutomationsCapabilityMetaKey } from './meta/agentHos
 import { AgentHostChatUrisCapabilityMetaKey, AgentHostNativeImplementationMetaKey, AgentHostSessionUrisCapabilityMetaKey } from './meta/agentHostSessionUrisMeta.js';
 import { AgentHostDebugLogsCancellationCapabilityMetaKey } from './meta/agentHostDebugLogsMeta.js';
 import { AgentHostWorktreeDiskUsageCapabilityMetaKey } from './meta/agentHostWorktreeDiskUsageMeta.js';
+import { AgentHostCreateChatWorkspaceCapabilityMetaKey, chatWorkspaceValueValidator } from './meta/agentHostCreateChatWorkspaceMeta.js';
 import { InstallSandboxCertificateExtensionMethod, RemoveSandboxCertificateExtensionMethod, RotateSandboxCertificateExtensionMethod, sandboxCertificateParamsValidator } from './sandboxCertificateProtocol.js';
 
 export { supportsAgentHostArtifactRemoval } from './meta/agentHostArtifactRemovalMeta.js';
@@ -78,6 +79,11 @@ export const ImportSessionExtensionMethod = 'vscode/importSession';
  * chats is enabled, which can change after a client connected. A move while it is off is refused with `disabled`.
  */
 export const MoveAgentHostSessionExtensionMethod = 'vscode/moveSession';
+/**
+ * Applies a workspace (folder, worktree or scratch folder) to an existing peer chat that hasn't started a turn, as
+ * `createChat` does with `vscode.chatWorkspace`; gated by the same `vscode.createChatWorkspace` capability.
+ */
+export const SetChatWorkspaceExtensionMethod = 'vscode/setChatWorkspace';
 export const ReadSavedChatExtensionMethod = 'vscode/readSavedChat';
 export const CompleteSavedChatContinuationExtensionMethod = 'vscode/completeSavedChatContinuation';
 export const ReportAgentHostFirstResponseExtensionMethod = 'vscode/reportAgentHostFirstResponse';
@@ -94,6 +100,8 @@ export interface IAgentHostExtensionInitializeResultMeta extends Record<string, 
 	readonly [AgentHostNativeImplementationMetaKey]?: true;
 	readonly [AgentHostChatStateFileCapabilityMetaKey]?: true;
 	readonly [AgentHostDetachedWorktreeCapabilityMetaKey]?: true;
+	/** Present when `createChat` honors a requested chat workspace (folder, worktree or scratch folder). */
+	readonly [AgentHostCreateChatWorkspaceCapabilityMetaKey]?: true;
 	readonly [AgentHostSavedChatCapabilityMetaKey]?: true;
 	readonly [AgentHostSavedChatContinuationCapabilityMetaKey]?: true;
 	readonly [AgentHostArtifactRemovalCapabilityMetaKey]?: true;
@@ -119,6 +127,7 @@ export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true
 		[AgentHostNativeImplementationMetaKey]: true,
 		[AgentHostChatStateFileCapabilityMetaKey]: true,
 		[AgentHostDetachedWorktreeCapabilityMetaKey]: true,
+		[AgentHostCreateChatWorkspaceCapabilityMetaKey]: true,
 		[AgentHostAutonomousAutomationsCapabilityMetaKey]: true,
 		[AgentHostArtifactRemovalCapabilityMetaKey]: artifactRemoval ? true : undefined,
 		...(savedChat ? { [AgentHostSavedChatCapabilityMetaKey]: true as const } : {}),
@@ -139,6 +148,12 @@ export function supportsAgentHostChatStateFile(result: IAgentHostExtensionInitia
 export function supportsAgentHostDetachedWorktrees(result: IAgentHostExtensionInitializeResult | undefined): boolean {
 	const meta = result?._meta;
 	return meta?.[AgentHostDetachedWorktreeCapabilityMetaKey] === true;
+}
+
+/** Whether the host honors a workspace requested for a new peer chat on `createChat`. */
+export function supportsAgentHostCreateChatWorkspace(result: IAgentHostExtensionInitializeResult | undefined): boolean {
+	const meta = result?._meta;
+	return meta?.[AgentHostCreateChatWorkspaceCapabilityMetaKey] === true;
 }
 
 export const collectAgentHostDebugLogsParamsValidator = vObj({
@@ -162,6 +177,9 @@ export const stopBackgroundWorkParamsValidator = vObj({
 });
 
 export const importSessionParamsValidator = vObj({ session: vString() });
+
+/** `workspace` has the shape of the `vscode.chatWorkspace` `createChat` `_meta` value. */
+export const setChatWorkspaceParamsValidator = vObj({ chat: vString(), workspace: chatWorkspaceValueValidator });
 
 class StringOrNullValidator extends ValidatorBase<string | null> {
 	validate(content: unknown): { content: string | null; error: undefined } | { content: undefined; error: ValidationError } {
@@ -205,6 +223,7 @@ export interface IAgentHostExtensionCommandMap {
 	[CompleteSavedChatContinuationExtensionMethod]: { params: ValidatorType<typeof completeSavedChatContinuationParamsValidator>; result: IAgentHostSavedChatContinuationResult };
 	[ImportSessionExtensionMethod]: { params: ValidatorType<typeof importSessionParamsValidator>; result: void };
 	[MoveAgentHostSessionExtensionMethod]: { params: ValidatorType<typeof moveSessionParamsValidator>; result: { session: string } };
+	[SetChatWorkspaceExtensionMethod]: { params: ValidatorType<typeof setChatWorkspaceParamsValidator>; result: void };
 	[ReportAgentHostFirstResponseExtensionMethod]: { params: IAgentHostFirstResponseDiagnostic; result: void };
 	[ReportChatUserInteractionExtensionMethod]: { params: IChatUserInteractionTiming; result: void };
 	[DevContainerIsDockerAvailableExtensionMethod]: { params: undefined; result: boolean };

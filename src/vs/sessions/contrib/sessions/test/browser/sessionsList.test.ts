@@ -69,7 +69,7 @@ import { TestHostService, TestLayoutService } from '../../../../../workbench/tes
 import '../../../../../workbench/browser/actions/listCommands.js';
 import { AgentMergeSessionState } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { getSessionChatDragData, isSessionChatDrag, SessionsDataTransfers } from '../../../../browser/dnd.js';
-import { IsPhoneLayoutContext, IsQuickChatSessionContext, SessionIsArchivedContext, SessionSupportsMultipleChatsContext } from '../../../../common/contextkeys.js';
+import { IsPhoneLayoutContext, SessionIsArchivedContext, SessionSupportsMultipleChatsContext } from '../../../../common/contextkeys.js';
 import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
@@ -84,7 +84,7 @@ import { IActiveSession, ISessionsManagementService } from '../../../../services
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { computeReorderSortChanges, groupByDate, groupByRepository, groupByWorkspace, groupSessionsForList, ISessionChatItem, ISessionSection, limitSessionsForList, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { computeReorderSortChanges, groupByDate, groupByRepository, groupByWorkspace, groupSessionsForList, ISessionChatItem, ISessionSection, limitSessionsForList, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting, QUICK_CHATS_SECTION_ID } from '../../browser/views/sessionsList.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IChatService, IChatToolInvocation } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -5348,7 +5348,6 @@ suite('Sessions - SessionsList', () => {
 							onDidChange: onDidChange.event,
 							getActions: () => menuId === Menus.SessionItemToolbar
 								&& contextKeyService.getContextKeyValue<boolean>(SessionSupportsMultipleChatsContext.key)
-								&& !contextKeyService.getContextKeyValue<boolean>(IsQuickChatSessionContext.key)
 								&& !contextKeyService.getContextKeyValue<boolean>(SessionIsArchivedContext.key)
 								? [['navigation', [action]]]
 								: [],
@@ -5394,11 +5393,11 @@ suite('Sessions - SessionsList', () => {
 				recycledTitle: renderedAfterRecycle?.querySelector('.session-title')?.textContent,
 				recycledAction: renderedAfterRecycle?.querySelector('.codicon-add') !== null,
 			}, {
-				initial: [['Supported', true], ['Unsupported', false], ['Quick chat', false], ['Archived', false]],
-				afterCapabilityChange: [['Supported', false], ['Unsupported', true], ['Quick chat', false], ['Archived', false]],
+				initial: [['Supported', true], ['Unsupported', false], ['Quick chat', true], ['Archived', false]],
+				afterCapabilityChange: [['Supported', false], ['Unsupported', true], ['Quick chat', true], ['Archived', false]],
 				recycledTemplate: true,
 				recycledTitle: 'Quick chat',
-				recycledAction: false,
+				recycledAction: true,
 			});
 		});
 
@@ -6348,6 +6347,35 @@ suite('Sessions - SessionsList', () => {
 				worktree: { hasFolderLabel: true, folder: 'second', folderRow: 'second·now', folderIcon: 'worktree', ariaLabel: 'Peer chat, chat in folder second, updated now, State: Completed' },
 				pendingMainWorktree: { hasFolderLabel: true, folder: 'second', folderRow: 'second·now', folderIcon: 'folder', ariaLabel: 'Peer chat, chat in folder second, updated now, State: Completed' },
 			});
+		});
+
+		test('shows the own folder of a chat in a quick chat and no folder for its scratch chats', () => {
+			const repo = { root: URI.file('/workspace/repo'), workingDirectory: URI.file('/workspace/repo'), name: 'repo', description: undefined };
+			const base = createTestSession('Quick chat', { isQuickChat: true }).session;
+			const chats = [undefined, undefined, [repo]].map((folders, index) => upcastPartial<IChat>({
+				...createChat(index === 0 ? 'Main chat' : index === 1 ? 'Scratch chat' : 'Foldered chat', index === 0 ? undefined : ChatOriginKind.User),
+				workspace: constObservable(folders ? { ...createTestSession('Folder').session.workspace.get()!, uri: folders[0].root, label: folders[0].name, folders: [...folders] } : undefined),
+			}));
+			const session: ISession = {
+				...base,
+				workspace: constObservable(undefined),
+				chats: constObservable(chats),
+				mainChat: constObservable(chats[0]),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+
+			// The Chats section the quick chat renders in starts collapsed.
+			const expandChatsSection = (instantiationService: TestInstantiationService) => instantiationService.get(IStorageService).store('sessionsListControl.sectionCollapseState', JSON.stringify({ [QUICK_CHATS_SECTION_ID]: false }), StorageScope.PROFILE, StorageTarget.USER);
+			const { container } = renderSessionChatsList(session, undefined, false, true, false, expandChatsSection);
+
+			assert.deepStrictEqual([...container.querySelectorAll<HTMLElement>('.session-chat-item')].map(row => ({
+				hasFolderLabel: row.classList.contains('has-folder-label'),
+				folder: row.querySelector('.session-compact-hover-description')?.textContent,
+				ariaLabel: row.closest('.monaco-list-row')?.getAttribute('aria-label'),
+			})), [
+				{ hasFolderLabel: false, folder: '', ariaLabel: 'Scratch chat, chat, updated now, State: Completed' },
+				{ hasFolderLabel: true, folder: 'repo', ariaLabel: 'Foldered chat, chat in folder repo, updated now, State: Completed' },
+			]);
 		});
 
 		test('shows each chat pull request from its workspace folder only in multi-folder sessions', () => {

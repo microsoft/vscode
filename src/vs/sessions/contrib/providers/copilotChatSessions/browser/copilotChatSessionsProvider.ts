@@ -12,7 +12,7 @@ import { Disposable, DisposableStore, IDisposable, DisposableMap, IReference, Mu
 import { Schemas } from '../../../../../base/common/network.js';
 import { deepClone } from '../../../../../base/common/objects.js';
 import { isWeb } from '../../../../../base/common/platform.js';
-import { autorun, constObservable, derived, IObservable, ISettableObservable, ITransaction, observableFromPromise, observableValue, observableValueOpts, transaction } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, ITransaction, observableFromPromise, observableValue, observableValueOpts, transaction } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -33,7 +33,7 @@ import { linkKey } from '../../../../common/sessionLinks.js';
 import { getSessionApplication } from '../../../../common/sessionApplication.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
-import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, IPreparedNewSession, ISessionChatMoveDestination, SessionMoveRefusedError, ISendRequestOptions, ISessionChangeEvent, ISessionConfigProvider, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProvider, ISessionsProviderCreateSessionOptions } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, IPreparedNewSession, ISessionChatMoveDestination, SessionMoveRefusedError, ISendRequestOptions, ISessionChangeEvent, ISessionConfigProvider, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProvider, ISessionsProviderCreateSessionOptions, INestedChatFolderInfo, INestedChatWorkspace, INestedChatWorkspaceSupport, NestedChatWorkspaceError } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionOptionGroup } from '../../../chat/browser/newSession.js';
 import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../chat/common/constants.js';
 import { CancellationToken, CancellationTokenSource, cancelOnDispose } from '../../../../../base/common/cancellation.js';
@@ -2009,6 +2009,22 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		const newChat = this._withChangesets(buildChatFromSession(session), session.workspace);
 		session.mainChat.set(newChat, undefined);
 		return newChat;
+	}
+
+	getNestedChatWorkspaceSupport(_sessionId: string, _reader: IReader | undefined): INestedChatWorkspaceSupport | undefined {
+		return undefined;
+	}
+
+	async resolveNestedChatFolder(_sessionId: string, _folder: URI, _token: CancellationToken): Promise<INestedChatFolderInfo> {
+		throw NestedChatWorkspaceError.notSupported();
+	}
+
+	async getNestedChatBranches(_sessionId: string, _folder: URI, _query: string, _token: CancellationToken): Promise<readonly string[]> {
+		throw NestedChatWorkspaceError.notSupported();
+	}
+
+	async applyNestedChatWorkspace(_sessionId: string, _chat: URI, _workspace: INestedChatWorkspace, _prompt: string): Promise<void> {
+		throw NestedChatWorkspaceError.notSupported();
 	}
 
 	/** Test seam: the contribution registry is global, so tests override this with a stub. */

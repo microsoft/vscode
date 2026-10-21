@@ -758,6 +758,12 @@ export interface IAgentChatContext {
 	 * sessions and chats with no recorded launch directory.
 	 */
 	readonly launchWorkingDirectories: readonly URI[] | undefined;
+	/**
+	 * Whether this chat has no workspace of its own: it runs in a host-allocated
+	 * scratch folder. Decided per chat by the host from its recorded folders,
+	 * never from its owner's identity.
+	 */
+	readonly workspaceless: boolean;
 	readonly clientTelemetryContext?: IAgentHostClientTelemetryContext;
 	/** The owning turn's immutable admission snapshot, supplied only for its send. */
 	readonly turnTelemetryContext?: IAgentProviderTurnTelemetryContext;
@@ -813,7 +819,7 @@ export function resolveAgentChatContext(sessionOrContext: AgentChatOperationCont
 	// A bare session URI is the legacy, session-only form (tests and providers' own legacy paths): its owner is that
 	// session. The host always supplies a full context with a live owner.
 	const context = URI.isUri(sessionOrContext)
-		? { owner: fixedChatOwnerRef(sessionOrContext), resource, sessionSettings: undefined, launchWorkingDirectories: undefined }
+		? { owner: fixedChatOwnerRef(sessionOrContext), resource, sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: false }
 		: sessionOrContext;
 	// A chat stores under its own resource or in a session's database, which need not be its current
 	// owner's: a chat stored in its session's database keeps that storage when it changes owner. Never
@@ -928,7 +934,21 @@ export interface IAgentCreateChatRequestOptions extends IAgentCreateChatOptions 
 	 * the provider, while retaining the side-chat provenance itself.
 	 */
 	readonly sideChat?: IAgentCreateChatSideChatSource;
+	/**
+	 * Host-owned workspace requested for a new peer chat. The host prepares it
+	 * (adding the folder to the session, creating a worktree or a scratch
+	 * folder) and resolves it into {@link workingDirectories}; providers never
+	 * receive it. Exclusive with {@link workingDirectories}, {@link fork} and
+	 * {@link sideChat}.
+	 */
+	readonly workspace?: IAgentCreateChatWorkspace;
 }
+
+/** The workspace a client asks for when it creates a peer chat (VS Code `_meta`, validated). */
+export type IAgentCreateChatWorkspace =
+	| { readonly kind: 'folder'; readonly folder: URI; readonly isolation: 'folder' }
+	| { readonly kind: 'folder'; readonly folder: URI; readonly isolation: 'worktree'; readonly baseBranch: string | undefined; readonly prompt: string }
+	| { readonly kind: 'scratch' };
 
 /** Identifies the exact source chat and turn to fork from. */
 export interface IAgentCreateChatForkSource {

@@ -654,8 +654,8 @@ export class TabbedModelPicker extends Disposable {
 			const auto = this._autoModel(context)?.metadata;
 			const fusion = auto?.autoModelFusion;
 			derived.hydraFusionModels = [...COPILOT_HYDRA_FUSION_MODEL_NAMES.keys()]
-				// Provider tiers offer HydraFusion as a tier of their own, whether or not Fusion's High would use it.
-				.filter(id => id !== COPILOT_HYDRA_FUSION_MODEL_ID || !fusion || fusion.balanceUsesHydraFusion || !!getFusionTierLabel(auto, id))
+				// Under Fusion, HydraFusion is offered only as one of the provider's tiers.
+				.filter(id => id !== COPILOT_HYDRA_FUSION_MODEL_ID || !fusion || !!getFusionTierLabel(auto, id))
 				.map(id => context.models.find(model => model.metadata.id === id && isHydraFusionModel(model) && !isUserProvidedModel(model, this._languageModelsService) && !requiresNewerVSCode(model, context.controlModels, context.unavailableContext.currentVSCodeVersion)))
 				.filter((model): model is ILanguageModelChatMetadataAndIdentifier => !!model);
 		}
@@ -724,7 +724,7 @@ export class TabbedModelPicker extends Disposable {
 		if (schema && tierIndex !== -1) {
 			return { label, description: schema.enumDescriptions?.[tierIndex] || undefined, replacesTier: hydraFusion.metadata.id, selectsTier: true };
 		}
-		return { label, replacesTier: hydraFusion.metadata.id === COPILOT_HYDRA_FUSION_MODEL_ID ? 'intelligence' : undefined };
+		return { label };
 	}
 
 	/** The model whose details stand for the given one: Auto's for a Fusion tier, its own for HydraFusion with tiers, none otherwise. */

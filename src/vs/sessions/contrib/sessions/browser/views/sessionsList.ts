@@ -2184,13 +2184,19 @@ export function getSessionOnboardingTargetId(session: ISession): string {
  * The folder a chat works in, shown on its row when the session spans more than
  * one project and the chat works in exactly one folder.
  */
+/**
+ * The folder a chat row shows: in a session with folders of several roots, the chat's own folder; in a session without
+ * a workspace (a quick chat), the folder of a chat that has one of its own (a chat moved in with its folder).
+ */
 function getChatWorkspaceBadgeLabel(sessionWorkspace: ISessionWorkspace | undefined, chatWorkspace: ISessionWorkspace | undefined): string | undefined {
-	const firstSessionFolder = sessionWorkspace?.folders[0];
-	if (
-		!firstSessionFolder ||
-		!sessionWorkspace.folders.some(folder => !isEqual(folder.root, firstSessionFolder.root)) ||
-		chatWorkspace?.folders.length !== 1
-	) {
+	if (chatWorkspace?.folders.length !== 1) {
+		return undefined;
+	}
+	if (!sessionWorkspace) {
+		return chatWorkspace.folders[0].name;
+	}
+	const firstSessionFolder = sessionWorkspace.folders[0];
+	if (!firstSessionFolder || !sessionWorkspace.folders.some(folder => !isEqual(folder.root, firstSessionFolder.root))) {
 		return undefined;
 	}
 	return chatWorkspace.folders[0].name;

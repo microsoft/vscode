@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { parseSessionMultiRootMetadata, readSessionMultiRootMetadata, readSessionWorkspaceless, SESSION_META_MULTI_ROOT_KEY, SESSION_META_WORKSPACELESS_KEY, withSessionGitHubStateInput, withSessionMultiRootMetadata, withSessionWorkspaceless } from '../../common/state/sessionState.js';
+import { parseSessionMultiRootMetadata, readSessionMultiRootMetadata, readSessionScratchFolders, readSessionWorkspaceless, SessionScratchFoldersMetaKey, withSessionScratchFolders, SESSION_META_MULTI_ROOT_KEY, SESSION_META_WORKSPACELESS_KEY, withSessionGitHubStateInput, withSessionMultiRootMetadata, withSessionWorkspaceless } from '../../common/state/sessionState.js';
 
 suite('Session workspace-less meta', () => {
 
@@ -56,5 +56,17 @@ suite('Session workspace-less meta', () => {
 		// Clearing removes only the workspace-less slot; an otherwise empty bag collapses to undefined.
 		assert.strictEqual(withSessionWorkspaceless(tagged, false)?.[SESSION_META_WORKSPACELESS_KEY], undefined);
 		assert.strictEqual(withSessionWorkspaceless({ [SESSION_META_WORKSPACELESS_KEY]: true }, false), undefined);
+	});
+
+	test('scratch folders: read validates, with adds and removes', () => {
+		assert.deepStrictEqual(readSessionScratchFolders(undefined), []);
+		assert.deepStrictEqual(readSessionScratchFolders({ [SessionScratchFoldersMetaKey]: 'x' }), []);
+		assert.deepStrictEqual(readSessionScratchFolders({ [SessionScratchFoldersMetaKey]: ['file:///a', 3] }), []);
+		assert.deepStrictEqual(readSessionScratchFolders({ [SessionScratchFoldersMetaKey]: ['file:///a', ''] }), []);
+		const meta = withSessionScratchFolders({ other: 1 }, ['file:///a', 'file:///b']);
+		assert.deepStrictEqual(meta, { other: 1, [SessionScratchFoldersMetaKey]: ['file:///a', 'file:///b'] });
+		assert.deepStrictEqual(readSessionScratchFolders(meta), ['file:///a', 'file:///b']);
+		assert.deepStrictEqual(withSessionScratchFolders(meta, []), { other: 1 });
+		assert.strictEqual(withSessionScratchFolders(withSessionScratchFolders(undefined, ['file:///a']), []), undefined);
 	});
 });

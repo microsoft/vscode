@@ -77,6 +77,31 @@ export function createChatOwnerRef(stateManager: AgentHostStateManager, chat: UR
 }
 
 /**
+ * The folders a chat without folders of its own works in: the session's own scratch folder (its primary) in a
+ * workspace-less session, else the session's folders without the scratch folders other chats brought (recorded rows).
+ * Another chat's scratch folder is never an inheriting chat's.
+ */
+export function inheritedChatFolders(stateManager: AgentHostStateManager, sessionFolders: readonly string[], sessionWorkspaceless: boolean): readonly string[] {
+	return sessionWorkspaceless ? sessionFolders.slice(0, 1) : sessionFolders.filter(folder => !stateManager.isScratchFolder(folder));
+}
+
+/**
+ * Whether `chat` is workspace-less, decided per chat from recorded data: its own
+ * primary folder is a recorded scratch folder; a chat with no folder of its own,
+ * or one sharing the default chat's folder, follows the session's marker
+ * (`sessionWorkspaceless`). A chat with its own foldered path in a marked session
+ * is not workspace-less.
+ */
+export function isChatWorkspaceless(stateManager: AgentHostStateManager, chat: ProtocolURI, sessionState: ISessionStateSnapshot | undefined, sessionWorkspaceless: boolean): boolean {
+	const chatEntry = sessionState?.chats.get(chat);
+	const primaryFolder = chatEntry?.launchWorkingDirectories?.[0] ?? chatEntry?.workingDirectories?.[0];
+	const defaultEntry = sessionState && [...sessionState.chats.values()].find(entry => entry.isDefault);
+	const defaultFolder = defaultEntry?.launchWorkingDirectories?.[0] ?? defaultEntry?.workingDirectories?.[0];
+	return primaryFolder !== undefined && stateManager.isScratchFolder(primaryFolder)
+		|| sessionWorkspaceless && (primaryFolder === undefined || primaryFolder === defaultFolder);
+}
+
+/**
  * Builds the host-owned {@link IAgentChatContext} for an addressed chat
  * operation — the single place Agent Host derives the transient context handed
  * to a provider, so every boundary (create, materialize, send, truncate,
@@ -116,13 +141,19 @@ export function createAgentChatContext(stateManager: AgentHostStateManager, auth
 	const customizations = stateManager.getSessionState(sessionKey)?.customizations;
 	const sessionUri = toUri(session);
 	const sessionSettings = createAgentChatSessionSettings(sessionState);
-	const launch = sessionState?.chats.get(chatKey)?.launchWorkingDirectories;
+	const chatEntry = sessionState?.chats.get(chatKey);
+	// A chat without folders of its own never launches in another chat's scratch folder, also when an older build recorded it.
+	const launch = chatEntry?.workingDirectories === undefined
+		? chatEntry?.launchWorkingDirectories?.filter(entry => !stateManager.isScratchFolder(entry))
+		: chatEntry.launchWorkingDirectories;
+	const workspaceless = isChatWorkspaceless(stateManager, chatKey, sessionState, sessionSettings?.workspaceless === true);
 	const isToolChat = typeof origin === 'object' && origin !== null && !Array.isArray(origin) && origin.kind === ChatOriginKind.Tool;
 	return {
 		resource: storageResource === sessionKey ? sessionUri : storageResource === chatKey ? toUri(chat) : URI.parse(storageResource),
 		owner: createChatOwnerRef(stateManager, chat, session),
 		sessionSettings,
-		launchWorkingDirectories: isToolChat || sessionSettings?.workspaceless || !launch?.length ? undefined : launch.map(entry => URI.parse(entry)),
+		workspaceless,
+		launchWorkingDirectories: isToolChat || workspaceless || !launch?.length ? undefined : launch.map(entry => URI.parse(entry)),
 		...(origin ? { origin } : {}),
 		...(customizations ? { customizations } : {}),
 		...(credentials ? { credentials } : {}),
