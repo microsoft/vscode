@@ -78,7 +78,7 @@ type CustomizationMarketplaceBrowseSourceLoadedEvent = {
 	sourceCategory: CustomizationMarketplaceBrowseSourceCategory;
 	outcome: 'success' | 'error';
 	cacheStatus: AgentFinderBrowseFeedCacheStatus;
-	durationMs: number;
+	timeToSourceSettledMs: number;
 };
 
 type CustomizationMarketplaceBrowseSourceLoadedClassification = {
@@ -87,7 +87,7 @@ type CustomizationMarketplaceBrowseSourceLoadedClassification = {
 	sourceCategory: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded category of the marketplace source.' };
 	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the source completed successfully or with an error.' };
 	cacheStatus: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether a valid in-memory result for the source was available while it refreshed.' };
-	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Source load duration in milliseconds.' };
+	timeToSourceSettledMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds from the start of the overall query until the source settled.' };
 };
 
 function getBrowseSourceCategory(sourceId: string): CustomizationMarketplaceBrowseSourceCategory {
@@ -555,7 +555,7 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 					sourceCategory: getBrowseSourceCategory(sourceId),
 					outcome: progress.page.sourceErrors?.some(error => error.sourceId === sourceId) ? 'error' : 'success',
 					cacheStatus: progress.cachedSourceIds.includes(sourceId) ? 'hit' : 'miss',
-					durationMs: Date.now() - startedAt,
+					timeToSourceSettledMs: Date.now() - startedAt,
 				});
 			}
 			onProgress(progress);

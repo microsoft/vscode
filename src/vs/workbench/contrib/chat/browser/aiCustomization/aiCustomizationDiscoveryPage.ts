@@ -71,6 +71,7 @@ const catalogPageSize = 24;
 const browseCatalogPageSize = 100;
 const maxFilteredCatalogPagesPerLoad = 8;
 const leadingBrowseItemCount = 4;
+const loadingAnnouncementDelay = 1000;
 
 type CustomizationMarketplaceBrowseRenderedEvent = {
 	view: 'curated' | 'fallback';
@@ -855,6 +856,16 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	private providerPluginSequence = 0;
 	private lastDimension: DOM.Dimension | undefined;
 	private lastAnnouncement: string | undefined;
+	private lastLoadingAnnouncement: string | undefined;
+	private pendingLoadingAnnouncement: string | undefined;
+	private readonly loadingAnnouncementScheduler = this._register(new RunOnceScheduler(() => {
+		const message = this.pendingLoadingAnnouncement;
+		this.pendingLoadingAnnouncement = undefined;
+		if (message && this.loading) {
+			this.lastLoadingAnnouncement = message;
+			this.announce(message);
+		}
+	}, loadingAnnouncementDelay));
 	private lastBrowseTelemetryView: 'curated' | 'fallback' | undefined;
 	private catalogLoadProgress: IMarketplaceLoadProgress | undefined;
 	private curatedLoadProgress: IMarketplaceLoadProgress | undefined;
@@ -1525,6 +1536,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.continuationScheduler.cancel();
 		this.request.value?.cancel();
 		this.request.clear();
+		this.resetLoadingAnnouncement();
 		this.loading = false;
 		this.loadingMore = false;
 		this.catalogLoadProgress = undefined;
@@ -1687,6 +1699,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				if (browseRequest) {
 					this.logBrowseLoaded();
 				}
+				this.resetLoadingAnnouncement();
 				this.loading = false;
 				this.request.clear();
 				this.render(this.loadingMore);
@@ -1931,7 +1944,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			this.resultStatus.textContent = '';
 		}
 		if (this.loading) {
-			this.announce(this.getLoadingLabel());
+			this.announceLoading(this.getLoadingLabel());
 		}
 		if (!catalogPending && !this.errorMessage) {
 			this.announce([
@@ -2007,7 +2020,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		if (this.loading) {
 			const loadingLabel = this.getLoadingLabel();
 			this.browseStatus.textContent = loadingLabel;
-			this.announce(loadingLabel);
+			this.announceLoading(loadingLabel);
 		} else if (this.errorMessage) {
 			const message = localize('customizationDiscovery.error', "Could not load available customizations. {0}", this.errorMessage);
 			this.browseStatus.textContent = message;
@@ -2454,6 +2467,27 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			this.lastAnnouncement = message;
 			status(message);
 		}
+	}
+
+	private announceLoading(message: string): void {
+		if (message === this.lastLoadingAnnouncement) {
+			this.pendingLoadingAnnouncement = undefined;
+			this.loadingAnnouncementScheduler.cancel();
+		} else if (this.lastLoadingAnnouncement === undefined) {
+			this.lastLoadingAnnouncement = message;
+			this.announce(message);
+		} else {
+			this.pendingLoadingAnnouncement = message;
+			if (!this.loadingAnnouncementScheduler.isScheduled()) {
+				this.loadingAnnouncementScheduler.schedule();
+			}
+		}
+	}
+
+	private resetLoadingAnnouncement(): void {
+		this.loadingAnnouncementScheduler.cancel();
+		this.lastLoadingAnnouncement = undefined;
+		this.pendingLoadingAnnouncement = undefined;
 	}
 
 	private getEntryAriaLabel(entry: DiscoveryListEntry): string {

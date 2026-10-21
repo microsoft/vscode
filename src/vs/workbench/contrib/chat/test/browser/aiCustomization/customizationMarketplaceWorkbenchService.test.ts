@@ -18,7 +18,7 @@ import { IPlatformCustomizationMarketplaceService } from '../../../../../../plat
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
-import { CustomizationMarketplaceMediaType, CustomizationMarketplaceRecoveryGroup, ICustomizationMarketplaceCursor, ICustomizationMarketplaceEntry, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceService, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceMediaType, CustomizationMarketplaceQueryProgressCallback, CustomizationMarketplaceRecoveryGroup, ICustomizationMarketplaceCursor, ICustomizationMarketplaceEntry, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceService, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { IMarketplaceReference, IPluginMarketplacePage, IPluginMarketplaceQuery, IPluginMarketplaceService, MarketplaceType, parseMarketplaceReference, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { ICustomizationHarnessService, ICustomizationMarketplaceManagementProvider, ICustomizationMarketplaceSearchProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
@@ -219,6 +219,53 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 			items: [CustomizationMarketplaceSources.McpGallery.id],
 			platformRequests: [{ query: '', mediaType: undefined, pageSize: 30, cursor: undefined, sourceIds: [CustomizationMarketplaceSources.McpGallery.id] }],
 		});
+	});
+
+	test('reports when each Browse source settles from the start of the query', async () => {
+		const clock = sinon.useFakeTimers({ now: 1_000 });
+		store.add(toDisposable(() => clock.restore()));
+		const configuration = createConfiguration([]);
+		const telemetryService = new TestTelemetryService();
+		const sourceId = CustomizationMarketplaceSources.McpGallery.id;
+		const platformService = new class extends mock<ICustomizationMarketplaceService>() {
+			override readonly sources = [CustomizationMarketplaceSources.McpGallery];
+			override readonly allSources = this.sources;
+			override async query(_options: ICustomizationMarketplaceQuery, _token: CancellationToken, onProgress?: CustomizationMarketplaceQueryProgressCallback) {
+				clock.tick(75);
+				onProgress?.({
+					page: { items: [] },
+					completedSourceIds: [sourceId],
+					cachedSourceIds: [],
+					totalSourceCount: 1,
+				});
+				return { items: [] };
+			}
+		}();
+		const service = createService(
+			configuration,
+			platformService,
+			new class extends mock<ICopilotConnectorsService>() { }(),
+			undefined,
+			undefined,
+			[],
+			{ active: false, onDidChange: Event.None },
+			telemetryService,
+		);
+
+		await service.query({}, CancellationToken.None, () => { });
+
+		assert.deepStrictEqual(
+			telemetryService.events
+				.filter(event => event.name === 'chatCustomizationMarketplace.browseSourceLoaded')
+				.map(event => ({ name: event.name, ...event.data })),
+			[{
+				name: 'chatCustomizationMarketplace.browseSourceLoaded',
+				sourceCategory: 'mcpGallery',
+				outcome: 'success',
+				cacheStatus: 'miss',
+				timeToSourceSettledMs: 75,
+			}],
+		);
 	});
 
 	test('projects provider-managed marketplaces as discover sources', async () => {
