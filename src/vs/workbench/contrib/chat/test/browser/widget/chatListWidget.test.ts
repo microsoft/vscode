@@ -421,6 +421,67 @@ suite('ChatListWidget', () => {
 				completed: 0,
 			});
 		});
+
+		test(`reverse sticky progress leaves steering and queued rows in the transcript (sessions=${isSessionsWindow})`, async () => {
+			const { model, container, widget } = createWidget({ stickyProgress: true, paddingBottom: 84 }, configuration => {
+				configuration.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
+			}, isSessionsWindow);
+			container.classList.add('interactive-session', 'interactive-list');
+			container.style.height = '500px';
+			container.style.setProperty('--vscode-spacing-size60', '6px');
+			container.style.setProperty('--vscode-spacing-size160', '16px');
+			container.style.setProperty('--vscode-spacing-size280', '28px');
+			container.style.setProperty('--vscode-spacing-size400', '40px');
+			container.style.setProperty('--vscode-chat-font-size-body-m', '13px');
+			const message = (text: string) => ({
+				text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+			});
+			const earlier = model.addRequest(message('Earlier work'), { variables: [] }, 0);
+			model.acceptResponseProgress(earlier, { kind: 'markdownContent', content: new MarkdownString(Array.from({ length: 40 }, (_, index) => `Earlier paragraph ${index}.`).join('\n\n')) });
+			earlier.response!.complete();
+			model.addRequest(message('Current work'), { variables: [] }, 0);
+			for (const [kind, text] of [[ChatRequestQueueKind.Steering, 'Adjust the approach'], [ChatRequestQueueKind.Queued, 'Follow up afterwards']] as const) {
+				model.addPendingRequest(new ChatRequestModel({
+					session: model, message: message(text), variableData: { variables: [] }, timestamp: 0,
+				}), kind, {});
+			}
+			widget.refresh();
+			widget.layout(500, 500);
+			widget.scrollToEnd();
+			const overlay = container.querySelector<HTMLElement>('.chat-sticky-progress')!;
+			await retry(async () => {
+				assert.ok(container.querySelector('.monaco-list-row .chat-working-progress'));
+				assert.strictEqual(container.querySelectorAll('.pending-request').length, 2);
+			}, 10, 100);
+			const footer = container.querySelector('.chat-working-progress')!;
+			const tail = () => ({
+				inline: !!container.querySelector('.monaco-list-row .chat-working-progress'),
+				overlayEmpty: overlay.childElementCount === 0,
+				labels: [...container.querySelectorAll('.pending-divider-label')].map(node => node.textContent),
+				messages: [...container.querySelectorAll('.pending-request .rendered-markdown')].map(node => node.textContent?.trim()),
+				statusBeforePending: [...container.querySelectorAll('.pending-item')].every(node => footer.getBoundingClientRect().bottom <= node.getBoundingClientRect().top),
+			});
+			const beforeScroll = tail();
+			widget.setScrollLock(false);
+			widget.scrollTop = 0;
+			await retry(async () => assert.ok(overlay.contains(footer)), 10, 100);
+			const clamped = {
+				sameFooter: overlay.querySelector('.chat-working-progress') === footer,
+				onlyStatus: overlay.childElementCount === 1 && overlay.querySelectorAll('.pending-item').length === 0,
+				logos: container.querySelectorAll('.chat-working-logo').length,
+			};
+			container.querySelector<HTMLElement>('.chat-scroll-down')!.click();
+			await retry(async () => {
+				assert.ok(widget.isScrolledToBottom);
+				assert.strictEqual(container.querySelectorAll('.pending-request').length, 2);
+			}, 10, 100);
+			const afterScroll = tail();
+			assert.deepStrictEqual({ beforeScroll, clamped, afterScroll }, {
+				beforeScroll: { inline: true, overlayEmpty: true, labels: ['Steering', 'Queued'], messages: ['Adjust the approach', 'Follow up afterwards'], statusBeforePending: true },
+				clamped: { sameFooter: true, onlyStatus: true, logos: 1 },
+				afterScroll: { inline: true, overlayEmpty: true, labels: ['Steering', 'Queued'], messages: ['Adjust the approach', 'Follow up afterwards'], statusBeforePending: true },
+			});
+		});
 	}
 
 	test('consumed steering messages have no empty response or checkpoint spacer between them', async () => {
