@@ -10603,6 +10603,66 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		}
 
+		test('set_workspace on a single-chat workspace-less session clears the durable marker', async () => {
+			const scratch = URI.file('/home/.copilot/chats/own');
+			const destination = URI.file('/workspace/destination');
+			class WorkspaceAgent extends MockAgent {
+				serverToolHost: IAgentServerToolHost | undefined;
+				setServerToolHost(host: IAgentServerToolHost): void {
+					this.serverToolHost = host;
+				}
+				override async setWorkingDirectory(): Promise<void> { }
+				async setChatWorkingDirectory(): Promise<void> { }
+			}
+			const databases = createPerSessionDataService();
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, databases.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new WorkspaceAgent('copilot', { multipleChats: { fork: true }, multipleWorkingDirectories: { immutablePrimary: true } }, { workspaceConversion: true }));
+			agent.resolvedWorkingDirectory = scratch;
+			registerTestAgentProvider(svc, agent);
+			const clientConnections = Reflect.get(svc, '_clientConnections') as IAgentHostClientConnectionService;
+			disposables.add(clientConnections.registerSource({
+				hasSeenClient: clientId => clientId === 'client',
+				isClientConnected: clientId => clientId === 'client',
+				isLocalClient: () => true,
+				usesLegacyChatUris: () => false,
+				getConnectedClientTransportCounts: () => new Map([['client', 1]]),
+				requestWorkspaceTrust: async () => true,
+				requestMcpAuthentication: async () => false,
+			}));
+			const session = await svc.createSession({ legacyChatUris: true, provider: agent.id });
+			const state = getStateManager(svc);
+			state.dispatchServerAction(session.toString(), { type: ActionType.SessionConfigChanged, config: { autoApprove: 'autoApprove' } });
+			const main = buildDefaultChatUri(session);
+			svc.dispatchAction(main, {
+				type: ActionType.ChatTurnStarted, turnId: 'request-turn', startedAt: new Date().toISOString(),
+				message: { text: 'Work in the destination', origin: { kind: MessageKind.User } },
+			}, 'client', 1);
+			await waitForCondition(() => agent.sendMessageCalls.length === 1, 'Expected the requesting turn to start');
+			await agent.serverToolHost!.executeTool(main, SessionServerToolName.SetWorkspace, { workspaceFolder: destination.toString(), isolation: false });
+			agent.fireProgress({ kind: 'action', resource: URI.parse(main), action: { type: ActionType.ChatTurnComplete, turnId: 'request-turn', duration: 1 } });
+			await waitForCondition(() => agent.sendMessageCalls.length === 2, 'Expected the host to continue the original task');
+
+			assert.deepStrictEqual({
+				workspaceless: readSessionWorkspaceless(state.getSessionState(session.toString())?._meta),
+				directories: state.getSessionSummary(session.toString())?.workingDirectories,
+				persisted: await databases.database(session).getMetadata(AH_META_WORKSPACELESS_DB_KEY),
+			}, { workspaceless: false, directories: [destination.toString()], persisted: 'false' });
+
+			await getTestSessionStateStore(svc).whenIdle(undefined);
+			svc.dispose();
+			const restarted = disposables.add(createTestAgentService(new NullLogService(), fileService, databases.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			registerTestAgentProvider(restarted, agent);
+			agent.sessionMetadataOverrides = { _meta: withSessionWorkspaceless(undefined, true) };
+			await restarted.listSessions();
+			await restarted.restoreSession(session);
+			await getTestSessionStateStore(restarted).whenIdle(undefined);
+			const restoredState = getStateManager(restarted);
+			assert.deepStrictEqual({
+				workspaceless: readSessionWorkspaceless(restoredState.getSessionState(session.toString())?._meta),
+				persisted: await databases.database(session).getMetadata(AH_META_WORKSPACELESS_DB_KEY),
+			}, { workspaceless: false, persisted: 'false' });
+		});
+
 		test('set_workspace uses the sole connected active client for a provider-started turn', async () => {
 			const original = URI.file('/workspace/original');
 			const destination = URI.file('/workspace/destination');

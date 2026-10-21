@@ -8777,6 +8777,26 @@ suite('CopilotAgent', () => {
 			}
 		}).timeout(30_000);
 
+		test('a live chat whose recorded scratch folder was deleted gets it recreated, a user folder never', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/qc-home-`));
+			const userFolder = URI.file(await fs.mkdtemp(`${os.tmpdir()}/qc-user-`));
+			const scratchDir = URI.joinPath(userHome, '.copilot', 'chats', 'live-nested-folder');
+			const agent = createTestAgent(disposables, { userHome });
+			const internals = agent as unknown as { _withRecordedScratchFolder: (session: { workingDirectory: URI }, owner: string) => Promise<unknown> };
+			try {
+				await internals._withRecordedScratchFolder({ workingDirectory: scratchDir }, 'owner');
+				await fs.rm(userFolder.fsPath, { recursive: true, force: true });
+				await internals._withRecordedScratchFolder({ workingDirectory: userFolder }, 'owner');
+				assert.deepStrictEqual({
+					scratch: await fs.access(scratchDir.fsPath).then(() => true, () => false),
+					user: await fs.access(userFolder.fsPath).then(() => true, () => false),
+				}, { scratch: true, user: false });
+			} finally {
+				await disposeAgent(agent);
+				await fs.rm(userHome.fsPath, { recursive: true, force: true, maxRetries: 5 });
+			}
+		}).timeout(30_000);
+
 		test('session teardown cleans up the quick chat scratch dir', async () => {
 			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/qc-home-`));
 			const agent = createTestAgent(disposables, { userHome });

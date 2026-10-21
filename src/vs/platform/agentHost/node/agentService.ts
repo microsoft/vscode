@@ -13253,6 +13253,7 @@ export class AgentService extends Disposable implements IAgentService {
 		let changes: ChangesSummary | undefined;
 		let gitMetadata: Record<string, string | undefined> | undefined;
 		let sessionMetadata: Record<string, unknown> | undefined;
+		let persistedWorkspaceless: boolean | undefined;
 		let persistedWorkingDirectories: string | undefined;
 		// A default chat stored outside its session database keeps its workspace transitions in its own storage.
 		let workspaceTransitionsPromise: Promise<ReadonlyMap<string, string> | undefined> = defaultChatStorage === sessionStr || load.kind === 'dataForMove'
@@ -13355,7 +13356,8 @@ export class AgentService extends Disposable implements IAgentService {
 						}
 
 						if (m[AH_META_WORKSPACELESS_DB_KEY] !== undefined) {
-							sessionMetadata = withSessionWorkspaceless(sessionMetadata, m[AH_META_WORKSPACELESS_DB_KEY] === 'true');
+							persistedWorkspaceless = m[AH_META_WORKSPACELESS_DB_KEY] === 'true';
+							sessionMetadata = withSessionWorkspaceless(sessionMetadata, persistedWorkspaceless);
 						}
 						if (m[AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY] !== undefined) {
 							sessionMetadata = withSessionHasWorkspaceTransitions(sessionMetadata, m[AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY] === 'true');
@@ -13452,6 +13454,10 @@ export class AgentService extends Disposable implements IAgentService {
 		const providerMeta = withSessionMultiRootMetadata(meta._meta, undefined);
 		let restoredMeta = (sessionMetadata || providerMeta) ? { ...(providerMeta ?? {}), ...(sessionMetadata ?? {}) } : undefined;
 		restoredMeta = withSessionMultiRootMetadata(restoredMeta, readSessionMultiRootMetadata(sessionMetadata));
+		// A persisted `false` is the absence of the marker, so the spread above cannot override a provider's stale `true`.
+		if (persistedWorkspaceless !== undefined) {
+			restoredMeta = withSessionWorkspaceless(restoredMeta, persistedWorkspaceless);
+		}
 		restoredMeta = withSessionExternal(restoredMeta, external);
 		const centralChatCatalog = await this._readCentralChatCatalog(session) ?? cachedChatCatalog;
 		const restoredChats = cachedChatCatalog?.map(chat => ({

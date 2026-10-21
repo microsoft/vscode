@@ -7445,7 +7445,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return this._materializeProvisional(context, workingDirectories, stageRecorder, { token });
 		}
 		if (context.sdkSessionId !== undefined && context.sdkSessionId === context.sessionBackedId) {
-			return context.target ?? this._resumeSession(context.sdkSessionId, context.chat, context.workspaceless, workingDirectories, stageRecorder, token);
+			return context.target ? this._withRecordedScratchFolder(context.target, context.ownerSessionId) : this._resumeSession(context.sdkSessionId, context.chat, context.workspaceless, workingDirectories, stageRecorder, token);
 		}
 		if (context.sdkSessionId) {
 			const lifetime = this._getOrCreateSessionLifetime(context.sdkSessionId);
@@ -7456,14 +7456,22 @@ export class CopilotAgent extends Disposable implements IAgent {
 			try {
 				const target = this._findChatByUri(context.chat);
 				if (target) {
-					return target;
+					return this._withRecordedScratchFolder(target, context.ownerSessionId);
 				}
 				return this._resolveOrResumeChatSession(context, workingDirectories, stageRecorder, token);
 			} finally {
 				lease.dispose();
 			}
 		}
-		return context.target;
+		return context.target && this._withRecordedScratchFolder(context.target, context.ownerSessionId);
+	}
+
+	/** A live chat's recorded scratch folder deleted while the host runs is recreated before the chat is used again. */
+	private async _withRecordedScratchFolder(session: CopilotAgentSession, ownerSessionId: string): Promise<CopilotAgentSession> {
+		if (session.workingDirectory) {
+			await this._ensureWorkspacelessScratchDir(session.workingDirectory, ownerSessionId);
+		}
+		return session;
 	}
 
 	/**

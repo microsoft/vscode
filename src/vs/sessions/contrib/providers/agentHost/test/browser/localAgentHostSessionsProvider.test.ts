@@ -5158,6 +5158,37 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
+	test('a restored, unsubscribed workspace-less session lists a nested chat with its own folder and hides scratch folders', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const backend = AgentSession.uri('copilotcli', 'wl-restored');
+		const sessionScratch = URI.file('/home/user/.copilot/chats/wl-restored').toString();
+		const folder = URI.file('/work/repo').toString();
+		const listed = (): IAgentSessionMetadata => createSession('wl-restored', {
+			provider: 'copilotcli',
+			summary: 'Reply w1',
+			workingDirectories: [URI.parse(sessionScratch), URI.parse(folder)],
+			chats: [
+				{ chat: URI.parse(buildDefaultChatUri(backend)), kind: 'default', workingDirectories: [sessionScratch] },
+				{ chat: URI.parse(buildChatUri(backend, 'foldered')), kind: 'peer', workingDirectories: [folder] },
+			],
+			_meta: withSessionScratchFolders(withSessionWorkspaceless(undefined, true), [sessionScratch]),
+		});
+		const storageService = disposables.add(new InMemoryStorageService());
+		await persistCachedSessions(disposables, storageService, [listed()]);
+		const nextHost = new MockAgentHostService();
+		disposables.add(toDisposable(() => nextHost.dispose()));
+		nextHost.addSession(listed());
+		const provider = createProvider(disposables, nextHost, undefined, { storageService });
+		const session = provider.getSessions()[0];
+
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			workspace: session.workspace.get()?.folders.map(f => f.workingDirectory.toString()),
+			chats: session.chats.get().map(c => c.workspace.get()?.folders.map(f => f.workingDirectory.toString())),
+			subscribed: [...nextHost.sessionSubscribeCounts.keys()].filter(key => key.startsWith(backend.toString())),
+		}, { workspace: undefined, chats: [undefined, [folder]], subscribed: [] });
+	}));
+
 	for (const listsScratchFolders of [false, true]) {
 		test(`a restored, unopened workspace session shows a moved-in scratch folder only while the host listing omits it (${listsScratchFolders})`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 			const backend = AgentSession.uri('copilotcli', 'ws-restored');
