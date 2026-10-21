@@ -83,10 +83,11 @@ const targetArtifacts: Readonly<Record<string, string>> = {
 };
 
 /**
- * The VS Code process logs that {@link TestContext.captureLogs} copies. Extension output logs are left
- * out, since they are not needed to diagnose the workbench and may contain more varied content.
+ * The VS Code process logs that {@link TestContext.captureLogs} copies, most useful first. Extension
+ * output logs are left out, since they are not needed to diagnose the workbench and may contain
+ * more varied content.
  */
-const capturedLogNames: ReadonlySet<string> = new Set([
+const capturedLogNames: readonly string[] = [
 	'main.log',
 	'sharedprocess.log',
 	'renderer.log',
@@ -95,7 +96,7 @@ const capturedLogNames: ReadonlySet<string> = new Set([
 	'agenthost.log',
 	'network-shared.log',
 	'network.log',
-]);
+];
 
 /** How much of each captured log file {@link TestContext.captureLogs} keeps, from its end. */
 const maxCapturedLogFileBytes = 2 * 1024 * 1024;
@@ -1473,49 +1474,56 @@ export class TestContext {
 			const targetDir = path.join(screenshotDir, `${sanitizedName}-logs`);
 			fs.rmSync(targetDir, { recursive: true, force: true });
 
-			let totalBytes = 0;
-			let fileCount = 0;
+			// Collect first, then copy in allowlist order (most useful logs first), so the size cap is deterministic.
+			const sources: string[] = [];
 			const pending = [logsDir];
-			walk: for (let dir = pending.pop(); dir !== undefined; dir = pending.pop()) {
+			for (let dir = pending.pop(); dir !== undefined; dir = pending.pop()) {
 				for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
 					// Dirent types do not follow symlinks, so a symlink is neither a directory nor a file here and is skipped.
 					const source = path.join(dir, entry.name);
 					if (entry.isDirectory()) {
 						pending.push(source);
-						continue;
+					} else if (entry.isFile() && capturedLogNames.includes(entry.name)) {
+						sources.push(source);
 					}
-					if (!entry.isFile() || !capturedLogNames.has(entry.name)) {
-						continue;
-					}
-					const size = fs.statSync(source).size;
-					if (size === 0) {
-						continue;
-					}
-					if (totalBytes >= maxTotalBytes) {
-						this.warn(`Stopped capturing logs after ${totalBytes} bytes`);
-						break walk;
-					}
-					const bytes = Math.min(size, maxFileBytes, maxTotalBytes - totalBytes);
-					const target = path.join(targetDir, path.relative(logsDir, source));
-					fs.mkdirSync(path.dirname(target), { recursive: true });
-					const buffer = Buffer.alloc(bytes);
-					let bytesRead = 0;
-					const fd = fs.openSync(source, 'r');
-					try {
-						while (bytesRead < bytes) {
-							const read = fs.readSync(fd, buffer, bytesRead, bytes - bytesRead, size - bytes + bytesRead);
-							if (read === 0) {
-								break;
-							}
-							bytesRead += read;
-						}
-					} finally {
-						fs.closeSync(fd);
-					}
-					fs.writeFileSync(target, buffer.subarray(0, bytesRead));
-					totalBytes += bytesRead;
-					fileCount++;
 				}
+			}
+			sources.sort((a, b) => capturedLogNames.indexOf(path.basename(a)) - capturedLogNames.indexOf(path.basename(b)) || a.localeCompare(b));
+
+			let totalBytes = 0;
+			let fileCount = 0;
+			for (const source of sources) {
+				const size = fs.statSync(source).size;
+				if (size === 0) {
+					continue;
+				}
+				if (totalBytes >= maxTotalBytes) {
+					this.warn(`Stopped capturing logs after ${totalBytes} bytes`);
+					break;
+				}
+				const bytes = Math.min(size, maxFileBytes, maxTotalBytes - totalBytes);
+				const buffer = Buffer.alloc(bytes);
+				let bytesRead = 0;
+				const fd = fs.openSync(source, 'r');
+				try {
+					while (bytesRead < bytes) {
+						const read = fs.readSync(fd, buffer, bytesRead, bytes - bytesRead, size - bytes + bytesRead);
+						if (read === 0) {
+							break;
+						}
+						bytesRead += read;
+					}
+				} finally {
+					fs.closeSync(fd);
+				}
+				if (bytesRead === 0) {
+					continue;
+				}
+				const target = path.join(targetDir, path.relative(logsDir, source));
+				fs.mkdirSync(path.dirname(target), { recursive: true });
+				fs.writeFileSync(target, buffer.subarray(0, bytesRead));
+				totalBytes += bytesRead;
+				fileCount++;
 			}
 			if (fileCount === 0) {
 				this.log(`No non-empty log files to capture in ${logsDir}`);
