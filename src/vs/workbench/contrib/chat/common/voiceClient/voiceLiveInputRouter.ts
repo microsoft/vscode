@@ -158,6 +158,16 @@ function normalizeReply(text: string, language = 'en'): string {
 	return text.normalize('NFC').trim().replace(/[.!。！।]+$/, '').trim().toLocaleLowerCase(language);
 }
 
+/** Speech recognition can merge repeated attempts into one transcript. */
+function matchesExplicitReply(command: string, phrases: readonly string[]): boolean {
+	const words = command.split(' ');
+	return phrases.some(phrase => {
+		const phraseWords = phrase.split(' ');
+		return words.length % phraseWords.length === 0
+			&& words.every((word, index) => word === phraseWords[index % phraseWords.length]);
+	});
+}
+
 function ordinalNumber(text: string): number {
 	const normalized = normalizeReply(text);
 	const ordinal = normalized.replace(/^option /, '');
@@ -322,8 +332,8 @@ export class VoiceLiveInputRouter {
 			const localizedReplies = approvalReplies[language];
 			const command = reply.replace(/\s+/g, ' ');
 			const localizedCommand = localizedReplies ? normalizeReply(text, language).replace(/\s+/g, ' ') : command;
-			const approve = approvalReplies.en.approve.includes(command) || !!localizedReplies?.approve.includes(localizedCommand);
-			const reject = approvalReplies.en.reject.includes(command) || !!localizedReplies?.reject.includes(localizedCommand);
+			const approve = matchesExplicitReply(command, approvalReplies.en.approve) || !!localizedReplies && matchesExplicitReply(localizedCommand, localizedReplies.approve);
+			const reject = matchesExplicitReply(command, approvalReplies.en.reject) || !!localizedReplies && matchesExplicitReply(localizedCommand, localizedReplies.reject);
 			if (!approve && !reject) {
 				return { clarification: this.getApprovalReplyGuidance() || localize('voice.live.explicitApproval', "Please say approve or reject for this prompt, or respond in the chat input.") };
 			}

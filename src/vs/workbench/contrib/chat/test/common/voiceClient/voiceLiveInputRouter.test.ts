@@ -308,15 +308,33 @@ suite('VoiceLiveInputRouter', () => {
 				router.updateContext(context('chat-session:/a', approval, locale));
 				return router.resolve(text, text, router.captureTarget()).toolCall?.args.response;
 			};
+			const repeat = (text: string) => {
+				const phrase = text.replace(/[.!。！।]+$/, '');
+				return `${phrase} ${phrase}`;
+			};
 			assert.deepStrictEqual({
 				approvals: approvals.map(result), rejections: rejections.map(result), ambiguous: ambiguous.map(result),
+				repeatedApprovals: approvals.map(text => result(repeat(text))),
+				repeatedRejections: rejections.map(text => result(repeat(text))),
+				mixed: result(`${repeat(approvals[0])} ${rejections[0]}`),
 			}, {
 				approvals: approvals.map(() => ({ type: 'approve' })),
 				rejections: rejections.map(() => ({ type: 'reject' })),
 				ambiguous: ambiguous.map(() => undefined),
+				repeatedApprovals: approvals.map(() => ({ type: 'approve' })),
+				repeatedRejections: rejections.map(() => ({ type: 'reject' })),
+				mixed: undefined,
 			});
 		});
 	}
+
+	test('does not treat repeated but qualified or concatenated commands as consent', () => {
+		assert.deepStrictEqual(['approve approve but wait', 'approve approve?', 'do not approve approve', 'approveapprove', 'approve reject', 'reject approve'].map(text => {
+			const router = new VoiceLiveInputRouter();
+			router.updateContext(context('chat-session:/a', approval));
+			return router.resolve(text, text, router.captureTarget()).toolCall?.args.response;
+		}), [undefined, undefined, undefined, undefined, undefined, undefined]);
+	});
 
 	test('does not interpret phrases from another voice language or guess unsupported languages', () => {
 		assert.deepStrictEqual([

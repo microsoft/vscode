@@ -809,6 +809,43 @@ suite('VoiceClientService', () => {
 		});
 	});
 
+	test('routes repeated barge-in approvals combined into one transcript to the pending confirmation', async () => {
+		const peer = new TestRtcPeerConnection();
+		const service = store.add(new TestGptLiveVoiceClientService(peer, new TestMicCaptureService(new TestMediaStream(new TestMediaStreamTrack())), productService));
+		const calls: IVoiceToolCall[] = [];
+		store.add(service.onToolCall(call => calls.push(call)));
+		await service.connect(createTestWindow());
+		peer.channel.fireMessage({ type: 'session.started' });
+		service.sendStartSession({
+			display_locale: 'en-US',
+			sessions: [{
+				id: 'chat-session:/a', is_active: true, agent_state: 'waiting_for_confirmation',
+				pending: { type: 'approval', request_id: 'request', pending_id: 'approval' },
+			}],
+		}, 'machine');
+		service.requestNarration('chat-session:/a', 'confirmation', 'Run the command?', 'confirmation', undefined, 'tool', { pendingId: 'approval' });
+		peer.channel.fireMessage({ type: 'session.output_transcript.delta', delta: 'Run the command?' });
+		service.sendPttStart('barge-in', { hasActiveSession: true, passive: true });
+		peer.channel.fireMessage({ type: 'session.input_transcript.delta', delta: 'Approved ', start_ms: 21800, end_ms: 22000 });
+		peer.channel.fireMessage({ type: 'session.input_transcript.delta', delta: 'Approved', start_ms: 28400, end_ms: 28600 });
+		peer.channel.fireMessage({ type: 'session.output_transcript.delta', delta: 'Passing that along.' });
+		peer.channel.fireMessage({ type: 'session.delegation.created', offset_ms: 28500, delegation: { id: 'approval-reply' } });
+		const beforeResult = peer.channel.sent.filter(event => event.type === 'session.commentary.append').map(event => event.content);
+		service.sendToolResult('approval-reply', { ok: true });
+		assert.deepStrictEqual({
+			calls,
+			beforeResult,
+			afterResult: peer.channel.sent.filter(event => event.type === 'session.commentary.append').map(event => event.content),
+		}, {
+			calls: [{
+				callId: 'approval-reply', name: 'respond_to_session', turnId: 'barge-in',
+				args: { coding_session_id: 'chat-session:/a', request_id: 'request', pending_id: 'approval', response: { type: 'approve' } },
+			}],
+			beforeResult: ['Run the command?'],
+			afterResult: ['Run the command?', 'Your response was submitted.'],
+		});
+	});
+
 	test('uses provider timestamps to route late delegations instead of reusing the latest transcript', async () => {
 		const peer = new TestRtcPeerConnection();
 		const service = store.add(new TestGptLiveVoiceClientService(peer, new TestMicCaptureService(new TestMediaStream(new TestMediaStreamTrack())), productService));
