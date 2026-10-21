@@ -6850,11 +6850,11 @@ suite('Sessions - SessionsList', () => {
 					pulses: !!item.querySelector('.session-icon-pulse'),
 					iconAnimation: mainWindow.getComputedStyle(icon).animationName,
 					backgroundAnimation: mainWindow.getComputedStyle(background).animationName,
-					background: mainWindow.getComputedStyle(background).backgroundColor,
+					hasWarningBackground: ['color(srgb 1 0 0 / 0.08)', 'rgba(255, 0, 0, 0.08)'].includes(mainWindow.getComputedStyle(background).backgroundColor),
 				};
 			}), [
-				{ needsInput: true, pulses: false, iconAnimation: 'none', backgroundAnimation: 'none', background: 'color(srgb 1 0 0 / 0.08)' },
-				{ needsInput: true, pulses: false, iconAnimation: 'none', backgroundAnimation: 'none', background: 'color(srgb 1 0 0 / 0.08)' },
+				{ needsInput: true, pulses: false, iconAnimation: 'none', backgroundAnimation: 'none', hasWarningBackground: true },
+				{ needsInput: true, pulses: false, iconAnimation: 'none', backgroundAnimation: 'none', hasWarningBackground: true },
 			]);
 		});
 

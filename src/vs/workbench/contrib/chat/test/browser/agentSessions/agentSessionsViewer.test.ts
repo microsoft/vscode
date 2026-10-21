@@ -42,17 +42,17 @@ suite('AgentSessionsViewer styles', () => {
 				{ background: sessionRow, icon: sessionIcon },
 				{ background: chatItem, icon: chatIcon },
 			].map(({ background, icon }) => ({
-				backgroundColor: mainWindow.getComputedStyle(background).backgroundColor,
+				hasWarningBackground: ['color(srgb 1 0 0 / 0.08)', 'rgba(255, 0, 0, 0.08)'].includes(mainWindow.getComputedStyle(background).backgroundColor),
 				backgroundAnimation: mainWindow.getComputedStyle(background).animationName,
 				iconAnimation: mainWindow.getComputedStyle(icon).animationName,
 			})), [
 				{
-					backgroundColor: 'color(srgb 1 0 0 / 0.08)',
+					hasWarningBackground: true,
 					backgroundAnimation: 'none',
 					iconAnimation: 'none',
 				},
 				{
-					backgroundColor: 'color(srgb 1 0 0 / 0.08)',
+					hasWarningBackground: true,
 					backgroundAnimation: 'none',
 					iconAnimation: 'none',
 				},

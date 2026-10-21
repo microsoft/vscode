@@ -335,10 +335,8 @@ function getSessionRowStatus(session: ISession, reader: IReader | undefined, der
 		return rowStatus;
 	}
 	// Side chats have no list rows of their own, even when peer chats are expanded.
-	const chats = session.chats.read(reader).filter(chat => chat.origin?.kind === ChatOriginKind.SideChat);
-	if (collapsed) {
-		chats.push(...getSessionListChats(session, reader));
-	}
+	const sideChats = session.chats.read(reader).filter(chat => chat.origin?.kind === ChatOriginKind.SideChat);
+	const chats = [...sideChats, ...(collapsed ? getSessionListChats(session, reader) : [])];
 	for (const chat of chats) {
 		if (chat.isArchived.read(reader) || chat.interactivity.read(reader) === ChatInteractivity.Hidden) {
 			continue;
