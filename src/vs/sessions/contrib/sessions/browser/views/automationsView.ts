@@ -34,6 +34,7 @@ import { IAutomationRunner } from '../../../../../workbench/contrib/chat/common/
 import { type AutomationDialogCreateInitialValues, IAutomationDialogService } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { AUTOMATION_BLUEPRINT_FILE_SUFFIX, AutomationBlueprintParseError, automationToBlueprint, createAutomationBlueprintFileName, parseAutomationBlueprint, serializeAutomationBlueprint } from '../../../../../workbench/contrib/chat/common/automations/automationBlueprint.js';
 import { automationScheduleToLocal, DAYS_OF_WEEK } from '../../../../../workbench/contrib/chat/common/automations/schedule.js';
+import { automationTriggerSummary, hasAutomationEventTrigger } from '../../../../../workbench/contrib/chat/common/automations/automationTriggers.js';
 import { IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { AgentSessionApprovalModel } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -133,6 +134,7 @@ interface IAutomationCardEntry {
 	readonly startingIcon: HTMLElement;
 	readonly startingRuns: ISettableObservable<ReadonlySet<string> | undefined>;
 	readonly scheduleEl: HTMLElement;
+	readonly scheduleHover: MutableDisposable<IDisposable>;
 	readonly folderEl: HTMLElement;
 	readonly folderHover: MutableDisposable<IDisposable>;
 	readonly promptEl: HTMLElement;
@@ -241,7 +243,7 @@ export class AutomationsCardsWidget extends Disposable {
 				? hasRuns
 					? localize('historyRefreshFailed', "Run history could not be refreshed. Showing the last available history. Use Refresh to try again.")
 					: localize('historyLoadFailed', "Run history could not be loaded. Use Refresh to try again.")
-				: catalogueState === 'ready' && (state === undefined || state === 'ready') && hasAutomations && !hasRuns ? localize('historyEmpty', "No runs yet. Run an automation now or wait for its next scheduled run.") : '';
+				: catalogueState === 'ready' && (state === undefined || state === 'ready') && hasAutomations && !hasRuns ? localize('historyEmpty', "No runs yet. Wait for the automation's next trigger, or run it now when available.") : '';
 			historyState.textContent = message;
 			historyState.style.display = message ? '' : 'none';
 		}));
@@ -773,6 +775,7 @@ class AutomationCardsSection extends Disposable {
 			startingIcon,
 			startingRuns,
 			scheduleEl,
+			scheduleHover: disposables.add(new MutableDisposable<IDisposable>()),
 			folderEl,
 			folderHover,
 			promptEl,
@@ -800,12 +803,14 @@ class AutomationCardsSection extends Disposable {
 		card.hasExternalResourceContext.set(automation.externalResource !== undefined);
 		card.canUpdateContext.set(this.automationService.canUpdateAutomation(automation.id));
 		card.enabledContext.set(automation.enabled);
-		const schedule = automation.enabled ? formatSchedule(automation.schedule) : localize('disabled', "Disabled");
+		const triggerSummary = automationTriggerSummary(automation.cloudTrigger?.triggers ?? {});
+		const schedule = automation.enabled ? automationTriggerSummary(automation.cloudTrigger?.triggers ?? {}, true) ?? formatSchedule(automation.schedule) : localize('disabled', "Disabled");
 		const enabledChanged = !previous || previous.enabled !== automation.enabled;
-		const scheduleChanged = !previous || enabledChanged || formatSchedule(previous.schedule) !== formatSchedule(automation.schedule);
+		const scheduleChanged = !previous || enabledChanged || formatSchedule(previous.schedule) !== formatSchedule(automation.schedule)
+			|| automationTriggerSummary(previous.cloudTrigger?.triggers ?? {}) !== triggerSummary;
 		const nameChanged = !previous || previous.name !== automation.name;
 		if (nameChanged || scheduleChanged) {
-			card.card.setAttribute('aria-label', localize('automationCard', "{0} — {1}", automation.name, schedule));
+			card.card.setAttribute('aria-label', localize('automationCard', "{0} — {1}", automation.name, automation.enabled ? triggerSummary ?? schedule : schedule));
 		}
 		if (nameChanged) {
 			card.main.setAttribute('aria-label', localize('editAutomationNamed', "Edit automation {0}", automation.name));
@@ -822,6 +827,9 @@ class AutomationCardsSection extends Disposable {
 			DOM.reset(card.scheduleEl,
 				$('span' + ThemeIcon.asCSSSelector(icon), { 'aria-hidden': 'true' }),
 				$('span.automations-card-meta-label', undefined, schedule));
+			card.scheduleHover.value = triggerSummary
+				? this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), card.scheduleEl, triggerSummary)
+				: undefined;
 		}
 
 		const folderLabel = automation.targetDisplay?.label ?? getAutomationTargetLabel(automation.target);
@@ -840,6 +848,11 @@ class AutomationCardsSection extends Disposable {
 	}
 
 	private updateCardRunState(card: IAutomationCardEntry, automation: IAutomationDescriptor): void {
+		const eventTriggered = hasAutomationEventTrigger(automation.cloudTrigger?.triggers ?? {});
+		if (eventTriggered && DOM.isActiveElement(card.runButton.element)) {
+			card.moreActionsButton.focus();
+		}
+		card.runButton.element.style.display = eventTriggered ? 'none' : '';
 		const starting = card.startingRuns.get() !== undefined;
 		card.startingIcon.style.display = starting ? '' : 'none';
 		card.promptEl.textContent = starting ? localize('automationStarting', "Starting run...") : automation.prompt;
@@ -2353,7 +2366,7 @@ export class AutomationsCustomView extends AbstractCustomView {
 
 	readonly title: IObservable<string> = constObservable(localize('automationsTitle', "Automations"));
 	override readonly description: IObservable<string | undefined> = constObservable(
-		localize('automationsDescription', "Schedule agent sessions to run automatically on a cadence you choose."));
+		localize('automationsDescription', "Configure agent sessions to run automatically from events or on a schedule."));
 
 	private _widget: AutomationsCardsWidget | undefined;
 
@@ -2784,6 +2797,9 @@ registerAction2(class DuplicateAutomationAction extends Action2 {
 
 		try {
 			const name = getDuplicateAutomationName(automation.name, automationService.automations.get());
+			if (hasAutomationEventTrigger(automation.cloudTrigger?.triggers ?? {})) {
+				throw new Error(localize('automation.duplicateEvents', "Duplicate event-triggered automations on GitHub to preserve their complete configuration."));
+			}
 			let duplicate: IAutomationDescriptor | undefined;
 			const result = await automationDialogService.showAutomationDialog({
 				initialValues: {
