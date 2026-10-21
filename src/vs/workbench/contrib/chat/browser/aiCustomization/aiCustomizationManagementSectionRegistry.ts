@@ -5,6 +5,7 @@
 
 import { Dimension } from '../../../../../base/browser/dom.js';
 import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { IObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
@@ -21,6 +22,8 @@ export interface IAICustomizationManagementSectionContribution {
 	readonly label: string;
 	readonly icon: ThemeIcon;
 	readonly description: string;
+	/** Navigation count, available without creating the section widget. */
+	readonly count?: IObservable<number>;
 	/** At least one of these boolean settings must be enabled to show or instantiate the section. */
 	readonly enablementSettings?: readonly string[];
 	readonly supportsHarness: (harnessId: string) => boolean;

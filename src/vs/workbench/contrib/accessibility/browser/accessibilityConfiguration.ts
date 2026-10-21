@@ -55,6 +55,7 @@ export const enum AccessibilityVerbositySettingId {
 	CustomizationMigrations = 'accessibility.verbosity.customizationMigrations',
 	McpServerConfiguration = 'accessibility.verbosity.mcpServerConfiguration',
 	CustomizationDiscovery = 'accessibility.verbosity.customizationDiscovery',
+	Remotes = 'accessibility.verbosity.remotes',
 	InlineChat = 'accessibility.verbosity.inlineChat',
 	TerminalInlineChat = 'accessibility.verbosity.terminalChat',
 	TerminalChatOutput = 'accessibility.verbosity.terminalChatOutput',
@@ -172,6 +173,10 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityVerbositySettingId.CustomizationDiscovery]: {
 			description: localize('verbosity.customizationDiscovery.description', "Provide information about how to access accessibility help when discovering customizations."),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.Remotes]: {
+			description: localize('verbosity.remotes.description', "Provide information about how to access accessibility help when managing remotes."),
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.InlineChat]: {

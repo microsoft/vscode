@@ -15,7 +15,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
-import { ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { IObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
@@ -464,6 +464,7 @@ suite('aiCustomizationManagementEditor', () => {
 		updateContentVisibility(): void;
 		selectSectionById(section: AICustomizationManagementSection, options?: { showMarketplace?: boolean; marketplaceSourceId?: string }): void;
 		rebuildVisibleSections(): void;
+		registerContributedSectionCounts(): void;
 		updateContributedSectionEnablement(): void;
 		setVisible(visible: boolean): void;
 		editorGroupsService: {
@@ -856,7 +857,7 @@ suite('aiCustomizationManagementEditor', () => {
 		});
 	});
 
-	function createContributedSectionEditor(enablementSettings?: readonly string[]) {
+	function createContributedSectionEditor(enablementSettings?: readonly string[], count?: IObservable<number>) {
 		const editor = createTestEditor();
 		store.add(editor.editorPreviewDisposables);
 		const visibilityChanges: boolean[] = [];
@@ -880,6 +881,7 @@ suite('aiCustomizationManagementEditor', () => {
 			label: 'Test harness settings',
 			description: 'Test contributed section lifecycle',
 			icon: Codicon.search,
+			count,
 			enablementSettings,
 			supportsHarness: id => id === harnessId,
 			create: () => {
@@ -897,13 +899,13 @@ suite('aiCustomizationManagementEditor', () => {
 		return { editor, section, state, visibilityChanges, focusedVisibility };
 	}
 
-	function createGatedSectionEditor(enabled?: boolean, enablementSettings: readonly string[] = [CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]) {
-		const context = createContributedSectionEditor(enablementSettings);
+	function createGatedSectionEditor(enabled?: boolean, enablementSettings: readonly string[] = [CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled], count?: IObservable<number>) {
+		const context = createContributedSectionEditor(enablementSettings, count);
 		const { editor, section } = context;
 		const configuration = createConfigurationServiceStub({ [CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: enabled });
 		editor.configurationService = configuration;
 		Object.assign(editor, { marketplaceService: { sources: [CustomizationMarketplaceSources.AgentFinderPublicFeed] } });
-		const sections: { id: AICustomizationManagementSection }[] = [];
+		const sections: { id: AICustomizationManagementSection; count: number }[] = [];
 		let overview: readonly AICustomizationManagementSection[] = [];
 		Object.assign(editor, {
 			allSections: [
@@ -920,6 +922,27 @@ suite('aiCustomizationManagementEditor', () => {
 		});
 		return { ...context, configuration, sections, getOverview: () => overview };
 	}
+
+	test('updates contributed navigation counts without creating a widget and preserves them on rebuild', () => {
+		const count = observableValue(store, 2);
+		const { editor, section, sections, state } = createGatedSectionEditor(true, undefined, count);
+		Object.assign(editor.workspaceService, { managementSections: [section] });
+		editor.rebuildVisibleSections();
+		const counts = [sections.find(candidate => candidate.id === section)?.count];
+		Object.assign(editor, {
+			sectionsList: { length: sections.length, splice() { } },
+			ensureSectionsListReflectsActiveSection() { },
+			layoutSidebar() { },
+		});
+		editor.registerContributedSectionCounts();
+		count.set(5, undefined);
+		counts.push(sections.find(candidate => candidate.id === section)?.count);
+		editor.rebuildVisibleSections();
+		counts.push(sections.find(candidate => candidate.id === section)?.count);
+		count.set(0, undefined);
+		counts.push(sections.find(candidate => candidate.id === section)?.count);
+		assert.deepStrictEqual({ counts, created: state.created }, { counts: [2, 5, 5, 0], created: 0 });
+	});
 
 	for (const enabled of [undefined, false]) {
 		test(`does not expose or instantiate a contributed section when its experiment is ${enabled === undefined ? 'unset' : 'disabled'}`, () => {

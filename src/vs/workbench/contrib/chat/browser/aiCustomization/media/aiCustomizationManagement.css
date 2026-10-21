@@ -1171,6 +1171,7 @@ per-word capitalization does not survive translation. */
 .ai-customization-management-editor .prompt-migration-content-container,
 .ai-customization-management-editor .mcp-content-container,
 .ai-customization-management-editor .plugin-content-container,
+.ai-customization-management-editor .customization-list-content-container,
 .ai-customization-management-editor .models-content-container,
 .ai-customization-management-editor .tools-content-container {
 	height: 100%;
@@ -1189,11 +1190,13 @@ per-word capitalization does not survive translation. */
 .ai-customization-management-editor .prompt-migration-content-container,
 .ai-customization-management-editor .mcp-content-container,
 .ai-customization-management-editor .plugin-content-container,
+.ai-customization-management-editor .customization-list-content-container,
 .ai-customization-management-editor .tools-content-container {
 	padding-inline: var(--vscode-spacing-sizeNone);
 }
 
 /* The scroll hosts reach the pane edge while their content retains the panel inset. */
+.ai-customization-management-editor .customization-list-content-container > .mcp-list-widget > *,
 .ai-customization-management-editor .prompts-content-container > .ai-customization-list-widget > .section-title-header,
 .ai-customization-management-editor .prompts-content-container > .ai-customization-list-widget > .list-search-and-button-container,
 .ai-customization-management-editor .prompts-content-container > .ai-customization-list-widget > .list-container,

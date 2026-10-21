@@ -48,6 +48,7 @@ export const AICustomizationManagementSection = {
 	Models: 'models',
 	Tools: 'tools',
 	HarnessSettings: 'harnessSettings',
+	Remotes: 'remotes',
 } as const;
 
 export type AICustomizationManagementSection = typeof AICustomizationManagementSection[keyof typeof AICustomizationManagementSection];

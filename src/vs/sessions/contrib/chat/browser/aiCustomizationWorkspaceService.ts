@@ -117,6 +117,7 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 		AICustomizationManagementSection.Tools,
 		AICustomizationManagementSection.Automations,
 		AICustomizationManagementSection.HarnessSettings,
+		AICustomizationManagementSection.Remotes,
 	];
 
 	readonly isSessionsWindow = true;

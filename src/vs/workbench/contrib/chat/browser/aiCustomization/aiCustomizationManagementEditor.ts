@@ -750,7 +750,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			const contribution = aiCustomizationManagementSectionRegistry.get(s.id, activeId);
 			const contributed = aiCustomizationManagementSectionRegistry.has(s.id);
 			if (!hidden.has(s.id) && (!contributed || !!contribution) && this.isContributedSectionEnabled(s.id)) {
-				this.sections.push(contribution ? { ...s, label: contribution.label, description: contribution.description } : s);
+				this.sections.push(contribution ? { ...s, label: contribution.label, description: contribution.description, count: contribution.count?.get() ?? s.count } : s);
 			}
 		}
 
@@ -1344,6 +1344,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 				this.updateSectionCount(section, observable.read(reader));
 			}));
 		}
+
+		this.registerContributedSectionCounts();
 
 		// Load items for the initial section
 		if (this.isPromptsSection(this.selectedSection)) {
@@ -3318,6 +3320,20 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	//#region Section Counts
+
+	private registerContributedSectionCounts(): void {
+		for (const section of this.workspaceService.managementSections) {
+			if (aiCustomizationManagementSectionRegistry.has(section)) {
+				this.editorDisposables.add(autorun(reader => {
+					const harnessId = this.harnessService.activeHarness.read(reader);
+					const count = aiCustomizationManagementSectionRegistry.get(section, harnessId)?.count;
+					if (count) {
+						this.updateSectionCount(section, count.read(reader));
+					}
+				}));
+			}
+		}
+	}
 
 	/**
 	 * Updates the count for a specific section and re-renders the sidebar.
