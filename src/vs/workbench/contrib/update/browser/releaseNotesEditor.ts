@@ -963,21 +963,30 @@ export function initializeReleaseNotesNavigation(targetDocument: Document, targe
 		return () => { };
 	}
 
+	// Includes the scroll margin left above headings by native anchor navigation.
+	const headingActivationOffset = 32;
+	// scrollTop can be fractional while the other scroll dimensions are rounded.
+	const bottomScrollTolerance = 1;
 	let current: HTMLAnchorElement | undefined;
 	let frame: number | undefined;
 	const update = () => {
 		frame = undefined;
 		let next: HTMLAnchorElement | undefined;
 		const scrollingElement = targetDocument.scrollingElement;
-		if (scrollingElement && scrollingElement.scrollTop > 0 && scrollingElement.scrollTop + scrollingElement.clientHeight >= scrollingElement.scrollHeight - 1) {
+		if (scrollingElement && scrollingElement.scrollTop > 0 && scrollingElement.scrollTop + scrollingElement.clientHeight >= scrollingElement.scrollHeight - bottomScrollTolerance) {
 			next = sections[sections.length - 1].link;
 		} else {
-			for (const section of sections) {
-				if (section.target.getBoundingClientRect().top > 32) {
-					break;
+			let start = 0;
+			let end = sections.length;
+			while (start < end) {
+				const index = Math.floor((start + end) / 2);
+				if (sections[index].target.getBoundingClientRect().top > headingActivationOffset) {
+					end = index;
+				} else {
+					start = index + 1;
 				}
-				next = section.link;
 			}
+			next = sections[start - 1]?.link;
 		}
 		if (next !== current) {
 			current?.removeAttribute('aria-current');

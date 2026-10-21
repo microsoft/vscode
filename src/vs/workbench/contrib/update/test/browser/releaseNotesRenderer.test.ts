@@ -84,7 +84,7 @@ Navigation End -->
 		await assertSnapshot(result.toString());
 	});
 
-	test('leaves unmatched highlights markers as comments', async () => {
+	test('strips unmatched highlights markers without wrapping the following content', async () => {
 		const content = '<!-- RELEASE_HIGHLIGHTS_START -->\n## Editor\n\nDetails.';
 		const result = await renderReleaseNotesMarkdown(content, extensionService, languageService, instantiationService.createInstance(SimpleSettingRenderer));
 		assert.strictEqual(result.toString(), '<h2 id="editor">Editor</h2>\n<p>Details.</p>\n');

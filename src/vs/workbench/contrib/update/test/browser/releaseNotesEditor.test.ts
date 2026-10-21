@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { SinonStub, stub } from 'sinon';
-import { $, getWindow } from '../../../../../base/browser/dom.js';
+import { SinonStub, spy, stub } from 'sinon';
+import { $, addDisposableListener, getWindow } from '../../../../../base/browser/dom.js';
 import { safeSetInnerHtml } from '../../../../../base/browser/domSanitize.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
@@ -14,7 +14,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
@@ -359,8 +359,13 @@ suite('Release notes navigation', () => {
 			let frames: Map<number, FrameRequestCallback>;
 			let resizeObservers: Set<() => void>;
 
-			setup(() => {
-				const iframe = $('iframe', { src: 'about:blank' });
+			setup(async () => {
+				// WebKit replaces about:blank documents when following fragment links.
+				const url = mainWindow.URL.createObjectURL(new Blob(['<!DOCTYPE html><html><head></head><body></body></html>'], { type: 'text/html' }));
+				store.add(toDisposable(() => mainWindow.URL.revokeObjectURL(url)));
+				const iframe = $<HTMLIFrameElement>('iframe', { src: url });
+				const loaded = new DeferredPromise<void>();
+				store.add(addDisposableListener(iframe, 'load', () => { loaded.complete(); }));
 				iframe.style.position = 'fixed';
 				iframe.style.top = '0';
 				iframe.style.left = '0';
@@ -368,16 +373,16 @@ suite('Release notes navigation', () => {
 				iframe.style.height = '300px';
 				mainWindow.document.body.appendChild(iframe);
 				store.add(toDisposable(() => iframe.remove()));
+				await loaded.p;
 				targetDocument = iframe.contentDocument!;
 				targetWindow = getWindow(targetDocument.body);
-				targetDocument.head.appendChild($('base', { href: 'about:blank' }));
 				frames = new Map();
 				resizeObservers = new Set();
 				let nextFrame = 0;
-				navigationWindow = new class extends mock<Window & typeof globalThis>() {
-					override readonly Node = targetWindow.Node;
-					override readonly console = targetWindow.console;
-					override readonly ResizeObserver = class implements ResizeObserver {
+				navigationWindow = upcastPartial<Window & typeof globalThis>({
+					Node: targetWindow.Node,
+					console: targetWindow.console,
+					ResizeObserver: class implements ResizeObserver {
 						private readonly notify: () => void;
 						constructor(callback: ResizeObserverCallback) {
 							this.notify = () => callback([], this);
@@ -386,21 +391,21 @@ suite('Release notes navigation', () => {
 						observe(): void { }
 						unobserve(): void { }
 						disconnect(): void { resizeObservers.delete(this.notify); }
-					};
-					override requestAnimationFrame(callback: FrameRequestCallback): number {
+					},
+					requestAnimationFrame: callback => {
 						frames.set(++nextFrame, callback);
 						return nextFrame;
-					}
-					override cancelAnimationFrame(handle: number): void { frames.delete(handle); }
-					override addEventListener(...args: Parameters<Window['addEventListener']>): void { targetWindow.addEventListener(...args); }
-					override removeEventListener(...args: Parameters<Window['removeEventListener']>): void { targetWindow.removeEventListener(...args); }
-				};
+					},
+					cancelAnimationFrame: handle => { frames.delete(handle); },
+					addEventListener: (...args: Parameters<Window['addEventListener']>) => targetWindow.addEventListener(...args),
+					removeEventListener: (...args: Parameters<Window['removeEventListener']>) => targetWindow.removeEventListener(...args),
+				});
 				targetDocument.documentElement.style.overflowAnchor = 'none';
 				targetDocument.body.style.margin = '0';
 				const nav = $('nav', { id: 'toc-nav' });
 				nav.style.position = 'fixed';
 				links = ['first', 'second', 'last'].map(id => {
-					const link = $('a', { href: `#${id}` }, id);
+					const link = $<HTMLAnchorElement>('a', { href: `#${id}` }, id);
 					nav.appendChild(link);
 					return link;
 				});
@@ -486,11 +491,41 @@ suite('Release notes navigation', () => {
 				targetDocument.getElementById('second')!.id = 'second: section';
 				links[1].setAttribute('href', '#second%3A%20section');
 				initialize();
+				const navigated = new DeferredPromise<void>();
+				store.add(addDisposableListener(targetWindow, 'hashchange', () => { navigated.complete(); }));
 				links[1].click();
+				await navigated.p;
 				await render();
 				assert.deepStrictEqual({ current: current(), hash: targetWindow.location.hash }, {
 					current: ['second'],
 					hash: '#second%3A%20section',
+				});
+			});
+
+			test('bounds heading layout reads for a long table of contents', async () => {
+				const headings = Array.from({ length: 128 }, (_, index) => {
+					const heading = $('h2', { id: `section-${index}` }, `Section ${index}`);
+					heading.style.margin = '0';
+					heading.style.height = '100px';
+					return heading;
+				});
+				links = headings.map(heading => $<HTMLAnchorElement>('a', { href: `#${heading.id}` }, heading.id));
+				targetDocument.getElementById('toc-nav')!.replaceChildren(...links);
+				targetDocument.querySelector('.notes-main')!.replaceChildren(...headings);
+				await scrollTo('section-96');
+				const layoutReads = headings.map(heading => {
+					const read = spy(heading, 'getBoundingClientRect');
+					store.add(toDisposable(() => read.restore()));
+					return read;
+				});
+				initialize();
+				await render();
+				assert.deepStrictEqual({
+					current: current(),
+					layoutReads: layoutReads.reduce((count, read) => count + read.callCount, 0),
+				}, {
+					current: ['section-96'],
+					layoutReads: 7,
 				});
 			});
 
@@ -513,7 +548,7 @@ suite('Release notes navigation', () => {
 
 			test('handles missing targets and duplicate links without multiple current entries', async () => {
 				targetDocument.getElementById('second')!.remove();
-				const duplicate = $('a', { href: '#first' }, 'duplicate');
+				const duplicate = $<HTMLAnchorElement>('a', { href: '#first' }, 'duplicate');
 				links.push(duplicate);
 				targetDocument.getElementById('toc-nav')!.appendChild(duplicate);
 				initialize();
