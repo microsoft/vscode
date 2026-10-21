@@ -8684,7 +8684,7 @@ export class CopilotAgentSession extends Disposable {
 			const clientToolName = this._clientToolName(e.data.toolName);
 			const isClientTool = this._clientToolNames.has(clientToolName);
 			const isToolSearch = this._isToolSearchActive() && e.data.toolName === RUNTIME_TOOL_SEARCH_TOOL_NAME;
-			const managedClientToolAccess = isClientTool ? this._getManagedClientToolAccess(e.data.toolName) : ManagedWorkspaceRetrievalAccess.Unrestricted;
+			const managedClientToolAccess = isClientTool ? this._getManagedClientToolAccess(clientToolName) : ManagedWorkspaceRetrievalAccess.Unrestricted;
 			if (managedClientToolAccess !== ManagedWorkspaceRetrievalAccess.Unrestricted) {
 				this._managedClientToolAccess.set(e.data.toolCallId, managedClientToolAccess);
 			}
