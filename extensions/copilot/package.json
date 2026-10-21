@@ -598,36 +598,6 @@
             "query"
           ]
         },
-        "tags": [
-          "enable_other_tool_install_extension"
-        ]
-      },
-      {
-        "name": "copilot_installExtension",
-        "displayName": "Install Extension in VS Code",
-        "when": "!config.github.copilot.chat.installExtensionSkill.enabled",
-        "toolReferenceName": "installExtension",
-        "legacyToolReferenceFullNames": [
-          "new/installExtension"
-        ],
-        "modelDescription": "Install an extension in VS Code. Use this tool to install an extension in Visual Studio Code as part of a new workspace creation process only.",
-        "inputSchema": {
-          "type": "object",
-          "properties": {
-            "id": {
-              "type": "string",
-              "description": "The ID of the extension to install. This should be in the format <publisher>.<extension>."
-            },
-            "name": {
-              "type": "string",
-              "description": "The name of the extension to install. This should be a clear and concise description of the extension."
-            }
-          },
-          "required": [
-            "id",
-            "name"
-          ]
-        },
         "tags": []
       },
       {
@@ -1340,7 +1310,6 @@
         "name": "vscode",
         "description": "",
         "tools": [
-          "installExtension",
           "memory",
           "newWorkspace",
           "resolveMemoryFileUri",
@@ -4449,16 +4418,6 @@
               "advanced"
             ]
           },
-          "github.copilot.chat.installExtensionSkill.enabled": {
-            "type": "boolean",
-            "default": false,
-            "tags": [
-              "advanced",
-              "experimental",
-              "onExp"
-            ],
-            "description": "%github.copilot.config.installExtensionSkill.enabled%"
-          },
           "github.copilot.chat.debug.promptOverrideString": {
             "type": [
               "string",
@@ -6870,7 +6829,7 @@
       },
       {
         "path": "./assets/prompts/skills/install-vscode-extension/SKILL.md",
-        "when": "config.github.copilot.chat.installExtensionSkill.enabled && config.github.copilot.chat.newWorkspaceCreation.enabled",
+        "when": "config.github.copilot.chat.newWorkspaceCreation.enabled",
         "sessionTypes": [
           "local"
         ]
