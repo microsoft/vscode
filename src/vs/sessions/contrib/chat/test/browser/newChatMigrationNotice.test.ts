@@ -8,7 +8,7 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, derived, observableValue } from '../../../../../base/common/observable.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -20,28 +20,31 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { InMemoryStorageService, IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { AICustomizationManagementCommands } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { CustomizationMigrationCategoryId } from '../../../../../workbench/contrib/chat/browser/aiCustomization/customizationMigrationCategories.js';
+import { getCustomizationMigrationGroupIgnoreKey, storeIgnoredCustomizationMigrationGroupKeys } from '../../../../../workbench/contrib/chat/browser/aiCustomization/customizationMigrationIgnoredGroups.js';
+import { AICustomizationManagementCommands, IAICustomizationWorkspaceService } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
-import { CustomizationMigrationType, ICustomizationMigrationHint, ICustomizationMigrationService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationType, ICustomizationMigrationHint, ICustomizationMigrationIgnoredGroup, ICustomizationMigrationService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
 import { ICustomizationMigrationTelemetryService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationTelemetryService.js';
+import { PromptsStorage } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { IChatEntitlementService, IChatSentiment } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { ISessionFolder, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { NewChatMigrationNotice } from '../../browser/newChatMigrationNotice.js';
 
 class TestMigrationService extends mock<ICustomizationMigrationService>() {
-	readonly requests: { resource: URI; token?: CancellationToken }[] = [];
-	result: (resource: URI) => Promise<ICustomizationMigrationHint | undefined> = async () => undefined;
+	readonly requests: { resource: URI; token?: CancellationToken; ignoredGroups: readonly ICustomizationMigrationIgnoredGroup[] }[] = [];
+	result: (resource: URI, ignoredGroups: readonly ICustomizationMigrationIgnoredGroup[]) => Promise<ICustomizationMigrationHint | undefined> = async () => undefined;
 
 	constructor(override readonly onDidChangeCustomizations: Event<void>) {
 		super();
 	}
 
-	override computeMigrationHint(resource: URI, token?: CancellationToken): Promise<ICustomizationMigrationHint | undefined> {
-		this.requests.push({ resource, token });
-		return this.result(resource);
+	override computeMigrationHint(resource: URI, token?: CancellationToken, ignoredGroups: readonly ICustomizationMigrationIgnoredGroup[] = []): Promise<ICustomizationMigrationHint | undefined> {
+		this.requests.push({ resource, token, ignoredGroups });
+		return this.result(resource, ignoredGroups);
 	}
 }
 
@@ -68,6 +71,9 @@ function createSession(name: string, withWorkspace = true, scheme = 'agent-host-
 		override readonly resource = URI.from({ scheme, path: `/${name}` });
 		override readonly workspace = constObservable(withWorkspace ? new class extends mock<ISessionWorkspace>() {
 			override readonly uri = URI.file(`/workspaces/${name}`);
+			override readonly folders = [new class extends mock<ISessionFolder>() {
+				override readonly workingDirectory = URI.file(`/worktrees/${name}`);
+			}()];
 		}() : undefined);
 		override readonly isCreated = constObservable(false);
 		override readonly loading = constObservable(false);
@@ -109,6 +115,9 @@ suite('NewChatMigrationNotice', () => {
 		instantiation.stub(ICustomizationMigrationTelemetryService, migrationTelemetry);
 		instantiation.stub(IConfigurationService, configuration);
 		instantiation.stub(IStorageService, storage);
+		instantiation.stub(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
+			override readonly activeProjectRoot = derived(reader => session.read(reader)?.workspace.read(reader)?.folders[0]?.workingDirectory);
+		}());
 		instantiation.stub(IUriIdentityService, { extUri });
 		instantiation.stub(IChatEntitlementService, { sentimentObs: sentiment });
 		instantiation.stub(ICommandService, { executeCommand: async (id: string, ...args: unknown[]) => { commands.push({ id, args }); } });
@@ -116,7 +125,7 @@ suite('NewChatMigrationNotice', () => {
 		instantiation.stub(IHoverService, new class extends mock<IHoverService>() { }());
 		instantiation.stub(IOpenerService, new class extends mock<IOpenerService>() { }());
 		const create = () => store.add(instantiation.createInstance(NewChatMigrationNotice, dom.$('div'), session, () => { focusCount++; }));
-		return { create, session, sentiment, configuration, migrations, migrationTelemetry, changed, commands, errors, get focusCount() { return focusCount; } };
+		return { create, session, sentiment, configuration, migrations, migrationTelemetry, storage, changed, commands, errors, get focusCount() { return focusCount; } };
 	}
 
 	function snapshot(notice: NewChatMigrationNotice) {
@@ -163,6 +172,12 @@ suite('NewChatMigrationNotice', () => {
 		notice.element.querySelector<HTMLElement>('.action-label')!.click();
 		await timeout(0);
 		const dismissed = snapshot(notice).visible;
+		env.changed.fire();
+		await timeout(0);
+		const afterCustomizationChange = snapshot(notice).visible;
+		const requestsAfterDismissal = env.migrations.requests.length;
+		const dismissedWorkspaceKey = `chat.customizationMigrationNotice.dismissed.${extUri.getComparisonKey(URI.file('/workspaces/one'))}`;
+		const dismissedProjectKey = `chat.customizationMigrationNotice.dismissed.${extUri.getComparisonKey(URI.file('/worktrees/one'))}`;
 		notice.dispose();
 		const restored = env.create();
 		await timeout(0);
@@ -174,6 +189,10 @@ suite('NewChatMigrationNotice', () => {
 		await timeout(0);
 		assert.deepStrictEqual({
 			dismissed,
+			afterCustomizationChange,
+			requestsAfterDismissal,
+			persistedByWorkspace: env.storage.getBoolean(dismissedWorkspaceKey, StorageScope.PROFILE, false),
+			persistedByProject: env.storage.getBoolean(dismissedProjectKey, StorageScope.PROFILE, false),
 			afterRecreation,
 			otherWorkspace,
 			back: snapshot(restored).visible,
@@ -181,6 +200,10 @@ suite('NewChatMigrationNotice', () => {
 			telemetryActions: env.migrationTelemetry.events.map(event => event.action),
 		}, {
 			dismissed: false,
+			afterCustomizationChange: false,
+			requestsAfterDismissal: 1,
+			persistedByWorkspace: true,
+			persistedByProject: false,
 			afterRecreation: false,
 			otherWorkspace: true,
 			back: false,
@@ -195,6 +218,33 @@ suite('NewChatMigrationNotice', () => {
 		const notice = env.create();
 		await timeout(0);
 		assert.deepStrictEqual(snapshot(notice), { visible: true, message: '1 agent customization needs an update to keep working.' });
+	});
+
+	test('uses the active project root when applying ignored workspace migrations', async () => {
+		const env = setup([CustomizationMigrationType.PromptFiles]);
+		storeIgnoredCustomizationMigrationGroupKeys(env.storage, new Set([
+			getCustomizationMigrationGroupIgnoreKey(
+				'agent-host-copilotcli',
+				CustomizationMigrationCategoryId.PromptFiles,
+				PromptsStorage.local,
+				URI.file('/worktrees/one'),
+			),
+		]));
+		env.migrations.result = async (_resource, ignoredGroups) => ignoredGroups.length === 0 ? {
+			migrationFlowId: 'hint',
+			message: '1 workspace customization needs an update to keep working.',
+			counts: [{ type: CustomizationMigrationType.PromptFiles, count: 1 }],
+		} : undefined;
+		const notice = env.create();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			visible: snapshot(notice).visible,
+			ignoredGroups: env.migrations.requests[0]?.ignoredGroups,
+		}, {
+			visible: false,
+			ignoredGroups: [{ type: CustomizationMigrationType.PromptFiles, storage: PromptsStorage.local }],
+		});
 	});
 
 	test('cancels stale results when switching workspace and disposing', async () => {
@@ -240,10 +290,13 @@ suite('NewChatMigrationNotice', () => {
 		const notice = env.create();
 		await timeout(0);
 		const before = snapshot(notice).visible;
-		env.migrations.result = async () => undefined;
+		const pending = new DeferredPromise<ICustomizationMigrationHint | undefined>();
+		env.migrations.result = async () => pending.p;
 		env.changed.fire();
+		const refreshing = snapshot(notice).visible;
+		await pending.complete(undefined);
 		await timeout(0);
-		assert.deepStrictEqual({ before, after: snapshot(notice).visible }, { before: true, after: false });
+		assert.deepStrictEqual({ before, refreshing, after: snapshot(notice).visible }, { before: true, refreshing: false, after: false });
 	});
 
 	test('hides when migrations are disabled', async () => {

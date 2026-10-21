@@ -1199,12 +1199,14 @@ suite('Editor cloud sandbox discovery', () => {
 				resolved: h.calls.resolvedConfigs,
 				initialConfig: customization?.resolveInitialSessionConfig?.(newResource),
 				aliases: customization?.modelIdentifierAliases,
+				useSessionTitleForDefaultChat: customization?.useSessionTitleForDefaultChat,
 				// The host titles a session after its id until the agent names it.
 				placeholderTitles: ['new-session', 'Fix the build'].map(title => customization?.isSessionTitlePlaceholder?.(title, newResource)),
 			}, {
 				resolved: [draftConfig, ...(supportsImageGeneration ? [initialConfig] : [])],
 				initialConfig,
 				aliases: [CLOUD_SANDBOX_SESSION_TYPE],
+				useSessionTitleForDefaultChat: true,
 				placeholderTitles: [true, false],
 			});
 			h.controllers.get(sessionType)?.notifySessionMaterialized?.(newResource);
@@ -1742,7 +1744,10 @@ suite('Editor cloud sandbox discovery', () => {
 		const label = () => h.items().find(item => isEqual(item.resource, newResource))?.label;
 		const seeded = label();
 		// The host titles the session after its id until the agent names it.
-		h.state.hostSessions = [{ session: newSession, summary: created.sessionId, startTime: Date.now(), modifiedTime: Date.now(), status: SessionStatus.InProgress }];
+		h.state.hostSessions = [{
+			session: newSession, summary: created.sessionId, startTime: Date.now(), modifiedTime: Date.now(), status: SessionStatus.InProgress,
+			chats: [{ chat: URI.parse('custom-chat:/opaque-main'), kind: 'default', summary: 'main' }],
+		}];
 		await h.controllers.get(sessionType)!.refresh(CancellationToken.None);
 		const listed = label();
 		h.notifications.fire({ type: NotificationType.SessionSummaryChanged, channel: 'ahp-root://', session: newSession.toString(), changes: { title: created.sessionId } });

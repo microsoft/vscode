@@ -24,6 +24,7 @@ import { TestConfigurationService } from '../../../platform/configuration/test/c
 import { IContextMenuMenuDelegate, IContextMenuService, IContextViewService } from '../../../platform/contextview/browser/contextView.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { ChatViewSessionActivityBar, SessionActivityBar } from '../../browser/parts/sessionActivityBar.js';
+import { SessionActivityBarGroup } from '../../browser/menus.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../browser/workbench.js';
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../common/sessionConfig.js';
 import { TestContextViewService } from './testContextViewService.js';
@@ -457,10 +458,10 @@ suite('Sessions - Session Activity Bar', () => {
 	}
 
 	test('renders two groups: the side panel toggle with the tab entries, then the terminal with the panel toggle', () => {
-		const sidePanel: ITestEntry = { id: 'test.sidePanel', title: 'Toggle Side Panel', icon: Codicon.layoutSidebarRight, group: '1_sidePanel' };
-		const terminal: ITestEntry = { id: 'test.terminal', title: 'Terminal', icon: Codicon.terminal, group: '2_panel' };
-		const panel: ITestEntry = { id: 'test.panel', title: 'Show Panel', icon: Codicon.layoutPanelOff, group: '2_panel' };
-		const { activityBar, ran, label } = createActivityBar(store, [sidePanel, { ...changes, group: '1_sidePanel' }, { ...browser, group: '1_sidePanel' }, terminal, panel]);
+		const sidePanel: ITestEntry = { id: 'test.sidePanel', title: 'Toggle Side Panel', icon: Codicon.layoutSidebarRight, group: SessionActivityBarGroup.SidePanel };
+		const terminal: ITestEntry = { id: 'test.terminal', title: 'Terminal', icon: Codicon.terminal, group: SessionActivityBarGroup.Panel };
+		const panel: ITestEntry = { id: 'test.panel', title: 'Show Panel', icon: Codicon.layoutPanelOff, group: SessionActivityBarGroup.Panel };
+		const { activityBar, ran, label } = createActivityBar(store, [sidePanel, { ...changes, group: SessionActivityBarGroup.SidePanel }, { ...browser, group: SessionActivityBarGroup.SidePanel }, terminal, panel]);
 		const items = [...activityBar.element.querySelectorAll<HTMLElement>('.actions-container > .action-item')]
 			.map(item => item.querySelector('.action-label.separator') ? '---' : item.querySelector('.action-label')?.getAttribute('aria-label'));
 		label('Toggle Side Panel').click();

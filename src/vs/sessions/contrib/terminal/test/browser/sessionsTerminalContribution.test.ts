@@ -10,7 +10,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { constObservable, IReader, observableValue } from '../../../../../base/common/observable.js';
 import { IAgentHostTerminalCreateOptions, IAgentHostTerminalService } from '../../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
-import { ITerminalProfileService } from '../../../../../workbench/contrib/terminal/common/terminal.js';
+import { ITerminalProfileService, TerminalCommandId } from '../../../../../workbench/contrib/terminal/common/terminal.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { buildAgentHostSessionWorkspace } from '../../../../common/agentHostSessionWorkspace.js';
@@ -28,7 +28,7 @@ import { SessionsTerminalContribution } from '../../browser/sessionsTerminalCont
 import { TestPathService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IPathService } from '../../../../../workbench/services/path/common/pathService.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpression, ContextKeyValue, IContext, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -37,6 +37,13 @@ import { ISessionsProvider } from '../../../../services/sessions/common/sessions
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { SESSIONS_LAYOUT_SCOPE_SETTING } from '../../../../common/chatLayout.js';
+import { isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { IsAuxiliaryWindowContext } from '../../../../../workbench/common/contextkeys.js';
+import { TerminalContextKeys } from '../../../../../workbench/contrib/terminal/common/terminalContextKey.js';
+import { Menus, SessionActivityBarGroup } from '../../../../browser/menus.js';
+import '../../../../browser/layoutActions.js';
+import { CustomViewVisibleContext } from '../../../../common/contextkeys.js';
+import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING } from '../../../../common/sessionConfig.js';
 
 const HOME_DIR = URI.file('/home/user');
 
@@ -2346,6 +2353,50 @@ suite('SessionsTerminalContribution', () => {
 		// rather than left in the background
 		assert.ok(showBackgroundCalls.includes(restoredTerminal.instanceId), 'untracked restored terminal at matching cwd should be shown');
 	});
+});
+
+suite('Sessions Terminal - Session Activity Bar', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('shows the terminal before the panel toggle in the panel group of the session activity bar', () => {
+		const items = MenuRegistry.getMenuItems(Menus.SessionActivityBar).filter(isIMenuItem)
+			.filter(item => item.group === SessionActivityBarGroup.Panel)
+			.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+		const terminal = items.find(item => item.command.id === TerminalCommandId.Focus);
+		const evaluate = (expression: ContextKeyExpression | undefined, values: Record<string, ContextKeyValue>) => expression?.evaluate({ getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined } satisfies IContext) !== false;
+		const terminalAvailable: Record<string, ContextKeyValue> = { [TerminalContextKeys.processSupported.key]: true };
+		const terminalState = (values: Record<string, ContextKeyValue>) => ({ shows: evaluate(terminal?.when, values), enabled: evaluate(terminal?.command.precondition, values) });
+
+		assert.deepStrictEqual({
+			// The panel toggle registers Show and Hide alternates under the same command, one shown at a time.
+			items: items.map(item => `${item.group}:${item.order ?? 0} ${item.command.id}`),
+			terminal: {
+				available: terminalState(terminalAvailable),
+				// Shown regardless of the layout actions setting, like the tab entries.
+				layoutActionsOff: terminalState({ ...terminalAvailable, [`config.${SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING}`]: false }),
+				created: terminalState({ [TerminalContextKeys.terminalHasBeenCreated.key]: true }),
+				unavailable: terminalState({}),
+				auxiliaryWindow: terminalState({ ...terminalAvailable, [IsAuxiliaryWindowContext.key]: true }),
+				customView: terminalState({ ...terminalAvailable, [CustomViewVisibleContext.key]: true }),
+			},
+		}, {
+			items: [
+				`2_panel:0 ${TerminalCommandId.Focus}`,
+				'2_panel:1 workbench.action.togglePanel',
+				'2_panel:1 workbench.action.togglePanel',
+			],
+			terminal: {
+				available: { shows: true, enabled: true },
+				layoutActionsOff: { shows: true, enabled: true },
+				created: { shows: true, enabled: true },
+				unavailable: { shows: false, enabled: true },
+				auxiliaryWindow: { shows: false, enabled: true },
+				customView: { shows: true, enabled: false },
+			},
+		});
+	});
+
 });
 
 function tick(): Promise<void> {

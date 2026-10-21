@@ -3394,10 +3394,11 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.editorPreviewDisposables.dispose();
 	});
 
-	test('shows the migrations sidebar entry only while migrations are pending', () => {
+	test('shows the migrations sidebar entry only while migrations are pending', async () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
 			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
 		}));
+		editor.dialogService = { confirm: async () => ({ confirmed: true }) };
 		editor.migrationShortcutContainer = document.createElement('div');
 		editor.migrationShortcutButton = document.createElement('button');
 		editor.migrationShortcutCount = document.createElement('span');
@@ -3413,13 +3414,15 @@ suite('aiCustomizationManagementEditor', () => {
 		}]);
 		editor.updateSidebarMigrationShortcut();
 		states.push([editor.migrationShortcutContainer.style.display, editor.migrationShortcutCount.textContent]);
+		await editor.ignoreMigrationCategory(CustomizationMigrationCategoryId.McpServers, PromptsStorage.local);
+		states.push([editor.migrationShortcutContainer.style.display, editor.migrationShortcutCount.textContent]);
 		editor.customizationsByMigrationCategory.clear();
 		editor.updateSidebarMigrationShortcut();
 		states.push([editor.migrationShortcutContainer.style.display, editor.migrationShortcutCount.textContent]);
 		editor.harnessService.activeHarness.set('local', undefined);
 		editor.updateSidebarMigrationShortcut();
 		states.push([editor.migrationShortcutContainer.style.display, editor.migrationShortcutCount.textContent]);
-		assert.deepStrictEqual(states, [['none', ''], ['', '1'], ['none', ''], ['none', '']]);
+		assert.deepStrictEqual(states, [['none', ''], ['', '1'], ['none', ''], ['none', ''], ['none', '']]);
 		editor.editorPreviewDisposables.dispose();
 	});
 

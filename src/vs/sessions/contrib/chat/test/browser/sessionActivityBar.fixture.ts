@@ -25,6 +25,7 @@ import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../../common/layoutCons
 import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
 import { FixtureContextViewService, FixtureKeybindingService, FixtureMenuService, fixtureBrowser, fixtureCanvas, fixtureChanges, fixtureFiles, fixtureTerminal, fixtureTogglePanel, fixtureToggleSidePanel, IFixtureEntry } from '../../../../test/browser/addTabFixtureUtils.js';
+import { SessionActivityBarGroup } from '../../../../browser/menus.js';
 import { ExternalSessionBanner } from '../../browser/externalSessionBanner.js';
 import '../../browser/media/chatView.css';
 import '../../../../browser/parts/media/chatCompositeBar.css';
@@ -50,7 +51,7 @@ interface IFixtureOptions {
 }
 
 // The tab entries share the side panel toggle's group; the terminal shares the panel toggle's.
-const sidePanelGroup = (entries: readonly IFixtureEntry[]) => entries.map(entry => ({ ...entry, group: fixtureToggleSidePanel.group }));
+const sidePanelGroup = (entries: readonly IFixtureEntry[]) => entries.map(entry => ({ ...entry, group: SessionActivityBarGroup.SidePanel }));
 const workspaceChatEntries = [fixtureToggleSidePanel, ...sidePanelGroup([fixtureChanges, fixtureFiles, fixtureBrowser, fixtureCanvas]), fixtureTerminal, fixtureTogglePanel];
 const highContrastThemes: ['darkHighContrast', 'lightHighContrast'] = ['darkHighContrast', 'lightHighContrast'];
 

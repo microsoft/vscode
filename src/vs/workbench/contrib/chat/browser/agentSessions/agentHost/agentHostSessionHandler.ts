@@ -1021,6 +1021,8 @@ export interface IAgentHostSessionHandlerConfig {
 	readonly modelIdentifierAliases?: readonly string[];
 	/** Whether a title the host reports is a stand-in (e.g. the session id) that must not replace the chat's title. */
 	readonly isSessionTitlePlaceholder?: (title: string, sessionResource: URI) => boolean;
+	/** Uses the session title and rename channel for the default chat instead of an independent chat title. */
+	readonly useSessionTitleForDefaultChat?: boolean;
 	/** Called after a locally-created session has been accepted by the backend. */
 	readonly onSessionMaterialized?: (sessionResource: URI) => void;
 	/**
@@ -1912,7 +1914,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					if (chat === undefined) {
 						return Promise.reject(new Error(`No chat to rename for ${sessionResource.toString()}`));
 					}
-					this._config.connection.dispatch(chat, {
+					const channel = this._config.useSessionTitleForDefaultChat && chat === this._getRawSessionState(resolvedSession.toString())?.defaultChat ? resolvedSession.toString() : chat;
+					this._config.connection.dispatch(channel, {
 						type: ActionType.SessionTitleChanged,
 						title,
 					});
@@ -2754,7 +2757,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	/** The host's title for a chat, unless the connection flags it as a stand-in. */
 	private _getHostChatTitle(sessionResource: URI, state: Pick<SessionState, 'chats' | 'title' | 'defaultChat'>, chatURI: string): string | undefined {
-		const title = getChatTitle(state, chatURI, state.defaultChat);
+		const title = this._config.useSessionTitleForDefaultChat && chatURI === state.defaultChat ? state.title : getChatTitle(state, chatURI, state.defaultChat);
 		return title !== undefined && this._config.isSessionTitlePlaceholder?.(title, sessionResource) ? undefined : title;
 	}
 
