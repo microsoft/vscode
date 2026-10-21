@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { derived, IObservable, observableValue, ISettableObservable } from '../../../../base/common/observable.js';
-import { relativePath } from '../../../../base/common/resources.js';
+import { relativePath, basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IAICustomizationWorkspaceService, AICustomizationManagementSection } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
@@ -13,7 +13,7 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { CustomizationCreatorService } from '../../../../workbench/contrib/chat/browser/aiCustomization/customizationCreatorService.js';
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
@@ -48,7 +48,7 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IPromptsService private readonly promptsService: IPromptsService,
-		@ICommandService private readonly commandService: ICommandService,
+		@IGitService private readonly gitService: IGitService,
 		@ILogService private readonly logService: ILogService,
 		@IFileService private readonly fileService: IFileService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -192,18 +192,16 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 				const content = await this.fileService.readFile(fileUri);
 				await this.fileService.writeFile(repoFileUri, content.value);
 			}
-			await this.commandService.executeCommand(
-				'github.copilot.cli.sessions.commitToRepository',
-				{ repositoryUri, fileUri: repoFileUri }
-			);
+			await this.commitToGit(repositoryUri, repoFileUri);
 		} catch (error) {
 			this.logService.error('[SessionsAICustomizationWorkspaceService] Failed to commit to repository:', error);
-			if (worktreeUri) {
-				this.notificationService.notify({
-					severity: Severity.Warning,
-					message: localize('commitToRepoFailed', "Your customization was saved to this session's worktree, but we couldn't apply it to the default branch. You may need to apply it manually."),
-				});
-			}
+			this.notificationService.notify(worktreeUri ? {
+				severity: Severity.Warning,
+				message: localize('commitToRepoFailed', "Your customization was saved to this session's worktree, but we couldn't apply it to the default branch. You may need to apply it manually."),
+			} : {
+				severity: Severity.Error,
+				message: localize('commitToRepoOnlyFailed', "Your customization was saved, but we couldn't commit it to the repository."),
+			});
 		}
 
 		// 2. Also commit to the worktree if active
@@ -214,12 +212,13 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 					const content = await this.fileService.readFile(fileUri);
 					await this.fileService.writeFile(worktreeFileUri, content.value);
 				}
-				await this.commandService.executeCommand(
-					'github.copilot.cli.sessions.commitToWorktree',
-					{ worktreeUri, fileUri: worktreeFileUri }
-				);
+				await this.commitToGit(worktreeUri, worktreeFileUri);
 			} catch (error) {
 				this.logService.error('[SessionsAICustomizationWorkspaceService] Failed to commit to worktree:', error);
+				this.notificationService.notify({
+					severity: Severity.Error,
+					message: localize('commitToWorktreeFailed', "Your customization was saved, but we couldn't commit it to this session's worktree."),
+				});
 			}
 		}
 	}
@@ -242,18 +241,16 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 			if (await this.fileService.exists(repoFileUri)) {
 				await this.fileService.del(repoFileUri, { useTrash: true, recursive: true });
 			}
-			await this.commandService.executeCommand(
-				'github.copilot.cli.sessions.commitToRepository',
-				{ repositoryUri, fileUri: repoFileUri }
-			);
+			await this.commitToGit(repositoryUri, repoFileUri);
 		} catch (error) {
 			this.logService.error('[SessionsAICustomizationWorkspaceService] Failed to commit deletion to repository:', error);
-			if (worktreeUri) {
-				this.notificationService.notify({
-					severity: Severity.Warning,
-					message: localize('deleteFromRepoFailed', "Your customization was removed from this session's worktree, but we couldn't apply the change to the default branch. You may need to remove it manually."),
-				});
-			}
+			this.notificationService.notify(worktreeUri ? {
+				severity: Severity.Warning,
+				message: localize('deleteFromRepoFailed', "Your customization was removed from this session's worktree, but we couldn't apply the change to the default branch. You may need to remove it manually."),
+			} : {
+				severity: Severity.Error,
+				message: localize('deleteFromRepoOnlyFailed', "Your customization was removed, but we couldn't commit the removal to the repository."),
+			});
 		}
 
 		// 2. Also commit the deletion in the worktree if active
@@ -261,14 +258,34 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 			const worktreeFileUri = URI.joinPath(worktreeUri, relPath);
 			try {
 				// The file may already be deleted from the worktree by the caller
-				await this.commandService.executeCommand(
-					'github.copilot.cli.sessions.commitToWorktree',
-					{ worktreeUri, fileUri: worktreeFileUri }
-				);
+				await this.commitToGit(worktreeUri, worktreeFileUri);
 			} catch (error) {
 				this.logService.error('[SessionsAICustomizationWorkspaceService] Failed to commit deletion to worktree:', error);
+				this.notificationService.notify({
+					severity: Severity.Error,
+					message: localize('deleteFromWorktreeFailed', "Your customization was removed, but we couldn't commit the removal to this session's worktree."),
+				});
 			}
 		}
+	}
+
+	/**
+	 * Stages and commits a single customization file (or its deletion) in the
+	 * git repository rooted at `repositoryRoot`. Does nothing when the folder
+	 * is not a git repository or the file has no changes to commit.
+	 */
+	private async commitToGit(repositoryRoot: URI, fileUri: URI): Promise<void> {
+		const repository = await this.gitService.openRepository(repositoryRoot);
+		if (!repository) {
+			this.logService.debug(`[SessionsAICustomizationWorkspaceService] Not a git repository, skipping commit: ${repositoryRoot.toString()}`);
+			return;
+		}
+
+		await repository.commitFiles(
+			[fileUri],
+			localize('commitCustomizationMessage', "Update customization: {0}", basename(fileUri)),
+			{ noVerify: true, signCommit: false }
+		);
 	}
 
 	async generateCustomization(type: PromptsType, workspaceFolder?: URI): Promise<void> {

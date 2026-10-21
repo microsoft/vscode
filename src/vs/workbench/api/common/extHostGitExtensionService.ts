@@ -11,7 +11,7 @@ import { ExtensionIdentifier } from '../../../platform/extensions/common/extensi
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { IExtHostExtensionService } from './extHostExtensionService.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
-import { ExtHostGitExtensionShape, GitBranchDto, GitChangeDto, GitDiffChangeDto, GitRefDto, GitRefQueryDto, GitRefTypeDto, GitRepositoryStateDto, GitUpstreamRefDto, MainContext, MainThreadGitExtensionShape } from './extHost.protocol.js';
+import { ExtHostGitExtensionShape, GitBranchDto, GitChangeDto, GitCommitOptionsDto, GitDiffChangeDto, GitRefDto, GitRefQueryDto, GitRefTypeDto, GitRepositoryStateDto, GitUpstreamRefDto, MainContext, MainThreadGitExtensionShape } from './extHost.protocol.js';
 import { ResourceMap } from '../../../base/common/map.js';
 
 const GIT_EXTENSION_ID = 'vscode.git';
@@ -96,6 +96,8 @@ interface Repository {
 	diffBetweenWithStats(ref1: string, ref2: string, path?: string): Promise<DiffChange[]>;
 	diffBetweenWithStats2(ref: string, path?: string): Promise<DiffChange[]>;
 	isBranchProtected(branch?: Branch): boolean;
+	add(paths: string[]): Promise<void>;
+	commit(message: string, opts?: { noVerify?: boolean; signCommit?: boolean }): Promise<void>;
 }
 
 interface Change {
@@ -331,6 +333,25 @@ export class ExtHostGitExtensionService extends Disposable implements IExtHostGi
 			}));
 		} catch {
 			return [];
+		}
+	}
+
+	async $commitFiles(handle: number, files: UriComponents[], message: string, options?: GitCommitOptionsDto): Promise<void> {
+		const repository = this._repositories.get(handle);
+		if (!repository) {
+			throw new Error(`Unknown git repository handle: ${handle}`);
+		}
+
+		try {
+			await repository.add(files.map(file => URI.revive(file).fsPath));
+			await repository.commit(message, options);
+		} catch (error) {
+			const { stdout = '', stderr = '', gitErrorCode } = error as { stdout?: string; stderr?: string; gitErrorCode?: string };
+			// Nothing to commit and a non-repository root are expected no-ops, not failures
+			if (gitErrorCode === 'NoLocalChanges' || gitErrorCode === 'NotAGitRepository' || /nothing to commit/i.test(`${stdout}\n${stderr}`)) {
+				return;
+			}
+			throw error;
 		}
 	}
 

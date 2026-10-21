@@ -13,7 +13,7 @@ import { CustomizationMarketplaceConfiguration } from '../../../../../platform/c
 import { dirname as dirnamePath } from '../../../../../base/common/path.js';
 
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
-import { Delayer, RunOnceScheduler, timeout } from '../../../../../base/common/async.js';
+import { Delayer, RunOnceScheduler, Sequencer, timeout } from '../../../../../base/common/async.js';
 import { cancelOnDispose, CancellationToken } from '../../../../../base/common/cancellation.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { getErrorMessage, isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
@@ -36,7 +36,7 @@ import { IEditorOptions } from '../../../../../platform/editor/common/editor.js'
 import { IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { EditorPane } from '../../../../browser/parts/editor/editorPane.js';
-import { IEditorOpenContext } from '../../../../common/editor.js';
+import { IEditorOpenContext, SaveReason } from '../../../../common/editor.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -503,6 +503,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	private readonly editorDisposables = this._register(new DisposableStore());
 	private _editorContentChanged = false;
+	/**
+	 * Tracks a save that has not been committed to git yet. Auto save clears the dirty state, so
+	 * this is tracked separately from {@link _editorContentChanged} to still commit when leaving the editor.
+	 */
+	private _editorHasUncommittedSave = false;
+	private readonly customizationCommitSequencer = new Sequencer();
 	private _previousActiveHarnessId: string | undefined;
 
 	private sidebarHeaderContainer: HTMLElement | undefined;
@@ -3747,7 +3753,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.inEditorContextKey.set(true);
 		this.sectionContextKey.set(this.selectedSection ?? '');
 
-		input.setSaveHandler(() => this.handleBuiltinSave());
+		input.setSaveHandler(() => this.handleSave());
 
 		if (isCustomizationMarketplaceValueFromDefault(this.configurationService)) {
 			logSettingExperimentTrigger(this.telemetryService, CustomizationMarketplaceConfiguration.MarketplaceEnabled);
@@ -4353,6 +4359,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.editorItemPathElement.removeAttribute('aria-label');
 		}
 		this._editorContentChanged = false;
+		this._editorHasUncommittedSave = false;
 		this.resetEditorSaveIndicator();
 		this.updateEditorActionButton();
 		this.updateEditorDisplayMode();
@@ -4404,6 +4411,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.editorContentContainer?.classList.remove('customization-detail-mode');
 		this.editorDisplayMode = 'preview';
 		this._editorContentChanged = false;
+		this._editorHasUncommittedSave = false;
 		this.editorModelChangeDisposables.clear();
 		this.editorPreviewRenderScheduler.cancel();
 		this.clearEditorPreview();
@@ -4506,7 +4514,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private createExistingCustomizationSaveRequest(): IExistingCustomizationSaveRequest | undefined {
-		if (!this._editorContentChanged || this.currentEditingSource === AICustomizationSources.builtin || !this.currentEditingUri) {
+		if ((!this._editorContentChanged && !this._editorHasUncommittedSave) || this.currentEditingSource === AICustomizationSources.builtin || !this.currentEditingUri) {
 			return undefined;
 		}
 
@@ -4540,8 +4548,13 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	private async saveExistingCustomization(request: IExistingCustomizationSaveRequest): Promise<void> {
 		await this.fileService.writeFile(request.fileUri, VSBuffer.fromString(request.content));
-		if (request.projectRoot) {
-			await this.workspaceService.commitFiles(request.projectRoot, [request.fileUri]);
+		await this.commitCustomization(request.projectRoot, request.fileUri);
+	}
+
+	/** Serializes commits so an explicit save and leaving the editor cannot commit concurrently. */
+	private async commitCustomization(projectRoot: URI | undefined, fileUri: URI): Promise<void> {
+		if (projectRoot) {
+			await this.customizationCommitSequencer.queue(() => this.workspaceService.commitFiles(projectRoot, [fileUri]));
 		}
 	}
 
@@ -4665,6 +4678,38 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const input = this.input;
 		if (input instanceof AICustomizationManagementEditorInput) {
 			input.setDirty(this.shouldShowBuiltinSaveAction());
+		}
+	}
+
+	private async handleSave(): Promise<boolean> {
+		return this.shouldShowBuiltinSaveAction() ? this.handleBuiltinSave() : this.saveCurrentCustomization();
+	}
+
+	/**
+	 * Explicit save of the customization open in the embedded editor. The embedded editor is not
+	 * handled by the generic save command, so the file is saved and committed here.
+	 */
+	private async saveCurrentCustomization(): Promise<boolean> {
+		const fileUri = this.currentEditingUri;
+		if (this.viewMode !== 'editor' || !fileUri || this.currentEditingReadOnly || this.currentEditingSource === AICustomizationSources.builtin) {
+			return false;
+		}
+
+		try {
+			for (const workingCopy of this.workingCopyService.getAll(fileUri) ?? []) {
+				if (workingCopy.isDirty()) {
+					await workingCopy.save({ reason: SaveReason.EXPLICIT });
+				}
+			}
+			if (this.currentEditingProjectRoot) {
+				this._editorHasUncommittedSave = false;
+				await this.commitCustomization(this.currentEditingProjectRoot, fileUri);
+			}
+			return true;
+		} catch (error) {
+			console.error('Failed to save customization:', error);
+			this.notificationService.warn(localize('saveCustomizationFailed', "Could not save changes to {0}.", basename(fileUri)));
+			return false;
 		}
 	}
 
@@ -4854,6 +4899,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 				this.editorSaveIndicator.title = localize('saved', "Saved");
 				this.editorSaveIndicator.setAttribute('aria-label', localize('saved', "Saved"));
 				status(localize('saved', "Saved"));
+
+				// Auto save clears the dirty state, so remember that this save still has to be committed
+				this._editorHasUncommittedSave = true;
 			}
 		}));
 	}
@@ -5404,6 +5452,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (saveRequest) {
 			await this.saveExistingCustomization(saveRequest);
 			this._editorContentChanged = false;
+			this._editorHasUncommittedSave = false;
 			this.resetEditorSaveIndicator();
 		}
 		await this.migrateMigrationItem(detail.item);
@@ -5415,6 +5464,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return;
 		}
 		this._editorContentChanged = false;
+		this._editorHasUncommittedSave = false;
 		this.showCustomizationMigrationDashboard();
 	}
 
