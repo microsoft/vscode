@@ -7988,9 +7988,8 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('collapsed parent observes eligible child activity independently of the session aggregate', () => {
+		test('collapsed parent progress does not observe child status', () => {
 			let childStatusObservers = 0;
-			let childStatus = SessionStatus.InProgress;
 			const childStatusEmitter = disposables.add(new Emitter<void>({
 				onDidAddListener: () => childStatusObservers++,
 				onWillRemoveListener: () => childStatusObservers--,
@@ -8001,7 +8000,7 @@ suite('Sessions - SessionsList', () => {
 				workspace: constObservable(undefined),
 				title: constObservable('Active chat'),
 				updatedAt: constObservable(new Date()),
-				status: observableFromEvent(disposables, childStatusEmitter.event, () => childStatus),
+				status: observableFromEvent(disposables, childStatusEmitter.event, () => SessionStatus.InProgress),
 				description: constObservable(undefined),
 				isArchived: constObservable(false),
 				isRead: constObservable(true),
@@ -8019,28 +8018,53 @@ suite('Sessions - SessionsList', () => {
 
 			const { container } = renderSessionChatsList(session, undefined, true, false);
 			setSessionChatsExpanded(container, false);
-			const snapshots = [sessionRowSnapshot(container)];
-			childStatus = SessionStatus.NeedsInput;
-			childStatusEmitter.fire();
-			snapshots.push(sessionRowSnapshot(container));
-			childStatus = SessionStatus.Completed;
-			childStatusEmitter.fire();
-			snapshots.push(sessionRowSnapshot(container));
-
 			assert.deepStrictEqual({
-				observesChildStatus: childStatusObservers > 0,
-				snapshots,
+				childStatusObservers,
+				parentHasProgress: !!container.querySelector('.session-item .session-icon > .monaco-pixel-spinner:not([data-icon-fading-out])'),
 				childRendered: !!container.querySelector('.session-chat-item'),
 			}, {
-				observesChildStatus: true,
-				snapshots: [
-					{ inProgress: true, needsInput: false, ariaLabel: 'Session, updated now, State: In Progress' },
-					{ inProgress: false, needsInput: true, ariaLabel: 'Session, updated now, State: Attention Needed' },
-					{ inProgress: false, needsInput: false, ariaLabel: 'Session, updated now, State: Completed, in Workspace' },
-				],
+				childStatusObservers: 0,
+				parentHasProgress: true,
 				childRendered: false,
 			});
 		});
+
+		for (const aggregateStatus of [SessionStatus.InProgress, SessionStatus.NeedsInput, SessionStatus.Error]) {
+			test(`collapsed parent uses aggregate status ${aggregateStatus} without inspecting peer status`, () => {
+				const main = createChat('Main chat', undefined, ChatInteractivity.Full, SessionStatus.InProgress);
+				const peer = createChat('Peer chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.InProgress);
+				const status = observableValue('aggregate-status', aggregateStatus);
+				const session: ISession = {
+					...createTestSession('Session').session,
+					status,
+					chats: constObservable([main, peer]),
+					mainChat: constObservable(main),
+					capabilities: constObservable({ supportsMultipleChats: true }),
+				};
+				const { container } = renderSessionChatsList(session, undefined, true);
+				setSessionChatsExpanded(container, false);
+				const snapshot = () => ({
+					...sessionRowSnapshot(container),
+					hasProgress: !!container.querySelector('.session-item .session-icon > .monaco-pixel-spinner:not([data-icon-fading-out])'),
+				});
+				const collapsed = snapshot();
+				setSessionChatsExpanded(container, true);
+				const expanded = snapshot();
+				setSessionChatsExpanded(container, false);
+				status.set(SessionStatus.Completed, undefined);
+
+				assert.deepStrictEqual({ collapsed, expanded, afterComplete: snapshot() }, {
+					collapsed: {
+						inProgress: aggregateStatus === SessionStatus.InProgress,
+						needsInput: aggregateStatus === SessionStatus.NeedsInput,
+						ariaLabel: `Session, State: ${aggregateStatus === SessionStatus.InProgress ? 'In Progress' : aggregateStatus === SessionStatus.NeedsInput ? 'Attention Needed' : 'Failed, in Workspace'}`,
+						hasProgress: aggregateStatus === SessionStatus.InProgress,
+					},
+					expanded: { inProgress: true, needsInput: false, ariaLabel: 'Session, State: In Progress', hasProgress: true },
+					afterComplete: { inProgress: false, needsInput: false, ariaLabel: 'Session, State: Completed, in Workspace', hasProgress: false },
+				});
+			});
+		}
 
 		test('keeps child progress on the parent when a filtered session is reinserted collapsed', () => {
 			const main = createChat('Main chat');
@@ -8140,12 +8164,13 @@ suite('Sessions - SessionsList', () => {
 		});
 
 		for (const mainStatus of [SessionStatus.Completed, SessionStatus.InProgress, SessionStatus.NeedsInput]) {
-			test(`collapsed parent prioritizes child input over progress and restores its own status (${mainStatus})`, () => {
+			test(`collapsed parent shows aggregate input and restores its own status when expanded (${mainStatus})`, () => {
 				const main = createChat('Main chat', undefined, ChatInteractivity.Full, mainStatus);
 				const working = createChat('Working chat', ChatOriginKind.User, ChatInteractivity.ReadOnly, SessionStatus.InProgress);
 				const waiting = createChat('Waiting chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.NeedsInput);
 				const session: ISession = {
 					...createTestSession('Session').session,
+					status: constObservable(SessionStatus.NeedsInput),
 					chats: constObservable([main, working, waiting]),
 					mainChat: constObservable(main),
 					capabilities: constObservable({ supportsMultipleChats: true }),
@@ -8183,31 +8208,6 @@ suite('Sessions - SessionsList', () => {
 					reexpanded: ownStatus,
 				});
 			});
-		}
-
-		for (const exclusion of ['archived', 'hidden', 'tool'] as const) {
-			for (const status of [SessionStatus.InProgress, SessionStatus.NeedsInput]) {
-				test(`collapsed parent excludes ${exclusion} child activity (${status})`, () => {
-					const main = createChat('Main chat');
-					const excluded = {
-						...createChat('Excluded chat', exclusion === 'tool' ? ChatOriginKind.Tool : ChatOriginKind.User, ChatInteractivity.Full, status),
-						isArchived: constObservable(exclusion === 'archived'),
-						interactivity: constObservable(exclusion === 'hidden' ? ChatInteractivity.Hidden : ChatInteractivity.Full),
-					};
-					const session: ISession = {
-						...createTestSession('Session').session,
-						status: constObservable(status),
-						chats: constObservable([main, excluded]),
-						mainChat: constObservable(main),
-						capabilities: constObservable({ supportsMultipleChats: true }),
-					};
-					const { container } = renderSessionChatsList(session, undefined, true, false);
-					assert.deepStrictEqual(sessionRowSnapshot(container), {
-						inProgress: false, needsInput: false,
-						ariaLabel: 'Session, updated now, State: Completed, in Workspace',
-					});
-				});
-			}
 		}
 
 		function sessionRowSnapshot(container: HTMLElement) {
@@ -8317,14 +8317,16 @@ suite('Sessions - SessionsList', () => {
 				const workingWithoutTime = { inProgress: true, needsInput: false, ariaLabel: 'Session, State: In Progress' };
 				const waitingWithoutTime = { inProgress: false, needsInput: true, ariaLabel: 'Session, State: Attention Needed' };
 				assert.deepStrictEqual({ snapshots, chats: chatRowTitles(container) }, {
-					snapshots: [completed, working, waiting, waitingWithoutTime, workingWithoutTime, completed, completed, working, completed, working, completed, waiting, completed, completed],
+					snapshots: withPeer && !expanded
+						? [completed, working, waiting, waitingWithoutTime, workingWithoutTime, completed, working, working, working, working, waiting, waiting, waiting, completed]
+						: [completed, working, waiting, waitingWithoutTime, workingWithoutTime, completed, completed, working, completed, working, completed, waiting, completed, completed],
 					chats: expanded && withPeer ? ['Peer chat'] : [],
 				});
 			});
 		}
 
 		for (const exclusion of ['archived', 'hidden'] as const) {
-			test(`collapsed parent keeps peer progress while excluding an ${exclusion} side chat`, () => {
+			test(`collapsed parent uses aggregate progress including an ${exclusion} side chat`, () => {
 				const main = createChat('Main chat');
 				const peerStatus = observableValue('peer-status', SessionStatus.Completed);
 				const peer = { ...createChat('Peer chat', ChatOriginKind.User), status: peerStatus };
@@ -8355,7 +8357,7 @@ suite('Sessions - SessionsList', () => {
 
 				const completed = { inProgress: false, needsInput: false, ariaLabel: 'Session, updated now, State: Completed, in Workspace' };
 				const working = { inProgress: true, needsInput: false, ariaLabel: 'Session, updated now, State: In Progress' };
-				assert.deepStrictEqual(snapshots, [completed, working, completed, completed]);
+				assert.deepStrictEqual(snapshots, [working, working, working, completed]);
 			});
 		}
 

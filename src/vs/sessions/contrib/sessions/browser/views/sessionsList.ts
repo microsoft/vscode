@@ -362,19 +362,22 @@ function getChatListDiffStats(chat: IChat, reader: IReader): ISessionChangesStat
 		: undefined;
 }
 
-/** Includes eligible side-chat activity and rolls up visible peer activity only while collapsed. */
+/** Uses the session aggregate when collapsed and main/side-chat activity when expanded. */
 function getSessionRowStatus(session: ISession, reader: IReader | undefined, deriveFromMainChat: boolean, collapsed = true): SessionStatus {
-	if (!deriveFromMainChat) {
-		return session.status.read(reader);
+	const sessionStatus = session.status.read(reader);
+	if (!deriveFromMainChat || collapsed) {
+		return sessionStatus;
 	}
 	let rowStatus = session.mainChat.read(reader).status.read(reader);
 	if (rowStatus === SessionStatus.NeedsInput) {
 		return rowStatus;
 	}
+	const chats = session.chats.read(reader);
 	// Side chats have no list rows of their own, even when peer chats are expanded.
-	const sideChats = session.chats.read(reader).filter(chat => chat.origin?.kind === ChatOriginKind.SideChat);
-	const chats = [...sideChats, ...(collapsed ? getSessionListChats(session, reader) : [])];
 	for (const chat of chats) {
+		if (chat.origin?.kind !== ChatOriginKind.SideChat) {
+			continue;
+		}
 		if (chat.isArchived.read(reader) || chat.interactivity.read(reader) === ChatInteractivity.Hidden) {
 			continue;
 		}

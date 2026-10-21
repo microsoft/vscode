@@ -6,13 +6,14 @@
 import assert from 'assert';
 import { $ } from '../../../../../../base/browser/dom.js';
 import { IListEvent } from '../../../../../../base/browser/ui/list/list.js';
-import { DeferredPromise, Delayer, raceCancellationError, timeout } from '../../../../../../base/common/async.js';
+import { DeferredPromise, Delayer, raceCancellationError, Sequencer, timeout } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { SaveReason } from '../../../../../common/editor.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
@@ -337,7 +338,13 @@ suite('aiCustomizationManagementEditor', () => {
 			activeProjectRoot: ISettableObservable<URI | undefined>;
 			activeProjectLabel: ISettableObservable<string>;
 			isSessionsWindow: boolean;
+			commitFiles?(projectRoot: URI, fileUris: URI[]): Promise<boolean>;
 		};
+		workingCopyService: { getAll(resource: URI): readonly { isDirty(): boolean; save(options?: { reason?: SaveReason }): Promise<boolean> }[] | undefined };
+		currentEditingProjectRoot: URI | undefined;
+		customizationCommitSequencer: Sequencer;
+		_editorHasUncommittedSave: boolean;
+		saveCurrentCustomization(): Promise<boolean>;
 		commandService: { executeCommand(commandId: string, ...args: readonly unknown[]): Promise<unknown> };
 		chatWidgetService: {
 			getWidgetBySessionResource(resource: URI): { setInput(value: string): void; focusInput(): void } | undefined;
@@ -1343,6 +1350,42 @@ suite('aiCustomizationManagementEditor', () => {
 		}, {
 			label: 'Edit Source',
 			tooltip: 'Edit this skill directly in the source editor',
+		});
+
+		editor.editorPreviewDisposables.dispose();
+	});
+
+	test('Ctrl+S only commits a customization that was saved and keeps a failed commit pending', async () => {
+		const editor = createTestEditor();
+		const uri = URI.file('/workspace/.github/instructions/a.instructions.md');
+		const commits: string[] = [];
+		let saveResult = false;
+		let commitResult = false;
+		editor.viewMode = 'editor';
+		editor.currentEditingUri = uri;
+		editor.currentEditingProjectRoot = URI.file('/workspace');
+		editor.currentEditingSource = AICustomizationSources.local;
+		editor.currentEditingReadOnly = false;
+		editor.customizationCommitSequencer = new Sequencer();
+		editor._editorHasUncommittedSave = true;
+		editor.workingCopyService = { getAll: () => [{ isDirty: () => true, save: async () => saveResult }] };
+		editor.workspaceService = {
+			...editor.workspaceService,
+			commitFiles: async (_root, files) => { commits.push(files[0].path); return commitResult; },
+		};
+
+		const failedSave = { result: await editor.saveCurrentCustomization(), commits: [...commits], pending: editor._editorHasUncommittedSave };
+
+		saveResult = true;
+		const failedCommit = { result: await editor.saveCurrentCustomization(), commits: [...commits], pending: editor._editorHasUncommittedSave };
+
+		commitResult = true;
+		const committed = { result: await editor.saveCurrentCustomization(), commits: [...commits], pending: editor._editorHasUncommittedSave };
+
+		assert.deepStrictEqual({ failedSave, failedCommit, committed }, {
+			failedSave: { result: false, commits: [], pending: true },
+			failedCommit: { result: true, commits: [uri.path], pending: true },
+			committed: { result: true, commits: [uri.path, uri.path], pending: false },
 		});
 
 		editor.editorPreviewDisposables.dispose();

@@ -5,6 +5,7 @@
 
 import { Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
+import { matchesSomeScheme, Schemas } from '../../../base/common/network.js';
 import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
@@ -274,6 +275,16 @@ export interface IBrowserViewHost {
 export const enum BrowserViewPresentation {
 	Listed = 'listed',
 	Unlisted = 'unlisted',
+}
+
+export function getBrowserViewPopupAction(presentation: BrowserViewPresentation, url: string, hasRecentUserGesture: boolean): { action: 'integrated' | 'external' | 'deny'; consumeUserGesture: boolean } {
+	if (presentation === BrowserViewPresentation.Listed) {
+		return { action: 'integrated', consumeUserGesture: false };
+	}
+	if (hasRecentUserGesture && matchesSomeScheme(url, Schemas.http, Schemas.https)) {
+		return { action: 'external', consumeUserGesture: true };
+	}
+	return { action: 'deny', consumeUserGesture: false };
 }
 
 /**
@@ -563,6 +574,7 @@ export interface BrowserViewEventData {
 	onDidChangeAudiences: IBrowserViewAudience[];
 	onDidRequestPermission: IBrowserViewPermissionRequestEvent;
 	onDidChangePermissions: ISerializedBrowserPermissionsSnapshot;
+	onDidRequestOpenExternal: string;
 }
 
 export type BrowserViewEventMap = { [K in keyof BrowserViewEventData]: Event<BrowserViewEventData[K]> };
