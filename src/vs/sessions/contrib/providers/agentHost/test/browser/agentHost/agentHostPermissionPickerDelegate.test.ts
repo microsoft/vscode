@@ -28,7 +28,8 @@ import { DeferredPromise, timeout } from '../../../../../../../base/common/async
 import { URI } from '../../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import { type IConfigurationOverrides, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { type IConfigurationOverrides, IConfigurationService, IConfigurationValue } from '../../../../../../../platform/configuration/common/configuration.js';
+import { COPILOT_DISABLE_ASSISTED_PERMISSIONS_MODE_KEY, COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, IManagedSettingsService, ManagedSettingsData } from '../../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ResolveSessionConfigResult, SessionConfigPropertySchema } from '../../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IAgentConnection, IAgentHostNetworkDiagnosticsInfo } from '../../../../../../../platform/agentHost/common/agentService.js';
@@ -168,6 +169,7 @@ interface ITestRig {
 	readonly fireConnectionChange: () => void;
 	readonly diagnosticsRequests: () => number;
 	readonly logErrors: readonly (string | Error)[];
+	readonly setManagedSettings: (settings: ManagedSettingsData) => void;
 }
 
 function setup(store: Pick<DisposableStore, 'add'>, activeSession: IActiveSession | undefined, configValue?: string, getHostInfo: () => Promise<IAgentHostNetworkDiagnosticsInfo> = async () => ({ version: '1', os: 'linux', arch: 'x64', proxySettings: {}, proxyEnv: {}, endpoints: [] }), remoteAuthority?: string, configurationOverride?: IConfigurationService): ITestRig {
@@ -197,7 +199,12 @@ function setup(store: Pick<DisposableStore, 'add'>, activeSession: IActiveSessio
 		override getValue<T>(section?: string | IConfigurationOverrides): T {
 			return (section === AgentHostCustomTerminalToolEnabledSettingId ? customTerminalToolEnabled : undefined) as T;
 		}
+		override inspect<T>(): IConfigurationValue<T> {
+			return {};
+		}
 	}();
+	let managedSettings: ManagedSettingsData = {};
+	const managedSettingsChanged = store.add(new Emitter<void>());
 	const sessionsManagementService = new (class extends mock<ISessionsService>() {
 		override readonly activeSession = activeSessionObs;
 	})();
@@ -222,6 +229,12 @@ function setup(store: Pick<DisposableStore, 'add'>, activeSession: IActiveSessio
 	insta.set(IConfigurationService, configurationService);
 	insta.stub(IChatPhoneInputPresenter, { enabled: constObservable(false) });
 	insta.stub(IWorkbenchEnvironmentService, { remoteAuthority });
+	insta.set(IManagedSettingsService, {
+		_serviceBrand: undefined,
+		onDidChangeManagedSettings: managedSettingsChanged.event,
+		getManagedSettings: () => managedSettings,
+		getManagedSettingValue: key => managedSettings[key],
+	});
 	insta.set(IAgentHostEnablementService, {
 		_serviceBrand: undefined,
 		enabled: constObservable(true),
@@ -249,6 +262,10 @@ function setup(store: Pick<DisposableStore, 'add'>, activeSession: IActiveSessio
 		fireConnectionChange: () => connectionsChanged.fire(),
 		diagnosticsRequests: () => diagnosticsRequests,
 		logErrors,
+		setManagedSettings: settings => {
+			managedSettings = settings;
+			managedSettingsChanged.fire();
+		},
 	};
 }
 
@@ -278,6 +295,7 @@ suite('AgentHostPermissionPickerDelegate', () => {
 			applicable: delegate.isApplicable.get(),
 			level: delegate.currentPermissionLevel.get(),
 			choices: delegate.availableLevels,
+			unavailable: delegate.unavailableLevels.get(),
 			hover: delegate.getPermissionLevelHover(ChatPermissionLevel.Default, getPermissionLevelMeta(ChatPermissionLevel.Default)),
 		};
 		await delegate.setPermissionLevel(ChatPermissionLevel.AutoApprove);
@@ -286,6 +304,7 @@ suite('AgentHostPermissionPickerDelegate', () => {
 			before: {
 				applicable: true, level: ChatPermissionLevel.Default,
 				choices: [ChatPermissionLevel.Default, ChatPermissionLevel.Assisted],
+				unavailable: [{ level: ChatPermissionLevel.AutoApprove, byPolicy: false }],
 				hover: 'Effective permissions: manual. Requested permissions: allow-all.',
 			},
 			writes: [[SESSION_ID, 'approvalMode', 'assisted']],
@@ -971,6 +990,56 @@ suite('AgentHostPermissionPickerDelegate', () => {
 		assert.deepStrictEqual(provider.setCalls, []);
 	});
 
+	test('distinguishes withheld levels from unsupported levels, attributes only known policy, and follows refresh', async () => {
+		const { delegate, provider, setManagedSettings } = setup(store, makeActiveSession(), 'default');
+		const withReport = (levels: readonly string[], available: readonly string[], readOnly = true): ResolveSessionConfigResult => {
+			const config = makeWellKnownConfig('default', levels);
+			return {
+				schema: { ...config.schema, properties: { ...config.schema.properties, availableApprovalModes: { type: 'array', title: 'Available approvals', readOnly } } },
+				values: { ...config.values, availableApprovalModes: [...available] },
+			};
+		};
+		const read = () => ({ available: delegate.availableLevels, unavailable: delegate.unavailableLevels.get() });
+
+		provider.config = withReport(['default', 'assisted', 'autoApprove'], ['default']);
+		provider.fireChange();
+		const unattributed = read();
+		setManagedSettings({ [COPILOT_DISABLE_ASSISTED_PERMISSIONS_MODE_KEY]: true });
+		const restricted = read();
+		await delegate.setPermissionLevel(ChatPermissionLevel.Assisted);
+		await delegate.setPermissionLevel(ChatPermissionLevel.AutoApprove);
+		const restrictedWrites = [...provider.setCalls];
+
+		provider.config = withReport(['default', 'autoApprove'], ['default']);
+		provider.fireChange();
+		const unsupportedAssisted = read();
+
+		provider.config = withReport(['default', 'assisted', 'autoApprove'], ['default'], false);
+		provider.fireChange();
+		const clientOwnedReport = read();
+
+		provider.config = withReport(['default', 'assisted', 'autoApprove'], ['default', 'assisted', 'autoApprove']);
+		provider.fireChange();
+		const removed = read();
+		await delegate.setPermissionLevel(ChatPermissionLevel.Assisted);
+
+		assert.deepStrictEqual({ unattributed, restricted, restrictedWrites, unsupportedAssisted, clientOwnedReport, removed, writes: provider.setCalls }, {
+			unattributed: {
+				available: [ChatPermissionLevel.Default],
+				unavailable: [{ level: ChatPermissionLevel.Assisted, byPolicy: false }, { level: ChatPermissionLevel.AutoApprove, byPolicy: false }],
+			},
+			restricted: {
+				available: [ChatPermissionLevel.Default],
+				unavailable: [{ level: ChatPermissionLevel.Assisted, byPolicy: !isWeb }, { level: ChatPermissionLevel.AutoApprove, byPolicy: false }],
+			},
+			restrictedWrites: [],
+			unsupportedAssisted: { available: [ChatPermissionLevel.Default], unavailable: [{ level: ChatPermissionLevel.AutoApprove, byPolicy: false }] },
+			clientOwnedReport: { available: [ChatPermissionLevel.Default, ChatPermissionLevel.Assisted, ChatPermissionLevel.AutoApprove], unavailable: [] },
+			removed: { available: [ChatPermissionLevel.Default, ChatPermissionLevel.Assisted, ChatPermissionLevel.AutoApprove], unavailable: [] },
+			writes: [[SESSION_ID, 'autoApprove', 'assisted']],
+		});
+	});
+
 	test('setPermissionLevel is a no-op when there is no active session', async () => {
 		const { delegate, provider } = setup(store, undefined);
 
@@ -978,6 +1047,32 @@ suite('AgentHostPermissionPickerDelegate', () => {
 
 		assert.deepStrictEqual(provider.setCalls, []);
 	});
+
+	for (const { providerId, remoteAuthority, sessionType, devContainer } of [
+		{ providerId: 'agenthost-remote-test', remoteAuthority: undefined, sessionType: 'copilotcli', devContainer: false },
+		{ providerId: PROVIDER_ID, remoteAuthority: 'ssh-remote+test', sessionType: 'copilotcli', devContainer: false },
+		{ providerId: PROVIDER_ID, remoteAuthority: undefined, sessionType: 'conforming-host', devContainer: false },
+		{ providerId: PROVIDER_ID, remoteAuthority: undefined, sessionType: 'copilotcli', devContainer: true },
+	]) {
+		test(`does not attribute other host restrictions to desktop policy (${providerId}, ${remoteAuthority}, ${sessionType}, container=${devContainer})`, () => {
+			const session = { ...makeActiveSession(sessionType), providerId };
+			const { delegate, provider, setManagedSettings } = setup(store, session, 'default', undefined, remoteAuthority);
+			const config = makeWellKnownConfig('default');
+			provider.config = {
+				schema: { ...config.schema, properties: { ...config.schema.properties, availableApprovalModes: { type: 'array', title: 'Available approvals', readOnly: true } } },
+				values: { ...config.values, availableApprovalModes: ['default'] },
+			};
+			if (devContainer) {
+				provider.devContainerDrafts.add(SESSION_ID);
+			}
+			provider.fireChange();
+			setManagedSettings({ [COPILOT_DISABLE_ASSISTED_PERMISSIONS_MODE_KEY]: true, [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'disable' });
+			assert.deepStrictEqual(delegate.unavailableLevels.get(), [
+				{ level: ChatPermissionLevel.Assisted, byPolicy: false },
+				{ level: ChatPermissionLevel.AutoApprove, byPolicy: false },
+			]);
+		});
+	}
 
 	test('provides agent-host-specific hover copy for permission levels', () => {
 		const { delegate } = setup(store, makeActiveSession(), 'autoApprove');

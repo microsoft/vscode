@@ -45,6 +45,9 @@ export const GITHUB_COPILOT_MACOS_BUNDLE_ID = 'com.github.copilot';
 /** MDM key for the V0 managed setting. */
 export const COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY = 'permissions.disableBypassPermissionsMode';
 
+/** Managed setting that disables the Assisted permission mode. */
+export const COPILOT_DISABLE_ASSISTED_PERMISSIONS_MODE_KEY = 'permissions.disableAssistedPermissionsMode';
+
 /** Runtime-owned rule lists that the Local harness cannot enforce. */
 export const COPILOT_PERMISSION_RULES_KEYS = ['permissions.ask', 'permissions.allow', 'permissions.deny'] as const;
 
@@ -139,7 +142,7 @@ export const COPILOT_AUTO_TIER_KEY = 'autoTier';
 export const MANAGED_SETTINGS_CONTROL_DEFINITIONS: IManagedSettingsPolicyDefinitions = {
 	...Object.fromEntries(COPILOT_PERMISSION_RULES_KEYS.map(key => [key, { type: 'string' as const }])),
 	'permissions.defaultMode': { type: 'string' },
-	'permissions.disableAssistedPermissionsMode': { type: 'boolean' },
+	[COPILOT_DISABLE_ASSISTED_PERMISSIONS_MODE_KEY]: { type: 'boolean' },
 	[COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: { type: 'string' },
 	'permissions.limitTo': { type: 'string' },
 	'permissions.model': { type: 'string' },

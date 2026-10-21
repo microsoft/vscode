@@ -187,7 +187,7 @@ function toActionItems(property: string, items: readonly IConfigPickerItem[], cu
 		return {
 			kind: ActionListItemKind.Action,
 			label: item.label,
-			...(property === SessionConfigKey.AutoApprove ? getPermissionLevelBadge(item.value) : {}),
+			...(property === SessionConfigKey.AutoApprove ? getPermissionLevelBadge(item.value, disabled) : {}),
 			detail,
 			group: { title: '', icon: getConfigIcon(property, item.value, uncommittedChanges !== undefined) },
 			ariaDescription: detail,
