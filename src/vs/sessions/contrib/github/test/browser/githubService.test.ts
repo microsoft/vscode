@@ -54,8 +54,8 @@ suite('GitHubService', () => {
 						},
 					}),
 					content: upcastPartial<IGitHubAccountClient['content']>({
-						getContent: async (owner, repo, path, _signal, options) => {
-							domainCalls.push({ operation: 'content.getContent', args: [owner, repo, path, options] });
+						getContent: async (repository, path, _signal, options) => {
+							domainCalls.push({ operation: 'content.getContent', args: [repository, path, options] });
 							return upcastPartial<FileContent>({ type: 'file', encoding: 'base64', content: 'aGVsbG8=' });
 						},
 					}),
@@ -85,9 +85,9 @@ suite('GitHubService', () => {
 			commit: { sha: 'abc', message: 'Message', url: 'https://github.com/o/r/commit/abc', author: { login: 'Author' }, committedAt: '2026-10-14T00:00:00Z' },
 			content: 'hello', pullRequest: 42, repeated: 42,
 			domainCalls: [
-				{ operation: 'repositories.getCommit', args: [{ owner: 'o', name: 'r' }, 'abc', { priority: 'enrichment' }] },
-				{ operation: 'content.getContent', args: ['o', 'r', 'dir/file #.txt', { query: { ref: 'feature/branch' } }] },
-				{ operation: 'pullRequests.list', args: [{ owner: 'o', name: 'r' }, { priority: 'background', query: { head: 'o:feature/branch', state: 'all', sort: 'updated', direction: 'desc', per_page: 1 } }] },
+				{ operation: 'repositories.getCommit', args: [{ owner: 'o', repo: 'r' }, 'abc', { priority: 'enrichment' }] },
+				{ operation: 'content.getContent', args: [{ owner: 'o', repo: 'r' }, 'dir/file #.txt', { query: { ref: 'feature/branch' } }] },
+				{ operation: 'pullRequests.list', args: [{ owner: 'o', repo: 'r' }, { priority: 'background', query: { head: 'o:feature/branch', state: 'all', sort: 'updated', direction: 'desc', per_page: 1 } }] },
 			],
 		});
 	});

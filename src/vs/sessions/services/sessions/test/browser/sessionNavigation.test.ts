@@ -20,7 +20,7 @@ import { ChatInteractivity, IChat, ISession, ISessionCanvas, ISessionCanvasDefin
 import { SessionsNavigation } from '../../browser/sessionNavigation.js';
 import { getRecencyEntryKey, SessionsRecencyHistory } from '../../browser/sessionsRecencyHistory.js';
 import { Event } from '../../../../../base/common/event.js';
-import { ISendRequestOptions } from '../../common/sessionsProvider.js';
+import { INestedChatWorkspace, ISendRequestOptions } from '../../common/sessionsProvider.js';
 
 const stubChat = {
 	resource: URI.parse('test:///chat'),
@@ -246,6 +246,7 @@ class MockSessionStore implements ISessionsManagementService {
 	usesCombinedNewSessionConfigPicker(): boolean { return false; }
 	createQuickChat(_options?: ICreateNewSessionOptions): ISession { throw new Error('not implemented'); }
 	createNewChatInSession(_session: ISession): Promise<IChat | undefined> { throw new Error('not implemented'); }
+	applyNestedChatWorkspace(_session: ISession, _chat: IChat, _workspace: INestedChatWorkspace, _prompt: string): Promise<void> { throw new Error('not implemented'); }
 	forkChatInSession(_session: ISession, _sourceChat: URI, _turnId: string): Promise<IChat> { throw new Error('not implemented'); }
 	createSideChatInSession(_session: ISession, _sourceChat: URI, _turnId: string, _selection?: ISideChatSelection): Promise<IChat> { throw new Error('not implemented'); }
 	discardNewSession(): void { throw new Error('not implemented'); }

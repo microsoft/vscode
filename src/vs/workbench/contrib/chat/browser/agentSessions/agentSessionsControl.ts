@@ -363,7 +363,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 				overrideStyles: this.options.overrideStyles,
 				twistieAdditionalCssClass: (element: unknown) => isAgentSession(element) && element.children?.length ? 'agent-session-chat-twistie' : 'force-no-twistie',
 				collapseByDefault: (element: unknown) => collapseByDefault(element),
-				expandOnlyOnTwistieClick: true,
+				expandOnlyOnTwistieClick: (element: unknown) => isAgentSession(element),
 				renderIndentGuides: RenderIndentGuides.None,
 			}
 		)) as WorkbenchCompressibleAsyncDataTree<IAgentSessionsModel, AgentSessionListItem, FuzzyScore>;

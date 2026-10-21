@@ -96,7 +96,7 @@ suite('GitHubFileSystemProvider', () => {
 						override async getTree(...args: Parameters<IContentClient['getTree']>): Promise<GitTree> {
 							const result = state.tree;
 							treeCalls.push(args);
-							treeRequested.fire(args[3]);
+							treeRequested.fire(args[2]);
 							if (result instanceof Error) {
 								throw result;
 							}
@@ -105,7 +105,7 @@ suite('GitHubFileSystemProvider', () => {
 						override async getBlob(...args: Parameters<IContentClient['getBlob']>): Promise<GitBlob> {
 							const result = state.blob;
 							blobCalls.push(args);
-							blobRequested.fire(args[3]);
+							blobRequested.fire(args[2]);
 							if (result instanceof Error) {
 								throw result;
 							}
@@ -152,7 +152,7 @@ suite('GitHubFileSystemProvider', () => {
 		]);
 		assert.deepStrictEqual({
 			results,
-			requests: treeCalls.map(([owner, repo, ref, _signal, options]) => ({ owner, repo, ref, options })),
+			requests: treeCalls.map(([{ owner, repo }, ref, _signal, options]) => ({ owner, repo, ref, options })),
 			acquisitions: acquisitions.length,
 		}, {
 			results: [
@@ -174,12 +174,14 @@ suite('GitHubFileSystemProvider', () => {
 		const contents = await provider.readFile(resource);
 		assert.deepStrictEqual({
 			contents: VSBuffer.wrap(contents).toString(),
-			ref: treeCalls[0][2],
-			blob: blobCalls.map(([owner, repo, sha, _signal, options]) => ({ owner, repo, sha, options })),
-			sameSignal: treeCalls[0][3] === blobCalls[0][3],
+			ref: treeCalls[0][1],
+			blob: blobCalls.map(([{ owner, repo }, sha, _signal, options]) => ({ owner, repo, sha, options })),
+			sameRepository: treeCalls[0][0] === blobCalls[0][0],
+			sameSignal: treeCalls[0][2] === blobCalls[0][2],
 		}, {
 			contents: 'hello', ref: 'feature/a b',
 			blob: [{ owner: 'owner', repo: 'repo', sha: 'pinned-blob', options: { caller: 'githubFileSystemProvider.readFile' } }],
+			sameRepository: true,
 			sameSignal: true,
 		});
 	});
@@ -213,8 +215,20 @@ suite('GitHubFileSystemProvider', () => {
 					return Response.json({ ...tree, tree: [{ ...tree.tree[0], size: reportedSize }] });
 				}
 				assert.strictEqual(path, '/repos/owner/repo/git/blobs/readme');
-				const content = encodeBase64(VSBuffer.wrap(new Uint8Array(size).fill(0xa5))).replace(/.{60}/g, '$&\n');
-				const body = VSBuffer.fromString(JSON.stringify({ ...blob, size: reportedSize ?? 0, content })).buffer;
+				// Each 45-byte block forms a complete 60-character base64 line.
+				const bytesPerLine = 45;
+				const line = VSBuffer.fromString(`${encodeBase64(VSBuffer.wrap(new Uint8Array(bytesPerLine).fill(0xa5)))}\\n`).buffer;
+				const metadata = JSON.stringify({ ...blob, size: reportedSize ?? 0, content: undefined });
+				const prefix = VSBuffer.fromString(`${metadata.slice(0, -1)},"content":"`).buffer;
+				const remainder = encodeBase64(VSBuffer.wrap(new Uint8Array(size % bytesPerLine).fill(0xa5))).replace(/.{60}/g, '$&\n');
+				const suffix = VSBuffer.fromString(JSON.stringify(remainder).slice(1) + '}').buffer;
+				const lineCount = Math.floor(size / bytesPerLine);
+				const body = new Uint8Array(prefix.byteLength + lineCount * line.byteLength + suffix.byteLength);
+				body.set(prefix);
+				for (let index = 0; index < lineCount; index++) {
+					body.set(line, prefix.byteLength + index * line.byteLength);
+				}
+				body.set(suffix, body.byteLength - suffix.byteLength);
 				responseBytes = body.byteLength;
 				let offset = 0;
 				return new Response(new ReadableStream<Uint8Array>({

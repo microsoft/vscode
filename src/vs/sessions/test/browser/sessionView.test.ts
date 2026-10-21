@@ -30,6 +30,7 @@ import { IContextKeyService } from '../../../platform/contextkey/common/contextk
 import { Menus } from '../../browser/menus.js';
 import { LocalSelectionTransfer } from '../../../platform/dnd/browser/dnd.js';
 import { DraggedSessionIdentifier, SessionsDataTransfers } from '../../browser/dnd.js';
+import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
 
 suite('Sessions - Session View', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -119,6 +120,42 @@ suite('Sessions - Session View', () => {
 				toolbar: blocked,
 				cleaned: true,
 				hiddenAfterCreation: hasDraft,
+			});
+		});
+	}
+
+	for (const preserve of [false, true]) {
+		test(`clearing a draft respects composer preservation (preserve: ${preserve})`, () => {
+			const store = disposables.add(new DisposableStore());
+			const { instantiationService } = createSessionViewTestServices(store);
+			const createdViews: TestNewSessionView[] = [];
+			instantiationService.stub(IChatViewFactory, new class extends mock<IChatViewFactory>() {
+				override createNewChatView(): AbstractChatView {
+					const view = new class extends TestNewSessionView {
+						override get preserveOnSessionClear(): boolean { return preserve; }
+					}();
+					createdViews.push(view);
+					return view;
+				}
+			}());
+			const host = store.add(instantiationService.createInstance(SessionView));
+			host.openSession(createTestActiveSession('draft', false), {});
+			const composer = createdViews[0];
+			composer.element.textContent = 'Keep this prompt';
+			const observer = new MutationObserver(() => { });
+			store.add(toDisposable(() => observer.disconnect()));
+			observer.observe(host.element, { childList: true, subtree: true });
+			host.openSession(undefined, {});
+			assert.deepStrictEqual({
+				viewCount: createdViews.length,
+				disposed: composer.disposed,
+				detached: observer.takeRecords().some(record => Array.from(record.removedNodes).includes(composer.element)),
+				prompt: createdViews[createdViews.length - 1].element.textContent,
+			}, {
+				viewCount: preserve ? 1 : 2,
+				disposed: !preserve,
+				detached: !preserve,
+				prompt: preserve ? 'Keep this prompt' : '',
 			});
 		});
 	}
@@ -674,6 +711,55 @@ suite('Sessions - Session View', () => {
 			shownSessions: [undefined, undefined, undefined, undefined, session],
 			forwardedInstantiationServices: [scopedInstantiationService],
 			sameHostVisibility: true,
+		});
+	});
+
+	test('does not recreate a chat view when preparation ends during disposal', () => {
+		const store = disposables.add(new DisposableStore());
+		const { instantiationService } = createSessionViewTestServices(store);
+		const requestInProgress = observableValue('requestInProgress', true);
+		const session = createTestActiveSession('draft', true, { isNewSessionRequestInProgress: requestInProgress });
+		const createdViews: TestNewSessionView[] = [];
+		const requestedKinds: ChatViewKind[] = [];
+
+		class PreparingChatView extends TestNewSessionView {
+			override dispose(): void {
+				super.dispose();
+				if (this.kind === 'chat') {
+					requestInProgress.set(false, undefined);
+				}
+			}
+		}
+
+		const createView = (kind: ChatViewKind, scopedInstantiationService: IInstantiationService | undefined) => {
+			assert.ok(scopedInstantiationService);
+			requestedKinds.push(kind);
+			const view = scopedInstantiationService.createInstance(PreparingChatView, kind);
+			createdViews.push(view);
+			return view;
+		};
+		instantiationService.stub(IChatViewFactory, new class extends mock<IChatViewFactory>() {
+			override createChatView(scopedInstantiationService?: IInstantiationService): AbstractChatView {
+				return createView('chat', scopedInstantiationService);
+			}
+			override createNewChatView(isNewChatInSession: boolean, _options: IChatViewOptions, scopedInstantiationService?: IInstantiationService): AbstractChatView {
+				return createView(isNewChatInSession ? 'newChatInSession' : 'newSession', scopedInstantiationService);
+			}
+		}());
+		const view = store.add(instantiationService.createInstance(SessionView));
+		view.openSession(session, {});
+		session.isCreated.set(false, undefined);
+
+		view.dispose();
+
+		assert.deepStrictEqual({
+			requestedKinds,
+			disposed: createdViews.map(view => view.disposed),
+			requestInProgress: requestInProgress.get(),
+		}, {
+			requestedKinds: ['newChatInSession', 'chat'],
+			disposed: [true, true],
+			requestInProgress: false,
 		});
 	});
 

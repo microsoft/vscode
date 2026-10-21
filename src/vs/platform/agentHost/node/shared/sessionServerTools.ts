@@ -307,6 +307,8 @@ export type IAddSessionWorkingDirectoryOptions = ({
 	readonly isolation: 'worktree';
 	readonly prompt: string;
 	readonly forceNewWorktree?: boolean;
+	/** Branch the new worktree starts from; defaults to the repository's default branch. */
+	readonly baseBranch?: string;
 }) & { readonly credentialSource?: IAgentHostCredentialSource };
 
 /** A folder prepared for a new chat and added to its session. */
@@ -1012,6 +1014,20 @@ export interface ICreateSessionResult {
 }
 
 /**
+ * Whether `chat` is workspace-less in a session described by `metadata`: the session is marked and the chat has
+ * no folder of its own or shares the default chat's folder. A chat with its own folder in a marked session is
+ * not; unknown chats fail closed as workspace-less.
+ */
+export function isChatWorkspacelessInSession(metadata: IAgentSessionMetadata | undefined, chat: URI | undefined): boolean {
+	if (!readSessionWorkspaceless(metadata?._meta)) {
+		return false;
+	}
+	const folder = metadata?.chats?.find(entry => entry.chat.toString() === chat?.toString())?.workingDirectories?.[0];
+	const defaultFolder = metadata?.chats?.find(entry => entry.kind === 'default')?.workingDirectories?.[0];
+	return folder === undefined || folder === defaultFolder;
+}
+
+/**
  * Creates work with the requested relationship and sends its initial prompt.
  */
 export async function applyCreateSessionTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, source?: URI, sourceTurnId?: string, enforceSpawnDepthLimit = true): Promise<ICreateSessionResult> {
@@ -1029,7 +1045,7 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 		if (args.model !== undefined && args.model.provider !== currentProvider) {
 			throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: model "${args.model.id}" belongs to provider "${args.model.provider}", but relationship "currentSession" targets provider "${currentProvider}".`);
 		}
-		if (args.workspace !== undefined && readSessionWorkspaceless((await accessor.getSession(currentSession))?._meta)) {
+		if (args.workspace !== undefined && isChatWorkspacelessInSession(await accessor.getSession(currentSession), source)) {
 			throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: relationship "currentSession" with "workspace" is not supported from a quick chat. Use set_workspace to attach a workspace to the quick chat first, or create an independent session.`);
 		}
 		// A requested folder joins the session and is assigned only to the new chat.

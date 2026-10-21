@@ -238,6 +238,7 @@ export interface IGitRemote {
 export interface IAgentHostGitService {
 	readonly _serviceBrand: undefined;
 	getCurrentBranch(workingDirectory: URI): Promise<string | undefined>;
+	/** Returns an existing branch or detached commit; undefined for an unborn HEAD. */
 	getHEAD(workingDirectory: URI): Promise<IBranch | IDetachedHead | undefined>;
 	/** With `throwOnError`, only a successful detached-HEAD lookup returns `undefined`. */
 	getCurrentBranchName?(workingDirectory: URI, options?: { readonly throwOnError?: boolean }): Promise<string | undefined>;

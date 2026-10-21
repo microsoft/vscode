@@ -13,7 +13,6 @@ import { findLast } from '../../../../../../base/common/arraysFind.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
-import { isUNC } from '../../../../../../base/common/extpath.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, dispose, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -21,10 +20,8 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { autorun, autorunSelfDisposable, derived } from '../../../../../../base/common/observable.js';
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
-import { isEqual } from '../../../../../../base/common/resources.js';
+import { basename, isEqual } from '../../../../../../base/common/resources.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
-import { getMediaMime } from '../../../../../../base/common/mime.js';
-import { Schemas } from '../../../../../../base/common/network.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { isLocation, type SymbolTag } from '../../../../../../editor/common/languages.js';
@@ -36,27 +33,32 @@ import { localize } from '../../../../../../nls.js';
 import { getFlatContextMenuActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SCHEME } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
-import { IOpenEditorOptions } from '../../../../../../platform/editor/browser/editor.js';
+import { IOpenEditorOptions, registerOpenEditorListeners } from '../../../../../../platform/editor/browser/editor.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
+import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { fillEditorsDragData } from '../../../../../browser/dnd.js';
 import { IEditorService, SIDE_GROUP } from '../../../../../services/editor/common/editorService.js';
 import { AccessibilityWorkbenchSettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
 import { IAiEditTelemetryService } from '../../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { MarkedKatexSupport } from '../../../../markdown/browser/markedKatexSupport.js';
 import { extractCodeblockUrisFromText, extractVulnerabilitiesFromText } from '../../../common/widget/annotations.js';
 import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
-import { getAttachableImageExtension, IChatProgressRenderableResponseContent } from '../../../common/model/chatModel.js';
+import { IChatProgressRenderableResponseContent } from '../../../common/model/chatModel.js';
 import { IChatContentInlineReference, IChatMarkdownContent, IChatService, IChatUndoStop } from '../../../common/chatService/chatService.js';
 import { getAgentHostProviderForTelemetry, IChatSessionsService, isAgentHostSessionResource } from '../../../common/chatSessionsService.js';
+import { getChatMarkdownImageFile, getChatMarkdownImageId } from '../../../common/chatImageExtraction.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatConfiguration } from '../../../common/constants.js';
+import { hookUpResourceContextMenu } from '../../attachments/chatAttachmentWidgets.js';
 import { IChatCodeBlockInfo } from '../../chat.js';
+import { IChatImageCarouselService } from '../../chatImageCarouselService.js';
 import { IChatOutputRendererService, type RenderedOutputPart } from '../../chatOutputItemRenderer.js';
 import { allowedChatMarkdownHtmlTags } from '../chatContentMarkdownRenderer.js';
 import { IMarkdownDiffBlockData, MarkdownDiffBlockPart, parseUnifiedDiff } from './chatDiffBlockPart.js';
@@ -144,11 +146,13 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		currentWidthDelegate: () => number,
 		private readonly rendererOptions: IChatMarkdownContentPartOptions,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IAiEditTelemetryService private readonly aiEditTelemetryService: IAiEditTelemetryService,
 		@IChatOutputRendererService private readonly chatOutputRendererService: IChatOutputRendererService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IChatImageCarouselService private readonly chatImageCarouselService: IChatImageCarouselService,
+		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super();
 
@@ -248,15 +252,9 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			const transformUri = isResponseVM(element)
 				? (href: string, kind: 'link' | 'image') => {
 					const mapped = resolveUri(configuredUriTransformer?.(href, kind) ?? href, kind);
-					if (kind === 'image') {
-						const resource = URI.parse(mapped);
-						const original = fromAgentHostUri(resource);
-						const mime = getMediaMime(original.path);
-						if (resource.scheme === AGENT_HOST_SCHEME && original.scheme === Schemas.file && !original.authority && !isUNC(original.fsPath)
-							&& mime && getAttachableImageExtension(mime === 'image/jpg' ? 'image/jpeg' : mime)
-							&& isEqual(resource, URI.parse(resolveUri(original.toString(), kind)))) {
-							fileImages.add(resource);
-						}
+					const file = kind === 'image' ? getChatMarkdownImageFile(this.markdown.content, mapped, target => resolveUri(target, kind)) : undefined;
+					if (file) {
+						fileImages.add(file);
 					}
 					return mapped;
 				}
@@ -425,6 +423,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			}
 
 			store.add(markdownDecorationsRenderer.walkTreeAndAnnotateReferenceLinks(this.markdown, result.element));
+			store.add(this.hookUpFileImages(result.element, fileImages, element.sessionResource, element.id));
 
 			const layoutParticipants = new Lazy(() => {
 				const observer = store.add(new dom.DisposableResizeObserver('ChatMarkdownContentPart.mathLayout', () => this.mathLayoutParticipants.forEach(layout => layout())));
@@ -482,6 +481,41 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 
 		dispose(this.allRefs);
 		this.allRefs.length = 0;
+	}
+
+	/**
+	 * Makes the file images of a response work like its file links: they open in the chat's image
+	 * carousel, drag into chat as attachments, and offer the resource context menu.
+	 */
+	private hookUpFileImages(element: HTMLElement, fileImages: ResourceSet, sessionResource: URI, responseId: string): IDisposable {
+		const store = new DisposableStore();
+		// eslint-disable-next-line no-restricted-syntax
+		for (const image of element.querySelectorAll('img')) {
+			const source = image.dataset.src;
+			const resource = source ? URI.parse(source) : undefined;
+			if (!resource || !fileImages.has(resource) || image.closest('a')) {
+				continue;
+			}
+
+			image.tabIndex = 0;
+			image.style.cursor = 'pointer';
+			image.setAttribute('role', 'button');
+			image.setAttribute('aria-label', localize('chat.markdownImage.open', "Open image {0}", image.alt || basename(resource)));
+			store.add(registerOpenEditorListeners(image, async options => {
+				if (this.configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled)) {
+					await this.chatImageCarouselService.openCarouselAtResource(resource, undefined, { sessionResource, imageId: getChatMarkdownImageId(responseId, resource) });
+				} else {
+					await this.openerService.open(resource, { fromUserGesture: true, editorOptions: options.editorOptions, openToSide: options.openToSide });
+				}
+			}));
+			store.add(dom.addDisposableListener(image, dom.EventType.DRAG_START, e => {
+				// The browser's image data names a transport URL that drop targets cannot resolve
+				e.dataTransfer?.clearData();
+				this.instantiationService.invokeFunction(accessor => fillEditorsDragData(accessor, [resource], e));
+			}));
+			store.add(this.instantiationService.invokeFunction(accessor => hookUpResourceContextMenu(accessor, image, resource, MenuId.ChatInlineResourceAnchorContext)));
+		}
+		return store;
 	}
 
 	private renderCodeBlockPill(sessionResource: URI, requestId: string, inUndoStop: string | undefined, codemapperUri: URI): IDisposableReference<CollapsedCodeBlock> {

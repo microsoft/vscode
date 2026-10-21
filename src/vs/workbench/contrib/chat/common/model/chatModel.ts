@@ -2107,6 +2107,9 @@ export interface IChatModel extends IDisposable {
 
 	readonly onDidChangePendingRequests: Event<void>;
 	getPendingRequests(): readonly IChatPendingRequest[];
+	/** Display-only requests whose host pending entry was consumed before its transcript turn arrived. */
+	readonly pendingRequestHandoffs: IObservable<readonly IChatRequestModel[]>;
+	setPendingRequestHandoffs(requests: readonly IChatRequestModel[]): void;
 }
 
 export interface ISerializableChatsData {
@@ -2795,6 +2798,14 @@ export class ChatModel extends Disposable implements IChatModel {
 	private readonly _pendingRequests: IChatPendingRequest[] = [];
 	private readonly _onDidChangePendingRequests = this._register(new Emitter<void>());
 	readonly onDidChangePendingRequests = this._onDidChangePendingRequests.event;
+	readonly pendingRequestHandoffs = observableValue<readonly IChatRequestModel[]>(this, []);
+
+	setPendingRequestHandoffs(requests: readonly IChatRequestModel[]): void {
+		if (arraysEqual(this.pendingRequestHandoffs.get(), requests)) {
+			return;
+		}
+		this.pendingRequestHandoffs.set(requests, undefined);
+	}
 
 	private _requests: ChatRequestModel[];
 
@@ -3799,6 +3810,7 @@ export class ChatModel extends Disposable implements IChatModel {
 	override dispose() {
 		this._requests.forEach(r => r.response?.dispose());
 		this._onDidDispose.fire();
+		this.setPendingRequestHandoffs([]);
 
 		super.dispose();
 

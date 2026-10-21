@@ -41,7 +41,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: false,
 			scope: ConfigurationScope.MACHINE,
 			tags: ['experimental', 'advanced'],
-			description: localize('chat.automations.cloud.enabled', "Enables managing user-owned cloud automations in known private GitHub repositories. Disabling this setting does not stop schedules already running on GitHub."),
+			description: localize('chat.automations.cloud.enabled', "Enables managing Only me and Repository cloud automations in known private GitHub repositories. Disabling this setting does not stop schedules already running on GitHub."),
 			experiment: { mode: 'auto' },
 		},
 		[CHAT_AUTOMATIONS_ENABLED_SETTING]: {

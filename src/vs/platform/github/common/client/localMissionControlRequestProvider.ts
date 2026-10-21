@@ -47,7 +47,12 @@ export class LocalMissionControlRequestProvider extends BufferedApiRequestProvid
 			|| metadata.method === 'GET' && bodyText !== undefined || /[\t]/.test(metadata.path)) {
 			throw new GitHubRequestError('Invalid Mission Control operation', 'validation');
 		}
-		const { url } = resolveReadApiUrl(this.endpoint.apiBaseUri, metadata.path);
+		const feed = metadata.path === '/feed/connect';
+		if (feed && (!this.endpoint.feedApiBaseUri || metadata.method !== 'GET' || bodyText !== undefined)) {
+			throw new GitHubRequestError('No approved Mission Control feed endpoint is configured for this operation', 'validation');
+		}
+		const endpoint = feed ? { ...this.endpoint, apiBaseUri: this.endpoint.feedApiBaseUri! } : this.endpoint;
+		const { url } = resolveReadApiUrl(endpoint.apiBaseUri, metadata.path);
 		const { mutation, sensitive, retry } = missionControlRequestPolicy(metadata);
 		let credential = await withGitHubCredentialDeadline(signal, signal => this.credentials.getCredential(signal), undefined, metadata.options?.deadline);
 		let combinedSignal = AbortSignal.any([signal, credential.signal]);
@@ -55,10 +60,10 @@ export class LocalMissionControlRequestProvider extends BufferedApiRequestProvid
 		for (let attempt = 0; ; attempt++) {
 			let dispatched = false;
 			try {
-				const response = await this.transport.restText(missionControlAccount(this.endpoint, credential.account), credential.token, {
+				const response = await this.transport.restText(missionControlAccount(endpoint, credential.account), credential.token, {
 					domain: metadata.domain,
 					method: metadata.method, url: url.href, bodyText, accept: metadata.accept ?? 'application/json',
-					apiVersion: this.endpoint.apiVersion ?? null, integrationId: this.endpoint.integrationId,
+					apiVersion: endpoint.apiVersion ?? null, integrationId: endpoint.integrationId,
 					rateLimitResource: mutation && metadata.method === 'GET' ? 'agents:token_mint' : metadata.policy?.rateLimitResource ?? 'agents',
 					caller: metadata.options?.caller ?? 'github.missionControl', deadline: metadata.options?.deadline,
 					priority: metadata.options?.priority ?? (mutation ? 'mutation' : 'interactive'), retry, etag: !sensitive && !metadata.options?.noCache, coalesce: sensitive ? false : undefined,
