@@ -4,22 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, append, clearNode, h } from '../../../../base/browser/dom.js';
+import { ActionBar, ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
+import { Action, IAction } from '../../../../base/common/actions.js';
 import { coalesce, shuffle } from '../../../../base/common/arrays.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
+import { ResolvedKeybinding } from '../../../../base/common/keybindings.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { isMacintosh, isWeb, OS } from '../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
-import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../platform/storage/common/storage.js';
 import { defaultKeybindingLabelStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
@@ -39,12 +45,12 @@ const showChatContextKey = ContextKeyExpr.and(ContextKeyExpr.equals('chatSetupHi
 
 const openChat: WatermarkEntry = {
 	text: localize('watermark.openChat', "Open Chat"), id: 'workbench.action.chat.open',
-	icon: registerIcon('watermark-chat', Codicon.commentDiscussion, localize('watermark.chatIcon', "Icon for opening chat in the editor watermark.")),
+	icon: registerIcon('watermark-chat', Codicon.chatSparkle, localize('watermark.chatIcon', "Icon for opening chat in the editor watermark.")),
 	when: { native: showChatContextKey, web: showChatContextKey }
 };
 const showCommands: WatermarkEntry = {
 	text: localize('watermark.showCommands', "Show All Commands"), id: 'workbench.action.showCommands',
-	icon: registerIcon('watermark-commands', Codicon.terminal, localize('watermark.commandsIcon', "Icon for showing all commands in the editor watermark."))
+	icon: registerIcon('watermark-commands', Codicon.listSelection, localize('watermark.commandsIcon', "Icon for showing all commands in the editor watermark."))
 };
 const gotoFile: WatermarkEntry = {
 	text: localize('watermark.quickAccess', "Go to File"), id: 'workbench.action.quickOpen',
@@ -86,7 +92,7 @@ const startDebugging: WatermarkEntry = {
 };
 const openSettings: WatermarkEntry = {
 	text: localize('watermark.openSettings', "Open Settings"), id: 'workbench.action.openSettings',
-	icon: registerIcon('watermark-settings', Codicon.settingsGear, localize('watermark.settingsIcon', "Icon for opening settings in the editor watermark."))
+	icon: registerIcon('watermark-settings', Codicon.settings, localize('watermark.settingsIcon', "Icon for opening settings in the editor watermark."))
 };
 
 const baseEntries: WatermarkEntry[] = [
@@ -137,7 +143,8 @@ export class EditorGroupWatermark extends Disposable {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IHoverService private readonly hoverService: IHoverService
+		@ICommandService private readonly commandService: ICommandService,
+		@INotificationService private readonly notificationService: INotificationService
 	) {
 		super();
 
@@ -225,23 +232,28 @@ export class EditorGroupWatermark extends Disposable {
 			clearNode(box);
 			this.shortcutDisposables.clear();
 
+			const actionBar = this.shortcutDisposables.add(new ActionBar(box, {
+				orientation: ActionsOrientation.VERTICAL,
+				ariaLabel: localize('watermark.shortcuts', "Editor Shortcuts"),
+				actionViewItemProvider: action => {
+					const entry = entries.find(entry => entry.id === action.id);
+					const keys = this.keybindingService.lookupKeybinding(action.id);
+					return entry && keys ? this.instantiationService.createInstance(WatermarkActionViewItem, action, entry.icon, keys) : undefined;
+				},
+			}));
+			this.shortcutDisposables.add(actionBar.onDidRun(e => {
+				if (e.error && !isCancellationError(e.error)) {
+					this.notificationService.error(e.error);
+				}
+			}));
+
 			for (const entry of entries) {
 				const keys = this.keybindingService.lookupKeybinding(entry.id);
 				if (!keys) {
 					continue;
 				}
 
-				const dl = append(box, $('dl'));
-				const dt = append(dl, $('dt'));
-				const icon = append(dt, renderIcon(entry.icon));
-				icon.setAttribute('aria-hidden', 'true');
-				append(dt, $('span.watermark-label')).textContent = entry.text;
-				this.shortcutDisposables.add(this.hoverService.setupDelayedHover(dt, { content: entry.text }));
-
-				const dd = append(dl, $('dd'));
-
-				const label = this.shortcutDisposables.add(new KeybindingLabel(dd, OS, { renderUnboundKeybindings: true, ...defaultKeybindingLabelStyles }));
-				label.set(keys);
+				actionBar.push(this.shortcutDisposables.add(new Action(entry.id, entry.text, undefined, true, () => this.commandService.executeCommand(entry.id))));
 			}
 		};
 
@@ -263,5 +275,31 @@ export class EditorGroupWatermark extends Disposable {
 			.filter(entry => !!this.keybindingService.lookupKeybinding(entry.id));
 
 		return filteredEntries;
+	}
+}
+
+class WatermarkActionViewItem extends BaseActionViewItem {
+
+	constructor(
+		action: IAction,
+		private readonly icon: ThemeIcon,
+		private readonly keybinding: ResolvedKeybinding,
+		@IHoverService private readonly hoverService: IHoverService,
+	) {
+		super(undefined, action);
+	}
+
+	override render(container: HTMLElement): void {
+		const row = append(container, $('a.action-label.watermark-entry'));
+		super.render(row);
+		row.setAttribute('role', 'button');
+		row.setAttribute('aria-label', localize('watermark.shortcutAriaLabel', "{0} ({1})", this._action.label, this.keybinding.getAriaLabel()));
+
+		const icon = append(row, renderIcon(this.icon));
+		icon.classList.add('watermark-icon');
+		icon.setAttribute('aria-hidden', 'true');
+		append(row, $('span.watermark-label')).textContent = this._action.label;
+		this._register(new KeybindingLabel(append(row, $('span.watermark-keybinding')), OS, defaultKeybindingLabelStyles)).set(this.keybinding);
+		this._register(this.hoverService.setupDelayedHover(row, { content: this._action.label }));
 	}
 }
