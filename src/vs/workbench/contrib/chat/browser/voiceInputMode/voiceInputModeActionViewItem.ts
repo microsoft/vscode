@@ -391,11 +391,10 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		super(undefined, action);
 	}
 
-	/** Set the per-state pill/waveform colors from the theme-derived voice accent. */
+	/** Set the shared pill/waveform color from the theme-derived voice accent. */
 	private _updateVoiceStateColors(container: HTMLElement): void {
 		const colors = resolveVoiceGlowColors(this.themeService.getColorTheme());
 		container.style.setProperty('--voice-color-listening', colors.listening.toString());
-		container.style.setProperty('--voice-color-speaking', colors.speaking.toString());
 	}
 
 	override render(container: HTMLElement): void {
@@ -653,9 +652,9 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 
 			// Voice cell — Device EQ bars that transform:
 			//   disconnected → thin grey bars (click to connect)
-			//   connected/idle → darker bars, calm undulating wave
+			//   connected/idle → blue bars, calm undulating wave
 			//   listening → BLUE bars, audio-reactive to the user's voice
-			//   speaking → PURPLE bars, audio-reactive to the assistant
+			//   speaking → BLUE bars, audio-reactive to the assistant
 			//   hover-while-connected → short even "silent" bars (previews disconnect; CSS)
 			this._voiceCell!.classList.toggle('collapsed', !voicePresent);
 			this._voiceCell!.classList.toggle('on', voiceOn);

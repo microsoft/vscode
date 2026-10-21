@@ -214,8 +214,7 @@
 /*
  * Soft light is the wrong language here: a blurred, semi-transparent gradient
  * can't guarantee a contrast ratio, and the whole effect reads as smudge at high
- * contrast. So the two states collapse to a solid line — blue for the user,
- * purple for the agent. Motion goes too: the line is either there or it isn't.
+ * contrast. Use a solid blue line, without motion.
  */
 .hc-black .voice-glow-rim::before,
 .hc-black .voice-glow-rim::after,
@@ -235,20 +234,14 @@
 	border: var(--vscode-strokeThickness) solid;
 }
 
-.hc-black .voice-glow-rim-cool {
+.hc-black .voice-glow-rim-cool,
+.hc-black .voice-glow-rim-warm {
 	border-color: var(--vscode-charts-blue, #3794ff);
 }
 
-.hc-black .voice-glow-rim-warm {
-	border-color: var(--vscode-charts-purple, #b180d7);
-}
-
-.hc-light .voice-glow-rim-cool {
-	border-color: var(--vscode-charts-blue, #0f4a85);
-}
-
+.hc-light .voice-glow-rim-cool,
 .hc-light .voice-glow-rim-warm {
-	border-color: var(--vscode-charts-purple, #5c2d91);
+	border-color: var(--vscode-charts-blue, #0f4a85);
 }
 
 .hc-black .voice-glow-rim-warning,

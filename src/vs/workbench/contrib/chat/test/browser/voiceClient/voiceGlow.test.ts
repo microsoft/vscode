@@ -9,9 +9,9 @@ import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ColorScheme } from '../../../../../../platform/theme/common/theme.js';
 import { IColorTheme } from '../../../../../../platform/theme/common/themeService.js';
-import { chatDictationActiveMicGlow, chatVoiceGlowBaseColor, chatVoiceSpeakingGlow } from '../../../common/widget/chatColors.js';
+import { chatDictationActiveMicGlow, chatVoiceGlowBaseColor, chatVoiceListeningGlow, chatVoiceSpeakingGlow } from '../../../common/widget/chatColors.js';
 import { resolveDictationMicAccent } from '../../../browser/speechToText/dictationMicGlow.js';
-import { computeVoiceMicGlowBoxShadow, GlowThemeKind, resolveVoiceGlowColors, resolveVoiceRimAccent, shouldRenderVoiceInputGlow, VOICE_GLOW_SPEAKING_HUE_SHIFT } from '../../../browser/voiceClient/voiceGlow.js';
+import { computeVoiceMicGlowBoxShadow, DEFAULT_VOICE_GLOW_COLORS, GlowThemeKind, resolveVoiceGlowColors, resolveVoiceRimAccent, shouldRenderVoiceInputGlow } from '../../../browser/voiceClient/voiceGlow.js';
 import { createVoiceGlowController, createVoiceRimLight } from '../../../browser/voiceClient/voiceGlowController.js';
 
 suite('VoiceGlow', () => {
@@ -87,27 +87,34 @@ suite('VoiceGlow', () => {
 		});
 	});
 
-	test('derives the speaking accent from the theme base color', () => {
+	test('listening and speaking share the blue accent', () => {
 		const base = Color.fromHex('#58A6FF');
 		const colors = resolveVoiceGlowColors({ getColor: id => id === chatVoiceGlowBaseColor ? base : undefined });
 		assert.deepStrictEqual(
 			{
 				listening: colors.listening.toString(),
-				speakingHue: Math.round(colors.speaking.hsla.h),
+				speaking: colors.speaking.toString(),
+				fallback: DEFAULT_VOICE_GLOW_COLORS.speaking.toString(),
 			},
 			{
 				listening: base.toString(),
-				speakingHue: Math.round((base.hsla.h + VOICE_GLOW_SPEAKING_HUE_SHIFT + 360) % 360),
+				speaking: base.toString(),
+				fallback: base.toString(),
 			}
 		);
 	});
 
-	test('an explicitly themed state wins over the derived hue', () => {
-		const pinned = Color.fromHex('#FF00AA');
+	test('the listening theme override applies to speaking instead of the obsolete speaking override', () => {
+		const pinned = Color.fromHex('#007ACC');
 		const colors = resolveVoiceGlowColors({
-			getColor: id => id === chatVoiceGlowBaseColor ? Color.fromHex('#58A6FF') : id === chatVoiceSpeakingGlow ? pinned : undefined,
+			getColor: id => id === chatVoiceGlowBaseColor ? Color.fromHex('#58A6FF')
+				: id === chatVoiceListeningGlow ? pinned
+					: id === chatVoiceSpeakingGlow ? Color.fromHex('#A371F7') : undefined,
 		});
-		assert.strictEqual(colors.speaking.toString(), pinned.toString());
+		assert.deepStrictEqual(
+			[colors.listening.toString(), colors.speaking.toString()],
+			[pinned.toString(), pinned.toString()],
+		);
 	});
 
 	test('the dictation microphone paints the listening rim color', () => {
