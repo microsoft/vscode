@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
+import { isMacintosh } from '../../../../base/common/platform.js';
 import { Event } from '../../../../base/common/event.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -40,6 +41,37 @@ suite('MenuService', function () {
 
 	teardown(function () {
 		sinon.restore();
+	});
+
+	test('renders explicit mnemonics while preserving plain, short and toggled labels', () => {
+		const title = { value: 'Duplicate tab (D)', original: 'Duplicate tab (D)', mnemonicTitle: '&&Duplicate tab (D)' };
+		for (const command of [
+			{ id: 'explicit', title },
+			{ id: 'plain', title: 'Keep & Close' },
+			{ id: 'short', title, shortTitle: 'Copy & Keep' },
+			{ id: 'toggled', title, toggled: { condition: ContextKeyExpr.true(), title: 'Stop & Keep' } },
+		]) {
+			disposables.add(MenuRegistry.appendMenuItem(testMenuId, { command }));
+		}
+		assert.deepStrictEqual([undefined, { renderMnemonicTitle: true, renderShortTitle: true }].map(options =>
+			Object.fromEntries(menuService.getMenuActions(testMenuId, contextKeyService, options).flatMap(([, actions]) => actions.map(action => [action.id, action.label])))
+		), [
+			{ explicit: 'Duplicate tab (D)', plain: 'Keep & Close', short: 'Duplicate tab (D)', toggled: 'Stop & Keep' },
+			{ explicit: isMacintosh ? 'Duplicate tab (D)' : '&Duplicate tab (D)', plain: 'Keep && Close', short: 'Copy && Keep', toggled: 'Stop && Keep' },
+		]);
+	});
+
+	test('escapes ordinary ampersands in nested submenu labels', () => {
+		const child = new MenuId(`testo/${generateUuid()}`);
+		const nested = new MenuId(`testo/${generateUuid()}`);
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, { title: 'Split & Move', submenu: child }));
+		disposables.add(MenuRegistry.appendMenuItem(child, { title: 'Copy & Keep', submenu: nested }));
+		disposables.add(MenuRegistry.appendMenuItem(nested, { command: { id: 'plain', title: 'Keep & Close' } }));
+		const action = menuService.getMenuActions(testMenuId, contextKeyService, { renderMnemonicTitle: true })[0][1][0];
+		assert.ok(action instanceof SubmenuItemAction);
+		const inner = action.actions[0];
+		assert.ok(inner instanceof SubmenuItemAction);
+		assert.deepStrictEqual([action.label, inner.label, inner.actions[0].label], ['Split && Move', 'Copy && Keep', 'Keep && Close']);
 	});
 
 	test('createMenu collects menu items only once', () => {
