@@ -3259,7 +3259,7 @@ suite('Sessions - SessionsList', () => {
 			], {}, true, SessionsGrouping.Environment);
 			const snapshot = () => ({
 				titles: list.getVisibleSessions().map(session => session.title.get()),
-				more: [...container.querySelectorAll('.session-show-more-label')].map(label => label.textContent),
+				more: [...container.querySelectorAll('.monaco-list-rows .session-show-more-label')].map(label => label.textContent),
 			});
 			const recent = snapshot();
 			const more = [...container.querySelectorAll<HTMLElement>('.monaco-list-row')]
