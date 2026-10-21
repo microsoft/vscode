@@ -85,6 +85,7 @@ import { AgentSessionRegistry, IRegisteredSession, IStoredRegisteredSession } fr
 import { IAgentHostSessionStateStore, type ISessionStateWorktreeListChanges, readSessionBaseBranch, SessionStateDeletedError, SessionStateMirrorFlush, sessionStatePatch, type SessionStateValuesPrefetch } from '../common/agentHostSessionStateStore.js';
 import { getSessionStateValueKey } from './agentHostSessionStateMirror.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH, resolveDefaultBaseBranchName, tryResolvePrimaryWorktreeRoot } from '../common/agentHostGitService.js';
+import { getChatsInUse } from './agentHostChatsInUse.js';
 import { resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSource, resolveChangesetOwnerScope, resolveGitHubStateFolder } from './agentHostBranchChangesetScope.js';
 import { IAgentHostSubscriptionService, resolveAgentHostSession } from '../common/agentHostSubscriptionService.js';
 import { deriveLegacyDefaultChat } from '../common/agentHostLegacyDefaultChat.js';
@@ -11981,35 +11982,11 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/**
-	 * The folder scopes of the session's unarchived chats other than `excludedChat`.
-	 * A subagent's own folders are never considered: it works in the folders of
-	 * the chat that spawned it. A side chat works in its own folders, or else in
-	 * those of its spawning chat. Both are in use only while their spawning chat
-	 * is. A chat without folders of its own works in `inheritedFolders` (see
-	 * {@link inheritedChatFolders}). `undefined` marks a chat whose spawning chat is unknown.
+	 * The folder scopes of the session's unarchived chats other than `excludedChat`, as {@link getChatsInUse}
+	 * defines them. `undefined` marks a chat whose spawning chat is unknown.
 	 */
 	private _getWorkingDirectoriesInUse(chats: readonly ChatSummary[], excludedChat: string | undefined, inheritedFolders: readonly string[]): readonly (readonly string[] | undefined)[] {
-		const byResource = new Map(chats.map(chat => [chat.resource, chat]));
-		const ownWorkingDirectories = (chat: ChatSummary | undefined) => chat?.origin?.kind === ChatOriginKind.Tool ? undefined : chat?.workingDirectories;
-		const scopes: (readonly string[] | undefined)[] = [];
-		for (const chat of chats) {
-			let workingDirectories = ownWorkingDirectories(chat);
-			let owner: ChatSummary | undefined = chat;
-			let ownerResource = chat.resource;
-			const visited = new Set<string>();
-			while (owner && (owner.origin?.kind === ChatOriginKind.Tool || owner.origin?.kind === ChatOriginKind.SideChat) && !visited.has(owner.resource)) {
-				visited.add(owner.resource);
-				ownerResource = owner.origin.chat;
-				owner = byResource.get(ownerResource);
-				workingDirectories ??= ownWorkingDirectories(owner);
-			}
-			// A chat a workspace is applied to has not started: without folders of its own it holds none of the session's.
-			if (ownerResource === excludedChat || (owner && isSessionChatArchived(owner)) || (workingDirectories === undefined && this._applyingChatWorkspaces.has(ownerResource))) {
-				continue;
-			}
-			scopes.push(workingDirectories ?? (owner ? inheritedFolders : undefined));
-		}
-		return scopes;
+		return getChatsInUse(chats, { excludedChat, inheritedFolders, isApplyingWorkspace: chat => this._applyingChatWorkspaces.has(chat) }).map(({ workingDirectories }) => workingDirectories);
 	}
 
 	private async _persistSessionWorkingDirectories(session: URI): Promise<void> {
