@@ -7,7 +7,7 @@ import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.
 import { autorun } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IAgentSessionsService } from '../../chat/browser/agentSessions/agentSessionsService.js';
-import { AgentSessionStatus, getAgentChangesSummary } from '../../chat/browser/agentSessions/agentSessionsModel.js';
+import { AgentSessionStatus, getAgentChangesSummary, isAutomationAgentSession } from '../../chat/browser/agentSessions/agentSessionsModel.js';
 import { IAgentTitleBarStatusService } from '../../chat/browser/agentSessions/experiments/agentTitleBarStatusService.js';
 import { IVoicePlaybackService } from '../../chat/common/voicePlaybackService.js';
 import { IVoiceSessionController } from '../../chat/browser/voiceClient/voiceSessionController.js';
@@ -117,7 +117,7 @@ export function bindWidgetToController(widget: AgentsVoiceWidget, services: IWid
 }
 
 function _updateStatusCounts(widget: AgentsVoiceWidget, { agentSessionsService }: IWidgetBindingServices): void {
-	const sessions = agentSessionsService.model.sessions.filter(s => !s.isArchived());
+	const sessions = agentSessionsService.model.sessions.filter(s => !isAutomationAgentSession(s) && !s.isArchived());
 	const oneHourAgo = Date.now() - 60 * 60 * 1000;
 
 	let working = 0;
@@ -145,7 +145,7 @@ function _updateSessionData(widget: AgentsVoiceWidget, services: IWidgetBindingS
 	const { agentSessionsService, voiceSessionController, voicePlaybackService, environmentService, chatService } = services;
 
 	// Show all non-archived sessions so the user can target any for transcription.
-	const sessions = agentSessionsService.model.sessions.filter(s => !s.isArchived());
+	const sessions = agentSessionsService.model.sessions.filter(s => !isAutomationAgentSession(s) && !s.isArchived());
 	const toolConfirmations = voiceSessionController.pendingToolConfirmations.get();
 	const speakingSession = voicePlaybackService.speakingSession.get();
 

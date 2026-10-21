@@ -41,7 +41,7 @@ import { ChatWidget } from '../../chat/browser/widget/chatWidget.js';
 import { ACTION_ID_NEW_CHAT } from '../../chat/browser/actions/chatActions.js';
 import { IAgentSessionsService } from '../../chat/browser/agentSessions/agentSessionsService.js';
 import { AgentSessionProviders, AgentSessionTarget } from '../../chat/browser/agentSessions/agentSessions.js';
-import { IAgentSession } from '../../chat/browser/agentSessions/agentSessionsModel.js';
+import { IAgentSession, isAutomationAgentSession } from '../../chat/browser/agentSessions/agentSessionsModel.js';
 import { AgentSessionsWelcomeEditorOptions, AgentSessionsWelcomeInput, AgentSessionsWelcomeWorkspaceKind } from './agentSessionsWelcomeInput.js';
 import { IChatService } from '../../chat/common/chatService/chatService.js';
 import { IChatModel } from '../../chat/common/model/chatModel.js';
@@ -271,9 +271,9 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		this.buildFooter(footer);
 
 		// Listen for session changes - store reference to avoid querySelector
-		let originalSessions = this.agentSessionsService.model.sessions.length > 0;
+		let originalSessions = this.agentSessionsService.model.sessions.some(s => !isAutomationAgentSession(s));
 		this.contentDisposables.add(this.agentSessionsService.model.onDidChangeSessions(() => {
-			const hasSessions = this.agentSessionsService.model.sessions.length > 0;
+			const hasSessions = this.agentSessionsService.model.sessions.some(s => !isAutomationAgentSession(s));
 			// Only rebuild if the amount of sessions changed, other updates should be managed by the control
 			if (hasSessions !== originalSessions) {
 				originalSessions = hasSessions;
@@ -545,7 +545,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		this.sessionsControlDisposables.clear();
 		this.sessionsControl = undefined;
 
-		const sessions = this.agentSessionsService.model.sessions.filter(s => !s.isArchived());
+		const sessions = this.agentSessionsService.model.sessions.filter(s => !isAutomationAgentSession(s) && !s.isArchived());
 
 		if (sessions.length > 0) {
 			this.buildSessionsGrid(container, sessions);
@@ -846,7 +846,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		// Give the list FULL height so virtualization renders all items
 		// CSS transforms handle the 2-column visual layout
 		const visibleSessions = Math.min(
-			this.agentSessionsService.model.sessions.filter(s => !s.isArchived()).length,
+			this.agentSessionsService.model.sessions.filter(s => !isAutomationAgentSession(s) && !s.isArchived()).length,
 			MAX_SESSIONS
 		);
 		const sessionsHeight = visibleSessions * AgentSessionsListDelegate.ITEM_HEIGHT;

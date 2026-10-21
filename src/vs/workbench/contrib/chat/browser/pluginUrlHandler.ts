@@ -28,6 +28,7 @@ import { ChatConfiguration } from '../common/constants.js';
 import { ICustomizationHarnessService } from '../common/customizationHarnessService.js';
 import { isUntitledChatSession } from '../common/model/chatUri.js';
 import { MarketplaceReferenceKind, parseMarketplaceReference, parseProviderMarketplaceReference } from '../common/plugins/marketplaceReference.js';
+import { isAutomationAgentSession } from './agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from './agentSessions/agentSessionsService.js';
 import { IAgentHostNewSessionFolderService } from './agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
@@ -167,7 +168,7 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 			throw new Error(localize('pluginLinkCopilotUnavailable', "Plugin links require Copilot on the Agent Host."));
 		}
 		await this.sessionsService.model.resolve(SessionType.AgentHostCopilot, error => { throw error; });
-		const existing = this.sessionsService.model.sessions.find(session => session.providerType === SessionType.AgentHostCopilot && !session.isArchived());
+		const existing = this.sessionsService.model.sessions.find(session => session.providerType === SessionType.AgentHostCopilot && !isAutomationAgentSession(session) && !session.isArchived());
 		if (existing) {
 			return { resource: existing.resource, backendResource: existing.resource };
 		}

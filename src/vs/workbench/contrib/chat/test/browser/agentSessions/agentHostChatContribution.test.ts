@@ -4813,6 +4813,45 @@ suite('AgentHostChatContribution', () => {
 			});
 		});
 
+		test('Automation origin from a live sessionAdded survives a later refresh and malformed origins stay ordinary', async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+			const listController = createSessionListController(disposables, instantiationService, agentHostService);
+			await listController.refresh(CancellationToken.None);
+
+			const addSummary = (id: string, title: string, origin: SessionSummary['origin']) => agentHostService.fireNotification({
+				type: 'root/sessionAdded',
+				channel: ROOT_STATE_URI,
+				summary: {
+					resource: AgentSession.uri('copilot', id).toString(),
+					provider: 'copilot',
+					title,
+					status: SessionStatus.Idle,
+					createdAt: new Date(1000).toISOString(),
+					modifiedAt: new Date(2000).toISOString(),
+					origin,
+				},
+			} as INotification);
+			addSummary('live-automation', 'Live automation', { kind: SessionOriginKind.Automation, automation: 'a1', run: 'r1' });
+			addSummary('live-ordinary', 'Live ordinary', undefined);
+			addSummary('live-malformed', 'Live malformed', { kind: 'bogus' } as unknown as SessionSummary['origin']);
+			const marks = () => listController.items.map(item => [item.label, item.metadata?.isAutomation === true]);
+			const afterAdded = marks();
+
+			agentHostService.addSession({
+				session: AgentSession.uri('copilot', 'live-automation'),
+				startTime: 1000,
+				modifiedTime: 3000,
+				summary: 'Live automation',
+				origin: { kind: SessionOriginKind.Automation, automation: 'a1', run: 'r1' },
+			});
+			await listController.refresh(CancellationToken.None);
+
+			assert.deepStrictEqual({ afterAdded, afterRefresh: marks() }, {
+				afterAdded: [['Live automation', true], ['Live ordinary', false], ['Live malformed', false]],
+				afterRefresh: [['Live automation', true], ['Live ordinary', false], ['Live malformed', false]],
+			});
+		});
+
 		test('a summary change still clears host-cleared markers on a non-legacy session', async () => {
 			// The adoption carry-forward must not turn `_meta` into an append-only bag:
 			// a session that was never adoptable keeps the host's replacement verbatim.
