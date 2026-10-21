@@ -1629,6 +1629,24 @@ suite('TabbedModelPicker', () => {
 		});
 	});
 
+	test('Copilot Fusion leads on a row twice the height of the others, its discount badge in Fusion\'s style', () => {
+		const rowOf = (popup: HTMLElement, label: string) => Array.from(popup.querySelectorAll<HTMLElement>('.chat-model-picker-model')).find(row => row.querySelector('.title')?.textContent === label)!;
+		const describe = (row: HTMLElement) => ({
+			height: row.style.height,
+			featured: row.classList.contains('chat-model-picker-featured'),
+			badge: row.querySelector('.action-item-badge')?.textContent,
+			badgeStyle: ['fusion-discount', 'preview'].find(style => row.classList.contains(`chat-model-picker-badge-${style}`)),
+		});
+		const fusion = createPicker({ models: [...models, createFusionModel()], selectedModelId: models[0].identifier });
+		const fusionRows = { fusion: describe(rowOf(fusion.popup, copilotFusionName)), other: describe(rowOf(fusion.popup, 'First')) };
+		const auto = createPicker({ models: [...models, createAutoModel()], selectedModelId: models[0].identifier });
+		assert.deepStrictEqual({ ...fusionRows, auto: describe(rowOf(auto.popup, 'Auto')) }, {
+			fusion: { height: '48px', featured: true, badge: '10% discount', badgeStyle: 'fusion-discount' },
+			other: { height: '24px', featured: false, badge: '', badgeStyle: undefined },
+			auto: { height: '24px', featured: false, badge: '10% discount', badgeStyle: 'preview' },
+		});
+	});
+
 	test('Fusion does not offer HydraFusion Max beside provider tiers that hide it', () => {
 		const fusion = createFusionModel();
 		const providerFusion: ILanguageModelChatMetadataAndIdentifier = {

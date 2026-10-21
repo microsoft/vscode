@@ -1160,7 +1160,11 @@ export class TabbedModelPicker extends Disposable {
 		const items: IActionListItem<IActionWidgetDropdownAction>[] = [];
 		const auto = this._autoModel(context);
 		if (auto) {
-			items.push(this._createModelItem(auto, context));
+			const item = this._createModelItem(auto, context);
+			// Copilot Fusion leads the list at twice the height of the other rows, so it stands out.
+			items.push(auto.metadata.autoModelFusion
+				? { ...item, heightInLines: 2, className: [item.className, 'chat-model-picker-featured'].filter(Boolean).join(' ') }
+				: item);
 		}
 		if (this._hostsHydraFusion(context)) {
 			return items;
@@ -1237,7 +1241,13 @@ export class TabbedModelPicker extends Disposable {
 				? hydraFusionTier.metadata.detail
 				: getRoutingModelBadge(model.metadata, getModelConfigProperty(model, context.configurationAccess, MODEL_CONFIG_GROUP_EFFORT, useModelConfigurationSchema)?.value)
 			: undefined;
-		const badgeClassName = modelBadge ? `chat-model-picker-badge-${modelBadge.tone}` : routingBadge ? 'chat-model-picker-badge-preview' : undefined;
+		// Copilot Fusion's routing badge is only ever its discount, which takes the Agents window's gradient to stand out.
+		const fusionDiscountBadge = !!routingBadge && !hydraFusionTier && !!model.metadata.autoModelFusion;
+		const badgeClassName = modelBadge
+			? `chat-model-picker-badge-${modelBadge.tone}`
+			: fusionDiscountBadge
+				? 'chat-model-picker-badge-fusion-discount'
+				: routingBadge ? 'chat-model-picker-badge-preview' : undefined;
 		const hydraFusionTierLabel = hydraFusionTier && this._getHydraFusionTier(hydraFusionTier, context).label;
 		const localDirect = context.localModels?.getDirectModel(model, context.configurationAccess);
 		// HydraFusion with tiers of its own is shown as HydraFusion, with its tier as the readout.

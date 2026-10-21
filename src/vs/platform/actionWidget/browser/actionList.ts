@@ -221,6 +221,11 @@ export interface IActionListItem<T> {
 	 */
 	readonly className?: string;
 	/**
+	 * Height of the row as a multiple of a single action row's, e.g. 2 for a row
+	 * twice as tall. Overrides the height the item's kind and content would give it.
+	 */
+	readonly heightInLines?: number;
+	/**
 	 * Optional badge text to display after the label (e.g., "New").
 	 */
 	readonly badge?: string;
@@ -2140,6 +2145,9 @@ export class ActionListWidget<T> extends Disposable {
 
 	/** Row heights depend on the options of the tab the items belong to, not the shown one. */
 	private _itemHeightWith(item: IActionListItem<T>, options: IActionListOptions | undefined): number {
+		if (item.heightInLines !== undefined) {
+			return item.heightInLines * this._actionLineHeight;
+		}
 		switch (item.kind) {
 			case ActionListItemKind.Header:
 				return this._headerLineHeight;
