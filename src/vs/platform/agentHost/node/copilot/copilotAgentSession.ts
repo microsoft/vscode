@@ -3638,6 +3638,11 @@ export class CopilotAgentSession extends Disposable {
 		return this._appliedAdditionalDirectories;
 	}
 
+	/** Whether this chat was launched workspace-less (its recorded per-chat decision). */
+	get workspaceless(): boolean {
+		return this._launchPlan.workspaceless === true;
+	}
+
 	get customizationDirectory(): URI | undefined {
 		return this._customizationDirectory;
 	}

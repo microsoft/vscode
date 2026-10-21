@@ -226,6 +226,23 @@ suite('Move Chats Drag and Drop', () => {
 		});
 	});
 
+	test('does not gate moves on quick chats in either direction; the host decides with movable', () => {
+		const quickChat = createTestSession('Quick Chat', { isQuickChat: true });
+		quickChat.capabilities.set({ supportsMultipleChats: true }, undefined);
+		const otherQuickChat = createTestSession('Other Quick Chat', { isQuickChat: true });
+		otherQuickChat.capabilities.set({ supportsMultipleChats: true }, undefined);
+		const workspaceSession = multiChatSession('Workspace').session;
+		assert.deepStrictEqual({
+			quickChatIntoWorkspace: canMoveIntoSession(quickChat.session, workspaceSession),
+			workspaceIntoQuickChat: canMoveIntoSession(workspaceSession, quickChat.session),
+			quickChatIntoQuickChat: canMoveIntoSession(quickChat.session, otherQuickChat.session),
+		}, {
+			quickChatIntoWorkspace: true,
+			workspaceIntoQuickChat: true,
+			quickChatIntoQuickChat: true,
+		});
+	});
+
 	suite('running a dropped move', () => {
 
 		/** Runs `moves` in turn, answering confirmations with `answer`, and records what the user saw and what moved. */

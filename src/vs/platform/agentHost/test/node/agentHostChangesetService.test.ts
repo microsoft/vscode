@@ -213,7 +213,7 @@ suite.skip('AgentHostChangesetService', () => {
 			workingDirectories: workingDirectory ? [workingDirectory] : undefined,
 			defaultChat: buildDefaultChatUri(sessionUri.toString()),
 		});
-		stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString(), false));
+		stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString(), false, false));
 		stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady, });
 	}
 
@@ -762,7 +762,7 @@ suite.skip('AgentHostChangesetService', () => {
 				workingDirectories: workingDirectory ? [workingDirectory] : undefined,
 				defaultChat: buildDefaultChatUri(sessionStr),
 			});
-			localStateManager.setSessionChangesets(sessionStr, buildDefaultChangesetCatalog(sessionStr, false));
+			localStateManager.setSessionChangesets(sessionStr, buildDefaultChangesetCatalog(sessionStr, false, false));
 			return sessionStr;
 		}
 

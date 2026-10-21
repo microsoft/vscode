@@ -264,7 +264,7 @@ suite('Copilot Agent credential sponsorship', function () {
 		const session = AgentSession.uri('copilotcli', `sponsorship-${name}`);
 		return {
 			resource: session, owner: fixedChatOwnerRef(session),
-			sessionSettings: undefined, launchWorkingDirectories: undefined,
+			sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: false,
 			...(scope ? { credentials: captureCredentialSource(scope, metadata) } : {}),
 		};
 	}

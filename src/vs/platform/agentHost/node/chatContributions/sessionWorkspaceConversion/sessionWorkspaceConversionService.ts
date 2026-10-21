@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { raceTimeout } from '../../../../../base/common/async.js';
-import { createAgentChatContext } from '../../agentChatContext.js';
+import { createAgentChatContext, isChatWorkspaceless } from '../../agentChatContext.js';
 import { withMessageRequestHiddenFromTranscript, withMessageSystemInitiatedLabel } from '../../../common/meta/agentMessageMeta.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { Emitter, type Event } from '../../../../../base/common/event.js';
@@ -82,6 +82,11 @@ interface IResolvedWorkspace {
 
 /** Upper bound for restoring sibling chats before a multi-chat workspace change; the chat cannot be cancelled while it waits. */
 const SIBLING_RESTORE_TIMEOUT_MS = 30_000;
+
+/** Whether a user chat records a primary folder other than the session's own. */
+function hasChatWithOwnFolder(chats: readonly { readonly origin?: { readonly kind: ChatOriginKind }; readonly workingDirectories?: readonly string[] }[], sessionFolder: string | undefined): boolean {
+	return chats.some(chat => chat.origin?.kind !== ChatOriginKind.Tool && chat.workingDirectories?.[0] !== undefined && chat.workingDirectories[0] !== sessionFolder);
+}
 
 /** Whether the session has exactly one chat the user works in; transient subagent chats never count as siblings. */
 export function hasSingleUserChat(chats: readonly { readonly origin?: { readonly kind: ChatOriginKind } }[]): boolean {
@@ -232,7 +237,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			?? (owner !== undefined ? this._stateManager.getSessionSummary(owner)?.workingDirectories : undefined);
 		const movesElsewhere = !!workspaceFolder && !!directories?.length && !isEqual(workspaceFolder, URI.parse(directories[0]));
 		return this._canChangeChatWorkspace(chat) && !!state && this._worktreeIsolation.supported
-			&& !readSessionWorkspaceless(state._meta)
+			&& !this._isChatWorkspaceless(owner!, chat)
 			&& (!!workspaceFolder || directories?.length === 1)
 			&& !(!movesElsewhere && state.config?.values[SessionConfigKey.Isolation] === 'worktree'
 				&& directories?.[0] === this._stateManager.getSessionSummary(owner!)?.workingDirectories?.[0])
@@ -244,7 +249,11 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		const state = owner !== undefined ? this._stateManager.getSessionState(owner) : undefined;
 		const summary = state?.chats.find(candidate => candidate.resource === chat.toString());
 		const sessionDirectories = owner !== undefined ? this._stateManager.getSessionSummary(owner)?.workingDirectories : undefined;
-		const directories = summary?.workingDirectories ?? sessionDirectories;
+		// A workspace-less session's folders also list its nested chats' own folders; its default chat works in the first.
+		const directories = summary?.workingDirectories
+			?? (owner !== undefined && sessionDirectories && sessionDirectories.length > 1 && this._chatOwnership.isDefaultChat(owner, chat.toString()) && this._isChatWorkspaceless(owner, chat)
+				? sessionDirectories.slice(0, 1)
+				: sessionDirectories);
 		const provider = owner !== undefined ? this._providerService.getProviderForSession(URI.parse(owner)) : undefined;
 		const supportsMultipleWorkingDirectories = !!provider?.getDescriptor().capabilities?.multipleWorkingDirectories;
 		const inheritsSessionWorkspace = summary?.workingDirectories === undefined
@@ -261,7 +270,6 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			&& !!directories?.length && directories.every(directory => URI.parse(directory).scheme === Schemas.file)
 			&& (directories.length === 1 || (inheritsSessionWorkspace && supportsMultipleWorkingDirectories))
 			&& (hasSingleUserChat(state.chats) || supportsMultipleWorkingDirectories)
-			&& (!readSessionWorkspaceless(state._meta) || hasSingleUserChat(state.chats))
 			&& !this.isPending(chat.toString());
 	}
 
@@ -287,6 +295,11 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			showTransition: true, phase: 'requested',
 		});
 		this._onDidChangePending.fire(chat.toString());
+	}
+
+	/** The chat's own workspace-less decision, from its recorded folders. */
+	private _isChatWorkspaceless(owner: ProtocolURI, chat: URI): boolean {
+		return isChatWorkspaceless(this._stateManager, chat.toString(), this._sessionStateStore.peek(URI.parse(owner)), readSessionWorkspaceless(this._stateManager.getSessionState(owner)?._meta));
 	}
 
 	/** The host-built context of a chat, with the storage the host recorded for it. */
@@ -332,7 +345,8 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		initiatingClientId = this._resolveInitiatingClientId(chat, initiatingClientId);
 		const session = this._chatOwnership.getChatOwner(chat.toString());
 		const state = session !== undefined ? this._stateManager.getSessionState(session) : undefined;
-		const chatOnly = !!state && !readSessionWorkspaceless(state._meta);
+		// A workspace-less session converts as a whole only while all its chats share the session's folder; a chat with its own folder, or any chat next to one, changes alone.
+		const chatOnly = !!state && !(readSessionWorkspaceless(state._meta) && this._isChatWorkspaceless(session!, chat) && !hasChatWithOwnFolder(state.chats, state.workingDirectories?.[0]));
 		if (chatOnly) {
 			if (!this._canChangeChatWorkspace(chat)) {
 				throw new Error(localize('agentHost.chatWorkspaceUnavailable', "This chat's workspace cannot be changed."));

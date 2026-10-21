@@ -1956,6 +1956,58 @@ suite('AgentHostProtocolClient', () => {
 			await resultPromise;
 		});
 
+		test('sends a requested chat workspace only to a host that advertises it', async () => {
+			const unsupported = createClient();
+			await connectClient(unsupported.client, unsupported.transport, { 'vscode.detachedWorktrees': true });
+			unsupported.transport.sentMessages.length = 0;
+			const refusal = await unsupported.client.createChat(sessionUri, chatUri, { workspace: { kind: 'scratch' } }).then(() => undefined, error => error instanceof Error);
+
+			const supported = createClient();
+			await connectClient(supported.client, supported.transport, getAgentHostExtensionInitializeResultMeta());
+			supported.transport.sentMessages.length = 0;
+			const created = supported.client.createChat(sessionUri, chatUri, { workspace: { kind: 'folder', folder: workingDirectory, isolation: 'worktree', baseBranch: 'dev', prompt: 'Task' } });
+			const request = supported.transport.sentMessages[0];
+			assert.ok(hasKey(request, { id: true, params: true }));
+			supported.transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: null });
+			await created;
+
+			assert.deepStrictEqual({ refusal, unsupportedRequests: unsupported.transport.sentMessages, params: request.params }, {
+				refusal: true,
+				unsupportedRequests: [],
+				params: {
+					channel: sessionUri.toString(),
+					chat: chatUri.toString(),
+					_meta: { 'vscode.chatWorkspace': { kind: 'folder', folder: URI.file('/workspace').toString(), isolation: 'worktree', baseBranch: 'dev', prompt: 'Task' } },
+				},
+			});
+		});
+
+		test('applies a chat workspace through the extension request only on a host that advertises it, mapping the folder to the host', async () => {
+			const unsupported = createClient();
+			await connectClient(unsupported.client, unsupported.transport, { 'vscode.detachedWorktrees': true });
+			unsupported.transport.sentMessages.length = 0;
+			const refusal = await unsupported.client.setChatWorkspace(chatUri, { kind: 'scratch' }).then(() => undefined, error => error instanceof Error ? error.message : String(error));
+
+			const supported = createClient();
+			await connectClient(supported.client, supported.transport, getAgentHostExtensionInitializeResultMeta());
+			supported.transport.sentMessages.length = 0;
+			const applied = supported.client.setChatWorkspace(chatUri, { kind: 'folder', folder: workingDirectory, isolation: 'worktree', baseBranch: 'dev', prompt: 'Task' });
+			const request = supported.transport.sentMessages[0];
+			assert.ok(hasKey(request, { id: true, method: true, params: true }));
+			supported.transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: null });
+			await applied;
+
+			assert.deepStrictEqual({ refusal, unsupportedRequests: unsupported.transport.sentMessages, method: request.method, params: request.params }, {
+				refusal: 'This agent host can\'t move a chat into its own workspace.',
+				unsupportedRequests: [],
+				method: 'vscode/setChatWorkspace',
+				params: {
+					chat: chatUri.toString(),
+					workspace: { kind: 'folder', folder: URI.file('/workspace').toString(), isolation: 'worktree', baseBranch: 'dev', prompt: 'Task' },
+				},
+			});
+		});
+
 		test('omits source entirely when neither fork nor sideChat is requested', async () => {
 			const { client, transport } = createClient();
 
