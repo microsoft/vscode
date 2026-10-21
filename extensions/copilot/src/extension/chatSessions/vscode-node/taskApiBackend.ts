@@ -53,12 +53,18 @@ const TASK_SESSION_POLL_TIMEOUT_MS = 60_000;
  */
 const CLOUD_CODING_AGENT_SLUGS: ReadonlySet<string> = new Set(['copilot-developer', 'copilot-swe-agent']);
 
+interface TaskClient {
+	readonly integration_id: string;
+	readonly slug: string;
+	readonly creator: boolean;
+}
+
 /**
  * CMC task metadata not yet modeled by `@vscode/copilot-api`'s `AgentTask`.
  */
 interface TaskWithEnvironment extends AgentTask {
 	readonly current_environment?: { readonly kind?: string } | null;
-	readonly clients?: readonly { readonly integration_id: string; readonly slug: string; readonly creator: boolean }[];
+	readonly clients?: readonly TaskClient[];
 }
 
 /**

@@ -2173,6 +2173,34 @@ suite('CloudSandboxApiService repository resolution', () => {
 		});
 	});
 
+	for (const { label, clients } of [
+		{ label: 'omits clients', clients: undefined },
+		{ label: 'reports an empty client list', clients: [] },
+		{ label: 'reports only participating clients', clients: [{ integration_id: 'vscode-chat', slug: 'copilot-vscode', creator: false }] },
+	]) {
+		test(`retains known creation provenance when a later response ${label}`, async () => {
+			const source: ReturnType<typeof task> & { clients?: readonly TaskClient[]; updated_at: string } = {
+				...task('task-1', 'From CLI', undefined, 'session-1', 'environment-1'),
+				updated_at: '2026-07-01T00:01:00.000Z',
+				clients: [{ integration_id: 'copilot-developer-cli', slug: 'copilot-cli', creator: true }],
+			};
+			const { service, requestedUrls } = createService(store, { tasks: [source], repositories: new Map() });
+			const initial = await service.listSessions(CancellationToken.None);
+			source.clients = clients;
+			const cached = await service.listSessions(CancellationToken.None);
+			source.updated_at = '2026-07-01T00:02:00.000Z';
+			const refreshed = await service.listSessions(CancellationToken.None);
+			const targeted = await service.listSessions(CancellationToken.None, { taskIds: ['task-1'] });
+			assert.deepStrictEqual({
+				applications: [initial, cached, refreshed, targeted].map(result => result.kind === 'failed' ? result.reason : result.sessions.map(session => session.application)),
+				detailReads: requestedUrls.filter(url => url.endsWith('/tasks/task-1')).length,
+			}, {
+				applications: [['copilot-cli'], ['copilot-cli'], ['copilot-cli'], ['copilot-cli']],
+				detailReads: 3,
+			});
+		});
+	}
+
 	test('preserves the bound session activity independently of the task state', async () => {
 		const states = ['queued', 'in_progress', 'waiting_for_user', 'idle', 'completed', 'failed', 'timed_out', 'cancelled'];
 		const { service } = createService(store, {

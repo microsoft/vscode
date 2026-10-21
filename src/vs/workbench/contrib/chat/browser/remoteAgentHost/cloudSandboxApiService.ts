@@ -678,7 +678,13 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 					}
 					let cached = cache.get(task.id);
 					const application = task.clients?.find(client => client.creator === true)?.slug;
-					if (targeted || cached?.needsRefresh || !cached?.session || !task.updated_at || task.updated_at !== cached.summary.updated_at || task.archived_at !== cached.summary.archived_at || task.hasRepository !== cached.summary.hasRepository || application !== undefined && application !== cached.session.application) {
+					// Missing creator evidence does not revoke previously learned creation provenance.
+					const applicationChanged = application !== undefined && application !== cached?.session?.application;
+					if (targeted || cached?.needsRefresh || !cached?.session || !task.updated_at
+						|| task.updated_at !== cached.summary.updated_at
+						|| task.archived_at !== cached.summary.archived_at
+						|| task.hasRepository !== cached.summary.hasRepository
+						|| applicationChanged) {
 						const full = details.get(task.id) ?? await this._readJson<ITaskDetail>(await this._sendTask(`${this._tasksBaseUrl()}/tasks/${encodeURIComponent(task.id)}`, 'get', token));
 						if (!full) {
 							throw new Error('getTask returned no task');
