@@ -90,6 +90,13 @@ suite('Pane composite part layout', () => {
 		const devicePixelRatio = 2.5;
 		part.floatingBorderWidth = Math.floor(devicePixelRatio) / devicePixelRatio;
 
+		// Engines serialize `calc(100% - 0px)` differently (Chromium keeps `- 0px`, WebKit writes `+ 0px`)
+		const serializeHeight = (value: string) => {
+			const element = $('div');
+			element.style.height = value;
+			return element.style.height;
+		};
+
 		const captureState = () => ({
 			height: part.element.style.height,
 			contentDimension: {
@@ -157,7 +164,7 @@ suite('Pane composite part layout', () => {
 				outerEdges: { left: true, right: true, top: false, bottom: true },
 			},
 			floatingCompact: {
-				height: 'calc(100% + 0px)',
+				height: serializeHeight('calc(100% - 0px)'),
 				contentDimension: { width: 298.4, height: 198.4 },
 				outerEdges: { left: true, right: true, top: false, bottom: true },
 			},
