@@ -2365,10 +2365,12 @@ suite('ChatThinkingContentPart', () => {
 		});
 
 		test('finished sections report their elapsed time only when every step was timed', () => {
-			type Case = { readonly reasoning: readonly { readonly startedAt?: number; readonly durationMs?: number }[]; readonly tools: readonly (readonly [startedAt?: number, completedAt?: number])[] };
+			type Case = { readonly reasoning: readonly { readonly startedAt?: number; readonly durationMs?: number; readonly text?: string }[]; readonly tools: readonly (readonly [startedAt?: number, completedAt?: number])[] };
 			const cases: Record<string, Case> = {
 				shortReasoning: { reasoning: [{ startedAt: 1000, durationMs: 400 }], tools: [] },
 				reasoningWithoutStart: { reasoning: [{ durationMs: 2600 }], tools: [] },
+				textlessReasoning: { reasoning: [{ startedAt: 1000, durationMs: 2400, text: '\n' }], tools: [] },
+				textlessReasoningAndTools: { reasoning: [{ startedAt: 1000, durationMs: 2000, text: ' ' }], tools: [[3000, 4500]] },
 				toolsOnly: { reasoning: [], tools: [[1000, 2000], [3000, 66_000]] },
 				reasoningAndTools: { reasoning: [{ startedAt: 1000, durationMs: 1500 }], tools: [[2500, 4000]] },
 				reasoningWithoutStartAndTools: { reasoning: [{ durationMs: 2600 }], tools: [[1000, 2000], [3000]] },
@@ -2379,7 +2381,7 @@ suite('ChatThinkingContentPart', () => {
 				liveReasoningThenRestoredTool: { reasoning: [{ startedAt: 1000, durationMs: 1500 }], tools: [[]] },
 			};
 			const titles = Object.fromEntries(Object.entries(cases).map(([name, { reasoning, tools }]) => {
-				const [first, ...rest] = reasoning.length ? reasoning.map(({ startedAt, durationMs }, index) => ({ ...createThinkingPart(`Reasoning ${index}`, `reasoning-${index}`), reasoningStartedAt: startedAt, reasoningDurationMs: durationMs })) : [createThinkingPart()];
+				const [first, ...rest] = reasoning.length ? reasoning.map(({ startedAt, durationMs, text }, index) => ({ ...createThinkingPart(text ?? `Reasoning ${index}`, `reasoning-${index}`), reasoningStartedAt: startedAt, reasoningDurationMs: durationMs })) : [createThinkingPart()];
 				const part = createConversationSection(first, true);
 				for (const [index, [startedAt, completedAt]] of tools.entries()) {
 					appendTool(part, createSerializedTool(`tool-${index}`, startedAt, completedAt), `Read tool-${index}`);
@@ -2394,6 +2396,8 @@ suite('ChatThinkingContentPart', () => {
 			assert.deepStrictEqual(titles, {
 				shortReasoning: 'Finished thinking after 1s',
 				reasoningWithoutStart: 'Finished thinking after 2s',
+				textlessReasoning: 'Finished thinking after 2s',
+				textlessReasoningAndTools: 'Finished thinking after 3s',
 				toolsOnly: 'Finished thinking after 1m 5s',
 				reasoningAndTools: 'Finished thinking after 3s',
 				reasoningWithoutStartAndTools: 'Finished thinking',

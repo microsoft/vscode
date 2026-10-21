@@ -525,7 +525,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			toolId: this.toolId,
 			subAgentInvocationId: this.subAgentInvocationId,
 			...(summary ? { summary } : {}),
-			startedAt: this.startedAt,
+			...(this._startedAt !== undefined ? { startedAt: this._startedAt } : {}),
 			...(this._completedAt !== undefined ? { completedAt: this._completedAt } : {}),
 			generatedTitle: this.generatedTitle,
 		};

@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, EventType, getWindow } from '../../../../../../base/browser/dom.js';
+import { addDisposableListener, EventType } from '../../../../../../base/browser/dom.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { hasKey } from '../../../../../../base/common/types.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 import './media/chatActivityLabelTransition.css';
 
@@ -107,9 +108,9 @@ export class ChatActivityLabelTransition extends Disposable {
 		this.animatedElement = element;
 		void element.offsetWidth;
 		element.classList.add(wipe);
-		// Labels in auxiliary windows run animations from that window's realm.
-		const { CSSAnimation } = getWindow(element);
-		const animations = element.getAnimations().filter(running => running instanceof CSSAnimation && running.animationName === wipe);
+		// Match by name instead of `instanceof CSSAnimation`: that constructor can be missing, and labels
+		// in auxiliary windows run animations created by another window's constructor.
+		const animations = element.getAnimations().filter((running: Animation | CSSAnimation) => hasKey(running, { animationName: true }) && running.animationName === wipe);
 		if (animations.length === 0) {
 			this.animation.clear();
 			this.clearAnimationClasses();

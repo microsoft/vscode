@@ -381,11 +381,13 @@ function getThinkingSectionDurationMs(thinkingParts: readonly IChatThinkingPart[
 	let reasoningMs = 0;
 	let hasUnplacedReasoning = false;
 	for (const part of thinkingParts) {
-		if (!extractTextFromPart(part)) {
-			continue;
-		}
 		if (part.reasoningDurationMs === undefined) {
-			return undefined;
+			// Untimed parts without text add no time: the placeholder a section starts with before
+			// a tool call, or the marker that ends a reasoning block. Timed parts count either way.
+			if (extractTextFromPart(part)) {
+				return undefined;
+			}
+			continue;
 		}
 		reasoningMs += part.reasoningDurationMs;
 		if (part.reasoningStartedAt === undefined) {
