@@ -200,16 +200,15 @@
 			max-height: 15px;
 			color: var(--vscode-descriptionForeground);
 
-			.agent-session-details-icon {
-				display: none;
-				font-size: 11px;
-				line-height: 1;
+			.agent-session-harness-icon {
+				/* muted, details-row scale, so it never competes with the status icon */
+				display: flex;
+				align-items: center;
+				/* top-align so the glyph centers on the text's cap height rather than the line box */
+				align-self: flex-start;
 				flex-shrink: 0;
-
-				&.visible {
-					display: flex;
-					align-items: center;
-				}
+				font-size: var(--vscode-codiconFontSize-compact);
+				line-height: 1;
 			}
 
 			.rendered-markdown {
@@ -276,11 +275,20 @@
 
 		.agent-session-title,
 		.agent-session-description {
-			/* push other items to the end */
-			flex: 1;
 			overflow: hidden;
 			white-space: nowrap;
 			text-overflow: ellipsis;
+		}
+
+		.agent-session-title {
+			/* push the title toolbar to the end */
+			flex: 1;
+		}
+
+		.agent-session-description {
+			/* size to content so following metadata stays inline after its separator */
+			flex: 0 1 auto;
+			min-width: 0;
 		}
 
 		.agent-session-description:empty {
