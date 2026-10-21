@@ -95,7 +95,7 @@ export function collapseTildePath(path: string | undefined, userHome: string | u
 	if (userHome.match(/[\/\\]$/)) {
 		userHome = userHome.slice(0, userHome.length - 1);
 	}
-	if (!userHome) {
+	if (!userHome || userHome.match(/^[a-zA-Z]:$/)) {
 		return path;
 	}
 	const normalizedPath = path.replace(/\\/g, '/').toLowerCase();
