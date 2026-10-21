@@ -3628,8 +3628,6 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 				await timeout(0);
 			}
 
-			// Each refresh of the unavailable folder announces a computation and its end. The owner whose computation
-			// already ended in an error is announced once, instead of being recomputed after every round.
 			assert.deepStrictEqual(statusChanges, {
 				[branchChangeset('file:///gone')]: 5,
 				[branchChangeset('file:///other')]: 1,

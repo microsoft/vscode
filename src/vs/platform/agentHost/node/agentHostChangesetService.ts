@@ -471,9 +471,6 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			}
 			const changeset = this._stateManager.getChangesetState(buildBranchChangesetUri(owner));
 			if (changeset?.status !== ChangesetStatus.Ready) {
-				// An owner whose computation already ended in an error is not retried here: refreshing it
-				// clears what is known about it and recomputes it, which ends in the same error and, for
-				// each owner finishing, starts the next round. Only an explicit refresh retries it.
 				if (changeset?.status !== ChangesetStatus.Error && !this._activeStaticComputes.has(buildBranchChangesetUri(owner))) {
 					this.refreshBranchChangeset(owner);
 				}
@@ -2211,7 +2208,6 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			return;
 		}
 		if (this._hasChangesetStatus(changesetUri, previous.status, previous.status === ChangesetStatus.Error ? previous.error : undefined)) {
-			// Nothing to restore; a repeated dispatch is still broadcast to every observer.
 			return;
 		}
 		this._stateManager.dispatchServerAction(changesetUri, {

@@ -279,13 +279,10 @@ suite('AgentHostGitService - getRepositoryRoot (real git)', () => {
 		const turnEnd: ITurnEnd = { session: 'agenthost:/session', channel: 'agenthost:/session', turnId: undefined, reason: { kind: 'success' } };
 		contribution.onTurnEnd(turnEnd);
 		contribution.onTurnEnd(turnEnd);
-		// Wait for the per-path sequenced lookups to settle.
 		const roots = await Promise.all(directories.map(directory => service.getRepositoryRoot(URI.parse(directory))));
 
 		assert.deepStrictEqual({ roots: roots.map(root => root?.fsPath), lookups: logService.repositoryRootLookups, resolveFailures: logService.warnings.filter(warning => warning.includes('Failed to resolve repository root')) }, {
 			roots: [expectedRoot, undefined, undefined, undefined],
-			// One lookup for the repository and one for the plain directory, both cached afterwards;
-			// refreshIfNone retries the plain directory once more on the second request.
 			lookups: 3,
 			resolveFailures: [],
 		});

@@ -234,9 +234,6 @@ export class AgentHostGitService implements IAgentHostGitService {
 				}
 			}
 
-			// A missing folder (e.g. a deleted worktree) cannot be a repository. Check before
-			// spawning git and deliberately do not cache the outcome, so a worktree recreated at
-			// the same path is discovered by the next lookup.
 			if (!await this._isDirectory(workingDirectory.fsPath)) {
 				this._logService.trace(`[agentHostGitService] Skipping repository root lookup for missing directory ${workingDirectory.fsPath}`);
 				return undefined;
@@ -260,8 +257,6 @@ export class AgentHostGitService implements IAgentHostGitService {
 						roots.delete(workingDirectoryKey);
 						this._repositoryRoots.set(roots, undefined);
 					}
-					// `spawn git ENOENT` is also raised for a missing cwd; the directory may have
-					// been deleted after the check above. Only warn if it still exists (git is missing).
 					if (isSpawnNotFoundError(error) && !await this._isDirectory(workingDirectory.fsPath)) {
 						this._logService.trace(`[agentHostGitService] Directory ${workingDirectory.fsPath} disappeared during repository root lookup`);
 					} else {
@@ -496,8 +491,6 @@ export class AgentHostGitService implements IAgentHostGitService {
 		try {
 			return (await fsPromises.stat(fsPath)).isDirectory();
 		} catch (error) {
-			// Mirror `_pathExists`: only a definitive "not found" (or a non-directory parent)
-			// means the directory is gone; other errors (EACCES, ...) are left to git to report.
 			const code = (error as NodeJS.ErrnoException)?.code;
 			return code !== 'ENOENT' && code !== 'ENOTDIR';
 		}
