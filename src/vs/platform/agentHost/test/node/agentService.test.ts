@@ -31175,6 +31175,27 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual({ ...await snapshot(), deleted }, { ...before, deleted: [handle] });
 		});
 
+		test('in a workspace-less session a chat created or re-created in a folder is not workspace-less, its fork neither, a scratch or folderless one is', async () => {
+			const { svc, agent, session, peer } = await createRebindService({ workspaceless: true });
+			const workspaceless = (chat: URI) => agent.chatContexts.filter(call => call.boundary === 'createChat' && isEqual(call.chat, chat)).map(call => URI.isUri(call.context) ? 'uri' : call.context?.workspaceless);
+			const foldered = URI.parse(buildChatUri(session, 'foldered'));
+			const scratch = URI.parse(buildChatUri(session, 'scratch'));
+			const folderless = URI.parse(buildChatUri(session, 'folderless'));
+			const fork = URI.parse(buildChatUri(session, 'fork'));
+
+			await svc.createChat(session, foldered, { workspace: { kind: 'folder', folder: repository, isolation: 'folder' } });
+			await svc.createChat(session, scratch, { workspace: { kind: 'scratch' } });
+			await svc.createChat(session, folderless);
+			getStateManager(svc).dispatchServerAction(foldered.toString(), { type: ActionType.ChatTurnStarted, turnId: 'turn', startedAt: '2025-01-01T00:00:00.000Z', message: { text: 'hi', origin: { kind: MessageKind.User } } });
+			getStateManager(svc).dispatchServerAction(foldered.toString(), { type: ActionType.ChatTurnComplete, turnId: 'turn', duration: 1 });
+			await svc.createChat(session, fork, { fork: { source: foldered, turnId: 'turn' } });
+			await svc.setChatWorkspace(session, peer, { kind: 'folder', folder: repository, isolation: 'folder' });
+
+			assert.deepStrictEqual({ foldered: workspaceless(foldered), fork: workspaceless(fork), rebound: workspaceless(peer), scratch: workspaceless(scratch), folderless: workspaceless(folderless) }, {
+				foldered: [false], fork: [false], rebound: [true, false], scratch: [true], folderless: [true],
+			});
+		});
+
 		test('in a workspace-less session the chat\'s own scratch folder is kept for scratch and retired for a folder', async () => {
 			const { svc, peer, session, database, snapshot } = await createRebindService({ workspaceless: true });
 			const [own] = await database.listScratchFolders();
