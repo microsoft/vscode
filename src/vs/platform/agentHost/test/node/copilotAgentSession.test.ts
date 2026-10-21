@@ -8,6 +8,7 @@ import type { CopilotClient, CopilotSession, CurrentToolMetadata, PermissionHand
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
 import { stub } from 'sinon';
+import { createHash } from 'crypto';
 import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { PluginFormat } from '../../../agentPlugins/common/pluginParsers.js';
@@ -204,6 +205,7 @@ class MockCopilotSession {
 	sandboxConfigUpdateError: Error | undefined;
 	shellInitScriptUpdateSuccess = true;
 	readonly imageGenerationUpdates: boolean[] = [];
+	readonly imageGenerationOptionsUpdates: { enabled?: boolean; watermark?: boolean }[] = [];
 	imageGenerationUpdateSuccess = true;
 	imageGenerationUpdateGate: Promise<void> | undefined;
 	onImageGenerationUpdate: (() => void) | undefined;
@@ -849,8 +851,11 @@ class MockCopilotSession {
 		},
 		options: {
 			update: async (params: Parameters<CopilotSession['rpc']['options']['update']>[0]) => {
-				if (params.imageGeneration?.enabled !== undefined) {
-					this.imageGenerationUpdates.push(params.imageGeneration.enabled);
+				if (params.imageGeneration !== undefined) {
+					this.imageGenerationOptionsUpdates.push(params.imageGeneration);
+					if (params.imageGeneration.enabled !== undefined) {
+						this.imageGenerationUpdates.push(params.imageGeneration.enabled);
+					}
 					this.onImageGenerationUpdate?.();
 					await this.imageGenerationUpdateGate;
 					return { success: this.imageGenerationUpdateSuccess };
@@ -1434,13 +1439,14 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	const sessionLauncher: ICopilotSessionLauncher = {
 		launch: async (_plan, runtime) => {
 			const imageGenerationEnabled = rootValues[CopilotCliConfigKey.ImageGeneration] === true;
+			const imageGenerationWatermark = rootValues[CopilotCliConfigKey.ImageGenerationWatermark] === true;
 			options?.beforeLaunch?.(rootValues);
 			launchedRuntime = runtime;
 			if (options?.captureRuntime) {
 				options.captureRuntime.current = runtime;
 			}
 			options?.duringLaunch?.(runtime);
-			return new CopilotSessionWrapper(mockSession as unknown as CopilotSession, options?.canvasRuntimeEnabled ?? true, options?.launchByokConfig ?? {}, imageGenerationEnabled, logService);
+			return new CopilotSessionWrapper(mockSession as unknown as CopilotSession, options?.canvasRuntimeEnabled ?? true, options?.launchByokConfig ?? {}, imageGenerationEnabled, imageGenerationWatermark, logService);
 		},
 		resolveByokSessionConfig: async () => options?.resolveByokSessionConfig?.() ?? {},
 	};
@@ -1821,6 +1827,50 @@ suite('CopilotAgentSession', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('image generation preference', () => {
+		for (const resume of [false, true]) {
+			for (const enabled of [false, true]) {
+				test(`watermark changes reach live sessions without changing image consent (resume=${resume}, enabled=${enabled})`, async () => {
+					const rig = await createAgentSession(disposables, {
+						resume,
+						rootValues: { [CopilotCliConfigKey.ImageGeneration]: enabled },
+					});
+					rig.setRootValue(CopilotCliConfigKey.ImageGenerationWatermark, true);
+					rig.fireRootConfigChange();
+					await rig.session.send('hello', undefined, 'watermark-toggle');
+					assert.deepStrictEqual({
+						options: rig.mockSession.imageGenerationOptionsUpdates,
+						modelChanges: rig.mockSession.setModelCalls,
+					}, {
+						options: [{ enabled, watermark: true }],
+						modelChanges: [],
+					});
+				});
+			}
+		}
+
+		test('launch reconciles a watermark preference changed while the SDK session was being created', async () => {
+			const { mockSession } = await createAgentSession(disposables, {
+				rootValues: { [CopilotCliConfigKey.ImageGeneration]: true, [CopilotCliConfigKey.ImageGenerationWatermark]: true },
+				beforeLaunch: rootValues => { rootValues[CopilotCliConfigKey.ImageGenerationWatermark] = false; },
+			});
+			assert.deepStrictEqual(mockSession.imageGenerationOptionsUpdates, [{ enabled: true, watermark: false }]);
+		});
+
+		test('a rejected watermark update prevents sending until the runtime accepts the preference', async () => {
+			const rig = await createAgentSession(disposables, { rootValues: { [CopilotCliConfigKey.ImageGeneration]: true } });
+			rig.mockSession.imageGenerationUpdateSuccess = false;
+			rig.setRootValue(CopilotCliConfigKey.ImageGenerationWatermark, true);
+			rig.fireRootConfigChange();
+			await assert.rejects(() => rig.session.send('blocked', undefined, 'blocked-watermark-toggle'), /did not apply the image generation setting/);
+			assert.deepStrictEqual(rig.mockSession.sendRequests, []);
+			rig.mockSession.imageGenerationUpdateSuccess = true;
+			await rig.session.send('safe', undefined, 'accepted-watermark-toggle');
+			assert.deepStrictEqual({
+				options: rig.mockSession.imageGenerationOptionsUpdates.at(-1),
+				sent: rig.mockSession.sendRequests.length,
+			}, { options: { enabled: true, watermark: true }, sent: 1 });
+		});
+
 		for (const initial of [true, false]) {
 			test(`the Sunburst setting applies live without changing the chat model (${initial})`, async () => {
 				const rig = await createAgentSession(disposables, { rootValues: { [CopilotCliConfigKey.ImageGeneration]: initial } });
@@ -4249,7 +4299,7 @@ suite('CopilotAgentSession', () => {
 
 	suite('CopilotSessionWrapper', () => {
 		function createWrapper(mockSession: MockCopilotSession, logService: ILogService = new NullLogService()): CopilotSessionWrapper {
-			return disposables.add(new CopilotSessionWrapper(mockSession as unknown as CopilotSession, true, {}, false, logService));
+			return disposables.add(new CopilotSessionWrapper(mockSession as unknown as CopilotSession, true, {}, false, false, logService));
 		}
 
 		function lifecycleMessages(entries: CapturingLogService['infos']): string[] {
@@ -23209,6 +23259,40 @@ Use the attached image as context.
 			assert.ok(entry.first instanceof Error);
 			assert.strictEqual((entry.first as Error).message, 'post tool boom');
 			assert.strictEqual(entry.args[0], '[Copilot:test-session-1] Failed in onPostToolUse: tool=edit');
+		});
+
+		test('saves generated images in the session folder and gives the agent each path', async () => {
+			const capturedRuntime: { current?: ICopilotSessionRuntime } = {};
+			const sessionDirectory = URI.file('/mock-state-home/.copilot/session-state/test-session-1');
+			const { storedFileContents } = await createAgentSession(disposables, {
+				captureRuntime: capturedRuntime,
+				copilotHome: '/mock-state-home/.copilot',
+				// The mock file service treats any path it has an entry for as existing.
+				fileContents: { [sessionDirectory.toString()]: '' },
+			});
+			// Text bytes, which the mock file service stores as a string.
+			const bytes = Buffer.from('synthetic image bytes');
+			const base64 = bytes.toString('base64');
+			const imageId = `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
+			const image = URI.joinPath(sessionDirectory, 'images', `image-${createHash('sha256').update(base64).digest('hex').slice(0, 16)}.png`);
+			const hookInput = (toolName: string) => ({
+				sessionId: 'test-session-1', timestamp: new Date(0), workingDirectory: '/tmp', toolName, toolArgs: { prompt: 'A dot' },
+				toolResult: {
+					resultType: 'success' as const,
+					textResultForLlm: `Image generated successfully.\nimage_id: ${imageId}`,
+					contents: [{ type: 'image', data: base64, mimeType: 'image/png' }],
+					structuredContent: { imageGeneration: { images: [{ contentIndex: 0, mimeType: 'image/png', imageId }] } },
+				},
+			});
+
+			const imageResult = await capturedRuntime.current!.handlePostToolUse(hookInput('image_generation'));
+			const otherToolResult = await capturedRuntime.current!.handlePostToolUse(hookInput('view'));
+
+			assert.deepStrictEqual({ imageResult, otherToolResult, saved: storedFileContents.get(image.toString()) }, {
+				imageResult: { modifiedResult: { resultType: 'success', textResultForLlm: `Image generated successfully.\nimage_id: ${imageId}\npath: ${image.fsPath}` } },
+				otherToolResult: undefined,
+				saved: 'synthetic image bytes',
+			});
 		});
 	});
 
