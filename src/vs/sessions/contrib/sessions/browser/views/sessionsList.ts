@@ -1640,6 +1640,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore |
 					// Observed Branch Changes are read from memory; reading unobserved ones would load the chat from its backend.
 					getSessionSummaryHoverData(element, this.sessionsProvidersService, this.openerService, this.labelService, this.preferencesService, getCreatorHoverData(element, this.sessionsManagementService, this.agentHostConnectionsService, this.openerService), this.options.compact(), rowObservesMainChatBranchChanges),
 					this.preferencesService,
+					this.openerService,
 				)), { groupId: 'sessions-list' }));
 		}
 
@@ -4300,6 +4301,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				item.session,
 				getChatSummaryHoverData(item.session, item.chat, sessionsProvidersService, this.openerService, this.labelService, this.preferencesService, getCreatorHoverData(item.session, this._sessionsManagementService, this.agentHostConnectionsService, this.openerService), this.isCompact()),
 				this.preferencesService,
+				this.openerService,
 			)),
 			() => this.isCompact(),
 			() => {

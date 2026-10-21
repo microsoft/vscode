@@ -70,7 +70,8 @@ import '../../../../../workbench/browser/actions/listCommands.js';
 import { AgentMergeSessionState } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { getSessionChatDragData, isSessionChatDrag, SessionsDataTransfers } from '../../../../browser/dnd.js';
 import { IsPhoneLayoutContext, SessionIsArchivedContext, SessionSupportsMultipleChatsContext } from '../../../../common/contextkeys.js';
-import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { getSessionApplication } from '../../../../common/sessionApplication.js';
 import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
@@ -3514,6 +3515,54 @@ suite('Sessions - SessionsList', () => {
 		});
 	});
 
+	test('session and chat hovers show non-VS Code applications above external status and open application filters', () => {
+		const opened: { uri: string; options: OpenInternalOptions | OpenExternalOptions | undefined }[] = [];
+		const services = [
+			upcastPartial<ISessionsProvidersService>({ getProvider: () => undefined }),
+			upcastPartial<IOpenerService>({
+				open: async (uri, options) => {
+					opened.push({ uri: uri.toString(), options });
+					return true;
+				},
+			}),
+			upcastPartial<ILabelService>({}),
+			upcastPartial<IPreferencesService>({}),
+		] as const;
+		const session = {
+			...createSession('External', { isExternal: true }),
+			isExternal: observableValue('external', true),
+			application: observableValue('application', getSessionApplication('copilot-cli')),
+		};
+		const chat = {
+			...session.mainChat.get(),
+			title: constObservable('Nested chat'),
+			workspace: constObservable(undefined),
+		};
+		const snapshots = [getSessionSummaryHoverData(session, ...services), getChatSummaryHoverData(session, chat, ...services)].map(data => {
+			const widget = new SessionSummaryHoverWidget(data);
+			const button = widget.domNode.querySelector<HTMLButtonElement>('.session-summary-hover-application button');
+			button?.click();
+			return {
+				buttonType: button?.type,
+				rows: [...widget.domNode.querySelectorAll('.session-summary-hover-provenance button')].map(row => row.textContent),
+			};
+		});
+		session.application.set(getSessionApplication('vscode'), undefined);
+		const vscodeApplication = getSessionSummaryHoverData(session, ...services).application;
+		session.application.set(getSessionApplication('custom_client', 'Custom Client'), undefined);
+		const customApplication = getSessionSummaryHoverData(session, ...services).application?.label;
+		session.isExternal.set(false, undefined);
+		const adoptedApplication = getSessionSummaryHoverData(session, ...services).application?.label;
+
+		assert.deepStrictEqual({ snapshots, opened, vscodeApplication, customApplication, adoptedApplication }, {
+			snapshots: Array(2).fill({ buttonType: 'button', rows: ['Created in · Copilot CLI', 'External Session'] }),
+			opened: Array(2).fill({ uri: `command:${SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID}`, options: { allowCommands: true } }),
+			vscodeApplication: undefined,
+			customApplication: 'Custom Client',
+			adoptedApplication: 'Custom Client',
+		});
+	});
+
 	test('session hover links each pull request and opens it externally', () => {
 		const pullRequestUri = URI.parse('https://github.com/microsoft/vscode/pull/241533');
 		const root = URI.file('/home/user/projects/vscode');
@@ -3755,8 +3804,10 @@ suite('Sessions - SessionsList', () => {
 		for (const flat of [false, true]) {
 			test(`updates ${flat ? 'flat' : 'grouped'} external session hovers while visible and when reopened`, async () => {
 				const external = createTestSession('External', { isExternal: true });
+				const application = observableValue('application', getSessionApplication('vscode'));
+				const session = { ...external.session, application };
 				const hovers = new Map<HTMLElement, () => IDelayedHoverOptions>();
-				const harness = createListHarness(disposables, [external.session], instantiationService => {
+				const harness = createListHarness(disposables, [session], instantiationService => {
 					instantiationService.stub(IHoverService, {
 						...NullHoverService,
 						setupDelayedHover: (target, options) => {
@@ -3768,7 +3819,7 @@ suite('Sessions - SessionsList', () => {
 				const container = harness.createContainer();
 				if (flat) {
 					const list = harness.store.add(harness.instantiationService.createInstance(SessionsFlatList, container, { onSessionOpen: () => { } }));
-					list.setSessions([external.session]);
+					list.setSessions([session]);
 					list.layout(300, 400);
 				} else {
 					const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
@@ -3786,32 +3837,47 @@ suite('Sessions - SessionsList', () => {
 				assert.ok(content instanceof HTMLElement);
 				harness.store.add(toDisposable(() => hover.onDidHide?.()));
 				const hasExternal = () => !!content.querySelector('.session-summary-hover-external-session:not(.hidden)');
+				const applicationLabel = () => content.querySelector('.session-summary-hover-application button')?.textContent;
 				const title = content.querySelector('.session-summary-hover-title-text');
 				hover.onDidShow?.();
 				const initial = hasExternal();
+				const initialApplication = applicationLabel();
+				application.set(getSessionApplication('copilot-cli'), undefined);
+				const hydratedApplication = applicationLabel();
 				external.isExternal.set(false, undefined);
 				const adopted = hasExternal();
+				const adoptedApplication = applicationLabel();
 				await timeout(0);
 				const titlePreserved = content.querySelector('.session-summary-hover-title-text') === title;
 				hover.onDidHide?.();
 				external.isExternal.set(true, undefined);
+				application.set(getSessionApplication('claude'), undefined);
 				const hidden = hasExternal();
 				hover.onDidShow?.();
 				const reopened = hasExternal();
+				const reopenedApplication = applicationLabel();
 				hover.onDidHide?.();
 				external.isExternal.set(false, undefined);
+				application.set(getSessionApplication('vscode'), undefined);
 				hover.onDidShow?.();
 				const reopenedAfterAdoption = hasExternal();
+				const provenanceHidden = content.querySelector('.session-summary-hover-provenance')?.classList.contains('hidden');
 				harness.store.dispose();
 				external.isExternal.set(true, undefined);
 				assert.deepStrictEqual({
 					initial, adopted, titlePreserved, hidden, reopened, reopenedAfterAdoption,
 					disposed: hasExternal(),
 					remainingHovers: hovers.size,
+					initialApplication, hydratedApplication, adoptedApplication, reopenedApplication, provenanceHidden,
 				}, {
 					initial: true, adopted: false, titlePreserved: true, hidden: false, reopened: true, reopenedAfterAdoption: false,
 					disposed: false,
 					remainingHovers: 0,
+					initialApplication: undefined,
+					hydratedApplication: 'Created in · Copilot CLI',
+					adoptedApplication: 'Created in · Copilot CLI',
+					reopenedApplication: 'Created in · Claude',
+					provenanceHidden: true,
 				});
 			});
 		}

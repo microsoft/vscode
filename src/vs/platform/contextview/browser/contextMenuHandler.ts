@@ -126,7 +126,11 @@ export class ContextMenuHandler {
 			},
 
 			focus: () => {
-				menu?.focus(!!delegate.autoSelectFirstItem);
+				if (delegate.autoSelectItem !== undefined) {
+					menu?.focus(delegate.autoSelectItem);
+				} else {
+					menu?.focus(!!delegate.autoSelectFirstItem);
+				}
 			},
 
 			onHide: (didCancel?: boolean) => {

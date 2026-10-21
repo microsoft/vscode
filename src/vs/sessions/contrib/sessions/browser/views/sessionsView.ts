@@ -38,8 +38,8 @@ import { ISessionsProvidersService } from '../../../../services/sessions/browser
 import { getSessionFilterOptions, ISessionFilterOption, sessionFilterKey } from './sessionsListFilters.js';
 import { AICustomizationShortcutsWidget } from '../aiCustomizationShortcutsWidget.js';
 import { AgentHostShortcutsWidget } from '../agentHostShortcutsWidget.js';
-import { Action2, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
-import { SubmenuEntryActionViewItem } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { Action2, IMenuService, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { getFlatContextMenuActions, SubmenuEntryActionViewItem } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IDropdownMenuActionViewItemOptions } from '../../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { agentsBackground } from '../../../../common/theme.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -197,6 +197,7 @@ export class SessionsView extends ViewPane {
 		@IStorageService private readonly storageService: IStorageService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
+		@IMenuService private readonly menuService: IMenuService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this.separateNavigation = observableConfigValue(SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING, false, configurationService);
@@ -478,6 +479,25 @@ export class SessionsView extends ViewPane {
 		disposables.add(toDisposable(() => this.sessionsHeaders.delete(header)));
 		this.updateHeaderLayout();
 		return header;
+	}
+
+	showApplicationFilters(): void {
+		const header = [...this.sessionsHeaders].find(header => DOM.isHTMLElement(header.row.offsetParent));
+		const anchor = header?.actions ?? this.sessionsControlContainer;
+		if (!anchor) {
+			return;
+		}
+		this.hoverService.hideHover(true);
+		const actions = getFlatContextMenuActions(this.menuService.getMenuActions(Menus.SessionsViewFilter, this.scopedContextKeyService));
+		const applicationIndex = actions.findIndex(action => action instanceof SubmenuItemAction && action.item.submenu === Menus.SessionsViewSource);
+		this.sessionsControl?.reportArchivedFilterShown();
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => anchor,
+			getActions: () => actions,
+			autoSelectItem: applicationIndex >= 0 ? applicationIndex : undefined,
+			autoSelectFirstItem: true,
+			onHide: () => this.sessionsControl?.focus(),
+		});
 	}
 
 	private updateCustomizationsPresentation(presentation: CustomizationsPresentation): void {

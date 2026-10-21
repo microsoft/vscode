@@ -70,7 +70,8 @@ suite('SessionsChatAccessibilityHelp', () => {
 			markUnread: content.includes('or unread<keybinding:agentSession.markUnread> without opening them'),
 			nestedReadState: content.includes('change only the targeted nested sessions, not their parent'),
 			earlyPreparation: content.includes(getCloudSandboxPreparationAccessibilityHelp()),
-		}, { back: true, forward: true, singletonViews: true, parentContext: true, independentDrag: true, newSessionDrag: true, independentVisibility: true, positionalPaneFocus: true, keyboardDetach: true, keyboardMove: true, markRead: true, markUnread: true, nestedReadState: true, earlyPreparation: true });
+			applicationFilter: content.includes('Enter or Space to open Filter Sessions with Created In focused.'),
+		}, { back: true, forward: true, singletonViews: true, parentContext: true, independentDrag: true, newSessionDrag: true, independentVisibility: true, positionalPaneFocus: true, keyboardDetach: true, keyboardMove: true, markRead: true, markUnread: true, nestedReadState: true, earlyPreparation: true, applicationFilter: true });
 	});
 
 	test('documents connector recommendations when the marketplace is available', () => {

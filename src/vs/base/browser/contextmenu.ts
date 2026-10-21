@@ -44,6 +44,8 @@ export interface IContextMenuDelegate {
 	actionRunner?: IActionRunner;
 	skipTelemetry?: boolean;
 	autoSelectFirstItem?: boolean;
+	/** Index of the action to focus when opening, taking precedence over {@link autoSelectFirstItem}. */
+	autoSelectItem?: number;
 	anchorAlignment?: AnchorAlignment;
 	anchorAxisAlignment?: AnchorAxisAlignment;
 	domForShadowRoot?: HTMLElement;

@@ -8,13 +8,16 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, IReader } from '../../../../base/common/observable.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { dirname } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ISessionSummaryHoverData, ISessionSummaryHoverLocation, ISessionSummaryHoverPullRequest, ISessionSummaryHoverWorkspace, SessionSummaryHoverWidget } from '../../../../workbench/contrib/chat/browser/agentSessions/sessionSummaryHover.js';
 import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IPreferencesService } from '../../../../workbench/services/preferences/common/preferences.js';
+import { SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { BRANCH_CHANGES_CHANGESET_ID, getSessionOwnedGitHubPullRequestRefs, getSessionWorkspaceKind, getUntitledSessionTitle, IChat, ISession, ISessionFolder, ISessionWorkspace, SessionWorkspaceKind } from '../../../services/sessions/common/session.js';
 import { ISessionChangesStats, readChatChangesStats, readSessionChangesStats } from '../../../services/sessions/common/sessionChangesStatsCache.js';
@@ -103,6 +106,7 @@ export function getSessionSummaryHoverData(
 		),
 		pullRequests: toHoverPullRequests(topPullRequestRefs.values(), openerService),
 		createdBy,
+		application: getApplication(session, openerService),
 		externalSession: getExternalSession(session, preferencesService),
 		...(sessionWorkspace && isMultiFolder ? {
 			sessionSummary: {
@@ -142,14 +146,16 @@ export function getChatSummaryHoverData(
 		),
 		pullRequests: getPullRequests(chat.workspace.get(), openerService),
 		createdBy,
+		application: getApplication(session, openerService),
 		externalSession: getExternalSession(session, preferencesService),
 	};
 }
 
-/** Owns live external status for each display of the hover, including cached reopens. */
-export function createSessionSummaryHover(session: ISession, data: ISessionSummaryHoverData, preferencesService: IPreferencesService): Pick<IDelayedHoverOptions, 'content' | 'onDidShow' | 'onDidHide'> {
+/** Owns live provenance for each display of the hover, including cached reopens. */
+export function createSessionSummaryHover(session: ISession, data: ISessionSummaryHoverData, preferencesService: IPreferencesService, openerService: IOpenerService): Pick<IDelayedHoverOptions, 'content' | 'onDidShow' | 'onDidHide'> {
 	const widget = new SessionSummaryHoverWidget(data);
 	let external = session.isExternal?.get();
+	let application = session.application?.get();
 	let hoverDisposables: DisposableStore | undefined;
 	return {
 		content: widget.domNode,
@@ -157,6 +163,11 @@ export function createSessionSummaryHover(session: ISession, data: ISessionSumma
 			hoverDisposables?.dispose();
 			hoverDisposables = new DisposableStore();
 			hoverDisposables.add(autorun(reader => {
+				const currentApplication = session.application?.read(reader);
+				if (currentApplication !== application) {
+					application = currentApplication;
+					widget.updateApplication(getApplication(session, openerService));
+				}
 				const current = session.isExternal?.read(reader);
 				if (current !== external) {
 					external = current;
@@ -273,6 +284,20 @@ function toHoverPullRequests(refs: Iterable<SessionPullRequestRef>, openerServic
 		onOpen: () => openerService.open(ref.uri, { openExternal: true }).catch(onUnexpectedError),
 	}));
 	return pullRequests.length ? pullRequests : undefined;
+}
+
+function getApplication(session: ISession, openerService: IOpenerService): ISessionSummaryHoverData['application'] {
+	const application = session.application?.get();
+	if (!application || application.id === 'vscode') {
+		return undefined;
+	}
+
+	return {
+		label: application.label,
+		onOpen: () => {
+			openerService.open(URI.from({ scheme: Schemas.command, path: SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID }), { allowCommands: true }).catch(onUnexpectedError);
+		},
+	};
 }
 
 /** Links a session still treated as external to its visibility setting. */

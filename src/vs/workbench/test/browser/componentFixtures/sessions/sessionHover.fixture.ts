@@ -13,6 +13,8 @@ import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
+// eslint-disable-next-line local/code-import-patterns
+import { getSessionApplication } from '../../../../../sessions/common/sessionApplication.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -56,6 +58,7 @@ interface ISessionSpec {
 	readonly isQuickChat?: boolean;
 	/** Renders the trailing "External Session" row. */
 	readonly isExternal?: boolean;
+	readonly application?: string;
 }
 
 function createWorkspace(spec: IWorkspaceSpec): ISessionWorkspace {
@@ -103,6 +106,7 @@ function createSession(spec: ISessionSpec): ISession {
 		override readonly worktreePending: IObservable<boolean> = constObservable(!!spec.worktreePending);
 		override readonly isQuickChat: IObservable<boolean> = constObservable(!!spec.isQuickChat);
 		override readonly isExternal: IObservable<boolean> = constObservable(!!spec.isExternal);
+		override readonly application = constObservable(getSessionApplication(spec.application ?? 'vscode'));
 		override readonly mainChat = constObservable(new class extends mock<IChat>() {
 			override readonly changes = constObservable(changes);
 			override readonly changesets = constObservable([]);
@@ -272,6 +276,14 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 			title: 'Fix authentication redirect loop',
 			workspace: { root: '/home/user/projects/vscode', branch: 'main' },
 			isExternal: true,
+			application: 'copilot-cli',
+		}),
+	}),
+	SessionHover_CreatedInApplication: defineComponentFixture({
+		render: ctx => renderSessionHover(ctx, {
+			title: 'Fix authentication redirect loop',
+			workspace: { root: '/home/user/projects/vscode', branch: 'main' },
+			application: 'copilot-cli',
 		}),
 	}),
 	SessionHover_LongValues: defineComponentFixture({
