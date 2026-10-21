@@ -15,7 +15,10 @@
 			"dom"
 		],
 		"paths": {
+			// Use the playwright-core that @playwright/test runs on: nested under `playwright`
+			// when the product's own playwright-core dependency pins a different version.
 			"playwright-core/types/protocol": [
+				"../../node_modules/playwright/node_modules/playwright-core/types/protocol.d.ts",
 				"../../node_modules/playwright-core/types/protocol.d.ts"
 			]
 		}
