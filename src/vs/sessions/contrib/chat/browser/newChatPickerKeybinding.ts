@@ -39,7 +39,6 @@ export const FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_WHEN = ContextKeyExpr.and(
 	ChatContextKeys.enabled,
 	ChatContextKeys.inputHasFocus,
 	SessionEnvironmentPickerVisibleContext,
-	ContextKeyExpr.equals(`config.${UNIFIED_WORKSPACE_PICKER_SETTING}`, true),
 )!;
 
 export const FOCUS_NEW_SESSION_HARNESS_PICKER_WHEN = ContextKeyExpr.and(
