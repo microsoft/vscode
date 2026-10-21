@@ -134,15 +134,7 @@
 	/* Suppressed while selected so the selection highlight is not overpainted. */
 	.monaco-list-row:not(.selected):not(.focused):not(:hover, .hovered):has(.session-item.needs-input),
 	.monaco-list-row:not(.selected):not(.focused):not(:hover, .hovered) .session-chat-item.needs-input {
-		animation: session-needs-input-accent-pulse 3s ease-in-out infinite;
-	}
-
-	@media (prefers-reduced-motion: reduce) {
-		.monaco-list-row:not(.selected):not(.focused):not(:hover, .hovered):has(.session-item.needs-input),
-		.monaco-list-row:not(.selected):not(.focused):not(:hover, .hovered) .session-chat-item.needs-input {
-			animation: none;
-			background-color: color-mix(in srgb, var(--vscode-list-warningForeground) 8%, transparent);
-		}
+		background-color: color-mix(in srgb, var(--vscode-list-warningForeground) 8%, transparent);
 	}
 
 	.monaco-list-row .force-no-twistie {
@@ -363,15 +355,6 @@
 			height: 16px;
 		}
 
-		&.session-icon-pulse > .codicon {
-			animation: session-needs-input-pulse 2s ease-in-out infinite;
-		}
-
-		@media (prefers-reduced-motion: reduce) {
-			&.session-icon-pulse > .codicon {
-				animation: none;
-			}
-		}
 	}
 
 	&.session-comparison-attempt[data-session-group-connector] .session-icon {
@@ -654,6 +637,12 @@
 	&.unread .session-title,
 	&.needs-input .session-title {
 		color: var(--vscode-strongForeground);
+	}
+
+	&.needs-input .session-title {
+		background: none;
+		-webkit-text-fill-color: currentColor;
+		animation: none;
 	}
 
 	.session-time {
@@ -1040,20 +1029,17 @@
 			height: var(--vscode-spacing-size120);
 		}
 
-		&.session-icon-pulse > .codicon {
-			animation: session-needs-input-pulse 2s ease-in-out infinite;
-		}
-
-		@media (prefers-reduced-motion: reduce) {
-			&.session-icon-pulse > .codicon {
-				animation: none;
-			}
-		}
 	}
 
 	&.unread .session-chat-title,
 	&.needs-input .session-chat-title {
 		color: var(--vscode-strongForeground);
+	}
+
+	&.needs-input .session-chat-title {
+		background: none;
+		-webkit-text-fill-color: currentColor;
+		animation: none;
 	}
 
 	.session-chat-title {
@@ -1471,29 +1457,7 @@
 	background-color: var(--vscode-list-dropBackground) !important;
 }
 
-@keyframes session-needs-input-pulse {
-
-	0%,
-	100% {
-		opacity: 1;
-	}
-
-	50% {
-		opacity: 0.4;
-	}
-}
-
-/* PROTO: yellow background pulse for "Input needed" session rows. */
-@keyframes session-needs-input-accent-pulse {
-	0%, 100% {
-		background-color: transparent;
-	}
-	50% {
-		background-color: color-mix(in srgb, var(--vscode-list-warningForeground) 12%, transparent);
-	}
-}
-
-/* Shimmer effect for in-progress session titles when not selected. */
+/* Shimmer effect for in-progress session titles when not selected and not waiting for input. */
 /* Gated behind @supports because some environments apply */
 /* `-webkit-text-fill-color: transparent` without honoring */
 /* `background-clip: text`, which renders gradient-filled blocks */
@@ -1501,7 +1465,7 @@
 
 @supports ((background-clip: text) or (-webkit-background-clip: text)) {
 	@media not (prefers-reduced-motion: reduce) {
-		.monaco-list-row:not(.selected) .session-item.in-progress .session-title {
+		.monaco-list-row:not(.selected) .session-item.in-progress:not(.needs-input) .session-title {
 			background: linear-gradient(
 				90deg,
 				var(--vscode-strongForeground) 0%,
@@ -1517,12 +1481,12 @@
 			animation: session-title-shimmer 6s steps(90, jump-none) infinite;
 		}
 
-		.monaco-list-row:not(.selected) .session-item.in-progress .session-title.chat-progress-animation {
+		.monaco-list-row:not(.selected) .session-item.in-progress:not(.needs-input) .session-title.chat-progress-animation {
 			animation-play-state: paused;
 		}
 
-		.vs-dark .monaco-list-row:not(.selected) .session-item.in-progress .session-title,
-		.hc-black .monaco-list-row:not(.selected) .session-item.in-progress .session-title {
+		.vs-dark .monaco-list-row:not(.selected) .session-item.in-progress:not(.needs-input) .session-title,
+		.hc-black .monaco-list-row:not(.selected) .session-item.in-progress:not(.needs-input) .session-title {
 			background-image: linear-gradient(
 				90deg,
 				var(--vscode-strongForeground) 0%,
