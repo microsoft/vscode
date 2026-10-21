@@ -37,7 +37,7 @@ suite('McpCopilotConfiguration', () => {
 			{ type: 'local' },
 		];
 		assert.deepStrictEqual(JSON.parse(JSON.stringify(servers.map(fromCopilotMcpServerConfiguration))), [
-			{ type: 'stdio', command: 'node', cwd: '/repo' },
+			{ type: 'stdio', command: 'node', cwd: '/repo', tools: ['read'] },
 			{ type: 'http', transport: 'sse', url: 'https://example.com/sse', oauth: { clientId: 'client' } },
 			null, null,
 		]);

@@ -541,6 +541,10 @@ export function normalizeMcpServerConfiguration(rawConfig: unknown): IMcpServerC
 	const candidate = rawConfig as Record<string, unknown>;
 	const type = typeof candidate['type'] === 'string' ? candidate['type'] : undefined;
 	const transport = candidate['transport'] === 'sse' || candidate['transport'] === 'http' ? candidate['transport'] : undefined;
+	const tools = candidate['tools'];
+	if (tools !== undefined && (!Array.isArray(tools) || !tools.every((tool): tool is string => typeof tool === 'string'))) {
+		return undefined;
+	}
 
 	const command = typeof candidate['command'] === 'string' ? candidate['command'] : undefined;
 	const url = typeof candidate['url'] === 'string' ? candidate['url'] : undefined;
@@ -571,14 +575,14 @@ export function normalizeMcpServerConfiguration(rawConfig: unknown): IMcpServerC
 		if (!command) {
 			return undefined;
 		}
-		return { type: McpServerType.LOCAL, command, args, env, envFile, cwd, dev };
+		return { type: McpServerType.LOCAL, command, args, env, envFile, cwd, dev, ...(tools ? { tools } : {}) };
 	}
 
 	if (type === McpServerType.REMOTE || type === 'streamable-http' || type === 'sse' || (!type && url)) {
 		if (!url) {
 			return undefined;
 		}
-		return { type: McpServerType.REMOTE, ...(type === 'sse' || transport === 'sse' ? { transport: 'sse' as const } : {}), url, headers, ...(oauth ? { oauth } : {}), dev };
+		return { type: McpServerType.REMOTE, ...(type === 'sse' || transport === 'sse' ? { transport: 'sse' as const } : {}), url, headers, ...(oauth ? { oauth } : {}), dev, ...(tools ? { tools } : {}) };
 	}
 
 	return undefined;
