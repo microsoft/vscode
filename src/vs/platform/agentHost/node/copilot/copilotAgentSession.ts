@@ -4940,13 +4940,9 @@ export class CopilotAgentSession extends Disposable {
 
 	/**
 	 * Resolves matching pending SDK callbacks, restricted to the targeted MCP server when provided.
-	 * Connector-owned servers keep using the session credential, never a forwarded MCP token.
+	 * Only matching requests wait for Connector ownership; Connector-owned servers never receive a forwarded MCP token.
 	 */
 	async resolveMcpAuthentication(params: AuthenticateParams): Promise<boolean> {
-		if (this._launchConnectorReconcile) {
-			// Connector ownership is known only after launch reconciliation, and a Connector server must never receive an MCP token.
-			await this._launchConnectorReconcile;
-		}
 		const serverName = params.target ? this._mcpCustomizations.serverNameForCustomizationId(params.target.customizationId) : undefined;
 		if (params.target && (serverName === undefined || !isEqual(this.ownerSessionUri, URI.parse(params.target.session)))) {
 			return false;
@@ -4958,6 +4954,12 @@ export class CopilotAgentSession extends Disposable {
 			}
 			if (pending.resource.resource !== params.resource || !this._scopesSatisfy(params.scopes, pending.requiredScopes)) {
 				continue;
+			}
+			if (this._launchConnectorReconcile) {
+				await this._launchConnectorReconcile;
+				if (this._pendingMcpAuthRequests.getMetadata(requestId) !== pending) {
+					continue;
+				}
 			}
 			if (pending.copilotConnector || this._isCopilotConnectorServer(pending.serverName)) {
 				this._logService.info(`[Copilot:${this.sessionId}] Ignoring an MCP token for Connector-owned server '${pending.serverName}'; it requires Copilot Connector authorization of the session account`);
@@ -5375,7 +5377,11 @@ export class CopilotAgentSession extends Disposable {
 		}
 		try {
 			if (this._launchConnectorReconcile) {
-				await this._launchConnectorReconcile;
+				const abortToken = this._abortToken;
+				await raceCancellation(this._launchConnectorReconcile, abortToken);
+				if (!this._canSendTurn(turn, abortToken)) {
+					return;
+				}
 			}
 			await this._send(prompt, attachments, mode, stageRecorder);
 		} catch (err) {
