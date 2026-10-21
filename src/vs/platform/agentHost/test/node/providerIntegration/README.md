@@ -32,6 +32,12 @@ Local and DevOps runs default to `AGENT_HOST_TEST_PROFILE=full`. GitHub PR integ
 ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/providerIntegration/copilotImageGeneration.integrationTest.ts
 ```
 
+`copilotManagedSemanticSearch.integrationTest.ts` publishes the client `semantic_search` tool to the bundled runtime against a synthetic CAPI and checks the tools in the model request. The tool is offered without managed permission rules and withheld while a client-bridged managed rule is active, because the runtime cannot match a search query against managed `Read` rules. Run it with:
+
+```bash
+./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/providerIntegration/copilotManagedSemanticSearch.integrationTest.ts
+```
+
 `copilotOtel.integrationTest.ts` checks that native shell-tool execution and concurrent session-event delivery complete with OpenTelemetry both enabled and disabled. It runs the bundled SDK against the synthetic BYOK Responses service, verifies every real tool result, requires progress before the runtime's 30-second session-lock timeout, and checks that the enabled file exporter produces native tool spans. Content capture is disabled. Both variants assert successful execution and protect against [github/copilot-agent-runtime#25128](https://github.com/github/copilot-agent-runtime/issues/25128). This is a full-only concurrency regression test, not a deterministic thread-scheduling test. Run it with:
 
 ```bash

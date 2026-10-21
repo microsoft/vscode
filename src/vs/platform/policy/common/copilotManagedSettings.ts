@@ -313,9 +313,8 @@ export class NullManagedSettingsService implements IManagedSettingsService {
 	}
 }
 
-/** Non-empty or malformed managed deny lists require runtime enforcement; rule interpretation remains runtime-owned. */
-export function hasManagedPermissionDenials(service: IManagedSettingsService): boolean {
-	const value = service.getManagedSettingValue('permissions.deny');
+/** Non-empty or malformed managed rule lists require runtime enforcement; rule interpretation remains runtime-owned. */
+function isActiveManagedRuleList(value: ManagedSettingValue | undefined): boolean {
 	if (value === undefined) {
 		return false;
 	}
@@ -325,6 +324,16 @@ export function hasManagedPermissionDenials(service: IManagedSettingsService): b
 	const errors: ParseError[] = [];
 	const rules: unknown = parse(value, errors, { disallowComments: true, allowTrailingComma: false });
 	return errors.length > 0 || !Array.isArray(rules) || rules.length > 0;
+}
+
+/** Non-empty or malformed managed deny lists require runtime enforcement; rule interpretation remains runtime-owned. */
+export function hasManagedPermissionDenials(service: IManagedSettingsService): boolean {
+	return isActiveManagedRuleList(service.getManagedSettingValue('permissions.deny'));
+}
+
+/** Whether any managed permission rule list (deny, ask, or allow) is non-empty or malformed. */
+export function hasManagedPermissionRules(service: IManagedSettingsService): boolean {
+	return COPILOT_PERMISSION_RULES_KEYS.some(key => isActiveManagedRuleList(service.getManagedSettingValue(key)));
 }
 
 /** Whether an administrator has enabled the temporary Local harness escape hatch. */

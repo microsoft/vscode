@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type Anthropic from '@anthropic-ai/sdk';
-import type { CopilotClient, CopilotSession, CurrentToolMetadata, PermissionHandler, PermissionMode, PermissionRequest, PermissionRequestResult, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
+import type { CopilotClient, CopilotSession, CurrentToolMetadata, JsonValue, PermissionHandler, PermissionMode, PermissionRequest, PermissionRequestResult, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
 import { stub } from 'sinon';
@@ -1273,7 +1273,7 @@ function createPluginSnapshot(...pluginDirectories: URI[]): IActiveClientSnapsho
 type TestCopilotSessionRuntime = Omit<ICopilotSessionRuntime, 'handlePermissionRequest' | 'createClientSdkTools'> & {
 	handlePermissionRequest(request: TestPermissionRequest, invocation?: Parameters<PermissionHandler>[1]): Promise<PermissionRequestResult>;
 	handleAttributedPermissionRequest(request: TestPermissionRequest, invocation?: Parameters<PermissionHandler>[1]): ReturnType<ICopilotSessionRuntime['handlePermissionRequest']>;
-	createClientSdkTools(toolSearchActive?: boolean, hostToolNames?: ReadonlySet<string>): ReturnType<ICopilotSessionRuntime['createClientSdkTools']>;
+	createClientSdkTools(toolSearchActive?: boolean, hostToolNames?: ReadonlySet<string>, withheldToolNames?: ReadonlySet<string>): ReturnType<ICopilotSessionRuntime['createClientSdkTools']>;
 };
 
 async function createAgentSession(disposables: DisposableStore, options?: {
@@ -1756,7 +1756,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			return result.kind === 'attributed' ? result.result : result;
 		},
 		handleAttributedPermissionRequest: (request, invocation) => sdkRuntime.handlePermissionRequest(toPermissionRequest(request), invocation),
-		createClientSdkTools: (toolSearchActive, hostToolNames) => sdkRuntime.createClientSdkTools(toolSearchActive ?? false, hostToolNames),
+		createClientSdkTools: (toolSearchActive, hostToolNames, withheldToolNames) => sdkRuntime.createClientSdkTools(toolSearchActive ?? false, hostToolNames, withheldToolNames),
 	};
 
 	return {
@@ -23877,6 +23877,7 @@ Use the attached image as context.
 				clientSnapshot: semanticSearchSnapshot,
 				activeClientToolSet,
 			});
+			runtime.setApprovalPolicy?.({ source: 'none', serverManaged: false, deviceManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: [] }, {});
 
 			mockSession.fire('tool.execution_start', {
 				toolCallId: 'tc-semantic-search',
@@ -23902,6 +23903,112 @@ Use the attached image as context.
 				content: [{ type: ToolResultContentType.Text, text: 'result text' }],
 			});
 			assert.strictEqual((await handlerPromise).textResultForLlm, 'result text');
+		});
+
+		suite('semantic search under managed permissions', () => {
+			type PolicyRuntime = Pick<ICopilotSessionRuntime, 'setApprovalPolicy'>;
+			const resolvedPolicy = (permissions?: { [key: string]: JsonValue }) => ({
+				source: 'none' as const, serverManaged: permissions !== undefined, deviceManaged: false, failClosed: false, bypassPermissionsDisabled: false,
+				managedKeys: permissions ? ['permissions'] : [], ...(permissions ? { settings: { permissions } } : {}),
+			});
+
+			async function createSemanticSearchSession(configValues?: Record<string, unknown>) {
+				const tools = [{
+					name: SEMANTIC_SEARCH_TOOL_NAME,
+					description: 'Semantically searches the workspace',
+					inputSchema: { type: 'object' as const, properties: { query: { type: 'string' } } },
+				}];
+				const activeClientToolSet = new ActiveClientToolSet();
+				activeClientToolSet.set('test-client', tools);
+				const created = await createAgentSession(disposables, { clientSnapshot: { tools, plugins: [], mcpServers: {} }, activeClientToolSet, configValues });
+				await created.session.syncPermissionMode('turn-start');
+				const start = (toolCallId: string) => created.mockSession.fire('tool.execution_start', {
+					toolCallId,
+					toolName: SEMANTIC_SEARCH_TOOL_NAME,
+					arguments: { query: 'deployment config' },
+				} as SessionEventPayload<'tool.execution_start'>['data']);
+				const invoke = (toolCallId: string) => invokeClientToolHandler(created.runtime.createClientSdkTools()[0], toolCallId, { query: 'deployment config' });
+				return { ...created, start, invoke };
+			}
+
+			const readyStates = (signals: readonly AgentSignal[]) => signals.flatMap(signal => isAction(signal, ActionType.ChatToolCallReady)
+				? [{ contributor: (signal.action as ChatToolCallReadyAction).contributor, confirmed: (signal.action as ChatToolCallReadyAction).confirmed }]
+				: []);
+
+			test('a managed read denial at launch withholds the tool from the model', async () => {
+				const { runtime, mockSession, signals } = await createSemanticSearchSession();
+				const tools = runtime.createClientSdkTools(true, undefined, new Set([SEMANTIC_SEARCH_TOOL_NAME]));
+				// A hallucinated call to the withheld tool is not treated as a client tool.
+				mockSession.fire('tool.execution_start', {
+					toolCallId: 'tc-withheld',
+					toolName: SEMANTIC_SEARCH_TOOL_NAME,
+					arguments: { query: 'deployment config' },
+				} as SessionEventPayload<'tool.execution_start'>['data']);
+				const startAction = signals.find(s => isAction(s, ActionType.ChatToolCallStart));
+				assert.ok(startAction && isAction(startAction, ActionType.ChatToolCallStart));
+				assert.deepStrictEqual({
+					tools: tools.map(tool => tool.name),
+					contributor: (startAction.action as ChatToolCallStartAction).contributor,
+				}, {
+					tools: [],
+					contributor: undefined,
+				});
+			});
+
+			test('a managed read denial observed after launch fails the call without giving it to a client', async () => {
+				const { session, runtime, signals, start, invoke } = await createSemanticSearchSession();
+				runtime.setApprovalPolicy?.(resolvedPolicy({ deny: ['Read(/denied/**)'] }), {});
+
+				start('tc-denied');
+				const result = invoke('tc-denied');
+				// A late client result must not reach the model.
+				session.handleClientToolCallComplete('tc-denied', { success: true, pastTenseMessage: 'Searched codebase', content: [{ type: ToolResultContentType.Text, text: 'MSRC_CANARY' }] });
+
+				const startAction = signals.find(s => isAction(s, ActionType.ChatToolCallStart));
+				assert.ok(startAction && isAction(startAction, ActionType.ChatToolCallStart));
+				const completeAction = signals.find(s => isAction(s, ActionType.ChatToolCallComplete));
+				assert.ok(completeAction && isAction(completeAction, ActionType.ChatToolCallComplete));
+				const { textResultForLlm, resultType } = await result;
+				assert.deepStrictEqual({
+					startContributor: (startAction.action as ChatToolCallStartAction).contributor,
+					ready: readyStates(signals),
+					completed: (completeAction.action as ChatToolCallCompleteAction).result.success,
+					confirmations: signals.filter(s => s.kind === 'pending_confirmation').length,
+					resultType,
+					leaked: textResultForLlm.includes('MSRC_CANARY'),
+				}, {
+					startContributor: undefined,
+					ready: [{ contributor: undefined, confirmed: ToolCallConfirmationReason.NotNeeded }],
+					completed: false,
+					confirmations: 0,
+					resultType: 'denied',
+					leaked: false,
+				});
+			});
+
+			const denialScenarios: readonly [string, (runtime: PolicyRuntime) => void, Record<string, unknown> | undefined][] = [
+				['an active managed rule', runtime => runtime.setApprovalPolicy?.(resolvedPolicy({ ask: ['Shell'] }), {}), undefined],
+				['a bridged managed rule', runtime => runtime.setApprovalPolicy?.(resolvedPolicy(), { ask: ['Shell'] }), undefined],
+				['a fail-closed managed policy', runtime => runtime.setApprovalPolicy?.({ ...resolvedPolicy(), failClosed: true }, {}), undefined],
+				['an unresolved managed policy', () => { }, undefined],
+				['an active managed rule in Bypass Approvals', runtime => runtime.setApprovalPolicy?.(resolvedPolicy({ ask: ['Read(/secret/**)'] }), {}), { [SessionConfigKey.AutoApprove]: 'autoApprove' }],
+			];
+			for (const [name, configure, configValues] of denialScenarios) {
+				test(`${name} denies the call without a client or confirmation`, async () => {
+					const { runtime, signals, start, invoke } = await createSemanticSearchSession(configValues);
+					configure(runtime);
+					start('tc-managed');
+					assert.deepStrictEqual({
+						result: (await invoke('tc-managed')).resultType,
+						ready: readyStates(signals),
+						confirmations: signals.filter(s => s.kind === 'pending_confirmation').length,
+					}, {
+						result: 'denied',
+						ready: [{ contributor: undefined, confirmed: ToolCallConfirmationReason.NotNeeded }],
+						confirmations: 0,
+					});
+				});
+			}
 		});
 
 		test('client tool started with no connected client fails immediately', async () => {

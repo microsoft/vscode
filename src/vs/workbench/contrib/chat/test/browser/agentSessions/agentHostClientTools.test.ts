@@ -22,8 +22,9 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
-import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IManagedSettingsService, ManagedSettingsData, NullManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { AgentSession, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostConnectionsService } from '../../../../../../platform/agentHost/browser/agentHostConnectionsService.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
@@ -118,8 +119,10 @@ suite('AgentHostClientTools', () => {
 		toolSets: IObservable<Iterable<IToolSet>> = constObservable([]),
 		mcpOptions?: { remoteAuthority?: string; servers: readonly IMcpServer[] },
 		registeredTools?: readonly IToolData[],
+		managedSettingsService: IManagedSettingsService = new NullManagedSettingsService(),
 	) {
 		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IManagedSettingsService, managedSettingsService);
 		instantiationService.stub(IFileService, TestFileService);
 		instantiationService.stub(IAgentHostFileSystemService, {
 			ensureSyncedCustomizationProvider: () => { },
@@ -132,6 +135,7 @@ suite('AgentHostClientTools', () => {
 			getValue: (section: string) => section === mcpAccessConfig
 				? McpAccessValue.All
 				: false,
+			inspect: <T>(_key: string) => ({}) as IConfigurationValue<Readonly<T>>,
 			onDidChangeConfiguration: Event.None,
 		} as Partial<IConfigurationService> as IConfigurationService);
 		instantiationService.stub(IConfigurationResolverService, {} as Partial<IConfigurationResolverService>);
@@ -434,6 +438,38 @@ suite('AgentHostClientTools', () => {
 			sandbox: [[SEMANTIC_SEARCH_TOOL_NAME, 'Search Codebase'], ['readFile', 'Read File']],
 			other: [[CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME, 'Other Codebase'], [SEMANTIC_SEARCH_TOOL_NAME, 'Other Semantic Search'], ['readFile', 'Read File']],
 			withoutCanonical: [['readFile', 'Read File']],
+		});
+	});
+
+	test('withholds semantic search from Copilot sessions while managed permission rules are active', async () => {
+		const onDidChangeManagedSettings = disposables.add(new Emitter<void>());
+		let managedSettings: ManagedSettingsData = { 'permissions.ask': '["Shell"]' };
+		const managedSettingsService = new class extends NullManagedSettingsService {
+			override readonly onDidChangeManagedSettings = onDidChangeManagedSettings.event;
+			override getManagedSettingValue(key: string) { return managedSettings[key]; }
+		}();
+		const tools = [semanticSearchTool, readFileTool];
+		const searchToolSet = new class extends mock<IToolSet>() {
+			override readonly id = 'search';
+			override readonly deprecated = true;
+			override getTools(): Iterable<IToolData> { return [semanticSearchTool]; }
+		};
+		const enabledToolSet = new class extends mock<IToolSet>() {
+			override readonly id = 'enabled';
+			override readonly deprecated = false;
+			override getTools(): Iterable<IToolData> { return [readFileTool]; }
+		};
+		const client = createActiveClientService(constObservable(tools), constObservable([searchToolSet, enabledToolSet]), undefined, undefined, managedSettingsService);
+		const local = disposables.add(client.service.acquireScope(AGENT_HOST_COPILOT_CLI_SESSION_TYPE, []));
+		const remote = disposables.add(client.service.acquireScope(REMOTE_COPILOT_CLI_SESSION_TYPE, []));
+		await Promise.all([local.whenResolved(), remote.whenResolved()]);
+		const names = () => ({ local: local.tools.get().map(tool => tool.name), remote: remote.tools.get().map(tool => tool.name) });
+		const managed = names();
+		managedSettings = { 'permissions.ask': '[]' };
+		onDidChangeManagedSettings.fire();
+		assert.deepStrictEqual({ managed, cleared: names() }, {
+			managed: { local: ['readFile'], remote: ['readFile'] },
+			cleared: { local: [SEMANTIC_SEARCH_TOOL_NAME, 'readFile'], remote: [SEMANTIC_SEARCH_TOOL_NAME, 'readFile'] },
 		});
 	});
 
@@ -1062,6 +1098,7 @@ suite('AgentHostClientTools', () => {
 			});
 			instantiationService.stub(IConfigurationResolverService, {} as Partial<IConfigurationResolverService>);
 			instantiationService.stub(IWorkbenchEnvironmentService, {} as Partial<IWorkbenchEnvironmentService>);
+			instantiationService.stub(IManagedSettingsService, new NullManagedSettingsService());
 			instantiationService.stub(IPromptsService, new class extends mock<IPromptsService>() {
 				override readonly onDidChangeCustomAgents = Event.None;
 				override readonly onDidChangeSlashCommands = Event.None;

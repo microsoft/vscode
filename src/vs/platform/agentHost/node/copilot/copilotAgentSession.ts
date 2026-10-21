@@ -66,7 +66,7 @@ import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { getToolCallDurationMs, toToolCallMeta, type IToolCallMeta, type IToolCallUiMeta, type IToolSearchCandidate } from '../../common/meta/agentToolCallMeta.js';
 import { OtelData, type OtelAttributeValue } from '../../common/otlp/otlpLogEmitter.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { CopilotSessionApprovalPolicy, fromCopilotPermissionMode } from './copilotApprovalPolicy.js';
+import { CopilotSessionApprovalPolicy, fromCopilotPermissionMode, MANAGED_WORKSPACE_RETRIEVAL_CLIENT_TOOLS } from './copilotApprovalPolicy.js';
 import { isShellInitScriptList, type IShellInitScript } from '../../common/shellInitScript.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import { resolveCopilotConfigSlashCommandOnSend } from '../../common/copilotConfigSlashCommands.js';
@@ -1826,6 +1826,8 @@ export class CopilotAgentSession extends Disposable {
 	private _toolSearchActive = false;
 	/** Deferred promises for pending client tool calls, keyed by toolCallId. */
 	private readonly _pendingClientToolCalls = new PendingRequestRegistry<ToolResultObject>();
+	/** Client tool calls that managed permissions denied when they started. */
+	private readonly _managedDeniedClientToolCalls = new Set<string>();
 	/** One-shot SDK callbacks, keyed by request id; answering one delivers a token but does not confirm acceptance. */
 	private readonly _pendingMcpAuthRequests = new PendingRequestRegistry<McpAuthResult | null | undefined, IPendingMcpAuthRequest>();
 	private _connectorRefreshGeneration = 0;
@@ -3675,10 +3677,10 @@ export class CopilotAgentSession extends Disposable {
 	 * `session/toolCallComplete`.
 	 */
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	private _createClientSdkTools(toolSearchActive: boolean, hostToolNames?: ReadonlySet<string>): Tool<any>[] {
+	private _createClientSdkTools(toolSearchActive: boolean, hostToolNames?: ReadonlySet<string>, withheldToolNames?: ReadonlySet<string>): Tool<any>[] {
 		this._toolSearchActive = toolSearchActive;
-		if (hostToolNames) {
-			this._clientToolNames = new Set([...this._clientToolNames].filter(name => !hostToolNames.has(name)));
+		if (hostToolNames || withheldToolNames) {
+			this._clientToolNames = new Set([...this._clientToolNames].filter(name => !hostToolNames?.has(name) && !withheldToolNames?.has(name)));
 		}
 		const tools = this._appliedSnapshot.tools.filter(tool => this._clientToolNames.has(tool.name));
 		if (tools.length === 0) {
@@ -3731,6 +3733,9 @@ export class CopilotAgentSession extends Disposable {
 					const { toolCallId } = invocation;
 					try {
 						this._surfaceUnobservedClientToolStart(invocation);
+						if (this._managedDeniedClientToolCalls.delete(toolCallId) || this._isManagedClientToolDenied(def.name)) {
+							return this._denyManagedClientToolCall(def.name, toolCallId);
+						}
 						return await this._pendingClientToolCalls.register(toolCallId);
 					} catch (error) {
 						this._logService.error(error, `[Copilot:${this.sessionId}] Failed in client tool handler: tool=${def.name}, toolCallId=${toolCallId}`);
@@ -3753,6 +3758,24 @@ export class CopilotAgentSession extends Disposable {
 			});
 		}
 		return sdkTools;
+	}
+
+	/**
+	 * Whether Copilot managed permissions deny a client tool whose SDK
+	 * registration skips permission checks. A session launched under such a
+	 * policy never offers the tool; this covers policy the runtime reapplies
+	 * mid-session.
+	 */
+	private _isManagedClientToolDenied(toolName: string): boolean {
+		return MANAGED_WORKSPACE_RETRIEVAL_CLIENT_TOOLS.has(toolName) && this._approvalPolicy.isManagedWorkspaceRetrievalDenied();
+	}
+
+	private _denyManagedClientToolCall(toolName: string, toolCallId: string): ToolResultObject {
+		// Discard any buffered result: a client result must never reach the model.
+		if (this._pendingClientToolCalls.hasBufferedResult(toolCallId)) {
+			void this._pendingClientToolCalls.register(toolCallId);
+		}
+		return { textResultForLlm: `${toolName} was denied by managed permissions.`, resultType: 'denied', error: 'Denied by managed permissions' };
 	}
 
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -4777,7 +4800,7 @@ export class CopilotAgentSession extends Disposable {
 				recorder?.markMilestone?.('unsandboxedConfirmation');
 				return measureAgentProviderOperation(recorder, 'unsandboxedConfirmation', () => this._requestUnsandboxedCommandConfirmation(request));
 			}, false, 'unsandboxed-command-confirmation'),
-			createClientSdkTools: (toolSearchActive, hostToolNames) => this._createClientSdkTools(toolSearchActive, hostToolNames),
+			createClientSdkTools: (toolSearchActive, hostToolNames, withheldToolNames) => this._createClientSdkTools(toolSearchActive, hostToolNames, withheldToolNames),
 			createServerSdkTools: toolSearchActive => this._createServerSdkTools(toolSearchActive),
 			reloadExtensions: () => this.reloadExtensions(),
 			handlePreToolUse: input => this._handlePreToolUse(input),
@@ -8749,7 +8772,12 @@ export class CopilotAgentSession extends Disposable {
 			const clientToolName = this._clientToolName(e.data.toolName);
 			const isClientTool = this._clientToolNames.has(clientToolName);
 			const isToolSearch = this._isToolSearchActive() && e.data.toolName === RUNTIME_TOOL_SEARCH_TOOL_NAME;
-			const contributor = this._getToolCallContributor(e.data.toolName, mcpServerName);
+			const managedDenied = isClientTool && this._isManagedClientToolDenied(clientToolName);
+			if (managedDenied) {
+				this._managedDeniedClientToolCalls.add(e.data.toolCallId);
+			}
+			// A denied call gets no client contributor, so no client ever runs it.
+			const contributor = managedDenied ? undefined : this._getToolCallContributor(e.data.toolName, mcpServerName);
 			const intention = getToolIntention(e.data.toolName, parameters, intentionSummary);
 			this._activeToolCalls.set(e.data.toolCallId, {
 				turnId: this._turnId,
@@ -8831,13 +8859,17 @@ export class CopilotAgentSession extends Disposable {
 				}, parentToolCallId);
 			}
 
-			// No client is connected to run this client tool. Fail it
-			// immediately instead of leaving it pending until the
-			// server-side disconnect timeout fires. We emit the completion
-			// ourselves and drop the active-tool entry so the SDK's own
-			// tool.execution_complete for this id is suppressed.
+			// No client is connected to run this client tool, or managed
+			// permissions deny it. Fail it immediately instead of leaving it
+			// pending until the server-side disconnect timeout fires. We emit
+			// the completion ourselves and drop the active-tool entry so the
+			// SDK's own tool.execution_complete for this id is suppressed.
 			if (isClientTool && !contributor && !isToolSearch) {
-				this._logService.warn(`[Copilot:${sessionId}] Client tool '${e.data.toolName}' started with no connected client matching its advertised definition; failing it immediately.`);
+				if (managedDenied) {
+					this._logService.info(`[Copilot:${sessionId}] Client tool '${e.data.toolName}' is denied by managed permissions; failing it immediately.`);
+				} else {
+					this._logService.warn(`[Copilot:${sessionId}] Client tool '${e.data.toolName}' started with no connected client matching its advertised definition; failing it immediately.`);
+				}
 				this._reportToolApprovalIfNoPermission(e.data.toolCallId);
 				this._toolApprovalRecords.delete(e.data.toolCallId);
 				this._activeToolCalls.delete(e.data.toolCallId);
@@ -8859,14 +8891,20 @@ export class CopilotAgentSession extends Disposable {
 					result: {
 						success: false,
 						pastTenseMessage: `${displayName} failed`,
-						error: { message: `No client with the advertised tool definition was connected to run ${displayName}` },
+						error: {
+							message: managedDenied
+								? localize('copilot.managedPermissions.clientToolDenied', "{0} is unavailable because of your organization's managed permissions.", displayName)
+								: `No client with the advertised tool definition was connected to run ${displayName}`,
+						},
 					},
 				}, parentToolCallId);
-				this._pendingClientToolCalls.respondOrBuffer(e.data.toolCallId, {
-					textResultForLlm: `No client with the advertised tool definition was connected to run ${displayName}.`,
-					resultType: 'failure',
-					error: 'No matching client connected',
-				});
+				if (!managedDenied) {
+					this._pendingClientToolCalls.respondOrBuffer(e.data.toolCallId, {
+						textResultForLlm: `No client with the advertised tool definition was connected to run ${displayName}.`,
+						resultType: 'failure',
+						error: 'No matching client connected',
+					});
+				}
 				return;
 			}
 
@@ -8912,6 +8950,7 @@ export class CopilotAgentSession extends Disposable {
 
 		const handleToolComplete = (e: SessionEventPayload<'tool.execution_complete'>): void => {
 			this._approvedDuplicablePermissionSignatures.delete(e.data.toolCallId);
+			this._managedDeniedClientToolCalls.delete(e.data.toolCallId);
 			const tracked = this._activeToolCalls.get(e.data.toolCallId);
 			if (!tracked) {
 				this._unroutableSubagentToolCallIds.delete(e.data.toolCallId);
@@ -11733,6 +11772,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _cancelPendingClientToolCalls(): void {
+		this._managedDeniedClientToolCalls.clear();
 		this._pendingClientToolCalls.denyAll({ textResultForLlm: 'Tool call cancelled: session ended', resultType: 'failure', error: 'Session ended' });
 	}
 }

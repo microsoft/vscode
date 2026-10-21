@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ManagedSettingsPermissions, PermissionMode, SessionEventPayload } from '@github/copilot-sdk';
+import type { JsonValue, ManagedSettingsPermissions, PermissionMode, SessionEventPayload } from '@github/copilot-sdk';
+import { isObject } from '../../../../base/common/types.js';
 import { AutoApproveLevel, platformSessionSchema } from '../../common/agentHostSchema.js';
+import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import { ResolveSessionConfigResult } from '../../common/state/protocol/commands.js';
 import { localize } from '../../../../nls.js';
 
@@ -12,15 +14,22 @@ export function fromCopilotPermissionMode(mode: PermissionMode): AutoApproveLeve
 	return mode === 'manual' ? 'default' : mode === 'allow-all' ? 'autoApprove' : 'assisted';
 }
 
+type ManagedSettingsResolvedData = SessionEventPayload<'session.managed_settings_resolved'>['data'];
+
+/** The effective managed `permissions` settings of a resolved policy, when it has any. */
+function getResolvedManagedPermissions(resolved: ManagedSettingsResolvedData): { readonly [key: string]: JsonValue } | undefined {
+	const settings = resolved.settings;
+	const value = settings && typeof settings === 'object' && !Array.isArray(settings) ? settings.permissions : undefined;
+	return value && typeof value === 'object' && !Array.isArray(value) ? value : undefined;
+}
+
 /** Explicit new mode restrictions replace the legacy blanket policy, but not other tool restrictions. */
 export function getCopilotApprovalPolicy(
-	resolved: SessionEventPayload<'session.managed_settings_resolved'>['data'],
+	resolved: ManagedSettingsResolvedData,
 	legacyRestricted: boolean,
 	bridged: ManagedSettingsPermissions = {},
 ): { available: readonly AutoApproveLevel[]; defaultMode: AutoApproveLevel; permissions: ManagedSettingsPermissions } {
-	const settings = resolved.settings;
-	const value = settings && typeof settings === 'object' && !Array.isArray(settings) ? settings.permissions : undefined;
-	const modes = value && typeof value === 'object' && !Array.isArray(value) ? value : undefined;
+	const modes = getResolvedManagedPermissions(resolved);
 	const explicit = typeof modes?.disableAssistedPermissionsMode === 'boolean'
 		|| modes?.disableBypassPermissionsMode === 'disable' || modes?.disableBypassPermissionsMode === 'enable';
 	const permissions: ManagedSettingsPermissions = legacyRestricted && !explicit
@@ -35,6 +44,48 @@ export function getCopilotApprovalPolicy(
 	return { available, defaultMode: available.includes(requestedDefault) ? requestedDefault : 'default', permissions };
 }
 
+/**
+ * Client tools that return workspace content without a path-scoped SDK
+ * permission request. Their SDK registration skips permission checks and the
+ * runtime cannot match them against managed `Read(...)` rules, so the host
+ * enforces Copilot managed permissions for them instead.
+ */
+export const MANAGED_WORKSPACE_RETRIEVAL_CLIENT_TOOLS: ReadonlySet<string> = new Set([SEMANTIC_SEARCH_TOOL_NAME]);
+
+function hasManagedRules(permissions: unknown): boolean {
+	if (!isObject(permissions)) {
+		return false;
+	}
+	const rules = permissions as Record<string, unknown>;
+	return ['deny', 'ask', 'allow'].some(key => {
+		const value = rules[key];
+		return Array.isArray(value) && value.length > 0;
+	});
+}
+
+/**
+ * Whether Copilot managed permissions deny the
+ * {@link MANAGED_WORKSPACE_RETRIEVAL_CLIENT_TOOLS}, given every known managed
+ * policy snapshot and the rules bridged from VS Code settings.
+ *
+ * Once any managed rule is active the runtime requires approval for reads no
+ * rule matches. These tools can return excerpts from any workspace file, but
+ * the host cannot guarantee a human decision for them: they run on a client,
+ * whose own tool confirmation can approve without asking. So any active
+ * managed rule, a fail-closed policy, or no resolved policy at all denies
+ * them; only a session with no managed rules may use them.
+ */
+export function isManagedWorkspaceRetrievalDenied(policies: readonly (ManagedSettingsResolvedData | undefined)[], bridged: ManagedSettingsPermissions): boolean {
+	const resolved = policies.filter(policy => policy !== undefined);
+	return resolved.length === 0
+		|| hasManagedRules(bridged)
+		|| resolved.some(policy => policy.failClosed
+			|| policy.permissionsContext?.failClosed
+			|| policy.permissionsAllowIntersected
+			|| hasManagedRules(getResolvedManagedPermissions(policy))
+			|| hasManagedRules(policy.permissionsContext?.permissions));
+}
+
 interface ICopilotApprovalInputs {
 	readonly requested: AutoApproveLevel | undefined;
 	readonly legacyRestricted: boolean;
@@ -45,6 +96,7 @@ interface ICopilotApprovalInputs {
 export class CopilotSessionApprovalPolicy {
 	private _policy: ReturnType<typeof getCopilotApprovalPolicy> | undefined;
 	private _nativePolicy: SessionEventPayload<'session.managed_settings_resolved'>['data'] | undefined;
+	private _runtimePolicy: SessionEventPayload<'session.managed_settings_resolved'>['data'] | undefined;
 	private _bridgedPermissions: ManagedSettingsPermissions = {};
 	private _runtimeModes: readonly AutoApproveLevel[] | undefined;
 
@@ -54,8 +106,13 @@ export class CopilotSessionApprovalPolicy {
 	}
 
 	observeRuntimePolicy(resolved: SessionEventPayload<'session.managed_settings_resolved'>['data']): void {
+		this._runtimePolicy = resolved;
 		this._policy = getCopilotApprovalPolicy(resolved, false);
 		this._runtimeModes = this._policy.available;
+	}
+
+	isManagedWorkspaceRetrievalDenied(): boolean {
+		return isManagedWorkspaceRetrievalDenied([this._nativePolicy, this._runtimePolicy], this._bridgedPermissions);
 	}
 
 	getAvailableModes(inputs: ICopilotApprovalInputs): readonly AutoApproveLevel[] | undefined {

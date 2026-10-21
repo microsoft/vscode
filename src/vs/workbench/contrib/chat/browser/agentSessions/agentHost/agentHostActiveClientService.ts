@@ -18,9 +18,11 @@ import { isCopilotAgentHostSessionType, isRemoteAgentHostSessionType } from '../
 import type { AgentCustomization, SessionActiveClient, ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import type { ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME, CLIENT_SEMANTIC_SEARCH_TOOL_ID, SEMANTIC_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/semanticSearchConstants.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator, IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import type { ICustomizationSyncProvider } from '../../../common/customizationHarnessService.js';
@@ -36,6 +38,7 @@ import { type ILocalCustomizationSyncOptions, resolveCustomizationRefs, resolveL
 import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostToolSetEnablementService, isCopilotCliSessionType, isToolEnabledInSet } from './agentHostToolSetEnablementService.js';
 import { AgentHostMcpServerSupportScope, IAgentHostMcpServerSupportScope } from './agentHostMcpServerSupportScope.js';
+import { isSemanticSearchDisabledByManagedPolicy, ISemanticSearchManagedPolicyState, observeSemanticSearchManagedPolicyState } from './semanticSearchManagedPolicy.js';
 import { type ISyncedCustomizationOrigin, SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
 import { Iterable } from '../../../../../../base/common/iterator.js';
 
@@ -281,6 +284,7 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 
 	private readonly _allToolsObs: IObservable<readonly IToolData[]>;
 	private readonly _allToolSetsObs: IObservable<Iterable<IToolSet>>;
+	private readonly _semanticSearchManagedPolicy: IObservable<ISemanticSearchManagedPolicyState>;
 	private readonly _clientToolsByType = new Map<string, IObservable<readonly ToolDefinition[]>>();
 	private readonly _sessionTools = new ResourceMap<ISettableObservable<readonly ToolDefinition[]>>();
 	private readonly _sessionToolObservers = new ResourceMap<number>();
@@ -297,10 +301,13 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 		@IAgentHostToolSetEnablementService private readonly _toolSetEnablementService: IAgentHostToolSetEnablementService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
+		@IManagedSettingsService managedSettingsService: IManagedSettingsService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 		this._allToolsObs = this._toolsService.observeTools(undefined);
 		this._allToolSetsObs = this._toolsService.toolSets;
+		this._semanticSearchManagedPolicy = observeSemanticSearchManagedPolicyState(this, managedSettingsService, configurationService);
 	}
 
 	acquireScope(sessionType: string, roots: readonly URI[]): IAgentCustomizationScope {
@@ -461,7 +468,10 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 				const toolSets = this._allToolSetsObs.read(reader);
 				const enablement = this._toolSetEnablementService.observe(sessionType).read(reader);
 				const isCopilotSession = isCopilotAgentHostSessionType(sessionType);
-				const semanticSearchTool = isCopilotSession
+				// Only a local host receives the rules bridged from VS Code policies.
+				const semanticSearchDisabled = isCopilotSession
+					&& isSemanticSearchDisabledByManagedPolicy(this._semanticSearchManagedPolicy.read(reader), !isRemoteAgentHostSessionType(sessionType));
+				const semanticSearchTool = isCopilotSession && !semanticSearchDisabled
 					? tools.find(tool => tool.id === CLIENT_SEMANTIC_SEARCH_TOOL_ID)
 					: undefined;
 				const enabledToolIds = new Set<string>();

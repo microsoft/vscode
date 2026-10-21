@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import type { PermissionMode, SessionEventPayload } from '@github/copilot-sdk';
+import type { JsonValue, PermissionMode, SessionEventPayload } from '@github/copilot-sdk';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { CopilotSessionApprovalPolicy, fromCopilotPermissionMode, getCopilotApprovalConfig, getCopilotApprovalPolicy } from '../../node/copilot/copilotApprovalPolicy.js';
+import { CopilotSessionApprovalPolicy, fromCopilotPermissionMode, getCopilotApprovalConfig, getCopilotApprovalPolicy, isManagedWorkspaceRetrievalDenied } from '../../node/copilot/copilotApprovalPolicy.js';
 import { getAvailableSessionApprovalValues, getSessionApprovalProperty } from '../../common/sessionConfigProperties.js';
 
 type Resolved = SessionEventPayload<'session.managed_settings_resolved'>['data'];
@@ -97,6 +97,63 @@ suite('Copilot approval policy', () => {
 
 	test('runtime fail-closed state remains restrictive despite explicit new settings', () => {
 		assert.deepStrictEqual(getCopilotApprovalPolicy({ ...baseline, failClosed: true, settings: { permissions: { disableBypassPermissionsMode: 'enable' } } }, true).available, ['default']);
+	});
+
+	test('any active managed rule denies workspace retrieval that the SDK cannot match against read rules', () => {
+		const withPermissions = (permissions: { [key: string]: JsonValue }): Resolved => ({ ...baseline, settings: { permissions } });
+		const sessionPolicy = (configure: (policy: CopilotSessionApprovalPolicy) => void) => {
+			const policy = new CopilotSessionApprovalPolicy();
+			configure(policy);
+			return policy.isManagedWorkspaceRetrievalDenied();
+		};
+		assert.deepStrictEqual({
+			none: isManagedWorkspaceRetrievalDenied([baseline], {}),
+			modesOnly: isManagedWorkspaceRetrievalDenied([withPermissions({ disableBypassPermissionsMode: 'disable', defaultMode: 'assisted' })], { disableBypassPermissionsMode: 'disable' }),
+			domainBoundaryOnly: isManagedWorkspaceRetrievalDenied([baseline], { limitTo: ['Domain(example.com)'] }),
+			emptyRuleLists: isManagedWorkspaceRetrievalDenied([withPermissions({ deny: [], ask: [], allow: [] })], { deny: [], ask: [] }),
+			readDenied: isManagedWorkspaceRetrievalDenied([withPermissions({ deny: ['Read(/denied/**)'] })], {}),
+			readAsk: isManagedWorkspaceRetrievalDenied([withPermissions({ ask: ['Read(/secret/**)'] })], {}),
+			shellAsk: isManagedWorkspaceRetrievalDenied([withPermissions({ ask: ['Shell'] })], {}),
+			writeDenied: isManagedWorkspaceRetrievalDenied([withPermissions({ deny: ['Write(/out/**)'] })], {}),
+			allow: isManagedWorkspaceRetrievalDenied([withPermissions({ allow: ['Read(/src/**)'] })], {}),
+			allowIntersected: isManagedWorkspaceRetrievalDenied([{ ...baseline, permissionsAllowIntersected: true }], {}),
+			contextRule: isManagedWorkspaceRetrievalDenied([{ ...baseline, permissionsContext: { failClosed: false, permissions: { deny: ['Read(/denied/**)'] } } }], {}),
+			bridgedShellAsk: isManagedWorkspaceRetrievalDenied([baseline], { ask: ['Shell'] }),
+			runtimeRule: isManagedWorkspaceRetrievalDenied([baseline, withPermissions({ deny: ['Read(/denied/**)'] })], {}),
+			failClosed: isManagedWorkspaceRetrievalDenied([{ ...baseline, failClosed: true }], {}),
+			contextFailClosed: isManagedWorkspaceRetrievalDenied([{ ...baseline, permissionsContext: { failClosed: true } }], {}),
+			noPolicies: isManagedWorkspaceRetrievalDenied([], {}),
+			onlyUnresolved: isManagedWorkspaceRetrievalDenied([undefined, undefined], {}),
+			sessionUnresolved: sessionPolicy(() => { }),
+			sessionLaunch: sessionPolicy(policy => policy.setLaunchPolicy(baseline, {})),
+			sessionLaunchBridged: sessionPolicy(policy => policy.setLaunchPolicy(baseline, { ask: ['Shell'] })),
+			sessionRuntime: sessionPolicy(policy => {
+				policy.setLaunchPolicy(baseline, {});
+				policy.observeRuntimePolicy(withPermissions({ ask: ['Shell'] }));
+			}),
+		}, {
+			none: false,
+			modesOnly: false,
+			domainBoundaryOnly: false,
+			emptyRuleLists: false,
+			readDenied: true,
+			readAsk: true,
+			shellAsk: true,
+			writeDenied: true,
+			allow: true,
+			allowIntersected: true,
+			contextRule: true,
+			bridgedShellAsk: true,
+			runtimeRule: true,
+			failClosed: true,
+			contextFailClosed: true,
+			noPolicies: true,
+			onlyUnresolved: true,
+			sessionUnresolved: true,
+			sessionLaunch: false,
+			sessionLaunchBridged: true,
+			sessionRuntime: true,
+		});
 	});
 
 	test('launch snapshots do not apply until selection and runtime observations remain immediate', () => {
