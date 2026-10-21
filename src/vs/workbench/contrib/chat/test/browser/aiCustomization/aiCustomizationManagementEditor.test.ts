@@ -6,13 +6,14 @@
 import assert from 'assert';
 import { $ } from '../../../../../../base/browser/dom.js';
 import { IListEvent } from '../../../../../../base/browser/ui/list/list.js';
-import { DeferredPromise, Delayer, raceCancellationError, timeout } from '../../../../../../base/common/async.js';
+import { DeferredPromise, Delayer, raceCancellationError, Sequencer, timeout } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { SaveReason } from '../../../../../common/editor.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
@@ -33,7 +34,8 @@ import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME } from '../../../../../../platform/a
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { AICustomizationManagementEditor, isCurrentConnectorDetailNavigation, isCurrentPluginContributionNavigation } from '../../../browser/aiCustomization/aiCustomizationManagementEditor.js';
+import { AICustomizationManagementEditor, CopilotConnectorDetailOpenResult, isCurrentConnectorDetailNavigation, isCurrentPluginContributionNavigation } from '../../../browser/aiCustomization/aiCustomizationManagementEditor.js';
+import { ICopilotConnector, ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
 import { IAICustomizationListItem } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
 import { AgentPluginItemKind, IAgentPluginItem } from '../../../browser/agentPluginEditor/agentPluginItems.js';
 import { ChatConfiguration } from '../../../common/constants.js';
@@ -90,6 +92,50 @@ suite('aiCustomizationManagementEditor', () => {
 			['Agent Customizations', '(Copilot · vscode)'],
 			['Agent Customizations', undefined],
 		]);
+	});
+
+	test('opens a Copilot connector detail by display name', async () => {
+		const input = store.add(new AICustomizationManagementEditorInput());
+		const connector: ICopilotConnector = {
+			name: 'connector-catalog-entry-7f3a',
+			displayName: 'Linear',
+			description: 'Triage your open issues in Linear',
+			tags: [],
+			keywords: [],
+			capabilities: [],
+			representativeQueries: [],
+			connectionStatus: 'not_connected',
+			scopes: [],
+			mcpServers: [],
+		};
+		const opened: ICopilotConnector[] = [];
+		const selectedSections: AICustomizationManagementSection[] = [];
+		const harness = {
+			contentNavigationGeneration: 1,
+			input,
+			copilotConnectorsService: {
+				getConnectors: async () => [connector],
+			} as Pick<ICopilotConnectorsService, 'getConnectors'>,
+			selectSectionById: (section: AICustomizationManagementSection) => selectedSections.push(section),
+			showEmbeddedConnectorDetail: (candidate: ICopilotConnector) => opened.push(candidate),
+		};
+		const showCopilotConnectorDetail = Reflect.get(AICustomizationManagementEditor.prototype, 'showCopilotConnectorDetail') as (
+			this: typeof harness,
+			connectorName: string,
+			connectorDisplayName?: string,
+		) => Promise<CopilotConnectorDetailOpenResult>;
+
+		const result = await showCopilotConnectorDetail.call(harness, 'linear', 'Linear');
+
+		assert.deepStrictEqual({
+			result,
+			selectedSections,
+			opened: opened.map(candidate => candidate.name),
+		}, {
+			result: CopilotConnectorDetailOpenResult.Opened,
+			selectedSections: [AICustomizationManagementSection.McpServers],
+			opened: ['connector-catalog-entry-7f3a'],
+		});
 	});
 
 	test('rejects stale plugin contribution navigation', () => {
@@ -292,7 +338,13 @@ suite('aiCustomizationManagementEditor', () => {
 			activeProjectRoot: ISettableObservable<URI | undefined>;
 			activeProjectLabel: ISettableObservable<string>;
 			isSessionsWindow: boolean;
+			commitFiles?(projectRoot: URI, fileUris: URI[]): Promise<boolean>;
 		};
+		workingCopyService: { getAll(resource: URI): readonly { isDirty(): boolean; save(options?: { reason?: SaveReason }): Promise<boolean> }[] | undefined };
+		currentEditingProjectRoot: URI | undefined;
+		customizationCommitSequencer: Sequencer;
+		_editorHasUncommittedSave: boolean;
+		saveCurrentCustomization(): Promise<boolean>;
 		commandService: { executeCommand(commandId: string, ...args: readonly unknown[]): Promise<unknown> };
 		chatWidgetService: {
 			getWidgetBySessionResource(resource: URI): { setInput(value: string): void; focusInput(): void } | undefined;
@@ -1298,6 +1350,42 @@ suite('aiCustomizationManagementEditor', () => {
 		}, {
 			label: 'Edit Source',
 			tooltip: 'Edit this skill directly in the source editor',
+		});
+
+		editor.editorPreviewDisposables.dispose();
+	});
+
+	test('Ctrl+S only commits a customization that was saved and keeps a failed commit pending', async () => {
+		const editor = createTestEditor();
+		const uri = URI.file('/workspace/.github/instructions/a.instructions.md');
+		const commits: string[] = [];
+		let saveResult = false;
+		let commitResult = false;
+		editor.viewMode = 'editor';
+		editor.currentEditingUri = uri;
+		editor.currentEditingProjectRoot = URI.file('/workspace');
+		editor.currentEditingSource = AICustomizationSources.local;
+		editor.currentEditingReadOnly = false;
+		editor.customizationCommitSequencer = new Sequencer();
+		editor._editorHasUncommittedSave = true;
+		editor.workingCopyService = { getAll: () => [{ isDirty: () => true, save: async () => saveResult }] };
+		editor.workspaceService = {
+			...editor.workspaceService,
+			commitFiles: async (_root, files) => { commits.push(files[0].path); return commitResult; },
+		};
+
+		const failedSave = { result: await editor.saveCurrentCustomization(), commits: [...commits], pending: editor._editorHasUncommittedSave };
+
+		saveResult = true;
+		const failedCommit = { result: await editor.saveCurrentCustomization(), commits: [...commits], pending: editor._editorHasUncommittedSave };
+
+		commitResult = true;
+		const committed = { result: await editor.saveCurrentCustomization(), commits: [...commits], pending: editor._editorHasUncommittedSave };
+
+		assert.deepStrictEqual({ failedSave, failedCommit, committed }, {
+			failedSave: { result: false, commits: [], pending: true },
+			failedCommit: { result: true, commits: [uri.path], pending: true },
+			committed: { result: true, commits: [uri.path, uri.path], pending: false },
 		});
 
 		editor.editorPreviewDisposables.dispose();

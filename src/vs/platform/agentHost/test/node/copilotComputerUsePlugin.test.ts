@@ -180,6 +180,23 @@ suite('CopilotComputerUsePlugin', () => {
 		});
 	});
 
+	test('replaces an incomplete plugin directory', async () => {
+		const pluginDir = join(tmpDir, 'install', target);
+		await fs.promises.mkdir(pluginDir, { recursive: true });
+		await fs.promises.writeFile(join(pluginDir, 'plugin.json'), 'partial');
+		await installComputerUsePluginArchive(archive, target, pluginDir, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			files: (await fs.promises.readdir(pluginDir)).sort(),
+			manifest: await fs.promises.readFile(join(pluginDir, 'plugin.json'), 'utf8'),
+			siblings: (await fs.promises.readdir(join(pluginDir, '..'))).sort(),
+		}, {
+			files: ['.complete', 'computer-use-mcp', 'plugin.json'],
+			manifest: '{"name":"computer-use"}',
+			siblings: [target],
+		});
+	});
+
 	test('rejects a checksum mismatch without installing, and retries afterwards', async () => {
 		const requests: string[] = [];
 		const plugin = createPlugin('0'.repeat(64), requests);

@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { lstat, opendir } from 'fs/promises';
-import type { BigIntStats, Dir } from 'fs';
+import { promises as fs, type BigIntStats, type Dir } from 'fs';
 import { Limiter, Promises } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { CancellationError, getErrorCode } from '../../../base/common/errors.js';
@@ -25,8 +24,8 @@ interface ILinkedFileUsage {
 }
 
 const nodeFileSystem: IWorktreeFileSystem = {
-	lstat: path => lstat(path, { bigint: true }),
-	opendir,
+	lstat: path => fs.lstat(path, { bigint: true }),
+	opendir: fs.opendir,
 };
 
 export const IAgentHostWorktreeDiskUsageService = createDecorator<IAgentHostWorktreeDiskUsageService>('agentHostWorktreeDiskUsageService');

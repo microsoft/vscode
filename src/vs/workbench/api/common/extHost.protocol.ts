@@ -2582,7 +2582,7 @@ export interface ExtHostAuthenticationShape {
 	$removeSession(id: string, sessionId: string): Promise<void>;
 	$onDidChangeAuthenticationSessions(id: string, label: string, extensionIdFilter?: string[]): Promise<void>;
 	$onDidUnregisterAuthenticationProvider(id: string): Promise<void>;
-	$registerDynamicAuthProvider(authorizationServer: UriComponents, serverMetadata: IAuthorizationServerMetadata, resource?: IAuthorizationProtectedResourceMetadata, clientId?: string, clientSecret?: string, initialTokens?: (IAuthorizationTokenResponse & { created_at: number })[]): Promise<string>;
+	$registerDynamicAuthProvider(authorizationServer: UriComponents, serverMetadata: IAuthorizationServerMetadata, resource?: IAuthorizationProtectedResourceMetadata, clientId?: string, clientSecret?: string, initialTokens?: (IAuthorizationTokenResponse & { created_at: number })[], providerId?: string): Promise<string>;
 	$registerXaaAuthProvider(issuer: UriComponents, serverMetadata: IAuthorizationServerMetadata, clientId?: string, clientSecret?: string, initialTokens?: (IAuthorizationTokenResponse & { created_at: number })[]): Promise<string>;
 	$onDidChangeDynamicAuthProviderTokens(authProviderId: string, clientId: string, tokens?: (IAuthorizationTokenResponse & { created_at: number })[]): Promise<void>;
 }
@@ -4033,6 +4033,11 @@ export interface GitDiffChangeDto extends GitChangeDto {
 	readonly deletions: number;
 }
 
+export interface GitCommitOptionsDto {
+	readonly noVerify?: boolean;
+	readonly signCommit?: boolean;
+}
+
 export interface GitRemoteDto {
 	readonly name: string;
 	readonly fetchUrl?: string;
@@ -4077,6 +4082,7 @@ export interface ExtHostGitExtensionShape {
 	$getRepositoryState(handle: number): Promise<GitRepositoryStateDto | undefined>;
 	$diffBetweenWithStats(handle: number, ref1: string, ref2: string, path?: string): Promise<GitDiffChangeDto[]>;
 	$diffBetweenWithStats2(handle: number, ref: string, path?: string): Promise<GitDiffChangeDto[]>;
+	$commitFiles(handle: number, files: UriComponents[], message: string, options?: GitCommitOptionsDto): Promise<void>;
 }
 
 // --- proxy identifiers

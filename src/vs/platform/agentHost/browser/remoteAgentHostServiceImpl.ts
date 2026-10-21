@@ -55,6 +55,7 @@ import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo } from
 import { ConnectionDiagnosticBuffer, ConnectionDiagnosticOperation, type ConnectionDiagnosticObserver, type IRemoteConnectionDiagnosticEvent } from '../common/connectionDiagnostics.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { getAgentHostOperatingSystem } from '../common/agentHostOperatingSystem.js';
+import { AgentHostAuthenticationPendingError, IAgentHostAdvertisedAuthenticationResolver } from '../common/agentHostAdvertisedAuthentication.js';
 
 const DISPLAY_NAME_STORAGE_PREFIX = 'remoteAgentHost.displayName.';
 
@@ -111,10 +112,11 @@ class WebSocketConnectionFactory extends Disposable implements IRemoteAgentHostC
 	private readonly _rawEntries: IObservable<readonly IRawRemoteAgentHostEntry[]>;
 
 	constructor(
-		private readonly _instantiationService: IInstantiationService,
-		private readonly _configurationService: IConfigurationService,
-		private readonly _environmentService: IEnvironmentService,
 		private readonly _clientInfo: () => typeof editorWindowAgentHostClientInfo,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		@IAgentHostAdvertisedAuthenticationResolver private readonly _authenticationResolver: IAgentHostAdvertisedAuthenticationResolver,
 	) {
 		super();
 		this._rawEntries = observableConfigValue<readonly IRawRemoteAgentHostEntry[]>(
@@ -145,8 +147,18 @@ class WebSocketConnectionFactory extends Disposable implements IRemoteAgentHostC
 				? { logsHome: this._environmentService.logsHome, logId: address, connectionId: address, transport: 'websocket' }
 				: undefined,
 		);
-		const connection = this._instantiationService.createInstance(AgentHostProtocolClient, address, transportFactory, { clientInfo: this._clientInfo() });
-		return Promise.resolve({ connection });
+		const authentication = this._authenticationResolver.createResolver(address);
+		try {
+			const connection = this._instantiationService.createInstance(AgentHostProtocolClient, address, transportFactory, {
+				clientInfo: this._clientInfo(),
+				resolveAdvertisedAuthentication: agents => authentication.resolve(agents),
+				onDispose: () => authentication.dispose(),
+			});
+			return Promise.resolve({ connection });
+		} catch (error) {
+			authentication.dispose();
+			throw error;
+		}
 	}
 
 }
@@ -238,7 +250,6 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 		@ILabelService private readonly _labelService: ILabelService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super();
@@ -262,10 +273,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		// lifetime too; `registerConnectionFactory` only manages registry
 		// membership so externally-supplied factories stay owned by their producer.
 		if (this.supportsWebSocketConnections) {
-			this._register(this.registerConnectionFactory(this._register(new WebSocketConnectionFactory(
-				this._instantiationService,
-				this._configurationService,
-				this._environmentService,
+			this._register(this.registerConnectionFactory(this._register(this._instantiationService.createInstance(WebSocketConnectionFactory,
 				() => this.clientInfo,
 			))));
 		}
@@ -968,7 +976,11 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 				return;
 			}
 
-			this._logService.error(`[RemoteAgentHost] Failed to connect to ${address}. Verify address and connectionToken`, err);
+			if (err instanceof AgentHostAuthenticationPendingError) {
+				this._logService.info(`[RemoteAgentHost] Waiting for authentication providers for ${address}`);
+			} else {
+				this._logService.error(`[RemoteAgentHost] Failed to connect to ${address}. Verify address and connectionToken`, err);
+			}
 
 			// A transport that dropped mid-handshake leaves the protocol client
 			// in `reconnecting` with its own retry already scheduled, and only
@@ -1240,9 +1252,8 @@ export class AgentsWindowRemoteAgentHostService extends RemoteAgentHostService {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService logService: ILogService,
 		@ILabelService labelService: ILabelService,
-		@IEnvironmentService environmentService: IEnvironmentService,
 		@IStorageService storageService: IStorageService,
 	) {
-		super(configurationService, instantiationService, logService, labelService, environmentService, storageService);
+		super(configurationService, instantiationService, logService, labelService, storageService);
 	}
 }

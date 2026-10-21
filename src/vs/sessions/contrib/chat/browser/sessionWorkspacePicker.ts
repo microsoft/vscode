@@ -6,6 +6,7 @@
 import * as dom from '../../../../base/browser/dom.js';
 import * as touch from '../../../../base/browser/touch.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
+import { Button } from '../../../../base/browser/ui/button/button.js';
 import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
 import { IAction, SubmenuAction, toAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -16,7 +17,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
-import { autorun, IObservable, observableValue, waitForState } from '../../../../base/common/observable.js';
+import { autorun, IObservable, IReader, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../platform/actionWidget/browser/actionList.js';
@@ -47,7 +48,7 @@ import { SessionWorkspacePickerGroupContext } from '../../../common/contextkeys.
 import { getStatusHover, getStatusLabel, removeRemoteHost, showRemoteHostOptions } from '../../providers/remoteAgentHost/browser/remoteHostOptions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { defaultCountBadgeStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { defaultButtonStyles, defaultCountBadgeStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { areDevContainerSamplesEnabled, DevContainerAgentHostEnabledSettingId, DevContainerSamplesEnabledSettingId } from '../../../common/devContainerAgentHostService.js';
 import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
 import { Menus } from '../../../browser/menus.js';
@@ -59,7 +60,7 @@ import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/co
 import { ADDITIONAL_FOLDER_CONTEXT_ID_PREFIX, ADDITIONAL_REPOSITORY_CONTEXT_ID_PREFIX, getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../common/newChatContextIds.js';
 import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 import { registerPickerKeybindingPresentation } from './newChatPickerKeybinding.js';
-import { getEnvironmentWorkspaceProvider, ISessionCreationEnvironment } from './sessionEnvironmentPicker.js';
+import { getEnvironmentWorkspaceProvider, ISessionCreationEnvironment, resolveEnvironmentWorkspace } from './sessionEnvironmentPicker.js';
 
 export type { IResolvedFolderWorkspace } from './sessionWorkspaceFallback.js';
 
@@ -157,6 +158,7 @@ export interface IWorkspacePickerTrigger {
 	readonly hideNoWorkspaceOption?: boolean;
 	readonly hideIconWhenAttached?: boolean;
 	readonly reflectsWorkspace?: boolean;
+	readonly clearable?: IObservable<boolean>;
 	readonly group?: string;
 	readonly attachesContext?: boolean;
 	readonly hideWhenWorkspaceSelected?: boolean;
@@ -188,6 +190,7 @@ interface IWorkspacePickerTriggerElements {
 	label?: HTMLElement;
 	badge?: CountBadge;
 	chevron?: HTMLElement;
+	clearButton?: Button;
 }
 
 type IWorkspacePickerAction = IAction & { ariaLabel?: string; icon?: ThemeIcon; hoverContent?: string; onRemove?: () => void };
@@ -647,12 +650,44 @@ export class WorkspacePicker extends Disposable {
 		trigger.setAttribute('aria-expanded', 'false');
 
 		this._triggerElements.add(trigger);
-		this._triggerContents.set(trigger, {});
+		const contents: IWorkspacePickerTriggerElements = {};
+		this._triggerContents.set(trigger, contents);
 		if (options) {
 			this._triggerOptions.set(trigger, options);
 		}
 		this._triggerElement = trigger;
 		this._renderTriggerLabel(trigger);
+		if (options?.clearable) {
+			const clearButton = triggerDisposables.add(new Button(slot, {
+				...defaultButtonStyles,
+				buttonBackground: undefined,
+				buttonHoverBackground: undefined,
+				buttonForeground: undefined,
+				buttonBorder: undefined,
+			}));
+			clearButton.element.classList.add('sessions-workspace-clear-button');
+			clearButton.icon = Codicon.closeCompact;
+			const clearLabel = localize('workspacePicker.clearWorkspace', "Chat without a workspace");
+			clearButton.setAriaLabel(clearLabel);
+			triggerDisposables.add(this.hoverService.setupManagedHover({
+				delay: 0,
+				placement: 'element',
+				showHover: (options, focus) => this.hoverService.showInstantHover({
+					...options,
+					appearance: { ...options.appearance, skipFadeInAnimation: true },
+				}, focus),
+			}, clearButton.element, clearLabel));
+			triggerDisposables.add(clearButton.onDidClick(() => {
+				this.clearSelection();
+				trigger.focus();
+				status(localize('workspacePicker.workspaceCleared', "Workspace cleared. You can chat without a workspace or choose another workspace."));
+			}));
+			contents.clearButton = clearButton;
+			triggerDisposables.add(autorun(reader => {
+				options.clearable?.read(reader);
+				this._renderTriggerLabel(trigger);
+			}));
+		}
 		if (options?.tooltip) {
 			if (options.focusCommand) {
 				const tooltip = typeof options.tooltip === 'function' ? options.tooltip() : options.tooltip;
@@ -896,8 +931,8 @@ export class WorkspacePicker extends Disposable {
 		const showFilter = isConsolidatedWorkspacePicker
 			|| items.filter(i => i.kind === ActionListItemKind.Action).length > FILTER_THRESHOLD;
 		return showFilter
-			? { className: 'sessions-new-chat-picker-list', showFilter: true, focusFilterOnOpen: isConsolidatedWorkspacePicker, filterPlaceholder: isConsolidatedWorkspacePicker ? localize('workspacePicker.filter', "Search") : undefined, submenuPointerIntent: isConsolidatedWorkspacePicker || undefined, submenuHoverDelay: isConsolidatedWorkspacePicker ? 0 : undefined, reserveSubmenuSpace: false, inlineDescription: true, showGroupTitleOnFirstItem: true, minWidth: pickerWidth, maxWidth: pickerWidth, hideDefaultKeybindingTooltip: true }
-			: { className: 'sessions-new-chat-picker-list', submenuHoverDelay: isConsolidatedWorkspacePicker ? 0 : undefined, reserveSubmenuSpace: false, inlineDescription: true, showGroupTitleOnFirstItem: true, minWidth: pickerWidth, maxWidth: pickerWidth, hideDefaultKeybindingTooltip: true };
+			? { className: 'sessions-new-chat-picker-list', useFullHeight: true, showFilter: true, focusFilterOnOpen: isConsolidatedWorkspacePicker, filterPlaceholder: isConsolidatedWorkspacePicker ? localize('workspacePicker.filter', "Search") : undefined, submenuPointerIntent: isConsolidatedWorkspacePicker || undefined, submenuHoverDelay: isConsolidatedWorkspacePicker ? 0 : undefined, reserveSubmenuSpace: false, inlineDescription: true, showGroupTitleOnFirstItem: true, minWidth: pickerWidth, maxWidth: pickerWidth, hideDefaultKeybindingTooltip: true }
+			: { className: 'sessions-new-chat-picker-list', useFullHeight: true, submenuHoverDelay: isConsolidatedWorkspacePicker ? 0 : undefined, reserveSubmenuSpace: false, inlineDescription: true, showGroupTitleOnFirstItem: true, minWidth: pickerWidth, maxWidth: pickerWidth, hideDefaultKeybindingTooltip: true };
 	}
 
 	/**
@@ -1118,12 +1153,12 @@ export class WorkspacePicker extends Disposable {
 		return this._getRecentWorkspaces().find(matchesRepository);
 	}
 
-	private _getRepositoryId(workspace: ISessionWorkspace): string | undefined {
+	private _getRepositoryId(workspace: ISessionWorkspace, reader?: IReader): string | undefined {
 		for (const folder of workspace.folders) {
 			folder.gitRepository?.resolveGitHubInfo?.();
 		}
 		const info = workspace.folders
-			.map(folder => folder.gitRepository?.gitHubInfo.get())
+			.map(folder => folder.gitRepository?.gitHubInfo.read(reader))
 			.find(candidate => candidate !== undefined);
 		if (info) {
 			return `${info.owner}/${info.repo}`.toLowerCase();
@@ -1172,9 +1207,9 @@ export class WorkspacePicker extends Disposable {
 		}
 	}
 
-	private _getCurrentRepositoryId(): string | undefined {
-		const workspace = this._getSelectedRepositoryWorkspace();
-		return workspace && this._getRepositoryId(workspace);
+	private _getCurrentRepositoryId(reader?: IReader): string | undefined {
+		const workspace = this._getSelectedRepositoryWorkspace(reader);
+		return workspace && this._getRepositoryId(workspace, reader);
 	}
 
 	/**
@@ -1375,8 +1410,8 @@ export class WorkspacePicker extends Disposable {
 		}
 	}
 
-	private _getSelectedRepositoryWorkspace(): ISessionWorkspace | undefined {
-		return this._getSelectedRepositoryWorkspaceCandidates().find(workspace => this._getRepositoryId(workspace) !== undefined);
+	private _getSelectedRepositoryWorkspace(reader?: IReader): ISessionWorkspace | undefined {
+		return this._getSelectedRepositoryWorkspaceCandidates().find(workspace => this._getRepositoryId(workspace, reader) !== undefined);
 	}
 
 	private _getSelectedRepositoryWorkspaceCandidates(): ISessionWorkspace[] {
@@ -1386,9 +1421,9 @@ export class WorkspacePicker extends Disposable {
 		return this._getRepositoryWorkspaceCandidates(this._selectedResolved);
 	}
 
-	private _getRepositoryIdForResolvedWorkspace(selection: IResolvedFolderWorkspace): string | undefined {
+	private _getRepositoryIdForResolvedWorkspace(selection: IResolvedFolderWorkspace, reader?: IReader): string | undefined {
 		for (const workspace of this._getRepositoryWorkspaceCandidates(selection)) {
-			const repositoryId = this._getRepositoryId(workspace);
+			const repositoryId = this._getRepositoryId(workspace, reader);
 			if (repositoryId) {
 				return repositoryId;
 			}
@@ -1532,6 +1567,38 @@ export class WorkspacePicker extends Disposable {
 
 	private _getEnvironment(): ISessionCreationEnvironment | undefined {
 		return this._directPickerAttachesContext === true ? undefined : this.options.environment?.get();
+	}
+
+	getEnvironmentWorkspace(environment: ISessionCreationEnvironment, reader?: IReader): IResolvedFolderWorkspace | undefined {
+		const resolve = (folderUri: URI): IResolvedFolderWorkspace | undefined => {
+			const resolved = resolveEnvironmentWorkspace(environment, this.sessionsProvidersService.getProviders(), folderUri);
+			if (!resolved || environment.kind === 'container' && this.getDevContainerWorkspaceAvailability(folderUri, resolved.provider.id) !== true) {
+				return undefined;
+			}
+			return { providerId: resolved.provider.id, workspace: resolved.workspace };
+		};
+		if (!this._selectedFolderUri) {
+			return undefined;
+		}
+		const direct = resolve(this._selectedFolderUri);
+		if (direct) {
+			return direct;
+		}
+		const repositoryId = this._getCurrentRepositoryId(reader);
+		if (repositoryId) {
+			for (const candidate of this._getRecentWorkspaces()) {
+				for (const folder of candidate.workspace.folders) {
+					const workspace = { ...candidate.workspace, folders: [folder] };
+					if (this._getRepositoryIdForResolvedWorkspace({ providerId: candidate.providerId, workspace }, reader) === repositoryId) {
+						const resolved = resolve(folder.root);
+						if (resolved) {
+							return resolved;
+						}
+					}
+				}
+			}
+		}
+		return undefined;
 	}
 
 	protected _useConsolidatedRemoteWorkspaces(): boolean {
@@ -2144,6 +2211,12 @@ export class WorkspacePicker extends Disposable {
 			const reflectsWorkspace = options.reflectsWorkspace === true;
 			const noWorkspaceSelected = reflectsWorkspace && this._getNoWorkspaceOption()?.isSelected === true;
 			const workspace = noWorkspaceSelected ? undefined : this._selectedResolved?.workspace;
+			const clearable = reflectsWorkspace && options.clearable?.get() === true;
+			const canClear = clearable && workspace !== undefined;
+			trigger.parentElement?.classList.toggle('workspace-clearable', canClear);
+			if (contents.clearButton) {
+				contents.clearButton.element.hidden = !canClear;
+			}
 			const isSelectedCategory = options.attachesContext !== true
 				&& options.group !== undefined
 				&& options.group === workspace?.group;
@@ -2186,7 +2259,7 @@ export class WorkspacePicker extends Disposable {
 				}
 				contents.icon.className = ThemeIcon.asClassName(icon);
 			}
-			const emptyLabel = reflectsWorkspace && this.options.environment?.get()
+			const emptyLabel = reflectsWorkspace && (clearable || this.options.environment?.get())
 				? localize('workspacePicker.chooseWorkspace', "Choose Workspace")
 				: options.label;
 			const label = noWorkspaceSelected

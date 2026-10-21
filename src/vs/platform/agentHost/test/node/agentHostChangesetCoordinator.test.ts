@@ -51,7 +51,7 @@ suite('ChangesetSessionCoordinator', () => {
 			workingDirectories: workingDirectory ? [workingDirectory] : undefined,
 			defaultChat: buildDefaultChatUri(session),
 		}, { emitNotification });
-		stateManager.setSessionChangesets(session, buildDefaultChangesetCatalog(session, false));
+		stateManager.setSessionChangesets(session, buildDefaultChangesetCatalog(session, false, false));
 		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
 	}
 

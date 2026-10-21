@@ -12,7 +12,6 @@ import { Color, RGBA } from '../../../../../../../../base/common/color.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../../../base/common/lifecycle.js';
-import { URI } from '../../../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
 import { NullOpenerService } from '../../../../../../../../platform/opener/test/common/nullOpenerService.js';
@@ -195,9 +194,9 @@ suite('ModelCard', () => {
 			return {
 				...createModel({
 					id: 'auto',
-					name: 'Fusion',
+					name: 'Copilot Fusion',
 					...(promotions.length ? { detail } : { detail: '10% discount', autoModelDiscountPercent: 10 }),
-					autoModelFusion: { balanceUsesHydraFusion: true },
+					autoModelFusion: { balanceUsesHydraFusion: false },
 					...(promotions.length && { autoModelTierPromotions: promotions }),
 					tooltip: ILanguageModelChatMetadata.getAutoModelDescription(true),
 					configurationSchema: {
@@ -206,6 +205,7 @@ suite('ModelCard', () => {
 								type: 'string', title: 'Effort Level', group: 'navigation',
 								enum: ['balance', 'hydrafusion', 'hydrafusion-max'],
 								enumItemLabels: ['Standard', 'High', 'Max'],
+								enumDescriptions: ['Prioritizes versatile models for efficient everyday coding.', 'Prioritizes capable models for challenging tasks and deeper reasoning.', 'Prioritizes the most capable models for the most demanding tasks and complex reasoning.'],
 								default: 'balance',
 							},
 						},
@@ -222,28 +222,29 @@ suite('ModelCard', () => {
 		const read = (card: ModelCard) => ({
 			chip: card.element.querySelector('.chat-model-card-badge')?.textContent,
 			discount: card.element.querySelector<HTMLElement>('.chat-model-card-discount-description:not([hidden])')?.textContent,
+			tier: card.element.querySelector<HTMLElement>('.chat-model-card-tier-description:not([hidden])')?.textContent,
 			promotions: Array.from(card.element.querySelectorAll('.chat-model-card-tier-promotion'), banner => banner.textContent?.replace(/\. Ends .*|\. Starts .*/, '.')),
 		});
 
-		test('a running promotion sets the discount of the tiers it covers, other tiers show none, and so does the chip', () => {
+		test('the chip follows the tier shown as selected, naming a running promotion\'s discount only on the tiers it covers', () => {
 			const { card } = createCard({ tier: 'hydrafusion' }, { model: createFusionModel([promotion(iso(-day), iso(day), ['hydrafusion'])]) });
 			const covered = read(card);
 			card.element.querySelectorAll<HTMLElement>('[role="radio"]')[0].click();
 			assert.deepStrictEqual({ covered, uncovered: read(card) }, {
-				covered: { chip: undefined, discount: 'Models routed via Fusion High receive a 30% discount.', promotions: ['Get 30% off Fusion usage.'] },
-				uncovered: { chip: undefined, discount: undefined, promotions: ['Get 30% off Fusion usage.'] },
+				covered: { chip: '30% discount', discount: undefined, tier: 'Prioritizes capable models for challenging tasks and deeper reasoning.', promotions: ['Get 30% off Fusion usage.'] },
+				uncovered: { chip: 'Research preview', discount: undefined, tier: 'Prioritizes versatile models for efficient everyday coding.', promotions: ['Get 30% off Fusion usage.'] },
 			});
 		});
 
 		test('the chip shows a running promotion that covers every tier', () => {
 			const { card } = createCard({ tier: 'balance' }, { model: createFusionModel([promotion(iso(-day), iso(day))], '30% discount') });
-			assert.deepStrictEqual(read(card), { chip: '30% discount', discount: 'Models routed via Fusion Standard receive a 30% discount.', promotions: ['Get 30% off Fusion usage.'] });
+			assert.deepStrictEqual(read(card), { chip: '30% discount', discount: undefined, tier: 'Prioritizes versatile models for efficient everyday coding.', promotions: ['Get 30% off Fusion usage.'] });
 		});
 
-		test('a promotion without a message changes the discount without showing a banner', () => {
+		test('a promotion without a message shows its discount in the chip without a banner', () => {
 			const { message: _, ...discountOnly } = promotion(iso(-day), iso(day), ['hydrafusion']);
 			const { card } = createCard({ tier: 'hydrafusion' }, { model: createFusionModel([discountOnly]) });
-			assert.deepStrictEqual(read(card), { chip: undefined, discount: 'Models routed via Fusion High receive a 30% discount.', promotions: [] });
+			assert.deepStrictEqual(read(card), { chip: '30% discount', discount: undefined, tier: 'Prioritizes capable models for challenging tasks and deeper reasoning.', promotions: [] });
 		});
 
 		test('an upcoming promotion is announced with its start date and no discount, and once it ends Fusion\'s own discount returns', () => {
@@ -255,8 +256,8 @@ suite('ModelCard', () => {
 				upcoming: { ...read(upcoming), text: upcoming.element.querySelector('.chat-model-card-tier-promotion')?.textContent },
 				ended: read(ended),
 			}, {
-				upcoming: { chip: undefined, discount: undefined, promotions: ['Get 30% off Fusion usage.'], text: `Get 30% off Fusion usage. Starts ${startsAt}.` },
-				ended: { chip: '10% discount', discount: 'Models routed via Fusion Standard receive a 10% discount.', promotions: [] },
+				upcoming: { chip: 'Research preview', discount: undefined, tier: 'Prioritizes versatile models for efficient everyday coding.', promotions: ['Get 30% off Fusion usage.'], text: `Get 30% off Fusion usage. Starts ${startsAt}.` },
+				ended: { chip: '10% discount', discount: undefined, tier: 'Prioritizes versatile models for efficient everyday coding.', promotions: [] },
 			});
 		});
 
@@ -325,7 +326,6 @@ suite('ModelCard', () => {
 			model,
 			description: `${model.metadata.name} is a research preview.`,
 			tooltip: 'It picks a workflow per task, using one or more models to draft, review, or escalate.',
-			learnMoreUrl: URI.parse('https://example.com/hydrafusion'),
 			selected: model === selected,
 		}));
 		const result = createCard({ tier: 'balance' }, { model: createAutoModel(), routingAlternatives: alternatives() });
@@ -362,16 +362,16 @@ suite('ModelCard', () => {
 				selected: ['Balance'],
 				descriptions: ['Models routed via Auto Balance receive a 10% discount.'],
 			},
-			onClick: ['HydraFusion is a research preview. Learn more'],
+			onClick: ['HydraFusion is a research preview.'],
 			chosen: {
 				selected: ['HydraFusion'],
-				descriptions: ['HydraFusion is a research preview. Learn more'],
+				descriptions: ['HydraFusion is a research preview.'],
 				ariaLabel: 'HydraFusion, HydraFusion is a research preview. It picks a workflow per task, using one or more models to draft, review, or escalate.',
 				focused: 'HydraFusion',
 				badge: 'Research preview',
 			},
-			onMax: ['HydraFusion Max is a research preview. Learn more'],
-			chosenMax: { selected: ['HydraFusion Max'], descriptions: ['HydraFusion Max is a research preview. Learn more'] },
+			onMax: ['HydraFusion Max is a research preview.'],
+			chosenMax: { selected: ['HydraFusion Max'], descriptions: ['HydraFusion Max is a research preview.'] },
 			onTier: ['Models routed via Auto Efficiency receive a 10% discount.'],
 			restoredBadge: '10% discount',
 			writes: [{ tier: 'efficiency' }],
@@ -1105,7 +1105,7 @@ suite('ModelCard', () => {
 		}, { badge: 'Research preview', context: undefined });
 	});
 
-	test('an unavailable Auto tier shows its reason as text, since it can\'t take focus', () => {
+	test('an unavailable Auto tier shows its reason only on hover, and its group describes it for screen readers', () => {
 		const auto = createAutoModel();
 		const tier = auto.metadata.configurationSchema!.properties!.tier;
 		const model = {
@@ -1129,10 +1129,12 @@ suite('ModelCard', () => {
 		const radios = Array.from(card.element.querySelectorAll<HTMLElement>('[role="radio"]'));
 
 		assert.deepStrictEqual({
-			reasons: Array.from(card.element.querySelectorAll('.chat-model-card-unavailable-description'), element => element.textContent),
+			visibleReasons: card.element.querySelectorAll('.chat-model-card-unavailable-description').length,
+			groupDescription: radios[0].parentElement?.getAttribute('aria-description'),
 			disabled: radios.map(radio => radio.getAttribute('aria-disabled') === 'true'),
 		}, {
-			reasons: ['Max: This tier requires models that the user does not have access to.', 'Premium is not available.'],
+			visibleReasons: 0,
+			groupDescription: 'Max: This tier requires models that the user does not have access to. Premium is not available.',
 			disabled: [false, false, true, true],
 		});
 	});

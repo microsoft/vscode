@@ -182,14 +182,18 @@ export function defineCustomizationDiscoveryTests(context: IAgentHostE2ETestCont
 				: request.system.filter(block => block.type === 'text').map(block => block.text).join('\n');
 			const taskTool = request.tools.find(tool => tool.name === 'task');
 			assert.ok(taskTool, 'The model must receive the task tool with the available agents');
-			const markers = roots.flatMap(root => ['AGENT', 'INSTRUCTION', 'SKILL'].map(type => ({
-				marker: `MULTIROOT_${root.name}_${type}`,
-				text: type === 'AGENT' ? taskTool.description : systemPrompt,
-			})));
+			const systemMarkers = roots.flatMap(root => ['INSTRUCTION', 'SKILL'].map(type => `MULTIROOT_${root.name}_${type}`));
+			const agentMarkers = roots.map(root => `MULTIROOT_${root.name}_AGENT`);
 			assert.deepStrictEqual(
-				markers.map(({ marker, text }) => ({ marker, occurrences: text.split(marker).length - 1 })),
-				markers.map(({ marker }) => ({ marker, occurrences: 1 })),
-				'Each root\'s instructions and skill description must appear once in the system prompt, and its agent description once in the task tool',
+				{
+					systemPrompt: systemMarkers.map(marker => ({ marker, occurrences: systemPrompt.split(marker).length - 1 })),
+					agents: agentMarkers.map(marker => ({ marker, available: taskTool.description.includes(marker) })),
+				},
+				{
+					systemPrompt: systemMarkers.map(marker => ({ marker, occurrences: 1 })),
+					agents: agentMarkers.map(marker => ({ marker, available: true })),
+				},
+				'Each root\'s instructions and skill description must appear once in the system prompt, and its agent must be available in the task tool',
 			);
 		});
 	}

@@ -859,8 +859,11 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		this._userInteractionSource.value = toDisposable(() => userInteraction?.disposeSource());
 		this._sending.set(true, undefined);
 		widget.input.setInputEnabled(false);
+		// The send can dispose the input widget, e.g. when the composer is left while a workspace is
+		// applied or the send waits; the send itself completes and only the gone input is skipped.
+		const isInputAlive = () => this._widget === widget && !!widget.input;
 		const restoreInput = () => {
-			if (!this.getInputValue() && !widget.attachmentModel.attachments.length) {
+			if (isInputAlive() && !this.getInputValue() && !widget.attachmentModel.attachments.length) {
 				this.setInputValue(rawQuery);
 				widget.attachmentModel.addContext(...attachments);
 				// The send cleared the inline references along with the text.
@@ -905,7 +908,9 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			return false;
 		} finally {
 			this._userInteractionSource.clear();
-			widget.input.setInputEnabled(true);
+			if (isInputAlive()) {
+				widget.input.setInputEnabled(true);
+			}
 			this._sending.set(false, undefined);
 		}
 	}

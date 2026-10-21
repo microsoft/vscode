@@ -22,6 +22,7 @@ import { IContextKeyService, RawContextKey } from '../../../../platform/contextk
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
@@ -83,6 +84,7 @@ export class CanvasEditor extends EditorPane {
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IAccessibleViewService private readonly accessibleViewService: IAccessibleViewService,
+		@IOpenerService private readonly openerService: IOpenerService,
 		@ILogService private readonly logService: ILogService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 	) {
@@ -240,6 +242,9 @@ export class CanvasEditor extends EditorPane {
 				: event.loading ? localize('canvas.pageLoading', "Loading canvas page…") : '';
 		}));
 		this.modelLifetime.add(model.onDidNavigate(() => this.invalidateSemanticContent()));
+		this.modelLifetime.add(model.onDidRequestOpenExternal(url => {
+			void this._openExternalLink(url);
+		}));
 		this.modelLifetime.add(model.onWillDispose(() => {
 			if (this.model !== model) {
 				return;
@@ -255,6 +260,21 @@ export class CanvasEditor extends EditorPane {
 		}));
 		this.host.setVisible(this.editorVisible.get());
 		this.layout();
+	}
+
+	private async _openExternalLink(url: string): Promise<void> {
+		try {
+			const opened = await this.openerService.open(url, {
+				openExternal: true,
+				fromUserGesture: true,
+				allowContributedOpeners: true,
+			});
+			if (!opened) {
+				this.logService.warn('[CanvasEditor] External canvas link was not opened');
+			}
+		} catch (error) {
+			this.logService.error('[CanvasEditor] Failed to open external canvas link', error);
+		}
 	}
 
 	private _detach(message: string): void {
@@ -333,6 +353,7 @@ export class CanvasEditor extends EditorPane {
 		const help = [
 			localize('canvas.help.overview', "This canvas is a private page owned by its conversation. Its content is available while that conversation is shown."),
 			localize('canvas.help.navigation', "Tab moves through page controls. Use <keybinding:workbench.action.focusNextPart> to leave the page."),
+			localize('canvas.help.externalLinks', "User-initiated HTTP and HTTPS links that request a new tab or window open outside the canvas."),
 			// Only the Agents window offers an Add Tab menu.
 			this.environmentService.isSessionsWindow
 				? localize('canvas.help.close', "Closing the tab hides this canvas. Use the Add Tab menu in the editor toolbar, then Canvas, to open any available canvas or reopen a hidden canvas.")

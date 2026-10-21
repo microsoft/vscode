@@ -25,8 +25,9 @@ import { agentHostProxyConfigSchema, clientOwnedApprovalRootConfigKeys, platform
 import { ProtocolError } from '../common/state/sessionProtocol.js';
 import { ActionType, type ActionOrigin } from '../common/state/sessionActions.js';
 import type { ChatConfigChangedAction, SessionConfigChangedAction } from '../common/state/protocol/actions.js';
-import { ChatOriginKind, isAhpChatChannel, parseSubagentSessionUri, ROOT_STATE_URI, type SessionConfigState, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { ChatOriginKind, isAhpChatChannel, parseSubagentSessionUri, readSessionWorkspaceless, ROOT_STATE_URI, type SessionConfigState, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { applyChatConfigLayers, filterChatConfigValues, splitChatConfigPatch } from '../common/sessionConfigProperties.js';
+import { inheritedChatFolders } from './agentChatContext.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { type ISessionSandboxPolicy, readSessionSandboxPolicy, withSessionSandboxPolicy } from '../common/meta/agentSandboxPolicyMeta.js';
@@ -51,8 +52,18 @@ export function getEffectiveWorkingDirectory(stateManager: AgentHostStateManager
 }
 
 export function getEffectiveWorkingDirectories(stateManager: AgentHostStateManager, session: ProtocolURI): string[] | undefined {
-	const own = stateManager.getSessionState(session)?.workingDirectories;
+	const state = stateManager.getSessionState(session);
+	const own = state?.workingDirectories;
 	if (own !== undefined) {
+		// A chat without folders of its own works in its session's, never in another chat's scratch folder.
+		if (isAhpChatChannel(session) && stateManager.getChatState(session)?.workingDirectories === undefined) {
+			// A chat whose state isn't hydrated yet (after a restart) still has its own recorded folders in its catalog summary.
+			const recorded = state?.chats.find(chat => chat.resource === session)?.workingDirectories;
+			if (recorded?.length) {
+				return [...recorded];
+			}
+			return [...inheritedChatFolders(stateManager, own, readSessionWorkspaceless(state?._meta))];
+		}
 		return own;
 	}
 	const parentInfo = parseSubagentSessionUri(session);
