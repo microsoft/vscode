@@ -4,9 +4,13 @@ steps:
   # The repository resource is declared in the top-level pipeline (resources.repositories)
   # and is checked out into .build/distro so that mixin-npm.ts / mixin-quality.ts can
   # consume it from there (`.build/distro/npm`, `.build/distro/mixin/<quality>`).
+  # The checkout is shallow: the full history (all branches and tags) is several
+  # hundred MB and can outlive the job's GitHub App token on slow agents. Only the
+  # commit pinned in package.json is needed, which is fetched in the next step.
   - checkout: distro
     path: s/.build/distro
-    fetchDepth: 0
+    fetchDepth: 1
+    fetchTags: false
     persistCredentials: true
     retryCountOnTaskFailure: 3
     displayName: Checkout microsoft/vscode-distro
@@ -14,8 +18,13 @@ steps:
   - pwsh: |
       $ErrorActionPreference = "Stop"
       $DistroVersion = (Get-Content -Path package.json -Raw | ConvertFrom-Json).distro
+      Write-Host "Fetching distro commit $DistroVersion"
+      git -C .build/distro fetch --depth 1 --no-tags origin $DistroVersion
+      if ($LASTEXITCODE -ne 0) { throw "Failed to fetch distro commit $DistroVersion" }
       Write-Host "Checking out distro commit $DistroVersion"
       git -C .build/distro checkout $DistroVersion
+      if ($LASTEXITCODE -ne 0) { throw "Failed to check out distro commit $DistroVersion" }
+    retryCountOnTaskFailure: 3
     displayName: Checkout distro commit
 
   - script: git -C .build/distro lfs install --local

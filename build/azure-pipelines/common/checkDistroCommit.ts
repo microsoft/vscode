@@ -11,8 +11,9 @@ const root = path.dirname(path.dirname(path.dirname(import.meta.dirname)));
 
 // The microsoft/vscode-distro repository is checked out locally by
 // download-distro.yml (into .build/distro) using the agent's GitHub App
-// (Monaco) credentials, so we can resolve branch heads without a token that
-// has private repository access.
+// (Monaco) credentials, persisted into the checkout, so we can resolve branch
+// heads without a token that has private repository access. The checkout is
+// shallow, so branch heads are queried from the remote rather than read locally.
 const distroPath = path.join(root, '.build', 'distro');
 
 function getEnv(name: string): string {
@@ -31,8 +32,24 @@ function assertDistroCheckout(): void {
 	}
 }
 
-function getDistroBranchHead(branch: string): string {
-	return execSync(`git -C "${distroPath}" rev-parse "refs/remotes/origin/${branch}"`, { encoding: 'utf8' }).trim();
+/**
+ * Returns the HEAD commit of the given vscode-distro branch, or `undefined` if
+ * the branch does not exist. Other failures (e.g. authentication or network)
+ * are thrown.
+ */
+function getDistroBranchHead(branch: string): string | undefined {
+	let output: string;
+	try {
+		output = execSync(`git -C "${distroPath}" ls-remote --exit-code origin "refs/heads/${branch}"`, { encoding: 'utf8' });
+	} catch (error) {
+		// `git ls-remote --exit-code` exits with 2 when no matching refs are found
+		if ((error as { status?: number }).status === 2) {
+			return undefined;
+		}
+		throw error;
+	}
+
+	return output.trim().split(/\s+/)[0] || undefined;
 }
 
 async function checkDistroCommit(): Promise<void> {
@@ -66,13 +83,12 @@ async function checkDistroCommit(): Promise<void> {
 	// indistinguishable from a branch that simply doesn't exist in distro.
 	assertDistroCheckout();
 
-	// Resolve the HEAD of the matching branch from the local distro checkout
-	let distroBranchHead: string;
-	try {
-		distroBranchHead = getDistroBranchHead(branch);
-	} catch (error) {
+	// Resolve the HEAD of the matching branch from the distro remote
+	const distroBranchHead = getDistroBranchHead(branch);
+
+	if (!distroBranchHead) {
 		// If the branch doesn't exist in distro, that's expected for feature branches
-		console.log(`Could not resolve branch '${branch}' from local vscode-distro checkout: ${error}`);
+		console.log(`Could not find branch '${branch}' in vscode-distro`);
 		console.log('This is expected for feature branches that have not been merged to distro');
 		return;
 	}
