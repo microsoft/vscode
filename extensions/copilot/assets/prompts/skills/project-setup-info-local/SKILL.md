@@ -86,7 +86,7 @@ A Model Context Protocol (MCP) server project. This project supports multiple pr
    - mcp-server-name: The name of the MCP server. Create a unique name that reflects what this MCP server does.
    - command-to-run: The command to run to start the MCP server. This is the command you would use to run the project you just created.
    - list-of-args: The arguments to pass to the command. This is the list of arguments you would use to run the project you just created.
-5. Install any required VS Code extensions based on the chosen language (e.g., Python extension for Python projects).
+5. Recommend any required VS Code extensions based on the chosen language (e.g., Python extension for Python projects) by adding their IDs to the "recommendations" array in `.vscode/extensions.json`. Do not install extensions yourself.
 6. Inform the user that they can now debug this MCP server using VS Code.
 
 ## python-script

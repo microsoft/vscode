@@ -59,7 +59,7 @@ import { IPullRequestIconCache } from '../../../github/browser/pullRequestIconCa
 import { arrayEquals, structuralEquals } from '../../../../../base/common/equals.js';
 import { createChangesets } from './copilotChatSessionsChangesets.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { CloudSandboxEnabledSettingId, isCloudSandboxEnabled } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CloudSandboxEnabledSettingId, ICloudSandboxDraftPreparationService, isCloudSandboxEnabled } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { getWorkbenchContribution } from '../../../../../workbench/common/contributions.js';
 import { CloudSandboxAgentHostContribution, type ICloudSandboxProvisionedSession } from '../../remoteAgentHost/browser/cloudSandboxAgentHostContribution.js';
@@ -349,8 +349,10 @@ export class RemoteNewSession extends Disposable implements ICopilotChatSession 
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ILanguageModelsService languageModelsService: ILanguageModelsService,
+		@ICloudSandboxDraftPreparationService private readonly draftPreparationService: ICloudSandboxDraftPreparationService,
 	) {
 		super();
+		this._register(toDisposable(() => { void draftPreparationService.forget(this.resource); }));
 		this.modelConfiguration = this._register(new AutomationModelConfiguration(languageModelsService, initialAutomationSessionConfiguration?.sessionTemplate));
 		this.sessionId = toSessionId(providerId, resource);
 		this.providerId = providerId;
@@ -435,6 +437,9 @@ export class RemoteNewSession extends Disposable implements ICopilotChatSession 
 	setOption(optionId: string, value: IChatSessionProviderOptionItem | string): void {
 		if (typeof value !== 'string') {
 			this.selectedOptions.set(optionId, value);
+		}
+		if (optionId === 'repositories') {
+			void this.draftPreparationService.discard(this.resource);
 		}
 		this.chatSessionsService.setSessionOption(this.resource, optionId, value);
 	}
@@ -1151,6 +1156,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		@IFileService private readonly fileService: IFileService,
 		@IPathService private readonly pathService: IPathService,
 		@IStorageService private readonly storageService: IStorageService,
+		@ICloudSandboxDraftPreparationService private readonly draftPreparationService: ICloudSandboxDraftPreparationService,
 	) {
 		super();
 
@@ -1443,6 +1449,19 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 	createNewSession(workspaceUri: URI, sessionTypeId: string, options?: ISessionsProviderCreateSessionOptions): ISession {
 		return this._createDraftSession(workspaceUri, sessionTypeId, options);
+	}
+
+	prepareNewSessionWhileComposing(sessionId: string): void {
+		const session = this._newSessions.get(sessionId);
+		if (!session || session.isNewSessionRequestInProgress.get()) {
+			return;
+		}
+		const repoNwo = session.repoNwo;
+		if (this._usesSandbox(session) && (repoNwo || (session.isQuickChat.get() && !session.selectedOptions.has('repositories')))) {
+			this.draftPreparationService.prepare(session.resource, repoNwo);
+		} else {
+			void this.draftPreparationService.discard(session.resource);
+		}
 	}
 
 	private _createDraftSession(workspaceUri: URI | undefined, sessionTypeId: string, options?: ISessionsProviderCreateSessionOptions): ISession {
@@ -1963,7 +1982,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		const provisioned = await this._getCloudSandboxContribution().provisionSession({
 			...(session.repoNwo ? { repoNwo: session.repoNwo } : {}),
 			prompt: query,
-		}, token, progress);
+		}, token, progress, session.resource);
 		if (token.isCancellationRequested || this._store.isDisposed || this._newSessions.get(session.sessionId) !== session) {
 			this._publishSandboxSession(provisioned);
 			throw new CancellationError();

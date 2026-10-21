@@ -53,6 +53,21 @@ export function getFusionTierLabel(auto: ILanguageModelChatMetadata | undefined,
 	return tier ? tier.enumItemLabels?.[tier.enum!.indexOf(high)] ?? getFusionAutoModeTierLabel(high) : undefined;
 }
 
+/**
+ * The badge of a routing model at the given effort level. Copilot Fusion's names that
+ * level's discount, else "Research preview", so it shows which levels a promotion covers.
+ * Other routing models keep their own detail.
+ */
+export function getRoutingModelBadge(metadata: ILanguageModelChatMetadata, tier: unknown): string | undefined {
+	if (!metadata.autoModelFusion) {
+		return metadata.detail;
+	}
+	const discountPercent = ILanguageModelChatMetadata.getAutoTierDiscountPercent(metadata, tier);
+	return discountPercent !== undefined
+		? localize('chat.modelPicker.fusionTierDiscountBadge', "{0}% discount", discountPercent)
+		: localize('chat.modelPicker.fusionResearchPreviewBadge', "Research preview");
+}
+
 /** Whether the plan offers built-in HydraFusion only as an upgrade, never as a choice. */
 export function isHydraFusionUpgradeOnly(entitlement: ChatEntitlement): boolean {
 	return entitlement === ChatEntitlement.Free || entitlement === ChatEntitlement.EDU;

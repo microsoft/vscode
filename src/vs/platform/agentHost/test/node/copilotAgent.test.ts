@@ -2224,6 +2224,35 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('retries managed plugins only in the exact live chat of the session', async () => {
+		const session = URI.parse('agent-host-copilotcli:/retry-session');
+		const chat = URI.parse('agent-host-copilotcli:/retry-session#peer');
+		const calls: string[] = [];
+		const liveSession = {
+			resourceUri: chat,
+			ownerSessionUri: session,
+			retryManagedPlugins: async () => {
+				calls.push(chat.toString());
+				return [{ spec: 'security-guard@contoso', status: 'installed' }];
+			},
+		} as unknown as CopilotAgentSession;
+		const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]) });
+		chatEntriesBySdkId(agent).set('live-retry-peer', { chatSession: liveSession, dispose() { } });
+		chatBackings(agent).set(chat.toString(), { sdkSessionId: 'live-retry-peer' });
+		try {
+			const plugins = await agent.retryManagedPlugins(session, chat);
+			const otherSession = await agent.retryManagedPlugins(URI.parse('agent-host-copilotcli:/other-session'), chat).then(() => 'resolved', (error: Error) => error.message);
+
+			assert.deepStrictEqual({ plugins, calls, otherSession }, {
+				plugins: [{ spec: 'security-guard@contoso', status: 'installed' }],
+				calls: ['agent-host-copilotcli:/retry-session#peer'],
+				otherSession: 'This chat is not active. Send a message in it, then try again.',
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
 	test('customization inventory uses the verified hidden policy session while a chat is live', async () => {
 		const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/copilot-customization-policy-`);
 		const sessionId = 'visible-chat';
@@ -13166,7 +13195,7 @@ suite('CopilotAgent', () => {
 				await agent.refreshModels();
 				assert.deepStrictEqual({ fusion, withoutProviderTiers, withoutProviderTiersOrHydraFusion, dynamicAutoTiersOff: published() }, {
 					// HydraFusion's tiers the account can run are also models, so a chat on one keeps it.
-					fusion: ['auto:Fusion:fusion(balanceUsesHydraFusion=false):efficiency/balance/intelligence/hydrafusion/hydrafusion-max=balance:Efficiency/Balance/Intelligence/High/Max:Effort Level', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
+					fusion: ['auto:Copilot Fusion:fusion(balanceUsesHydraFusion=false):efficiency/balance/intelligence/hydrafusion/hydrafusion-max=balance:Efficiency/Balance/Intelligence/High/Max:Effort Level', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
 					withoutProviderTiers: ['auto:Auto:efficiency/balance/intelligence=balance:Efficiency/Balance/Intelligence:Optimize for', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
 					withoutProviderTiersOrHydraFusion: ['auto:Auto:efficiency/balance/intelligence=balance:Efficiency/Balance/Intelligence:Optimize for', 'gpt-5:GPT-5'],
 					dynamicAutoTiersOff: ['auto:Auto:efficiency/balance/intelligence=balance:Efficiency/Balance/Intelligence:Optimize for', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
@@ -15539,7 +15568,7 @@ suite('CopilotAgent', () => {
 				autoTiers: readAgentModelAutoTiersMeta(fusion)?.tiers.map(({ label, enabled }) => ({ label, enabled })),
 				promotions: readAgentModelAutoTierPromotionsMeta(fusion),
 			}, {
-				name: 'Fusion',
+				name: 'Copilot Fusion',
 				tier: { enum: ['balance', 'hydrafusion'], labels: ['Balance', 'High'] },
 				autoTiers: [{ label: 'Balance', enabled: true }, { label: 'High', enabled: true }, { label: 'Max', enabled: false }],
 				promotions: [{
