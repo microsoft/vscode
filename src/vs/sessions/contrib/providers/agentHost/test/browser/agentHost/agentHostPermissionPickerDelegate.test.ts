@@ -22,7 +22,7 @@ import { NullTelemetryService } from '../../../../../../../platform/telemetry/co
 import { AgentHostPermissionPickerActionItem } from '../../../browser/agentHostPermissionPickerActionItem.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
-import { constObservable, observableValue } from '../../../../../../../base/common/observable.js';
+import { autorun, constObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../../../base/common/platform.js';
 import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
 import { URI } from '../../../../../../../base/common/uri.js';
@@ -49,6 +49,7 @@ import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../
 import { ISessionsProvider } from '../../../../../../services/sessions/common/sessionsProvider.js';
 import { IActiveSession } from '../../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../../services/sessions/browser/sessionsService.js';
+import { IUnavailablePermissionLevel } from '../../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { IChatPhoneInputPresenter } from '../../../../../../../workbench/contrib/chat/browser/widget/input/chatPhoneInputPresenter.js';
 import { IWorkbenchEnvironmentService } from '../../../../../../../workbench/services/environment/common/environmentService.js';
 
@@ -77,6 +78,14 @@ function makeWellKnownConfig(value: string | undefined, levels: readonly string[
 		},
 		values: value === undefined ? {} : { autoApprove: value },
 	} as ResolveSessionConfigResult;
+}
+
+function makeReportedConfig(levels: readonly string[], available: readonly string[], readOnly = true): ResolveSessionConfigResult {
+	const config = makeWellKnownConfig('default', levels);
+	return {
+		schema: { ...config.schema, properties: { ...config.schema.properties, availableApprovalModes: { type: 'array', title: 'Available approvals', readOnly } } },
+		values: { ...config.values, availableApprovalModes: [...available] },
+	};
 }
 
 class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChangeSessionConfig' | 'onDidChangeRootConfig' | 'getSessionConfig' | 'getRootConfig' | 'setSessionConfigValue' | 'trackSessionConfigOperation' | 'isSessionConfigResolving'> {
@@ -992,16 +1001,9 @@ suite('AgentHostPermissionPickerDelegate', () => {
 
 	test('distinguishes withheld levels from unsupported levels, attributes only known policy, and follows refresh', async () => {
 		const { delegate, provider, setManagedSettings } = setup(store, makeActiveSession(), 'default');
-		const withReport = (levels: readonly string[], available: readonly string[], readOnly = true): ResolveSessionConfigResult => {
-			const config = makeWellKnownConfig('default', levels);
-			return {
-				schema: { ...config.schema, properties: { ...config.schema.properties, availableApprovalModes: { type: 'array', title: 'Available approvals', readOnly } } },
-				values: { ...config.values, availableApprovalModes: [...available] },
-			};
-		};
 		const read = () => ({ available: delegate.availableLevels, unavailable: delegate.unavailableLevels.get() });
 
-		provider.config = withReport(['default', 'assisted', 'autoApprove'], ['default']);
+		provider.config = makeReportedConfig(['default', 'assisted', 'autoApprove'], ['default']);
 		provider.fireChange();
 		const unattributed = read();
 		setManagedSettings({ [COPILOT_DISABLE_ASSISTED_PERMISSIONS_MODE_KEY]: true });
@@ -1010,15 +1012,15 @@ suite('AgentHostPermissionPickerDelegate', () => {
 		await delegate.setPermissionLevel(ChatPermissionLevel.AutoApprove);
 		const restrictedWrites = [...provider.setCalls];
 
-		provider.config = withReport(['default', 'autoApprove'], ['default']);
+		provider.config = makeReportedConfig(['default', 'autoApprove'], ['default']);
 		provider.fireChange();
 		const unsupportedAssisted = read();
 
-		provider.config = withReport(['default', 'assisted', 'autoApprove'], ['default'], false);
+		provider.config = makeReportedConfig(['default', 'assisted', 'autoApprove'], ['default'], false);
 		provider.fireChange();
 		const clientOwnedReport = read();
 
-		provider.config = withReport(['default', 'assisted', 'autoApprove'], ['default', 'assisted', 'autoApprove']);
+		provider.config = makeReportedConfig(['default', 'assisted', 'autoApprove'], ['default', 'assisted', 'autoApprove']);
 		provider.fireChange();
 		const removed = read();
 		await delegate.setPermissionLevel(ChatPermissionLevel.Assisted);
@@ -1038,6 +1040,24 @@ suite('AgentHostPermissionPickerDelegate', () => {
 			removed: { available: [ChatPermissionLevel.Default, ChatPermissionLevel.Assisted, ChatPermissionLevel.AutoApprove], unavailable: [] },
 			writes: [[SESSION_ID, 'autoApprove', 'assisted']],
 		});
+	});
+
+	test('keeps withheld levels in display order and only notifies observers of actual changes when the host reorders its schema or report', () => {
+		const { delegate, provider } = setup(store, makeActiveSession(), 'default');
+		provider.config = makeReportedConfig(['autoApprove', 'default', 'assisted'], ['default']);
+		provider.fireChange();
+		const observed: (readonly IUnavailablePermissionLevel[])[] = [];
+		store.add(autorun(reader => { observed.push(delegate.unavailableLevels.read(reader)); }));
+
+		provider.config = makeReportedConfig(['assisted', 'autoApprove', 'default'], ['default']);
+		provider.fireChange();
+		provider.config = makeReportedConfig(['assisted', 'autoApprove', 'default'], ['assisted', 'default']);
+		provider.fireChange();
+
+		assert.deepStrictEqual(observed, [
+			[{ level: ChatPermissionLevel.Assisted, byPolicy: false }, { level: ChatPermissionLevel.AutoApprove, byPolicy: false }],
+			[{ level: ChatPermissionLevel.AutoApprove, byPolicy: false }],
+		]);
 	});
 
 	test('setPermissionLevel is a no-op when there is no active session', async () => {
