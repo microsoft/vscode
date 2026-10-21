@@ -413,7 +413,8 @@ jobs:
       artifact_suffix: -benchmark-${{ matrix.config.cores }}-${{ matrix.config.variant }}-${{ matrix.rep }}
 
   # Windows has 3 samples of the variants with TEMP on C: from run 39529985220. The -d variants move
-  # TEMP from the OS and workspace drive (C:) to the local temporary storage drive (D:); b4 runs 4 at a time.
+  # TEMP from the OS and workspace drive (C:) to the local temporary storage drive (D:), which only
+  # the 64-core runners have.
   windows-electron-benchmark:
     name: Benchmark Windows ${{ matrix.config.cores }}-core (${{ matrix.config.variant }}) ${{ matrix.rep }}
     strategy:
@@ -421,11 +422,8 @@ jobs:
       matrix:
         rep: [1, 2, 3]
         config:
-          - { cores: 16, variant: sequential-d, mode: '', jobs: 0, tempd: true }
-          - { cores: 16, variant: a-d, mode: concurrent, jobs: 0, tempd: true }
-          - { cores: 16, variant: b-d, mode: before, jobs: 8, tempd: true }
-          - { cores: 16, variant: c-d, mode: concurrent, jobs: 8, tempd: true }
-          - { cores: 16, variant: b4, mode: before, jobs: 4 }
+          - { cores: 64, variant: sequential-d, mode: '', jobs: 0, tempd: true }
+          - { cores: 64, variant: c-d, mode: concurrent, jobs: 32, tempd: true }
     uses: ./.github/workflows/pr-win32-test.yml
     with:
       job_name: Electron
