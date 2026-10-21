@@ -14,7 +14,8 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IChat, ISession, SessionStatus } from '../../common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../common/sessionsManagement.js';
-import { SessionGroupsService } from '../../browser/sessionGroupsService.js';
+import { getSessionGroupSectionId, SessionGroupsService, SessionGroupTree } from '../../browser/sessionGroupsService.js';
+import { ISessionSectionOrderService, SessionSectionOrderService } from '../../browser/sessionSectionOrderService.js';
 
 function createSession(id: string, isArchived = false, creatorSession?: URI): ISession {
 	return {
@@ -50,6 +51,7 @@ suite('SessionGroupsService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let service: SessionGroupsService;
 	let storageService: InMemoryStorageService;
+	let orderService: SessionSectionOrderService;
 	let sessionsChangedEmitter: Emitter<ISessionsChangeEvent>;
 	let willSendRequestEmitter: Emitter<ISession>;
 	let sessionStartedEmitter: Emitter<ISession>;
@@ -76,6 +78,8 @@ suite('SessionGroupsService', () => {
 		instantiationService = disposables.add(new TestInstantiationService());
 		storageService = disposables.add(new InMemoryStorageService());
 		instantiationService.stub(IStorageService, storageService);
+		orderService = disposables.add(new SessionSectionOrderService(storageService));
+		instantiationService.stub(ISessionSectionOrderService, orderService);
 		sessionsChangedEmitter = disposables.add(new Emitter<ISessionsChangeEvent>());
 		willSendRequestEmitter = disposables.add(new Emitter<ISession>());
 		sessionStartedEmitter = disposables.add(new Emitter<ISession>());
@@ -599,6 +603,172 @@ suite('SessionGroupsService', () => {
 		}, {
 			group: 'Legacy',
 			membership: 'legacy-group',
+		});
+	});
+
+	/** Each group's name mapped to its parent's name, or `null` for a top-level group. */
+	function describeNesting(groupsService: SessionGroupsService): Record<string, string | null> {
+		return Object.fromEntries(groupsService.getGroups().map(group => [group.name, group.parentId === undefined ? null : groupsService.getGroup(group.parentId)?.name ?? '(missing)']));
+	}
+
+	test('nests groups at any depth, never in themselves or their subgroups, and persists the nesting', () => {
+		const release = service.createGroup('Release');
+		const hotfixes = service.createGroup('Hotfixes', [], release.id);
+		const urgent = service.createGroup('Urgent', [], hotfixes.id);
+		service.createGroup('Unknown parent', [], 'missing');
+		const triage = service.createGroup('Triage');
+
+		service.moveGroup(release.id, urgent.id);
+		service.moveGroup(hotfixes.id, hotfixes.id);
+		service.moveGroup(triage.id, urgent.id);
+		service.moveGroup(hotfixes.id, undefined);
+		const reloaded = disposables.add(instantiationService.createInstance(SessionGroupsService));
+
+		assert.deepStrictEqual({ nesting: describeNesting(service), reloaded: describeNesting(reloaded) }, {
+			nesting: { 'Unknown parent': null, Release: null, Hotfixes: null, Urgent: 'Hotfixes', Triage: 'Urgent' },
+			reloaded: { 'Unknown parent': null, Release: null, Hotfixes: null, Urgent: 'Hotfixes', Triage: 'Urgent' },
+		});
+	});
+
+	/** Replaces the service with one that loads the given groups. */
+	function loadGroups(groups: readonly { readonly id: string; readonly name: string; readonly createdAt: number; readonly parentId?: string }[]): void {
+		storageService.store('sessionsListControl.groups', JSON.stringify({ groups, membership: {} }), StorageScope.PROFILE, StorageTarget.USER);
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionGroupsService));
+	}
+
+	/** The group names in display order, each subgroup indented under its parent. */
+	function outline(groupsService: SessionGroupsService, parentId?: string, indent = ''): string[] {
+		return groupsService.getTree().getSubgroups(parentId).flatMap(group => [`${indent}${group.name}`, ...outline(groupsService, group.id, `${indent}  `)]);
+	}
+
+	test('places a moved group next to a sibling or first among its new siblings, without reordering other groups, and persists the order', () => {
+		loadGroups([
+			{ id: 'release', name: 'Release', createdAt: 1 },
+			{ id: 'docs', name: 'Docs', createdAt: 2, parentId: 'release' },
+			{ id: 'hotfixes', name: 'Hotfixes', createdAt: 3, parentId: 'release' },
+			{ id: 'urgent', name: 'Urgent', createdAt: 4, parentId: 'release' },
+			{ id: 'other', name: 'Other', createdAt: 5 },
+			{ id: 'triage', name: 'Triage', createdAt: 6 },
+		]);
+		let events = 0;
+		disposables.add(service.onDidChange(e => events += e.groupsChanged ? 1 : 0));
+		const byDefault = outline(service);
+
+		service.moveGroup('docs', 'release', { siblingId: 'urgent', position: 'before' });
+		service.moveGroup('docs', 'release', { siblingId: 'urgent', position: 'before' });
+		// The sessions list moves Release to the top of its top-level headers.
+		const topLevelIds = service.getTree().getSubgroups(undefined).map(group => getSessionGroupSectionId(group.id));
+		orderService.reorder(topLevelIds, getSessionGroupSectionId('release'), getSessionGroupSectionId('triage'), 'before');
+		service.moveGroup('triage', 'release', { siblingId: 'urgent', position: 'after' });
+		service.moveGroup('hotfixes', 'urgent');
+		const reloaded = disposables.add(instantiationService.createInstance(SessionGroupsService));
+
+		assert.deepStrictEqual({ byDefault, moved: outline(service), events, reloaded: outline(reloaded) }, {
+			byDefault: ['Triage', 'Other', 'Release', '  Urgent', '  Hotfixes', '  Docs'],
+			moved: ['Release', '  Docs', '  Urgent', '    Hotfixes', '  Triage', 'Other'],
+			events: 3,
+			reloaded: ['Release', '  Docs', '  Urgent', '    Hotfixes', '  Triage', 'Other'],
+		});
+	});
+
+	test('restoring deleted groups restores their order among their siblings', () => {
+		loadGroups([
+			{ id: 'release', name: 'Release', createdAt: 1 },
+			{ id: 'docs', name: 'Docs', createdAt: 2, parentId: 'release' },
+			{ id: 'hotfixes', name: 'Hotfixes', createdAt: 3, parentId: 'release' },
+			{ id: 'urgent', name: 'Urgent', createdAt: 4, parentId: 'release' },
+			{ id: 'a', name: 'A', createdAt: 5, parentId: 'urgent' },
+			{ id: 'b', name: 'B', createdAt: 6, parentId: 'urgent' },
+		]);
+		service.moveGroup('docs', 'release', { siblingId: 'urgent', position: 'after' });
+		service.moveGroup('a', 'urgent', { siblingId: 'b', position: 'before' });
+		const beforeDelete = outline(service);
+
+		const deleted = service.deleteGroup('urgent')!;
+		// Since the deletion, Hotfixes moved above Docs.
+		service.moveGroup('hotfixes', 'release', { siblingId: 'docs', position: 'before' });
+		service.restoreGroups(deleted);
+
+		assert.deepStrictEqual({ beforeDelete, restored: outline(service) }, {
+			beforeDelete: ['Release', '  Urgent', '    A', '    B', '  Docs', '  Hotfixes'],
+			restored: ['Release', '  Urgent', '    A', '    B', '  Hotfixes', '  Docs'],
+		});
+	});
+
+	test('deleting a group deletes its subgroups, and restoring them restores the memberships that are still free', () => {
+		sessions = ['s1', 's2', 's3', 's4'].map(id => createSession(id));
+		const release = service.createGroup('Release', ['s1']);
+		const hotfixes = service.createGroup('Hotfixes', ['s2', 's3'], release.id);
+		service.createGroup('Urgent', ['s4'], hotfixes.id);
+		const other = service.createGroup('Other');
+		const membership = () => Object.fromEntries(sessions.map(session => [session.sessionId, service.getGroup(service.getGroupOfSession(session.sessionId) ?? '')?.name ?? null]));
+
+		const deleted = service.deleteGroup(release.id)!;
+		const afterDelete = { nesting: describeNesting(service), membership: membership() };
+		// Since the deletion, s2 joined another group and s3 was marked done.
+		service.addToGroup('s2', other.id);
+		sessions[2] = createSession('s3', true);
+		service.restoreGroups(deleted);
+
+		assert.deepStrictEqual({
+			deleted: deleted.groups.map(group => group.name),
+			afterDelete,
+			restored: { nesting: describeNesting(service), membership: membership() },
+		}, {
+			deleted: ['Release', 'Hotfixes', 'Urgent'],
+			afterDelete: { nesting: { Other: null }, membership: { s1: null, s2: null, s3: null, s4: null } },
+			restored: {
+				nesting: { Other: null, Urgent: 'Hotfixes', Hotfixes: 'Release', Release: null },
+				membership: { s1: 'Release', s2: 'Other', s3: null, s4: 'Urgent' },
+			},
+		});
+	});
+
+	test('a restored group whose parent was deleted since becomes a top-level group', () => {
+		const release = service.createGroup('Release');
+		const hotfixes = service.createGroup('Hotfixes', [], release.id);
+
+		const deleted = service.deleteGroup(hotfixes.id)!;
+		service.deleteGroup(release.id);
+		service.restoreGroups(deleted);
+
+		assert.deepStrictEqual(describeNesting(service), { Hotfixes: null });
+	});
+
+	test('loading makes groups whose stored parent is missing or loops back top-level groups', () => {
+		storageService.store('sessionsListControl.groups', JSON.stringify({
+			groups: [
+				{ id: 'orphan', name: 'Orphan', createdAt: 1, parentId: 'missing' },
+				{ id: 'a', name: 'A', createdAt: 2, parentId: 'b' },
+				{ id: 'b', name: 'B', createdAt: 3, parentId: 'a' },
+				{ id: 'self', name: 'Self', createdAt: 4, parentId: 'self' },
+				{ id: 'child', name: 'Child', createdAt: 5, parentId: 'a' },
+			],
+			membership: {},
+		}), StorageScope.PROFILE, StorageTarget.USER);
+
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionGroupsService));
+
+		assert.deepStrictEqual(describeNesting(service), { Child: 'A', Self: null, B: null, A: 'B', Orphan: null });
+	});
+
+	test('the group tree reads a hierarchy whose parents loop back without looping', () => {
+		const tree = new SessionGroupTree([
+			{ id: 'a', name: 'A', createdAt: 1, parentId: 'b' },
+			{ id: 'b', name: 'B', createdAt: 2, parentId: 'a' },
+			{ id: 'top', name: 'Top', createdAt: 3 },
+		]);
+
+		assert.deepStrictEqual({
+			topLevel: tree.getSubgroups(undefined).map(group => group.id),
+			path: tree.getPath('a').map(group => group.id),
+			subtree: tree.getSubtree('a').map(group => group.id),
+		}, {
+			topLevel: ['top'],
+			path: ['b', 'a'],
+			subtree: ['a', 'b'],
 		});
 	});
 

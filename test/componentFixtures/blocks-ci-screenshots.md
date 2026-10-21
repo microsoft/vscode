@@ -103,13 +103,13 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/a92e0c554f09d1e7d3b864d0b1cd5c70c057b2acbe4fb67daadeba0cb8351eb8)
 
 #### sessions/chat/newWidget/newChatWidget/ConnectorRecommendations/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/8e48750743f6859f03cdb5201c2fd0b52a0b130c4e147bdc00f1d7f335c2c4f4)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/2c7bdd5be84d32e0b3bc7daeafc769044cfeeb79bf5fee43d7c82744cdc7df71)
 
 #### sessions/chat/newWidget/newChatWidget/ConnectorRecommendationsPhoneWithNotices/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/c2b81e0723faa35cce6d96c8a2de77e49cdc99e449e248c8b6026fd65e60f0ed)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/54636b19193f1715561b921e53d9bce47bc06fccaec8ff3ea049d69582260e14)
 
 #### sessions/chat/newWidget/newChatWidget/ConnectorRecommendationsWithNotices/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/2ddfeb79b2f0ca91826c2132be5e1c965e6830278be81b6dcf2d4a62be6e0bcb)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/a948352d01a47298eca294adb82e2d80b6862252aae2287e1842d5b17ece45e3)
 
 #### sessions/chat/newWidget/newChatWidget/MigrationsBackground/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/d117e1148e7fc460f84e909e263cd27c60051a6a13e00cff72295484ef5f0440)

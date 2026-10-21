@@ -7,6 +7,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { equals } from '../../../../../../base/common/objects.js';
 import { disposableTimeout } from '../../../../../../base/common/async.js';
 import { localize } from '../../../../../../nls.js';
 import { readAgentModelNoticesMeta } from '../../../../../../platform/agentHost/common/agentModelNotices.js';
@@ -63,6 +64,8 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 	private readonly _promotionChange = this._register(new MutableDisposable());
 
 	private _models: readonly SessionModelInfo[] = [];
+	/** Whether {@link updateModels} was called, whose first call publishes even an empty list so the vendor resolves. */
+	private _receivedModels = false;
 	private _additionalModels: readonly SessionModelInfo[] = [];
 
 	constructor(
@@ -92,6 +95,11 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 	 * Called by {@link AgentHostContribution} when models change in root state.
 	 */
 	updateModels(models: readonly SessionModelInfo[]): void {
+		// Agents are republished on every root state change, so most updates repeat the same models.
+		if (this._receivedModels && equals(this._models, models)) {
+			return;
+		}
+		this._receivedModels = true;
 		this._models = models;
 		this._onDidChange.fire();
 		this._schedulePromotionChange();
@@ -227,14 +235,18 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 
 	/**
 	 * The picker detail and description of a model that routes across others: Auto advertises its
-	 * discount, HydraFusion that it is a research preview. Other models have neither.
+	 * discount, and HydraFusion, or Auto presented as Fusion without a discount, that it is a research
+	 * preview. Other models have neither.
 	 */
 	private _routingPresentationFor(model: SessionModelInfo, discountPercent: number | undefined): { detail?: string; description?: string } {
 		if (model.id === AUTO_RAW_MODEL_ID) {
+			const fusion = !!readAgentModelFusionMeta(model);
 			return {
-				detail: discountPercent !== undefined ? localize('agentHost.auto.discount', "{0}% discount", discountPercent) : undefined,
+				detail: discountPercent !== undefined
+					? localize('agentHost.auto.discount', "{0}% discount", discountPercent)
+					: fusion ? localize('agentHost.hydraFusion.researchPreview', "Research preview") : undefined,
 				// The discount is carried by `autoModelDiscountPercent` and described by the picker.
-				description: ILanguageModelChatMetadata.getAutoModelDescription(!!readAgentModelFusionMeta(model)),
+				description: ILanguageModelChatMetadata.getAutoModelDescription(fusion),
 			};
 		}
 		if (model.provider === COPILOT_CLI_AGENT_PROVIDER_ID && isCopilotHydraFusionModelId(model.id)) {
@@ -340,7 +352,8 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 			if (selectable.includes(tier.id)) {
 				pushSelectable(tier.id);
 			} else if (!tier.enabled && !listed.has(tier.id)) {
-				entries.push({ value: tier.id, label: tier.label, description: tier.message ?? localize('agentHost.autoTierUnavailable', "Not available for your account."), disabled: true });
+				// The provider's own name and reason only.
+				entries.push({ value: tier.id, label: tier.label, description: tier.message, disabled: true });
 				listed.add(tier.id);
 			}
 		}

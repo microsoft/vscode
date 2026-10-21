@@ -68,7 +68,12 @@ export class AgentHostCustomizationService extends AbstractAgentHostCustomizatio
 		if (!provider) {
 			return undefined;
 		}
+		const backendSession = provider.getBackendSessionResource(session.sessionId);
+		if (!backendSession) {
+			return undefined;
+		}
 		return {
+			backendSession,
 			customizations: provider.getCustomizations(session.sessionId),
 			resourceUris: {
 				fromAgentHost: resource => provider.mapAgentHostResource(resource),

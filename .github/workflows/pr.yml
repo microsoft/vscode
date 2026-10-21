@@ -20,9 +20,11 @@ env:
 jobs:
   # Lists the files changed by the pull request so that jobs can skip checks the
   # changes cannot affect (see .github/actions/detect-changes/detect.ts).
-  # Skip with a job-level `if:` (inside the reusable workflow when the job calls
-  # one): a skipped job still reports its check, which satisfies required status
-  # checks. Jobs also run when change detection fails.
+  # Skip with a job-level `if:` inside the reusable workflow when the job calls
+  # one and reports a required check itself: a skipped job still reports its
+  # check, which satisfies required status checks. The core test jobs skip in
+  # the calling job instead, and required-checks reports their required checks.
+  # Jobs also run when change detection fails.
   changes:
     name: Detect Changes
     runs-on: ubuntu-24.04
@@ -30,6 +32,9 @@ jobs:
       cli: ${{ steps.detect.outputs.cli }}
       copilot-shim: ${{ steps.detect.outputs.copilot-shim }}
       copilot: ${{ steps.detect.outputs.copilot }}
+      unit-tests: ${{ steps.detect.outputs.unit-tests }}
+      browser-integration: ${{ steps.detect.outputs.browser-integration }}
+      product-tests: ${{ steps.detect.outputs.product-tests }}
     steps:
       - name: Checkout microsoft/vscode
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -159,8 +164,13 @@ jobs:
       all_targets: true
       affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.copilot-shim == 'true' }}
 
+  # The test jobs below report "<OS> (<part>) / <job>" checks and skip when the
+  # changes cannot affect them. required-checks reports the required
+  # "<OS> / <job>" checks from their results.
   linux-electron-unit-tests:
-    name: Linux
+    name: Linux (run)
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.unit-tests == 'true') }}
     uses: ./.github/workflows/pr-linux-test.yml
     with:
       job_name: Electron-Unit
@@ -169,7 +179,9 @@ jobs:
       smoke_tests: false
 
   linux-electron-tests:
-    name: Linux
+    name: Linux (run)
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true') }}
     uses: ./.github/workflows/pr-linux-test.yml
     with:
       job_name: Electron
@@ -179,6 +191,8 @@ jobs:
 
   linux-electron-smoke-test-shards:
     name: Linux (shard ${{ matrix.shard }}/${{ strategy.job-total }})
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true') }}
     strategy:
       fail-fast: false
       matrix:
@@ -192,33 +206,40 @@ jobs:
       smoke_shard_index: ${{ matrix.shard }}
       smoke_shard_total: ${{ strategy.job-total }}
 
-  linux-browser-test-parts:
-    name: Linux (${{ matrix.part }})
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - part: unit
-            unit: true
-          - part: integration & smoke
-            unit: false
+  linux-browser-unit-tests:
+    name: Linux (unit)
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.unit-tests == 'true') }}
     uses: ./.github/workflows/pr-linux-test.yml
     with:
       job_name: Browser
       browser_tests: true
-      unit_tests: ${{ matrix.unit }}
-      integration_tests: ${{ !matrix.unit }}
-      smoke_tests: ${{ !matrix.unit }}
+      integration_tests: false
+      smoke_tests: false
+
+  linux-browser-integration-tests:
+    name: Linux (integration & smoke)
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.browser-integration == 'true') }}
+    uses: ./.github/workflows/pr-linux-test.yml
+    with:
+      job_name: Browser
+      browser_tests: true
+      unit_tests: false
 
   linux-remote-tests:
-    name: Linux
+    name: Linux (run)
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true') }}
     uses: ./.github/workflows/pr-linux-test.yml
     with:
       job_name: Remote
       remote_tests: true
 
   macos-electron-unit-tests:
-    name: macOS
+    name: macOS (run)
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.unit-tests == 'true') }}
     uses: ./.github/workflows/pr-darwin-test.yml
     with:
       job_name: Electron-Unit
@@ -227,7 +248,9 @@ jobs:
       smoke_tests: false
 
   macos-electron-tests:
-    name: macOS
+    name: macOS (run)
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true') }}
     uses: ./.github/workflows/pr-darwin-test.yml
     with:
       job_name: Electron
@@ -237,6 +260,8 @@ jobs:
 
   macos-electron-smoke-test-shards:
     name: macOS (shard ${{ matrix.shard }}/${{ strategy.job-total }})
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true') }}
     strategy:
       fail-fast: false
       matrix:
@@ -250,33 +275,40 @@ jobs:
       smoke_shard_index: ${{ matrix.shard }}
       smoke_shard_total: ${{ strategy.job-total }}
 
-  macos-browser-test-parts:
-    name: macOS (${{ matrix.part }})
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - part: unit
-            unit: true
-          - part: integration & smoke
-            unit: false
+  macos-browser-unit-tests:
+    name: macOS (unit)
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.unit-tests == 'true') }}
     uses: ./.github/workflows/pr-darwin-test.yml
     with:
       job_name: Browser
       browser_tests: true
-      unit_tests: ${{ matrix.unit }}
-      integration_tests: ${{ !matrix.unit }}
-      smoke_tests: ${{ !matrix.unit }}
+      integration_tests: false
+      smoke_tests: false
+
+  macos-browser-integration-tests:
+    name: macOS (integration & smoke)
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.browser-integration == 'true') }}
+    uses: ./.github/workflows/pr-darwin-test.yml
+    with:
+      job_name: Browser
+      browser_tests: true
+      unit_tests: false
 
   macos-remote-tests:
-    name: macOS
+    name: macOS (run)
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true') }}
     uses: ./.github/workflows/pr-darwin-test.yml
     with:
       job_name: Remote
       remote_tests: true
 
   windows-electron-unit-tests:
-    name: Windows
+    name: Windows (run)
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.unit-tests == 'true') }}
     uses: ./.github/workflows/pr-win32-test.yml
     with:
       job_name: Electron-Unit
@@ -285,7 +317,9 @@ jobs:
       smoke_tests: false
 
   windows-electron-tests:
-    name: Windows
+    name: Windows (run)
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true') }}
     uses: ./.github/workflows/pr-win32-test.yml
     with:
       job_name: Electron
@@ -295,6 +329,8 @@ jobs:
 
   windows-electron-smoke-test-shards:
     name: Windows (shard ${{ matrix.shard }}/${{ strategy.job-total }})
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true') }}
     strategy:
       fail-fast: false
       matrix:
@@ -308,72 +344,137 @@ jobs:
       smoke_shard_index: ${{ matrix.shard }}
       smoke_shard_total: ${{ strategy.job-total }}
 
-  windows-browser-test-parts:
-    name: Windows (${{ matrix.part }})
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - part: unit
-            unit: true
-          - part: integration & smoke
-            unit: false
+  windows-browser-unit-tests:
+    name: Windows (unit)
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.unit-tests == 'true') }}
     uses: ./.github/workflows/pr-win32-test.yml
     with:
       job_name: Browser
       browser_tests: true
-      unit_tests: ${{ matrix.unit }}
-      integration_tests: ${{ !matrix.unit }}
-      smoke_tests: ${{ !matrix.unit }}
+      integration_tests: false
+      smoke_tests: false
+
+  windows-browser-integration-tests:
+    name: Windows (integration & smoke)
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.browser-integration == 'true') }}
+    uses: ./.github/workflows/pr-win32-test.yml
+    with:
+      job_name: Browser
+      browser_tests: true
+      unit_tests: false
 
   windows-remote-tests:
-    name: Windows
+    name: Windows (run)
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true') }}
     uses: ./.github/workflows/pr-win32-test.yml
     with:
       job_name: Remote
       remote_tests: true
 
-  # Reports the required "<OS> / Electron-Smoke" checks from the smoke test shards.
-  # Uses always() because a skipped job counts as passing for required checks.
-  electron-smoke-checks:
+  # Reports the required "<OS> / <job>" checks. A check passes when each of its
+  # jobs succeeded or was skipped because the changes cannot affect it. Uses
+  # always() so that the checks also report when a job failed or was skipped.
+  required-checks:
     name: ${{ matrix.check }}
-    needs: [linux-electron-smoke-test-shards, macos-electron-smoke-test-shards, windows-electron-smoke-test-shards]
+    needs:
+      - changes
+      - linux-electron-unit-tests
+      - linux-electron-tests
+      - linux-electron-smoke-test-shards
+      - linux-browser-unit-tests
+      - linux-browser-integration-tests
+      - linux-remote-tests
+      - macos-electron-unit-tests
+      - macos-electron-tests
+      - macos-electron-smoke-test-shards
+      - macos-browser-unit-tests
+      - macos-browser-integration-tests
+      - macos-remote-tests
+      - windows-electron-unit-tests
+      - windows-electron-tests
+      - windows-electron-smoke-test-shards
+      - windows-browser-unit-tests
+      - windows-browser-integration-tests
+      - windows-remote-tests
     if: ${{ always() }}
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
         include:
+          - check: Linux / Electron-Unit
+            parts:
+              - { job: linux-electron-unit-tests, output: unit-tests }
+          - check: Linux / Electron
+            parts:
+              - { job: linux-electron-tests, output: product-tests }
           - check: Linux / Electron-Smoke
-            shards: linux-electron-smoke-test-shards
-          - check: macOS / Electron-Smoke
-            shards: macos-electron-smoke-test-shards
-          - check: Windows / Electron-Smoke
-            shards: windows-electron-smoke-test-shards
-    steps:
-      - name: Check shard result (${{ needs[matrix.shards].result }})
-        run: exit ${{ needs[matrix.shards].result == 'success' && '0' || '1' }}
-
-  # Reports the required "<OS> / Browser" checks from the browser test parts.
-  # Uses always() because a skipped job counts as passing for required checks.
-  browser-checks:
-    name: ${{ matrix.check }}
-    needs: [linux-browser-test-parts, macos-browser-test-parts, windows-browser-test-parts]
-    if: ${{ always() }}
-    runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
+            parts:
+              - { job: linux-electron-smoke-test-shards, output: product-tests }
           - check: Linux / Browser
-            parts: linux-browser-test-parts
+            parts:
+              - { job: linux-browser-unit-tests, output: unit-tests }
+              - { job: linux-browser-integration-tests, output: browser-integration }
+          - check: Linux / Remote
+            parts:
+              - { job: linux-remote-tests, output: product-tests }
+          - check: macOS / Electron-Unit
+            parts:
+              - { job: macos-electron-unit-tests, output: unit-tests }
+          - check: macOS / Electron
+            parts:
+              - { job: macos-electron-tests, output: product-tests }
+          - check: macOS / Electron-Smoke
+            parts:
+              - { job: macos-electron-smoke-test-shards, output: product-tests }
           - check: macOS / Browser
-            parts: macos-browser-test-parts
+            parts:
+              - { job: macos-browser-unit-tests, output: unit-tests }
+              - { job: macos-browser-integration-tests, output: browser-integration }
+          - check: macOS / Remote
+            parts:
+              - { job: macos-remote-tests, output: product-tests }
+          - check: Windows / Electron-Unit
+            parts:
+              - { job: windows-electron-unit-tests, output: unit-tests }
+          - check: Windows / Electron
+            parts:
+              - { job: windows-electron-tests, output: product-tests }
+          - check: Windows / Electron-Smoke
+            parts:
+              - { job: windows-electron-smoke-test-shards, output: product-tests }
           - check: Windows / Browser
-            parts: windows-browser-test-parts
+            parts:
+              - { job: windows-browser-unit-tests, output: unit-tests }
+              - { job: windows-browser-integration-tests, output: browser-integration }
+          - check: Windows / Remote
+            parts:
+              - { job: windows-remote-tests, output: product-tests }
     steps:
-      - name: Check parts result (${{ needs[matrix.parts].result }})
-        run: exit ${{ needs[matrix.parts].result == 'success' && '0' || '1' }}
+      - name: Check job results
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+          PARTS: ${{ toJSON(matrix.parts) }}
+        run: |
+          set -euo pipefail
+          detection=$(jq -r '.changes.result' <<< "$NEEDS")
+          status=0
+          while read -r job output; do
+            result=$(jq -r --arg job "$job" '.[$job].result' <<< "$NEEDS")
+            affected=$(jq -r --arg output "$output" '.changes.outputs[$output] // "true"' <<< "$NEEDS")
+            if [[ "$result" == success ]]; then
+              echo "$job succeeded."
+            elif [[ "$result" == skipped && "$detection" == success && "$affected" == false ]]; then
+              echo "$job was skipped because the changes cannot affect it ($output: false)."
+            else
+              echo "::error::$job did not succeed (result: $result, detection: $detection, $output: $affected)."
+              status=1
+            fi
+          done < <(jq -r '.[] | "\(.job) \(.output)"' <<< "$PARTS")
+          exit $status
 
   copilot-check-test-cache:
     name: Copilot - Check Test Cache

@@ -5,11 +5,9 @@
 
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { ListViewTargetSector } from '../../../../../base/browser/ui/list/listView.js';
-import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { localize } from '../../../../../nls.js';
 import { ChatMoveSettingId } from '../../../../../platform/agentHost/common/agentHostChatMove.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
@@ -208,23 +206,9 @@ export type SessionsListMove =
 	| { readonly kind: 'chat'; readonly session: ISession; readonly chat: IChat; readonly destination: ISessionChatMoveTarget }
 	| { readonly kind: 'session'; readonly session: ISession; readonly destination: ISession; readonly after: IChat | undefined };
 
-/** Whether `move` reorders a chat within its own session, which needs no confirmation. */
+/** Whether `move` reorders a chat within its own session. */
 function isReorder(move: SessionsListMove): boolean {
 	return move.kind === 'chat' && move.destination.kind === 'session' && move.destination.session.sessionId === move.session.sessionId;
-}
-
-/** The question confirming `move`, or `undefined` for a reorder within a session, which isn't confirmed. */
-export function getSessionsListMoveConfirmation(move: SessionsListMove): string | undefined {
-	if (move.kind === 'session') {
-		return localize('sessionsMove.confirmSession', "Are you sure you want to move session '{0}' into '{1}'?", move.session.title.get(), move.destination.title.get());
-	}
-	if (move.destination.kind === 'newSession') {
-		return localize('sessionsMove.confirmPromote', "Are you sure you want to move '{0}' to a new session?", move.chat.title.get());
-	}
-	if (isReorder(move)) {
-		return undefined;
-	}
-	return localize('sessionsMove.confirmChat', "Are you sure you want to move '{0}' into '{1}'?", move.chat.title.get(), move.destination.session.title.get());
 }
 
 /**
@@ -259,38 +243,16 @@ function getSessionsListMoveSuccess(move: SessionsListMove): string {
 }
 
 /**
- * Runs a move dropped in the sessions list. Unless it reorders a chat within its session, it first asks for
- * confirmation while {@link ChatMoveSettingId.ConfirmDragAndDrop} is on; "Do not ask me again" turns that off. A move
- * that is refused shows why; one that fails unexpectedly says only that it failed and logs the details. A move that
- * succeeds shows nothing (the list shows the result) and is only announced to screen readers. Resolves whether it moved.
+ * Runs a move dropped in the sessions list, without asking first, as a reorder does. A move that is refused shows why;
+ * one that fails unexpectedly says only that it failed and logs the details. A move that succeeds shows nothing (the
+ * list shows the result) and is only announced to screen readers. Resolves whether it moved.
  */
 export async function runSessionsListMove(
 	move: SessionsListMove,
 	sessionsManagementService: ISessionsManagementService,
-	dialogService: IDialogService,
-	configurationService: IConfigurationService,
 	notificationService: INotificationService,
 	logService: ILogService,
 ): Promise<boolean> {
-	const confirmation = configurationService.getValue<boolean>(ChatMoveSettingId.ConfirmDragAndDrop) !== false ? getSessionsListMoveConfirmation(move) : undefined;
-	if (confirmation) {
-		const result = await dialogService.confirm({
-			message: confirmation,
-			checkbox: { label: localize('sessionsMove.doNotAskAgain', "Do not ask me again") },
-			primaryButton: localize({ key: 'sessionsMove.moveButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Move"),
-		});
-		if (!result.confirmed) {
-			return false;
-		}
-		if (result.checkboxChecked === true) {
-			try {
-				await configurationService.updateValue(ChatMoveSettingId.ConfirmDragAndDrop, false);
-			} catch (error) {
-				// The user confirmed the move: make it, though the next one asks again.
-				onUnexpectedError(error);
-			}
-		}
-	}
 	try {
 		if (move.kind === 'session') {
 			await sessionsManagementService.moveSessionUnder(move.session, move.destination, move.after);

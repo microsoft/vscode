@@ -99,10 +99,10 @@ suite('Agent Host GitHub clients', () => {
 		const same = store.add(service.acquireRepositoryApiClient(signal, a, 'agent:/a'));
 		const other = store.add(service.acquireRepositoryApiClient(signal, b, 'agent:/a'));
 		const otherSession = store.add(service.acquireRepositoryApiClient(signal, a, 'agent:/b'));
-		const titles = [(await first.issues.get({ owner: 'o', name: 'r' }, 1, signal)).title];
+		const titles = [(await first.issues.get({ owner: 'o', repo: 'r' }, 1, signal)).title];
 		first.dispose();
 		for (const client of [same, other, otherSession]) {
-			titles.push((await client.issues.get({ owner: 'o', name: 'r' }, 1, signal)).title);
+			titles.push((await client.issues.get({ owner: 'o', repo: 'r' }, 1, signal)).title);
 		}
 		assert.deepStrictEqual({ titles, identities }, { titles: ['a', 'a', 'b', 'a'], identities: ['a', 'b', 'a'] });
 	});
@@ -135,14 +135,14 @@ suite('Agent Host GitHub clients', () => {
 			}, authentication, endpoint, new NullLogService(), NullTelemetryService));
 			const signal = new AbortController().signal;
 			const client = store.add(service.acquireRepositoryApiClient(signal, source));
-			await client.issues.get({ owner: 'o', name: 'r' }, 1, signal);
+			await client.issues.get({ owner: 'o', repo: 'r' }, 1, signal);
 			valid = false;
 			const unavailableSource = unavailable === 'wrongOrigin'
 				? { ...source, principal: { apiOrigin: 'https://api.other.example', userId: '101' } }
 				: source;
 			await assert.rejects(async () => {
 				const next = store.add(service.acquireRepositoryApiClient(signal, unavailableSource));
-				await next.issues.get({ owner: 'o', name: 'r' }, 1, signal);
+				await next.issues.get({ owner: 'o', repo: 'r' }, 1, signal);
 			});
 			assert.strictEqual(requests, 2);
 		});
@@ -520,7 +520,7 @@ suite('Agent Host GitHub clients', () => {
 		for (let i = 0; i < 3; i++) {
 			const signal = new AbortController().signal;
 			const client = store.add(service.acquireRepositoryApiClient(signal));
-			const { title, body } = await client.issues.get({ owner: 'owner', name: 'repo' }, 7, signal);
+			const { title, body } = await client.issues.get({ owner: 'owner', repo: 'repo' }, 7, signal);
 			assert.deepStrictEqual({ title, body }, { title: 'Context', body: 'Body' });
 			client.dispose();
 		}
@@ -557,7 +557,7 @@ suite('Agent Host GitHub clients', () => {
 		const controller = new AbortController();
 		const first = store.add(service.acquireRepositoryApiClient(controller.signal));
 		const second = store.add(service.acquireRepositoryApiClient(new AbortController().signal));
-		const ref = { owner: 'owner', name: 'repo' };
+		const ref = { owner: 'owner', repo: 'repo' };
 		const rejected = assert.rejects(first.issues.get(ref, 7, controller.signal));
 		const peer = second.issues.get(ref, 7, new AbortController().signal);
 		const wireSignal = await started.p;
@@ -593,7 +593,7 @@ suite('Agent Host GitHub clients', () => {
 			}, authentication, endpoint, new NullLogService(), NullTelemetryService));
 			const signal = new AbortController().signal;
 			const client = store.add(service.acquireRepositoryApiClient(signal));
-			const { title, body } = await client.issues.get({ owner: 'owner', name: 'repo' }, 7, signal);
+			const { title, body } = await client.issues.get({ owner: 'owner', repo: 'repo' }, 7, signal);
 			assert.deepStrictEqual({ result: { title, body }, requests, scopes: client.authorization.scopes }, {
 				result: { title: 'Legacy context', body: null },
 				requests: [`${endpoint.getApiBaseUri()}/user`, `${endpoint.getApiBaseUri()}/repos/owner/repo/issues/7`],
@@ -623,14 +623,14 @@ suite('Agent Host GitHub clients', () => {
 		}, authentication, endpoint, new NullLogService(), NullTelemetryService));
 		const signal = new AbortController().signal;
 		const first = store.add(service.acquireRepositoryApiClient(signal));
-		const firstContext = await first.issues.get({ owner: 'owner', name: 'repo' }, 7, signal);
+		const firstContext = await first.issues.get({ owner: 'owner', repo: 'repo' }, 7, signal);
 		let selectionsChanged = 0;
 		store.add(service.onDidChangeRepositoryClient(() => selectionsChanged++));
 		selected = 'account-b';
 		changed.fire({ resource: endpoint.getRepoResource().resource, scopes: ['repo'], token: selected });
-		await assert.rejects(first.issues.get({ owner: 'owner', name: 'repo' }, 7, signal));
+		await assert.rejects(first.issues.get({ owner: 'owner', repo: 'repo' }, 7, signal));
 		const second = store.add(service.acquireRepositoryApiClient(signal));
-		const secondContext = await second.issues.get({ owner: 'owner', name: 'repo' }, 7, signal);
+		const secondContext = await second.issues.get({ owner: 'owner', repo: 'repo' }, 7, signal);
 		assert.deepStrictEqual({ selectionsChanged, titles: [firstContext.title, secondContext.title], requests }, {
 			selectionsChanged: 1,
 			titles: ['account-a', 'account-b'],
@@ -665,10 +665,10 @@ suite('Agent Host GitHub clients', () => {
 			const legacy = store.add(service.acquireRepositoryClient(signal)).object;
 			await legacy.credentials.getCredential(signal);
 			const peer = store.add(service.acquireRepositoryApiClient(signal));
-			await peer.issues.get({ owner: 'owner', name: 'repo' }, 7, signal);
+			await peer.issues.get({ owner: 'owner', repo: 'repo' }, 7, signal);
 			const consumer = store.add(new MutableDisposable<IGitHubAccountClient>());
 			const acquire = () => consumer.value ??= service.acquireRepositoryApiClient(signal);
-			await acquire().issues.get({ owner: 'owner', name: 'repo' }, 7, signal);
+			await acquire().issues.get({ owner: 'owner', repo: 'repo' }, 7, signal);
 			let selectionsChanged = 0;
 			store.add(service.onDidChangeRepositoryClient(() => {
 				selectionsChanged++;
@@ -680,9 +680,9 @@ suite('Agent Host GitHub clients', () => {
 				await legacy.credentials.getCredential(signal);
 			}
 			const stale = acquire();
-			await assert.rejects(stale.issues.get({ owner: 'owner', name: 'repo' }, 7, signal), { name: 'Canceled' });
+			await assert.rejects(stale.issues.get({ owner: 'owner', repo: 'repo' }, 7, signal), { name: 'Canceled' });
 			const rebound = acquire();
-			const issue = await rebound.issues.get({ owner: 'owner', name: 'repo' }, 7, signal);
+			const issue = await rebound.issues.get({ owner: 'owner', repo: 'repo' }, 7, signal);
 			assert.deepStrictEqual({ selectionsChanged, replaced: rebound !== stale, title: issue.title }, {
 				selectionsChanged: legacyFirst ? 2 : 1,
 				replaced: true,
@@ -716,10 +716,10 @@ suite('Agent Host GitHub clients', () => {
 		let invalidated = false;
 		store.add(service.onDidChangeRepositoryClient(() => changes++));
 		store.add(client.onDidInvalidate(() => { invalidated = true; }));
-		await client.issues.get({ owner: 'owner', name: 'repo' }, 7, signal);
+		await client.issues.get({ owner: 'owner', repo: 'repo' }, 7, signal);
 		token = 'renewed-token';
 		changed.fire({ resource: endpoint.getRepoResource().resource, scopes: ['repo'], token });
-		await client.issues.get({ owner: 'owner', name: 'repo' }, 7, signal);
+		await client.issues.get({ owner: 'owner', repo: 'repo' }, 7, signal);
 		assert.deepStrictEqual({ sentTokens, changes, invalidated }, {
 			sentTokens: ['Bearer first-token', 'Bearer renewed-token'], changes: 0, invalidated: false,
 		});
@@ -747,13 +747,13 @@ suite('Agent Host GitHub clients', () => {
 		}, authentication, endpoint, new NullLogService(), NullTelemetryService));
 		const signal = new AbortController().signal;
 		const client = store.add(service.acquireRepositoryApiClient(signal));
-		await client.issues.get({ owner: 'owner', name: 'repo' }, 7, signal);
+		await client.issues.get({ owner: 'owner', repo: 'repo' }, 7, signal);
 		let selectionsChanged = 0;
 		store.add(service.onDidChangeRepositoryClient(() => selectionsChanged++));
 		selected = createTestGitHubEndpointService('https://tenant.ghe.com');
 		changed.fire();
-		await assert.rejects(client.issues.get({ owner: 'owner', name: 'repo' }, 7, signal), { kind: 'authentication' });
-		await store.add(service.acquireRepositoryApiClient(signal)).issues.get({ owner: 'owner', name: 'repo' }, 7, signal);
+		await assert.rejects(client.issues.get({ owner: 'owner', repo: 'repo' }, 7, signal), { kind: 'authentication' });
+		await store.add(service.acquireRepositoryApiClient(signal)).issues.get({ owner: 'owner', repo: 'repo' }, 7, signal);
 		assert.strictEqual(selectionsChanged, 1);
 	});
 
@@ -780,7 +780,7 @@ suite('Agent Host GitHub clients', () => {
 		assert.throws(() => service.acquireRepositoryApiClient(AbortSignal.abort(cancelled)), cancelled);
 		const signal = new AbortController().signal;
 		const client = store.add(service.acquireRepositoryApiClient(signal));
-		const rejected = assert.rejects(client.issues.get({ owner: 'owner', name: 'repo' }, 7, signal));
+		const rejected = assert.rejects(client.issues.get({ owner: 'owner', repo: 'repo' }, 7, signal));
 		const wireSignal = await started.p;
 		service.dispose();
 		await rejected;
@@ -882,7 +882,7 @@ suite('Agent Host GitHub clients', () => {
 		const client = store.add(service.acquireRepositoryClient(new AbortController().signal)).object;
 		const credential = await client.credentials.getCredential(new AbortController().signal);
 		const portable = store.add(service.acquireRepositoryApiClient(new AbortController().signal));
-		await portable.issues.get({ owner: 'owner', name: 'repo' }, 7, new AbortController().signal);
+		await portable.issues.get({ owner: 'owner', repo: 'repo' }, 7, new AbortController().signal);
 		let invalidated = 0;
 		let portableInvalidated = 0;
 		let selectionsChanged = 0;

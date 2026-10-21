@@ -34,8 +34,7 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer, McpServerInstallState } from '../../../../mcp/common/mcpTypes.js';
-import { CopilotConnectorsError } from '../../../../../../platform/copilotConnectors/common/copilotConnectorsRequestService.js';
-import { CopilotConnectorConnectionStatus, CopilotConnectorConnectionStatusDetail, ICopilotConnectorAccount, ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
+import { CopilotConnectorConnectionStatus, CopilotConnectorConnectionStatusDetail, CopilotConnectorsError, ICopilotConnectorAccount, ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
 import { IWorkbenchLocalMcpServer } from '../../../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { CustomizationMarketplaceInstallService } from '../../../browser/aiCustomization/customizationMarketplaceInstallService.js';
 import { CustomizationMarketplaceWorkbenchService } from '../../../browser/aiCustomization/customizationMarketplaceWorkbenchService.js';
@@ -925,6 +924,33 @@ suite('CustomizationMarketplaceInstallService', () => {
 			providerState: { kind: 'available' },
 			localState: { kind: 'installed', target: { kind: 'mcp', id: 'mcp:io.example/demo:1.0.0' } },
 			changes: 1,
+		});
+	});
+
+	test('exposes an empty replacement provider to synchronous change observers', async () => {
+		const provider = new class implements ICustomizationMarketplaceInstallProvider {
+			readonly onDidChange = Event.None;
+			getInstallations() { return Promise.resolve([]); }
+			install(): Promise<void> { throw new Error('Unexpected install'); }
+			repair(): Promise<void> { throw new Error('Unexpected repair'); }
+			uninstall(): Promise<void> { throw new Error('Unexpected uninstall'); }
+		}();
+		const fixture = await createFixture({ enabled: true, installProvider: provider });
+		const candidate = resource();
+		await timeout(0);
+		fixture.harnessService.activeSessionResource.set(URI.parse('local-harness:///session'), undefined);
+		const states: string[] = [];
+		store.add(fixture.service.onDidChange(() => states.push(fixture.service.getInstallState(candidate).kind)));
+
+		fixture.harnessService.activeSessionResource.set(URI.parse('test-harness:///replacement'), undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			states,
+			finalState: fixture.service.getInstallState(candidate).kind,
+		}, {
+			states: ['available'],
+			finalState: 'available',
 		});
 	});
 

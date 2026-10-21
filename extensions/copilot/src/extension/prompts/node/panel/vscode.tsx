@@ -384,17 +384,6 @@ ms-python.python,ms-python.vscode-pylance
 					<Tag name='searchExtensionToolUseInstructions'>
 						Always call the tool 'vscode_searchExtensions_internal' to first search for extensions in the VS Code Marketplace before responding about extensions.<br />
 					</Tag>
-					<Tag name='vscodeCmdToolUseInstructions'>
-						Call the tool {ToolName.RunVscodeCmd} to run commands in Visual Studio Code, only use as part of a new workspace creation process. <br />
-						You must use the command name as the `name` field and the command ID as the `commandId` field in the tool call input with any arguments for the command in a `map` array.<br />
-						For example, to run the command `workbench.action.openWith`, you would use the following input:<br />
-						<UnsafeCodeBlock code={`{
-						"name": "workbench.action.openWith",
-						"commandId": "workbench.action.openWith",
-						"args": ["file:///path/to/file.txt", "default"]
-					}
-					`}></UnsafeCodeBlock>
-					</Tag>
 				</UserMessage>
 				<ChatToolReferences priority={850} flexGrow={2} promptContext={{ ...this.props.promptContext, query: state.query }} embeddedInsideUserMessage={false} />
 				<ChatToolCalls priority={899} flexGrow={2} promptContext={this.props.promptContext} toolCallRounds={this.props.promptContext.toolCallRounds} toolCallResults={this.props.promptContext.toolCallResults} />
