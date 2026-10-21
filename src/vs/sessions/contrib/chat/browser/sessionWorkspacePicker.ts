@@ -17,7 +17,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
-import { autorun, IObservable, observableValue, waitForState } from '../../../../base/common/observable.js';
+import { autorun, IObservable, IReader, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../platform/actionWidget/browser/actionList.js';
@@ -1153,12 +1153,12 @@ export class WorkspacePicker extends Disposable {
 		return this._getRecentWorkspaces().find(matchesRepository);
 	}
 
-	private _getRepositoryId(workspace: ISessionWorkspace): string | undefined {
+	private _getRepositoryId(workspace: ISessionWorkspace, reader?: IReader): string | undefined {
 		for (const folder of workspace.folders) {
 			folder.gitRepository?.resolveGitHubInfo?.();
 		}
 		const info = workspace.folders
-			.map(folder => folder.gitRepository?.gitHubInfo.get())
+			.map(folder => folder.gitRepository?.gitHubInfo.read(reader))
 			.find(candidate => candidate !== undefined);
 		if (info) {
 			return `${info.owner}/${info.repo}`.toLowerCase();
@@ -1207,9 +1207,9 @@ export class WorkspacePicker extends Disposable {
 		}
 	}
 
-	private _getCurrentRepositoryId(): string | undefined {
-		const workspace = this._getSelectedRepositoryWorkspace();
-		return workspace && this._getRepositoryId(workspace);
+	private _getCurrentRepositoryId(reader?: IReader): string | undefined {
+		const workspace = this._getSelectedRepositoryWorkspace(reader);
+		return workspace && this._getRepositoryId(workspace, reader);
 	}
 
 	/**
@@ -1410,8 +1410,8 @@ export class WorkspacePicker extends Disposable {
 		}
 	}
 
-	private _getSelectedRepositoryWorkspace(): ISessionWorkspace | undefined {
-		return this._getSelectedRepositoryWorkspaceCandidates().find(workspace => this._getRepositoryId(workspace) !== undefined);
+	private _getSelectedRepositoryWorkspace(reader?: IReader): ISessionWorkspace | undefined {
+		return this._getSelectedRepositoryWorkspaceCandidates().find(workspace => this._getRepositoryId(workspace, reader) !== undefined);
 	}
 
 	private _getSelectedRepositoryWorkspaceCandidates(): ISessionWorkspace[] {
@@ -1421,9 +1421,9 @@ export class WorkspacePicker extends Disposable {
 		return this._getRepositoryWorkspaceCandidates(this._selectedResolved);
 	}
 
-	private _getRepositoryIdForResolvedWorkspace(selection: IResolvedFolderWorkspace): string | undefined {
+	private _getRepositoryIdForResolvedWorkspace(selection: IResolvedFolderWorkspace, reader?: IReader): string | undefined {
 		for (const workspace of this._getRepositoryWorkspaceCandidates(selection)) {
-			const repositoryId = this._getRepositoryId(workspace);
+			const repositoryId = this._getRepositoryId(workspace, reader);
 			if (repositoryId) {
 				return repositoryId;
 			}
@@ -1567,6 +1567,37 @@ export class WorkspacePicker extends Disposable {
 
 	private _getEnvironment(): ISessionCreationEnvironment | undefined {
 		return this._directPickerAttachesContext === true ? undefined : this.options.environment?.get();
+	}
+
+	getEnvironmentWorkspace(environment: ISessionCreationEnvironment, reader?: IReader): IResolvedFolderWorkspace | undefined {
+		const resolve = (folderUri: URI): IResolvedFolderWorkspace | undefined => {
+			const provider = getEnvironmentWorkspaceProvider(environment, this.sessionsProvidersService.getProviders(), folderUri);
+			const workspace = provider?.resolveWorkspace(folderUri);
+			if (!provider || !workspace || environment.kind === 'container' && this.getDevContainerWorkspaceAvailability(folderUri, provider.id) !== true) {
+				return undefined;
+			}
+			return { providerId: provider.id, workspace };
+		};
+		if (!this._selectedFolderUri) {
+			return undefined;
+		}
+		const direct = resolve(this._selectedFolderUri);
+		if (direct) {
+			return direct;
+		}
+		const repositoryId = this._getCurrentRepositoryId(reader);
+		if (repositoryId) {
+			for (const candidate of this._getRecentWorkspaces()) {
+				if (this._getRepositoryIdForResolvedWorkspace(candidate, reader) === repositoryId) {
+					const folderUri = candidate.workspace.folders[0]?.root;
+					const resolved = folderUri && resolve(folderUri);
+					if (resolved) {
+						return resolved;
+					}
+				}
+			}
+		}
+		return undefined;
 	}
 
 	protected _useConsolidatedRemoteWorkspaces(): boolean {

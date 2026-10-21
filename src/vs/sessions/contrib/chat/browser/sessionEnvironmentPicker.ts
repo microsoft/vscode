@@ -23,6 +23,7 @@ import { SESSION_WORKSPACE_GROUP_REMOTE } from '../../../services/sessions/commo
 import { ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IAction } from '../../../../base/common/actions.js';
+import { Schemas } from '../../../../base/common/network.js';
 
 export interface ISessionCreationEnvironment {
 	readonly id: string;
@@ -66,6 +67,14 @@ export function getEnvironmentWorkspaceProvider(environment: ISessionCreationEnv
 		&& (!isAgentHostProvider(provider) || provider.isVisibleInEnvironmentPicker?.get() !== false)
 		&& provider.resolveWorkspace(folderUri)
 		&& (environment.kind !== 'cloud' || provider.getSessionTypes(folderUri).length > 0));
+}
+
+export function getDefaultSessionCreationEnvironment(environments: readonly ISessionCreationEnvironment[], folderUri: URI | undefined, providerId: string | undefined, containerRequested = false): ISessionCreationEnvironment | undefined {
+	const local = environments.find(environment => environment.kind === 'local');
+	if (folderUri?.scheme === Schemas.file && !containerRequested && local) {
+		return local;
+	}
+	return environments.find(environment => (environment.kind === 'container') === containerRequested && environment.providerIds.includes(providerId ?? '')) ?? local;
 }
 
 interface IEnvironmentPickerItem {
