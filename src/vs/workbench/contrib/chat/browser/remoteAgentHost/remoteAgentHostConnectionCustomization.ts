@@ -38,6 +38,8 @@ export interface IRemoteAgentHostConnectionCustomization {
 	 * Return `undefined` to keep scheme == provider.
 	 */
 	readonly backendSessionScheme?: (provider: string) => string | undefined;
+	/** Opts a provider into display-only retention while consumed steering waits for its transcript turn. */
+	readonly retainConsumedSteeringMessages?: (provider: string) => boolean;
 
 	/** Creates connection-scoped startup preparation, invoked only for new sessions after authentication. */
 	readonly createSessionPreparation?: (connection: IAgentConnection, store: DisposableStore) => RemoteAgentHostSessionPreparation;
@@ -50,6 +52,9 @@ export interface IRemoteAgentHostConnectionCustomization {
 
 	/** Vendors whose model identifiers also address this connection's models; forwarded to the session handler's `modelIdentifierAliases`. */
 	readonly modelIdentifierAliases?: readonly string[];
+
+	/** Whether a title the host reports is a stand-in (e.g. the session id) rather than a title to show; forwarded to the session handler's `isSessionTitlePlaceholder`. */
+	readonly isSessionTitlePlaceholder?: (title: string, sessionResource: URI) => boolean;
 }
 
 /** Builds a {@link IRemoteAgentHostConnectionCustomization} for a concrete connection address. */

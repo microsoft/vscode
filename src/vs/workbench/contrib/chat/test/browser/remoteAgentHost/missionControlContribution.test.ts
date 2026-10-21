@@ -6,6 +6,8 @@
 import assert from 'assert';
 import { restore, stub } from 'sinon';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
+import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -13,11 +15,14 @@ import { joinPath } from '../../../../../../base/common/resources.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostService, IMissionControlOptions } from '../../../../../../platform/agentHost/common/agentService.js';
+import { CloudSandboxEarlyPreparationSettingId, ICloudSandboxDraftPreparationService } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { AgentHostRemoteConnectionsBackend, AgentHostRemoteConnectionsSettingId } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IConfigurationChangeEvent, IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../../platform/configuration/common/configurationRegistry.js';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../../platform/configuration/common/configurationRegistry.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { getSingletonServiceDescriptors } from '../../../../../../platform/instantiation/common/extensions.js';
 import { FileOperationError, FileOperationResult, IFileService, IFileStatWithMetadata, IFileStatWithPartialMetadata } from '../../../../../../platform/files/common/files.js';
 import { IPathService } from '../../../../../../platform/path/common/pathService.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -31,12 +36,12 @@ import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticati
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import '../../../browser/remoteAgentHost/remoteAgentHost.contribution.js';
 import { MissionControlSharingService } from '../../../browser/remoteAgentHost/missionControlSharingService.js';
+import { CloudSandboxDraftPreparationService } from '../../../browser/remoteAgentHost/cloudSandboxDraftPreparationService.js';
 
-const localCredentialSetting = 'chat.agentHost.experimentalMissionControl.useLocalCredentials';
 const remoteControlPolicyOverrideSetting = 'chat.agentHost.experimentalMissionControl.ignoreRemoteControlPolicy';
+const localCredentialSetting = 'chat.agentHost.experimentalMissionControl.useLocalCredentials';
 const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
 const remoteConnectionsSetting = configurationProperties[AgentHostRemoteConnectionsSettingId];
-const localCredentialSettingRegistered = configurationProperties[localCredentialSetting] !== undefined;
 const remoteControlPolicyOverrideSettingRegistered = configurationProperties[remoteControlPolicyOverrideSetting] !== undefined;
 const registeredMissionControlSettings = Object.keys(configurationProperties)
 	.filter(key => key.startsWith('chat.agentHost.experimentalMissionControl'))
@@ -60,15 +65,39 @@ const expectedOptions: IMissionControlOptions = {
 	live: true,
 };
 
+suite('Cloud sandbox preparation configuration', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('registers one shared service and a default-off application experiment setting', () => {
+		const setting = configurationProperties[CloudSandboxEarlyPreparationSettingId];
+		const services = new Map(getSingletonServiceDescriptors());
+
+		assert.deepStrictEqual({
+			type: setting.type,
+			default: setting.default,
+			scope: setting.scope,
+			restricted: setting.restricted,
+			experiment: setting.experiment,
+			service: services.get(ICloudSandboxDraftPreparationService)?.ctor,
+		}, {
+			type: 'boolean', default: false, scope: ConfigurationScope.APPLICATION,
+			restricted: true, experiment: { mode: 'auto' }, service: CloudSandboxDraftPreparationService,
+		});
+	});
+});
+
 suite('Mission Control sharing service', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	teardown(() => restore());
 
 	function fixture(options: {
 		backend?: AgentHostRemoteConnectionsBackend;
+		configuration?: TestConfigurationService;
 		emptyWindow?: boolean;
 		storage?: InMemoryStorageService;
-		getSessions?: () => Promise<readonly AuthenticationSession[]>;
+		getSessions?: IAuthenticationService['getSessions'];
+		createSession?: IAuthenticationService['createSession'];
+		defaultAccount?: IDefaultAccount;
 		configure?: (options: IMissionControlOptions | undefined) => Promise<void>;
 		stat?: IFileService['stat'];
 		realpath?: IFileService['realpath'];
@@ -79,16 +108,24 @@ suite('Mission Control sharing service', () => {
 		localSettingConfig?: IConfigurationValue<boolean>;
 	} = {}) {
 		const instantiation = store.add(new TestInstantiationService());
-		const configuration = new TestConfigurationService({ [AgentHostRemoteConnectionsSettingId]: options.backend ?? 'githubEnvironment', ...removedSettings });
+		const configuration = options.configuration ?? new TestConfigurationService({ [AgentHostRemoteConnectionsSettingId]: options.backend ?? 'githubEnvironment', ...removedSettings });
 		const fixtureHome = options.userHome ?? home;
 		const storage = options.storage ?? store.add(new InMemoryStorageService());
-		store.add(configuration.onDidChangeConfigurationEmitter);
+		if (!options.configuration) {
+			store.add(configuration.onDidChangeConfigurationEmitter);
+		}
 		if (options.localSetting && options.localSettingConfig) {
 			stub(configuration, 'inspect').callThrough().withArgs(options.localSetting).returns(options.localSettingConfig);
 		}
 		const sentimentChanged = store.add(new Emitter<void>());
 		const hostStarted = store.add(new Emitter<void>());
 		const sessionsChanged = store.add(new Emitter<{ providerId: string; label: string; event: AuthenticationSessionsChangeEvent }>());
+		const defaultAccountChanged = store.add(new Emitter<IDefaultAccount | null>());
+		let defaultAccount = options.defaultAccount ?? null;
+		instantiation.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
+			override readonly onDidChangeDefaultAccount = defaultAccountChanged.event;
+			override async getDefaultAccount() { return defaultAccount; }
+		}());
 		let hidden = false;
 		let starts = 0;
 		const calls: { options: IMissionControlOptions | undefined; withdrawingAccountId: string | undefined }[] = [];
@@ -103,10 +140,12 @@ suite('Mission Control sharing service', () => {
 		instantiation.stub(IConfigurationService, configuration);
 		instantiation.stub(IAuthenticationService, new class extends mock<IAuthenticationService>() {
 			override readonly onDidChangeSessions = sessionsChanged.event;
-			override async getSessions() {
-				return options.getSessions ? options.getSessions() : [session];
+			override async getSessions(...args: Parameters<IAuthenticationService['getSessions']>) {
+				return options.getSessions ? options.getSessions(...args) : [session];
 			}
-			override async createSession() { return session; }
+			override async createSession(...args: Parameters<IAuthenticationService['createSession']>) {
+				return options.createSession ? options.createSession(...args) : session;
+			}
 		}());
 		instantiation.stub(IChatEntitlementService, new class extends mock<IChatEntitlementService>() {
 			override readonly onDidChangeSentiment = sentimentChanged.event;
@@ -149,19 +188,33 @@ suite('Mission Control sharing service', () => {
 		return {
 			calls, configuration, storage, sharing, hostStarted, sessionsChanged, createdFolders, logService, notificationService, starts: () => starts,
 			disableAI: () => { hidden = true; sentimentChanged.fire(); },
+			changeDefaultAccount: (account: IDefaultAccount | null) => { defaultAccount = account; defaultAccountChanged.fire(account); },
 		};
 	}
 
-	test('registers a backend selector rather than an enablement setting', () => {
+	async function setBackend(configuration: TestConfigurationService, backend: AgentHostRemoteConnectionsBackend): Promise<void> {
+		await configuration.setUserConfiguration(AgentHostRemoteConnectionsSettingId, backend);
+		configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+			override affectsConfiguration(section: string) { return section === AgentHostRemoteConnectionsSettingId; }
+		});
+	}
+
+	test('registers a preview backend and default-off local credential setting without removed enablement settings', () => {
 		assert.deepStrictEqual({
 			removed: registeredMissionControlSettings,
-			localCredentialSettingRegistered,
 			remoteControlPolicyOverrideSettingRegistered,
 			backend: {
 				default: remoteConnectionsSetting.default,
 				enum: remoteConnectionsSetting.enum,
+				scope: remoteConnectionsSetting.scope,
+				restricted: remoteConnectionsSetting.restricted,
+				tags: remoteConnectionsSetting.tags,
+				dataHandling: remoteConnectionsSetting.enumDescriptions?.[1].includes('Session actions are mirrored to GitHub for catalog and history storage. Conversation content is not end-to-end encrypted.'),
 			},
-		}, { removed: [], localCredentialSettingRegistered: false, remoteControlPolicyOverrideSettingRegistered: false, backend: { default: 'devTunnel', enum: ['devTunnel', 'githubEnvironment'] } });
+		}, {
+			removed: [{ key: localCredentialSetting, default: false }], remoteControlPolicyOverrideSettingRegistered: false,
+			backend: { default: 'devTunnel', enum: ['devTunnel', 'githubEnvironment'], scope: ConfigurationScope.APPLICATION, restricted: true, tags: ['preview', 'advanced'], dataHandling: true },
+		});
 	});
 
 	for (const backend of ['devTunnel', 'githubEnvironment', 'missionControl'] as const) {
@@ -362,11 +415,8 @@ suite('Mission Control sharing service', () => {
 	test('changing backends withdraws registration and requires a new opt-in', () => runWithFakedTimers({}, async () => {
 		const { sharing, calls, configuration, storage } = fixture();
 		await sharing.setEnabled(true);
-		for (const backend of ['devTunnel', 'githubEnvironment']) {
-			await configuration.setUserConfiguration(AgentHostRemoteConnectionsSettingId, backend);
-			configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
-				override affectsConfiguration(section: string) { return section === AgentHostRemoteConnectionsSettingId; }
-			}());
+		for (const backend of ['devTunnel', 'githubEnvironment'] as const) {
+			await setBackend(configuration, backend);
 			await timeout(0);
 		}
 		const restored = fixture({ storage });
@@ -381,6 +431,33 @@ suite('Mission Control sharing service', () => {
 				{ options: undefined, withdrawingAccountId: 'account' },
 			],
 		});
+	}));
+
+	test('changing the method in another window withdraws sharing in both windows', () => runWithFakedTimers({}, async () => {
+		const first = fixture();
+		await first.sharing.setEnabled(true);
+		const second = fixture({ storage: first.storage, configuration: first.configuration });
+		await timeout(0);
+		await setBackend(second.configuration, 'devTunnel');
+		await timeout(0);
+		assert.deepStrictEqual([first, second].map(({ configuration, sharing, calls }) => ({
+			backend: configuration.getValue(AgentHostRemoteConnectionsSettingId),
+			state: sharing.state.get(),
+			calls,
+		})), [
+			{
+				backend: 'devTunnel', state: 'disabled', calls: [
+					{ options: expectedOptions, withdrawingAccountId: undefined },
+					{ options: undefined, withdrawingAccountId: 'account' },
+				],
+			},
+			{
+				backend: 'devTunnel', state: 'disabled', calls: [
+					{ options: expectedOptions, withdrawingAccountId: undefined },
+					{ options: undefined, withdrawingAccountId: 'account' },
+				],
+			},
+		]);
 	}));
 
 	for (const backend of ['githubEnvironment', 'missionControl'] as const) {
@@ -551,10 +628,202 @@ suite('Mission Control sharing service', () => {
 
 	test('does not register an ambiguous account or bypass disabled AI', () => runWithFakedTimers({}, async () => {
 		const ambiguous = fixture({ getSessions: async () => [session, { ...session, account: { id: 'second', label: 'Second' } }] });
-		await assert.rejects(ambiguous.sharing.setEnabled(true), /exactly one local GitHub account/);
+		await assert.rejects(ambiguous.sharing.setEnabled(true), /Select a GitHub account for Copilot/);
 		const hidden = fixture();
 		hidden.disableAI();
 		await assert.rejects(hidden.sharing.setEnabled(true), /sharing is unavailable/);
 		assert.deepStrictEqual({ ambiguous: ambiguous.calls, hidden: hidden.calls }, { ambiguous: [], hidden: [] });
+	}));
+
+	const copilotAccount: IDefaultAccount = {
+		authenticationProvider: { id: 'github', name: 'GitHub', enterprise: false },
+		accountName: session.account.label,
+		sessionId: 'copilot-session',
+		enterprise: false,
+	};
+	const copilotSession: AuthenticationSession = { ...session, id: copilotAccount.sessionId, scopes: ['read:user'], accessToken: 'copilot-token' };
+	const otherSession: AuthenticationSession = { ...session, id: 'other-session', account: { id: 'other', label: 'Other' }, accessToken: 'other-token' };
+
+	test('uses the Copilot account with sharing scopes when multiple GitHub accounts are signed in', () => runWithFakedTimers({}, async () => {
+		const getSessions = stub().callsFake(async (_providerId: string, scopes?: readonly string[]) => scopes ? [otherSession, session] : [otherSession, copilotSession, session]);
+		const { sharing, calls } = fixture({ defaultAccount: copilotAccount, getSessions });
+		await sharing.setEnabled(true);
+		assert.deepStrictEqual({
+			state: sharing.state.get(),
+			calls,
+			sessionRequests: getSessions.args,
+		}, {
+			state: 'enabled',
+			calls: [{ options: expectedOptions, withdrawingAccountId: undefined }],
+			sessionRequests: [
+				['github', undefined, undefined, true],
+				['github', [...session.scopes], { account: session.account }, true],
+			],
+		});
+	}));
+
+	test('requests missing sharing scopes for the Copilot account instead of using another account', () => runWithFakedTimers({}, async () => {
+		const createSession = stub().resolves(session);
+		const { sharing, calls } = fixture({
+			defaultAccount: copilotAccount,
+			getSessions: async (_providerId, scopes) => scopes ? [otherSession] : [otherSession, copilotSession],
+			createSession,
+		});
+		await sharing.setEnabled(true);
+		assert.deepStrictEqual({ calls, signIn: createSession.args }, {
+			calls: [{ options: expectedOptions, withdrawingAccountId: undefined }],
+			signIn: [['github', [...session.scopes], { account: session.account }]],
+		});
+	}));
+
+	test('rejects sign-in to a different account when requesting sharing scopes', () => runWithFakedTimers({}, async () => {
+		const { sharing, calls } = fixture({
+			defaultAccount: copilotAccount,
+			getSessions: async (_providerId, scopes) => scopes ? [] : [copilotSession],
+			createSession: async () => otherSession,
+		});
+		await assert.rejects(sharing.setEnabled(true), /Sign in with the selected Copilot account/);
+		assert.deepStrictEqual({ state: sharing.state.get(), calls }, { state: 'disabled', calls: [] });
+	}));
+
+	for (const error of [new Error('Cancelled'), 'Cancelled']) {
+		test(`normalizes GitHub sign-in cancellation (${typeof error})`, () => runWithFakedTimers({}, async () => {
+			const { sharing, calls, storage } = fixture({
+				defaultAccount: copilotAccount,
+				getSessions: async (_providerId, scopes) => scopes ? [] : [copilotSession],
+				createSession: async () => { throw error; },
+			});
+			await assert.rejects(sharing.setEnabled(true), isCancellationError);
+			const restored = fixture({ storage });
+			await timeout(0);
+			assert.deepStrictEqual({ state: sharing.state.get(), calls, restoredCalls: restored.calls }, {
+				state: 'disabled', calls: [], restoredCalls: [],
+			});
+		}));
+	}
+
+	for (const defaultAccount of [
+		{ ...copilotAccount, sessionId: 'missing' },
+		{ ...copilotAccount, authenticationProvider: { id: 'github-enterprise', name: 'GitHub Enterprise', enterprise: true } },
+	]) {
+		test(`does not fall back to another account when the Copilot account is unavailable (${defaultAccount.authenticationProvider.id}, ${defaultAccount.sessionId})`, () => runWithFakedTimers({}, async () => {
+			const { sharing, calls } = fixture({ defaultAccount });
+			await assert.rejects(sharing.setEnabled(true), /Copilot account/);
+			assert.deepStrictEqual({ state: sharing.state.get(), calls }, { state: 'disabled', calls: [] });
+		}));
+	}
+
+	for (const account of [null, { ...copilotAccount, sessionId: otherSession.id, accountName: otherSession.account.label }]) {
+		test(`withdraws sharing on Copilot ${account ? 'account change' : 'sign-out'} and requires a new opt-in`, () => runWithFakedTimers({}, async () => {
+			const { sharing, calls, storage, changeDefaultAccount } = fixture({
+				defaultAccount: copilotAccount,
+				getSessions: async (_providerId, scopes) => scopes ? [session, otherSession] : [copilotSession, session, otherSession],
+			});
+			await sharing.setEnabled(true);
+			changeDefaultAccount(account);
+			await timeout(0);
+			const restored = fixture({ storage });
+			await timeout(0);
+			assert.deepStrictEqual({ state: sharing.state.get(), calls, restoredCalls: restored.calls }, {
+				state: 'disabled',
+				calls: [
+					{ options: expectedOptions, withdrawingAccountId: undefined },
+					{ options: undefined, withdrawingAccountId: session.account.id },
+				],
+				restoredCalls: [],
+			});
+		}));
+	}
+
+	test('does not register a stale Copilot account after it changes during authentication', () => runWithFakedTimers({}, async () => {
+		const sessions = new DeferredPromise<readonly AuthenticationSession[]>();
+		const { sharing, calls, changeDefaultAccount } = fixture({
+			defaultAccount: copilotAccount,
+			getSessions: () => sessions.p,
+		});
+		const enabling = sharing.setEnabled(true);
+		await timeout(0);
+		changeDefaultAccount({ ...copilotAccount, sessionId: otherSession.id, accountName: otherSession.account.label });
+		sessions.complete([copilotSession, session]);
+		await enabling;
+		await timeout(0);
+		assert.deepStrictEqual({ state: sharing.state.get(), calls }, { state: 'disabled', calls: [] });
+	}));
+
+	test('requires fresh consent when selecting Copilot after sharing with a fallback account', () => runWithFakedTimers({}, async () => {
+		let sessions = [session];
+		const { sharing, calls, storage, changeDefaultAccount } = fixture({ getSessions: async () => sessions });
+		await sharing.setEnabled(true);
+		sessions = [otherSession];
+		changeDefaultAccount({ ...copilotAccount, accountName: otherSession.account.label, sessionId: otherSession.id });
+		sharing.setProjectFolders([workspaceRoot]);
+		await timeout(0);
+		const restored = fixture({ storage });
+		await timeout(0);
+		assert.deepStrictEqual({ state: sharing.state.get(), calls, restoredCalls: restored.calls }, {
+			state: 'disabled',
+			calls: [
+				{ options: expectedOptions, withdrawingAccountId: undefined },
+				{ options: undefined, withdrawingAccountId: session.account.id },
+			],
+			restoredCalls: [],
+		});
+	}));
+
+	test('restoring sharing does not prompt for missing scopes or use another account', () => runWithFakedTimers({}, async () => {
+		const first = fixture();
+		await first.sharing.setEnabled(true);
+		first.sharing.dispose();
+		const createSession = stub().resolves(session);
+		const { sharing, calls } = fixture({
+			storage: first.storage,
+			defaultAccount: copilotAccount,
+			getSessions: async (_providerId, scopes) => scopes ? [otherSession] : [copilotSession, otherSession],
+			createSession,
+		});
+		await timeout(0);
+		assert.deepStrictEqual({ state: sharing.state.get(), calls, signIn: createSession.args }, { state: 'disabled', calls: [], signIn: [] });
+	}));
+
+	test('does not withdraw sharing when the Copilot session changes for the same account', () => runWithFakedTimers({}, async () => {
+		const { sharing, calls, changeDefaultAccount } = fixture({
+			defaultAccount: copilotAccount,
+			getSessions: async (_providerId, scopes) => scopes ? [session] : [copilotSession, session],
+		});
+		await sharing.setEnabled(true);
+		changeDefaultAccount({ ...copilotAccount, sessionId: session.id });
+		await timeout(0);
+		assert.deepStrictEqual({ state: sharing.state.get(), calls }, {
+			state: 'enabled', calls: [
+				{ options: expectedOptions, withdrawingAccountId: undefined },
+				{ options: expectedOptions, withdrawingAccountId: undefined },
+			],
+		});
+	}));
+
+	test('recovers sharing after atomic session replacement and delayed Copilot reconciliation', () => runWithFakedTimers({}, async () => {
+		let sessions = [copilotSession, session];
+		const { sharing, calls, sessionsChanged, changeDefaultAccount } = fixture({
+			defaultAccount: copilotAccount,
+			getSessions: async (_providerId, scopes) => scopes ? sessions.filter(candidate => candidate.scopes.length === session.scopes.length) : sessions,
+		});
+		await sharing.setEnabled(true);
+		const replacement = { ...session, id: 'replacement-session', accessToken: 'replacement-token' };
+		sessions = [replacement];
+		sessionsChanged.fire({
+			providerId: 'github', label: 'GitHub',
+			event: { removed: [copilotSession, session], added: [replacement], changed: undefined },
+		});
+		await timeout(100);
+		changeDefaultAccount({ ...copilotAccount, sessionId: replacement.id });
+		await timeout(0);
+		assert.deepStrictEqual({ state: sharing.state.get(), calls }, {
+			state: 'enabled',
+			calls: [
+				{ options: expectedOptions, withdrawingAccountId: undefined },
+				{ options: undefined, withdrawingAccountId: session.account.id },
+				{ options: { ...expectedOptions, credential: replacement.accessToken }, withdrawingAccountId: undefined },
+			],
+		});
 	}));
 });

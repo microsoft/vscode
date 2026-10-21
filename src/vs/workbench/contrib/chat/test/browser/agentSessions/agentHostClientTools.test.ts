@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { AuthenticateTargetKind, type AuthenticateTarget } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { renderMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
@@ -47,6 +48,7 @@ import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { PieceCtorKind, PromptNodeType } from '../../../common/tools/promptTsxTypes.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
+import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IPathService } from '../../../../../../platform/path/common/pathService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
@@ -57,13 +59,14 @@ import { AgentHostActiveClientService, IAgentHostActiveClientService } from '../
 import { IAgentHostCustomizationService, NullAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE, IAgentHostToolSetEnablementService, IToolEnablementState } from '../../../browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { TestFileService } from '../../../../../test/common/workbenchTestServices.js';
+import { TestChatEntitlementService, TestFileService } from '../../../../../test/common/workbenchTestServices.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { MockLabelService } from '../../../../../services/label/test/common/mockLabelService.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IAgentHostFileSystemService } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { IAgentHostImportConversationStore } from '../../../browser/agentSessions/agentHost/agentHostImportConversationStore.js';
 import { IStorageService, InMemoryStorageService, StorageScope } from '../../../../../../platform/storage/common/storage.js';
+import { IAccessibilitySignalService } from '../../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { mcpAccessConfig, McpAccessValue } from '../../../../../../platform/mcp/common/mcpManagement.js';
 import { IWorkbenchAssignmentService } from '../../../../../services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../../services/assignment/test/common/nullAssignmentService.js';
@@ -114,6 +117,7 @@ suite('AgentHostClientTools', () => {
 		tools: IObservable<readonly IToolData[]> = constObservable([]),
 		toolSets: IObservable<Iterable<IToolSet>> = constObservable([]),
 		mcpOptions?: { remoteAuthority?: string; servers: readonly IMcpServer[] },
+		registeredTools?: readonly IToolData[],
 	) {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IFileService, TestFileService);
@@ -160,6 +164,7 @@ suite('AgentHostClientTools', () => {
 		instantiationService.stub(ILanguageModelToolsService, {
 			observeTools: () => tools,
 			toolSets,
+			getTool: id => (registeredTools ?? tools.get()).find(tool => tool.id === id),
 		} as Partial<ILanguageModelToolsService> as ILanguageModelToolsService);
 		instantiationService.stub(IAgentHostToolSetEnablementService, {
 			observe: () => constObservable<IToolEnablementState>({ toolSets: new Map(), tools: new Map() }),
@@ -211,6 +216,63 @@ suite('AgentHostClientTools', () => {
 			syncProviderIsStable: true,
 			scopeAfterReleaseIsResolved: true,
 		});
+	});
+
+	test('isolates additional tools to one session and moves them with the session resource', () => {
+		const tool: IToolData = {
+			id: 'test.sessionTool',
+			toolReferenceName: 'session_tool',
+			displayName: 'Session Tool',
+			modelDescription: 'Runs only in one session',
+			source: ToolDataSource.Internal,
+		};
+		const { service } = createActiveClientService(constObservable([]), undefined, undefined, [tool]);
+		const source = URI.parse('agent-host-test:/draft');
+		const target = URI.parse('agent-host-test:/session');
+		const other = URI.parse('agent-host-test:/other');
+		const sourceTools = disposables.add(service.acquireSessionTools(source));
+		const targetTools = disposables.add(service.acquireSessionTools(target));
+		const otherTools = disposables.add(service.acquireSessionTools(other));
+		const ordinaryScope = disposables.add(service.acquireScope('agent-host-test', []));
+
+		service.setSessionTools(source, [tool.id]);
+		const beforeMove = {
+			ordinary: ordinaryScope.tools.get().map(tool => tool.name),
+			source: sourceTools.object.get().map(tool => tool.name),
+			target: targetTools.object.get().map(tool => tool.name),
+			other: otherTools.object.get().map(tool => tool.name),
+		};
+		service.moveSessionTools(source, target);
+		const afterMove = {
+			source: sourceTools.object.get().map(tool => tool.name),
+			target: targetTools.object.get().map(tool => tool.name),
+			other: otherTools.object.get().map(tool => tool.name),
+		};
+		service.clearSessionTools(target);
+
+		assert.deepStrictEqual({
+			beforeMove,
+			afterMove,
+			afterClear: {
+				source: sourceTools.object.get().map(tool => tool.name),
+				target: targetTools.object.get().map(tool => tool.name),
+			},
+		}, {
+			beforeMove: { ordinary: [], source: ['session_tool'], target: [], other: [] },
+			afterMove: { source: ['session_tool'], target: ['session_tool'], other: [] },
+			afterClear: { source: [], target: [] },
+		});
+	});
+
+	test('releases empty session tool observations', () => {
+		const { service } = createActiveClientService();
+		const session = URI.parse('agent-host-test:/ordinary');
+		const first = service.acquireSessionTools(session);
+		const firstObservable = first.object;
+		first.dispose();
+		const second = disposables.add(service.acquireSessionTools(session));
+
+		assert.notStrictEqual(second.object, firstObservable);
 	});
 
 	test('provides MCP support before a session and keeps unavailable roots distinct from no roots', async () => {
@@ -324,6 +386,22 @@ suite('AgentHostClientTools', () => {
 		modelDescription: 'Reads a file',
 		source: ToolDataSource.Internal,
 	};
+	const createPullRequestTool: IToolData = {
+		id: 'github-pull-request_create_pull_request',
+		toolReferenceName: 'create_pull_request',
+		displayName: 'Create a GitHub pull request',
+		modelDescription: 'Creates a pull request',
+		source: { type: 'extension', label: 'GitHub Pull Requests', extensionId: new ExtensionIdentifier('GitHub.vscode-pull-request-github') },
+		inputSchema: { type: 'object', properties: { repo: { type: 'object' }, title: { type: 'string' }, head: { type: 'string' } } },
+	};
+	const mcpCreatePullRequestTool: IToolData = {
+		...createPullRequestTool,
+		id: 'github-mcp-server-create_pull_request',
+		displayName: 'Open new pull request',
+		source: { type: 'mcp', label: 'GitHub', serverLabel: 'GitHub', instructions: undefined, collectionId: 'copilot-chat-github', definitionId: 'github' },
+		canRequestPreApproval: true,
+		inputSchema: { type: 'object', properties: { owner: { type: 'string' }, repo: { type: 'string' } } },
+	};
 
 	async function publishedTools(tools: readonly IToolData[], sessionType: string) {
 		const searchToolSet = new class extends mock<IToolSet>() {
@@ -357,6 +435,16 @@ suite('AgentHostClientTools', () => {
 			other: [[CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME, 'Other Codebase'], [SEMANTIC_SEARCH_TOOL_NAME, 'Other Semantic Search'], ['readFile', 'Read File']],
 			withoutCanonical: [['readFile', 'Read File']],
 		});
+	});
+
+	test('does not publish MCP tools as client tools even when an enabled tool set contains them', async () => {
+		const tools = [mcpCreatePullRequestTool, createPullRequestTool];
+		const expected = [['create_pull_request', 'Create a GitHub pull request']];
+		assert.deepStrictEqual({
+			local: await publishedTools(tools, AGENT_HOST_COPILOT_CLI_SESSION_TYPE),
+			remote: await publishedTools(tools, REMOTE_COPILOT_CLI_SESSION_TYPE),
+			other: await publishedTools(tools, 'agent-host-claude'),
+		}, { local: expected, remote: expected, other: expected });
 	});
 
 	// ── toolDataToDefinition ─────────────────────────────────────────────
@@ -738,6 +826,7 @@ suite('AgentHostClientTools', () => {
 
 			private readonly _liveSubscriptions = new Map<string, { state: SessionState | ChatState; emitter: Emitter<SessionState | ChatState> }>();
 			public dispatchedActions: { channel: string; action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction }[] = [];
+			private readonly _onDidDispatch = disposables.add(new Emitter<void>());
 			public readonly resourceReadUris: URI[] = [];
 			public resourceReadData = '{"task":"build"}';
 			public resourceReadEncoding = ContentEncoding.Utf8;
@@ -764,6 +853,15 @@ suite('AgentHostClientTools', () => {
 				this.dispatchedActions.push({ channel, action });
 				if (isSessionAction(action) || isChatAction(action)) {
 					this.applySessionAction(channel, action);
+				}
+				this._onDidDispatch.fire();
+			}
+
+			/** Resolves once an action matching `predicate` has been dispatched, immediately if one already was. */
+			async whenDispatched(predicate: (entry: MockAgentHostConnection['dispatchedActions'][number]) => boolean): Promise<void> {
+				const isDispatched = () => this.dispatchedActions.some(predicate);
+				if (!isDispatched()) {
+					await Event.toPromise(Event.filter(this._onDidDispatch.event, isDispatched));
 				}
 			}
 
@@ -874,6 +972,10 @@ suite('AgentHostClientTools', () => {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			const connection = new MockAgentHostConnection();
 
+			instantiationService.stub(IAccessibilitySignalService, {
+				playSignal: async () => { },
+			} as Partial<IAccessibilitySignalService> as IAccessibilitySignalService);
+
 			const toolsService = createMockToolsService(disposables, tools, toolServiceOptions);
 			const inputNotifications = new Map<string, IChatInputNotification>();
 			const configValues: Record<string, unknown> = {};
@@ -895,7 +997,7 @@ suite('AgentHostClientTools', () => {
 				override readonly extUri = extUriBiasedIgnorePathCase;
 			});
 			instantiationService.stub(IProductService, { quality: 'insider' });
-			instantiationService.stub(IChatEntitlementService, { entitlement: ChatEntitlement.Free, quotas: {} } as Partial<IChatEntitlementService> as IChatEntitlementService);
+			instantiationService.stub(IChatEntitlementService, Object.assign(new TestChatEntitlementService(), { entitlement: ChatEntitlement.Free }));
 			instantiationService.stub(IChatAgentService, {
 				registerDynamicAgent: () => toDisposable(() => { }),
 			});
@@ -907,6 +1009,8 @@ suite('AgentHostClientTools', () => {
 				registerChatSessionContribution: () => toDisposable(() => { }),
 			});
 			instantiationService.stub(IChatWidgetService, {
+				onDidChangeFocusedSession: Event.None,
+				onDidChangeWidgetVisibility: Event.None,
 				getWidgetBySessionResource: () => undefined,
 			});
 			instantiationService.stub(IChatInputNotificationService, {
@@ -1333,6 +1437,67 @@ suite('AgentHostClientTools', () => {
 				&& entry.action.type === ActionType.ChatToolCallComplete
 				&& entry.action.toolCallId === 'tool-call-1'));
 		});
+
+		for (const mcpFirst of [true, false]) {
+			test(`invokes the extension client tool when an MCP tool has the same name (MCP first: ${mcpFirst})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const tools = mcpFirst ? [mcpCreatePullRequestTool, createPullRequestTool] : [createPullRequestTool, mcpCreatePullRequestTool];
+				const { handler, connection, toolsService } = createHandlerWithMocks(disposables, tools);
+				const sessionResource = URI.parse('agent-host-copilot:/session-1');
+				const backendSession = AgentSession.uri('copilot', 'session-1').toString();
+				const chat = buildSubagentChatUri(backendSession, 'task-call-1');
+				const parameters = { repo: { owner: 'microsoft', name: 'vscode' }, title: 'Fix tool routing', head: 'fix-tool-routing' };
+				await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
+
+				applyRunningClientExecution(connection, chat, 'turn-1', {
+					toolCallId: 'create-pr',
+					toolName: 'create_pull_request',
+					displayName: 'Create Pull Request',
+					invocationMessage: 'Creating pull request',
+					toolInput: JSON.stringify(parameters),
+				});
+				await timeout(0);
+
+				assert.deepStrictEqual({
+					begun: toolsService.begunToolCalls.map(call => call.toolId),
+					invoked: toolsService.invokedToolCalls.map(call => ({ toolId: call.toolId, parameters: call.parameters })),
+					completed: connection.dispatchedActions.flatMap(entry => entry.action.type === ActionType.ChatToolCallComplete
+						? [{ channel: entry.channel, success: entry.action.result.success }]
+						: []),
+				}, {
+					begun: [createPullRequestTool.id],
+					invoked: [{ toolId: createPullRequestTool.id, parameters }],
+					completed: [{ channel: chat, success: true }],
+				});
+			}));
+		}
+
+		test('rejects a client tool request when only an MCP tool has the requested name', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [mcpCreatePullRequestTool]);
+			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
+			const chat = buildSubagentChatUri(backendSession, 'task-call-1');
+			await handler.provideChatSessionContent(URI.parse('agent-host-copilot:/session-1'), CancellationToken.None);
+
+			applyRunningClientExecution(connection, chat, 'turn-1', {
+				toolCallId: 'create-pr',
+				toolName: 'create_pull_request',
+				displayName: 'Create Pull Request',
+				invocationMessage: 'Creating pull request',
+				toolInput: '{}',
+			});
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				begun: toolsService.begunToolCalls.length,
+				invoked: toolsService.invokedToolCalls.length,
+				completed: connection.dispatchedActions.flatMap(entry => entry.action.type === ActionType.ChatToolCallComplete
+					? [{ channel: entry.channel, success: entry.action.result.success, code: entry.action.result.error?.code }]
+					: []),
+			}, {
+				begun: 0,
+				invoked: 0,
+				completed: [{ channel: chat, success: false, code: 'toolUnavailable' }],
+			});
+		}));
 
 		test('resolves base64 referenced input before invoking an owned client tool', async () => {
 			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool]);
@@ -2640,9 +2805,9 @@ suite('AgentHostClientTools', () => {
 			instantiationService.stub(IAuthenticationMcpAccessService, { isAccessAllowedForUrl: () => true });
 			instantiationService.stub(IAuthenticationMcpService, { getAccountPreference: () => undefined });
 			instantiationService.stub(IAuthenticationMcpUsageService, { addAccountUsage: () => { } });
-			const authenticateRequests: { resource: string; token: string }[] = [];
+			const authenticateRequests: { resource: string; token: string; target?: AuthenticateTarget }[] = [];
 			connection.authenticate = async params => {
-				authenticateRequests.push({ resource: params.resource, token: params.token });
+				authenticateRequests.push({ resource: params.resource, token: params.token, target: params.target });
 				connection.applySessionAction(chatURI, {
 					type: ActionType.ChatToolCallAuthResolved,
 					turnId: 'turn-1',
@@ -2719,7 +2884,7 @@ suite('AgentHostClientTools', () => {
 				authenticateRequests,
 			}, {
 				showedAuthentication: false,
-				authenticateRequests: [{ resource: 'https://mcp.notion.com/mcp', token: 'notion-token' }],
+				authenticateRequests: [{ resource: 'https://mcp.notion.com/mcp', token: 'notion-token', target: { kind: AuthenticateTargetKind.McpServer, session: 'copilot:/session-1', customizationId: 'notion-mcp' } }],
 			});
 		}));
 
@@ -3665,9 +3830,7 @@ suite('AgentHostClientTools', () => {
 				toolInput: '{"task":"build"}',
 				confirmed: ToolCallConfirmationReason.NotNeeded,
 			});
-			for (let i = 0; i < 200 && !connection.dispatchedActions.some(e => isChatAction(e.action) && e.action.type === ActionType.ChatToolCallComplete && e.action.toolCallId === 'deep-tool-call'); i++) {
-				await timeout(1);
-			}
+			await connection.whenDispatched(e => isChatAction(e.action) && e.action.type === ActionType.ChatToolCallComplete && e.action.toolCallId === 'deep-tool-call');
 
 			const deepInvocation = toolsService.invokedToolCalls.find(call => call.callId === 'deep-tool-call');
 			assert.ok(deepInvocation, 'client tool inside a nested subagent should be invoked locally');
@@ -3755,9 +3918,7 @@ suite('AgentHostClientTools', () => {
 				toolInput: '{"task":"build"}',
 				confirmed: ToolCallConfirmationReason.NotNeeded,
 			});
-			for (let i = 0; i < 200 && !connection.dispatchedActions.some(e => isChatAction(e.action) && e.action.type === ActionType.ChatToolCallComplete && e.action.toolCallId === 'deep-tool-call'); i++) {
-				await timeout(1);
-			}
+			await connection.whenDispatched(e => isChatAction(e.action) && e.action.type === ActionType.ChatToolCallComplete && e.action.toolCallId === 'deep-tool-call');
 
 			const deepInvocation = toolsService.invokedToolCalls.find(call => call.callId === 'deep-tool-call');
 			assert.ok(deepInvocation, 'client tool inside a content-block-less nested subagent should still be invoked locally');

@@ -55,12 +55,10 @@ async function renderAchievementsEditor(context: ComponentFixtureContext, option
 			const deadline = mainWindow.performance.now() + 5_000;
 			const check = () => {
 				const previews = Array.from(context.container.querySelectorAll<HTMLCanvasElement>('.chat-pet-color-preview'));
-				const scrollbars = Array.from(context.container.querySelectorAll<HTMLElement>('.scrollbar'));
-				const scrollbarsSettled = scrollbars.every(scrollbar => scrollbar.classList.contains('invisible') && mainWindow.getComputedStyle(scrollbar).opacity === '0');
-				if (scrollbarsSettled && previews.length === 11 && previews.every(preview => preview.getContext('2d')?.getImageData(0, 0, preview.width, preview.height).data.some((value, index) => index % 4 === 3 && value !== 0))) {
+				if (previews.length === 11 && previews.every(preview => preview.getContext('2d')?.getImageData(0, 0, preview.width, preview.height).data.some((value, index) => index % 4 === 3 && value !== 0))) {
 					resolve();
 				} else if (mainWindow.performance.now() >= deadline) {
-					reject(new Error('Color customization previews and scrollbars did not finish rendering.'));
+					reject(new Error('Color customization previews did not finish rendering.'));
 				} else {
 					mainWindow.requestAnimationFrame(check);
 				}

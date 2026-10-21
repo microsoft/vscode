@@ -21,7 +21,7 @@ import { ILabelService } from '../../../../../../platform/label/common/label.js'
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { MarkedKatexSupport } from '../../../../markdown/browser/markedKatexSupport.js';
-import { allowedChatMarkdownHtmlTags, ChatContentMarkdownRenderer } from '../../../browser/widget/chatContentMarkdownRenderer.js';
+import { allowedChatMarkdownHtmlTags, ChatContentMarkdownRenderer, getChatMarkdownRenderOptions } from '../../../browser/widget/chatContentMarkdownRenderer.js';
 import { ChatMarkdownAnchorService, IChatMarkdownAnchorService } from '../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { ChatWorkspaceEditContentPart } from '../../../browser/widget/chatContentParts/chatWorkspaceEditContentPart.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
@@ -234,6 +234,29 @@ suite('ChatMarkdownRenderer', () => {
 		});
 	});
 
+	test('renders <br> inside table cells as line breaks', () => {
+		const md = new MarkdownString([
+			'| Country | Demographics |',
+			'| --- | --- |',
+			'| Japan | • Population: 123M<br>• Median age: **49<BR/>years**<br />• `<br>` stays code |',
+			'',
+			'Outside tables <br> stays text',
+		].join('\n'));
+		const render = (fillInIncompleteTokens: boolean) => {
+			const result = store.add(testRenderer.render(md, { fillInIncompleteTokens, markedOptions: { gfm: true, breaks: true } }));
+			return {
+				cell: result.element.querySelector('tbody td:last-child')?.innerHTML,
+				paragraph: result.element.querySelector('p')?.innerHTML,
+			};
+		};
+
+		const expected = {
+			cell: '• Population: 123M<br>• Median age: <strong>49<br>years</strong><br>• <code>&lt;br&gt;</code> stays code',
+			paragraph: 'Outside tables &lt;br&gt; stays text',
+		};
+		assert.deepStrictEqual({ complete: render(false), streaming: render(true) }, { complete: expected, streaming: expected });
+	});
+
 	test('supportHtml with one-line markdown', async () => {
 		const md = new MarkdownString('**hello**');
 		md.supportHtml = true;
@@ -322,6 +345,166 @@ suite('ChatMarkdownRenderer', () => {
 		md.supportHtml = true;
 		const result = store.add(testRenderer.render(md));
 		await assertSnapshot(result.element.outerHTML);
+	});
+
+	suite('remote images', () => {
+		const allowedSources = [
+			'https://raw.githubusercontent.com/owner/repo/main/image.png',
+			'https://private-user-images.githubusercontent.com/123/image.png?jwt=signature',
+			'https://avatars.githubusercontent.com/u/123?v=4',
+			'https://gist.github.com/assets/image.png',
+			'https://github.com/user-attachments/assets/f5fe0721-ea46-4eb3-b0d4-aa96c0aaad30',
+			'https://github.com:443/user-attachments/assets/image.png',
+			'https://GITHUB.COM/user-attachments/assets/image.png',
+		];
+		const disallowedSources = [
+			'https://example.com/image.png',
+			'http://raw.githubusercontent.com/owner/repo/main/image.png',
+			'http://github.com/user-attachments/assets/image.png',
+			'https://github.localhost/user-attachments/assets/image.png',
+			'https://github.com/owner/repo/blob/main/image.png?raw=true',
+			'https://github.com/user-attachments/image.png',
+			'https://github.com/user-attachments/assets-other/image.png',
+			'https://github.com/User-attachments/assets/image.png',
+			'https://gist.github.com/owner/id/image.png',
+			'https://gist.github.com/assets-other/image.png',
+			'https://raw.githubusercontent.com.evil.example/image.png',
+			'https://evil.raw.githubusercontent.com/image.png',
+			'https://github.com.evil.example/user-attachments/assets/image.png',
+			'https://github.com@evil.example/user-attachments/assets/image.png',
+			'https://user@github.com/user-attachments/assets/image.png',
+			'https://user:password@github.com/user-attachments/assets/image.png',
+			'https://github.com:8443/user-attachments/assets/image.png',
+			'https://github.com./user-attachments/assets/image.png',
+			'https://github.com/user-attachments/assets/../../../image.png',
+			'https://github.com/user-attachments/assets/%2e%2e/%2e%2e/image.png',
+			'https://github.com/user-attachments/assets/%252e%252e/%252e%252e/image.png',
+			'https://github.com/user-attachments/assets/%5c..%5c..%5cimage.png',
+			'https://github.com%2f.evil.example/user-attachments/assets/image.png',
+			'https://github.com%5c@evil.example/user-attachments/assets/image.png',
+			'https://example.com/image.png?url=https://github.com/user-attachments/assets/image.png',
+			'//github.com/user-attachments/assets/image.png',
+			'file://remote-host/share/image.png',
+			'ftp://raw.githubusercontent.com/image.png',
+		];
+
+		for (const supportHtml of [false, true]) {
+			for (const [allowed, sources] of [[true, allowedSources], [false, disallowedSources]] as const) {
+				for (const source of sources) {
+					test(`${allowed ? 'allows' : 'blocks'} ${supportHtml ? 'HTML' : 'Markdown'} image ${source}`, () => {
+						const value = supportHtml ? `<img src="${source}" alt="Screenshot">` : `![Screenshot](${source})`;
+						const result = store.add(testRenderer.render(new MarkdownString(value, { supportHtml })));
+
+						assert.deepStrictEqual(
+							Array.from(result.element.querySelectorAll<HTMLImageElement>('img[src]'), image => ({
+								src: image.getAttribute('src'),
+								alt: image.alt,
+							})),
+							allowed ? [{ src: URI.parse(source).toString(true), alt: 'Screenshot' }] : [],
+						);
+					});
+				}
+			}
+		}
+
+		test('caller options cannot override the remote image policy', () => {
+			const policy = getChatMarkdownRenderOptions({
+				sanitizerConfig: { remoteImageIsAllowed: () => true },
+			}).sanitizerConfig!.remoteImageIsAllowed!;
+
+			assert.deepStrictEqual(
+				[...allowedSources, ...disallowedSources].map(source => policy(URI.parse(source))),
+				[...allowedSources.map(() => true), ...disallowedSources.map(() => false)],
+			);
+		});
+
+		test('preserves session-scoped agent host image eligibility', () => {
+			const allowed = toAgentHostUri(URI.file('/images/allowed.png'), agentHostAuthority('local'));
+			const blocked = toAgentHostUri(URI.file('/images/blocked.png'), agentHostAuthority('local'));
+			const policy = getChatMarkdownRenderOptions({
+				sanitizerConfig: { remoteImageIsAllowed: uri => uri.path === allowed.path },
+			}).sanitizerConfig!.remoteImageIsAllowed!;
+			const defaultPolicy = getChatMarkdownRenderOptions().sanitizerConfig!.remoteImageIsAllowed!;
+
+			assert.deepStrictEqual({
+				allowed: policy(allowed),
+				blocked: policy(blocked),
+				defaultBlocked: defaultPolicy(allowed),
+				github: policy(URI.parse(allowedSources[0])),
+				external: policy(URI.parse(disallowedSources[0])),
+			}, {
+				allowed: true,
+				blocked: false,
+				defaultBlocked: false,
+				github: true,
+				external: false,
+			});
+		});
+
+		test('resolves relative images against their base URI before checking the allowlist', () => {
+			const results = [
+				{ source: 'image.png', base: 'https://raw.githubusercontent.com/owner/repo/main/readme.md' },
+				{ source: 'image.png', base: 'https://example.com/readme.md' },
+				{ source: '../../../image.png', base: 'https://github.com/user-attachments/assets/readme.md' },
+			].map(({ source, base }) => {
+				const markdown = new MarkdownString(`![Screenshot](${source})`);
+				markdown.baseUri = URI.parse(base);
+				return store.add(testRenderer.render(markdown)).element.querySelector('img')?.getAttribute('src');
+			});
+
+			assert.deepStrictEqual(results, [
+				'https://raw.githubusercontent.com/owner/repo/main/image.png',
+				undefined,
+				undefined,
+			]);
+		});
+
+		test('checks URI transformations and mappings before loading images', () => {
+			const source = 'https://github.com/user-attachments/assets/image.png';
+			const disallowed = 'https://example.com/image.png';
+			const transformed = store.add(testRenderer.render(new MarkdownString(`![Screenshot](${source})`), {
+				transformUri: () => disallowed,
+			}));
+			const mappedMarkdown = new MarkdownString(`![Screenshot](${source})`);
+			mappedMarkdown.uris = { [source]: URI.parse(disallowed) };
+			const mapped = store.add(testRenderer.render(mappedMarkdown));
+
+			assert.deepStrictEqual(
+				[transformed, mapped].map(result => result.element.querySelectorAll('img').length),
+				[0, 0],
+			);
+		});
+
+		test('strips alternate image-loading attributes and event handlers', () => {
+			const source = 'https://github.com/user-attachments/assets/image.png';
+			const markdown = new MarkdownString(`<picture><source srcset="https://example.com/source.png"><img src="${source}" srcset="https://example.com/image.png 2x" onerror="alert(1)" style="background-image: url(https://example.com/background.png)" alt="Screenshot"></picture>`, { supportHtml: true });
+			const result = store.add(testRenderer.render(markdown));
+			const image = result.element.querySelector('img');
+
+			assert.deepStrictEqual({
+				sourceCount: result.element.querySelectorAll('picture, source').length,
+				attributes: image ? Array.from(image.attributes, attribute => attribute.name).sort() : [],
+				alt: image?.alt,
+			}, {
+				sourceCount: 0,
+				attributes: ['alt', 'src'],
+				alt: 'Screenshot',
+			});
+		});
+
+		test('keeps data images and local and remote extension host files working', () => {
+			const data = new MarkdownString('![Screenshot](data:image/png;base64,iVBORw0KGgo=)');
+			const local = new MarkdownString('![Screenshot](image.png)');
+			local.baseUri = URI.file('/images/readme.md');
+			const remoteFile = 'file:///images/image.png';
+			const remote = new MarkdownString(`![Screenshot](${remoteFile})`);
+			remote.uris = { [remoteFile]: URI.parse('vscode-remote://ssh-remote+host/images/image.png') };
+
+			assert.deepStrictEqual(
+				[data, local, remote].map(markdown => store.add(testRenderer.render(markdown)).element.querySelectorAll('img[src]').length),
+				[1, 1, 1],
+			);
+		});
 	});
 
 	test('raw style elements are not allowed by the math sanitizer', () => {

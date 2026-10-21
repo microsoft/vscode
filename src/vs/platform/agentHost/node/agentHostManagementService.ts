@@ -7,11 +7,12 @@ import { Promises, raceTimeout } from '../../../base/common/async.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
-import { type AgentProvider, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, type IAgentCustomizationInstallation, type IAgentCustomizationInstallationRequest, type IAgentCustomizationInstallationReview, type IAgentCustomizationMarketplaceSearchRequest, type IAgentCustomizationMarketplaceSearchResult, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest } from '../common/agent.js';
+import { type AgentCanvasDefinitionSnapshot, type AgentProvider, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, type IAgentCustomizationInstallation, type IAgentCustomizationInstallationRequest, type IAgentCustomizationInstallationReview, type IAgentCustomizationMarketplaceSearchRequest, type IAgentCustomizationMarketplaceSearchResult, type IAgentManagedPluginRetryEntry, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest } from '../common/agent.js';
 import { IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostManagementService, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, type IMissionControlOptions, type IMissionControlCredentialSealingRequest } from '../common/agentService.js';
 import { sealMissionControlCredential } from './missionControl/missionControlAuthentication.js';
 import { MissionControlEnvironment } from './missionControl/missionControlEnvironment.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
+import { IAgentHostSystemWakeService } from './agentHostSystemWakeService.js';
 
 const SHUTDOWN_DRAIN_TIMEOUT_MS = 1000;
 const PROVIDER_SHUTDOWN_TIMEOUT_MS = 1500;
@@ -31,6 +32,7 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		private readonly _shutdownProtocolIngress: () => Promise<void>,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@ILogService private readonly _logService: ILogService,
+		@IAgentHostSystemWakeService private readonly _systemWake: IAgentHostSystemWakeService,
 	) { }
 
 	setMissionControl(service: MissionControlEnvironment | undefined): void {
@@ -61,6 +63,27 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 
 	createChatWithExtensions(session: URI, chat: URI, options: IAgentCreateChatRequestOptions): Promise<void> {
 		return this._runMutation(() => this._agentService.createChat(session, chat, options));
+	}
+
+	installSandboxCertificate(chat: string, scopeId: string): Promise<void> {
+		if (!this._agentService.installSandboxCertificate) {
+			throw new Error('Sandbox certificate installation is unavailable');
+		}
+		return this._runMutation(() => this._agentService.installSandboxCertificate!(chat, scopeId));
+	}
+
+	rotateSandboxCertificate(chat: string, scopeId: string): Promise<void> {
+		if (!this._agentService.rotateSandboxCertificate) {
+			throw new Error('Sandbox certificate rotation is unavailable');
+		}
+		return this._runMutation(() => this._agentService.rotateSandboxCertificate!(chat, scopeId));
+	}
+
+	removeSandboxCertificate(chat: string, scopeId: string): Promise<void> {
+		if (!this._agentService.removeSandboxCertificate) {
+			throw new Error('Sandbox certificate removal is unavailable');
+		}
+		return this._runMutation(() => this._agentService.removeSandboxCertificate!(chat, scopeId));
 	}
 
 	createDetachedWorktree(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }> {
@@ -112,7 +135,7 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		return this._runMutation(() => this._agentService.uninstallPlugin!(provider, request, session, chat));
 	}
 
-	listSessionCanvases(session: URI, chat: URI): Promise<readonly IAgentCanvasInfo[]> {
+	listSessionCanvases(session: URI, chat: URI): Promise<AgentCanvasDefinitionSnapshot> {
 		if (!this._agentService.listSessionCanvases) {
 			throw new Error('Copilot canvas inventory is unavailable');
 		}
@@ -126,11 +149,25 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		return this._runMutation(() => this._agentService.openSessionCanvas!(session, request, chat));
 	}
 
+	closeSessionCanvas(session: URI, request: IAgentCanvasCloseRequest, chat: URI): Promise<void> {
+		if (!this._agentService.closeSessionCanvas) {
+			throw new Error('Closing Copilot canvases is unavailable');
+		}
+		return this._runMutation(() => this._agentService.closeSessionCanvas!(session, request, chat));
+	}
+
 	installPlugin(provider: AgentProvider, request: IAgentPluginInstallRequest, session?: URI, chat?: URI): Promise<void> {
 		if (!this._agentService.installPlugin) {
 			throw new Error('Agent Host plugin install is unavailable');
 		}
 		return this._runMutation(() => this._agentService.installPlugin!(provider, request, session, chat));
+	}
+
+	retryManagedPlugins(provider: AgentProvider, session: URI, chat?: URI): Promise<readonly IAgentManagedPluginRetryEntry[]> {
+		if (!this._agentService.retryManagedPlugins) {
+			throw new Error('Agent Host managed plugin retry is unavailable');
+		}
+		return this._runMutation(() => this._agentService.retryManagedPlugins!(provider, session, chat));
 	}
 
 	listPluginMarketplaces(provider: AgentProvider, session: URI, chat?: URI) {
@@ -208,6 +245,11 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 			throw new Error('Agent Host MCP server configuration is unavailable');
 		}
 		return this._runMutation(() => this._agentService.addMcpServerConfiguration!(provider, name, config));
+	}
+
+	async setSystemFullyAwake(fullyAwake: boolean): Promise<void> {
+		this._logService.info(`[AgentHost] System is ${fullyAwake ? 'fully awake' : 'asleep or in a background wake'}`);
+		this._systemWake.setFullyAwake(fullyAwake);
 	}
 
 	shutdown(): Promise<void> {

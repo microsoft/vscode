@@ -17,6 +17,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
 import { CloudSandboxRequestError, ICloudSandboxApiService } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { createActiveTurn, createChatState, createDefaultChatSummary, createSessionState, MessageKind, ResponsePartKind, SessionStatus, TurnState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IReplayedTaskHistory } from '../../../../../../platform/agentHost/common/taskEventReplay.js';
@@ -36,9 +37,9 @@ import { turnsToHistory } from '../../../browser/agentSessions/agentHost/stateTo
 const resource = URI.parse('remote-agent-host-test-copilot:/session');
 const peerChat = 'custom-chat:/opaque-peer';
 
-function recordedHistory(mainTitle = '', peerTitle = ''): IReplayedTaskHistory {
+function recordedHistory(mainTitle = '', peerTitle = '', sessionTitle = 'Recorded title'): IReplayedTaskHistory {
 	const summary = {
-		resource: 'ahp-session:/session', provider: 'copilot', title: 'Recorded title',
+		resource: 'ahp-session:/session', provider: 'copilot', title: sessionTitle,
 		status: SessionStatus.Idle, createdAt: '2026-01-01T00:00:00.000Z', modifiedAt: '2026-01-01T00:00:00.000Z',
 	};
 	const state = createSessionState(summary);
@@ -103,7 +104,7 @@ class LiveSession extends Disposable implements IChatSession {
 suite('CloudSandboxSessionHandler', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createHandler(read: (token: CancellationToken, diagnosticId?: string, onCachedHistory?: (history: IReplayedTaskHistory) => void, canCacheHistory?: (history: IReplayedTaskHistory | undefined) => boolean) => Promise<IReplayedTaskHistory | undefined> = async () => recordedHistory(), notificationService: INotificationService = new TestNotificationService(), logService: ILogService = new NullLogService(), invalidate: (preserveCached?: boolean) => void = () => { }, onDidSubmitRequest: Event<IChatRequestSubmittedEvent> = Event.None, connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>, setSessionTitle: IChatService['setSessionTitle'] = () => { }) {
+	function createHandler(read: (token: CancellationToken, diagnosticId?: string, onCachedHistory?: (history: IReplayedTaskHistory) => void, canCacheHistory?: (history: IReplayedTaskHistory | undefined) => boolean) => Promise<IReplayedTaskHistory | undefined> = async () => recordedHistory(), notificationService: INotificationService = new TestNotificationService(), logService: ILogService = new NullLogService(), invalidate: (preserveCached?: boolean) => void = () => { }, onDidSubmitRequest: Event<IChatRequestSubmittedEvent> = Event.None, connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>, setSessionTitle: IChatService['setSessionTitle'] = () => { }, getTaskId?: (resource: URI) => string | undefined) {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, logService);
 		instantiationService.stub(INotificationService, notificationService);
@@ -116,7 +117,7 @@ suite('CloudSandboxSessionHandler', () => {
 			override invalidateSessionHistory(_taskId: string, preserveCached?: boolean): void { invalidate(preserveCached); }
 		}());
 		return store.add(instantiationService.createInstance(CloudSandboxSessionHandler, {
-			taskId: 'task', agentId: 'copilot', connectionAuthority: 'test', connectionStatus,
+			taskId: 'task', agentId: 'copilot', connectionAuthority: 'test', connectionStatus, getTaskId,
 		}));
 	}
 
@@ -128,6 +129,27 @@ suite('CloudSandboxSessionHandler', () => {
 			reference.dispose();
 		}
 	}
+
+	test('serves live-only content without reading or invalidating an unrelated task', async () => {
+		const owners = new Map([['/first', 'task-1'], ['/second', 'task-2']]);
+		const submitted = store.add(new Emitter<IChatRequestSubmittedEvent>());
+		let historyReads = 0;
+		let invalidations = 0;
+		const handler = createHandler(async () => { historyReads++; return recordedHistory(); }, undefined, undefined,
+			() => invalidations++, submitted.event, undefined, undefined, resource => owners.get(resource.path));
+		const live = store.add(new LiveSession());
+		handler.setLiveProvider({ provideChatSessionContent: async () => live });
+		const session = await handler.provideChatSessionContent(resource, CancellationToken.None);
+		await waitForState(session.isReadOnly!, value => !value);
+		submitted.fire({ chatSessionResource: resource });
+		live.historyChanges.fire(live.history);
+		live.serverRequests.fire({ id: 'new', prompt: 'New request' });
+		live.progressObs.set([{ kind: 'markdownContent', content: new MarkdownString('New response') }], undefined);
+		assert.deepStrictEqual({ historyReads, invalidations, history: session.history, readOnly: session.isReadOnly?.get() }, {
+			historyReads: 0, invalidations: 0, history: live.history, readOnly: false,
+		});
+		session.dispose();
+	});
 
 	test('independent readers retain promotion and streaming until the final reference is released', async () => {
 		const history = new DeferredPromise<IReplayedTaskHistory>();
@@ -209,6 +231,13 @@ suite('CloudSandboxSessionHandler', () => {
 		});
 	});
 
+	test('a recorded session titled after its id has no title until the agent names it', async () => {
+		const titles: string[] = [];
+		const handler = createHandler(async () => recordedHistory('', '', 'session'), undefined, undefined, undefined, undefined, undefined, (_resource, title) => titles.push(title));
+		const session = await handler.provideChatSessionContent(resource, CancellationToken.None);
+		assert.deepStrictEqual({ title: session.title, titles }, { title: undefined, titles: [] });
+	});
+
 	test('invalidates local submissions only for the matching open conversation and releases the listener on close', async () => {
 		const submitted = store.add(new Emitter<IChatRequestSubmittedEvent>());
 		let invalidations = 0;
@@ -255,6 +284,35 @@ suite('CloudSandboxSessionHandler', () => {
 			before: { pending: true, historyItems: 2, status: undefined, readOnly: true },
 			changes: [4], reads: 2, same: true, status: undefined, readOnly: true,
 			prompts: ['custom-chat:/opaque-main', 'New request elsewhere'],
+		});
+	});
+
+	test('keeps recorded input blocked through cache refresh until live content is ready', async () => {
+		const fresh = new DeferredPromise<IReplayedTaskHistory>();
+		const pendingLive = new DeferredPromise<IChatSession>();
+		const connection = observableValue<RemoteAgentHostConnectionStatus>('connection', RemoteAgentHostConnectionStatus.connecting);
+		const handler = createHandler((_token, _diagnosticId, onCachedHistory) => {
+			onCachedHistory?.(recordedHistory());
+			return fresh.p;
+		}, undefined, undefined, undefined, undefined, connection);
+		const session = store.add(await handler.provideChatSessionContent(resource, CancellationToken.None));
+		const inputState = () => ({ readOnly: session.isReadOnly?.get(), blocked: session.isInputBlocked?.get() });
+		const cached = inputState();
+		const historyChanged = Event.toPromise(session.onDidChangeHistory!);
+		await fresh.complete(recordedHistory('Refreshed title'));
+		await historyChanged;
+		const refreshed = inputState();
+		connection.set(RemoteAgentHostConnectionStatus.connected, undefined);
+		handler.setLiveProvider({ provideChatSessionContent: () => pendingLive.p });
+		const waitingForLiveContent = inputState();
+		await pendingLive.complete(store.add(new LiveSession()));
+		await waitForState(session.isInputBlocked!, value => !value);
+
+		assert.deepStrictEqual({ cached, refreshed, waitingForLiveContent, live: inputState() }, {
+			cached: { readOnly: true, blocked: true },
+			refreshed: { readOnly: true, blocked: true },
+			waitingForLiveContent: { readOnly: true, blocked: true },
+			live: { readOnly: false, blocked: false },
 		});
 	});
 
@@ -627,7 +685,8 @@ suite('CloudSandboxSessionHandler', () => {
 			assert.deepStrictEqual({
 				prompts: session.history.filter(item => item.type === 'request').map(item => item.prompt),
 				error: session.history.find(item => item.type === 'response')?.errorDetails?.message,
-			}, { prompts: [''], error: `HTTP ${status}` });
+				readOnly: session.isReadOnly?.get(), blocked: session.isInputBlocked?.get(),
+			}, { prompts: [''], error: `HTTP ${status}`, readOnly: true, blocked: true });
 		});
 	}
 
@@ -904,7 +963,7 @@ suite('CloudSandboxSessionHandler', () => {
 		live.isReadOnly.set(true, undefined);
 		handler.setLiveProvider({ provideChatSessionContent: async () => live });
 		await timeout(0);
-		assert.deepStrictEqual({ readOnly: session.isReadOnly?.get(), history: session.history }, { readOnly: true, history: live.history });
+		assert.deepStrictEqual({ readOnly: session.isReadOnly?.get(), blocked: session.isInputBlocked?.get(), history: session.history }, { readOnly: true, blocked: false, history: live.history });
 	});
 
 	test('a late live result is disposed after its recorded session is closed', async () => {
@@ -958,5 +1017,31 @@ suite('CloudSandboxSessionHandler', () => {
 			triggers: await triggers,
 			uri: handler.resolveChatResponseUri(resource, 'file.txt', 'link'),
 		}, { triggers: ['@', '/'], uri: 'resolved:file.txt' });
+	});
+
+	test('keeps recorded file links and images scoped to the sandbox before connecting', async () => {
+		const history = recordedHistory();
+		history.sessions[0].state.workingDirectories = ['file:///sandbox/project'];
+		history.sessions[0].chats.get(peerChat)!.workingDirectories = ['file:///sandbox/peer'];
+		const handler = createHandler(async () => history);
+		await handler.provideChatSessionContent(resource, CancellationToken.None);
+		const peer = resource.with({ query: new URLSearchParams({ [CHAT_SUBAGENT_RESOURCE_QUERY_PARAM]: peerChat }).toString() });
+		await handler.provideChatSessionContent(peer, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			link: handler.resolveChatResponseUri(resource, 'file:///tmp/image.png', 'link'),
+			image: handler.resolveChatResponseUri(resource, 'file:///tmp/image.png', 'image'),
+			relative: handler.resolveChatResponseUri(resource, 'images/robot.png', 'image'),
+			peer: handler.resolveChatResponseUri(peer, 'images/robot.png', 'image'),
+			external: handler.resolveChatResponseUri(resource, 'https://github.com/image.png', 'image'),
+			relativeLink: handler.resolveChatResponseUri(resource, 'images/robot.png', 'link'),
+		}, {
+			link: toAgentHostUri(URI.file('/tmp/image.png'), 'test').toString(),
+			image: toAgentHostUri(URI.file('/tmp/image.png'), 'test').toString(),
+			relative: toAgentHostUri(URI.file('/sandbox/project/images/robot.png'), 'test').toString(),
+			peer: toAgentHostUri(URI.file('/sandbox/peer/images/robot.png'), 'test').toString(),
+			external: 'https://github.com/image.png',
+			relativeLink: 'images/robot.png',
+		});
 	});
 });

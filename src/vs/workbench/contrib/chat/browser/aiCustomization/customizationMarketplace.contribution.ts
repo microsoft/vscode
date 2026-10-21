@@ -7,7 +7,6 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { localize } from '../../../../../nls.js';
 import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { AccessibleViewRegistry, IAccessibleViewImplementation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
-import { CopilotConnectorsRequestService, ICopilotConnectorsRequestService } from '../../../../../platform/copilotConnectors/common/copilotConnectorsRequestService.js';
 import { ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
@@ -32,7 +31,6 @@ if (isWeb) {
 }
 registerSingleton(ICustomizationMarketplaceService, CustomizationMarketplaceWorkbenchService, InstantiationType.Delayed);
 registerSingleton(ICopilotConnectorsService, CopilotConnectorsService, InstantiationType.Delayed);
-registerSingleton(ICopilotConnectorsRequestService, CopilotConnectorsRequestService, InstantiationType.Delayed);
 registerSingleton(ICustomizationMarketplaceInstallService, CustomizationMarketplaceInstallService, InstantiationType.Delayed);
 
 class CustomizationMarketplaceInstallationMigrationContribution implements IWorkbenchContribution {
@@ -86,7 +84,7 @@ class CustomizationDiscoveryAccessibleView implements IAccessibleViewImplementat
 				localize('customizationDiscovery.help.getStarted', "In an item's details, choose a prompt under Get started to install the item and open that prompt in a new Copilot session."),
 				localize('customizationDiscovery.help.links', "Available customization names no longer open external resources. Open an item's details to review its metadata, then use the explicitly labeled resource or repository actions for external navigation. Back or Escape returns to Browse and restores focus."),
 				localize('customizationDiscovery.help.paging', "Scrolling near the end of search results loads another page without removing loaded items. Retry repeats a failed marketplace request."),
-				localize('customizationDiscovery.help.sourceFailures', "Unavailable sources show a warning and Retry action above the results. Scrolling continues healthy sources. Retrying a source reloads all sources from the first page to restore relevance order."),
+				localize('customizationDiscovery.help.sourceFailures', "Unavailable sources show a warning notification with a Retry action. Scrolling continues healthy sources. Retrying a source reloads all sources from the first page to restore relevance order."),
 				localize('customizationDiscovery.help.sourceRecovery', "Sources that need the same GitHub account share one Sign In action instead of showing duplicate prompts. Sign-in starts only when you choose it; cancelling keeps the other results available. Additional Connector permission is requested only when you explicitly connect, reconnect, disconnect, or check a connection."),
 				localize('customizationDiscovery.help.view', "Use {0} to read the current browse or search results in the Accessible View.", '<keybinding:editor.action.accessibleView>'),
 			].join('\n\n') : [

@@ -7,12 +7,14 @@ import assert from 'assert';
 import { $ } from '../../../../../../base/browser/dom.js';
 import { IListEvent } from '../../../../../../base/browser/ui/list/list.js';
 import { DeferredPromise, Delayer, raceCancellationError, timeout } from '../../../../../../base/common/async.js';
+import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../../../base/common/errors.js';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
+import { Schemas } from '../../../../../../base/common/network.js';
 import { ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -20,6 +22,10 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/timeTrave
 import { Range } from '../../../../../../editor/common/core/range.js';
 import type { IManagedHover } from '../../../../../../base/browser/ui/hover/hover.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { FileService } from '../../../../../../platform/files/common/fileService.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { IConfirmation, IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
@@ -27,7 +33,8 @@ import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME } from '../../../../../../platform/a
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { AICustomizationManagementEditor, isCurrentPluginContributionNavigation } from '../../../browser/aiCustomization/aiCustomizationManagementEditor.js';
+import { AICustomizationManagementEditor, CopilotConnectorDetailOpenResult, isCurrentConnectorDetailNavigation, isCurrentPluginContributionNavigation } from '../../../browser/aiCustomization/aiCustomizationManagementEditor.js';
+import { ICopilotConnector, ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
 import { IAICustomizationListItem } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
 import { AgentPluginItemKind, IAgentPluginItem } from '../../../browser/agentPluginEditor/agentPluginItems.js';
 import { ChatConfiguration } from '../../../common/constants.js';
@@ -48,11 +55,13 @@ import { IMcpServerDetailInput } from '../../../browser/aiCustomization/embedded
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import type { ICustomizationMigrationDashboardDestination, ICustomizationMigrationDashboardItem, ICustomizationMigrationDashboardOverview } from '../../../browser/aiCustomization/customizationMigrationDashboard.js';
+import { type ICustomizationMigrationRecoveryManifest, listCustomizationMigrationRecoveries, prepareCustomizationMigrationRecovery, updateCustomizationMigrationRecovery } from '../../../browser/aiCustomization/customizationMigrationRecovery.js';
+import { CustomizationMigrationResultToolId } from '../../../browser/aiCustomization/customizationMigrationResultTool.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
-import { IMcpWorkbenchService, McpServerInstallState } from '../../../../mcp/common/mcpTypes.js';
+import { IMcpWorkbenchService, McpServerInstallState, mcpOAuthClientSecretStorageKey } from '../../../../mcp/common/mcpTypes.js';
 import type { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 
@@ -84,12 +93,66 @@ suite('aiCustomizationManagementEditor', () => {
 		]);
 	});
 
+	test('opens a Copilot connector detail by display name', async () => {
+		const input = store.add(new AICustomizationManagementEditorInput());
+		const connector: ICopilotConnector = {
+			name: 'connector-catalog-entry-7f3a',
+			displayName: 'Linear',
+			description: 'Triage your open issues in Linear',
+			tags: [],
+			keywords: [],
+			capabilities: [],
+			representativeQueries: [],
+			connectionStatus: 'not_connected',
+			scopes: [],
+			mcpServers: [],
+		};
+		const opened: ICopilotConnector[] = [];
+		const selectedSections: AICustomizationManagementSection[] = [];
+		const harness = {
+			contentNavigationGeneration: 1,
+			input,
+			copilotConnectorsService: {
+				getConnectors: async () => [connector],
+			} as Pick<ICopilotConnectorsService, 'getConnectors'>,
+			selectSectionById: (section: AICustomizationManagementSection) => selectedSections.push(section),
+			showEmbeddedConnectorDetail: (candidate: ICopilotConnector) => opened.push(candidate),
+		};
+		const showCopilotConnectorDetail = Reflect.get(AICustomizationManagementEditor.prototype, 'showCopilotConnectorDetail') as (
+			this: typeof harness,
+			connectorName: string,
+			connectorDisplayName?: string,
+		) => Promise<CopilotConnectorDetailOpenResult>;
+
+		const result = await showCopilotConnectorDetail.call(harness, 'linear', 'Linear');
+
+		assert.deepStrictEqual({
+			result,
+			selectedSections,
+			opened: opened.map(candidate => candidate.name),
+		}, {
+			result: CopilotConnectorDetailOpenResult.Opened,
+			selectedSections: [AICustomizationManagementSection.McpServers],
+			opened: ['connector-catalog-entry-7f3a'],
+		});
+	});
+
 	test('rejects stale plugin contribution navigation', () => {
 		assert.deepStrictEqual([
 			isCurrentPluginContributionNavigation(2, 2, AICustomizationManagementSection.Skills, AICustomizationManagementSection.Skills, true),
 			isCurrentPluginContributionNavigation(1, 2, AICustomizationManagementSection.Skills, AICustomizationManagementSection.Skills, true),
 			isCurrentPluginContributionNavigation(2, 2, AICustomizationManagementSection.Skills, AICustomizationManagementSection.Agents, true),
 			isCurrentPluginContributionNavigation(2, 2, AICustomizationManagementSection.Skills, AICustomizationManagementSection.Skills, false),
+		], [true, false, false, false]);
+	});
+
+	test('rejects superseded connector detail navigation', () => {
+		const requestInput = {};
+		assert.deepStrictEqual([
+			isCurrentConnectorDetailNavigation(2, 2, requestInput, requestInput),
+			isCurrentConnectorDetailNavigation(1, 2, requestInput, requestInput),
+			isCurrentConnectorDetailNavigation(2, 2, requestInput, {}),
+			isCurrentConnectorDetailNavigation(2, 2, undefined, undefined),
 		], [true, false, false, false]);
 	});
 
@@ -165,7 +228,7 @@ suite('aiCustomizationManagementEditor', () => {
 			compatibilityId: 'server-id',
 			source: { uri: sourceUri },
 		};
-		editor.embeddedMcpDetail = { setMigratable: migratable => states.push(migratable) };
+		editor.embeddedMcpDetail = { setMigratable: migratable => states.push(migratable), setManualReviewReason: () => { } };
 		editor.mcpListWidget = { setMcpServerMigrationCandidates: candidates => listCandidates.push(candidates) };
 		const candidate: IMcpServerCustomizationMigrationCandidate = {
 			type: CustomizationMigrationType.McpServers,
@@ -185,6 +248,42 @@ suite('aiCustomizationManagementEditor', () => {
 			states: [true, false],
 			listCandidates: [[candidate]],
 		});
+	});
+
+	test('shows the planner exclusion reason in an open MCP detail', () => {
+		const editor = createTestEditor();
+		const sourceUri = URI.file('/workspace/.vscode/mcp.json');
+		const reasons: (string | undefined)[] = [];
+		editor.viewMode = 'mcpDetail';
+		editor.mcpDetailInput = {
+			id: 'server-row',
+			name: 'server',
+			label: 'Server',
+			installState: McpServerInstallState.Installed,
+			compatibilityId: 'server-id',
+			source: { uri: sourceUri },
+		};
+		editor.embeddedMcpDetail = { setMigratable: () => { }, setManualReviewReason: reason => reasons.push(reason) };
+		editor.mcpListWidget = { setMcpServerMigrationCandidates: () => { } };
+		const exclusion: IMcpServerCustomizationMigrationExclusion = {
+			storage: PromptsStorage.local,
+			id: 'server-id',
+			name: 'server',
+			sourceUri,
+			targetUri: URI.file('/workspace/.mcp.json'),
+			reason: McpServerCustomizationMigrationFailureReason.OAuthClientSecret,
+			details: ['Client secret is stored in VS Code.'],
+		};
+		editor.setCustomizationsToMigrate(new Map(), new Map(), [exclusion]);
+		editor.setCustomizationsToMigrate(new Map(), new Map(), [{ ...exclusion, details: [] }]);
+		editor.setCustomizationsToMigrate(new Map(), new Map(), [{ ...exclusion, sourceUri: URI.file('/other/.vscode/mcp.json') }]);
+		editor.editorPreviewDisposables.dispose();
+
+		assert.deepStrictEqual(reasons, [
+			'Client secret is stored in VS Code.',
+			'This server cannot be migrated automatically. Update it by hand in its configuration file.',
+			undefined,
+		]);
 	});
 
 	type TestQuickPickItem = {
@@ -222,6 +321,7 @@ suite('aiCustomizationManagementEditor', () => {
 		selectedPluginMarketplaceMigrationItems: Set<string>;
 		knownPluginMarketplaceMigrationItems: Set<string>;
 		recentlyMigratedCustomizationItems: Set<string>;
+		agentMigrationRecoveries: readonly { readonly manifestResource: URI; readonly manifest: ICustomizationMigrationRecoveryManifest }[];
 		migrationShortcutContainer: HTMLElement | undefined;
 		migrationShortcutButton: HTMLButtonElement | undefined;
 		migrationShortcutCount: HTMLElement | undefined;
@@ -229,6 +329,7 @@ suite('aiCustomizationManagementEditor', () => {
 		layoutSidebar(width: number, height: number): void;
 		updateSidebarMigrationShortcut(): void;
 		startCustomizationMigration(categoryId?: CustomizationMigrationCategoryId, migrationFlowId?: string): Promise<void>;
+		startCustomizationMigrationWithAgent(): Promise<void>;
 		showCustomizationMigrationDashboard(): void;
 		getMigrationAccessibilityContent(): string | undefined;
 		storageService: IStorageService;
@@ -240,6 +341,9 @@ suite('aiCustomizationManagementEditor', () => {
 		commandService: { executeCommand(commandId: string, ...args: readonly unknown[]): Promise<unknown> };
 		chatWidgetService: {
 			getWidgetBySessionResource(resource: URI): { setInput(value: string): void; focusInput(): void } | undefined;
+		};
+		chatService: {
+			getSession(resource: URI): { readonly hasActiveRequest: { get(): boolean } } | undefined;
 		};
 		viewsService: { openView(viewId: string, focus?: boolean): Promise<{ prefillInput?(text: string): void; sendQuery?(text: string): void } | undefined> };
 		editorDisplayMode: 'preview' | 'raw';
@@ -264,7 +368,7 @@ suite('aiCustomizationManagementEditor', () => {
 		editorPreviewRenderScheduler: { cancel(): void; schedule(): void };
 		viewMode: 'list' | 'migration' | 'editor' | 'marketplaceDetail' | 'mcpDetail' | 'connectorDetail' | 'pluginDetail';
 		mcpDetailInput: IMcpServerDetailInput | undefined;
-		embeddedMcpDetail: { setMigratable(migratable: boolean): void } | undefined;
+		embeddedMcpDetail: { setMigratable(migratable: boolean): void; setManualReviewReason(reason: string | undefined): void } | undefined;
 		mcpListWidget: { setMcpServerMigrationCandidates(candidates: readonly IMcpServerCustomizationMigrationCandidate[]): void } | undefined;
 		refreshMcpDetailMigrationState(): void;
 		dimension: undefined;
@@ -273,7 +377,12 @@ suite('aiCustomizationManagementEditor', () => {
 		configurationService: IConfigurationService;
 		telemetryService: ITelemetryService;
 		editorDisposables: DisposableStore;
-		harnessService: { activeSessionResource: ISettableObservable<URI>; activeHarness: ISettableObservable<string>; findHarnessById: ICustomizationHarnessService['findHarnessById'] };
+		harnessService: {
+			activeSessionResource: ISettableObservable<URI>;
+			activeHarness: ISettableObservable<string>;
+			getActiveDescriptor: ICustomizationHarnessService['getActiveDescriptor'];
+			findHarnessById: ICustomizationHarnessService['findHarnessById'];
+		};
 		migrationFlowId: string | undefined;
 		labelService: { getUriLabel(uri: URI, options?: { relative?: boolean }): string };
 		editorService: Pick<IEditorService, 'openEditor'>;
@@ -288,6 +397,9 @@ suite('aiCustomizationManagementEditor', () => {
 			pick(items: readonly TestQuickPickItem[], options?: { activeItem?: TestQuickPickItem }): Promise<TestQuickPickResult | undefined>;
 		};
 		notificationService: { error(message: string): void; info(message: string): void; warn(message: string): void };
+		fileService: IFileService;
+		environmentService: { workspaceStorageHome: URI };
+		workspaceContextService: { getWorkspace(): { id: string } };
 		fileDialogService: { showOpenDialog(): Promise<URI[]> };
 		showEmbeddedEditor(uri: URI, displayName: string, promptType: PromptsType, source: AICustomizationSource, isWorkspaceFile?: boolean, isReadOnly?: boolean, migrationDetail?: { readonly item: ICustomizationMigrationDashboardItem; readonly storage: PromptsStorage }): Promise<void>;
 		getActiveHarnessLabel(): string;
@@ -318,8 +430,11 @@ suite('aiCustomizationManagementEditor', () => {
 		refreshCustomizationMigrationInfoFromPromptChange(): void;
 		refreshCustomizationMigrationInfoFromMcpChange(): void;
 		refreshCustomizationMigrationInfo(): Promise<void>;
+		refreshAgentMigrationRecoveries(): Promise<void>;
 		cancelCustomizationMigrationRefresh(): void;
 		registerCustomizationMigrationSessionRefresh(): void;
+		registerCustomizationMigrationSecretRefresh(): void;
+		secretStorageService: { readonly onDidChangeSecret: Event<string> };
 		renderCustomizationMigrationDashboardState(): void;
 		showEmbeddedMcpDetail(server: IMcpServerDetailInput, origin?: { readonly kind: 'migration' }, migrationDetail?: { readonly item: ICustomizationMigrationDashboardItem; readonly storage: PromptsStorage }): Promise<void>;
 		openMigrationCustomization(item: ICustomizationMigrationDashboardItem, storage: PromptsStorage): Promise<void>;
@@ -417,6 +532,7 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.selectedPluginMarketplaceMigrationItems = new Set();
 		editor.knownPluginMarketplaceMigrationItems = new Set();
 		editor.recentlyMigratedCustomizationItems = new Set();
+		editor.agentMigrationRecoveries = [];
 		editor.migrationFlowId = undefined;
 		editor.migrationDashboard = undefined;
 		editor.editorDisplayMode = 'preview';
@@ -441,18 +557,25 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.customizationMigrationRefreshSequence = 0;
 		editor.customizationMigrationRefreshDelayer = editor.editorPreviewDisposables.add(new Delayer<void>(0));
 		editor.customizationMigrationRequest = editor.editorPreviewDisposables.add(new DisposableStore());
+		editor.refreshAgentMigrationRecoveries = async () => { };
 		editor.storageService = editor.editorPreviewDisposables.add(new InMemoryStorageService());
 		editor.workspaceService = {
 			activeProjectRoot: observableValue<URI | undefined>('project', URI.file('/workspace')),
 			activeProjectLabel: observableValue('projectLabel', 'vscode'),
 			isSessionsWindow: false,
 		};
+		editor.workspaceContextService = { getWorkspace: () => ({ id: 'workspace-id' }) };
 		editor.commandService = { executeCommand: async () => undefined };
 		editor.chatWidgetService = { getWidgetBySessionResource: () => undefined };
 		editor.viewsService = { openView: async () => undefined };
 		editor.harnessService = {
 			activeSessionResource: observableValue('activeSessionResource', URI.parse('agent-host-test:/session-a')),
 			activeHarness: observableValue('activeHarness', 'agent-host-copilotcli'),
+			getActiveDescriptor: () => ({
+				id: 'agent-host-copilotcli',
+				label: 'Copilot',
+				icon: Codicon.copilot,
+			}),
 			findHarnessById: () => undefined,
 		};
 		editor.hoverService = hoverService ?? {
@@ -492,7 +615,9 @@ suite('aiCustomizationManagementEditor', () => {
 			actionClicked: () => { },
 			migrationClicked: () => { },
 			migrationCompleted: () => { },
-			watchAgentMigrationResult: () => { },
+			prepareAgentMigrationResult: () => ({ dispose() { } }),
+			bindAgentMigrationSession: () => { },
+			reportAgentMigrationResult: async () => { },
 		};
 		editor.dialogService = {
 			confirm: async () => ({ confirmed: false }),
@@ -544,6 +669,140 @@ suite('aiCustomizationManagementEditor', () => {
 			modalResult: true,
 			calls: ['modal'],
 		});
+	});
+
+	test('backs up customization sources before launching an agent migration', async () => {
+		const editor = createTestEditor();
+		store.add(editor.editorPreviewDisposables);
+		const fileService = store.add(new FileService(new NullLogService()));
+		store.add(fileService.registerProvider(Schemas.inMemory, store.add(new InMemoryFileSystemProvider())));
+		const source = URI.from({ scheme: Schemas.inMemory, path: '/workspace/review.prompt.md' });
+		const recoveryRoot = URI.from({ scheme: Schemas.inMemory, path: '/workspaceStorage/workspace-id/customizationMigrations' });
+		await fileService.writeFile(source, VSBuffer.fromString('original'));
+		editor.fileService = fileService;
+		editor.environmentService = { workspaceStorageHome: URI.from({ scheme: Schemas.inMemory, path: '/workspaceStorage' }) };
+		editor.customizationsByMigrationCategory.set(CustomizationMigrationCategoryId.PromptFiles, [
+			{ uri: source, storage: PromptsStorage.local, type: PromptsType.prompt },
+		]);
+		editor.harnessService.getActiveDescriptor = () => ({
+			id: 'agent-host-copilotcli',
+			label: 'Copilot',
+			icon: Codicon.copilot,
+			itemProvider: {
+				onDidChange: Event.None,
+				provideChatSessionCustomizations: async () => [],
+				provideSourceFolders: async () => [],
+			},
+		});
+		const calls: string[] = [];
+		let commandOptions: { readonly sessionToolIds?: readonly string[] } | undefined;
+		editor.closeCustomizationEditor = async () => {
+			const recoveries = await fileService.resolve(recoveryRoot);
+			assert.strictEqual(recoveries.children?.length, 1);
+			assert.strictEqual(await fileService.exists(URI.joinPath(recoveries.children[0].resource, 'manifest.json')), true);
+			calls.push('close');
+			return true;
+		};
+		editor.customizationMigrationTelemetryService.prepareAgentMigrationResult = () => {
+			calls.push('prepare');
+			return { dispose: () => calls.push('dispose') };
+		};
+		editor.commandService = {
+			executeCommand: async (_commandId, options) => {
+				commandOptions = options as typeof commandOptions;
+				calls.push('chat');
+				return undefined;
+			},
+		};
+
+		await editor.startCustomizationMigrationWithAgent();
+
+		assert.deepStrictEqual({
+			calls,
+			sessionToolIds: commandOptions?.sessionToolIds,
+		}, {
+			calls: ['close', 'prepare', 'chat', 'dispose'],
+			sessionToolIds: [CustomizationMigrationResultToolId],
+		});
+	});
+
+	test('does not launch an agent migration when backup preparation fails', async () => {
+		const editor = createTestEditor();
+		store.add(editor.editorPreviewDisposables);
+		const fileService = store.add(new FileService(new NullLogService()));
+		store.add(fileService.registerProvider(Schemas.inMemory, store.add(new InMemoryFileSystemProvider())));
+		editor.fileService = fileService;
+		editor.environmentService = { workspaceStorageHome: URI.from({ scheme: Schemas.inMemory, path: '/workspaceStorage' }) };
+		editor.customizationsByMigrationCategory.set(CustomizationMigrationCategoryId.PromptFiles, [
+			{ uri: URI.from({ scheme: Schemas.inMemory, path: '/workspace/missing.prompt.md' }), storage: PromptsStorage.local, type: PromptsType.prompt },
+		]);
+		editor.harnessService.getActiveDescriptor = () => ({
+			id: 'agent-host-copilotcli',
+			label: 'Copilot',
+			icon: Codicon.copilot,
+			itemProvider: {
+				onDidChange: Event.None,
+				provideChatSessionCustomizations: async () => [],
+				provideSourceFolders: async () => [],
+			},
+		});
+		let closeCount = 0;
+		let launchCount = 0;
+		editor.closeCustomizationEditor = async () => {
+			closeCount++;
+			return true;
+		};
+		editor.commandService = {
+			executeCommand: async () => {
+				launchCount++;
+				return undefined;
+			},
+		};
+
+		const errors: Error[] = [];
+		const originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
+		setUnexpectedErrorHandler(error => errors.push(error));
+		try {
+			await editor.startCustomizationMigrationWithAgent();
+			assert.deepStrictEqual({ closeCount, launchCount, errorCount: errors.length }, { closeCount: 0, launchCount: 0, errorCount: 1 });
+		} finally {
+			setUnexpectedErrorHandler(originalErrorHandler);
+		}
+	});
+
+	test('unlocks stale running recoveries while preserving active ones', async () => {
+		const editor = createTestEditor();
+		store.add(editor.editorPreviewDisposables);
+		const fileService = store.add(new FileService(new NullLogService()));
+		store.add(fileService.registerProvider(Schemas.inMemory, store.add(new InMemoryFileSystemProvider())));
+		const workspaceStorageHome = URI.from({ scheme: Schemas.inMemory, path: '/workspaceStorage' });
+		const recoveryRoot = URI.joinPath(workspaceStorageHome, 'workspace-id', 'customizationMigrations');
+		editor.fileService = fileService;
+		editor.environmentService = { workspaceStorageHome };
+
+		for (const [flowId, sessionId] of [['stale', 'session-stale'], ['active', 'session-active']] as const) {
+			const source = URI.from({ scheme: Schemas.inMemory, path: `/user/${flowId}.agent.md` });
+			await fileService.writeFile(source, VSBuffer.fromString(flowId));
+			const recovery = await prepareCustomizationMigrationRecovery(fileService, URI.joinPath(recoveryRoot, flowId), flowId, { id: 'copilot', label: 'Copilot' }, [
+				{ uri: source, storage: PromptsStorage.user, type: PromptsType.agent },
+			]);
+			await updateCustomizationMigrationRecovery(fileService, recovery.manifestResource, {
+				status: 'running',
+				sessionResource: URI.parse(`agent-host-test:/${sessionId}`),
+			});
+		}
+		editor.chatService = {
+			getSession: resource => resource.path === '/session-active' ? { hasActiveRequest: { get: () => true } } : undefined,
+		};
+		delete (editor as Partial<TestableEditor>).refreshAgentMigrationRecoveries;
+
+		await editor.refreshAgentMigrationRecoveries();
+		const listed = await listCustomizationMigrationRecoveries(fileService, recoveryRoot);
+
+		assert.deepStrictEqual(
+			listed.recoveries.map(recovery => [recovery.manifest.migrationFlowId, recovery.manifest.status]).sort(),
+			[['active', 'running'], ['stale', 'unknown']],
+		);
 	});
 
 	test('runs marketplace prompts in a new Agents Window chat', async () => {
@@ -1930,6 +2189,67 @@ suite('aiCustomizationManagementEditor', () => {
 		});
 		editor.editorPreviewDisposables.dispose();
 	});
+
+	test('refreshes an open MCP detail when an MCP OAuth client secret changes', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const editor = createTestEditor(undefined, createConfigurationServiceStub({
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
+		}));
+		store.add(editor.editorPreviewDisposables);
+		const onDidChangeSecret = store.add(new Emitter<string>());
+		editor.secretStorageService = { onDidChangeSecret: onDidChangeSecret.event };
+		editor.renderCustomizationMigrationDashboardState = () => { };
+		const sourceUri = URI.file('/workspace/.vscode/mcp.json');
+		const server = { storage: PromptsStorage.local, id: 'oauth-secret', name: 'oauth-secret', sourceUri, targetUri: URI.file('/workspace/.mcp.json') } as const;
+		let hasSecret = true;
+		const computedWithSecret: boolean[] = [];
+		editor.customizationMigrationService.computeMigration = async (_session, type) => {
+			if (type !== CustomizationMigrationType.McpServers) {
+				return { type, files: [], candidates: [] };
+			}
+			computedWithSecret.push(hasSecret);
+			return {
+				type: CustomizationMigrationType.McpServers,
+				servers: [],
+				candidates: hasSecret ? [] : [{ ...server, type: CustomizationMigrationType.McpServers, projectedConfiguration: { type: McpServerType.REMOTE, url: 'https://example.com/secret/mcp' } }],
+				exclusions: hasSecret ? [{ ...server, reason: McpServerCustomizationMigrationFailureReason.OAuthClientSecret, details: ['Client secret is stored in VS Code.'] }] : [],
+				discoveryComplete: true,
+				coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
+			};
+		};
+		const detailStates: { readonly migratable?: boolean; readonly reason?: string }[] = [];
+		editor.viewMode = 'mcpDetail';
+		editor.mcpDetailInput = {
+			id: 'oauth-secret',
+			name: 'oauth-secret',
+			label: 'oauth-secret',
+			installState: McpServerInstallState.Installed,
+			compatibilityId: 'oauth-secret',
+			source: { uri: sourceUri },
+		};
+		editor.embeddedMcpDetail = {
+			setMigratable: migratable => detailStates.push({ migratable }),
+			setManualReviewReason: reason => detailStates.push({ reason }),
+		};
+		editor.mcpListWidget = { setMcpServerMigrationCandidates: () => { } };
+		await editor.refreshCustomizationMigrationInfo();
+		editor.registerCustomizationMigrationSecretRefresh();
+
+		onDidChangeSecret.fire('unrelated.secret');
+		await timeout(10);
+		hasSecret = false;
+		onDidChangeSecret.fire(mcpOAuthClientSecretStorageKey('https://example.com/secret/mcp', 'confidential-client'));
+		await timeout(10);
+
+		assert.deepStrictEqual({ computedWithSecret, detailStates }, {
+			computedWithSecret: [true, false],
+			detailStates: [
+				{ migratable: false },
+				{ reason: 'Client secret is stored in VS Code.' },
+				{ migratable: true },
+				{ reason: undefined },
+			],
+		});
+	}));
 
 	test('suppresses prompt change refreshes only while migration writes are in progress', () => {
 		const editor = createTestEditor();

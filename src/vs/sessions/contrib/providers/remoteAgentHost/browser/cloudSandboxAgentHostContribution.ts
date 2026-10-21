@@ -14,7 +14,7 @@ import { localize } from '../../../../../nls.js';
 import { AgentSession } from '../../../../../platform/agentHost/common/agent.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { ChangesetKind } from '../../../../../platform/agentHost/common/changesetUri.js';
-import { CLOUD_SANDBOX_AGENT_PROVIDER, CLOUD_SANDBOX_SESSION_SCHEME, cloudSandboxAddress, ICloudSandboxAgentHostService, ICloudSandboxApiService, ICloudSandboxCreatedSession, ICloudSandboxCreateSessionRequest } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CLOUD_SANDBOX_AGENT_PROVIDER, CLOUD_SANDBOX_SESSION_SCHEME, cloudSandboxAddress, ICloudSandboxAgentHostService, ICloudSandboxApiService, ICloudSandboxCreatedSession, ICloudSandboxCreateSessionRequest, ICloudSandboxDraftPreparationService } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -31,10 +31,9 @@ import { IAgentHostConnectionLabels, IAgentHostGroup } from '../../../../common/
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
+import { CLOUD_SANDBOX_CREATION_PROVIDER_ID, COPILOT_PROVIDER_ID } from '../../copilotChatSessions/common/copilotChatSessions.js';
 import { CloudSandboxSessionsProvider } from './cloudSandboxSessionsProvider.js';
 import { IRemoteAgentHostSessionsProviderConfig } from './remoteAgentHostSessionsProvider.js';
-
-export const CLOUD_SANDBOX_CREATION_PROVIDER_ID = 'cloud-sandbox-creation';
 
 const CLOUD_SANDBOX_HOST_GROUP: IAgentHostGroup = {
 	id: 'githubsandbox',
@@ -71,6 +70,7 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 	constructor(
 		@ICloudSandboxAgentHostService cloudSandboxService: ICloudSandboxAgentHostService,
 		@ICloudSandboxApiService apiService: ICloudSandboxApiService,
+		@ICloudSandboxDraftPreparationService draftPreparationService: ICloudSandboxDraftPreparationService,
 		@IRemoteAgentHostService private readonly _remoteService: IRemoteAgentHostService,
 		@IRemoteAgentHostConnectionCustomizationService private readonly _sandboxConnectionCustomizations: IRemoteAgentHostConnectionCustomizationService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
@@ -85,7 +85,7 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 		@IWorkspaceTrustManagementService workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IAgentHostService localAgentHostService: IAgentHostService,
 	) {
-		super(cloudSandboxService, apiService, _remoteService, _sandboxConnectionCustomizations, configurationService, instantiationService, chatSessionsService, logService, chatEntitlementService, hostService, storageService, workspaceTrustManagementService, localAgentHostService);
+		super(cloudSandboxService, apiService, draftPreparationService, _remoteService, _sandboxConnectionCustomizations, configurationService, instantiationService, chatSessionsService, logService, chatEntitlementService, hostService, storageService, workspaceTrustManagementService, localAgentHostService);
 		this._updateRegistration();
 		this._register(this._agentHostFilterService.registerDiscoveryHandler(() => this._discoverAndSeed()));
 		this._register(this._agentHostFilterService.onDidChange(() => {
@@ -138,7 +138,7 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 		const provider = store.add(this._instantiateProvider({
 			address: cloudSandboxAddress(env.environmentId),
 			name: env.name,
-			connectOnDemand: async () => { await this.connect({ environmentId: env.environmentId, sessionId: env.sessionId, name: env.name }); },
+			connectOnDemand: async () => { await this._connectEnvironment(env.environmentId); },
 			disconnectOnDemand: () => this._disconnectEnvironment(cloudSandboxAddress(env.environmentId)),
 			deleteSessionsOnDemand: {
 				ownsSession: session => isEqual(session, AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, AgentSession.id(session))) && this._ownsSandboxSession(cloudSandboxAddress(env.environmentId), AgentSession.id(session)),
@@ -152,7 +152,7 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 			connectionLabels: CLOUD_SANDBOX_CONNECTION_LABELS,
 			hostGroup: CLOUD_SANDBOX_HOST_GROUP,
 		}));
-		store.add(this._sessionsProvidersService.registerProvider(provider));
+		store.add(this._sessionsProvidersService.registerSessionBackend(isWeb ? CLOUD_SANDBOX_CREATION_PROVIDER_ID : COPILOT_PROVIDER_ID, provider));
 		return provider;
 	}
 
@@ -160,8 +160,8 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 		return this._instantiationService.createInstance(CloudSandboxSessionsProvider, config);
 	}
 
-	async provisionSession(request: ICloudSandboxCreateSessionRequest, token: CancellationToken, progress?: IProgress<string>): Promise<ICloudSandboxProvisionedSession> {
-		const { provider, ...created } = await this._provisionSandbox(request, token, progress);
+	async provisionSession(request: ICloudSandboxCreateSessionRequest, token: CancellationToken, progress?: IProgress<string>, draftResource?: URI): Promise<ICloudSandboxProvisionedSession> {
+		const { provider, ...created } = await this._provisionSandbox(request, token, progress, draftResource);
 		const session = provider.getCachedSession(created.sessionId);
 		if (!session) {
 			throw new Error(`Provisioned sandbox session ${created.sessionId} did not surface on its provider`);

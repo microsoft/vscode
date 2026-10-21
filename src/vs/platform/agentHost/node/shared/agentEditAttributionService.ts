@@ -88,6 +88,7 @@ interface ITrackedResource {
 	coverageGap: IAttributionCoverageGap | undefined;
 	readonly coverageGapSequences: number[];
 	trackedEditCount: number;
+	coarseDiffCount: number;
 	repositoryRoot: string | undefined;
 	lastSequence: number;
 }
@@ -109,6 +110,7 @@ interface IPreparedFlush {
 	readonly sources: readonly ISourceStatistics[];
 	readonly retainedBySource: ReadonlyMap<string, number>;
 	readonly agentModifiedCount: number;
+	readonly coarseDiffCount: number;
 	readonly externalModifiedCount: number;
 	readonly actualTime: number;
 	readonly trackingScope: 'agentHostStandalone' | undefined;
@@ -223,6 +225,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 				coverageGap: undefined,
 				coverageGapSequences: [],
 				trackedEditCount: 0,
+				coarseDiffCount: 0,
 				repositoryRoot: repository?.root,
 				lastSequence: 0,
 			};
@@ -289,6 +292,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 				coverageGap: undefined,
 				coverageGapSequences: [],
 				trackedEditCount: 0,
+				coarseDiffCount: 0,
 				repositoryRoot: repository?.root,
 				lastSequence: 0,
 			};
@@ -308,7 +312,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 			if (!this._isCurrentGeneration(generation)) {
 				return undefined;
 			}
-			this._applyChanges(resource, bridge.changes, 'external', edit.beforeText);
+			this._applyChanges(resource, bridge.changes, 'external', edit.beforeText, true, bridge.hitTimeout);
 			this._excludeOtherSessionAgentIntervals(resource);
 		}
 
@@ -344,7 +348,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 			};
 			resource.sources.set(trackingKey, source);
 		}
-		this._applyChanges(resource, edit.changes, source, edit.afterText);
+		this._applyChanges(resource, edit.changes, source, edit.afterText, true, edit.diffHitTimeout);
 		resource.trackedEditCount++;
 		const marker: IFileEditAttributionMarker = {
 			version: 1,
@@ -399,6 +403,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 			return {
 				flushToken: existing.token,
 				agentModifiedCount: existing.agentModifiedCount,
+				coarseDiffCount: existing.coarseDiffCount,
 				lastSequence: existing.lastSequence,
 				...getCoverageGapCutoffData(existing),
 				...getStandaloneAcknowledgementData(existing),
@@ -486,6 +491,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 		return {
 			flushToken: prepared.token,
 			agentModifiedCount: prepared.agentModifiedCount,
+			coarseDiffCount: prepared.coarseDiffCount,
 			lastSequence: prepared.lastSequence,
 			...getCoverageGapCutoffData(prepared),
 			...getStandaloneAcknowledgementData(prepared),
@@ -518,6 +524,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 		const result = {
 			outcome: 'committed',
 			agentModifiedCount: prepared.agentModifiedCount,
+			coarseDiffCount: prepared.coarseDiffCount,
 			lastSequence: prepared.lastSequence,
 			...getCoverageGapCutoffData(prepared),
 			...getStandaloneAcknowledgementData(prepared),
@@ -574,6 +581,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 			const result = {
 				outcome: 'committed',
 				agentModifiedCount: prepared.agentModifiedCount,
+				coarseDiffCount: prepared.coarseDiffCount,
 				lastSequence: prepared.lastSequence,
 				...getCoverageGapCutoffData(prepared),
 				...getStandaloneAcknowledgementData(prepared),
@@ -607,13 +615,18 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 		}
 	}
 
-	private _applyChanges(resource: ITrackedResource, changes: readonly IOffsetEdit[], source: ISourceStatistics | 'external', afterText: string, updateTrackedTextLength = true): void {
+	private _applyChanges(resource: ITrackedResource, changes: readonly IOffsetEdit[], source: ISourceStatistics | 'external', afterText: string, updateTrackedTextLength = true, hitTimeout = false): void {
 		if (resource.currentContent === undefined) {
 			throw new Error(`Cannot apply edit attribution changes without tracked content: ${resource.filePath}`);
 		}
-		const normalizedChanges = validateChanges(resource.currentContent, afterText, changes)
-			? changes
-			: [createMinimalChange(resource.currentContent, afterText)];
+		let normalizedChanges = changes;
+		let isCoarse = hitTimeout;
+		if (!validateChanges(resource.currentContent, afterText, changes)) {
+			this._logService.warn('[AgentEditAttributionService] Character edits do not reconstruct the updated content; falling back to coarse edit attribution.');
+			normalizedChanges = [createMinimalChange(resource.currentContent, afterText)];
+			isCoarse = true;
+		}
+		resource.coarseDiffCount += isCoarse ? 1 : 0;
 		const intervals = transformIntervals(resource.intervals, normalizedChanges);
 		let delta = 0;
 		for (const change of normalizedChanges) {
@@ -758,7 +771,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 					if (!this._isCurrentGeneration(generation)) {
 						return undefined;
 					}
-					this._applyChanges(resource, diff.changes, 'external', currentContent, false);
+					this._applyChanges(resource, diff.changes, 'external', currentContent, false, diff.hitTimeout);
 				}
 				if (!await this._reconcileOtherSessionResources(resource, generation, reconciliationDeadline)) {
 					return undefined;
@@ -783,6 +796,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 				sources: selectReportedSources(resource.sources.values(), retainedBySource),
 				retainedBySource,
 				agentModifiedCount: Array.from(retainedBySource.values()).reduce((sum, value) => sum + value, 0),
+				coarseDiffCount: resource.coarseDiffCount,
 				externalModifiedCount,
 				actualTime: this._now() - resource.startedAt,
 				trackingScope,
@@ -831,6 +845,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 				modifiedCount: prepared.retainedBySource.get(source.trackingKey) ?? 0,
 				deltaModifiedCount: source.insertedCount,
 				totalModifiedCount,
+				coarseDiffCount: prepared.coarseDiffCount,
 			} as const;
 			sendEditSourcesDetailsTelemetry(this._telemetryService, data);
 			const agentHostTelemetryService = this._telemetryService as Partial<IAgentHostTelemetryService>;
@@ -857,6 +872,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 					modifiedCount: data.modifiedCount,
 					deltaModifiedCount: data.deltaModifiedCount,
 					totalModifiedCount: data.totalModifiedCount,
+					coarseDiffCount: data.coarseDiffCount,
 				});
 			}
 		}
@@ -870,6 +886,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 				inlineCompletionsNESModifiedCount: 0,
 				otherAIModifiedCount: 0,
 				agentHostModifiedCount: prepared.agentModifiedCount,
+				coarseDiffCount: prepared.coarseDiffCount,
 				unknownModifiedCount: 0,
 				userModifiedCount: 0,
 				ideModifiedCount: 0,
@@ -898,6 +915,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 					inlineCompletionsNESModifiedCount: data.inlineCompletionsNESModifiedCount,
 					otherAIModifiedCount: data.otherAIModifiedCount,
 					agentHostModifiedCount: data.agentHostModifiedCount,
+					coarseDiffCount: data.coarseDiffCount,
 					unknownModifiedCount: data.unknownModifiedCount,
 					userModifiedCount: data.userModifiedCount,
 					ideModifiedCount: data.ideModifiedCount,
@@ -964,7 +982,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 				if (!this._isCurrentGeneration(generation)) {
 					return false;
 				}
-				this._applyChanges(candidate, diff.changes, 'external', currentContent);
+				this._applyChanges(candidate, diff.changes, 'external', currentContent, true, diff.hitTimeout);
 			}
 			const candidateAgentIntervals = candidate.intervals.filter(interval => interval.sourceKey !== undefined);
 			if (candidateAgentIntervals.length > 0) {
@@ -1163,6 +1181,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 			this._recordSettledFlush(flushToken, {
 				outcome: 'committed',
 				agentModifiedCount: prepared.agentModifiedCount,
+				coarseDiffCount: prepared.coarseDiffCount,
 				lastSequence: prepared.lastSequence,
 				...getCoverageGapCutoffData(prepared),
 				...getStandaloneAcknowledgementData(prepared),
@@ -1235,6 +1254,7 @@ function combinePreparedFlushes(
 		sources: selectReportedSources(sources.values(), retainedBySource),
 		retainedBySource,
 		agentModifiedCount: Array.from(retainedBySource.values()).reduce((sum, value) => sum + value, 0),
+		coarseDiffCount: flushes.reduce((sum, flush) => sum + flush.coarseDiffCount, 0),
 		externalModifiedCount: flushes.reduce((sum, flush) => sum + flush.externalModifiedCount, 0),
 		actualTime: Math.max(0, ...flushes.map(flush => flush.actualTime)),
 		trackingScope: undefined,

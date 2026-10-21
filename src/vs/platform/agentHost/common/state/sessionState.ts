@@ -667,6 +667,7 @@ export function createChatState(summary: ChatSummary): ChatState {
 		interactivity: summary.interactivity,
 		workingDirectories: summary.workingDirectories,
 		...(summary.changes !== undefined ? { changes: summary.changes } : {}),
+		...(summary.movable !== undefined ? { movable: summary.movable } : {}),
 		turns: [],
 		activeTurn: undefined,
 	};
@@ -768,6 +769,7 @@ export function chatSummaryFromState(state: ChatState): ChatSummary {
 	if (state.interactivity !== undefined) { summary.interactivity = state.interactivity; }
 	if (state.workingDirectories !== undefined) { summary.workingDirectories = state.workingDirectories; }
 	if (state.changes !== undefined) { summary.changes = state.changes; }
+	if (state.movable !== undefined) { summary.movable = state.movable; }
 	return summary;
 }
 
@@ -1006,7 +1008,7 @@ export interface ISessionWithDefaultChat extends SessionState {
 	activeTurn?: ActiveTurn;
 	/** Steering message pending on this chat. */
 	steeringMessage?: PendingMessage;
-	/** Queued messages pending on this chat. */
+	/** Steering and queued messages pending on this chat. */
 	queuedMessages?: PendingMessage[];
 	/** Draft input of this chat. */
 	draft?: Message;
@@ -2076,6 +2078,32 @@ export function withSessionWorkspaceless(meta: SessionSummaryMeta | undefined, w
 		next[SESSION_META_WORKSPACELESS_KEY] = true;
 	} else {
 		delete next[SESSION_META_WORKSPACELESS_KEY];
+	}
+	return Object.keys(next).length > 0 ? next : undefined;
+}
+
+/**
+ * Summary `_meta` key listing the scratch folders (host-allocated per-chat folders of workspace-less
+ * sessions) a session uses, as an array of folder URI strings.
+ */
+export const SessionScratchFoldersMetaKey = 'vscode.scratchFolders';
+
+/** Reads the scratch folders of a session summary; `[]` when absent or not an array of non-empty strings. */
+export function readSessionScratchFolders(meta: SessionSummaryMeta | undefined): readonly string[] {
+	const value = meta?.[SessionScratchFoldersMetaKey];
+	if (!Array.isArray(value) || !value.every(folder => typeof folder === 'string' && folder.length > 0)) {
+		return [];
+	}
+	return value;
+}
+
+/** Returns a new {@link SessionSummaryMeta} listing `folders`, or without the slot when `folders` is empty; `undefined` if the result would be empty. */
+export function withSessionScratchFolders(meta: SessionSummaryMeta | undefined, folders: readonly string[]): SessionSummaryMeta | undefined {
+	const next: { [key: string]: unknown } = { ...meta };
+	if (folders.length > 0) {
+		next[SessionScratchFoldersMetaKey] = [...folders];
+	} else {
+		delete next[SessionScratchFoldersMetaKey];
 	}
 	return Object.keys(next).length > 0 ? next : undefined;
 }

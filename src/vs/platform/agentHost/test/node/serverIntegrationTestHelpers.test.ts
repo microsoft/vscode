@@ -13,7 +13,7 @@ import { getErrorCode } from '../../../../base/common/errors.js';
 import { join } from '../../../../base/common/path.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import type { killTree } from '../../../../base/node/processes.js';
-import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
+import { realTimeApi, runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/index.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { collectServerDescendants, isSameServerProcess, isSameWindowsProcessRunning, killServer, stopServer } from './serverIntegrationTestHelpers.js';
 
@@ -586,7 +586,8 @@ suite('Agent Host test server cleanup', () => {
 		});
 		try {
 			assert.ok(await raceTimeout(once(server.stdout, 'data'), 5_000), 'Server did not start');
-			await stopServer({ process: server, port: 0 }, async () => [], 1_000, {
+			// The server ignores stdin EOF, so the graceful window always expires; only the taskkill/exit race matters here.
+			await stopServer({ process: server, port: 0 }, async () => [], 10, {
 				killTree: async () => {
 					server.kill();
 					throw new Error('taskkill failed after the server exited');
@@ -600,33 +601,54 @@ suite('Agent Host test server cleanup', () => {
 		}
 	});
 
-	test('preserves a failed server tree kill when the server is still running', async function () {
+	test('preserves a failed server tree kill when the server is still running', function () {
 		this.timeout(15_000);
-		const server = spawn(process.execPath, ['-e', `
-			process.stdout.write('ready');
-			process.stdin.resume();
-			setTimeout(() => process.exit(99), 30000);
-		`], {
-			env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
-			stdio: ['pipe', 'pipe', 'pipe'],
-			windowsHide: true,
+		// The server ignores stdin EOF and survives the failed taskkill, so both bounded exit waits expire; run them in
+		// virtual time. Waits on the real process must not race virtual timeouts, which would expire immediately.
+		return runWithFakedTimers({}, async () => {
+			const server = spawn(process.execPath, ['-e', `
+				process.stdout.write('ready');
+				process.stdin.resume();
+				setTimeout(() => process.exit(99), 30000);
+			`], {
+				env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+				stdio: ['pipe', 'pipe', 'pipe'],
+				windowsHide: true,
+			});
+			try {
+				// Bound the readiness wait in real time so that an early exit still unwinds and restores the global timers.
+				const started = await new Promise<boolean>(resolve => {
+					const done = (value: boolean) => {
+						realTimeApi.clearTimeout(handle);
+						server.stdout.off('data', onData);
+						server.off('exit', onExit);
+						server.off('error', onExit);
+						resolve(value);
+					};
+					const onData = () => done(true);
+					const onExit = () => done(false);
+					const handle = realTimeApi.setTimeout(onExit, 5_000);
+					server.stdout.once('data', onData);
+					server.once('exit', onExit);
+					server.once('error', onExit);
+				});
+				assert.ok(started, 'Server did not start');
+				const error = await stopServer({ process: server, port: 0 }, async () => [], 1_000, {
+					killTree: async () => {
+						throw new Error('taskkill failed while server was running');
+					},
+					killProcess: () => { throw new Error('Unexpected descendant kill'); },
+					isSameProcessRunning: async () => false,
+				}).then(
+					() => undefined,
+					(error: Error) => error,
+				);
+				assert.deepStrictEqual(error?.message, 'taskkill failed while server was running');
+			} finally {
+				// The server starts no descendants to snapshot.
+				await killServer({ process: server, port: 0 }, undefined, async () => []);
+			}
 		});
-		try {
-			assert.ok(await raceTimeout(once(server.stdout, 'data'), 5_000), 'Server did not start');
-			const error = await stopServer({ process: server, port: 0 }, async () => [], 1_000, {
-				killTree: async () => {
-					throw new Error('taskkill failed while server was running');
-				},
-				killProcess: () => { throw new Error('Unexpected descendant kill'); },
-				isSameProcessRunning: async () => false,
-			}).then(
-				() => undefined,
-				(error: Error) => error,
-			);
-			assert.deepStrictEqual(error?.message, 'taskkill failed while server was running');
-		} finally {
-			await killServer({ process: server, port: 0 });
-		}
 	});
 
 	async function testOwnedDescendantCleanup(forceful: boolean): Promise<void> {

@@ -308,9 +308,8 @@
 	width: var(--vscode-spacing-size20);
 	height: var(--vscode-spacing-size20);
 	border-radius: var(--vscode-cornerRadius-circle);
-	background: color-mix(in srgb, var(--vscode-foreground) 30%, transparent);
-	color: color-mix(in srgb, var(--vscode-foreground) 30%, transparent);
-	opacity: 0.5;
+	background: var(--vscode-modernSash-gripForeground);
+	color: var(--vscode-modernSash-gripForeground);
 	pointer-events: none;
 	transform: translate(-50%, -50%);
 }
@@ -444,7 +443,8 @@
 }
 
 .agent-sessions-workbench .explorer-folders-view .monaco-list-row,
-.agent-sessions-workbench .changes-file-list .monaco-list-row {
+.agent-sessions-workbench .changes-file-list .monaco-list-row,
+.agent-sessions-workbench .pane-body.integrated-terminal .tabs-list .monaco-list-row {
 	left: var(--vscode-spacing-size40);
 	right: var(--vscode-spacing-size40);
 	width: auto;
@@ -452,7 +452,8 @@
 }
 
 .agent-sessions-workbench.modern-ui-compact .explorer-folders-view .monaco-list-row,
-.agent-sessions-workbench.modern-ui-compact .changes-file-list .monaco-list-row {
+.agent-sessions-workbench.modern-ui-compact .changes-file-list .monaco-list-row,
+.agent-sessions-workbench.modern-ui-compact .pane-body.integrated-terminal .tabs-list .monaco-list-row {
 	left: var(--vscode-spacing-size20);
 	right: var(--vscode-spacing-size20);
 }

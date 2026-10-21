@@ -22,6 +22,7 @@ const http = require('http');
 const { randomBytes } = require('crypto');
 const minimist = require('minimist');
 const { promisify } = require('node:util');
+const { execFile } = require('node:child_process');
 
 /**
  * @type {{
@@ -32,6 +33,7 @@ const { promisify } = require('node:util');
  * reporter: string;
  * 'reporter-options': string;
  * tfs: string;
+ * 'stall-timeout': string;
  * build: boolean;
  * debug: boolean;
  * sequential: boolean;
@@ -40,12 +42,13 @@ const { promisify } = require('node:util');
 */
 const args = minimist(process.argv.slice(2), {
 	boolean: ['build', 'debug', 'sequential', 'help'],
-	string: ['run', 'grep', 'runGlob', 'browser', 'reporter', 'reporter-options', 'tfs'],
+	string: ['run', 'grep', 'runGlob', 'browser', 'reporter', 'reporter-options', 'tfs', 'stall-timeout'],
 	default: {
 		build: false,
 		browser: ['chromium', 'firefox', 'webkit'],
 		reporter: process.platform === 'win32' ? 'list' : 'spec',
-		'reporter-options': ''
+		'reporter-options': '',
+		'stall-timeout': '300'
 	},
 	alias: {
 		grep: ['g', 'f'],
@@ -63,6 +66,7 @@ const args = minimist(process.argv.slice(2), {
 		reporter: 'the mocha reporter',
 		'reporter-options': 'the mocha reporter options',
 		tfs: 'tfs',
+		'stall-timeout': 'abort with diagnostics when no test progress is reported for <seconds> (0 disables)',
 		help: 'show the help'
 	}
 });
@@ -80,11 +84,13 @@ Options:
 --reporter <reporter> the mocha reporter
 --reporter-options <reporter-options> the mocha reporter options
 --tfs <tfs>          tfs
+--stall-timeout <seconds> abort with diagnostics when no test progress is reported for <seconds> (default 300, 0 disables)
 --help, -h           show the help`);
 	process.exit(0);
 }
 
 const isDebug = !!args.debug;
+const stallTimeoutMs = isDebug ? 0 : Math.max(0, Number(args['stall-timeout']) || 0) * 1000;
 
 const withReporter = (function () {
 	if (args.tfs) {
@@ -261,7 +267,9 @@ async function runTestsInBrowser(testModules, browserType, browserChannel) {
 	});
 
 	const emitter = new events.EventEmitter();
+	const progress = new TestProgress();
 	await page.exposeFunction('mocha_report', (type, data1, data2) => {
+		progress.onEvent(type, data1);
 		emitter.emit(type, data1, data2);
 	});
 
@@ -302,6 +310,7 @@ async function runTestsInBrowser(testModules, browserType, browserChannel) {
 		}
 	});
 
+	const stallWatchdog = startStallWatchdog(page, browserType, progress);
 	try {
 		// @ts-expect-error
 		await page.evaluate(opts => loadAndRun(opts), {
@@ -310,6 +319,8 @@ async function runTestsInBrowser(testModules, browserType, browserChannel) {
 		});
 	} catch (err) {
 		console.error(err);
+	} finally {
+		await stallWatchdog.dispose();
 	}
 	if (!isDebug) {
 		server?.dispose();
@@ -325,6 +336,171 @@ async function runTestsInBrowser(testModules, browserType, browserChannel) {
 
 		return `${res}\n`;
 	}
+}
+
+/**
+ * Tracks the mocha events reported by the page so that a stalled run can
+ * report which test or hook was in flight.
+ */
+class TestProgress {
+	constructor() {
+		this.lastEventTime = Date.now();
+		this.completed = 0;
+		/** @type {{ title: string; startTime: number } | undefined} */
+		this.currentTest = undefined;
+		/** @type {{ title: string; startTime: number } | undefined} */
+		this.currentHook = undefined;
+		/** @type {string | undefined} */
+		this.lastCompletedTest = undefined;
+	}
+
+	onEvent(type, runnable) {
+		this.lastEventTime = Date.now();
+		switch (type) {
+			case 'test':
+				this.currentTest = { title: runnable.fullTitle, startTime: this.lastEventTime };
+				break;
+			case 'test end':
+				this.currentTest = undefined;
+				this.lastCompletedTest = runnable.fullTitle;
+				break;
+			case 'hook':
+				this.currentHook = { title: runnable.fullTitle, startTime: this.lastEventTime };
+				break;
+			case 'hook end':
+				this.currentHook = undefined;
+				break;
+			case 'pass':
+			case 'fail':
+			case 'pending':
+				// same events the dot reporter prints a character for
+				this.completed++;
+				break;
+		}
+	}
+}
+
+/**
+ * Aborts the run with diagnostics when the page stops reporting test progress.
+ * Mocha's per-test timeout cannot fire when the page itself is stuck, which
+ * otherwise leaves CI silent until the step timeout.
+ */
+function startStallWatchdog(page, browserType, progress) {
+	if (!stallTimeoutMs) {
+		return { dispose: async () => { } };
+	}
+
+	/** @type {Promise<void> | undefined} */
+	let diagnostics;
+	progress.lastEventTime = Date.now();
+	const handle = setInterval(() => {
+		if (Date.now() - progress.lastEventTime >= stallTimeoutMs) {
+			clearInterval(handle);
+			diagnostics = reportStallAndExit(page, browserType, progress);
+		}
+	}, Math.min(10_000, stallTimeoutMs));
+
+	return {
+		// Once a stall was detected the run must fail, even if the page recovers
+		// while diagnostics are collected, so wait for them (they exit the process).
+		dispose: async () => {
+			clearInterval(handle);
+			await diagnostics;
+		}
+	};
+}
+
+async function reportStallAndExit(page, browserType, progress) {
+	const log = message => console.error(`[${browserType}] ${message}`);
+	const ago = time => `${Math.round((Date.now() - time) / 1000)}s ago`;
+	try {
+		process.stdout.write('\n'); // terminate a partially written reporter line
+		log(`No test progress since ${ago(progress.lastEventTime)}, aborting (--stall-timeout ${stallTimeoutMs / 1000}).`);
+		log(`  Completed tests: ${progress.completed}`);
+		log(`  In-flight test: ${progress.currentTest ? `${progress.currentTest.title} (started ${ago(progress.currentTest.startTime)})` : 'none'}`);
+		log(`  In-flight hook: ${progress.currentHook ? `${progress.currentHook.title} (started ${ago(progress.currentHook.startTime)})` : 'none'}`);
+		log(`  Last completed test: ${progress.lastCompletedTest ?? 'none'}`);
+
+		const probe = await raceTimeout(page.evaluate(() => document.readyState), 10_000);
+		log(`  Page responds to evaluate(): ${probe.ok ? 'yes' : `no (${probe.error})`}`);
+
+		await dumpBrowserProcesses(browserType, log);
+	} catch (err) {
+		log(`  Failed to collect stall diagnostics: ${err}`);
+	} finally {
+		process.exit(1);
+	}
+}
+
+function raceTimeout(promise, ms) {
+	let timer;
+	return Promise.race([
+		promise.then(() => ({ ok: true, error: undefined }), err => ({ ok: false, error: String(err?.message ?? err) })),
+		new Promise(resolve => timer = setTimeout(() => resolve({ ok: false, error: `no response within ${ms}ms` }), ms))
+	]).finally(() => clearTimeout(timer));
+}
+
+/**
+ * Logs the browser processes launched by this runner (CPU usage tells a busy
+ * loop from a deadlock) and, on macOS, writes native stack samples next to
+ * the other CI logs.
+ */
+async function dumpBrowserProcesses(browserType, log) {
+	if (process.platform === 'win32') {
+		return;
+	}
+
+	const execFileAsync = promisify(execFile);
+	const { stdout } = await execFileAsync('ps', ['-A', '-ww', '-o', 'pid=,ppid=,pcpu=,rss=,etime=,command='], { maxBuffer: 16 * 1024 * 1024 });
+	const all = stdout.split('\n').map(line => line.trim()).filter(Boolean).map(line => {
+		const [pid, ppid, cpu, rss, elapsed, ...command] = line.split(/\s+/);
+		return { pid: Number(pid), ppid: Number(ppid), cpu, rss, elapsed, command: command.join(' ') };
+	});
+
+	// The launched browser (bundled, headless shell or an installed channel) and
+	// its helpers are descendants of this process. WebKit's XPC services on macOS
+	// are spawned by launchd instead, so also include processes running from the
+	// same Playwright browser installation as a launched process.
+	const pids = new Set([process.pid]);
+	for (let size = 0; size !== pids.size;) {
+		size = pids.size;
+		for (const p of all) {
+			if (pids.has(p.ppid)) {
+				pids.add(p.pid);
+			}
+		}
+	}
+	pids.delete(process.pid);
+	const installRoots = new Set();
+	for (const p of all) {
+		const installRoot = pids.has(p.pid) ? /^(.*?[\\/]ms-playwright[\\/][^\\/]+[\\/])/.exec(p.command)?.[1] : undefined;
+		if (installRoot) {
+			installRoots.add(installRoot);
+		}
+	}
+	const processes = all.filter(p => !p.command.startsWith('ps -A') && (pids.has(p.pid) || [...installRoots].some(root => p.command.includes(root))));
+
+	log(`  Browser processes (pid, ppid, %cpu, rss KiB, elapsed, command):`);
+	for (const p of processes) {
+		const line = `${p.pid} ${p.ppid} ${p.cpu} ${p.rss} ${p.elapsed} ${p.command}`;
+		log(`    ${line.length > 300 ? `${line.slice(0, 300)}...` : line}`);
+	}
+
+	if (process.platform !== 'darwin') {
+		return;
+	}
+
+	const outDir = path.join(rootDir, '.build', 'logs', 'browser-unit-stall');
+	await fs.promises.mkdir(outDir, { recursive: true });
+	await Promise.all(processes.map(async ({ pid }) => {
+		const file = path.join(outDir, `${browserType}-${pid}.sample.txt`);
+		try {
+			await execFileAsync('sample', [pid, '3', '-file', file], { timeout: 180_000 }); // symbolication of browser frameworks is slow
+			log(`  Wrote native stack sample of pid ${pid} to ${path.relative(rootDir, file)}`);
+		} catch (err) {
+			log(`  Failed to sample pid ${pid}: ${err.message}`);
+		}
+	}));
 }
 
 class EchoRunner extends events.EventEmitter {

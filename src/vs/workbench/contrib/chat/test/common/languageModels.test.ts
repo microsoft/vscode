@@ -199,6 +199,39 @@ suite('LanguageModels', function () {
 		assert.deepStrictEqual(result2.length, 0);
 	});
 
+	test('requests made while a resolution waits behind another share it', async function () {
+		languageModels.deltaLanguageModelChatProviderDescriptors([
+			{ vendor: 'slow-vendor', displayName: 'Slow Vendor', configuration: undefined, managementCommand: undefined, when: undefined },
+		], []);
+		const started = new DeferredPromise<void>();
+		const firstResolution = new DeferredPromise<void>();
+		let resolutions = 0;
+		store.add(languageModels.registerLanguageModelProvider('slow-vendor', {
+			onDidChange: Event.None,
+			provideLanguageModelChatInfo: async () => {
+				if (++resolutions === 1) {
+					started.complete();
+					await firstResolution.p;
+				}
+				return [];
+			},
+			sendChatRequest: async () => {
+				throw new Error();
+			},
+			provideTokenCount: async () => {
+				throw new Error();
+			}
+		}));
+
+		const running = languageModels.selectLanguageModels({ vendor: 'slow-vendor' });
+		await started.p;
+		const waiting = [1, 2, 3].map(() => languageModels.selectLanguageModels({ vendor: 'slow-vendor' }));
+		firstResolution.complete();
+		await Promise.all([running, ...waiting]);
+
+		assert.strictEqual(resolutions, 2);
+	});
+
 	test('sendChatRequest returns a response-stream', async function () {
 
 		store.add(languageModels.registerLanguageModelProvider('actual-vendor', {
@@ -1850,8 +1883,14 @@ suite('LanguageModels - Duplicate configuration-only groups', () => {
 	const modelId = `${vendor}:test-model`;
 	let service: LanguageModelsService;
 	let groups: ILanguageModelsProviderGroup[];
+	let configurationDefaultKeys: readonly string[] | undefined;
+	let thinkingLevelPolicy: { default: string; readOnly: boolean } | undefined;
+	let modelChanges: Emitter<void>;
 
 	setup(async () => {
+		configurationDefaultKeys = undefined;
+		thinkingLevelPolicy = undefined;
+		modelChanges = disposables.add(new Emitter<void>());
 		const onDidChangeGroups = disposables.add(new Emitter<readonly ILanguageModelsProviderGroup[]>());
 		groups = [
 			{ vendor, name: 'Copilot CLI', settings: { 'test-model': { thinkingLevel: 'max' }, other: { thinkingLevel: 'high' } } },
@@ -1888,16 +1927,17 @@ suite('LanguageModels - Duplicate configuration-only groups', () => {
 			{ vendor, displayName: 'Copilot', configuration: undefined, managementCommand: undefined, when: undefined },
 		], []);
 		disposables.add(service.registerLanguageModelProvider(vendor, {
-			onDidChange: Event.None,
+			onDidChange: modelChanges.event,
 			provideLanguageModelChatInfo: async () => [{
 				identifier: modelId,
 				metadata: {
 					extension: nullExtensionDescription.identifier,
 					name: 'Test Model', vendor, id: 'test-model', family: 'test-model', version: '1.0',
 					maxInputTokens: 272000, maxOutputTokens: 32000, isDefaultForLocation: {},
+					configurationDefaultKeys,
 					configurationSchema: {
 						properties: {
-							thinkingLevel: { type: 'string', default: 'medium' },
+							thinkingLevel: { type: 'string', default: 'medium', ...thinkingLevelPolicy },
 							contextSize: { type: 'number', default: 272000 },
 						},
 					},
@@ -1929,6 +1969,37 @@ suite('LanguageModels - Duplicate configuration-only groups', () => {
 			{ thinkingLevel: 'high', contextSize: 272000 },
 			{ thinkingLevel: 'medium', contextSize: 272000 },
 		]);
+	});
+
+	test('explicit host-default choices remain in saved configuration instead of becoming omissions', async () => {
+		configurationDefaultKeys = ['thinkingLevel', 'contextSize'];
+		modelChanges.fire();
+		await service.selectLanguageModels({ vendor });
+		await service.setModelConfiguration(modelId, { thinkingLevel: 'medium', contextSize: 272000 });
+		await service.selectLanguageModels({ vendor });
+		assert.deepStrictEqual(service.getModelConfiguration(modelId, false), { thinkingLevel: 'medium', contextSize: 272000 });
+	});
+
+	test('locked host defaults override saved preferences without replacing them', async () => {
+		configurationDefaultKeys = ['thinkingLevel', 'contextSize'];
+		thinkingLevelPolicy = { default: 'high', readOnly: true };
+		modelChanges.fire();
+		await service.selectLanguageModels({ vendor });
+		const locked = service.getModelConfiguration(modelId);
+		const preferences = service.getModelConfiguration(modelId, false);
+
+		thinkingLevelPolicy = undefined;
+		modelChanges.fire();
+		await service.selectLanguageModels({ vendor });
+		assert.deepStrictEqual({
+			locked,
+			preferences,
+			unlocked: service.getModelConfiguration(modelId),
+		}, {
+			locked: { thinkingLevel: 'high', contextSize: 272000 },
+			preferences: { thinkingLevel: 'medium', contextSize: 272000 },
+			unlocked: { thinkingLevel: 'medium', contextSize: 272000 },
+		});
 	});
 
 	test('reset removes shadowed preferences without removing other models or vendors', async () => {
@@ -2521,6 +2592,16 @@ suite('createModelConfigurationActions', function () {
 	test('returns no actions when schema is missing or has no properties', () => {
 		assert.deepStrictEqual(createModelConfigurationActions(undefined, {}, () => { }), []);
 		assert.deepStrictEqual(createModelConfigurationActions({}, {}, () => { }), []);
+	});
+
+	test('read-only options stay visible with disabled choices', () => {
+		const actions = createModelConfigurationActions({
+			properties: { effort: { title: 'Effort', enum: ['low', 'high'], default: 'high', readOnly: true } },
+		}, {}, () => { throw new Error('Read-only choice invoked'); });
+		assert.ok(actions[0] instanceof SubmenuAction);
+		assert.deepStrictEqual(actions[0].actions.map(action => ({ enabled: action.enabled, checked: action.checked })), [
+			{ enabled: false, checked: false }, { enabled: false, checked: true },
+		]);
 	});
 
 	test('builds one submenu per enum property with >= 1 values', () => {

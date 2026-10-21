@@ -491,6 +491,8 @@ export interface IVoiceToolCall {
 	readonly callId: string;
 	readonly name: string;
 	readonly args: Record<string, unknown>;
+	/** Capture turn owning this call, when the transport can identify it. */
+	readonly turnId?: string;
 }
 
 export interface IVoiceSpeechStarted {
@@ -538,8 +540,8 @@ export interface IVoiceTurnAutoEnded {
  * Payload for a terminal websocket close. Despite the name this covers every
  * close that will not reconnect, including an expected end of session: `kind`
  * distinguishes them, and an `expected` close must not paint the UI red or
- * raise a toast. `clientSide` marks a failure that never reached the network,
- * such as an unconfigured backend URL.
+ * raise a toast. `clientSide` marks an unconfigured backend URL, not a BYOK
+ * session creation or connection failure.
  */
 export interface IVoiceFatalDisconnect {
 	readonly code: number;
@@ -625,6 +627,7 @@ export interface IVoiceClientService {
 	readonly _serviceBrand: undefined;
 
 	// --- Connection lifecycle ---
+	hasGptLiveByok(): Promise<boolean>;
 	connect(window: Window & typeof globalThis, authToken?: string): Promise<void>;
 	disconnect(): void;
 
@@ -656,7 +659,7 @@ export interface IVoiceClientService {
 	 * because the state field itself didn't change.
 	 */
 	invalidateSessionCache(sessionId: string): void;
-	sendToolResult(callId: string, result: string | IVoiceDispatchResult): void;
+	sendToolResult(callId: string, result: string | IVoiceDispatchResult, toolName?: string, toolArgs?: Readonly<Record<string, unknown>>): void;
 	/** Report that one correlated checkpoint playback attempt finished locally. */
 	sendNarrationPlaybackComplete(codingSessionId: string, narrationId: string, playbackId: string): void;
 	/**
@@ -686,6 +689,7 @@ export interface IVoiceClientService {
 	 */
 	sendSessionStateChange(sessionId: string, newState: string, label: string, detail?: string, lastResponseSummary?: string): void;
 	stopSpeaking(): void;
+	prepareForInputTargetChange(): void;
 	sendStartSession(context: IVoiceSessionContext, machineId: string, priorTimeline?: readonly IVoicePriorTimelineEntry[], turnConfigOverride?: IVoiceTurnConfig, voiceInstructions?: string): void;
 	sendResumeSession(context: IVoiceSessionContext, machineId: string, voiceInstructions?: string): void;
 
@@ -707,6 +711,8 @@ export interface IVoiceClientService {
 	readonly onSessionInit: Event<IVoiceSessionInit>;
 	readonly onError: Event<string>;
 	readonly onDidChangeConnectionState: Event<boolean>;
+	/** Fired for transports that play remote audio directly instead of emitting PCM chunks. */
+	readonly onDidChangeRemoteAudioState: Event<boolean>;
 	/**
 	 * Fired when the current socket will not reconnect: a refusal, an expected
 	 * end of session, or a give-up. Consumers should tear down to a clean,

@@ -156,7 +156,7 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 		});
 		this.managedSandboxAllowsBypass = derived(this, reader => sandboxPolicy.read(reader)?.allowBypass === true);
 
-		this._watchProviders(this._sessionsProvidersService.getProviders());
+		this._watchProviders(this._sessionsProvidersService.getProviders({ includeSessionBackends: true }));
 		this._register(this._sessionsProvidersService.onDidChangeProviders(e => {
 			for (const provider of e.removed) {
 				this._providerSubscriptions.deleteAndDispose(provider.id);

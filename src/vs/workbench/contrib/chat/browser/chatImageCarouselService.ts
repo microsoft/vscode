@@ -7,6 +7,7 @@ import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js'
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { stripIcons } from '../../../../base/common/iconLabels.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
@@ -16,6 +17,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IFileService } from '../../../../platform/files/common/files.js';
 import type { IChatRequestVariableEntry } from '../common/attachments/chatVariableEntries.js';
 import { extractImagesFromChatRequest, extractImagesFromChatResponse, extractImagesFromChatVariables, getChatImageResourceComparisonKey, IChatExtractedImage } from '../common/chatImageExtraction.js';
+import { IChatSessionsService } from '../common/chatSessionsService.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../common/model/chatViewModel.js';
 import { IChatWidgetService } from './chat.js';
 
@@ -24,7 +26,11 @@ export const IChatImageCarouselService = createDecorator<IChatImageCarouselServi
 export interface IChatImageCarouselOptions {
 	readonly preferCurrentInput?: boolean;
 	readonly sessionResource?: URI;
+	/** Input from a composer that is not registered with the chat widget service. */
+	readonly currentInput?: { readonly text: string; readonly attachments: readonly IChatRequestVariableEntry[] };
 	readonly additionalImages?: readonly { readonly uri: URI; readonly mimeType: string; readonly name?: string }[];
+	/** Identifies the clicked image when its resource does not, like an image that a response shows (see `getChatMarkdownImageId`). */
+	readonly imageId?: string;
 }
 
 export interface IChatImageCarouselService {
@@ -79,12 +85,14 @@ export interface ICarouselSingleImageArgs {
 /**
  * Collects all carousel image sections from chat items.
  * Each request/response pair with images becomes one section containing
- * user attachment images, tool invocation images, and inline reference images.
+ * user attachment images, tool invocation images, inline reference images,
+ * and response Markdown images resolved with {@link resolveImageUri}.
  */
 export async function collectCarouselSections(
 	items: (IChatRequestViewModel | IChatResponseViewModel)[],
 	readFile: (uri: URI) => Promise<Uint8Array>,
-	currentInput?: { readonly text: string; readonly attachments: readonly IChatRequestVariableEntry[] },
+	currentInput?: IChatImageCarouselOptions['currentInput'],
+	resolveImageUri?: (sessionResource: URI, href: string) => string,
 ): Promise<ICarouselSection[]> {
 	const sections: ICarouselSection[] = [];
 
@@ -101,7 +109,7 @@ export async function collectCarouselSections(
 			continue;
 		}
 
-		const { title: extractedTitle, images: responseImages } = await extractImagesFromChatResponse(item, async uri => VSBuffer.wrap(await readFile(uri)));
+		const { title: extractedTitle, images: responseImages } = await extractImagesFromChatResponse(item, async uri => VSBuffer.wrap(await readFile(uri)), resolveImageUri);
 
 		// Also collect images from the corresponding user request
 		const request = requestMap.get(item.requestId);
@@ -112,7 +120,7 @@ export async function collectCarouselSections(
 		if (dedupedImages.length > 0) {
 			sections.push({
 				title: request?.messageText ?? extractedTitle,
-				images: dedupedImages.map(toCarouselImage)
+				images: dedupedImages.map(image => toCarouselImage(image, requestImages.includes(image)))
 			});
 		}
 	}
@@ -130,7 +138,7 @@ export async function collectCarouselSections(
 		if (dedupedImages.length > 0) {
 			sections.push({
 				title: item.messageText,
-				images: dedupedImages.map(toCarouselImage)
+				images: dedupedImages.map(image => toCarouselImage(image, true))
 			});
 		}
 	}
@@ -140,7 +148,7 @@ export async function collectCarouselSections(
 		if (inputImages.length > 0) {
 			sections.push({
 				title: currentInput.text.trim() || localize('chatImageCarousel.currentInput', "Current Input"),
-				images: inputImages.map(toCarouselImage)
+				images: inputImages.map(image => toCarouselImage(image, true))
 			});
 		}
 	}
@@ -148,8 +156,13 @@ export async function collectCarouselSections(
 	return sections;
 }
 
-function toCarouselImage({ uri, name, mimeType, data, caption }: IChatExtractedImage): ICarouselImage {
-	return { id: uri.toString(), name, mimeType, ...(data ? { data: data.buffer } : { uri }), caption: toCaptionText(caption) };
+function toCarouselImage({ uri, name, mimeType, data, caption, carouselId }: IChatExtractedImage, isAttachment: boolean): ICarouselImage {
+	return {
+		id: carouselId ?? uri.toString(), name, mimeType,
+		...(data ? { data: data.buffer } : {}),
+		...(!data || isAttachment && uri.scheme !== Schemas.data ? { uri } : {}),
+		caption: toCaptionText(caption),
+	};
 }
 
 /**
@@ -165,15 +178,16 @@ function toCaptionText(caption: string | IMarkdownString | undefined): string | 
 }
 
 /**
- * Removes consecutive images with the same URI, keeping only the first occurrence
+ * Removes consecutive images with the same identity, keeping only the first occurrence
  * of each run of duplicates.
  */
 function deduplicateConsecutiveImages(images: IChatExtractedImage[]): IChatExtractedImage[] {
+	const getKey = (image: IChatExtractedImage) => image.carouselId ?? getChatImageResourceComparisonKey(image.uri);
 	return images.filter((img, index) => {
 		if (index === 0) {
 			return true;
 		}
-		return getChatImageResourceComparisonKey(images[index - 1].uri) !== getChatImageResourceComparisonKey(img.uri);
+		return getKey(images[index - 1]) !== getKey(img);
 	});
 }
 
@@ -301,19 +315,21 @@ export class ChatImageCarouselService implements IChatImageCarouselService {
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IFileService private readonly fileService: IFileService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) { }
 
 	async openCarouselAtResource(resource: URI, data?: Uint8Array, options?: IChatImageCarouselOptions): Promise<void> {
-		const widget = options?.sessionResource ? this.chatWidgetService.getWidgetBySessionResource(options.sessionResource) : this.chatWidgetService.lastFocusedWidget;
+		const widget = options?.sessionResource ? this.chatWidgetService.getWidgetBySessionResource(options.sessionResource) : options?.currentInput ? undefined : this.chatWidgetService.lastFocusedWidget;
 		const items = widget?.viewModel?.getItems().filter(
 			(item): item is IChatRequestViewModel | IChatResponseViewModel => isRequestVM(item) || isResponseVM(item)
 		) ?? [];
 		const readFile = async (uri: URI) => (await this.fileService.readFile(uri)).value.buffer;
-		const sections = await collectCarouselSections(items, readFile);
-		const currentInputSections = widget ? await collectCarouselSections([], readFile, {
+		const sections = await collectCarouselSections(items, readFile, undefined, (sessionResource, href) => this.chatSessionsService.resolveChatResponseUri(sessionResource, href, 'image'));
+		const currentInput = options?.currentInput ?? (widget ? {
 			text: widget.getInput(),
 			attachments: widget.attachmentModel.attachments,
-		}) : [];
+		} : undefined);
+		const currentInputSections = await collectCarouselSections([], readFile, currentInput);
 		const preferredSectionIndex = options?.preferCurrentInput && currentInputSections.length > 0 ? sections.length : undefined;
 		sections.push(...currentInputSections);
 		const additionalImages = options?.additionalImages?.filter(image => findClickedImageIndex(sections, image.uri) < 0) ?? [];
@@ -323,7 +339,8 @@ export class ChatImageCarouselService implements IChatImageCarouselService {
 				images: additionalImages.map(image => ({ id: image.uri.toString(), name: image.name ?? basename(image.uri), mimeType: image.mimeType, uri: image.uri })),
 			});
 		}
-		const clickedGlobalIndex = findClickedImageIndex(sections, resource, data, preferredSectionIndex);
+		const clickedById = options?.imageId === undefined ? -1 : sections.flatMap(section => section.images).findIndex(image => image.id === options.imageId);
+		const clickedGlobalIndex = clickedById >= 0 ? clickedById : findClickedImageIndex(sections, resource, data, preferredSectionIndex);
 
 		if (clickedGlobalIndex === -1 || sections.length === 0) {
 			await this.openSingleImage(resource, data);

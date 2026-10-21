@@ -594,17 +594,17 @@
         {
           "command": "markdown.reopenAsPreview",
           "when": "activeEditor == workbench.editors.files.textFileEditor && resourceLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/ && !notebookEditorFocused && !hasCustomMarkdownPreview && !isSessionsWindow",
-          "group": "navigation@2"
+          "group": "navigation@3"
         },
         {
           "command": "markdown.showSource",
           "when": "activeWebviewPanelId == 'markdown.preview'",
-          "group": "navigation@2"
+          "group": "navigation@3"
         },
         {
           "command": "markdown.reopenAsSource",
           "when": "activeCustomEditorId == 'vscode.markdown.preview.editor' && !activeCustomEditorTextDiff && !isSessionsWindow",
-          "group": "navigation@2"
+          "group": "navigation@3"
         },
         {
           "command": "markdown.preview.refresh",
@@ -1982,6 +1982,8 @@
     "update-markdown-editor-package-json": "node ./scripts/updateMarkdownEditorPackageJson.mts --write",
     "check-markdown-editor-package-json": "node ./scripts/updateMarkdownEditorPackageJson.mts --check",
     "test-markdown-editor-package-json": "node --test ./scripts/updateMarkdownEditorPackageJson.test.mts",
+    "test-editor-title": "node --test ./scripts/editorTitle.test.mts",
+    "test-markdown-editor-clipboard": "node --test ./scripts/clipboardMedia.test.mts ./scripts/markdownEditorMediaTransfer.test.mts",
     "compile-web": "npm-run-all2 -lp bundle-web typecheck-web",
     "bundle-web": "node ./esbuild.browser.mts",
     "typecheck-web": "node ../../node_modules/@typescript/native/lib/tsc.js --project ./tsconfig.browser.json --noEmit",
@@ -1991,7 +1993,7 @@
   },
   "dependencies": {
     "@vscode/extension-telemetry": "^0.9.8",
-    "@vscode/markdown-editor": "0.0.2-121",
+    "@vscode/markdown-editor": "0.0.2-136",
     "@vscode/observables": "^0.1.1-0",
     "@vscode/web-editors": "^0.0.2-41",
     "dompurify": "^3.4.10",
@@ -2002,7 +2004,7 @@
     "morphdom": "^2.7.7",
     "picomatch": "^2.3.2",
     "punycode": "^2.3.1",
-    "vscode-languageclient": "^8.0.2",
+    "vscode-languageclient": "^9.0.1",
     "vscode-languageserver-textdocument": "^1.0.11",
     "vscode-markdown-languageserver": "0.5.0",
     "vscode-uri": "^3.0.3",

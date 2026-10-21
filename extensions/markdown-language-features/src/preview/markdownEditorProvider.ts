@@ -14,14 +14,15 @@ import { RecoveringTaskQueue } from './recoveringTaskQueue';
 import { encodeWebviewInitialState } from './webviewInitialState';
 import type { ILogger } from '../logging';
 import type { ResolvedDocumentLinkTarget } from '../client/protocol';
-import type {
-	MarkdownCodeBlockEditorProvider,
-	MarkdownCodeBlockEditorSandbox,
-	MarkdownContributionProvider,
+import {
+	codeBlockEditorPresentationEqual,
+	type MarkdownCodeBlockEditorProvider,
+	type MarkdownCodeBlockEditorSandbox,
+	type MarkdownContributionProvider,
 } from '../markdownExtensions';
 import { generateUuid } from '../util/uuid';
 import { MarkdownEditorRichLinkController } from './markdownEditorRichLinks';
-import { markdownEditorHost, markdownEditorRenderer, type CodeBlockEditorProviderDefinition, type MarkdownEditorConfiguration, type ResolvedCodeBlockEditor } from './markdownEditorProtocol';
+import { codeBlockEditorPresentation, markdownEditorHost, markdownEditorRenderer, mergeCodeBlockEditorPresentation, type CodeBlockEditorProviderDefinition, type MarkdownEditorConfiguration, type ResolvedCodeBlockEditor } from './markdownEditorProtocol';
 import { createMarkdownEditorRpcConnection, MarkdownEditorRpcTransport } from './markdownEditorRpc';
 import { MarkdownEditorRename } from './markdownEditorRename';
 import { MarkdownEditorLanguageFeatures } from './markdownEditorLanguageFeatures';
@@ -59,6 +60,7 @@ interface ProviderResolvedCodeBlockEditor {
 	readonly cacheKey?: string;
 	readonly runtimeKey?: string;
 	readonly initialHeight?: number;
+	readonly presentation?: ResolvedCodeBlockEditor['presentation'];
 	readonly sandbox?: MarkdownCodeBlockEditorSandbox;
 }
 
@@ -475,7 +477,8 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			() => webviewPanel.active && !resolveCancellation.token.isCancellationRequested);
 		const imagePaste = new MarkdownEditorImagePaste(document, () => editQueue.drain(),
 			() => ({ text: webviewText, editEpoch: editQueue.epoch }),
-			() => !readonly && webviewPanel.active && !resolveCancellation.token.isCancellationRequested);
+			() => !readonly && webviewPanel.active && !resolveCancellation.token.isCancellationRequested,
+			request => editorWebview.renderer.readClipboardMedia(request));
 		const navigation = new MarkdownEditorNavigation(document, () => editQueue.drain(),
 			() => ({ text: webviewText, editEpoch: editQueue.epoch }),
 			() => editorWebview.renderer, token => editorWebview.whenReady(token));
@@ -801,6 +804,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 							resourceBaseUrl: getCodeBlockEditorResourceBaseUrl(webview, provider.source.resource),
 							contentType: provider.contentType,
 							initialHeight: provider.initialHeight,
+							presentation: provider.presentation,
 							sandbox: provider.sandbox,
 						},
 					},
@@ -963,6 +967,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			hostTransport: hasHostTransport && contribution.source.kind === 'exportApi' && contribution.source.apiVersion >= 2,
 			contentType: value.contentType ?? contribution.contentType,
 			initialHeight: value.initialHeight ?? contribution.initialHeight,
+			presentation: mergeCodeBlockEditorPresentation(contribution.presentation, value.presentation),
 			sandbox: intersectSandbox(contribution.sandbox, value.sandbox),
 		};
 	}
@@ -1199,6 +1204,7 @@ function resolvedCodeBlockEditorsEqual(a: ResolvedCodeBlockEditor, b: ResolvedCo
 		&& a.hostTransport === b.hostTransport
 		&& a.contentType === b.contentType
 		&& a.initialHeight === b.initialHeight
+		&& codeBlockEditorPresentationEqual(a.presentation, b.presentation)
 		&& a.sandbox?.forms === b.sandbox?.forms
 		&& a.sandbox?.downloads === b.sandbox?.downloads
 		&& a.sandbox?.pointerLock === b.sandbox?.pointerLock
@@ -1254,6 +1260,7 @@ function isProviderResolvedCodeBlockEditor(value: unknown): value is ProviderRes
 		|| (descriptor.cacheKey !== undefined && typeof descriptor.cacheKey !== 'string')
 		|| (descriptor.runtimeKey !== undefined && (typeof descriptor.runtimeKey !== 'string' || descriptor.runtimeKey.length === 0 || descriptor.runtimeKey.length > 256))
 		|| (descriptor.initialHeight !== undefined && (!Number.isFinite(descriptor.initialHeight) || (descriptor.initialHeight as number) <= 0))
+		|| (descriptor.presentation !== undefined && !codeBlockEditorPresentation.safeParse(descriptor.presentation).success)
 		|| !isSandbox(descriptor.sandbox)
 		|| !descriptor.content
 		|| typeof descriptor.content !== 'object'

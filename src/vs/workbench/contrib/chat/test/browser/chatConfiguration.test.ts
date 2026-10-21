@@ -14,6 +14,7 @@ import { CustomizationMarketplaceConfiguration } from '../../../../../platform/c
 import { IConfigurationService, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
 import { chatProgressConfigurationProperties } from '../../browser/chatProgressConfiguration.js';
 import { customizationMarketplaceConfigurationProperties, isAgentFinderPublicFeedAvailable, isCustomizationMarketplaceValueFromDefault } from '../../browser/aiCustomization/customizationMarketplaceConfiguration.js';
+import { CopilotImageGenerationEnabledSettingId, CopilotImageGenerationModelSettingId } from '../../../../../platform/agentHost/common/copilotCliConfig.js';
 import '../../browser/agentSessionsConfiguration.js';
 import { IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 
@@ -27,6 +28,7 @@ const unifiedWorkspacePickerSetting = configurationProperties[ChatConfiguration.
 const migrations = Registry.as<IConfigurationMigrationRegistry & { readonly migrations: readonly ConfigurationMigration[] }>(WorkbenchConfigurationExtensions.ConfigurationMigration).migrations;
 const legacyAutoArchiveMigration = migrations.find(migration => migration.key === 'chat.agentSessions.autoArchiveMergedSessionsAfterDays');
 const legacyAutoDeleteArchivedMigration = migrations.find(migration => migration.key === 'chat.agentSessions.autoDeleteArchivedMergedSessionsAfterDays');
+const legacyImageGenerationMigration = migrations.find(migration => migration.key === CopilotImageGenerationEnabledSettingId);
 const legacyProgressAnimationMigration = migrations.find(migration => migration.key === ChatConfiguration.PersistentProgress);
 const legacyProgressVerbosityMigration = migrations.find(migration => migration.key === ChatConfiguration.PersistentProgressVerbosity);
 const persistentProgressSetting = chatProgressConfigurationProperties[ChatConfiguration.PersistentProgress];
@@ -275,6 +277,20 @@ suite('Chat configuration', () => {
 			activeAgentOff: [[activeAgentSetting, { value: undefined }], [strategySetting, { value: 'utility' }]],
 			activeAgentOffWithDeferredOn: [[activeAgentSetting, { value: undefined }], [strategySetting, { value: 'agentReview' }]],
 			activeAgentOnWithStrategySet: [[activeAgentSetting, { value: undefined }]],
+		});
+	});
+
+	test('migrates the legacy image generation setting to a model without overwriting it', async () => {
+		assert.deepStrictEqual({
+			includeApplication: legacyImageGenerationMigration?.includeApplication,
+			enabled: await legacyImageGenerationMigration?.migrateFn(true, () => undefined),
+			disabled: await legacyImageGenerationMigration?.migrateFn(false, () => undefined),
+			enabledWithModelSet: await legacyImageGenerationMigration?.migrateFn(true, setting => setting === CopilotImageGenerationModelSettingId ? 'off' : undefined),
+		}, {
+			includeApplication: true,
+			enabled: [[CopilotImageGenerationEnabledSettingId, { value: undefined }], [CopilotImageGenerationModelSettingId, { value: 'gpt-image-2.5-flare' }]],
+			disabled: [[CopilotImageGenerationEnabledSettingId, { value: undefined }], [CopilotImageGenerationModelSettingId, { value: 'off' }]],
+			enabledWithModelSet: [[CopilotImageGenerationEnabledSettingId, { value: undefined }]],
 		});
 	});
 });

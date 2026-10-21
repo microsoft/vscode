@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-sn80KfA+MU1XygyWiC6Pi0aLZubC6RmEK+O6llFPkGg=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-7cKy9iQfWRXcgRS74x6I4q5cRDkv8nQz51jecqMmQ5w=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -951,6 +951,9 @@
 				}
 			});
 
+			/** @type {WeakMap<Document, HTMLElement>} */
+			const lastFocusedElements = new WeakMap();
+
 			// propagate focus
 			hostMessaging.onMessage('focus', () => {
 				const activeFrame = getActiveFrame();
@@ -1130,6 +1133,12 @@
 
 						contentWindow.addEventListener('scroll', handleInnerScroll);
 						contentWindow.addEventListener('wheel', handleWheel);
+						contentWindow.addEventListener('focusin', () => {
+							const focused = /** @type {HTMLElement | null} */ (contentDocument.activeElement);
+							if (focused && focused !== contentDocument.body && focused !== contentDocument.documentElement) {
+								lastFocusedElements.set(contentDocument, focused);
+							}
+						});
 
 						if (wasFocused) {
 							contentWindow.focus();
@@ -1273,7 +1282,13 @@
 				if (!target) {
 					return;
 				}
-				assertIsDefined(target.contentDocument).execCommand(data);
+				const contentDocument = assertIsDefined(target.contentDocument);
+				const lastFocused = lastFocusedElements.get(contentDocument);
+				if ((contentDocument.activeElement === contentDocument.body || contentDocument.activeElement === contentDocument.documentElement)
+					&& lastFocused?.isConnected && lastFocused.ownerDocument === contentDocument) {
+					lastFocused.focus({ preventScroll: true });
+				}
+				contentDocument.execCommand(data);
 			});
 
 			/** @type {string | undefined} */

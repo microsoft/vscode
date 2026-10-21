@@ -184,11 +184,26 @@ suite('ChatPetWidget', () => {
 		};
 	}
 
-	async function waitForPetAnimation(condition: () => boolean, message: string): Promise<void> {
-		for (let attempt = 0; attempt < 150 && !condition(); attempt++) {
-			await timeout(20);
+	/**
+	 * Resolves once `condition` holds. Pet transitions advance through sprite loads, CSS transitions,
+	 * animation frames and timers, and every step that a test waits for changes the DOM, so the
+	 * condition is checked after each DOM mutation. The whole document is observed because the
+	 * overlay leaves its host while it relocates.
+	 */
+	function waitForPetAnimation(condition: () => boolean): Promise<void> {
+		if (condition()) {
+			return Promise.resolve();
 		}
-		assert.ok(condition(), message);
+		return new Promise(resolve => {
+			const observer = new mainWindow.MutationObserver(() => {
+				if (condition()) {
+					observer.disconnect();
+					resolve();
+				}
+			});
+			disposables.add(toDisposable(() => observer.disconnect()));
+			observer.observe(mainWindow.document.body, { attributes: true, childList: true, subtree: true });
+		});
 	}
 
 	/**
@@ -340,7 +355,7 @@ suite('ChatPetWidget', () => {
 		const { button, service } = createHostTransitionHarness(true, 'teleport', 'stable', TestIntersectionObserver);
 		service.unlockAchievement(getChatPetAchievementForAccessory(ChatPetAccessoryIds.TopHatMonocle).id);
 		service.setAccessory(ChatPetAccessoryIds.TopHatMonocle);
-		await waitForPetAnimation(() => !button.querySelector('.chat-pet-eye-accessory')!.classList.contains('hidden'), 'the eye accessory must load');
+		await waitForPetAnimation(() => !button.querySelector('.chat-pet-eye-accessory')!.classList.contains('hidden'));
 		const canvas = button.querySelector<HTMLCanvasElement>('.chat-pet-eye-accessory-canvas')!;
 		const draws = sinon.spy(canvas.getContext('2d')!, 'drawImage');
 		let mutations = 0;
@@ -365,10 +380,10 @@ suite('ChatPetWidget', () => {
 		await move(bounds.right + 100);
 		const changed = { mutations: mutations > 0, redrawn: draws.called, facing: button.dataset.facing };
 		service.setOnTheRun(true);
-		await waitForPetAnimation(() => button.dataset.state === 'onTheRun', 'the fixed-eye state must finish loading');
+		await waitForPetAnimation(() => button.dataset.state === 'onTheRun');
 		await move(bounds.left + bounds.width / 2);
 		service.setOnTheRun(false);
-		await waitForPetAnimation(() => button.querySelector('.chat-pet-eyes')!.classList.contains('tracking'), 'cursor tracking must resume');
+		await waitForPetAnimation(() => button.querySelector('.chat-pet-eyes')!.classList.contains('tracking'));
 		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
 		assert.deepStrictEqual({
 			unchanged,
@@ -918,7 +933,7 @@ suite('ChatPetWidget', () => {
 			relocating: overlay.classList.contains('relocating'),
 			tabIndex: button.tabIndex,
 		};
-		await waitForPetAnimation(() => button.classList.contains('falling'), 'the pet must fall directly from the previous input');
+		await waitForPetAnimation(() => button.classList.contains('falling'));
 		const jumpFrames = spriteDraws.flatMap(draw => draw.getCalls())
 			.filter(call => call.args[0] instanceof mainWindow.HTMLImageElement && call.args[0].getAttribute('src')?.includes('buddy-jump-'))
 			.map(call => call.args[1] / 96)
@@ -926,8 +941,8 @@ suite('ChatPetWidget', () => {
 		const fallKeyframes = getPetFallKeyframes(button);
 		const duringFall = button.getBoundingClientRect().top;
 		button.dispatchEvent(new mainWindow.MouseEvent('click', { bubbles: true }));
-		await waitForPetAnimation(() => !overlay.classList.contains('relocating'), 'the fall must finish at the new host');
-		await waitForPetAnimation(() => button.dataset.state === 'rendering', 'the pet must resume the active request after landing');
+		await waitForPetAnimation(() => !overlay.classList.contains('relocating'));
+		await waitForPetAnimation(() => button.dataset.state === 'rendering');
 		const target = secondParent.getBoundingClientRect();
 
 		assert.deepStrictEqual({
@@ -967,7 +982,7 @@ suite('ChatPetWidget', () => {
 		const pendingPosition = { left: button.getBoundingClientRect().left, top: button.getBoundingClientRect().top };
 		root.append(secondParent);
 		layout();
-		await waitForPetAnimation(() => button.classList.contains('falling'), 'the fall must start after layout');
+		await waitForPetAnimation(() => button.classList.contains('falling'));
 
 		assert.deepStrictEqual({
 			pending,
@@ -994,18 +1009,18 @@ suite('ChatPetWidget', () => {
 		const drawImage = sinon.spy(context, 'drawImage');
 		setReducedMotion(false);
 		widget.setHost(firstHost);
-		await waitForPetAnimation(() => !effect.classList.contains('hidden'), 'the teleport must wait for the destination layout');
+		await waitForPetAnimation(() => !effect.classList.contains('hidden'));
 		const departure = { left: effect.getBoundingClientRect().left, top: effect.getBoundingClientRect().top, hidden: button.classList.contains('hidden') };
-		await waitForPetAnimation(() => effect.getBoundingClientRect().top === root.getBoundingClientRect().top && !effect.classList.contains('hidden'), 'the respawn effect must appear at the top of the movement area');
+		await waitForPetAnimation(() => effect.getBoundingClientRect().top === root.getBoundingClientRect().top && !effect.classList.contains('hidden'));
 		const respawn = { top: effect.getBoundingClientRect().top, aboveInput: effect.getBoundingClientRect().bottom < targetTop };
-		await waitForPetAnimation(() => button.classList.contains('falling'), 'the respawn must lead into falling onto the input');
+		await waitForPetAnimation(() => button.classList.contains('falling'));
 		const duringFall = {
 			state: button.dataset.state,
 			effectHidden: effect.classList.contains('hidden'),
 			aboveInput: button.getBoundingClientRect().bottom < targetTop,
 			tabIndex: button.tabIndex,
 		};
-		await waitForPetAnimation(() => !overlay.classList.contains('relocating'), 'the fall must finish at the new input');
+		await waitForPetAnimation(() => !overlay.classList.contains('relocating'));
 		const frames = drawImage.getCalls().map(call => call.args[1] / 96)
 			.filter((frame, index, allFrames) => index === 0 || frame !== allFrames[index - 1]);
 		const respawnIndex = frames.indexOf(0);
@@ -1042,8 +1057,10 @@ suite('ChatPetWidget', () => {
 		widget.setHost(secondHost);
 		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
 		setReducedMotion(false);
+		const respawnImageLoaded = whenSpriteLoaded(effectImage);
 		widget.setHost(firstHost);
-		await waitForPetAnimation(() => !effect.classList.contains('hidden') && effectImage.complete && effectImage.naturalWidth > 0, 'the first teleport must load the respawn image');
+		await respawnImageLoaded;
+		await waitForPetAnimation(() => !effect.classList.contains('hidden'));
 		const failedWidth = sinon.stub(effectImage, 'naturalWidth').get(() => 0);
 		effectImage.dispatchEvent(new mainWindow.Event('error'));
 		const afterFailure = {
@@ -1060,8 +1077,8 @@ suite('ChatPetWidget', () => {
 		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
 		setReducedMotion(false);
 		widget.setHost(firstHost);
-		await waitForPetAnimation(() => !effect.classList.contains('hidden'), 'the next teleport must start');
-		await waitForPetAnimation(() => !overlay.classList.contains('relocating'), 'the retried teleport must finish');
+		await waitForPetAnimation(() => !effect.classList.contains('hidden'));
+		await waitForPetAnimation(() => !overlay.classList.contains('relocating'));
 
 		assert.deepStrictEqual({
 			afterFailure,
@@ -1082,16 +1099,16 @@ suite('ChatPetWidget', () => {
 		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
 		setReducedMotion(false);
 		widget.setHost(firstHost);
-		await waitForPetAnimation(() => !effect.classList.contains('hidden') && effect.getBoundingClientRect().top === root.getBoundingClientRect().top, 'the teleport must reach its upper respawn position');
+		await waitForPetAnimation(() => !effect.classList.contains('hidden') && effect.getBoundingClientRect().top === root.getBoundingClientRect().top);
 		widget.setHost(secondHost);
-		await waitForPetAnimation(() => button.classList.contains('falling'), 'the new host transition must be falling');
+		await waitForPetAnimation(() => button.classList.contains('falling'));
 		effectImage.dispatchEvent(new mainWindow.Event('error'));
 		const afterError = {
 			relocating: overlay.classList.contains('relocating'),
 			falling: button.classList.contains('falling'),
 			tabIndex: button.tabIndex,
 		};
-		await waitForPetAnimation(() => !overlay.classList.contains('relocating'), 'the unrelated fall must finish normally');
+		await waitForPetAnimation(() => !overlay.classList.contains('relocating'));
 
 		assert.deepStrictEqual({
 			afterError,
@@ -1122,7 +1139,7 @@ suite('ChatPetWidget', () => {
 		const pendingPosition = { left: button.getBoundingClientRect().left, top: button.getBoundingClientRect().top };
 		secondParent.style.top = '480px';
 		layout();
-		await waitForPetAnimation(() => button.classList.contains('falling'), 'the fall must start after final layout');
+		await waitForPetAnimation(() => button.classList.contains('falling'));
 
 		assert.deepStrictEqual({
 			pendingPosition,
@@ -1143,14 +1160,14 @@ suite('ChatPetWidget', () => {
 				return secondParent.getBoundingClientRect().top;
 			},
 		});
-		await waitForPetAnimation(() => button.classList.contains('falling'), 'the provisional host must start the fall');
+		await waitForPetAnimation(() => button.classList.contains('falling'));
 		disposed = true;
 		const dormant = mainWindow.document.createElement('div');
 		widget.setHost(createPetHost(dormant, dormant, dormant));
 		widget.setHost(secondHost);
-		await waitForPetAnimation(() => overlay.classList.contains('relocating'), 'the replacement host must resume the fall');
+		await waitForPetAnimation(() => overlay.classList.contains('relocating'));
 		const continuesFall = overlay.classList.contains('relocating');
-		await waitForPetAnimation(() => !overlay.classList.contains('relocating'), 'the replacement host must finish the fall');
+		await waitForPetAnimation(() => !overlay.classList.contains('relocating'));
 
 		assert.deepStrictEqual({
 			continuesFall,
@@ -1189,11 +1206,11 @@ suite('ChatPetWidget', () => {
 	test('settles a host transition when reduced motion is enabled or the pet is disabled', async () => {
 		const reduced = createHostTransitionHarness();
 		reduced.widget.setHost(reduced.secondHost);
-		await waitForPetAnimation(() => reduced.button.classList.contains('falling'), 'the pet must be falling before motion is reduced');
+		await waitForPetAnimation(() => reduced.button.classList.contains('falling'));
 		reduced.setReducedMotion(true);
 		const disabled = createHostTransitionHarness();
 		disabled.widget.setHost(disabled.secondHost);
-		await waitForPetAnimation(() => disabled.button.classList.contains('falling'), 'the pet must be falling before it is disabled');
+		await waitForPetAnimation(() => disabled.button.classList.contains('falling'));
 		disabled.service.toggle();
 
 		assert.deepStrictEqual({
@@ -1214,12 +1231,12 @@ suite('ChatPetWidget', () => {
 	test('retargets a fall when the destination platform moves without completing on transitioncancel', async () => {
 		const { widget, button, overlay, secondHost, secondParent, platformChanged } = createHostTransitionHarness();
 		widget.setHost(secondHost);
-		await waitForPetAnimation(() => button.classList.contains('falling'), 'the pet must be falling');
+		await waitForPetAnimation(() => button.classList.contains('falling'));
 		secondParent.style.top = '560px';
 		platformChanged.fire();
 		button.dispatchEvent(new mainWindow.TransitionEvent('transitioncancel', { propertyName: 'top' }));
 		const retargeting = overlay.classList.contains('relocating');
-		await waitForPetAnimation(() => !overlay.classList.contains('relocating'), 'the retargeted fall must finish');
+		await waitForPetAnimation(() => !overlay.classList.contains('relocating'));
 
 		assert.deepStrictEqual({
 			retargeting,
@@ -1443,7 +1460,7 @@ suite('ChatPetWidget', () => {
 
 				const states: string[] = [];
 				const recordState = async (state: string) => {
-					await waitForPetAnimation(() => button.dataset.state === state, `Expected ${state} pet state`);
+					await waitForPetAnimation(() => button.dataset.state === state);
 					states.push(button.dataset.state!);
 				};
 				const createTool = (id: string, streaming = false) => new ChatToolInvocation(undefined, {

@@ -188,6 +188,17 @@ suite('CopilotConnectorsMarketplaceProvider', () => {
 		]);
 	});
 
+	test('projects connector and MCP server names as connector identifiers', async () => {
+		const { source } = createSource([connector('atlassian-rovo', {
+			mcpServers: [
+				{ name: 'githubcopilotatlassian', type: 'http' },
+				{ name: 'atlassian-rovo', type: 'http' },
+			],
+		})]);
+		const page = await source.query({}, CancellationToken.None);
+		assert.deepStrictEqual(page.items.map(item => item.connectorIds), [['atlassian-rovo', 'githubcopilotatlassian']]);
+	});
+
 	for (const query of [undefined, 'mail']) {
 		test(`pins ${query ? 'ranked' : 'browsing'} metadata and totals when the catalog changes between pages`, async () => {
 			const original = [
