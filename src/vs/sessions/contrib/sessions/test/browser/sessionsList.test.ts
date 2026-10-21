@@ -4416,6 +4416,7 @@ suite('Sessions - SessionsList', () => {
 				onDidReplaceSession: Event.None,
 				onDidStartSession: Event.None,
 				onDidDiscardNewSession: Event.None,
+				onDidMoveChat: Event.None,
 				getSessions: () => sessions,
 				getInFlightNewSessionRequests: () => [],
 				getSession: () => undefined,
