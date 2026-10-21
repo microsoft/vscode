@@ -29,14 +29,15 @@ async function main(args: string[]): Promise<void> {
 
 	try {
 		const artifacts = await retry(() => getPipelineArtifacts());
+		const published = new Set(artifacts.map(a => a.name));
 
 		for (const [variableName, artifactName] of pairs) {
-			const artifact = artifacts.find(a => a.name === artifactName);
-			console.log(`${artifactName}: ${artifact ? 'already published' : 'not published yet'}`);
-			console.log(`##vso[task.setvariable variable=${variableName}]${artifact ? 'true' : 'false'}`);
+			const isPublished = published.has(artifactName);
+			console.log(`${artifactName}: ${isPublished ? 'already published' : 'not published yet'}`);
+			console.log(`##vso[task.setvariable variable=${variableName}]${isPublished ? 'true' : 'false'}`);
 		}
 	} catch (err) {
-		console.error(`ERROR: Failed to get pipeline artifacts: ${err}`);
+		console.error(`ERROR: Failed to get pipeline artifacts: ${err instanceof Error ? err.stack ?? err.message : String(err)}`);
 
 		for (const [variableName] of pairs) {
 			console.log(`##vso[task.setvariable variable=${variableName}]false`);
