@@ -179,7 +179,6 @@ read_notebook_cell_output
 read_project_structure
 resolve_memory_file_uri
 run_notebook_cell
-run_vscode_command
 search_workspace_symbols
 test_search
 </availableDeferredTools>
