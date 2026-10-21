@@ -302,11 +302,11 @@ suite('WorkspaceFolderManagementContribution', () => {
 		const { activeSession, workspaceEditing, folderLabel } = createContribution();
 		const folder = worktreeFolder('/repo', '/repo.worktrees/session');
 
-		folderLabel.label = 'repo (main)';
+		folderLabel.label = 'session';
 		activeSession.set(makeActiveSession('a', makeWorkspace(folder, false)), undefined);
 		await settle();
 
-		folderLabel.label = 'repo (session-branch)';
+		folderLabel.label = 'repo';
 		activeSession.set(makeActiveSession('a', makeWorkspace(folder, false)), undefined);
 		await settle();
 
@@ -314,8 +314,8 @@ suite('WorkspaceFolderManagementContribution', () => {
 			added: workspaceEditing.addFoldersCalls,
 			updated: workspaceEditing.updateFoldersCalls,
 		}, {
-			added: [[{ uri: folder.workingDirectory, name: 'repo (main)' }]],
-			updated: [[{ uri: folder.workingDirectory, name: 'repo (session-branch)' }]],
+			added: [[{ uri: folder.workingDirectory, name: 'session' }]],
+			updated: [[{ uri: folder.workingDirectory, name: 'repo' }]],
 		});
 	});
 
