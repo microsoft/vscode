@@ -226,7 +226,7 @@ suite('CopilotSessionLauncher customization policy session', () => {
 			enableSessionStore: captured?.enableSessionStore,
 			infiniteSessions: captured?.infiniteSessions,
 			memory: captured?.memory,
-			remoteSession: captured?.remoteSession,
+			legacyRemoteOption: Object.hasOwn(captured!, 'remoteSession'),
 			managedSettings: captured?.managedSettings,
 			featureFlags: captured?.featureFlags,
 			gitHubToken: captured?.gitHubToken,
@@ -244,7 +244,7 @@ suite('CopilotSessionLauncher customization policy session', () => {
 			enableSessionStore: false,
 			infiniteSessions: { enabled: false },
 			memory: { enabled: false },
-			remoteSession: 'off',
+			legacyRemoteOption: false,
 			managedSettings: { permissions },
 			featureFlags: {
 				...catalogInstallationFeatureFlags,
@@ -1527,6 +1527,62 @@ suite('CopilotSessionLauncher shared session config', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	for (const enabled of [undefined, false, true]) {
+		for (const kind of ['create', 'resume', 'fallback'] as const) {
+			test(`history export follows the opt-in after ${kind} (${enabled ?? 'default'}) and logs setup failures`, async () => {
+				const calls: string[] = [];
+				const session = {
+					sessionId: 'sync-session', on: () => () => { }, disconnect: async () => { calls.push('disconnect'); },
+					rpc: {
+						agent: emptyAgentCatalog,
+						options: { update: async () => ({ success: true }) },
+						remote: {
+							enable: async (options: Parameters<CopilotSession['rpc']['remote']['enable']>[0]) => {
+								calls.push(`export:${options.mode}`);
+								throw new Error('Repository is not eligible for history export');
+							},
+						},
+					},
+				} as unknown as CopilotSession;
+				const client = {
+					...returningSession(session),
+					resumeSession: async (_id: string, config: ResumeSessionConfig) => {
+						if (kind === 'fallback') {
+							throw Object.assign(new Error('Session has no events'), { code: -32603 });
+						}
+						reportManagedSettings(config);
+						return session;
+					},
+				} as CopilotClient;
+				const logService = new CapturingLogService();
+				const launcher = createTestLauncher(undefined, { [AgentHostSessionSyncEnabledConfigKey]: enabled }, logService);
+				const basePlan = {
+					client, sessionId: session.sessionId, workingDirectory: testWorkingDirectory,
+					resolvedAgentName: undefined, snapshot: { tools: [], plugins: [], mcpServers: {} },
+					activeClientToolSet: new ActiveClientToolSet(), shellManager: undefined,
+					githubCredentials: CopilotGitHubSessionCredentials.fromToken('token'),
+				};
+				const wrapper = await launcher.launch(kind === 'create'
+					? { ...basePlan, kind: 'create', model: undefined }
+					: { ...basePlan, kind: 'resume', fallback: { model: undefined } }, {
+					...testRuntime,
+					applyLaunchSandbox: async () => { calls.push('sandbox'); },
+				});
+				try {
+					assert.deepStrictEqual({
+						calls,
+						warnings: logService.warnings.filter(warning => warning.message.includes('history export')).map(warning => warning.message),
+					}, {
+						calls: enabled ? ['sandbox', 'export:export'] : ['sandbox'],
+						warnings: enabled ? ['[Copilot:sync-session] Failed to enable session history export'] : [],
+					});
+				} finally {
+					wrapper.dispose();
+				}
+			});
+		}
+	}
+
 	for (const scoped of [false, true]) {
 		test(`keeps configured tools and defaults with ${scoped ? 'client-owned' : 'legacy'} credentials`, async () => {
 			const configs: SessionConfig[] = [];
@@ -1574,11 +1630,16 @@ suite('CopilotSessionLauncher shared session config', () => {
 
 	test('client-owned credentials preserve workspace discovery, tools, BYOK and host policy on create and resume', async () => {
 		const configs: SessionConfig[] = [];
+		const exports: Array<Parameters<CopilotSession['rpc']['remote']['enable']>[0]> = [];
 		const session = {
 			sessionId: 'scoped-session',
 			on: () => () => { },
 			disconnect: async () => { },
-			rpc: { agent: emptyAgentCatalog, options: { update: async () => ({ success: true }) } },
+			rpc: {
+				agent: emptyAgentCatalog,
+				options: { update: async () => ({ success: true }) },
+				remote: { enable: async (options: Parameters<CopilotSession['rpc']['remote']['enable']>[0]) => { exports.push(options); return { remoteSteerable: false }; } },
+			},
 		} as unknown as CopilotSession;
 		const client = {
 			createSession: async (config: SessionConfig) => { configs.push(config); reportManagedSettings(config); return session; },
@@ -1622,7 +1683,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 			environment: config.systemMessage?.mode === 'customize' ? config.systemMessage.sections?.environment_context : undefined,
 			sessionStore: config.enableSessionStore,
 			oauthStorage: config.mcpOAuthTokenStorage,
-			remoteSession: config.remoteSession,
+			legacyRemoteOption: Object.hasOwn(config, 'remoteSession'),
 			connectors: config.featureFlags?.CONNECTORS,
 			tools: config.availableTools, excludedTools: config.excludedTools,
 			providers: config.providers, models: config.models, managedSettings: config.managedSettings,
@@ -1633,13 +1694,14 @@ suite('CopilotSessionLauncher shared session config', () => {
 			skipCustomInstructions: undefined, onDemandInstructions: undefined, hostGit: undefined, sessionTelemetry: undefined,
 			coauthor: undefined, builtinSkills: undefined, localAgents: undefined,
 			environment: undefined,
-			sessionStore: true, oauthStorage: 'in-memory', remoteSession: 'export',
+			sessionStore: true, oauthStorage: 'in-memory', legacyRemoteOption: false,
 			tools: [...COPILOT_DEFAULT_AVAILABLE_TOOLS],
 			excludedTools: [...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
 			providers: [], models: [], managedSettings: { permissions },
 			pluginDirectories: [pluginDirectory.fsPath],
 		})));
 		assert.strictEqual(byokResolutions, 2);
+		assert.deepStrictEqual(exports, [{ mode: 'export' }, { mode: 'export' }]);
 	});
 
 	test('derives explicit MCP registration from client metadata rather than cwd equality', () => {
