@@ -78,6 +78,7 @@ type ScriptedConnectResult = CloudSandboxConnectResult | Error | (() => Promise<
 
 const connectionDetails = {
 	environmentOperation: 'resume', provisioningMs: 0, readinessMs: 0,
+	taskCreationPath: 'unknown', reservationWaitMs: 0,
 	preparationMs: 0, connectionMs: 0,
 	environmentKind: 'cloud',
 	surface: isWeb ? 'editorWeb' : 'editorDesktop', source: 'existing', credentialRequests: 0, wakingResponses: 0, transportAttempts: 0,
@@ -417,6 +418,7 @@ suite('CloudSandboxAgentHostService', () => {
 					eventName: 'cloudSandboxConnectionOutcome', data: {
 						...connectionDetails, operation: 'connect', outcome: 'success', stage: 'authentication', durationMs: 50,
 						environmentOperation: 'provision', provisioningMs: 100, readinessMs: 150,
+						reservationWaitMs: undefined,
 						connectionMs: 50,
 						surface: isSessionsWindow ? (isWeb ? 'agentsWeb' : 'agentsDesktop') : connectionDetails.surface, source: 'created',
 						credentialRequests: 1, transportAttempts: 1, relayMs: 20, authenticationMs: 30,
@@ -1343,36 +1345,40 @@ suite('CloudSandboxAgentHostService', () => {
 		const options: ICloudSandboxConnectOptions = { environmentId: 'env-1', name: 'Sandbox' };
 		const sealedToken: CloudSandboxConnectResult = { kind: 'token', token: clientToken('copilot-sealed.v1.key.payload') };
 
-		test('a later independent dial does not reuse the original provisioning provenance or start time', () => runWithFakedTimers({}, async () => {
-			const fixture = createService(store, [sealedToken]);
-			fixture.service.connectThroughFactory = true;
-			const provisioningStartedAt = Date.now();
-			await timeout(1000);
-			const connecting = fixture.service.connect({ ...options, connectionSource: 'created', provisioningStartedAt }, CancellationToken.None);
-			await fixture.started;
-			await timeout(100);
-			fixture.settle();
-			await connecting;
-			const factory = fixture.getFactory();
-			const entry = factory.entries.get()[0];
-			factory.getConnectionObserver?.(entry)('failed');
-			await timeout(5000);
-			const nextObserver = factory.getConnectionObserver?.(entry);
-			await timeout(200);
-			nextObserver?.('connected');
-			fixture.service.dispose();
-			assert.deepStrictEqual(fixture.events.filter(event => event.eventName === 'cloudSandboxConnectionOutcome').map(event => event.data), [
-				{
-					...connectionDetails, operation: 'connect', source: 'created', outcome: 'success', stage: 'connection',
-					environmentOperation: 'provision', provisioningMs: 1000, readinessMs: 1100,
-					durationMs: 100, connectionMs: 100, credentialRequests: 1,
-				},
-				{
-					...connectionDetails, operation: 'connect', outcome: 'success', stage: 'connection',
-					readinessMs: 200, durationMs: 200, connectionMs: 200,
-				},
-			]);
-		}));
+		for (const taskCreationPath of [undefined, 'reservationClaimed', 'reservationFallback'] as const) {
+			test(`a later independent dial does not reuse ${taskCreationPath ?? 'unknown'} provisioning provenance or start time`, () => runWithFakedTimers({}, async () => {
+				const fixture = createService(store, [sealedToken]);
+				fixture.service.connectThroughFactory = true;
+				const provisioningStartedAt = Date.now();
+				const reservationWaitMs = taskCreationPath === undefined ? undefined : 250;
+				await timeout(1000);
+				const connecting = fixture.service.connect({ ...options, connectionSource: 'created', provisioningStartedAt, taskCreationPath, reservationWaitMs }, CancellationToken.None);
+				await fixture.started;
+				await timeout(100);
+				fixture.settle();
+				await connecting;
+				const factory = fixture.getFactory();
+				const entry = factory.entries.get()[0];
+				factory.getConnectionObserver?.(entry)('failed');
+				await timeout(5000);
+				const nextObserver = factory.getConnectionObserver?.(entry);
+				await timeout(200);
+				nextObserver?.('connected');
+				fixture.service.dispose();
+				assert.deepStrictEqual(fixture.events.filter(event => event.eventName === 'cloudSandboxConnectionOutcome').map(event => event.data), [
+					{
+						...connectionDetails, operation: 'connect', source: 'created', outcome: 'success', stage: 'connection',
+						environmentOperation: 'provision', provisioningMs: 1000, readinessMs: 1100,
+						taskCreationPath: taskCreationPath ?? 'unknown', reservationWaitMs,
+						durationMs: 100, connectionMs: 100, credentialRequests: 1,
+					},
+					{
+						...connectionDetails, operation: 'connect', outcome: 'success', stage: 'connection',
+						readinessMs: 200, durationMs: 200, connectionMs: 200,
+					},
+				]);
+			}));
+		}
 
 		test('separates a blocking credential response from connection setup without requiring a waking response', () => runWithFakedTimers({}, async () => {
 			const fixture = createService(store, [async () => {

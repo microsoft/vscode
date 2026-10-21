@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../nls.js';
-import { CloudSandboxAutoConnectOnOpenSettingId, CloudSandboxEnabledSettingId, CloudSandboxSessionFeedEnabledSettingId, ICloudSandboxAgentHostService, ICloudSandboxApiService } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CloudSandboxAutoConnectOnOpenSettingId, CloudSandboxEarlyPreparationSettingId, CloudSandboxEnabledSettingId, CloudSandboxSessionFeedEnabledSettingId, ICloudSandboxAgentHostService, ICloudSandboxApiService, ICloudSandboxDraftPreparationService } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
@@ -12,6 +12,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { CloudSandboxAgentHostService } from './cloudSandboxAgentHostService.js';
 import { CloudSandboxApiService } from './cloudSandboxApiService.js';
+import { CloudSandboxDraftPreparationService } from './cloudSandboxDraftPreparationService.js';
 import { CloudSandboxModelCatalogService, ICloudSandboxModelCatalogService } from './cloudSandboxModels.js';
 import { CloudSandboxTelemetryService, ICloudSandboxTelemetryService } from './cloudSandboxTelemetry.js';
 import { EditorCloudSandboxContribution } from './editorCloudSandboxContribution.js';
@@ -33,6 +34,7 @@ class MissionControlContribution {
 
 registerSingleton(ICloudSandboxTelemetryService, CloudSandboxTelemetryService, InstantiationType.Delayed);
 registerSingleton(ICloudSandboxApiService, CloudSandboxApiService, InstantiationType.Delayed);
+registerSingleton(ICloudSandboxDraftPreparationService, CloudSandboxDraftPreparationService, InstantiationType.Delayed);
 registerSingleton(ICloudSandboxModelCatalogService, CloudSandboxModelCatalogService, InstantiationType.Delayed);
 registerSingleton(ICloudSandboxAgentHostService, CloudSandboxAgentHostService, InstantiationType.Delayed);
 registerSingleton(IMissionControlEnvironmentService, MissionControlEnvironmentService, InstantiationType.Delayed);
@@ -90,6 +92,15 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
+		},
+		[CloudSandboxEarlyPreparationSettingId]: {
+			type: 'boolean',
+			description: localize('chat.agentHost.cloudSandbox.earlyPreparation', "Prepare an eligible cloud environment while typing in a new Cloud chat in the editor or Agents Window. This can allocate cloud compute before you send a message."),
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			restricted: true,
+			tags: ['experimental', 'advanced'],
+			experiment: { mode: 'auto' },
 		},
 		[CloudSandboxSessionFeedEnabledSettingId]: {
 			type: 'boolean',

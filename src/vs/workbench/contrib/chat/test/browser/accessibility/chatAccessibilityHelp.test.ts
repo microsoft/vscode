@@ -8,12 +8,27 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { ChatSessionArchiveActionWording } from '../../../../../../platform/chat/common/sessionArchiveActions.js';
 import { MockKeybindingService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { getTabbedActionListKeybindingLabels } from '../../../../../../platform/actionWidget/browser/tabbedActionListWidget.js';
-import { getAccessibilityHelpText } from '../../../browser/actions/chatAccessibilityHelp.js';
+import { getAccessibilityHelpText, getCloudSandboxPreparationAccessibilityHelp } from '../../../browser/actions/chatAccessibilityHelp.js';
 import { AGENT_SESSION_RENAME_ACTION_ID } from '../../../browser/agentSessions/agentSessions.js';
 import { isResponseSelectionSupported } from '../../../browser/chat.js';
 
 suite('Chat Accessibility Help', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('documents private early preparation and the pending Send handoff', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), false);
+		const preparation = getCloudSandboxPreparationAccessibilityHelp();
+
+		assert.deepStrictEqual({
+			included: help.includes(preparation),
+			setting: preparation.includes('chat.agentHost.cloudSandbox.earlyPreparation'),
+			repositories: preparation.includes('with or without a repository'),
+			private: preparation.includes('no conversation is added to the session list until you press Send'),
+			pending: preparation.includes('Send waits for pending preparation'),
+			fallback: preparation.includes('otherwise it can continue without early preparation'),
+			repositoryChange: preparation.includes('when you change repositories'),
+		}, { included: true, setting: true, repositories: true, private: true, pending: true, fallback: true, repositoryChange: true });
+	});
 
 	test('explains the disabled Local harness only on editor chat surfaces', () => {
 		assert.deepStrictEqual([

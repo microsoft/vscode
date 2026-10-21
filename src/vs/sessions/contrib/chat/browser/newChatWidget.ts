@@ -576,6 +576,7 @@ export class NewChatWidget extends Disposable {
 		});
 		this._register(toDisposable(() => newChatInput.saveState()));
 		this._newChatInput = this._register(newChatInput);
+		this._register(this._trackSessionPreparation());
 		let comparisonHarness: string | undefined;
 		this._register(autorun(reader => {
 			const session = this._session.read(reader);
@@ -730,6 +731,18 @@ export class NewChatWidget extends Disposable {
 			previousFolderUri = folderUri;
 			this._syncWorkspacePickerFromSessionWorkspace(workspace);
 		}));
+	}
+
+	private _trackSessionPreparation(): IDisposable {
+		const changed = observableSignalFromEvent(this, this._newChatInput.onDidChangeInput);
+		return autorun(reader => {
+			changed.read(reader);
+			const session = this._session.read(reader);
+			if (session && !session.isCreated.read(reader) && !session.isNewSessionRequestInProgress?.read(reader)
+				&& this._newChatInput.getInputValue().trim()) {
+				this.sessionsProvidersService.getProvider(session.providerId)?.prepareNewSessionWhileComposing?.(session.sessionId);
+			}
+		});
 	}
 
 	private _syncWorkspacePickerFromSessionWorkspace(workspace: ISessionWorkspace | undefined): void {
