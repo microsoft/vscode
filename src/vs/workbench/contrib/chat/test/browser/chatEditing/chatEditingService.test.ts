@@ -4,8 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { match, restore, stub } from 'sinon';
+import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, dispose } from '../../../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../../../base/common/map.js';
+import { Schemas } from '../../../../../../base/common/network.js';
 import { autorun, IReader, observableValue, waitForState } from '../../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { assertType } from '../../../../../../base/common/types.js';
@@ -20,23 +24,35 @@ import { TextEdit } from '../../../../../../editor/common/languages.js';
 import { IEditorWorkerService } from '../../../../../../editor/common/services/editorWorker.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
+import { computeStringDiff } from '../../../../../../editor/common/services/editorWebWorker.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { NullCommandService } from '../../../../../../platform/commands/test/common/nullCommandService.js';
 import { SyncDescriptor } from '../../../../../../platform/instantiation/common/descriptors.js';
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { FileService } from '../../../../../../platform/files/common/fileService.js';
+import { FileOperationError, FileOperationResult } from '../../../../../../platform/files/common/files.js';
+import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IWorkbenchAssignmentService } from '../../../../../services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../../services/assignment/test/common/nullAssignmentService.js';
 import { nullExtensionDescription } from '../../../../../services/extensions/common/extensions.js';
-import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { TestTextFileService, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { ITextFileService, TextFileEditorModelState } from '../../../../../services/textfile/common/textfiles.js';
+import { TextFileEditorModelManager } from '../../../../../services/textfile/common/textFileEditorModelManager.js';
 import { IWorkspaceEditingService } from '../../../../../services/workspaces/common/workspaceEditing.js';
 import { TestWorkerService } from '../../../../inlineChat/test/browser/testWorkerService.js';
+import { IAiEditTelemetryService } from '../../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
 import { TestMcpService } from '../../../../mcp/test/common/testMcpService.js';
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService } from '../../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { NotebookTextModel } from '../../../../notebook/common/model/notebookTextModel.js';
 import { INotebookService } from '../../../../notebook/common/notebookService.js';
 import { ChatEditingService } from '../../../browser/chatEditing/chatEditingServiceImpl.js';
+import { ChatEditingSessionStorage } from '../../../browser/chatEditing/chatEditingSessionStorage.js';
+import { ChatEditingSession } from '../../../browser/chatEditing/chatEditingSession.js';
+import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { ChatSessionsService } from '../../../browser/chatSessions/chatSessions.contribution.js';
 import { ChatAgentService, IChatAgentData, IChatAgentImplementation, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatEditingSessionState, IChatEditReviewSession, IChatEditingService, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
@@ -83,10 +99,22 @@ suite('ChatEditingService', function () {
 	let editingService: ChatEditingService;
 	let chatService: IChatService;
 	let textModelService: ITextModelService;
+	let instantiationService: IInstantiationService;
+	let fileService: FileService;
+	let fileProvider: InMemoryFileSystemProvider;
+	let textFileService: TestTextFileService;
 
 	setup(function () {
+		fileService = store.add(new FileService(new NullLogService()));
+		fileProvider = store.add(new InMemoryFileSystemProvider());
+		store.add(fileService.registerProvider(Schemas.file, fileProvider));
+		store.add(fileService.registerProvider(Schemas.vscodeUserData, store.add(new InMemoryFileSystemProvider())));
 		const collection = new ServiceCollection();
 		collection.set(ICommandService, NullCommandService);
+		collection.set(IAiEditTelemetryService, new class extends mock<IAiEditTelemetryService>() {
+			override handleCodeAccepted() { }
+			override handleCodeRejected() { }
+		});
 		collection.set(IWorkbenchAssignmentService, new NullWorkbenchAssignmentService());
 		collection.set(IChatAgentService, new SyncDescriptor(ChatAgentService));
 		collection.set(IChatVariablesService, new MockChatVariablesService());
@@ -94,7 +122,11 @@ suite('ChatEditingService', function () {
 		collection.set(IChatTransferService, new SyncDescriptor(ChatTransferService));
 		collection.set(IChatSessionsService, new SyncDescriptor(ChatSessionsService));
 		collection.set(IChatEditingService, new SyncDescriptor(ChatEditingService));
-		collection.set(IEditorWorkerService, new SyncDescriptor(TestWorkerService));
+		collection.set(IEditorWorkerService, new SyncDescriptor(class extends TestWorkerService {
+			override computeStringEditFromDiff(...args: Parameters<IEditorWorkerService['computeStringEditFromDiff']>) {
+				return computeStringDiff(...args);
+			}
+		}));
 		collection.set(IChatService, new SyncDescriptor(ChatService));
 		collection.set(IChatOpenDiagnosticsService, new SyncDescriptor(ChatOpenDiagnosticsService));
 		collection.set(IMcpService, new TestMcpService());
@@ -120,7 +152,10 @@ suite('ChatEditingService', function () {
 				return false;
 			}
 		});
-		const insta = store.add(store.add(workbenchInstantiationService(undefined, store)).createChild(collection));
+		const insta = store.add(store.add(workbenchInstantiationService({ fileService: () => fileService }, store)).createChild(collection));
+		instantiationService = insta;
+		textFileService = insta.get(ITextFileService) as TestTextFileService;
+		store.add(textFileService.files as TextFileEditorModelManager);
 		store.add(insta.get(IEditorWorkerService) as TestWorkerService);
 		const value = insta.get(IChatEditingService);
 		assert.ok(value instanceof ChatEditingService);
@@ -154,6 +189,8 @@ suite('ChatEditingService', function () {
 	});
 
 	teardown(async () => {
+		restore();
+		dispose(textFileService.files.models);
 		store.clear();
 	});
 
@@ -302,6 +339,212 @@ suite('ChatEditingService', function () {
 
 		return entry;
 	}
+
+	async function restoreTextEntry(original: string, current: string, workspace: string) {
+		const uri = URI.file('/restore.txt');
+		await fileService.writeFile(uri, VSBuffer.fromString(workspace));
+		const sessionResource = LocalChatSessionUri.forSession('restored-session');
+		await instantiationService.createInstance(ChatEditingSessionStorage, sessionResource).storeState({
+			initialFileContents: new ResourceMap([[uri, original]]),
+			timeline: undefined,
+			recentSnapshot: {
+				stopId: undefined,
+				entries: new ResourceMap([[uri, {
+					resource: uri, snapshotUri: URI.parse('test://snapshot'), languageId: 'plaintext',
+					original, current, state: ModifiedFileEntryState.Modified,
+					telemetryInfo: {
+						sessionResource, requestId: 'old-request', agentId: undefined,
+						command: undefined, result: undefined, modelId: undefined, modeId: undefined,
+						applyCodeBlockSuggestionId: undefined, feature: undefined,
+					},
+				}]]),
+			},
+		});
+		const session = store.add(instantiationService.createInstance(ChatEditingSession, sessionResource, false, () => undefined, undefined));
+		await waitForState(session.state, state => state === ChatEditingSessionState.Idle);
+		const entry = session.getEntry(uri);
+		assertType(entry);
+		const modified = store.add(await textModelService.createModelReference(uri)).object.textEditorModel;
+		return { sessionResource, session, entry, modified, uri };
+	}
+
+	test('restoring pending text edits preserves newer workspace contents', () => runWithFakedTimers({}, async () => {
+		const { entry, modified, uri } = await restoreTextEntry('before\n', 'agent\n', 'newer workspace\n');
+
+		assert.deepStrictEqual({
+			model: modified.getValue(),
+			disk: (await fileService.readFile(uri)).value.toString(),
+			state: entry.state.get(),
+		}, {
+			model: 'newer workspace\n', disk: 'newer workspace\n', state: ModifiedFileEntryState.Modified,
+		});
+	}));
+
+	test('rejecting restored text edits preserves nonconflicting outside edits', () => runWithFakedTimers({}, async () => {
+		const { session, modified } = await restoreTextEntry('before\nmiddle\nend\n', 'agent\nmiddle\nend\n', 'agent\nmiddle\noutside\n');
+		await session.reject();
+
+		assert.strictEqual(modified.getValue(), 'before\nmiddle\noutside\n');
+	}));
+
+	test('rejecting restored text edits preserves overlapping outside edits', () => runWithFakedTimers({}, async () => {
+		const { session, modified } = await restoreTextEntry('before\nmiddle\nend\n', 'agent\nmiddle\nend\n', 'newer\nmiddle\noutside\n');
+		await session.reject();
+
+		assert.strictEqual(modified.getValue(), 'newer\nmiddle\noutside\n');
+	}));
+
+	test('restoring pending text edits accounts for workspace changes during diff computation', () => runWithFakedTimers({}, async () => {
+		const worker = instantiationService.invokeFunction(accessor => accessor.get(IEditorWorkerService));
+		const modelService = instantiationService.invokeFunction(accessor => accessor.get(IModelService));
+		let computations = 0;
+		stub(worker, 'computeStringEditFromDiff').callsFake(async (...args) => {
+			if (++computations === 2) {
+				const modified = modelService.getModel(URI.file('/restore.txt'));
+				assertType(modified);
+				modified.setValue('newer\nmiddle\noutside\n');
+			}
+			return computeStringDiff(...args);
+		});
+		const { session, modified } = await restoreTextEntry('before\nmiddle\nend\n', 'agent\nmiddle\nend\n', 'agent\nmiddle\noutside\n');
+		await session.reject();
+
+		assert.strictEqual(modified.getValue(), 'newer\nmiddle\noutside\n');
+	}));
+
+	test('rejecting restored text edits preserves unsaved workspace changes without saving them', () => runWithFakedTimers({}, async () => {
+		const uri = URI.file('/restore.txt');
+		await fileService.writeFile(uri, VSBuffer.fromString('on disk\n'));
+		const modified = store.add(await textModelService.createModelReference(uri)).object.textEditorModel;
+		modified.setValue('newer unsaved workspace\n');
+		const { session } = await restoreTextEntry('before\n', 'agent\n', 'on disk\n');
+		await session.reject();
+
+		assert.deepStrictEqual({
+			model: modified.getValue(), disk: (await fileService.readFile(uri)).value.toString(), dirty: textFileService.isDirty(uri),
+		}, {
+			model: 'newer unsaved workspace\n', disk: 'on disk\n', dirty: true,
+		});
+	}));
+
+	test('restored text review survives a persistence round trip without losing outside edits', () => runWithFakedTimers({}, async () => {
+		const { sessionResource, session, modified } = await restoreTextEntry('before\nmiddle\nend\n', 'agent\nmiddle\nend\n', 'agent\nmiddle\noutside\n');
+		await session.storeState();
+		store.delete(session);
+		const reopened = store.add(instantiationService.createInstance(ChatEditingSession, sessionResource, false, () => undefined, undefined));
+		await waitForState(reopened.state, state => state === ChatEditingSessionState.Idle);
+		await reopened.reject();
+
+		assert.strictEqual(modified.getValue(), 'before\nmiddle\noutside\n');
+	}));
+
+	test('accepting restored text edits preserves newer workspace contents', () => runWithFakedTimers({}, async () => {
+		const { session, entry, modified, uri } = await restoreTextEntry('before\n', 'agent\n', 'newer workspace\n');
+		await session.accept();
+
+		assert.deepStrictEqual({
+			model: modified.getValue(), disk: (await fileService.readFile(uri)).value.toString(), state: entry.state.get(),
+		}, {
+			model: 'newer workspace\n', disk: 'newer workspace\n', state: ModifiedFileEntryState.Accepted,
+		});
+	}));
+
+	test('rejecting unchanged restored text edits still undoes the agent edit', () => runWithFakedTimers({}, async () => {
+		const { session, modified } = await restoreTextEntry('before\n', 'agent\n', 'agent\n');
+		await session.reject();
+
+		assert.strictEqual(modified.getValue(), 'before\n');
+	}));
+
+	test('accepting unchanged restored text edits still saves the agent edit', () => runWithFakedTimers({}, async () => {
+		const { session, entry, uri } = await restoreTextEntry('before\n', 'agent\n', 'agent\n');
+		await session.accept();
+
+		assert.deepStrictEqual({
+			disk: (await fileService.readFile(uri)).value.toString(), state: entry.state.get(),
+		}, {
+			disk: 'agent\n', state: ModifiedFileEntryState.Accepted,
+		});
+	}));
+
+	test('accepting text edits surfaces an outside-write save conflict and keeps review pending', () => runWithFakedTimers({}, async () => {
+		const { session, entry, modified, uri } = await restoreTextEntry('before\n', 'agent\n', 'agent\n');
+		modified.pushEditOperations(null, [EditOperation.insert(new Position(2, 1), 'local\n')], () => null);
+		await fileService.writeFile(uri, VSBuffer.fromString('newer outside workspace\n'));
+		const outsideStat = await fileProvider.stat(uri);
+		stub(fileProvider, 'stat').callThrough().withArgs(match((resource: URI) => isEqual(resource, uri))).resolves({ ...outsideStat, mtime: outsideStat.mtime + 1000 });
+		const saveErrors: Error[] = [];
+		textFileService.files.saveErrorHandler = { onSaveError: error => { saveErrors.push(error); } };
+		await session.accept();
+
+		assert.deepStrictEqual({
+			model: modified.getValue(), disk: (await fileService.readFile(uri)).value.toString(),
+			state: entry.state.get(), dirty: textFileService.isDirty(uri),
+			conflict: textFileService.files.get(uri)?.hasState(TextFileEditorModelState.CONFLICT),
+			errors: saveErrors.map(error => error instanceof FileOperationError ? error.fileOperationResult : error.message),
+		}, {
+			model: 'agent\nlocal\n', disk: 'newer outside workspace\n',
+			state: ModifiedFileEntryState.Modified, dirty: true, conflict: true,
+			errors: [FileOperationResult.FILE_MODIFIED_SINCE],
+		});
+	}));
+
+	test('accepting clean text edits still surfaces an outside-write save conflict', () => runWithFakedTimers({}, async () => {
+		const { session, entry, modified, uri } = await restoreTextEntry('before\n', 'agent\n', 'agent\n');
+		await fileService.writeFile(uri, VSBuffer.fromString('newer outside workspace\n'));
+		const outsideStat = await fileProvider.stat(uri);
+		stub(fileProvider, 'stat').callThrough().withArgs(match((resource: URI) => isEqual(resource, uri))).resolves({ ...outsideStat, mtime: outsideStat.mtime + 1000 });
+		const saveErrors: Error[] = [];
+		textFileService.files.saveErrorHandler = { onSaveError: error => { saveErrors.push(error); } };
+		await session.accept();
+
+		assert.deepStrictEqual({
+			model: modified.getValue(), disk: (await fileService.readFile(uri)).value.toString(),
+			state: entry.state.get(), dirty: textFileService.isDirty(uri),
+			conflict: textFileService.files.get(uri)?.hasState(TextFileEditorModelState.CONFLICT),
+			errors: saveErrors.map(error => error instanceof FileOperationError ? error.fileOperationResult : error.message),
+		}, {
+			model: 'agent\n', disk: 'newer outside workspace\n',
+			state: ModifiedFileEntryState.Modified, dirty: true, conflict: true,
+			errors: [FileOperationResult.FILE_MODIFIED_SINCE],
+		});
+	}));
+
+	test('accepting text edits keeps review pending after a handled save failure', () => runWithFakedTimers({}, async () => {
+		const { session, entry, modified, uri } = await restoreTextEntry('before\n', 'agent\n', 'agent\n');
+		modified.pushEditOperations(null, [EditOperation.insert(new Position(2, 1), 'local\n')], () => null);
+		textFileService.setWriteErrorOnce(new FileOperationError('write denied', FileOperationResult.FILE_PERMISSION_DENIED));
+		const saveErrors: Error[] = [];
+		textFileService.files.saveErrorHandler = { onSaveError: error => { saveErrors.push(error); } };
+		await session.accept();
+		const original = store.add(await textModelService.createModelReference(entry.originalURI)).object.textEditorModel;
+
+		assert.deepStrictEqual({
+			model: modified.getValue(), original: original.getValue(), disk: (await fileService.readFile(uri)).value.toString(),
+			state: entry.state.get(), dirty: textFileService.isDirty(uri), errors: saveErrors.map(error => error.message),
+		}, {
+			model: 'agent\nlocal\n', original: 'before\nlocal\n', disk: 'agent\n',
+			state: ModifiedFileEntryState.Modified, dirty: true, errors: ['write denied'],
+		});
+	}));
+
+	test('accepting text edits can be retried after a handled save failure', () => runWithFakedTimers({}, async () => {
+		const { session, entry, modified, uri } = await restoreTextEntry('before\n', 'agent\n', 'agent\n');
+		modified.pushEditOperations(null, [EditOperation.insert(new Position(2, 1), 'local\n')], () => null);
+		textFileService.setWriteErrorOnce(new FileOperationError('write denied', FileOperationResult.FILE_PERMISSION_DENIED));
+		textFileService.files.saveErrorHandler = { onSaveError: () => { } };
+		await session.accept();
+		await session.accept();
+		const original = store.add(await textModelService.createModelReference(entry.originalURI)).object.textEditorModel;
+
+		assert.deepStrictEqual({
+			model: modified.getValue(), original: original.getValue(), disk: (await fileService.readFile(uri)).value.toString(),
+			state: entry.state.get(), dirty: textFileService.isDirty(uri),
+		}, {
+			model: 'agent\nlocal\n', original: 'agent\nlocal\n', disk: 'agent\nlocal\n',
+			state: ModifiedFileEntryState.Accepted, dirty: false,
+		});
+	}));
 
 	test('queued edits retain their originating request and tier snapshots', async () => {
 		await runWithFakedTimers({}, async () => {

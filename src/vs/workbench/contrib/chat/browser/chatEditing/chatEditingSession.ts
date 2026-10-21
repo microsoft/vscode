@@ -466,7 +466,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			transitionCallbacks.forEach(callback => callback?.(tx));
 		});
 
-		return applicableEntries.length;
+		return transitionCallbacks.filter(callback => callback !== undefined).length;
 	}
 
 	async show(previousChanges?: boolean): Promise<void> {
@@ -1008,7 +1008,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			} else {
 				entry = await this._getOrCreateModifiedFileEntry(snapshotEntry.resource, NotExistBehavior.Abort, snapshotEntry.telemetryInfo);
 				if (entry) {
-					const restoreToDisk = snapshotEntry.state === ModifiedFileEntryState.Modified;
+					const restoreToDisk = !(entry instanceof ChatEditingModifiedDocumentEntry) && snapshotEntry.state === ModifiedFileEntryState.Modified;
 					await entry.restoreFromSnapshot(snapshotEntry, restoreToDisk);
 				}
 			}

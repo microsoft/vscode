@@ -236,7 +236,9 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 			return;
 		}
 
-		await this._doAccept();
+		if (await this._doAccept() === false) {
+			return;
+		}
 
 		return (tx: ITransaction) => {
 			this._stateObs.set(ModifiedFileEntryState.Accepted, tx);
@@ -245,7 +247,8 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 		};
 	}
 
-	protected abstract _doAccept(): Promise<void>;
+	/** Returns false when acceptance could not complete. */
+	protected abstract _doAccept(): Promise<boolean | void>;
 
 	async reject(): Promise<void> {
 		const callback = await this.rejectDeferred();

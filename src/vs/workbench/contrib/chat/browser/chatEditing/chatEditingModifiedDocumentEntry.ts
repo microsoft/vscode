@@ -215,7 +215,11 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 
 	async restoreFromSnapshot(snapshot: ISnapshotEntry, restoreToDisk = true) {
 		this._stateObs.set(snapshot.state, undefined);
-		await this._textModelChangeService.resetDocumentValues(snapshot.original, restoreToDisk ? snapshot.current : undefined);
+		if (!restoreToDisk && snapshot.state === ModifiedFileEntryState.Modified) {
+			await this._textModelChangeService.restorePendingEdits(snapshot.original, snapshot.current);
+		} else {
+			await this._textModelChangeService.resetDocumentValues(snapshot.original, restoreToDisk ? snapshot.current : undefined);
+		}
 	}
 
 	async resetToInitialContent() {
@@ -265,24 +269,17 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 	}
 
 
-	protected override async _doAccept(): Promise<void> {
+	protected override async _doAccept(): Promise<boolean | void> {
+		await this._textFileService.save(this.modifiedURI, {
+			reason: SaveReason.EXPLICIT,
+			force: true,
+		});
+		if (this._textFileService.isDirty(this.modifiedURI)) {
+			return false;
+		}
+
 		this._textModelChangeService.keep();
 		this._multiDiffEntryDelegate.collapse(undefined);
-
-		const config = this._fileConfigService.getAutoSaveConfiguration(this.modifiedURI);
-		if (!config.autoSave || !this._textFileService.isDirty(this.modifiedURI)) {
-			// SAVE after accept for manual-savers, for auto-savers
-			// trigger explict save to get save participants going
-			try {
-				await this._textFileService.save(this.modifiedURI, {
-					reason: SaveReason.EXPLICIT,
-					force: true,
-					ignoreErrorHandler: true
-				});
-			} catch {
-				// ignored
-			}
-		}
 	}
 
 	protected override async _doReject(): Promise<void> {
