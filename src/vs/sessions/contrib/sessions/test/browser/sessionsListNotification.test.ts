@@ -6,6 +6,7 @@
 import assert from 'assert';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { setARIAContainer } from '../../../../../base/browser/ui/aria/aria.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -235,6 +236,116 @@ suite('Sessions - List notification', () => {
 		await timeout(1);
 		assert.strictEqual(test.element(), null);
 	}));
+
+	/** What the notice shows: its message, whether it is in progress or a warning, its buttons, and when it expires. */
+	function describeNotice(test: ReturnType<typeof setup>) {
+		const element = test.element();
+		return element && {
+			message: element.querySelector('.sessions-list-notification-label')?.textContent,
+			inProgress: element.classList.contains('in-progress'),
+			warning: !!element.querySelector('.sessions-list-notification-icon.codicon-warning') && element.classList.contains('warning'),
+			undo: !!element.querySelector('.monaco-button'),
+			dismiss: !!element.querySelector('.codicon-close'),
+			duration: element.querySelector<HTMLElement>('.sessions-list-notification-progress')?.style.animationDuration,
+		};
+	}
+
+	/** Records what screen readers hear while `run` runs, politely (status) or assertively (alert). */
+	async function announcements(run: () => Promise<void>): Promise<string[]> {
+		const container = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+		setARIAContainer(container);
+		const heard: string[] = [];
+		const observer = new MutationObserver(records => records.forEach(record => record.addedNodes.length && heard.push(`${(record.target as HTMLElement).classList.contains('monaco-alert') ? 'alert' : 'status'}: ${record.target.textContent}`)));
+		container.querySelectorAll('.monaco-status, .monaco-alert').forEach(region => observer.observe(region, { childList: true }));
+		try {
+			await run();
+			await timeout(0);
+		} finally {
+			observer.disconnect();
+			container.remove();
+		}
+		return heard;
+	}
+
+	test('progress stays without Undo or expiry until its result replaces it, and only the result is announced', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const test = setup();
+		let progress: ReturnType<typeof describeNotice> = null;
+		let result: ReturnType<typeof describeNotice> = null;
+		const heard = await announcements(async () => {
+			test.notification.showProgress({ message: 'Moving \'Fix tests\'...', help: 'Moving.' });
+			await timeout(60_000);
+			progress = describeNotice(test);
+			test.notification.show({ message: 'Moved \'Fix tests\' into \'Release\'', help: 'Moved.' });
+			result = describeNotice(test);
+		});
+		await timeout(9999);
+		const visibleBeforeExpiry = !!test.element();
+		await timeout(1);
+		assert.deepStrictEqual({ progress, result, heard, visibleBeforeExpiry, expired: !test.element() }, {
+			progress: { message: 'Moving \'Fix tests\'...', inProgress: true, warning: false, undo: false, dismiss: true, duration: '' },
+			// A result without Undo only reports, for ten seconds.
+			result: { message: 'Moved \'Fix tests\' into \'Release\'', inProgress: false, warning: false, undo: false, dismiss: true, duration: '10000ms' },
+			heard: ['status: Moved \'Fix tests\' into \'Release\''],
+			visibleBeforeExpiry: true,
+			expired: true,
+		});
+	}));
+
+	test('a warning shows its icon and is announced assertively', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const test = setup();
+		const heard = await announcements(async () => {
+			test.notification.show({ message: 'Could not move \'Fix tests\'. The session is archived.', help: 'Refused.', warning: true });
+		});
+		assert.deepStrictEqual({ notice: describeNotice(test), heard }, {
+			notice: { message: 'Could not move \'Fix tests\'. The session is archived.', inProgress: false, warning: true, undo: false, dismiss: true, duration: '10000ms' },
+			heard: ['alert: Could not move \'Fix tests\'. The session is archived.'],
+		});
+		test.notification.dispose();
+	}));
+
+	test('Undo can replace the notice with its own progress and result', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const test = setup();
+		test.notification.show(notice('Moved \'Fix tests\' into \'Release\'', async () => {
+			test.notification.showProgress({ message: 'Moving \'Fix tests\' back...', help: '' });
+			await timeout(1000);
+			test.notification.show({ message: 'Moved \'Fix tests\' back', help: '' });
+		}));
+		test.undoButton().click();
+		await timeout(0);
+		const progress = describeNotice(test);
+		await timeout(1000);
+		assert.deepStrictEqual({ progress, result: describeNotice(test), errors: test.errors }, {
+			progress: { message: 'Moving \'Fix tests\' back...', inProgress: true, warning: false, undo: false, dismiss: true, duration: '' },
+			// Not dismissed by the Undo that showed it.
+			result: { message: 'Moved \'Fix tests\' back', inProgress: false, warning: false, undo: false, dismiss: true, duration: '10000ms' },
+			errors: [],
+		});
+		test.notification.dispose();
+	}));
+
+	test('accessibility help of progress and of a result without Undo mention only Dismiss, and return focus to it', () => {
+		const test = setup();
+		test.notification.showProgress({ message: 'Moving \'Fix tests\'...', help: 'A chat is being moved.' });
+		const dismiss = () => test.container.querySelector<HTMLElement>('.action-label')!;
+		const progressHelp = store.add(test.notification.getAccessibilityHelp()!);
+		const progressContent = progressHelp.provideContent().split('\n');
+		progressHelp.onClose();
+		const progressFocus = DOM.getActiveElement() === dismiss();
+		test.notification.show({ message: 'Moved \'Fix tests\'', help: 'A chat was moved.' });
+		const resultHelp = store.add(test.notification.getAccessibilityHelp()!);
+		const resultContent = resultHelp.provideContent().split('\n');
+		resultHelp.onClose();
+		assert.deepStrictEqual({ progressContent, progressFocus, resultContent: resultContent.slice(0, 3), resultFocus: DOM.getActiveElement() === dismiss() }, {
+			progressContent: [
+				'Moving \'Fix tests\'...',
+				'A chat is being moved.',
+				'The result replaces this notice when the operation finishes. Use Tab and Shift+Tab to reach Dismiss. Press Enter or Space to activate it, or Escape to dismiss the notice.',
+			],
+			progressFocus: true,
+			resultContent: ['Moved \'Fix tests\'', 'A chat was moved.', 'Use Tab and Shift+Tab to reach Dismiss. Press Enter or Space to activate it, or Escape to dismiss the notice.'],
+			resultFocus: true,
+		});
+	});
 
 	test('disposal removes the notice and cancels expiry', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const test = setup();
