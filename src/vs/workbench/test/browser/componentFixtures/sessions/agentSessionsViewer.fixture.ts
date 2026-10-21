@@ -255,6 +255,35 @@ function renderSessionHierarchy(ctx: ComponentFixtureContext, withApproval = fal
 	}));
 }
 
+function renderSessionList(ctx: ComponentFixtureContext, sessions: IAgentSession[]): void {
+	const { container, disposableStore } = ctx;
+	const instantiationService = createAgentSessionInstantiationService(ctx);
+
+	const renderer = disposableStore.add(
+		instantiationService.createInstance(AgentSessionRenderer, rendererOptions, undefined, observableValue<URI | undefined>('activeSessionResource', undefined))
+	);
+
+	container.style.width = '350px';
+	container.style.height = 'auto';
+	container.style.backgroundColor = 'var(--vscode-sideBar-background)';
+	container.classList.add('agent-sessions-viewer');
+
+	for (const session of sessions) {
+		const listRow = document.createElement('div');
+		listRow.classList.add('monaco-list-row');
+		listRow.style.position = 'relative';
+		container.appendChild(listRow);
+
+		const template = renderer.renderTemplate(listRow);
+		const treeNode = wrapAsTreeNode(session);
+		renderer.renderElement(treeNode, 0, template);
+		disposableStore.add(toDisposable(() => {
+			renderer.disposeElement(treeNode, 0, template);
+			renderer.disposeTemplate(template);
+		}));
+	}
+}
+
 function renderSectionItem(ctx: ComponentFixtureContext, section: IAgentSessionSection): void {
 	const { container, disposableStore } = ctx;
 
@@ -642,6 +671,55 @@ export default defineThemedFixtureGroup({
 					lastRequestEnded: undefined,
 				},
 			}));
+		},
+	}),
+
+	MixedHarnesses: defineComponentFixture({
+		render: (ctx) => {
+			const now = Date.now();
+			const minutes = (n: number) => n * 60 * 1000;
+			renderSessionList(ctx, [
+				createMockSession({
+					label: 'Refactor settings editor',
+					status: AgentSessionStatus.Completed,
+					providerType: AgentSessionProviders.Local,
+					icon: Codicon.vm,
+					changes: { files: 3, insertions: 42, deletions: 7 },
+					timing: { created: now - minutes(20), lastRequestStarted: now - minutes(20), lastRequestEnded: now - minutes(15) },
+				}),
+				createMockSession({
+					label: 'Fix flaky terminal tests',
+					status: AgentSessionStatus.InProgress,
+					providerType: AgentSessionProviders.Background,
+					icon: Codicon.worktree,
+					badge: '$(worktree) fix-flaky-tests',
+					timing: { created: now - minutes(10), lastRequestStarted: now - minutes(2), lastRequestEnded: undefined },
+				}),
+				createMockSession({
+					label: 'Analyze code complexity',
+					status: AgentSessionStatus.NeedsInput,
+					providerType: AgentSessionProviders.AgentHostClaude,
+					icon: Codicon.claude,
+					timing: { created: now - minutes(40), lastRequestStarted: now - minutes(35), lastRequestEnded: undefined },
+				}),
+				createMockSession({
+					label: 'Migrate build scripts to ESM',
+					status: AgentSessionStatus.Completed,
+					providerType: AgentSessionProviders.AgentHostCodex,
+					icon: Codicon.openai,
+					isRead: () => false,
+					changes: { files: 5, insertions: 120, deletions: 64 },
+					timing: { created: now - minutes(90), lastRequestStarted: now - minutes(90), lastRequestEnded: now - minutes(80) },
+				}),
+				createMockSession({
+					label: 'Generate API documentation',
+					status: AgentSessionStatus.Failed,
+					providerType: AgentSessionProviders.Cloud,
+					icon: Codicon.cloud,
+					badge: '$(repo) microsoft/vscode',
+					timing: { created: now - minutes(150), lastRequestStarted: now - minutes(150), lastRequestEnded: now - minutes(140) },
+				}),
+			]);
 		},
 	}),
 
