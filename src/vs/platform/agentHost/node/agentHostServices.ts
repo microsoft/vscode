@@ -48,6 +48,7 @@ import { AgentHostChangesetSubscriptionService } from './agentHostChangesetSubsc
 import { AgentHostChatContributions } from './agentHostChatContributionsService.js';
 import { AgentHostChatOwnershipService, IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 import { AgentHostDatabase, IAgentHostDatabase } from './agentHostDatabase.js';
+import { AgentHostFileEditCoordinator, IAgentHostFileEditCoordinator } from './agentHostFileEditCoordinator.js';
 import { AgentSessionRegistry, IAgentSessionRegistry } from './agentSessionRegistry.js';
 import { AgentHostCheckpointService } from './agentHostCheckpointService.js';
 import { AgentHostCompletions, IAgentHostCompletions } from './agentHostCompletions.js';
@@ -122,6 +123,7 @@ export function registerAgentHostCoreServices(services: ServiceCollection, input
 	services.set(IAgentHostChatOwnershipService, new SyncDescriptor(AgentHostChatOwnershipService));
 	services.set(IAgentHostSubscriptionService, new SyncDescriptor(AgentHostSubscriptionService));
 	services.set(IAgentHostChangesetOperationService, new SyncDescriptor(AgentHostChangesetOperationService));
+	services.set(IAgentHostFileEditCoordinator, new SyncDescriptor(AgentHostFileEditCoordinator));
 	services.set(IAgentHostReviewService, new SyncDescriptor(AgentHostReviewService));
 	services.set(IAgentHostChangesetService, new SyncDescriptor(AgentHostChangesetService));
 	services.set(IAgentHostCompletions, new SyncDescriptor(AgentHostCompletions));

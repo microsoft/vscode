@@ -53,6 +53,7 @@ import {
 	IAgentCreateChatWorkspace,
 	IAgentCreateSessionConfig,
 	IAgentCustomizationInstallation,
+	IAgentCustomizationInstallationApplyResult,
 	IAgentCustomizationInstallationRequest,
 	IAgentCustomizationInstallationReview,
 	IAgentCustomizationMarketplaceSearchRequest,
@@ -383,6 +384,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._protocolClient;
 	}
 
+	openTcpConnection(target: { host: string; port: number }) {
+		return this._requireClient().openTcpConnection(target);
+	}
+
 	setAuthenticationPending(pending: boolean): void {
 		if (this._authenticationSettled) {
 			return;
@@ -615,7 +620,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._getManagementService().prepareCustomizationInstallation(provider, session, request);
 	}
 
-	applyCustomizationInstallation(provider: string, operationId: string): Promise<void> {
+	applyCustomizationInstallation(provider: string, operationId: string): Promise<IAgentCustomizationInstallationApplyResult | undefined> {
 		return this._getManagementService().applyCustomizationInstallation(provider, operationId);
 	}
 

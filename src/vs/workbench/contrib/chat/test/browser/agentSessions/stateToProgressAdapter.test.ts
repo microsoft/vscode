@@ -24,12 +24,13 @@ import { buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLi
 import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSystemNotificationWorkspaceKind, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentWorkspaceContinuationMeta.js';
+import { withComputerUseSetupCard } from '../../../../../../platform/agentHost/common/meta/computerUse.js';
 import { ConfirmationOptionKind, McpAuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, toAgentHostContentUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { buildSubagentChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, createErrorResponsePart, MessageAttachmentKind, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, withMessageHiddenFromTranscript, withMessageRequestHiddenFromTranscript, withMessageSystemInitiatedLabel, type ActiveTurn, type ChatInputAnswer, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ChatTranscriptContextAttachmentDisplayKind, IChatRequestTranscriptContextVariableEntry, toChatTranscriptContextAttachmentMeta } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatRequestOriginKind } from '../../../common/chatRequestOrigin.js';
-import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatPlanReviewResult, type IChatProgress, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatToolInputInvocationData, type IChatUsage } from '../../../common/chatService/chatService.js';
+import { ElicitationState, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatPlanReviewResult, type IChatProgress, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatToolInputInvocationData, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { appendToolOutput, turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, getAgentHostActivityProgressId, systemNotificationToChatPart, messageAttachmentsToVariableData, shouldObserveSubagentChat, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, turnToResultMetadata, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { getQuotaReset } from '../../../../../services/chat/common/chatEntitlementService.js';
@@ -603,6 +604,20 @@ suite('stateToProgressAdapter', () => {
 				planUri: createAgentHostResourceUriMapper('local').fromAgentHost(URI.file('/session/plan.md')).toString(),
 				data: { rejected: false, actionId: 'autopilot', action: 'Native Label' },
 			});
+		});
+
+		test('restores a Computer Use setup request as a settled card instead of the plugin\'s questions', () => {
+			const card = (id: string, response: ChatInputResponseKind) => ({
+				kind: ResponsePartKind.InputRequest,
+				request: withComputerUseSetupCard({ id, message: 'Copilot Computer Use needs macOS permissions', questions: [{ kind: ChatInputQuestionKind.SingleSelect, id: 'choice', title: 'choice', message: 'choice', required: true, options: [{ id: 'try_again', label: 'Try again' }] }] }, 'setup-1'),
+				response,
+			} as const);
+			const turn = createTurn({ responseParts: [card('ready', ChatInputResponseKind.Accept), card('declined', ChatInputResponseKind.Decline)] });
+			const parts = turnsToHistory(URI.parse('ahp-session:/opaque-host-identity'), [JSON.parse(JSON.stringify(turn))], 'participant').find(item => item.type === 'response')?.parts ?? [];
+			assert.deepStrictEqual(parts.map(part => part.kind === 'elicitationSerialized' ? { kind: part.kind, title: part.title, state: part.state } : { kind: part.kind }), [
+				{ kind: 'elicitationSerialized', title: 'Computer Use needs permission to control apps and capture their windows.', state: ElicitationState.Accepted },
+				{ kind: 'elicitationSerialized', title: 'Computer Use needs permission to control apps and capture their windows.', state: ElicitationState.Rejected },
+			]);
 		});
 
 		test('empty turns produces empty history', () => {

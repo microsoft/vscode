@@ -69,7 +69,8 @@ const testRuntime: ICopilotSessionRuntime = {
 	handleMcpAuthRequest: async () => { throw new Error('Unexpected MCP auth request'); },
 	requestUnsandboxedCommandConfirmation: async () => false,
 	handlePreToolUse: async () => { },
-	handlePostToolUse: async () => { },
+	handlePostToolUse: async () => undefined,
+	handlePostToolUseFailure: () => undefined,
 	handleUserPromptSubmitted: () => undefined,
 	createClientSdkTools: () => [],
 	createServerSdkTools: () => [],
@@ -80,7 +81,7 @@ const testWorkingDirectory = URI.file(process.cwd());
 const disabledWorkflowTools = ['builtin:run_dynamic_workflow', 'builtin:dynamic_workflows_manage'];
 const alwaysDisabledTools = [...disabledWorkflowTools, 'builtin:semantic_code_search'];
 const defaultDisabledTools = [...alwaysDisabledTools, 'builtin:search_code_subagent'];
-const catalogInstallationFeatureFlags = { CATALOG_SEARCH: true, AGENT_FINDER_SKILL_INSTALL: true };
+const catalogInstallationFeatureFlags = { CATALOG_SEARCH: true, AGENT_FINDER_PLUGIN_INSTALL: true, AGENT_FINDER_SKILL_INSTALL: true };
 const emptyAgentCatalog: Pick<CopilotSession['rpc']['agent'], 'list'> = { list: async () => ({ agents: [] }) };
 function reportManagedSettings(config: ResumeSessionConfig | undefined): void {
 	config?.onEvent?.({

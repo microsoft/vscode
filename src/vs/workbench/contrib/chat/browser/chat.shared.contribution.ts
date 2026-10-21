@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './agentSessions/agentHost/codexContinuation.contribution.js';
+import './agentSessions/agentHost/computerUseSetup.contribution.js';
 import './agentSessions/agentHost/localModel.contribution.js';
 import { getDefaultModelPolicyDescription } from '../common/modelSelection.js';
 import { CODEX_CONTINUATION_DEFAULT_THRESHOLD } from '../../../services/agentHost/browser/codexContinuation.js';
@@ -73,7 +74,7 @@ import { ChatService } from '../common/chatService/chatServiceImpl.js';
 import { chatNetworkDomainConfigurationMigrations, chatNetworkDomainConfigurationProperties } from './chatNetworkConfiguration.js';
 import { IChatSessionsService } from '../common/chatSessionsService.js';
 import { ChatSideChatService, IChatSideChatService } from '../common/chatSideChatService.js';
-import { BYOKUtilityModelDefault, ChatAIDisabledSettingId, ChatAgentLocation, ChatConfiguration, ChatClosedPromoNotification, ChatDefaultPermissionLevel, ChatNotificationMode, ChatPermissionLevel } from '../common/constants.js';
+import { AgentsWindowGraphicVariant, AgentsWindowSectionStyle, BYOKUtilityModelDefault, ChatAIDisabledSettingId, ChatAgentLocation, ChatConfiguration, ChatClosedPromoNotification, ChatDefaultPermissionLevel, ChatNotificationMode, ChatPermissionLevel } from '../common/constants.js';
 import { agentsWindowHandoffConfigurationProperties } from './agentSessionsConfiguration.js';
 import { chatProgressConfigurationProperties } from './chatProgressConfiguration.js';
 import { customizationMarketplaceConfigurationProperties } from './aiCustomization/customizationMarketplaceConfiguration.js';
@@ -608,6 +609,13 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 			agentsWindow: { default: false, readOnly: true },
 		},
+		[ChatConfiguration.EditorKeepUndoEnabled]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.editor.keepUndo.enabled', "Review the file edits of Agent Host chat sessions in the editor window with **Keep** and **Undo**, like local chat edits. The editor shows the session's Working Set, which the working set above the chat input lists too. Keeping or undoing a change or a file asks the agent host to accept or discard it, so the session's changes reflect it. Takes effect for chats opened after the setting changes."),
+			default: false,
+			tags: ['experimental'],
+			agentsWindow: { default: false, readOnly: true },
+		},
 		'chat.tips.enabled': {
 			type: 'boolean',
 			scope: ConfigurationScope.APPLICATION,
@@ -1086,7 +1094,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.ProgressBorder]: {
 			type: 'boolean',
-			default: false,
+			default: true,
 			markdownDescription: nls.localize('chat.progressBorder.enabled', "Show an animated gradient border around the chat input while the agent is working or thinking. Has no effect when reduced motion is enabled."),
 		},
 		...chatProgressConfigurationProperties,
@@ -2447,6 +2455,36 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('chat.welcomePage.signIn.enabled', "Controls whether the Welcome page shows a GitHub sign-in button instead of the Agents window button when signed out."),
 			default: true,
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+		},
+		[ChatConfiguration.WelcomePageAgentsWindowGraphic]: {
+			type: 'string',
+			enum: [AgentsWindowGraphicVariant.None, AgentsWindowGraphicVariant.WindowComparison, AgentsWindowGraphicVariant.ManyWindowsToOne, AgentsWindowGraphicVariant.Auto],
+			enumDescriptions: [
+				nls.localize('chat.welcomePage.agentsWindowGraphic.none', "Show no graphic."),
+				nls.localize('chat.welcomePage.agentsWindowGraphic.windowComparison', "Show the editor window and the Agents window side by side."),
+				nls.localize('chat.welcomePage.agentsWindowGraphic.manyWindowsToOne', "Show how editor windows for several projects become one Agents window."),
+				nls.localize({ key: 'chat.welcomePage.agentsWindowGraphic.auto', comment: ['Values surrounded by single quotes are not to be translated.'] }, "Show 'manyWindowsToOne' when more than one editor window is open, and 'windowComparison' otherwise."),
+			],
+			description: nls.localize('chat.welcomePage.agentsWindowGraphic', "Controls which graphic explains the Agents window above the Agents window button on the Welcome page."),
+			default: AgentsWindowGraphicVariant.None,
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+		},
+		[ChatConfiguration.WelcomePageAgentsWindowSectionStyle]: {
+			type: 'string',
+			enum: [AgentsWindowSectionStyle.None, AgentsWindowSectionStyle.Card, AgentsWindowSectionStyle.Outline, AgentsWindowSectionStyle.Tint, AgentsWindowSectionStyle.Band, AgentsWindowSectionStyle.Separator],
+			enumDescriptions: [
+				nls.localize('chat.welcomePage.agentsWindowSectionStyle.none', "Don't set the section apart."),
+				nls.localize('chat.welcomePage.agentsWindowSectionStyle.card', "Show the section on a subtle surface, like the walkthrough tiles."),
+				nls.localize('chat.welcomePage.agentsWindowSectionStyle.outline', "Outline the section with a subtle border."),
+				nls.localize('chat.welcomePage.agentsWindowSectionStyle.tint', "Show the section on a surface tinted with the accent color."),
+				nls.localize('chat.welcomePage.agentsWindowSectionStyle.band', "Show the section on a subtle surface across the width of the page's content."),
+				nls.localize('chat.welcomePage.agentsWindowSectionStyle.separator', "Separate the section from the rest of the page with lines above and below it."),
+			],
+			description: nls.localize('chat.welcomePage.agentsWindowSectionStyle', "Controls how the Agents window graphic, its captions and the Agents window button are set apart from the rest of the Welcome page. Applies only while a graphic is shown."),
+			default: AgentsWindowSectionStyle.Outline,
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},

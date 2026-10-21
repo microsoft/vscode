@@ -122,7 +122,6 @@ extensions/github/** @lszomoru
 extensions/vscode-api-tests/src/singlefolder-tests/browser*.test.ts @kycutler @jruales
 
 # Testing
-test/mcp/** @TylerLeonhardt
 test/scenario/** @bryanchen-d
 test/sanity/** @dmitrivMS
 
@@ -142,4 +141,3 @@ src/vs/sessions/browser/workbench.ts @benibenj
 /.github/instructions/sessions.instructions.md @sandy081
 /.github/skills/sessions/SKILL.md @sandy081
 /.github/skills/chat-customizations-editor/SKILL.md @sandy081
-

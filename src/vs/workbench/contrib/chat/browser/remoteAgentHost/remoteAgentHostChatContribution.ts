@@ -7,7 +7,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { ISettableObservable } from '../../../../../base/common/observable.js';
+import { ISettableObservable, observableFromEvent } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import * as nls from '../../../../../nls.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
@@ -33,6 +33,7 @@ import { IAgentHostActiveClientService } from '../agentSessions/agentHost/agentH
 import { IAgentHostSessionWorkingDirectoryResolver, RequestedWorkingDirectory } from '../agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { AgentCustomizationItemProvider } from '../agentSessions/agentHost/agentCustomizationItemProvider.js';
 import { Target } from '../../common/promptSyntax/promptTypes.js';
+import { readAgentModelCatalogStatus } from '../../../../../platform/agentHost/common/agentModelCatalogStatus.js';
 import { ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { ILanguageModelsService } from '../../common/languageModels.js';
@@ -469,6 +470,8 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		));
 		itemProvider.setDraftCustomAgents(ambientScope.customAgents);
 		itemProvider.setDraftCustomizations(ambientScope.customizations);
+		const modelCatalogueStatus = observableFromEvent(this, connection.rootState.onDidChange, () =>
+			readAgentModelCatalogStatus(connection.rootState.value, agent.provider));
 
 		const harnessDescriptor = createRemoteAgentHarnessDescriptor(
 			sessionType,
@@ -477,6 +480,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			itemProvider,
 			syncProvider,
 			agent.provider === 'copilotcli' ? Target.GitHubCopilot : undefined,
+			modelCatalogueStatus,
 		);
 		agentStore.add(this._customizationHarnessService.registerExternalHarness(harnessDescriptor));
 
@@ -507,6 +511,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			resolveInitialSessionConfig: customization?.resolveInitialSessionConfig,
 			modelIdentifierAliases: customization?.modelIdentifierAliases,
 			isSessionTitlePlaceholder: customization?.isSessionTitlePlaceholder,
+			useSessionTitleForDefaultChat: customization?.useSessionTitleForDefaultChat,
 			onSessionMaterialized: sessionResource => this._chatSessionsService.notifySessionMaterialized?.(sessionResource),
 			resolveAuthentication: (resources) => this._resolveAuthenticationInteractively(address, connection, resources),
 		}));
