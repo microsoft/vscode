@@ -1510,7 +1510,7 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
-	test('TCP connections remain unadvertised and unsupported after protocol sync', async () => {
+	test('unauthenticated transports do not advertise or open TCP connections', async () => {
 		const transport = connectClient('client-tcp');
 		const initialize = findResponse(transport.sent, 1);
 		assert.ok(initialize && hasKey(initialize, { result: true }));
@@ -1522,7 +1522,7 @@ suite('ProtocolServerHandler', () => {
 			response: await response,
 		}, {
 			capability: undefined,
-			response: { jsonrpc: '2.0', id: 2, error: { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found: createTcpConnection' } },
+			response: { jsonrpc: '2.0', id: 2, error: { code: AhpErrorCodes.PermissionDenied, message: 'TCP requires an authenticated owner of this host' } },
 		});
 	});
 
