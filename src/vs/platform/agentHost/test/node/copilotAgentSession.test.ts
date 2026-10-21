@@ -78,6 +78,8 @@ import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, 
 import { CopilotAgentSession, type ICopilotCanvasHandoff, type ICopilotWorkingDirectoryChangeTransaction } from '../../node/copilot/copilotAgentSession.js';
 import { CopilotComputerUsePermissionSetup } from '../../node/copilot/copilotComputerUsePermissionSetup.js';
 import { AgentHostMacAccessibilityTrustService } from '../../node/agentHostMacAccessibilityTrustService.js';
+import { COPILOT_BUILTIN_CANVAS_PROVIDER, COPILOT_TODOS_CANVAS_ID } from '../../node/copilot/copilotBuiltinCanvases.js';
+import { ICopilotTodosCanvasServer, type ICopilotTodosCanvasDataSource, type ICopilotTodosCanvasPresentation } from '../../node/copilot/copilotTodosCanvasServer.js';
 import { CopilotSandboxCertificate } from '../../node/copilot/copilotSandboxCertificate.js';
 import { readAgentSandboxCertificate } from '../../common/meta/agentSandboxCertificate.js';
 import { COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY } from '../../node/copilot/copilotSessionExecutionMarker.js';
@@ -147,6 +149,29 @@ const noOpWorkingDirectoryChangeTransaction: ICopilotWorkingDirectoryChangeTrans
 	rollback: async () => { },
 	reconcile: async () => { },
 };
+
+/** Records served todos canvas pages instead of binding a loopback server. */
+class TestCopilotTodosCanvasServer implements ICopilotTodosCanvasServer {
+	declare readonly _serviceBrand: undefined;
+	readonly presentations: { readonly source: ICopilotTodosCanvasDataSource; readonly url: string; disposed: boolean }[] = [];
+	presentError: Error | undefined;
+	/** Holds the next bind until it settles, like a slow listener bind. */
+	presentGate: Promise<void> | undefined;
+
+	async present(source: ICopilotTodosCanvasDataSource): Promise<ICopilotTodosCanvasPresentation> {
+		if (this.presentError) {
+			throw this.presentError;
+		}
+		if (this.presentGate) {
+			const gate = this.presentGate;
+			this.presentGate = undefined;
+			await gate;
+		}
+		const entry = { source, url: `http://127.0.0.1:4242/token-${this.presentations.length + 1}/`, disposed: false };
+		this.presentations.push(entry);
+		return { url: entry.url, dispose: () => { entry.disposed = true; } };
+	}
+}
 
 // ---- Mock CopilotSession (SDK level) ----------------------------------------
 
@@ -364,6 +389,7 @@ class MockCopilotSession {
 	}
 	planReadResult: { exists: boolean; content: string | null; path: string | null } = { exists: false, content: null, path: null };
 	planReadPromise: Promise<{ exists: boolean; content: string | null; path: string | null }> | undefined;
+	sqlTodosResult: Awaited<ReturnType<CopilotSession['rpc']['plan']['readSqlTodosWithDependencies']>> = { rows: [], dependencies: [] };
 
 	getInstructionSourcesResult: { sources: Array<{ id: string; label: string; sourcePath: string; content: string; type: string; location: string; applyTo?: string[] }> } = { sources: [] };
 	getInstructionSourcesError: unknown = undefined;
@@ -652,6 +678,7 @@ class MockCopilotSession {
 		},
 		plan: {
 			read: async () => this.planReadPromise ?? this.planReadResult,
+			readSqlTodosWithDependencies: async () => this.sqlTodosResult,
 			update: async (_params: { content: string }) => { /* no-op */ },
 			delete: async () => { /* no-op */ },
 		},
@@ -1400,6 +1427,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	fireSessionConfigChange: (config: Record<string, unknown>, session?: string) => void;
 	dispatchSessionAction: (action: StateAction) => void;
 	storageService: IAgentHostStorageService;
+	todosCanvasServer: TestCopilotTodosCanvasServer;
 }> {
 	const progressEmitter = disposables.add(new Emitter<AgentSignal>());
 	const signals: AgentSignal[] = options?.signals ?? [];
@@ -1702,6 +1730,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	services.set(IAgentHostFileEditCoordinator, options?.fileEditCoordinator ?? disposables.add(new AgentHostFileEditCoordinator()));
 	const terminalManager = disposables.add(new TestAgentHostTerminalManager());
 	services.set(IAgentHostTerminalManager, terminalManager);
+	const todosCanvasServer = new TestCopilotTodosCanvasServer();
+	services.set(ICopilotTodosCanvasServer, todosCanvasServer);
 	if (options?.editServices) {
 		services.set(IAgentEditAttributionService, options.editServices.attribution);
 		services.set(IEditSurvivalReporterFactory, options.editServices.survival);
@@ -1791,6 +1821,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			}
 		},
 		storageService,
+		todosCanvasServer,
 	};
 }
 
@@ -3792,6 +3823,125 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
+	test('lists the host todos canvas with host provenance', async () => {
+		const { session } = await createAgentSession(disposables, {
+			configureMockSession: mock => {
+				mock.canvases.push({
+					canvasId: COPILOT_TODOS_CANVAS_ID,
+					extensionId: COPILOT_BUILTIN_CANVAS_PROVIDER.id,
+					extensionName: COPILOT_BUILTIN_CANVAS_PROVIDER.name,
+					displayName: 'Todos',
+					description: 'Session todos.',
+				});
+			},
+		});
+
+		assert.deepStrictEqual(await session.listCanvases(), [{
+			canvasId: COPILOT_TODOS_CANVAS_ID,
+			extensionId: COPILOT_BUILTIN_CANVAS_PROVIDER.id,
+			extensionSource: 'host',
+			extensionName: COPILOT_BUILTIN_CANVAS_PROVIDER.name,
+			displayName: 'Todos',
+			description: 'Session todos.',
+			requiresInput: false,
+			actionCount: 0,
+		}]);
+		session.dispose();
+	});
+
+	test('serves one todos canvas page per session while the runtime keeps it open', async () => {
+		const { session, runtime, mockSession, todosCanvasServer } = await createAgentSession(disposables);
+		mockSession.planReadResult = { exists: true, content: '# Plan', path: '/sessions/abc/plan.md' };
+		mockSession.sqlTodosResult = {
+			rows: [{ id: 'a', title: 'First', status: 'done' }, { id: 'b', title: 'Second', status: 'pending', description: 'Depends on a' }],
+			dependencies: [{ todoId: 'b', dependsOn: 'a' }],
+		};
+		const openRequest = { sessionId: 'test-session-1', extensionId: COPILOT_BUILTIN_CANVAS_PROVIDER.id, canvasId: COPILOT_TODOS_CANVAS_ID, instanceId: 'todos-1' };
+
+		const secondInstance = { ...openRequest, instanceId: 'todos-2' };
+		const [first, refocused, second] = await Promise.all([runtime.openBuiltinCanvas(openRequest), runtime.openBuiltinCanvas(openRequest), runtime.openBuiltinCanvas(secondInstance)]);
+		const presentation = todosCanvasServer.presentations[0];
+		let changes = 0;
+		disposables.add(presentation.source.onDidChange(() => changes++));
+		mockSession.fire('session.todos_changed', {});
+		mockSession.fire('session.plan_changed', { operation: 'update' });
+		const plan = await presentation.source.readPlan();
+		// The page outlives any one instance: the menu and the agent may each hold one.
+		runtime.closeBuiltinCanvas({ ...openRequest });
+		const disposedAfterFirstClose = presentation.disposed;
+		runtime.closeBuiltinCanvas({ ...secondInstance });
+		const disposedAfterLastClose = presentation.disposed;
+		const reopened = await runtime.openBuiltinCanvas(openRequest);
+		session.dispose();
+
+		assert.deepStrictEqual({
+			first,
+			refocused,
+			second,
+			changes,
+			plan,
+			disposedAfterFirstClose,
+			disposedAfterLastClose,
+			reopened,
+			presentations: todosCanvasServer.presentations.map(entry => ({ url: entry.url, disposed: entry.disposed })),
+		}, {
+			first: { url: 'http://127.0.0.1:4242/token-1/', title: 'Todos' },
+			refocused: { url: 'http://127.0.0.1:4242/token-1/', title: 'Todos' },
+			second: { url: 'http://127.0.0.1:4242/token-1/', title: 'Todos' },
+			changes: 2,
+			plan: {
+				plan: { exists: true, content: '# Plan', path: '/sessions/abc/plan.md' },
+				todos: [{ id: 'a', title: 'First', status: 'done', description: null }, { id: 'b', title: 'Second', status: 'pending', description: 'Depends on a' }],
+				dependencies: [{ todoId: 'b', dependsOn: 'a' }],
+			},
+			disposedAfterFirstClose: false,
+			disposedAfterLastClose: true,
+			reopened: { url: 'http://127.0.0.1:4242/token-2/', title: 'Todos' },
+			presentations: [{ url: 'http://127.0.0.1:4242/token-1/', disposed: true }, { url: 'http://127.0.0.1:4242/token-2/', disposed: true }],
+		});
+	});
+
+	test('releases a todos canvas page whose bind completes after the last instance closed', async () => {
+		const { session, runtime, todosCanvasServer } = await createAgentSession(disposables);
+		const openRequest = { sessionId: 'test-session-1', extensionId: COPILOT_BUILTIN_CANVAS_PROVIDER.id, canvasId: COPILOT_TODOS_CANVAS_ID, instanceId: 'todos-1' };
+		const bind = new DeferredPromise<void>();
+		todosCanvasServer.presentGate = bind.p;
+
+		const opening = runtime.openBuiltinCanvas(openRequest);
+		runtime.closeBuiltinCanvas({ ...openRequest });
+		bind.complete();
+		const opened = await opening;
+		const reopened = await runtime.openBuiltinCanvas(openRequest);
+		session.dispose();
+
+		assert.deepStrictEqual({
+			opened,
+			reopened,
+			presentations: todosCanvasServer.presentations.map(entry => ({ url: entry.url, disposed: entry.disposed })),
+		}, {
+			opened: { url: 'http://127.0.0.1:4242/token-1/', title: 'Todos' },
+			reopened: { url: 'http://127.0.0.1:4242/token-2/', title: 'Todos' },
+			presentations: [{ url: 'http://127.0.0.1:4242/token-1/', disposed: true }, { url: 'http://127.0.0.1:4242/token-2/', disposed: true }],
+		});
+	});
+
+	test('rejects unknown built-in canvases and retries after a failed page bind', async () => {
+		const { session, runtime, todosCanvasServer } = await createAgentSession(disposables);
+		const openRequest = { sessionId: 'test-session-1', extensionId: COPILOT_BUILTIN_CANVAS_PROVIDER.id, canvasId: COPILOT_TODOS_CANVAS_ID, instanceId: 'todos-1' };
+
+		await assert.rejects(runtime.openBuiltinCanvas({ ...openRequest, canvasId: 'unknown' }), /Unknown built-in canvas 'unknown'/);
+		todosCanvasServer.presentError = new Error('bind failed');
+		await assert.rejects(runtime.openBuiltinCanvas(openRequest), /bind failed/);
+		todosCanvasServer.presentError = undefined;
+		const recovered = await runtime.openBuiltinCanvas(openRequest);
+		session.dispose();
+
+		assert.deepStrictEqual({ recovered, presentations: todosCanvasServer.presentations.length }, {
+			recovered: { url: 'http://127.0.0.1:4242/token-1/', title: 'Todos' },
+			presentations: 1,
+		});
+	});
+
 	test('republishes live canvas membership when the registry changes', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
 
@@ -4241,8 +4391,10 @@ suite('CopilotAgentSession', () => {
 		mockSession.fire('session.canvas.recorded', canvas);
 		mockSession.fire('session.canvas.opened', { ...canvas, instanceId: 'unknown', extensionId: 'project:not-discovered' });
 		mockSession.fire('session.canvas.recorded', { ...canvas, instanceId: 'unknown', extensionId: 'project:not-discovered' });
+		mockSession.fire('session.canvas.opened', { ...canvas, instanceId: 'todos', extensionId: COPILOT_BUILTIN_CANVAS_PROVIDER.id, canvasId: COPILOT_TODOS_CANVAS_ID });
+		mockSession.fire('session.canvas.recorded', { ...canvas, instanceId: 'todos', extensionId: COPILOT_BUILTIN_CANVAS_PROVIDER.id, canvasId: COPILOT_TODOS_CANVAS_ID });
 
-		assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'agentHost.canvasOpened'), ['user', 'plugin', 'unknown'].map(extensionSource => ({
+		assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'agentHost.canvasOpened'), ['user', 'plugin', 'unknown', 'host'].map(extensionSource => ({
 			eventName: 'agentHost.canvasOpened',
 			data: { schemaVersion: 1, provider: 'copilotcli', agentSessionId: 'test-session-1', extensionSource },
 		})));

@@ -506,6 +506,17 @@ export class CopilotSessionWrapper extends Disposable {
 		return this._onCanvasUnavailable ??= this._sdkEvent('session.canvas.unavailable');
 	}
 
+	private _onPlanChanged: Event<SessionEventPayload<'session.plan_changed'>> | undefined;
+	get onPlanChanged(): Event<SessionEventPayload<'session.plan_changed'>> {
+		return this._onPlanChanged ??= this._sdkEvent('session.plan_changed');
+	}
+
+	private _onTodosChanged: Event<SessionEventPayload<'session.todos_changed'>> | undefined;
+	/** Signal-only: the `todos` or `todo_deps` SQL table was written; re-read through `rpc.plan`. */
+	get onTodosChanged(): Event<SessionEventPayload<'session.todos_changed'>> {
+		return this._onTodosChanged ??= this._sdkEvent('session.todos_changed');
+	}
+
 	private _onCommandsChanged: Event<SessionEventPayload<'commands.changed'>> | undefined;
 	get onCommandsChanged(): Event<SessionEventPayload<'commands.changed'>> {
 		return this._onCommandsChanged ??= this._sdkEvent('commands.changed');

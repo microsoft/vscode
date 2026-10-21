@@ -43,6 +43,7 @@ import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBr
 import { ByokLmProxyService, IByokLmProxyService, type IByokLmProxyHandle } from '../../node/copilot/byokLmProxyService.js';
 import { resolveCopilotMcpServerInfo, type ICopilotPluginInfo } from '../../node/copilot/copilotAgent.js';
 import { CopilotGitHubCredentials, CopilotGitHubSessionCredentials } from '../../node/copilot/copilotGitHubCredentials.js';
+import { COPILOT_BUILTIN_CANVAS_PROVIDER, COPILOT_TODOS_CANVAS_ID } from '../../node/copilot/copilotBuiltinCanvases.js';
 import { CopilotExtensionsReloadToolName } from '../../node/copilot/copilotExtensionTools.js';
 import { CopilotManagedSettingsResolver } from '../../node/copilot/copilotManagedSettings.js';
 import { buildCopilotBuiltinAgents } from '../../node/copilot/copilotBuiltinAgents.js';
@@ -75,6 +76,8 @@ const testRuntime: ICopilotSessionRuntime = {
 	createClientSdkTools: () => [],
 	createServerSdkTools: () => [],
 	reloadExtensions: async () => { },
+	openBuiltinCanvas: async () => { throw new Error('Unexpected built-in canvas open'); },
+	closeBuiltinCanvas: () => { },
 };
 
 const testWorkingDirectory = URI.file(process.cwd());
@@ -1854,6 +1857,8 @@ suite('CopilotSessionLauncher shared session config', () => {
 				createEnableSessionStore: createConfigs[0].enableSessionStore,
 				createRequestExtensions: createConfigs[0].requestExtensions,
 				createRequestCanvasRenderer: createConfigs[0].requestCanvasRenderer,
+				createCanvasProvider: createConfigs[0].canvasProvider,
+				createCanvasIds: createConfigs[0].canvases?.map(canvas => canvas.declaration.id),
 				createExtensionSdkPath: createConfigs[0].extensionSdkPath?.replaceAll('\\', '/').endsWith('/copilot-sdk'),
 				createToolNames: createConfigs[0].tools?.map(tool => tool.name),
 				createExcludedTools: createConfigs[0].excludedTools,
@@ -1882,6 +1887,8 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumeEnableSessionStore: resumeConfigs[0].enableSessionStore,
 				resumeRequestExtensions: resumeConfigs[0].requestExtensions,
 				resumeRequestCanvasRenderer: resumeConfigs[0].requestCanvasRenderer,
+				resumeCanvasProvider: resumeConfigs[0].canvasProvider,
+				resumeCanvasIds: resumeConfigs[0].canvases?.map(canvas => canvas.declaration.id),
 				resumeExtensionSdkPath: resumeConfigs[0].extensionSdkPath?.replaceAll('\\', '/').endsWith('/copilot-sdk'),
 				resumeToolNames: resumeConfigs[0].tools?.map(tool => tool.name),
 				resumeExcludedTools: resumeConfigs[0].excludedTools,
@@ -1902,6 +1909,8 @@ suite('CopilotSessionLauncher shared session config', () => {
 				ephemeralExcludedTools: createConfigs[1].excludedTools,
 				ephemeralRequestExtensions: createConfigs[1].requestExtensions,
 				ephemeralRequestCanvasRenderer: createConfigs[1].requestCanvasRenderer,
+				ephemeralCanvasProvider: createConfigs[1].canvasProvider,
+				ephemeralCanvasIds: createConfigs[1].canvases,
 				ephemeralExtensionSdkPath: createConfigs[1].extensionSdkPath,
 				ephemeralToolNames: createConfigs[1].tools?.map(tool => tool.name),
 				mcpProjectionTraces: logService.traces.filter(message => message.includes('MCP launch projection:')).map(message => JSON.parse(message.slice(message.indexOf('{')))),
@@ -1947,6 +1956,8 @@ suite('CopilotSessionLauncher shared session config', () => {
 				createEnableSessionStore: true,
 				createRequestExtensions: true,
 				createRequestCanvasRenderer: true,
+				createCanvasProvider: COPILOT_BUILTIN_CANVAS_PROVIDER,
+				createCanvasIds: [COPILOT_TODOS_CANVAS_ID],
 				createExtensionSdkPath: true,
 				createToolNames: [CopilotExtensionsReloadToolName],
 				createExcludedTools: [...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
@@ -1982,6 +1993,8 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumeEnableSessionStore: true,
 				resumeRequestExtensions: true,
 				resumeRequestCanvasRenderer: true,
+				resumeCanvasProvider: COPILOT_BUILTIN_CANVAS_PROVIDER,
+				resumeCanvasIds: [COPILOT_TODOS_CANVAS_ID],
 				resumeExtensionSdkPath: true,
 				resumeToolNames: [CopilotExtensionsReloadToolName],
 				resumeExcludedTools: [...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
@@ -2002,6 +2015,8 @@ suite('CopilotSessionLauncher shared session config', () => {
 				ephemeralExcludedTools: [...defaultDisabledTools, 'task', `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
 				ephemeralRequestExtensions: false,
 				ephemeralRequestCanvasRenderer: false,
+				ephemeralCanvasProvider: undefined,
+				ephemeralCanvasIds: undefined,
 				ephemeralExtensionSdkPath: undefined,
 				ephemeralToolNames: [],
 				mcpProjectionTraces: [

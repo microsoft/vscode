@@ -62,6 +62,7 @@ suite('CanvasDefinitionStore', () => {
 			definition('zeta'),
 			definition('form', { requiresInput: true }),
 			definition('browser', { extensionId: 'github-app', extensionSource: 'unknown' }),
+			definition('todos', { extensionId: 'vscode:agent-host', extensionSource: 'host', extensionName: 'VS Code' }),
 			definition('alpha', { extensionId: 'project:alpha', extensionSource: 'project' }),
 		]);
 		await timeout(0);
@@ -73,9 +74,9 @@ suite('CanvasDefinitionStore', () => {
 		await timeout(0);
 
 		assert.deepStrictEqual({ listed, whileRefreshing, afterFailure: harness.canvasIds(), errors: harness.errors }, {
-			listed: ['alpha', 'zeta'],
-			whileRefreshing: ['alpha', 'zeta'],
-			afterFailure: ['alpha', 'zeta'],
+			listed: ['alpha', 'zeta', 'todos'],
+			whileRefreshing: ['alpha', 'zeta', 'todos'],
+			afterFailure: ['alpha', 'zeta', 'todos'],
 			errors: ['[Test] Failed to list registered canvases'],
 		});
 	});

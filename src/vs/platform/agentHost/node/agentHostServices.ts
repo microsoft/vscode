@@ -40,6 +40,7 @@ import { IByokLmBridgeRegistry } from './byokLmBridgeRegistry.js';
 import { ClaudeAgentSdkService, IClaudeAgentSdkService } from './claude/claudeAgentSdkService.js';
 import { ClaudeProxyService, IClaudeProxyService } from './claude/claudeProxyService.js';
 import { ByokLmProxyService, IByokLmProxyService, NullByokLmProxyService } from './copilot/byokLmProxyService.js';
+import { CopilotTodosCanvasServer, ICopilotTodosCanvasServer } from './copilot/copilotTodosCanvasServer.js';
 import { ILocalModelSetupService, LocalModelSetupService, NullLocalModelSetupService } from './copilot/localModelBridge/localModelSetupService.js';
 import { CodexProxyService, ICodexProxyService } from './codex/codexProxyService.js';
 import { NodeWorkerDiffComputeService } from './diffComputeService.js';
@@ -176,6 +177,7 @@ export function registerAgentHostHostServices(services: ServiceCollection, input
 		IByokLmProxyService,
 		inputs.byok.kind === 'renderer' ? new SyncDescriptor(ByokLmProxyService) : new NullByokLmProxyService(),
 	);
+	services.set(ICopilotTodosCanvasServer, new SyncDescriptor(CopilotTodosCanvasServer));
 	services.set(
 		ILocalModelSetupService,
 		inputs.localModel?.kind === 'localUtilityProcess' ? new SyncDescriptor(LocalModelSetupService) : new NullLocalModelSetupService(),

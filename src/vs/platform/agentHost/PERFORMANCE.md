@@ -305,7 +305,7 @@ Canvas product telemetry uses existing usage consent, independently of OTel.
 
 | Event | Boundary and dashboard use |
 | --- | --- |
-| `agentHost.canvasOpened` | Live `session.canvas.recorded` events identify first opens, excluding repeated opens, updates, and recovery. History reads do not dispatch these callbacks. Count opens or distinct `agentSessionId` values; group by discovery-derived `extensionSource` (`project`, `user`, `plugin`, `session`, `unknown`). |
+| `agentHost.canvasOpened` | Live `session.canvas.recorded` events identify first opens, excluding repeated opens, updates, and recovery. History reads do not dispatch these callbacks. Count opens or distinct `agentSessionId` values; group by discovery-derived `extensionSource` (`project`, `user`, `plugin`, `session`, `host` for the agent host's built-in canvases, `unknown`). |
 | `agentCanvas.loadCompleted` | Browser creation through initial navigation. Outcomes: `loaded`, `error`, `cancelled`, `interrupted`. Input, owner, and editor lifetime changes share the `interrupted` outcome. |
 | `agentHost.canvasExtensionsReady` | Extension listing, any remaining bounded readiness wait after session create/resume, and canvas listing. `launchKind`: `create` or `resume`. Outcomes: `alreadySettled`, `settled`, `timeout`, `error`, `cancelled`. `extensionCount` and `failedExtensionCount` use the latest observed snapshot; missing counts are not zero. |
 | `copilotSdk/extension_startup` | Total initial setup/discovery through native provider settlement for all Runtime extensions, not canvas-only. |
