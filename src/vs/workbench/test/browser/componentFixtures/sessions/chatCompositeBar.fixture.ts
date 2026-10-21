@@ -262,13 +262,39 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	MixedStatuses: defineComponentFixture({
 		deferPaint: true,
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['The working chat has a blue dot-matrix indicator before its title, with no trailing spinner. Attention and unread dots remain after their respective titles.'],
+		expectedVisualDescriptions: ['Progress, attention, and unread indicators all precede their chat titles. Close actions remain at the trailing edge.'],
 		render: (ctx) => {
 			const main = createMockChat({ title: 'Main chat' });
 			const working = createMockChat({ title: 'Refactor auth', status: SessionStatus.InProgress });
 			const needsInput = createMockChat({ title: 'Add tests', status: SessionStatus.NeedsInput });
 			const unread = createMockChat({ title: 'Update docs', status: SessionStatus.Completed, isRead: false });
 			renderBar(ctx, [main, working, needsInput, unread], main, { width: 640 });
+		},
+	}),
+
+	ReadOnlyStatuses: defineComponentFixture({
+		deferPaint: true,
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['Progress, attention, and unread indicators precede the read-only locks and chat titles. Close actions remain separate at the trailing edge.'],
+		render: ctx => {
+			const main = createMockChat({ title: 'Main chat' });
+			const working = createMockChat({ title: 'Refactor auth', status: SessionStatus.InProgress, interactivity: ChatInteractivity.ReadOnly });
+			const needsInput = createMockChat({ title: 'Add tests', status: SessionStatus.NeedsInput, interactivity: ChatInteractivity.ReadOnly });
+			const unread = createMockChat({ title: 'Update docs', isRead: false, interactivity: ChatInteractivity.ReadOnly });
+			renderBar(ctx, [main, working, needsInput, unread], main, { width: 640 });
+		},
+	}),
+
+	PillMixedStatuses: defineComponentFixture({
+		deferPaint: true,
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['Pill-style chat tabs show progress, attention, and unread indicators before their titles, separate from the trailing close actions.'],
+		render: ctx => {
+			const main = createMockChat({ title: 'Main chat' });
+			const working = createMockChat({ title: 'Refactor auth', status: SessionStatus.InProgress });
+			const needsInput = createMockChat({ title: 'Add tests', status: SessionStatus.NeedsInput });
+			const unread = createMockChat({ title: 'Update docs', isRead: false });
+			renderBar(ctx, [main, working, needsInput, unread], main, { width: 640, connected: false });
 		},
 	}),
 

@@ -452,7 +452,7 @@ export class ChatCompositeBar extends Disposable {
 			}
 		}));
 
-		tab.appendChild(indicator);
+		tab.insertBefore(indicator, lockIcon);
 
 		// Close button — contributed via Menus.SessionChatTab (the chat tab menu).
 		// Only non-main chats can be closed; the main chat lives and dies with its
