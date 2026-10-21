@@ -13089,13 +13089,46 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		const fusionTierMetadata = (): CopilotAutoTierMetadata => ({
+		const fusionTierMetadata = (fusionEnabled = true): CopilotAutoTierMetadata => ({
 			defaultTier: 'balance',
 			tiers: [
 				{ id: 'efficiency', displayName: 'Efficiency', description: '', type: 'auto', status: { enabled: true } },
 				{ id: 'balance', displayName: 'Balance', description: '', type: 'auto', status: { enabled: true } },
 				{ id: 'intelligence', displayName: 'Intelligence', description: '', type: 'auto', status: { enabled: true } },
+				{ id: 'hydrafusion', displayName: 'High', description: '', type: 'fusion', status: fusionEnabled ? { enabled: true } : { enabled: false, message: 'This tier is not available for the user\'s Copilot plan.' } },
+				{ id: 'hydrafusion-max', displayName: 'Max', description: '', type: 'fusion', status: fusionEnabled ? { enabled: true } : { enabled: false, message: 'This tier is not available for the user\'s Copilot plan.' } },
+				{ id: 'fast', displayName: 'Fast', description: '', type: 'auto', status: { enabled: true } },
 			],
+		});
+
+		test('presents Auto, not Fusion, with only CAPI\'s other tiers and no HydraFusion when CAPI offers no Fusion tier the account can run', async () => {
+			const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }, { id: 'gpt-5', name: 'GPT-5' }]);
+			client.autoTierMetadata = fusionTierMetadata(false);
+			const { agent } = createTestAgentContext(disposables, {
+				copilotClient: client,
+				rootConfig: { [CopilotCliConfigKey.DynamicAutoTiers]: true, [CopilotCliConfigKey.HydraFusion]: true, [CopilotCliConfigKey.HydraFusionV2]: true },
+			});
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.listChatsToMigrate();
+				await agent.refreshModels();
+				const auto = agent.models.get().find(model => model.id === 'auto');
+				const tier = auto?.configSchema?.properties.tier;
+				assert.deepStrictEqual({
+					models: agent.models.get().map(model => `${model.id}:${model.name}${readAgentModelFusionMeta(model) ? ':fusion' : ''}`),
+					tier: `${tier?.enum?.join('/')}=${tier?.default}:${tier?.enumLabels?.join('/')}:${tier?.title}`,
+					autoTiers: readAgentModelAutoTiersMeta(auto!)?.tiers.map(({ id, enabled }) => `${id}:${enabled}`),
+					acceptsEfficiencyAsIs: getCopilotAutoTier({ id: 'auto', config: { tier: 'efficiency' } }),
+				}, {
+					models: ['auto:Auto', 'gpt-5:GPT-5'],
+					tier: 'efficiency/balance/intelligence=balance:Efficiency/Balance/Intelligence:Optimize for',
+					autoTiers: ['efficiency:true', 'balance:true', 'intelligence:true'],
+					acceptsEfficiencyAsIs: 'efficiency',
+				});
+			} finally {
+				await disposeAgent(agent);
+				setAdvertisedAutoModeTiers(undefined);
+			}
 		});
 
 		test('presents Auto as Fusion only with dynamic Auto tiers and CAPI\'s tiers, and otherwise offers Auto beside HydraFusion', async () => {
@@ -13132,7 +13165,7 @@ suite('CopilotAgent', () => {
 				client.autoTierMetadata = undefined;
 				await agent.refreshModels();
 				assert.deepStrictEqual({ fusion, withoutProviderTiers, withoutProviderTiersOrHydraFusion, dynamicAutoTiersOff: published() }, {
-					fusion: ['auto:Fusion:fusion(balanceUsesHydraFusion=false):balance/intelligence=balance:Standard/High:Effort Level', 'gpt-5:GPT-5'],
+					fusion: ['auto:Fusion:fusion(balanceUsesHydraFusion=false):balance/hydrafusion/hydrafusion-max=balance:Standard/High/Max:Effort Level', 'gpt-5:GPT-5'],
 					withoutProviderTiers: ['auto:Auto:efficiency/balance/intelligence=balance:Efficiency/Balance/Intelligence:Optimize for', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
 					withoutProviderTiersOrHydraFusion: ['auto:Auto:efficiency/balance/intelligence=balance:Efficiency/Balance/Intelligence:Optimize for', 'gpt-5:GPT-5'],
 					dynamicAutoTiersOff: ['auto:Auto:efficiency/balance/intelligence=balance:Efficiency/Balance/Intelligence:Optimize for', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
@@ -13163,7 +13196,7 @@ suite('CopilotAgent', () => {
 				}
 			};
 			assert.deepStrictEqual({ fusion: await tiers(true), auto: await tiers(false) }, {
-				fusion: 'balance/intelligence:Standard/High',
+				fusion: 'balance/hydrafusion/hydrafusion-max:Standard/High/Max',
 				auto: 'efficiency/balance/intelligence:Efficiency/Balance/Intelligence',
 			});
 		});
@@ -15445,7 +15478,7 @@ suite('CopilotAgent', () => {
 				{ id: 'ensemble', displayName: 'Ensemble', description: 'Unknown execution', type: 'ensemble', status: { enabled: true } },
 			],
 		};
-		const agent = createTestAgent(disposables, { copilotClient: client });
+		const agent = createTestAgent(disposables, { copilotClient: client, rootConfig: { [CopilotCliConfigKey.DynamicAutoTiers]: true } });
 		try {
 			await agent.authenticate('https://api.github.com', 'token');
 			const published = await waitForState(agent.models, published => published.length === 1);
@@ -15458,7 +15491,8 @@ suite('CopilotAgent', () => {
 				tier: {
 					enum: ['balance', 'hydrafusion', 'premium-v2'],
 					default: 'premium-v2',
-					enumLabels: ['Balanced', 'High', 'Premium'],
+					// The runnable Fusion tier presents Auto as Fusion, which names balance Standard.
+					enumLabels: ['Standard', 'High', 'Premium'],
 					enumDescriptions: ['Server balance', 'Server fusion', ''],
 				},
 				accepted: ['premium-v2', 'hydrafusion', 'fast', undefined, undefined],
@@ -15589,7 +15623,7 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('offers and accepts the provider\'s HydraFusion Max tier only with HydraFusion v2', async () => {
+	test('offers and accepts the provider\'s HydraFusion tiers only with dynamic Auto tiers, which turn HydraFusion v2 on', async () => {
 		const run = async (rootConfig: Record<string, unknown>) => {
 			const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
 			client.autoTierMetadata = {
@@ -15617,11 +15651,11 @@ suite('CopilotAgent', () => {
 		};
 
 		assert.deepStrictEqual({
-			withoutV2: await run({}),
-			withV2: await run({ [CopilotCliConfigKey.HydraFusion]: true, [CopilotCliConfigKey.HydraFusionV2]: true }),
+			withoutDynamicAutoTiers: await run({ [CopilotCliConfigKey.HydraFusion]: true, [CopilotCliConfigKey.HydraFusionV2]: true }),
+			withDynamicAutoTiers: await run({ [CopilotCliConfigKey.DynamicAutoTiers]: true }),
 		}, {
-			withoutV2: { enum: ['balance', 'hydrafusion'], default: 'balance', acceptsMax: false },
-			withV2: { enum: ['balance', 'hydrafusion', 'hydrafusion-max'], default: 'hydrafusion-max', acceptsMax: true },
+			withoutDynamicAutoTiers: { enum: ['balance'], default: 'balance', acceptsMax: false },
+			withDynamicAutoTiers: { enum: ['balance', 'hydrafusion', 'hydrafusion-max'], default: 'hydrafusion-max', acceptsMax: true },
 		});
 	});
 

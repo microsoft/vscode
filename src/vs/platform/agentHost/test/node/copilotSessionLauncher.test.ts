@@ -3044,28 +3044,28 @@ suite('getCopilotAutoTier', () => {
 
 	test('under Fusion, runs Efficiency as Balance only while the provider accepts Balance', () => {
 		const log = new NullLogService();
-		const configurationService = { getRootValue: (_schema: unknown, key: string) => key === CopilotCliConfigKey.DynamicAutoTiers ? true : undefined } as Parameters<typeof resolveCopilotAutoTier>[1];
+		const configurationService = { getRootValue: () => undefined } as Parameters<typeof resolveCopilotAutoTier>[1];
 		const resolve = () => resolveCopilotAutoTier({ id: 'auto', config: { tier: 'efficiency' } }, configurationService, log, 'session');
 		let withBalance, withoutBalance;
 		try {
-			setAdvertisedAutoModeTiers(['efficiency', 'balance']);
+			setAdvertisedAutoModeTiers(['efficiency', 'balance', 'hydrafusion'], true);
 			withBalance = resolve();
-			setAdvertisedAutoModeTiers(['efficiency', 'hydrafusion']);
+			setAdvertisedAutoModeTiers(['efficiency', 'hydrafusion'], true);
 			withoutBalance = resolve();
 		} finally {
 			setAdvertisedAutoModeTiers(undefined);
 		}
-		// Without provider tiers, Auto is not presented as Fusion, so Efficiency stays Efficiency.
+		// Without provider tiers that present Auto as Fusion, Efficiency stays Efficiency.
 		assert.deepStrictEqual({ withBalance, withoutBalance, builtIn: resolve() }, { withBalance: 'balance', withoutBalance: undefined, builtIn: 'efficiency' });
 	});
 
 	test('under Fusion, an Efficiency override the provider cannot run as Balance still takes precedence over the picker', () => {
 		const configurationService = {
-			getRootValue: (_schema: unknown, key: string) => key === CopilotCliConfigKey.DynamicAutoTiers ? true : key === CopilotCliConfigKey.AutoModeTierOverride ? 'efficiency' : undefined,
+			getRootValue: (_schema: unknown, key: string) => key === CopilotCliConfigKey.AutoModeTierOverride ? 'efficiency' : undefined,
 		} as Parameters<typeof resolveCopilotAutoTier>[1];
 		let tier;
 		try {
-			setAdvertisedAutoModeTiers(['efficiency', 'hydrafusion']);
+			setAdvertisedAutoModeTiers(['efficiency', 'hydrafusion'], true);
 			tier = resolveCopilotAutoTier({ id: 'auto', config: { tier: 'hydrafusion' } }, configurationService, new NullLogService(), 'session');
 		} finally {
 			setAdvertisedAutoModeTiers(undefined);
@@ -3096,21 +3096,21 @@ suite('getCopilotAutoTier', () => {
 		);
 	});
 
-	test('resolves an Efficiency preference or override to Balance only under Fusion: dynamic Auto tiers with the provider\'s tiers', () => {
+	test('resolves an Efficiency preference or override to Balance only when the provider\'s tiers present Auto as Fusion', () => {
 		const log = new NullLogService();
-		const configOf = (dynamicAutoTiers: boolean, autoModeTierOverride?: string): Pick<IAgentConfigurationService, 'getRootValue'> => ({
+		const configOf = (autoModeTierOverride?: string): Pick<IAgentConfigurationService, 'getRootValue'> => ({
 			getRootValue: (schema, key) => {
-				const value = copilotCliConfigSchema.values({ [CopilotCliConfigKey.DynamicAutoTiers]: dynamicAutoTiers, autoModeTierOverride })[key];
+				const value = copilotCliConfigSchema.values({ autoModeTierOverride })[key];
 				return schema.validate(key, value) ? value : undefined;
 			},
 		});
-		const resolveAll = (dynamicAutoTiers: boolean, providerTiers: string[] | undefined) => {
+		const resolveAll = (providerTiers: string[] | undefined, fusion: boolean) => {
 			try {
-				setAdvertisedAutoModeTiers(providerTiers);
+				setAdvertisedAutoModeTiers(providerTiers, fusion);
 				return [
-					resolveCopilotAutoTier({ id: 'auto', config: { tier: 'efficiency' } }, configOf(dynamicAutoTiers), log, 's1'),
-					resolveCopilotAutoTier({ id: 'auto', config: { tier: 'intelligence' } }, configOf(dynamicAutoTiers), log, 's1'),
-					resolveCopilotAutoTier({ id: 'auto' }, configOf(dynamicAutoTiers, 'efficiency'), log, 's1'),
+					resolveCopilotAutoTier({ id: 'auto', config: { tier: 'efficiency' } }, configOf(), log, 's1'),
+					resolveCopilotAutoTier({ id: 'auto', config: { tier: 'intelligence' } }, configOf(), log, 's1'),
+					resolveCopilotAutoTier({ id: 'auto' }, configOf('efficiency'), log, 's1'),
 				];
 			} finally {
 				setAdvertisedAutoModeTiers(undefined);
@@ -3118,13 +3118,13 @@ suite('getCopilotAutoTier', () => {
 		};
 		const providerTiers = ['efficiency', 'balance', 'intelligence'];
 		assert.deepStrictEqual({
-			fusion: resolveAll(true, providerTiers),
-			dynamicWithoutProviderTiers: resolveAll(true, undefined),
-			providerTiersWithoutDynamic: resolveAll(false, providerTiers),
+			fusion: resolveAll(providerTiers, true),
+			providerTiersWithoutFusion: resolveAll(providerTiers, false),
+			noProviderTiers: resolveAll(undefined, true),
 		}, {
 			fusion: ['balance', 'intelligence', 'balance'],
-			dynamicWithoutProviderTiers: ['efficiency', 'intelligence', 'efficiency'],
-			providerTiersWithoutDynamic: ['efficiency', 'intelligence', 'efficiency'],
+			providerTiersWithoutFusion: ['efficiency', 'intelligence', 'efficiency'],
+			noProviderTiers: ['efficiency', 'intelligence', 'efficiency'],
 		});
 	});
 });

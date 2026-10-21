@@ -67,15 +67,20 @@ export const DynamicAutoTiersFeatureFlag = 'DYNAMIC_AUTO_TIERS';
 
 /** Only populated in the agent host process. */
 let advertisedAutoModeTiers: ReadonlySet<string> | undefined;
+let advertisedAsFusion = false;
 
-/** `undefined` means no provider metadata, so the built-in tiers apply; `[]` accepts nothing. */
-export function setAdvertisedAutoModeTiers(tiers: Iterable<string> | undefined): void {
+/**
+ * `undefined` means no provider metadata, so the built-in tiers apply; `[]` accepts nothing. `fusion` records
+ * whether the provider's tiers present Auto as Fusion.
+ */
+export function setAdvertisedAutoModeTiers(tiers: Iterable<string> | undefined, fusion = false): void {
 	advertisedAutoModeTiers = tiers ? new Set(tiers) : undefined;
+	advertisedAsFusion = !!tiers && fusion;
 }
 
-/** Whether the provider advertised Auto's tiers, which only it does with `DYNAMIC_AUTO_TIERS`. Auto is then presented as Fusion. */
-export function hasAdvertisedAutoModeTiers(): boolean {
-	return !!advertisedAutoModeTiers;
+/** Whether the provider's advertised tiers present Auto as Fusion. */
+export function isAutoAdvertisedAsFusion(): boolean {
+	return advertisedAsFusion;
 }
 
 export function isSupportedAutoModeTier(value: unknown): value is string {
