@@ -38,6 +38,28 @@ function makePromptsService(): IPromptsService {
 suite('AgentCustomizationItemProvider', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('provides synced client tools and MCP namespaces without runtime discovery', async () => {
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			override getAgentFileToolInventory() {
+				return [
+					{ name: 'publisher.extension/extensionTool', description: 'Provided by an extension', availability: 'available' as const },
+					{ name: 'playwright/*', availability: 'disabled' as const },
+				];
+			}
+		}
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			'remote', undefined, undefined, upcastPartial<IFileService>({}),
+			new NullLogService(), new TestCustomizationService(), makePromptsService(),
+		));
+
+		const inventory = await provider.provideAgentFileTools(URI.parse('remote-agent-host-test-copilot:/session'), CancellationToken.None);
+
+		assert.deepStrictEqual(inventory, [
+			{ name: 'publisher.extension/extensionTool', description: 'Provided by an extension', availability: 'available' },
+			{ name: 'playwright/*', availability: 'disabled' },
+		]);
+	});
+
 	test('maps explicit Ask semantics without relying on host names or URI conventions', async () => {
 		const agents: AgentCustomization[] = [
 			{ type: CustomizationType.Agent, id: 'host-ask', uri: 'other-host:/opaque/read-only', name: 'Questions', _meta: { 'vscode.chatMode': 'ask' } },

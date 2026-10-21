@@ -245,6 +245,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		if (token.isCancellationRequested) {
 			return [];
 		}
+
 		const agents = this.getCustomAgents(sessionResource);
 		const sessionTypes = [getChatSessionType(sessionResource)];
 		return agents.map(agent => {
@@ -275,6 +276,10 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			} satisfies ICustomAgent;
 		});
 
+	}
+
+	async provideAgentFileTools(sessionResource: URI, _token: CancellationToken) {
+		return this._customAgentsService.getAgentFileToolInventory?.(sessionResource);
 	}
 
 	async provideChatSessionCustomizations(sessionResource: URI, token: CancellationToken): Promise<ICustomizationItem[]> {

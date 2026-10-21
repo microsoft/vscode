@@ -285,6 +285,26 @@ suite('copilotPluginConverters', () => {
 			}]);
 		});
 
+		test('translates extension-qualified tool references to SDK registration names', async () => {
+			const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/qualified-tools.md' });
+			await fileService.writeFile(agentUri, VSBuffer.fromString([
+				'---',
+				'name: qualified-tools',
+				'tools: [publisher.extension/toolXY, read, playwright/*]',
+				'---',
+				'Use the configured tools.',
+			].join('\n')));
+
+			const result = await toSdkCustomAgents(
+				[{ uri: agentUri, name: 'qualified-tools' }],
+				fileService,
+				undefined,
+				new Map([['publisher.extension/toolXY', 'toolXY']]),
+			);
+
+			assert.deepStrictEqual(result[0].tools, ['toolXY', 'read', 'playwright/*']);
+		});
+
 		test('preserves scalar and fallback-array models from frontmatter', async () => {
 			const scalarUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/scalar-model.md' });
 			const fallbackUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/fallback-models.md' });

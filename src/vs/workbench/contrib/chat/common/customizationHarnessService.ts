@@ -288,6 +288,14 @@ export interface ICustomizationAgentRef {
 	readonly description?: string;
 }
 
+export type AgentFileToolAvailability = 'available' | 'unavailable' | 'disabled';
+
+export interface IAgentFileToolInventoryEntry {
+	readonly name: string;
+	readonly description?: string;
+	readonly availability: AgentFileToolAvailability;
+}
+
 export function isPluginCustomizationItem(item: { readonly type: string }): boolean {
 	return item.type === 'plugin' || item.type === AICustomizationManagementSection.Plugins;
 }
@@ -335,6 +343,12 @@ export interface ICustomizationItemProvider {
 	 *   this session.
 	 */
 	provideCustomAgents?(sessionResource: URI, token: CancellationToken): Promise<readonly ICustomAgent[]>;
+
+	/**
+	 * Provides the tools accepted by custom agent files for this harness session.
+	 * `undefined` means the dynamic inventory is not authoritative yet and must not be used for unknown-value diagnostics.
+	 */
+	provideAgentFileTools?(sessionResource: URI, token: CancellationToken): Promise<readonly IAgentFileToolInventoryEntry[] | undefined>;
 
 	/**
 	 * Provide the directories where new customization files of the given

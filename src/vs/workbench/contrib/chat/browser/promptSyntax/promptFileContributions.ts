@@ -52,7 +52,7 @@ export class PromptLanguageFeaturesProvider extends Disposable implements IWorkb
 }
 
 /**
- * Tracks open code editors and validates prompt models that are visible in an editor.
+ * Tracks open code editors and validates prompt files that are visible in an editor.
  * Only emits markers for models that are currently open in an editor.
  */
 class PromptValidatorContribution extends Disposable {
@@ -159,7 +159,11 @@ class PromptValidatorContribution extends Disposable {
 		this.localDisposables.add(this.languageModelsService.onDidChangeLanguageModels(() => validateAll()));
 		this.localDisposables.add(autorun(reader => {
 			this.customizationHarnessService.activeHarness.read(reader);
-			this.customizationHarnessService.availableHarnesses.read(reader);
+			for (const descriptor of this.customizationHarnessService.availableHarnesses.read(reader)) {
+				if (descriptor.itemProvider) {
+					reader.store.add(descriptor.itemProvider.onDidChange(() => validateAll()));
+				}
+			}
 			validateAll();
 		}));
 	}

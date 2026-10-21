@@ -29,6 +29,7 @@ import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IPathService } from '../../../../../services/path/common/pathService.js';
 import { ICustomizationHarnessService } from '../../customizationHarnessService.js';
 import { getAgentFileModelReasoningEfforts, resolveAgentFileModelIdentifier, resolveAgentFileModelIdentifiers, resolveAgentFileModels } from './promptModelResolver.js';
+import { getEffectiveAgentFileToolAvailability, resolveAgentFileToolIdentifiers, resolveAgentFileTools } from './promptToolResolver.js';
 
 export const MARKERS_OWNER_ID = 'prompts-diagnostics-provider';
 
@@ -52,6 +53,7 @@ export class PromptValidator {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IPathService private readonly pathService: IPathService,
 		@ICustomizationHarnessService private readonly customizationHarnessService: ICustomizationHarnessService,
+		@ILogService private readonly logService: ILogService,
 	) { }
 
 	public async validate(promptAST: ParsedPromptFile, promptType: PromptsType, report: (markers: IMarkerData) => void): Promise<void> {
@@ -300,7 +302,7 @@ export class PromptValidator {
 
 			case PromptsType.agent: {
 				if (isGithubCopilotAgent) {
-					this.validateCopilotAgent(attributes, target, report);
+					await this.validateCopilotAgent(attributes, target, report);
 					break;
 				}
 				this.validateTarget(attributes, report);
@@ -390,7 +392,7 @@ export class PromptValidator {
 		}
 	}
 
-	private validateCopilotAgent(attributes: IHeaderAttribute[], target: Target, report: (markers: IMarkerData) => void): void {
+	private async validateCopilotAgent(attributes: IHeaderAttribute[], target: Target, report: (markers: IMarkerData) => void): Promise<void> {
 		this.validateCopilotModel(attributes, target, report);
 		this.validateCopilotReasoningEffort(attributes, target, report);
 		this.validateCopilotModelPolicy(attributes, report);
@@ -398,6 +400,55 @@ export class PromptValidator {
 		this.validateHooks(attributes, target, report);
 		this.validateGithubPermissions(attributes, report, false);
 		this.validateCopilotMcpServers(attributes, report);
+		await this.validateCopilotTools(attributes, target, report);
+	}
+
+	private async validateCopilotTools(attributes: IHeaderAttribute[], target: Target, report: (markers: IMarkerData) => void): Promise<void> {
+		const attribute = attributes.find(attr => attr.key === PromptHeaderAttributes.tools);
+		if (!attribute || attribute.value.type !== 'sequence') {
+			return;
+		}
+		const catalogue = await resolveAgentFileTools(target, this.customizationHarnessService, this.logService, CancellationToken.None);
+		for (const item of attribute.value.items) {
+			if (item.type !== 'scalar') {
+				continue;
+			}
+			if (!catalogue.isResolved) {
+				continue;
+			}
+			const matches = resolveAgentFileToolIdentifiers(item.value, catalogue.tools);
+			const availability = getEffectiveAgentFileToolAvailability(matches);
+			if (!availability) {
+				const localTool = this.languageModelToolsService.getToolByFullReferenceName(item.value);
+				report(localTool && isToolSet(localTool)
+					? toMarker(
+						localize('promptValidator.copilotToolSetUnsupported', "Tool set '{0}' is not supported by the GitHub Copilot harness. List individual tools instead.", item.value),
+						item.range,
+						MarkerSeverity.Hint,
+						[MarkerTag.Unnecessary],
+					)
+					: toMarker(
+						localize('promptValidator.copilotToolUnknown', "Tool '{0}' is not recognized by the matching GitHub Copilot harness.", item.value),
+						item.range,
+						MarkerSeverity.Hint,
+						[MarkerTag.Unnecessary],
+					));
+			} else if (availability === 'disabled') {
+				report(toMarker(
+					localize('promptValidator.copilotToolDisabled', "Tool '{0}' is recognized but disabled for the matching GitHub Copilot harness.", item.value),
+					item.range,
+					MarkerSeverity.Hint,
+					[MarkerTag.Unnecessary],
+				));
+			} else if (availability === 'unavailable') {
+				report(toMarker(
+					localize('promptValidator.copilotToolUnavailable', "Tool '{0}' is recognized but currently unavailable for the matching GitHub Copilot harness.", item.value),
+					item.range,
+					MarkerSeverity.Hint,
+					[MarkerTag.Unnecessary],
+				));
+			}
+		}
 	}
 
 	private validateCopilotModel(attributes: IHeaderAttribute[], target: Target, report: (markers: IMarkerData) => void): void {
@@ -1639,6 +1690,8 @@ export const knownGithubCopilotTools = [
 	{ name: SpecedToolAliases.edit, description: localize('githubCopilot.edit', 'Edit files') },
 	{ name: SpecedToolAliases.search, description: localize('githubCopilot.search', 'Search files') },
 	{ name: SpecedToolAliases.agent, description: localize('githubCopilot.agent', 'Use subagents') },
+	{ name: SpecedToolAliases.web, description: localize('githubCopilot.web', 'Fetch URLs and search the web') },
+	{ name: SpecedToolAliases.todo, description: localize('githubCopilot.todo', 'Manage task lists') },
 ];
 
 export interface IValueEntry {

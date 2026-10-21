@@ -468,6 +468,8 @@ export const knownGithubCopilotTools = [
 	{ name: SpecedToolAliases.edit, description: localize('githubCopilot.edit', 'Edit files') },
 	{ name: SpecedToolAliases.search, description: localize('githubCopilot.search', 'Search files') },
 	{ name: SpecedToolAliases.agent, description: localize('githubCopilot.agent', 'Use subagents') },
+	{ name: SpecedToolAliases.web, description: localize('githubCopilot.web', 'Fetch URLs and search the web') },
+	{ name: SpecedToolAliases.todo, description: localize('githubCopilot.todo', 'Manage task lists') },
 ];
 
 export interface IValueEntry {

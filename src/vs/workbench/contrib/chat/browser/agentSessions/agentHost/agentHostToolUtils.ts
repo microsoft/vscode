@@ -6,11 +6,12 @@
 import type { ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import type { IToolData } from '../../../common/tools/languageModelToolsService.js';
 import { withAgentToolPreferences } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
+import { withAgentToolFullReferenceName } from '../../../../../../platform/agentHost/common/meta/agentToolDefinitionMeta.js';
 
 /**
  * Converts an internal {@link IToolData} to a protocol {@link ToolDefinition}.
  */
-export function toolDataToDefinition(tool: IToolData): ToolDefinition {
+export function toolDataToDefinition(tool: IToolData, referenceName?: string): ToolDefinition {
 	const definition: ToolDefinition = {
 		name: tool.toolReferenceName ?? tool.id,
 		title: tool.displayName,
@@ -19,5 +20,11 @@ export function toolDataToDefinition(tool: IToolData): ToolDefinition {
 	if (tool.inputSchema?.type === 'object') {
 		definition.inputSchema = tool.inputSchema as ToolDefinition['inputSchema'];
 	}
-	return withAgentToolPreferences(definition, tool.agentHostPreferences);
+	return withAgentToolFullReferenceName(withAgentToolPreferences(definition, tool.agentHostPreferences), referenceName);
+}
+
+export function getAgentFileToolReferenceName(tool: IToolData): string | undefined {
+	return tool.source.type === 'extension'
+		? `${tool.source.extensionId.value.toLowerCase()}/${tool.toolReferenceName ?? tool.displayName}`
+		: undefined;
 }

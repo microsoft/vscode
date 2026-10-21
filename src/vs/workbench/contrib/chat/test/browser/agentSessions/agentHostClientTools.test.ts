@@ -493,6 +493,23 @@ suite('AgentHostClientTools', () => {
 			});
 		});
 
+		test('preserves the extension-qualified agent-file reference separately from the runtime name', () => {
+			const tool: IToolData = {
+				id: 'publisher.extension.tool',
+				toolReferenceName: 'tool',
+				displayName: 'Tool',
+				modelDescription: 'Extension tool',
+				source: { type: 'extension', label: 'Extension', extensionId: new ExtensionIdentifier('Publisher.Extension') },
+			};
+
+			assert.deepStrictEqual(toolDataToDefinition(tool, 'publisher.extension/tool'), {
+				name: 'tool',
+				title: 'Tool',
+				description: 'Extension tool',
+				_meta: { 'vscode.chat.fullReferenceName': 'publisher.extension/tool' },
+			});
+		});
+
 		test('falls back to id when toolReferenceName is undefined', () => {
 			const tool: IToolData = {
 				id: 'vscode.runTests',
