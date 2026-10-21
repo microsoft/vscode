@@ -13,7 +13,7 @@ import { test } from 'node:test';
 
 test('workspace packageOverride sets or clears the environment and forwards watcher arguments', async () => {
 	const root = await mkdtemp(join(tmpdir(), 'workspace-markdown-'));
-	const script = fileURLToPath(new URL('./dev-workspace-markdown.mts', import.meta.url));
+	const script = fileURLToPath(new URL('./markdown.mts', import.meta.url));
 	try {
 		const extension = join(root, 'extensions', 'markdown-language-features');
 		await mkdir(extension, { recursive: true });

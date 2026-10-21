@@ -6,8 +6,8 @@
 
 // Launches Code OSS (VS Code from sources) with an isolated copy of a user-data-dir and unique
 // debugger ports. Prints exactly one JSON line to stdout once the renderer's CDP endpoint is
-// ready; all diagnostics go to stderr. Run it through launch.ps1 or launch.sh, which find a
-// suitable Node.js; see ../SKILL.md for the options.
+// ready; all diagnostics go to stderr. The dev-workspace adapter runs it using the repository's
+// Node.js version with --wait so the application stays in the supervisor's process tree.
 
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';

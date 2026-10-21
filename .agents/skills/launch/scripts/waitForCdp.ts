@@ -4,33 +4,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// Waits until a Code OSS renderer's CDP endpoint responds. Imported by the launcher and run by the
-// bootstrap scripts: `waitForCdp.ts <pid> <port> [timeout-ms]` prints the elapsed milliseconds and
-// exits with 0 when ready, 1 on timeout, and 2 when the process exited first.
-
 import http from 'node:http';
 import process from 'node:process';
 
-export type CdpWaitResult = { readonly status: 'ready'; readonly elapsedMs: number } | { readonly status: 'timeout' | 'exited' };
+const [pidArg, portArg, timeoutArg = '90000'] = process.argv.slice(2);
+const pid = Number(pidArg);
+const port = Number(portArg);
+const timeoutMs = Number(timeoutArg);
 
-export async function waitForCdp(pid: number, port: number, timeoutMs: number): Promise<CdpWaitResult> {
-	const start = performance.now();
-	while (performance.now() - start < timeoutMs) {
-		if (!isProcessRunning(pid)) {
-			return { status: 'exited' };
-		}
-
-		const remainingMs = timeoutMs - (performance.now() - start);
-		if (await probe(port, Math.min(200, remainingMs)) && performance.now() - start < timeoutMs) {
-			return { status: 'ready', elapsedMs: Math.round(performance.now() - start) };
-		}
-
-		await new Promise(resolve => setTimeout(resolve, Math.min(100, Math.max(0, timeoutMs - (performance.now() - start)))));
-	}
-	return { status: 'timeout' };
+if (!Number.isInteger(pid) || pid <= 0 || !Number.isInteger(port) || port <= 0 || port > 65535 || !Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+	console.error('Usage: waitForCdp.ts <pid> <port> [timeout-ms]');
+	process.exit(3);
 }
 
-function isProcessRunning(pid: number): boolean {
+const start = performance.now();
+
+function isProcessRunning(): boolean {
 	try {
 		process.kill(pid, 0);
 		return true;
@@ -42,7 +31,7 @@ function isProcessRunning(pid: number): boolean {
 	}
 }
 
-function probe(port: number, requestTimeoutMs: number): Promise<boolean> {
+function probe(requestTimeoutMs: number): Promise<boolean> {
 	return new Promise<boolean>(resolve => {
 		let settled = false;
 		const finish = (ready: boolean) => {
@@ -62,21 +51,18 @@ function probe(port: number, requestTimeoutMs: number): Promise<boolean> {
 	});
 }
 
-if (import.meta.main) {
-	const [pidArg, portArg, timeoutArg = '90000'] = process.argv.slice(2);
-	const pid = Number(pidArg);
-	const port = Number(portArg);
-	const timeoutMs = Number(timeoutArg);
-
-	if (!Number.isInteger(pid) || pid <= 0 || !Number.isInteger(port) || port <= 0 || port > 65535 || !Number.isFinite(timeoutMs) || timeoutMs <= 0) {
-		console.error('Usage: waitForCdp.ts <pid> <port> [timeout-ms]');
-		process.exit(3);
+while (performance.now() - start < timeoutMs) {
+	if (!isProcessRunning()) {
+		process.exit(2);
 	}
 
-	const result = await waitForCdp(pid, port, timeoutMs);
-	if (result.status === 'ready') {
-		process.stdout.write(String(result.elapsedMs));
+	const remainingMs = timeoutMs - (performance.now() - start);
+	if (await probe(Math.min(200, remainingMs)) && performance.now() - start < timeoutMs) {
+		process.stdout.write(String(Math.round(performance.now() - start)));
 		process.exit(0);
 	}
-	process.exit(result.status === 'timeout' ? 1 : 2);
+
+	await new Promise(resolve => setTimeout(resolve, Math.min(100, Math.max(0, timeoutMs - (performance.now() - start)))));
 }
+
+process.exit(1);

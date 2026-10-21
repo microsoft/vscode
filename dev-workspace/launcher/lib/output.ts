@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// Output of the launch skill scripts. The PowerShell wrappers start Node without handle
-// inheritance, so that Code does not inherit a pipe a caller reads to the end and keep that
-// caller waiting. Output then goes to the files those wrappers name instead of stdout and stderr.
+// Preserve optional file-based output for callers that cannot inherit stdio handles.
+// The managed adapter uses ordinary stdout/stderr pipes.
 
 import { appendFileSync } from 'node:fs';
 

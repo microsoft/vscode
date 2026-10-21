@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// Run with: node --test .agents/skills/launch/scripts/lib/profileCopy.test.ts
+// Run with: node --test dev-workspace/launcher/lib/profileCopy.test.ts
 
 import assert from 'node:assert/strict';
 import { mkdtempSync, promises as fs } from 'node:fs';

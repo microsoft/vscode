@@ -57,7 +57,7 @@ const extensionsWatch = watch(extensionsBuild, {
 function markdownMedia(id: string, script: string, source: string, folder: string) {
 	const isEditor = id === 'editor';
 	const command = isEditor
-		? { kind: 'process' as const, executable: process.execPath, args: ['scripts/dev-workspace-markdown.mts'] }
+		? { kind: 'process' as const, executable: process.execPath, args: ['dev-workspace/markdown.mts'] }
 		: { kind: 'process' as const, executable: process.execPath, args: [script], cwd: 'extensions/markdown-language-features' };
 	const build = computation({
 		derivation: {
@@ -71,7 +71,7 @@ function markdownMedia(id: string, script: string, source: string, folder: strin
 						type: 'optionalString', default: null,
 						description: 'Local @vscode/markdown-editor package directory, or null for the installed dependency.',
 					}),
-					adapter: sourceTree('scripts/dev-workspace-markdown.mts'),
+					adapter: sourceTree('dev-workspace/markdown.mts'),
 					packageResolver: sourceTree('extensions/markdown-language-features/scripts/markdownEditorPackage.mts'),
 					manifestGenerator: sourceTree('extensions/markdown-language-features/scripts/updateMarkdownEditorPackageJson.mts'),
 				} : {}),
@@ -98,11 +98,11 @@ const preview = markdownMedia('preview', 'esbuild.webview.mts', 'preview-src', '
 const notebook = markdownMedia('notebook', 'esbuild.notebook.mts', 'notebook', 'notebook-out');
 const codeOss = service({
 	executable: process.execPath,
-	args: ['scripts/dev-workspace-codeoss.mts'],
+	args: ['dev-workspace/codeoss.mts'],
 	dependencies: [electron, coreWatch, extensionsWatch, editor.watching, preview.watching, notebook.watching],
 	derivation: {
-		recipe: 'vscode-slot-launch-skill-v1',
-		inputs: { adapter: sourceTree('scripts/dev-workspace-codeoss.mts'), launcher: sourceTree('.agents/skills/launch') },
+		recipe: 'vscode-managed-codeoss-v1',
+		inputs: { adapter: sourceTree('dev-workspace/codeoss.mts'), launcher: sourceTree('dev-workspace/launcher') },
 	},
 	update: 'keep',
 	ready: { message: true, timeoutMs: 120_000 },

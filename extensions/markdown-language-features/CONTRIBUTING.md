@@ -110,13 +110,13 @@ Markdown extension-host watcher, and the three Markdown webview watchers.
 The Markdown editor build contributes the shared mutable `markdownEditorPath`
 input directly through `projectInput(name, { type, default, description })`, with
 `null` selecting the installed package. The existing persisted input is reused.
-`scripts/dev-workspace-markdown.mts` maps its `packageOverride` input to
+`dev-workspace/markdown.mts` maps its `packageOverride` input to
 `VSCODE_MARKDOWN_EDITOR_PATH`; no dependency linking step is run. Changing this
 input restarts the editor watcher with the new package selection, without
 reinstalling dependencies or automatically closing Code OSS.
-The `codeOss` node invokes `.agents/skills/launch/scripts/launch.ts` through `scripts/dev-workspace-codeoss.mts`. It reuses the graph's prepared build outputs, waits for the launcher's CDP readiness and Markdown extension activation, then reports the application PID, debug ports, profile directory, run directory, and log file as its service value.
+The integration's adapters, tests, and launcher live under `dev-workspace/`, independently of the agent launch skill. The `codeOss` node invokes `dev-workspace/launcher/launch.ts` through `dev-workspace/codeoss.mts`. It reuses the graph's prepared build outputs, waits for the launcher's CDP readiness and Markdown extension activation, then reports the application PID, debug ports, profile directory, run directory, and log file as its service value.
 
-The launch skill seeds an isolated profile and shared-authentication directory from the authenticated Code OSS development profile. This replaces the previous persistent per-slot profile/shared-settings setup; the source profile is never modified. See the [launch skill](../../.agents/skills/launch/SKILL.md) for profile selection and the GitHub sign-in flow. Configure Marketplace endpoints locally in the ignored `product.overrides.json`. The window title includes the slot and branch, with live branch updates while the built-in Git extension is enabled.
+The managed launcher seeds an isolated profile from `CODE_OSS_DEV_AUTHED_USER_DATA_DIR` (default `~/.vscode-oss-dev`). On Windows it also copies shared authentication storage from `CODE_OSS_DEV_AUTHED_SHARED_DATA_DIR` (default `~/.vscode-oss-shared`, or the portable shared-data directory). Sign into GitHub in the source profile first to seed authenticated development windows; missing profiles produce an isolated empty profile instead. The source profile is never modified. Configure Marketplace endpoints locally in the ignored `product.overrides.json`. The window title includes the slot and branch, with live branch updates while the built-in Git extension is enabled.
 
 The adapter invokes the TypeScript launcher with `--wait`, keeping Code OSS in the managed process tree. Deactivating or restarting the node stops that instance, rather than leaving a detached window behind. Manually launched instances with different profiles remain independent.
 
@@ -181,7 +181,7 @@ graph's ongoing extension watchers are scoped to Markdown.
 The native extension build scripts emit opt-in `DEV_WORKSPACE_BUILD_EVENTS`
 start/done/failed markers. Readiness includes postprocessing, not merely
 starting the process. Run the adapter checks with
-`node --test extensions/esbuild-common.test.mts scripts/dev-workspace-markdown.test.mts extensions/markdown-language-features/scripts/markdownEditorPackage.test.mts`.
+`node --test extensions/esbuild-common.test.mts dev-workspace/markdown.test.mts dev-workspace/codeoss.test.mts dev-workspace/launcher/lib/profileCopy.test.ts extensions/markdown-language-features/scripts/markdownEditorPackage.test.mts`.
 
 ### Embedded code-block editor presentation
 

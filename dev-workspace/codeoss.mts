@@ -42,7 +42,7 @@ async function main(): Promise<void> {
 	const workspace = join(storage, 'workspace.code-workspace');
 	await writeFile(workspace, JSON.stringify({ folders: [{ path: root }], settings: { 'window.title': titlePrefix + branch } }));
 	const child = spawn(process.execPath, [
-		'.agents/skills/launch/scripts/launch.ts', '--repo', root, '--wait', '--skip-prelaunch',
+		'dev-workspace/launcher/launch.ts', '--repo', root, '--wait', '--skip-prelaunch',
 		'--session-title', `Code OSS - ${basename(root)} - ${branch}`, '--disable-workspace-trust',
 		'--', `--extensionDevelopmentPath=${extensionPath}`, `--extensionDevelopmentPath=${probe}`, workspace,
 	], {
@@ -77,7 +77,7 @@ async function main(): Promise<void> {
 					|| !('runDir' in result) || typeof result.runDir !== 'string'
 					|| !('logFile' in result) || typeof result.logFile !== 'string'
 					|| !('userDataDir' in result) || typeof result.userDataDir !== 'string') {
-					throw new Error('Invalid launch skill result.');
+					throw new Error('Invalid managed launcher result.');
 				}
 				resolve({ pid: result.pid, cdpPort: result.cdpPort, extHostPort: result.extHostPort, mainPort: result.mainPort, runDir: result.runDir, logFile: result.logFile, userDataDir: result.userDataDir });
 			} catch (error) {
@@ -99,7 +99,7 @@ async function main(): Promise<void> {
 		await exited;
 	} catch (error) {
 		if (result) {
-			await promisify(execFile)(process.execPath, ['.agents/skills/launch/scripts/cleanup/cleanup.ts', result.runDir], { cwd: root });
+			await promisify(execFile)(process.execPath, ['dev-workspace/launcher/cleanup/cleanup.ts', result.runDir], { cwd: root });
 		}
 		throw error;
 	} finally {

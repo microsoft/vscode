@@ -15,9 +15,9 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
 for (const scenario of ['ready', 'activation-error', 'early-exit', 'app-error']) {
-	test(`managed launch skill: ${scenario}`, { timeout: 15_000 }, async () => {
+	test(`managed Code OSS launcher: ${scenario}`, { timeout: 15_000 }, async () => {
 		const root = await realpath(await mkdtemp(join(tmpdir(), 'workspace-codeoss-')));
-		const launcher = join(root, '.agents', 'skills', 'launch', 'scripts');
+		const launcher = join(root, 'dev-workspace', 'launcher');
 		const runtime = join(root, '.tmp', 'dev-workspace');
 		await Promise.all([
 			mkdir(join(launcher, 'cleanup'), { recursive: true }),
@@ -49,7 +49,7 @@ for (const scenario of ['ready', 'activation-error', 'early-exit', 'app-error'])
 			catch (error) { if (error.code !== 'ESRCH') throw error; }
 			writeFileSync(join(root, 'cleaned'), '');
 		`);
-		const child = spawn(process.execPath, [fileURLToPath(new URL('./dev-workspace-codeoss.mts', import.meta.url))], { cwd: root, stdio: ['ignore', 'pipe', 'pipe'] });
+		const child = spawn(process.execPath, [fileURLToPath(new URL('./codeoss.mts', import.meta.url))], { cwd: root, stdio: ['ignore', 'pipe', 'pipe'] });
 		const exited = once(child, 'exit');
 		let output = '';
 		let errors = '';

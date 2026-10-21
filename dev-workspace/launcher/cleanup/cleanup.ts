@@ -5,8 +5,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 // Stops the Code OSS instance of a launch and removes its run directory; reused run directories
-// are kept unless --remove is passed. Prints one JSON line to stdout. Run it through cleanup.ps1
-// or cleanup.sh. `--gc <root>` instead removes abandoned run directories below a run root, which
+// are kept unless --remove is passed. Prints one JSON line to stdout. Run it with Node.js.
+// `--gc <root>` instead removes abandoned run directories below a run root, which
 // the launcher runs in the background.
 
 import { spawnSync } from 'node:child_process';
