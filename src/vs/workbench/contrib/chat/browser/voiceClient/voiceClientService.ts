@@ -151,6 +151,21 @@ function asTranscriptionRevision(value: unknown): number | undefined {
 	return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : undefined;
 }
 
+/** Removes known GPT-Live sound annotations without stripping bracketed code or other spoken text. */
+function getGptLiveInputText(transcript: string, isFinal: boolean): string {
+	if (!isFinal) {
+		// Buffer an unfinished annotation; finalization restores any literal, unclosed bracketed text.
+		transcript = transcript.replace(/\[[^\]\r\n]*$/, '');
+		if ('vocal waveform'.startsWith(transcript.trim().toLowerCase())) {
+			return '';
+		}
+	}
+	return transcript
+		.replace(/^\s*vocal waveform\s*(?=\[(?:sniff|mouth noise)\])/i, '')
+		.replace(/\[(?:sniff|mouth noise)\]/gi, '')
+		.trim();
+}
+
 export class VoiceClientService extends Disposable implements IVoiceClientService {
 	declare readonly _serviceBrand: undefined;
 
@@ -735,7 +750,8 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 					this._gptLiveInputEndMs = event.end_ms;
 				}
 				this._gptLiveInputTranscript += delta;
-				if (this._gptLiveInputTranscript.replace(/\[[^\]\r\n]{1,40}\]/g, '').trim()) {
+				const text = getGptLiveInputText(this._gptLiveInputTranscript, !!event.is_final);
+				if (text.replace(/\[[^\]\r\n]{1,40}\]/g, '').trim()) {
 					if (this._gptLiveOutputSuppressedUntilInput && this._isGptLiveInputTargetCurrent()) {
 						this._finalizeGptLiveOutput();
 						this._gptLiveOutputSuppressedUntilInput = false;
@@ -747,11 +763,13 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 					this._finalizeGptLiveInput();
 					break;
 				}
-				this._onTranscription.fire({
-					text: this._gptLiveInputTranscript,
-					status: 'partial',
-					turnId: this._gptLiveTurnId,
-				});
+				if (text) {
+					this._onTranscription.fire({
+						text,
+						status: 'partial',
+						turnId: this._gptLiveTurnId,
+					});
+				}
 				break;
 			}
 			case 'session.output_transcript.delta': {
@@ -842,13 +860,16 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		if (!this._gptLiveInputTranscript) {
 			return;
 		}
-		this._onTranscription.fire({
-			text: this._gptLiveInputTranscript,
-			status: 'final',
-			turnId: this._gptLiveTurnId,
-		});
+		const text = getGptLiveInputText(this._gptLiveInputTranscript, true);
+		if (text) {
+			this._onTranscription.fire({
+				text,
+				status: 'final',
+				turnId: this._gptLiveTurnId,
+			});
+		}
 		this._gptLiveInputs.push({
-			text: this._gptLiveInputTranscript.trim(),
+			text,
 			target: this._gptLiveInputTarget ?? this._gptLiveInputRouter.captureTarget(),
 			turnId: this._gptLiveTurnId,
 			startMs: this._gptLiveInputStartMs,

@@ -29,7 +29,8 @@ import { IChatSessionHistoryStatus } from '../../../../../platform/chat/common/c
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
-import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
+import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { getCompactCodicon } from '../../../../../workbench/contrib/chat/browser/chatIcons.js';
 import { IChatRequestTranscriptContextVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
@@ -70,6 +71,7 @@ import { ISessionsProvidersService } from '../../../../services/sessions/browser
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { SharedChatInputComposer } from '../../browser/sharedChatInputComposer.js';
+import { INewChatComposerInputOptions } from '../../browser/newChatComposerInput.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
 import '../../../../../workbench/browser/media/style.css';
 import '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/media/chatAgentMergeContent.css';
@@ -696,39 +698,56 @@ suite('Sessions - Chat View', () => {
 			rulerDisabled: { content: [24, 530], input: [0, 600], markCenter: 580 },
 		});
 	});
-	test('keeps the new-chat-in-session composer clear of the activity bar', async () => {
+	test('lays out the new-chat-in-session composer like the new-session composer, clear of the activity bar', async () => {
 		const root = dom.append(dom.getActiveDocument().body, dom.$('.monaco-workbench.agent-sessions-workbench'));
 		disposables.add(toDisposable(() => root.remove()));
-		root.style.setProperty('--vscode-spacing-size240', '24px');
+		root.style.setProperty('--vscode-spacing-size160', '16px');
+		root.style.setProperty('--vscode-spacing-size200', '20px');
 		const part = dom.append(root, dom.$('.part.sessionspart'));
-		const view = disposables.add(new class extends AbstractChatView {
-			readonly kind = 'newChatInSession';
-			protected doLayout(): void { }
-			toJSON(): object { return {}; }
-			focus(): void { }
-		}());
-		view.element.classList.add('chat-view-new');
-		part.appendChild(view.element);
-		const content = dom.append(dom.append(view.element, dom.$('.sessions-chat-widget.new-chat-in-session')), dom.$('.new-chat-widget-content'));
-		const inputArea = dom.append(content, dom.$('.new-chat-input-area'));
+		const render = (widgetClass: string) => {
+			const view = disposables.add(new class extends AbstractChatView {
+				readonly kind = 'newChatInSession';
+				protected doLayout(): void { }
+				toJSON(): object { return {}; }
+				focus(): void { }
+			}());
+			view.element.classList.add('chat-view-new');
+			part.appendChild(view.element);
+			const container = dom.append(dom.append(view.element, dom.$(widgetClass)), dom.$('.new-chat-widget-container.revealed'));
+			const content = dom.append(container, dom.$('.new-chat-widget-content'));
+			const workspaceRow = dom.append(dom.append(content, dom.$('.new-session-workspace-picker-container')), dom.$('.sessions-workspace-category-picker'));
+			dom.append(workspaceRow, dom.$('.sessions-chat-picker-slot.sessions-workspace-category-picker-slot'));
+			return { view, content, workspaceRow, inputArea: dom.append(content, dom.$('.new-chat-input-area')) };
+		};
+		const newSession = render('.sessions-chat-widget');
+		const nestedSession = render('.sessions-chat-widget.new-chat-in-session');
 		await retry(async () => {
-			if (dom.getWindow(root).getComputedStyle(content).boxSizing !== 'border-box') {
+			if (dom.getWindow(root).getComputedStyle(nestedSession.content).maxWidth !== '800px') {
 				throw new Error('New chat styles have not loaded');
 			}
 		}, 10, 100);
 
-		const inputBounds = (width: number, inset: number) => {
+		const bounds = (composer: typeof newSession, width: number, inset: number) => {
 			part.style.width = `${width}px`;
-			view.layout(width, 300, 0, 0, inset);
-			const origin = view.element.getBoundingClientRect();
-			const bounds = inputArea.getBoundingClientRect();
-			return [Math.round(bounds.left - origin.left), Math.round(bounds.right - origin.left)];
+			newSession.view.element.hidden = composer !== newSession;
+			nestedSession.view.element.hidden = composer !== nestedSession;
+			composer.view.layout(width, 300, 0, 0, inset);
+			const origin = composer.view.element.getBoundingClientRect();
+			return [composer.workspaceRow, composer.inputArea].map(element => {
+				const rect = element.getBoundingClientRect();
+				return [Math.round(rect.left - origin.left), Math.round(rect.right - origin.left)];
+			});
 		};
+		const snapshot = (composer: typeof newSession) => ({
+			activityBar: bounds(composer, 600, ChatViewSessionActivityBar.RESERVED_WIDTH),
+			disabled: bounds(composer, 600, 0),
+			wide: bounds(composer, 1400, 0),
+		});
 
-		assert.deepStrictEqual({ activityBar: inputBounds(600, ChatViewSessionActivityBar.RESERVED_WIDTH), disabled: inputBounds(600, 0) }, {
-			// Ends 12px before the activity bar, which starts 42px from the right edge, like the chat transcript.
-			activityBar: [54, 546],
-			disabled: [10, 590],
+		assert.deepStrictEqual({ newSession: snapshot(newSession), nestedSession: snapshot(nestedSession) }, {
+			// The options row and the input share the centered column; the activity bar inset keeps it clear of the strip.
+			newSession: { activityBar: [[46, 554], [46, 554]], disabled: [[16, 584], [16, 584]], wide: [[300, 1100], [300, 1100]] },
+			nestedSession: { activityBar: [[46, 554], [46, 554]], disabled: [[16, 584], [16, 584]], wide: [[300, 1100], [300, 1100]] },
 		});
 	});
 
@@ -2241,13 +2260,15 @@ suite('Sessions - Chat View', () => {
 		assert.strictEqual(isVisible.get(), false);
 	});
 
-	test('configures the peer chat composer without repository controls', () => {
-		let inputOptions: { readonly renderRepositoryControls?: boolean } | undefined;
+	test('configures the peer chat composer with its own repository controls and pet platform', () => {
+		let inputOptions: INewChatComposerInputOptions | undefined;
+		const repositoryControls = { visible: constObservable(true), dispose: () => { } };
+		const petPlatform = dom.$('a.action-label');
 		const input = Object.assign(Object.create(SharedChatInputComposer.prototype), { dispose: () => { } }) as SharedChatInputComposer;
 		const instantiationService = new class extends mock<IInstantiationService>() {
-			override createInstance = ((ctor: unknown, options: { readonly renderRepositoryControls?: boolean }) => {
+			override createInstance = ((ctor: unknown, options: INewChatComposerInputOptions) => {
 				if (ctor === NestedChatWorkspaceControls) {
-					return { reset: () => { }, dispose: () => { } };
+					return { reset: () => { }, dispose: () => { }, renderRepositoryControls: () => repositoryControls, getChatPetPlatformElements: () => [petPlatform], onDidChangeChatPetPlatform: VSCodeEvent.None };
 				}
 				assert.strictEqual(ctor, SharedChatInputComposer);
 				inputOptions = options;
@@ -2268,16 +2289,21 @@ suite('Sessions - Chat View', () => {
 			new class extends mock<IFileDialogService>() { }(),
 			new class extends mock<ISessionsManagementService>() { }(),
 			sessionsService,
-			new class extends mock<IStorageService>() { }(),
+			disposables.add(new InMemoryStorageService()),
+			new TestAccessibilityService(),
 		));
 
-		assert.strictEqual(inputOptions?.renderRepositoryControls, false);
+		const renderRepositoryControls = inputOptions?.renderRepositoryControls;
+		assert.deepStrictEqual({
+			repositoryControls: typeof renderRepositoryControls === 'function' ? renderRepositoryControls(dom.$('div')) : renderRepositoryControls,
+			petPlatform: inputOptions?.getChatPetPlatformElements?.(),
+		}, { repositoryControls, petPlatform: [petPlatform] });
 	});
 
 	test('positions peer chat content for centered attachment growth', () => {
-		const widget = dom.append(document.body, dom.$('.new-chat-in-session'));
+		const widget = dom.append(document.body, dom.$('.sessions-chat-widget.new-chat-in-session'));
 		disposables.add(toDisposable(() => widget.remove()));
-		const content = dom.append(widget, dom.$('.new-chat-widget-content'));
+		const content = dom.append(dom.append(widget, dom.$('.new-chat-widget-container')), dom.$('.new-chat-widget-content'));
 
 		assert.strictEqual(dom.getWindow(content).getComputedStyle(content).position, 'relative');
 	});
@@ -3277,6 +3303,65 @@ suite('Sessions - Chat View', () => {
 		});
 	}
 
+	for (const withBackground of [false, true]) {
+		for (const highContrast of [false, true]) {
+			test(`new-session options stay borderless at rest and highlight individually when open (background: ${withBackground}, high contrast: ${highContrast})`, () => {
+				const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
+				workbench.style.setProperty('--vscode-strokeThickness', '1px');
+				workbench.style.setProperty('--vscode-spacing-size240', '24px');
+				workbench.style.setProperty('--vscode-toolbar-hoverBackground', 'rgba(0, 0, 0, 0.12)');
+				workbench.style.setProperty('--vscode-button-secondaryBorder', '#808080');
+				workbench.style.setProperty('--vscode-button-secondaryHoverBackground', 'rgba(0, 0, 0, 0.16)');
+				if (highContrast) {
+					workbench.classList.add('hc-black');
+					workbench.style.setProperty('--vscode-contrastBorder', '#ffff00');
+				}
+				const part = dom.append(workbench, dom.$('.part.sessionspart'));
+				part.classList.toggle('has-chat-background', withBackground);
+				const widget = dom.append(part, dom.$('.sessions-chat-widget'));
+				const container = dom.append(widget, dom.$('.new-chat-widget-container'));
+				const content = dom.append(container, dom.$('.new-chat-widget-content.experimental-new-session-composer'));
+				const options = dom.append(content, dom.$('.new-chat-session-options'));
+				const workspace = dom.append(options, dom.$('.sessions-chat-picker-slot.sessions-workspace-category-picker-slot'));
+				const environment = dom.append(options, dom.$('.sessions-chat-picker-slot.sessions-workspace-category-picker-slot'));
+				const repository = dom.append(options, dom.$('.new-chat-repo-config-container'));
+				const actionBar = dom.append(repository, dom.$('.monaco-action-bar'));
+				const harness = dom.append(options, dom.$('.sessions-chat-picker-slot.sessions-workspace-category-picker-slot'));
+				const controls = [workspace, environment, actionBar, actionBar, harness].map(parent => dom.append(parent, dom.$('a.action-label')));
+				dom.getWindow(workbench).document.body.appendChild(workbench);
+				disposables.add(toDisposable(() => workbench.remove()));
+
+				const readStyle = (element: HTMLElement) => {
+					const style = dom.getWindow(element).getComputedStyle(element);
+					return { background: style.backgroundColor, image: style.backgroundImage, border: style.borderColor, height: style.height };
+				};
+				const resting = { background: 'rgba(0, 0, 0, 0)', image: 'none', border: 'rgba(0, 0, 0, 0)', height: '24px' };
+				const open = { ...resting, background: 'rgba(0, 0, 0, 0.12)', border: highContrast ? 'rgb(255, 255, 0)' : resting.border };
+				const initial = controls.map(readStyle);
+				const opened = controls.map(control => {
+					control.setAttribute('aria-expanded', 'true');
+					repository.dataset.pickerOpen = 'true';
+					const styles = controls.map(readStyle);
+					control.removeAttribute('aria-expanded');
+					delete repository.dataset.pickerOpen;
+					return styles;
+				});
+
+				assert.deepStrictEqual({
+					initial,
+					opened,
+					restored: controls.map(readStyle),
+					repositoryBorder: dom.getWindow(actionBar).getComputedStyle(actionBar).borderStyle,
+				}, {
+					initial: controls.map(() => resting),
+					opened: controls.map((_, openIndex) => controls.map((_, index) => index === openIndex ? open : resting)),
+					restored: controls.map(() => resting),
+					repositoryBorder: 'none',
+				});
+			});
+		}
+	}
+
 	test('keeps background-image composer controls on complete opaque surfaces', () => {
 		const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
 		workbench.style.setProperty('--session-view-background', '#ffffff');
@@ -3328,6 +3413,9 @@ suite('Sessions - Chat View', () => {
 		const productionExperimentalRepository = dom.append(productionExperimentalOptions, dom.$('.new-chat-repo-config-container'));
 		const productionExperimentalRepositoryActionBar = dom.append(productionExperimentalRepository, dom.$('.monaco-action-bar'));
 		const productionExperimentalRepositoryAction = dom.append(productionExperimentalRepositoryActionBar, dom.$('.action-label'));
+		const quickChatHeader = dom.append(productionExperimentalContent, dom.$('.new-session-quick-chat-header.sessions-workspace-category-picker'));
+		const quickChatPicker = dom.append(quickChatHeader, dom.$('.sessions-chat-picker-slot.sessions-workspace-category-picker-slot'));
+		const quickChatAction = dom.append(quickChatPicker, dom.$('.action-label'));
 		const peerNewChatWidget = dom.append(productionNewChatView, dom.$('.sessions-chat-widget.new-chat-in-session'));
 		const peerNewChatContainer = dom.append(peerNewChatWidget, dom.$('.new-chat-widget-container'));
 		const peerExperimentalContent = dom.append(peerNewChatContainer, dom.$('.new-chat-widget-content.experimental-new-session-composer'));
@@ -3395,12 +3483,14 @@ suite('Sessions - Chat View', () => {
 			productionExperimentalWorkspaceHeight: productionExperimentalWorkspaceActionStyle.height,
 			productionExperimentalRepositoryBackgroundColor: productionExperimentalRepositoryActionBarStyle.backgroundColor,
 			productionExperimentalRepositoryBackgroundImage: productionExperimentalRepositoryActionBarStyle.backgroundImage,
-			productionExperimentalRepositoryBorderColor: productionExperimentalRepositoryActionBarStyle.borderColor,
+			productionExperimentalRepositoryBorderStyle: productionExperimentalRepositoryActionBarStyle.borderStyle,
 			productionExperimentalRepositoryBorderRadius: productionExperimentalRepositoryActionBarStyle.borderRadius,
 			productionExperimentalRepositoryHeight: productionExperimentalRepositoryActionBarStyle.height,
 			productionExperimentalRepositoryActionBackgroundColor: productionExperimentalRepositoryActionStyle.backgroundColor,
 			productionExperimentalRepositoryActionBackgroundImage: productionExperimentalRepositoryActionStyle.backgroundImage,
 			productionExperimentalRepositoryActionBorderStyle: productionExperimentalRepositoryActionStyle.borderStyle,
+			quickChatBackgroundColor: dom.getWindow(quickChatAction).getComputedStyle(quickChatAction).backgroundColor,
+			quickChatBorderColor: dom.getWindow(quickChatAction).getComputedStyle(quickChatAction).borderColor,
 			peerExperimentalOptionsBackgroundColor: dom.getWindow(peerExperimentalOptions).getComputedStyle(peerExperimentalOptions).backgroundColor,
 			plainSecondaryActionBackgroundColor: dom.getWindow(plainSecondaryAction).getComputedStyle(plainSecondaryAction).backgroundColor,
 			plainSecondaryActionBorderStyle: dom.getWindow(plainSecondaryAction).getComputedStyle(plainSecondaryAction).borderStyle,
@@ -3438,18 +3528,20 @@ suite('Sessions - Chat View', () => {
 			productionExperimentalOptionsBorderRadius: '8px 8px 0px 0px',
 			productionExperimentalWorkspaceBackgroundColor: 'rgba(0, 0, 0, 0)',
 			productionExperimentalWorkspaceBackgroundImage: 'none',
-			productionExperimentalWorkspaceBorderColor: 'rgb(128, 128, 128)',
+			productionExperimentalWorkspaceBorderColor: 'rgba(0, 0, 0, 0)',
 			productionExperimentalWorkspaceBorderRadius: '4px',
 			productionExperimentalWorkspaceHeight: '24px',
 			productionExperimentalRepositoryBackgroundColor: 'rgba(0, 0, 0, 0)',
 			productionExperimentalRepositoryBackgroundImage: 'none',
-			productionExperimentalRepositoryBorderColor: 'rgb(128, 128, 128)',
-			productionExperimentalRepositoryBorderRadius: '4px',
+			productionExperimentalRepositoryBorderStyle: 'none',
+			productionExperimentalRepositoryBorderRadius: '0px',
 			productionExperimentalRepositoryHeight: '24px',
 			productionExperimentalRepositoryActionBackgroundColor: 'rgba(0, 0, 0, 0)',
 			productionExperimentalRepositoryActionBackgroundImage: 'none',
-			productionExperimentalRepositoryActionBorderStyle: 'none',
-			peerExperimentalOptionsBackgroundColor: 'rgba(0, 0, 0, 0)',
+			productionExperimentalRepositoryActionBorderStyle: 'solid',
+			quickChatBackgroundColor: 'rgb(255, 255, 255)',
+			quickChatBorderColor: 'rgb(128, 128, 128)',
+			peerExperimentalOptionsBackgroundColor: 'color(srgb 0.9 0.9 0.9)',
 			plainSecondaryActionBackgroundColor: 'rgba(0, 0, 0, 0)',
 			plainSecondaryActionBorderStyle: 'none',
 			plainContextUsageBackgroundColor: 'rgba(0, 0, 0, 0)',

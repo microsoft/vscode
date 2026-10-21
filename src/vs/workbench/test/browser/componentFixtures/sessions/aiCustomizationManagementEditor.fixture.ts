@@ -2251,6 +2251,11 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				scrollHost.getBoundingClientRect().bottom <= detailContainer.getBoundingClientRect().bottom + 1,
 				'Marketplace detail scroll host must remain inside the detail page bounds.',
 			);
+			const marketplaceDetail = detailContainer.querySelector<HTMLElement>('.embedded-marketplace-detail');
+			assert(
+				marketplaceDetail !== null && DOM.getWindow(marketplaceDetail).getComputedStyle(marketplaceDetail).userSelect === 'text',
+				'Marketplace detail text must be selectable.',
+			);
 			if (options.discoveryQuery === 'figma') {
 				const scrollContent = scrollHost.querySelector<HTMLElement>('.marketplace-detail-editor-container');
 				if (!scrollContent) {

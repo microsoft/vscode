@@ -11,9 +11,10 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IChat, ISession, SessionStatus } from '../../common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../common/sessionsManagement.js';
+import { IChatMovedEvent } from '../../common/sessionsProvider.js';
 import { getSessionGroupSectionId, SessionGroupsService, SessionGroupTree } from '../../browser/sessionGroupsService.js';
 import { ISessionSectionOrderService, SessionSectionOrderService } from '../../browser/sessionSectionOrderService.js';
 
@@ -46,6 +47,11 @@ function createSession(id: string, isArchived = false, creatorSession?: URI): IS
 	};
 }
 
+/** A session whose main chat is `<id>-main`, as a provider reports a session a chat was promoted to. */
+function createSessionWithMainChat(id: string): ISession {
+	return { ...createSession(id), mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse(`chat://${id}-main`) })) };
+}
+
 suite('SessionGroupsService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -61,6 +67,7 @@ suite('SessionGroupsService', () => {
 	let sessionReplacedEmitter: Emitter<{ readonly from: ISession; readonly to: ISession }>;
 	let newDraftSessionReplacedEmitter: Emitter<{ readonly from: ISession; readonly to: ISession }>;
 	let newSessionDiscardedEmitter: Emitter<ISession>;
+	let chatMovedEmitter: Emitter<IChatMovedEvent>;
 	let instantiationService: TestInstantiationService;
 	let sessions: ISession[];
 	let inFlightSessions: ISession[];
@@ -89,6 +96,7 @@ suite('SessionGroupsService', () => {
 		sessionReplacedEmitter = disposables.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
 		newDraftSessionReplacedEmitter = disposables.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
 		newSessionDiscardedEmitter = disposables.add(new Emitter<ISession>());
+		chatMovedEmitter = disposables.add(new Emitter<IChatMovedEvent>());
 		sessions = [];
 		inFlightSessions = [];
 		instantiationService.stub(ISessionsManagementService, {
@@ -105,6 +113,7 @@ suite('SessionGroupsService', () => {
 			onDidReplaceSession: sessionReplacedEmitter.event,
 			onDidReplaceNewDraftSession: newDraftSessionReplacedEmitter.event,
 			onDidDiscardNewSession: newSessionDiscardedEmitter.event,
+			onDidMoveChat: chatMovedEmitter.event,
 		});
 		service = disposables.add(instantiationService.createInstance(SessionGroupsService));
 	});
@@ -929,5 +938,139 @@ suite('SessionGroupsService', () => {
 
 		assert.strictEqual(service.getGroupOfSession('s1'), undefined);
 		assert.deepStrictEqual(service.getSessionIdsInGroup(b.id), []);
+	});
+
+	suite('promoted chats', () => {
+
+		/** Reports that a nested chat of `source` became the main chat of the new session `promoted`, as a provider does. */
+		function promote(source: ISession, promoted: ISession): void {
+			chatMovedEmitter.fire({ from: { session: source, chat: URI.parse(`chat://${source.sessionId}-nested`) }, to: { session: promoted, chat: promoted.mainChat.get().resource } });
+		}
+
+		/** Reports that a chat of `source` moved into the existing session `destination`, next to its main chat. */
+		function moveInto(source: ISession, destination: ISession): void {
+			chatMovedEmitter.fire({ from: { session: source, chat: URI.parse(`chat://${source.sessionId}-main`) }, to: { session: destination, chat: URI.parse(`chat://${destination.sessionId}-nested`) } });
+		}
+
+		test('a chat promoted to a new session keeps its source session\'s group, also after reload', () => {
+			const source = createSessionWithMainChat('source');
+			const promoted = createSessionWithMainChat('promoted');
+			const group = service.createGroup('Group', [source.sessionId]);
+			sessions = [source, promoted];
+
+			promote(source, promoted);
+			const reloaded = disposables.add(instantiationService.createInstance(SessionGroupsService));
+
+			assert.deepStrictEqual({
+				promoted: service.getGroupOfSession(promoted.sessionId),
+				afterReload: reloaded.getGroupOfSession(promoted.sessionId),
+				members: reloaded.getSessionIdsInGroup(group.id).sort(),
+			}, {
+				promoted: group.id,
+				afterReload: group.id,
+				members: [promoted.sessionId, source.sessionId],
+			});
+		});
+
+		test('a chat moved into an existing session leaves the destination\'s placement alone', () => {
+			const source = createSessionWithMainChat('source');
+			const destination = createSessionWithMainChat('destination');
+			service.createGroup('Group', [source.sessionId]);
+			sessions = [source, destination];
+
+			moveInto(source, destination);
+
+			assert.deepStrictEqual(service.getGroupOfSession(destination.sessionId), undefined);
+		});
+
+		test('a promoted session keeps ordinary placement when its source session has no group or its group was deleted', () => {
+			const ungroupedSource = createSessionWithMainChat('ungrouped-source');
+			const deletedGroupSource = createSessionWithMainChat('deleted-group-source');
+			const fromUngrouped = createSessionWithMainChat('from-ungrouped');
+			const fromDeletedGroup = createSessionWithMainChat('from-deleted-group');
+			const group = service.createGroup('Group', [deletedGroupSource.sessionId]);
+			service.deleteGroup(group.id);
+			sessions = [ungroupedSource, deletedGroupSource, fromUngrouped, fromDeletedGroup];
+
+			promote(ungroupedSource, fromUngrouped);
+			promote(deletedGroupSource, fromDeletedGroup);
+
+			assert.deepStrictEqual({
+				fromUngrouped: service.getGroupOfSession(fromUngrouped.sessionId),
+				fromDeletedGroup: service.getGroupOfSession(fromDeletedGroup.sessionId),
+			}, {
+				fromUngrouped: undefined,
+				fromDeletedGroup: undefined,
+			});
+		});
+
+		test('a placement the promoted session already has wins over its source session\'s group', () => {
+			const source = createSessionWithMainChat('source');
+			const alreadyGrouped = createSessionWithMainChat('already-grouped');
+			const explicitlyUngrouped = createSessionWithMainChat('explicitly-ungrouped');
+			service.createGroup('Source group', [source.sessionId]);
+			const ownGroup = service.createGroup('Own group', [alreadyGrouped.sessionId, explicitlyUngrouped.sessionId]);
+			service.removeFromGroup(explicitlyUngrouped.sessionId);
+			sessions = [source, alreadyGrouped, explicitlyUngrouped];
+
+			promote(source, alreadyGrouped);
+			promote(source, explicitlyUngrouped);
+
+			assert.deepStrictEqual({
+				alreadyGrouped: service.getGroupOfSession(alreadyGrouped.sessionId),
+				explicitlyUngrouped: service.getGroupOfSession(explicitlyUngrouped.sessionId),
+			}, {
+				alreadyGrouped: ownGroup.id,
+				explicitlyUngrouped: undefined,
+			});
+		});
+
+		test('undoing a promotion ends the promoted session and leaves no membership of it behind, also after reload', () => {
+			const source = createSessionWithMainChat('source');
+			const promoted = createSessionWithMainChat('promoted');
+			const group = service.createGroup('Group', [source.sessionId]);
+			sessions = [source, promoted];
+
+			promote(source, promoted);
+			const afterPromote = service.getGroupOfSession(promoted.sessionId);
+			// Undo moves the promoted session's main chat back into its source session.
+			moveInto(promoted, source);
+			sessions = [source];
+			const reloaded = disposables.add(instantiationService.createInstance(SessionGroupsService));
+			const stored = JSON.parse(storageService.get('sessionsListControl.groups', StorageScope.PROFILE) ?? '{}');
+
+			assert.deepStrictEqual({
+				afterPromote,
+				afterUndo: service.getGroupOfSession(promoted.sessionId),
+				stored: { membership: stored.membership, explicitlyUngroupedSessionIds: stored.explicitlyUngroupedSessionIds },
+				afterReload: reloaded.getSessionIdsInGroup(group.id),
+			}, {
+				afterPromote: group.id,
+				afterUndo: undefined,
+				stored: { membership: { [source.sessionId]: group.id }, explicitlyUngroupedSessionIds: [] },
+				afterReload: [source.sessionId],
+			});
+		});
+
+		test('a session nested under another and promoted back joins the group of the session it was nested under', () => {
+			const nested = createSessionWithMainChat('nested');
+			const host = createSessionWithMainChat('host');
+			const promotedBack = createSessionWithMainChat('promoted-back');
+			service.createGroup('Nested group', [nested.sessionId]);
+			const hostGroup = service.createGroup('Host group', [host.sessionId]);
+			sessions = [nested, host];
+
+			moveInto(nested, host);
+			sessions = [host, promotedBack];
+			promote(host, promotedBack);
+
+			assert.deepStrictEqual({
+				host: service.getGroupOfSession(host.sessionId),
+				promotedBack: service.getGroupOfSession(promotedBack.sessionId),
+			}, {
+				host: hostGroup.id,
+				promotedBack: hostGroup.id,
+			});
+		});
 	});
 });

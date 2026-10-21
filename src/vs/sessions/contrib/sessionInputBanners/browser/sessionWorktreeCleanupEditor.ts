@@ -38,7 +38,7 @@ import { AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING, CLEANUP_THRESHOLD_BY
 import { SessionWorktreeCleanupEditorInput } from './sessionWorktreeCleanupEditorInput.js';
 import './media/sessionWorktreeCleanupEditor.css';
 
-const MINIMUM_AGE_OPTIONS = [7, 15, 30, 60, 90];
+const MINIMUM_AGE_OPTIONS = [0, 1, 3, 7, 15, 30, 60, 90];
 
 export class SessionWorktreeCleanupEditor extends EditorPane {
 
@@ -105,7 +105,11 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		for (const days of MINIMUM_AGE_OPTIONS) {
 			const option = dom.append(ageSelect, dom.$('option')) as HTMLOptionElement;
 			option.value = String(days);
-			option.textContent = localize('sessionWorktreeCleanup.days', "{0} days", days);
+			option.textContent = days === 0
+				? localize('sessionWorktreeCleanup.anyTime', "Any time")
+				: days === 1
+					? localize('sessionWorktreeCleanup.oneDay', "1 day")
+					: localize('sessionWorktreeCleanup.days', "{0} days", days);
 			option.selected = days === this.minimumAgeDays;
 		}
 		this.editorDisposables.add(dom.addDisposableListener(ageSelect, dom.EventType.CHANGE, () => {
@@ -136,6 +140,14 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 
 	focusAutomaticCleanup(): void {
 		this.automaticCleanupInput?.focus();
+	}
+
+	showAllWorktrees(): void {
+		this.minimumAgeDays = 0;
+		if (this.ageSelect) {
+			this.ageSelect.value = '0';
+		}
+		void this.load();
 	}
 
 	override layout(dimension: dom.Dimension): void {
@@ -216,17 +228,21 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		this.summaryRow?.classList.toggle('hidden', isEmpty);
 		this.list.classList.toggle('hidden', isEmpty);
 		this.emptyState?.classList.toggle('hidden', !isEmpty);
-		const summary = localize('sessionWorktreeCleanup.worktreeSummary', "{0} of {1} worktrees inactive for at least {2} days can be cleaned up, reclaiming about {3}.", eligibleWorktrees, totalWorktrees, this.minimumAgeDays, ByteSize.formatSize(reclaimableBytes));
+		const summary = this.minimumAgeDays === 0
+			? localize('sessionWorktreeCleanup.worktreeSummaryAnyTime', "{0} of {1} worktrees can be cleaned up, reclaiming about {2}.", eligibleWorktrees, totalWorktrees, ByteSize.formatSize(reclaimableBytes))
+			: localize('sessionWorktreeCleanup.worktreeSummary', "{0} of {1} worktrees inactive for at least {2} days can be cleaned up, reclaiming about {3}.", eligibleWorktrees, totalWorktrees, this.minimumAgeDays, ByteSize.formatSize(reclaimableBytes));
 		const recentNote = tooRecent === 0
 			? undefined
 			: tooRecent === 1
 				? localize('sessionWorktreeCleanup.tooRecentOne', " 1 more was used within the last {0} days.", this.minimumAgeDays)
 				: localize('sessionWorktreeCleanup.tooRecentMany', " {0} more were used within the last {1} days.", tooRecent, this.minimumAgeDays);
-		const eligibilityDescription = localize(
-			'sessionWorktreeCleanup.eligibilityDescription',
-			"Includes sessions untouched for at least {0} days that are not active, running, waiting for input, pinned, already done, untitled, or in an error state.",
-			this.minimumAgeDays,
-		);
+		const eligibilityDescription = this.minimumAgeDays === 0
+			? localize('sessionWorktreeCleanup.eligibilityDescriptionAnyTime', "Includes sessions of any age that are not active, running, waiting for input, pinned, already done, untitled, or in an error state.")
+			: localize(
+				'sessionWorktreeCleanup.eligibilityDescription',
+				"Includes sessions untouched for at least {0} days that are not active, running, waiting for input, pinned, already done, untitled, or in an error state.",
+				this.minimumAgeDays,
+			);
 		dom.clearNode(this.summary);
 		dom.append(this.summary, dom.$('span', { role: 'status', 'aria-live': 'polite' }, recentNote ? summary + recentNote : summary));
 		const eligibilityInfo = dom.append(this.summary, dom.$('button.session-worktree-cleanup-info', {
@@ -347,7 +363,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		dom.append(row, dom.$('span', undefined, label));
 		const description = localize(
 			'sessionWorktreeCleanup.suggestionDescription',
-			"Checked when the Agents window opens and after sessions change, measuring disk usage at most once an hour. A suggestion appears below the Sessions list when at least {0} inactive worktrees are eligible for cleanup or eligible worktrees use at least {1}. Dismissing it hides it until the window reloads.",
+			"Checked when the Agents window opens and after sessions change, measuring disk usage at most once an hour. A suggestion appears below the Sessions list when at least {0} inactive worktrees are eligible for cleanup or eligible worktrees use at least {1}. Available disk space is also checked every five minutes. If a local worktree's disk has less than 5 GB available, the same suggestion offers cleanup regardless of worktree age or count. Dismissing it hides it until the window reloads.",
 			CLEANUP_THRESHOLD_WORKTREES,
 			ByteSize.formatSize(CLEANUP_THRESHOLD_BYTES),
 		);

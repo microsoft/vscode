@@ -66,6 +66,10 @@ export class ReconnectingTransport extends Disposable implements IClientTranspor
 		return this._connectPromise;
 	}
 
+	get bufferedAmount(): number | undefined {
+		return this._establishedTransport.value?.transport.bufferedAmount;
+	}
+
 	/** Routes a protocol message through the established inner transport. */
 	send(message: ProtocolMessage | AhpServerNotification | JsonRpcNotification | JsonRpcParseErrorResponse | JsonRpcResponse | JsonRpcRequest): void {
 		const establishedTransport = this._establishedTransport.value;

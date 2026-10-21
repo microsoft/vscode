@@ -20,6 +20,7 @@ import { ClaudeHeaderAttributes, getAttributeDefinition, getTarget, GithubPrompt
 import { getAgentHookMetadata } from '../hookTypes.js';
 import { HOOK_COMMAND_FIELD_DESCRIPTIONS } from '../hookSchema.js';
 import { ICustomizationHarnessService } from '../../customizationHarnessService.js';
+import { getAgentFileModelReasoningEfforts, resolveAgentFileModelIdentifier, resolveAgentFileModelIdentifiers, resolveAgentFileModels } from './promptModelResolver.js';
 
 export class PromptHoverProvider implements HoverProvider {
 	/**
@@ -107,6 +108,8 @@ export class PromptHoverProvider implements HoverProvider {
 					switch (attribute.key) {
 						case PromptHeaderAttributes.model:
 							return this.getModelHover(attribute, position, description, target);
+						case PromptHeaderAttributes.reasoningEffort:
+							return this.getReasoningEffortHover(attribute, description, header, target);
 						case PromptHeaderAttributes.tools:
 						case ClaudeHeaderAttributes.disallowedTools:
 							return this.getToolHover(attribute, position, description, target);
@@ -212,7 +215,12 @@ export class PromptHoverProvider implements HoverProvider {
 				}
 			}
 
-			const result = this.languageModelsService.lookupLanguageModelByQualifiedName(modelName);
+			const agentFileModel = target === Target.GitHubCopilot
+				? resolveAgentFileModelIdentifier(modelName, resolveAgentFileModels(target, this.customizationHarnessService, this.languageModelsService).models)
+				: undefined;
+			const result = target === Target.GitHubCopilot
+				? agentFileModel ? { metadata: agentFileModel.metadata } : undefined
+				: this.languageModelsService.lookupLanguageModelByQualifiedName(modelName);
 			if (result) {
 				const meta = result.metadata;
 				lines.push(localize('modelName', '- Name: {0}', meta.name));
@@ -241,6 +249,22 @@ export class PromptHoverProvider implements HoverProvider {
 			}
 		}
 		return this.createHover(baseMessage, node.range);
+	}
+
+	private getReasoningEffortHover(node: IHeaderAttribute, baseMessage: string, header: PromptHeader, target: Target): Hover {
+		if (target !== Target.GitHubCopilot || node.value.type !== 'scalar') {
+			return this.createHover(baseMessage, node.range);
+		}
+		const effort = node.value.value;
+		const catalogue = resolveAgentFileModels(target, this.customizationHarnessService, this.languageModelsService);
+		const supportingModels = (header.model ?? [])
+			.flatMap(model => resolveAgentFileModelIdentifiers(model, catalogue.models))
+			.filter(model => getAgentFileModelReasoningEfforts(model).includes(effort))
+			.map(model => `\`${model.id}\` (${model.harnessId})`);
+		const contents = supportingModels.length > 0
+			? localize('promptHeader.agent.reasoningEffort.supportedModels', '{0}\n\nSupported by: {1}.', baseMessage, supportingModels.join(', '))
+			: baseMessage;
+		return this.createHover(contents, node.range);
 	}
 
 	private async getAgentHover(agentAttribute: IHeaderAttribute, position: Position, baseMessage: string): Promise<Hover | undefined> {
