@@ -101,8 +101,8 @@ function chooseOpener(validOpeners: readonly IValidOpener[]): IExternalUriOpener
 
 function getDefaultOpenerLabel(): string {
 	return isWeb
-		? nls.localize('selectOpenerDefaultLabel.web', 'Open in new browser window')
-		: nls.localize('selectOpenerDefaultLabel', 'Open in default browser');
+		? nls.localize('selectOpenerDefaultLabel.web', "Open in New Browser Window")
+		: nls.localize('selectOpenerDefaultLabel', "Open in Default Browser");
 }
 
 export class ExternalUriOpenerService extends Disposable implements IExternalUriOpenerService, IExternalOpener {
