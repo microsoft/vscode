@@ -51,6 +51,7 @@ import { COPILOT_INTEGRATION_ID } from '../../../../../platform/endpoint/common/
 import { GITHUB_DOT_COM_COPILOT_API_BASE_URI, deriveGitHubEndpoints } from '../../../../../platform/github/common/githubEndpoints.js';
 import { parseMissionControlError } from '../../../../../platform/github/common/missionControl/missionControlError.js';
 import { ApiRequestError } from '../../../../../platform/github/common/missionControl/missionControlClient.js';
+import type { TaskClient } from '../../../../../platform/github/common/missionControl/tasks.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IRequestContext } from '../../../../../base/parts/request/common/request.js';
@@ -74,6 +75,7 @@ interface ISealedTokenResponse {
 interface ITaskSummary {
 	readonly id: string;
 	readonly event_type?: string;
+	readonly clients?: readonly TaskClient[];
 	readonly name?: string;
 	readonly archived_at?: string | null;
 	readonly updated_at?: string;
@@ -675,7 +677,14 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 						throw new CancellationError();
 					}
 					let cached = cache.get(task.id);
-					if (targeted || cached?.needsRefresh || !cached?.session || !task.updated_at || task.updated_at !== cached.summary.updated_at || task.archived_at !== cached.summary.archived_at || task.hasRepository !== cached.summary.hasRepository) {
+					const application = task.clients?.find(client => client.creator === true)?.slug;
+					// Missing creator evidence does not revoke previously learned creation provenance.
+					const applicationChanged = application !== undefined && application !== cached?.session?.application;
+					if (targeted || cached?.needsRefresh || !cached?.session || !task.updated_at
+						|| task.updated_at !== cached.summary.updated_at
+						|| task.archived_at !== cached.summary.archived_at
+						|| task.hasRepository !== cached.summary.hasRepository
+						|| applicationChanged) {
 						const full = details.get(task.id) ?? await this._readJson<ITaskDetail>(await this._sendTask(`${this._tasksBaseUrl()}/tasks/${encodeURIComponent(task.id)}`, 'get', token));
 						if (!full) {
 							throw new Error('getTask returned no task');
@@ -686,11 +695,13 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 						}
 						const status = binding ? taskSessionStatus(full.sessions?.find(session => session.id === binding.sessionId)?.state ?? full.state ?? task.state, this._logService) : undefined;
 						const eventType = full.event_type || task.event_type;
+						const creatingApplication = full.clients?.find(client => client.creator === true)?.slug ?? application ?? cached?.session?.application;
 						const repositoryId = [full.repository?.id, task.repository?.id].find(id => id !== undefined && id > 0);
 						const session: ICloudSandboxDiscoveredSession | undefined = binding ? {
 							...binding,
 							taskId: task.id,
 							...(eventType ? { eventType } : {}),
+							...(creatingApplication ? { application: creatingApplication } : {}),
 							name: full.name ?? task.name ?? `Sandbox ${task.id}`,
 							hasRepository: task.hasRepository || repositoryId !== undefined,
 							updatedAt: full.updated_at ?? task.updated_at,

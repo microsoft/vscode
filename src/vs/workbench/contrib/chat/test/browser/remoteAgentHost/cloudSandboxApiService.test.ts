@@ -22,6 +22,7 @@ import { IGitHubAccountClient } from '../../../../../../platform/github/common/a
 import { ApiRequest, ApiResponse, BufferedApiRequestProvider } from '../../../../../../platform/github/common/client/request.js';
 import { ApiRequestError, MissionControlClient } from '../../../../../../platform/github/common/missionControl/missionControlClient.js';
 import { TasksClient } from '../../../../../../platform/github/common/missionControl/tasksClient.js';
+import type { TaskClient } from '../../../../../../platform/github/common/missionControl/tasks.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
@@ -2127,6 +2128,78 @@ suite('CloudSandboxApiService repository resolution', () => {
 		const result = await service.listSessions(CancellationToken.None);
 		assert.deepStrictEqual(result.kind === 'failed' ? result : result.sessions.map(session => session.eventType), ['slack']);
 	});
+
+	test('uses the task creator rather than participating or nested session clients', async () => {
+		const source = {
+			...task('task-1', 'From CLI', undefined, 'session-1', 'environment-1'),
+			event_type: 'slack',
+			clients: [
+				{ integration_id: 'vscode-chat', slug: 'copilot-vscode', creator: false },
+				{ integration_id: 'copilot-developer-cli', slug: 'copilot-cli', creator: true },
+			],
+			sessions: [{
+				id: 'session-1', environment_id: 'environment-1',
+				clients: [{ integration_id: 'vscode-chat', slug: 'copilot-vscode', creator: true }],
+			}],
+		};
+		const { service } = createService(store, { tasks: [source], repositories: new Map() });
+		const result = await service.listSessions(CancellationToken.None);
+		assert.deepStrictEqual(result.kind === 'failed' ? result : result.sessions.map(({ application, eventType }) => ({ application, eventType })), [
+			{ application: 'copilot-cli', eventType: 'slack' },
+		]);
+	});
+
+	test('hydrates creator attribution without an activity timestamp change', async () => {
+		const clients: TaskClient[] = [];
+		const source = {
+			...task('task-1', 'From CLI', undefined, 'session-1', 'environment-1'),
+			event_type: 'slack',
+			updated_at: '2026-07-01T00:01:00.000Z',
+			clients,
+		};
+		const { service, requestedUrls } = createService(store, { tasks: [source], repositories: new Map() });
+		const initial = await service.listSessions(CancellationToken.None);
+		clients.push({ integration_id: 'vscode-chat', slug: 'copilot-vscode', creator: false });
+		const participating = await service.listSessions(CancellationToken.None);
+		clients.push({ integration_id: 'copilot-developer-cli', slug: 'copilot-cli', creator: true });
+		const attributed = await service.listSessions(CancellationToken.None);
+		const cached = await service.listSessions(CancellationToken.None);
+		assert.deepStrictEqual({
+			applications: [initial, participating, attributed, cached].map(result => result.kind === 'failed' ? result.reason : result.sessions.map(session => session.application)),
+			detailReads: requestedUrls.filter(url => url.endsWith('/tasks/task-1')).length,
+		}, {
+			applications: [[undefined], [undefined], ['copilot-cli'], ['copilot-cli']],
+			detailReads: 2,
+		});
+	});
+
+	for (const { label, clients } of [
+		{ label: 'omits clients', clients: undefined },
+		{ label: 'reports an empty client list', clients: [] },
+		{ label: 'reports only participating clients', clients: [{ integration_id: 'vscode-chat', slug: 'copilot-vscode', creator: false }] },
+	]) {
+		test(`retains known creation provenance when a later response ${label}`, async () => {
+			const source: ReturnType<typeof task> & { clients?: readonly TaskClient[]; updated_at: string } = {
+				...task('task-1', 'From CLI', undefined, 'session-1', 'environment-1'),
+				updated_at: '2026-07-01T00:01:00.000Z',
+				clients: [{ integration_id: 'copilot-developer-cli', slug: 'copilot-cli', creator: true }],
+			};
+			const { service, requestedUrls } = createService(store, { tasks: [source], repositories: new Map() });
+			const initial = await service.listSessions(CancellationToken.None);
+			source.clients = clients;
+			const cached = await service.listSessions(CancellationToken.None);
+			source.updated_at = '2026-07-01T00:02:00.000Z';
+			const refreshed = await service.listSessions(CancellationToken.None);
+			const targeted = await service.listSessions(CancellationToken.None, { taskIds: ['task-1'] });
+			assert.deepStrictEqual({
+				applications: [initial, cached, refreshed, targeted].map(result => result.kind === 'failed' ? result.reason : result.sessions.map(session => session.application)),
+				detailReads: requestedUrls.filter(url => url.endsWith('/tasks/task-1')).length,
+			}, {
+				applications: [['copilot-cli'], ['copilot-cli'], ['copilot-cli'], ['copilot-cli']],
+				detailReads: 3,
+			});
+		});
+	}
 
 	test('preserves the bound session activity independently of the task state', async () => {
 		const states = ['queued', 'in_progress', 'waiting_for_user', 'idle', 'completed', 'failed', 'timed_out', 'cancelled'];

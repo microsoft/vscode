@@ -884,6 +884,32 @@ suite('Mission Control client', () => {
 		await assert.rejects(client.tasks.get(task.id, signal()), new SchemaError('Task response did not match the requested task'));
 	});
 
+	test('preserves independent task and session client attribution in lists and details', async () => {
+		const clients = [
+			{ integration_id: 'copilot-developer-cli', slug: 'copilot-cli', creator: false },
+			{ integration_id: 'vscode-chat', slug: 'copilot-vscode', creator: true },
+			{ integration_id: 'future-client', slug: 'future-client', creator: false },
+		];
+		const sessions = [{ id: 'session-1', state: 'idle', created_at: date, clients: clients.map(client => ({ ...client, creator: false })) }];
+		const response = { ...task, clients, sessions };
+		const { client } = setup(request => Response.json(request.url.pathname === '/agents/tasks' ? { tasks: [response] } : response));
+		const listed = await client.tasks.list(signal());
+		const detail = await client.tasks.get(task.id, signal());
+		assert.deepStrictEqual({ listed: listed.data.tasks[0].clients, task: detail.clients, sessions: detail.sessions }, {
+			listed: clients, task: clients, sessions,
+		});
+	});
+
+	test('rejects malformed client attribution rather than dropping it', async () => {
+		for (const clients of [
+			[{ integration_id: 'vscode-chat', slug: 'copilot-vscode', creator: 'true' }],
+			[{ integration_id: 'vscode-chat', slug: '', creator: true }],
+		]) {
+			const { client } = setup(() => Response.json({ ...task, clients }));
+			await assert.rejects(client.tasks.get(task.id, signal()), SchemaError);
+		}
+	});
+
 	test('tasks use their existing contracts and configured service routes', async () => {
 		const { client, requests } = setup(request => request.init.method === 'DELETE' ? new Response(null, { status: 204 })
 			: Response.json(task, { status: request.init.method === 'POST' && request.url.pathname === '/agents/tasks' ? 201 : 200 }));

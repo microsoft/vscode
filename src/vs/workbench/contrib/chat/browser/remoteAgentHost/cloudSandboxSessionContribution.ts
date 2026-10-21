@@ -69,6 +69,7 @@ const INVENTORY_STORAGE_PREFIX = 'sessions.cloudSandbox.inventory.';
 export interface ICloudSandboxSessionEnvironment {
 	readonly environmentId: string;
 	readonly eventType?: string;
+	readonly application?: string;
 	readonly sessionId?: string;
 	/**
 	 * Mission Control task owning the session. Persisted AHP history is addressed per task, so this
@@ -90,6 +91,7 @@ function isDiscoveredSandboxSession(value: unknown): value is ICloudSandboxDisco
 		&& typeof candidate.taskId === 'string' && candidate.taskId.length > 0
 		&& typeof candidate.name === 'string'
 		&& (candidate.eventType === undefined || typeof candidate.eventType === 'string')
+		&& (candidate.application === undefined || typeof candidate.application === 'string')
 		&& (candidate.repoName === undefined || typeof candidate.repoName === 'string')
 		&& (candidate.hasRepository === undefined || typeof candidate.hasRepository === 'boolean')
 		&& (candidate.updatedAt === undefined || typeof candidate.updatedAt === 'string')
@@ -515,10 +517,11 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		const parsed = session.updatedAt ? Date.parse(session.updatedAt) : Number.NaN;
 		const modifiedTime = Number.isNaN(parsed) ? provider?.getSessionModifiedTime(session.sessionId) ?? Date.now() : parsed;
 		const project = discoveredSessionProject(session.repoName);
+		const application = session.application || session.eventType;
 		provider?.seedSessions([{
 			session: AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, session.sessionId),
 			provider: CLOUD_SANDBOX_AGENT_PROVIDER,
-			...(session.eventType ? { _meta: withSessionInitiator(undefined, { name: session.eventType }) } : {}),
+			...(application ? { _meta: withSessionInitiator(undefined, { name: application }) } : {}),
 			startTime: modifiedTime,
 			modifiedTime,
 			summary: session.name,
@@ -593,6 +596,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 					sessionId: environment.sessionId,
 					taskId: environment.taskId,
 					eventType: environment.eventType,
+					application: environment.application,
 					name: environment.name,
 					repoName: environment.repoName,
 					hasRepository: environment.hasRepository,
@@ -1190,6 +1194,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			...known, ...env,
 			taskId: env.taskId ?? (!env.sessionId || env.sessionId === known?.sessionId ? known?.taskId : undefined),
 			eventType: env.eventType ?? known?.eventType,
+			application: env.application ?? (!env.sessionId || env.sessionId === known?.sessionId ? known?.application : undefined),
 			repoName: env.repoName ?? known?.repoName,
 			hasRepository: env.hasRepository ?? known?.hasRepository,
 			updatedAt: env.updatedAt ?? known?.updatedAt,

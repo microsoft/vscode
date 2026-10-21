@@ -11,7 +11,7 @@ import { PageOptions } from '../client/types.js';
 import { GitHubRequestError } from '../githubTypes.js';
 import { PaginatedResponse } from './missionControl.js';
 import { MissionControlClient, paginated, parseEnvironmentKind, parseUser } from './missionControlClient.js';
-import { AhpPayload, CreateTaskRequest, GetTaskResponse, ITasksClient, ListTaskEventsResponse, ListTasksOptions, ListTasksResponse, Repository, SessionFeedConnection, SteerTaskRequest, Task, TaskAHPEventsResponse, TaskArtifact, UpdateTaskRequest } from './tasks.js';
+import { AhpPayload, CreateTaskRequest, GetTaskResponse, ITasksClient, ListTaskEventsResponse, ListTasksOptions, ListTasksResponse, Repository, SessionFeedConnection, SteerTaskRequest, Task, TaskAHPEventsResponse, TaskArtifact, TaskClient, UpdateTaskRequest } from './tasks.js';
 
 export class TasksClient implements ITasksClient {
 	constructor(private readonly _client: MissionControlClient) { }
@@ -183,6 +183,12 @@ const parseRepository = parse.object<Repository>({
 
 const parseTaskState = parse.oneOf('queued', 'in_progress', 'completed', 'failed', 'idle', 'waiting_for_user', 'timed_out', 'cancelled');
 
+const parseTaskClient = parse.object<TaskClient>({
+	integration_id: parse.nonEmptyString,
+	slug: parse.nonEmptyString,
+	creator: parse.boolean,
+});
+
 const parseTaskFields = parse.object<Task>({
 	id: parse.nonEmptyString,
 	url: parse.optional(parse.string),
@@ -190,6 +196,7 @@ const parseTaskFields = parse.object<Task>({
 	name: parse.optional(parse.string),
 	creator: parse.optional(parseUser),
 	creator_type: parse.optional(parse.oneOf('user', 'organization')),
+	clients: parse.optional(parse.arrayOf(parseTaskClient)),
 	user_collaborators: parse.optional(parse.arrayOf(value => isNumber(value) ? parse.integer(value) : parseUser(value))),
 	agent_collaborators: parse.optional(parse.arrayOf(parse.object({
 		agent_type: parse.optional(parse.string),
@@ -311,6 +318,7 @@ const parseTaskSessions = parse.object<Pick<GetTaskResponse, 'sessions'>>({
 	sessions: parse.optional(parse.arrayOf(parse.object({
 		id: parse.nonEmptyString,
 		name: parse.optional(parse.string),
+		clients: parse.optional(parse.arrayOf(parseTaskClient)),
 		user: parse.optional(parseUser),
 		owner: parse.optional(parseUser),
 		repository: parse.optional(parseRepository),

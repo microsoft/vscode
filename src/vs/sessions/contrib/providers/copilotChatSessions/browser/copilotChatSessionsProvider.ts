@@ -648,9 +648,7 @@ class AgentSessionAdapter implements ICopilotChatSession {
 		this.providerId = providerId;
 		this.sessionType = session.providerType;
 		this.application = observableValueOpts({ owner: this, equalsFn: structuralEquals },
-			getSessionApplication(typeof session.metadata?.event_type === 'string' && session.metadata.event_type
-				? session.metadata.event_type
-				: this._extractIsExternal(session) ? 'github/autopilot' : 'vscode'));
+			getSessionApplication(this._extractApplication(session) ?? (this._extractIsExternal(session) ? 'github/autopilot' : 'vscode')));
 		this.icon = CopilotCloudSessionType.icon;
 		this.createdAt = new Date(session.timing.created);
 
@@ -781,8 +779,9 @@ class AgentSessionAdapter implements ICopilotChatSession {
 			changed = setIfChanged(this._isRead, session.isRead(), tx) || changed;
 			changed = setIfChanged(this.isAutomation, session.providerType === AgentSessionProviders.Cloud && session.metadata?.isAutomation === true, tx) || changed;
 			changed = setIfChanged(this._isExternal, this._extractIsExternal(session), tx) || changed;
-			if (typeof session.metadata?.event_type === 'string' && session.metadata.event_type) {
-				changed = setIfChanged(this.application, getSessionApplication(session.metadata.event_type), tx, structuralEquals) || changed;
+			const application = this._extractApplication(session);
+			if (application) {
+				changed = setIfChanged(this.application, getSessionApplication(application), tx, structuralEquals) || changed;
 			}
 			changed = setIfChanged(this._description, this._extractDescription(session), tx, markdownStringEquals) || changed;
 			changed = setIfChanged(this._lastTurnEnd, session.timing.lastRequestEnded ? new Date(session.timing.lastRequestEnded) : undefined, tx, dateEquals) || changed;
@@ -824,6 +823,15 @@ class AgentSessionAdapter implements ICopilotChatSession {
 	 */
 	private _extractIsExternal(session: IAgentSession): boolean {
 		return session.providerType === AgentSessionProviders.Cloud && session.metadata?.external === true;
+	}
+
+	private _extractApplication(session: IAgentSession): string | undefined {
+		for (const value of [session.metadata?.application, session.metadata?.event_type]) {
+			if (typeof value === 'string' && value) {
+				return value;
+			}
+		}
+		return undefined;
 	}
 
 	private _extractIssueArtifacts(session: IAgentSession): readonly ISessionArtifact[] {
