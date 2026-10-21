@@ -240,7 +240,7 @@ suite('AgentHostLanguageModelProvider', () => {
 		assert.strictEqual(concrete?.metadata.autoModelDiscountPercent, undefined);
 	});
 
-	test('presents Auto as Fusion, a research preview, only when its host marks it so', async () => {
+	test('presents Auto as Fusion only when its host marks it so', async () => {
 		const provider = createProvider();
 		provider.updateModels([
 			{ ...makeModel('auto', withAgentModelFusionMeta(undefined, { balanceUsesHydraFusion: false })), name: 'Copilot Fusion' },
@@ -258,7 +258,7 @@ suite('AgentHostLanguageModelProvider', () => {
 			malformed: [await fusionOf({ 'vscode.chat.fusion': {} }), await fusionOf({ 'vscode.chat.fusion': { balanceUsesHydraFusion: 'true' } })],
 		}, {
 			models: [
-				{ name: 'Copilot Fusion', fusion: { balanceUsesHydraFusion: false }, detail: 'Research preview', tooltip: 'Copilot Fusion chooses models and workflows based on your task. [Learn more](https://docs.github.com/en/early-access/copilot/hydrafusion)' },
+				{ name: 'Copilot Fusion', fusion: { balanceUsesHydraFusion: false }, detail: undefined, tooltip: 'Copilot Fusion chooses models and workflows based on your task. [Learn more](https://docs.github.com/en/early-access/copilot/hydrafusion)' },
 				{ name: 'gpt-5', fusion: undefined, detail: undefined, tooltip: undefined },
 			],
 			plain: undefined,
@@ -322,7 +322,7 @@ suite('AgentHostLanguageModelProvider', () => {
 			meta = fusion ? withAgentModelFusionMeta(meta, { balanceUsesHydraFusion: false }) : meta;
 			provider.updateModels([{ ...makeModel('auto', meta), configSchema }]);
 			const { metadata } = (await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None))[0];
-			return { detail: metadata.detail, discount: metadata.autoModelDiscountPercent, promotions: metadata.autoModelTierPromotions?.map(promotion => `${promotion.id}${promotion.upcoming ? ' (upcoming)' : ''}`) };
+			return { detail: metadata.detail, discount: metadata.autoModelDiscountPercent, promotions: metadata.autoModelTierPromotions?.map(promotion => promotion.id) };
 		};
 
 		assert.deepStrictEqual({
@@ -333,9 +333,9 @@ suite('AgentHostLanguageModelProvider', () => {
 			notFusion: await presented(false, [running]),
 		}, {
 			running: { detail: '30% discount', discount: undefined, promotions: ['launch'] },
-			upcoming: { detail: 'Research preview', discount: undefined, promotions: ['launch (upcoming)'] },
+			upcoming: { detail: '10% discount', discount: 10, promotions: undefined },
 			ended: { detail: '10% discount', discount: 10, promotions: undefined },
-			oneTier: { detail: 'Research preview', discount: undefined, promotions: ['launch'] },
+			oneTier: { detail: undefined, discount: undefined, promotions: ['launch'] },
 			notFusion: { detail: '10% discount', discount: 10, promotions: undefined },
 		});
 	});
@@ -358,7 +358,7 @@ suite('AgentHostLanguageModelProvider', () => {
 		assert.strictEqual(auto?.metadata.autoModelDiscountPercent, undefined);
 	});
 
-	test('tags HydraFusion models as research previews and describes their routing', async () => {
+	test('describes HydraFusion models\' routing without a badge', async () => {
 		const provider = createProvider();
 		provider.updateModels([
 			{ ...makeModel('hydrafusion'), name: 'HydraFusion' },
@@ -369,8 +369,8 @@ suite('AgentHostLanguageModelProvider', () => {
 
 		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
 		assert.deepStrictEqual(infos.map(m => [m.metadata.id, m.metadata.detail, m.metadata.tooltip]), [
-			['hydrafusion', 'Research preview', 'HydraFusion routes the first eligible turn and may use multiple models.'],
-			['hydrafusion-max', 'Research preview', 'HydraFusion Max routes the first eligible turn and may use multiple models.'],
+			['hydrafusion', undefined, 'HydraFusion routes the first eligible turn and may use multiple models.'],
+			['hydrafusion-max', undefined, 'HydraFusion Max routes the first eligible turn and may use multiple models.'],
 			['gpt-5', undefined, undefined],
 			['hydrafusion-max', undefined, undefined],
 		]);

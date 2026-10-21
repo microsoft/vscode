@@ -232,7 +232,7 @@ suite('ModelCard', () => {
 			card.element.querySelectorAll<HTMLElement>('[role="radio"]')[0].click();
 			assert.deepStrictEqual({ covered, uncovered: read(card) }, {
 				covered: { chip: '30% discount', discount: undefined, tier: 'Prioritizes capable models for challenging tasks and deeper reasoning.', promotions: ['Get 30% off Fusion usage.'] },
-				uncovered: { chip: 'Research preview', discount: undefined, tier: 'Prioritizes versatile models for efficient everyday coding.', promotions: ['Get 30% off Fusion usage.'] },
+				uncovered: { chip: '', discount: undefined, tier: 'Prioritizes versatile models for efficient everyday coding.', promotions: ['Get 30% off Fusion usage.'] },
 			});
 		});
 
@@ -247,18 +247,25 @@ suite('ModelCard', () => {
 			assert.deepStrictEqual(read(card), { chip: '30% discount', discount: undefined, tier: 'Prioritizes capable models for challenging tasks and deeper reasoning.', promotions: [] });
 		});
 
-		test('an upcoming promotion is announced with its start date and no discount, and once it ends Fusion\'s own discount returns', () => {
+		test('a running promotion is announced with its end date, and promotions outside their window are not shown', () => {
+			const running = createCard({ tier: 'balance' }, { model: createFusionModel([promotion(iso(-day), iso(day))], '30% discount') }).card;
+			const endsAt = new Date(Date.now() + day).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
 			const upcoming = createCard({ tier: 'balance' }, { model: createFusionModel([promotion(iso(day), iso(2 * day))]) }).card;
-			const startsAt = new Date(Date.now() + day).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
-			// The agent host drops ended promotions.
-			const ended = createCard({ tier: 'balance' }, { model: createFusionModel([]) }).card;
+			const ended = createCard({ tier: 'balance' }, { model: createFusionModel([promotion(iso(-2 * day), iso(-day))]) }).card;
 			assert.deepStrictEqual({
-				upcoming: { ...read(upcoming), text: upcoming.element.querySelector('.chat-model-card-tier-promotion')?.textContent },
+				running: running.element.querySelector('.chat-model-card-tier-promotion')?.textContent,
+				upcoming: read(upcoming),
 				ended: read(ended),
 			}, {
-				upcoming: { chip: 'Research preview', discount: undefined, tier: 'Prioritizes versatile models for efficient everyday coding.', promotions: ['Get 30% off Fusion usage.'], text: `Get 30% off Fusion usage. Starts ${startsAt}.` },
-				ended: { chip: '10% discount', discount: undefined, tier: 'Prioritizes versatile models for efficient everyday coding.', promotions: [] },
+				running: `Get 30% off Fusion usage. Ends ${endsAt}.`,
+				upcoming: { chip: '', discount: undefined, tier: 'Prioritizes versatile models for efficient everyday coding.', promotions: [] },
+				ended: { chip: '', discount: undefined, tier: 'Prioritizes versatile models for efficient everyday coding.', promotions: [] },
 			});
+		});
+
+		test('without promotions, Fusion\'s own discount shows', () => {
+			const { card } = createCard({ tier: 'balance' }, { model: createFusionModel([]) });
+			assert.deepStrictEqual(read(card), { chip: '10% discount', discount: undefined, tier: 'Prioritizes versatile models for efficient everyday coding.', promotions: [] });
 		});
 
 	});
