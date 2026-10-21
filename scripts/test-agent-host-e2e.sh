@@ -18,6 +18,7 @@ if [[ "$1" == "--help" || "$1" == "-h" ]]; then
 	echo ""
 	echo "Options:"
 	echo "  --jobs <n>                    maximum number of suites to run in parallel"
+	echo "  --shard <index>/<total>       run one of <total> balanced shards of the suites, e.g. 1/3"
 	echo "  --storage <disk|tmpfs|split>  temporary storage for the suites (tmpfs and split require Linux)"
 	echo "  --grep, -g, -f <pattern>      filter test cases by name"
 	echo "  --build                       use the out-build directory"

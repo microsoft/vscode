@@ -24,6 +24,7 @@ echo entrypoint, in parallel. scripts\test-integration.bat does not run them.
 echo.
 echo Options:
 echo   --jobs ^<n^>                    maximum number of suites to run in parallel
+echo   --shard ^<index^>/^<total^>       run one of ^<total^> balanced shards of the suites, e.g. 1/3
 echo   --grep, -g, -f ^<pattern^>      filter test cases by name
 echo   --build                       use the out-build directory
 echo   --help, -h                    show this help
