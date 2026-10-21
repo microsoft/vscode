@@ -663,6 +663,7 @@ suite('NewChatWidget', () => {
 			const opened: (ICreateNewSessionOptions | undefined)[] = [];
 			const errors: string[] = [];
 			const announcements: string[] = [];
+			const traces: string[] = [];
 			const management = {
 				getQuickChatSessionTypes: () => targets.get(),
 				isQuickChatTargetAvailable: (options?: ICreateNewSessionOptions) => targets.get().some(target =>
@@ -723,13 +724,13 @@ suite('NewChatWidget', () => {
 					unsetNewSession: () => session.set(undefined, undefined),
 				},
 				accessibilityService: { status: (message: string) => announcements.push(message) },
-				logService: { error: (_message: string, error: Error) => errors.push(error.message), trace: () => { } },
+				logService: { error: (_message: string, error: Error) => errors.push(error.message), trace: (message: string) => traces.push(message) },
 				notificationService: { error: () => { } },
 			});
 			const select = Reflect.get(NewChatWidget.prototype, '_selectEnvironment') as (this: NewChatWidget, environment: ISessionCreationEnvironment) => Promise<void>;
 			const restore = Reflect.get(NewChatWidget.prototype, '_restoreNoWorkspaceDraft') as (this: NewChatWidget) => Promise<void>;
 			return {
-				widget, targetHarness, session, picked, remote, tunnel, targets, remoteTarget, localTarget, opened, errors, announcements,
+				widget, targetHarness, session, picked, remote, tunnel, targets, remoteTarget, localTarget, opened, errors, announcements, traces,
 				select: async (environment: ISessionCreationEnvironment) => {
 					await select.call(widget, environment);
 					await pendingSelection;
@@ -831,6 +832,46 @@ suite('NewChatWidget', () => {
 			assert.deepStrictEqual(state.opened, [{ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionTypeId: 'copilotcli' }]);
 		});
 
+		test('reseeding a draft whose harness disappeared uses another harness on the same provider', async () => {
+			const state = createFolderlessHarness();
+			await state.select(local);
+			state.opened.length = 0;
+			state.targets.set([state.remoteTarget, { ...state.localTarget, sessionType: { ...state.localTarget.sessionType, id: 'claude' } }], undefined);
+			const open = Reflect.get(NewChatWidget.prototype, '_openQuickChat') as (this: NewChatWidget) => IActiveSession | undefined;
+			open.call(state.widget);
+			assert.deepStrictEqual({
+				providerId: state.session.get()?.providerId, sessionType: state.session.get()?.sessionType, opened: state.opened, traces: state.traces,
+			}, {
+				providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionType: 'claude',
+				opened: [{ providerId: LOCAL_AGENT_HOST_PROVIDER_ID }], traces: [],
+			});
+		});
+
+		test('an unavailable quick-chat target logs the selected environment and providers', async () => {
+			const state = createFolderlessHarness();
+			await state.select(local);
+			state.opened.length = 0;
+			state.targets.set([state.remoteTarget], undefined);
+			const open = Reflect.get(NewChatWidget.prototype, '_openQuickChat') as (this: NewChatWidget) => IActiveSession | undefined;
+			const session = open.call(state.widget);
+			assert.deepStrictEqual({ session, opened: state.opened, traces: state.traces }, {
+				session: undefined, opened: [],
+				traces: ['Waiting for a compatible quick-chat harness in environment \'local\' (providers: local-agent-host).'],
+			});
+		});
+
+		test('a provider with no remaining quick-chat harness falls back only within the selected environment', () => {
+			const state = createFolderlessHarness();
+			const environment = { ...local, providerIds: [state.remote.id, LOCAL_AGENT_HOST_PROVIDER_ID] };
+			state.targets.set([state.localTarget], undefined);
+			assert.deepStrictEqual({
+				replacement: getWorkspaceOptOutTarget.call(state.targetHarness, environment, state.session.get()),
+				legacy: getWorkspaceOptOutTarget.call(state.targetHarness, undefined, state.session.get()),
+			}, {
+				replacement: { providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionTypeId: 'copilotcli' }, legacy: undefined,
+			});
+		});
+
 		test('retains the previous harness only when the selected environment supports it', () => {
 			const state = createFolderlessHarness();
 			const alternateTarget = { providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionType: { ...state.localTarget.sessionType, id: 'claude' } };
@@ -850,42 +891,45 @@ suite('NewChatWidget', () => {
 			});
 		});
 
-		test('restoring a folderless draft preserves the remembered non-first harness', () => {
-			const { instantiationService } = createSessionViewTestServices(disposables);
-			let requestedType: string | undefined;
-			const provider = new class extends mock<ISessionsProvider>() {
-				override readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
-				override readonly supportsQuickChats = true;
-				override readonly sessionTypes = ['copilotcli', 'claude'].map(id => ({
-					id, label: id, icon: Codicon.copilot, authRequirement: SessionTypeAuthRequirement.GitHub,
-				}));
-				override readonly onDidChangeSessions = Event.None;
-				override readonly onDidMoveChat = Event.None;
-				override getSessions(): ISession[] { return []; }
-				override createQuickChat(sessionTypeId: string): ISession {
-					requestedType = sessionTypeId;
-					return upcastPartial<ISession>({ sessionId: 'draft', providerId: this.id });
-				}
-				override deleteNewSession(): void { }
-			}();
-			instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
-			instantiationService.stub(IUriIdentityService, { extUri });
-			const providers = disposables.add(instantiationService.createInstance(SessionsProvidersService));
-			disposables.add(providers.registerProvider(provider));
-			instantiationService.stub(ISessionsProvidersService, providers);
-			instantiationService.stub(IChatService, new class extends mock<IChatService>() {
-				override readonly onDidSubmitRequest = Event.None;
-			}());
-			const management = disposables.add(instantiationService.createInstance(SessionsManagementService));
-			management.createQuickChat({ providerId: provider.id, sessionTypeId: 'claude' });
-			management.discardNewSession();
+		for (const previousHarness of [undefined, 'removed-harness']) {
+			test(`restoring a folderless draft preserves the remembered non-first harness (previous: ${previousHarness})`, () => {
+				const { instantiationService } = createSessionViewTestServices(disposables);
+				let requestedType: string | undefined;
+				const provider = new class extends mock<ISessionsProvider>() {
+					override readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
+					override readonly supportsQuickChats = true;
+					override readonly sessionTypes = ['copilotcli', 'claude'].map(id => ({
+						id, label: id, icon: Codicon.copilot, authRequirement: SessionTypeAuthRequirement.GitHub,
+					}));
+					override readonly onDidChangeSessions = Event.None;
+					override readonly onDidMoveChat = Event.None;
+					override getSessions(): ISession[] { return []; }
+					override createQuickChat(sessionTypeId: string): ISession {
+						requestedType = sessionTypeId;
+						return upcastPartial<ISession>({ sessionId: 'draft', providerId: this.id });
+					}
+					override deleteNewSession(): void { }
+				}();
+				instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
+				instantiationService.stub(IUriIdentityService, { extUri });
+				const providers = disposables.add(instantiationService.createInstance(SessionsProvidersService));
+				disposables.add(providers.registerProvider(provider));
+				instantiationService.stub(ISessionsProvidersService, providers);
+				instantiationService.stub(IChatService, new class extends mock<IChatService>() {
+					override readonly onDidSubmitRequest = Event.None;
+				}());
+				const management = disposables.add(instantiationService.createInstance(SessionsManagementService));
+				management.createQuickChat({ providerId: provider.id, sessionTypeId: 'claude' });
+				management.discardNewSession();
 
-			const target = getWorkspaceOptOutTarget.call({ sessionsManagementService: management }, local, undefined);
-			management.createQuickChat(target);
-			assert.deepStrictEqual({ target, requestedType }, {
-				target: { providerId: LOCAL_AGENT_HOST_PROVIDER_ID }, requestedType: 'claude',
+				const previousSession = previousHarness ? upcastPartial<ISession>({ providerId: provider.id, sessionType: previousHarness }) : undefined;
+				const target = getWorkspaceOptOutTarget.call({ sessionsManagementService: management }, local, previousSession);
+				management.createQuickChat(target);
+				assert.deepStrictEqual({ target, requestedType }, {
+					target: { providerId: LOCAL_AGENT_HOST_PROVIDER_ID }, requestedType: 'claude',
+				});
 			});
-		});
+		}
 
 		test('switches to the selected workspace environment before creating a workspace-first draft', async () => {
 			const remote: ISessionCreationEnvironment = { id: 'remote', kind: 'remote', label: 'Remote', icon: Codicon.remote, providerIds: ['remote'] };

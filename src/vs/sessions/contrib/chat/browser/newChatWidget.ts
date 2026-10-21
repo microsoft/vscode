@@ -1480,10 +1480,11 @@ export class NewChatWidget extends Disposable {
 	}
 
 	private _openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean): IActiveSession | undefined {
-		if (!options && this._environment.get()) {
+		const environment = this._environment.get();
+		if (!options && environment) {
 			options = this._workspaceOptOutTarget.get();
 			if (!options) {
-				this.logService.trace('Waiting for a compatible quick-chat harness in the selected environment.');
+				this.logService.trace(`Waiting for a compatible quick-chat harness in environment '${environment.id}' (providers: ${environment.providerIds.join(', ')}).`);
 				return undefined;
 			}
 		}
@@ -1494,9 +1495,18 @@ export class NewChatWidget extends Disposable {
 		if (environment?.kind === 'cloud' || environment?.kind === 'container') {
 			return undefined;
 		}
-		if (!environment || session && environment.providerIds.includes(session.providerId)) {
+		if (!environment || (session && environment.providerIds.includes(session.providerId))) {
 			const target = session && { providerId: session.providerId, sessionTypeId: session.sessionType };
-			return target && this.sessionsManagementService.isQuickChatTargetAvailable(target) ? target : undefined;
+			if (target && this.sessionsManagementService.isQuickChatTargetAvailable(target)) {
+				return target;
+			}
+			if (!environment) {
+				return undefined;
+			}
+			const providerTarget = session && { providerId: session.providerId };
+			if (providerTarget && this.sessionsManagementService.isQuickChatTargetAvailable(providerTarget)) {
+				return providerTarget;
+			}
 		}
 		const targets = this.sessionsManagementService.getQuickChatSessionTypes().filter(target => environment.providerIds.includes(target.providerId));
 		const preferred = session && targets.find(target => target.sessionType.id === session.sessionType);
