@@ -30,14 +30,22 @@ on:
         description: Number of shards the Electron smoke tests are split into
         type: number
         default: 1
+      runner:
+        description: Runner to run the job on, either a 1ES pool name (1es-*) or the runs-on label of a GitHub-hosted runner
+        type: string
+        default: 1es-vscode-oss-windows-2022-x64
+      benchmark:
+        description: Runner-size benchmark mode. Samples CPU and memory in the background, uploads the samples, and adds the runner label to artifact names
+        type: boolean
+        default: false
 
 jobs:
   windows-test:
     name: ${{ inputs.job_name }}
-    # JobId must be unique per job, so smoke test shards and the browser unit tests part add a suffix
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64, "JobId=windows-test-${{ inputs.job_name }}${{ (inputs.unit_tests && !inputs.integration_tests && '-unit') || '' }}${{ inputs.smoke_shard_total > 1 && format('-shard{0}', inputs.smoke_shard_index) || '' }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    # 1ES pools need a JobId that is unique per job, so smoke test shards and the browser unit tests part add a suffix
+    runs-on: ${{ startsWith(inputs.runner, '1es-') && fromJSON(format('["self-hosted","1ES.Pool={0}","JobId=windows-test-{1}{2}{3}-{4}-{5}-{6}"]', inputs.runner, inputs.job_name, (inputs.unit_tests && !inputs.integration_tests && '-unit') || '', inputs.smoke_shard_total > 1 && format('-shard{0}', inputs.smoke_shard_index) || '', github.run_id, github.run_number, github.run_attempt)) || inputs.runner }}
     env:
-      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (inputs.unit_tests && !inputs.integration_tests && '-unit') || (!inputs.unit_tests && !inputs.integration_tests && inputs.smoke_tests && '-smoke') || '' }}${{ inputs.smoke_shard_total > 1 && format('-shard{0}', inputs.smoke_shard_index) || '' }}
+      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (inputs.unit_tests && !inputs.integration_tests && '-unit') || (!inputs.unit_tests && !inputs.integration_tests && inputs.smoke_tests && '-smoke') || '' }}${{ inputs.smoke_shard_total > 1 && format('-shard{0}', inputs.smoke_shard_index) || '' }}${{ inputs.benchmark && format('-{0}', inputs.runner) || '' }}
       NPM_ARCH: x64
       VSCODE_ARCH: x64
       VSCODE_SKIP_PRELAUNCH: '1'
@@ -46,6 +54,30 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           lfs: true
+
+      # Runs until the job ends. Shows whether the job uses the runner's cores and memory.
+      - name: Start resource sampler
+        if: ${{ inputs.benchmark }}
+        shell: pwsh
+        run: |
+          $directory = (New-Item -ItemType Directory -Force -Path .build/resources).FullName
+          & {
+            "Logical processors: $([Environment]::ProcessorCount)"
+            Get-CimInstance Win32_OperatingSystem | Format-List Caption, Version, TotalVisibleMemorySize, FreePhysicalMemory
+            Get-PSDrive -PSProvider FileSystem | Format-Table -AutoSize
+          } | Out-File (Join-Path $directory system.txt)
+          $sampler = Join-Path $directory sampler.ps1
+          Set-Content -Path $sampler -Value @'
+          param([string] $Output)
+          'timestamp,cpu_percent,available_mb,processor_queue_length,disk_idle_percent' | Out-File -Encoding utf8 $Output
+          $counters = '\Processor(_Total)\% Processor Time', '\Memory\Available MBytes', '\System\Processor Queue Length', '\PhysicalDisk(_Total)\% Idle Time'
+          Get-Counter -Counter $counters -SampleInterval 5 -Continuous | ForEach-Object {
+            $values = @{}
+            foreach ($sample in $_.CounterSamples) { $values[$sample.Path.Split('\')[-1].ToLowerInvariant()] = [math]::Round($sample.CookedValue, 1) }
+            "$($_.Timestamp.ToUniversalTime().ToString('o')),$($values['% processor time']),$($values['available mbytes']),$($values['processor queue length']),$($values['% idle time'])" | Out-File -Append -Encoding utf8 $Output
+          }
+          '@
+          Start-Process pwsh -WindowStyle Hidden -ArgumentList '-NoProfile', '-File', "`"$sampler`"", '-Output', "`"$(Join-Path $directory counters.csv)`""
 
       # The WSL steps only run in shard 1, which is where test/smoke/src/shard.ts pins the WSL suite.
       # pr-node-modules.yml fills this cache on main, so pull requests don't download the installer.
@@ -357,4 +389,13 @@ jobs:
         with:
           name: ${{ format('logs-windows-{0}-{1}-{2}', env.VSCODE_ARCH, env.ARTIFACT_NAME, github.run_attempt) }}
           path: .build/logs
+          if-no-files-found: ignore
+
+      - name: Publish resource samples
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: ${{ always() && inputs.benchmark }}
+        continue-on-error: true
+        with:
+          name: ${{ format('resources-windows-{0}-{1}-{2}', env.VSCODE_ARCH, env.ARTIFACT_NAME, github.run_attempt) }}
+          path: .build/resources
           if-no-files-found: ignore

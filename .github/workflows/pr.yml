@@ -47,12 +47,39 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
+  # TEMPORARY runner-size benchmark (vscode-engineering#4273), do not merge.
+  # The first matrix entry is the required "Compile & Hygiene" check and is
+  # unchanged. The other entries run on larger GitHub-hosted runners, with
+  # ESLint after the parallel checks as today ("after"), inside the parallel
+  # checks ("parallel"), or inside them with one ESLint worker per core instead
+  # of one per two cores ("parallel-all-cores").
   compile:
-    name: Compile & Hygiene
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=compile-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    name: Compile & Hygiene${{ matrix.runner && format(' (bench {0}, ESLint {1})', matrix.runner, matrix.eslint) || '' }}
+    runs-on: ${{ matrix.runner || fromJSON(format('["self-hosted","1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64","JobId=compile-{0}-{1}-{2}"]', github.run_id, github.run_number, github.run_attempt)) }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: '', eslint: after }
+          - { runner: vscode-large-runners-ubuntu-16-core, eslint: after }
+          - { runner: vscode-large-runners-ubuntu-16-core, eslint: parallel }
+          - { runner: vscode-large-runners-ubuntu-16-core, eslint: parallel-all-cores }
+          - { runner: vscode-large-runners-ubuntu-32-core, eslint: after }
+          - { runner: vscode-large-runners-ubuntu-32-core, eslint: parallel }
+          - { runner: vscode-large-runners-ubuntu-32-core, eslint: parallel-all-cores }
+          - { runner: vscode-large-runners-ubuntu-64-core, eslint: after }
+          - { runner: vscode-large-runners-ubuntu-64-core, eslint: parallel }
+          - { runner: vscode-large-runners-ubuntu-64-core, eslint: parallel-all-cores }
     steps:
       - name: Checkout microsoft/vscode
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Start resource sampler
+        if: ${{ matrix.runner }}
+        run: |
+          mkdir -p .build/resources
+          { nproc; free -m; df -h "$GITHUB_WORKSPACE" /tmp; lscpu; } > .build/resources/system.txt 2>&1
+          nohup vmstat -n -t 5 > .build/resources/vmstat.log 2>&1 &
 
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -124,12 +151,17 @@ jobs:
           npm --prefix extensions/markdown-language-features run test-markdown-editor-clipboard
 
       - name: Compile & Hygiene
-        run: npm exec -- npm-run-all2 -lp core-ci hygiene valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
+        run: |
+          if [[ "${{ matrix.eslint }}" == parallel-all-cores ]]; then
+            export VSCODE_ESLINT_CONCURRENCY=$(nproc)
+          fi
+          npm exec -- npm-run-all2 -lp core-ci hygiene valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts ${{ matrix.eslint != 'after' && 'eslint' || '' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # Avoid overlapping ESLint's worker memory with the parallel compilation checks.
       - name: ESLint
+        if: ${{ matrix.eslint == 'after' }}
         run: npm run eslint
 
       - name: Check Codex protocol client is in sync
@@ -141,6 +173,15 @@ jobs:
 
       - name: Check cyclic dependencies
         run: node build/lib/checkCyclicDependencies.ts out-build
+
+      - name: Publish resource samples
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: ${{ always() && matrix.runner }}
+        continue-on-error: true
+        with:
+          name: ${{ format('resources-compile-{0}-eslint-{1}-{2}', matrix.runner, matrix.eslint, github.run_attempt) }}
+          path: .build/resources
+          if-no-files-found: ignore
 
   linux-cli-tests:
     name: Linux
@@ -372,6 +413,131 @@ jobs:
     uses: ./.github/workflows/pr-win32-test.yml
     with:
       job_name: Remote
+      remote_tests: true
+
+  # TEMPORARY runner-size benchmark (vscode-engineering#4273), do not merge.
+  # Runs the longest test jobs unchanged on larger GitHub-hosted runners, next to
+  # the original jobs above on the same commit. Not part of required-checks.
+  bench-linux-electron-unit-tests:
+    name: Bench Linux ${{ matrix.size }}-core
+    strategy:
+      fail-fast: false
+      matrix:
+        size: [16, 32, 64]
+    uses: ./.github/workflows/pr-linux-test.yml
+    with:
+      job_name: Electron-Unit
+      runner: vscode-large-runners-ubuntu-${{ matrix.size }}-core
+      benchmark: true
+      electron_tests: true
+      integration_tests: false
+      smoke_tests: false
+
+  bench-linux-electron-tests:
+    name: Bench Linux ${{ matrix.size }}-core
+    strategy:
+      fail-fast: false
+      matrix:
+        size: [16, 32, 64]
+    uses: ./.github/workflows/pr-linux-test.yml
+    with:
+      job_name: Electron
+      runner: vscode-large-runners-ubuntu-${{ matrix.size }}-core
+      benchmark: true
+      electron_tests: true
+      unit_tests: false
+      smoke_tests: false
+
+  bench-linux-electron-smoke-test-shards:
+    name: Bench Linux ${{ matrix.size }}-core shard ${{ matrix.shard }}/2
+    strategy:
+      fail-fast: false
+      matrix:
+        size: [16, 32, 64]
+        shard: [1, 2]
+    uses: ./.github/workflows/pr-linux-test.yml
+    with:
+      job_name: Electron-Smoke
+      runner: vscode-large-runners-ubuntu-${{ matrix.size }}-core
+      benchmark: true
+      electron_tests: true
+      unit_tests: false
+      integration_tests: false
+      smoke_shard_index: ${{ matrix.shard }}
+      smoke_shard_total: 2
+
+  bench-linux-remote-tests:
+    name: Bench Linux ${{ matrix.size }}-core
+    strategy:
+      fail-fast: false
+      matrix:
+        size: [16, 32, 64]
+    uses: ./.github/workflows/pr-linux-test.yml
+    with:
+      job_name: Remote
+      runner: vscode-large-runners-ubuntu-${{ matrix.size }}-core
+      benchmark: true
+      remote_tests: true
+
+  bench-windows-electron-unit-tests:
+    name: Bench Windows ${{ matrix.size }}-core
+    strategy:
+      fail-fast: false
+      matrix:
+        size: [16, 32, 64]
+    uses: ./.github/workflows/pr-win32-test.yml
+    with:
+      job_name: Electron-Unit
+      runner: vscode-large-runners-windows-${{ matrix.size }}-core
+      benchmark: true
+      electron_tests: true
+      integration_tests: false
+      smoke_tests: false
+
+  bench-windows-electron-tests:
+    name: Bench Windows ${{ matrix.size }}-core
+    strategy:
+      fail-fast: false
+      matrix:
+        size: [16, 32, 64]
+    uses: ./.github/workflows/pr-win32-test.yml
+    with:
+      job_name: Electron
+      runner: vscode-large-runners-windows-${{ matrix.size }}-core
+      benchmark: true
+      electron_tests: true
+      unit_tests: false
+      smoke_tests: false
+
+  bench-windows-electron-smoke-test-shards:
+    name: Bench Windows ${{ matrix.size }}-core shard ${{ matrix.shard }}/2
+    strategy:
+      fail-fast: false
+      matrix:
+        size: [16, 32, 64]
+        shard: [1, 2]
+    uses: ./.github/workflows/pr-win32-test.yml
+    with:
+      job_name: Electron-Smoke
+      runner: vscode-large-runners-windows-${{ matrix.size }}-core
+      benchmark: true
+      electron_tests: true
+      unit_tests: false
+      integration_tests: false
+      smoke_shard_index: ${{ matrix.shard }}
+      smoke_shard_total: 2
+
+  bench-windows-remote-tests:
+    name: Bench Windows ${{ matrix.size }}-core
+    strategy:
+      fail-fast: false
+      matrix:
+        size: [16, 32, 64]
+    uses: ./.github/workflows/pr-win32-test.yml
+    with:
+      job_name: Remote
+      runner: vscode-large-runners-windows-${{ matrix.size }}-core
+      benchmark: true
       remote_tests: true
 
   # Reports the required "<OS> / <job>" checks. A check passes when each of its

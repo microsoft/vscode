@@ -18,16 +18,35 @@ export function shouldErrorOnUnmatchedPattern(args: readonly string[]): boolean 
 	return args.length > 0;
 }
 
+/**
+ * Parses the ESLint `concurrency` option from `VSCODE_ESLINT_CONCURRENCY`:
+ * `auto` (the default), `off`, or a positive number of worker threads.
+ */
+export function getEslintConcurrency(value: string | undefined): number | 'auto' | 'off' {
+	if (!value || value === 'auto') {
+		return 'auto';
+	}
+	if (value === 'off') {
+		return 'off';
+	}
+	const workers = Number(value);
+	if (!Number.isInteger(workers) || workers < 1) {
+		throw new Error(`Invalid VSCODE_ESLINT_CONCURRENCY: ${value}`);
+	}
+	return workers;
+}
+
 async function eslint(args: readonly string[]): Promise<void> {
 	const started = Date.now();
+	const concurrency = getEslintConcurrency(process.env['VSCODE_ESLINT_CONCURRENCY']);
 	console.log(args.length > 0
-		? `ESLint: checking ${args.length} requested target${args.length === 1 ? '' : 's'}.`
-		: 'ESLint: checking the full repository.');
+		? `ESLint: checking ${args.length} requested target${args.length === 1 ? '' : 's'} (concurrency: ${concurrency}).`
+		: `ESLint: checking the full repository (concurrency: ${concurrency}).`);
 	const linter = new ESLint({
 		cache: true,
 		cacheLocation: '.eslintcache',
 		cacheStrategy: 'content',
-		concurrency: 'auto',
+		concurrency,
 		errorOnUnmatchedPattern: shouldErrorOnUnmatchedPattern(args),
 	});
 	const formatter = await linter.loadFormatter('compact');

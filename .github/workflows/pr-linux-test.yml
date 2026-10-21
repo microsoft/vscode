@@ -30,13 +30,21 @@ on:
         description: Number of shards the Electron smoke tests are split into
         type: number
         default: 1
+      runner:
+        description: The runs-on label of the runner to run the job on
+        type: string
+        default: ubuntu-24.04
+      benchmark:
+        description: Runner-size benchmark mode. Samples CPU and memory in the background, uploads the samples, and adds the runner label to artifact names
+        type: boolean
+        default: false
 
 jobs:
   linux-test:
     name: ${{ inputs.job_name }}
-    runs-on: ubuntu-24.04
+    runs-on: ${{ inputs.runner }}
     env:
-      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (inputs.unit_tests && !inputs.integration_tests && '-unit') || (!inputs.unit_tests && !inputs.integration_tests && inputs.smoke_tests && '-smoke') || '' }}${{ inputs.smoke_shard_total > 1 && format('-shard{0}', inputs.smoke_shard_index) || '' }}
+      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (inputs.unit_tests && !inputs.integration_tests && '-unit') || (!inputs.unit_tests && !inputs.integration_tests && inputs.smoke_tests && '-smoke') || '' }}${{ inputs.smoke_shard_total > 1 && format('-shard{0}', inputs.smoke_shard_index) || '' }}${{ inputs.benchmark && format('-{0}', inputs.runner) || '' }}
       NPM_ARCH: x64
       VSCODE_ARCH: x64
       VSCODE_SKIP_PRELAUNCH: '1'
@@ -45,6 +53,14 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           lfs: true
+
+      # Runs until the job ends. Shows whether the job uses the runner's cores and memory.
+      - name: Start resource sampler
+        if: ${{ inputs.benchmark }}
+        run: |
+          mkdir -p .build/resources
+          { nproc; free -m; df -h "$GITHUB_WORKSPACE" /tmp; lscpu; } > .build/resources/system.txt 2>&1
+          nohup vmstat -n -t 5 > .build/resources/vmstat.log 2>&1 &
 
       - name: Detect Agent Host E2E changes
         if: ${{ inputs.electron_tests && inputs.integration_tests }}
@@ -488,4 +504,13 @@ jobs:
         with:
           name: ${{ format('logs-linux-{0}-{1}-{2}', env.VSCODE_ARCH, env.ARTIFACT_NAME, github.run_attempt) }}
           path: .build/logs
+          if-no-files-found: ignore
+
+      - name: Publish resource samples
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: ${{ always() && inputs.benchmark }}
+        continue-on-error: true
+        with:
+          name: ${{ format('resources-linux-{0}-{1}-{2}', env.VSCODE_ARCH, env.ARTIFACT_NAME, github.run_attempt) }}
+          path: .build/resources
           if-no-files-found: ignore
