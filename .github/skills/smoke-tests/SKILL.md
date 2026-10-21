@@ -147,7 +147,7 @@ For the VS Code build that is `--org https://dev.azure.com/monacotools --project
 
 ### Inside the artifact
 
-Under `smoke-tests-<suite>/` (`smoke-tests-electron/`, `smoke-tests-browser/`, or `smoke-tests-remote/`, matching the suite that ran):
+Under `smoke-tests-<suite>/` (`smoke-tests-electron/`, `smoke-tests-browser/`, or `smoke-tests-remote/`, matching the suite that ran; sharded runs add a `-shard<i>` suffix, for example `smoke-tests-electron-shard1/`):
 
 - `smoke-test-runner.log` — the mocha driver output plus, for suites that use the mock LLM server, its verbose request/response bodies (look for `request body:`). On a Copilot CLI / Copilot session failure it also carries a tail of the captured Copilot runtime logs (see below).
 - `<N>_suite_<Suite_Name>/copilot-runtime-logs/process-*.log` — the Copilot runtime (`@github/copilot` CLI) process logs, captured by `dumpFailureDiagnostics` when a Copilot-runtime session fails. **Check these first for a hang or "Timed out waiting for response"**: they are the SDK/CLI's own account of what it did (startup, auth, model request, turn lifecycle, and any panic / out-of-order event / protocol error) and explain a timeout that the test error alone does not. **Agent Host** sessions (Agents Window / local AgentHost) write a full log run at `trace` (`chat.agentHost.copilotSdk.logLevel`). Chat Sessions editor (Copilot CLI / Claude) and Local sessions run the SDK in-process and write only a minimal startup log here (`Server started, waiting for requests`) — enough to tell whether the runtime came up; their detailed model/turn diagnostics are in the `GitHub Copilot Chat.log` below. (Claude / Codex sessions use a different runtime and are not captured here.)

@@ -56,7 +56,7 @@ xattr -d com.apple.quarantine <path to server with web folder zip>
 
 - `--verbose` logs all the low level driver calls made to Code;
 - `-f PATTERN` (alias `-g PATTERN`) filters the tests to be run. You can also use pretty much any mocha argument;
-- `--shard INDEX/TOTAL` runs only one part of the suites, for example `--shard 1/2`. CI uses this to split the Electron smoke tests across jobs;
+- `--shard INDEX/TOTAL` runs only one part of the suites, for example `--shard 1/2`. CI uses this to split the Electron smoke tests across jobs. With more than one shard, the logs, crashes and test data go to directories with a `-shardINDEX` suffix (for example `.build/logs/smoke-tests-electron-shard1/`), so that shards can run at the same time on one machine;
 - `--headless` will run playwright in headless mode when `--web` is used.
 
 **Note**: you can enable verbose logging of playwright library by setting a `DEBUG` environment variable before running the tests (<https://playwright.dev/docs/debug#verbose-api-logs>), for example to `pw:browser`.
@@ -128,7 +128,7 @@ All remote suites drive host connection, remote folder selection, **Use Dev Cont
 
 Source runs launch the compiled standalone Agent Host with the checkout's matching Electron runtime. Packaged runs launch the shipped `bootstrap-fork.js` / `agentHostMain` entrypoint with IPC, the build's NLS messages, and authenticated WebSocket configuration; they do not require the development-only standalone entrypoint. Since Code OSS does not configure tunnel authentication scopes, the Tunnel fixture creates a private source-app snapshot with only the required test product metadata; it never changes the checkout's product files. Packaged Tunnel runs require the supplied build's tunnel authentication configuration.
 
-Fixtures isolate their source Agent Host, credentials, endpoint registry, and CLI state, and remove their containers and temporary tunnels during teardown. Failures retain the existing smoke-runner diagnostics and redacted remote-host logs under `.build/logs/smoke-tests-electron/`. Do not run two Electron smoke runners concurrently in the same checkout: the runner shares its top-level output and test-data directories.
+Fixtures isolate their source Agent Host, credentials, endpoint registry, and CLI state, and remove their containers and temporary tunnels during teardown. Failures retain the existing smoke-runner diagnostics and redacted remote-host logs under `.build/logs/smoke-tests-electron/`. Do not run two unsharded Electron smoke runners concurrently in the same checkout: the runner shares its top-level output and test-data directories. Different `--shard` indexes use separate directories.
 
 WSL connection failures also print a bounded, redacted snapshot of the focused control, visible pickers and dialogs, notifications, and recent WSL/remote-host entries from renderer and shared-process logs to the CI task output. Each log read is limited to its last 256 KiB, discarding a leading partial entry. Connection milestones remain in `smoke-test-runner.log`. The standard Azure Windows product-build and CI test jobs publish log artifacts on cancellation as well as success/failure, with a ten-minute cancellation budget for cleanup and publication; the normal job and picker timeouts are unchanged. The separate Flaky Smoke Tests pipeline does not yet use these cancellation settings.
 
