@@ -36,6 +36,10 @@
 - **Composition over inheritance.** All harnesses share one membership path (`addChat`/`removeChat`), one authoritative persistence path (`AgentHostPeerChatStore` in `agent-host.db`, with a `PEER_CHATS_METADATA_KEY` compatibility mirror), and one restore path (`registerRestoredChatSummary` + `resolveChatState`). Per-harness features are expressed through `IAgentCapabilities` flags, not `if (provider === 'claude') ...` branches.
 - **Single catalog path.** Whether a chat is created by the user ("Add Chat") or spawned by the harness (subagent tool call), it enters the catalog through exactly one path (`AgentHostStateManager.addChat`). See invariant I4 below.
 
+### Session activity aggregation
+
+`AgentHostStateManager` owns the session summary's aggregate status. Any chat needing input takes priority, followed by any chat in progress. Otherwise the default chat's status applies, or the most recently modified chat's when no default exists. Errors remain on individual chats and are not promoted from peers. The session retains its own read/archive flags, and aggregate activity follows the chat driving the status.
+
 ### Terminology convention: "session" is overloaded — read it by layer
 
 The word **session** means two different things depending on which side of the seam you are on. To avoid confusion, follow this convention:

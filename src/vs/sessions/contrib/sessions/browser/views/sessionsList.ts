@@ -363,10 +363,10 @@ function getChatListDiffStats(chat: IChat, reader: IReader): ISessionChangesStat
 		: undefined;
 }
 
-/** Includes side-chat activity on the parent row and uses the session aggregate for collapsed peer progress. */
+/** Uses the session aggregate when collapsed and main/side-chat activity when expanded. */
 function getSessionRowStatus(session: ISession, reader: IReader | undefined, deriveFromMainChat: boolean, collapsed = true): SessionStatus {
 	const sessionStatus = session.status.read(reader);
-	if (!deriveFromMainChat) {
+	if (!deriveFromMainChat || collapsed) {
 		return sessionStatus;
 	}
 	let rowStatus = session.mainChat.read(reader).status.read(reader);
@@ -374,14 +374,12 @@ function getSessionRowStatus(session: ISession, reader: IReader | undefined, der
 		return rowStatus;
 	}
 	const chats = session.chats.read(reader);
-	let excludedSideChatInProgress = false;
 	// Side chats have no list rows of their own, even when peer chats are expanded.
 	for (const chat of chats) {
 		if (chat.origin?.kind !== ChatOriginKind.SideChat) {
 			continue;
 		}
 		if (chat.isArchived.read(reader) || chat.interactivity.read(reader) === ChatInteractivity.Hidden) {
-			excludedSideChatInProgress ||= collapsed && sessionStatus === SessionStatus.InProgress && chat.status.read(reader) === SessionStatus.InProgress;
 			continue;
 		}
 		const status = chat.status.read(reader);
@@ -390,14 +388,6 @@ function getSessionRowStatus(session: ISession, reader: IReader | undefined, der
 		}
 		if (status === SessionStatus.InProgress) {
 			rowStatus = status;
-		}
-	}
-	if (rowStatus === SessionStatus.InProgress) {
-		return rowStatus;
-	}
-	if (collapsed && sessionStatus === SessionStatus.InProgress) {
-		if (!excludedSideChatInProgress || chats.some(chat => chat.origin?.kind !== ChatOriginKind.SideChat && chat.status.read(reader) === SessionStatus.InProgress)) {
-			return SessionStatus.InProgress;
 		}
 	}
 	return rowStatus;
