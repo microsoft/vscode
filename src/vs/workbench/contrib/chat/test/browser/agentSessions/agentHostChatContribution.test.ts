@@ -12061,7 +12061,7 @@ suite('AgentHostChatContribution', () => {
 			const footers = async () => {
 				const languageModels = new Map<string, ILanguageModelChatMetadata>([
 					['agent-host-copilot:auto', upcastPartial<ILanguageModelChatMetadata>({
-						name: 'Copilot Fusion', autoModelFusion: { balanceUsesHydraFusion: false },
+						name: 'Copilot Fusion', autoModelFusion: true,
 						configurationSchema: {
 							properties: {
 								tier: { type: 'string', enum: ['balance', 'hydrafusion', 'hydrafusion-max'], enumItemLabels: ['Standard', 'High', 'Max'] },

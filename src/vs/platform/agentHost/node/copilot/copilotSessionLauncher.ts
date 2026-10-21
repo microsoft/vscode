@@ -837,6 +837,26 @@ export function isCopilotSessionTelemetryEnabled(
 	return effectiveLevel >= TelemetryLevel.USAGE;
 }
 
+/** The HydraFusion features a session runs with. */
+export interface ICopilotHydraFusionConfig {
+	readonly enabled: boolean;
+	readonly v2: boolean;
+	/** The sticky-root hint, which only affects HydraFusion v2 plans. */
+	readonly multiRoot: boolean;
+}
+
+/**
+ * The HydraFusion features the configuration turns on. Dynamic Auto tiers can offer HydraFusion and
+ * HydraFusion Max as Fusion's tiers, so they turn on HydraFusion v2.
+ */
+export function getCopilotHydraFusionConfig(configurationService: Pick<IAgentConfigurationService, 'getRootValue'>): ICopilotHydraFusionConfig {
+	const isOn = (key: CopilotCliConfigKey.DynamicAutoTiers | CopilotCliConfigKey.HydraFusion | CopilotCliConfigKey.HydraFusionV2 | CopilotCliConfigKey.HydraFusionMultiRoot) => configurationService.getRootValue(copilotCliConfigSchema, key) === true;
+	const dynamicAutoTiers = isOn(CopilotCliConfigKey.DynamicAutoTiers);
+	const enabled = dynamicAutoTiers || isOn(CopilotCliConfigKey.HydraFusion);
+	const v2 = enabled && (dynamicAutoTiers || isOn(CopilotCliConfigKey.HydraFusionV2));
+	return { enabled, v2, multiRoot: v2 && isOn(CopilotCliConfigKey.HydraFusionMultiRoot) };
+}
+
 export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 
 	/**
@@ -1202,11 +1222,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// Synthesize BYOK provider/model config (empty when BYOK is gated off or the
 		// renderer reports no BYOK models), merged into the returned config so both
 		// createSession and resumeSession advertise the models to the runtime.
-		// Dynamic Auto tiers can offer HydraFusion and HydraFusion Max as Fusion's tiers, so they turn on HydraFusion v2.
-		const dynamicAutoTiersEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.DynamicAutoTiers) === true;
-		const hydraFusionEnabled = dynamicAutoTiersEnabled || this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusion) === true;
-		const hydraFusionV2Enabled = hydraFusionEnabled && (dynamicAutoTiersEnabled || this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusionV2) === true);
-		const hydraFusionMultiRootEnabled = hydraFusionV2Enabled && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusionMultiRoot) === true;
+		const { enabled: hydraFusionEnabled, v2: hydraFusionV2Enabled, multiRoot: hydraFusionMultiRootEnabled } = getCopilotHydraFusionConfig(this._configurationService);
 		// Throwaway chat surfaces skip memory, like the other heavyweight features they omit.
 		const memoryEnabled = !plan.isEphemeral && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Memory) === true;
 		const localMemoryEnabled = memoryEnabled && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.LocalMemory) === true;
