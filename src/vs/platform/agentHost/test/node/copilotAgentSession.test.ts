@@ -300,18 +300,20 @@ class MockCopilotSession {
 	commandInvokeResult: Awaited<ReturnType<CopilotSession['rpc']['commands']['invoke']>> = { kind: 'text', text: '' };
 	commandInvokeError: Error | undefined;
 	messages: SessionEvent[] = [];
-	usageMetricsResult = {
-		totalPremiumRequestCost: 0,
-		totalUserRequests: 0,
-		totalApiDurationMs: 0,
-		totalNanoAiu: 0,
-		sessionStartTime: new Date().toISOString(),
-		codeChanges: { linesAdded: 0, linesRemoved: 0, filesModifiedCount: 0, filesModified: [] },
-		modelMetrics: {} as Record<string, { cacheExpiresAt?: string }>,
-		currentModel: undefined as string | undefined,
-		lastCallInputTokens: 0,
-		lastCallOutputTokens: 0,
-	};
+	usageMetricsResult: Omit<Awaited<ReturnType<CopilotSession['rpc']['usage']['getMetrics']>>, 'modelMetrics'> & {
+		modelMetrics: Record<string, { cacheExpiresAt?: string }>;
+	} = {
+			totalPremiumRequestCost: 0,
+			totalUserRequests: 0,
+			totalApiDurationMs: 0,
+			totalNanoAiu: 0,
+			sessionStartTime: new Date().toISOString(),
+			codeChanges: { linesAdded: 0, linesRemoved: 0, filesModifiedCount: 0, filesModified: [] },
+			modelMetrics: {},
+			currentModel: undefined,
+			lastCallInputTokens: 0,
+			lastCallOutputTokens: 0,
+		};
 	/** Rejects the next `usage.getMetrics` call, then clears itself. */
 	usageMetricsError: unknown = undefined;
 	usageMetricsCalls = 0;
@@ -435,7 +437,7 @@ class MockCopilotSession {
 				: undefined;
 		const totalNanoAiu = (billed as { copilotUsage?: { totalNanoAiu?: number } } | undefined)?.copilotUsage?.totalNanoAiu;
 		if (typeof totalNanoAiu === 'number') {
-			this.usageMetricsResult.totalNanoAiu += totalNanoAiu;
+			this.usageMetricsResult.totalNanoAiu = (this.usageMetricsResult.totalNanoAiu ?? 0) + totalNanoAiu;
 		}
 	}
 
@@ -6024,6 +6026,86 @@ suite('CopilotAgentSession', () => {
 		});
 	}
 
+	for (const aiCreditsStatus of ['unavailable', 'partial'] as const) {
+		test(`initial session billing preserves ${aiCreditsStatus} without an amount`, async () => {
+			const { signals } = await createAgentSession(disposables, {
+				resume: true,
+				configureMockSession: mock => {
+					mock.usageMetricsResult.totalNanoAiu = undefined;
+					mock.usageMetricsResult.aiCreditsStatus = aiCreditsStatus;
+				},
+			});
+			assert.deepStrictEqual(signals.flatMap(signal => signal.kind === 'chat_usage' ? [signal.usage] : []), [{ aiCreditsStatus }]);
+		});
+	}
+
+	test('session billing replaces a known amount with unavailable and recovers to measured zero', async () => {
+		const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables, {
+			resume: true,
+			configureMockSession: mock => {
+				mock.usageMetricsResult.totalNanoAiu = 10_000_000_000;
+				mock.usageMetricsResult.aiCreditsStatus = 'complete';
+			},
+		});
+		session.resetTurnState('billing-transition');
+		mockSession.usageMetricsResult.totalNanoAiu = undefined;
+		mockSession.usageMetricsResult.aiCreditsStatus = 'unavailable';
+		mockSession.fire('assistant.usage', {
+			model: 'shared-model', inputTokens: 10, outputTokens: 2, cost: 3,
+			provider: { id: 'm365', kind: 'loki', label: 'Microsoft 365 Copilot' },
+		});
+		const unavailable = await waitForSignal(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatUsage
+			&& readUsageInfoMeta(signal.action.usage).copilotUsage?.sessionAiCreditsStatus === 'unavailable');
+		mockSession.usageMetricsResult.totalNanoAiu = 0;
+		mockSession.usageMetricsResult.aiCreditsStatus = 'complete';
+		mockSession.fire('assistant.usage', {
+			model: 'shared-model', inputTokens: 10, outputTokens: 2, copilotUsage: { totalNanoAiu: 0 },
+			provider: { id: 'copilot', kind: 'copilot', label: 'GitHub Copilot' },
+		});
+		const zero = await waitForSignal(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatUsage
+			&& readUsageInfoMeta(signal.action.usage).copilotUsage?.sessionAiCreditsStatus === 'complete'
+			&& readUsageInfoMeta(signal.action.usage).copilotUsage?.sessionTotalNanoAiu === 0);
+		assert.deepStrictEqual({
+			snapshots: signals.flatMap(signal => signal.kind === 'chat_usage' ? [signal.usage] : []),
+			turns: [unavailable, zero].map(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatUsage
+				? readUsageInfoMeta(signal.action.usage).copilotUsage : undefined),
+		}, {
+			snapshots: [
+				{ totalNanoAiu: 10_000_000_000, aiCreditsStatus: 'complete' },
+				{ aiCreditsStatus: 'unavailable' },
+				{ totalNanoAiu: 0, aiCreditsStatus: 'complete' },
+			],
+			turns: [
+				{ sessionAiCreditsStatus: 'unavailable' },
+				{ totalNanoAiu: 0, sessionTotalNanoAiu: 0, sessionAiCreditsStatus: 'complete' },
+			],
+		});
+	});
+
+	for (const source of ['main', 'subagent', 'compaction']) {
+		test(`preserves reported zero billing from ${source} in the inclusive turn`, async () => {
+			const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables);
+			session.resetTurnState('zero-billing');
+			const usage = { model: 'gpt-5', inputTokens: 1, outputTokens: 1, copilotUsage: { totalNanoAiu: 0 } };
+			if (source === 'subagent') {
+				mockSession.fire('subagent.started', { toolCallId: 'zero-child', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore' }, { agentId: 'zero-child-agent' });
+				mockSession.fire('assistant.usage', usage, { agentId: 'zero-child-agent' });
+			} else if (source === 'compaction') {
+				mockSession.fire('session.compaction_complete', { success: true, compactionTokensUsed: usage });
+			} else {
+				mockSession.fire('assistant.usage', usage);
+			}
+			await waitForSignal(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatUsage
+				&& signal.parentToolCallId === undefined && readUsageInfoMeta(signal.action.usage).copilotUsage?.totalNanoAiu === 0);
+			const parentUsage = signals.findLast(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatUsage && signal.parentToolCallId === undefined);
+			const meta = parentUsage?.kind === 'action' && parentUsage.action.type === ActionType.ChatUsage ? readUsageInfoMeta(parentUsage.action.usage) : undefined;
+			assert.deepStrictEqual({
+				inclusive: meta?.copilotUsage?.totalNanoAiu,
+				direct: meta?.directCopilotUsage?.totalNanoAiu,
+			}, { inclusive: 0, direct: source === 'subagent' ? undefined : 0 });
+		});
+	}
+
 	test('a resumed session does not bill its restored history to the first new turn', async () => {
 		// The SDK re-folds usage from its durable event log on resume, so `getMetrics`
 		// opens at the accumulated total of everything already billed.
@@ -6143,7 +6225,7 @@ suite('CopilotAgentSession', () => {
 				mockSession.fire('session.error', { errorType: 'runtime', message: 'Stopped after image completion.' });
 				const usage = getActions(signals).filter((action): action is ChatUsageAction => action.type === ActionType.ChatUsage).at(-1)!;
 				assert.deepStrictEqual(readUsageInfoMeta(usage.usage).copilotUsage, {
-					totalNanoAiu: charge, sessionTotalNanoAiu: 0, sessionAiCreditsStatus: 'partial',
+					totalNanoAiu: charge, sessionAiCreditsStatus: 'partial',
 				});
 			} finally {
 				gate.complete();

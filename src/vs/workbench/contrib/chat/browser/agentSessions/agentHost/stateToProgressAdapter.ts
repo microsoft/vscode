@@ -890,16 +890,14 @@ export function formatTurnModelName(model: ITurnResponseModel, billedModelId: st
 }
 
 export function chatUsageToSessionCost(usage: IAgentChatUsage): IChatSessionCost {
-	return { credits: usage.totalNanoAiu / 1_000_000_000, status: usage.aiCreditsStatus };
+	return { credits: usage.totalNanoAiu !== undefined ? usage.totalNanoAiu / 1_000_000_000 : undefined, status: usage.aiCreditsStatus };
 }
 
 export function usageInfoToChatUsage(usage: UsageInfo | undefined, modelDisplayNameResolver?: (rawModelId: string) => string | undefined, contextUsage?: IAgentContextUsage): IChatUsage | undefined {
-	// Shared with the host's restore path, so "this turn has usage worth
-	// showing" cannot drift between the two.
-	if (!hasReportedUsage(usage) && !contextUsage) {
+	const metadata = readUsageInfoMeta(usage);
+	if (!hasReportedUsage(usage) && !contextUsage && metadata.copilotUsage?.sessionAiCreditsStatus === undefined) {
 		return undefined;
 	}
-	const metadata = readUsageInfoMeta(usage);
 	const turnTokenTotals = metadata.turnTokenTotals;
 	return {
 		kind: 'usage',

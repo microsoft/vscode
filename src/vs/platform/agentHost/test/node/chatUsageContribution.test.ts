@@ -97,6 +97,34 @@ suite('ChatUsageContribution', () => {
 		}, { actions: [ActionType.SessionMetaChanged], chat: before, usage });
 	});
 
+	test('replaces a charge with status-only billing and later measured zero', () => {
+		const context = createContext();
+		context.createSession();
+		context.stateManager.addChat(session, peer, peer, { title: 'Peer' });
+		context.report(defaultChat);
+		context.report(peer);
+		const reports: IAgentChatUsage[] = [
+			{ aiCreditsStatus: 'unavailable' },
+			{ aiCreditsStatus: 'partial' },
+			{ totalNanoAiu: 0, aiCreditsStatus: 'complete' },
+		];
+		const actions: string[] = [];
+		disposables.add(context.stateManager.onDidEmitEnvelope(envelope => actions.push(envelope.action.type)));
+		const published = reports.map(report => {
+			context.report(defaultChat, report);
+			context.report(defaultChat, report);
+			return readChatUsage(context.stateManager.getSessionState(session), defaultChat);
+		});
+		assert.deepStrictEqual({
+			published, actions,
+			peer: readChatUsage(context.stateManager.getSessionState(session), peer),
+		}, {
+			published: reports,
+			actions: reports.map(() => ActionType.SessionMetaChanged),
+			peer: usage,
+		});
+	});
+
 	test('rejected removals preserve pending and published billing, while removal clears only its chat', () => {
 		const context = createContext();
 		context.createSession();

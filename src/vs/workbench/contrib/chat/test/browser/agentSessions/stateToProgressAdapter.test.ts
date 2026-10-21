@@ -5544,6 +5544,17 @@ suite('stateToProgressAdapter', () => {
 	});
 
 	suite('usageInfoToChatUsage', () => {
+		test('preserves reported billing completeness independently of quantities', () => {
+			assert.deepStrictEqual(['unavailable', 'partial', 'complete'].map(sessionAiCreditsStatus => {
+				const usage = usageInfoToChatUsage({ _meta: { copilotUsage: { sessionAiCreditsStatus } } });
+				return [usage?.copilotCredits, usage?.sessionCopilotCredits, usage?.sessionCopilotCreditsStatus];
+			}), [
+				[undefined, undefined, 'unavailable'],
+				[undefined, undefined, 'partial'],
+				[undefined, undefined, 'complete'],
+			]);
+		});
+
 		test('requires measured nano-AIU instead of multiplier hints for credits', () => {
 			const metadata = [
 				{ cost: 0 },

@@ -39,9 +39,22 @@ suite('Agent chat usage metadata', () => {
 		]);
 	});
 
+	test('round trips completeness without inventing a charge or retaining the previous amount', () => {
+		const original = { _meta: { 'vscode.chatUsage': { [chat]: { totalNanoAiu: 600_000_000 }, [peer]: { totalNanoAiu: 250_000_000 } } } };
+		assert.deepStrictEqual((['unavailable', 'partial', 'complete'] as const).map(aiCreditsStatus => {
+			const updated = { _meta: withChatUsage(original, chat, { aiCreditsStatus }) };
+			const restored = JSON.parse(JSON.stringify(updated));
+			return [readChatUsage(restored, chat), readChatUsage(restored, peer)];
+		}), [
+			[{ aiCreditsStatus: 'unavailable' }, { totalNanoAiu: 250_000_000 }],
+			[{ aiCreditsStatus: 'partial' }, { totalNanoAiu: 250_000_000 }],
+			[{ aiCreditsStatus: 'complete' }, { totalNanoAiu: 250_000_000 }],
+		]);
+	});
+
 	test('missing or malformed aggregates never become free complete billing', () => {
 		assert.strictEqual(readChatUsage(undefined, chat), undefined);
-		for (const value of [undefined, null, [], {}, { totalNanoAiu: '600' }, { totalNanoAiu: -1 }, { totalNanoAiu: NaN }, { totalNanoAiu: Infinity }, { aiCreditsStatus: 'complete' }]) {
+		for (const value of [undefined, null, [], {}, { totalNanoAiu: '600' }, { totalNanoAiu: -1 }, { totalNanoAiu: NaN }, { totalNanoAiu: Infinity }, { aiCreditsStatus: 'invalid' }]) {
 			assert.strictEqual(readChatUsage({ _meta: { 'vscode.chatUsage': { [chat]: value } } }, chat), undefined);
 		}
 		for (const value of [undefined, null, [], { totalNanoAiu: 600_000_000, aiCreditsStatus: 'complete' }]) {

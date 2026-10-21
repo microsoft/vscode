@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createLocalModelTurnExecutionMeta, isAiCreditsStatus, type UsageInfoMeta } from '../../common/meta/agentUsageMeta.js';
+import { createLocalModelTurnExecutionMeta, parseAgentChatUsage, type IAgentChatUsage, type UsageInfoMeta } from '../../common/meta/agentUsageMeta.js';
 import type { ILocalTurnExecution } from '../../common/localModel.js';
 import type { ILocalModelDirectRequestWait } from './localModelBridge/localModelProvider.js';
 import type { AttributedPermissionResult, CopilotSession, CurrentToolMetadata, ElicitationContext, ElicitationFieldValue, ElicitationResult, ElicitationSchema, ElicitationSchemaField, ExitPlanModeCompletedData, ExitPlanModeRequest, ExitPlanModeResult, JsonValue, MessageOptions, PermissionDecisionSource, PermissionHandler, PermissionMode, PermissionRequest, PermissionRequestResult, PermissionResult, SessionConfig, SessionEvent, SessionEventPayload, SessionHooks, SessionMode as CopilotSdkMode, Tool, ToolInvocation, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
@@ -874,7 +874,7 @@ class CopilotTurn extends Disposable {
 	 * terminal `session.idle` can close the turn while a read is in flight,
 	 * which would drop the turn's last model call from its reported cost.
 	 */
-	copilotNanoAiu = 0;
+	copilotNanoAiu: number | undefined;
 
 	readonly directUsage = new DirectUsageAccumulator();
 	readonly observedTokenUsage = new ObservedTokenUsage();
@@ -1725,8 +1725,7 @@ export class CopilotAgentSession extends Disposable {
 	 * a read is still in flight. Per-turn cost comes from the synchronous
 	 * per-event `copilotUsage` instead (see {@link CopilotTurn.copilotNanoAiu}).
 	 */
-	private _sessionTotalNanoAiu = 0;
-	private _sessionAiCreditsStatus: NonNullable<UsageInfoMeta['copilotUsage']>['sessionAiCreditsStatus'];
+	private _sessionUsage: IAgentChatUsage | undefined;
 	private readonly _toolUsageRequestIds = new Set<string>();
 	private _promptCacheState: ISessionPromptCacheState | undefined;
 	private _promptCacheRefreshGeneration = 0;
@@ -3248,16 +3247,13 @@ export class CopilotAgentSession extends Disposable {
 					this._setPromptCacheState(cacheExpiresAt ? { modelId, cacheExpiresAt } : undefined);
 				}
 
-				const total = metrics.totalNanoAiu;
-				const rawMetrics: typeof metrics & { aiCreditsStatus?: unknown } = metrics;
-				const status = isAiCreditsStatus(rawMetrics.aiCreditsStatus) ? rawMetrics.aiCreditsStatus : undefined;
+				const usage = parseAgentChatUsage(metrics);
 				if (this._store.isDisposed || meteredOperationCount !== this._toolUsageRequestIds.size
-					|| typeof total !== 'number' || !Number.isFinite(total) || total < 0
-					|| (total === this._sessionTotalNanoAiu && status === this._sessionAiCreditsStatus)) {
+					|| !usage
+					|| (usage.totalNanoAiu === this._sessionUsage?.totalNanoAiu && usage.aiCreditsStatus === this._sessionUsage?.aiCreditsStatus)) {
 					return false;
 				}
-				this._sessionTotalNanoAiu = total;
-				this._sessionAiCreditsStatus = status;
+				this._sessionUsage = usage;
 				this._publishSessionUsage();
 				return true;
 			});
@@ -3269,14 +3265,13 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _publishSessionUsage(): void {
-		this._onDidSessionProgress.fire({
-			kind: 'chat_usage',
-			chat: this._chatChannelUri,
-			usage: {
-				totalNanoAiu: this._sessionTotalNanoAiu,
-				...(this._sessionAiCreditsStatus !== undefined ? { aiCreditsStatus: this._sessionAiCreditsStatus } : {}),
-			},
-		});
+		if (this._sessionUsage) {
+			this._onDidSessionProgress.fire({
+				kind: 'chat_usage',
+				chat: this._chatChannelUri,
+				usage: this._sessionUsage,
+			});
+		}
 	}
 
 	/**
@@ -3285,15 +3280,14 @@ export class CopilotAgentSession extends Disposable {
 	 * billed usage or its completeness has been reported.
 	 */
 	private _parentCopilotUsageMeta(): UsageInfoMeta['copilotUsage'] | undefined {
-		const turnNanoAiu = this._currentTurn.value?.copilotNanoAiu ?? 0;
-		const reportedTurnCost = this._currentTurn.value?.directUsage.copilotNanoAiu !== undefined;
-		if (!turnNanoAiu && !reportedTurnCost && !this._sessionTotalNanoAiu && this._sessionAiCreditsStatus === undefined) {
+		const turnNanoAiu = this._currentTurn.value?.copilotNanoAiu;
+		if (turnNanoAiu === undefined && !this._sessionUsage) {
 			return undefined;
 		}
 		return {
-			...(turnNanoAiu || reportedTurnCost ? { totalNanoAiu: turnNanoAiu } : {}),
-			...(this._sessionTotalNanoAiu || this._sessionAiCreditsStatus !== undefined ? { sessionTotalNanoAiu: this._sessionTotalNanoAiu } : {}),
-			...(this._sessionAiCreditsStatus !== undefined ? { sessionAiCreditsStatus: this._sessionAiCreditsStatus } : {}),
+			...(turnNanoAiu !== undefined ? { totalNanoAiu: turnNanoAiu } : {}),
+			...(this._sessionUsage?.totalNanoAiu !== undefined ? { sessionTotalNanoAiu: this._sessionUsage.totalNanoAiu } : {}),
+			...(this._sessionUsage?.aiCreditsStatus !== undefined ? { sessionAiCreditsStatus: this._sessionUsage.aiCreditsStatus } : {}),
 		};
 	}
 
@@ -9301,7 +9295,7 @@ export class CopilotAgentSession extends Disposable {
 				&& ownerTurnId !== undefined && owningRootTurn?.id === ownerTurnId ? owningRootTurn : undefined;
 			const charge = usage.copilotUsage?.totalNanoAiu;
 			if (turn && charge !== undefined) {
-				turn.copilotNanoAiu += charge;
+				turn.copilotNanoAiu = (turn.copilotNanoAiu ?? 0) + charge;
 			}
 			// Image tokens belong in consumption totals, not in the chat context window.
 			const tokenModel = usage.inputTokens !== undefined && usage.outputTokens !== undefined ? image.requestedModel.id : undefined;
@@ -9312,17 +9306,20 @@ export class CopilotAgentSession extends Disposable {
 				? liveChild ? this._directUsageFor(parentToolCallId, ownerTurnId !== undefined) : undefined
 				: turn?.directUsage;
 			directUsage?.add(tokenModel, usage, charge);
-			const previousStatus = this._sessionAiCreditsStatus;
+			const previousStatus = this._sessionUsage?.aiCreditsStatus;
 			if (charge === undefined) {
 				// A terminal error can precede the metrics RPC. The operation itself already
 				// proves the previous total incomplete, without estimating its missing charge.
-				this._sessionAiCreditsStatus = this._sessionAiCreditsStatus === 'complete' || this._sessionAiCreditsStatus === 'partial'
-					|| this._sessionTotalNanoAiu > 0 || (turn?.copilotNanoAiu ?? 0) > 0 || directUsage?.copilotNanoAiu !== undefined
-					? 'partial' : 'unavailable';
-			} else if (this._sessionAiCreditsStatus === 'unavailable') {
-				this._sessionAiCreditsStatus = 'partial';
+				this._sessionUsage = {
+					...this._sessionUsage,
+					aiCreditsStatus: previousStatus === 'complete' || previousStatus === 'partial'
+						|| (this._sessionUsage?.totalNanoAiu ?? 0) > 0 || turn?.copilotNanoAiu !== undefined || directUsage?.copilotNanoAiu !== undefined
+						? 'partial' : 'unavailable',
+				};
+			} else if (previousStatus === 'unavailable') {
+				this._sessionUsage = { ...this._sessionUsage, aiCreditsStatus: 'partial' };
 			}
-			if (previousStatus !== this._sessionAiCreditsStatus) {
+			if (previousStatus !== this._sessionUsage?.aiCreditsStatus) {
 				this._publishSessionUsage();
 			}
 			const emitUsage = () => {
@@ -9587,7 +9584,7 @@ export class CopilotAgentSession extends Disposable {
 			// than from the SDK's session total, which is read across an await that
 			// the terminal `session.idle` can beat.
 			if (turn && copilotUsage) {
-				turn.copilotNanoAiu += copilotUsage.totalNanoAiu;
+				turn.copilotNanoAiu = (turn.copilotNanoAiu ?? 0) + copilotUsage.totalNanoAiu;
 			}
 
 			// Parent turn aggregate: a subagent event must not replace the parent
@@ -9728,7 +9725,7 @@ export class CopilotAgentSession extends Disposable {
 			const directUsage = this._directUsageFor(parentToolCallId, true);
 			directUsage?.add(model, usageContext, copilotUsage?.totalNanoAiu);
 			if (turn && copilotUsage) {
-				turn.copilotNanoAiu += copilotUsage.totalNanoAiu;
+				turn.copilotNanoAiu = (turn.copilotNanoAiu ?? 0) + copilotUsage.totalNanoAiu;
 			}
 			// Report the turn's cost before awaiting anything. The terminal `session.idle`
 			// can arrive while the metrics read is in flight and close the turn, after

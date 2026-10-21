@@ -25,7 +25,7 @@ export function isAiCreditsStatus(value: unknown): value is AiCreditsStatus {
 
 /** Authoritative billing for one SDK-backed chat, independent of its active turn. */
 export interface IAgentChatUsage {
-	readonly totalNanoAiu: number;
+	readonly totalNanoAiu?: number;
 	readonly aiCreditsStatus?: AiCreditsStatus;
 }
 
@@ -38,16 +38,21 @@ function isMetadataRecord(value: unknown): value is Record<string, unknown> {
 /** Reads only the exact addressed chat's billing from its owning session's metadata. */
 export function readChatUsage(session: { readonly _meta?: SessionMeta } | undefined, chat: string): IAgentChatUsage | undefined {
 	const entries = session?._meta?.[chatUsageMetaKey];
-	const usage = isMetadataRecord(entries) ? entries[chat] : undefined;
+	return parseAgentChatUsage(isMetadataRecord(entries) ? entries[chat] : undefined);
+}
+
+export function parseAgentChatUsage(usage: unknown): IAgentChatUsage | undefined {
 	if (!isMetadataRecord(usage)) {
 		return undefined;
 	}
-	if (!isNanoAiuAmount(usage.totalNanoAiu)) {
+	const totalNanoAiu = isNanoAiuAmount(usage.totalNanoAiu) ? usage.totalNanoAiu : undefined;
+	const aiCreditsStatus = isAiCreditsStatus(usage.aiCreditsStatus) ? usage.aiCreditsStatus : undefined;
+	if (totalNanoAiu === undefined && aiCreditsStatus === undefined) {
 		return undefined;
 	}
 	return {
-		totalNanoAiu: usage.totalNanoAiu,
-		...(isAiCreditsStatus(usage.aiCreditsStatus) ? { aiCreditsStatus: usage.aiCreditsStatus } : {}),
+		...(totalNanoAiu !== undefined ? { totalNanoAiu } : {}),
+		...(aiCreditsStatus !== undefined ? { aiCreditsStatus } : {}),
 	};
 }
 
