@@ -15,6 +15,7 @@ import { IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry } from '.
 import { IWorkspaceSelectionSnapshot } from '../../../common/workspaceSelection.js';
 import { isInputGitHubContext, toInputGitHubContextMetadata } from '../common/newChatContextIds.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
+import type { IChat } from '../../../services/sessions/common/session.js';
 import { NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
 import type { NewChatUserInteraction } from './newChatUserInteraction.js';
 import type { ISessionTypePickerOptions } from './sessionTypePicker.js';
@@ -106,6 +107,12 @@ export interface IComposerRepositoryControls extends IDisposable {
 /** Options a new-session or new-chat host supplies to its composer input. */
 export interface INewChatComposerInputOptions {
 	readonly session: IObservable<IActiveSession | undefined>;
+	/**
+	 * The chat the input binds to. Defaults to the session's active chat, such as a new session's
+	 * draft chat. A host that shows one of several chats passes its own, so the input never binds
+	 * to another chat that is active elsewhere.
+	 */
+	readonly chat?: IObservable<IChat | undefined>;
 	readonly getWorkspacePreselectionSource?: () => NewSessionWorkspacePreselectionSource;
 	readonly getWorkspaceSelection?: () => IWorkspaceSelectionSnapshot;
 	readonly onDidChangeWorkspaceSelection?: Event<void>;

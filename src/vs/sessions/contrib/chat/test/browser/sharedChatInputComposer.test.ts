@@ -11,7 +11,7 @@ import { constObservable, observableValue } from '../../../../../base/common/obs
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { ChatDynamicVariableModel } from '../../../../../workbench/contrib/chat/browser/attachments/chatDynamicVariables.js';
@@ -22,8 +22,10 @@ import { ChatAgentLocation, ChatModeKind } from '../../../../../workbench/contri
 import { IChatSlashCommandService, IChatSlashData } from '../../../../../workbench/contrib/chat/common/participants/chatSlashCommands.js';
 import { IPromptsService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { ChatRequestParser } from '../../../../../workbench/contrib/chat/common/requestParser/chatRequestParser.js';
-import { INewChatInputSendRequest } from '../../browser/newChatComposerInput.js';
+import { INewChatComposerInputOptions, INewChatInputSendRequest } from '../../browser/newChatComposerInput.js';
 import { SharedChatInputComposer } from '../../browser/sharedChatInputComposer.js';
+import { IChat } from '../../../../services/sessions/common/session.js';
+import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 
 suite('SharedChatInputComposer', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -175,6 +177,31 @@ suite('SharedChatInputComposer', () => {
 			requests: [{ query: 'Fix #a.ts', attachments: ['context', 'file@4-9'], background: true }],
 			input: { text: '  Fix #a.ts', attachments: ['context', 'file'], enabled: true },
 			restoredReferences: [reference],
+		});
+	});
+
+	test('binds the host\'s chat when it has one, otherwise the session\'s active chat', () => {
+		const activeChat = upcastPartial<IChat>({ resource: URI.parse('chat:/active') });
+		const session = constObservable(upcastPartial<IActiveSession>({ activeChat: constObservable(activeChat) }));
+		const bindings = (options: Pick<INewChatComposerInputOptions, 'session' | 'chat'>, update?: () => void) => {
+			const bound: (string | undefined)[] = [];
+			const composer = Object.assign(Object.create(SharedChatInputComposer.prototype), {
+				_store: store.add(new DisposableStore()),
+				options,
+				_bindModel: async (resource: URI | undefined) => { bound.push(resource?.toString()); },
+			});
+			Reflect.get(SharedChatInputComposer.prototype, '_bindChatModel').call(composer);
+			update?.();
+			return bound;
+		};
+		const hostChat = observableValue<IChat | undefined>('chat', undefined);
+
+		assert.deepStrictEqual({
+			draft: bindings({ session }),
+			hostChat: bindings({ session, chat: hostChat }, () => hostChat.set(upcastPartial<IChat>({ resource: URI.parse('chat:/composer') }), undefined)),
+		}, {
+			draft: ['chat:/active'],
+			hostChat: [undefined, 'chat:/composer'],
 		});
 	});
 

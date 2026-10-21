@@ -358,14 +358,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			widget.attachmentModel.addContext(...this._pendingAttachments.splice(0));
 		}
 		this._restoreDraftState();
-
-		// The widget needs a chat model before it accepts input. Bind the draft's
-		// chat so the input sees its session type, and keep the input when the
-		// draft is replaced.
-		this._register(autorun(reader => {
-			const session = this.options.session.read(reader);
-			void this._bindModel(session?.activeChat.read(reader).resource);
-		}));
+		this._bindChatModel();
 
 		const resizeObserver = this._register(new dom.DisposableResizeObserver('SharedChatInputComposer', () => this._layoutWidget(), dom.getWindow(container)));
 		this._register(resizeObserver.observe(container));
@@ -542,6 +535,18 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 	// #endregion
 
 	// #region Chat model binding
+
+	/**
+	 * The widget needs a chat model before it accepts input. Binds the host's
+	 * chat, by default the draft's, so the input sees its session type, and keeps
+	 * the input when that chat is replaced.
+	 */
+	private _bindChatModel(): void {
+		this._register(autorun(reader => {
+			const chat = this.options.chat ? this.options.chat.read(reader) : this.options.session.read(reader)?.activeChat.read(reader);
+			void this._bindModel(chat?.resource);
+		}));
+	}
 
 	private async _bindModel(resource: URI | undefined): Promise<void> {
 		const widget = this._widget;

@@ -307,10 +307,10 @@ suite('Sessions - New Nested Session composer', () => {
 			return { resource: URI.parse(`chat:/${name}`), status: constObservable(status) } as Partial<IChat> as IChat;
 		}
 
-		function createSend(initialWorkspace: INestedChatWorkspace | undefined, options: { placeholder?: IChat; refuse?: Error; supported?: boolean; failSend?: () => boolean; disposeDuringApply?: boolean } = {}) {
+		function createSend(initialWorkspace: INestedChatWorkspace | undefined, options: { placeholder?: IChat; activeElsewhere?: IChat; refuse?: Error; supported?: boolean; failSend?: () => boolean; disposeDuringApply?: boolean } = {}) {
 			let workspace = initialWorkspace;
 			const placeholder = options.placeholder ?? chat('placeholder');
-			const activeChat = observableValue<IChat>('activeChat', placeholder);
+			const activeChat = observableValue<IChat>('activeChat', options.activeElsewhere ?? placeholder);
 			const session = { sessionId: 's', activeChat, chats: constObservable([placeholder]) };
 			const calls: string[] = [];
 			const owner = {
@@ -319,6 +319,7 @@ suite('Sessions - New Nested Session composer', () => {
 				_appliedWorkspace: undefined as { chat: URI; workspace: INestedChatWorkspace } | undefined,
 				_store: { isDisposed: false },
 				_session: constObservable(session),
+				_chat: constObservable<IChat | undefined>(placeholder),
 				_workspaceSupport: constObservable(options.supported === false ? undefined : support(repo)),
 				_workspaceControls: { getWorkspace: () => workspace, reset: () => calls.push('reset') },
 				sessionsService: {
@@ -357,6 +358,14 @@ suite('Sessions - New Nested Session composer', () => {
 		test('the default selection sends to the composer chat as is', async () => {
 			const h = createSend(undefined);
 			assert.deepStrictEqual({ sent: await h.send(), calls: h.calls }, { sent: true, calls: ['handoff', 'send /placeholder hello measured'] });
+		});
+
+		test('sends to the composer chat while another chat of the session is active', async () => {
+			const h = createSend({ kind: 'scratch' }, { activeElsewhere: chat('other', SessionStatus.Completed) });
+			assert.deepStrictEqual({ sent: await h.send(), calls: h.calls }, {
+				sent: true,
+				calls: ['apply /placeholder {"kind":"scratch"}', 'handoff', 'send /placeholder hello measured', 'reset'],
+			});
 		});
 
 		test('an old host keeps today\'s send', async () => {
