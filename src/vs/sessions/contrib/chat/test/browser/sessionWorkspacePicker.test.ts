@@ -3649,7 +3649,11 @@ suite('WorkspacePicker - Category Triggers', () => {
 			const result = {
 				restingBackground,
 				hoverBackground: style.backgroundColor,
-				hoverOutline: style.outline,
+				hoverOutline: {
+					color: style.outlineColor,
+					style: style.outlineStyle,
+					width: style.outlineWidth,
+				},
 				borderRadius: style.borderRadius,
 				triggerBackground: getWindow(trigger).getComputedStyle(trigger).backgroundColor,
 			};
@@ -3661,7 +3665,11 @@ suite('WorkspacePicker - Category Triggers', () => {
 		assert.deepStrictEqual(results, Array(4).fill({
 			restingBackground: 'rgba(0, 0, 0, 0)',
 			hoverBackground: 'rgb(51, 68, 85)',
-			hoverOutline: 'rgb(221, 238, 255) dashed 1px',
+			hoverOutline: {
+				color: 'rgb(221, 238, 255)',
+				style: 'dashed',
+				width: '1px',
+			},
 			borderRadius: '4px',
 			triggerBackground: 'rgba(0, 0, 0, 0)',
 		}));
