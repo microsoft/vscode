@@ -84,7 +84,7 @@ import { IActiveSession, ISessionsManagementService } from '../../../../services
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { computeReorderSortChanges, groupByDate, groupByRepository, groupByWorkspace, groupSessionsForList, ISessionChatItem, ISessionSection, limitSessionsForList, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting, QUICK_CHATS_SECTION_ID } from '../../browser/views/sessionsList.js';
+import { computeReorderSortChanges, groupByDate, groupByEnvironment, groupByRepository, groupByWorkspace, groupSessionsForList, ISessionChatItem, ISessionSection, limitSessionsForList, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting, QUICK_CHATS_SECTION_ID } from '../../browser/views/sessionsList.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IChatService, IChatToolInvocation } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -2253,6 +2253,36 @@ suite('Sessions - SessionsList', () => {
 		});
 	});
 
+	suite('groupByEnvironment', () => {
+		test('groups across agents and workspaces by stable environment identity, including disconnected and unknown hosts', () => {
+			const sessions = [
+				createTestSession('Remote Z', { environment: 'host-z' }).session,
+				createTestSession('Cloud', { environment: 'cloud' }).session,
+				createTestSession('Local Copilot', { harness: 'copilot', workspaceLabel: 'Alpha' }).session,
+				createTestSession('Local Claude', { harness: 'claude', workspaceLabel: 'Beta' }).session,
+				createTestSession('Remote A', { environment: 'host-a' }).session,
+				createTestSession('Unknown host', { environment: 'missing' }).session,
+			];
+			const environments = [
+				{ id: 'host-z', label: 'Host', isConnected: constObservable(false) },
+				{ id: 'host-a', label: 'Host' },
+				{ id: 'local', label: 'This Computer' },
+				{ id: 'local', label: 'This Computer' },
+				{ id: 'empty', label: 'Empty' },
+			];
+
+			assert.deepStrictEqual(groupByEnvironment(sessions, environments).map(section => ({
+				id: section.id, label: section.label, sessions: section.sessions.map(session => session.sessionId),
+			})), [
+				{ id: 'environment:local', label: 'This Computer', sessions: ['Local Copilot', 'Local Claude'] },
+				{ id: 'environment:cloud', label: 'Cloud', sessions: ['Cloud'] },
+				{ id: 'environment:host-a', label: 'Host', sessions: ['Remote A'] },
+				{ id: 'environment:host-z', label: 'Host', sessions: ['Remote Z'] },
+				{ id: 'environment:missing', label: 'missing', sessions: ['Unknown host'] },
+			]);
+		});
+	});
+
 	suite('groupByDate', () => {
 
 		const DAY_MS = 86_400_000;
@@ -2663,8 +2693,8 @@ suite('Sessions - SessionsList', () => {
 		});
 	});
 
-	suite('repository grouping', () => {
-		function render(sessions: ISession[], options: IListHarnessOptions = {}, hostConnected = true) {
+	suite('repository and environment grouping', () => {
+		function render(sessions: ISession[], options: IListHarnessOptions = {}, hostConnected = true, grouping = SessionsGrouping.Repository) {
 			const providers = [
 				{ id: 'local-provider', environment: { id: 'local', label: 'This Computer' } },
 				{ id: 'cloud-provider', environment: { id: 'cloud', label: 'Cloud' } },
@@ -2688,7 +2718,7 @@ suite('Sessions - SessionsList', () => {
 			});
 			const container = harness.createContainer(400, 800);
 			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
-				grouping: () => SessionsGrouping.Repository,
+				grouping: () => grouping,
 				sorting: () => SessionsSorting.Created,
 				onSessionOpen: () => { },
 			}));
@@ -2742,6 +2772,61 @@ suite('Sessions - SessionsList', () => {
 			}), ['scratch', 'Scratch', 'vscode', 'In the cloud (Cloud)', 'On this computer', 'On my host (My Host)']);
 		});
 
+		test('groups environments across workspaces and shows workspace badges on their rows', () => {
+			const { container } = render([
+				repositorySession('In the cloud', 'cloud', 1),
+				repositorySession('On this computer', 'local', 2, 'microsoft/vscode-docs'),
+				repositorySession('On my host', 'host', 3),
+			], {}, false, SessionsGrouping.Environment);
+
+			assert.deepStrictEqual([...container.querySelectorAll<HTMLElement>('.monaco-list-row')].map(row => {
+				const section = row.querySelector('.session-section-label')?.textContent;
+				const badge = row.querySelector('.session-badge')?.textContent;
+				return section ?? `${row.querySelector('.session-title')?.textContent}${badge ? ` (${badge})` : ''}`;
+			}), ['This Computer', 'On this computer (vscode-docs)', 'Cloud', 'In the cloud (vscode)', 'My Host', 'On my host (vscode)']);
+		});
+
+		test('caps environment sections and their sessions, with environment-specific show more labels', () => {
+			const sessions = Array.from({ length: 8 }, (_, index) => repositorySession(`Local ${index}`, 'local', index));
+			const { list, container } = render([
+				...sessions,
+				repositorySession('Old cloud session', 'cloud', 10 * 24 * 60),
+			], {}, true, SessionsGrouping.Environment);
+			const snapshot = () => ({
+				titles: list.getVisibleSessions().map(session => session.title.get()),
+				more: [...container.querySelectorAll('.session-show-more-label')].map(label => label.textContent),
+			});
+			const recent = snapshot();
+			const more = [...container.querySelectorAll<HTMLElement>('.monaco-list-row')]
+				.find(row => row.querySelector('.session-show-more-label')?.textContent === '+1 more environment');
+			assert.ok(more);
+			const moreAria = more.getAttribute('aria-label');
+			more.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+			more.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+			const expanded = snapshot();
+			list.setWorkspaceGroupCapped(false);
+
+			assert.deepStrictEqual({ recent, moreAria, expanded, all: snapshot() }, {
+				recent: { titles: sessions.slice(0, 5).map(session => session.title.get()), more: ['+3 more', '+1 more environment'] },
+				moreAria: 'Show 1 more environment',
+				expanded: { titles: [...sessions.slice(0, 5).map(session => session.title.get()), 'Old cloud session'], more: ['+3 more', 'Show fewer environments'] },
+				all: { titles: [...sessions.map(session => session.title.get()), 'Old cloud session'], more: [] },
+			});
+		});
+
+		test('environment filtering removes only that environment section', () => {
+			const { list, container } = render([
+				repositorySession('Local', 'local', 1),
+				repositorySession('Cloud', 'cloud', 2),
+			], {}, true, SessionsGrouping.Environment);
+			list.filters.setExcluded({ kind: 'environment', id: 'cloud' }, true);
+
+			assert.deepStrictEqual({
+				sections: [...container.querySelectorAll('.session-section-label')].map(label => label.textContent),
+				sessions: list.getVisibleSessions().map(session => session.title.get()),
+			}, { sections: ['This Computer'], sessions: ['Local'] });
+		});
+
 		for (const hostConnected of [true, false]) {
 			test(`New Session offers each available environment of a repository section that spans several (host ${hostConnected ? 'connected' : 'disconnected'})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 				const { harness, list, contextMenus, rowOf } = render([
@@ -2784,32 +2869,38 @@ suite('Sessions - SessionsList', () => {
 			}));
 		}
 
-		test('reorders repository sections and accepts their sessions like workspace sections', () => {
-			const group: ISessionGroup = { id: 'group', name: 'Group', createdAt: 1 };
-			const grouped = repositorySession('Grouped alpha session', 'local', 3, 'microsoft/alpha');
-			const { harness, rowOf } = render([
-				repositorySession('Alpha session', 'local', 1, 'microsoft/alpha'),
-				repositorySession('Beta session', 'cloud', 2, 'microsoft/beta'),
-				grouped,
-			], { groups: [group], memberships: new Map([[grouped.sessionId, group.id]]) });
+		for (const grouping of [SessionsGrouping.Repository, SessionsGrouping.Environment]) {
+			test(`reorders ${grouping} sections and accepts only their own sessions`, () => {
+				const group: ISessionGroup = { id: 'group', name: 'Group', createdAt: 1 };
+				const grouped = repositorySession('Grouped alpha session', 'local', 3, 'microsoft/alpha');
+				const { harness, rowOf } = render([
+					repositorySession('Alpha session', 'local', 1, 'microsoft/alpha'),
+					repositorySession('Beta session', 'cloud', 2, 'microsoft/beta'),
+					grouped,
+				], { groups: [group], memberships: new Map([[grouped.sessionId, group.id]]) }, true, grouping);
+				const alphaLabel = grouping === SessionsGrouping.Environment ? 'This Computer' : 'alpha';
+				const betaLabel = grouping === SessionsGrouping.Environment ? 'Cloud' : 'beta';
+				const alphaId = grouping === SessionsGrouping.Environment ? 'environment:local' : 'repository:microsoft/alpha';
+				const betaId = grouping === SessionsGrouping.Environment ? 'environment:cloud' : 'repository:microsoft/beta';
 
-			drag(rowOf('beta'), rowOf('alpha'));
-			drag(rowOf('Grouped alpha session'), rowOf('beta'));
-			const ungroupedOutsideItsRepository = [...harness.removedFromGroups];
-			drag(rowOf('Grouped alpha session'), rowOf('alpha'));
+				drag(rowOf(betaLabel), rowOf(alphaLabel));
+				drag(rowOf('Grouped alpha session'), rowOf(betaLabel));
+				const ungroupedOutsideItsSection = [...harness.removedFromGroups];
+				drag(rowOf('Grouped alpha session'), rowOf(alphaLabel));
 
-			assert.deepStrictEqual({ reorders: harness.sectionReorders, ungroupedOutsideItsRepository, ungrouped: harness.removedFromGroups }, {
-				reorders: [{
-					visibleOrder: ['group:group', 'repository:microsoft/alpha', 'repository:microsoft/beta'],
-					draggedId: 'repository:microsoft/beta',
-					targetId: 'repository:microsoft/alpha',
-					position: 'before',
-					promoteId: 'repository:microsoft/beta',
-				}],
-				ungroupedOutsideItsRepository: [],
-				ungrouped: [grouped.sessionId],
+				assert.deepStrictEqual({ reorders: harness.sectionReorders, ungroupedOutsideItsSection, ungrouped: harness.removedFromGroups }, {
+					reorders: [{
+						visibleOrder: ['group:group', alphaId, betaId],
+						draggedId: betaId,
+						targetId: alphaId,
+						position: 'before',
+						promoteId: betaId,
+					}],
+					ungroupedOutsideItsSection: [],
+					ungrouped: [grouped.sessionId],
+				});
 			});
-		});
+		}
 	});
 
 	suite('session hover diff stats', () => {
@@ -3138,7 +3229,8 @@ suite('Sessions - SessionsList', () => {
 
 	suite('groupSessionsForList', () => {
 
-		for (const grouping of [SessionsGrouping.Workspace, SessionsGrouping.Date]) {
+		for (const grouping of Object.values(SessionsGrouping)) {
+			const regularSectionId = grouping === SessionsGrouping.Date ? 'recent' : grouping === SessionsGrouping.Environment ? 'environment:local' : 'workspace:Alpha';
 			test(`groups external sessions before Done while preserving pins (${grouping})`, () => {
 				const sessions: ISession[] = [
 					createSession('pinned', { isExternal: true }),
@@ -3154,7 +3246,7 @@ suite('Sessions - SessionsList', () => {
 
 				assert.deepStrictEqual(sections.map(section => ({ id: section.id, sessions: section.sessions.map(s => s.sessionId) })), [
 					{ id: 'pinned', sessions: ['pinned'] },
-					{ id: grouping === SessionsGrouping.Workspace ? 'workspace:Alpha' : 'recent', sessions: ['regular'] },
+					{ id: regularSectionId, sessions: ['regular'] },
 					{ id: 'external', sessions: ['external-workspace', 'external-chat'] },
 					{ id: 'archived', sessions: ['archived'] },
 				]);
@@ -3168,7 +3260,7 @@ suite('Sessions - SessionsList', () => {
 
 					assert.deepStrictEqual(sections.map(section => ({ id: section.id, sessions: section.sessions.map(s => s.sessionId) })), [
 						{ id: 'quickchats', sessions: ['quick'] },
-						{ id: grouping === SessionsGrouping.Workspace ? 'workspace:Alpha' : 'recent', sessions: ['external'] },
+						{ id: regularSectionId, sessions: ['external'] },
 					]);
 				});
 			}
@@ -4082,7 +4174,7 @@ suite('Sessions - SessionsList', () => {
 	suite('comparison groups', () => {
 		const group: ISessionGroup = { id: 'comparison-group', name: 'Compare: Improve the picker', createdAt: 1 };
 
-		function renderComparison(verdict?: ISessionComparison['verdict'], sessionVariant: 'all' | 'attempt1' | 'none' | 'launching' = 'all', pinnedSessionIds: ReadonlySet<string> = new Set(), includeOrdinaryWorkspace = false) {
+		function renderComparison(verdict?: ISessionComparison['verdict'], sessionVariant: 'all' | 'attempt1' | 'none' | 'launching' = 'all', pinnedSessionIds: ReadonlySet<string> = new Set(), includeOrdinaryWorkspace = false, grouping = SessionsGrouping.Workspace) {
 			const attempt1 = createTestSession('Stored attempt one', { resourceId: 'attempt-1', status: SessionStatus.InProgress });
 			const attempt2 = createTestSession('Stored attempt two', { resourceId: 'attempt-2', status: SessionStatus.InProgress, application: 'github/cli' });
 			const judge = createTestSession('Judge', { resourceId: 'judge', status: SessionStatus.InProgress, application: 'github/cli' });
@@ -4167,7 +4259,7 @@ suite('Sessions - SessionsList', () => {
 			container.style.setProperty('--vscode-cornerRadius-small', '4px');
 			container.style.setProperty('--vscode-strokeThickness', '1px');
 			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
-				grouping: () => SessionsGrouping.Workspace,
+				grouping: () => grouping,
 				sorting: () => SessionsSorting.Created,
 				onSessionOpen: () => { },
 			}));
@@ -4175,6 +4267,16 @@ suite('Sessions - SessionsList', () => {
 			list.layout(400, 400);
 			return { attempt1, attempt2, judge, synthesis, container, harness, list };
 		}
+
+		test('keeps comparison groups visible under their environment without any ungrouped sessions', () => {
+			const { container, list } = renderComparison(undefined, 'all', new Set(), false, SessionsGrouping.Environment);
+
+			assert.deepStrictEqual({
+				sections: [...container.querySelectorAll('.session-section-label')].map(label => label.textContent),
+				comparison: container.querySelector('.session-comparison-group') !== null,
+				sessionCount: list.getVisibleSessions().length,
+			}, { sections: ['This Computer'], comparison: true, sessionCount: 4 });
+		});
 
 		test('uses attention wording for blocked comparison participants', () => {
 			const { attempt1, attempt2, judge, container } = renderComparison();

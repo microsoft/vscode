@@ -895,6 +895,12 @@ export class SessionsView extends ViewPane {
 				group: 'group',
 			},
 			{
+				id: SessionsGrouping.Environment,
+				label: localize('groupByEnvironment', "Group by Environment"),
+				checked: this.currentGrouping === SessionsGrouping.Environment,
+				group: 'group',
+			},
+			{
 				id: SessionsGrouping.Date,
 				label: localize('groupByTime', "Group by Time"),
 				checked: this.currentGrouping === SessionsGrouping.Date,
@@ -908,7 +914,7 @@ export class SessionsView extends ViewPane {
 			}
 			if (selectedId === SessionsSorting.Created || selectedId === SessionsSorting.Updated) {
 				this.setSorting(selectedId);
-			} else if (selectedId === SessionsGrouping.Workspace || selectedId === SessionsGrouping.Repository || selectedId === SessionsGrouping.Date) {
+			} else if (selectedId === SessionsGrouping.Workspace || selectedId === SessionsGrouping.Repository || selectedId === SessionsGrouping.Environment || selectedId === SessionsGrouping.Date) {
 				this.setGrouping(selectedId);
 			}
 		});

@@ -381,16 +381,17 @@ MenuRegistry.appendMenuItem(Menus.SessionsViewFilter, {
 	order: 1,
 });
 
-/** Grouping by workspace or repository caps their sections, which Show switches between Recent and All. */
-const GroupedByWorkspaceOrRepositoryContext = ContextKeyExpr.or(
+/** Non-date grouping caps its sections, which Show switches between Recent and All. */
+const GroupedBySectionContext = ContextKeyExpr.or(
 	SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Workspace),
 	SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Repository),
+	SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Environment),
 );
 
 MenuRegistry.appendMenuItem(Menus.SessionsViewFilter, {
 	submenu: Menus.SessionsViewShow,
 	title: localize2('showSessions', "Show"),
-	when: GroupedByWorkspaceOrRepositoryContext,
+	when: GroupedBySectionContext,
 	group: '1_presentation',
 	order: 2,
 });
@@ -529,6 +530,22 @@ registerAction2(class GroupByTimeAction extends Action2 {
 	}
 });
 
+registerAction2(class GroupByEnvironmentAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessionsViewPane.groupByEnvironment',
+			title: localize2('environment', "Environment"),
+			category: SessionsCategories.Sessions,
+			toggled: SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Environment),
+			menu: [{ id: Menus.SessionsViewGrouping, group: '1_group', order: 3 }],
+		});
+	}
+	override run(accessor: ServicesAccessor) {
+		const view = accessor.get(IViewsService).getViewWithId<SessionsView>(SessionsViewId);
+		view?.setGrouping(SessionsGrouping.Environment);
+	}
+});
+
 registerAction2(class ToggleCompactSessionsViewAction extends Action2 {
 	constructor() {
 		super({
@@ -564,7 +581,7 @@ registerAction2(class ShowRecentWorkspaceSessionsAction extends Action2 {
 				id: Menus.SessionsViewShow,
 				group: '1_show',
 				order: 0,
-				when: GroupedByWorkspaceOrRepositoryContext,
+				when: GroupedBySectionContext,
 			}]
 		});
 	}
@@ -587,7 +604,7 @@ registerAction2(class ShowAllWorkspaceSessionsAction extends Action2 {
 				id: Menus.SessionsViewShow,
 				group: '1_show',
 				order: 1,
-				when: GroupedByWorkspaceOrRepositoryContext,
+				when: GroupedBySectionContext,
 			}]
 		});
 	}
@@ -654,10 +671,11 @@ registerAction2(class FindSessionAction extends Action2 {
 
 //  Section Actions
 
-/** Workspace and repository sections, whose New Session starts in a workspace that their sessions work in. */
-const WorkspaceOrRepositorySectionContext = ContextKeyExpr.or(
+/** Grouping sections whose New Session starts in a workspace that their sessions work in. */
+const SessionGroupingSectionContext = ContextKeyExpr.or(
 	ContextKeyExpr.equals(SessionSectionTypeContext.key, 'workspace'),
 	ContextKeyExpr.equals(SessionSectionTypeContext.key, 'repository'),
+	ContextKeyExpr.equals(SessionSectionTypeContext.key, 'environment'),
 );
 
 /** Opens a new session that starts in the workspace and environment of `session`. */
@@ -699,14 +717,14 @@ registerAction2(class NewSessionForWorkspaceAction extends Action2 {
 					when: ContextKeyExpr.and(
 						ChatContextKeys.enabled,
 						SessionSectionHasNonCloudRepositoryContext,
-						WorkspaceOrRepositorySectionContext)
+						SessionGroupingSectionContext)
 				},
 				{
 					id: SessionSectionToolbarMenuId,
 					group: 'navigation',
 					order: 0,
 					when: ContextKeyExpr.and(
-						WorkspaceOrRepositorySectionContext,
+						SessionGroupingSectionContext,
 						ContextKeyExpr.or(
 							ChatContextKeys.enabled.negate(),
 							SessionSectionHasNonCloudRepositoryContext.negate()),
@@ -719,8 +737,8 @@ registerAction2(class NewSessionForWorkspaceAction extends Action2 {
 		if (!context || !context.sessions || context.sessions.length === 0) {
 			return;
 		}
-		// A repository section spans environments, so it starts like its most recently created session.
-		const session = context.repository
+		// Sections spanning workspaces start like their most recently created available session.
+		const session = context.repository || context.environment
 			? getNewSessionSources(context.sessions, accessor.get(ISessionsProvidersService))
 				.reduce<ISession | undefined>((latest, { session }) => !latest || session.createdAt.getTime() > latest.createdAt.getTime() ? session : latest, undefined)
 			: undefined;
