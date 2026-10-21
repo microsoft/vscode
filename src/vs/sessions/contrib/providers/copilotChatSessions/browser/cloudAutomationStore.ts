@@ -450,7 +450,13 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 
 	private validateTriggers(triggers: Readonly<Record<string, AutomationTrigger>>): void {
 		const catalog = this.configuration.triggers?.get();
-		if (catalog?.kind !== 'ready' || !canEditAutomationTriggers(triggers, automationTriggerChoices(catalog.definitions))) {
+		if (!catalog || catalog.kind === 'loading') {
+			throw new Error(localize('cloudAutomations.triggersLoading', "Available triggers are still loading. Try again when loading is complete."));
+		}
+		if (catalog.kind === 'error') {
+			throw new Error(localize('cloudAutomations.triggersUnavailable', "{0} Retry loading the trigger catalog before saving.", catalog.message));
+		}
+		if (!canEditAutomationTriggers(triggers, automationTriggerChoices(catalog.definitions))) {
 			throw new Error(localize('cloudAutomations.unsupportedEdit', "This automation uses triggers that cannot be edited in VS Code. Open it on GitHub."));
 		}
 	}

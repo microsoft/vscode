@@ -164,9 +164,20 @@ export function automationTriggerSummary(triggers: Readonly<Record<string, Autom
 	if (!entries.length || (entries.length === 1 && entries[0][0] === 'interval')) {
 		return undefined;
 	}
-	const labels = entries.flatMap(([name, trigger]) => trigger.types?.length
-		? trigger.types.map(type => events.find(event => event.name === name && event.type === type)?.label ?? `${name}: ${type}`)
-		: [name]);
+	const labels = events
+		.filter(event => triggers[event.name]?.types?.includes(event.type))
+		.map(event => event.label);
+	for (const [name, trigger] of entries) {
+		if (!trigger.types?.length) {
+			labels.push(name);
+			continue;
+		}
+		for (const type of trigger.types) {
+			if (!events.some(event => event.name === name && event.type === type)) {
+				labels.push(`${name}: ${type}`);
+			}
+		}
+	}
 	return compact && labels.length > 1 ? localize('automation.trigger.multiple', "Multiple") : labels.join(', ');
 }
 
@@ -185,7 +196,7 @@ export function automationTriggerFields(definition: AutomationTriggerDefinition)
 		if (field.type && field.type !== (scalar ? 'string' : 'string_array')) {
 			return undefined;
 		}
-		fields.push({ name, label: field.label ?? definition.field_labels?.[name] ?? fieldLabels[name], scalar, required: field.required, options: field.options });
+		fields.push({ name, label: field.label ?? definition.field_labels?.[name] ?? fieldLabels[name] ?? name, scalar, required: field.required, options: field.options });
 	}
 	return fields;
 }

@@ -1229,6 +1229,51 @@ suite('CloudAutomationStore', () => {
 		}, { failed: 'error', loaded: { kind: 'ready', definitions: api.triggerDefinitions }, requests: 2, reset: { kind: 'loading' } });
 	});
 
+	test('trigger mutations distinguish transient catalog state from unsupported configurations', async () => {
+		const { provider, api, set } = setup();
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		const automation = provider.automations.get()[0];
+		const cloudTrigger = { triggers: { issues: { types: ['opened'] } } };
+		const create = () => provider.createAutomation({
+			name: 'Issue', prompt: 'Triage', schedule: manual, cloudTrigger,
+			target: automation.target,
+		});
+		const update = () => provider.updateAutomation(automation.id, { cloudTrigger });
+
+		await assert.rejects(create(), /Available triggers are still loading/);
+		await assert.rejects(update(), /Available triggers are still loading/);
+		const callsWhileLoading = api.calls.filter(call => call === 'triggers').length;
+
+		api.triggersError = new Error('offline');
+		provider.configuration.loadTriggers!();
+		await timeout(0);
+		await assert.rejects(create(), /Available triggers could not be loaded.*Retry loading the trigger catalog/);
+		await assert.rejects(update(), /Available triggers could not be loaded.*Retry loading the trigger catalog/);
+
+		api.triggersError = undefined;
+		provider.configuration.loadTriggers!();
+		await timeout(0);
+		await update();
+		const updated = api.patch;
+		await create();
+		const created = api.created;
+
+		const unsupported = { triggers: { issues: { types: ['opened'] }, pull_request_opened: { types: ['opened'] } } };
+		await assert.rejects(provider.updateAutomation(automation.id, { cloudTrigger: unsupported }), /cannot be edited in VS Code/);
+		assert.deepStrictEqual({
+			callsWhileLoading,
+			triggerRequests: api.calls.filter(call => call === 'triggers').length,
+			updated,
+			created: created?.triggers,
+		}, {
+			callsWhileLoading: 0,
+			triggerRequests: 2,
+			updated: { triggers: cloudTrigger.triggers },
+			created: cloudTrigger.triggers,
+		});
+	});
+
 	test('Issue creation and explicit edits round trip without granting tool permissions', async () => {
 		const { provider, api, set } = setup();
 		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
@@ -1303,6 +1348,8 @@ suite('CloudAutomationStore', () => {
 		api.definitions = [{ ...definition, triggers, require_actor_write_permission: true }];
 		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
 		await provider.refresh();
+		provider.configuration.loadTriggers!();
+		await timeout(0);
 		const automation = provider.automations.get()[0];
 		const canRun = provider.canRunAutomation(automation.id);
 		const updated = await provider.updateAutomation(automation.id, { name: 'New', prompt: 'New prompt', enabled: false, sessionTemplate: { modelId: 'model', config: { tools: [] } } });

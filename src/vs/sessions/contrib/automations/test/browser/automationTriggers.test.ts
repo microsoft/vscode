@@ -108,9 +108,17 @@ suite('Automation triggers', () => {
 			badge: automationTriggerSummary(selected, true),
 			onlyReview,
 		}, {
-			unchanged: true, family: 'pullRequest', summary: 'Pull request opened, Review comment, Timeline comment', badge: 'Multiple',
+			unchanged: true, family: 'pullRequest', summary: 'Pull request opened, Timeline comment, Review comment', badge: 'Multiple',
 			onlyReview: { pull_request_comment: { ...current.pull_request_comment, types: ['review_comment'] }, pull_request_opened: { types: ['opened'] } },
 		});
+	});
+
+	test('summaries follow frozen event order and keep unknown values visible', () => {
+		assert.strictEqual(automationTriggerSummary({
+			pull_request_comment: { types: ['review_comment', 'timeline_comment', 'future'] },
+			pull_request_opened: { types: ['opened'] },
+			future_event: { types: ['second', 'first'] },
+		}), 'Pull request opened, Timeline comment, Review comment, pull_request_comment: future, future_event: second, future_event: first');
 	});
 
 	test('shared fields propagate across selected PR events and divergent stored values are read-only', () => {
