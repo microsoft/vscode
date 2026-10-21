@@ -77,7 +77,7 @@ jobs:
         id: cache-node-modules
         uses: ./.github/actions/restore-node-modules
         with:
-          key-prefix: node_modules-windows-validate-miss
+          key-prefix: node_modules-windows
           key-args: "win32 ${{ env.VSCODE_ARCH }} $(node -p process.arch)"
 
       - name: Install dependencies
