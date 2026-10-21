@@ -105,6 +105,37 @@ suite('ChatToolInvocation permission provenance', () => {
 		assert.deepStrictEqual(invocation.toJSON().toolSpecificData, { kind: 'generatedImage', durationMs: 43_500 });
 	});
 
+	test('records when invocations appear and settle, and persists both', async () => {
+		const clock = useFakeTimers({ now: 1000, toFake: ['Date'] });
+		try {
+			const completed = ChatToolInvocation.createStreaming({ toolCallId: 'completed', toolId: tool.id, toolData: tool });
+			const denied = new ChatToolInvocation(prepared, tool, 'denied', undefined, {});
+			const cancelled = new ChatToolInvocation(undefined, tool, 'cancelled', undefined, {});
+			const blocked = ChatToolInvocation.createCancelled({ toolCallId: 'blocked', toolId: tool.id, toolData: tool }, {}, { type: ToolConfirmKind.Denied, source: 'hook' });
+			const pending = new ChatToolInvocation(prepared, tool, 'pending', undefined, {});
+			clock.tick(500);
+			completed.transitionFromStreaming(undefined, {}, undefined);
+			clock.tick(1500);
+			await completed.didExecuteTool({ content: [] });
+			IChatToolInvocation.confirmWith(denied, { type: ToolConfirmKind.Denied, source: 'user' });
+			clock.tick(1000);
+			cancelled.didCancelTool({ type: ToolConfirmKind.Skipped });
+
+			assert.deepStrictEqual([completed, denied, cancelled, blocked, pending].map(invocation => {
+				const { startedAt, completedAt } = invocation.toJSON();
+				return { live: [invocation.startedAt, invocation.completedAt], serialized: [startedAt, completedAt] };
+			}), [
+				{ live: [1000, 3000], serialized: [1000, 3000] },
+				{ live: [1000, 3000], serialized: [1000, 3000] },
+				{ live: [1000, 4000], serialized: [1000, 4000] },
+				{ live: [1000, 1000], serialized: [1000, 1000] },
+				{ live: [1000, undefined], serialized: [1000, undefined] },
+			]);
+		} finally {
+			clock.restore();
+		}
+	});
+
 	test('preserves explicit denial sources through confirmation and serialization', async () => {
 		const reasons: ToolDeniedReason[] = [
 			{ type: ToolConfirmKind.Denied, source: 'user' },
