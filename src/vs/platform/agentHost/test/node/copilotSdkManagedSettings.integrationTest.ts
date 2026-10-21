@@ -63,12 +63,12 @@ suite('Copilot SDK - managed settings', function () {
 		}
 	});
 
-	// Expectations follow the bundled runtime, whose managed keys can be newer than the SDK typings.
+	type Composition = Awaited<ReturnType<CopilotClient['rpc']['managedSettings']['compose']>>;
 	const cases: {
 		name: string;
 		layers: Parameters<CopilotClient['rpc']['managedSettings']['compose']>[0]['layers'];
-		values: Record<string, unknown> | undefined;
-		meta: Record<string, unknown> | undefined;
+		values: Composition['values'];
+		meta: Composition['meta'];
 		warnings: string[];
 	}[] = [
 			{

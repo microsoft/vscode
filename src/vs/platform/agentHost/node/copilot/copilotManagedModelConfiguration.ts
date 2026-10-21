@@ -36,13 +36,12 @@ const fusionTierRoutingIds: Readonly<Record<string, readonly string[]>> = {
  * so only a source document containing the key counts as Fusion policy.
  */
 function getManagedAutoPolicy(policy: CopilotManagedModelPolicy): { readonly kind: 'fusion' | 'legacy'; readonly tier: string } | undefined {
-	// Older SDK typings name this value `ensembleTier`.
-	const fusionTier = (policy.values as { readonly fusionTier?: unknown } | undefined)?.fusionTier;
+	const fusionTier = policy.values?.fusionTier;
 	const configured = policy.layers
 		? policy.layers.some(({ settings }) => typeof settings === 'object' && settings !== null && !Array.isArray(settings) && Object.hasOwn(settings, fusionTierKey))
 		: fusionTier !== undefined && policy.values?.autoTier === undefined;
 	if (configured && fusionTier !== undefined) {
-		return typeof fusionTier === 'string' && Object.hasOwn(fusionTierRoutingIds, fusionTier) ? { kind: 'fusion', tier: fusionTier } : undefined;
+		return Object.hasOwn(fusionTierRoutingIds, fusionTier) ? { kind: 'fusion', tier: fusionTier } : undefined;
 	}
 	const autoTier = policy.values?.autoTier;
 	return autoTier ? { kind: 'legacy', tier: autoTier } : undefined;

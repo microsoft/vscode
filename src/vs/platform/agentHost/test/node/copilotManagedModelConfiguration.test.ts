@@ -98,9 +98,7 @@ suite('Copilot managed model configuration', () => {
 		});
 		const builtIn = auto(['efficiency', 'balance', 'intelligence']);
 		const dynamic = auto(['balance', 'intelligence', 'hydrafusion', 'hydrafusion-max']);
-		// Newer runtimes report `fusionTier`, which these SDK typings may predate.
-		type Values = NonNullable<CopilotManagedModelPolicy['values']> & { readonly fusionTier?: 'standard' | 'high' | 'max' | 'unmanaged' };
-		const policy = (settings: { [key: string]: string | { overridable: string } } | undefined, values: Values): CopilotManagedModelPolicy => ({ ...(settings ? { layers: [{ source: 'server', settings }] } : {}), values });
+		const policy = (settings: { [key: string]: string | { overridable: string } } | undefined, values: CopilotManagedModelPolicy['values']): CopilotManagedModelPolicy => ({ ...(settings ? { layers: [{ source: 'server', settings }] } : {}), values });
 		const warnings: string[] = [];
 		const log = new class extends NullLogService {
 			override warn(message: string): void { warnings.push(message); }

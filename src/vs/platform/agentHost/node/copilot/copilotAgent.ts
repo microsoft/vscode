@@ -207,12 +207,6 @@ function getFusionTierLabel(tier: string, providerLabel: string | undefined): st
 	return isFusionNamedAutoModeTier(tier) || !providerLabel ? getFusionAutoModeTierLabel(tier) : providerLabel;
 }
 
-/** The managed Fusion tier the runtime binds to this descriptor (github/copilot-agent-runtime#27725), which older SDK typings omit. */
-function getRuntimeFusionTierBinding(tier: CopilotAutoTierDescriptor): { fusionTier?: string } {
-	const fusionTier = (tier as { readonly fusionTier?: unknown }).fusionTier;
-	return typeof fusionTier === 'string' && fusionTier ? { fusionTier } : {};
-}
-
 function getProviderAutoTierLabel(tier: CopilotAutoTierDescriptor): string {
 	return tier.displayName || getAutoModeTierLabel(tier.id);
 }
@@ -4151,7 +4145,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				label: getProviderAutoTierLabel(tier),
 				enabled: tier.status.enabled,
 				...(!tier.status.enabled && tier.status.message ? { message: tier.status.message } : {}),
-				...getRuntimeFusionTierBinding(tier),
+				...(tier.fusionTier ? { fusionTier: tier.fusionTier } : {}),
 			})),
 		});
 	}
