@@ -285,9 +285,11 @@ suite('Artifact Integration Presentation', () => {
 					configured.push({ integrationId, revision, values });
 					await configureResult;
 					const current = snapshot.get();
-					snapshot.set({ ...current, contributions: current.contributions.map(contribution => contribution.integrationId === integrationId ? {
-						...contribution, configuration: { ...contribution.configuration, revision: revision + 1, values: { ...contribution.configuration.values, ...values } },
-					} : contribution) }, undefined);
+					snapshot.set({
+						...current, contributions: current.contributions.map(contribution => contribution.integrationId === integrationId ? {
+							...contribution, configuration: { ...contribution.configuration, revision: revision + 1, values: { ...contribution.configuration.values, ...values } },
+						} : contribution)
+					}, undefined);
 				},
 				invoke: async (integrationId, actionId, chat, requestId) => {
 					onInvoke?.();
@@ -589,7 +591,7 @@ suite('Artifact Integration Presentation', () => {
 					innerScrolledBack: backUp.inner === 0 && (count > 1 ? backUp.outer === bottom.outer : backUp.outer === 0),
 					outerScrolledAtTop: outer.scrollTop === 0,
 				}, { innerScrolledFirst: true, outerScrolledAtBottom: true, innerScrolledBack: true, outerScrolledAtTop: true },
-				JSON.stringify({ first, bottom, backUp, final: { inner: innerScrollTop(), outer: outer.scrollTop }, rowsTop: contents.style.top, outerHeight: outer.clientHeight, outerScrollHeight: outer.scrollHeight }));
+					JSON.stringify({ first, bottom, backUp, final: { inner: innerScrollTop(), outer: outer.scrollTop }, rowsTop: contents.style.top, outerHeight: outer.clientHeight, outerScrollHeight: outer.scrollHeight }));
 			});
 		}
 
@@ -620,10 +622,12 @@ suite('Artifact Integration Presentation', () => {
 			const f = fixture();
 			const a = f.artifact();
 			setActivities(a, [
-				activity(a, 'old', { createdAt: 1, presentation: {
-					version: 1, source: 'manual', integrationLabel: 'Previous provider',
-					action: { label: 'Original Repair Title', iconId: 'tools' }, artifact: a.snapshot.get().artifact, details: [],
-				} }),
+				activity(a, 'old', {
+					createdAt: 1, presentation: {
+						version: 1, source: 'manual', integrationLabel: 'Previous provider',
+						action: { label: 'Original Repair Title', iconId: 'tools' }, artifact: a.snapshot.get().artifact, details: [],
+					}
+				}),
 				activity(a, 'new', { actionId: 'merge', actionKind: 'code', state: 'skipped', createdAt: 2, dispatched: false }),
 			]);
 			const panel = await open(f, a);
@@ -943,9 +947,13 @@ suite('Artifact Integration Presentation', () => {
 		});
 		const before = state();
 		fix.focus();
-		updateContribution(a, c => ({ ...c, view: { ...c.view, stateActions: [
-			{ id: 'merge', enabled: true }, { id: 'fix', enabled: false, disabledReason: 'Refreshing checks.' }, { id: 'reviews', enabled: true },
-		] } }));
+		updateContribution(a, c => ({
+			...c, view: {
+				...c.view, stateActions: [
+					{ id: 'merge', enabled: true }, { id: 'fix', enabled: false, disabledReason: 'Refreshing checks.' }, { id: 'reviews', enabled: true },
+				]
+			}
+		}));
 		assert.deepStrictEqual({
 			before, after: state(), focused: getActiveElement() === fix, sameButton: fix === button(panel, 'Fix CI'),
 			primaryBackground: button(panel, 'Merge').style.backgroundColor,
@@ -1168,13 +1176,15 @@ suite('Artifact Integration Presentation', () => {
 		const results = [];
 		for (const loading of [true, false]) {
 			transaction(tx => {
-				a.snapshot.set({ ...original, contributions: original.contributions.map(c => ({
-					...c, view: {
-						...c.view, availability: { kind: loading ? 'loading' : 'available' },
-						stateActions: c.view.stateActions.map(action => ({ ...action, enabled: !loading && action.enabled, disabledReason: loading ? 'Refreshing state' : action.disabledReason })),
-						automationAvailability: c.view.automationAvailability.map(option => ({ ...option, available: !loading, unavailableReason: loading ? 'Refreshing state' : undefined })),
-					},
-				})) }, tx);
+				a.snapshot.set({
+					...original, contributions: original.contributions.map(c => ({
+						...c, view: {
+							...c.view, availability: { kind: loading ? 'loading' : 'available' },
+							stateActions: c.view.stateActions.map(action => ({ ...action, enabled: !loading && action.enabled, disabledReason: loading ? 'Refreshing state' : action.disabledReason })),
+							automationAvailability: c.view.automationAvailability.map(option => ({ ...option, available: !loading, unavailableReason: loading ? 'Refreshing state' : undefined })),
+						},
+					}))
+				}, tx);
 				a.details.checks.set({ ...originalDetails, availability: { kind: loading ? 'loading' : 'available' } }, tx);
 			});
 			results.push({
@@ -1271,8 +1281,12 @@ suite('Artifact Integration Presentation', () => {
 	test('manual actions use the invoking chat, ignore repeated requests, and follow per-chat availability', async () => {
 		const f = fixture();
 		const a = f.artifact();
-		updateContribution(a, c => ({ ...c, view: { ...c.view, stateActions: c.view.stateActions.map(action => action.id === 'fix'
-			? { ...action, chatAvailability: { 'second-chat': { enabled: true } } } : action) } }));
+		updateContribution(a, c => ({
+			...c, view: {
+				...c.view, stateActions: c.view.stateActions.map(action => action.id === 'fix'
+					? { ...action, chatAvailability: { 'second-chat': { enabled: true } } } : action)
+			}
+		}));
 		const panel = await open(f, a);
 		button(panel, 'Fix CI').click();
 		a.chat.set('second-chat', undefined);
@@ -1408,11 +1422,13 @@ suite('Artifact Integration Presentation', () => {
 		const f = fixture();
 		const a = f.artifact();
 		const contribution = a.snapshot.get().contributions[0];
-		a.snapshot.set({ ...a.snapshot.get(), contributions: [contribution, {
-			...contribution, integrationId: 'second',
-			actions: [{ ...contribution.actions[0], label: 'Second Fix' }], options: [contribution.options[0]],
-			view: { ...contribution.view, main: undefined, sections: [], lists: [contribution.view.lists![0]], stateActions: [contribution.view.stateActions[0]] },
-		}] }, undefined);
+		a.snapshot.set({
+			...a.snapshot.get(), contributions: [contribution, {
+				...contribution, integrationId: 'second',
+				actions: [{ ...contribution.actions[0], label: 'Second Fix' }], options: [contribution.options[0]],
+				view: { ...contribution.view, main: undefined, sections: [], lists: [contribution.view.lists![0]], stateActions: [contribution.view.stateActions[0]] },
+			}]
+		}, undefined);
 		const panel = await open(f, a);
 		const lists = panel.querySelectorAll('.artifact-state-list');
 		const group = panel.querySelectorAll<HTMLElement>('.artifact-autopilot-group')[1];
@@ -2024,9 +2040,11 @@ suite('Artifact Integration Presentation', () => {
 			const a = f.artifact();
 			updateContribution(a, contribution => ({
 				...contribution,
-				view: { ...contribution.view, lists: contribution.view.lists?.map(list => ({
-					...list, icon: { id: list.id === 'checks' ? 'checklist' : 'comment-discussion' },
-				})) },
+				view: {
+					...contribution.view, lists: contribution.view.lists?.map(list => ({
+						...list, icon: { id: list.id === 'checks' ? 'checklist' : 'comment-discussion' },
+					}))
+				},
 			}));
 			const panel = await open(f, a);
 			const tabs = [...panel.querySelectorAll<HTMLElement>('[role="tab"]')];
@@ -2215,8 +2233,10 @@ suite('Artifact Integration Presentation', () => {
 			const a = f.artifact();
 			updateContribution(a, contribution => ({
 				...contribution,
-				view: { ...contribution.view, automationAvailability: contribution.view.automationAvailability.map(option => option.id === 'reviews'
-					? { ...option, available: false, unavailableReason: 'Reconnect to enable' } : option) },
+				view: {
+					...contribution.view, automationAvailability: contribution.view.automationAvailability.map(option => option.id === 'reviews'
+						? { ...option, available: false, unavailableReason: 'Reconnect to enable' } : option)
+				},
 			}));
 			const panel = await open(f, a);
 			const master = panel.querySelector<HTMLElement>('.artifact-card-heading [role="switch"]')!;

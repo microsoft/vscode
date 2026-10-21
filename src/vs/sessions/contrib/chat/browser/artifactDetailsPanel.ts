@@ -122,7 +122,7 @@ export class ArtifactDetailsPanel extends Disposable {
 
 	get tabbableElements(): readonly HTMLElement[] {
 		return [this.titleLinkElement, ...this.headerActions.tabbableElements, ...this.stateLists.tabbableElements,
-			...this.autopilot.tabbableElements, ...this.activities.tabbableElements, ...this.generalActions.tabbableElements];
+		...this.autopilot.tabbableElements, ...this.activities.tabbableElements, ...this.generalActions.tabbableElements];
 	}
 
 	focusSection(selection: ArtifactDetailsSelection): void {

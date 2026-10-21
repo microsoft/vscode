@@ -1190,7 +1190,7 @@ suite('AgentHostGitStateService', () => {
 			mainFolder: h.service.getGitHubState(SESSION),
 			peerFolder: h.service.getGitHubState(peer),
 		}, {
-			artifacts: [{ chat: peer, type: SessionArtifactType.PullRequest, label: 'Feature PR', isArtifact: true, link: url, isGitHub: true }],
+			artifacts: [{ chat: peer, type: SessionArtifactType.PullRequest, label: 'Feature PR', isArtifact: true, link: url, isGitHub: true, origin: { chat: peer } }],
 			mainFolder: { owner: 'contoso', repo: 'main' },
 			peerFolder: {
 				owner: 'microsoft', repo: 'vscode',
