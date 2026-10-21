@@ -804,8 +804,12 @@ suite('ChatListWidget', () => {
 			test(`scroll arrow returns to the bottom with ${activation === ' ' ? 'Space' : activation} in ${isSessionsWindow ? 'sessions' : 'workbench'} chat`, async () => {
 				const { model, container, widget } = createWidget({}, undefined, isSessionsWindow);
 				container.classList.add('interactive-session');
+				container.style.setProperty('--vscode-editorWidget-border', 'rgb(40, 50, 60)');
+				container.style.setProperty('--vscode-editorWidget-background', 'rgb(10, 20, 30)');
+				container.style.setProperty('--vscode-icon-foreground', 'rgb(70, 80, 90)');
 				const button = container.querySelector<HTMLElement>('.chat-scroll-down');
 				assert.ok(button);
+				const buttonStyle = mainWindow.getComputedStyle(button);
 				assert.deepStrictEqual({
 					label: button.textContent?.trim(),
 					ariaLabel: button.getAttribute('aria-label'),
@@ -813,9 +817,11 @@ suite('ChatListWidget', () => {
 					tabIndex: button.tabIndex,
 					iconHidden: button.querySelector('.codicon')?.getAttribute('aria-hidden'),
 					display: button.style.display,
-					border: button.style.border,
-					background: button.style.backgroundColor,
-					foreground: button.style.color,
+					borderColor: buttonStyle.borderColor,
+					borderWidth: buttonStyle.borderWidth,
+					borderStyle: buttonStyle.borderStyle,
+					background: buttonStyle.backgroundColor,
+					foreground: buttonStyle.color,
 				}, {
 					label: '',
 					ariaLabel: 'Scroll to Latest',
@@ -823,9 +829,11 @@ suite('ChatListWidget', () => {
 					tabIndex: 0,
 					iconHidden: 'true',
 					display: 'none',
-					border: '1px solid var(--vscode-editorWidget-border, transparent)',
-					background: 'var(--vscode-editorWidget-background)',
-					foreground: 'var(--vscode-icon-foreground)',
+					borderColor: 'rgb(40, 50, 60)',
+					borderWidth: '1px',
+					borderStyle: 'solid',
+					background: 'rgb(10, 20, 30)',
+					foreground: 'rgb(70, 80, 90)',
 				});
 
 				for (let i = 0; i < 10; i++) {

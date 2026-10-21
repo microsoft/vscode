@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import { $, append, getActiveElement, IDimension } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { retry, timeout } from '../../../base/common/async.js';
@@ -44,6 +45,11 @@ const canvas: ITestEntry = { id: 'test.canvas', title: 'Canvas', icon: Codicon.p
 
 suite('Sessions - Session Activity Bar', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	teardown(() => sinon.restore());
+
+	function nextFrame(): Promise<void> {
+		return new Promise(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+	}
 
 	function createActivityBar(disposables: Pick<DisposableStore, 'add'>, initialEntries: readonly ITestEntry[]) {
 		const testStore = disposables.add(new DisposableStore());
@@ -291,14 +297,97 @@ suite('Sessions - Session Activity Bar', () => {
 		docked.setScrollDownButton(undefined);
 		const detached = button.style.translate;
 
-		assert.deepStrictEqual({ initial, movedGap, resized, disabled, restoredGap, inactive, detached }, {
+		const hasExpectedGap = (gap: number) => Math.abs(gap - ChatViewSessionActivityBar.SCROLL_DOWN_BUTTON_GAP) <= 1;
+		assert.deepStrictEqual({ initial, movedGap: hasExpectedGap(movedGap), resized, disabled, restoredGap: hasExpectedGap(restoredGap), inactive, detached }, {
 			initial: '',
-			movedGap: 8,
+			movedGap: true,
 			resized: '',
 			disabled: '',
-			restoredGap: 8,
+			restoredGap: true,
 			inactive: '',
 			detached: '',
+		});
+	});
+
+	test('skips scroll arrow measurements while hidden, inactive, or detached', async () => {
+		const { createDocked, setEnabled, setEntries } = createActivityBar(store, [changes, browser, canvas]);
+		const docked = createDocked();
+		const element = docked.element!;
+		const session = append(element.parentElement!, $('.interactive-session'));
+		const list = append(session, $('.interactive-list'));
+		list.style.cssText = 'position: relative; width: 800px; height: 80px;';
+		const button = append(list, $('.chat-scroll-down'));
+		button.style.cssText = 'display: flex; position: absolute; right: 15px; bottom: 8px; width: 24px; height: 24px;';
+		docked.setScrollDownButton(button);
+		docked.layout(0, 600);
+		docked.setActive(true);
+		const translated = button.style.translate !== '';
+
+		const measurements = [
+			sinon.spy(button, 'getBoundingClientRect'),
+			sinon.spy(list, 'getBoundingClientRect'),
+			sinon.spy(element, 'getBoundingClientRect'),
+		];
+		const measurementCount = () => measurements.reduce((count, spy) => count + spy.callCount, 0);
+		docked.setActive(false);
+		const inactive = { measurements: measurementCount(), translate: button.style.translate };
+		docked.setActive(true);
+		measurements.forEach(spy => spy.resetHistory());
+		setEnabled(false);
+		setEntries([changes, browser]);
+		const disabled = { measurements: measurementCount(), translate: button.style.translate };
+		setEnabled(true);
+		measurements.forEach(spy => spy.resetHistory());
+		button.style.display = 'none';
+		docked.layout(0, 600);
+		const hidden = { measurements: measurementCount(), translate: button.style.translate };
+		button.style.display = 'flex';
+		session.remove();
+		docked.layout(0, 600);
+		await nextFrame();
+		const detached = { measurements: measurementCount(), translate: button.style.translate };
+
+		assert.deepStrictEqual({ translated, inactive, disabled, hidden, detached }, {
+			translated: true,
+			inactive: { measurements: 0, translate: '' },
+			disabled: { measurements: 0, translate: '' },
+			hidden: { measurements: 0, translate: '' },
+			detached: { measurements: 0, translate: '' },
+		});
+	});
+
+	test('coalesces scroll arrow observer updates and cancels them on detachment', async () => {
+		const { createDocked } = createActivityBar(store, [changes, browser]);
+		const docked = createDocked();
+		const session = append(docked.element!.parentElement!, $('.interactive-session'));
+		const list = append(session, $('.interactive-list'));
+		list.style.cssText = 'position: relative; width: 800px; height: 530px;';
+		const button = append(list, $('.chat-scroll-down'));
+		button.style.cssText = 'display: flex; position: absolute; right: 15px; bottom: 8px; width: 24px; height: 24px;';
+		docked.setScrollDownButton(button);
+		docked.layout(0, 600);
+		docked.setActive(true);
+		await nextFrame();
+		await nextFrame();
+		await nextFrame();
+		const measurements = sinon.spy(button, 'getBoundingClientRect');
+
+		session.style.setProperty('--vscode-chat-persistent-content-height', '10px');
+		await Promise.resolve();
+		session.style.setProperty('--vscode-chat-persistent-content-height', '20px');
+		await Promise.resolve();
+		const beforeFrame = measurements.callCount;
+		await nextFrame();
+		const afterFrame = measurements.callCount;
+		session.style.setProperty('--vscode-chat-persistent-content-height', '30px');
+		await Promise.resolve();
+		docked.setScrollDownButton(undefined);
+		await nextFrame();
+
+		assert.deepStrictEqual({ beforeFrame, afterFrame, afterDetachment: measurements.callCount }, {
+			beforeFrame: 0,
+			afterFrame: 1,
+			afterDetachment: 1,
 		});
 	});
 
@@ -329,7 +418,9 @@ suite('Sessions - Session Activity Bar', () => {
 			const target = mainWindow.document.elementFromPoint(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2);
 			assert.deepStrictEqual({
 				insideViewport: bounds.top >= viewport.top && bounds.bottom <= viewport.bottom && bounds.left >= viewport.left && bounds.right <= viewport.right,
-				clearOfStrip: placement === 'below' ? bounds.top >= barBounds.bottom + 8 : bounds.right <= barBounds.left - 8,
+				clearOfStrip: placement === 'below'
+					? bounds.top >= barBounds.bottom + ChatViewSessionActivityBar.SCROLL_DOWN_BUTTON_GAP - 1
+					: bounds.right <= barBounds.left - ChatViewSessionActivityBar.SCROLL_DOWN_BUTTON_GAP + 1,
 				receivesPointer: target === button,
 			}, { insideViewport: true, clearOfStrip: true, receivesPointer: true });
 

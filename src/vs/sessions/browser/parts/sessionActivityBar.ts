@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/sessionActivityBar.css';
-import { $, addDisposableListener, append, EventHelper, EventLike, EventType, getWindow } from '../../../base/browser/dom.js';
+import { $, addDisposableListener, AnimationFrameScheduler, append, EventHelper, EventLike, EventType, getWindow } from '../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { GlobalPointerMoveMonitor } from '../../../base/browser/globalPointerMoveMonitor.js';
 import { ActionsOrientation } from '../../../base/browser/ui/actionbar/actionbar.js';
@@ -144,6 +144,8 @@ export class ChatViewSessionActivityBar extends Disposable {
 	 */
 	static readonly RESERVED_WIDTH = COLUMN_WIDTH + CONTENT_GAP - AGENTS_CONTENT_HORIZONTAL_PADDING;
 
+	static readonly SCROLL_DOWN_BUTTON_GAP = 8;
+
 	/**
 	 * The width hosts keep free at the right of the chat for the strip. Reserved in every
 	 * chat view while the strip is enabled, not only the active one, so focusing another
@@ -215,13 +217,16 @@ export class ChatViewSessionActivityBar extends Disposable {
 		}
 
 		const targetWindow = getWindow(button);
-		const resizeObserver = new targetWindow.ResizeObserver(() => this.updateScrollDownButtonPosition());
-		const mutationObserver = new targetWindow.MutationObserver(() => this.updateScrollDownButtonPosition());
-		this.scrollDownButtonObserver.value = toDisposable(() => {
+		const store = new DisposableStore();
+		this.scrollDownButtonObserver.value = store;
+		const scheduler = store.add(new AnimationFrameScheduler(button, () => this.updateScrollDownButtonPosition()));
+		const resizeObserver = new targetWindow.ResizeObserver(() => scheduler.schedule());
+		const mutationObserver = new targetWindow.MutationObserver(() => scheduler.schedule());
+		store.add(toDisposable(() => {
 			resizeObserver.disconnect();
 			mutationObserver.disconnect();
 			button.style.removeProperty('translate');
-		});
+		}));
 		resizeObserver.observe(button);
 		if (button.parentElement) {
 			resizeObserver.observe(button.parentElement);
@@ -271,7 +276,7 @@ export class ChatViewSessionActivityBar extends Disposable {
 	}
 
 	private applyPosition(): void {
-		if (this.element && this.active && this.activityBar?.visible.get()) {
+		if (this.element?.isConnected && this.active && this.activityBar?.visible.get()) {
 			this.element.style.top = `${this.area.top + this.getOffset()}px`;
 		}
 		this.updateScrollDownButtonPosition();
@@ -282,6 +287,11 @@ export class ChatViewSessionActivityBar extends Disposable {
 		if (!button?.parentElement) {
 			return;
 		}
+		if (!button.isConnected || !this.active || !this.activityBar?.visible.get() || this.reservedWidth.get() === 0 || button.style.display === 'none') {
+			this.scrollDownButtonOffset = { x: 0, y: 0 };
+			button.style.removeProperty('translate');
+			return;
+		}
 		const buttonBounds = button.getBoundingClientRect();
 		const viewportBounds = button.parentElement.getBoundingClientRect();
 		const barBounds = this.element?.getBoundingClientRect();
@@ -289,7 +299,7 @@ export class ChatViewSessionActivityBar extends Disposable {
 		const originalTop = buttonBounds.top - this.scrollDownButtonOffset.y;
 		let left = originalLeft;
 		let top = clamp(originalTop, viewportBounds.top, Math.max(viewportBounds.top, viewportBounds.bottom - buttonBounds.height));
-		const gap = 8;
+		const gap = ChatViewSessionActivityBar.SCROLL_DOWN_BUTTON_GAP;
 		const overlaps = this.active && barBounds && barBounds.height > 0 && buttonBounds.height > 0
 			&& left < barBounds.right && left + buttonBounds.width > barBounds.left
 			&& top < barBounds.bottom + gap && top + buttonBounds.height > barBounds.top - gap;
