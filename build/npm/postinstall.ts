@@ -7,7 +7,7 @@ import * as fs from 'fs';
 import path from 'path';
 import * as os from 'os';
 import * as child_process from 'child_process';
-import { dirs } from './dirs.ts';
+import { dirs, isNativeDir } from './dirs.ts';
 import { root, stateFile, stateContentsFile, computeState, computeContents, isUpToDate } from './installStateHash.ts';
 import { ensureElectronTypes } from './electronTypes.ts';
 import { finishCloudSandbox } from './cloudSandbox.ts';
@@ -255,7 +255,14 @@ async function main() {
 	const nativeTasks: (() => Promise<void>)[] = [];
 	const parallelTasks: (() => Promise<void>)[] = [];
 
+	// CI can restore the native directories' node_modules from their own cache and only install the rest
+	const jsOnly = process.env['VSCODE_POSTINSTALL_SCOPE'] === 'js';
+
 	for (const dir of dirs) {
+		if (jsOnly && isNativeDir(dir)) {
+			continue;
+		}
+
 		if (dir === '') {
 			removeParcelWatcherPrebuild(dir);
 			continue; // already executed in root

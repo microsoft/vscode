@@ -6,7 +6,7 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import { dirs } from '../../npm/dirs.ts';
+import { dirs, isNativeDir } from '../../npm/dirs.ts';
 import { getCurrentExtensionTarget } from '../../lib/extensionTarget.ts';
 
 const ROOT = path.join(import.meta.dirname, '../../../');
@@ -21,10 +21,18 @@ function readRepositoryFile(relativePath: string): Buffer {
 }
 
 /**
- * Computes the node_modules cache key from the npm configuration, the dependency sections of
- * every `package.json`, every `package-lock.json` and the given arguments.
+ * The part of node_modules a cache holds: `all` of it, or one of the two halves
+ * split by {@link isNativeDir}.
  */
-export function computeNodeModulesCacheKey(args: readonly string[], readFile: ReadRepositoryFile = readRepositoryFile): string {
+export type NodeModulesCachePart = 'all' | 'native' | 'js';
+
+/**
+ * Computes the node_modules cache key from the npm configuration, the dependency sections of
+ * every `package.json`, every `package-lock.json` and the given arguments. For the `native` and
+ * `js` parts, only the directories of that part count, and the Node.js version does too, so a
+ * Node.js upgrade can't restore modules built for another ABI.
+ */
+export function computeNodeModulesCacheKey(args: readonly string[], readFile: ReadRepositoryFile = readRepositoryFile, part: NodeModulesCachePart = 'all', directories: readonly string[] = dirs): string {
 	const shasum = crypto.createHash('sha256');
 
 	shasum.update(readFile('build/.cachesalt'));
@@ -32,8 +40,17 @@ export function computeNodeModulesCacheKey(args: readonly string[], readFile: Re
 	shasum.update(readFile('build/.npmrc'));
 	shasum.update(readFile('remote/.npmrc'));
 
+	if (part !== 'all') {
+		shasum.update(`part:${part}`);
+		shasum.update(readFile('.nvmrc'));
+	}
+
 	// Add `package.json` and `package-lock.json` files
-	for (const dir of dirs) {
+	for (const dir of directories) {
+		if (part !== 'all' && isNativeDir(dir) !== (part === 'native')) {
+			continue;
+		}
+
 		const packageJson = JSON.parse(readFile(path.posix.join(dir, 'package.json')).toString());
 		const relevantPackageJsonSections = {
 			dependencies: packageJson.dependencies,
