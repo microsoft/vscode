@@ -7161,9 +7161,6 @@ export class CodexAgent extends Disposable implements IAgent {
 			}
 			firstTurnToRemove = index + 1;
 		}
-		if (targetSession) {
-			this._discardTruncatedTurnDiffs(targetSession, new Set(turns.slice(firstTurnToRemove).map(turn => turn.id)), turnId);
-		}
 		if (firstTurnToRemove < turns.length) {
 			if (read.thread.historyMode === 'legacy') {
 				throw new Error(localize('codex.legacyThreadTruncation', "This version of Codex cannot remove messages from legacy chats."));
@@ -7180,6 +7177,10 @@ export class CodexAgent extends Disposable implements IAgent {
 				this._logService.warn(`[Codex:${read.thread.id}] thread/revert failed: ${err instanceof Error ? err.message : String(err)}`);
 				return;
 			}
+		}
+		// Only after the thread lost these turns, so a rejected truncation keeps their pending edits. Rows stored before now are deleted below.
+		if (targetSession) {
+			this._discardTruncatedTurnDiffs(targetSession, new Set(turns.slice(firstTurnToRemove).map(turn => turn.id)), turnId);
 		}
 		const storage = context ? resolveAgentChatContext(context, chat).resource : targetSession?.chatStorage;
 		if (storage) {

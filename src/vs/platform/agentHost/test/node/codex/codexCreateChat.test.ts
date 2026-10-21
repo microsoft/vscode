@@ -3470,6 +3470,56 @@ suite('CodexAgent exact chat routing', () => {
 		}
 	});
 
+	for (const failure of ['legacy history', 'a failed revert'] as const) {
+		test(`truncateChat keeps the pending edits of turns it keeps when ${failure} stops it`, async () => {
+			const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true, sessionStore: createTestSessionStore() });
+			const peer = disposables.add(createTestPeer());
+			connectPeer(agent, peer);
+
+			try {
+				const session = AgentSession.uri('codex', 'rejected-truncate');
+				const chat = URI.parse(buildDefaultChatUri(session));
+				const folder = URI.file('/repo/rejected-truncate');
+				await createSessionBackedChat(agent, chat, hostChatContext(session, chat), {
+					workingDirectories: [folder],
+					model: { id: COPILOT_TEST_MODEL },
+				});
+				const start = await readNextRequest(peer.outbound);
+				peer.push({ id: start.id, result: { thread: { id: 'rejected-thread', cwd: folder.fsPath } } });
+				const entry = agent['_sessions'].get('rejected-truncate')!;
+				await entry.materializePromise;
+				// A child of the turn the truncation would remove is still being captured.
+				entry.codexTurnIdByHostTurnId.set('drop-host', 'drop-turn');
+				const discardedAtStore: string[][] = [];
+				const tracker = disposables.add(new CodexTurnDiffTracker(async (_captures, _relatedDiffs, discarded) => { discardedAtStore.push([...discarded]); }));
+				tracker.start('child-thread', 'child-turn', 'drop-host');
+				agent['_turnDiffs'].set(entry, tracker);
+
+				const legacy = failure === 'legacy history';
+				const truncating = agent.truncateChat(chat, 'keep-turn', hostChatContext(session, chat)).then(() => 'truncated', (error: Error) => error.message);
+				const read = await readNextRequest(peer.outbound);
+				peer.push({ id: read.id, result: { thread: { id: 'rejected-thread', cwd: folder.fsPath, historyMode: legacy ? 'legacy' : 'paginated', turns: [] } } });
+				const history = await readNextRequest(peer.outbound);
+				if (legacy) {
+					peer.push({ id: history.id, result: { thread: { id: 'rejected-thread', cwd: folder.fsPath, historyMode: 'legacy', turns: [{ id: 'keep-turn' }, { id: 'drop-turn' }] } } });
+				} else {
+					peer.push({ id: history.id, result: { data: [{ id: 'keep-turn', items: [] }, { id: 'drop-turn', items: [] }], nextCursor: null } });
+					const revert = await readNextRequest(peer.outbound);
+					peer.push({ id: revert.id, error: { code: -32603, message: 'revert failed' } });
+				}
+				const outcome = await truncating;
+				await tracker.complete('child-turn');
+
+				assert.deepStrictEqual({ outcome, discardedAtStore }, {
+					outcome: legacy ? 'This version of Codex cannot remove messages from legacy chats.' : 'truncated',
+					discardedAtStore: [[]],
+				});
+			} finally {
+				peer.dispose();
+			}
+		});
+	}
+
 	test('truncateChat removes output retained for commands in reverted turns', async () => {
 		const sessionStore = createTestSessionStore();
 		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true, sessionStore });
