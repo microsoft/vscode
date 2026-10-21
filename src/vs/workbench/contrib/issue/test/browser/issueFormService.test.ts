@@ -36,6 +36,9 @@ import { IIssueSubmissionHost, IssueReporterData, IssueSource } from '../../comm
 import { internalIssueReporterUrl } from '../../common/issueReporterTarget.js';
 import { issueReporterAvifFixture, issueReporterGifFixture, issueReporterImageFixture, issueReporterVideoFixtures, issueReporterWebpFixture } from '../common/issueReporterMediaFixtures.js';
 
+/** The product's public issue repository as `product.json` spells it: the distro uses `Microsoft/vscode`, the OSS build `microsoft/vscode`. */
+const productRepository = new URL(product.reportIssueUrl!).pathname.split('/').slice(1, 3).join('/');
+
 suite('IssueFormService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -135,11 +138,11 @@ suite('IssueFormService', () => {
 		const { service, host, data, mediaUploads } = createSubmissionService(false, false, { screenshots: sources.map(dataUrl => ({ dataUrl })), recordings: [] });
 		await service.submitIssue(host, data, 'Imported images', 'Description');
 		assert.deepStrictEqual(mediaUploads, [
-			{ repository: 'microsoft/vscode', name: 'screenshot-1.png', contentType: 'image/png' },
-			{ repository: 'microsoft/vscode', name: 'screenshot-2.jpg', contentType: 'image/jpeg' },
-			{ repository: 'microsoft/vscode', name: 'screenshot-3.gif', contentType: 'image/gif' },
-			{ repository: 'microsoft/vscode', name: 'screenshot-4.webp', contentType: 'image/webp' },
-			{ repository: 'microsoft/vscode', name: 'screenshot-5.avif', contentType: 'image/avif' },
+			{ repository: productRepository, name: 'screenshot-1.png', contentType: 'image/png' },
+			{ repository: productRepository, name: 'screenshot-2.jpg', contentType: 'image/jpeg' },
+			{ repository: productRepository, name: 'screenshot-3.gif', contentType: 'image/gif' },
+			{ repository: productRepository, name: 'screenshot-4.webp', contentType: 'image/webp' },
+			{ repository: productRepository, name: 'screenshot-5.avif', contentType: 'image/avif' },
 		]);
 	});
 
@@ -150,8 +153,8 @@ suite('IssueFormService', () => {
 		screenshot.annotatedDataUrl = issueReporterImageFixture;
 		await service.submitIssue(host, data, 'After annotation', 'Description');
 		assert.deepStrictEqual(mediaUploads, [
-			{ repository: 'microsoft/vscode', name: 'screenshot-1.gif', contentType: 'image/gif' },
-			{ repository: 'microsoft/vscode', name: 'screenshot-1.png', contentType: 'image/png' },
+			{ repository: productRepository, name: 'screenshot-1.gif', contentType: 'image/gif' },
+			{ repository: productRepository, name: 'screenshot-1.png', contentType: 'image/png' },
 		]);
 	});
 
@@ -171,14 +174,14 @@ suite('IssueFormService', () => {
 				return { path: url.pathname, labels: url.searchParams.get('labels'), assignees: url.searchParams.get('assignees'), template: url.searchParams.get('template'), privateLinks: url.searchParams.get('body')?.includes('/attachments/owner/private-reports/') };
 			}),
 		}, {
-			mediaUploads: ['owner/private-reports', 'microsoft/vscode'].flatMap(repository => [
+			mediaUploads: ['owner/private-reports', productRepository].flatMap(repository => [
 				{ repository, name: 'recording-1.mp4', contentType: 'video/mp4' },
 				{ repository, name: 'recording-2.webm', contentType: 'video/webm' },
 				{ repository, name: 'recording-3.mov', contentType: 'video/quicktime' },
 			]),
 			previews: [
 				{ path: '/owner/private-reports/issues/new', labels: 'internal', assignees: 'maintainer', template: null, privateLinks: true },
-				{ path: '/microsoft/vscode/issues/new', labels: null, assignees: null, template: 'bug_report.md', privateLinks: false },
+				{ path: `/${productRepository}/issues/new`, labels: null, assignees: null, template: 'bug_report.md', privateLinks: false },
 				{ path: '/owner/private-reports/issues/new', labels: 'internal', assignees: 'maintainer', template: null, privateLinks: true },
 			],
 		});
@@ -222,15 +225,15 @@ suite('IssueFormService', () => {
 				};
 			}),
 		}, {
-			repositories: ['microsoft/vscode', 'microsoft/vscode-internalbacklog'],
+			repositories: [productRepository, 'microsoft/vscode-internalbacklog'],
 			uploads: [
-				{ repository: 'microsoft/vscode', names: ['screenshot-1.png'] },
+				{ repository: productRepository, names: ['screenshot-1.png'] },
 				{ repository: 'microsoft/vscode-internalbacklog', names: ['screenshot-1.png'] },
 			],
-			previews: ['vscode', 'vscode-internalbacklog', 'vscode'].map(repository => ({
-				path: `/microsoft/${repository}/issues/new`,
+			previews: [productRepository, 'microsoft/vscode-internalbacklog', productRepository].map(repository => ({
+				path: `/${repository}/issues/new`,
 				title: 'Title #1',
-				body: `Description & details\n\n### Attachments\n\n![screenshot-1.png](https://github.com/attachments/microsoft/${repository}/screenshot-1.png)\n\n`,
+				body: `Description & details\n\n### Attachments\n\n![screenshot-1.png](https://github.com/attachments/${repository}/screenshot-1.png)\n\n`,
 				template: 'bug_report.md',
 			})),
 		});
@@ -272,14 +275,14 @@ suite('IssueFormService', () => {
 				return { path: url.pathname, body: url.searchParams.get('body') };
 			}),
 		}, {
-			repositories: ['microsoft/vscode', 'microsoft/vscode-internalbacklog', 'microsoft/vscode-internalbacklog'],
+			repositories: [productRepository, 'microsoft/vscode-internalbacklog', 'microsoft/vscode-internalbacklog'],
 			uploads: [
-				{ repository: 'microsoft/vscode', names: ['issue-data.md'] },
+				{ repository: productRepository, names: ['issue-data.md'] },
 				{ repository: 'microsoft/vscode-internalbacklog', names: ['issue-data.md'] },
 			],
-			previews: ['vscode', 'vscode-internalbacklog', 'vscode-internalbacklog'].map(repository => ({
-				path: `/microsoft/${repository}/issues/new`,
-				body: `Description\n\n### Additional Issue Data\n\n[issue-data.md](https://github.com/attachments/microsoft/${repository}/issue-data.md)\n\n<!-- generated by issue reporter -->`,
+			previews: [productRepository, 'microsoft/vscode-internalbacklog', 'microsoft/vscode-internalbacklog'].map(repository => ({
+				path: `/${repository}/issues/new`,
+				body: `Description\n\n### Additional Issue Data\n\n[issue-data.md](https://github.com/attachments/${repository}/issue-data.md)\n\n<!-- generated by issue reporter -->`,
 			})),
 		});
 	});

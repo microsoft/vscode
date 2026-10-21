@@ -35,6 +35,9 @@ import { ISimilarIssue, IssueReporterData, IssueSource, IssueType } from '../../
 import { internalIssueReporterUrl, resolveIssueReporterTarget } from '../../common/issueReporterTarget.js';
 import product from '../../../../../platform/product/common/product.js';
 
+/** The product's public issue repository as `product.json` spells it: the distro uses `Microsoft/vscode`, the OSS build `microsoft/vscode`. */
+const productRepository = new URL(product.reportIssueUrl!).pathname.split('/').slice(1, 3).join('/');
+
 const nesContext = `# Inline Edits Debug Info
 
 ## Result:
@@ -545,7 +548,7 @@ suite('IssueReporterOverlay', () => {
 				menu: !!container.querySelector('.issue-reporter-repository-picker'),
 				section: !!container.querySelector('.wizard-repository-field'),
 				target: container.querySelector('.wizard-target-status')?.textContent,
-			}, { menu: false, section: false, target: 'Issue will be opened in microsoft/vscode' });
+			}, { menu: false, section: false, target: `Issue will be opened in ${productRepository}` });
 		});
 	}
 
@@ -558,7 +561,7 @@ suite('IssueReporterOverlay', () => {
 			destination: data.issueRepository,
 			menu: !!container.querySelector('.issue-reporter-repository-picker'),
 			target: container.querySelector('.wizard-target-status')?.textContent,
-		}, { source: IssueSource.AgentsWindow, destination: undefined, menu: true, target: 'Issue will be opened in microsoft/vscode' });
+		}, { source: IssueSource.AgentsWindow, destination: undefined, menu: true, target: `Issue will be opened in ${productRepository}` });
 	});
 
 	test('late extension reporter overrides do not replace the selected product destination', async () => {
@@ -639,9 +642,9 @@ suite('IssueReporterOverlay', () => {
 		}, {
 			initial: {
 				actions: [
-					{ label: 'microsoft/vscode', checked: true }, { label: 'owner/second', checked: false }, { label: 'team/third', checked: false },
+					{ label: productRepository, checked: true }, { label: 'owner/second', checked: false }, { label: 'team/third', checked: false },
 				],
-				expanded: 'true', role: 'button', popup: 'menu', label: 'Choose Issue Repository: microsoft/vscode', section: false,
+				expanded: 'true', role: 'button', popup: 'menu', label: `Choose Issue Repository: ${productRepository}`, section: false,
 			},
 			focusRestored: true,
 			destination: 'team/third',
