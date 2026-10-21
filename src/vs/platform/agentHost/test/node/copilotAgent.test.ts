@@ -129,7 +129,7 @@ import { createTestGitHubEndpointService } from './testGitHubEndpointService.js'
 import { createNoopCustomizationEnablementService } from './testCustomizationEnablementService.js';
 import { CopilotAgentSession, type ICopilotCanvasHandoff } from '../../node/copilot/copilotAgentSession.js';
 import { ModelCallTurnCorrelation, type IModelCallTurnCorrelationResult } from '../../node/copilot/modelCallTurnCorrelation.js';
-import { CompactionTurnCorrelation } from '../../node/copilot/compactionTurnCorrelation.js';
+import type { CompactionTurnCorrelation, ICompactionTurnCorrelationResult } from '../../node/copilot/compactionTurnCorrelation.js';
 import { createCopilotCliEnvironment } from '../../node/copilot/copilotCliEnvironment.js';
 import { CopilotClientStartupConfigChangedError } from '../../node/copilot/copilotFailureTelemetry.js';
 import { AgentBranchNameGenerator, getAgentBranchNameHintFromMessage, normalizeAgentBranchName } from '../../node/shared/agentBranchNameGenerator.js';
@@ -4772,9 +4772,18 @@ suite('CopilotAgent', () => {
 			const forward = getCreatedClientOptions(agent).at(-1)?.onGitHubTelemetry;
 			assert.ok(forward);
 
-			const compactionTurnCorrelation = new CompactionTurnCorrelation({ timeoutMs: 1 });
-			compactionTurnCorrelation.record('attempt-in-turn', 'turn-1');
-			compactionTurnCorrelation.record('attempt-between-turns', undefined);
+			// The wait itself is covered with a virtual clock in compactionTurnCorrelation.test.ts;
+			// here an unrecorded attempt reports an expired wait without real time passing.
+			const owners = new Map<string, string | null>([['attempt-in-turn', 'turn-1'], ['attempt-between-turns', null]]);
+			const compactionTurnCorrelation: Pick<CompactionTurnCorrelation, 'resolve'> = {
+				resolve: async (attemptId): Promise<ICompactionTurnCorrelationResult> => {
+					const owner = owners.get(attemptId);
+					return owner === undefined
+						? { turnId: undefined, outcome: 'waitExpired', waitMs: 100 }
+						: owner === null ? { turnId: undefined, outcome: 'noOwningTurn' } : { turnId: owner, outcome: 'mappingAvailable' };
+				},
+			};
+			const accountContext = { copilotSku: 'sku-a', copilotTrackingId: 'analytics-a' };
 			let modelCallWaits = 0;
 			setLiveChatStub(agent, 'active-session', {
 				currentTurnId: 'turn-1',
@@ -4784,19 +4793,18 @@ suite('CopilotAgent', () => {
 					take: () => undefined,
 					wait: () => { modelCallWaits++; return Promise.resolve({ turnId: undefined, outcome: 'waitExpired', waitMs: 100 }); },
 					markResponseForwarded: () => { },
-					getTelemetryContext: () => undefined,
+					getTelemetryContext: (modelCallId: string) => modelCallId === 'compaction-call' ? accountContext : undefined,
 				},
 			});
 			const compaction = (sessionId: string, kind: string, attemptId?: string): GitHubTelemetryNotification => ({
 				sessionId,
 				restricted: false,
-				event: { kind, properties: { turnId: 'runtime-turn', ...(attemptId ? { compaction_attempt_id: attemptId } : {}) }, metrics: {} },
+				event: { kind, model_call_id: 'compaction-call', properties: { turnId: 'runtime-turn', ...(attemptId ? { compaction_attempt_id: attemptId } : {}) }, metrics: {} },
 			});
 
 			await forward(compaction('active-session', 'session_compaction_start', 'attempt-in-turn'));
 			await forward(compaction('active-session', 'session_compaction_complete', 'attempt-between-turns'));
 			await forward(compaction('active-session', 'session_compaction_complete', 'unrecorded-attempt'));
-			await timeout(10);
 			await forward(compaction('active-session', 'session_compaction_complete'));
 			await forward(compaction('unknown-session', 'session_compaction_complete', 'attempt-in-turn'));
 			// A compaction summarization call never completes a turn's model call, so its response
@@ -4806,6 +4814,7 @@ suite('CopilotAgent', () => {
 				restricted: false,
 				event: { kind: 'response.success', properties: { modelCallId: 'compaction-call', initiatorType: 'agent', requestKind: 'conversation-compaction' }, metrics: {} },
 			});
+			await timeout(0);
 
 			assert.deepStrictEqual({
 				modelCallWaits,
@@ -4816,17 +4825,18 @@ suite('CopilotAgent', () => {
 						turnId: data.turnId,
 						outcome: data.ahCompactionCorrelationOutcome ?? data.ahCorrelationOutcome,
 						waited: data.ahCompactionCorrelationWaitMs !== undefined,
+						copilotSku: data.copilotSku,
 					};
 				}),
 			}, {
 				modelCallWaits: 0,
 				events: [
-					{ eventName: 'copilotSdk/session_compaction_start', turnId: 'turn-1', outcome: 'mappingAvailable', waited: false },
-					{ eventName: 'copilotSdk/session_compaction_complete', turnId: undefined, outcome: 'noOwningTurn', waited: false },
-					{ eventName: 'copilotSdk/session_compaction_complete', turnId: undefined, outcome: 'waitExpired', waited: true },
-					{ eventName: 'copilotSdk/session_compaction_complete', turnId: undefined, outcome: 'missingAttemptId', waited: false },
-					{ eventName: 'copilotSdk/session_compaction_complete', turnId: undefined, outcome: 'sessionNotFound', waited: false },
-					{ eventName: 'copilotSdk/response.success', turnId: 'turn-1', outcome: 'activeTurnFallback', waited: false },
+					{ eventName: 'copilotSdk/session_compaction_start', turnId: 'turn-1', outcome: 'mappingAvailable', waited: false, copilotSku: 'sku-a' },
+					{ eventName: 'copilotSdk/session_compaction_complete', turnId: undefined, outcome: 'noOwningTurn', waited: false, copilotSku: 'sku-a' },
+					{ eventName: 'copilotSdk/session_compaction_complete', turnId: undefined, outcome: 'waitExpired', waited: true, copilotSku: 'sku-a' },
+					{ eventName: 'copilotSdk/session_compaction_complete', turnId: undefined, outcome: 'missingAttemptId', waited: false, copilotSku: 'sku-a' },
+					{ eventName: 'copilotSdk/session_compaction_complete', turnId: undefined, outcome: 'sessionNotFound', waited: false, copilotSku: undefined },
+					{ eventName: 'copilotSdk/response.success', turnId: 'turn-1', outcome: 'activeTurnFallback', waited: false, copilotSku: 'sku-a' },
 				],
 			});
 		} finally {

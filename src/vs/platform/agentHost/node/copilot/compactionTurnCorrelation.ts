@@ -26,18 +26,26 @@ export interface ICompactionTurnCorrelationResult {
 	readonly waitMs?: number;
 }
 
+interface IPendingCompactionOwner {
+	readonly deferred: DeferredPromise<string | null>;
+	waiters: number;
+}
+
 /**
  * Correlates forwarded compaction telemetry with the Agent Host turn that owned
  * the compaction, keyed by the SDK's `compactionAttemptId`.
  *
  * The owner is recorded from the session's `session.compaction_start` event,
  * which travels on a different channel than the runtime's telemetry, so a
- * telemetry row may briefly arrive first and waits for it.
+ * telemetry row may briefly arrive first and waits for it. The start and
+ * completion rows of one attempt can wait together, each with its own budget,
+ * so the shared pending entry outlives any one waiter that gives up: an owner
+ * recorded within a remaining waiter's budget must still reach it.
  */
 export class CompactionTurnCorrelation {
 	/** `null` records a compaction that no turn owned, e.g. one that ran between turns. */
 	private readonly _turnIdsByAttemptId: LRUCache<string, string | null>;
-	private readonly _pendingByAttemptId = new Map<string, DeferredPromise<string | null>>();
+	private readonly _pendingByAttemptId = new Map<string, IPendingCompactionOwner>();
 	private readonly _timeoutMs: number;
 
 	constructor(options: { readonly timeoutMs?: number; readonly cacheLimit?: number } = {}) {
@@ -55,7 +63,7 @@ export class CompactionTurnCorrelation {
 		const pending = this._pendingByAttemptId.get(attemptId);
 		if (pending) {
 			this._pendingByAttemptId.delete(attemptId);
-			pending.complete(owner);
+			pending.deferred.complete(owner);
 		}
 	}
 
@@ -66,13 +74,14 @@ export class CompactionTurnCorrelation {
 		}
 		let pending = this._pendingByAttemptId.get(attemptId);
 		if (!pending) {
-			pending = new DeferredPromise<string | null>();
+			pending = { deferred: new DeferredPromise<string | null>(), waiters: 0 };
 			this._pendingByAttemptId.set(attemptId, pending);
 		}
+		pending.waiters++;
 		const stopwatch = StopWatch.create();
-		const owner = await raceTimeout(pending.p, this._timeoutMs);
+		const owner = await raceTimeout(pending.deferred.p, this._timeoutMs);
 		const waitMs = stopwatch.elapsed();
-		if (this._pendingByAttemptId.get(attemptId) === pending) {
+		if (--pending.waiters === 0 && this._pendingByAttemptId.get(attemptId) === pending) {
 			this._pendingByAttemptId.delete(attemptId);
 		}
 		if (owner === undefined) {

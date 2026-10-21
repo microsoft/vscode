@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../base/common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/index.js';
 import { CompactionTurnCorrelation, isCompactionTelemetryKind } from '../../node/copilot/compactionTurnCorrelation.js';
 
 suite('CompactionTurnCorrelation', () => {
@@ -40,14 +42,27 @@ suite('CompactionTurnCorrelation', () => {
 		]);
 	});
 
-	test('expires the wait when no owner is recorded', async () => {
-		const correlation = new CompactionTurnCorrelation({ timeoutMs: 1 });
+	test('expires the wait when no owner is recorded', () => runWithFakedTimers({}, async () => {
+		const correlation = new CompactionTurnCorrelation();
 		const result = await correlation.resolve('unknown-attempt');
 
 		assert.deepStrictEqual({ turnId: result.turnId, outcome: result.outcome, measuredWait: typeof result.waitMs === 'number' }, {
 			turnId: undefined, outcome: 'waitExpired', measuredWait: true,
 		});
-	});
+	}));
+
+	test('delivers an owner recorded within a later waiter\'s budget after an earlier waiter expired', () => runWithFakedTimers({}, async () => {
+		const correlation = new CompactionTurnCorrelation({ timeoutMs: 100 });
+		const startRow = correlation.resolve('attempt-1');
+		await timeout(50);
+		const completeRow = correlation.resolve('attempt-1');
+		await timeout(60);
+		// The start row's budget has expired; the completion row has 40ms left.
+		correlation.record('attempt-1', 'turn-1');
+
+		const [start, complete] = await Promise.all([startRow, completeRow]);
+		assert.deepStrictEqual([start.outcome, complete.turnId, complete.outcome], ['waitExpired', 'turn-1', 'mappingWaited']);
+	}));
 
 	test('retains the owner from compaction start when completion lands in a later turn', async () => {
 		const correlation = new CompactionTurnCorrelation({ cacheLimit: 2 });

@@ -561,12 +561,12 @@ export class CopilotGitHubTelemetryForwarder {
 	 * Forwards `session_compaction_start` / `session_compaction_complete`, replacing any runtime
 	 * turn identity with the Agent Host turn that owned the compaction, as response telemetry does.
 	 */
-	forwardCompaction(notification: GitHubTelemetryNotification, correlation: ICompactionTurnCorrelationResult): void {
+	forwardCompaction(notification: GitHubTelemetryNotification, correlation: ICompactionTurnCorrelationResult, telemetryContext?: IAgentTelemetryContext): void {
 		if (notification.restricted && !this._isRestrictedTelemetryEnabled()) {
 			return;
 		}
 
-		const data = this._toTelemetryData(notification, undefined);
+		const data = this._toTelemetryData(notification, telemetryContext);
 		data.ahCompactionCorrelationOutcome = correlation.outcome;
 		if (correlation.waitMs !== undefined) {
 			data.ahCompactionCorrelationWaitMs = correlation.waitMs;
