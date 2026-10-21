@@ -1504,6 +1504,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	overflow: hidden;
 }
 
+.monaco-workbench .interactive-session .chat-input-stack-input-focused > .chat-editing-session.chat-input-stack-continues > .chat-session-working-set {
+	border-inline-color: var(--vscode-focusBorder);
+}
+
+.monaco-workbench .interactive-session .chat-input-stack-input-focused.chat-input-stack-input-working > .chat-editing-session.chat-input-stack-continues > .chat-session-working-set {
+	border-inline-color: color-mix(in srgb, var(--vscode-focusBorder) 40%, transparent);
+}
+
 .interactive-session .chat-editing-session .monaco-list-row .chat-collapsible-list-action-bar {
 	padding-left: var(--vscode-spacing-size60);
 	display: none;

@@ -121,6 +121,7 @@ import { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatAgentLocation, ChatConfiguratio
 import { readAgentCustomizationMeta } from '../../../../../../platform/agentHost/common/meta/agentCustomizationMeta.js';
 import { normalizeAgentHostApprovalConfig } from '../../../common/agentHostConfigPolicy.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
+import { IChatSessionReviewPreferencesService } from '../../../common/editing/chatSessionReviewPreferences.js';
 import { HIDE_AUTO_EXPLAINABILITY_TREATMENT } from '../../../common/chatAutoModeExplainability.js';
 import { AUTO_RAW_MODEL_ID, getLanguageModelDisplayNameWithProvider, ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
 import { getLanguageModelDisplayNameWithSubscriptionSource } from '../../../common/languageModelSourcePresentation.js';
@@ -1416,10 +1417,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 		@ITextFileService textFileService: ITextFileService,
 		@IComputerUseSetupService private readonly _computerUseSetupService: IComputerUseSetupService,
+		@IChatSessionReviewPreferencesService reviewPreferences: IChatSessionReviewPreferencesService,
 	) {
 		super();
 		this._config = config;
-		const reviewEnabled = observableConfigValue(ChatConfiguration.EditorWorkingSetEnabled, false, this._configurationService);
+		const workingSetEnabled = observableConfigValue(ChatConfiguration.EditorWorkingSetEnabled, false, this._configurationService);
+		const reviewEnabled = derived(reader => workingSetEnabled.read(reader) && reviewPreferences.keepUndoEnabled.read(reader));
 		this._register(autorun(reader => {
 			if (reviewEnabled.read(reader)) {
 				reader.store.add(textFileService.files.retainResolvedContent());
@@ -1503,7 +1506,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					// Inline chat edits are short lived and reviewed by inline chat itself, and a subagent's
 					// chat shares its parent session's Working Set.
 					if (isGlobalEditingSession && this._shouldReviewEdits(chatSessionResource)) {
-						controller.attachReview(this._instantiationService.createInstance(AgentHostEditReview, chatSessionResource));
+						const instantiationService = this._instantiationService;
+						controller.attachReview(reviewEnabled, () => instantiationService.createInstance(AgentHostEditReview, chatSessionResource));
 					}
 					return controller;
 				},
@@ -6359,8 +6363,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private _shouldReviewEdits(chatSessionResource: URI): boolean {
 		const session = this._resolveSessionUri(chatSessionResource);
 		const chat = this._getChatURIOrDefault(chatSessionResource, session);
-		return this._configurationService.getValue<boolean>(ChatConfiguration.EditorWorkingSetEnabled) === true
-			&& !this._isSubagentChat(session.toString(), chat);
+		return !this._isSubagentChat(session.toString(), chat);
 	}
 
 	/** Records snapshot data and returns the per-file edit pills for a completed tool call. */

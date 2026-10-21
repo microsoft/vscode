@@ -88,6 +88,7 @@ import { MockChatModeService } from '../../../../contrib/chat/test/common/mockCh
 import { IChatService } from '../../../../contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { ISessionChatPillVisibilityService, SessionChatPillVisibility } from '../../../../contrib/chat/common/sessionChatPills.js';
+import { ChatSessionReviewPreferencesService, IChatSessionReviewPreferencesService } from '../../../../contrib/chat/common/editing/chatSessionReviewPreferences.js';
 import { Target } from '../../../../contrib/chat/common/promptSyntax/promptTypes.js';
 import { ILanguageModelsService } from '../../../../contrib/chat/common/languageModels.js';
 import { ChatAgentService, IChatAgent, IChatAgentNameService, IChatAgentService } from '../../../../contrib/chat/common/participants/chatAgents.js';
@@ -186,6 +187,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	registerWorkbenchServices(reg);
 	reg.define(IMenuService, FixtureMenuService);
 	reg.define(ISessionChatPillVisibilityService, SessionChatPillVisibility);
+	reg.define(IChatSessionReviewPreferencesService, ChatSessionReviewPreferencesService);
 	reg.define(IMarkdownRendererService, MarkdownRendererService);
 	reg.define(IListService, ListService);
 	reg.defineInstance(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());

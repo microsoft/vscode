@@ -63,6 +63,7 @@ export interface IStandardChatInputPillsData {
 		readonly label: IObservable<string>;
 		open(): void;
 		getContextMenuActions?(): readonly IAction[];
+		getContextMenuPrimaryActions?(): readonly IAction[];
 	};
 	readonly pullRequests?: IStandardChatInputPillSections;
 	readonly issues?: IStandardChatInputPillSections;
@@ -126,6 +127,7 @@ export class StandardChatInputPillSources extends Disposable {
 				hasData: derived(reader => changes.stats.read(reader).files > 0),
 				pill: constObservable(pill),
 				getContextMenuActions: () => changes.getContextMenuActions?.() ?? [],
+				getContextMenuPrimaryActions: () => changes.getContextMenuPrimaryActions?.() ?? [],
 			});
 		}
 
