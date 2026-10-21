@@ -11530,6 +11530,9 @@ export class AgentService extends Disposable implements IAgentService {
 		} else {
 			await this.runWithChatCatalogLock(session, update);
 		}
+		// The chat left the scratch folder it owned: detach it from the session and let the clean-up pass reclaim it.
+		await this._retireReplacedScratchFolders(session, chat, directory);
+		this._publishWorkingDirectoryIdentities(session.toString());
 	}
 
 	private async _setChatWorkingDirectory(session: URI, chat: URI, directory: URI, replaceSessionWorkspace: boolean, gitState: ISessionGitState | undefined, isCurrentChat: () => boolean): Promise<void> {

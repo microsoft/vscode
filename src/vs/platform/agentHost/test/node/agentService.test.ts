@@ -31114,6 +31114,28 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('a chat-only workspace change detaches the chat\'s old scratch folder from the session and its deletion reclaims it', async () => {
+			const { svc, peer, session, database } = await createRebindService({ workspaceless: true });
+			await svc.setChatWorkspace(session, peer, { kind: 'scratch' });
+			const [own] = await database.listScratchFolders();
+			await (svc as unknown as { _prepareChatWorkingDirectory(session: URI, directory: URI, options: { isolation: 'folder' }): Promise<unknown> })._prepareChatWorkingDirectory(session, repository, { isolation: 'folder' });
+			const before = getStateManager(svc).getSessionSummary(session.toString())?.workingDirectories?.includes(own.folder);
+
+			await svc.setChatWorkingDirectory(session, peer, repository);
+			const after = {
+				sessionHasOwn: getStateManager(svc).getSessionSummary(session.toString())?.workingDirectories?.includes(own.folder),
+				rows: (await database.listScratchFolders()).map(row => row.state),
+			};
+			await getTestSessionStateStore(svc).whenIdle(undefined);
+			await getTestWorktreeCleanupService(svc).runPass();
+
+			assert.deepStrictEqual({ before, after, rowsAfterPass: await database.listScratchFolders() }, {
+				before: true,
+				after: { sessionHasOwn: false, rows: ['removing'] },
+				rowsAfterPass: [],
+			});
+		});
+
 		const ownScratchFolderRefusal = /is a chat's own scratch folder; pick No Workspace for a scratch folder of its own/;
 
 		test('the session republishes its scratch folders and folder identities as chat workspaces are applied, created and rolled back', async () => {
