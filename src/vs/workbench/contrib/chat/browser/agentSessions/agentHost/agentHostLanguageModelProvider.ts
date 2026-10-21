@@ -348,7 +348,8 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 			if (selectable.includes(tier.id)) {
 				pushSelectable(tier.id);
 			} else if (!tier.enabled && !listed.has(tier.id)) {
-				entries.push({ value: tier.id, label: tier.label, description: tier.message ?? localize('agentHost.autoTierUnavailable', "Not available for your account."), disabled: true });
+				// The provider's own name and reason only.
+				entries.push({ value: tier.id, label: tier.label, description: tier.message, disabled: true });
 				listed.add(tier.id);
 			}
 		}

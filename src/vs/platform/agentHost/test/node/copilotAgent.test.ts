@@ -13165,7 +13165,7 @@ suite('CopilotAgent', () => {
 				client.autoTierMetadata = undefined;
 				await agent.refreshModels();
 				assert.deepStrictEqual({ fusion, withoutProviderTiers, withoutProviderTiersOrHydraFusion, dynamicAutoTiersOff: published() }, {
-					fusion: ['auto:Fusion:fusion(balanceUsesHydraFusion=false):balance/hydrafusion/hydrafusion-max=balance:Standard/High/Max:Effort Level', 'gpt-5:GPT-5'],
+					fusion: ['auto:Fusion:fusion(balanceUsesHydraFusion=false):efficiency/balance/intelligence/hydrafusion/hydrafusion-max=balance:Efficiency/Balance/Intelligence/High/Max:Effort Level', 'gpt-5:GPT-5'],
 					withoutProviderTiers: ['auto:Auto:efficiency/balance/intelligence=balance:Efficiency/Balance/Intelligence:Optimize for', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
 					withoutProviderTiersOrHydraFusion: ['auto:Auto:efficiency/balance/intelligence=balance:Efficiency/Balance/Intelligence:Optimize for', 'gpt-5:GPT-5'],
 					dynamicAutoTiersOff: ['auto:Auto:efficiency/balance/intelligence=balance:Efficiency/Balance/Intelligence:Optimize for', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
@@ -13196,7 +13196,7 @@ suite('CopilotAgent', () => {
 				}
 			};
 			assert.deepStrictEqual({ fusion: await tiers(true), auto: await tiers(false) }, {
-				fusion: 'balance/hydrafusion/hydrafusion-max:Standard/High/Max',
+				fusion: 'efficiency/balance/intelligence/hydrafusion/hydrafusion-max:Efficiency/Balance/Intelligence/High/Max',
 				auto: 'efficiency/balance/intelligence:Efficiency/Balance/Intelligence',
 			});
 		});
@@ -15491,8 +15491,7 @@ suite('CopilotAgent', () => {
 				tier: {
 					enum: ['balance', 'hydrafusion', 'premium-v2'],
 					default: 'premium-v2',
-					// The runnable Fusion tier presents Auto as Fusion, which names balance Standard.
-					enumLabels: ['Standard', 'High', 'Premium'],
+					enumLabels: ['Balanced', 'High', 'Premium'],
 					enumDescriptions: ['Server balance', 'Server fusion', ''],
 				},
 				accepted: ['premium-v2', 'hydrafusion', 'fast', undefined, undefined],
@@ -15540,8 +15539,8 @@ suite('CopilotAgent', () => {
 				promotions: readAgentModelAutoTierPromotionsMeta(fusion),
 			}, {
 				name: 'Fusion',
-				tier: { enum: ['balance', 'hydrafusion'], labels: ['Standard', 'High'] },
-				autoTiers: [{ label: 'Standard', enabled: true }, { label: 'High', enabled: true }, { label: 'Max', enabled: false }],
+				tier: { enum: ['balance', 'hydrafusion'], labels: ['Balance', 'High'] },
+				autoTiers: [{ label: 'Balance', enabled: true }, { label: 'High', enabled: true }, { label: 'Max', enabled: false }],
 				promotions: [{
 					id: 'fusion-launch-2026',
 					message: 'Get 30% off Fusion usage for 30 days starting October 28, 2026.',
@@ -15558,7 +15557,7 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('Fusion offers each provider tier once under its own name, keeps unknown tiers\' labels, and hides tiers the provider keeps out of the picker', async () => {
+	test('Fusion offers every provider tier under the provider\'s own name and hides only tiers the provider keeps out of the picker', async () => {
 		const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
 		client.autoTierMetadata = {
 			defaultTier: 'efficiency',
@@ -15582,8 +15581,8 @@ suite('CopilotAgent', () => {
 				autoTiers: readAgentModelAutoTiersMeta(fusion)?.tiers.map(({ id, label }) => `${id}:${label}`),
 				acceptsStaged: getCopilotAutoTier({ id: 'auto', config: { tier: 'staged' } }),
 			}, {
-				tier: { enum: ['hydrafusion', 'premium-v2'], labels: ['High', 'Premium'], default: 'hydrafusion' },
-				autoTiers: ['hydrafusion:High', 'premium-v2:Premium'],
+				tier: { enum: ['efficiency', 'intelligence', 'hydrafusion', 'premium-v2'], labels: ['Efficiency', 'Intelligence', 'High', 'Premium'], default: 'efficiency' },
+				autoTiers: ['efficiency:Efficiency', 'intelligence:Intelligence', 'hydrafusion:High', 'premium-v2:Premium'],
 				acceptsStaged: 'staged',
 			});
 		} finally {

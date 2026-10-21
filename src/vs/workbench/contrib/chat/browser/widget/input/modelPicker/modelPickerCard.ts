@@ -534,7 +534,7 @@ export class ModelCard extends DisposableStore {
 				const { label, description, checked, readOnly, unavailable } = choice!;
 				return {
 					text: label,
-					tooltip: unavailable ? description || localize('chat.modelPicker.unavailableOptionTooltip', "Not available.") : tooltip(description),
+					tooltip: unavailable ? description : tooltip(description),
 					ariaLabel: description ? localize('chat.modelPicker.optionDescription', "{0}, {1}", label, description) : label,
 					isActive: checked && !selectedAlternative,
 					disabled: readOnly,

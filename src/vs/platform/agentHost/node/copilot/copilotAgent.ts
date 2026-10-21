@@ -43,12 +43,12 @@ import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointSer
 import { isScopedCredentialUsable, type IAgentHostCredentialSource, type IAgentHostScopedCredential } from '../../common/agentHostCredentials.js';
 import type { IAgentHostClientTelemetryContext, IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { IAgentHostReviewService } from '../../common/agentHostReviewService.js';
-import { createPricingMetaFromBilling, hasLongContextSurcharge, collectAutoTierPromotions, normalizeCAPIBilling, readAgentModelAutoTiersMeta, withAgentModelAutoTierPromotionsMeta, withAgentModelAutoTiersMeta, withAgentModelFusionMeta, type IAgentModelAutoTierPromotion, type IAutoTierBillingPromo, type ICAPIModelBilling } from '../../common/meta/agentModelMeta.js';
+import { createPricingMetaFromBilling, hasLongContextSurcharge, collectAutoTierPromotions, normalizeCAPIBilling, withAgentModelAutoTierPromotionsMeta, withAgentModelAutoTiersMeta, withAgentModelFusionMeta, type IAgentModelAutoTierPromotion, type IAutoTierBillingPromo, type ICAPIModelBilling } from '../../common/meta/agentModelMeta.js';
 import { agentModelConfigurationReportKey, createContextSizeConfigSchemaProperty } from '../../common/agentModelConfiguration.js';
 import { createAgentModelNoticesMeta } from '../../common/agentModelNotices.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
-import { AgentHostDynamicAutoTiersEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_NAMES, DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, isCopilotHydraFusionModelId, normalizeSkillCharBudget, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
+import { AgentHostDynamicAutoTiersEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_NAMES, DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, isCopilotHydraFusionModelId, normalizeSkillCharBudget, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { getCopilotApprovalConfig, getCopilotApprovalPolicy } from './copilotApprovalPolicy.js';
 import { AGENT_HOST_COPILOT_CLIENT_NAME, CopilotManagedSettingsResolver, resolveCopilotManagedSettings } from './copilotManagedSettings.js';
@@ -58,7 +58,7 @@ import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPlu
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
 import { AgentChatOperationContext, AgentSession, fixedChatOwnerRef, type IAgentChatOwnerRef, resolveSessionBackedStorage, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatSessionSettings, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentListedChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginInstallRequest, type IAgentPluginMarketplace, type IAgentPluginMarketplaceItem, type IAgentPluginMarketplaceRefreshResult, type IAgentPluginMarketplaceRemoveResult, type IAgentPluginUninstallRequest, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage, type IAgentChatSessionEvent } from '../../common/agent.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
-import { autoModeTiers, defaultAutoModeTier, DynamicAutoTiersFeatureFlag, getAutoModeTierDescription, getAutoModeTierLabel, getFusionAutoModeTierLabel, isFusionNamedAutoModeTier, setAdvertisedAutoModeTiers } from '../../common/autoModeTiers.js';
+import { autoModeTiers, defaultAutoModeTier, DynamicAutoTiersFeatureFlag, getAutoModeTierDescription, getAutoModeTierLabel, setAdvertisedAutoModeTiers } from '../../common/autoModeTiers.js';
 import { AUTO_MODEL_ID, isAutoModel } from './modelIdentifiers.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
@@ -210,17 +210,9 @@ function isInAutoTierPicker(tier: CopilotAutoTierDescriptor): boolean {
 	return (tier.status as { readonly pickerVisible?: boolean }).pickerVisible !== false;
 }
 
-/** Intelligence would be a second High beside the provider's HydraFusion tier. */
-function isFusionTier(tier: string, offersHydraFusion: boolean): boolean {
-	return tier !== 'efficiency' && !(offersHydraFusion && tier === 'intelligence');
-}
-
-function getFusionTierLabel(tier: string, providerLabel: string | undefined): string {
-	return isFusionNamedAutoModeTier(tier) || !providerLabel ? getFusionAutoModeTierLabel(tier) : providerLabel;
-}
-
+/** The provider's name for its tier; the tier id, never a local name, when it sends none. */
 function getProviderAutoTierLabel(tier: CopilotAutoTierDescriptor): string {
-	return tier.displayName || getAutoModeTierLabel(tier.id);
+	return tier.displayName || tier.id;
 }
 
 export async function getCopilotManagedSettingsDiagnostics(
@@ -3587,27 +3579,21 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return fusion ? this._asFusion(model) : model;
 	}
 
+	/**
+	 * Fusion is presented only with CAPI's tiers, so it offers each of them as CAPI names and describes it, unavailable
+	 * ones included, and only renames Auto and its tier setting.
+	 */
 	private _asFusion(model: IAgentModelInfo): IAgentModelInfo {
 		if (!isAutoModel(model.id)) {
 			return model;
 		}
 		const tier = model.configSchema?.properties[AutoTierConfigKey];
-		const offersHydraFusion = !!tier?.enum?.includes(COPILOT_HYDRA_FUSION_MODEL_ID);
-		const kept = (tier?.enum ?? []).flatMap((value, index) => isFusionTier(String(value), offersHydraFusion) ? [index] : []);
-		const keptValues = kept.map(index => tier!.enum![index]);
-		const configSchema = model.configSchema && tier?.enum ? {
+		const configSchema = model.configSchema && tier ? {
 			...model.configSchema,
 			properties: {
 				...model.configSchema.properties,
-				[AutoTierConfigKey]: {
-					...tier,
-					// Fusion's tiers read as an effort level, like other models' effort setting.
-					title: localize('copilotAgent.fusionTier.title', "Effort Level"),
-					enum: keptValues,
-					enumLabels: kept.map(index => getFusionTierLabel(String(tier.enum![index]), tier.enumLabels?.[index])),
-					...(tier.enumDescriptions && { enumDescriptions: kept.map(index => tier.enumDescriptions![index]) }),
-					default: keptValues.some(value => value === tier.default) ? tier.default : keptValues.includes(defaultAutoModeTier) ? defaultAutoModeTier : keptValues[0],
-				},
+				// Fusion's tiers read as an effort level, like other models' effort setting.
+				[AutoTierConfigKey]: { ...tier, title: localize('copilotAgent.fusionTier.title', "Effort Level") },
 			},
 		} : model.configSchema;
 		return {
@@ -3615,16 +3601,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			name: localize('copilotAgent.fusionModelName', "Fusion"),
 			configSchema,
 			// Fusion's tiers come from CAPI, which offers HydraFusion as a tier of its own when it supports it.
-			_meta: withAgentModelFusionMeta(this._asFusionAutoTiersMeta(model), { balanceUsesHydraFusion: false }),
+			_meta: withAgentModelFusionMeta(model._meta, { balanceUsesHydraFusion: false }),
 		};
-	}
-
-	private _asFusionAutoTiersMeta(model: IAgentModelInfo): Record<string, unknown> | undefined {
-		const autoTiers = readAgentModelAutoTiersMeta(model);
-		const offersHydraFusion = !!autoTiers?.tiers.some(tier => tier.id === COPILOT_HYDRA_FUSION_MODEL_ID);
-		return autoTiers
-			? withAgentModelAutoTiersMeta(model._meta, { tiers: autoTiers.tiers.filter(tier => isFusionTier(tier.id, offersHydraFusion)).map(tier => ({ ...tier, label: getFusionTierLabel(tier.id, tier.label) })) })
-			: model._meta;
 	}
 
 	/**
@@ -4117,8 +4095,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 				description,
 				...(ids.length ? { default: ids.includes(metadata.defaultTier) ? metadata.defaultTier : ids[0] } : {}),
 				enum: ids,
+				// The provider's tiers are shown with its names and descriptions only.
 				enumLabels: tiers.map(tier => getProviderAutoTierLabel(tier)),
-				enumDescriptions: tiers.map(tier => tier.description || getAutoModeTierDescription(tier.id) || ''),
+				enumDescriptions: tiers.map(tier => tier.description),
 			};
 		}
 		return {

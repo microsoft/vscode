@@ -298,13 +298,13 @@ suite('AgentHostLanguageModelProvider', () => {
 			withUnavailable: {
 				enum: ['balance', 'premium', 'hydrafusion', 'hydrafusion-max'],
 				labels: ['Balance', 'Premium', 'High', 'Max'],
-				descriptions: ['', 'Not available for your account.', 'Fusion', 'This tier requires models that the user does not have access to.'],
+				descriptions: ['', '', 'Fusion', 'This tier requires models that the user does not have access to.'],
 				disabled: [false, true, false, true],
 				default: 'balance',
 			},
 			plain: { enum: ['balance', 'hydrafusion'], labels: ['Balance', 'High'], descriptions: ['', 'Fusion'], disabled: undefined, default: 'balance' },
 			notAuto: { enum: ['balance', 'hydrafusion'], labels: ['Balance', 'High'], descriptions: ['', 'Fusion'], disabled: undefined, default: 'balance' },
-			allUnavailable: { enum: ['balance', 'hydrafusion-max'], labels: ['Balance', 'Max'], descriptions: ['Paused', 'Not available for your account.'], disabled: [true, true], default: undefined },
+			allUnavailable: { enum: ['balance', 'hydrafusion-max'], labels: ['Balance', 'Max'], descriptions: ['Paused', ''], disabled: [true, true], default: undefined },
 		});
 	});
 
