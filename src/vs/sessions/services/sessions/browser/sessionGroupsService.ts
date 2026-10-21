@@ -412,28 +412,43 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 			this._pendingNewSessionGroupId = undefined;
 		}));
 
-		this._register(this.sessionsManagementService.onDidMoveChat(({ from, to }) => this.placePromotedSession(from.session, to.session, to.chat)));
+		this._register(this.sessionsManagementService.onDidMoveChat(({ from, to }) => this.onDidMoveChat(from.session, from.chat, to.session, to.chat)));
 	}
 
 	/**
-	 * A chat that became the main chat of a new session (a promotion) keeps the
+	 * A session's main chat moves only when the session itself moves under another
+	 * session, which ends it, so its membership is dropped like a deleted one's.
+	 * A chat that becomes the main chat of a new session (a promotion) keeps the
 	 * custom group of the session it came from, unless the new session already
 	 * has a placement of its own. Moves into an existing session never land as
 	 * its main chat, so they leave the destination's placement alone.
 	 */
-	private placePromotedSession(source: ISession, promoted: ISession, chat: URI): void {
-		if (source.sessionId === promoted.sessionId || !isEqual(promoted.mainChat.get().resource, chat) || promoted.isArchived.get()
-			|| this._membership.has(promoted.sessionId) || this._inFlightSessionGroups.has(promoted.sessionId) || this._explicitlyUngroupedSessionIds.has(promoted.sessionId)) {
-			return;
-		}
-		const groupId = this._membership.get(source.sessionId);
-		if (groupId === undefined || !this._groups.has(groupId)) {
+	private onDidMoveChat(source: ISession, sourceChat: URI, destination: ISession, destinationChat: URI): void {
+		if (source.sessionId === destination.sessionId) {
 			return;
 		}
 		const changed = new Set<string>();
-		this.setMembership(promoted.sessionId, groupId, changed);
-		this.save();
-		this._onDidChange.fire({ groupsChanged: false, membershipChanged: changed });
+		let stateChanged = false;
+		if (isEqual(source.mainChat.get().resource, sourceChat)) {
+			if (this._membership.delete(source.sessionId)) {
+				changed.add(source.sessionId);
+				stateChanged = true;
+			}
+			stateChanged = this._explicitlyUngroupedSessionIds.delete(source.sessionId) || stateChanged;
+		} else if (isEqual(destination.mainChat.get().resource, destinationChat) && !destination.isArchived.get()
+			&& !this._membership.has(destination.sessionId) && !this._inFlightSessionGroups.has(destination.sessionId) && !this._explicitlyUngroupedSessionIds.has(destination.sessionId)) {
+			const groupId = this._membership.get(source.sessionId);
+			if (groupId !== undefined && this._groups.has(groupId)) {
+				this.setMembership(destination.sessionId, groupId, changed);
+				stateChanged = true;
+			}
+		}
+		if (stateChanged) {
+			this.save();
+		}
+		if (changed.size > 0) {
+			this._onDidChange.fire({ groupsChanged: false, membershipChanged: changed });
+		}
 	}
 
 	/** Fills missing custom-group membership from creation provenance; explicit membership or ungrouping remains authoritative. */

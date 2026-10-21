@@ -1025,6 +1025,33 @@ suite('SessionGroupsService', () => {
 			});
 		});
 
+		test('undoing a promotion ends the promoted session and leaves no membership of it behind, also after reload', () => {
+			const source = createSessionWithMainChat('source');
+			const promoted = createSessionWithMainChat('promoted');
+			const group = service.createGroup('Group', [source.sessionId]);
+			sessions = [source, promoted];
+
+			promote(source, promoted);
+			const afterPromote = service.getGroupOfSession(promoted.sessionId);
+			// Undo moves the promoted session's main chat back into its source session.
+			moveInto(promoted, source);
+			sessions = [source];
+			const reloaded = disposables.add(instantiationService.createInstance(SessionGroupsService));
+			const stored = JSON.parse(storageService.get('sessionsListControl.groups', StorageScope.PROFILE) ?? '{}');
+
+			assert.deepStrictEqual({
+				afterPromote,
+				afterUndo: service.getGroupOfSession(promoted.sessionId),
+				stored: { membership: stored.membership, explicitlyUngroupedSessionIds: stored.explicitlyUngroupedSessionIds },
+				afterReload: reloaded.getSessionIdsInGroup(group.id),
+			}, {
+				afterPromote: group.id,
+				afterUndo: undefined,
+				stored: { membership: { [source.sessionId]: group.id }, explicitlyUngroupedSessionIds: [] },
+				afterReload: [source.sessionId],
+			});
+		});
+
 		test('a session nested under another and promoted back joins the group of the session it was nested under', () => {
 			const nested = createSessionWithMainChat('nested');
 			const host = createSessionWithMainChat('host');
