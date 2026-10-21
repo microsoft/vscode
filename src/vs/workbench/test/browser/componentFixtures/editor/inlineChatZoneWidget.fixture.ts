@@ -229,7 +229,7 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme, focus }
 				override readonly fontSize = observableValue('fontSize', 13);
 			}());
 			reg.defineInstance(IChatTipService, new class extends mock<IChatTipService>() {
-				readonly onDidReceiveTip = Event.None;
+				override readonly onDidChangeTip = Event.None;
 				override resetSession() { }
 			}());
 			reg.define(IChatOpenDiagnosticsService, ChatOpenDiagnosticsService);

@@ -894,8 +894,10 @@ export class NewChatWidget extends Disposable {
 		this._register(belowInputSurfacesResizeObserver.observe(chatWidgetContainer));
 		this._register(belowInputSurfacesResizeObserver.observe(chatWidgetContent));
 		this._register(toDisposable(() => belowInputSurfaces.style.removeProperty('max-height')));
-		const connectorRecommendations = this._register(this.instantiationService.createInstance(NewChatConnectorRecommendations, () => this.focusInput()));
-		belowInputSurfaces.appendChild(connectorRecommendations.element);
+		this._register(this.instantiationService.createInstance(NewChatConnectorRecommendations, {
+			getInputValue: () => this._newChatInput.getInputValue(),
+			onDidChangeInputValue: this._newChatInput.onDidChangeInput,
+		}, undefined));
 
 		// In the experimental composer the getting-started tip is demoted to a standalone
 		// notice below the input (like the migration notice) so it never sits between the
@@ -909,7 +911,7 @@ export class NewChatWidget extends Disposable {
 			const showBelowInput = this._useExperimentalComposerLayout.read(reader);
 			chatTipContainer.classList.toggle('new-session-getting-started-tip-below', showBelowInput);
 			if (showBelowInput) {
-				connectorRecommendations.element.insertAdjacentElement('afterend', chatTipContainer);
+				belowInputSurfaces.prepend(chatTipContainer);
 			} else {
 				inputTipSlot?.appendChild(chatTipContainer);
 			}

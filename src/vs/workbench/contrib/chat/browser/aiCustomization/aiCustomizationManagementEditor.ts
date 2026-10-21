@@ -4067,14 +4067,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 	}
 
-	public async showCopilotConnectorDetail(connectorName: string): Promise<CopilotConnectorDetailOpenResult> {
+	public async showCopilotConnectorDetail(connectorName: string, connectorDisplayName?: string): Promise<CopilotConnectorDetailOpenResult> {
 		const navigationGeneration = this.contentNavigationGeneration;
 		const input = this.input;
 		const connectors = await this.copilotConnectorsService.getConnectors(CancellationToken.None);
 		if (!isCurrentConnectorDetailNavigation(navigationGeneration, this.contentNavigationGeneration, input, this.input)) {
 			return CopilotConnectorDetailOpenResult.Superseded;
 		}
-		const connector = connectors.find(candidate => candidate.name === connectorName);
+		const connector = connectors.find(candidate => candidate.name === connectorName)
+			?? (connectorDisplayName ? connectors.find(candidate => candidate.displayName === connectorDisplayName) : undefined);
 		if (!connector) {
 			return CopilotConnectorDetailOpenResult.NotFound;
 		}
