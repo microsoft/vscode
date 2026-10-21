@@ -22,6 +22,7 @@ import { LRUCache } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isAuthorizationProtectedResourceMetadata } from '../../../../base/common/oauth.js';
 import { equals, safeStringify } from '../../../../base/common/objects.js';
+import { waitForState } from '../../../../base/common/observable.js';
 import { isAbsolute, join } from '../../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase, isEqual, normalizePath } from '../../../../base/common/resources.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
@@ -129,6 +130,8 @@ import type { IAgentHostScopedCredential } from '../../common/agentHostCredentia
 import type { ErrorInfo, ProtectedResourceMetadata } from '../../common/state/protocol/common/state.js';
 import { CopilotSlashCommandProvider } from './copilotSlashCommandProvider.js';
 import { CopilotMcpToolRoutingCache, getMcpRoutingCacheKey, getMcpRoutingProxyName, type ICopilotMcpRoutingServer, type ICopilotMcpRoutingTool } from './copilotMcpToolRoutingCache.js';
+import { readMcpRoutingServers, withMcpRoutingServers } from '../../common/meta/mcpCustomizationMeta.js';
+import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
 import { type CopilotPluginReloadReason, getCopilotCustomizationCommandHandler, installCopilotPlugin, type ICopilotPluginCommandApi, removeCopilotPluginMarketplace, uninstallCopilotPlugin } from './copilotCustomizationCommandDisplay.js';
 import { renderCopilotSlashCommandOutput, type RuntimeSlashCommandInfo } from './copilotSlashCommand.js';
 import { CopilotSandboxPolicyDisplay } from './copilotSandboxPolicyDisplay.js';
@@ -1910,6 +1913,7 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _mcpToolRoutingEnabled: boolean;
 	private readonly _configuredMcpRoutingServers = new Map<string, ICopilotMcpRoutingServer>();
 	private readonly _mcpRoutingProxies = new Map<string, IMcpRoutingProxy>();
+	private readonly _mcpRoutingActivations = new Map<string, { readonly promise: Promise<void>; readonly cancellation: CancellationTokenSource }>();
 
 	/**
 	 * Fans MCP server notifications (today: `notifications/tools/list_changed`)
@@ -2009,6 +2013,7 @@ export class CopilotAgentSession extends Disposable {
 		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
 		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
 		@ICopilotHomeService private readonly _copilotHomeService: ICopilotHomeService,
+		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 	) {
 		super();
 		this._register(toDisposable(() => {
@@ -3720,8 +3725,18 @@ export class CopilotAgentSession extends Disposable {
 				}, this._toolSearchFailure('Tool call cancelled: session is aborting'), 'client-tool'),
 			};
 		});
+		this._mcpRoutingProxies.clear();
 		if (toolSearchActive) {
 			sdkTools.push(...this._createMcpRoutingProxyTools());
+		}
+		const state = this._stateManager.getSessionState(this.launchOwner.toString());
+		const chat = this._chatChannelUri.toString();
+		const routingServers = [...this._mcpRoutingProxies.values()].map(proxy => proxy.server.serverName);
+		if (!equals(readMcpRoutingServers(state, chat), routingServers)) {
+			this._emitLaunchAction({
+				type: ActionType.SessionMetaChanged,
+				_meta: withMcpRoutingServers(state?._meta, chat, routingServers),
+			});
 		}
 		return sdkTools;
 	}
@@ -3745,7 +3760,7 @@ export class CopilotAgentSession extends Disposable {
 				handler: this._guarded(async (_args, invocation) => {
 					this._surfaceUnobservedClientToolStart(invocation);
 					try {
-						await (this._adoptPendingMcpAuthentication(server.serverName) ?? this._startMcpServer(server.serverName, this._abortToken));
+						await this._activateMcpRoutingServer(server.serverName);
 						const liveTools = await this._refreshMcpToolRoutingCache(server.serverName);
 						return {
 							resultType: 'success',
@@ -3760,6 +3775,44 @@ export class CopilotAgentSession extends Disposable {
 			});
 		}
 		return tools;
+	}
+
+	private async _activateMcpRoutingServer(serverName: string): Promise<void> {
+		const existing = this._mcpRoutingActivations.get(serverName);
+		if (existing) {
+			return existing.promise;
+		}
+		const cancellation = new CancellationTokenSource(this._abortToken);
+		const activation = this._doActivateMcpRoutingServer(serverName, cancellation.token);
+		this._mcpRoutingActivations.set(serverName, { promise: activation, cancellation });
+		try {
+			await activation;
+		} finally {
+			this._mcpRoutingActivations.delete(serverName);
+			cancellation.dispose(true);
+		}
+	}
+
+	private async _doActivateMcpRoutingServer(serverName: string, token: CancellationToken): Promise<void> {
+		await raceCancellationError(this._refreshMcpServersFromRpc(), token);
+		const authentication = this._adoptPendingMcpAuthentication(serverName);
+		const state = this._mcpCustomizations.stateForServer(serverName);
+		if (authentication) {
+			await raceCancellationError(authentication, token);
+		} else if (state?.kind !== McpServerStatus.Starting && state?.kind !== McpServerStatus.Ready) {
+			await this._startMcpServer(serverName, token);
+		}
+		await raceCancellationError(this._refreshMcpServersFromRpc(), token);
+		await waitForState(
+			this._mcpCustomizations.runtimeStates.map(() => this._mcpCustomizations.stateForServer(serverName)),
+			state => state?.kind === McpServerStatus.Ready,
+			state => state?.kind === McpServerStatus.Error
+				? new Error(state.error.message)
+				: !state || state.kind === McpServerStatus.Stopped
+					? new Error(`MCP server '${serverName}' stopped before its tools became available.`)
+					: undefined,
+			token,
+		);
 	}
 
 	private _isToolSearchActive(): boolean {
@@ -4874,7 +4927,11 @@ export class CopilotAgentSession extends Disposable {
 			? `[Copilot:${this.sessionId}] Connector-owned MCP server '${request.serverName}' requires Copilot Connector authorization of the session account (${request.reason})`
 			: `[Copilot:${this.sessionId}] MCP server '${request.serverName}' requires authentication for ${resource.resource}`);
 		try {
-			return await result;
+			const outcome = await result;
+			if (outcome && hasKey(outcome, { kind: true }) && outcome.kind === 'cancelled' && this._lastMcpAuthRequirements.get(request.serverName)?.requestId === request.requestId) {
+				this._mcpRoutingActivations.get(request.serverName)?.cancellation.cancel();
+			}
+			return outcome;
 		} catch (error) {
 			this._disableMcpTokenCompletion(request.serverName, request.requestId);
 			throw error;
@@ -10142,6 +10199,7 @@ export class CopilotAgentSession extends Disposable {
 		const [serverName, requirement] = match;
 		if (outcome !== 'token') {
 			this._disableMcpTokenCompletion(serverName, requestId);
+			this._mcpRoutingActivations.get(serverName)?.cancellation.cancel();
 			return;
 		}
 		if (!requirement.acceptsTokenCompletion || this._hasPendingMcpAuthentication(serverName) || this._mcpCustomizations.stateForServer(serverName)?.kind !== McpServerStatus.AuthRequired) {

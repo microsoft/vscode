@@ -47,7 +47,7 @@ import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedb
 import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { readImageGenerationToolMetadata } from '../../common/meta/agentImageGenerationMeta.js';
-import { readMcpServerConnectorName, readMcpServerControllingSetting, readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin } from '../../common/meta/mcpCustomizationMeta.js';
+import { readMcpRoutingServers, readMcpServerConnectorName, readMcpServerControllingSetting, readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin } from '../../common/meta/mcpCustomizationMeta.js';
 import { agentModelCallMetaKey, readAgentModelCallDiagnostics } from '../../common/meta/agentModelCallMeta.js';
 import { readAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
 import { agentModelConfigurationReportKey, readAgentModelConfigurationReport } from '../../common/agentModelConfiguration.js';
@@ -24089,9 +24089,7 @@ Use the attached image as context.
 					...(routingEnabled ? { [AgentHostMcpToolRoutingEnabledConfigKey]: true } : {}),
 				},
 				configureMockSession: mock => {
-					if (connected) {
-						mock.mcpListResult = { servers: [{ name: 'docs', status: serverEnabled ? 'connected' : 'disabled' }] };
-					}
+					mock.mcpListResult = { servers: [{ name: 'docs', status: connected ? serverEnabled ? 'connected' : 'disabled' : 'stopped' }] };
 				},
 			});
 			return { ...created, configuration };
@@ -24205,6 +24203,11 @@ Use the attached image as context.
 			await timeout(0);
 			const authRequired = getActions(signals).filter(action => action.type === ActionType.ChatToolCallAuthRequired);
 			await session.resolveMcpAuthentication({ resource: configuration.url, scopes: [], token: 'token' });
+			await timeout(0);
+			mockSession.mcpListResult = { servers: [{ name: 'docs', status: 'connected', toolsLoaded: false }] };
+			mockSession.fire('session.mcp_server_status_changed', { serverName: 'docs', status: 'connected' });
+			await timeout(0);
+			fireMcpToolsLoaded(mockSession, 'docs');
 			const result = await resultPromise;
 			const refreshed = cache.get({ serverName: 'docs', configuration });
 			const changedConfiguration = { ...configuration, url: 'https://other.example.com/mcp' };
@@ -24239,7 +24242,7 @@ Use the attached image as context.
 				},
 				authRequired: ['mcp-route'],
 				startServerCalls: [{ serverName: 'docs' }],
-				listToolsCalls: [{ serverName: 'docs' }],
+				listToolsCalls: [{ serverName: 'docs' }, { serverName: 'docs' }],
 				result: {
 					resultType: 'success',
 					textResultForLlm: 'The docs MCP server is connected. Search tools again to use one of its current tools: ["current_search"]',
@@ -24275,6 +24278,183 @@ Use the attached image as context.
 				discouragesSpeculativeUse: true,
 			});
 		});
+
+		test('MCP routing registration is advertised per chat and cleared without tool search', async () => {
+			const { session, runtime, signals, dispatchSessionAction } = await createMcpRoutingSession();
+			runtime.createClientSdkTools(true);
+			const registered = getActions(signals).find(action => action.type === ActionType.SessionMetaChanged);
+			assert.ok(registered?.type === ActionType.SessionMetaChanged);
+			dispatchSessionAction(registered);
+			runtime.createClientSdkTools(false);
+			const registrations = getActions(signals).flatMap(action => action.type === ActionType.SessionMetaChanged
+				? [readMcpRoutingServers(action, session.chatChannelUri.toString())]
+				: []);
+			assert.deepStrictEqual(registrations, [['docs'], []]);
+		});
+
+		test('MCP routing waits for an already-starting server to load tools without starting it again', async () => {
+			const { session, runtime, mockSession } = await createMcpRoutingSession();
+			const [, proxy] = runtime.createClientSdkTools(true);
+			session.resetTurnState('turn-starting-mcp-route');
+			mockSession.mcpListResult = { servers: [{ name: 'docs', status: 'pending' }] };
+			mockSession.fire('session.mcp_server_status_changed', { serverName: 'docs', status: 'pending' });
+			let completed = false;
+			const resultPromise = invokeClientToolHandler(proxy, 'starting-route').then(result => {
+				completed = true;
+				return result;
+			});
+			await timeout(0);
+			const whileStarting = { completed, starts: [...mockSession.mcpStartServerCalls], discovery: [...mockSession.mcpListToolsCalls] };
+			mockSession.mcpListResult = { servers: [{ name: 'docs', status: 'connected', toolsLoaded: false }] };
+			mockSession.fire('session.mcp_server_status_changed', { serverName: 'docs', status: 'connected' });
+			await timeout(0);
+			const beforeToolsLoaded = { completed, discovery: [...mockSession.mcpListToolsCalls] };
+			fireMcpToolsLoaded(mockSession, 'docs');
+			const result = await resultPromise;
+			assert.deepStrictEqual({
+				whileStarting,
+				beforeToolsLoaded,
+				starts: mockSession.mcpStartServerCalls,
+				resultType: result.resultType,
+			}, {
+				whileStarting: { completed: false, starts: [], discovery: [] },
+				beforeToolsLoaded: { completed: false, discovery: [] },
+				starts: [],
+				resultType: 'success',
+			});
+		});
+
+		test('MCP routing reuses a ready server without starting it again', async () => {
+			const { session, runtime, mockSession } = await createMcpRoutingSession(true);
+			const [, proxy] = runtime.createClientSdkTools(true);
+			session.resetTurnState('turn-ready-mcp-route');
+			const result = await invokeClientToolHandler(proxy, 'ready-route');
+			assert.deepStrictEqual({
+				starts: mockSession.mcpStartServerCalls,
+				resultType: result.resultType,
+			}, {
+				starts: [],
+				resultType: 'success',
+			});
+		});
+
+		test('MCP routing shares activation between concurrent tool calls', async () => {
+			const { session, runtime, mockSession } = await createMcpRoutingSession();
+			const [, proxy] = runtime.createClientSdkTools(true);
+			session.resetTurnState('turn-concurrent-mcp-route');
+			const first = invokeClientToolHandler(proxy, 'first-route');
+			const second = invokeClientToolHandler(proxy, 'second-route');
+			await timeout(0);
+			mockSession.mcpListResult = { servers: [{ name: 'docs', status: 'connected', toolsLoaded: true }] };
+			mockSession.fire('session.mcp_server_status_changed', { serverName: 'docs', status: 'connected' });
+			fireMcpToolsLoaded(mockSession, 'docs');
+			const results = await Promise.all([first, second]);
+			assert.deepStrictEqual({
+				starts: mockSession.mcpStartServerCalls,
+				results: results.map(result => result.resultType),
+			}, {
+				starts: [{ serverName: 'docs' }],
+				results: ['success', 'success'],
+			});
+		});
+
+		for (const status of ['failed', 'not_configured'] as const) {
+			test(`MCP routing reports ${status} while awaiting activation`, async () => {
+				const { session, runtime, mockSession } = await createMcpRoutingSession();
+				const [, proxy] = runtime.createClientSdkTools(true);
+				session.resetTurnState('turn-failed-mcp-route');
+				const resultPromise = invokeClientToolHandler(proxy, 'failed-route');
+				await timeout(0);
+				mockSession.fire('session.mcp_server_status_changed', { serverName: 'docs', status, error: status === 'failed' ? 'Connection failed' : undefined });
+				const result = await resultPromise;
+				assert.deepStrictEqual({
+					resultType: result.resultType,
+					error: result.error,
+					discovery: mockSession.mcpListToolsCalls,
+				}, {
+					resultType: 'failure',
+					error: status === 'failed' ? 'Connection failed' : 'MCP server \'docs\' stopped before its tools became available.',
+					discovery: [],
+				});
+			});
+		}
+
+		test('MCP routing activation can be cancelled while waiting for tools', async () => {
+			const { session, runtime, mockSession } = await createMcpRoutingSession();
+			const [, proxy] = runtime.createClientSdkTools(true);
+			session.resetTurnState('turn-cancelled-mcp-route');
+			const resultPromise = invokeClientToolHandler(proxy, 'cancelled-route');
+			await timeout(0);
+			await session.abort();
+			const result = await resultPromise;
+			assert.deepStrictEqual({ resultType: result.resultType, discovery: mockSession.mcpListToolsCalls }, { resultType: 'failure', discovery: [] });
+		});
+
+		for (const timing of ['beforeRouting', 'duringStartup', 'whileStarting'] as const) {
+			for (const outcome of ['cancelledAuthentication', 'cancelledOAuth'] as const) {
+				test(`MCP routing settles ${outcome} ${timing} without aborting the turn`, async () => {
+					const { session, runtime, mockSession, configuration } = await createMcpRoutingSession();
+					const [, proxy] = runtime.createClientSdkTools(true);
+					const toolCallId = 'cancelled-auth-route';
+					session.resetTurnState('turn-cancelled-auth-route');
+					let authentication: ReturnType<typeof runtime.handleMcpAuthRequest> | undefined;
+					const requestAuthentication = () => {
+						authentication = runtime.handleMcpAuthRequest({
+							requestId: 'routing-auth',
+							serverName: 'docs',
+							serverUrl: configuration.url,
+							reason: 'initial',
+						}, { sessionId: 'test-session-1' });
+						return authentication;
+					};
+					if (timing === 'beforeRouting') {
+						requestAuthentication();
+						await timeout(0);
+					} else if (timing === 'duringStartup') {
+						mockSession.mcpStartServerHandler = async () => { await requestAuthentication(); };
+					} else {
+						mockSession.mcpListResult = { servers: [{ name: 'docs', status: 'pending' }] };
+						mockSession.fire('session.mcp_server_status_changed', { serverName: 'docs', status: 'pending' });
+					}
+					mockSession.fire('tool.execution_start', { toolCallId, toolName: proxy.name, arguments: {} });
+					const resultPromise = invokeClientToolHandler(proxy, toolCallId);
+					await timeout(0);
+					if (timing === 'whileStarting') {
+						requestAuthentication();
+						await timeout(0);
+					}
+					assert.ok(authentication);
+					if (outcome === 'cancelledAuthentication') {
+						session.handleClientToolCallComplete(toolCallId, {
+							success: false,
+							pastTenseMessage: 'Cancelled authentication',
+							error: { message: 'MCP authentication was cancelled', code: 'cancelled' },
+						});
+					} else {
+						await session.resolveMcpAuthentication({ resource: configuration.url, scopes: [], token: 'token' });
+						await authentication;
+						await timeout(0);
+						mockSession.fire('mcp.oauth_completed', { requestId: 'routing-auth', outcome: 'cancelled' });
+					}
+					await authentication;
+					const result = await resultPromise;
+					const discoveryBeforeRetry = [...mockSession.mcpListToolsCalls];
+					mockSession.mcpListResult = { servers: [{ name: 'docs', status: 'connected', toolsLoaded: true }] };
+					mockSession.fire('session.mcp_server_status_changed', { serverName: 'docs', status: 'connected' });
+					fireMcpToolsLoaded(mockSession, 'docs');
+					const retry = await invokeClientToolHandler(proxy, 'retry-route');
+					assert.deepStrictEqual({
+						resultType: result.resultType,
+						discoveryBeforeRetry,
+						retryResultType: retry.resultType,
+					}, {
+						resultType: 'failure',
+						discoveryBeforeRetry: [],
+						retryResultType: 'success',
+					});
+				});
+			}
+		}
 
 		test('routing proxy permission is auto-approved before authentication', async () => {
 			const { runtime, signals } = await createMcpRoutingSession();
@@ -24319,6 +24499,9 @@ Use the attached image as context.
 			const authRequired = getActions(signals).filter(action => action.type === ActionType.ChatToolCallAuthRequired);
 			await session.resolveMcpAuthentication({ resource: configuration.url, scopes: [], token: 'token' });
 			await authPromise;
+			mockSession.mcpListResult = { servers: [{ name: 'docs', status: 'connected', toolsLoaded: true }] };
+			mockSession.fire('session.mcp_server_status_changed', { serverName: 'docs', status: 'connected' });
+			fireMcpToolsLoaded(mockSession, 'docs');
 			const result = await resultPromise;
 
 			assert.deepStrictEqual({
@@ -24329,7 +24512,7 @@ Use the attached image as context.
 			}, {
 				authRequired: ['mcp-route'],
 				startServerCalls: [],
-				listToolsCalls: [{ serverName: 'docs' }],
+				listToolsCalls: [{ serverName: 'docs' }, { serverName: 'docs' }, { serverName: 'docs' }],
 				resultType: 'success',
 			});
 		});
