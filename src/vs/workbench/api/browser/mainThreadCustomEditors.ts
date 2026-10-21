@@ -14,7 +14,7 @@ import { ISelection } from '../../../editor/common/core/selection.js';
 import { IOutlineService } from '../../services/outline/browser/outline.js';
 import { MainThreadCustomTextEditorNavigation } from './mainThreadCustomTextEditorNavigation.js';
 import { Schemas } from '../../../base/common/network.js';
-import { basename } from '../../../base/common/path.js';
+import { basename, isAbsolute } from '../../../base/common/path.js';
 import { isEqual, isEqualOrParent, toLocalResource } from '../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
@@ -895,13 +895,16 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 		return this._editorResource;
 	}
 
-	private suggestUntitledSavePath(options: ISaveOptions | undefined): Promise<URI | undefined> {
+	private async suggestUntitledSavePath(options: ISaveOptions | undefined): Promise<URI | undefined> {
 		if (!this.isUntitled()) {
 			throw new Error('Resource is not untitled');
 		}
 
 		const remoteAuthority = this._environmentService.remoteAuthority;
-		const localResource = toLocalResource(this._editorResource, remoteAuthority, this._pathService.defaultUriScheme);
+		const resource = isAbsolute(this._editorResource.path)
+			? this._editorResource
+			: URI.joinPath(await this._fileDialogService.defaultFilePath(), this._editorResource.path);
+		const localResource = toLocalResource(resource, remoteAuthority, this._pathService.defaultUriScheme);
 
 		return this._fileDialogService.pickFileToSave(localResource, options?.availableFileSystems);
 	}
