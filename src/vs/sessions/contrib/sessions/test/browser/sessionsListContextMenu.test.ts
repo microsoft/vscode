@@ -717,8 +717,9 @@ suite('Sessions list context menus', () => {
 		const configurationService = new TestConfigurationService({ 'chat.agentHost.moveChats.enabled': true });
 		const harness = createListHarness(disposables, [session], instantiationService => {
 			instantiationService.stub(IConfigurationService, configurationService);
-			// No sessions list view: nothing to reveal the new session in.
+			// No sessions list view showing: nothing to reveal the new session in, and a refusal is a notification.
 			instantiationService.stub(IViewsService, new class extends mock<IViewsService>() {
+				override isViewVisible() { return false; }
 				override getViewWithId() { return null; }
 			});
 			instantiationService.stub(IDialogService, new class extends mock<IDialogService>() {
