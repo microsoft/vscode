@@ -2428,7 +2428,11 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		//
 
 		const visibleTabsWidth = tabsContainer.offsetWidth;
-		const allTabsWidth = tabsContainer.scrollWidth;
+		// `scrollWidth` is rounded to whole pixels and, under CSS zoom, WebKit rounds it down. That would cap
+		// the custom scrollbar short of the native scroll range and keep the end of the last tab hidden, so
+		// allow one more pixel when zoomed and overflowing. Native scrolling clamps the remainder.
+		const isZoomed = tabsContainer.getBoundingClientRect().width !== visibleTabsWidth;
+		const allTabsWidth = tabsContainer.scrollWidth + (isZoomed && tabsContainer.scrollWidth > visibleTabsWidth ? 1 : 0);
 		const visibleEditorTabsWidth = visibleTabsWidth - (this.parent.closest(CONNECTED_EDITOR_TABS_SELECTOR) ? this.addTabContainer?.offsetWidth ?? 0 : 0);
 
 		// Compute slot width of sticky tabs depending on pinned tab sizing
