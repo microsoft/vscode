@@ -43,9 +43,11 @@ import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.j
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { AgentPolicyError, type IAgent, type IAgentCreateChatRequestOptions, type IAgentCreateChatWorkspace, type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentCreateChatInitialMessageContext, type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
-import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, StopBackgroundWorkExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest } from '../../common/agentHostExtensionProtocol.js';
+import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, StopBackgroundWorkExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
 import { supportsAgentHostSavedChat, supportsAgentHostSavedChatContinuation } from '../../common/meta/agentHostSavedChatMeta.js';
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult, ResourceType } from '../../common/state/protocol/commands.js';
+import type { IArtifactIntegrationAccess } from '../../../artifactIntegrations/common/artifactIntegration.js';
+import type { IClientArtifactIntegrationRegistry, IClientArtifactIntegrations } from '../../common/clientArtifactIntegrations.js';
 import type { AutomationCapabilities, Implementation } from '../../common/state/protocol/common/commands.js';
 import type { InvokeChangesetOperationParams } from '../../common/state/protocol/channels-changeset/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../../common/state/protocol/channels-automation/commands.js';
@@ -267,6 +269,8 @@ class MockAgentService extends Disposable implements IAgentService {
 	afterListSessionsSnapshot: (() => void) | undefined;
 	readonly automationRunRequests: RunAutomationParams[] = [];
 	automationRunResult: RunAutomationResult | undefined;
+	artifactIntegrations: IArtifactIntegrationAccess | undefined;
+	artifactIntegrationClients: IClientArtifactIntegrationRegistry | undefined;
 
 	private readonly _onDidAction = new Emitter<import('../../common/state/sessionActions.js').ActionEnvelope>();
 	readonly onDidAction = this._onDidAction.event;
@@ -892,6 +896,34 @@ suite('ProtocolServerHandler', () => {
 		transport.simulateClose();
 
 		await assert.rejects(trustPromise, /disconnected/);
+	});
+
+	test('stops relaying a client\'s artifact integrations without messaging its closed connection', async () => {
+		let registered: IClientArtifactIntegrations | undefined;
+		agentService.artifactIntegrations = { acquireArtifact: async () => { throw new Error('The host\'s own integrations are not used by this test.'); } };
+		agentService.artifactIntegrationClients = {
+			register: (_clientId, integrations) => {
+				registered = integrations;
+				return toDisposable(() => registered = undefined);
+			},
+		};
+		const transport = connectClient('client-1');
+		transport.simulateMessage(request(2, RegisterClientArtifactIntegrationsExtensionMethod, { integrations: [{ id: 'exp', label: 'ExP', automationOptions: [] }] }));
+		await handler.whenIdle();
+		const acquiring = registered!.access.acquireArtifact(sessionUri, 'experiment');
+		const sentBeforeClose = transport.sent.length;
+		transport.simulateClose();
+		const failure = await acquiring.then(() => 'acquired', (error: Error) => error.message);
+
+		assert.deepStrictEqual({
+			sentAfterClose: transport.sent.slice(sentBeforeClose),
+			failure,
+			withdrawn: registered === undefined,
+		}, {
+			sentAfterClose: [],
+			failure: 'Client client-1 disconnected',
+			withdrawn: true,
+		});
 	});
 
 	test('handshake advertises only implemented automation capabilities', () => {

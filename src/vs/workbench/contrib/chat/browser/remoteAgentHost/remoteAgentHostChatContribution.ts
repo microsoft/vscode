@@ -42,7 +42,7 @@ import { AuthenticationSession, IAuthenticationService } from '../../../../servi
 import { findRemoteAgentHostSessionTypeAuthority, isRemoteAgentHostSessionType, remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { createRemoteAgentHarnessDescriptor, RemoteAgentPluginController } from './remoteAgentHostCustomizationHarness.js';
 import { RemoteAgentHostLogForwarder } from './remoteAgentHostLogForwarder.js';
-import { IRemoteAgentHostConnectionCustomizationService, RemoteAgentHostSessionPreparation } from './remoteAgentHostConnectionCustomization.js';
+import { authenticateWithConnectionCustomization, IRemoteAgentHostConnectionCustomizationService, RemoteAgentHostSessionPreparation } from './remoteAgentHostConnectionCustomization.js';
 import { IAgentHostTerminalService } from '../../../terminal/browser/agentHostTerminalService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -645,28 +645,9 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	 * envelope. The transform owns fail-closed validation, so a raw token can never reach the host.
 	 */
 	private _authenticateCallback(address: string, connection: IAgentConnection, reason?: AuthRequiredReason): (request: AuthenticateParams) => Promise<AuthenticateResult> {
-		const transform = this._connectionCustomizations.get(address)?.authenticate;
-		if (!transform) {
-			return request => connection.authenticate(request);
-		}
+		const customization = this._connectionCustomizations.get(address);
 		const connState = this._connections.get(address);
-		return async request => {
-			if (this._connections.get(address) !== connState) {
-				throw new CancellationError();
-			}
-			// An empty token is the protocol's revocation sentinel, not a credential.
-			// Token transforms substitute a live credential for an unsealed one, which
-			// would turn a sign-out into a re-authentication and leave the remote host
-			// holding a credential the user just revoked.
-			if (!request.token) {
-				return connection.authenticate(request);
-			}
-			const transformed = await transform(request, reason);
-			if (this._connections.get(address) !== connState) {
-				throw new CancellationError();
-			}
-			return connection.authenticate(transformed);
-		};
+		return request => authenticateWithConnectionCustomization(connection, request, customization, () => this._connections.get(address) === connState, reason);
 	}
 
 	/**
