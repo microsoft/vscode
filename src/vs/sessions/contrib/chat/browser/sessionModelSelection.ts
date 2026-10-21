@@ -288,9 +288,8 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 						...model,
 						metadata: {
 							...model.metadata,
-							// Comparison tabs represent execution harnesses, not the upstream
-							// model provider a harness happens to use for one model.
-							modelGroup: { id: sessionType.id },
+							// Only BYOK models keep upstream provider tabs; other models compare execution harnesses.
+							modelGroup: (model.metadata.isBYOK || model.metadata.byokModelIdentifier ? model.metadata.modelGroup : undefined) ?? { id: sessionType.id },
 						},
 					},
 					sessionType,

@@ -57,7 +57,7 @@ export interface IAgentHostPromptContext {
 	 * resolved system message gets a scratch/repoless section (see
 	 * {@link AGENT_HOST_WORKSPACELESS_INSTRUCTIONS}) telling the agent its
 	 * working directory is a scratch dir, not a code repo. Set by the launcher
-	 * from the session's `workspaceless` marker.
+	 * from the chat's recorded `workspaceless` decision.
 	 */
 	workspaceless: boolean;
 }

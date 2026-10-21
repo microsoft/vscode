@@ -46,7 +46,6 @@ import './services/host/electron-browser/nativeHostService.js';
 import '../platform/meteredConnection/electron-browser/meteredConnectionService.js';
 import './services/request/electron-browser/requestService.js';
 import './services/github/electron-browser/githubService.js';
-import '../platform/copilotConnectors/electron-browser/copilotConnectorsRequestService.js';
 import '../platform/customizationMarketplace/electron-browser/customizationMarketplaceService.js';
 import './services/clipboard/electron-browser/clipboardService.js';
 import './services/contextmenu/electron-browser/contextmenuService.js';

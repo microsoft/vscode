@@ -1212,7 +1212,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			});
 		});
 
-		test(`offers experimental Assisted permissions without an opt-in setting (${combined ? 'combined' : 'separate'} picker)`, async () => {
+		test(`labels Assisted permissions as new without requiring an opt-in setting (${combined ? 'combined' : 'separate'} picker)`, async () => {
 			const { modePicker, permissionPicker, configuration, config, actionWidget, dispatches } = setup(combined);
 			await configuration.setUserConfiguration('chat.assistedPermissions.enabled', false);
 			config.values.autoApprove = 'default';
@@ -1226,7 +1226,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			assert.deepStrictEqual({ levels, beforeSelection, dispatches }, {
 				levels: [
 					{ label: 'Manual permissions', disabled: false, badge: undefined },
-					{ label: 'Assisted permissions', disabled: false, badge: 'Experimental' },
+					{ label: 'Assisted permissions', disabled: false, badge: 'New' },
 					{ label: 'Allow all', disabled: false, badge: undefined },
 				],
 				beforeSelection: [],
@@ -1248,7 +1248,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			assert.deepStrictEqual({ levels, dispatches }, {
 				levels: [
 					{ label: 'Manual permissions', disabled: false, badge: undefined },
-					{ label: 'Assisted permissions', disabled: true, badge: 'Experimental' },
+					{ label: 'Assisted permissions', disabled: true, badge: 'New' },
 					{ label: 'Allow all', disabled: true, badge: undefined },
 				],
 				dispatches: [],
@@ -1566,22 +1566,8 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		});
 	});
 
-	test('settings filter includes defaults, approvals, risk assessment, and sandbox controls', () => {
-		assert.deepStrictEqual(AGENT_HOST_PERMISSIONS_SETTINGS_QUERY.slice('@id:'.length).split(','), [
-			'chat.defaultConfiguration',
-			'chat.permissions.default',
-			'chat.tools.global.autoApprove',
-			'chat.tools.edits.autoApprove',
-			'chat.tools.urls.autoApprove',
-			'chat.tools.eligibleForAutoApproval',
-			'chat.tools.riskAssessment.*',
-			'chat.tools.terminal.enableAutoApprove',
-			'chat.tools.terminal.autoApprove',
-			'chat.tools.terminal.autoApproveWorkspaceNpmScripts',
-			'chat.tools.terminal.ignoreDefaultAutoApproveRules',
-			'chat.tools.terminal.blockDetectedFileWrites',
-			'chat.agent.sandbox.*',
-		]);
+	test('settings filter uses the chat permissions tag', () => {
+		assert.strictEqual(AGENT_HOST_PERMISSIONS_SETTINGS_QUERY, '@tag:chatPermissions');
 	});
 
 	test('gate only combines usable Copilot schemas', () => {

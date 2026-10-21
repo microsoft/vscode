@@ -112,6 +112,7 @@ suite('Sessions - New chat user-perceived TTFP', () => {
 			_session: constObservable(h.session),
 			_feedbackItems: constObservable([]),
 			_isQuickChatComposer: constObservable(false),
+			_workspaceSupport: constObservable(undefined),
 			_comparisonSelection: { enabled: constObservable(false) },
 			_workspacePicker: { clearAttachedContext: () => { }, showPicker: () => { } },
 			_pendingBackgroundSends: { set: () => { }, deleteAndDispose: () => { } },

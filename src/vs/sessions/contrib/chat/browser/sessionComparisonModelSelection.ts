@@ -171,6 +171,12 @@ export class SessionComparisonModelSelection extends Disposable implements IMode
 			canGoNext: this._reviewAvailable.read(reader) && valid && (step === 'attempts' || step === 'judge' && judge !== undefined),
 			canFinish: valid,
 			hasNextStep: this._reviewAvailable.read(reader) && step !== 'synthesizer',
+			backLabel: step === 'judge'
+				? localize('comparisonPicker.configureAttempts', "Configure Attempts")
+				: localize('comparisonPicker.configureJudge', "Configure Judge"),
+			nextLabel: step === 'attempts'
+				? localize('comparisonPicker.configureJudge', "Configure Judge")
+				: localize('comparisonPicker.configureSynthesis', "Configure Synthesis"),
 			status: step === 'attempts' ? getAttemptsStatus(attemptCount) : undefined,
 		};
 	});

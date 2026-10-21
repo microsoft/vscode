@@ -325,6 +325,9 @@ export class ChatImageGenerationBatchPart extends Disposable implements IChatCon
 				const thumbnail = item;
 				const store = thumbnail.imageStore.value = new DisposableStore();
 				const image = dom.append(thumbnail.button.element, dom.$<HTMLImageElement>('img', { alt: '', draggable: false }));
+				// Browsers can paint a loaded image before dispatching its load event, which shapes the tile,
+				// so show it from that event rather than letterboxed in the square placeholder.
+				image.hidden = true;
 				thumbnail.image = image;
 				thumbnail.icon.hidden = true;
 				store.add(toDisposable(() => {
@@ -343,10 +346,14 @@ export class ChatImageGenerationBatchPart extends Disposable implements IChatCon
 					this.layoutThumbnails();
 				};
 				store.add(dom.addDisposableListener(image, dom.EventType.LOAD, () => {
-					if (!store.isDisposed && image.naturalWidth > 0 && image.naturalHeight > 0) {
+					if (store.isDisposed) {
+						return;
+					}
+					if (image.naturalWidth > 0 && image.naturalHeight > 0) {
 						this.viewState.imageDimensions.set(slot.part!.uri, { width: image.naturalWidth, height: image.naturalHeight });
 						this.layoutThumbnails();
 					}
+					image.hidden = false;
 				}));
 				store.add(dom.addDisposableListener(image, dom.EventType.ERROR, showError));
 				void this.loadThumbnail(slot.part, image, store, showError);

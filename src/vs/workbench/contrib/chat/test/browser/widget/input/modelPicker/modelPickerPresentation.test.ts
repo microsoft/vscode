@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../..
 import { ExtensionIdentifier } from '../../../../../../../../platform/extensions/common/extensions.js';
 import { ChatEntitlement } from '../../../../../../../services/chat/common/chatEntitlementService.js';
 import { getAutoModeTierLabel, getFusionAutoModeTierLabel } from '../../../../../../../../platform/agentHost/common/autoModeTiers.js';
-import { getFusionTierLabel, getInlineFusionTierLabel, getModelPickerUnavailableReason, isAutoModel, isHydraFusionModel, ModelPickerUnavailableReason, modelPickerRequiresSetup, shouldShowCacheBreakHint } from '../../../../../browser/widget/input/modelPicker/modelPickerPresentation.js';
+import { getFusionTierLabel, getModelPickerUnavailableReason, isAutoModel, isHydraFusionModel, ModelPickerUnavailableReason, modelPickerRequiresSetup, shouldShowCacheBreakHint } from '../../../../../browser/widget/input/modelPicker/modelPickerPresentation.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../common/languageModels.js';
 
 function model(identifier: string, metadataId: string): ILanguageModelChatMetadataAndIdentifier {
@@ -58,21 +58,20 @@ suite('ModelPickerPresentation', () => {
 		}, { hydraFusion: true, max: true, otherProvider: false, ungrouped: false, ordinary: false });
 	});
 
-	test('Fusion names its tiers Standard, High, and Max without renaming Auto or changing runtime values', () => {
-		const fusion: ILanguageModelChatMetadataAndIdentifier['metadata'] = { ...model('copilot/auto', 'auto').metadata, autoModelFusion: { balanceUsesHydraFusion: true }, configurationSchema: { properties: { tier: { type: 'string', enum: ['balance', 'intelligence'] } } } };
+	test('Fusion names HydraFusion by the provider tier it offers, without renaming Auto or changing runtime values', () => {
+		const fusion: ILanguageModelChatMetadataAndIdentifier['metadata'] = { ...model('copilot/auto', 'auto').metadata, autoModelFusion: { balanceUsesHydraFusion: false }, configurationSchema: { properties: { tier: { type: 'string', enum: ['balance', 'hydrafusion', 'hydrafusion-max'], enumItemLabels: ['Standard', 'High', 'Max'] } } } };
+		const withoutHydraFusionTier: ILanguageModelChatMetadataAndIdentifier['metadata'] = { ...fusion, configurationSchema: { properties: { tier: { type: 'string', enum: ['balance'] } } } };
 		assert.deepStrictEqual({
-			fusion: ['balance', 'intelligence'].map(getFusionAutoModeTierLabel),
+			fusion: ['balance', 'hydrafusion', 'hydrafusion-max'].map(getFusionAutoModeTierLabel),
 			auto: ['efficiency', 'balance', 'intelligence'].map(getAutoModeTierLabel),
-			inline: ['balance', 'intelligence', 'hydrafusion', 'hydrafusion-max'].map(value => getInlineFusionTierLabel(value, 'Max')),
-			routed: ['hydrafusion', 'hydrafusion-max'].map(id => getFusionTierLabel(fusion, id)),
-			notRouted: getFusionTierLabel({ ...fusion, autoModelFusion: { balanceUsesHydraFusion: false } }, 'hydrafusion'),
+			providerTiers: ['hydrafusion', 'hydrafusion-max'].map(id => getFusionTierLabel(fusion, id)),
+			notOffered: getFusionTierLabel(withoutHydraFusionTier, 'hydrafusion'),
 			notFusion: getFusionTierLabel(model('copilot/auto', 'auto').metadata, 'hydrafusion-max'),
 		}, {
-			fusion: ['Standard', 'High'],
+			fusion: ['Standard', 'High', 'Max'],
 			auto: ['Efficiency', 'Balance', 'Intelligence'],
-			inline: ['Standard', 'High', 'High', 'Max'],
-			routed: ['High', 'Max'],
-			notRouted: undefined,
+			providerTiers: ['High', 'Max'],
+			notOffered: undefined,
 			notFusion: undefined,
 		});
 	});

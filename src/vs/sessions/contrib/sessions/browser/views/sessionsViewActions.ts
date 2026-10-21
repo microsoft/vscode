@@ -30,11 +30,12 @@ import { CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID } from '../../../../browser/work
 import { EditorsVisibleContext, EditorAreaFocusContext, FocusedViewContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { SessionsCategories } from '../../../../common/categories.js';
 import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
-import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { IsPhoneLayoutContext, SessionSupportsDeleteContext, SessionSupportsRenameContext, IsNewChatSessionContext, SessionActiveChatCanArchiveContext, SessionActiveChatIsUntitledContext, SessionHeaderTargetsChatContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext, SessionItemIsMultiSelectionContext, SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
-import { getSessionListChats, SessionItemCanImportContext, SessionItemContextMenuId, SessionItemHasUnreadNestedSessionsContext, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, SessionGroupIsComparisonContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, ISessionChatItem, SessionChatItemCanArchiveContext, SessionChatItemCanMoveDownContext, SessionChatItemCanMoveUpContext, SessionChatItemIsArchivedContext, SessionChatItemIsStandaloneContext, SessionChatItemIsUntitledContext, SessionsListFocusedChatItemContext } from './sessionsList.js';
+import { getNewSessionSources, getSessionListChats, SessionItemCanImportContext, SessionItemContextMenuId, SessionItemHasUnreadNestedSessionsContext, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, SessionGroupIsComparisonContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, ISessionChatItem, SessionChatItemCanArchiveContext, SessionChatItemCanMoveDownContext, SessionChatItemCanMoveUpContext, SessionChatItemIsArchivedContext, SessionChatItemIsStandaloneContext, SessionChatItemIsUntitledContext, SessionsListFocusedChatItemContext } from './sessionsList.js';
 import { getChatCapabilities, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
+import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionComparisonService } from '../../../../services/sessions/common/sessionComparison.js';
 import { IsWorkspaceGroupCappedContext, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext } from './sessionsView.js';
 import { Menus, SessionHeaderMenus } from '../../../../browser/menus.js';
@@ -129,6 +130,31 @@ CommandsRegistry.registerCommand(ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, (accesso
 	accessor.get(ISessionGroupsService),
 	accessor.get(IViewsService),
 	accessor.get(ISessionComparisonService),
+));
+
+/**
+ * Deletes a custom group and its subgroups. Deleting several groups at once
+ * offers Undo, which restores the groups, their order, and their sessions.
+ */
+function deleteSessionGroupWithUndo(groupId: string, groupsService: ISessionGroupsService, viewsService: IViewsService): void {
+	const deleted = groupsService.deleteGroup(groupId);
+	if (!deleted || deleted.groups.length < 2) {
+		return;
+	}
+	viewsService.getViewWithId<SessionsView>(SessionsViewId)?.listNotification?.show({
+		message: localize('sessionGroupsDeleted', "{0} groups deleted", deleted.groups.length),
+		help: localize('deleteGroupsNoticeHelp', "This notice appears after deleting a group that contains subgroups. Undo restores the groups, their order, and their sessions, except sessions that were marked done or moved to another group since."),
+		undo: async () => {
+			groupsService.restoreGroups(deleted);
+			status(localize('sessionGroupsRestored', "Groups restored."));
+		},
+	});
+}
+
+CommandsRegistry.registerCommand(DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID, (accessor, groupId: string) => deleteSessionGroupWithUndo(
+	groupId,
+	accessor.get(ISessionGroupsService),
+	accessor.get(IViewsService),
 ));
 
 const CLOSE_SESSION_COMMAND_ID = 'sessionsViewPane.closeSession';
@@ -355,10 +381,16 @@ MenuRegistry.appendMenuItem(Menus.SessionsViewFilter, {
 	order: 1,
 });
 
+/** Grouping by workspace or repository caps their sections, which Show switches between Recent and All. */
+const GroupedByWorkspaceOrRepositoryContext = ContextKeyExpr.or(
+	SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Workspace),
+	SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Repository),
+);
+
 MenuRegistry.appendMenuItem(Menus.SessionsViewFilter, {
 	submenu: Menus.SessionsViewShow,
 	title: localize2('showSessions', "Show"),
-	when: SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Workspace),
+	when: GroupedByWorkspaceOrRepositoryContext,
 	group: '1_presentation',
 	order: 2,
 });
@@ -463,6 +495,23 @@ registerAction2(class GroupByWorkspaceAction extends Action2 {
 	}
 });
 
+registerAction2(class GroupByRepositoryAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessionsViewPane.groupByRepository',
+			title: localize2('repository', "Repository"),
+			category: SessionsCategories.Sessions,
+			toggled: ContextKeyExpr.equals(SessionsViewGroupingContext.key, SessionsGrouping.Repository),
+			menu: [{ id: Menus.SessionsViewGrouping, group: '1_group', order: 2 }]
+		});
+	}
+	override run(accessor: ServicesAccessor) {
+		const viewsService = accessor.get(IViewsService);
+		const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
+		view?.setGrouping(SessionsGrouping.Repository);
+	}
+});
+
 registerAction2(class GroupByTimeAction extends Action2 {
 	constructor() {
 		super({
@@ -515,7 +564,7 @@ registerAction2(class ShowRecentWorkspaceSessionsAction extends Action2 {
 				id: Menus.SessionsViewShow,
 				group: '1_show',
 				order: 0,
-				when: ContextKeyExpr.equals(SessionsViewGroupingContext.key, SessionsGrouping.Workspace),
+				when: GroupedByWorkspaceOrRepositoryContext,
 			}]
 		});
 	}
@@ -538,7 +587,7 @@ registerAction2(class ShowAllWorkspaceSessionsAction extends Action2 {
 				id: Menus.SessionsViewShow,
 				group: '1_show',
 				order: 1,
-				when: ContextKeyExpr.equals(SessionsViewGroupingContext.key, SessionsGrouping.Workspace),
+				when: GroupedByWorkspaceOrRepositoryContext,
 			}]
 		});
 	}
@@ -605,6 +654,37 @@ registerAction2(class FindSessionAction extends Action2 {
 
 //  Section Actions
 
+/** Workspace and repository sections, whose New Session starts in a workspace that their sessions work in. */
+const WorkspaceOrRepositorySectionContext = ContextKeyExpr.or(
+	ContextKeyExpr.equals(SessionSectionTypeContext.key, 'workspace'),
+	ContextKeyExpr.equals(SessionSectionTypeContext.key, 'repository'),
+);
+
+/** Opens a new session that starts in the workspace and environment of `session`. */
+async function openNewSessionLike(accessor: ServicesAccessor, session: ISession): Promise<void> {
+	const sessionsService = accessor.get(ISessionsService);
+	const sessionsPartService = accessor.get(ISessionsPartService);
+	const commandService = accessor.get(ICommandService);
+
+	accessor.get(INewSessionComposerService).notifyUserWorkspaceSelection();
+	await sessionsService.openNewSession();
+
+	const folderUri = session.workspace.get()?.folders[0]?.root;
+	const newSession = sessionsService.activeSession.get();
+	if (folderUri) {
+		sessionsPartService.getSessionView(newSession?.sessionId)?.selectWorkspace(folderUri, { providerId: session.providerId, selectionOrigin: WorkspaceSelectionOrigin.User });
+	}
+
+	// On mobile web, the sidebar drawer covers the viewport; close it so
+	// the new session view becomes visible after creation. Routes through
+	// the drawer-close command to keep the mobile nav/history stack in sync.
+	if (isWeb && isMobile) {
+		commandService.executeCommand(CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID);
+	}
+
+	sessionsPartService.focusSession(newSession);
+}
+
 registerAction2(class NewSessionForWorkspaceAction extends Action2 {
 	constructor() {
 		super({
@@ -619,14 +699,14 @@ registerAction2(class NewSessionForWorkspaceAction extends Action2 {
 					when: ContextKeyExpr.and(
 						ChatContextKeys.enabled,
 						SessionSectionHasNonCloudRepositoryContext,
-						ContextKeyExpr.equals(SessionSectionTypeContext.key, 'workspace'))
+						WorkspaceOrRepositorySectionContext)
 				},
 				{
 					id: SessionSectionToolbarMenuId,
 					group: 'navigation',
 					order: 0,
 					when: ContextKeyExpr.and(
-						ContextKeyExpr.equals(SessionSectionTypeContext.key, 'workspace'),
+						WorkspaceOrRepositorySectionContext,
 						ContextKeyExpr.or(
 							ChatContextKeys.enabled.negate(),
 							SessionSectionHasNonCloudRepositoryContext.negate()),
@@ -639,32 +719,18 @@ registerAction2(class NewSessionForWorkspaceAction extends Action2 {
 		if (!context || !context.sessions || context.sessions.length === 0) {
 			return;
 		}
-		const sessionsService = accessor.get(ISessionsService);
-		const sessionsPartService = accessor.get(ISessionsPartService);
-		const commandService = accessor.get(ICommandService);
-
-		accessor.get(INewSessionComposerService).notifyUserWorkspaceSelection();
-		await sessionsService.openNewSession();
-
-		const session = context.sessions[0];
-		const workspace = session.workspace.get();
-		const folderUri = workspace?.folders[0]?.root;
-		const providerId = session.providerId;
-
-		const newSession = sessionsService.activeSession.get();
-		if (folderUri) {
-			sessionsPartService.getSessionView(newSession?.sessionId)?.selectWorkspace(folderUri, { providerId, selectionOrigin: WorkspaceSelectionOrigin.User });
-		}
-
-		// On mobile web, the sidebar drawer covers the viewport; close it so
-		// the new session view becomes visible after creation. Routes through
-		// the drawer-close command to keep the mobile nav/history stack in sync.
-		if (isWeb && isMobile) {
-			commandService.executeCommand(CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID);
-		}
-
-		sessionsPartService.focusSession(newSession);
+		// A repository section spans environments, so it starts like its most recently created session.
+		const session = context.repository
+			? getNewSessionSources(context.sessions, accessor.get(ISessionsProvidersService))
+				.reduce<ISession | undefined>((latest, { session }) => !latest || session.createdAt.getTime() > latest.createdAt.getTime() ? session : latest, undefined)
+			: undefined;
+		return openNewSessionLike(accessor, session ?? context.sessions[0]);
 	}
+});
+
+CommandsRegistry.registerCommand(NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, (accessor, section: ISessionSection, environment: string) => {
+	const source = getNewSessionSources(section.sessions, accessor.get(ISessionsProvidersService)).find(source => source.environment.id === environment);
+	return source ? openNewSessionLike(accessor, source.session) : undefined;
 });
 
 const NEW_QUICK_CHAT_COMMAND_ID = 'sessionsView.newQuickChat';
@@ -829,16 +895,16 @@ class MarkSectionSessionsDoneAction extends BaseArchiveSectionAction {
 
 //  Group Header Actions
 
-function getArchiveGroupConfirmationMessage(context: ISessionGroupItem, wording: ChatSessionArchiveActionWording): string {
-	if (context.sessions.length === 1) {
+function getArchiveGroupConfirmationMessage(groupName: string, sessionCount: number, wording: ChatSessionArchiveActionWording): string {
+	if (sessionCount === 1) {
 		return wording === ChatSessionArchiveActionWording.MarkAsDone
-			? localize('markGroupSessionDone.confirmSingle', "Are you sure you want to mark 1 session from '{0}' as done?", context.group.name)
-			: localize('archiveGroupSession.confirmSingle', "Are you sure you want to archive 1 session from '{0}'?", context.group.name);
+			? localize('markGroupSessionDone.confirmSingle', "Are you sure you want to mark 1 session from '{0}' as done?", groupName)
+			: localize('archiveGroupSession.confirmSingle', "Are you sure you want to archive 1 session from '{0}'?", groupName);
 	}
 
 	return wording === ChatSessionArchiveActionWording.MarkAsDone
-		? localize('markGroupSessionsDone.confirm', "Are you sure you want to mark {0} sessions from '{1}' as done?", context.sessions.length, context.group.name)
-		: localize('archiveGroupSessions.confirm', "Are you sure you want to archive {0} sessions from '{1}'?", context.sessions.length, context.group.name);
+		? localize('markGroupSessionsDone.confirm', "Are you sure you want to mark {0} sessions from '{1}' as done?", sessionCount, groupName)
+		: localize('archiveGroupSessions.confirm', "Are you sure you want to archive {0} sessions from '{1}'?", sessionCount, groupName);
 }
 
 abstract class BaseArchiveSessionsInGroupAction extends Action2 {
@@ -868,12 +934,13 @@ abstract class BaseArchiveSessionsInGroupAction extends Action2 {
 		const viewsService = accessor.get(IViewsService);
 		const comparisonService = accessor.get(ISessionComparisonService);
 		const comparison = context.comparison ? comparisonService.getComparison(context.comparison.id) : undefined;
+		// A group's sessions include those of its subgroups.
 		const sessions = comparison
 			? comparison.participants.flatMap(participant => {
 				const session = participant.sessionResource ? sessionsManagementService.getSession(participant.sessionResource) : undefined;
 				return session && !session.isArchived.get() ? [session] : [];
 			})
-			: context.sessions;
+			: context.subtreeSessions;
 		if (sessions.length === 0) {
 			return;
 		}
@@ -881,7 +948,7 @@ abstract class BaseArchiveSessionsInGroupAction extends Action2 {
 		const skipConfirmation = storageService.getBoolean(ConfirmArchiveStorageKey, StorageScope.PROFILE, false);
 		if (!skipConfirmation) {
 			const confirmed = await dialogService.confirm({
-				message: getArchiveGroupConfirmationMessage({ ...context, sessions }, this.wording),
+				message: getArchiveGroupConfirmationMessage(context.group.name, sessions.length, this.wording),
 				detail: this.wording === ChatSessionArchiveActionWording.MarkAsDone
 					? localize('markGroupSessionsDone.detail', "You can restore sessions later if needed from the sessions view.")
 					: localize('archiveGroupSessions.detail', "You can unarchive sessions later if needed from the sessions view."),
@@ -935,7 +1002,8 @@ registerAction2(class DeleteEmptySessionGroupAction extends Action2 {
 			return;
 		}
 		const sessionGroupsService = accessor.get(ISessionGroupsService);
-		if (sessionGroupsService.getSessionIdsInGroup(context.group.id).length === 0) {
+		const hasSubgroups = sessionGroupsService.getTree().getSubgroups(context.group.id).length > 0;
+		if (!hasSubgroups && sessionGroupsService.getSessionIdsInGroup(context.group.id).length === 0) {
 			sessionGroupsService.deleteGroup(context.group.id);
 		}
 	}
