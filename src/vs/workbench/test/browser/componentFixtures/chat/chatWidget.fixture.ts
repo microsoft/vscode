@@ -24,6 +24,9 @@ import { ChatModel, ChatRequestModel, ChatRequestSource, IChatRequestModeInfo } 
 import { ChatViewModel } from '../../../../contrib/chat/common/model/chatViewModel.js';
 import { ChatListWidget } from '../../../../contrib/chat/browser/widget/chatListWidget.js';
 import { chatFloatingPersistentContentClass, chatPersistentContentHeightVariable } from '../../../../contrib/chat/browser/widget/chatWidget.js';
+import { IChatPetService } from '../../../../contrib/chat/browser/chatPetService.js';
+import { IChatPetWidgetService } from '../../../../contrib/chat/browser/widget/chatPetWidgetService.js';
+import { configureChatPetFixtureFileRoot, FixtureChatPetService } from './chatPetFixtureUtils.js';
 import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from '../../../../contrib/chat/browser/widget/input/chatInputPart.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
@@ -55,7 +58,7 @@ import { ComponentFixtureContext, createEditorServices, defineComponentFixture, 
 import { FixtureMenuService, registerChatFixtureServices, registerSubagentFixtureServices } from './chatFixtureUtils.js';
 import { IDetachedXTermOptions, ITerminalChatService, ITerminalConfigurationService, ITerminalService } from '../../../../contrib/terminal/browser/terminal.js';
 import { createFakeDetachedTerminal } from '../../../../contrib/terminal/test/browser/chatTerminalMirrorTestUtils.js';
-import { ChatPetWidget } from '../../../../contrib/chat/browser/widget/chatPetWidget.js';
+import { ChatPetWidget, getChatPetListPadding } from '../../../../contrib/chat/browser/widget/chatPetWidget.js';
 import { IPlanReviewFeedbackService, PlanReviewFeedbackService } from '../../../../contrib/chat/browser/planReviewFeedback/planReviewFeedbackService.js';
 import { AgentEditorCommentsBridge, IAgentEditorCommentsBridge } from '../../../../services/agentEditorComments/common/agentEditorComments.js';
 import type { IChatRequestVariableEntry } from '../../../../contrib/chat/common/attachments/chatVariableEntries.js';
@@ -158,6 +161,7 @@ export interface IChatWidgetFixtureOptions {
 	readonly hostLayoutMode?: 'none' | 'listOnly' | 'stackedFull' | 'stackedTargeted';
 	/** Mirrors `IChatWidgetViewOptions.persistentContentHeight` for content mounted by {@link IChatWidgetFixtureOptions.decorateInputPart}. */
 	readonly persistentContentHeight?: number;
+	readonly chatPet?: boolean;
 	/** Enables or disables both settings required by the real tree-based sticky-scroll path. */
 	readonly stickyScroll?: boolean;
 	/** Enables the response-level persistent progress indicator. */
@@ -228,11 +232,18 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	const requestDiffs = new Map<string, readonly IEditSessionEntryDiff[]>();
 	const requestFileEdits = new Map<string, readonly IChatResponseFileEdit[]>();
 	const isAgentHostSession = options.agentHostSession === true;
+	const petService = options.chatPet ? disposableStore.add(new FixtureChatPetService({ enabled: true })) : undefined;
+	if (petService) {
+		configureChatPetFixtureFileRoot(disposableStore);
+	}
 
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: context.theme,
 		additionalServices: (reg) => {
 			registerChatFixtureServices(reg);
+			if (petService) {
+				reg.defineInstance(IChatPetService, petService);
+			}
 			if (options.messages.some(message => message.assistant?.some(part => part.kind === 'tool' && part.approval))) {
 				reg.defineInstance(ILanguageModelToolsService, context.disposableStore.add(new MockLanguageModelToolsService()));
 				reg.defineInstance(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
@@ -725,6 +736,18 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 
 	inputPart.render(session, '', fixtureWidget);
 	inputPart.layout(width);
+	if (petService) {
+		disposableStore.add(instantiationService.get(IChatPetWidgetService).register(fixtureWidget, {
+			parent: inputPart.element,
+			dragBounds: inputPart.inputContainerElement ?? inputPart.element,
+			movementBounds: session,
+			model: constObservable(model),
+			hasInput: constObservable(false),
+			inputChanged: inputPart.inputEditor.onDidChangeModelContent,
+			getPlatformTop: petCenterX => inputPart.getChatPetPlatformTop(petCenterX),
+			onDidChangePlatform: inputPart.onDidChangeChatPetHorizontalPlatforms,
+		}));
+	}
 
 	options.decorateInputPart?.(inputPart, instantiationService);
 	inputPart.element.classList.toggle('chat-input-hidden', options.inputVisible === false);
@@ -747,7 +770,8 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 				listBackground,
 			},
 			location: ChatAgentLocation.Chat,
-			paddingBottom: options.persistentContentHeight,
+			paddingBottom: (options.persistentContentHeight ?? 0) + getChatPetListPadding(!!petService, true, 1),
+			bottomStickyScrollPadding: options.persistentContentHeight,
 			rendererOptions: {
 				contentHorizontalPadding: options.contentHorizontalPadding,
 				progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask,

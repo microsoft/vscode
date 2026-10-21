@@ -2044,6 +2044,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		return this.view.elementHeight(index);
 	}
 
+	retainElement(index: number): IDisposable {
+		return this.view.retainElement(index);
+	}
+
 	style(styles: IListStyles): void {
 		this.styleController.style(styles);
 	}

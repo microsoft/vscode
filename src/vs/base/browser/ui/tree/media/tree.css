@@ -59,6 +59,25 @@
 	overflow: hidden;
 }
 
+.monaco-list-row.monaco-tree-bottom-sticky-row,
+.monaco-tree-bottom-sticky-row > .monaco-tl-row > .monaco-tl-contents {
+	overflow: visible;
+}
+
+.monaco-list-row.monaco-tree-bottom-sticky-row {
+	z-index: 1;
+}
+
+.monaco-tree-bottom-sticky-row > .monaco-tl-row > .monaco-tl-contents {
+	min-width: 0;
+}
+
+.monaco-tree-bottom-sticky-content {
+	position: relative;
+	transform: translateY(var(--monaco-tree-bottom-sticky-offset));
+	z-index: 1;
+}
+
 .monaco-tl-twistie::before {
 	border-radius: 20px;
 }

@@ -222,6 +222,15 @@ suite('Chat Accessibility Help', () => {
 		});
 	}
 
+	test('documents the live bottom-sticky progress indicator', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			boundary: help.includes('that same indicator stays above the input, or above its session pills'),
+			return: help.includes('It returns to its original position when you scroll back'),
+			accessibility: help.includes('Its actions, keyboard focus, and spoken updates are unchanged'),
+		}, { boundary: true, return: true, accessibility: true });
+	});
+
 	test('documents generated image previews and saving', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({

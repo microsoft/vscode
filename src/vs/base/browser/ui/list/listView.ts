@@ -17,7 +17,7 @@ import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposab
 import { IRange, Range } from '../../../common/range.js';
 import { INewScrollDimensions, Scrollable, ScrollbarVisibility, ScrollEvent } from '../../../common/scrollable.js';
 import { ISpliceable } from '../../../common/sequence.js';
-import { IListDragAndDrop, IListDragEvent, IListGestureEvent, IListMouseEvent, IListRenderer, IListTouchEvent, IListVirtualDelegate, ListDragOverEffectPosition, ListDragOverEffectType } from './list.js';
+import { IIdentityProvider, IListDragAndDrop, IListDragEvent, IListGestureEvent, IListMouseEvent, IListRenderer, IListTouchEvent, IListVirtualDelegate, ListDragOverEffectPosition, ListDragOverEffectType } from './list.js';
 import { IRangeMap, RangeMap, shift } from './rangeMap.js';
 import { IRow, RowCache } from './rowCache.js';
 import { BugIndicatingError } from '../../../common/errors.js';
@@ -48,6 +48,11 @@ interface IDynamicHeightMeasurement<T> {
 	readonly previousSize: number;
 	readonly row: IRow;
 	rendered: boolean;
+}
+
+interface IRetainedListItem<T> {
+	item: IItem<T>;
+	count: number;
 }
 
 const StaticDND = {
@@ -86,6 +91,7 @@ export interface IListViewOptionsUpdate {
 }
 
 export interface IListViewOptions<T> extends IListViewOptionsUpdate {
+	readonly identityProvider?: IIdentityProvider<T>;
 	readonly dnd?: IListViewDragAndDrop<T>;
 	readonly useShadows?: boolean;
 	readonly verticalScrollMode?: ScrollbarVisibility;
@@ -281,6 +287,7 @@ export interface IListView<T> extends ISpliceable<T>, IDisposable {
 	delegateVerticalScrollbarPointerDown(browserEvent: PointerEvent): void;
 	updateWidth(index: number): void;
 	updateElementHeight(index: number, size: number | undefined, anchorIndex: number | null): void;
+	retainElement(index: number): IDisposable;
 	rerender(): void;
 	layout(height?: number, width?: number): void;
 }
@@ -307,6 +314,8 @@ export class ListView<T> implements IListView<T> {
 	protected rangeMap: IRangeMap;
 	private cache: RowCache<T>;
 	private renderers = new Map<string, IListRenderer<any /* TODO@joao */, any>>();
+	private readonly retainedItems = new Map<IItem<T>, IRetainedListItem<T>>();
+	private readonly identityProvider: IIdentityProvider<T> | undefined;
 	protected lastRenderTop: number;
 	protected lastRenderHeight: number;
 	private renderWidth = 0;
@@ -392,6 +401,7 @@ export class ListView<T> implements IListView<T> {
 
 		this.items = [];
 		this.itemId = 0;
+		this.identityProvider = options.identityProvider;
 		this.rangeMap = this.createRangeMap(options.paddingTop ?? 0);
 
 		for (const renderer of renderers) {
@@ -640,10 +650,28 @@ export class ListView<T> implements IListView<T> {
 		const previousRenderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
 		const deleteRange = { start, end: start + deleteCount };
 		const removeRange = Range.intersect(previousRenderRange, deleteRange);
+		const retainedReplacements = new Map<IItem<T>, number>();
+		const retainedRows = new Map<number, IRow>();
+		const removalIndexes = new Set<number>();
+		for (let i = removeRange.start; i < removeRange.end; i++) {
+			removalIndexes.add(i);
+		}
+		for (const item of this.retainedItems.keys()) {
+			const index = this.items.indexOf(item);
+			if (index >= start && index < start + deleteCount) {
+				removalIndexes.add(index);
+				const replacement = elements.findIndex(element => this.identityProvider
+					? this.identityProvider.getId(element).toString() === this.identityProvider.getId(item.element).toString()
+					: element === item.element);
+				if (replacement >= 0 && this.virtualDelegate.getTemplateId(elements[replacement]) === item.templateId) {
+					retainedReplacements.set(item, start + replacement);
+				}
+			}
+		}
 
 		// try to reuse rows, avoid removing them from DOM
 		const rowsToDispose = new Map<string, IRow[]>();
-		for (let i = removeRange.end - 1; i >= removeRange.start; i--) {
+		for (const i of [...removalIndexes].sort((a, b) => b - a)) {
 			const item = this.items[i];
 			item.dragStartDisposable.dispose();
 			item.checkedDisposable.dispose();
@@ -662,7 +690,12 @@ export class ListView<T> implements IListView<T> {
 					renderer.disposeElement(item.element, i, item.row.templateData, { height: item.size });
 				}
 
-				rows.unshift(item.row);
+				const replacement = retainedReplacements.get(item);
+				if (replacement === undefined) {
+					rows.unshift(item.row);
+				} else {
+					retainedRows.set(replacement, item.row);
+				}
 			}
 
 			item.row = null;
@@ -703,6 +736,17 @@ export class ListView<T> implements IListView<T> {
 		}
 
 		const delta = elements.length - deleteCount;
+		for (const item of deleted) {
+			const retained = this.retainedItems.get(item);
+			if (retained) {
+				this.retainedItems.delete(item);
+				const replacement = retainedReplacements.get(item);
+				if (replacement !== undefined) {
+					retained.item = this.items[replacement];
+					this.retainedItems.set(retained.item, retained);
+				}
+			}
+		}
 		const renderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
 		const renderedRestRange = shift(previousRenderedRestRange, delta);
 		const updateRange = Range.intersect(renderRange, renderedRestRange);
@@ -725,20 +769,34 @@ export class ListView<T> implements IListView<T> {
 		const elementsRange = { start, end: start + elements.length };
 		const insertRanges = [elementsRange, ...unrenderedRestRanges].map(r => Range.intersect(renderRange, r)).reverse();
 		const insertedItems: IItem<T>[] = [];
-
-		insert: for (const range of insertRanges) {
-			for (let i = range.end - 1; i >= range.start; i--) {
-				const item = this.items[i];
-				const rows = rowsToDispose.get(item.templateId);
-				const row = rows?.pop();
-				this.insertItemInDOM(i, row);
-				if (!item.row) {
-					// Rendering recycled this row, invalidating the remaining insertion ranges.
-					break insert;
-				}
-				insertedItems.push(item);
+		const insertIndexes = new Set(retainedRows.keys());
+		for (const range of insertRanges) {
+			for (let i = range.start; i < range.end; i++) {
+				insertIndexes.add(i);
 			}
 		}
+
+		for (const i of [...insertIndexes].sort((a, b) => b - a)) {
+			const item = this.items[i];
+			if (item.row && this.retainedItems.has(item)) {
+				this.updateItemInDOM(item, i);
+				continue;
+			}
+			const rows = rowsToDispose.get(item.templateId);
+			const row = retainedRows.get(i) ?? rows?.pop();
+			retainedRows.delete(i);
+			this.insertItemInDOM(i, row);
+			if (!item.row) {
+				// Rendering recycled this row, invalidating the remaining insertion ranges.
+				break;
+			}
+			insertedItems.push(item);
+		}
+
+		for (const row of retainedRows.values()) {
+			this.cache.release(row);
+		}
+		this.updateRetainedItemsInDOM();
 
 		for (const rows of rowsToDispose.values()) {
 			for (const row of rows) {
@@ -873,6 +931,32 @@ export class ListView<T> implements IListView<T> {
 		return row && row.domNode;
 	}
 
+	/** Keeps one live row mounted outside the viewport until the returned hold is released. */
+	retainElement(index: number): IDisposable {
+		const item = this.items[index];
+		if (!item?.row) {
+			throw new BugIndicatingError('Only a rendered list element can be retained');
+		}
+		let retained = this.retainedItems.get(item);
+		if (!retained) {
+			retained = { item, count: 0 };
+			this.retainedItems.set(item, retained);
+		}
+		retained.count++;
+		const hold = retained;
+		return toDisposable(() => {
+			if (this.retainedItems.get(hold.item) !== hold || --hold.count > 0) {
+				return;
+			}
+			this.retainedItems.delete(hold.item);
+			const index = this.items.indexOf(hold.item);
+			const range = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
+			if (index >= 0 && (index < range.start || index >= range.end)) {
+				this.removeItemFromDOM(index);
+			}
+		});
+	}
+
 	elementHeight(index: number): number {
 		return this.items[index].size;
 	}
@@ -936,14 +1020,20 @@ export class ListView<T> implements IListView<T> {
 			for (let i = rangesToUpdate.start; i < rangesToUpdate.end; i++) {
 				this.updateItemInDOM(this.items[i], i);
 			}
+			this.updateRetainedItemsInDOM();
 		}
 
 		const insertedItems: IItem<T>[] = [];
 		const insertRows = () => {
 			for (const range of rangesToInsert) {
 				for (let i = range.end - 1; i >= range.start; i--) {
-					this.insertItemInDOM(i);
-					insertedItems.push(this.items[i]);
+					const item = this.items[i];
+					if (item.row && this.retainedItems.has(item)) {
+						this.updateItemInDOM(item, i);
+					} else {
+						this.insertItemInDOM(i);
+						insertedItems.push(item);
+					}
 				}
 			}
 		};
@@ -1019,7 +1109,13 @@ export class ListView<T> implements IListView<T> {
 		}
 
 		if (item.stale || !item.row.domNode.parentElement) {
-			const referenceNode = this.items.at(index + 1)?.row?.domNode ?? null;
+			let nextIndex = index + 1;
+			if (this.retainedItems.size > 0) {
+				while (nextIndex < this.items.length && !this.items[nextIndex].row) {
+					nextIndex++;
+				}
+			}
+			const referenceNode = this.items.at(nextIndex)?.row?.domNode ?? null;
 			if (item.row.domNode.parentElement !== this.rowsContainer || item.row.domNode.nextElementSibling !== referenceNode) {
 				this.rowsContainer.insertBefore(item.row.domNode, referenceNode);
 			}
@@ -1105,8 +1201,19 @@ export class ListView<T> implements IListView<T> {
 		item.row!.domNode.classList.toggle('drop-target', item.dropTarget);
 	}
 
+	private updateRetainedItemsInDOM(): void {
+		for (const item of this.retainedItems.keys()) {
+			if (item.row) {
+				this.updateItemInDOM(item, this.items.indexOf(item));
+			}
+		}
+	}
+
 	private removeItemFromDOM(index: number, onScroll?: boolean): void {
 		const item = this.items[index];
+		if (this.retainedItems.has(item)) {
+			return;
+		}
 		item.dragStartDisposable.dispose();
 		item.checkedDisposable.dispose();
 
@@ -1709,6 +1816,7 @@ export class ListView<T> implements IListView<T> {
 							this.updateItemInDOM(this.items[i], i);
 						}
 					}
+					this.updateRetainedItemsInDOM();
 
 					if (typeof anchorElementIndex === 'number') {
 						// To compute a destination scroll top, we need to take into account the current smooth scrolling
@@ -1896,6 +2004,7 @@ export class ListView<T> implements IListView<T> {
 
 	dispose() {
 		this.currentSelectionDisposable.clear();
+		this.retainedItems.clear();
 
 		for (const item of this.items) {
 			item.dragStartDisposable.dispose();

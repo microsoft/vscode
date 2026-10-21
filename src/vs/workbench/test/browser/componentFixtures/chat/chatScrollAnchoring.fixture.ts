@@ -5,11 +5,19 @@
 
 import * as dom from '../../../../../base/browser/dom.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { toAction } from '../../../../../base/common/actions.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { constObservable } from '../../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { CHAT_INPUT_PILLS_ROW_HEIGHT, ChatPillsRow, ChatPillsWidget } from '../../../../browser/chatPills.js';
 import { ChatProgressAnimation, ChatProgressVerbosity } from '../../../../contrib/chat/common/constants.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup, waitForFixtureCondition } from '../fixtureUtils.js';
 import { IChatWidgetFixtureHandle, renderChatWidget } from './chatWidget.fixture.js';
+import { assertChatPetInScreenshot } from './chatPetFixtureUtils.js';
 
 async function waitForListToSettle(container: HTMLElement, listWidget: IChatWidgetFixtureHandle['listWidget']): Promise<void> {
 	const targetWindow = dom.getWindow(container);
@@ -298,7 +306,118 @@ async function renderBottomProgress(context: ComponentFixtureContext): Promise<v
 	measurements.dataset.initial = JSON.stringify(measure());
 }
 
+async function renderReverseStickyProgress(context: ComponentFixtureContext, pills: boolean, pet: boolean, terminal = false): Promise<void> {
+	const { container, disposableStore } = context;
+	container.style.width = '640px';
+	const controls = dom.append(container, dom.$('div'));
+	controls.style.display = 'flex';
+	controls.style.gap = 'var(--vscode-spacing-size80)';
+	const preview = dom.append(container, dom.$('div'));
+	let handle: IChatWidgetFixtureHandle | undefined;
+	await renderChatWidget({ ...context, container: preview }, {
+		width: 640,
+		height: 520,
+		hostLayoutMode: 'listOnly',
+		persistentContentHeight: pills ? CHAT_INPUT_PILLS_ROW_HEIGHT : undefined,
+		chatPet: pet,
+		terminalToolsInThinking: terminal,
+		simpleTerminalCollapsible: terminal,
+		stickyScroll: true,
+		persistentProgress: ChatProgressAnimation.Draw,
+		thinkingPhrases: ['1 background command running'],
+		collapseCompletedResponses: false,
+		additionalServices: registration => registration.defineInstance(IAccessibilityService, new class extends TestAccessibilityService {
+			override isMotionReduced(): boolean { return true; }
+		}()),
+		decorateInputPart: (input, instantiationService) => {
+			if (!pills) {
+				return;
+			}
+			const row = disposableStore.add(new ChatPillsRow('ReverseStickyProgress.fixture', { compact: 'auto', targetWindow: dom.getWindow(input.element) }));
+			const widget = disposableStore.add(instantiationService.createInstance(ChatPillsWidget, {
+				pills: constObservable([
+					{ action: toAction({ id: 'fixture.file', label: '1 File', class: ThemeIcon.asClassName(Codicon.diff), run: () => { } }) },
+					{ action: toAction({ id: 'fixture.shell', label: '1 Background Shell', class: ThemeIcon.asClassName(Codicon.terminal), run: () => { } }) },
+				]),
+			}, { ariaLabel: 'Session status' }));
+			input.persistentContentContainerElement.appendChild(row.element);
+			input.persistentContentContainerElement.classList.add('chat-persistent-content-visible');
+			row.content.appendChild(widget.element);
+			row.observe(input.persistentContentContainerElement);
+			row.observe(widget.element, () => widget.getPillElements());
+		},
+		messages: [{
+			user: 'Review the existing work',
+			assistant: [{ kind: 'markdown', text: Array.from({ length: 18 }, (_, index) => `Earlier result ${index + 1}: the transcript remains readable while the current request runs.`).join('\n\n') }],
+		}, {
+			user: 'Keep the background command running',
+			responseComplete: false,
+			assistant: [
+				...(terminal ? [{
+					kind: 'terminal' as const,
+					intention: 'Count from 0 to 100 every 10 seconds',
+					command: 'i=0; while [ "$i" -le 100 ]; do printf "%s\\n" "$i"; if [ "$i" -lt 100 ]; then sleep 10; fi; i=$((i + 1)); done',
+					output: '0\r\n1\r\n2\r\n3\r\n4\r\n5\r\n',
+					complete: true,
+					background: true,
+				}] : []),
+				{ kind: 'markdown', text: 'The command is still running. Scroll up to read the earlier results.' },
+			],
+		}],
+		onRendered: rendered => handle = rendered,
+	});
+	if (!handle) {
+		throw new Error('The reverse sticky progress fixture did not initialize');
+	}
+	const { listWidget } = handle;
+	await waitForListToSettle(preview, listWidget);
+	listWidget.scrollToEnd();
+	await waitForListToSettle(preview, listWidget);
+	if (terminal) {
+		const toggle = preview.querySelector<HTMLElement>('.chat-terminal-thinking-collapsible.chat-used-context-collapsed > .chat-used-context-label .monaco-button');
+		if (toggle) {
+			toggle.click();
+			await waitForListToSettle(preview, listWidget);
+			listWidget.scrollToEnd();
+			await waitForListToSettle(preview, listWidget);
+		}
+		if (!preview.querySelector('.chat-terminal-output-container.expanded, .chat-terminal-thinking-collapsible:not(.chat-used-context-collapsed)')) {
+			throw new Error('The terminal output must be expanded before scrolling');
+		}
+	}
+	const progress = preview.querySelector<HTMLElement>('.chat-working-progress');
+	if (!progress) {
+		throw new Error('The original progress did not render');
+	}
+	const parent = progress.parentElement;
+	for (const { label, run } of [
+		{ label: 'Scroll to Progress', run: () => listWidget.scrollToEnd() },
+		{ label: 'Scroll Back', run: () => listWidget.scrollTop = 0 },
+	]) {
+		const button = disposableStore.add(new Button(controls, { ...defaultButtonStyles, secondary: true }));
+		button.label = label;
+		disposableStore.add(button.onDidClick(run));
+	}
+	listWidget.scrollTop = terminal ? listWidget.scrollTop - 120 : 0;
+	await waitForListToSettle(preview, listWidget);
+	await waitForFixtureCondition(() => progress.classList.contains('monaco-tree-bottom-sticky-content'), 'Progress did not stick at the input edge');
+	if (progress.parentElement !== parent || preview.querySelectorAll('.chat-working-progress').length !== 1) {
+		throw new Error('Bottom sticky scroll must retain the original progress, not a copy');
+	}
+	if (pet) {
+		await waitForFixtureCondition(() => preview.querySelector<HTMLImageElement>('.chat-pet-sprite:not(.hidden) img.chat-pet-spritesheet')?.complete === true, 'The pet did not finish loading');
+		assertChatPetInScreenshot(preview);
+	}
+}
+
 export default defineThemedFixtureGroup({ path: 'chat/scrollAnchoring/' }, {
+	ReverseStickyProgress: defineThemedFixtureGroup({
+		Input: defineComponentFixture({ deferPaint: true, virtualTime: { enabled: false }, additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => renderReverseStickyProgress(context, false, false) }),
+		Pills: defineComponentFixture({ deferPaint: true, virtualTime: { enabled: false }, render: context => renderReverseStickyProgress(context, true, false) }),
+		InputWithPet: defineComponentFixture({ deferPaint: true, virtualTime: { enabled: false }, render: context => renderReverseStickyProgress(context, false, true) }),
+		PillsWithPet: defineComponentFixture({ deferPaint: true, virtualTime: { enabled: false }, render: context => renderReverseStickyProgress(context, true, true) }),
+		ExpandedTerminal: defineComponentFixture({ deferPaint: true, virtualTime: { enabled: false }, render: context => renderReverseStickyProgress(context, true, true, true) }),
+	}),
 	BottomProgress: defineComponentFixture({ deferPaint: true, virtualTime: { enabled: false }, render: renderBottomProgress }),
 	StreamingVisibleHeader: defineComponentFixture({ deferPaint: true, virtualTime: { enabled: false }, render: context => renderScrollAnchoring(context, false, false) }),
 	StreamingOffscreenHeader: defineComponentFixture({ deferPaint: true, virtualTime: { enabled: false }, render: context => renderScrollAnchoring(context, false, true) }),

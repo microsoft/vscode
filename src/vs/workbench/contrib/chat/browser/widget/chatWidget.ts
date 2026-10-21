@@ -2366,6 +2366,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				getCurrentModeInfo: () => this.input.currentModeInfo,
 				getEditingValue: () => this.input.inputEditor.getValue(),
 				paddingBottom: this._getListPaddingBottom(),
+				bottomStickyScrollPadding: this._persistentContentHeight,
+				enableBottomStickyScroll: !this.viewOptions.renderInputOnTop,
 				tabIndex: this.viewOptions.transcriptTabIndex,
 			}
 		));
@@ -3014,6 +3016,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.container.style.removeProperty(chatPersistentContentHeightVariable);
 		}
 		this._applyListPaddingBottom();
+		this.listWidget?.setBottomStickyScrollPadding(this._persistentContentHeight);
 	}
 
 	private _getListPaddingBottom(): number {
@@ -4363,6 +4366,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const lastItem = this.listWidget.lastItem;
 
 		const contentHeight = Math.max(0, height - inputHeight - readOnlyBannerHeight - chatSuggestNextWidgetHeight);
+		this.listContainer.style.height = `${contentHeight}px`;
 		this.listWidget.layout(contentHeight, width);
 		this.flushPendingListRerender();
 
@@ -4372,8 +4376,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (lastElementVisible && !this.listWidget.isAutoScrollHeld && (!lastResponseIsRendering || checkModeOption(this.input.currentModeKind, this.viewOptions.autoScroll))) {
 			this.listWidget.scrollToEnd();
 		}
-		this.listContainer.style.height = `${contentHeight}px`;
-
 		this._onDidChangeHeight.fire(height);
 	}
 

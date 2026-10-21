@@ -1322,6 +1322,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return undefined;
 	}
 
+	getPersistentProgressDomNode(element: IChatResponseViewModel): HTMLElement | undefined {
+		const templateData = this.getTemplateDataForRequestId(element.id);
+		if (!templateData?.rowContainer.classList.contains(progressScrollTargetClassName)) {
+			return undefined;
+		}
+		return this.getWorkingProgressContentPart(templateData)?.domNode;
+	}
+
 	setVisible(visible: boolean): void {
 		this._isVisible = visible;
 		this._onDidChangeVisibility.fire(visible);
@@ -2062,7 +2070,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 	}
 
-	private isPersistentProgressEnabled(): boolean {
+	isPersistentProgressEnabled(): boolean {
 		return this.rendererOptions.renderStyle !== 'minimal'
 			&& getConfiguredProgressAnimation(this.configService, this.logService) !== ChatProgressAnimation.Off;
 	}
