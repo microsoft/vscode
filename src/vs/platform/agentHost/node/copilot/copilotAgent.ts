@@ -8522,6 +8522,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _createAgentSession(launchPlan: CopilotSessionLaunchPlan, customizationDirectory: URI | undefined, activeClient: ActiveClient, identity: ICopilotAgentSessionIdentity, options?: { readonly deferAutoSessionStart?: boolean }): CopilotAgentSession {
 		launchPlan = {
 			...launchPlan,
+			availableModels: () => this._models.get(),
 			modelPolicyModels: () => this._capiModels.map(model => this._asPresented(model)),
 			managedSettingsResolver: this._managedSettingsResolver,
 		};
