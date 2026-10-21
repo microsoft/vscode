@@ -258,43 +258,31 @@ suite('stateToProgressAdapter', () => {
 		});
 	});
 
-	test('Fusion milestones render workflow descriptions and terminal statuses with specific icons', () => {
+	test('Fusion milestones hide workflow selections and render terminal statuses with specific icons', () => {
 		assert.deepStrictEqual((['selected', 'completed', 'failed', 'cancelled', 'degraded'] as const).map(fusionStatus => {
-			const content = fusionStatus === 'selected' ? 'Selected workflow\n\nSDK-provided workflow description.' : 'Fusion milestone';
-			const part = systemNotificationToChatPart(content, 'local', toAgentSystemNotificationMeta({
+			const part = systemNotificationToChatPart('Fusion milestone', 'local', toAgentSystemNotificationMeta({
 				kind: AgentSystemNotificationKind.FusionProgress,
 				fusionStatus,
-				fusionDescription: fusionStatus === 'selected' ? 'SDK-provided workflow description.' : undefined,
 			}));
-			return part?.kind === 'systemNotification' ? { content: part.content.value, icon: part.icon?.id, collapsible: part.collapsible, presentation: part.presentation } : undefined;
+			return part?.kind === 'systemNotification' ? { content: part.content.value, icon: part.icon?.id, collapsible: part.collapsible, presentation: part.presentation } : part;
 		}), [
-			{ content: 'SDK-provided workflow description.', icon: undefined, collapsible: undefined, presentation: 'workflowDescription' },
+			undefined,
 			{ content: 'Fusion milestone', icon: Codicon.check.id, collapsible: true, presentation: undefined },
 			{ content: 'Fusion milestone', icon: Codicon.error.id, collapsible: true, presentation: undefined },
 			{ content: 'Fusion milestone', icon: Codicon.circleSlash.id, collapsible: true, presentation: undefined },
 			{ content: 'Fusion milestone', icon: Codicon.warning.id, collapsible: true, presentation: undefined },
 		]);
-		assert.strictEqual(systemNotificationToChatPart('Selected workflow', 'local', toAgentSystemNotificationMeta({
-			kind: AgentSystemNotificationKind.FusionProgress,
-			fusionStatus: 'selected',
-			fusionDescription: '',
-		})), undefined);
 	});
 
-	test('Fusion selections preserve host content without the local description metadata', () => {
+	test('Fusion selections from other hosts are not shown, including their workflow hint', () => {
 		assert.deepStrictEqual([
-			'Host-provided workflow description.',
-			'Host-provided heading\n\nHost-provided workflow description.',
-		].map(content => {
-			const part = systemNotificationToChatPart(content, 'remote', {
-				kind: AgentSystemNotificationKind.FusionProgress,
-				fusionStatus: 'selected',
-			});
-			return part?.kind === 'systemNotification' ? { content: part.content.value, presentation: part.presentation } : undefined;
-		}), [
-			{ content: 'Host-provided workflow description.', presentation: 'workflowDescription' },
-			{ content: 'Host-provided heading\n\nHost-provided workflow description.', presentation: 'workflowDescription' },
-		]);
+			'Using Single: one solver will work on your request.',
+			'Selected Single workflow\n\nUsing Single: one solver will work on your request.',
+		].map(content => systemNotificationToChatPart(content, 'remote', {
+			kind: AgentSystemNotificationKind.FusionProgress,
+			fusionStatus: 'selected',
+			'vscode.chat.fusionDescription': 'Using Single: one solver will work on your request.',
+		})), [undefined, undefined]);
 	});
 
 	test('Fusion activity derives from phase status, with tool cancellation overriding stale metadata', () => {
@@ -329,15 +317,20 @@ suite('stateToProgressAdapter', () => {
 		});
 	});
 
-	test('Fusion activity advances past milestones but yields to actual response content', () => {
-		const milestone = { kind: ResponsePartKind.SystemNotification, content: 'Selected Single workflow', _meta: toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.FusionProgress }) } as const;
+	test('Fusion activity advances past shown milestones but yields to actual response content', () => {
+		const milestone = { kind: ResponsePartKind.SystemNotification, content: 'Main pass failed', _meta: toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.FusionProgress }) } as const;
+		const selected = { kind: ResponsePartKind.SystemNotification, content: 'Selected Single workflow', _meta: toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.FusionProgress, fusionStatus: 'selected' }) } as const;
 		assert.deepStrictEqual([
 			getAgentHostActivityProgressId([]),
 			getAgentHostActivityProgressId([milestone]),
 			getAgentHostActivityProgressId([milestone, milestone]),
+			// A hidden workflow selection keeps updating the row before it.
+			getAgentHostActivityProgressId([selected]),
+			getAgentHostActivityProgressId([selected, milestone]),
 			getAgentHostActivityProgressId([milestone, { kind: ResponsePartKind.Markdown, id: 'answer', content: 'Final answer' }]),
+			getAgentHostActivityProgressId([selected, { kind: ResponsePartKind.Markdown, id: 'answer', content: 'Final answer' }]),
 			getAgentHostActivityProgressId([{ kind: ResponsePartKind.SystemNotification, content: 'Other notification' }]),
-		], ['agentHost.chatActivity', 'agentHost.chatActivity:fusion:1', 'agentHost.chatActivity:fusion:2', undefined, undefined]);
+		], ['agentHost.chatActivity', 'agentHost.chatActivity:fusion:1', 'agentHost.chatActivity:fusion:2', 'agentHost.chatActivity', 'agentHost.chatActivity:fusion:1', undefined, undefined, undefined]);
 	});
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
