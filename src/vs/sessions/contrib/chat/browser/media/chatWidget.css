@@ -116,12 +116,12 @@
 	margin-inline: calc(var(--vscode-spacing-size100) + var(--vscode-strokeThickness));
 }
 
-.monaco-workbench.agent-sessions-workbench .sessions-chat-widget:not(.new-chat-in-session) .new-chat-widget-content.experimental-new-session-composer .new-chat-session-options {
+.monaco-workbench.agent-sessions-workbench .sessions-chat-widget .new-chat-widget-content.experimental-new-session-composer .new-chat-session-options {
 	background-color: color-mix(in srgb, var(--vscode-agentsChatInput-background) 75%, var(--session-view-background));
 	border-radius: var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) 0 0;
 }
 
-.monaco-workbench.agent-sessions-workbench:is(.hc-black, .hc-light) .sessions-chat-widget:not(.new-chat-in-session) .new-chat-widget-content.experimental-new-session-composer .new-chat-session-options {
+.monaco-workbench.agent-sessions-workbench:is(.hc-black, .hc-light) .sessions-chat-widget .new-chat-widget-content.experimental-new-session-composer .new-chat-session-options {
 	background-color: var(--vscode-agentsChatInput-background);
 }
 
@@ -324,7 +324,7 @@
 
 /* Flex centering shares attachment growth above and below the midpoint. Offset
  * that growth so the bottom controls stay anchored and the composer grows up. */
-.sessions-chat-widget:not(.new-chat-in-session) > .new-chat-widget-container > .new-chat-widget-content {
+.sessions-chat-widget > .new-chat-widget-container > .new-chat-widget-content {
 	position: relative;
 	/* Composer controls take precedence over the blank session drag strip. */
 	z-index: 1;

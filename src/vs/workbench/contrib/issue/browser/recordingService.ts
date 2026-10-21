@@ -19,6 +19,13 @@ export interface IRecordingData {
 	readonly stoppedBySize?: boolean;
 }
 
+export type ScreenCapturePermissionStatus = 'not-determined' | 'granted' | 'denied' | 'restricted' | 'unknown';
+
+/** Leaves the first permission request to the native prompt, unless access is restricted. */
+export function shouldShowScreenCapturePermissionSettings(status: ScreenCapturePermissionStatus, previouslyRequested: boolean): boolean {
+	return status === 'restricted' || (status !== 'granted' && previouslyRequested);
+}
+
 export const enum RecordingState {
 	Idle = 'idle',
 	Recording = 'recording',
@@ -38,6 +45,9 @@ export interface IRecordingService {
 
 	/** Fires when recording state changes. */
 	readonly onDidChangeState: Event<RecordingState>;
+
+	/** Fires when an active recording fails, after its resources have been released. */
+	readonly onDidFailRecording: Event<Error>;
 
 	/**
 	 * Returns the list of supported recording MIME types on this platform.
@@ -67,13 +77,13 @@ export interface IRecordingService {
 	 * concept doesn't apply (e.g. web) implementations return 'granted' so callers can
 	 * proceed straight to the recording flow.
 	 */
-	getScreenCapturePermissionStatus(): Promise<'not-determined' | 'granted' | 'denied' | 'restricted' | 'unknown'>;
+	getScreenCapturePermissionStatus(): Promise<ScreenCapturePermissionStatus>;
 
-	/**
-	 * Opens the OS-level UI for granting screen-capture permission. No-op on platforms
-	 * where this isn't applicable.
-	 */
-	openScreenCapturePermissionSettings(): void;
+	/** Requests or registers screen-capture access following an explicit recording action. */
+	requestScreenCapturePermission(): Promise<boolean>;
+
+	/** Opens OS permission settings without requesting access again. */
+	openScreenCapturePermissionSettings(): Promise<void>;
 }
 
 /**
@@ -84,6 +94,7 @@ export class BrowserRecordingService implements IRecordingService {
 	readonly isSupported = false;
 	readonly state = RecordingState.Idle;
 	readonly onDidChangeState = Event.None;
+	readonly onDidFailRecording = Event.None;
 
 	getSupportedFormats(): { mimeType: string; label: string; extension: string }[] {
 		return [];
@@ -105,7 +116,11 @@ export class BrowserRecordingService implements IRecordingService {
 		return 'granted';
 	}
 
-	openScreenCapturePermissionSettings(): void {
+	async requestScreenCapturePermission(): Promise<boolean> {
+		return true;
+	}
+
+	async openScreenCapturePermissionSettings(): Promise<void> {
 		// No-op
 	}
 }

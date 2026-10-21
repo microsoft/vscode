@@ -615,6 +615,8 @@ registerAction2(class ManageAgentSessionStorageAction extends Action2 {
 		const pane = await accessor.get(IEditorService).openEditor(new SessionWorktreeCleanupEditorInput(), { pinned: true });
 		if (section === 'automatic' && pane instanceof SessionWorktreeCleanupEditor) {
 			pane.focusAutomaticCleanup();
+		} else if (section === 'all' && pane instanceof SessionWorktreeCleanupEditor) {
+			pane.showAllWorktrees();
 		}
 	}
 });
@@ -694,7 +696,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
-			description: localize('chat.agentSessions.sessionStorageCleanupSuggestion', "Controls whether the Agents Window suggests cleaning up session storage when inactive worktrees reach the count or reclaimable-storage threshold."),
+			description: localize('chat.agentSessions.sessionStorageCleanupSuggestion', "Controls whether the Agents Window suggests cleaning up session storage when inactive worktrees reach the count or reclaimable-storage threshold, or a local worktree's disk has less than 5 GB available."),
 		},
 		[LEGACY_UNIFIED_WORKSPACE_PICKER_SETTING]: {
 			type: 'boolean',
