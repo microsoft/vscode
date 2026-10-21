@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LogLevel as ProxyLogLevel, ProxyAgentParams, createFetchPatch, createProxyAuthorizationLookup, createProxyResolver, loadSystemCertificates, type Log as ProxyLog } from '@vscode/proxy-agent';
+import { LogLevel as ProxyLogLevel, ProxyAgentParams, createFetchPatch, createProxyAuthorizationLookup, createProxyResolver, createWebSocketPatch, loadSystemCertificates, type Log as ProxyLog } from '@vscode/proxy-agent';
 import { getCACertificates } from 'tls';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
@@ -78,6 +78,9 @@ export interface IAgentHostProxyResolver {
 
 	/** Fetch using the same proxy, certificate, and host/PAC resolution as {@link resolveProxy}. */
 	fetch(input: string | URL | Request, init?: RequestInit): Promise<Response>;
+
+	/** Open a WebSocket using the same proxy, certificate, and host/PAC resolution as {@link fetch}. */
+	createWebSocket(url: string, protocol: string): InstanceType<typeof globalThis.WebSocket>;
 }
 
 export class AgentHostProxyResolver extends Disposable implements IAgentHostProxyResolver {
@@ -95,6 +98,7 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 	private _proxyResolver: ReturnType<typeof createProxyResolver> | undefined;
 	private _proxyAgentParams: ProxyAgentParams | undefined;
 	private _fetch: typeof globalThis.fetch | undefined;
+	private _webSocket: typeof globalThis.WebSocket | undefined;
 
 	constructor(
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
@@ -142,6 +146,14 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 			this._fetch = createFetchPatch(this._proxyAgentParams!, globalThis.fetch, proxyResolver.resolveProxyURL);
 		}
 		return this._fetch(input, init);
+	}
+
+	createWebSocket(url: string, protocol: string): InstanceType<typeof globalThis.WebSocket> {
+		if (!this._webSocket) {
+			const proxyResolver = this._getProxyResolver();
+			this._webSocket = createWebSocketPatch(this._proxyAgentParams!, globalThis.WebSocket, proxyResolver.resolveProxyURL);
+		}
+		return new this._webSocket(url, protocol);
 	}
 
 	private _getProxyResolver(): ReturnType<typeof createProxyResolver> {
