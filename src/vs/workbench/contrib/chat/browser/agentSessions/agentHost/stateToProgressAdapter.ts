@@ -929,14 +929,9 @@ function getSessionCopilotCredits(usage: UsageInfo | undefined): number | undefi
 }
 
 function getCopilotCredits(usage: UsageInfo | undefined): number | undefined {
-	const meta = readUsageInfoMeta(usage);
-	const totalNanoAiu = meta?.copilotUsage?.totalNanoAiu;
-	if (typeof totalNanoAiu === 'number' && totalNanoAiu >= 0) {
-		return totalNanoAiu / 1_000_000_000;
-	}
-	const cost = meta?.cost;
-	return typeof cost === 'number' && cost >= 0
-		? cost
+	const totalNanoAiu = readUsageInfoMeta(usage).copilotUsage?.totalNanoAiu;
+	return typeof totalNanoAiu === 'number' && totalNanoAiu >= 0
+		? totalNanoAiu / 1_000_000_000
 		: undefined;
 }
 

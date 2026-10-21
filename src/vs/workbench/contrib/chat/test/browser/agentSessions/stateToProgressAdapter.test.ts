@@ -1247,7 +1247,7 @@ suite('stateToProgressAdapter', () => {
 		});
 
 		test('Fusion footer identification is per-turn, including restored events without a selected model', () => {
-			const usage = { model: 'gpt-5', _meta: { cost: 0 } };
+			const usage = { model: 'gpt-5', _meta: { copilotUsage: { totalNanoAiu: 0 } } };
 			const turns = [
 				createTurn({ message: { ...message('Before usage'), model: { id: 'hydrafusion' } } }),
 				createTurn({
@@ -5497,8 +5497,8 @@ suite('stateToProgressAdapter', () => {
 			const result = {
 				resolvedModel: formatTurnResponseDetails(auto, 'raptor-mini', undefined),
 				withPricing: formatTurnResponseDetails({ ...auto, pricing: '0x' }, 'raptor-mini', undefined),
-				withCredits: formatTurnResponseDetails(auto, 'raptor-mini', { _meta: { cost: 2 } }),
-				oneCredit: formatTurnResponseDetails(auto, 'raptor-mini', { _meta: { cost: 1 } }),
+				withCredits: formatTurnResponseDetails(auto, 'raptor-mini', { _meta: { copilotUsage: { totalNanoAiu: 2_000_000_000 } } }),
+				oneCredit: formatTurnResponseDetails(auto, 'raptor-mini', { _meta: { copilotUsage: { totalNanoAiu: 1_000_000_000 } } }),
 				noBilledModel: formatTurnResponseDetails(auto, undefined, undefined),
 			};
 
@@ -5515,8 +5515,8 @@ suite('stateToProgressAdapter', () => {
 			const sonnet = { name: 'Claude Sonnet 4.5', pricing: '1x' };
 			const result = {
 				concrete: formatTurnResponseDetails(sonnet, undefined, undefined),
-				concreteWithCredits: formatTurnResponseDetails(sonnet, undefined, { _meta: { cost: 2 } }),
-				unknown: formatTurnResponseDetails(undefined, 'raptor-mini', { _meta: { cost: 2 } }),
+				concreteWithCredits: formatTurnResponseDetails(sonnet, undefined, { _meta: { copilotUsage: { totalNanoAiu: 2_000_000_000 } } }),
+				unknown: formatTurnResponseDetails(undefined, 'raptor-mini', { _meta: { copilotUsage: { totalNanoAiu: 2_000_000_000 } } }),
 			};
 
 			assert.deepStrictEqual(result, {
@@ -5544,6 +5544,29 @@ suite('stateToProgressAdapter', () => {
 	});
 
 	suite('usageInfoToChatUsage', () => {
+		test('requires measured nano-AIU instead of multiplier hints for credits', () => {
+			const metadata = [
+				{ cost: 0 },
+				{ cost: 3 },
+				{ cost: 3, copilotUsage: { totalNanoAiu: 0, sessionTotalNanoAiu: 0 } },
+				{ cost: 3, copilotUsage: { totalNanoAiu: 2_000_000_000, sessionTotalNanoAiu: 4_000_000_000 } },
+				...[-1, Infinity, NaN, '2'].map(amount => ({ cost: 3, copilotUsage: { totalNanoAiu: amount, sessionTotalNanoAiu: amount } })),
+			];
+			assert.deepStrictEqual(metadata.map(_meta => {
+				const usage = usageInfoToChatUsage({ inputTokens: 10, outputTokens: 2, _meta });
+				return [usage?.copilotCredits, usage?.sessionCopilotCredits];
+			}), [
+				[undefined, undefined],
+				[undefined, undefined],
+				[0, 0],
+				[2, 4],
+				[undefined, undefined],
+				[undefined, undefined],
+				[undefined, undefined],
+				[undefined, undefined],
+			]);
+		});
+
 		test('carries whole-turn per-model token totals and resolves display names', () => {
 			const turnTokenTotals = [{ model: 'claude-opus-4.8', inputTokens: 110, cachedTokens: 4, outputTokens: 220 }];
 

@@ -633,6 +633,38 @@ suite('Agent host _meta readers', () => {
 		});
 	});
 
+	suite('usage billing quantities', () => {
+		test('does not report consumption from an untyped cost hint', () => {
+			assert.deepStrictEqual([
+				{ cost: 0 },
+				{ cost: 2 },
+				{ copilotUsage: { totalNanoAiu: 0 } },
+				{ copilotUsage: { sessionTotalNanoAiu: 0 } },
+				{ copilotUsage: { totalNanoAiu: Infinity } },
+			].map(_meta => hasReportedUsage({ _meta })), [false, false, true, true, false]);
+		});
+
+		test('rejects non-finite or negative billing amounts without discarding completeness', () => {
+			assert.deepStrictEqual([-1, Infinity, NaN, '2', undefined, 0, 2_000_000_000].map(amount => {
+				const usage = readUsageInfoMeta({
+					_meta: {
+						copilotUsage: { totalNanoAiu: amount, sessionTotalNanoAiu: amount, sessionAiCreditsStatus: 'partial' },
+						directCopilotUsage: { totalNanoAiu: amount },
+					}
+				});
+				return [usage.copilotUsage, usage.directCopilotUsage];
+			}), [
+				[{ sessionAiCreditsStatus: 'partial' }, undefined],
+				[{ sessionAiCreditsStatus: 'partial' }, undefined],
+				[{ sessionAiCreditsStatus: 'partial' }, undefined],
+				[{ sessionAiCreditsStatus: 'partial' }, undefined],
+				[{ sessionAiCreditsStatus: 'partial' }, undefined],
+				[{ totalNanoAiu: 0, sessionTotalNanoAiu: 0, sessionAiCreditsStatus: 'partial' }, { totalNanoAiu: 0 }],
+				[{ totalNanoAiu: 2_000_000_000, sessionTotalNanoAiu: 2_000_000_000, sessionAiCreditsStatus: 'partial' }, { totalNanoAiu: 2_000_000_000 }],
+			]);
+		});
+	});
+
 	suite('usage info turn token totals', () => {
 		/** Wraps a `_meta` bag in a minimal {@link UsageInfo}. */
 		function usage(meta: Record<string, unknown> | undefined): UsageInfo {

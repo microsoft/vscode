@@ -25095,39 +25095,36 @@ suite('AgentService (node dispatcher)', () => {
 			);
 		});
 
-		test('re-attaches usage over an Auto-model stub, preserving the routing metadata', async () => {
-			// A turn that ran on Copilot Auto is restored with a token-less stub
-			// (`{ model, _meta: { autoModeResolved } }`, see mapSessionEvents)
-			// because the routing decision IS persisted while the usage event is
-			// not. Treating that stub as "already has usage" would skip exactly
-			// the turns needing re-attachment — and Auto is the default model.
-			const db = new TestSessionDatabase();
-			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			const autoModeResolved = { chosenModel: 'claude-opus-4.8', predictedLabel: 'needs_reasoning', confidence: 0.93 };
-			const agent = disposables.add(new MockAgent('copilot'));
-			agent.turnUsageOverride = { model: 'claude-opus-4.8', _meta: { autoModeResolved } };
-			registerTestAgentProvider(localService, agent);
-			const { session } = await createAgentSession(agent);
-			const sessionResource = (await agent.listSessions())[0].session;
-			agent.sessionMessages = [
-				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Hello', toolRequests: [] },
-				{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: 'Hi there!', toolRequests: [] },
-			];
-			await db.setTurnUsage('msg-1', JSON.stringify({ inputTokens: 100, outputTokens: 20, model: 'claude-opus-4.8', _meta: { copilotUsage: { totalNanoAiu: 5_000_000_000 } } }));
+		for (const cost of [undefined, 0, 3]) {
+			test(`re-attaches usage over an Auto-model stub without treating a cost hint as consumption (${cost})`, async () => {
+				const db = new TestSessionDatabase();
+				const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+				const autoModeResolved = { chosenModel: 'claude-opus-4.8', predictedLabel: 'needs_reasoning', confidence: 0.93 };
+				const stubMeta = { autoModeResolved, ...(cost !== undefined ? { cost } : {}) };
+				const agent = disposables.add(new MockAgent('copilot'));
+				agent.turnUsageOverride = { model: 'claude-opus-4.8', _meta: stubMeta };
+				registerTestAgentProvider(localService, agent);
+				const { session } = await createAgentSession(agent);
+				const sessionResource = (await agent.listSessions())[0].session;
+				agent.sessionMessages = [
+					{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Hello', toolRequests: [] },
+					{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: 'Hi there!', toolRequests: [] },
+				];
+				await db.setTurnUsage('msg-1', JSON.stringify({ inputTokens: 100, outputTokens: 20, model: 'claude-opus-4.8', _meta: { copilotUsage: { totalNanoAiu: 5_000_000_000 } } }));
 
-			await localService.restoreSession(sessionResource);
+				await localService.restoreSession(sessionResource);
 
-			assert.deepStrictEqual(
-				getStateManager(localService).getSessionState(sessionResource.toString())?.turns.map(t => t.usage),
-				[{
-					inputTokens: 100,
-					outputTokens: 20,
-					model: 'claude-opus-4.8',
-					// The stub's routing metadata survives alongside the persisted usage.
-					_meta: { autoModeResolved, copilotUsage: { totalNanoAiu: 5_000_000_000 } },
-				}],
-			);
-		});
+				assert.deepStrictEqual(
+					getStateManager(localService).getSessionState(sessionResource.toString())?.turns.map(t => t.usage),
+					[{
+						inputTokens: 100,
+						outputTokens: 20,
+						model: 'claude-opus-4.8',
+						_meta: { ...stubMeta, copilotUsage: { totalNanoAiu: 5_000_000_000 } },
+					}],
+				);
+			});
+		}
 
 		test('interleaves persisted host-injected local turns after their anchor on restore', async () => {
 			const db = new TestSessionDatabase();

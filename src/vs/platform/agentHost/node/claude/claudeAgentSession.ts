@@ -393,7 +393,7 @@ export class ClaudeAgentSession extends Disposable {
 	/**
 	 * Inject the turn's accumulated Copilot credits into its `ChatUsage`
 	 * signal as `_meta.copilotUsage.totalNanoAiu` — the well-known key the
-	 * workbench prefers over `_meta.cost` when rendering per-turn credits.
+	 * workbench uses when rendering measured per-turn credits.
 	 * All other signals pass through untouched.
 	 */
 	private _enrichSignalWithCredits(signal: AgentSignal): AgentSignal {

@@ -2125,7 +2125,8 @@ suite('AgentHostChatContribution', () => {
 		});
 
 		const usageCases = [
-			{ name: 'VS Code zero turn cost', meta: { cost: 0 }, credits: 0, sessionCredits: undefined, latest: undefined, attribution: undefined },
+			{ name: 'VS Code zero multiplier is not a credit charge', meta: { cost: 0 }, credits: undefined, sessionCredits: undefined, latest: undefined, attribution: undefined },
+			{ name: 'VS Code measured zero turn charge', meta: { copilotUsage: { totalNanoAiu: 0 } }, credits: 0, sessionCredits: undefined, latest: undefined, attribution: undefined },
 			{
 				name: 'VS Code credits, quota and context attribution', meta: {
 					copilotUsage: { totalNanoAiu: 2_000_000_000, sessionTotalNanoAiu: 4_000_000_000 },
@@ -2137,7 +2138,7 @@ suite('AgentHostChatContribution', () => {
 				]
 			},
 			{ name: 'Copilot D latest-call diagnostics', meta: { 'copilot.usageDetail': { cost: 0.5, duration: 12 } }, credits: undefined, sessionCredits: undefined, latest: { cost: 0.5, duration: 12 }, attribution: undefined },
-			{ name: 'mixed usage preserves VS Code turn cost', meta: { cost: 0, 'copilot.usageDetail': { cost: 0.5, duration: 12 } }, credits: 0, sessionCredits: undefined, latest: undefined, attribution: undefined },
+			{ name: 'mixed cost hints do not become a credit charge', meta: { cost: 0, 'copilot.usageDetail': { cost: 0.5, duration: 12 } }, credits: undefined, sessionCredits: undefined, latest: undefined, attribution: undefined },
 		];
 		for (const entry of usageCases) {
 			test(`${entry.name} reaches Chat usage through the live handler`, async () => {
@@ -8198,7 +8199,7 @@ suite('AgentHostChatContribution', () => {
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
-			fire({ type: 'chat/usage', session, turnId, usage: { model: 'opus-4.7', _meta: { cost: 1.5 } } } as ChatAction);
+			fire({ type: 'chat/usage', session, turnId, usage: { model: 'opus-4.7', _meta: { copilotUsage: { totalNanoAiu: 1_500_000_000 } } } } as ChatAction);
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 
 			const result = await turnPromise;
@@ -8278,7 +8279,7 @@ suite('AgentHostChatContribution', () => {
 				const { turnPromise, session, turnId, fire, collected } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
 					userSelectedModelId: 'agent-host-copilot:hydrafusion', cancellationToken: cts.token,
 				});
-				fire({ type: 'chat/usage', session, turnId, usage: { model: 'gpt-5.6-sol', inputTokens: 100, outputTokens: 20, _meta: { cost: 15.5 } } } as ChatAction);
+				fire({ type: 'chat/usage', session, turnId, usage: { model: 'gpt-5.6-sol', inputTokens: 100, outputTokens: 20, _meta: { copilotUsage: { totalNanoAiu: 15_500_000_000 } } } } as ChatAction);
 				if (cancelled) {
 					cts.cancel();
 				} else {
@@ -8302,7 +8303,7 @@ suite('AgentHostChatContribution', () => {
 				]);
 				const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { languageModels, provider: 'copilotcli' });
 				const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { userSelectedModelId: 'agent-host-copilot:hydrafusion' });
-				fire({ type: 'chat/usage', session, turnId, usage: { model: 'gpt-5.6-sol', inputTokens: 100, _meta: cost === undefined ? {} : { cost } } } as ChatAction);
+				fire({ type: 'chat/usage', session, turnId, usage: { model: 'gpt-5.6-sol', inputTokens: 100, _meta: cost === undefined ? {} : { copilotUsage: { totalNanoAiu: cost * 1_000_000_000 } } } } as ChatAction);
 				fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 				assert.strictEqual((await turnPromise).details, cost === undefined ? 'HydraFusion Preview · 2x' : 'HydraFusion Preview • 2 credits');
 			}));
@@ -8319,7 +8320,7 @@ suite('AgentHostChatContribution', () => {
 
 			const result = await turnPromise;
 
-			assert.strictEqual(result.details, 'OpenRouter/Amazon: Nova Micro 1.0 • 1.5 credits');
+			assert.strictEqual(result.details, 'OpenRouter/Amazon: Nova Micro 1.0');
 		}));
 
 		test('live BYOK turn includes a configured group between provider and model', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -8333,7 +8334,7 @@ suite('AgentHostChatContribution', () => {
 
 			const result = await turnPromise;
 
-			assert.strictEqual(result.details, 'Custom Endpoint/My Endpoint/Custom Model • 1 credit');
+			assert.strictEqual(result.details, 'Custom Endpoint/My Endpoint/Custom Model');
 		}));
 
 		test('cancelled turn still returns model credit details from accumulated usage', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -8346,7 +8347,7 @@ suite('AgentHostChatContribution', () => {
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { cancellationToken: cts.token });
 
 			// Usage (credits) accumulated before the user interrupts the turn.
-			fire({ type: 'chat/usage', session, turnId, usage: { model: 'opus-4.7', _meta: { cost: 1.5 } } } as ChatAction);
+			fire({ type: 'chat/usage', session, turnId, usage: { model: 'opus-4.7', _meta: { copilotUsage: { totalNanoAiu: 1_500_000_000 } } } } as ChatAction);
 
 			// User cancels mid-flight before the turn reaches a terminal state.
 			cts.cancel();
@@ -8356,7 +8357,7 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(result.details, 'Opus 4.7 • 1.5 credits');
 		}));
 
-		test('live turn renders zero-cost usage as 0 credits instead of multiplier', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		test('live turn renders measured zero nano-AIU as 0 credits instead of multiplier', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const languageModels = new Map<string, ILanguageModelChatMetadata>([
 				['agent-host-copilot:opus-4.7', upcastPartial<ILanguageModelChatMetadata>({ name: 'Opus 4.7', pricing: '15x' })],
 			]);
@@ -8364,7 +8365,7 @@ suite('AgentHostChatContribution', () => {
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
-			fire({ type: 'chat/usage', session, turnId, usage: { model: 'opus-4.7', _meta: { cost: 0 } } } as ChatAction);
+			fire({ type: 'chat/usage', session, turnId, usage: { model: 'opus-4.7', _meta: { copilotUsage: { totalNanoAiu: 0 } } } } as ChatAction);
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 
 			const result = await turnPromise;
@@ -8382,8 +8383,8 @@ suite('AgentHostChatContribution', () => {
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
-			fire({ type: 'chat/usage', session, turnId, usage: { inputTokens: 100, _meta: { cost: 1 } } } as ChatAction);
-			fire({ type: 'chat/usage', session, turnId, usage: { inputTokens: 100, model: 'claude-sonnet-4-6', _meta: { cost: 1 } } } as ChatAction);
+			fire({ type: 'chat/usage', session, turnId, usage: { inputTokens: 100, _meta: { copilotUsage: { totalNanoAiu: 1_000_000_000 } } } } as ChatAction);
+			fire({ type: 'chat/usage', session, turnId, usage: { inputTokens: 100, model: 'claude-sonnet-4-6', _meta: { copilotUsage: { totalNanoAiu: 1_000_000_000 } } } } as ChatAction);
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 
 			const result = await turnPromise;
@@ -8408,7 +8409,7 @@ suite('AgentHostChatContribution', () => {
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables,
 				{ userSelectedModelId: 'agent-host-copilot:auto' });
 
-			fire({ type: 'chat/usage', session, turnId, usage: { model: 'raptor-mini', _meta: { cost: 1 } } } as ChatAction);
+			fire({ type: 'chat/usage', session, turnId, usage: { model: 'raptor-mini', _meta: { copilotUsage: { totalNanoAiu: 1_000_000_000 } } } } as ChatAction);
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 
 			const result = await turnPromise;
@@ -8434,15 +8435,14 @@ suite('AgentHostChatContribution', () => {
 		}));
 
 		test('subagent credits surface on the subagent tool without re-aggregating into parent usage', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const byok = createByokLanguageModelTestData();
-			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, byok);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
 			// Parent turn reports its own usage. For hosts that fold subagent usage
 			// into the parent turn aggregate, this value already includes the subagent;
 			// the client emits it as-is and never re-adds subagent credits itself.
-			fire({ type: 'chat/usage', session, turnId, usage: { inputTokens: 500, outputTokens: 100, model: 'gpt-5', _meta: { cost: 2.0 } } } as ChatAction);
+			fire({ type: 'chat/usage', session, turnId, usage: { inputTokens: 500, outputTokens: 100, model: 'gpt-5', _meta: { copilotUsage: { totalNanoAiu: 2_000_000_000 } } } } as ChatAction);
 
 			// Spawn a subagent tool call.
 			const parentToolCallId = 'tc-sub-cost';
@@ -8483,7 +8483,7 @@ suite('AgentHostChatContribution', () => {
 			} as ChatAction);
 			fireChild({
 				type: 'chat/usage', session: childSessionUri, turnId: childTurnId,
-				usage: { inputTokens: 800, outputTokens: 200, model: 'openrouter/amazon/nova-micro-v1', _meta: { cost: 5.0 } },
+				usage: { inputTokens: 800, outputTokens: 200, model: 'gpt-5', _meta: { copilotUsage: { totalNanoAiu: 5_000_000_000 } } },
 			} as ChatAction);
 
 			await timeout(50);
@@ -8512,8 +8512,8 @@ suite('AgentHostChatContribution', () => {
 				modelName: subagentData.modelName,
 			}, {
 				credits: 5.0,
-				modelId: 'agent-host-copilot:openrouter/amazon/nova-micro-v1',
-				modelName: 'OpenRouter/Amazon: Nova Micro 1.0',
+				modelId: 'agent-host-copilot:gpt-5',
+				modelName: 'gpt-5',
 			});
 		}));
 
@@ -11817,7 +11817,7 @@ suite('AgentHostChatContribution', () => {
 				]);
 				const { sessionHandler, agentHostService } = createContribution(disposables, { languageModels, provider });
 				const sessionUri = AgentSession.uri(provider, 'sess-fusion-footers');
-				const usage = { model: 'gpt-5.6-sol', inputTokens: 100, outputTokens: 20, _meta: { cost: 15.5 } };
+				const usage = { model: 'gpt-5.6-sol', inputTokens: 100, outputTokens: 20, _meta: { copilotUsage: { totalNanoAiu: 15_500_000_000 } } };
 				const fusionMessage = { text: 'Fusion request', origin: { kind: MessageKind.User }, model: { id: 'hydrafusion' } } as const;
 				agentHostService.sessionStates.set(sessionUri.toString(), {
 					...createSessionState({
@@ -11868,7 +11868,7 @@ suite('AgentHostChatContribution', () => {
 				]);
 				const { sessionHandler, agentHostService } = createContribution(disposables, { languageModels, provider: 'copilotcli' });
 				const sessionUri = AgentSession.uri('copilotcli', 'sess-fusion-footers');
-				const usage = { model: 'gpt-5.6-sol', inputTokens: 100, outputTokens: 20, _meta: { cost: 15.5 } };
+				const usage = { model: 'gpt-5.6-sol', inputTokens: 100, outputTokens: 20, _meta: { copilotUsage: { totalNanoAiu: 15_500_000_000 } } };
 				const message = (model: string) => ({ text: 'Fusion request', origin: { kind: MessageKind.User }, model: { id: model } } as const);
 				agentHostService.sessionStates.set(sessionUri.toString(), {
 					...createSessionState({
@@ -11947,7 +11947,7 @@ suite('AgentHostChatContribution', () => {
 						id: 'turn-1',
 						message: { text: 'Q1', origin: { kind: MessageKind.User } },
 						responseParts: [{ kind: ResponsePartKind.Markdown, id: 'md-1', content: 'A1' }],
-						usage: { model: 'opus-4.7', _meta: { cost: 1.5 } },
+						usage: { model: 'opus-4.7', _meta: { copilotUsage: { totalNanoAiu: 1_500_000_000 } } },
 						state: TurnState.Complete,
 					},
 					{
@@ -11963,7 +11963,7 @@ suite('AgentHostChatContribution', () => {
 					startedAt: '2025-01-01T00:00:00.000Z',
 					message: { text: 'Q3', origin: { kind: MessageKind.User }, model: { id: 'sonnet-4.6', config: { reasoningEffort: 'max' } } },
 					responseParts: [],
-					usage: { _meta: { cost: 1 } },
+					usage: { _meta: { copilotUsage: { totalNanoAiu: 1_000_000_000 } } },
 				},
 			});
 

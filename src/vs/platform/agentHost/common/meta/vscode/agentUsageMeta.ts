@@ -13,6 +13,10 @@ function isTokenCount(value: unknown): value is number {
 	return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 }
 
+function isNanoAiuAmount(value: unknown): value is number {
+	return typeof value === 'number' && Number.isFinite(value) && value >= 0;
+}
+
 export type AiCreditsStatus = 'complete' | 'partial' | 'unavailable';
 
 export function isAiCreditsStatus(value: unknown): value is AiCreditsStatus {
@@ -38,7 +42,7 @@ export function readChatUsage(session: { readonly _meta?: SessionMeta } | undefi
 	if (!isMetadataRecord(usage)) {
 		return undefined;
 	}
-	if (typeof usage.totalNanoAiu !== 'number' || !Number.isFinite(usage.totalNanoAiu) || usage.totalNanoAiu < 0) {
+	if (!isNanoAiuAmount(usage.totalNanoAiu)) {
 		return undefined;
 	}
 	return {
@@ -109,7 +113,7 @@ export function createLocalModelTurnExecutionMeta(execution: ILocalTurnExecution
  * Clients MAY read these to provide enhanced UI (e.g. credit cost display).
  */
 export interface UsageInfoMeta {
-	/** Per-turn credit cost reported by the backend. */
+	/** Legacy provider cost hint with no declared billing unit; not a measured credit charge. */
 	cost?: number;
 	/** The concrete model selected by Copilot Auto and the routing explanation. */
 	autoModeResolved?: IAutoModeResolvedInfo;
@@ -216,8 +220,8 @@ export function readUsageInfoMeta(usage: UsageInfo | undefined): UsageInfoMeta {
 	if (copilotUsage && typeof copilotUsage === 'object' && !Array.isArray(copilotUsage)) {
 		const rawUsage = copilotUsage as Record<string, unknown>;
 		const usage: Mutable<NonNullable<UsageInfoMeta['copilotUsage']>> = {};
-		if (typeof rawUsage.totalNanoAiu === 'number') { usage.totalNanoAiu = rawUsage.totalNanoAiu; }
-		if (typeof rawUsage.sessionTotalNanoAiu === 'number') { usage.sessionTotalNanoAiu = rawUsage.sessionTotalNanoAiu; }
+		if (isNanoAiuAmount(rawUsage.totalNanoAiu)) { usage.totalNanoAiu = rawUsage.totalNanoAiu; }
+		if (isNanoAiuAmount(rawUsage.sessionTotalNanoAiu)) { usage.sessionTotalNanoAiu = rawUsage.sessionTotalNanoAiu; }
 		if (isAiCreditsStatus(rawUsage.sessionAiCreditsStatus)) { usage.sessionAiCreditsStatus = rawUsage.sessionAiCreditsStatus; }
 		result.copilotUsage = usage;
 	}
@@ -244,7 +248,7 @@ export function readUsageInfoMeta(usage: UsageInfo | undefined): UsageInfoMeta {
 	const directCopilotUsage = meta.directCopilotUsage;
 	if (directCopilotUsage && typeof directCopilotUsage === 'object' && !Array.isArray(directCopilotUsage)) {
 		const totalNanoAiu = (directCopilotUsage as Record<string, unknown>).totalNanoAiu;
-		if (typeof totalNanoAiu === 'number') {
+		if (isNanoAiuAmount(totalNanoAiu)) {
 			result.directCopilotUsage = { totalNanoAiu };
 		}
 	}

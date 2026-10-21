@@ -326,8 +326,7 @@ export function hasReportedUsage(usage: UsageInfo | undefined): boolean {
 		// A report can carry only the session total — a compaction billed while no turn
 		// was active advances it without any per-event billing payload — and that is
 		// still consumption worth showing.
-		|| (typeof meta.copilotUsage?.sessionTotalNanoAiu === 'number' && meta.copilotUsage.sessionTotalNanoAiu >= 0)
-		|| (typeof meta.cost === 'number' && meta.cost >= 0);
+		|| (typeof meta.copilotUsage?.sessionTotalNanoAiu === 'number' && meta.copilotUsage.sessionTotalNanoAiu >= 0);
 }
 
 export {
