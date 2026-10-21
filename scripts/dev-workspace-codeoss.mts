@@ -90,7 +90,12 @@ async function main(): Promise<void> {
 	try {
 		result = await Promise.race([launched, stopped]);
 		await Promise.race([waitForActivation(readyFile, extensionPath, activation.signal), stopped]);
-		reportServiceReady({ ...result, pid: String(result.pid), extensionPath, extensionId: 'vscode.markdown-language-features' });
+		const value: Record<string, string> = {
+			...result, pid: String(result.pid), cdpPort: String(result.cdpPort),
+			extHostPort: String(result.extHostPort), mainPort: String(result.mainPort),
+			extensionPath, extensionId: 'vscode.markdown-language-features',
+		};
+		reportServiceReady(value);
 		await exited;
 	} catch (error) {
 		if (result) {

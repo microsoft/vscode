@@ -63,7 +63,8 @@ for (const scenario of ['ready', 'activation-error', 'early-exit', 'app-error'])
 				assert.equal(child.exitCode, null);
 				assert.ok(line.startsWith('DEV_WORKSPACE_READY '));
 				const ready = JSON.parse(line.slice('DEV_WORKSPACE_READY '.length));
-				assert.equal(ready.cdpPort, 1234);
+				assert.equal(ready.cdpPort, '1234');
+				assert.ok(Object.values(ready).every(value => typeof value === 'string'));
 				assert.equal(ready.extensionId, 'vscode.markdown-language-features');
 				assert.equal(ready.extensionPath, join(root, 'extensions', 'markdown-language-features'));
 				assert.equal(ready.userDataDir, join(root, 'profile'));
