@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ManagedSettingsPermissions, PermissionMode, SessionEventPayload } from '@github/copilot-sdk';
+import type { JsonValue, ManagedSettingsPermissions, PermissionMode, SessionEventPayload } from '@github/copilot-sdk';
 import { isObject } from '../../../../base/common/types.js';
 import { AutoApproveLevel, platformSessionSchema } from '../../common/agentHostSchema.js';
-import { ManagedRuleFamily } from '../../common/agentHostManagedRules.js';
+import { getManagedRuleFamily, ManagedRuleFamily } from '../../common/agentHostManagedRules.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import { ResolveSessionConfigResult } from '../../common/state/protocol/commands.js';
 import { localize } from '../../../../nls.js';
@@ -15,15 +15,22 @@ export function fromCopilotPermissionMode(mode: PermissionMode): AutoApproveLeve
 	return mode === 'manual' ? 'default' : mode === 'allow-all' ? 'autoApprove' : 'assisted';
 }
 
+type ManagedSettingsResolvedData = SessionEventPayload<'session.managed_settings_resolved'>['data'];
+
+/** The effective managed `permissions` settings of a resolved policy, when it has any. */
+function getResolvedManagedPermissions(resolved: ManagedSettingsResolvedData): { readonly [key: string]: JsonValue } | undefined {
+	const settings = resolved.settings;
+	const value = settings && typeof settings === 'object' && !Array.isArray(settings) ? settings.permissions : undefined;
+	return value && typeof value === 'object' && !Array.isArray(value) ? value : undefined;
+}
+
 /** Explicit new mode restrictions replace the legacy blanket policy, but not other tool restrictions. */
 export function getCopilotApprovalPolicy(
-	resolved: SessionEventPayload<'session.managed_settings_resolved'>['data'],
+	resolved: ManagedSettingsResolvedData,
 	legacyRestricted: boolean,
 	bridged: ManagedSettingsPermissions = {},
 ): { available: readonly AutoApproveLevel[]; defaultMode: AutoApproveLevel; permissions: ManagedSettingsPermissions } {
-	const settings = resolved.settings;
-	const value = settings && typeof settings === 'object' && !Array.isArray(settings) ? settings.permissions : undefined;
-	const modes = value && typeof value === 'object' && !Array.isArray(value) ? value : undefined;
+	const modes = getResolvedManagedPermissions(resolved);
 	const explicit = typeof modes?.disableAssistedPermissionsMode === 'boolean'
 		|| modes?.disableBypassPermissionsMode === 'disable' || modes?.disableBypassPermissionsMode === 'enable';
 	const permissions: ManagedSettingsPermissions = legacyRestricted && !explicit
@@ -37,8 +44,6 @@ export function getCopilotApprovalPolicy(
 	const requestedDefault = modes?.defaultMode === 'assisted' ? 'assisted' : modes?.defaultMode === 'allow-all' ? 'autoApprove' : 'default';
 	return { available, defaultMode: available.includes(requestedDefault) ? requestedDefault : 'default', permissions };
 }
-
-type ManagedSettingsResolvedData = SessionEventPayload<'session.managed_settings_resolved'>['data'];
 
 /**
  * How Copilot managed permissions govern a client tool that returns workspace
@@ -68,12 +73,6 @@ function getManagedRules(permissions: unknown, key: 'deny' | 'ask' | 'allow'): s
 	return Array.isArray(rules) ? rules.filter((rule): rule is string => typeof rule === 'string') : [];
 }
 
-function isManagedReadRule(rule: string): boolean {
-	const parenthesis = rule.indexOf('(');
-	const family = (parenthesis === -1 ? rule : rule.slice(0, parenthesis)).trim();
-	return family.toLowerCase() === ManagedRuleFamily.Read.toLowerCase();
-}
-
 /**
  * Resolves {@link ManagedWorkspaceRetrievalAccess} from every known managed
  * policy snapshot and the rules bridged from VS Code settings. Retrieval can
@@ -95,12 +94,11 @@ export function getManagedWorkspaceRetrievalAccess(policies: readonly (ManagedSe
 		if (policy.permissionsAllowIntersected) {
 			restricted = true;
 		}
-		const settings = policy.settings;
-		ruleSets.push(isObject(settings) ? (settings as Record<string, unknown>).permissions : undefined, policy.permissionsContext?.permissions);
+		ruleSets.push(getResolvedManagedPermissions(policy), policy.permissionsContext?.permissions);
 	}
 	for (const permissions of ruleSets) {
 		const deny = getManagedRules(permissions, 'deny');
-		if (deny.some(isManagedReadRule)) {
+		if (deny.some(rule => getManagedRuleFamily(rule) === ManagedRuleFamily.Read)) {
 			return ManagedWorkspaceRetrievalAccess.Deny;
 		}
 		if (deny.length > 0 || getManagedRules(permissions, 'ask').length > 0 || getManagedRules(permissions, 'allow').length > 0) {
