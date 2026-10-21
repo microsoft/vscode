@@ -63,7 +63,7 @@ export class MockChatModel extends Disposable implements IChatModel {
 	readonly hasRequests = false;
 	readonly lastRequest: IChatRequestModel | undefined;
 	sessionCostInfo: IChatSessionCost | undefined;
-	get sessionCost(): number { return this.sessionCostInfo?.credits ?? 0; }
+	get sessionCost(): number | undefined { return this.sessionCostInfo?.credits; }
 	get sessionCostStatus(): IChatSessionCost['status'] { return this.sessionCostInfo?.status; }
 	setSessionCost(cost: IChatSessionCost): void {
 		this.sessionCostInfo = cost;

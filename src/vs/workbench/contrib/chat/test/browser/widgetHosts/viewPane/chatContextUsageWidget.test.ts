@@ -21,7 +21,7 @@ import { ChatContextUsageWidget, isSameContextUsageData, resolveContextWindowInp
 import { ChatContextUsageDetails, IChatContextUsageData } from '../../../../browser/widgetHosts/viewPane/chatContextUsageDetails.js';
 import { IChatUsage } from '../../../../common/chatService/chatService.js';
 import { ILanguageModelChatMetadata, ILanguageModelConfigurationSchema, ILanguageModelsService } from '../../../../common/languageModels.js';
-import { IChatRequestModel, IChatResponseModel } from '../../../../common/model/chatModel.js';
+import { IChatRequestModel, IChatResponseModel, IChatSessionCost } from '../../../../common/model/chatModel.js';
 
 const FULL_WINDOW = 1_000_000;
 const DEFAULT_TIER = 200_000;
@@ -109,6 +109,7 @@ suite('isSameContextUsageData', () => {
 	test('detects changes in any displayed field, including the token-details breakdown', () => {
 		assert.strictEqual(isSameContextUsageData(base, { ...base, percentage: 15 }), false);
 		assert.strictEqual(isSameContextUsageData(base, { ...base, sessionCost: 3 }), false);
+		assert.strictEqual(isSameContextUsageData(base, { ...base, sessionCostStatus: 'partial' }), false);
 		assert.strictEqual(isSameContextUsageData(base, { ...base, promptTokenDetails: [{ category: 'files', label: 'a', percentageOfPrompt: 41 }] }), false);
 	});
 
@@ -181,8 +182,8 @@ suite('ChatContextUsageWidget', () => {
 		return { widget, getData: () => currentData?.get() };
 	}
 
-	function createRequest(modelId: string, usage: IChatUsage | undefined, onDidChange: Event<void> = Event.None, sessionCost: () => number = () => 0): IChatRequestModel {
-		const session = { get sessionCost() { return sessionCost(); } } as IChatRequestModel['session'];
+	function createRequest(modelId: string, usage: IChatUsage | undefined, onDidChange: Event<void> = Event.None, sessionCost: () => number | undefined = () => undefined, sessionCostStatus: () => IChatSessionCost['status'] = () => undefined): IChatRequestModel {
+		const session = { get sessionCost() { return sessionCost(); }, get sessionCostStatus() { return sessionCostStatus(); } } as IChatRequestModel['session'];
 		const response = { usage, onDidChange, session } as unknown as IChatResponseModel;
 		return { modelId, response, session } as unknown as IChatRequestModel;
 	}
@@ -264,7 +265,8 @@ suite('ChatContextUsageWidget', () => {
 				percentage: 90,
 				outputBufferPercentage: 10,
 				promptTokenDetails: undefined,
-				sessionCost: 0,
+				sessionCost: undefined,
+				sessionCostStatus: undefined,
 			},
 			label: '90%',
 			ariaLabel: 'Context window usage: 90%',
@@ -345,6 +347,54 @@ suite('ChatContextUsageWidget', () => {
 		widget.updateSessionCost(7);
 
 		assert.deepStrictEqual(getData(), { ...before, sessionCost: 7 });
+	});
+
+	test('updates cost completeness and accessible text independently of amount changes', () => {
+		const { widget, getData } = createWidgetWithData();
+		widget.update(createRequest(CONCRETE_MODEL, usage()));
+		widget.showDetails();
+		const costs: IChatSessionCost[] = [
+			{ credits: 2, status: 'complete' },
+			{ status: 'unavailable' },
+			{ status: 'partial' },
+			{ status: 'complete' },
+			{ credits: 0, status: 'complete' },
+			{ credits: 0, status: 'partial' },
+		];
+		const labels = ['2 credits', 'Unavailable', 'Unknown (partial usage)', 'Unknown', '0 credits', '0 credits (partial usage)'];
+
+		assert.deepStrictEqual(costs.map(cost => {
+			widget.updateSessionCost(cost.credits, cost.status);
+			return {
+				credits: getData()?.sessionCost,
+				status: getData()?.sessionCostStatus,
+				tokens: getData()?.usedTokens,
+				ariaLabel: widget.domNode.getAttribute('aria-label'),
+			};
+		}), costs.map((cost, index) => ({
+			credits: cost.credits, status: cost.status, tokens: 54_000,
+			ariaLabel: `Context window usage: 50%. Session cost: ${labels[index]}`,
+		})));
+	});
+
+	test('reads status-only session cost changes from response updates', () => {
+		const responseChange = store.add(new Emitter<void>());
+		const { widget, getData } = createWidgetWithData();
+		let cost: IChatSessionCost = { credits: 2, status: 'complete' };
+		widget.update(createRequest(CONCRETE_MODEL, usage(), responseChange.event, () => cost.credits, () => cost.status));
+		widget.showDetails();
+		cost = { status: 'unavailable' };
+		responseChange.fire();
+
+		assert.deepStrictEqual({
+			credits: getData()?.sessionCost,
+			status: getData()?.sessionCostStatus,
+			ariaLabel: widget.domNode.getAttribute('aria-label'),
+		}, {
+			credits: undefined,
+			status: 'unavailable',
+			ariaLabel: 'Context window usage: 50%. Session cost: Unavailable',
+		});
 	});
 
 });

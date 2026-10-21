@@ -14,7 +14,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { WorkbenchButtonBar } from '../../../../../../platform/actions/browser/buttonbar.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { getActionBarActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { formatCopilotCreditsLabel } from '../../../common/chatService/chatService.js';
+import { formatCopilotCreditsWithStatus, type IChatUsage } from '../../../common/chatService/chatService.js';
 import type { IChatWidget } from '../../chat.js';
 
 const $ = dom.$;
@@ -35,6 +35,7 @@ export interface IChatContextUsageData {
 	outputBufferPercentage?: number;
 	promptTokenDetails?: readonly IChatContextUsagePromptTokenDetail[];
 	sessionCost?: number;
+	sessionCostStatus?: IChatUsage['sessionCopilotCreditsStatus'];
 }
 
 /**
@@ -163,15 +164,11 @@ export class ChatContextUsageDetails extends Disposable {
 	}
 
 	private _render(data: IChatContextUsageData): void {
-		const { percentage, usedTokens, totalContextWindow, outputBufferPercentage, promptTokenDetails, sessionCost } = data;
+		const { percentage, usedTokens, totalContextWindow, outputBufferPercentage, promptTokenDetails, sessionCost, sessionCostStatus } = data;
 
-		// Update session cost — hide section when no cost data is available
-		if (typeof sessionCost === 'number' && sessionCost > 0) {
-			this.sessionCostValue.textContent = formatCopilotCreditsLabel(sessionCost);
-			this.sessionCostSection.style.display = '';
-		} else {
-			this.sessionCostSection.style.display = 'none';
-		}
+		const costLabel = formatCopilotCreditsWithStatus(sessionCost, sessionCostStatus);
+		this.sessionCostValue.textContent = costLabel ?? '';
+		this.sessionCostSection.style.display = costLabel === undefined ? 'none' : '';
 
 		// Update token count and percentage — reflects actual usage only
 		this.tokenCountLabel.textContent = localize(

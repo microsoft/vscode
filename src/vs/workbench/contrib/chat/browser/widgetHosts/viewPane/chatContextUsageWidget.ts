@@ -21,6 +21,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatRequestModel, IChatResponseModel } from '../../../common/model/chatModel.js';
+import { formatCopilotCreditsWithStatus } from '../../../common/chatService/chatService.js';
 import { getModelContextWindowTotal, ILanguageModelConfigurationSchema, ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatContextUsageDetails, IChatContextUsageData } from './chatContextUsageDetails.js';
 import type { IChatWidget } from '../../chat.js';
@@ -63,6 +64,7 @@ export function isSameContextUsageData(a: IChatContextUsageData | undefined, b: 
 		&& a.percentage === b.percentage
 		&& a.outputBufferPercentage === b.outputBufferPercentage
 		&& a.sessionCost === b.sessionCost
+		&& a.sessionCostStatus === b.sessionCostStatus
 		&& equals(a.promptTokenDetails, b.promptTokenDetails, (x, y) =>
 			x.category === y.category && x.label === y.label && x.percentageOfPrompt === y.percentageOfPrompt);
 }
@@ -329,10 +331,10 @@ export class ChatContextUsageWidget extends Disposable {
 		});
 	}
 
-	updateSessionCost(sessionCost: number): void {
+	updateSessionCost(sessionCost: number | undefined, sessionCostStatus?: IChatContextUsageData['sessionCostStatus']): void {
 		const data = this._currentData.get();
-		if (data && data.sessionCost !== sessionCost) {
-			this.render({ ...data, sessionCost });
+		if (data && (data.sessionCost !== sessionCost || data.sessionCostStatus !== sessionCostStatus)) {
+			this.render({ ...data, sessionCost, sessionCostStatus });
 		}
 	}
 
@@ -441,7 +443,7 @@ export class ChatContextUsageWidget extends Disposable {
 		this.render({
 			usedTokens, completionTokens, totalContextWindow,
 			percentage, outputBufferPercentage,
-			promptTokenDetails, sessionCost: response.session.sessionCost,
+			promptTokenDetails, sessionCost: response.session.sessionCost, sessionCostStatus: response.session.sessionCostStatus,
 		});
 		this.show();
 	}
@@ -455,7 +457,10 @@ export class ChatContextUsageWidget extends Disposable {
 		// Update percentage label and aria-label (clamp display to 100)
 		const roundedPercentage = Math.min(100, Math.round(data.percentage));
 		this.percentageLabel.textContent = `${roundedPercentage}%`;
-		this.domNode.setAttribute('aria-label', localize('contextUsagePercentageLabel', "Context window usage: {0}%", roundedPercentage));
+		const costLabel = formatCopilotCreditsWithStatus(data.sessionCost, data.sessionCostStatus);
+		this.domNode.setAttribute('aria-label', costLabel === undefined
+			? localize('contextUsagePercentageLabel', "Context window usage: {0}%", roundedPercentage)
+			: localize('contextUsagePercentageAndCostLabel', "Context window usage: {0}%. Session cost: {1}", roundedPercentage, costLabel));
 
 		// Color based on actual usage percentage
 		this.domNode.classList.remove('warning', 'error');

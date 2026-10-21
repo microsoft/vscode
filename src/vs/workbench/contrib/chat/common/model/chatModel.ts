@@ -18,7 +18,7 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { equals } from '../../../../../base/common/objects.js';
 import { IObservable, IReader, autorun, constObservable, derived, derivedOpts, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, observableValueOpts, registerAutorunSelfDisposable, transaction } from '../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
-import { hasKey, WithDefinedProps } from '../../../../../base/common/types.js';
+import { hasKey, isDefined, WithDefinedProps } from '../../../../../base/common/types.js';
 import { isUriComponents, URI, UriDto } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
@@ -51,6 +51,7 @@ import { ObjectMutationLog } from './objectMutationLog.js';
 import type { ICanvasContext } from '../../../canvases/common/canvas.js';
 import type { IChatSessionHistoryStatus } from '../../../../../platform/chat/common/chatSessionHistory.js';
 import type { IAgentModelConfigurationReport } from '../../../../../platform/agentHost/common/agentModelConfiguration.js';
+import { isAiCreditsStatus } from '../../../../../platform/agentHost/common/meta/agentUsageMeta.js';
 
 
 /**
@@ -2025,8 +2026,12 @@ export interface IChatRequestNeedsInputInfo {
 }
 
 export interface IChatSessionCost {
-	readonly credits: number;
+	readonly credits?: number;
 	readonly status?: IChatUsage['sessionCopilotCreditsStatus'];
+}
+
+interface IChatResponseSessionCost extends IChatSessionCost {
+	readonly requestId: string;
 }
 
 export interface IChatModel extends IDisposable {
@@ -2070,8 +2075,8 @@ export interface IChatModel extends IDisposable {
 	/** Whether this model will be kept alive while it is running or has edits */
 	readonly willKeepAlive: boolean;
 	readonly lastRequestObs: IObservable<IChatRequestModel | undefined>;
-	/** Total Copilot credits consumed by this conversation, including out-of-turn work. */
-	readonly sessionCost: number;
+	/** Total Copilot credits consumed by this conversation, including out-of-turn work, when reported. */
+	readonly sessionCost: number | undefined;
 	readonly sessionCostStatus?: IChatUsage['sessionCopilotCreditsStatus'];
 	/** Aggregate-only billing, including charges received after a turn ended. */
 	readonly sessionCostInfo?: IChatSessionCost;
@@ -2946,21 +2951,24 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 
 	private _sessionCostInfo: IChatSessionCost | undefined;
-	private _sessionCostResponseStatus: IChatUsage['sessionCopilotCreditsStatus'];
+	private _sessionCostResponseInfo: IChatResponseSessionCost | undefined;
 
 	get sessionCostInfo(): IChatSessionCost | undefined {
 		return this._sessionCostInfo ? { credits: this.sessionCost, status: this.sessionCostStatus } : undefined;
 	}
 
 	setSessionCost(cost: IChatSessionCost): void {
-		if (typeof cost.credits !== 'number' || !Number.isFinite(cost.credits) || cost.credits < 0) {
+		if (cost.credits !== undefined && (typeof cost.credits !== 'number' || !Number.isFinite(cost.credits) || cost.credits < 0)) {
+			return;
+		}
+		const status = isAiCreditsStatus(cost.status) ? cost.status : undefined;
+		if (cost.credits === undefined && status === undefined) {
 			return;
 		}
 		const previous = this.sessionCostInfo;
-		const status = cost.status === 'complete' || cost.status === 'partial' || cost.status === 'unavailable' ? cost.status : undefined;
-		const credits = Math.max(cost.credits, this._sessionCostInfo?.credits ?? 0);
-		this._sessionCostInfo = { credits, status: status === 'complete' && creditsExceed(credits, cost.credits) ? 'partial' : status };
-		this._sessionCostResponseStatus = this._lastReportedSessionUsage()?.sessionCopilotCreditsStatus;
+		const credits = cost.credits === undefined ? undefined : Math.max(cost.credits, this._sessionCostInfo?.credits ?? cost.credits);
+		this._sessionCostInfo = { credits, status: status === 'complete' && credits !== undefined && cost.credits !== undefined && creditsExceed(credits, cost.credits) ? 'partial' : status };
+		this._sessionCostResponseInfo = this._lastReportedSessionCost();
 		if (previous?.credits !== this.sessionCost || previous?.status !== this.sessionCostStatus) {
 			this._onDidChange.fire({ kind: 'setSessionCost' });
 		}
@@ -2969,24 +2977,28 @@ export class ChatModel extends Disposable implements IChatModel {
 	private _resetSessionCost(): void {
 		// History removal can truncate the provider's ledger, invalidating the aggregate high-water mark.
 		this._sessionCostInfo = undefined;
-		this._sessionCostResponseStatus = undefined;
+		this._sessionCostResponseInfo = undefined;
 	}
 
-	get sessionCost(): number {
-		let summedCredits = 0;
+	get sessionCost(): number | undefined {
+		const report = this._currentSessionCostReport();
+		if (report?.status !== undefined && report.credits === undefined) {
+			return undefined;
+		}
+		let summedCredits: number | undefined;
 		let roundingCorrection = 0;
-		let reportedSessionCredits = 0;
+		let reportedSessionCredits: number | undefined;
 		for (const request of this._requests) {
 			const usage = request.response?.usage;
 			if (typeof usage?.copilotCredits === 'number') {
 				// Compensated summation prevents accumulated roundoff from implying missing billing.
 				const adjusted = usage.copilotCredits - roundingCorrection;
-				const next = summedCredits + adjusted;
-				roundingCorrection = (next - summedCredits) - adjusted;
+				const next = (summedCredits ?? 0) + adjusted;
+				roundingCorrection = (next - (summedCredits ?? 0)) - adjusted;
 				summedCredits = next;
 			}
 			if (typeof usage?.sessionCopilotCredits === 'number') {
-				reportedSessionCredits = Math.max(reportedSessionCredits, usage.sessionCopilotCredits);
+				reportedSessionCredits = Math.max(reportedSessionCredits ?? usage.sessionCopilotCredits, usage.sessionCopilotCredits);
 			}
 		}
 		// A backend that reports the session total covers work billed outside any
@@ -2994,46 +3006,48 @@ export class ChatModel extends Disposable implements IChatModel {
 		// backend reports no session total, and any billed after the most recent
 		// reported total. Neither is a superset, so take whichever is larger —
 		// which is also independent of the order the two kinds are interleaved in.
-		return Math.max(summedCredits, reportedSessionCredits, this._sessionCostInfo?.credits ?? 0);
+		const amounts = [summedCredits, reportedSessionCredits, this._sessionCostInfo?.credits].filter(isDefined);
+		return amounts.length ? Math.max(...amounts) : undefined;
 	}
 
-	private _lastReportedSessionUsage(): IChatUsage | undefined {
+	private _lastReportedSessionCost(): IChatResponseSessionCost | undefined {
 		for (let i = this._requests.length - 1; i >= 0; i--) {
 			const usage = this._requests[i].response?.usage;
-			if (usage?.sessionCopilotCreditsStatus !== undefined) {
-				return usage;
+			const status = usage && isAiCreditsStatus(usage.sessionCopilotCreditsStatus) ? usage.sessionCopilotCreditsStatus : undefined;
+			if (usage?.sessionCopilotCredits !== undefined || status !== undefined) {
+				return { requestId: this._requests[i].id, credits: usage?.sessionCopilotCredits, status };
 			}
 		}
 		return undefined;
 	}
 
+	private _currentSessionCostReport(): IChatSessionCost | undefined {
+		const response = this._lastReportedSessionCost();
+		if (!this._sessionCostInfo || response && (response.requestId !== this._sessionCostResponseInfo?.requestId
+			|| response.credits !== this._sessionCostResponseInfo?.credits || response.status !== this._sessionCostResponseInfo?.status)) {
+			return response;
+		}
+		return this._sessionCostInfo;
+	}
+
 	get sessionCostStatus(): IChatUsage['sessionCopilotCreditsStatus'] {
-		const usage = this._lastReportedSessionUsage();
-		const aggregate = this._sessionCostInfo;
+		const report = this._currentSessionCostReport();
 		const cost = this.sessionCost;
-		if (!aggregate) {
-			const status = usage?.sessionCopilotCreditsStatus;
-			if (status === 'unavailable' && cost > 0 || status === 'complete' && creditsExceed(cost, usage?.sessionCopilotCredits ?? -1)) {
-				return 'partial';
-			}
-			return status;
+		if (cost === undefined) {
+			return report?.status;
 		}
-		// A response can report newer billing while the aggregate RPC is still in flight.
-		if (usage?.sessionCopilotCreditsStatus !== this._sessionCostResponseStatus) {
-			if (usage?.sessionCopilotCreditsStatus === 'partial' || usage?.sessionCopilotCreditsStatus === 'unavailable') {
-				return cost > 0 ? 'partial' : usage.sessionCopilotCreditsStatus;
-			}
-			if (usage?.sessionCopilotCreditsStatus === 'complete' && !creditsExceed(cost, usage.sessionCopilotCredits ?? -1)) {
-				return 'complete';
-			}
+		if (report?.status === 'unavailable' && cost > 0
+			|| report?.status === 'complete' && report.credits !== undefined && creditsExceed(cost, report.credits)) {
+			return 'partial';
 		}
-		if (creditsExceed(cost, aggregate.credits)) {
-			if (!creditsExceed(cost, usage?.sessionCopilotCredits ?? -1)) {
-				return usage?.sessionCopilotCreditsStatus;
-			}
-			return aggregate.status !== undefined || usage?.sessionCopilotCreditsStatus !== undefined ? 'partial' : undefined;
+		if (report?.status !== undefined) {
+			return report.status;
 		}
-		return aggregate.status === 'unavailable' && cost > 0 ? 'partial' : aggregate.status;
+		const aggregate = this._sessionCostInfo;
+		if (aggregate?.status !== undefined && aggregate.credits !== undefined && creditsExceed(cost, aggregate.credits)) {
+			return 'partial';
+		}
+		return aggregate?.status === 'unavailable' && cost > 0 ? 'partial' : aggregate?.status;
 	}
 
 	private _timestamp: number;

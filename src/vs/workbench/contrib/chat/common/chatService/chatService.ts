@@ -258,6 +258,21 @@ export function formatCopilotCreditsLabel(credits: number): string {
 		: localize('chat.credits', "{0} credits", formatted);
 }
 
+export function formatCopilotCreditsWithStatus(credits: number | undefined, status: AiCreditsStatus | undefined): string | undefined {
+	const amount = credits !== undefined && Number.isFinite(credits) && credits >= 0 ? formatCopilotCreditsLabel(credits) : undefined;
+	if (status === 'partial') {
+		return amount
+			? localize('chat.creditsPartial', "{0} (partial usage)", amount)
+			: localize('chat.creditsPartialUnknown', "Unknown (partial usage)");
+	}
+	if (status === 'unavailable') {
+		return amount
+			? localize('chat.creditsUnavailableAmount', "{0} (usage unavailable)", amount)
+			: localize('chat.creditsUnavailable', "Unavailable");
+	}
+	return amount ?? (status === 'complete' ? localize('chat.creditsUnknown', "Unknown") : undefined);
+}
+
 export interface IChatContentInlineReference {
 	resolveId?: string;
 	inlineReference: URI | Location | IWorkspaceSymbol;

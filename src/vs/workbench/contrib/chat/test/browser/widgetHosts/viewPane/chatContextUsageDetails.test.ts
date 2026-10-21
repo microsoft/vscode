@@ -55,6 +55,39 @@ suite('ChatContextUsageDetails', () => {
 		});
 	});
 
+	test('preserves unknown, zero and incomplete cost text without retaining an old amount', () => {
+		const { details, observable } = createDetails(data());
+		const costs: Pick<IChatContextUsageData, 'sessionCost' | 'sessionCostStatus'>[] = [
+			{},
+			{ sessionCost: 2, sessionCostStatus: 'complete' },
+			{ sessionCostStatus: 'unavailable' },
+			{ sessionCostStatus: 'partial' },
+			{ sessionCostStatus: 'complete' },
+			{ sessionCost: 0, sessionCostStatus: 'complete' },
+			{ sessionCost: 0, sessionCostStatus: 'partial' },
+			{ sessionCost: 0, sessionCostStatus: 'unavailable' },
+			{},
+		];
+
+		assert.deepStrictEqual(costs.map(cost => {
+			observable.set(data(cost), undefined);
+			return {
+				text: details.domNode.querySelector('.session-cost-value')?.textContent,
+				display: details.domNode.querySelector<HTMLElement>('.session-cost-section')?.style.display,
+			};
+		}), [
+			{ text: '', display: 'none' },
+			{ text: '2 credits', display: '' },
+			{ text: 'Unavailable', display: '' },
+			{ text: 'Unknown (partial usage)', display: '' },
+			{ text: 'Unknown', display: '' },
+			{ text: '0 credits', display: '' },
+			{ text: '0 credits (partial usage)', display: '' },
+			{ text: '0 credits (usage unavailable)', display: '' },
+			{ text: '', display: 'none' },
+		]);
+	});
+
 	test('re-renders in place when the observable changes (open-popover refresh)', () => {
 		const { details, observable } = createDetails(data({ percentage: 80 }));
 		assert.strictEqual(tokenText(details), '80%');
