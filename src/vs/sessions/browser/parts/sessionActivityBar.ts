@@ -19,7 +19,13 @@ import { autorun, constObservable, derived, IObservable, observableFromEvent, ob
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { localize } from '../../../nls.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
-import { SubmenuItemAction } from '../../../platform/actions/common/actions.js';
+import { IMenuEntryActionViewItemOptions, MenuEntryActionViewItem } from '../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { MenuItemAction, SubmenuItemAction } from '../../../platform/actions/common/actions.js';
+import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
+import { INotificationService } from '../../../platform/notification/common/notification.js';
+import { IThemeService } from '../../../platform/theme/common/themeService.js';
+import { IBadge, NumberBadge } from '../../../workbench/services/activity/common/activity.js';
+import { ISessionActivityBarActivityService } from '../../services/activity/common/sessionActivityBarActivityService.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
@@ -74,9 +80,15 @@ export class SessionActivityBar extends Disposable {
 			menuOptions: { shouldForwardArgs: true },
 			// Every group shows in the strip: the side panel toggle and tab entries, then the terminal and panel toggle.
 			toolbarOptions: { primaryGroup: () => true, useSeparatorsInPrimaryActions: true },
-			actionViewItemProvider: (action, options) => action instanceof SubmenuItemAction
-				? instantiationService.createInstance(SessionActivityBarSubmenuViewItem, action, { ...options, icon: true, label: false })
-				: undefined,
+			actionViewItemProvider: (action, options) => {
+				if (action instanceof SubmenuItemAction) {
+					return instantiationService.createInstance(SessionActivityBarSubmenuViewItem, action, { ...options, icon: true, label: false });
+				}
+				if (action instanceof MenuItemAction) {
+					return instantiationService.createInstance(SessionActivityBarActionViewItem, action, options);
+				}
+				return undefined;
+			},
 		}));
 
 		const update = () => {
@@ -356,6 +368,82 @@ export class ChatViewSessionActivityBar extends Disposable {
 			});
 		}));
 		return store;
+	}
+}
+
+/**
+ * An entry of the strip that shows the activity reported for its command through
+ * {@link ISessionActivityBarActivityService}: a count for number badges, and a dot
+ * for other badges since the strip's entries are too small to carry an icon.
+ * Badge descriptions are appended to the entry's hover and accessible label.
+ * Contributions that customize an entry with `IActionViewItemService` can extend
+ * this to keep its activity.
+ */
+export class SessionActivityBarActionViewItem extends MenuEntryActionViewItem {
+
+	private badgeElement: HTMLElement | undefined;
+
+	constructor(
+		action: MenuItemAction,
+		options: IMenuEntryActionViewItemOptions | undefined,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@INotificationService notificationService: INotificationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IThemeService themeService: IThemeService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IAccessibilityService accessibilityService: IAccessibilityService,
+		@ISessionActivityBarActivityService private readonly activityService: ISessionActivityBarActivityService,
+	) {
+		super(action, options, keybindingService, notificationService, contextKeyService, themeService, contextMenuService, accessibilityService);
+
+		this._register(activityService.onDidChangeActivity(commandId => {
+			if (commandId === this._menuItemAction.id) {
+				this.updateActivity();
+			}
+		}));
+		this._register(themeService.onDidColorThemeChange(() => this.updateActivity()));
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+		// The entry's label and tooltip announce the activity.
+		this.badgeElement = append(container, $('.session-activity-bar-badge', { 'aria-hidden': 'true' }));
+		this.updateActivity();
+	}
+
+	protected getBadges(): readonly IBadge[] {
+		return this.activityService.getActivity(this._menuItemAction.id).map(activity => activity.badge);
+	}
+
+	protected override getTooltip(): string {
+		let title = super.getTooltip();
+		for (const badge of this.getBadges()) {
+			const description = badge.getDescription();
+			if (description) {
+				title = localize('sessionActivityBar.titleWithActivity', "{0} - {1}", title, description);
+			}
+		}
+		return title;
+	}
+
+	private updateActivity(): void {
+		const badgeElement = this.badgeElement;
+		if (!badgeElement) {
+			return;
+		}
+
+		const badges = this.getBadges();
+		const count = badges.reduce((total, badge) => total + (badge instanceof NumberBadge ? badge.number : 0), 0);
+		badgeElement.classList.toggle('visible', count > 0 || badges.some(badge => !(badge instanceof NumberBadge)));
+		badgeElement.classList.toggle('count', count > 0);
+		badgeElement.textContent = count > 99 ? '99+' : count > 0 ? `${count}` : '';
+
+		const colors = badges[0]?.getColors(this._themeService.getColorTheme());
+		badgeElement.style.backgroundColor = colors?.badgeBackground?.toString() ?? '';
+		badgeElement.style.color = colors?.badgeForeground?.toString() ?? '';
+		badgeElement.style.borderColor = colors?.badgeBorder?.toString() ?? '';
+
+		this.updateTooltip();
 	}
 }
 
