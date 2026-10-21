@@ -4121,7 +4121,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}];
 
 		const canvases = await provider.listCanvases(session.sessionId, peer.resource);
-		assert.ok(canvases);
+		assert.ok(canvases && canvases.length === 1, 'Expected one canvas definition');
 		await provider.openCanvas(session.sessionId, peer.resource, canvases[0], 'project-preview');
 		const liveCanvas: ISessionCanvas = { resource: URI.parse('ahp-canvas://another-host/documents/preview'), instanceId: 'project-preview', title: 'Preview', source: undefined };
 		await provider.closeCanvas(session.sessionId, peer.resource, liveCanvas);
