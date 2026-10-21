@@ -268,24 +268,50 @@ suite('AgentHostClientTools', () => {
 	});
 
 	test('publishes canonical full references for VS Code client tools', () => {
-		const tool: IToolData = {
+		const browserTool: IToolData = {
 			id: 'vscode.clickElement',
 			toolReferenceName: 'clickElement',
 			displayName: 'Click Element',
 			modelDescription: 'Clicks an element',
 			source: ToolDataSource.Internal,
 		};
+		const notebookTool: IToolData = {
+			id: 'vscode.createJupyterNotebook',
+			toolReferenceName: 'createJupyterNotebook',
+			displayName: 'Create Jupyter Notebook',
+			modelDescription: 'Creates a notebook',
+			source: ToolDataSource.Internal,
+		};
+		const vscodeTool: IToolData = {
+			id: 'vscode.problems',
+			toolReferenceName: 'problems',
+			displayName: 'Problems',
+			modelDescription: 'Gets workspace problems',
+			source: ToolDataSource.Internal,
+		};
+		const extensionTool: IToolData = {
+			id: 'publisher.extension.tool',
+			toolReferenceName: 'tool',
+			displayName: 'Extension Tool',
+			modelDescription: 'Runs an extension tool',
+			source: { type: 'extension', label: 'Extension', extensionId: new ExtensionIdentifier('Publisher.Extension') },
+		};
 		const { service } = createActiveClientService(
 			constObservable([]),
 			undefined,
 			undefined,
-			[tool],
-			new Map([[tool.id, 'browser/clickElement']]),
+			[browserTool, notebookTool, vscodeTool, extensionTool],
+			new Map([
+				[browserTool.id, 'legacyBrowser/clickElement'],
+				[notebookTool.id, 'edit/createJupyterNotebook'],
+				[vscodeTool.id, 'tasks/problems'],
+				[extensionTool.id, 'publisher.extension/tool'],
+			]),
 		);
 		const session = URI.parse('agent-host-test:/session');
 		const sessionTools = disposables.add(service.acquireSessionTools(session));
 
-		service.setSessionTools(session, [tool.id]);
+		service.setSessionTools(session, [browserTool.id, notebookTool.id, vscodeTool.id, extensionTool.id]);
 
 		assert.deepStrictEqual(sessionTools.object.get().map(definition => ({
 			name: definition.name,
@@ -293,6 +319,15 @@ suite('AgentHostClientTools', () => {
 		})), [{
 			name: 'clickElement',
 			fullReferenceName: 'browser/clickElement',
+		}, {
+			name: 'createJupyterNotebook',
+			fullReferenceName: 'notebooks/createJupyterNotebook',
+		}, {
+			name: 'problems',
+			fullReferenceName: 'vscode/problems',
+		}, {
+			name: 'tool',
+			fullReferenceName: 'publisher.extension/tool',
 		}]);
 	});
 
