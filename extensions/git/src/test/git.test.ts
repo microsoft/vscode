@@ -6,7 +6,11 @@
 import 'mocha';
 import { findGit, Git, GitStatusParser, parseGitCommits, parseGitFileLog, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors } from '../git';
 import * as assert from 'assert';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import { LogOutputChannel, window } from 'vscode';
+import { Repository } from '../repository';
 import { splitInChunks } from '../util';
 
 suite('git', () => {
@@ -28,6 +32,45 @@ suite('git', () => {
 			// The input exceeds the pipe buffer, so the write fails with EPIPE once git exits.
 			const result = await git.exec2(['--version'], { input: 'x'.repeat(8 * 1024 * 1024) });
 			assert.match(result.stdout, /^git version /);
+		});
+	});
+
+	suite('Repository.getObjectFiles', () => {
+		let git: Git;
+		let logger: LogOutputChannel;
+
+		suiteSetup(async () => {
+			logger = window.createOutputChannel('git object files test', { log: true });
+			const foundGit = await findGit(['git'], () => true, logger);
+			git = new Git({ gitPath: foundGit.path, userAgent: 'git-object-files-test', version: foundGit.version });
+		});
+
+		suiteTeardown(() => {
+			logger?.dispose();
+		});
+
+		test('lists untracked files in folders of a stash', async () => {
+			const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'vscode-git-object-files-'));
+
+			try {
+				await git.init(root, { defaultBranch: 'main' });
+				await git.exec(root, ['config', 'user.name', 'testuser']);
+				await git.exec(root, ['config', 'user.email', 'monacotools@example.com']);
+				await git.exec(root, ['config', 'commit.gpgsign', 'false']);
+				await git.exec(root, ['commit', '--allow-empty', '-m', 'initial commit']);
+				await fs.promises.mkdir(path.join(root, 'folder'));
+				await fs.promises.writeFile(path.join(root, 'file.txt'), 'untracked');
+				await fs.promises.writeFile(path.join(root, 'folder', 'file.txt'), 'untracked');
+				await git.exec(root, ['stash', 'push', '--include-untracked']);
+
+				const dotGit = await git.getRepositoryDotGit(root);
+				const repository = { repository: git.open(root, undefined, dotGit, logger), run: (_: unknown, runOperation: () => unknown) => runOperation() };
+				const files = await Repository.prototype.getObjectFiles.call(repository as unknown as Repository, 'stash@{0}^3');
+
+				assert.deepStrictEqual(files.map(f => f.file), ['file.txt', 'folder/file.txt']);
+			} finally {
+				await fs.promises.rm(root, { recursive: true, force: true });
+			}
 		});
 	});
 

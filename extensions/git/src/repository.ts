@@ -2674,7 +2674,7 @@ export class Repository implements Disposable {
 	}
 
 	getObjectFiles(ref: string): Promise<LsTreeElement[]> {
-		return this.run(Operation.GetObjectFiles, () => this.repository.lstree(ref));
+		return this.run(Operation.GetObjectFiles, () => this.repository.lstree(ref, undefined, { recursive: true }));
 	}
 
 	getObjectDetails(ref: string, path: string): Promise<{ mode: string; object: string; size: number }> {
