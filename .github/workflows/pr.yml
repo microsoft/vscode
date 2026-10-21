@@ -51,8 +51,9 @@ jobs:
   # The first matrix entry is the required "Compile & Hygiene" check and is
   # unchanged. The other entries run on larger GitHub-hosted runners, with
   # ESLint after the parallel checks as today ("after"), inside the parallel
-  # checks ("parallel"), or inside them with one ESLint worker per core instead
-  # of one per two cores ("parallel-all-cores").
+  # checks ("parallel", one ESLint worker per two cores), or inside them with
+  # at most 8 ESLint workers ("parallel-8-workers"). One worker per core ran
+  # out of memory on 16 and 64 cores, so the first run's variant was dropped.
   compile:
     name: Compile & Hygiene${{ matrix.runner && format(' (bench {0}, ESLint {1})', matrix.runner, matrix.eslint) || '' }}
     runs-on: ${{ matrix.runner || fromJSON(format('["self-hosted","1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64","JobId=compile-{0}-{1}-{2}"]', github.run_id, github.run_number, github.run_attempt)) }}
@@ -63,13 +64,12 @@ jobs:
           - { runner: '', eslint: after }
           - { runner: vscode-large-runners-ubuntu-16-core, eslint: after }
           - { runner: vscode-large-runners-ubuntu-16-core, eslint: parallel }
-          - { runner: vscode-large-runners-ubuntu-16-core, eslint: parallel-all-cores }
           - { runner: vscode-large-runners-ubuntu-32-core, eslint: after }
           - { runner: vscode-large-runners-ubuntu-32-core, eslint: parallel }
-          - { runner: vscode-large-runners-ubuntu-32-core, eslint: parallel-all-cores }
+          - { runner: vscode-large-runners-ubuntu-32-core, eslint: parallel-8-workers }
           - { runner: vscode-large-runners-ubuntu-64-core, eslint: after }
           - { runner: vscode-large-runners-ubuntu-64-core, eslint: parallel }
-          - { runner: vscode-large-runners-ubuntu-64-core, eslint: parallel-all-cores }
+          - { runner: vscode-large-runners-ubuntu-64-core, eslint: parallel-8-workers }
     steps:
       - name: Checkout microsoft/vscode
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -152,8 +152,8 @@ jobs:
 
       - name: Compile & Hygiene
         run: |
-          if [[ "${{ matrix.eslint }}" == parallel-all-cores ]]; then
-            export VSCODE_ESLINT_CONCURRENCY=$(nproc)
+          if [[ "${{ matrix.eslint }}" == parallel-8-workers ]]; then
+            export VSCODE_ESLINT_CONCURRENCY=8
           fi
           npm exec -- npm-run-all2 -lp core-ci hygiene valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts ${{ matrix.eslint != 'after' && 'eslint' || '' }}
         env:
