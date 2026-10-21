@@ -40,6 +40,7 @@ import { IAgentCustomizationSettingsRegistration } from '../common/agentCustomiz
 import { AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from './agentHostClientConnectionService.js';
 import { AgentHostSystemWakeService, IAgentHostSystemWakeService } from './agentHostSystemWakeService.js';
+import { AgentHostMacAccessibilityTrustService, IAgentHostMacAccessibilityTrustService } from './agentHostMacAccessibilityTrustService.js';
 import { AgentHostSessionTitleController, IAgentHostSessionTitleController } from './agentHostSessionTitleController.js';
 import { AgentHostLocalTurns, IAgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { IAgentHostGitHubService } from './agentHostGitHubService.js';
@@ -130,6 +131,7 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 		);
 		services.set(IAgentHostClientConnectionService, infrastructure.add(new AgentHostClientConnectionService()));
 		services.set(IAgentHostSystemWakeService, new AgentHostSystemWakeService());
+		services.set(IAgentHostMacAccessibilityTrustService, new AgentHostMacAccessibilityTrustService());
 		const agentServiceOptions: IAgentServiceOptions = {
 			rootConfigResource: joinPath(environmentService.appSettingsHome, 'globalStorage', 'agent-host-config.json'),
 			providerConfigurations: options.providerConfigurations,

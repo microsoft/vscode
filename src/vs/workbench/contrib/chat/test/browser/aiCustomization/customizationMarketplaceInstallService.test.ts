@@ -22,6 +22,7 @@ import { IPlatformCustomizationMarketplaceService } from '../../../../../../plat
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
@@ -33,6 +34,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../../
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer, McpServerInstallState } from '../../../../mcp/common/mcpTypes.js';
 import { CopilotConnectorConnectionStatus, CopilotConnectorConnectionStatusDetail, CopilotConnectorsError, ICopilotConnectorAccount, ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
 import { IWorkbenchLocalMcpServer } from '../../../../../services/mcp/common/mcpWorkbenchManagementService.js';
@@ -140,7 +142,7 @@ function galleryMcpResource(): ICustomizationMarketplaceResource {
 	});
 }
 
-function installedPlugin(sourceDescriptor: IPluginSourceDescriptor, source = 'plugins/demo', version = '1.0.0', pluginUri = URI.file('/cache/installed-plugin'), marketplace = 'owner/catalog#release'): IMarketplaceInstalledPlugin {
+function installedPlugin(sourceDescriptor: IPluginSourceDescriptor, source = 'plugins/demo', version: string | undefined = '1.0.0', pluginUri = URI.file('/cache/installed-plugin'), marketplace = 'owner/catalog#release'): IMarketplaceInstalledPlugin {
 	const reference = parseMarketplaceReference(marketplace);
 	assert.ok(reference);
 	return {
@@ -401,6 +403,12 @@ suite('CustomizationMarketplaceInstallService', () => {
 		instantiationService.stub(IMcpGalleryManifestService, mcpGalleryManifestService);
 		instantiationService.stub(ICustomizationHarnessService, harnessService);
 		instantiationService.stub(IChatEntitlementService, entitlementService);
+		instantiationService.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
+			override readonly onDidChangeDefaultAccount = Event.None;
+		}());
+		instantiationService.stub(IAuthenticationService, new class extends mock<IAuthenticationService>() {
+			override readonly onDidChangeSessions = Event.None;
+		}());
 		instantiationService.stub(ICustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
 			override get sources() { return sources.map(source => ({ ...source })); }
 		}());
@@ -627,6 +635,116 @@ suite('CustomizationMarketplaceInstallService', () => {
 			icon: 'https://example.com/skill.png',
 			storageKeys: [],
 		});
+	});
+
+	test('matches an installed direct plugin to its catalog source after restart', async () => {
+		const pluginUri = URI.file('/plugins/azure-devops');
+		const candidate = resource({
+			sourceId: CustomizationMarketplaceSources.AgentFinderPublicFeed.id,
+			identifier: 'azure-devops-copilot-plugin',
+			displayName: 'Azure DevOps Copilot Plugin',
+			mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+			version: '0.1.56',
+			repository: URI.parse('https://github.com/microsoft/azure-devops-copilot-plugin'),
+			installation: {
+				kind: 'providerCatalog',
+				resourceKind: 'plugin',
+				selectionId: 'azure-devops',
+				repository: 'microsoft/azure-devops-copilot-plugin',
+				path: '.github/plugin/plugin.json',
+			},
+		});
+		const installedResource = resource({
+			sourceId: CustomizationMarketplaceSources.AgentFinderPublicFeed.id,
+			identifier: 'direct-source-id',
+			displayName: 'Azure DevOps Copilot Plugin',
+			mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+			version: '0.1.56',
+			repository: URI.parse('https://github.com/microsoft/azure-devops-copilot-plugin'),
+			installation: {
+				kind: 'plugin',
+				repository: 'microsoft/azure-devops-copilot-plugin',
+				ref: '8f30ba3210758239be19e2143943e0830f07601a',
+				path: '',
+			},
+		});
+		const uninstalls: IRecordedCustomizationMarketplaceResource[] = [];
+		const provider = new class implements ICustomizationMarketplaceInstallProvider {
+			readonly onDidChange = Event.None;
+			getInstallations(): Promise<readonly IRecordedCustomizationMarketplaceResource[]> {
+				return Promise.resolve([{
+					installationId: 'plugin:direct:direct-source-id',
+					resource: installedResource,
+					state: { kind: 'installed', target: { kind: 'plugin', uri: pluginUri, name: 'azure-devops-copilot-plugin' } },
+				}]);
+			}
+			install(): Promise<void> { throw new Error('Unexpected install'); }
+			repair(): Promise<void> { throw new Error('Unexpected repair'); }
+			async uninstall(_session: URI, installation: IRecordedCustomizationMarketplaceResource): Promise<void> { uninstalls.push(installation); }
+		}();
+		const fixture = await createFixture({ enabled: true, installProvider: provider });
+		await timeout(0);
+
+		const state = fixture.service.getInstallState(candidate);
+		await fixture.service.uninstall(candidate);
+
+		assert.deepStrictEqual({
+			state: state.kind === 'installed'
+				? { kind: state.kind, target: { ...state.target, uri: state.target.kind === 'plugin' ? state.target.uri?.toString() : undefined } }
+				: state,
+			uninstalls: uninstalls.map(installation => installation.installationId),
+		}, {
+			state: { kind: 'installed', target: { kind: 'plugin', uri: pluginUri.toString(), name: 'azure-devops-copilot-plugin' } },
+			uninstalls: ['plugin:direct:direct-source-id'],
+		});
+	});
+
+	test('matches catalog plugins by normalized manifest root and exact version', async () => {
+		const cases = [
+			{ name: 'Claude root', manifestPath: '.claude-plugin/plugin.json', installedRoot: '', catalogVersion: '1.0.0', installedVersion: '1.0.0', installed: true },
+			{ name: 'nested Claude root', manifestPath: 'plugins/demo/.claude-plugin/plugin.json', installedRoot: 'plugins/demo', catalogVersion: '1.0.0', installedVersion: '1.0.0', installed: true },
+			{ name: 'GitHub Copilot root', manifestPath: '.github/plugin/plugin.json', installedRoot: '', catalogVersion: '1.0.0', installedVersion: '1.0.0', installed: true },
+			{ name: 'OpenPlugin root', manifestPath: '.plugin/plugin.json', installedRoot: '', catalogVersion: '1.0.0', installedVersion: '1.0.0', installed: true },
+			{ name: 'plain manifest root', manifestPath: 'plugins/demo/plugin.json', installedRoot: 'plugins/demo', catalogVersion: '1.0.0', installedVersion: '1.0.0', installed: true },
+			{ name: 'different version', manifestPath: '.claude-plugin/plugin.json', installedRoot: '', catalogVersion: '2.0.0', installedVersion: '1.0.0', installed: false },
+			{ name: 'missing installed version', manifestPath: '.claude-plugin/plugin.json', installedRoot: '', catalogVersion: '1.0.0', installedVersion: undefined, installed: false },
+		] as const;
+
+		const actual: { name: string; installed: boolean }[] = [];
+		for (const testCase of cases) {
+			const candidate = resource({
+				identifier: `plugin-${testCase.name}`,
+				mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+				version: testCase.catalogVersion,
+				installation: { kind: 'providerCatalog', resourceKind: 'plugin', selectionId: `selection-${testCase.name}`, repository: 'owner/catalog', path: testCase.manifestPath },
+			});
+			const installedResource = resource({
+				identifier: `installed-${testCase.name}`,
+				mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+				version: testCase.installedVersion,
+				installation: { kind: 'plugin', repository: 'owner/catalog', ref: 'release', path: testCase.installedRoot },
+			});
+			const installProvider = new class extends mock<ICustomizationMarketplaceInstallProvider>() {
+				readonly id = 'provider';
+				readonly name = 'Provider';
+				override readonly onDidChange = Event.None;
+				override async getInstallations() {
+					return [{
+						installationId: `installed-${testCase.name}`,
+						resource: installedResource,
+						state: { kind: 'installed' as const, target: { kind: 'plugin' as const, name: 'demo' } },
+					}];
+				}
+			}();
+			const fixture = await createFixture({ installProvider });
+			await timeout(0);
+			actual.push({
+				name: testCase.name,
+				installed: fixture.service.getInstallState(candidate).kind === 'installed',
+			});
+		}
+
+		assert.deepStrictEqual(actual, cases.map(testCase => ({ name: testCase.name, installed: testCase.installed })));
 	});
 
 	test('joins a Registry receipt URN to its exact catalog card URL', async () => {
@@ -1135,6 +1253,20 @@ suite('CustomizationMarketplaceInstallService', () => {
 		});
 		await assert.rejects(fixture.service.install(candidate), /Pinned SDK plugin installation is unavailable/);
 		assert.strictEqual(installs, 0);
+	});
+
+	test('requires agent plugins to be enabled for provider catalog plugins', async () => {
+		const fixture = await createFixture({ enabled: true });
+		await fixture.configurationService.setUserConfiguration(ChatConfiguration.PluginsEnabled, false);
+		const candidate = resource({
+			mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+			installation: { kind: 'providerCatalog', resourceKind: 'plugin', selectionId: 'plugin-selection' },
+		});
+
+		assert.deepStrictEqual(fixture.service.getInstallState(candidate), {
+			kind: 'unavailable',
+			message: 'Enable agent plugins to install this resource.',
+		});
 	});
 
 

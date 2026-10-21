@@ -651,6 +651,9 @@ export interface ISessionCanvasDefinition {
 	readonly requiresInput: boolean;
 }
 
+/** `undefined` is unsettled; an array, including an empty one, is authoritative. */
+export type SessionCanvasDefinitionSnapshot = readonly ISessionCanvasDefinition[] | undefined;
+
 /**
  * Whether a chat's model is the chat's own or one put there on its behalf. This is the only
  * question model selection asks of it: `chat.defaultModel` seeds a chat that has no model of its

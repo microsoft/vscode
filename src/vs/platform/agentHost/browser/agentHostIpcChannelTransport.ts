@@ -19,7 +19,7 @@ import { AhpJsonlLogger, getAhpLogByteLength } from '../common/ahpJsonlLogger.js
 import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
 import type { IAgentHostIpcConnectionOptions } from '../common/agentService.js';
 import type { AhpServerNotification, JsonRpcResponse, ProtocolMessage } from '../common/state/sessionProtocol.js';
-import type { IClientTransport } from '../common/state/sessionTransport.js';
+import { parseProtocolMessage, type IClientTransport } from '../common/state/sessionTransport.js';
 import { MALFORMED_FRAMES_FORCE_CLOSE_THRESHOLD, MALFORMED_FRAMES_LOG_CAP } from '../common/transportConstants.js';
 
 const REDACTED_TOKEN = '<redacted>';
@@ -101,7 +101,7 @@ export class AgentHostIpcChannelTransport extends Disposable implements IClientT
 	private _handleFrame(text: string): void {
 		let message: ProtocolMessage;
 		try {
-			message = JSON.parse(text) as ProtocolMessage;
+			message = parseProtocolMessage(text);
 		} catch (err) {
 			this._malformedFrames++;
 			if (this._malformedFrames <= MALFORMED_FRAMES_LOG_CAP) {

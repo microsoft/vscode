@@ -455,7 +455,7 @@ suite('Sessions - View Menu', () => {
 		const before = state();
 		await run('sessionsViewPane.resetFilters');
 		const reset = state();
-		await notices[0].undo();
+		await notices[0].undo!();
 
 		assert.deepStrictEqual({ before, reset, notices: notices.map(notice => notice.message), undone: state() }, {
 			before: { local: false, localChecked: false, showDoneChecked: true, showRecent: false },

@@ -45,7 +45,7 @@ export const agentsWindowHandoffConfigurationProperties = {
 	[ChatConfiguration.OpenInAgentsWindowTransferDraft]: {
 		type: 'boolean',
 		description: nls.localize('chat.openInAgentsWindow.transferDraft', "Copy the prompt and attachments from a new chat when explicitly opening the new-session view in the Agents Window. Existing drafts in the Agents Window are preserved."),
-		default: product.quality === 'insider',
+		default: true,
 		tags: ['experimental'],
 		experiment: { mode: 'auto' },
 	},

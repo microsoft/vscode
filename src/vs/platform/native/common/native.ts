@@ -354,6 +354,12 @@ export interface ICommonNativeHostService {
 
 	// OS
 	showItemInFolder(path: string): Promise<void>;
+	/**
+	 * Drags the file or folder at absolute `path` out of the window, as if the user dragged it from the file manager, so
+	 * other apps can take it. Call it from a `dragstart` handler that cancels the HTML drag, while the mouse button is
+	 * still down. Does nothing for a path that doesn't exist.
+	 */
+	startFileDrag(path: string, options?: INativeHostOptions): Promise<void>;
 	setRepresentedFilename(path: string, options?: INativeHostOptions): Promise<void>;
 	setDocumentEdited(edited: boolean, options?: INativeHostOptions): Promise<void>;
 	/**
@@ -366,12 +372,17 @@ export interface ICommonNativeHostService {
 
 	getMediaAccessStatus(mediaType: 'microphone' | 'camera' | 'screen'): Promise<'not-determined' | 'granted' | 'denied' | 'restricted' | 'unknown'>;
 
+	/** Requests screen-capture permission without starting a recording. */
+	requestScreenCaptureAccess(): Promise<boolean>;
+
 	isAdmin(): Promise<boolean>;
 	writeElevated(source: URI, target: URI, options?: { unlock?: boolean }): Promise<void>;
 	isRunningUnderARM64Translation(): Promise<boolean>;
 
 	getOSProperties(): Promise<IOSProperties>;
 	getOSStatistics(): Promise<IOSStatistics>;
+	/** Returns the bytes available to the user on the filesystem containing the given path. */
+	getFreeDiskSpace(path: string): Promise<number>;
 	getOSVirtualMachineHint(): Promise<number>;
 
 	isGPUCompositingEnabled(): Promise<boolean>;

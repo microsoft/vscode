@@ -30,7 +30,7 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { ILogService } from '../../log/common/log.js';
 import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
 import { chatUriFormatOf, createChatUriError, mintDefaultChatUri, subagentChatUri } from '../common/agentHostChatMinting.js';
-import { AgentChatMigrationDeferred, AgentProvider, AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, IAgent, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDiscoveredChat, IAgentLegacyChat, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentManagedPluginRetryEntry, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, type IAgentSessionChatMetadata, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, SubagentChatSignal, subagentChatTitle, type IAgentCreateChatWorkspace } from '../common/agent.js';
+import { AgentChatMigrationDeferred, type AgentCanvasDefinitionSnapshot, AgentProvider, AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, IAgent, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, type IAgentCreateChatWorkspace, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationApplyResult, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDiscoveredChat, IAgentLegacyChat, type IAgentManagedPluginRetryEntry, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, type IAgentSessionChatMetadata, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, SubagentChatSignal, subagentChatTitle } from '../common/agent.js';
 import { getPendingSteeringMessages } from '../common/agentSessionMessage.js';
 import { type AgentHostDebugLogsArtifactKind, type IAgentCreateChatInitialMessageContext, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentService, type IAgentServiceCreateSessionConfig } from '../common/agentService.js';
 import { ISessionDatabase, ISessionDataService, ISessionStorageAccessCounts, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
@@ -85,6 +85,7 @@ import { AgentSessionRegistry, IRegisteredSession, IStoredRegisteredSession } fr
 import { IAgentHostSessionStateStore, type ISessionStateWorktreeListChanges, readSessionBaseBranch, SessionStateDeletedError, SessionStateMirrorFlush, sessionStatePatch, type SessionStateValuesPrefetch } from '../common/agentHostSessionStateStore.js';
 import { getSessionStateValueKey } from './agentHostSessionStateMirror.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH, resolveDefaultBaseBranchName, tryResolvePrimaryWorktreeRoot } from '../common/agentHostGitService.js';
+import { getChatsInUse } from './agentHostChatsInUse.js';
 import { resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSource, resolveChangesetOwnerScope, resolveGitHubStateFolder } from './agentHostBranchChangesetScope.js';
 import { IAgentHostSubscriptionService, resolveAgentHostSession } from '../common/agentHostSubscriptionService.js';
 import { deriveLegacyDefaultChat } from '../common/agentHostLegacyDefaultChat.js';
@@ -217,13 +218,22 @@ function publishedScratchFolders(isRecordedScratchFolder: (folder: string) => bo
 	chatFolders.forEach(folder => collect(folder, isRecordedScratchFolder(folder)));
 	return scratch;
 }
-/** `folder` followed by each of its ancestors, up to its root. */
-function selfAndAncestors(folder: URI): URI[] {
-	const folders = [folder];
-	for (let parent = resourcesDirname(folder); !isEqual(parent, folders[folders.length - 1]); parent = resourcesDirname(parent)) {
-		folders.push(parent);
+/** `folder` or its nearest ancestor that `isScratchFolder` accepts, checked from `folder` up to its root. */
+function findScratchFolderOrAncestor(folder: URI, isScratchFolder: (candidate: string) => boolean): URI | undefined {
+	let candidate = folder;
+	while (!isScratchFolder(candidate.toString())) {
+		const parent = resourcesDirname(candidate);
+		if (isEqual(parent, candidate)) {
+			return undefined;
+		}
+		candidate = parent;
 	}
-	return folders;
+	return candidate;
+}
+
+/** How a folder is named in messages: its file system path for a local folder, else its URI. */
+function folderLabel(folder: URI): string {
+	return folder.scheme === Schemas.file ? folder.fsPath : folder.toString();
 }
 
 const RECENT_LOCAL_SESSION_UPDATE_LIMIT = 2;
@@ -6176,7 +6186,7 @@ export class AgentService extends Disposable implements IAgentService {
 		await provider.uninstallPlugin(request, session, chat);
 	}
 
-	async listSessionCanvases(session: URI, chat: URI): Promise<readonly IAgentCanvasInfo[]> {
+	async listSessionCanvases(session: URI, chat: URI): Promise<AgentCanvasDefinitionSnapshot> {
 		this._assertCanvasesEnabled();
 		await this._restoreSessionChat(session, chat, 'Canvas operation');
 		const provider = this._providerService.getProviderForSession(session);
@@ -6315,12 +6325,12 @@ export class AgentService extends Disposable implements IAgentService {
 		return provider.prepareCustomizationInstallation(session, request);
 	}
 
-	async applyCustomizationInstallation(providerId: AgentProvider, operationId: string): Promise<void> {
+	async applyCustomizationInstallation(providerId: AgentProvider, operationId: string): Promise<IAgentCustomizationInstallationApplyResult | undefined> {
 		const provider = this._providerService.getProvider(providerId);
 		if (!provider?.applyCustomizationInstallation) {
 			throw new Error(`Customization installation apply is unavailable for provider '${providerId}'.`);
 		}
-		await provider.applyCustomizationInstallation(operationId);
+		return provider.applyCustomizationInstallation(operationId);
 	}
 
 	recoverCustomizationInstallations(providerId: AgentProvider, session: URI): Promise<readonly IAgentCustomizationInstallation[]> {
@@ -6490,20 +6500,27 @@ export class AgentService extends Disposable implements IAgentService {
 		const isRecordedScratchFolder = (candidate: string) => recorded.has(candidate) || this._stateManager.isScratchFolder(candidate);
 		const sessionKey = session.toString();
 		const state = this._stateManager.getSessionState(sessionKey);
-		const scratchFolders = [
-			// Any chat's recorded folder, of this session or another, that is the folder or one of its ancestors.
-			...publishedScratchFolders(isRecordedScratchFolder, false, selfAndAncestors(folder).map(candidate => candidate.toString()), []),
+		const sessionScratchFolders = [
 			...publishedScratchFolders(
 				isRecordedScratchFolder,
 				readSessionWorkspaceless(state?._meta),
 				this._stateManager.getSessionSummary(sessionKey)?.workingDirectories ?? state?.workingDirectories ?? [],
 				state?.chats.flatMap(chat => chat.workingDirectories ?? []) ?? []),
 			...readSessionScratchFolders(state?._meta),
-		].map(scratch => URI.parse(scratch)).filter(scratch => isEqualOrParent(folder, scratch));
-		if (scratchFolders.length) {
-			const inside = !scratchFolders.some(scratch => isEqual(scratch, folder));
-			this._logService.info(`[AgentService] ${operation}: refused ${folder.toString()}, ${inside ? 'inside ' : ''}a chat's own scratch folder`);
-			throw new Error(`'${folder.scheme === Schemas.file ? folder.fsPath : folder.toString()}' is ${inside ? 'inside ' : ''}a chat's own scratch folder; pick No Workspace for a scratch folder of its own.`);
+		].map(scratch => URI.parse(scratch));
+		// The scratch folder that refuses `folder`, in order: a scratch folder of this session that is `folder` itself; the
+		// nearest recorded scratch folder of any chat, of this session or another, that is `folder` or one of its
+		// ancestors; then a scratch folder of this session that contains `folder`, such as its workspace-less primary.
+		const scratch = sessionScratchFolders.find(candidate => isEqual(candidate, folder))
+			?? findScratchFolderOrAncestor(folder, isRecordedScratchFolder)
+			?? sessionScratchFolders.find(candidate => isEqualOrParent(folder, candidate));
+		if (scratch) {
+			if (isEqual(scratch, folder)) {
+				this._logService.info(`[AgentService] ${operation}: refused ${folder.toString()}, a chat's own scratch folder`);
+				throw new Error(`'${folderLabel(folder)}' is a chat's own scratch folder; pick No Workspace for a scratch folder of its own.`);
+			}
+			this._logService.info(`[AgentService] ${operation}: refused ${folder.toString()}, inside the chat's own scratch folder ${scratch.toString()}`);
+			throw new Error(`'${folderLabel(folder)}' is inside '${folderLabel(scratch)}', a chat's own scratch folder; pick No Workspace for a scratch folder of its own.`);
 		}
 	}
 
@@ -11953,35 +11970,11 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/**
-	 * The folder scopes of the session's unarchived chats other than `excludedChat`.
-	 * A subagent's own folders are never considered: it works in the folders of
-	 * the chat that spawned it. A side chat works in its own folders, or else in
-	 * those of its spawning chat. Both are in use only while their spawning chat
-	 * is. A chat without folders of its own works in `inheritedFolders` (see
-	 * {@link inheritedChatFolders}). `undefined` marks a chat whose spawning chat is unknown.
+	 * The folder scopes of the session's unarchived chats other than `excludedChat`, as {@link getChatsInUse}
+	 * defines them. `undefined` marks a chat whose spawning chat is unknown.
 	 */
 	private _getWorkingDirectoriesInUse(chats: readonly ChatSummary[], excludedChat: string | undefined, inheritedFolders: readonly string[]): readonly (readonly string[] | undefined)[] {
-		const byResource = new Map(chats.map(chat => [chat.resource, chat]));
-		const ownWorkingDirectories = (chat: ChatSummary | undefined) => chat?.origin?.kind === ChatOriginKind.Tool ? undefined : chat?.workingDirectories;
-		const scopes: (readonly string[] | undefined)[] = [];
-		for (const chat of chats) {
-			let workingDirectories = ownWorkingDirectories(chat);
-			let owner: ChatSummary | undefined = chat;
-			let ownerResource = chat.resource;
-			const visited = new Set<string>();
-			while (owner && (owner.origin?.kind === ChatOriginKind.Tool || owner.origin?.kind === ChatOriginKind.SideChat) && !visited.has(owner.resource)) {
-				visited.add(owner.resource);
-				ownerResource = owner.origin.chat;
-				owner = byResource.get(ownerResource);
-				workingDirectories ??= ownWorkingDirectories(owner);
-			}
-			// A chat a workspace is applied to has not started: without folders of its own it holds none of the session's.
-			if (ownerResource === excludedChat || (owner && isSessionChatArchived(owner)) || (workingDirectories === undefined && this._applyingChatWorkspaces.has(ownerResource))) {
-				continue;
-			}
-			scopes.push(workingDirectories ?? (owner ? inheritedFolders : undefined));
-		}
-		return scopes;
+		return getChatsInUse(chats, { excludedChat, inheritedFolders, isApplyingWorkspace: chat => this._applyingChatWorkspaces.has(chat) }).map(({ workingDirectories }) => workingDirectories);
 	}
 
 	private async _persistSessionWorkingDirectories(session: URI): Promise<void> {

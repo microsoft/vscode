@@ -133,6 +133,12 @@ export const COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY = 'sandbox.allowDevToolAc
 export const COPILOT_AUTO_TIER_KEY = 'autoTier';
 
 /**
+ * Agent Host Copilot runtime's Fusion tier (`standard`, `high`, `max`, `unmanaged`). Its presence in any channel
+ * supersedes {@link COPILOT_AUTO_TIER_KEY} for that runtime, which owns the tier's routing.
+ */
+export const COPILOT_FUSION_TIER_KEY = 'fusionTier';
+
+/**
  * Managed-settings controls consumed by the delivery pipeline itself rather than by a
  * configuration policy. Native MDM must watch these even though no setting declares them.
  */
@@ -160,6 +166,7 @@ export const MANAGED_SETTINGS_CONTROL_DEFINITIONS: IManagedSettingsPolicyDefinit
 	[COPILOT_SANDBOX_DENIED_PATHS_KEY]: { type: 'string' },
 	[COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY]: { type: 'boolean' },
 	[COPILOT_AUTO_TIER_KEY]: { type: 'string' },
+	[COPILOT_FUSION_TIER_KEY]: { type: 'string' },
 	// Observe these only for whole-block source selection; Local does not implement their capture semantics.
 	'telemetry.capture.prompts': { type: 'boolean' },
 	'telemetry.capture.responses': { type: 'boolean' },
@@ -722,6 +729,10 @@ const STRUCTURED_MANAGED_SETTINGS: readonly IStructuredManagedSetting[] = [
 	},
 	{
 		key: COPILOT_AUTO_TIER_KEY,
+		encode: value => value,
+	},
+	{
+		key: COPILOT_FUSION_TIER_KEY,
 		encode: value => value,
 	},
 	{
