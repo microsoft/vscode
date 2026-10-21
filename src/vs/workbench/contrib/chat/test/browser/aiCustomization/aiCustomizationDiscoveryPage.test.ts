@@ -587,6 +587,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			return {
 				visible,
 				label: verified?.getAttribute('aria-label') ?? null,
+				hidden: verified?.getAttribute('aria-hidden') ?? null,
 				afterDetail: visible && verified.previousElementSibling?.classList.contains('customization-discovery-result-detail') === true,
 			};
 		};
@@ -595,10 +596,18 @@ suite('AICustomizationDiscoveryPage', () => {
 			alternative: getResultVerification('public-alternative'),
 			accessibility: fixture.page.getAccessibilityContent().includes('copilot-connector\nMCP server · Copilot Connectors · Verified by GitHub'),
 		}, {
-			connector: { visible: true, label: 'Verified by GitHub', afterDetail: true },
-			alternative: { visible: false, label: null, afterDetail: false },
+			connector: { visible: true, label: 'Verified by GitHub', hidden: null, afterDetail: true },
+			alternative: { visible: false, label: null, hidden: 'true', afterDetail: false },
 			accessibility: true,
 		});
+
+		fixture.page.setSearchQuery('loading');
+		await waitForRequestCount(fixture.requests, 3);
+		assert.deepStrictEqual(
+			[...fixture.container.querySelectorAll<HTMLElement>('.customization-discovery-result-content.loading .customization-discovery-verified')]
+				.map(verified => ({ label: verified.getAttribute('aria-label'), hidden: verified.getAttribute('aria-hidden') })),
+			[{ label: null, hidden: 'true' }],
+		);
 	});
 
 	test('installed item changes keep browse cards and update search results in place', async () => {

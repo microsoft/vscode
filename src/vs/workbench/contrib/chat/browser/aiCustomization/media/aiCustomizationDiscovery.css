@@ -343,7 +343,7 @@
 .customization-discovery-result-heading {
 	display: flex;
 	align-items: center;
-	gap: var(--vscode-spacing-size40);
+	gap: 0;
 	min-width: 0;
 }
 
@@ -360,14 +360,15 @@
 	white-space: nowrap;
 }
 
-.customization-discovery-result-name {
-	margin-right: var(--vscode-spacing-size40);
+.customization-discovery-result-detail {
+	margin-left: var(--vscode-spacing-size80);
 }
 
 .customization-discovery-verified {
 	display: flex;
 	flex: 0 0 auto;
 	align-items: center;
+	margin-left: var(--vscode-spacing-size40);
 	color: var(--vscode-extensionIcon-verifiedForeground);
 	font-size: var(--vscode-codiconFontSize-compact);
 }

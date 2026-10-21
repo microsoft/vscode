@@ -320,11 +320,12 @@ function renderVerifiedCopilotConnector(
 ): void {
 	const verified = isVerifiedCopilotConnector(resource);
 	container.style.display = verified ? '' : 'none';
-	container.setAttribute('aria-hidden', String(!verified));
 	if (!verified) {
+		container.setAttribute('aria-hidden', 'true');
 		container.removeAttribute('aria-label');
 		return;
 	}
+	container.removeAttribute('aria-hidden');
 	const label = localize('customizationDiscovery.verifiedByGitHub', "Verified by GitHub");
 	container.setAttribute('aria-label', label);
 	disposables.add(hoverService.setupDelayedHover(container, { content: label }));
@@ -662,6 +663,7 @@ class DiscoveryResultRenderer implements IListRenderer<DiscoveryListEntry, IDisc
 			templateData.name.textContent = '';
 			templateData.verified.style.display = 'none';
 			templateData.verified.setAttribute('aria-hidden', 'true');
+			templateData.verified.removeAttribute('aria-label');
 			templateData.detail.textContent = '';
 			templateData.description.textContent = '';
 			templateData.primaryAction.removeAttribute('aria-label');
