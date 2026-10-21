@@ -167,7 +167,7 @@ function taskPath(taskId: string): string {
 	return `/tasks/${pathSegment(taskId)}`;
 }
 
-const parseSessionFeedConnection = parse.object<SessionFeedConnection>({
+const parseSessionFeedConnection = parse.copyObject<SessionFeedConnection>({
 	url: parse.nonEmptyString,
 	subprotocol: parse.exact('json.webpubsub.azure.v1'),
 	group: parse.nonEmptyString,

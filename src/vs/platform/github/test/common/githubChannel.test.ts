@@ -2296,6 +2296,31 @@ suite('GitHub authenticated IPC clients', () => {
 			return { ...server, ...peer, client };
 		}
 
+		test('task feed connections omit unused credentials after parsing the IPC response', async () => {
+			const feed = {
+				url: 'wss://relay.example.test/?access_token=feed-secret',
+				subprotocol: 'json.webpubsub.azure.v1', group: 'opaque-group',
+				expires_at: date, reconnect_after: date, frame_schema_version: 1,
+			};
+			const { connect } = setup(async input => {
+				const path = new URL(String(input)).pathname;
+				if (path === '/user') {
+					return Response.json({ id: 101 });
+				}
+				assert.strictEqual(path, '/cmc_internal/api/agents/feed/connect');
+				return Response.json({ ...feed, access_token: 'unused-secret', hub: 'unused-hub', wps_endpoint: 'wss://unused.example.test/' });
+			});
+			const { broker, remote } = connect();
+			broker.options = {
+				...broker.options,
+				missionControl: {
+					endpoint: { ...options.endpoint, feedApiBaseUri: 'https://api.github.com/cmc_internal/api/agents' },
+				},
+			};
+			const client = store.add(await remote.acquireClient(authorization, signal()));
+			assert.deepStrictEqual(await client.tasks.connectFeed(signal()), feed);
+		});
+
 		test('executes automation, task, and environment operations through the approved Mission Control IPC profile', async () => {
 			const paths: string[] = [];
 			const headers: { integration: string | null; apiVersion: string | null; credentials: RequestCredentials | undefined }[] = [];

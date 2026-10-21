@@ -335,4 +335,24 @@ suite('GitHub client schema', () => {
 			objectKeys: ['__proto__', 'other'],
 		});
 	});
+
+	test('copying an object-valued __proto__ field preserves it as data and retains symbols', () => {
+		const marker = Symbol('marker');
+		const prototypeValue = Object.freeze({ inherited: true });
+		const input = Object.freeze({ ['__proto__']: prototypeValue, count: 1, [marker]: 'retained' });
+		const result = parse.object({ count: value => parse.integer(value) + 1 })(input);
+		assert.deepStrictEqual({
+			count: result.count,
+			inputCount: input.count,
+			plainPrototype: Object.getPrototypeOf(result) === Object.prototype,
+			prototypeField: Object.getOwnPropertyDescriptor(result, '__proto__')?.value === prototypeValue,
+			symbolValue: Object.getOwnPropertyDescriptor(result, marker)?.value,
+		}, {
+			count: 2,
+			inputCount: 1,
+			plainPrototype: true,
+			prototypeField: true,
+			symbolValue: 'retained',
+		});
+	});
 });
