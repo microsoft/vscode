@@ -122,7 +122,7 @@ import { IChatEditingService } from '../../../common/editing/chatEditingService.
 import { HIDE_AUTO_EXPLAINABILITY_TREATMENT } from '../../../common/chatAutoModeExplainability.js';
 import { AUTO_RAW_MODEL_ID, getLanguageModelDisplayNameWithProvider, ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
 import { getLanguageModelDisplayNameWithSubscriptionSource } from '../../../common/languageModelSourcePresentation.js';
-import { hasAgentModelExecutionMetadata, readAgentModelExecution } from '../../../../../../platform/agentHost/common/meta/agentModelProvider.js';
+import { getAgentModelProviderKey, hasAgentModelExecutionMetadata, readAgentModelExecution } from '../../../../../../platform/agentHost/common/meta/agentModelProvider.js';
 import { ChatInputStateOrigin, reviveSerializableInputState, type IChatModel, type IChatModelInputState, type IChatRequestVariableData, type IInputModel, type ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
@@ -6924,13 +6924,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const resolveRaw = (rawModelId: string | undefined): string | undefined => rawModelId ?? fallbackRawModelId;
 		// Try the raw billed id and its dots-normalised form (slug mismatch:
 		// `claude-sonnet-4-6` → `.6`) before falling back to the picked model.
-		const lookupRawModel = (rawModelId: string | undefined, modelProviderId?: string): { identifier: string; model: ILanguageModelChatMetadata; resolvedFromRaw: true } | undefined => {
+		const lookupRawModel = (rawModelId: string | undefined, modelSourceId?: string): { identifier: string; model: ILanguageModelChatMetadata; resolvedFromRaw: true } | undefined => {
 			const normalizedRaw = rawModelId?.replace(/-(\d+)$/, '.$1');
 			for (const candidate of [rawModelId, normalizedRaw !== rawModelId ? normalizedRaw : undefined]) {
 				const modelId = this._toLanguageModelId(sessionResource, candidate);
 				if (!modelId) { continue; }
 				const model = this._languageModelsService.lookupLanguageModel(modelId);
-				if (model && (modelProviderId === undefined || model.modelGroup?.sourceId === modelProviderId)) { return { identifier: modelId, model, resolvedFromRaw: true }; }
+				if (model && (modelSourceId === undefined || model.modelGroup?.sourceId === modelSourceId)) { return { identifier: modelId, model, resolvedFromRaw: true }; }
 			}
 			return undefined;
 		};
@@ -6969,7 +6969,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			isFusionModel: rawModelId => this._config.provider === COPILOT_CLI_AGENT_PROVIDER_ID && isCopilotHydraFusionModelId(rawModelId),
 			toActualModelId: (rawModelId, usage) => {
 				const execution = readAgentModelExecution(usage);
-				return hasAgentModelExecutionMetadata(usage) ? execution && lookupRawModel(execution.modelId, execution.provider.id)?.identifier
+				return hasAgentModelExecutionMetadata(usage) ? execution && lookupRawModel(execution.modelId, getAgentModelProviderKey(execution.provider))?.identifier
 					: lookupRawModel(rawModelId)?.identifier ?? this._toLanguageModelId(sessionResource, rawModelId);
 			},
 			toModelDisplayName: rawModelId => lookupRawModel(rawModelId)?.model.name ?? this._localModels.getDisplayName(rawModelId),
@@ -7019,7 +7019,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						return usage?.model ? { modelName: usage.model } : undefined;
 					}
 					return {
-						modelId: lookupRawModel(execution.modelId, execution.provider.id)?.identifier,
+						modelId: lookupRawModel(execution.modelId, getAgentModelProviderKey(execution.provider))?.identifier,
 						modelName: formatTurnModelName({ name: execution.modelDisplayName ?? execution.modelId, providerLabel: execution.provider.label }, undefined),
 						...(runtimeModelConfiguration ? { runtimeModelConfiguration } : {}),
 					};

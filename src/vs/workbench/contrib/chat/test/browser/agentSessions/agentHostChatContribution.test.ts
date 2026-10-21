@@ -14,7 +14,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError, isCancellationError, transformErrorForSerialization, transformErrorFromSerialization } from '../../../../../../base/common/errors.js';
 import { AgentPolicyError } from '../../../../../../platform/agentHost/common/agent.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { toAgentModelExecutionMeta } from '../../../../../../platform/agentHost/common/meta/agentModelProvider.js';
+import { getAgentModelProviderKey, toAgentModelExecutionMeta } from '../../../../../../platform/agentHost/common/meta/agentModelProvider.js';
 import { Disposable, DisposableStore, IDisposable, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
@@ -8212,7 +8212,10 @@ suite('AgentHostChatContribution', () => {
 			for (const [currentSource, validExecution] of [[undefined, true], ['different-provider', true], ['executing-provider', true], ['executing-provider', false]] as const) {
 				const languageModels = new Map<string, ILanguageModelChatMetadata>(currentSource ? [[
 					'agent-host-copilot:shared-model',
-					upcastPartial<ILanguageModelChatMetadata>({ name: 'Current Catalog Name', pricing: '99x', modelGroup: { id: 'copilot', sourceId: currentSource } }),
+					upcastPartial<ILanguageModelChatMetadata>({
+						name: 'Current Catalog Name', pricing: '99x',
+						modelGroup: { id: 'copilot', sourceId: getAgentModelProviderKey({ id: currentSource, kind: 'future', label: 'Source' }) },
+					}),
 				]] : []);
 				const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { languageModels });
 				const { turnPromise, turnId, fire, collected } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
@@ -8238,6 +8241,44 @@ suite('AgentHostChatContribution', () => {
 				{ details: 'Captured Model (Captured Provider)', actualModelId: 'agent-host-copilot:shared-model' },
 				{ details: 'shared-model', actualModelId: undefined },
 			]);
+		}));
+
+		test('captured account attribution cannot attach another account or legacy product model id', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const provider = { id: 'configuration', kind: 'future', label: 'Configured Source' };
+			const captured = { ...provider, binding: { source: 'configured', accountRef: { selectionId: 'account-a' } } };
+			const candidates = [
+				provider,
+				{ ...provider, binding: { source: 'configured' } },
+				{ ...captured, binding: { source: 'configured', accountRef: { selectionId: 'account-b' } } },
+				captured,
+			];
+			const results = [];
+			for (const candidate of candidates) {
+				const languageModels = new Map<string, ILanguageModelChatMetadata>([[
+					'agent-host-copilot:shared-model',
+					upcastPartial<ILanguageModelChatMetadata>({
+						name: 'Current Catalog Name', pricing: '99x',
+						modelGroup: { id: 'copilot', sourceId: getAgentModelProviderKey(candidate) },
+					}),
+				]]);
+				const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { languageModels });
+				const { turnPromise, turnId, fire, collected } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+				fire({
+					type: ActionType.ChatUsage, turnId, usage: {
+						model: 'shared-model', inputTokens: 4, outputTokens: 2,
+						_meta: toAgentModelExecutionMeta({ provider: captured, modelId: 'shared-model', modelDisplayName: 'Captured Model' }),
+					}
+				});
+				fire({ type: ActionType.ChatTurnComplete, turnId, duration: 100 });
+				results.push({
+					details: (await turnPromise).details,
+					actualModelId: collected.flat().findLast(part => part.kind === 'usage')?.actualModelId,
+				});
+			}
+			assert.deepStrictEqual(results, candidates.map((_, index) => ({
+				details: 'Captured Model (Configured Source)',
+				actualModelId: index === 3 ? 'agent-host-copilot:shared-model' : undefined,
+			})));
 		}));
 
 		test('captured execution attribution preserves hidden Auto and Fusion workflow labels', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

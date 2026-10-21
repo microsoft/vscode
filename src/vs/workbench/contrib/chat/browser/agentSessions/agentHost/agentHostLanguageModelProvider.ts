@@ -20,7 +20,7 @@ import { readAgentModelAutoTierPromotionsMeta, readAgentModelAutoTiersMeta, read
 import { readAgentManagedModelDefaults, readAgentModelConfigurationDefaults } from '../../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { readAgentModelGroupId, readAgentModelSourceId } from '../../../../../../platform/agentHost/common/agentModelSource.js';
-import { hasAgentModelProviderMetadata, readAgentModelProvider } from '../../../../../../platform/agentHost/common/meta/agentModelProvider.js';
+import { getAgentModelProviderKey, hasAgentModelProviderMetadata, readAgentModelProvider } from '../../../../../../platform/agentHost/common/meta/agentModelProvider.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../../../../../platform/agentHost/common/reasoningEffort.js';
 import { nullExtensionDescription } from '../../../../../services/extensions/common/extensions.js';
 import { AUTO_RAW_MODEL_ID, COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelConfigurationSchema, ILanguageModelsService } from '../../../common/languageModels.js';
@@ -100,11 +100,11 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 		const providers = distinct(models.flatMap(model => {
 			const provider = readAgentModelByokIdentifier(model) === undefined ? readAgentModelProvider(model) : undefined;
 			return provider ? [provider] : [];
-		}), provider => provider.id);
+		}), getAgentModelProviderKey);
 		for (const provider of providers) {
 			this._modelSourcePresentations.add(languageModelSourcePresentationRegistry.register({
 				ownerVendor: this._vendor,
-				sourceId: provider.id,
+				sourceId: getAgentModelProviderKey(provider),
 				label: provider.label,
 				icon: Codicon.server,
 				description: localize('agentHost.modelProviderSource', "Models supplied by {0}", provider.label),
@@ -427,7 +427,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 		if (!groupVendorId) {
 			return undefined;
 		}
-		const sourceId = isByok ? undefined : declaresModelProvider ? modelProvider?.id : readAgentModelSourceId(model);
+		const sourceId = isByok ? undefined : declaresModelProvider ? modelProvider && getAgentModelProviderKey(modelProvider) : readAgentModelSourceId(model);
 		return { id: groupVendorId, ...(sourceId !== undefined && { sourceId }) };
 	}
 

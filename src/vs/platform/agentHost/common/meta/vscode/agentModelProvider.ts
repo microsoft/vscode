@@ -14,6 +14,11 @@ export interface IAgentModelProvider {
 	readonly id: string;
 	readonly kind: string;
 	readonly label: string;
+	/** When present, `id` is a captured configuration/binding identity, not a legacy product reference. */
+	readonly binding?: {
+		readonly source: string;
+		readonly accountRef?: { readonly selectionId: string };
+	};
 }
 
 /** Attribution captured for an actual model call, not inferred from the current selection. */
@@ -27,11 +32,34 @@ export function parseAgentModelProvider(value: unknown): IAgentModelProvider | u
 	if (!isObject(value)) {
 		return undefined;
 	}
-	const { id, kind, label } = value as Record<string, unknown>;
+	const raw = value as Record<string, unknown>;
+	const { id, kind, label } = raw;
 	if (typeof id !== 'string' || !id.trim() || typeof kind !== 'string' || !kind.trim() || typeof label !== 'string' || !label.trim()) {
 		return undefined;
 	}
-	return { id, kind, label };
+	let binding: IAgentModelProvider['binding'];
+	if (raw.binding !== undefined) {
+		if (!isObject(raw.binding)) {
+			return undefined;
+		}
+		const data = raw.binding as Record<string, unknown>;
+		if (typeof data.source !== 'string' || !data.source.trim()) {
+			return undefined;
+		}
+		let accountRef: NonNullable<IAgentModelProvider['binding']>['accountRef'];
+		if (data.accountRef !== undefined) {
+			if (!isObject(data.accountRef)) {
+				return undefined;
+			}
+			const account = data.accountRef as Record<string, unknown>;
+			if (typeof account.selectionId !== 'string' || !account.selectionId.trim()) {
+				return undefined;
+			}
+			accountRef = { selectionId: account.selectionId };
+		}
+		binding = { source: data.source, ...(accountRef ? { accountRef } : {}) };
+	}
+	return { id, kind, label, ...(binding ? { binding } : {}) };
 }
 
 export function readAgentModelProvider(source: IAgentMetadataSource | undefined): IAgentModelProvider | undefined {
@@ -43,7 +71,7 @@ export function hasAgentModelProviderMetadata(source: IAgentMetadataSource | und
 }
 
 export function toAgentModelProviderMeta(provider: IAgentModelProvider | undefined): Record<string, unknown> | undefined {
-	return provider ? { [modelProviderKey]: { id: provider.id, kind: provider.kind, label: provider.label } } : undefined;
+	return provider ? { [modelProviderKey]: toModelProviderData(provider) } : undefined;
 }
 
 export function readAgentModelExecution(source: IAgentMetadataSource | undefined): IAgentModelExecution | undefined {
@@ -71,14 +99,33 @@ export function hasAgentModelExecutionMetadata(source: IAgentMetadataSource | un
 export function toAgentModelExecutionMeta(execution: IAgentModelExecution | undefined): Record<string, unknown> | undefined {
 	return execution ? {
 		[modelExecutionKey]: {
-			provider: { id: execution.provider.id, kind: execution.provider.kind, label: execution.provider.label },
+			provider: toModelProviderData(execution.provider),
 			modelId: execution.modelId,
 			...(execution.modelDisplayName !== undefined ? { modelDisplayName: execution.modelDisplayName } : {}),
 		},
 	} : undefined;
 }
 
-/** Unknown attribution never merges with a provider's same-named model. */
-export function getAgentModelUsageKey(modelId: string, providerId: string | undefined): string {
-	return JSON.stringify([providerId, modelId]);
+function toModelProviderData(provider: IAgentModelProvider): IAgentModelProvider {
+	return {
+		id: provider.id, kind: provider.kind, label: provider.label,
+		...(provider.binding !== undefined ? {
+			binding: {
+				source: provider.binding.source,
+				...(provider.binding.accountRef !== undefined ? { accountRef: { selectionId: provider.binding.accountRef.selectionId } } : {}),
+			},
+		} : {}),
+	};
+}
+
+/** A presentation/aggregation key, never a model selector or an authentication account lookup. */
+export function getAgentModelProviderKey(provider: IAgentModelProvider): string {
+	return provider.binding
+		? JSON.stringify(['binding', provider.id, provider.binding.accountRef?.selectionId])
+		: JSON.stringify(['provider', provider.id]);
+}
+
+/** Unknown accounts and legacy product references remain separate from captured binding identities. */
+export function getAgentModelUsageKey(modelId: string, provider: IAgentModelProvider | undefined): string {
+	return JSON.stringify([provider ? getAgentModelProviderKey(provider) : undefined, modelId]);
 }

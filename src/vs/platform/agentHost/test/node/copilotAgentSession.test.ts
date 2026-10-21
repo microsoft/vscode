@@ -5798,6 +5798,50 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
+	test('keeps captured bindings and accounts separate across actual calls and compaction', async () => {
+		const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables);
+		session.resetTurnState('binding-usage');
+		const binding = { id: 'shared-identity', label: 'Endpoint', provenance: { providerKind: 'openai', source: 'configured' } };
+		const firstAccount = { ...binding, accountRef: { selectionId: 'account-a' } };
+		const secondAccount = { ...binding, accountRef: { selectionId: 'account-b' } };
+		const legacy = { id: 'shared-identity', kind: 'copilot', label: 'Legacy Product' } as const;
+		for (const providerBinding of [firstAccount, secondAccount, binding, { ...firstAccount, label: 'Renamed Endpoint' }, undefined]) {
+			const data = { model: 'same-model', inputTokens: 10, outputTokens: 2, ...(providerBinding ? { providerBinding } : {}) };
+			mockSession.fire('assistant.usage', data);
+		}
+		mockSession.fire('assistant.usage', { model: 'same-model', inputTokens: 10, outputTokens: 2, provider: legacy });
+		const compaction = {
+			success: true,
+			model: 'same-model',
+			compactionTokensUsed: {
+				providerBinding: { ...firstAccount, label: 'Compaction Source' },
+				modelDisplayName: 'Compaction Model', inputTokens: 20, outputTokens: 4,
+			},
+		};
+		mockSession.fire('session.compaction_complete', compaction);
+		await waitForSignal(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatUsage
+			&& readUsageInfoMeta(signal.action.usage).turnTokenTotals?.some(total => total.modelDisplayName === 'Compaction Model') === true);
+		const usage = getActions(signals).filter((action): action is ChatUsageAction => action.type === ActionType.ChatUsage).at(-1)?.usage;
+		const total = { model: 'same-model', inputTokens: 10, outputTokens: 2, cachedTokens: 0 };
+		const normalized = { id: 'shared-identity', kind: 'openai', label: 'Endpoint', binding: { source: 'configured' } };
+		const totals = [
+			{ ...total, inputTokens: 40, outputTokens: 8, modelDisplayName: 'Compaction Model', provider: { ...normalized, label: 'Compaction Source', binding: { source: 'configured', accountRef: { selectionId: 'account-a' } } } },
+			{ ...total, provider: { ...normalized, binding: { source: 'configured', accountRef: { selectionId: 'account-b' } } } },
+			{ ...total, provider: normalized },
+			total,
+			{ ...total, provider: legacy },
+		];
+		assert.deepStrictEqual({
+			response: readAgentModelExecution(usage),
+			inclusive: readUsageInfoMeta(usage).turnTokenTotals,
+			direct: readUsageInfoMeta(usage).directTurnTokenTotals,
+		}, {
+			response: { provider: legacy, modelId: 'same-model' },
+			inclusive: totals,
+			direct: totals,
+		});
+	});
+
 	test('observed request usage retains the ultra reasoning-effort tier', async () => {
 		const { session, mockSession } = await createAgentSession(disposables);
 		session.resetTurnState('ultra-turn');

@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { readAgentModelExecution, readAgentModelProvider, toAgentModelExecutionMeta, toAgentModelProviderMeta } from '../../common/meta/agentModelProvider.js';
+import { getAgentModelProviderKey, getAgentModelUsageKey, readAgentModelExecution, readAgentModelProvider, toAgentModelExecutionMeta, toAgentModelProviderMeta } from '../../common/meta/agentModelProvider.js';
 import { readUsageInfoMeta } from '../../common/meta/agentUsageMeta.js';
 import { mergeLogicalTurnUsage } from '../../common/state/sessionState.js';
 
@@ -53,6 +53,64 @@ suite('Agent model provider metadata', () => {
 			{ provider: { id: 'provider' }, modelId: 'model' }, { provider, modelId: 'model', modelDisplayName: false },
 			{ provider, modelId: 'model', modelDisplayName: ' ' }];
 		assert.deepStrictEqual(invalid.map(value => readAgentModelExecution({ _meta: { 'vscode.modelExecution': value } })), invalid.map(() => undefined));
+	});
+
+	test('captures binding and account identity without retaining mutable input references', () => {
+		const provider = { id: 'configuration', kind: 'future', label: 'Source', binding: { source: 'configured', accountRef: { selectionId: 'account-a' } } };
+		const catalog = { _meta: toAgentModelProviderMeta(provider) };
+		const call = { _meta: toAgentModelExecutionMeta({ provider, modelId: 'model' }) };
+		provider.binding.accountRef.selectionId = 'account-b';
+		const expected = { ...provider, binding: { source: 'configured', accountRef: { selectionId: 'account-a' } } };
+		assert.deepStrictEqual({
+			catalog: readAgentModelProvider(JSON.parse(JSON.stringify(catalog))),
+			call: readAgentModelExecution(JSON.parse(JSON.stringify(call))),
+		}, { catalog: expected, call: { modelId: 'model', provider: expected } });
+	});
+
+	test('does not downgrade malformed binding or account identity into legacy or anonymous attribution', () => {
+		const invalid = [null, {}, { source: '' }, { source: 1 }, { source: 'configured', accountRef: null },
+			{ source: 'configured', accountRef: {} }, { source: 'configured', accountRef: { selectionId: '' } }];
+		assert.deepStrictEqual(invalid.map(binding => readAgentModelProvider({
+			_meta: { 'vscode.modelProvider': { id: 'source', kind: 'future', label: 'Source', binding } },
+		})), invalid.map(() => undefined));
+	});
+
+	test('namespaces configuration, account, legacy product, and unknown identities without using labels', () => {
+		const legacy = { id: 'source', kind: 'future', label: 'Source' };
+		const binding = { ...legacy, binding: { source: 'configured' } };
+		const account = { ...binding, binding: { ...binding.binding, accountRef: { selectionId: 'account-a' } } };
+		assert.deepStrictEqual({
+			sources: [legacy, binding, account].map(getAgentModelProviderKey),
+			renamed: getAgentModelUsageKey('model', { ...account, kind: 'renamed-kind', label: 'Renamed Source' }) === getAgentModelUsageKey('model', account),
+			namespaceCollision: getAgentModelUsageKey('model', { ...legacy, id: getAgentModelProviderKey(binding) }) === getAgentModelUsageKey('model', binding),
+			distinct: new Set([
+				legacy, binding, account,
+				{ ...binding, binding: { ...binding.binding, accountRef: { selectionId: 'account-b' } } },
+				{ ...binding, id: 'other-source' },
+				undefined,
+			].map(provider => getAgentModelUsageKey('model', provider))).size,
+		}, {
+			sources: ['["provider","source"]', '["binding","source",null]', '["binding","source","account-a"]'],
+			renamed: true, namespaceCollision: false, distinct: 6,
+		});
+	});
+
+	test('resumed usage keeps accounts and legacy provider references separate under the same configuration id', () => {
+		const provider = { id: 'shared-id', kind: 'future', label: 'Source' };
+		const account = { ...provider, binding: { source: 'configured', accountRef: { selectionId: 'account-a' } } };
+		const total = { model: 'model', inputTokens: 10, cachedTokens: 0, outputTokens: 2 };
+		const rows = [
+			{ ...total, provider },
+			{ ...total, provider: { ...provider, binding: { source: 'configured' } } },
+			{ ...total, provider: account },
+			{ ...total, provider: { ...account, binding: { ...account.binding, accountRef: { selectionId: 'account-b' } } } },
+		];
+		const merged = mergeLogicalTurnUsage(
+			{ _meta: { turnTokenTotals: rows } },
+			{ _meta: { turnTokenTotals: [{ ...total, provider: account }] } },
+		);
+		assert.deepStrictEqual(readUsageInfoMeta(merged).turnTokenTotals, rows.map(row =>
+			row.provider === account ? { ...row, inputTokens: 20, outputTokens: 4 } : row));
 	});
 
 	test('preserves provider-separated token totals across resumed attempts', () => {

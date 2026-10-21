@@ -184,7 +184,7 @@ function mergeTurnTokenTotals(previous: UsageInfoMeta['turnTokenTotals'], curren
 	}
 	const totals = new Map<string, ITurnTokenTotal>();
 	for (const total of [...previous ?? [], ...current ?? []]) {
-		const key = getAgentModelUsageKey(total.model, total.provider?.id);
+		const key = getAgentModelUsageKey(total.model, total.provider);
 		const existing = totals.get(key);
 		const modelDisplayName = total.modelDisplayName ?? existing?.modelDisplayName;
 		totals.set(key, existing ? {

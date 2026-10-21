@@ -655,8 +655,8 @@ suite('AgentHostLanguageModelProvider', () => {
 			id: model.identifier, name: model.metadata.name, group: model.metadata.modelGroup,
 			displayName: getLanguageModelDisplayNameWithSubscriptionSource(model),
 		})), [
-			{ id: 'copilotcli:opaque/first', name: 'Shared Model', group: { id: 'copilotcli', sourceId: 'first-provider' }, displayName: 'Shared Model (First Source)' },
-			{ id: 'copilotcli:opaque/second', name: 'Shared Model', group: { id: 'copilotcli', sourceId: 'second-provider' }, displayName: 'Shared Model (Second Source)' },
+			{ id: 'copilotcli:opaque/first', name: 'Shared Model', group: { id: 'copilotcli', sourceId: '["provider","first-provider"]' }, displayName: 'Shared Model (First Source)' },
+			{ id: 'copilotcli:opaque/second', name: 'Shared Model', group: { id: 'copilotcli', sourceId: '["provider","second-provider"]' }, displayName: 'Shared Model (Second Source)' },
 		]);
 	});
 
@@ -674,19 +674,41 @@ suite('AgentHostLanguageModelProvider', () => {
 		assert.deepStrictEqual({
 			group: model.metadata.modelGroup,
 			byokIdentifier: model.metadata.byokModelIdentifier,
-			presentation: languageModelSourcePresentationRegistry.get('copilotcli', 'claimed-native'),
+			presentation: languageModelSourcePresentationRegistry.get('copilotcli', '["provider","claimed-native"]'),
 		}, { group: { id: 'configured' }, byokIdentifier: 'configured/model', presentation: undefined });
 	});
 
 	test('publishes source registrations before models and disposes them when the catalog changes', () => {
 		const provider = createProvider();
 		const labels: Array<string | undefined> = [];
-		store.add(provider.onDidChange(() => labels.push(languageModelSourcePresentationRegistry.get('copilotcli', 'native-source')?.label)));
+		store.add(provider.onDidChange(() => labels.push(languageModelSourcePresentationRegistry.get('copilotcli', '["provider","native-source"]')?.label)));
 		for (const label of ['First Label', 'Updated Label']) {
 			provider.updateModels([makeModel('model', toAgentModelProviderMeta({ id: 'native-source', kind: 'future', label }))]);
 		}
 		provider.updateModels([]);
 		assert.deepStrictEqual(labels, ['First Label', 'Updated Label', undefined]);
+	});
+
+	test('distinguishes captured accounts without changing model selectors or displaying account ids', async () => {
+		const provider = createProvider();
+		const binding = { id: 'configuration', kind: 'future', label: 'Configured Source' };
+		provider.updateModels(['account-a', 'account-b', undefined].map((selectionId, index) => ({
+			...makeModel(`existing-selector-${index}`),
+			name: 'Shared Model',
+			_meta: toAgentModelProviderMeta({
+				...binding, binding: { source: 'configured', ...(selectionId ? { accountRef: { selectionId } } : {}) },
+			}),
+		})));
+		const models = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		assert.deepStrictEqual(models.map(model => ({
+			id: model.identifier,
+			source: model.metadata.modelGroup?.sourceId,
+			name: getLanguageModelDisplayNameWithSubscriptionSource(model),
+		})), [
+			{ id: 'copilotcli:existing-selector-0', source: '["binding","configuration","account-a"]', name: 'Shared Model (Configured Source)' },
+			{ id: 'copilotcli:existing-selector-1', source: '["binding","configuration","account-b"]', name: 'Shared Model (Configured Source)' },
+			{ id: 'copilotcli:existing-selector-2', source: '["binding","configuration",null]', name: 'Shared Model (Configured Source)' },
+		]);
 	});
 
 	test('never borrows default-account pricing for an explicitly attributed model', async () => {

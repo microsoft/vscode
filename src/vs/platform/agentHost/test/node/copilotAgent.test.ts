@@ -61,6 +61,7 @@ import { IAgentHostSessionOpenTelemetry } from '../../node/agentHostSessionOpenT
 import { AgentHostFusionEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, COPILOT_HYDRA_FUSION_MODEL_ID } from '../../common/copilotCliConfig.js';
 import { readAgentModelAutoTierPromotionsMeta, readAgentModelAutoTiersMeta, readAgentModelFusionMeta } from '../../common/meta/agentModelMeta.js';
 import { readAgentModelProvider } from '../../common/meta/agentModelProvider.js';
+import type { getCopilotModelProvider } from '../../node/copilot/copilotModelProvider.js';
 import { TestExperimentTriggerTelemetryService } from '../../../telemetry/test/common/experimentTriggerTestUtils.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { buildAgentHostOTelEnv } from '../../common/agentService.js';
@@ -704,6 +705,7 @@ interface ITestCopilotModelInfo {
 	readonly id: string;
 	readonly name: string;
 	readonly provider?: CopilotModelInfo['provider'];
+	readonly providerBinding?: Parameters<typeof getCopilotModelProvider>[0]['providerBinding'];
 	readonly capabilities?: {
 		readonly supports?: { readonly vision?: boolean };
 		readonly limits?: { readonly max_context_window_tokens?: number; readonly max_output_tokens?: number; readonly max_prompt_tokens?: number };
@@ -750,6 +752,7 @@ function toSdkModelInfo(model: ITestCopilotModelInfo): CopilotModelInfo {
 		id: model.id,
 		name: model.name,
 		...(model.provider ? { provider: model.provider } : {}),
+		...(model.providerBinding ? { providerBinding: model.providerBinding } : {}),
 		capabilities: {
 			supports: {
 				vision: model.capabilities?.supports?.vision ?? false,
@@ -5514,14 +5517,30 @@ suite('CopilotAgent', () => {
 
 	test('preserves runtime model-provider references separately from the harness', async () => {
 		const provider = { id: 'provider-instance', kind: 'loki', label: 'Microsoft 365 Copilot' } as const;
-		const client = new TestCopilotClient([], [{ id: 'opaque-model-handle', name: 'Shared Model', provider }]);
+		const catalog = [
+			{ id: 'opaque-model-handle', name: 'Shared Model', provider },
+			{
+				id: 'configured/model', name: 'Configured Model',
+				providerBinding: {
+					id: 'configuration-identity', label: 'Configured Source',
+					provenance: { providerKind: 'future-transport', source: 'configured' },
+				},
+			},
+		];
+		const client = new TestCopilotClient([], catalog);
 		const agent = createTestAgent(disposables, { copilotClient: client });
 		try {
 			await agent.authenticate('https://api.github.com', 'model-token');
 			await waitForState(agent.models, models => models.length > 0);
 			assert.deepStrictEqual(agent.models.get().map(model => ({
 				id: model.id, name: model.name, harness: model.provider, modelProvider: readAgentModelProvider(model),
-			})), [{ id: 'opaque-model-handle', name: 'Shared Model', harness: 'copilotcli', modelProvider: provider }]);
+			})), [
+				{ id: 'opaque-model-handle', name: 'Shared Model', harness: 'copilotcli', modelProvider: provider },
+				{
+					id: 'configured/model', name: 'Configured Model', harness: 'copilotcli',
+					modelProvider: { id: 'configuration-identity', kind: 'future-transport', label: 'Configured Source', binding: { source: 'configured' } },
+				},
+			]);
 		} finally {
 			await disposeAgent(agent);
 		}

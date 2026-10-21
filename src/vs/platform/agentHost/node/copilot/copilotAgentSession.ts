@@ -137,6 +137,7 @@ import { ModelCallTurnCorrelation } from './modelCallTurnCorrelation.js';
 import { CopilotSubagentTracking } from './copilotSubagentTracking.js';
 import { agentModelCallMetaKey, readAgentModelCallDiagnostics } from '../../common/meta/agentModelCallMeta.js';
 import { getAgentModelUsageKey, toAgentModelExecutionMeta, type IAgentModelExecution } from '../../common/meta/agentModelProvider.js';
+import { getCopilotModelProvider } from './copilotModelProvider.js';
 
 type CopilotSdkAttachment = Required<MessageOptions>['attachments'][number];
 type GitHubCredentialsUpdateResult = Awaited<ReturnType<CopilotSession['rpc']['gitHubAuth']['setCredentials']>>;
@@ -815,7 +816,7 @@ function addTokenTotals(totals: Map<string, Mutable<ITurnTokenTotal>>, model: st
 		return;
 	}
 	const provider = tokens.modelExecution?.provider;
-	const key = getAgentModelUsageKey(model, provider?.id);
+	const key = getAgentModelUsageKey(model, provider);
 	let total = totals.get(key);
 	if (!total) {
 		total = { model, inputTokens: 0, cachedTokens: 0, outputTokens: 0, ...(provider ? { provider } : {}) };
@@ -9469,15 +9470,16 @@ export class CopilotAgentSession extends Disposable {
 			}
 
 			// This event's own context usage (the model call that produced it).
+			const modelProvider = getCopilotModelProvider(e.data);
 			const eventContext: UsageContext = {
 				inputTokens: e.data.inputTokens,
 				outputTokens: e.data.outputTokens,
 				model: e.data.model,
 				cacheReadTokens: e.data.cacheReadTokens,
 				...(typeof e.data.cost === 'number' ? { cost: e.data.cost } : {}),
-				...(e.data.provider ? {
+				...(modelProvider ? {
 					modelExecution: {
-						provider: e.data.provider,
+						provider: modelProvider,
 						modelId: e.data.model,
 						...(e.data.modelDisplayName !== undefined ? { modelDisplayName: e.data.modelDisplayName } : {}),
 					}
@@ -9707,17 +9709,18 @@ export class CopilotAgentSession extends Disposable {
 			const copilotUsage = readCopilotUsage(e.data.compactionTokensUsed);
 			const turn = this._owningRootTurn(parentToolCallId);
 			const compactionTokens = e.data.compactionTokensUsed;
+			const modelProvider = compactionTokens ? getCopilotModelProvider(compactionTokens) : undefined;
 			const reportedModel = compactionTokens?.model ?? e.data.model;
 			const model = reportedModel ?? this._lastSeenModelId;
 			const usageContext: UsageContext = {
 				inputTokens: compactionTokens?.inputTokens,
 				outputTokens: compactionTokens?.outputTokens,
 				cacheReadTokens: compactionTokens?.cacheReadTokens,
-				...(compactionTokens?.provider && reportedModel ? {
+				...(modelProvider && reportedModel ? {
 					modelExecution: {
-						provider: compactionTokens.provider,
+						provider: modelProvider,
 						modelId: reportedModel,
-						...(compactionTokens.modelDisplayName !== undefined ? { modelDisplayName: compactionTokens.modelDisplayName } : {}),
+						...(compactionTokens?.modelDisplayName !== undefined ? { modelDisplayName: compactionTokens.modelDisplayName } : {}),
 					}
 				} : {}),
 			};
