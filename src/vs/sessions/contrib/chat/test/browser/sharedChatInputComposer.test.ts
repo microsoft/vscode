@@ -205,6 +205,41 @@ suite('SharedChatInputComposer', () => {
 		});
 	});
 
+	test('keeps the input\'s inline references when another draft is bound', async () => {
+		const reference: IDynamicVariable = { id: 'file', range: new Range(1, 5, 1, 17), data: 'foo.ts' };
+		let input = 'Fix #file:foo.ts';
+		const dynamicVariables = {
+			variables: [reference],
+			setInputState: (state: Readonly<Record<string, unknown>>) => { dynamicVariables.variables = state[ChatDynamicVariableModel.ID] as IDynamicVariable[]; },
+		};
+		const attachmentModel = { attachments: [], clearAndSetContext: () => { } };
+		const composer: { _bindModel(resource: URI): Promise<void> } = Object.assign(Object.create(SharedChatInputComposer.prototype), {
+			_store: store.add(new DisposableStore()),
+			_modelRef: store.add(new MutableDisposable()),
+			_modelBinding: 0,
+			_widget: {
+				viewModel: {},
+				supportsFileReferences: true,
+				input: { attachmentModel },
+				attachmentModel,
+				getContrib: () => dynamicVariables,
+				getInput: () => input,
+				// Binding a model adopts its input state, which has none of the composer's text or references.
+				setModel: () => {
+					input = '';
+					dynamicVariables.variables = [];
+				},
+			},
+			setInputValue: (value: string) => { input = value; },
+			chatService: { acquireOrLoadSession: async () => ({ object: {}, dispose: () => { } }) },
+			logService: new NullLogService(),
+		});
+
+		await composer._bindModel(URI.parse('draft:/replacement'));
+
+		assert.deepStrictEqual({ input, references: dynamicVariables.variables }, { input: 'Fix #file:foo.ts', references: [reference] });
+	});
+
 	test('binds the latest draft and releases an earlier draft that finishes loading later', async () => {
 		const loads = new Map<string, { result: DeferredPromise<{ object: { id: string }; dispose(): void }>; token: CancellationToken }>();
 		const released: string[] = [];
@@ -216,6 +251,7 @@ suite('SharedChatInputComposer', () => {
 			_modelBinding: 0,
 			_widget: {
 				getInput: () => '',
+				getContrib: () => undefined,
 				setModel: (model: { id: string }) => bound.push(model.id),
 				attachmentModel: { attachments: [], clearAndSetContext: () => { } },
 			},

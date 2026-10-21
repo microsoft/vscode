@@ -576,15 +576,18 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		// to accept input. It never sends to that model: the composer's host sends.
 		ref ??= this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { debugOwner: 'SharedChatInputComposer' });
 
-		// The composer owns its draft, so carry the typed input and attachments
-		// over instead of adopting whatever the newly bound model had.
+		// The composer owns its draft, so carry the typed input, its inline
+		// references and attachments over instead of adopting whatever the newly
+		// bound model had.
 		const inputText = widget.getInput();
 		const attachments = [...widget.attachmentModel.attachments];
+		const references = [...getDynamicVariablesForWidget(widget)];
 		widget.setModel(ref.object);
 		if (widget.getInput() !== inputText) {
 			this.setInputValue(inputText);
 		}
 		widget.attachmentModel.clearAndSetContext(...attachments);
+		widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.setInputState({ [ChatDynamicVariableModel.ID]: references });
 		this._modelRef.value = ref;
 	}
 
