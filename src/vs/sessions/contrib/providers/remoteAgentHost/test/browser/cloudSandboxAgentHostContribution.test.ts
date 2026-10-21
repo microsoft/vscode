@@ -39,6 +39,7 @@ import {
 } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { readSessionWorkspaceless, SessionStatus } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { readSessionInitiator } from '../../../../../../platform/agentHost/common/meta/agentSessionInitiatorMeta.js';
 import { RootStateSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { RootState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { constObservable, IObservable, observableValue, waitForState } from '../../../../../../base/common/observable.js';
@@ -1579,6 +1580,51 @@ suite('CloudSandboxAgentHostContribution startup inventory', () => {
 			}
 		}
 	}
+
+	for (const application of ['copilot-cli', undefined]) {
+		test(`preserves creating application through offline inventory restoration: ${application}`, async () => {
+			const storageService = store.add(new InMemoryStorageService());
+			const session = discoveredSession({ application, eventType: 'slack' });
+			const first = await createContribution(store, [session], { storageService });
+			const before = first.contribution.stubProviders.get(cloudSandboxAddress(session.environmentId))!.seeded.map(meta => readSessionInitiator(meta));
+			first.contribution.dispose();
+			const restored = await createContribution(store, [], {
+				storageService, listSessions: async () => ({ kind: 'failed', reason: 'offline' }),
+			});
+			assert.deepStrictEqual({
+				before,
+				restored: restored.contribution.stubProviders.get(cloudSandboxAddress(session.environmentId))!.seeded.map(meta => readSessionInitiator(meta)),
+				cachedApplication: readInventory(storageService)[0].application,
+				connected: [...first.connectedTo, ...restored.connectedTo],
+			}, {
+				before: [{ name: application ?? 'slack' }],
+				restored: [{ name: application ?? 'slack' }],
+				cachedApplication: application,
+				connected: [],
+			});
+		});
+	}
+
+	test('does not inherit creating application when provisioning another task in the same environment', async () => {
+		const storageService = store.add(new InMemoryStorageService());
+		const first = await createContribution(store, [discoveredSession({ application: 'copilot-cli' })], {
+			storageService,
+			createSession: async () => ({ environmentId: 'env-1', sessionId: 'sess-2', taskId: 'task-2' }),
+		});
+		await first.contribution.provisionSession({ prompt: 'Metadata test' }, CancellationToken.None);
+		first.contribution.dispose();
+		const restored = await createContribution(store, [], {
+			storageService, listSessions: async () => ({ kind: 'failed', reason: 'offline' }),
+		});
+		const provider = restored.contribution.stubProviders.get(cloudSandboxAddress('env-1'))!;
+		assert.deepStrictEqual({
+			cached: readInventory(storageService).map(session => [session.taskId, session.application]),
+			initiators: provider.seeded.map(meta => [AgentSession.id(meta.session), readSessionInitiator(meta)?.name]),
+		}, {
+			cached: [['task-1', 'copilot-cli'], ['task-2', undefined]],
+			initiators: [['sess-1', 'copilot-cli'], ['sess-2', undefined]],
+		});
+	});
 
 	test('restores session rows and repository metadata before discovery finishes without connecting', async () => {
 		const storageService = store.add(new InMemoryStorageService());
