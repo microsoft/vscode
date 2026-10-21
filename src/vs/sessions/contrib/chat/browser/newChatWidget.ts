@@ -6,7 +6,6 @@
 import './media/chatWidget.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
-import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { Action, toAction } from '../../../../base/common/actions.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
@@ -1550,7 +1549,7 @@ export class NewChatWidget extends Disposable {
 		};
 		const row = this._workspacePicker.renderCategoryTriggers(container, [
 			workspaceTrigger,
-		]);
+		], undefined, this._newChatInput.pickerHoverDelegate);
 		store.add(autorun(reader => {
 			if (canOptOut.read(reader)) {
 				logSettingExperimentTrigger(this.telemetryService, WORKSPACE_OPT_OUT_SETTING);
@@ -1567,7 +1566,7 @@ export class NewChatWidget extends Disposable {
 		this._newChatInput.placeRepositoryControls(repositoryControlsHost);
 		const toggle = store.add(new Button(row, {
 			...defaultButtonStyles,
-			hoverDelegate: getDefaultHoverDelegate('mouse'),
+			hoverDelegate: this._newChatInput.pickerHoverDelegate,
 			buttonBackground: undefined,
 			buttonHoverBackground: undefined,
 			buttonForeground: undefined,
@@ -1618,6 +1617,7 @@ export class NewChatWidget extends Disposable {
 			if (environment) {
 				const target = beforeWorkspace ? row : sessionOptions;
 				environmentPicker.value ??= this._environmentPicker.render(target, {
+					hoverDelegate: this._newChatInput.pickerHoverDelegate,
 					focusCommand: {
 						id: FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_COMMAND_ID,
 						when: FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_WHEN,
@@ -1813,6 +1813,7 @@ export class NewChatWidget extends Disposable {
 	private _renderSessionTypePicker(container: HTMLElement, prependBeforeSiblings: boolean): void {
 		this._newChatInput.sessionTypePicker.render(container, {
 			className: 'sessions-chat-session-type-picker sessions-workspace-category-picker-slot',
+			hoverDelegate: this._newChatInput.pickerHoverDelegate,
 		});
 		const sessionTypePicker = container.lastElementChild;
 		if (prependBeforeSiblings && sessionTypePicker) {
@@ -1831,15 +1832,8 @@ export class NewChatWidget extends Disposable {
 	}
 
 	focusEnvironmentPicker(): void {
-		// Environment picker doesn't have a showPicker method like the others,
-		// so we just trigger a click on the trigger element if it exists
-		const environmentPickerElement = this._workspaceSessionOptionsHost?.querySelector('.sessions-workspace-category-picker-slot');
-		if (environmentPickerElement instanceof HTMLElement) {
-			const trigger = environmentPickerElement.querySelector('a.action-label');
-			if (trigger instanceof HTMLElement) {
-				trigger.click();
-			}
-		}
+		this._sessionOptionsExpanded.set(true, undefined);
+		this._environmentPicker.showPicker();
 	}
 
 	focusHarnessPicker(): void {
@@ -1848,15 +1842,18 @@ export class NewChatWidget extends Disposable {
 	}
 
 	focusBranchPicker(): void {
-		// Branch picker implementation if needed
+		this._sessionOptionsExpanded.set(true, undefined);
+		this._newChatInput.pickerVisibility.focusPicker('branch');
 	}
 
 	focusWorktreePicker(): void {
-		// Worktree picker implementation if needed
+		this._sessionOptionsExpanded.set(true, undefined);
+		this._newChatInput.pickerVisibility.focusPicker('worktree');
 	}
 
 	focusSyncAction(): void {
-		// Sync action implementation if needed
+		this._sessionOptionsExpanded.set(true, undefined);
+		this._newChatInput.pickerVisibility.focusPicker('sync');
 	}
 
 	openModelComparison(): void {

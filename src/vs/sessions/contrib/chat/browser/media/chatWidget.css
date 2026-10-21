@@ -719,6 +719,11 @@
 	flex: 0 1 auto;
 }
 
+.sessions-chat-picker-slot > .monaco-toolbar,
+.sessions-chat-picker-slot > .monaco-toolbar .action-item {
+	min-width: 0;
+}
+
 .sessions-workspace-category-picker-slot[hidden] {
 	display: none;
 }
@@ -796,7 +801,7 @@
 	pointer-events: auto;
 }
 
-.sessions-workspace-picker-trigger.workspace-clearable:is(:hover, :focus-within) > .action-label > .codicon:first-child {
+.sessions-workspace-picker-trigger.workspace-clearable:is(:hover, :focus-within) .action-label > .codicon:first-child {
 	opacity: 0;
 }
 

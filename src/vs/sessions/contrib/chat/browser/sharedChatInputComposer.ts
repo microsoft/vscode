@@ -56,6 +56,8 @@ import { activeSessionViewBackground, activeSessionViewForeground, agentsPanelBa
 import { IWorkspaceSelectionSnapshot } from '../../../common/workspaceSelection.js';
 import { ISessionContext, SessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { ISessionInputPickerVisibility, SessionInputPickerVisibility } from '../../../services/sessions/common/sessionPickerVisibility.js';
+import { WorkbenchHoverDelegate } from '../../../../platform/hover/browser/hover.js';
+import { HoverStyle } from '../../../../base/browser/ui/hover/hover.js';
 import { readNewChatDraftState, writeNewChatDraftState } from '../common/newChatDraftState.js';
 import { MobileSessionTypePicker } from './mobile/mobileSessionTypePicker.js';
 import { getLabeledPickerResponsiveItems, hasSendableNewChatContent, INewChatComposerInputOptions, syncInputGitHubContextAttachments } from './newChatComposerInput.js';
@@ -154,6 +156,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 
 	readonly sessionTypePicker: SessionTypePicker;
 	readonly pickerVisibility: SessionInputPickerVisibility;
+	readonly pickerHoverDelegate = this._register(this.instantiationService.createInstance(WorkbenchHoverDelegate, 'element', { instantHover: true }, { style: HoverStyle.Pointer }));
 	readonly sessionResource: IObservable<URI | undefined>;
 
 	private readonly _modelSelection: SessionModelSelection;
@@ -437,6 +440,8 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			const session = this.options.session;
 			repositoryToolbar = this._register(this._scopedInstantiationService.createInstance(MenuWorkbenchToolBar, repositoryControlsContainer, Menus.NewSessionRepositoryConfig, {
 				hiddenItemStrategy: HiddenItemStrategy.NoHide,
+				hoverDelegate: this.pickerHoverDelegate,
+				ariaLabel: localize('sessionsSharedChatInput.repositoryControls', "Repository Controls"),
 				toolbarOptions: {
 					primaryGroup: group => group.startsWith('navigation'),
 					useSeparatorsInPrimaryActions: true,

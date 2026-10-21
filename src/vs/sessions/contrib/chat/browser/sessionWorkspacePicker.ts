@@ -33,7 +33,7 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { IDialogService, IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { HoverStyle } from '../../../../base/browser/ui/hover/hover.js';
+import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
@@ -61,6 +61,7 @@ import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/co
 import { ADDITIONAL_FOLDER_CONTEXT_ID_PREFIX, ADDITIONAL_REPOSITORY_CONTEXT_ID_PREFIX, getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../common/newChatContextIds.js';
 import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 import { registerPickerKeybindingPresentation } from './newChatPickerKeybinding.js';
+import { createSessionPickerToolbar } from './sessionPickerToolbar.js';
 import { getEnvironmentWorkspaceProvider, ISessionCreationEnvironment } from './sessionEnvironmentPicker.js';
 
 export type { IResolvedFolderWorkspace } from './sessionWorkspaceFallback.js';
@@ -187,6 +188,7 @@ interface IRestoredWorkspaceSelection {
 }
 
 interface IWorkspacePickerTriggerElements {
+	readonly slot: HTMLElement;
 	icon?: HTMLElement;
 	label?: HTMLElement;
 	badge?: CountBadge;
@@ -468,7 +470,7 @@ export class WorkspacePicker extends Disposable {
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IHoverService private readonly hoverService: IHoverService,
+		@IHoverService _hoverService: IHoverService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IFileService private readonly fileService: IFileService,
@@ -608,7 +610,7 @@ export class WorkspacePicker extends Disposable {
 		return disposables;
 	}
 
-	renderCategoryTriggers(container: HTMLElement, triggers: readonly IWorkspacePickerTrigger[], label?: string): HTMLElement {
+	renderCategoryTriggers(container: HTMLElement, triggers: readonly IWorkspacePickerTrigger[], label?: string, hoverDelegate?: IHoverDelegate): HTMLElement {
 		this._renderDisposables.clear();
 		const row = dom.append(container, dom.$('.sessions-workspace-category-picker'));
 		this._renderDisposables.add({ dispose: () => row.remove() });
@@ -619,7 +621,7 @@ export class WorkspacePicker extends Disposable {
 		for (const options of triggers) {
 			const slot = dom.append(row, dom.$('.sessions-chat-picker-slot.sessions-workspace-category-picker-slot'));
 			slot.classList.toggle('sessions-workspace-picker-trigger', options.reflectsWorkspace === true);
-			this._renderDisposables.add(this._addTrigger(slot, options));
+			this._renderDisposables.add(this._addTrigger(slot, options, hoverDelegate));
 		}
 		const platformObserver = this._renderDisposables.add(new dom.DisposableResizeObserver(
 			'WorkspacePicker.chatPetPlatforms',
@@ -641,17 +643,19 @@ export class WorkspacePicker extends Disposable {
 	 * Shared trigger-creation core for {@link render}. Wires up the click /
 	 * keyboard / touch handlers and the per-trigger lifecycle.
 	 */
-	private _addTrigger(slot: HTMLElement, options?: IWorkspacePickerTrigger): IDisposable {
+	private _addTrigger(slot: HTMLElement, options?: IWorkspacePickerTrigger, hoverDelegate?: IHoverDelegate): IDisposable {
 		const triggerDisposables = new DisposableStore();
 
-		const trigger = dom.append(slot, dom.$('a.action-label'));
+		const { trigger, action } = createSessionPickerToolbar(triggerDisposables, slot, this.instantiationService,
+			options?.focusCommand?.id ?? 'sessions.workspacePicker', options?.ariaLabel ?? localize('workspacePicker.chooseWorkspace', "Choose Workspace"),
+			() => this.showPicker(false, trigger, options?.group, options?.attachesContext), hoverDelegate);
 		trigger.tabIndex = 0;
 		trigger.role = 'button';
 		trigger.setAttribute('aria-haspopup', 'listbox');
 		trigger.setAttribute('aria-expanded', 'false');
 
 		this._triggerElements.add(trigger);
-		const contents: IWorkspacePickerTriggerElements = {};
+		const contents: IWorkspacePickerTriggerElements = { slot };
 		this._triggerContents.set(trigger, contents);
 		if (options) {
 			this._triggerOptions.set(trigger, options);
@@ -661,6 +665,7 @@ export class WorkspacePicker extends Disposable {
 		if (options?.clearable) {
 			const clearButton = triggerDisposables.add(new Button(slot, {
 				...defaultButtonStyles,
+				hoverDelegate,
 				buttonBackground: undefined,
 				buttonHoverBackground: undefined,
 				buttonForeground: undefined,
@@ -670,14 +675,7 @@ export class WorkspacePicker extends Disposable {
 			clearButton.icon = Codicon.closeCompact;
 			const clearLabel = localize('workspacePicker.clearWorkspace', "Chat without a workspace");
 			clearButton.setAriaLabel(clearLabel);
-			triggerDisposables.add(this.hoverService.setupManagedHover({
-				delay: 0,
-				placement: 'element',
-				showHover: (options, focus) => this.hoverService.showInstantHover({
-					...options,
-					appearance: { ...options.appearance, skipFadeInAnimation: true },
-				}, focus),
-			}, clearButton.element, clearLabel));
+			clearButton.setTitle(clearLabel);
 			triggerDisposables.add(clearButton.onDidClick(() => {
 				this.clearSelection();
 				trigger.focus();
@@ -701,14 +699,12 @@ export class WorkspacePicker extends Disposable {
 					options.focusCommand.enabled,
 					this.commandService,
 					this.contextMenuService,
-					this.hoverService,
+					action,
 					this.keybindingService,
 				);
 			} else {
 				const tooltip = options.tooltip;
-				triggerDisposables.add(typeof tooltip === 'function'
-					? this.hoverService.setupDelayedHoverAtMouse(trigger, () => ({ content: tooltip(), style: HoverStyle.Mouse }), { groupId: 'sessionWorkspacePicker', reducedDelay: true })
-					: this.hoverService.setupDelayedHoverAtMouse(trigger, { content: tooltip, style: HoverStyle.Mouse }, { groupId: 'sessionWorkspacePicker', reducedDelay: true }));
+				action.tooltip = typeof tooltip === 'function' ? tooltip() : tooltip;
 			}
 		}
 		// Onboarding spotlight target — id is referenced by the "new session" tour
@@ -2182,7 +2178,7 @@ export class WorkspacePicker extends Disposable {
 			const workspace = noWorkspaceSelected ? undefined : this._selectedResolved?.workspace;
 			const clearable = reflectsWorkspace && options.clearable?.get() === true;
 			const canClear = clearable && workspace !== undefined;
-			trigger.parentElement?.classList.toggle('workspace-clearable', canClear);
+			contents.slot.classList.toggle('workspace-clearable', canClear);
 			if (contents.clearButton) {
 				contents.clearButton.element.hidden = !canClear;
 			}
@@ -2211,7 +2207,7 @@ export class WorkspacePicker extends Disposable {
 			const hideForMissingWorkspace = workspace === undefined && options.hideWhenNoWorkspaceSelected === true;
 			const hideForMissingGitHubRepository = options.hideWhenNoGitHubRepository === true
 				&& this._getCurrentRepositoryId() === undefined;
-			trigger.parentElement?.toggleAttribute('hidden', hideForSelectedWorkspace || hideForMissingWorkspace || hideForMissingGitHubRepository);
+			contents.slot.toggleAttribute('hidden', hideForSelectedWorkspace || hideForMissingWorkspace || hideForMissingGitHubRepository);
 			trigger.classList.toggle('selected', noWorkspaceSelected || (reflectsWorkspace && workspace !== undefined) || isSelectedCategory || badgeCount > 0 || relatedGitHubInfo !== undefined);
 			const workspaceIcon = workspace ? this._getWorkspaceIcon(workspace) : undefined;
 			const icon = noWorkspaceSelected

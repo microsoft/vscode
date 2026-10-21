@@ -36,6 +36,9 @@ import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
 import { isAllowSignedOutWhenUsableEnabled } from '../../../browser/sessionsAuthGate.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { registerPickerKeybindingPresentation } from './newChatPickerKeybinding.js';
+import { createSessionPickerToolbar } from './sessionPickerToolbar.js';
+import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 
 const STORAGE_KEY_LAST_SESSION_TYPE = 'sessions.userSelectedSessionType';
 
@@ -205,8 +208,9 @@ export class SessionTypePicker extends Disposable {
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IHoverService private readonly hoverService: IHoverService,
+		@IHoverService _hoverService: IHoverService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -480,7 +484,7 @@ export class SessionTypePicker extends Disposable {
 		);
 	}
 
-	render(container: HTMLElement, options?: { className?: string }): void {
+	render(container: HTMLElement, options?: { className?: string; hoverDelegate?: IHoverDelegate }): void {
 		this._renderDisposables.clear();
 
 		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot'));
@@ -492,7 +496,9 @@ export class SessionTypePicker extends Disposable {
 		}
 		this._renderDisposables.add({ dispose: () => slot.remove() });
 
-		const trigger = dom.append(slot, dom.$('a.action-label'));
+		const { trigger, action } = createSessionPickerToolbar(this._renderDisposables, slot, this.instantiationService,
+			this._options?.focusCommand?.id ?? 'sessions.sessionTypePicker', localize('sessionTypePicker.choose', "Choose Harness"),
+			() => this._showPicker(), options?.hoverDelegate);
 		trigger.tabIndex = 0;
 		trigger.role = 'button';
 		trigger.setAttribute('aria-haspopup', 'listbox');
@@ -527,7 +533,7 @@ export class SessionTypePicker extends Disposable {
 				this._options.focusCommand.enabled,
 				this.commandService,
 				this.contextMenuService,
-				this.hoverService,
+				action,
 				this.keybindingService,
 			);
 		}

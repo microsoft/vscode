@@ -9,6 +9,7 @@ import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Button, IButtonStyles } from '../../../../base/browser/ui/button/button.js';
 import { HoverStyle } from '../../../../base/browser/ui/hover/hover.js';
+import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Action } from '../../../../base/common/actions.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
@@ -166,10 +167,11 @@ export class NewSessionPromptOptionsWidget extends Disposable {
 				.appendText(fullTitle)
 				.appendMarkdown('**\n\n')
 				.appendText(option.description);
-			store.add(this._hoverService.setupDelayedHoverAtMouse(button.element, {
+			store.add(this._hoverService.setupDelayedHover(button.element, {
 				content: hoverContent,
-				style: HoverStyle.Mouse,
-			}, { groupId: 'newSessionPromptOptions', reducedDelay: true }));
+				style: HoverStyle.Pointer,
+				position: { hoverPosition: HoverPosition.BELOW },
+			}));
 			button.element.classList.add('new-session-prompt-option');
 			button.checked = false;
 			button.element.classList.toggle('has-title-detail', !!option.titleDetail);
