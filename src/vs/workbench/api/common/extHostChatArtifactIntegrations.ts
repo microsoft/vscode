@@ -130,8 +130,8 @@ export class ExtHostChatArtifactIntegrations extends Disposable implements ExtHo
 					|| (action.consentVersion !== undefined && typeof action.consentVersion !== 'string')
 					|| (action.kind === 'prompt' ? typeof action.providePrompt !== 'function'
 						: (action.kind !== undefined && action.kind !== 'code') || typeof action.prepare !== 'function' || typeof action.run !== 'function'
-							|| (action.executionScope !== 'resource' && action.executionScope !== 'resourceAndWorkspace')
-							|| (action.reconcile !== undefined && typeof action.reconcile !== 'function'))) {
+						|| (action.executionScope !== 'resource' && action.executionScope !== 'resourceAndWorkspace')
+						|| (action.reconcile !== undefined && typeof action.reconcile !== 'function'))) {
 					throw new Error('Invalid or duplicate artifact action');
 				}
 				const icon = convertIcon(action.icon);

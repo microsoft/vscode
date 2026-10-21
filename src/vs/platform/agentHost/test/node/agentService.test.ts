@@ -81,7 +81,7 @@ import { readAgentMessageDelegationMeta } from '../../common/meta/agentMessageDe
 import { readRemoteSessionDepth, readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY, withRemoteSessionOrigin } from '../../common/meta/agentRemoteSessionMeta.js';
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY } from '../../common/meta/agentDevContainerWorktreeMeta.js';
 import { readCodexSessionModel, withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
-import { AgentSystemNotificationKind, AgentSystemNotificationWorkspaceKind, serializeAgentWorkspaceTransition } from '../../common/meta/agentSystemNotificationMeta.js';
+import { AgentSystemNotificationKind, AgentSystemNotificationWorkspaceKind, serializeAgentWorkspaceTransition, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { readSessionMovable } from '../../common/meta/agentHostSessionMoveMeta.js';
 import { readArtifactIntegrationNotice } from '../../common/meta/agentHostArtifactIntegrationMeta.js';
 import { ArtifactAutomationOption, IArtifactAutomationContext } from '../../../artifactIntegrations/common/artifactIntegration.js';
@@ -37033,11 +37033,15 @@ suite('AgentService (node dispatcher)', () => {
 					message: { text: 'Working', origin: { kind: MessageKind.User } },
 				});
 				const internals = service as unknown as {
-					_postAgentMergeNotice(chat: string, kind: AgentSystemNotificationKind, content: string): void;
+					_postChatNotice: AgentService['_postChatNotice'];
 					_pendingChatHistories: Map<string, { readonly provider: IAgent; readonly chat: URI; readonly turns: readonly Turn[] }>;
 					_refreshChatHistory(provider: IAgent, chat: URI, turns: readonly Turn[]): Promise<void>;
 				};
-				internals._postAgentMergeNotice(peer.toString(), AgentSystemNotificationKind.AgentMergePullRequestMerged, 'Merged while working');
+				internals._postChatNotice(peer.toString(), {
+					kind: ResponsePartKind.SystemNotification,
+					content: 'Merged while working',
+					_meta: toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.AgentMergePullRequestMerged }),
+				});
 				const provider = getTestAgentHostProviderService(service).getProviderForSession(source)!;
 				internals._pendingChatHistories.set(peer.toString(), { provider, chat: peer, turns: [] });
 				const refreshed: string[] = [];
