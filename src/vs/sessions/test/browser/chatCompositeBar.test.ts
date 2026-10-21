@@ -1000,7 +1000,7 @@ suite('Sessions - ChatCompositeBar', () => {
 		});
 	});
 
-	test('shows progress before the tab title without replacing trailing attention or close controls', () => {
+	test('shares the trailing status slot for progress, attention, and unread without replacing close controls', () => {
 		const harness = createHarness(disposables);
 		attachConnectedBar(harness);
 		const status = observableValue('chat.status', SessionStatus.InProgress);
@@ -1009,10 +1009,10 @@ suite('Sessions - ChatCompositeBar', () => {
 		harness.chats.set([harness.session.mainChat.get(), chat], undefined);
 		const tab = harness.bar.element.querySelectorAll<HTMLElement>('.chat-composite-bar-tab')[1];
 		const snapshot = () => {
-			const progress = tab.querySelector<HTMLElement>('.chat-composite-bar-tab-status-icon');
+			const indicator = tab.querySelector<HTMLElement>('.chat-composite-bar-tab-indicator')!;
 			const label = tab.querySelector<HTMLElement>('.chat-composite-bar-tab-label')!;
 			return {
-				progressBeforeTitle: !!progress && mainWindow.getComputedStyle(progress).display !== 'none' && progress.getBoundingClientRect().right <= label.getBoundingClientRect().left,
+				indicatorAfterTitle: mainWindow.getComputedStyle(indicator).display !== 'none' && indicator.getBoundingClientRect().left >= label.getBoundingClientRect().right,
 				pixelSpinner: tab.querySelectorAll('.monaco-pixel-spinner').length,
 				rotatingSpinner: tab.querySelectorAll('.codicon-loading').length,
 				trailingIndicator: mainWindow.getComputedStyle(tab.querySelector<HTMLElement>('.chat-composite-bar-tab-indicator')!).display,
@@ -1032,10 +1032,10 @@ suite('Sessions - ChatCompositeBar', () => {
 		const active = snapshot();
 
 		assert.deepStrictEqual({ progress, needsInput, unread, active }, {
-			progress: { progressBeforeTitle: true, pixelSpinner: 1, rotatingSpinner: 0, trailingIndicator: 'none', closeAction: true, ariaLabel: 'Parent Session / Secondary Chat, State: In Progress' },
-			needsInput: { progressBeforeTitle: false, pixelSpinner: 0, rotatingSpinner: 0, trailingIndicator: 'flex', closeAction: true, ariaLabel: 'Parent Session / Secondary Chat, State: Attention Needed' },
-			unread: { progressBeforeTitle: false, pixelSpinner: 0, rotatingSpinner: 0, trailingIndicator: 'flex', closeAction: true, ariaLabel: 'Parent Session / Secondary Chat, State: Completed, unread' },
-			active: { progressBeforeTitle: false, pixelSpinner: 0, rotatingSpinner: 0, trailingIndicator: 'none', closeAction: true, ariaLabel: 'Parent Session / Secondary Chat, State: Completed, unread' },
+			progress: { indicatorAfterTitle: true, pixelSpinner: 1, rotatingSpinner: 0, trailingIndicator: 'flex', closeAction: true, ariaLabel: 'Parent Session / Secondary Chat, State: In Progress' },
+			needsInput: { indicatorAfterTitle: true, pixelSpinner: 0, rotatingSpinner: 0, trailingIndicator: 'flex', closeAction: true, ariaLabel: 'Parent Session / Secondary Chat, State: Attention Needed' },
+			unread: { indicatorAfterTitle: true, pixelSpinner: 0, rotatingSpinner: 0, trailingIndicator: 'flex', closeAction: true, ariaLabel: 'Parent Session / Secondary Chat, State: Completed, unread' },
+			active: { indicatorAfterTitle: false, pixelSpinner: 0, rotatingSpinner: 0, trailingIndicator: 'none', closeAction: true, ariaLabel: 'Parent Session / Secondary Chat, State: Completed, unread' },
 		});
 	});
 
@@ -1059,7 +1059,7 @@ suite('Sessions - ChatCompositeBar', () => {
 		onDidChangeReducedMotion.fire();
 		const reduced = {
 			pixelSpinner: tab.querySelector('.monaco-pixel-spinner:not([data-icon-fading-out])') !== null,
-			staticIcon: tab.querySelector('.chat-composite-bar-tab-status-icon .codicon-session-in-progress:not([data-icon-fading-out])') !== null,
+			staticIcon: tab.querySelector('.chat-composite-bar-tab-indicator-icon .codicon-session-in-progress:not([data-icon-fading-out])') !== null,
 			trailingIndicator: mainWindow.getComputedStyle(tab.querySelector<HTMLElement>('.chat-composite-bar-tab-indicator')!).display,
 		};
 		reducedMotion = false;
@@ -1071,7 +1071,7 @@ suite('Sessions - ChatCompositeBar', () => {
 			restoredSpinner: tab.querySelector('.monaco-pixel-spinner:not([data-icon-fading-out])') !== null,
 		}, {
 			preservedSpinner: true,
-			reduced: { pixelSpinner: false, staticIcon: true, trailingIndicator: 'none' },
+			reduced: { pixelSpinner: false, staticIcon: true, trailingIndicator: 'flex' },
 			restoredSpinner: true,
 		});
 	});

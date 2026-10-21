@@ -373,10 +373,6 @@ export class ChatCompositeBar extends Disposable {
 		tab.appendChild(tabFill);
 		tab.appendChild($('.tab-connected-edge', { 'aria-hidden': true }));
 
-		const statusIconContainer = $('.chat-composite-bar-tab-status-icon', { 'aria-hidden': true });
-		tab.appendChild(statusIconContainer);
-		const statusIcon = this._tabDisposables.add(this._instantiationService.createInstance(SessionStatusIcon, statusIconContainer));
-
 		const labelEl = $('.chat-composite-bar-tab-label.modern-ui-editor-tab-label');
 		const labelWidget = this._tabDisposables.add(new IconLabel(labelEl));
 		let titlePath = '';
@@ -427,9 +423,10 @@ export class ChatCompositeBar extends Disposable {
 			tab.classList.toggle('untitled', status === SessionStatus.Untitled);
 		}));
 
-		const indicator = $('.chat-composite-bar-tab-indicator');
+		const indicator = $('.chat-composite-bar-tab-indicator', { 'aria-hidden': true });
 		const indicatorIcon = $('.chat-composite-bar-tab-indicator-icon');
 		indicator.appendChild(indicatorIcon);
+		const statusIcon = this._tabDisposables.add(this._instantiationService.createInstance(SessionStatusIcon, indicatorIcon));
 		this._tabDisposables.add(autorun(reader => {
 			const isActive = delegate?.activeChatResource.read(reader) === chat.resource.toString();
 			const status = chat.status.read(reader);

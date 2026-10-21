@@ -343,7 +343,6 @@
 }
 
 .chat-composite-bar-tab-lock,
-.chat-composite-bar-tab-status-icon,
 .chat-composite-bar-tab-input-container,
 .chat-composite-bar-tab-indicator {
 	position: relative;
@@ -366,20 +365,6 @@
 	display: inline-flex;
 }
 
-.chat-composite-bar-tab-status-icon {
-	display: none;
-	align-items: center;
-	justify-content: center;
-	flex-shrink: 0;
-	width: var(--vscode-spacing-size160);
-	height: var(--vscode-spacing-size160);
-	margin-inline-end: var(--vscode-spacing-size40);
-}
-
-.chat-composite-bar-tab.in-progress .chat-composite-bar-tab-status-icon {
-	display: flex;
-}
-
 /* While editing, the tab expands to its max width. */
 .session-chat-tabs-bar .chat-composite-bar-tabs > .chat-composite-bar-tab.editing {
 	cursor: default;
@@ -391,7 +376,6 @@
 /* Hide the label and adornments so the input fills the tab while editing. */
 .session-chat-tabs-bar .chat-composite-bar-tab.editing .chat-composite-bar-tab-label,
 .session-chat-tabs-bar .chat-composite-bar-tab.editing .chat-composite-bar-tab-lock,
-.session-chat-tabs-bar .chat-composite-bar-tab.editing .chat-composite-bar-tab-status-icon,
 .session-chat-tabs-bar .chat-composite-bar-tab.editing .chat-composite-bar-tab-indicator,
 .session-chat-tabs-bar .chat-composite-bar-tab.editing .chat-composite-bar-tab-actions {
 	display: none;
@@ -422,7 +406,7 @@
 	padding: 0 4px;
 }
 
-/* Unread and attention dots remain after the label, beneath the close action. */
+/* Status indicators share the slot after the label, beneath the close action. */
 .chat-composite-bar-tab-indicator {
 	display: none;
 	width: 16px;
@@ -435,7 +419,8 @@
 }
 
 .chat-composite-bar-tab.unread .chat-composite-bar-tab-indicator,
-.chat-composite-bar-tab.needs-input .chat-composite-bar-tab-indicator {
+.chat-composite-bar-tab.needs-input .chat-composite-bar-tab-indicator,
+.chat-composite-bar-tab.in-progress .chat-composite-bar-tab-indicator {
 	display: flex;
 }
 
@@ -459,6 +444,10 @@
 
 .chat-composite-bar-tab.needs-input .chat-composite-bar-tab-indicator-icon::before {
 	background-color: var(--vscode-list-warningForeground);
+}
+
+.session-chat-tabs-bar .chat-composite-bar-tab.in-progress .chat-composite-bar-tab-indicator-icon {
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
 }
 
 .session-chat-tabs-bar .chat-composite-bar-tab-actions {
