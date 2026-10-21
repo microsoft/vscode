@@ -442,14 +442,24 @@ export namespace ILanguageModelChatMetadata {
 	}
 
 	export function isAutoTierPromotionActive(promotion: IAutoModelTierPromotion, now: number): boolean {
-		return !(promotion.startsAt && now < Date.parse(promotion.startsAt)) && !(promotion.endsAt && now >= Date.parse(promotion.endsAt));
+		const startsAt = promotion.startsAt ? Date.parse(promotion.startsAt) : -Infinity;
+		const endsAt = promotion.endsAt ? Date.parse(promotion.endsAt) : Infinity;
+		// An unparsable boundary yields NaN, which fails both comparisons.
+		return now >= startsAt && now < endsAt;
 	}
 
 	/** The active promotion with the largest discount. */
 	export function getAutoTierPromotion(metadata: ILanguageModelChatMetadata, tier: unknown, now: number = Date.now()): IAutoModelTierPromotion | undefined {
-		return (metadata.autoModelTierPromotions ?? [])
-			.filter(promotion => typeof tier === 'string' && promotion.tierIds.includes(tier) && isAutoTierPromotionActive(promotion, now))
-			.sort((a, b) => b.discountPercent - a.discountPercent)[0];
+		if (typeof tier !== 'string') {
+			return undefined;
+		}
+		let best: IAutoModelTierPromotion | undefined;
+		for (const promotion of metadata.autoModelTierPromotions ?? []) {
+			if ((!best || promotion.discountPercent > best.discountPercent) && promotion.tierIds.includes(tier) && isAutoTierPromotionActive(promotion, now)) {
+				best = promotion;
+			}
+		}
+		return best;
 	}
 
 	export function getAutoTierDiscountPercent(metadata: ILanguageModelChatMetadata, tier: unknown, now: number = Date.now()): number | undefined {
