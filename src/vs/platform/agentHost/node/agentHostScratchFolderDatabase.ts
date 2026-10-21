@@ -67,6 +67,12 @@ export interface IAgentHostScratchFolderDatabase {
 	 * working directory, other than its own `removing` owner. Exact folder match, case-insensitively.
 	 */
 	isScratchFolderInUse(folder: string): Promise<boolean>;
+	/**
+	 * Marks an `owned` folder `removing` when no live chat is recorded under any of `chatUris` (the spellings of the
+	 * row's chat) and nothing live lists the folder: its chat was deleted, but the row named the chat in a spelling the
+	 * tombstone did not match. Whether it was marked.
+	 */
+	markOrphanedScratchFolderRemoving(folder: string, chatUris: readonly string[]): Promise<boolean>;
 }
 
 const columns = 'folder, chat_uri, provider, state, requested_at, attempts, next_attempt_at';
@@ -78,6 +84,20 @@ export async function markScratchFoldersRemoving(connection: Pick<ISessionStateS
 	}
 }
 
+/**
+ * Marks `removing`, inside the caller's tombstone transaction (after the tombstone), the scratch folders among a
+ * deleted chat's recorded `folders` that no other live chat lists, whichever chat their row names: a row written
+ * before its chat had a storage identity names it in another spelling. Its session may still list the folder until
+ * its folders are republished; the clean-up pass keeps a folder anything still lists.
+ */
+export async function markUnusedScratchFoldersRemoving(connection: Pick<ISessionStateSqlConnection, 'run' | 'get'>, folders: readonly string[]): Promise<void> {
+	for (const folder of new Set(folders.map(folder => folder.replace(/\/+$/, '')))) {
+		if (!await connection.get(scratchFolderChatUseSql, [folder])) {
+			await connection.run(`UPDATE scratch_folders SET state = 'removing' WHERE rtrim(lower(folder), '/') = lower(?) AND state <> 'removing'`, [folder]);
+		}
+	}
+}
+
 /** `?1` is the folder without a trailing slash. Archived chats and sessions count; deleted chats and the folder's removing owner do not. */
 const scratchFolderInUseSql = `
 	WITH directories(session_uri, directory, chat_uri) AS (${centralWorkingDirectoriesSql(true)})
@@ -85,6 +105,13 @@ const scratchFolderInUseSql = `
 	WHERE rtrim(lower(d.directory), '/') = lower(?1)
 		AND NOT (d.chat_uri IS NOT NULL AND EXISTS (SELECT 1 FROM scratch_folders r
 			WHERE r.state = 'removing' AND r.chat_uri = d.chat_uri AND rtrim(lower(r.folder), '/') = lower(?1)))
+	LIMIT 1`;
+
+/** `?1` is the folder without a trailing slash. Whether a live chat, archived ones included, lists the folder itself. */
+const scratchFolderChatUseSql = `
+	WITH directories(session_uri, directory, chat_uri) AS (${centralWorkingDirectoriesSql(true)})
+	SELECT 1 AS present FROM directories d
+	WHERE d.chat_uri IS NOT NULL AND rtrim(lower(d.directory), '/') = lower(?1)
 	LIMIT 1`;
 
 function toScratchFolder(row: Record<string, unknown>): IScratchFolder {
@@ -138,5 +165,23 @@ export class AgentHostScratchFolderTables implements IAgentHostScratchFolderData
 
 	isScratchFolderInUse(folder: string): Promise<boolean> {
 		return this._host.read(async connection => !!await connection.get(scratchFolderInUseSql, [folder.replace(/\/+$/, '')]));
+	}
+
+	markOrphanedScratchFolderRemoving(folder: string, chatUris: readonly string[]): Promise<boolean> {
+		return this._host.write('Failed to release an orphaned scratch folder', async connection => {
+			const row = await connection.get(`SELECT chat_uri FROM scratch_folders WHERE folder = ? AND state = 'owned'`, [folder]);
+			if (!row) {
+				return false;
+			}
+			for (const chatUri of new Set([row.chat_uri as string, ...chatUris])) {
+				if (await connection.get('SELECT 1 AS present FROM chats_v2 WHERE chat_uri = ? AND tombstoned = 0', [chatUri])) {
+					return false;
+				}
+			}
+			if (await connection.get(scratchFolderInUseSql, [folder.replace(/\/+$/, '')])) {
+				return false;
+			}
+			return await connection.run(`UPDATE scratch_folders SET state = 'removing' WHERE folder = ? AND state = 'owned'`, [folder]) > 0;
+		});
 	}
 }

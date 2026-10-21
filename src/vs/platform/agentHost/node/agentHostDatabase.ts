@@ -18,7 +18,7 @@ import { ChatInteractivity } from '../common/state/protocol/channels-chat/state.
 import { IAgentHostChatV2MetadataData, decodeChatV2Metadata, encodeChatV2Metadata, hashChatV2Metadata, validateChatV2Origin, validateChatV2String, validateChatV2WorkingDirectories } from './agentHostChatCatalogV2.js';
 import type { ChatStorageRole } from './sessionStorageIdentity.js';
 import { AgentHostSessionStateTables, deleteSessionStateRows, IAgentHostSessionStateDatabase, ISessionStateSqlConnection, ISessionStateSqlHost, SESSION_STATE_MIGRATION_VERSION, SESSION_STATE_SCHEMA_SQL, checkSessionChatStateTransfer, IAgentHostSessionChatStateTransfer, transferSessionChatStateRows, checkSessionChatStatePromotion, IAgentHostSessionChatStatePromotion, promoteSessionChatStateRows } from './agentHostSessionStateDatabase.js';
-import { AgentHostScratchFolderTables, IAgentHostScratchFolderDatabase, markScratchFoldersRemoving, SCRATCH_FOLDER_MIGRATION_VERSION, SCRATCH_FOLDER_SCHEMA_SQL } from './agentHostScratchFolderDatabase.js';
+import { AgentHostScratchFolderTables, IAgentHostScratchFolderDatabase, markScratchFoldersRemoving, markUnusedScratchFoldersRemoving, SCRATCH_FOLDER_MIGRATION_VERSION, SCRATCH_FOLDER_SCHEMA_SQL } from './agentHostScratchFolderDatabase.js';
 import { AgentHostWorktreeRemovalTables, IAgentHostWorktreeRemovalDatabase, insertPendingWorktreeRemovals, insertWorktreeCoOwners, IWorktreeCoOwnedFolder, IWorktreeRemovalRequest, rekeyWorktreeCoOwners, WORKTREE_CO_OWNER_MIGRATION_SQL, WORKTREE_CO_OWNER_MIGRATION_VERSION, WORKTREE_CO_OWNER_SCHEMA_SQL, WORKTREE_REMOVAL_MIGRATION_VERSION, WORKTREE_REMOVAL_SCHEMA_SQL } from './agentHostWorktreeRemovalDatabase.js';
 
 /**
@@ -4011,10 +4011,30 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 	/** Tombstones a chat, inside the caller's transaction; its attachment copy record (Block 4b) goes with it. */
 	private async _tombstoneChatV2(database: Database, row: Record<string, unknown>): Promise<void> {
 		await run(database, 'UPDATE chats_v2 SET tombstoned = 1, ownership_revision = ? WHERE chat_uri = ?', [this._nextRevision(row.ownership_revision as number), row.chat_uri]);
-		await markScratchFoldersRemoving(this._sessionStateConnection(database), [row.chat_uri as string]);
+		const connection = this._sessionStateConnection(database);
+		await markScratchFoldersRemoving(connection, [row.chat_uri as string]);
+		// Also the folders the chat recorded, whatever chat their row names (see `markUnusedScratchFoldersRemoving`).
+		const recorded = await get(database, 'SELECT working_directories FROM chats_v2 WHERE chat_uri = ?', [row.chat_uri]);
+		const folders = this._decodeRecordedChatFolders(recorded?.working_directories);
+		if (folders.length > 0) {
+			await markUnusedScratchFoldersRemoving(connection, folders);
+		}
 		// Only a moved chat records a copy.
 		if (await this._readChatsMoved(database)) {
 			await run(database, 'DELETE FROM metadata WHERE key = ?', [CHAT_ATTACHMENT_COPY_KEY_PREFIX + (row.chat_uri as string)]);
+		}
+	}
+
+	/** The folders a chat recorded, or none when it recorded none or they do not parse (nothing is then released). */
+	private _decodeRecordedChatFolders(payload: unknown): readonly string[] {
+		if (typeof payload !== 'string') {
+			return [];
+		}
+		try {
+			const folders: unknown = JSON.parse(payload);
+			return Array.isArray(folders) ? folders.filter((folder: unknown): folder is string => typeof folder === 'string') : [];
+		} catch {
+			return [];
 		}
 	}
 
@@ -4276,6 +4296,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 	recordScratchFolderRemovalFailure(...args: Parameters<IAgentHostScratchFolderDatabase['recordScratchFolderRemovalFailure']>) { return this._scratchFolders.recordScratchFolderRemovalFailure(...args); }
 	deleteScratchFolder(...args: Parameters<IAgentHostScratchFolderDatabase['deleteScratchFolder']>) { return this._scratchFolders.deleteScratchFolder(...args); }
 	isScratchFolderInUse(...args: Parameters<IAgentHostScratchFolderDatabase['isScratchFolderInUse']>) { return this._scratchFolders.isScratchFolderInUse(...args); }
+	markOrphanedScratchFolderRemoving(...args: Parameters<IAgentHostScratchFolderDatabase['markOrphanedScratchFolderRemoving']>) { return this._scratchFolders.markOrphanedScratchFolderRemoving(...args); }
 
 	// ---- Pending worktree removals (see agentHostWorktreeRemovalDatabase.ts) ------------
 

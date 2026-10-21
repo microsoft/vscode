@@ -754,6 +754,11 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 		return this.raw.isScratchFolderInUse(...args);
 	}
 
+	markOrphanedScratchFolderRemoving(...[folder, chatUris]: Parameters<IAgentHostDatabase['markOrphanedScratchFolderRemoving']>): ReturnType<IAgentHostDatabase['markOrphanedScratchFolderRemoving']> {
+		// Every recorded spelling of the chat: a row written before its chat had a storage identity holds the runtime one.
+		return this.raw.markOrphanedScratchFolderRemoving(folder, chatUris.flatMap(chat => [chat, this.identity.toStorage(chat), this.identity.toRuntime(chat)]));
+	}
+
 	isSessionLive(...[session]: Parameters<IAgentHostDatabase['isSessionLive']>): ReturnType<IAgentHostDatabase['isSessionLive']> {
 		return this.raw.isSessionLive(this.identity.toStorage(session));
 	}
