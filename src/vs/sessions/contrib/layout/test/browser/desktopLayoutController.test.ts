@@ -27,7 +27,6 @@ import { DesktopChangesEditorTransitionContext, DesktopChangesTabAvailableContex
 import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { CustomEditorInput } from '../../../../../workbench/contrib/customEditor/browser/customEditorInput.js';
 import { FileEditorInput } from '../../../../../workbench/contrib/files/browser/editors/fileEditorInput.js';
-import { MultiDiffEditorInput } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
 import { WebviewInput } from '../../../../../workbench/contrib/webviewPanel/browser/webviewEditorInput.js';
 import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
@@ -67,12 +66,21 @@ suite('DesktopLayoutController', () => {
 		return fileEditor;
 	}
 
-	function makeDiffEditor(): DiffEditorInput {
-		return Object.create(DiffEditorInput.prototype) as DiffEditorInput;
+	function makeDiffEditor(path: string): DiffEditorInput {
+		const original = store.add(new TestStubEditorInput(URI.file(path).with({ scheme: 'git' })));
+		const modified = makeFileEditor(path);
+		const editor = Object.create(DiffEditorInput.prototype) as DiffEditorInput;
+		Object.defineProperties(editor, {
+			original: { value: original },
+			modified: { value: modified },
+			secondary: { value: original },
+			primary: { value: modified },
+		});
+		return editor;
 	}
 
-	function makeMultiDiffEditor(): MultiDiffEditorInput {
-		return Object.create(MultiDiffEditorInput.prototype) as MultiDiffEditorInput;
+	function makeChangesEditor(sessionResource: URI): TestStubEditorInput {
+		return store.add(new TestStubEditorInput(harness.sessionChangesService.getChangesEditorResource(sessionResource)));
 	}
 
 	function makeWebviewEditor(viewType: string, providerId?: string): WebviewInput {
@@ -440,17 +448,18 @@ suite('DesktopLayoutController', () => {
 		});
 	});
 
-	test('[desktop] maps diff editors to Changes and workspace file editors to Files', async () => {
+	test('[desktop] maps managed Changes editors to Changes and workspace file and diff editors to Files', async () => {
 		createDesktopController({ activateAux: true });
 		await timeout(0);
 
-		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
+		const session = makeSession(URI.parse('session:1'));
+		harness.activeSessionObs.set(session, undefined);
 		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
 		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
 		await timeout(0);
 
 		const openedContainers: (string | undefined)[] = [];
-		for (const editor of [makeDiffEditor(), makeMultiDiffEditor(), makeFileEditor('/repo/file.ts')]) {
+		for (const editor of [makeChangesEditor(session.resource), makeDiffEditor('/repo/file.ts'), makeFileEditor('/repo/file.ts')]) {
 			harness.openedViewContainers = [];
 			harness.activeEditorInput = editor;
 			harness.onDidActiveEditorChange.fire();
@@ -460,7 +469,7 @@ suite('DesktopLayoutController', () => {
 
 		assert.deepStrictEqual(openedContainers, [
 			CHANGES_VIEW_CONTAINER_ID,
-			CHANGES_VIEW_CONTAINER_ID,
+			SESSIONS_FILES_CONTAINER_ID,
 			SESSIONS_FILES_CONTAINER_ID,
 		]);
 	});
@@ -518,7 +527,8 @@ suite('DesktopLayoutController', () => {
 		createDesktopController({ activateAux: true });
 		await timeout(0);
 
-		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
+		const session = makeSession(URI.parse('session:1'));
+		harness.activeSessionObs.set(session, undefined);
 		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
 		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
 		harness.activeEditorInput = makeFileEditor();
@@ -527,7 +537,7 @@ suite('DesktopLayoutController', () => {
 
 		harness.layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
 		harness.openedViewContainers = [];
-		harness.activeEditorInput = makeDiffEditor();
+		harness.activeEditorInput = makeChangesEditor(session.resource);
 		harness.onDidActiveEditorChange.fire();
 		await timeout(0);
 
