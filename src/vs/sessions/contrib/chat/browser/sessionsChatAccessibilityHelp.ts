@@ -108,6 +108,7 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		}
 		const useAgentPickerInAttachContextMenu = configurationService.getValue<boolean>(AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING);
 		if (useExperimentalComposerLayout) {
+			content.push(localize('sessionsChat.disabledPickerNavigation', "The Left and Right arrow keys also reach disabled session controls, such as Copilot when Cloud is selected, so you can inspect their current value. Disabled controls cannot be activated and are skipped by Tab."));
 			logSettingExperimentTrigger(accessor.get(ITelemetryService), WORKSPACE_OPT_OUT_SETTING);
 		}
 		if (useExperimentalComposerLayout && configurationService.getValue<boolean>(WORKSPACE_OPT_OUT_SETTING) === true) {
@@ -192,6 +193,7 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		content.push(localize('sessionsChat.feedbackAttachment', "When a feedback comments attachment appears above the input, focus it and press Enter or Space. A single comment opens directly. Multiple comments open a tree grouped by file; use the arrow keys to navigate, Enter to reveal a comment, and Escape to close the tree."));
 		content.push(localize('sessionsChat.inputBackground', "Press Alt+Enter to start the session in the background without navigating into it. The started session appears in the Chat Sessions view."));
 		content.push(localize('sessionsChat.workspace', "Use Tab or Shift+Tab to navigate to the workspace picker and choose a workspace for your session. When consolidated remote workspaces are enabled, opening the picker focuses its search input so you can immediately type to filter workspaces. If quick chats are available, you can also choose No workspace to start a workspace-less chat."));
+		content.push(localize('sessionsChat.pickerShortcuts', "While the new-session input has focus, open the environment picker{0}, branch picker{1}, or Branch/New Worktree picker{2}. Focus Sync Changes{3}, then press Enter to synchronize. These shortcuts are available only when the corresponding control is available and expand hidden session options before focusing them.", '<keybinding:sessions.focusNewSessionEnvironmentPicker>', '<keybinding:sessions.focusNewSessionBranchPicker>', '<keybinding:sessions.focusNewSessionWorktreePicker>', '<keybinding:sessions.focusSessionSyncAction>'));
 		content.push(localize('sessionsChat.removeWorkspace', "Workspace rows offer a Remove action. Use the arrow keys to focus a workspace, then Tab to reach its actions. Removed workspaces stay hidden across reloads until you browse to that workspace and successfully start a session from the new-session composer. Removing a workspace does not delete its sessions or files."));
 		if (useExperimentalComposerLayout) {
 			content.push(accessor.get(IAccessibilityService).isScreenReaderOptimized()

@@ -28,6 +28,7 @@ import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { getPromptFileExtension } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 import { createVSCodeHarnessDescriptor, ICustomizationHarnessService } from '../../../../common/customizationHarnessService.js';
+import { constObservable } from '../../../../../../../base/common/observable.js';
 
 suite('PromptHoverProvider', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -62,10 +63,12 @@ suite('PromptHoverProvider', () => {
 			{ id: 'claude-sonnet-4.5', name: 'Claude Sonnet 4.5', vendor: 'copilot', version: '1.0', family: 'claude', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 200000, maxOutputTokens: 8192, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: {} } satisfies ILanguageModelChatMetadata,
 			{ id: 'claude-opus-4.6', name: 'Claude Opus 4.6', vendor: 'copilot', version: '1.0', family: 'claude', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 200000, maxOutputTokens: 8192, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: {} } satisfies ILanguageModelChatMetadata,
 			{ id: 'claude-haiku-4.5', name: 'Claude Haiku 4.5', vendor: 'copilot', version: '1.0', family: 'claude', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 200000, maxOutputTokens: 8192, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: {} } satisfies ILanguageModelChatMetadata,
+			{ id: 'copilot-model', name: 'Copilot Model', vendor: 'copilot-test', version: '1.0', family: 'copilot', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: {}, targetChatSessionType: 'copilot-test', tooltip: 'Copilot model tooltip', configurationSchema: { type: 'object', properties: { reasoningEffort: { type: 'string', enum: ['low', 'high'] } } } } satisfies ILanguageModelChatMetadata,
 		];
 
 		instaService.stub(ILanguageModelsService, {
 			getLanguageModelIds() { return testModels.map(m => m.id); },
+			lookupLanguageModel(id: string) { return testModels.find(model => model.id === id); },
 			lookupLanguageModelByQualifiedName(qualifiedName: string) {
 				for (const metadata of testModels) {
 					if (ILanguageModelChatMetadata.matchesQualifiedName(qualifiedName, metadata)) {
@@ -73,7 +76,8 @@ suite('PromptHoverProvider', () => {
 					}
 				}
 				return undefined;
-			}
+			},
+			hasResolvedVendor: () => true,
 		});
 
 		const customChatMode = new CustomChatMode({
@@ -94,8 +98,12 @@ suite('PromptHoverProvider', () => {
 				return parser.parse(model.uri, model.getValue());
 			}
 		});
+		const localDescriptor = createVSCodeHarnessDescriptor();
+		const copilotDescriptor = { ...localDescriptor, id: 'copilot-test', customAgentTarget: Target.GitHubCopilot };
 		instaService.stub(ICustomizationHarnessService, {
-			getActiveDescriptor: () => ({ ...createVSCodeHarnessDescriptor(), customAgentTarget: activeTarget }),
+			activeHarness: constObservable('copilot-test'),
+			availableHarnesses: constObservable([localDescriptor, copilotDescriptor]),
+			getActiveDescriptor: () => activeTarget === Target.GitHubCopilot ? copilotDescriptor : localDescriptor,
 		});
 
 		hoverProvider = instaService.createInstance(PromptHoverProvider);
@@ -184,6 +192,35 @@ suite('PromptHoverProvider', () => {
 			].join('\n');
 			const hover = await getHover(content, 4, 1, PromptsType.agent);
 			assert.strictEqual(hover, 'The model to use. An array is treated as an ordered list of model preferences.');
+		});
+
+		test('hover on a model from the github-copilot harness', async () => {
+			activeTarget = Target.GitHubCopilot;
+			const content = [
+				'---',
+				'description: "Test"',
+				'model: copilot-model',
+				'---',
+			].join('\n');
+
+			const hover = await getHover(content, 3, 10, PromptsType.agent);
+
+			assert.strictEqual(hover, 'The model to use. An array is treated as an ordered list of model preferences.\n\n- Name: Copilot Model\n- Family: copilot\n- Vendor: copilot-test\n\n\nCopilot model tooltip');
+		});
+
+		test('hover on model-specific github-copilot reasoning effort', async () => {
+			activeTarget = Target.GitHubCopilot;
+			const content = [
+				'---',
+				'description: "Test"',
+				'model: copilot-model',
+				'reasoning-effort: high',
+				'---',
+			].join('\n');
+
+			const hover = await getHover(content, 4, 20, PromptsType.agent);
+
+			assert.strictEqual(hover, 'The reasoning-effort override for this custom agent. Supported values depend on the selected model.\n\nSupported by: `copilot-model` (copilot-test).');
 		});
 
 		test('hover on github-copilot model policy uses schema description', async () => {

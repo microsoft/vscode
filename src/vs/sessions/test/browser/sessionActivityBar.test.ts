@@ -456,16 +456,17 @@ suite('Sessions - Session Activity Bar', () => {
 		});
 	}
 
-	test('renders every menu group, separating the layout toggles above and below the tab entries', () => {
+	test('renders two groups: the side panel toggle with the tab entries, then the terminal with the panel toggle', () => {
 		const sidePanel: ITestEntry = { id: 'test.sidePanel', title: 'Toggle Side Panel', icon: Codicon.layoutSidebarRight, group: '1_sidePanel' };
-		const panel: ITestEntry = { id: 'test.panel', title: 'Show Panel', icon: Codicon.layoutPanelOff, group: '3_panel' };
-		const { activityBar, ran, label } = createActivityBar(store, [sidePanel, changes, browser, panel]);
+		const terminal: ITestEntry = { id: 'test.terminal', title: 'Terminal', icon: Codicon.terminal, group: '2_panel' };
+		const panel: ITestEntry = { id: 'test.panel', title: 'Show Panel', icon: Codicon.layoutPanelOff, group: '2_panel' };
+		const { activityBar, ran, label } = createActivityBar(store, [sidePanel, { ...changes, group: '1_sidePanel' }, { ...browser, group: '1_sidePanel' }, terminal, panel]);
 		const items = [...activityBar.element.querySelectorAll<HTMLElement>('.actions-container > .action-item')]
 			.map(item => item.querySelector('.action-label.separator') ? '---' : item.querySelector('.action-label')?.getAttribute('aria-label'));
 		label('Toggle Side Panel').click();
 
 		assert.deepStrictEqual({ items, ran }, {
-			items: ['Toggle Side Panel', '---', 'Changes', 'Browser', '---', 'Show Panel'],
+			items: ['Toggle Side Panel', 'Changes', 'Browser', '---', 'Terminal', 'Show Panel'],
 			ran: ['test.sidePanel'],
 		});
 	});

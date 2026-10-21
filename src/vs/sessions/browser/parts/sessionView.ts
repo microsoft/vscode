@@ -378,6 +378,22 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		this._visibleStandaloneView?.focusHarnessPicker();
 	}
 
+	focusEnvironmentPicker(): void {
+		this._visibleStandaloneView?.focusEnvironmentPicker();
+	}
+
+	focusBranchPicker(): void {
+		this._visibleStandaloneView?.focusBranchPicker();
+	}
+
+	focusWorktreePicker(): void {
+		this._visibleStandaloneView?.focusWorktreePicker();
+	}
+
+	focusSyncAction(): void {
+		this._visibleStandaloneView?.focusSyncAction();
+	}
+
 	openModelComparison(): void {
 		this._visibleStandaloneView?.openModelComparison();
 	}

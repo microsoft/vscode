@@ -60,6 +60,7 @@ import { CodexProxyService, ICodexProxyService } from '../../node/codex/codexPro
 import { RecordingAgentSdkDownloader } from './testAgentSdkDownloader.js';
 import { IAgentHostSessionOpenTelemetry } from '../../node/agentHostSessionOpenTelemetry.js';
 import { AgentHostDynamicAutoTiersEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, COPILOT_HYDRA_FUSION_MODEL_ID } from '../../common/copilotCliConfig.js';
+import { agentModelCatalogStatusKey } from '../../common/agentModelCatalogStatus.js';
 import { readAgentModelAutoTierPromotionsMeta, readAgentModelAutoTiersMeta, readAgentModelFusionMeta } from '../../common/meta/agentModelMeta.js';
 import { TestExperimentTriggerTelemetryService } from '../../../telemetry/test/common/experimentTriggerTestUtils.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
@@ -91,6 +92,7 @@ import { SESSION_WORKING_DIRECTORIES_KEY } from '../../node/shared/persistSessio
 import { createTestAgentService, getTestAgentStateManager, registerTestAgentProvider } from './agentServiceTestUtils.js';
 import { AgentSessionRegistry } from '../../node/agentSessionRegistry.js';
 import { AgentHostManagedSettingsService, IAgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
+import { AgentHostMacAccessibilityTrustService, IAgentHostMacAccessibilityTrustService } from '../../node/agentHostMacAccessibilityTrustService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostStorageService } from '../../node/agentHostStorageService.js';
 import { AgentHostPromptCache, IAgentHostPromptCache } from '../../node/agentHostPromptCache.js';
@@ -115,6 +117,8 @@ import { IAgentHostReviewService, NULL_REVIEW_SERVICE } from '../../common/agent
 import { getCopilotHomePath, ICopilotHomeService } from '../../../environment/common/copilotHome.js';
 import { TestCopilotHomeService } from '../../../environment/test/common/testCopilotHomeService.js';
 import { readMcpServerSource, readMcpServerSourcePlugin } from '../../common/meta/mcpCustomizationMeta.js';
+import { COMPUTER_USE_STATUS_KEY } from '../../common/computerUse.js';
+import { readComputerUseStatus } from '../../common/meta/computerUse.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { createUnmanagedCopilotSettings, toSessionEvents } from './copilotTestEvents.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
@@ -1578,6 +1582,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	services.set(IAgentHostStartupPerformance, options?.startupPerformance ?? NullAgentHostStartupPerformance);
 	services.set(IProductService, options?.productService ?? TEST_PRODUCT_SERVICE);
 	services.set(ICopilotHomeService, new TestCopilotHomeService(options?.userHome ?? URI.file('/mock-home'), options?.copilotHome ? URI.file(options.copilotHome) : undefined));
+	services.set(IAgentHostMacAccessibilityTrustService, new AgentHostMacAccessibilityTrustService());
 	services.set(IAgentHostSessionOpenTelemetry, {
 		_serviceBrand: undefined,
 		withSubscription: async (_resource, operation) => operation({
@@ -13618,6 +13623,30 @@ suite('CopilotAgent', () => {
 			]);
 		});
 
+		test('publishes Computer Use setup status only from the local macOS agent host while Computer Use is on', async () => {
+			const results = [];
+			for (const [platform, isLocalAgentHost] of [['darwin', true], ['win32', true], ['linux', true], ['darwin', false]] as const) {
+				const { agent, configurationService } = createComputerUseAgent(false, isLocalAgentHost, new TestCopilotClient([]));
+				try {
+					(agent as unknown as { _hostPlatform: NodeJS.Platform })._hostPlatform = platform;
+					const status = () => readComputerUseStatus(configurationService.getRootConfigValues?.()[COMPUTER_USE_STATUS_KEY]);
+					configurationService.updateRootConfig({ [AgentHostComputerUseEnabledConfigKey]: true });
+					const enabled = status();
+					configurationService.updateRootConfig({ [AgentHostComputerUseEnabledConfigKey]: false });
+					results.push({ platform, isLocalAgentHost, enabled: enabled?.permissions.map(permission => permission.state), disabled: status() });
+				} finally {
+					await disposeAgent(agent);
+				}
+			}
+
+			assert.deepStrictEqual(results, [
+				{ platform: 'darwin', isLocalAgentHost: true, enabled: ['unknown', 'unknown'], disabled: undefined },
+				{ platform: 'win32', isLocalAgentHost: true, enabled: undefined, disabled: undefined },
+				{ platform: 'linux', isLocalAgentHost: true, enabled: undefined, disabled: undefined },
+				{ platform: 'darwin', isLocalAgentHost: false, enabled: undefined, disabled: undefined },
+			]);
+		});
+
 		test('starts without Computer Use while the plugin downloads and restarts once it is installed', async () => {
 			const client = new StopCountingClient([]);
 			const fake = createDownloadingComputerUsePlugin();
@@ -24016,6 +24045,21 @@ suite('CopilotAgent', () => {
 					{ id: model.id, effort: 'high', tier: 'long_context' },
 					{ id: model.id, effort: 'low', tier: 'default' },
 				]);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('publishes model catalogue readiness after successful discovery', async () => {
+			const client = new TestCopilotClient([], [{ id: 'model-a', name: 'Model A' }]);
+			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
+			const status = () => configurationService.getRootConfigValues?.()[agentModelCatalogStatusKey('copilotcli')];
+			try {
+				const before = status();
+				await agent.authenticate('https://api.github.com', 'token');
+				await waitForState(agent.models, models => models.length > 0);
+
+				assert.deepStrictEqual({ before, after: status() }, { before: 'pending', after: 'ready' });
 			} finally {
 				await disposeAgent(agent);
 			}

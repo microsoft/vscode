@@ -11,7 +11,8 @@ import { CancellationTokenSource } from '../../../../base/common/cancellation.js
 import { Codicon } from '../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { autorun, derived, IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -21,7 +22,9 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ISessionWorkspaceBrowseAction } from '../../../services/sessions/common/session.js';
 import { INestedChatFolderInfo, INestedChatWorkspace, INestedChatWorkspaceSupport } from '../../../services/sessions/common/sessionsProvider.js';
-import { BranchPicker, IBranchPickerState, NEW_WORKTREE_LABEL } from './branchPicker.js';
+import { BranchPicker, IBranchPickerState } from './branchPicker.js';
+import { IsolationPicker } from './isolationPicker.js';
+import { IComposerRepositoryControls } from './newChatComposerInput.js';
 
 // #region --- Model ---
 
@@ -121,8 +124,9 @@ type FolderPickerItem =
 	| { readonly kind: 'openFolder' };
 
 /**
- * Folder, isolation and branch pickers of the New Nested Session composer. The agent and the
- * environment come from the parent session, so there is no harness or environment picker.
+ * Folder, isolation and branch pickers of the New Nested Session composer, rendered where the New
+ * Session composer has its workspace and repository pickers. The agent and the environment come from
+ * the parent session, so there is no harness or environment picker.
  */
 export class NestedChatWorkspaceControls extends Disposable {
 
@@ -132,8 +136,13 @@ export class NestedChatWorkspaceControls extends Disposable {
 	private readonly _folderInfo = observableValue<INestedChatFolderInfo | undefined>(this, undefined);
 	private readonly _branches = observableValue<readonly string[] | 'loading' | 'error'>(this, []);
 	private readonly _resolve = this._register(new MutableDisposable<DisposableStore>());
-	private readonly _renderStore = this._register(new DisposableStore());
+	private readonly _folderRenderStore = this._register(new DisposableStore());
+	private _folderTrigger: HTMLElement | undefined;
 	private _isOpen = false;
+	private readonly _onDidChangeChatPetPlatform = this._register(new Emitter<void>());
+	readonly onDidChangeChatPetPlatform: Event<void> = this._onDidChangeChatPetPlatform.event;
+	/** Whether the isolation and branch pickers are offered: for a picked Git folder only, never for "No workspace" or other folders. */
+	readonly offersWorktree = derived(this, reader => !!this._host.support.read(reader) && this._folderInfo.read(reader)?.supportsWorktree === true);
 
 	constructor(
 		private readonly _host: INestedChatWorkspaceHost,
@@ -226,52 +235,40 @@ export class NestedChatWorkspaceControls extends Disposable {
 		});
 	}
 
-	render(container: HTMLElement): void {
-		this._renderStore.clear();
-		const element = dom.append(container, dom.$('.nested-chat-workspace-controls'));
-		this._renderStore.add(toDisposable(() => element.remove()));
-
-		const slot = dom.append(element, dom.$('.sessions-chat-picker-slot.nested-chat-folder-picker'));
-		const trigger = dom.append(slot, dom.$('a.action-label'));
-		trigger.setAttribute('aria-haspopup', 'listbox');
-		trigger.setAttribute('aria-expanded', 'false');
-		this._renderStore.add(Gesture.addTarget(trigger));
+	/**
+	 * Renders the folder picker into the options row of the composer, styled like the New Session
+	 * workspace picker.
+	 */
+	renderFolderPicker(row: HTMLElement): void {
+		this._folderRenderStore.clear();
+		const slot = dom.append(row, dom.$('.sessions-chat-picker-slot.sessions-workspace-category-picker-slot.sessions-workspace-picker-trigger.nested-chat-folder-picker'));
+		this._folderRenderStore.add(toDisposable(() => slot.remove()));
+		const trigger = this._folderTrigger = dom.append(slot, dom.$('a.action-label.selected'));
+		this._folderRenderStore.add(toDisposable(() => this._folderTrigger = undefined));
+		this._folderRenderStore.add(Gesture.addTarget(trigger));
 		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
-			this._renderStore.add(dom.addDisposableListener(trigger, eventType, e => {
+			this._folderRenderStore.add(dom.addDisposableListener(trigger, eventType, e => {
 				dom.EventHelper.stop(e, true);
 				this._showFolderPicker(trigger);
 			}));
 		}
-		this._renderStore.add(dom.addDisposableListener(trigger, dom.EventType.KEY_DOWN, e => {
+		this._folderRenderStore.add(dom.addDisposableListener(trigger, dom.EventType.KEY_DOWN, e => {
 			if (e.key === 'Enter' || e.key === ' ') {
 				dom.EventHelper.stop(e, true);
 				this._showFolderPicker(trigger);
 			}
 		}));
+		const platformObserver = this._folderRenderStore.add(new dom.DisposableResizeObserver(
+			'NestedChatWorkspaceControls.chatPetPlatform',
+			() => this._onDidChangeChatPetPlatform.fire(),
+			dom.getWindow(trigger),
+		));
+		this._folderRenderStore.add(platformObserver.observe(trigger));
 
-		const branchPicker = this._renderStore.add(this._instantiationService.createInstance(BranchPicker, {
-			user: 'NestedChatBranchPicker',
-			onSelectBranch: branch => this._branch.set(branch, undefined),
-			onRetry: () => this._loadBranches(),
-			renderDisabledAsStatic: true,
-			isolation: {
-				label: NEW_WORKTREE_LABEL,
-				ariaLabel: localize('nestedChat.worktree.ariaLabel', "Give the nested session its own Git worktree"),
-				onToggle: checked => {
-					this._worktree.set(checked, undefined);
-					if (checked && this._branches.get() !== 'loading' && this._branches.get().length === 0) {
-						this._loadBranches();
-					}
-				},
-			},
-		}));
-		const branchSlot = dom.append(element, dom.$('.nested-chat-branch-picker'));
-		branchPicker.render(branchSlot);
-
-		this._renderStore.add(autorun(reader => {
+		this._folderRenderStore.add(autorun(reader => {
 			const support = this._host.support.read(reader);
 			const folder = this._folder.read(reader);
-			element.classList.toggle('hidden', !support || !folder);
+			slot.hidden = !support || !folder;
 			if (!support || !folder) {
 				return;
 			}
@@ -282,7 +279,9 @@ export class NestedChatWorkspaceControls extends Disposable {
 			const label = this._getFolderLabel(folder);
 			dom.append(trigger, dom.$('span.sessions-chat-dropdown-label')).textContent = label;
 			if (canOpen) {
-				dom.append(trigger, renderIcon(Codicon.chevronDown)).setAttribute('aria-hidden', 'true');
+				const chevron = dom.append(trigger, renderIcon(Codicon.chevronDownCompact));
+				chevron.classList.add('sessions-chat-dropdown-chevron');
+				chevron.setAttribute('aria-hidden', 'true');
 			}
 			trigger.tabIndex = canOpen ? 0 : -1;
 			if (canOpen) {
@@ -302,25 +301,66 @@ export class NestedChatWorkspaceControls extends Disposable {
 			}
 			slot.classList.toggle('disabled', !canOpen);
 		}));
+	}
 
-		this._renderStore.add(autorun(reader => {
-			const folderInfo = this._folderInfo.read(reader);
-			const worktree = this._worktree.read(reader);
+	/** Elements the chat pet can stand on, like the New Session workspace picker. */
+	getChatPetPlatformElements(): readonly HTMLElement[] {
+		return this._folderTrigger?.parentElement?.hidden === false ? [this._folderTrigger] : [];
+	}
+
+	/**
+	 * Renders the isolation and branch pickers into the composer's repository controls, which the
+	 * composer places like the New Session ones: in the options row or below the input. The isolation
+	 * picker is New Session's (Branch or New Worktree); the branch picker only applies to a worktree.
+	 */
+	renderRepositoryControls(container: HTMLElement): IComposerRepositoryControls {
+		const store = new DisposableStore();
+		const element = dom.append(container, dom.$('.nested-chat-repository-controls'));
+		store.add(toDisposable(() => element.remove()));
+
+		const isolationPicker = store.add(this._instantiationService.createInstance(IsolationPicker, {
+			user: 'NestedChatIsolationPicker',
+			onSelect: isolation => this._setWorktree(isolation === 'worktree'),
+		}));
+		isolationPicker.render(element);
+
+		const separator = dom.append(element, dom.$('span.nested-chat-repository-separator'));
+		separator.setAttribute('aria-hidden', 'true');
+		const branchSlot = dom.append(element, dom.$('.nested-chat-branch-picker'));
+		const branchPicker = store.add(this._instantiationService.createInstance(BranchPicker, {
+			user: 'NestedChatBranchPicker',
+			onSelectBranch: branch => this._branch.set(branch, undefined),
+			onRetry: () => this._loadBranches(),
+		}));
+		branchPicker.render(branchSlot);
+
+		store.add(autorun(reader => {
+			const offersWorktree = this.offersWorktree.read(reader);
+			const worktree = offersWorktree && this._worktree.read(reader);
 			const branch = this._branch.read(reader);
 			const branches = this._branches.read(reader);
-			// Worktrees only for a picked Git folder; "No workspace" and other folders stay folders.
-			const offersWorktree = folderInfo?.supportsWorktree === true;
-			branchSlot.classList.toggle('hidden', !offersWorktree);
+			element.hidden = !offersWorktree;
+			isolationPicker.update(worktree ? 'worktree' : 'folder');
+			separator.hidden = !worktree;
+			branchSlot.hidden = !worktree;
 			const state: IBranchPickerState = {
 				label: branch ?? localize('nestedChat.branch.default', "Default Branch"),
 				branches: Array.isArray(branches) ? branches.map(name => ({ name, selected: name === branch })) : [],
 				status: branches === 'loading' ? 'loading' : branches === 'error' ? 'error' : branches.length ? 'ready' : 'empty',
-				canOpen: offersWorktree && worktree,
-				disabledReason: offersWorktree && !worktree ? localize('nestedChat.branch.disabled', "Select New Worktree to pick the branch the worktree starts from.") : undefined,
-				isolation: { checked: offersWorktree && worktree, state: offersWorktree ? 'enabled' : 'hidden' },
+				canOpen: worktree,
+				// Like the New Session branch picker, which shows no chevron.
+				showChevron: false,
 			};
 			branchPicker.update(state);
 		}));
+		return { visible: this.offersWorktree, dispose: () => store.dispose() };
+	}
+
+	private _setWorktree(worktree: boolean): void {
+		this._worktree.set(worktree, undefined);
+		if (worktree && this._branches.get() !== 'loading' && this._branches.get().length === 0) {
+			this._loadBranches();
+		}
 	}
 
 	private _getFolderLabel(choice: NestedChatFolderChoice): string {

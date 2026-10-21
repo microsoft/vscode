@@ -2126,6 +2126,55 @@ suite('DesktopLayoutController', () => {
 		}, { hasChangesTab: true, hasFilesTab: true, changesActiveBeforeChanges: false, changesActive: true });
 	});
 
+	for (const editorVisible of [false, true]) {
+		for (const replaceEventFirst of [false, true]) {
+			test(`[managed tabs / submit] a resource-replace submit keeps the draft's tabs (Editor visible=${editorVisible}, replace event first=${replaceEventFirst})`, async () => {
+				createDesktopController({ activateAux: true, workspaceFolders: [{ uri: URI.file('/repo') }] });
+				await settle();
+				const layoutService = harness.instaService.get(IAgentWorkbenchLayoutService);
+				const state = () => ({
+					editorVisible: layoutService.isVisible(Parts.EDITOR_PART, mainWindow),
+					detailVisible: layoutService.isVisible(Parts.AUXILIARYBAR_PART),
+					hasChangesTab: hasChangesTab(),
+					hasFilesTab: hasFilesTab(),
+				});
+
+				const draft = makeSession(URI.parse('session:draft'), { status: SessionStatus.Untitled, isCreated: false });
+				harness.activeSessionObs.set(draft, undefined);
+				harness.visibleSessionsObs.set([draft], undefined);
+				await settle();
+				if (editorVisible) {
+					layoutService.setPartHidden(false, Parts.EDITOR_PART);
+					await settle();
+				}
+				const beforeSubmit = state();
+
+				const committed = makeSession(URI.parse('session:committed'), { status: SessionStatus.InProgress });
+				const switchToCommitted = () => {
+					transaction(tx => {
+						(draft.isCreated as ISettableObservable<boolean>).set(true, tx);
+						harness.activeSessionObs.set(committed, tx);
+					});
+					harness.visibleSessionsObs.set([committed], undefined);
+				};
+				if (replaceEventFirst) {
+					harness.onDidReplaceSession.fire({ from: draft, to: committed });
+					switchToCommitted();
+				} else {
+					switchToCommitted();
+					harness.onDidReplaceSession.fire({ from: draft, to: committed });
+				}
+				await settle();
+
+				assert.deepStrictEqual({ beforeSubmit, afterSubmit: state(), emptyWorkingSetApplies: harness.applyWorkingSetCalls.filter(workingSet => workingSet === 'empty').length }, {
+					beforeSubmit: { editorVisible, detailVisible: true, hasChangesTab: true, hasFilesTab: true },
+					afterSubmit: { editorVisible, detailVisible: true, hasChangesTab: true, hasFilesTab: true },
+					emptyWorkingSetApplies: 0,
+				});
+			});
+		}
+	}
+
 	test('[managed tabs / session switch] does not leak a superseded submit\'s "activate Changes" intent onto the switched-to session', async () => {
 		createDesktopController({ activateAux: true });
 		await settle();

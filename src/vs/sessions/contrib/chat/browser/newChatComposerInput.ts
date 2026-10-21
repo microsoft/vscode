@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import * as dom from '../../../../base/browser/dom.js';
 import { localize } from '../../../../nls.js';
@@ -96,6 +97,12 @@ export interface INewChatInputSendRequest {
 	readonly userInteraction?: NewChatUserInteraction;
 }
 
+/** Repository controls a host renders in place of the session provider's. */
+export interface IComposerRepositoryControls extends IDisposable {
+	/** Whether any control is shown, so an otherwise empty controls row can hide. */
+	readonly visible: IObservable<boolean>;
+}
+
 /** Options a new-session or new-chat host supplies to its composer input. */
 export interface INewChatComposerInputOptions {
 	readonly session: IObservable<IActiveSession | undefined>;
@@ -112,7 +119,12 @@ export interface INewChatComposerInputOptions {
 	readonly loading: IObservable<boolean>;
 	readonly useExperimentalLayout?: IObservable<boolean>;
 	readonly placeholder?: string;
-	readonly renderRepositoryControls?: boolean;
+	/**
+	 * The repository controls (such as isolation and branch). By default the session provider
+	 * contributes them; `false` renders none, and a function renders the host's own controls in
+	 * their place, so they are positioned like the provider's.
+	 */
+	readonly renderRepositoryControls?: boolean | ((container: HTMLElement) => IComposerRepositoryControls);
 	readonly sessionTypePickerOptions?: ISessionTypePickerOptions;
 	readonly supportsBackground?: boolean;
 	readonly sendButtonLabel?: IObservable<string | undefined>;
