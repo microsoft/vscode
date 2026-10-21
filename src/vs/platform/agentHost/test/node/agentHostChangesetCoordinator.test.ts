@@ -1406,6 +1406,41 @@ suite('ChangesetSessionCoordinator', () => {
 		].sort());
 	});
 
+	test('archiving a chat releases its branch summary and unarchiving it subscribes again', async () => {
+		const session = AgentSession.uri('mock', 'summary-archive-toggle').toString();
+		const defaultChat = buildDefaultChatUri(session);
+		const peer = buildChatUri(session, 'peer');
+		const defaultRoot = URI.file('/projects/default');
+		const peerRoot = URI.file('/projects/peer');
+		const environment = createEnvironment(undefined, createRoutingGitService(new Map([
+			[defaultRoot.toString(), defaultRoot],
+			[peerRoot.toString(), peerRoot],
+		])));
+		createSession(environment.stateManager, session, defaultRoot.toString());
+		environment.stateManager.addChat(session, peer, creationTimeChatStorageResource(session, peer, defaultChat), { workingDirectories: [peerRoot.toString()] });
+		environment.stateManager.setSessionConfig(session, { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Isolation]: 'worktree' } });
+		environment.coordinator.onFirstSubscriber(URI.parse(session));
+		await environment.monitor.waitForAcquisitions(2);
+		const peerOwner = buildBranchChangesetOwner(session, [peerRoot.toString()]);
+
+		environment.stateManager.dispatchServerAction(peer, { type: ActionType.ChatIsArchivedChanged, isArchived: true });
+		await environment.monitor.waitForDisposals(1);
+		const archived = { removedOwners: [...environment.changesets.removedOwners], disposals: [...environment.monitor.disposals] };
+		environment.changesets.clearRefreshes();
+		environment.stateManager.dispatchServerAction(peer, { type: ActionType.ChatIsArchivedChanged, isArchived: false });
+		await environment.monitor.waitForAcquisitions(3);
+
+		assert.deepStrictEqual({
+			archived,
+			restoredRefreshes: [...new Set(environment.changesets.branchRefreshes)],
+			acquisitions: environment.monitor.acquisitions.filter(root => root === peerRoot.toString()),
+		}, {
+			archived: { removedOwners: [peerOwner], disposals: [peerRoot.toString()] },
+			restoredRefreshes: [buildBranchChangesetOwner(session, [defaultRoot.toString()]), peerOwner],
+			acquisitions: [peerRoot.toString(), peerRoot.toString()],
+		});
+	});
+
 	test('moving a chat to another session keeps its own changesets', async () => {
 		const session = AgentSession.uri('mock', 'move-source').toString();
 		const target = AgentSession.uri('mock', 'move-target').toString();
