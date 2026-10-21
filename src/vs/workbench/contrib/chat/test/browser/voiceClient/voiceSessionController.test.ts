@@ -24,6 +24,7 @@ import { TestConfigurationService as BaseTestConfigurationService } from '../../
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { INotification, INotificationHandle, INotificationService, IPromptChoice, NoOpNotification, Severity } from '../../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
+import { InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
@@ -857,9 +858,11 @@ class TestTelemetryService extends NullTelemetryServiceShape {
 suite('VoiceSessionController', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let clock: sinon.SinonFakeTimers;
+	let storageService: InMemoryStorageService;
 
 	setup(() => {
 		clock = sinon.useFakeTimers();
+		storageService = store.add(new InMemoryStorageService());
 	});
 
 	teardown(() => {
@@ -928,6 +931,7 @@ suite('VoiceSessionController', () => {
 					return { connectionAuthority: 'local', backendSession: resource.with({ scheme: resource.scheme.substring('agent-host-'.length) }) };
 				}
 			}(),
+			storageService,
 		));
 	}
 
@@ -1011,28 +1015,49 @@ suite('VoiceSessionController', () => {
 		assert.deepStrictEqual(notificationService.notifications.map(notification => notification.message), ['Voice Mode requires a paid GitHub Copilot plan.']);
 	});
 
-	test('confirms the OpenAI model when GPT-Live is available', async () => {
-		const voiceClientService = new TestVoiceClientService();
-		voiceClientService.gptLiveByok = true;
+	test('confirms the OpenAI model only on the first successful GPT-Live connection', async () => {
 		const notificationService = new VoiceTestNotificationService();
-		const controller = createController(
-			voiceClientService,
-			undefined,
-			undefined,
-			undefined,
-			undefined,
-			new TestConfigurationService({ [AgentsVoiceSettingId.UseBYOKVoiceModel]: 'gpt-live-1' }),
-			undefined,
-			undefined,
-			undefined,
-			notificationService,
-		);
-
-		await controller.connect(mainWindow);
-
-		assert.strictEqual(notificationService.notifications.length, 0);
-		voiceClientService.fireSessionInit();
-		assert.deepStrictEqual(notificationService.notifications.map(notification => notification.message), ['Using gpt-live-1 from your OpenAI provider for Voice Mode.']);
+		const snapshots = [];
+		const providerStates = [];
+		for (const initialize of [false, true, true]) {
+			const voiceClientService = new TestVoiceClientService();
+			voiceClientService.gptLiveByok = true;
+			const controller = createController(
+				voiceClientService,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				new TestConfigurationService({ [AgentsVoiceSettingId.UseBYOKVoiceModel]: 'gpt-live-1' }),
+				undefined,
+				undefined,
+				undefined,
+				notificationService,
+			);
+			providerStates.push(controller.isUsingGptLive);
+			await controller.connect(mainWindow);
+			providerStates.push(controller.isUsingGptLive);
+			snapshots.push(notificationService.notifications.length);
+			if (initialize) {
+				voiceClientService.fireSessionInit();
+				voiceClientService.fireSessionInit();
+				controller.disconnect();
+				await controller.connect(mainWindow);
+				voiceClientService.fireSessionInit();
+			}
+			snapshots.push(notificationService.notifications.length);
+			controller.dispose();
+			providerStates.push(controller.isUsingGptLive);
+		}
+		assert.deepStrictEqual({
+			snapshots,
+			providerStates,
+			messages: notificationService.notifications.map(notification => notification.message),
+		}, {
+			snapshots: [0, 0, 0, 1, 1, 1],
+			providerStates: [false, true, false, false, true, false, false, true, false],
+			messages: ['Using gpt-live-1 from your OpenAI provider for Voice Mode.'],
+		});
 	});
 
 	test('stops startup when the configured GPT-Live model is unavailable', async () => {

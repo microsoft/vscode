@@ -454,7 +454,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 				const connectedish = (ownsVoice && (this.voiceSessionController.isConnected.get() || this.voiceSessionController.isConnecting.get())) || this.voiceInputModeService.simulatedVoiceState.get() === 'idle' || this.voiceInputModeService.simulatedVoiceState.get() === 'listening' || this.voiceInputModeService.simulatedVoiceState.get() === 'speaking';
 				return getVoiceModeHoverContent(connectedish
 					? this._getLabelWithKeybinding(localize('voiceInputMode.disconnect', "Turn Off Voice Mode"), VOICE_DISCONNECT_COMMAND_ID)
-					: this._getLabelWithKeybinding(localize('voiceInputMode.voice', "Voice Mode"), VOICE_START_COMMAND_ID));
+					: this._getLabelWithKeybinding(localize('voiceInputMode.voice', "Voice Mode"), VOICE_START_COMMAND_ID), this.voiceSessionController.isUsingGptLive);
 			}));
 		// The voice button is a plain power toggle (connect / disconnect). Listening is
 		// driven by the separate listen cell in manual mode and by the auto-listen loop
