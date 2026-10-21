@@ -174,12 +174,16 @@ Anthropic-canonical IDs (`claude-opus-4-6-20250929`). Translation is
 
 - `filterSupportedBetas()` in `node/claude/anthropicBetas.ts` accepts the
   `SUPPORTED_ANTHROPIC_BETAS` families: `interleaved-thinking`,
-  `context-management`, `advanced-tool-use`, and `per-turn-control`.
+  `context-management`, `advanced-tool-use`, `per-turn-control`, and
+  `thinking-display-updates`.
   Allowlist match is prefix + `-` (date-suffix discipline).
 - The filter only forwards supported betas supplied by the SDK; it does not
   inject compatibility betas.
 - The SDK's `per-turn-control` beta is passed through so CAPI can accept
   per-message `output_config`.
+- The SDK's `thinking-display-updates` beta is passed through so CAPI can
+  accept `thinking: { type: 'adaptive', display: 'updates' }`. Without it,
+  CAPI returns 400 and the SDK retries the request without `display`.
 - Applied at `POST /v1/messages` after auth, before model translation.
   If the filtered result is a non-empty string, set it on the outbound
   `ICopilotApiServiceRequestOptions.headers['anthropic-beta']`. If

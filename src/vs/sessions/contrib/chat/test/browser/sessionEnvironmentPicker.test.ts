@@ -22,7 +22,7 @@ import { MockContextKeyService } from '../../../../../platform/keybinding/test/c
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
-import { getEnvironmentWorkspaceProvider, getSessionCreationEnvironments, ISessionCreationEnvironment, SessionEnvironmentPicker } from '../../browser/sessionEnvironmentPicker.js';
+import { getDefaultSessionCreationEnvironment, getEnvironmentWorkspaceProvider, getSessionCreationEnvironments, ISessionCreationEnvironment, SessionEnvironmentPicker } from '../../browser/sessionEnvironmentPicker.js';
 
 suite('SessionEnvironmentPicker', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -39,6 +39,20 @@ suite('SessionEnvironmentPicker', () => {
 			...options,
 		});
 	}
+
+	test('defaults local folders to This Computer even when Cloud resolves the recent workspace first', () => {
+		const remote: ISessionCreationEnvironment = { id: 'remote', kind: 'remote', label: 'Remote', icon: Codicon.remote, providerIds: ['remote'] };
+		const container: ISessionCreationEnvironment = { ...local, id: 'container:local', kind: 'container' };
+		const environments = [cloud, local, remote, container];
+		assert.deepStrictEqual([
+			getDefaultSessionCreationEnvironment(environments, folder, 'cloud')?.id,
+			getDefaultSessionCreationEnvironment(environments, undefined, undefined)?.id,
+			getDefaultSessionCreationEnvironment(environments, URI.parse('vscode-agent-host://host/project'), 'remote')?.id,
+			getDefaultSessionCreationEnvironment(environments, URI.parse('github:/owner/repo'), 'cloud')?.id,
+			getDefaultSessionCreationEnvironment(environments, folder, LOCAL_AGENT_HOST_PROVIDER_ID, true)?.id,
+			getDefaultSessionCreationEnvironment([cloud], folder, 'cloud')?.id,
+		], ['local', 'local', 'remote', 'cloud', 'container:local', 'cloud']);
+	});
 
 	test('groups logical local and cloud destinations and excludes hidden hosts and internal backends', () => {
 		const providers = [

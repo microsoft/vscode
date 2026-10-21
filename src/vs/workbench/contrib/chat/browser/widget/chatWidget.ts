@@ -1117,6 +1117,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return this.listWidget.domNode;
 	}
 
+	get scrollDownButtonDomNode(): HTMLElement {
+		return this.listWidget.scrollDownButtonDomNode;
+	}
+
 	get stickyScrollDomNode(): HTMLElement | undefined {
 		return this.listWidget.stickyScrollDomNode;
 	}

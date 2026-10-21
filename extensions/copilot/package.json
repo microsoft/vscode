@@ -4320,7 +4320,7 @@
               "null"
             ],
             "default": null,
-            "markdownDescription": "Advanced model configuration for the next edit suggestions xtab provider.\n\n**Note**: This is an advanced setting.",
+            "markdownDescription": "%github.copilot.config.inlineEdits.xtabProvider.modelConfiguration%",
             "tags": [
               "advanced",
               "experimental"

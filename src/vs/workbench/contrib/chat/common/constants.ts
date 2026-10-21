@@ -115,6 +115,8 @@ export enum ChatConfiguration {
 	ChatClosedPromoNotification = 'chat.closedPromoNotification',
 	TitleBarSignInEnabled = 'chat.titleBar.signIn.enabled',
 	WelcomePageSignInEnabled = 'chat.welcomePage.signIn.enabled',
+	WelcomePageAgentsWindowGraphic = 'chat.welcomePage.agentsWindowGraphic',
+	WelcomePageAgentsWindowSectionStyle = 'chat.welcomePage.agentsWindowSectionStyle',
 	TitleBarOpenInAgentsWindowEnabled = 'chat.titleBar.openInAgentsWindow.enabled',
 	OpenInAgentsWindowTransferDraft = 'chat.experimental.openInAgentsWindow.transferDraft',
 	AgentsParallelWorkBannerEnabled = 'chat.agentsParallelWorkBanner.enabled',
@@ -183,6 +185,60 @@ export function getCopilotHarnessIntroductionMode(configurationService: IConfigu
 export const enum ChatClosedPromoNotification {
 	None = 'none',
 	CopilotIconPopup = 'copilotIconPopup',
+}
+
+/** The graphic that explains the Agents window above the Agents window button on the Welcome page. */
+export const enum AgentsWindowGraphicVariant {
+	None = 'none',
+	/** The editor window and the Agents window side by side. */
+	WindowComparison = 'windowComparison',
+	/** Editor windows for several projects become one Agents window. */
+	ManyWindowsToOne = 'manyWindowsToOne',
+	/** {@link ManyWindowsToOne} when more than one editor window is open, and {@link WindowComparison} otherwise. */
+	Auto = 'auto',
+}
+
+export function getAgentsWindowGraphicVariant(configurationService: IConfigurationService): AgentsWindowGraphicVariant {
+	const variant = configurationService.getValue<AgentsWindowGraphicVariant>(ChatConfiguration.WelcomePageAgentsWindowGraphic);
+	switch (variant) {
+		case AgentsWindowGraphicVariant.WindowComparison:
+		case AgentsWindowGraphicVariant.ManyWindowsToOne:
+		case AgentsWindowGraphicVariant.Auto:
+			return variant;
+		default:
+			return AgentsWindowGraphicVariant.None;
+	}
+}
+
+/** How the Agents window graphic, its captions and the Agents window button are set apart from the rest of the Welcome page. */
+export const enum AgentsWindowSectionStyle {
+	None = 'none',
+	/** A subtle surface around the section, like the walkthrough tiles. */
+	Card = 'card',
+	/** A subtle border around the section. The default. */
+	Outline = 'outline',
+	/** A surface tinted with the accent color around the section. */
+	Tint = 'tint',
+	/** A subtle surface across the width of the page's content. */
+	Band = 'band',
+	/** Lines across the width of the page's content above and below the section. */
+	Separator = 'separator',
+}
+
+/** Reads the section style, falling back to the setting's default, {@link AgentsWindowSectionStyle.Outline}. */
+export function getAgentsWindowSectionStyle(configurationService: IConfigurationService): AgentsWindowSectionStyle {
+	const style = configurationService.getValue<AgentsWindowSectionStyle>(ChatConfiguration.WelcomePageAgentsWindowSectionStyle);
+	switch (style) {
+		case AgentsWindowSectionStyle.None:
+		case AgentsWindowSectionStyle.Card:
+		case AgentsWindowSectionStyle.Outline:
+		case AgentsWindowSectionStyle.Tint:
+		case AgentsWindowSectionStyle.Band:
+		case AgentsWindowSectionStyle.Separator:
+			return style;
+		default:
+			return AgentsWindowSectionStyle.Outline;
+	}
 }
 
 export const AGENT_SESSION_CLEANUP_SETTINGS_TAG = 'agentSessionCleanup';

@@ -4068,26 +4068,24 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: none;
 	position: absolute;
 	/* Clear any content floating above the input. */
-	bottom: calc(7px + var(--vscode-chat-persistent-content-height, 0px));
-	right: 12px;
-	border-radius: var(--vscode-cornerRadius-circle);
-	width: var(--vscode-spacing-size280);
-	height: var(--vscode-spacing-size280);
+	bottom: calc(var(--vscode-spacing-size80) + var(--vscode-chat-persistent-content-height, 0px));
+	right: var(--vscode-spacing-size120);
+	border-radius: var(--vscode-cornerRadius-large);
+	width: var(--vscode-spacing-size240);
+	height: var(--vscode-spacing-size240);
+	padding: 0;
+	box-shadow: var(--vscode-shadow-md);
 
 	.codicon {
 		margin: 0;
-	}
-
-	.codicon::before {
-		display: inline-block;
-		transform: translateY(1px);
+		flex-shrink: 0;
+		font-size: var(--vscode-codiconFontSize);
 	}
 }
 
 .interactive-session .chat-scroll-down:hover,
 .interactive-session .chat-scroll-down:focus {
-	background-color: var(--vscode-chat-list-background, var(--vscode-button-secondaryBackground));
-	background-image: linear-gradient(var(--vscode-button-secondaryHoverBackground), var(--vscode-button-secondaryHoverBackground));
+	background-image: linear-gradient(var(--vscode-toolbar-hoverBackground), var(--vscode-toolbar-hoverBackground));
 }
 
 .chat-quota-error-widget,
