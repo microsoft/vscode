@@ -4112,7 +4112,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				description,
 				...(ids.length ? { default: ids.includes(metadata.defaultTier) ? metadata.defaultTier : ids[0] } : {}),
 				enum: ids,
-				// The provider's tiers are shown with its names and descriptions only.
+				// The provider's tiers are shown with its names and descriptions, and local names only for tiers it leaves unnamed.
 				enumLabels: tiers.map(tier => getProviderAutoTierLabel(tier)),
 				// The service's JSON can omit a description, which would reach the picker as null.
 				enumDescriptions: tiers.map(tier => tier.description ?? ''),

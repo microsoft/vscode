@@ -114,20 +114,22 @@ function createHydraFusionModel(): ILanguageModelChatMetadataAndIdentifier {
 /** The name the agent host gives Auto when it presents it as Fusion. */
 const copilotFusionName = 'Copilot Fusion';
 
-function createFusionModel(balanceUsesHydraFusion = true): ILanguageModelChatMetadataAndIdentifier {
+/** Copilot Fusion as the agent host presents it: Auto with the provider's tiers, HydraFusion's among them. */
+function createFusionModel(): ILanguageModelChatMetadataAndIdentifier {
 	const auto = createAutoModel();
 	return {
 		...auto,
 		metadata: {
 			...auto.metadata,
 			name: copilotFusionName,
-			autoModelFusion: { balanceUsesHydraFusion },
+			autoModelFusion: { balanceUsesHydraFusion: false },
+			autoModelProviderTiers: true,
 			configurationSchema: {
 				properties: {
 					tier: {
 						type: 'string', group: 'navigation', title: 'Effort Level',
-						enum: ['balance', 'intelligence'],
-						enumItemLabels: ['Standard', 'High'],
+						enum: ['balance', 'hydrafusion', 'hydrafusion-max'],
+						enumItemLabels: ['Standard', 'High', 'Max'],
 						default: 'balance',
 					},
 				}
@@ -1583,51 +1585,6 @@ suite('TabbedModelPicker', () => {
 		assert.deepStrictEqual({ hydraFusionDetails, autoOptions: autoTiers(result.popup) }, { hydraFusionDetails: false, autoOptions: ['Efficiency', 'Balance', 'Intelligence'] });
 	});
 
-	test('Fusion offers Standard, High, and Max, with High using HydraFusion only when routed there and available', async () => {
-		const max = createHydraFusionMaxModel();
-		const choose = async (option: string, balanceUsesHydraFusion: boolean, withHydraFusion = true) => {
-			const fusion = createFusionModel(balanceUsesHydraFusion);
-			const result = createPicker({ models: [...models, fusion, ...(withHydraFusion ? [createHydraFusionModel()] : []), max], selectedModelId: models[0].identifier });
-			const readout = () => Array.from(result.popup.querySelectorAll('.chat-model-picker-model'))
-				.find(row => row.querySelector('.title')?.textContent === copilotFusionName)?.querySelector('.action-label')?.textContent;
-			const rows = listRows(result.popup);
-			openDetails(result.popup, copilotFusionName);
-			const tiers = autoTiers(result.popup);
-			chooseOption(result.popup, option);
-			await timeout(0);
-			const discount = Array.from(result.popup.querySelectorAll<HTMLElement>('.chat-model-card-discount-description')).find(element => !element.hidden)?.textContent;
-			const description = Array.from(result.popup.querySelectorAll<HTMLElement>('.chat-model-card-alternative-description')).find(element => !element.hidden)?.textContent;
-			const ariaLabel = result.popup.querySelector('.tabbed-action-list-details [role="radio"][aria-checked="true"]')?.getAttribute('aria-label');
-			goBack(result.popup);
-			return { rows, tiers, discount, description, ariaLabel, readout: readout(), selections: result.selections, tier: result.values.get(fusion.identifier)?.tier };
-		};
-		const fusionHigh = {
-			rows: [copilotFusionName, '--', 'First', 'Fixed', 'Second'], tiers: ['Standard', 'High', 'Max'], discount: undefined,
-			description: undefined, ariaLabel: 'High', readout: 'High', selections: ['copilot/auto'], tier: 'intelligence',
-		};
-		assert.deepStrictEqual({
-			high: await choose('High', true),
-			max: await choose('Max', true),
-			highNotRouted: await choose('High', false),
-			highWithoutHydraFusion: await choose('High', true, false),
-		}, {
-			high: {
-				rows: [copilotFusionName, '--', 'First', 'Fixed', 'Second'], tiers: ['Standard', 'High', 'Max'], discount: undefined,
-				description: 'Prioritizes capable models for challenging tasks and deeper reasoning.',
-				ariaLabel: 'High, Prioritizes capable models for challenging tasks and deeper reasoning.',
-				readout: 'High', selections: ['copilot/hydrafusion'], tier: undefined,
-			},
-			max: {
-				rows: [copilotFusionName, '--', 'First', 'Fixed', 'Second'], tiers: ['Standard', 'High', 'Max'], discount: undefined,
-				description: 'Prioritizes the most capable models for the most demanding tasks and complex reasoning.',
-				ariaLabel: 'Max, Prioritizes the most capable models for the most demanding tasks and complex reasoning.',
-				readout: 'Max', selections: ['copilot/hydrafusion-max'], tier: undefined,
-			},
-			highNotRouted: fusionHigh,
-			highWithoutHydraFusion: fusionHigh,
-		});
-	});
-
 	test('Fusion with the provider\'s tiers offers Standard, High, and Max once, routing all three through Fusion, with a badge for the tier shown', async () => {
 		const fusion = createFusionModel();
 		const day = 24 * 60 * 60 * 1000;
@@ -1692,7 +1649,7 @@ suite('TabbedModelPicker', () => {
 	});
 
 	test('a chat on a HydraFusion model is shown on the provider tier of the same name, which moves it to Fusion', async () => {
-		const fusion = createFusionModel(false);
+		const fusion = createFusionModel();
 		const providerFusion: ILanguageModelChatMetadataAndIdentifier = {
 			...fusion,
 			metadata: {
@@ -2430,7 +2387,7 @@ suite('TabbedModelPicker', () => {
 		});
 	}
 
-	test('a Fusion tier controlled by a read-only schema cannot be changed, but Max can still be chosen', async () => {
+	test('Fusion\'s tiers controlled by a read-only schema cannot be changed, Max included', async () => {
 		const fusion = createFusionModel();
 		const max = createHydraFusionMaxModel();
 		const result = createPicker({
@@ -2444,7 +2401,7 @@ suite('TabbedModelPicker', () => {
 		chooseOption(result.popup, 'Max');
 		await timeout(0);
 		assert.deepStrictEqual({ disabled, saved, selections: result.selections }, {
-			disabled: [true, true, false], saved: undefined, selections: [max.identifier],
+			disabled: [true, true, true], saved: undefined, selections: [],
 		});
 	});
 
