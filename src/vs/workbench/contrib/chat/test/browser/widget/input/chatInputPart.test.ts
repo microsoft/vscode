@@ -44,6 +44,40 @@ import '../../../../browser/widget/media/chat.css';
 suite('ChatInputPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('uses a bounded pet platform before the full-width base platform', () => {
+		const root = dom.append(mainWindow.document.body, dom.$('div'));
+		root.style.cssText = 'position:fixed;left:40px;top:80px;width:400px;height:240px';
+		store.add(toDisposable(() => root.remove()));
+		const heading = dom.append(root, dom.$('div'));
+		heading.style.cssText = 'position:absolute;left:120px;top:20px;width:160px;height:36px';
+		const base = dom.append(root, dom.$('div'));
+		base.style.cssText = 'position:absolute;left:0;top:100px;width:400px;height:36px';
+		const input = dom.append(root, dom.$('div'));
+		input.style.cssText = 'position:absolute;left:0;top:136px;width:400px;height:80px';
+		const inputPart = Object.assign(Object.create(ChatInputPart.prototype), {
+			_chatPetHorizontalPlatformProviders: new Set([{
+				onDidChange: Event.None,
+				getElements: () => [heading],
+				getBaseElement: () => base,
+			}]),
+			container: root,
+			inputContainer: input,
+			persistentContentContainer: undefined,
+		}) as ChatInputPart;
+		const headingBounds = heading.getBoundingClientRect();
+		const baseBounds = base.getBoundingClientRect();
+
+		assert.deepStrictEqual({
+			heading: inputPart.getChatPetPlatformTop(headingBounds.left + headingBounds.width / 2),
+			outsideHeading: inputPart.getChatPetPlatformTop(headingBounds.right + 20),
+			fallback: inputPart.getChatPetPlatformTop(),
+		}, {
+			heading: headingBounds.top,
+			outsideHeading: baseBounds.top,
+			fallback: baseBounds.top,
+		});
+	});
+
 	test('refreshes model picker visibility when a live contribution arrives after history', () => {
 		const inputStore = store.add(new DisposableStore());
 		const availabilityChanged = store.add(new Emitter<void>());

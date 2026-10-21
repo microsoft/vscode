@@ -14,6 +14,7 @@ import { waitForFixtureCondition } from '../fixtureUtils.js';
 
 export interface IChatPetFixtureOptions {
 	readonly enabled: boolean;
+	readonly horizontalPosition?: number;
 	readonly unlockedAchievements?: readonly ChatPetAchievementId[];
 	readonly unseenAchievements?: readonly ChatPetAchievementId[];
 	readonly selectedAccessory?: ChatPetAccessoryId;
@@ -33,8 +34,8 @@ export class FixtureChatPetService extends Disposable implements IChatPetService
 	readonly onTheRun: IObservable<boolean> = this.onTheRunValue;
 	private readonly scaleValue = observableValue(this, 1);
 	readonly scale: IObservable<number> = this.scaleValue;
-	private readonly horizontalPositionValue = observableValue<number | undefined>(this, undefined);
-	readonly horizontalPosition: IObservable<number | undefined> = this.horizontalPositionValue;
+	private readonly horizontalPositionValue: ISettableObservable<number | undefined>;
+	readonly horizontalPosition: IObservable<number | undefined>;
 	private readonly unlockedAchievementsValue: ISettableObservable<readonly ChatPetAchievementId[]>;
 	readonly unlockedAchievements: IObservable<readonly ChatPetAchievementId[]>;
 	private readonly unseenAchievementsValue: ISettableObservable<readonly ChatPetAchievementId[]>;
@@ -47,6 +48,8 @@ export class FixtureChatPetService extends Disposable implements IChatPetService
 		super();
 		this.enabledValue = observableValue(this, options.enabled);
 		this.enabled = this.enabledValue;
+		this.horizontalPositionValue = observableValue<number | undefined>(this, options.horizontalPosition);
+		this.horizontalPosition = this.horizontalPositionValue;
 		this.colorValue = observableValue(this, options.color ?? options.variant ?? 'stable');
 		this.color = this.colorValue;
 		this.unlockedAchievementsValue = observableValue<readonly ChatPetAchievementId[]>(this, options.unlockedAchievements ?? []);

@@ -160,7 +160,7 @@ import { ChatArtifactsWidget } from '../chatArtifactsWidget.js';
 import { handleTerminalCommandPaste, isTerminalCommandInput, isTerminalCommandPaste as isTerminalCommandPasteContent } from '../../chatTerminalCommandPaste.js';
 import { ChatDynamicVariableModel } from '../../attachments/chatDynamicVariables.js';
 import { ChatDragAndDrop } from '../chatDragAndDrop.js';
-import { getChatPetPillPlatformTop, getChatPetStackPlatformTop } from '../chatPetWidget.js';
+import { getChatPetHorizontalPlatformTop, getChatPetStackPlatformTop } from '../chatPetWidget.js';
 import { ChatFollowups } from './chatFollowups.js';
 import { IChatInputNotificationContext, IChatInputNotificationService } from './chatInputNotificationService.js';
 import { ChatGoalBannerWidget } from './chatGoalBannerWidget.js';
@@ -274,10 +274,11 @@ export interface IChatInputStyles {
 	listShadow?: string;
 }
 
-/** A dynamic set of elements that can act as raised platforms for the chat pet. */
+/** Dynamic bounded platforms and an optional full-width base platform for the chat pet. */
 export interface IChatPetHorizontalPlatformProvider {
 	readonly onDidChange: Event<void>;
 	getElements(): readonly HTMLElement[];
+	getBaseElement?(): HTMLElement | undefined;
 }
 
 export interface IChatInputPartOptions {
@@ -702,7 +703,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	/** Arbitrates which notice occupies the area above this input. */
 	readonly noticeHost = this._register(new ChatInputNoticeHost(() => this.focus()));
 
-	/** Registers raised platforms that occupy only part of the input width. */
+	/** Registers raised platforms associated with this input. */
 	registerChatPetHorizontalPlatformProvider(provider: IChatPetHorizontalPlatformProvider): IDisposable {
 		this._chatPetHorizontalPlatformProviders.add(provider);
 		const store = new DisposableStore();
@@ -723,13 +724,23 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					pillBounds.push(element.getBoundingClientRect());
 				}
 			}
-			const pillTop = getChatPetPillPlatformTop(
+			const pillTop = getChatPetHorizontalPlatformTop(
 				petCenterX,
 				pillBounds
 			);
 			if (pillTop !== undefined) {
 				return pillTop;
 			}
+		}
+		let basePlatformTop: number | undefined;
+		for (const provider of this._chatPetHorizontalPlatformProviders) {
+			const bounds = provider.getBaseElement?.()?.getBoundingClientRect();
+			if (bounds && bounds.width > 0 && bounds.height > 0 && (basePlatformTop === undefined || bounds.top < basePlatformTop)) {
+				basePlatformTop = bounds.top;
+			}
+		}
+		if (basePlatformTop !== undefined) {
+			return basePlatformTop;
 		}
 		// Skips the persistent content, which floats above the input part rather than sitting in the stack.
 		return getChatPetStackPlatformTop(this.container, this.inputContainer, this.persistentContentContainer);

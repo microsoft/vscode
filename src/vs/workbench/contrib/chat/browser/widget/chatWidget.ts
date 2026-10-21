@@ -117,7 +117,7 @@ import { getChatSessionType } from '../../common/model/chatUri.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { CHAT_READ_ONLY_BANNER_HEIGHT, ChatReadOnlyBanner } from './chatReadOnlyBanner.js';
 import { IChatSubmitRequestHandlerService } from '../chatSubmitRequestHandlerService.js';
-import { getChatPetListPadding } from './chatPetWidget.js';
+import { getChatPetListPadding, IChatPetPlatformOccupation } from './chatPetWidget.js';
 import { IChatPetWidgetService } from './chatPetWidgetService.js';
 import { IChatPetService } from '../chatPetService.js';
 import { ChatPetAchievementIds, hasChatPetImageAttachment } from '../chatPetAchievements.js';
@@ -1140,7 +1140,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return this.input.attachmentModel;
 	}
 
-	render(parent: HTMLElement, petMovementBounds?: HTMLElement, preferredPetHost?: IObservable<boolean>): void {
+	render(parent: HTMLElement, petMovementBounds?: HTMLElement, preferredPetHost?: IObservable<boolean>, setPetPlatformOccupation?: (occupation: IChatPetPlatformOccupation | undefined) => void): void {
 		const viewId = isIChatViewViewContext(this.viewContext) ? this.viewContext.viewId : undefined;
 		this.editorOptions = this._register(this.instantiationService.createInstance(ChatEditorOptions, viewId, this.styles.listForeground, this.styles.inputEditorBackground, this.styles.resultEditorBackground));
 		const renderInputOnTop = this.viewOptions.renderInputOnTop ?? false;
@@ -1209,6 +1209,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				inputChanged: this.inputEditor.onDidChangeModelContent,
 				getPlatformTop: petCenterX => this.inputPart.getChatPetPlatformTop(petCenterX),
 				onDidChangePlatform: this.inputPart.onDidChangeChatPetHorizontalPlatforms,
+				setPlatformOccupation: setPetPlatformOccupation,
 			}, preferredPetHost));
 			const chatPetListPadding = derived(this, reader => getChatPetListPadding(this.chatPetService.enabled.read(reader), this._visible.read(reader), this.chatPetService.scale.read(reader)));
 			this._register(autorun(reader => {

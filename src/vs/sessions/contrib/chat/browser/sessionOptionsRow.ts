@@ -45,6 +45,8 @@ export interface ISessionOptionsRowOptions {
 	readonly hasDetails?: IObservable<boolean>;
 	/** Called when the tray collapses, before {@link collapsedShowIcons} is read. */
 	onDidCollapse?(): void;
+	/** Called after the row's presentation changes. */
+	onDidChangeLayout?(): void;
 }
 
 /**
@@ -160,6 +162,7 @@ export class SessionOptionsRow extends Disposable {
 			toggle.setTitle(label);
 			// Re-measure so labels compact or restore for the new expanded/rail state.
 			responsiveLayout.layout();
+			options.onDidChangeLayout?.();
 		}));
 	}
 

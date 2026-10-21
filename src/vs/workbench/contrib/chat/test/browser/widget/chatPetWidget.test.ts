@@ -32,7 +32,7 @@ import { CHAT_PET_CHANGE_COLOR_COMMAND_ID, ChatPetColor, getChatPetColoredSprite
 import '../../../browser/widget/media/chat.css';
 import { getChatPetAccessoryImageSource, hasChatPetAccessoryImageDimensions, hasChatPetBodyImageDimensions } from '../../../browser/widget/chatPetAccessoryRenderer.js';
 import { getChatPetAccessoryRigFrame, getChatPetAccessoryRigPose, getChatPetAccessoryTrack, getChatPetAntennaeOcclusionBounds, getChatPetEyeAccessoryAnchor, getChatPetReducedMotionRigFrame } from '../../../browser/widget/chatPetAccessoryRig.js';
-import { CHAT_PET_ACHIEVEMENT_UNLOCKED_DURATION, CHAT_PET_BOUNCE_RESULT_DURATION, CHAT_PET_CONFETTI_SCORE, CHAT_PET_CONFIRMATION_ATTENTION_DURATION, CHAT_PET_ICON_TRANSFORMATION_CHANCE, CHAT_PET_IDLE_SLEEP_DELAY, CHAT_PET_MOUSE_BOUNCE_RELEASE_GRACE_DURATION, CHAT_PET_OVERLAY_CLASS, CHAT_PET_WALL_IMPACT_DURATION, CHAT_PET_YAPPING_CHANCE, ChatPetBlinkController, ChatPetDirectionChangeController, ChatPetFacingController, ChatPetHopController, ChatPetWidget, IChatPetWidgetHost, advanceChatPetThrow, doesChatPetStateBlink, doesChatPetStateTrackCursor, drawChatPetAchievementStar, getChatPetAnchoredHorizontalPosition, getChatPetAnimationFrame, getChatPetBaseState, getChatPetBlinkDelay, getChatPetBuddyName, getChatPetClickInteraction, getChatPetDefaultHorizontalPosition, getChatPetDragPosition, getChatPetEyeAccessoryGazeOffset, getChatPetFallDuration, getChatPetFallTarget, getChatPetFrameDurations, getChatPetGazeDirection, getChatPetHorizontalAnchor, getChatPetHorizontalPosition, getChatPetListPadding, getChatPetMouseBounceVelocity, getChatPetMouseCollisionTime, getChatPetPillPlatformTop, getChatPetPlatformTop, getChatPetStackPlatformTop, getChatPetRelativeHorizontalPosition, getChatPetRenderedState, getChatPetRespawnFrameDurations, getChatPetRestoredHorizontalPosition, getChatPetScale, getChatPetSpeechFrameDurations, getChatPetSpriteName, getChatPetSpriteSources, getChatPetSweptPlatformTop, getChatPetThrowLanding, getChatPetThrowRotation, getChatPetThrowVelocity, getChatPetVerticalOffset, getChatPetWallReboundVelocity, getChatPetWideSpriteHorizontalOffset, isChatPetImageSource, isChatPetKeyboardInteractionEnabled, isChatPetMouseBounceEligible, isChatPetMouseBounceGracePeriodElapsed, isChatPetMouseContact, isChatPetVisible, isChatPetWindowActive, setChatPetWideLayerOffset, shouldCelebrateChatPetBounceScore, shouldClaimChatPetWindowOnConstruction, shouldDismissChatPetBounceResult, shouldPlaceChatPetSpeechBubbleLeft, shouldSettleChatPetThrow } from '../../../browser/widget/chatPetWidget.js';
+import { CHAT_PET_ACHIEVEMENT_UNLOCKED_DURATION, CHAT_PET_BOUNCE_RESULT_DURATION, CHAT_PET_CONFETTI_SCORE, CHAT_PET_CONFIRMATION_ATTENTION_DURATION, CHAT_PET_ICON_TRANSFORMATION_CHANCE, CHAT_PET_IDLE_SLEEP_DELAY, CHAT_PET_MOUSE_BOUNCE_RELEASE_GRACE_DURATION, CHAT_PET_OVERLAY_CLASS, CHAT_PET_WALL_IMPACT_DURATION, CHAT_PET_YAPPING_CHANCE, ChatPetBlinkController, ChatPetDirectionChangeController, ChatPetFacingController, ChatPetHopController, ChatPetWidget, IChatPetWidgetHost, advanceChatPetThrow, doesChatPetStateBlink, doesChatPetStateTrackCursor, drawChatPetAchievementStar, getChatPetAnchoredHorizontalPosition, getChatPetAnimationFrame, getChatPetBaseState, getChatPetBlinkDelay, getChatPetBuddyName, getChatPetClickInteraction, getChatPetDefaultHorizontalPosition, getChatPetDragPosition, getChatPetEyeAccessoryGazeOffset, getChatPetFallDuration, getChatPetFallTarget, getChatPetFrameDurations, getChatPetGazeDirection, getChatPetHorizontalAnchor, getChatPetHorizontalPlatformTop, getChatPetHorizontalPosition, getChatPetListPadding, getChatPetMouseBounceVelocity, getChatPetMouseCollisionTime, getChatPetPlatformTop, getChatPetStackPlatformTop, getChatPetRelativeHorizontalPosition, getChatPetRenderedState, getChatPetRespawnFrameDurations, getChatPetRestoredHorizontalPosition, getChatPetScale, getChatPetSpeechFrameDurations, getChatPetSpriteName, getChatPetSpriteSources, getChatPetSweptPlatformTop, getChatPetThrowLanding, getChatPetThrowRotation, getChatPetThrowVelocity, getChatPetVerticalOffset, getChatPetWallReboundVelocity, getChatPetWideSpriteHorizontalOffset, isChatPetImageSource, isChatPetKeyboardInteractionEnabled, isChatPetMouseBounceEligible, isChatPetMouseBounceGracePeriodElapsed, isChatPetMouseContact, isChatPetVisible, isChatPetWindowActive, setChatPetWideLayerOffset, shouldCelebrateChatPetBounceScore, shouldClaimChatPetWindowOnConstruction, shouldDismissChatPetBounceResult, shouldPlaceChatPetSpeechBubbleLeft, shouldSettleChatPetThrow } from '../../../browser/widget/chatPetWidget.js';
 
 suite('ChatPetWidget', () => {
 
@@ -115,7 +115,7 @@ suite('ChatPetWidget', () => {
 		}
 	}
 
-	function createHostTransitionHarness(motionReduced = false, initialTransition: IChatPetWidgetHost['transition'] = 'teleport', color?: ChatPetColor, intersectionObserverCtor?: typeof IntersectionObserver) {
+	function createHostTransitionHarness(motionReduced = false, initialTransition: IChatPetWidgetHost['transition'] = 'teleport', color?: ChatPetColor, intersectionObserverCtor?: typeof IntersectionObserver, setPlatformOccupation?: IChatPetWidgetHost['setPlatformOccupation']) {
 		const root = mainWindow.document.createElement('div');
 		root.style.cssText = 'position:fixed;left:0;top:0;width:800px;height:640px';
 		const firstParent = mainWindow.document.createElement('div');
@@ -143,6 +143,7 @@ suite('ChatPetWidget', () => {
 			transition,
 			getPlatformTop: () => parent.getBoundingClientRect().top,
 			onDidChangePlatform: platformChanged.event,
+			setPlatformOccupation,
 		});
 		const firstHost = createHost(firstParent, initialTransition);
 		const secondHost: IChatPetWidgetHost = {
@@ -439,6 +440,36 @@ suite('ChatPetWidget', () => {
 			afterRelease: startLeft - 50,
 			afterReleaseBounds: initial.left - 50,
 			afterReleaseTranslation: '',
+		});
+	});
+
+	test('reports platform occupation only while the pet is resting', async () => {
+		const occupations: Array<'occupied' | 'clear'> = [];
+		const { button } = createHostTransitionHarness(true, 'teleport', undefined, TestIntersectionObserver, occupation => occupations.push(occupation ? 'occupied' : 'clear'));
+		await button.querySelector<HTMLImageElement>('.chat-pet-sprite img[src]')!.decode();
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+		const initial = button.getBoundingClientRect();
+		const beforeDrag = occupations.at(-1);
+		sinon.stub(button, 'setPointerCapture').throws(new Error('Synthetic pointer events do not establish pointer capture'));
+		button.dispatchEvent(new mainWindow.PointerEvent('pointerdown', {
+			clientX: initial.left + 24, clientY: initial.top + 24,
+			button: 0, buttons: 1, pointerId: 1, bubbles: true,
+		}));
+		mainWindow.dispatchEvent(new mainWindow.PointerEvent('pointermove', {
+			clientX: initial.left + 34, clientY: initial.top + 24,
+			buttons: 1, pointerId: 1, bubbles: true,
+		}));
+		const whileDragging = occupations.at(-1);
+		mainWindow.dispatchEvent(new mainWindow.PointerEvent('pointerup', { button: 0, buttons: 0, pointerId: 1 }));
+
+		assert.deepStrictEqual({
+			initial: beforeDrag,
+			whileDragging,
+			afterLanding: occupations.at(-1),
+		}, {
+			initial: 'occupied',
+			whileDragging: 'clear',
+			afterLanding: 'occupied',
 		});
 	});
 
@@ -3547,19 +3578,19 @@ suite('ChatPetWidget', () => {
 		});
 	});
 
-	test('uses only the pill under the pet as a raised platform', () => {
+	test('uses only the bounded horizontal platform under the pet', () => {
 		const pillBounds = [
 			{ left: 10, right: 50, top: 120, width: 40, height: 22 },
 			{ left: 56, right: 96, top: 118, width: 40, height: 24 },
 			{ left: 104, right: 144, top: 116, width: 0, height: 24 },
 		];
 		assert.deepStrictEqual([
-			getChatPetPillPlatformTop(9, pillBounds),
-			getChatPetPillPlatformTop(10, pillBounds),
-			getChatPetPillPlatformTop(50, pillBounds),
-			getChatPetPillPlatformTop(53, pillBounds),
-			getChatPetPillPlatformTop(75, pillBounds),
-			getChatPetPillPlatformTop(120, pillBounds),
+			getChatPetHorizontalPlatformTop(9, pillBounds),
+			getChatPetHorizontalPlatformTop(10, pillBounds),
+			getChatPetHorizontalPlatformTop(50, pillBounds),
+			getChatPetHorizontalPlatformTop(53, pillBounds),
+			getChatPetHorizontalPlatformTop(75, pillBounds),
+			getChatPetHorizontalPlatformTop(120, pillBounds),
 		], [
 			undefined,
 			120,
