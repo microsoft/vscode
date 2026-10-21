@@ -672,6 +672,20 @@ suite('McpCustomizationController', () => {
 		});
 	});
 
+	test('does not move a live child state when its plugin is replaced while another plugin declares the same server name', () => {
+		const { controller, actions, setCustomizations } = harness(store, { customizations: [pluginWithServer('first'), pluginWithServer('other')] });
+		store.add(controller);
+		controller.applyOne(server('fs', ready()));
+		actions.length = 0;
+
+		setCustomizations([pluginWithServer('other'), pluginWithServer('first-rescoped')]);
+
+		assert.deepStrictEqual({ actions, runtimeStateIds: [...controller.runtimeStates.get().keys()] }, {
+			actions: [],
+			runtimeStateIds: ['mcp-child:first:fs'],
+		});
+	});
+
 	test('resolves a published child before the SDK reports it', () => {
 		const { controller } = harness(store, { customizations: PLUGIN_CUSTOMIZATIONS });
 		store.add(controller);

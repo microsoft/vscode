@@ -251,15 +251,25 @@ export class McpCustomizationController extends Disposable {
 	 * Moves a live child's state to the same-named child of the container that replaced its own. A provider can keep
 	 * a server running when its plugin is republished under another URI, and so reports no lifecycle change; without
 	 * this, the replacement child (whose id derives from the new URI) would stay at its published default.
-	 * Only follows a container that is no longer published, so a server name declared by several plugins at once
-	 * never lends one plugin's live state to another.
+	 * Only follows a container that is no longer published, and only to the single published child with the server's
+	 * name, so a server name declared by several plugins never lends one plugin's live state to another.
 	 */
 	private _followReplacedChildContainers(): void {
 		const customizations = this._stateManager.getSessionState(this._sessionUri.toString())?.customizations ?? [];
 		const publishedIds = new Set(customizations.map(customization => customization.id));
+		const childCountByName = new Map<string, number>();
+		for (const customization of customizations) {
+			if (customization.type !== CustomizationType.McpServer) {
+				for (const child of customization.children ?? []) {
+					if (child.type === CustomizationType.McpServer) {
+						childCountByName.set(child.name, (childCountByName.get(child.name) ?? 0) + 1);
+					}
+				}
+			}
+		}
 		transaction(tx => {
 			for (const entry of this._live.get().values()) {
-				if (entry.topLevelId !== undefined || entry.childContainerId === undefined || publishedIds.has(entry.childContainerId)) {
+				if (entry.topLevelId !== undefined || entry.childContainerId === undefined || publishedIds.has(entry.childContainerId) || childCountByName.get(entry.serverName) !== 1) {
 					continue;
 				}
 				const replacement = this._findPublishedMcpCustomization(entry.serverName);
