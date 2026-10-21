@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ModifierKeyEmitter } from '../../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { Action, ActionRunner, SubmenuAction, toAction } from '../../../../../base/common/actions.js';
+import { Action, ActionRunner, Separator, SubmenuAction, toAction } from '../../../../../base/common/actions.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { isLinux, isWindows } from '../../../../../base/common/platform.js';
@@ -56,17 +56,30 @@ suite('Native ContextMenuService', () => {
 
 	teardown(() => ModifierKeyEmitter.getInstance().resetKeyStatus());
 
-	test('positions the native menu at the requested action instead of the first item', () => {
-		const actions = [store.add(new Action('first', 'First')), store.add(new Action('second', 'Second'))];
-		service.showContextMenu({
-			getAnchor: () => mainWindow.document.body,
-			getActions: () => actions,
-			autoSelectFirstItem: true,
-			autoSelectItem: 1,
-		});
+	for (const [selection, expected] of [
+		[undefined, undefined],
+		[false, undefined],
+		[true, 0],
+		[0, 0],
+		[2, 2],
+		[-1, undefined],
+		[NaN, undefined],
+		[Infinity, undefined],
+		[-Infinity, undefined],
+		[0.5, undefined],
+		[3, undefined],
+	] as const) {
+		test(`normalizes native menu selection ${selection} to ${expected}`, () => {
+			const actions = [store.add(new Action('first', 'First')), new Separator(), store.add(new Action('second', 'Second'))];
+			service.showContextMenu({
+				getAnchor: () => mainWindow.document.body,
+				getActions: () => actions,
+				autoSelectItem: selection,
+			});
 
-		assert.strictEqual(popupOptions?.positioningItem, 1);
-	});
+			assert.strictEqual(popupOptions?.positioningItem, expected);
+		});
+	}
 
 	for (const mouseAnchor of [false, true]) {
 		for (const mode of ['action', 'submenu', 'action runner'] as const) {

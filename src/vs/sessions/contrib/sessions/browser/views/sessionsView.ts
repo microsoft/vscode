@@ -474,7 +474,7 @@ export class SessionsView extends ViewPane {
 	}
 
 	private createSessionsHeader(parent: HTMLElement, phoneLayout: boolean, disposables: DisposableStore): ISessionsHeaderElements {
-		const header = renderSessionsHeader(parent, phoneLayout, this.instantiationService, this.scopedContextKeyService, disposables, () => this.sessionsControl?.reportArchivedFilterShown());
+		const header = renderSessionsHeader(parent, phoneLayout, this.instantiationService, this.scopedContextKeyService, disposables, () => this.sessionsControl?.reportFilterMenuShown());
 		this.sessionsHeaders.add(header);
 		disposables.add(toDisposable(() => this.sessionsHeaders.delete(header)));
 		this.updateHeaderLayout();
@@ -490,12 +490,11 @@ export class SessionsView extends ViewPane {
 		this.hoverService.hideHover(true);
 		const actions = getFlatContextMenuActions(this.menuService.getMenuActions(Menus.SessionsViewFilter, this.scopedContextKeyService));
 		const applicationIndex = actions.findIndex(action => action instanceof SubmenuItemAction && action.item.submenu === Menus.SessionsViewSource);
-		this.sessionsControl?.reportArchivedFilterShown();
+		this.sessionsControl?.reportFilterMenuShown();
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 			getActions: () => actions,
-			autoSelectItem: applicationIndex >= 0 ? applicationIndex : undefined,
-			autoSelectFirstItem: true,
+			autoSelectItem: applicationIndex >= 0 ? applicationIndex : true,
 			onHide: () => this.sessionsControl?.focus(),
 		});
 	}

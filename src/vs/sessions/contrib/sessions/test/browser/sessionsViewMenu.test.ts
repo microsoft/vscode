@@ -213,7 +213,7 @@ suite('Sessions - View Menu', () => {
 			scopedContextKeyService: contextKeyService,
 			menuService,
 			hoverService: { hideHover: () => hoverHidden++ },
-			sessionsControl: { reportArchivedFilterShown: () => shown++, focus: () => focused++ },
+			sessionsControl: { reportFilterMenuShown: () => shown++, focus: () => focused++ },
 			contextMenuService: {
 				showContextMenu: (delegate: IContextMenuDelegate) => {
 					shownMenu = delegate;

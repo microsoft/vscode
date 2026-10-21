@@ -614,7 +614,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 				getAnchor: () => anchor,
 				getActions: () => actions,
 				getMenuClassName: () => 'agent-feedback-comment-target-menu',
-				autoSelectFirstItem: true,
+				autoSelectItem: true,
 				onHide: didCancel => {
 					if (didCancel) {
 						resolve(undefined);

@@ -7249,7 +7249,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	/** Reports the Done-default experiment trigger when a Done option is shown whose state still follows that default. */
-	reportArchivedFilterShown(): void {
+	reportFilterMenuShown(): void {
 		if (this._excludeArchivedIsDefault) {
 			logSettingExperimentTrigger(this.telemetryService, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING);
 		}
