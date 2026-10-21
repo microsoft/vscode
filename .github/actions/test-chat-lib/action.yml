@@ -9,16 +9,16 @@ runs:
       with:
         node-version-file: extensions/copilot/.nvmrc
 
-    # Reuse the Copilot node_modules cache that .github/workflows/pr-node-modules.yml keeps warm on
-    # `main` (Linux and Windows only). Never save: PR-scoped caches are not shared with other PRs
-    # and only evict the shared ones.
-    - name: Restore Copilot node_modules cache
+    # Reuse a node_modules cache that .github/workflows/pr-node-modules.yml keeps warm on `main`:
+    # the Copilot cache on Linux and Windows, and the full cache (which includes extensions/copilot)
+    # on macOS. Never save: PR-scoped caches are not shared with other PRs and only evict the
+    # shared ones.
+    - name: Restore node_modules cache
       id: cache-node-modules
-      if: runner.os == 'Linux' || runner.os == 'Windows'
       uses: ./.github/actions/restore-node-modules
       with:
-        key-prefix: copilot-node_modules-${{ runner.os == 'Windows' && 'windows' || 'linux' }}
-        key-args: "$(node -p process.platform) $(node -p process.arch)"
+        key-prefix: ${{ runner.os == 'macOS' && 'node_modules-macos' || runner.os == 'Windows' && 'copilot-node_modules-windows' || 'copilot-node_modules-linux' }}
+        key-args: ${{ runner.os == 'macOS' && 'darwin $(node -p process.arch) $(node -p process.arch)' || '$(node -p process.platform) $(node -p process.arch)' }}
 
     - name: Install Copilot dependencies
       if: steps.cache-node-modules.outputs.cache-hit != 'true'
@@ -26,13 +26,14 @@ runs:
       working-directory: extensions/copilot
       run: npm ci
 
-    # Remove the Copilot and the (cached) root node_modules so that chat-lib only resolves its own dependencies.
+    # Remove the node_modules of every ancestor folder (some are restored from the cache) so that
+    # chat-lib only resolves its own dependencies.
     - name: Extract chat-lib
       shell: bash
       working-directory: extensions/copilot
       run: |
         npm run extract-chat-lib
-        rm -rf node_modules ../../node_modules
+        rm -rf node_modules ../node_modules ../../node_modules
 
     - name: Install chat-lib dependencies
       shell: bash
