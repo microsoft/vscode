@@ -235,14 +235,18 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 
 	/**
 	 * The picker detail and description of a model that routes across others: Auto advertises its
-	 * discount, HydraFusion that it is a research preview. Other models have neither.
+	 * discount, and HydraFusion, or Auto presented as Fusion without a discount, that it is a research
+	 * preview. Other models have neither.
 	 */
 	private _routingPresentationFor(model: SessionModelInfo, discountPercent: number | undefined): { detail?: string; description?: string } {
 		if (model.id === AUTO_RAW_MODEL_ID) {
+			const fusion = !!readAgentModelFusionMeta(model);
 			return {
-				detail: discountPercent !== undefined ? localize('agentHost.auto.discount', "{0}% discount", discountPercent) : undefined,
+				detail: discountPercent !== undefined
+					? localize('agentHost.auto.discount', "{0}% discount", discountPercent)
+					: fusion ? localize('agentHost.hydraFusion.researchPreview', "Research preview") : undefined,
 				// The discount is carried by `autoModelDiscountPercent` and described by the picker.
-				description: ILanguageModelChatMetadata.getAutoModelDescription(!!readAgentModelFusionMeta(model)),
+				description: ILanguageModelChatMetadata.getAutoModelDescription(fusion),
 			};
 		}
 		if (model.provider === COPILOT_CLI_AGENT_PROVIDER_ID && isCopilotHydraFusionModelId(model.id)) {
