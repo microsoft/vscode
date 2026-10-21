@@ -1383,6 +1383,29 @@ suite('ChangesetSessionCoordinator', () => {
 		});
 	});
 
+	test('the branch summary refreshes only the folders of chats in use, not those of archived chats or their subagents', () => {
+		const session = AgentSession.uri('mock', 'summary-in-use').toString();
+		const defaultChat = buildDefaultChatUri(session);
+		const visible = buildChatUri(session, 'visible');
+		const archived = buildChatUri(session, 'archived');
+		const subagent = buildChatUri(session, 'subagent');
+		const environment = createEnvironment();
+		createSession(environment.stateManager, session, 'file:///default');
+		const storage = creationTimeChatStorageResource(session, visible, defaultChat);
+		environment.stateManager.addChat(session, visible, storage, { workingDirectories: ['file:///visible'] });
+		environment.stateManager.addChat(session, archived, storage, { workingDirectories: ['file:///archived'] });
+		environment.stateManager.addChat(session, subagent, storage, { origin: { kind: ChatOriginKind.Tool, chat: archived, toolCallId: 'tool' }, workingDirectories: ['file:///deleted-worktree'] });
+		environment.stateManager.dispatchServerAction(archived, { type: ActionType.ChatIsArchivedChanged, isArchived: true });
+		environment.stateManager.setSessionConfig(session, { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Isolation]: 'worktree' } });
+
+		environment.coordinator.onFirstSubscriber(URI.parse(session));
+
+		assert.deepStrictEqual([...new Set(environment.changesets.branchRefreshes)].sort(), [
+			buildBranchChangesetOwner(session, ['file:///default']),
+			buildBranchChangesetOwner(session, ['file:///visible']),
+		].sort());
+	});
+
 	test('moving a chat to another session keeps its own changesets', async () => {
 		const session = AgentSession.uri('mock', 'move-source').toString();
 		const target = AgentSession.uri('mock', 'move-target').toString();

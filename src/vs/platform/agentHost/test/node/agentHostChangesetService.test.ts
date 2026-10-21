@@ -20,7 +20,7 @@ import { buildBranchChangesetUri, buildDefaultChangesetCatalog, buildSessionChan
 import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../common/meta/agentWorkspaceContinuationMeta.js';
 import { ActionEnvelope, ActionType } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, FileEditKind, MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, withMessageRequestHiddenFromTranscript, withSessionGitState, type ISessionFileDiff, type ISessionGitState } from '../../common/state/sessionState.js';
+import { ChangesetStatus, ChatOriginKind, FileEditKind, MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, withMessageRequestHiddenFromTranscript, withSessionGitState, type ISessionFileDiff, type ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentHostChangesetService } from '../../node/agentHostChangesetService.js';
 import { createFileEditDiscardRecord, readFileEditRevertSteps, spanFileEditRevertSteps } from '../../node/fileEditDiscard.js';
 import { createFileEditAcceptRecord } from '../../node/fileEditAccept.js';
@@ -3560,6 +3560,81 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 				});
 			}
 		}
+
+		test('the Branch summary covers the folders of chats in use and never computes those of archived chats or their subagents', async () => {
+			const branchCalls: string[] = [];
+			const rootLookups: string[] = [];
+			const git = createNoopGitService();
+			git.getRepositoryRoot = async wd => {
+				rootLookups.push(wd.toString());
+				return wd;
+			};
+			git.computeSessionFileDiffs = async wd => {
+				branchCalls.push(wd.toString());
+				return [gitDiff(`${wd.path}/branch.ts`, 1, 0)];
+			};
+			const { svc, stateManager } = build({ workingDirectories: ['file:///default'], isolation: 'worktree', git, checkpoint: NULL_CHECKPOINT_SERVICE });
+			const defaultChat = buildDefaultChatUri(sessionStr);
+			const storage = creationTimeChatStorageResource(sessionStr, buildChatUri(sessionStr, 'visible'), defaultChat);
+			const visible = buildChatUri(sessionStr, 'visible');
+			const archived = buildChatUri(sessionStr, 'archived');
+			stateManager.addChat(sessionStr, visible, storage, { workingDirectories: ['file:///visible'] });
+			stateManager.addChat(sessionStr, archived, storage, { workingDirectories: ['file:///archived'] });
+			stateManager.addChat(sessionStr, buildChatUri(sessionStr, 'subagent'), storage, {
+				origin: { kind: ChatOriginKind.Tool, chat: archived, toolCallId: 'tool' },
+				workingDirectories: ['file:///deleted-worktree'],
+			});
+			stateManager.dispatchServerAction(archived, { type: ActionType.ChatIsArchivedChanged, isArchived: true });
+
+			svc.refreshBranchChangeset(sessionStr);
+			await waitForCondition(stateManager, () => stateManager.getSessionSummary(sessionStr)?.changes !== undefined);
+			await svc.whenSummaryPersisted();
+
+			assert.deepStrictEqual({
+				changes: stateManager.getSessionSummary(sessionStr)?.changes,
+				branchCalls: branchCalls.sort(),
+				rootLookups: rootLookups.sort(),
+			}, {
+				changes: { additions: 2, deletions: 0, files: 2 },
+				branchCalls: ['file:///default', 'file:///visible'],
+				rootLookups: ['file:///default', 'file:///visible'],
+			});
+		});
+
+		test('refreshing an unavailable owner does not recompute the owner whose computation already ended in an error', async () => {
+			const git = createNoopGitService();
+			git.getRepositoryRoot = async () => undefined;
+			git.computeSessionFileDiffs = async () => undefined;
+			const { svc, stateManager } = build({
+				workingDirectories: ['file:///gone'],
+				isolation: 'worktree',
+				git,
+				checkpoint: NULL_CHECKPOINT_SERVICE,
+				peer: { resource: buildChatUri(sessionStr, 'other'), db: new TestSessionDatabase(), turnId: 'peer-turn', workingDirectories: ['file:///other'], openError: new Error('database unavailable') },
+			});
+			const branchChangeset = (folder: string) => buildBranchChangesetUri(buildFolderChangesetOwnerUri(sessionStr, getWorkingDirectoryScopeId([folder])));
+			const statusChanges: Record<string, number> = {};
+			disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+				if (envelope.action.type === ActionType.ChangesetStatusChanged) {
+					statusChanges[envelope.channel] = (statusChanges[envelope.channel] ?? 0) + 1;
+				}
+			}));
+
+			for (let round = 0; round < 3; round++) {
+				svc.refreshBranchChangeset(sessionStr);
+				await waitForCondition(stateManager, () => stateManager.getChangesetState(branchChangeset('file:///gone'))?.status === ChangesetStatus.Error
+					&& stateManager.getChangesetState(branchChangeset('file:///other'))?.status === ChangesetStatus.Error
+					&& !svc.isStaticChangesetComputeActive(branchChangeset('file:///gone')));
+				await timeout(0);
+			}
+
+			// Each refresh of the unavailable folder announces a computation and its end. The owner whose computation
+			// already ended in an error is announced once, instead of being recomputed after every round.
+			assert.deepStrictEqual(statusChanges, {
+				[branchChangeset('file:///gone')]: 5,
+				[branchChangeset('file:///other')]: 1,
+			});
+		});
 
 		test('Session Changes uses aggregate folders even when Branch Changes supplies the list summary', async () => {
 			const sessionCalls: string[] = [];

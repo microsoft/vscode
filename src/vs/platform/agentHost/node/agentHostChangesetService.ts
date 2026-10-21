@@ -71,6 +71,7 @@ import { AgentSession, type IAgent } from '../common/agent.js';
 import { IAgentHostWorktreeIsolation, type IAgentHostWorktreePendingState } from './shared/worktreeIsolation.js';
 import { getSummaryChangesetKind, resolveChangesetSubscriptions } from './agentHostChangesetSummary.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
+import { getSessionSummarySources } from './agentHostChatsInUse.js';
 import { resolveAgentMergeOwningChat, resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSource, resolveGitHubStateFolder } from './agentHostBranchChangesetScope.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 
@@ -441,11 +442,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		}
 
 		const owners: ProtocolURI[] = [];
-		const defaultChat = this._chatOwnership.getDefaultChat(session);
-		for (const candidate of [
-			...(defaultChat !== undefined ? [defaultChat] : []),
-			...state.chats.map(chat => chat.resource).filter(candidate => candidate !== defaultChat),
-		]) {
+		for (const candidate of getSessionSummarySources(this._stateManager, session, this._chatOwnership.getDefaultChat(session))) {
 			const scope = resolveBranchChangesetScopeForSource(this._stateManager, candidate);
 			if (!scope.workingDirectories.length) {
 				continue;
@@ -474,7 +471,10 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			}
 			const changeset = this._stateManager.getChangesetState(buildBranchChangesetUri(owner));
 			if (changeset?.status !== ChangesetStatus.Ready) {
-				if (!this._activeStaticComputes.has(buildBranchChangesetUri(owner))) {
+				// An owner whose computation already ended in an error is not retried here: refreshing it
+				// clears what is known about it and recomputes it, which ends in the same error and, for
+				// each owner finishing, starts the next round. Only an explicit refresh retries it.
+				if (changeset?.status !== ChangesetStatus.Error && !this._activeStaticComputes.has(buildBranchChangesetUri(owner))) {
 					this.refreshBranchChangeset(owner);
 				}
 				return;
@@ -2210,6 +2210,10 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		if (!previous || previous.status === ChangesetStatus.Computing || previous.status === ChangesetStatus.Recomputing) {
 			return;
 		}
+		if (this._hasChangesetStatus(changesetUri, previous.status, previous.status === ChangesetStatus.Error ? previous.error : undefined)) {
+			// Nothing to restore; a repeated dispatch is still broadcast to every observer.
+			return;
+		}
 		this._stateManager.dispatchServerAction(changesetUri, {
 			type: ActionType.ChangesetStatusChanged,
 			status: previous.status,
@@ -2227,12 +2231,21 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			this._restoreStaticChangesetStatus(changesetUri, previous);
 			return;
 		}
+		const error = { errorType: 'computeFailed', message };
+		if (this._hasChangesetStatus(changesetUri, ChangesetStatus.Error, error)) {
+			return;
+		}
 		this._logService.warn(`[AgentHostChangesetService] ${changesetUri} has no result and no earlier one to keep: ${message}`);
 		this._stateManager.dispatchServerAction(changesetUri, {
 			type: ActionType.ChangesetStatusChanged,
 			status: ChangesetStatus.Error,
-			error: { errorType: 'computeFailed', message },
+			error,
 		});
+	}
+
+	private _hasChangesetStatus(changesetUri: ProtocolURI, status: ChangesetStatus, error: ChangesetState['error']): boolean {
+		const current = this._stateManager.getChangesetState(changesetUri);
+		return current?.status === status && current.error?.errorType === error?.errorType && current.error?.message === error?.message;
 	}
 
 	/**
