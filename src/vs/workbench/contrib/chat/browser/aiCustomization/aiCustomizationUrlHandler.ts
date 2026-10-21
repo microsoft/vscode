@@ -20,6 +20,8 @@ const pageTargets: Readonly<Record<string, AICustomizationManagementOpenEditorTa
 	hooks: AICustomizationManagementSection.Hooks,
 	'mcp-server': AICustomizationManagementSection.McpServers,
 	'mcp-servers': AICustomizationManagementSection.McpServers,
+	canvas: AICustomizationManagementSection.Canvases,
+	canvases: AICustomizationManagementSection.Canvases,
 	plugins: AICustomizationManagementSection.Plugins,
 	tools: AICustomizationManagementSection.Tools,
 	migrations: { migration: true },

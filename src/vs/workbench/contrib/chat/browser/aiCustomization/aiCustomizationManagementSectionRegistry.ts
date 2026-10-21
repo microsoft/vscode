@@ -4,16 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Dimension } from '../../../../../base/browser/dom.js';
+import { Event } from '../../../../../base/common/event.js';
 import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IObservable } from '../../../../../base/common/observable.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
+import type { IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
 
 export interface IAICustomizationManagementSectionWidget extends IDisposable {
 	layout?(dimension: Dimension): void;
 	focus?(): void;
 	setSearchQuery?(query: string): void;
 	setVisible?(visible: boolean): void;
+	/** Fires when the section asks the editor to show an installed plugin's detail. */
+	readonly onDidRequestShowPlugin?: Event<IAgentPluginItem>;
 }
 
 export interface IAICustomizationManagementSectionContribution {
@@ -24,6 +29,8 @@ export interface IAICustomizationManagementSectionContribution {
 	/** At least one of these boolean settings must be enabled to show or instantiate the section. */
 	readonly enablementSettings?: readonly string[];
 	readonly supportsHarness: (harnessId: string) => boolean;
+	/** Optional sidebar count, available before the section widget is created. */
+	itemCount?(accessor: ServicesAccessor): IObservable<number>;
 	create(instantiationService: IInstantiationService, container: HTMLElement): IAICustomizationManagementSectionWidget;
 }
 

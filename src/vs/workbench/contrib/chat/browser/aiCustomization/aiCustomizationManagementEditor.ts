@@ -1295,6 +1295,16 @@ export class AICustomizationManagementEditor extends EditorPane {
 			const container = DOM.append(contentInner, $('.contributed-section-container'));
 			this.contributedSectionContainers.set(section, container);
 		}
+		this.editorDisposables.add(autorun(reader => {
+			const harnessId = this.harnessService.activeHarness.read(reader);
+			for (const section of this.workspaceService.managementSections) {
+				const contribution = aiCustomizationManagementSectionRegistry.get(section, harnessId);
+				if (contribution?.itemCount) {
+					const count = this.instantiationService.invokeFunction(accessor => contribution.itemCount!(accessor));
+					this.updateSectionCount(section, count.read(reader));
+				}
+			}
+		}));
 
 		// Embedded editor container
 		this.editorContentContainer = DOM.append(contentInner, $('.editor-content-container'));
@@ -3584,6 +3594,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const widget = contribution.create(this.instantiationService, container);
 		this.contributedSectionWidgets.set(section, widget);
 		this.editorDisposables.add(widget);
+		if (widget.onDidRequestShowPlugin) {
+			this.editorDisposables.add(widget.onDidRequestShowPlugin(item => this.showPluginDetail(item)));
+		}
 		widget.setVisible?.(this.isVisible() && this.viewMode === 'list' && this.selectedSection === section);
 		if (this.dimension) {
 			widget.layout?.(this.dimension);

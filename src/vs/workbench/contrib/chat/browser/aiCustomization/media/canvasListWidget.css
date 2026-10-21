@@ -1,0 +1,100 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Same card as the MCP, Plugins, and Tools content containers. */
+.ai-customization-management-editor .contributed-section-container > .canvas-list-widget {
+	box-sizing: border-box;
+	padding-block: var(--vscode-spacing-size400) var(--vscode-spacing-sizeNone);
+	background: var(--vscode-agentsPanel-background);
+	border: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
+	border-radius: var(--vscode-cornerRadius-large);
+}
+
+/* Match the MCP and Plugins pages: scroll hosts reach the pane edge while content keeps the panel inset. */
+.ai-customization-management-editor .contributed-section-container > .canvas-list-widget > .canvas-list-view > .section-title-header,
+.ai-customization-management-editor .contributed-section-container > .canvas-list-widget > .canvas-list-view > .list-search-and-button-container,
+.ai-customization-management-editor .contributed-section-container > .canvas-list-widget > .canvas-list-view > .canvas-list-notice,
+.ai-customization-management-editor .contributed-section-container > .canvas-list-widget > .canvas-list-view > .mcp-list-container {
+	width: min(calc(100% - var(--vscode-spacing-size400) - var(--vscode-spacing-size400)), 840px);
+	margin-inline: auto;
+}
+
+.canvas-list-widget .mcp-server-item.canvas-row {
+	cursor: default;
+}
+
+.canvas-list-widget .mcp-server-item .canvas-row-source {
+	cursor: pointer;
+	text-decoration: none;
+}
+
+.canvas-list-widget .mcp-server-item .canvas-row-source:is(:hover, .hovered) {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
+}
+
+.canvas-list-widget .mcp-server-item .canvas-row-source:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.canvas-list-widget .mcp-server-item .mcp-server-actions {
+	display: contents;
+}
+
+.canvas-list-widget .mcp-server-item .customization-toggle {
+	order: 10;
+	margin-left: auto;
+}
+
+.canvas-list-widget .mcp-server-item.disabled {
+	opacity: 1;
+}
+
+.canvas-list-widget .mcp-server-item.disabled .mcp-server-details {
+	opacity: 0.6;
+}
+
+.canvas-list-widget .canvas-list-notice {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	box-sizing: border-box;
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
+	margin-block-end: var(--vscode-spacing-size80);
+	border-radius: var(--vscode-cornerRadius-small);
+	font-size: var(--vscode-fontSize-body2);
+	color: var(--vscode-foreground);
+	background-color: var(--vscode-inputValidation-infoBackground);
+	border: var(--vscode-strokeThickness) solid var(--vscode-inputValidation-infoBorder);
+}
+
+.canvas-list-widget .canvas-list-view {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	min-height: 0;
+}
+
+/* Row "..." button, matching the MCP and Plugins rows. */
+.canvas-list-widget .mcp-server-item .canvas-row-more.monaco-button {
+	order: 11;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--vscode-spacing-size240);
+	min-width: var(--vscode-spacing-size240);
+	height: var(--vscode-spacing-size240);
+	padding: 0;
+	border-radius: var(--vscode-cornerRadius-small);
+	border-color: transparent;
+	background: transparent;
+	color: var(--vscode-foreground);
+}
+
+.canvas-list-widget .mcp-server-item .canvas-row-more.monaco-button:is(:hover, .hovered) {
+	background: var(--vscode-toolbar-hoverBackground);
+	border-color: transparent;
+}

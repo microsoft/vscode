@@ -35,7 +35,10 @@ import { IListService, ListService, WorkbenchList } from '../../../../../platfor
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IRequestService } from '../../../../../platform/request/common/request.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { defaultButtonStyles, defaultCheckboxStyles, defaultDialogStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { defaultButtonStyles, defaultCheckboxStyles, defaultDialogStyles, defaultInputBoxStyles, defaultMenuStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
+import { Menu } from '../../../../../base/browser/ui/menu/menu.js';
 import { IRequestContext } from '../../../../../base/parts/request/common/request.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
@@ -130,6 +133,10 @@ import '../../../../../platform/theme/common/colors/inputColors.js';
 import '../../../../../platform/theme/common/colors/listColors.js';
 import '../../../../contrib/chat/browser/aiCustomization/media/aiCustomizationManagement.css';
 import '../../../../contrib/chat/browser/aiCustomization/customizationMarketplace.contribution.js';
+import '../../../../contrib/chat/browser/aiCustomization/canvasCustomizations.contribution.js';
+import { CanvasCustomizationStatus, ICanvasCustomizationRow, ICanvasCustomizationService } from '../../../../contrib/chat/common/canvasCustomizations.js';
+import { MOCK_CANVAS_EXTENSIONS, toCanvasCustomizationRows } from '../../../../contrib/chat/browser/aiCustomization/mockCanvasCustomizationService.js';
+import { CanvasesEnabledSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { ISecretStorageService } from '../../../../../platform/secrets/common/secrets.js';
 import { TestSecretStorageService } from '../../../../../platform/secrets/test/common/testSecretStorageService.js';
 
@@ -1150,6 +1157,15 @@ interface IRenderEditorOptions {
 	readonly pluginMarketplaceMigration?: boolean;
 	readonly pluginMarketplaceMigrationOnly?: boolean;
 	readonly pluginMarketplaceMigrationDeselected?: boolean;
+	readonly canvasState?: 'mixed' | 'empty' | 'extensionsDisabled';
+	/** Display name of a canvas row whose switch is turned off, showing the disable dialog. */
+	readonly canvasDisable?: string;
+	/** Display name of a canvas row whose source link is followed. */
+	readonly canvasOpenSource?: string;
+	/** Display name of a canvas row whose "..." menu is opened. */
+	readonly canvasMenu?: string;
+	/** Text typed into the Canvases search box before other canvas interactions. */
+	readonly canvasSearch?: string;
 }
 
 // ============================================================================
@@ -1316,7 +1332,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			const sourceEnabled = () => configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) === true;
 			ctx.disposableStore.add({ dispose: () => configurationService.onDidChangeConfigurationEmitter.dispose() });
 			registerWorkbenchServices(reg);
-			if (options.migrationConfirmation) {
+			if (options.migrationConfirmation || options.canvasDisable) {
 				reg.defineInstance(IDialogService, new class extends mock<IDialogService>() {
 					override confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
 						const dialog = ctx.disposableStore.add(new Dialog(
@@ -1464,6 +1480,10 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			// Also enable customization migration so migration affordances render in
 			// screenshot fixtures that depend on agent-host harnesses.
 			reg.defineInstance(IConfigurationService, configurationService);
+			reg.defineInstance(ICanvasCustomizationService, createFixtureCanvasCustomizationService(options.canvasState ?? 'mixed'));
+			if (options.canvasMenu) {
+				reg.defineInstance(IContextMenuService, createFixtureContextMenuService(ctx));
+			}
 			reg.defineInstance(IFileDialogService, new class extends mock<IFileDialogService>() { }());
 			reg.define(IListService, ListService);
 			reg.defineInstance(IMcpGalleryManifestService, createMockMcpGalleryManifestService());
@@ -2356,6 +2376,47 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		);
 	}
 
+	if (options.canvasOpenSource) {
+		const findSourceLink = () => [...ctx.container.querySelectorAll<HTMLElement>('.canvas-row')]
+			.find(row => row.querySelector('.mcp-server-name')?.textContent === options.canvasOpenSource)
+			?.querySelector<HTMLElement>('.canvas-row-source');
+		await waitForFixtureCondition(() => findSourceLink() !== undefined, `The '${options.canvasOpenSource}' canvas row did not render.`);
+		findSourceLink()!.click();
+		await waitForFixtureCondition(
+			() => !!ctx.container.querySelector<HTMLElement>('.plugin-detail-container')?.offsetHeight,
+			'The plugin detail did not open from the canvas source link.',
+		);
+	}
+
+	if (options.canvasSearch) {
+		const findInput = () => ctx.container.querySelector<HTMLInputElement>('.canvas-list-widget .list-search-container input');
+		await waitForFixtureCondition(() => findInput() !== null, 'The Canvases search box did not render.');
+		const input = findInput()!;
+		input.value = options.canvasSearch;
+		input.dispatchEvent(new InputEvent('input', { bubbles: true }));
+	}
+
+	if (options.canvasMenu) {
+		const findMoreButton = () => [...ctx.container.querySelectorAll<HTMLElement>('.canvas-row')]
+			.find(row => row.querySelector('.mcp-server-name')?.textContent === options.canvasMenu)
+			?.querySelector<HTMLElement>('.canvas-row-more');
+		await waitForFixtureCondition(() => findMoreButton() !== undefined, `The '${options.canvasMenu}' canvas row did not render.`);
+		findMoreButton()!.click();
+		await waitForFixtureCondition(() => ctx.container.querySelector('.monaco-menu-container .action-item') !== null, 'The canvas row menu did not render.');
+	}
+
+	if (options.canvasDisable) {
+		const findSwitch = () => [...ctx.container.querySelectorAll<HTMLElement>('.canvas-row')]
+			.find(row => row.querySelector('.mcp-server-name')?.textContent === options.canvasDisable)
+			?.querySelector<HTMLElement>('button.monaco-switch');
+		await waitForFixtureCondition(() => findSwitch() !== undefined, `The '${options.canvasDisable}' canvas row did not render.`);
+		findSwitch()!.click();
+		await waitForFixtureCondition(
+			() => ctx.container.querySelector('.monaco-dialog-box') !== null,
+			'The canvas disable dialog did not render.',
+		);
+	}
+
 	if (options.openFirstItem) {
 		if (options.pluginReadmeContent !== undefined) {
 			const plugin = installedPlugins.find(plugin => plugin.label === 'CircleCI');
@@ -3111,6 +3172,66 @@ function makeMarketplacePluginItem(name: string, description: string): IAgentPlu
 const localSessionResource = LocalChatSessionUri.getNewSessionUri();
 const agentHostCopilotSessionResource = URI.from({ scheme: 'agent-host-copilotcli', path: '/fixture-session' });
 
+function createFixtureCanvasCustomizationService(state: 'mixed' | 'empty' | 'extensionsDisabled'): ICanvasCustomizationService {
+	const extensions = state === 'empty' ? [] : MOCK_CANVAS_EXTENSIONS;
+	// Attribute the mock plugin canvas to an installed fixture plugin so its source link opens a plugin detail.
+	const rows = observableValue<readonly ICanvasCustomizationRow[]>('fixtureCanvasRows', toCanvasCustomizationRows(extensions, {
+		userHome: URI.file('/Users/me'),
+		workspaceRoot: URI.file('/workspace/project'),
+	}).map(row => row.pluginName === 'github-artifacts' ? { ...row, pluginName: 'CircleCI', pluginUri: URI.file('/workspace/.copilot/plugins/circleci') } : row));
+	return new class extends mock<ICanvasCustomizationService>() {
+		override readonly rows = rows;
+		override readonly extensionsDisabled = constObservable(state === 'extensionsDisabled');
+		override async setEnabled(row: ICanvasCustomizationRow, enabled: boolean) {
+			rows.set(rows.get().map(candidate => candidate.extensionId === row.extensionId ? { ...candidate, enabled, status: enabled ? CanvasCustomizationStatus.Running : CanvasCustomizationStatus.Disabled } : candidate), undefined);
+		}
+		override async openCanvas() { }
+	}();
+}
+
+/** Renders context menus with the real menu widget below their anchor, since the fixture has no context view. */
+function createFixtureContextMenuService(ctx: ComponentFixtureContext): IContextMenuService {
+	return new class extends mock<IContextMenuService>() {
+		override readonly onDidShowContextMenu = Event.None;
+		override readonly onDidHideContextMenu = Event.None;
+		override showContextMenu(delegate: IContextMenuDelegate): void {
+			const anchor = delegate.getAnchor();
+			if (!(anchor instanceof HTMLElement)) {
+				return;
+			}
+			const anchorRect = anchor.getBoundingClientRect();
+			const containerRect = ctx.container.getBoundingClientRect();
+			const host = document.createElement('div');
+			host.classList.add('context-view', 'monaco-menu-container');
+			host.style.position = 'absolute';
+			host.style.zIndex = '2500';
+			host.style.top = `${anchorRect.bottom - containerRect.top + 2}px`;
+			host.style.right = `${containerRect.right - anchorRect.right}px`;
+			ctx.container.appendChild(host);
+			ctx.disposableStore.add(new Menu(host, delegate.getActions(), {}, defaultMenuStyles));
+			ctx.disposableStore.add({ dispose: () => { host.remove(); delegate.onHide?.(false); } });
+		}
+	}();
+}
+
+function renderCanvasesTab(ctx: ComponentFixtureContext, options: Partial<IRenderEditorOptions>): Promise<void> {
+	return renderEditor(ctx, {
+		sessionResource: agentHostCopilotSessionResource,
+		selectedSection: AICustomizationManagementSection.Canvases,
+		managementSections: [
+			AICustomizationManagementSection.Plugins,
+			AICustomizationManagementSection.McpServers,
+			AICustomizationManagementSection.Canvases,
+			AICustomizationManagementSection.Skills,
+			AICustomizationManagementSection.Instructions,
+			AICustomizationManagementSection.Agents,
+			AICustomizationManagementSection.Hooks,
+		],
+		...options,
+		configuration: { [CanvasesEnabledSettingId]: true, ...options.configuration },
+	});
+}
+
 async function renderCodexSkillMissingDescriptionHover(ctx: ComponentFixtureContext, isSessionsWindow: boolean): Promise<void> {
 	const skill: IFixtureFile = {
 		uri: URI.file('/workspace/.codex/skills/dreaming/SKILL.md'),
@@ -3446,6 +3567,79 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			selectedSection: AICustomizationManagementSection.McpServers,
 			activeSessionMcpServers,
 		}),
+	}),
+
+	// PROTOTYPE: Canvases page driven by mock canvas data.
+	CanvasesTab: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The Canvases page groups canvases under User, Workspace, and Plugins. Each row shows the canvas name, a source path or plugin link, a switch, and a "..." menu. Disabled Copilot Extensions appear as a single dimmed row.'],
+		render: ctx => renderCanvasesTab(ctx, {}),
+	}),
+
+	CanvasesTabNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderCanvasesTab(ctx, { width: 550, height: 400 }),
+	}),
+
+	CanvasesTabAllStates: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderCanvasesTab(ctx, { height: 1080 }),
+	}),
+
+	CanvasesFullView: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderCanvasesTab(ctx, {
+			width: 1440,
+			height: 900,
+			managementSections: [
+				AICustomizationManagementSection.Plugins,
+				AICustomizationManagementSection.McpServers,
+				AICustomizationManagementSection.Canvases,
+				AICustomizationManagementSection.Skills,
+				AICustomizationManagementSection.Instructions,
+				AICustomizationManagementSection.Agents,
+				AICustomizationManagementSection.Hooks,
+				AICustomizationManagementSection.Tools,
+			],
+		}),
+	}),
+
+	CanvasesOpenPlugin: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['Clicking the Plugin: CircleCI source link on the Artifact Explorer canvas row opens the CircleCI plugin detail in the Customizations editor.'],
+		render: ctx => renderCanvasesTab(ctx, { height: 1080, canvasOpenSource: 'Artifact Explorer' }),
+	}),
+
+	CanvasesRowMenu: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The "..." menu for the PR Review Board row lists Show Canvas, then the platform reveal command, then Disable.'],
+		render: ctx => renderCanvasesTab(ctx, { height: 760, canvasMenu: 'PR Review Board' }),
+	}),
+
+	CanvasesRowMenuPlugin: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderCanvasesTab(ctx, { canvasSearch: 'artifact', canvasMenu: 'Artifact Explorer' }),
+	}),
+
+	CanvasesDisableDialog: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['A warning dialog over the Canvases page asks to disable PR Review Board and lists the two other canvases from the pr-tools Copilot Extension that will also be disabled, with Disable and Cancel buttons.'],
+		render: ctx => renderCanvasesTab(ctx, { canvasDisable: 'PR Review Board' }),
+	}),
+
+	CanvasesDisableDialogOneSibling: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderCanvasesTab(ctx, { canvasDisable: 'Scratchpad' }),
+	}),
+
+	CanvasesTabEmpty: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderCanvasesTab(ctx, { canvasState: 'empty' }),
+	}),
+
+	CanvasesTabExtensionsDisabled: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderCanvasesTab(ctx, { canvasState: 'extensionsDisabled' }),
 	}),
 
 	McpServersErrorActions: defineComponentFixture({

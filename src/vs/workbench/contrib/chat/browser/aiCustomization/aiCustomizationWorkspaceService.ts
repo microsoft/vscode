@@ -54,6 +54,7 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 	readonly managementSections: readonly AICustomizationManagementSection[] = [
 		AICustomizationManagementSection.Plugins,
 		AICustomizationManagementSection.McpServers,
+		AICustomizationManagementSection.Canvases,
 		AICustomizationManagementSection.Skills,
 		AICustomizationManagementSection.Instructions,
 		AICustomizationManagementSection.Agents,
