@@ -258,7 +258,7 @@ suite('AgentHostLanguageModelProvider', () => {
 			malformed: [await fusionOf({ 'vscode.chat.fusion': {} }), await fusionOf({ 'vscode.chat.fusion': { balanceUsesHydraFusion: 'true' } })],
 		}, {
 			models: [
-				{ name: 'Fusion', fusion: { balanceUsesHydraFusion: true }, detail: 'Research preview', tooltip: 'Fusion routes based on your task and real-time system health and model performance.' },
+				{ name: 'Fusion', fusion: { balanceUsesHydraFusion: true }, detail: 'Research preview', tooltip: 'Copilot Fusion chooses models and workflows based on your task. [Learn more](https://docs.github.com/en/early-access/copilot/hydrafusion)' },
 				{ name: 'gpt-5', fusion: undefined, detail: undefined, tooltip: undefined },
 			],
 			plain: undefined,

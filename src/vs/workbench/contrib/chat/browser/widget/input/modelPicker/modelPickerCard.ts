@@ -137,7 +137,6 @@ export interface IModelCardRoutingAlternative {
 	readonly description: string;
 	/** Describes the routing feature in the option's hover. */
 	readonly tooltip?: string;
-	readonly learnMoreUrl?: URI;
 	/** Whether the alternative is the model in use, rather than one of Auto's tiers. */
 	readonly selected: boolean;
 }
@@ -527,8 +526,9 @@ export class ModelCard extends DisposableStore {
 		];
 		const followingAlternatives = entries.length - choices.length;
 		const fusion = !!this._options.model.metadata.autoModelFusion;
-		// Fusion's tiers describe themselves below the control, so a hover would only repeat it.
-		const tooltip = (description: string | undefined) => isAuto && fusion && group === MODEL_CONFIG_GROUP_EFFORT ? undefined : description;
+		// Copilot Fusion's tiers describe themselves below the control, so a hover would only repeat it.
+		const describesTiersBelow = isAuto && fusion && group === MODEL_CONFIG_GROUP_EFFORT;
+		const tooltip = (description: string | undefined) => describesTiersBelow ? undefined : description;
 		const items = entries.map(({ choice, alternative }, index): IRadioOptionItem => {
 			if (!alternative) {
 				const { label, description, checked, readOnly, unavailable } = choice!;
@@ -573,41 +573,45 @@ export class ModelCard extends DisposableStore {
 			items,
 		}));
 		const alternativeDescriptions = new Map<IModelCardRoutingAlternative, HTMLElement>();
-		const discountFor = (choice: typeof choices[number] | undefined) => isAuto && group === MODEL_CONFIG_GROUP_EFFORT
-			? ILanguageModelChatMetadata.getAutoTierDiscountPercent(this._options.model.metadata, choice?.value)
-			: undefined;
-		let discountDescription: HTMLElement | undefined;
-		let discountTierLabel: string | undefined;
-		let discountTierPercent: number | undefined;
-		const discountStore = this._contentDisposables.add(new MutableDisposable<DisposableStore>());
-		// Names the tier shown as selected, which a click changes before its value saves.
+		// Copilot Fusion describes the selected tier, whose discount its badge shows. Auto describes the tier's discount.
+		const tierDescriptionFor = (choice: typeof choices[number] | undefined): string | undefined => {
+			if (describesTiersBelow) {
+				return choice && !choice.unavailable ? choice.description : undefined;
+			}
+			const discountPercent = isAuto && group === MODEL_CONFIG_GROUP_EFFORT
+				? ILanguageModelChatMetadata.getAutoTierDiscountPercent(this._options.model.metadata, choice?.value)
+				: undefined;
+			return discountPercent === undefined ? undefined : ILanguageModelChatMetadata.getAutoModelDiscountDescription(discountPercent, choice?.label, fusion);
+		};
+		let tierDescription: HTMLElement | undefined;
+		let tierDescriptionText: string | undefined;
+		const tierDescriptionStore = this._contentDisposables.add(new MutableDisposable<DisposableStore>());
+		// Describes the tier shown as selected, which a click changes before its value saves.
 		// A failed save re-renders the card, which puts back the saved tier.
-		const renderDiscountDescription = (choice: typeof choices[number] | undefined, hidden: boolean) => {
-			const discountPercent = discountFor(choice);
-			const tierLabel = choice?.label;
-			if (discountPercent === undefined) {
-				if (discountDescription) {
-					discountDescription.hidden = true;
+		const renderTierDescription = (choice: typeof choices[number] | undefined, hidden: boolean) => {
+			const text = tierDescriptionFor(choice);
+			if (!text) {
+				if (tierDescription) {
+					tierDescription.hidden = true;
 				}
 				return;
 			}
-			if (discountDescription && tierLabel === discountTierLabel && discountPercent === discountTierPercent) {
-				discountDescription.hidden = hidden;
+			if (tierDescription && text === tierDescriptionText) {
+				tierDescription.hidden = hidden;
 				return;
 			}
 			const store = new DisposableStore();
-			const next = renderModelDescription(ILanguageModelChatMetadata.getAutoModelDiscountDescription(discountPercent, tierLabel, fusion), this._options.openerService, store).element;
-			next.classList.add('chat-model-card-description', 'chat-model-card-discount-description');
+			const next = renderModelDescription(text, this._options.openerService, store).element;
+			next.classList.add('chat-model-card-description', describesTiersBelow ? 'chat-model-card-tier-description' : 'chat-model-card-discount-description');
 			next.hidden = hidden;
-			if (discountDescription) {
-				discountDescription.replaceWith(next);
+			if (tierDescription) {
+				tierDescription.replaceWith(next);
 			} else {
 				section.appendChild(next);
 			}
-			discountDescription = next;
-			discountTierLabel = tierLabel;
-			discountTierPercent = discountPercent;
-			discountStore.value = store;
+			tierDescription = next;
+			tierDescriptionText = text;
+			tierDescriptionStore.value = store;
 		};
 		const onDidChoose = isAuto ? control.onDidActivate : control.onDidSelect;
 		this._contentDisposables.add(onDidChoose(index => {
@@ -622,16 +626,16 @@ export class ModelCard extends DisposableStore {
 				element.hidden = candidate !== alternative;
 			}
 			if (choice && !alternative) {
-				renderDiscountDescription(choice, false);
-			} else if (discountDescription) {
-				discountDescription.hidden = true;
+				renderTierDescription(choice, false);
+			} else if (tierDescription) {
+				tierDescription.hidden = true;
 			}
 		}));
 		this._groupControls.set(group, control);
 		section.appendChild(control.domNode);
-		renderDiscountDescription(choices.find(choice => choice.checked), !!selectedAlternative);
+		renderTierDescription(choices.find(choice => choice.checked), !!selectedAlternative);
 		for (const alternative of alternatives) {
-			const element = renderModelDescription(alternative.description, this._options.openerService, this._contentDisposables, alternative.learnMoreUrl).element;
+			const element = renderModelDescription(alternative.description, this._options.openerService, this._contentDisposables).element;
 			element.classList.add('chat-model-card-description', 'chat-model-card-alternative-description');
 			element.hidden = !alternative.selected;
 			section.appendChild(element);

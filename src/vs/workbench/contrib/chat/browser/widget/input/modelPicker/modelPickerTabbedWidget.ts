@@ -47,7 +47,7 @@ import { getModelPickerAccessibilityProvider, getModelPickerControlModels } from
 import { filterModelPickerControlModelsForEntitlement, filterModelPickerModelsForEntitlement, getFusionTierLabel, getHydraFusionTierLabel, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly } from './modelPickerPresentation.js';
 import { buildModelPickerDestinations, buildModelPickerSections, getModelProviderLabel, hasPromotedModels, IModelPickerDestination, IModelPickerProviderPlaceholder, IModelPickerSections, IModelPickerUnavailableEntry, MODEL_PICKER_BUILT_IN_DESTINATION, MODEL_PICKER_ON_DEVICE_DESTINATION } from './modelPickerTabs.js';
 import { ModelPickerWelcome } from './modelPickerWelcome.js';
-import { createMessageBanner, HYDRA_FUSION_LEARN_MORE_URL } from './modelPickerHover.js';
+import { createMessageBanner } from './modelPickerHover.js';
 import { createLocalModelDetailsAction, isLocalModelDirectRow, LOCAL_MODEL_DETAILS_ACTION_ID, LOCAL_MODEL_PICKER_ITEM_PREFIX, type ILocalModelDetails, type IModelPickerLocalModels } from './modelPickerLocalModelItems.js';
 import { LocalModelCard } from './modelPickerLocalModelCard.js';
 import { IModelPickerComparison, ModelComparisonAvailableContext, ModelComparisonPickerFocusedContext } from './modelPickerComparison.js';
@@ -712,15 +712,17 @@ export class TabbedModelPicker extends Disposable {
 			: undefined;
 	}
 
-	private _getHydraFusionTier(hydraFusion: ILanguageModelChatMetadataAndIdentifier, context: ITabbedModelPickerContext): { readonly label: string; readonly replacesTier?: string; readonly selectsTier?: boolean } {
+	private _getHydraFusionTier(hydraFusion: ILanguageModelChatMetadataAndIdentifier, context: ITabbedModelPickerContext): { readonly label: string; readonly description?: string; readonly replacesTier?: string; readonly selectsTier?: boolean } {
 		const auto = this._autoModel(context);
 		const label = getFusionTierLabel(auto?.metadata, hydraFusion.metadata.id);
 		if (!label) {
 			return { label: hydraFusion.metadata.name };
 		}
 		// Provider tiers offer the HydraFusion model as a tier of the same id, which moves the chat to Fusion.
-		if (auto && getModelConfigProperty(auto, context.configurationAccess, MODEL_CONFIG_GROUP_EFFORT)?.schema.enum?.includes(hydraFusion.metadata.id)) {
-			return { label, replacesTier: hydraFusion.metadata.id, selectsTier: true };
+		const schema = auto && getModelConfigProperty(auto, context.configurationAccess, MODEL_CONFIG_GROUP_EFFORT)?.schema;
+		const tierIndex = schema?.enum?.indexOf(hydraFusion.metadata.id) ?? -1;
+		if (schema && tierIndex !== -1) {
+			return { label, description: schema.enumDescriptions?.[tierIndex] || undefined, replacesTier: hydraFusion.metadata.id, selectsTier: true };
 		}
 		return { label, replacesTier: hydraFusion.metadata.id === COPILOT_HYDRA_FUSION_MODEL_ID ? 'intelligence' : undefined };
 	}
@@ -1386,10 +1388,10 @@ export class TabbedModelPicker extends Disposable {
 					label: tier.label,
 					replacesTier: tier.replacesTier,
 					selectsTier: tier.selectsTier,
-					description: hydraFusion.metadata.id === COPILOT_HYDRA_FUSION_MAX_MODEL_ID
-						? localize('chat.modelPicker.fusionMaxDescription', "Max uses multiple models on every task for the most thorough results.")
-						: localize('chat.modelPicker.fusionHighDescription', "High picks a workflow per task, using one or more models."),
-					learnMoreUrl: HYDRA_FUSION_LEARN_MORE_URL,
+					// A tier from the service describes itself. Copilot Fusion's description holds the Learn more link.
+					description: tier.description ?? (hydraFusion.metadata.id === COPILOT_HYDRA_FUSION_MAX_MODEL_ID
+						? localize('chat.modelPicker.fusionMaxDescription', "Prioritizes the most capable models for the most demanding tasks and complex reasoning.")
+						: localize('chat.modelPicker.fusionHighDescription', "Prioritizes capable models for challenging tasks and deeper reasoning.")),
 					selected: context.selectedModelId === hydraFusion.identifier,
 				};
 			}),

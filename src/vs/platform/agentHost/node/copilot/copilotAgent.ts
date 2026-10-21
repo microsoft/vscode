@@ -3605,7 +3605,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		} : model.configSchema;
 		return {
 			...model,
-			name: localize('copilotAgent.fusionModelName', "Fusion"),
+			name: localize('copilotAgent.fusionModelName', "Copilot Fusion"),
 			configSchema,
 			// Fusion's tiers come from CAPI, which offers HydraFusion as a tier of its own when it supports it.
 			_meta: withAgentModelFusionMeta(model._meta, { balanceUsesHydraFusion: false }),

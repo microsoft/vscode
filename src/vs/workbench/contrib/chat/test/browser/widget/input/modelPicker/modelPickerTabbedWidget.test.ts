@@ -1599,7 +1599,7 @@ suite('TabbedModelPicker', () => {
 			return { rows, tiers, discount, description, ariaLabel, readout: readout(), selections: result.selections, tier: result.values.get(fusion.identifier)?.tier };
 		};
 		const fusionHigh = {
-			rows: ['Fusion', '--', 'First', 'Fixed', 'Second'], tiers: ['Standard', 'High', 'Max'], discount: 'Models routed via Fusion High receive a 10% discount.',
+			rows: ['Fusion', '--', 'First', 'Fixed', 'Second'], tiers: ['Standard', 'High', 'Max'], discount: undefined,
 			description: undefined, ariaLabel: 'High', readout: 'High', selections: ['copilot/auto'], tier: 'intelligence',
 		};
 		assert.deepStrictEqual({
@@ -1610,14 +1610,14 @@ suite('TabbedModelPicker', () => {
 		}, {
 			high: {
 				rows: ['Fusion', '--', 'First', 'Fixed', 'Second'], tiers: ['Standard', 'High', 'Max'], discount: undefined,
-				description: 'High picks a workflow per task, using one or more models. Learn more',
-				ariaLabel: 'High, High picks a workflow per task, using one or more models.',
+				description: 'Prioritizes capable models for challenging tasks and deeper reasoning.',
+				ariaLabel: 'High, Prioritizes capable models for challenging tasks and deeper reasoning.',
 				readout: 'High', selections: ['copilot/hydrafusion'], tier: undefined,
 			},
 			max: {
 				rows: ['Fusion', '--', 'First', 'Fixed', 'Second'], tiers: ['Standard', 'High', 'Max'], discount: undefined,
-				description: 'Max uses multiple models on every task for the most thorough results. Learn more',
-				ariaLabel: 'Max, Max uses multiple models on every task for the most thorough results.',
+				description: 'Prioritizes the most capable models for the most demanding tasks and complex reasoning.',
+				ariaLabel: 'Max, Prioritizes the most capable models for the most demanding tasks and complex reasoning.',
 				readout: 'Max', selections: ['copilot/hydrafusion-max'], tier: undefined,
 			},
 			highNotRouted: fusionHigh,
@@ -1636,7 +1636,7 @@ suite('TabbedModelPicker', () => {
 				autoModelTierPromotions: [{ id: 'launch', message: 'Get 30% off Fusion usage.', discountPercent: 30, tierIds: ['balance', 'hydrafusion', 'hydrafusion-max'], startsAt: new Date(Date.now() - day).toISOString() }],
 				configurationSchema: {
 					properties: {
-						tier: { type: 'string', group: 'navigation', title: 'Effort Level', enum: ['balance', 'hydrafusion', 'hydrafusion-max'], enumItemLabels: ['Standard', 'High', 'Max'], default: 'balance' },
+						tier: { type: 'string', group: 'navigation', title: 'Effort Level', enum: ['balance', 'hydrafusion', 'hydrafusion-max'], enumItemLabels: ['Standard', 'High', 'Max'], enumDescriptions: ['Standard from the service.', 'High from the service.', 'Max from the service.'], default: 'balance' },
 					},
 				},
 			},
@@ -1646,12 +1646,12 @@ suite('TabbedModelPicker', () => {
 		const tiers = autoTiers(result.popup);
 		chooseOption(result.popup, 'Max');
 		await timeout(0);
-		const discount = Array.from(result.popup.querySelectorAll<HTMLElement>('.chat-model-card-discount-description')).find(element => !element.hidden)?.textContent;
+		const description = Array.from(result.popup.querySelectorAll<HTMLElement>('.chat-model-card-tier-description, .chat-model-card-discount-description')).find(element => !element.hidden)?.textContent;
 		const promotion = result.popup.querySelector('.chat-model-card-tier-promotion')?.textContent;
 		goBack(result.popup);
-		assert.deepStrictEqual({ tiers, discount, promotion, selections: result.selections, tier: result.values.get(providerFusion.identifier)?.tier }, {
+		assert.deepStrictEqual({ tiers, description, promotion, selections: result.selections, tier: result.values.get(providerFusion.identifier)?.tier }, {
 			tiers: ['Standard', 'High', 'Max'],
-			discount: 'Models routed via Fusion Max receive a 30% discount.',
+			description: 'Max from the service.',
 			promotion: 'Get 30% off Fusion usage.',
 			selections: ['copilot/auto'],
 			tier: 'hydrafusion-max',
