@@ -730,6 +730,22 @@ suite('AgentHostWorktreeCleanupService', () => {
 			assert.deepStrictEqual({ rows: await rows(database), exists: await exists('inUse') }, { rows: ['inUse:removing:0:0'], exists: true });
 		});
 
+		test('a removing folder that a live chat works inside is kept with the chat\'s files', async () => {
+			const { database, cleanup } = create({ now: () => NOW });
+			const folder = await allocate(database, 'parent', 'removing', 1);
+			await fs.mkdir(join(root, 'parent', 'sub'));
+			await fs.writeFile(join(root, 'parent', 'sub', 'notes.md'), 'kept');
+			await database.registerSessionV2(SESSION.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			await database.registerChatCatalogV2(SESSION.toString(), {
+				defaultChat: { chat: `${SESSION.toString()}/default`, order: 0 },
+				peers: [{ chat: 'ahp-chat:/live', order: 1, workingDirectories: [`${folder}/sub`] }],
+				privateDescendants: [],
+			});
+			await cleanup.runPass();
+
+			assert.deepStrictEqual({ rows: await rows(database), file: await fs.readFile(join(root, 'parent', 'sub', 'notes.md'), 'utf8') }, { rows: ['parent:removing:0:0'], file: 'kept' });
+		});
+
 		test('an allocating folder that is not in flight is reclaimed at any age, an in-flight one is kept', async () => {
 			const { database, cleanup } = create({ now: () => NOW });
 			await allocate(database, 'crashed', 'allocating', NOW);

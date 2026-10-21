@@ -16,7 +16,7 @@ import { ResourceMap } from '../../../base/common/map.js';
 import { getExtensionForMimeType, getMediaMime } from '../../../base/common/mime.js';
 import { Schemas } from '../../../base/common/network.js';
 import { equals } from '../../../base/common/objects.js';
-import { extname as resourcesExtname, extUriBiasedIgnorePathCase, isEqual, isEqualOrParent, joinPath, getComparisonKey } from '../../../base/common/resources.js';
+import { dirname as resourcesDirname, extname as resourcesExtname, extUriBiasedIgnorePathCase, isEqual, isEqualOrParent, joinPath, getComparisonKey } from '../../../base/common/resources.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
@@ -76,7 +76,7 @@ import { IAgentHostWorktreeCleanupService } from './agentHostWorktreeCleanupServ
 import type { IScratchFolder } from './agentHostScratchFolderDatabase.js';
 import type { WorktreeRemovalMode } from './agentHostWorktreeRemovalDatabase.js';
 import { AgentHostAutomationService } from './agentHostAutomationService.js';
-import { createAgentChatContext, inheritedChatFolders } from './agentChatContext.js';
+import { createAgentChatContext, createAgentChatCreationContext, inheritedChatFolders } from './agentChatContext.js';
 import { captureCredentialSource, parseCredentialPrincipal, type IAgentHostAuthenticationScope, type IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 import { AgentHostDebugLogsCollector, type IAgentHostDebugLogsEnvironment } from './agentHostDebugLogs.js';
 import { withAgentHostDebugLogsProgress } from '../common/meta/agentHostDebugLogsMeta.js';
@@ -217,6 +217,15 @@ function publishedScratchFolders(isRecordedScratchFolder: (folder: string) => bo
 	chatFolders.forEach(folder => collect(folder, isRecordedScratchFolder(folder)));
 	return scratch;
 }
+/** `folder` followed by each of its ancestors, up to its root. */
+function selfAndAncestors(folder: URI): URI[] {
+	const folders = [folder];
+	for (let parent = resourcesDirname(folder); !isEqual(parent, folders[folders.length - 1]); parent = resourcesDirname(parent)) {
+		folders.push(parent);
+	}
+	return folders;
+}
+
 const RECENT_LOCAL_SESSION_UPDATE_LIMIT = 2;
 /** A scratch folder allocated for a chat being created: kept by `commit`, removed by `abort`. */
 interface IAllocatedScratchFolder {
@@ -6484,9 +6493,9 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/**
-	 * Refuses a requested chat folder that is a chat's own scratch folder, as {@link publishedScratchFolders} defines them
-	 * (recorded folders, including those of the session's chats, and the primary folder of a workspace-less session).
-	 * A scratch folder belongs to one chat, so no other chat may adopt it as its workspace.
+	 * Refuses a requested chat folder that is, or is inside, a chat's own scratch folder, as {@link publishedScratchFolders}
+	 * defines them (recorded folders, including those of the session's chats, and the primary folder of a workspace-less
+	 * session). A scratch folder belongs to one chat, so no other chat may adopt it, or a folder in it, as its workspace.
 	 */
 	private async _requireNonScratchChatFolder(session: URI, folder: URI, operation: 'createChat' | 'setChatWorkspace'): Promise<void> {
 		const recorded = new Set((await this._orchestratorDatabase.listScratchFolders()).map(row => row.folder));
@@ -6494,18 +6503,19 @@ export class AgentService extends Disposable implements IAgentService {
 		const sessionKey = session.toString();
 		const state = this._stateManager.getSessionState(sessionKey);
 		const scratchFolders = [
-			// Any chat's recorded folder, of this session or another.
-			...publishedScratchFolders(isRecordedScratchFolder, false, [folder.toString()], []),
+			// Any chat's recorded folder, of this session or another, that is the folder or one of its ancestors.
+			...publishedScratchFolders(isRecordedScratchFolder, false, selfAndAncestors(folder).map(candidate => candidate.toString()), []),
 			...publishedScratchFolders(
 				isRecordedScratchFolder,
 				readSessionWorkspaceless(state?._meta),
 				this._stateManager.getSessionSummary(sessionKey)?.workingDirectories ?? state?.workingDirectories ?? [],
 				state?.chats.flatMap(chat => chat.workingDirectories ?? []) ?? []),
 			...readSessionScratchFolders(state?._meta),
-		];
-		if (scratchFolders.some(scratch => isEqual(URI.parse(scratch), folder))) {
-			this._logService.info(`[AgentService] ${operation}: refused ${folder.toString()}, a chat's own scratch folder`);
-			throw new Error(`'${folder.scheme === Schemas.file ? folder.fsPath : folder.toString()}' is a chat's own scratch folder; pick No Workspace for a scratch folder of its own.`);
+		].map(scratch => URI.parse(scratch)).filter(scratch => isEqualOrParent(folder, scratch));
+		if (scratchFolders.length) {
+			const inside = !scratchFolders.some(scratch => isEqual(scratch, folder));
+			this._logService.info(`[AgentService] ${operation}: refused ${folder.toString()}, ${inside ? 'inside ' : ''}a chat's own scratch folder`);
+			throw new Error(`'${folder.scheme === Schemas.file ? folder.fsPath : folder.toString()}' is ${inside ? 'inside ' : ''}a chat's own scratch folder; pick No Workspace for a scratch folder of its own.`);
 		}
 	}
 
@@ -9394,7 +9404,10 @@ export class AgentService extends Disposable implements IAgentService {
 				...(placement?.config ? { config: placement.config } : {}),
 			}
 			: undefined;
-		const chatContext = this._chatContext(session, chat, this._chatStorageResource(session, chat));
+		// The folders the chat is created in decide its context: nothing is recorded for a new chat yet, and a re-created backing replaces its folders.
+		const chatContext = options?.workingDirectories
+			? createAgentChatCreationContext(this._stateManager, this._authService, session, chat, this._chatStorageResource(session, chat), this._sessionStateStore.peek(session), options.workingDirectories)
+			: this._chatContext(session, chat, this._chatStorageResource(session, chat));
 		const context = credentials ? { ...chatContext, credentials } : chatContext;
 		const result = await provider.chats.createChat(chat, context, options?.fork ? { ...convOptions, fork: options.fork } : convOptions);
 		return result;

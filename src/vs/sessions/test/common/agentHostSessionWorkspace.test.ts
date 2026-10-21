@@ -9,7 +9,7 @@ import { constObservable, observableValue } from '../../../base/common/observabl
 import { URI } from '../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import type { ISessionGitState } from '../../../platform/agentHost/common/state/sessionState.js';
-import { buildAgentHostChatWorkspace, buildAgentHostSessionWorkspace, type IFolderGitHubInfoResolver } from '../../common/agentHostSessionWorkspace.js';
+import { buildAgentHostChatWorkspace, buildAgentHostChatWorkspaceWithScratchFolders, buildAgentHostSessionWorkspace, type IFolderGitHubInfoResolver } from '../../common/agentHostSessionWorkspace.js';
 import { getSessionWorkspaceKind, IGitHubInfo, ISessionWorkspace, SessionWorkspaceKind } from '../../services/sessions/common/session.js';
 
 suite('Agent Host Session Workspace', () => {
@@ -62,6 +62,28 @@ suite('Agent Host Session Workspace', () => {
 			],
 			inheritingChatWithoutResolver: true,
 			sessionFolderUnchanged: true,
+		});
+	});
+
+	test('a chat with a folder of its own in a quick chat reports the folder\'s own GitHub info, keeping its Git state', () => {
+		const scratch = URI.file('/home/.copilot/chats/s-a');
+		const gitState: ISessionGitState = { branchName: 'feature', baseBranchName: 'main' };
+		const otherGitHubInfo = constObservable<IGitHubInfo | undefined>({ owner: 'contoso', repo: 'tools', pullRequest: { number: 7, uri: URI.parse('https://github.com/contoso/tools/pull/7') } });
+		const resolver: IFolderGitHubInfoResolver = workingDirectory => workingDirectory.toString() === other.toString() ? otherGitHubInfo : undefined;
+		const buildOwnWorkspace = (folders: readonly URI[]): ISessionWorkspace => ({
+			uri: folders[0], label: 'other', icon: Codicon.folder, requiresWorkspaceTrust: false, isVirtualWorkspace: false,
+			folders: folders.map(folder => ({ root: folder, workingDirectory: folder, name: 'other', description: undefined, gitRepository: { uri: folder, workTreeUri: undefined, baseBranchName: gitState.baseBranchName, branchName: gitState.branchName, gitHubInfo: constObservable(undefined) } })),
+		});
+		const workspace = buildAgentHostChatWorkspaceWithScratchFolders(undefined, [scratch, other], { has: folder => folder.toString() === scratch.toString() }, buildOwnWorkspace, resolver, gitState, false);
+
+		assert.deepStrictEqual({
+			uri: workspace?.uri.toString(),
+			label: workspace?.label,
+			folders: workspace?.folders.map(folder => ({ workingDirectory: folder.workingDirectory.toString(), branchName: folder.gitRepository?.branchName, gitHubInfo: folder.gitRepository?.gitHubInfo.get() })),
+		}, {
+			uri: other.toString(),
+			label: 'other',
+			folders: [{ workingDirectory: other.toString(), branchName: 'feature', gitHubInfo: otherGitHubInfo.get() }],
 		});
 	});
 
