@@ -52,7 +52,7 @@ import { AgentHostDynamicAutoTiersEnabledSettingId, CopilotCliConfigKey, Copilot
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { getCopilotApprovalConfig, getCopilotApprovalPolicy } from './copilotApprovalPolicy.js';
 import { AGENT_HOST_COPILOT_CLIENT_NAME, CopilotManagedSettingsResolver, resolveCopilotManagedSettings } from './copilotManagedSettings.js';
-import { getCopilotManagedAutoPreference, omitCopilotManagedModelDefaults, projectCopilotManagedModelConfiguration } from './copilotManagedModelConfiguration.js';
+import { hasCopilotManagedAutoPreference, omitCopilotManagedModelDefaults, projectCopilotManagedModelConfiguration } from './copilotManagedModelConfiguration.js';
 import { buildCopilotBuiltinAgentsContainer, COPILOT_BUILTIN_AGENT_NAMES_BY_URI, CopilotBuiltinAgentsStore } from './copilotBuiltinAgents.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
@@ -4190,6 +4190,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				label: getProviderAutoTierLabel(tier),
 				enabled: tier.status.enabled,
 				...(!tier.status.enabled && tier.status.message ? { message: tier.status.message } : {}),
+				...(tier.fusionTier ? { fusionTier: tier.fusionTier } : {}),
 			})),
 		});
 	}
@@ -8198,7 +8199,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				const omittedContextDefault = model.config?.[ContextSizeConfigKey] !== undefined && requestedModel.config?.[ContextSizeConfigKey] === undefined;
 				// Clear stale SDK preferences when a selection or an override is removed.
 				const autoTier = isAutoModel(model.id)
-					? resolveCopilotAutoTier(requestedModel, this._configurationService, this._logService, current.ownerSessionId) ?? (policy && getCopilotManagedAutoPreference(policy) ? undefined : null)
+					? resolveCopilotAutoTier(requestedModel, this._configurationService, this._logService, current.ownerSessionId) ?? (policy && hasCopilotManagedAutoPreference(policy) ? undefined : null)
 					: undefined;
 				await entry?.setModel(model.id, resolveCopilotReasoningEffort(requestedModel, this._configurationService, this._logService, current.ownerSessionId), omittedContextDefault ? undefined : getCopilotContextTier(requestedModel, longContextWindow, freeLongContext), autoTier, model);
 				if (entry && previousModelId !== model.id && (isCopilotHydraFusionModelId(previousModelId) || isCopilotHydraFusionModelId(model.id))) {
