@@ -488,9 +488,7 @@ function getMcpAppData(tc: ToolCallState, connectionAuthority: string): ChatMcpA
 	const resourceUri = ui.resourceUri;
 	const channelValue = ui.channel;
 	if (channelValue === undefined) {
-		// No channel yet — the App's sub-RPCs would have nowhere to go.
-		// Skip mounting until the customization reaches Ready and the
-		// producer re-emits with the channel populated.
+		// A channel is required to mount the App; the model retries unavailable-server load failures on status changes.
 		return undefined;
 	}
 	return {
@@ -498,6 +496,7 @@ function getMcpAppData(tc: ToolCallState, connectionAuthority: string): ChatMcpA
 		resourceUri,
 		connectionAuthority,
 		serverId: tc.contributor.customizationId,
+		serverName: readToolCallMeta(tc).mcpServerName,
 		channel: channelValue,
 	};
 }
@@ -554,7 +553,7 @@ function isSameMcpAppData(a: ChatMcpAppData | undefined, b: ChatMcpAppData | und
 		return false;
 	}
 	if (a?.kind === 'agentHost' && b?.kind === 'agentHost') {
-		return a.serverId === b.serverId && a.channel === b.channel && a.connectionAuthority === b.connectionAuthority;
+		return a.serverId === b.serverId && a.serverName === b.serverName && a.channel === b.channel && a.connectionAuthority === b.connectionAuthority;
 	}
 	if (a?.kind === 'local' && b?.kind === 'local') {
 		return a.serverDefinitionId === b.serverDefinitionId && a.collectionId === b.collectionId;
@@ -598,15 +597,9 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 		: { ...value, value: stripSystemNotificationWrapper(value.value) };
 	switch (meta.kind) {
 		case AgentSystemNotificationKind.FusionProgress: {
+			// The workflow selection only names the HydraFusion model for the response footer; it is not shown.
 			if (meta.fusionStatus === 'selected') {
-				const description = meta.fusionDescription === undefined
-					? markdown.value
-					: escapeMarkdownSyntaxTokens(meta.fusionDescription);
-				return description ? {
-					kind: 'systemNotification',
-					content: { ...markdown, value: description },
-					presentation: 'workflowDescription',
-				} : undefined;
+				return undefined;
 			}
 			return {
 				kind: 'systemNotification',
@@ -689,13 +682,22 @@ function escapeHostText(hostText: string): string {
 
 /** Keep live phase activity visible after its own milestones, but not after answer/tool content. */
 export function getAgentHostActivityProgressId(parts: readonly ResponsePart[]): string | undefined {
-	if (parts.length === 0) {
-		return 'agentHost.chatActivity';
+	let shownMilestones = 0;
+	for (const part of parts) {
+		if (part.kind !== ResponsePartKind.SystemNotification) {
+			return undefined;
+		}
+		const meta = readAgentSystemNotificationMeta(part);
+		if (meta.kind !== AgentSystemNotificationKind.FusionProgress) {
+			return undefined;
+		}
+		// A workflow selection is not shown, so it cannot hide the row before it.
+		if (meta.fusionStatus !== 'selected') {
+			shownMilestones++;
+		}
 	}
-	// Each milestone boundary needs a new activity row, rather than updating an earlier row now hidden by that milestone.
-	return parts.every(part => part.kind === ResponsePartKind.SystemNotification
-		&& readAgentSystemNotificationMeta(part).kind === AgentSystemNotificationKind.FusionProgress)
-		? `agentHost.chatActivity:fusion:${parts.length}` : undefined;
+	// Each shown milestone needs a new activity row, rather than updating an earlier row now hidden by that milestone.
+	return shownMilestones ? `agentHost.chatActivity:fusion:${shownMilestones}` : 'agentHost.chatActivity';
 }
 
 /**
@@ -3197,6 +3199,8 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 		);
 		if (mcpAppInput) {
 			const existingInput = invocation.toolSpecificData?.kind === 'input' ? invocation.toolSpecificData : undefined;
+			// Clear `HiddenAfterComplete` from confirmation so the MCP App stays visible.
+			invocation.presentation = undefined;
 			invocation.toolSpecificData = mcpAppInput;
 			if (!existingInput || !isSameMcpAppData(existingInput.mcpAppData, mcpAppInput.mcpAppData)) {
 				invocation.notifyToolSpecificDataChanged();

@@ -1291,6 +1291,83 @@ suite('CopilotConnectorsService', () => {
 		});
 	});
 
+	function connectionResponse(status: ConnectorPlugin['connection']['status']): { readonly body: ConnectorCatalog } {
+		return { body: catalogResponse(status) };
+	}
+
+	async function connectOutcome(fixture: ReturnType<typeof createFixture>): Promise<{ readonly error?: string; readonly requests: number }> {
+		try {
+			await fixture.service.connect('mail', CancellationToken.None);
+			return { requests: fixture.requests.length };
+		} catch (e) {
+			return { error: e.message, requests: fixture.requests.length };
+		}
+	}
+
+	test('fails as declined once a pending connection returns to not connected, ignoring stale state right after the PUT', () => runWithFakedTimers({ maxTaskCount: 1000 }, async () => {
+		const fixture = createFixture([
+			connectionResponse('not_connected'),
+			{ body: { status: 'Unauthenticated', provisioning_state: 'Succeeded', consent_link: 'https://github.com/settings/copilot/connectors/mail' } },
+			connectionResponse('not_connected'),
+			connectionResponse('pending'),
+			connectionResponse('not_connected'),
+		]);
+
+		assert.deepStrictEqual(await connectOutcome(fixture), {
+			error: 'Authorization for mail connector was declined.',
+			requests: 5,
+		});
+	}));
+
+	test('fails immediately when the connection enters error', () => runWithFakedTimers({ maxTaskCount: 1000 }, async () => {
+		const fixture = createFixture([
+			connectionResponse('not_connected'),
+			{ body: { status: 'Unauthenticated', provisioning_state: 'Succeeded' } },
+			connectionResponse('error'),
+		]);
+
+		assert.deepStrictEqual(await connectOutcome(fixture), { error: 'mail connector reported an error.', requests: 3 });
+	}));
+
+	test('a pre-existing error is not treated as terminal until the reconnect becomes pending', () => runWithFakedTimers({ maxTaskCount: 1000 }, async () => {
+		const fixture = createFixture([
+			connectionResponse('error'),
+			{ body: { status: 'Unauthenticated', provisioning_state: 'Succeeded' } },
+			connectionResponse('error'),
+			connectionResponse('pending'),
+			connectionResponse('error'),
+		]);
+
+		assert.deepStrictEqual(await connectOutcome(fixture), {
+			error: 'mail connector reported an error.',
+			requests: 5,
+		});
+	}));
+
+	test('a pre-existing error can still reconnect successfully', () => runWithFakedTimers({ maxTaskCount: 1000 }, async () => {
+		const fixture = createFixture([
+			connectionResponse('error'),
+			{ body: { status: 'Unauthenticated', provisioning_state: 'Succeeded' } },
+			connectionResponse('error'),
+			connectionResponse('connected'),
+		]);
+
+		assert.deepStrictEqual(await connectOutcome(fixture), { requests: 4 });
+	}));
+
+	test('keeps waiting for a connection that stays pending and then times out', () => runWithFakedTimers({ maxTaskCount: 1000 }, async () => {
+		const fixture = createFixture([
+			connectionResponse('not_connected'),
+			{ body: { status: 'Unauthenticated', provisioning_state: 'Succeeded' } },
+			...Array.from({ length: 200 }, () => connectionResponse('pending')),
+		]);
+
+		assert.deepStrictEqual(await connectOutcome(fixture), {
+			error: 'Connector authorization did not finish in time. Complete authorization in the browser, then try again.',
+			requests: 152,
+		});
+	}));
+
 	test('reports failed connection actions with bounded diagnostics', async () => {
 		const fixture = createFixture([
 			{ body: catalogResponse('not_connected') },

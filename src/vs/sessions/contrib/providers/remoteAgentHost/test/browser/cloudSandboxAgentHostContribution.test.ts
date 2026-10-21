@@ -26,6 +26,7 @@ import {
 	CloudSandboxEnabledSettingId,
 	CloudSandboxAutoConnectOnOpenSettingId,
 	CloudSandboxSessionFeedEnabledSettingId,
+	CloudSandboxRequestError,
 	ICloudSandboxAgentHostService,
 	ICloudSandboxApiService,
 	cloudSandboxAddress,
@@ -43,6 +44,7 @@ import { RootState } from '../../../../../../platform/agentHost/common/state/pro
 import { constObservable, IObservable, observableValue, waitForState } from '../../../../../../base/common/observable.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ChatAIDisabledSettingId } from '../../../../../../platform/chat/common/chatSettings.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -55,6 +57,7 @@ import { IHostService } from '../../../../../../workbench/services/host/browser/
 import { IChatEntitlementService, IChatSentiment } from '../../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSessionContentProvider, IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatService } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { CloudSandboxStartupError } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxStartupError.js';
 import { IAgentHostGroup } from '../../../../../common/agentHostSessionsProvider.js';
 import { IAgentHostFilterService } from '../../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { ISession } from '../../../../../services/sessions/common/session.js';
@@ -313,6 +316,7 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 	const contentProviders = new Map<string, IChatSessionContentProvider>();
 	let customizationFactory: RemoteAgentHostConnectionCustomizationFactory | undefined;
 	const instantiationService = store.add(new TestInstantiationService());
+	instantiationService.stub(ICommandService, new class extends mock<ICommandService>() { }());
 	if (options?.sessionFeed) {
 		instantiationService.stubInstance(CloudSandboxSessionFeed, options.sessionFeed);
 	}
@@ -1180,7 +1184,7 @@ suite('CloudSandboxAgentHostContribution', () => {
 		const provider = harness.contentProviders.get(sessionType)!;
 		const resource = URI.from({ scheme: sessionType, path: '/sess-1' });
 		const session = store.add(await provider.provideChatSessionContent(resource, CancellationToken.None));
-		const before = { readOnly: session.isReadOnly?.get(), connected: [...harness.connectedTo], status: session.historyStatus?.get() };
+		const before = { readOnly: session.isReadOnly?.get(), blocked: session.isInputBlocked?.get(), connected: [...harness.connectedTo], status: session.historyStatus?.get() };
 		const live = store.add(new ReadOnlyChatSession(resource, [{
 			id: 'turn', type: 'request', prompt: 'Live history', participant: sessionType,
 		}], 'Live title', constObservable(false)));
@@ -1193,10 +1197,10 @@ suite('CloudSandboxAgentHostContribution', () => {
 			activated, before, sameProvider: harness.contentProviders.get(sessionType) === provider,
 			independentReference: reference !== session,
 			sameSession: reference.isReadOnly === session.isReadOnly && reference.history === session.history,
-			readOnly: session.isReadOnly?.get(), history: session.history, historyRequests: harness.historyRequests,
+			readOnly: session.isReadOnly?.get(), blocked: session.isInputBlocked?.get(), history: session.history, historyRequests: harness.historyRequests,
 		}, {
-			activated: true, before: { readOnly: true, connected: ['env-1'], status: undefined }, sameProvider: true,
-			independentReference: true, sameSession: true, readOnly: false, history: live.history, historyRequests: ['task-1'],
+			activated: true, before: { readOnly: true, blocked: true, connected: ['env-1'], status: undefined }, sameProvider: true,
+			independentReference: true, sameSession: true, readOnly: false, blocked: false, history: live.history, historyRequests: ['task-1'],
 		});
 	});
 
@@ -1871,7 +1875,7 @@ suite('CloudSandboxAgentHostContribution startup inventory', () => {
 		const olderScan = second.runDiscovery();
 		await started.p;
 		first.onConnect = async () => { throw new Error('offline'); };
-		await assert.rejects(first.contribution.provisionSession({ prompt: 'hello' }, CancellationToken.None), /offline/);
+		await assert.rejects(first.contribution.provisionSession({ prompt: 'hello' }, CancellationToken.None), /Cloud setup started, but VS Code couldn't connect/);
 		await pending.complete({ kind: 'complete', sessions: [discoveredSession()] });
 		await olderScan;
 		first.contribution.dispose();
@@ -1940,7 +1944,7 @@ suite('CloudSandboxAgentHostContribution startup inventory', () => {
 		const storageService = store.add(new InMemoryStorageService());
 		const first = await createContribution(store, [], { storageService });
 		first.onConnect = async () => { throw new Error('offline'); };
-		await assert.rejects(first.contribution.provisionSession({ repoNwo: 'owner/repository', prompt: 'hello' }, CancellationToken.None), /offline/);
+		await assert.rejects(first.contribution.provisionSession({ repoNwo: 'owner/repository', prompt: 'hello' }, CancellationToken.None), /Cloud setup started, but VS Code couldn't connect/);
 		first.contribution.dispose();
 		const restored = await createContribution(store, [], {
 			storageService, listSessions: async () => ({ kind: 'failed', reason: 'offline' }),
@@ -2564,8 +2568,68 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 });
 
 suite('CloudSandboxAgentHostContribution provisioning', () => {
-
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const signedOut of [false, true]) {
+		test(`distinguishes failure before cloud creation when ${signedOut ? 'signed out' : 'local preparation fails'}`, async () => {
+			const harness = await createContribution(store, [], { accountKey: signedOut ? null : undefined });
+			let failure: unknown;
+			try {
+				await harness.contribution.provisionSession({ prompt: 'private prompt' }, CancellationToken.None, {
+					report: () => { throw new Error('private preparation error'); },
+				});
+			} catch (error) {
+				failure = error;
+			}
+			assert.ok(failure instanceof CloudSandboxStartupError);
+			assert.deepStrictEqual({
+				message: failure.message,
+				step: failure.detailsCommand.command.arguments?.[1],
+				created: harness.created,
+				connected: harness.connectedTo,
+			}, {
+				message: signedOut
+					? 'Couldn\'t prepare the cloud session. Sign in to GitHub to continue.'
+					: 'Couldn\'t prepare the cloud session. Check your session settings and GitHub sign-in before trying again.',
+				step: 'Step: Prepare cloud session',
+				created: [],
+				connected: [],
+			});
+		});
+	}
+
+	test('surfaces an unexplained creation 404 with safe details and no connection attempt', async () => {
+		const harness = await createContribution(store, [], {
+			createSession: async () => {
+				throw new CloudSandboxRequestError(404, 'private response', undefined, {
+					code: 'not_found', requestId: 'ABCD:1234:5678:90AB:CDEF',
+				});
+			},
+		});
+		let failure: unknown;
+		try {
+			await harness.contribution.provisionSession({ prompt: 'private prompt' }, CancellationToken.None);
+		} catch (error) {
+			failure = error;
+		}
+		assert.ok(failure instanceof CloudSandboxStartupError);
+		assert.deepStrictEqual({
+			message: failure.message,
+			actions: failure.actions.map(action => action.label),
+			details: failure.detailsCommand.command.arguments,
+			created: harness.created.length,
+			connected: harness.connectedTo,
+		}, {
+			message: 'Couldn\'t start the cloud session. GitHub couldn\'t find or allow access to a required resource.',
+			actions: ['Show Details'],
+			details: [
+				'Couldn\'t start the cloud session. GitHub couldn\'t find or allow access to a required resource.',
+				'Step: Create cloud session\nHTTP status: 404\nError code: not_found\nRequest reference: ABCD:1234:5678:90AB:CDEF',
+			],
+			created: 1,
+			connected: [],
+		});
+	});
 
 	test('passes task creation start to the first connection but not to subsequent resumes', () => runWithFakedTimers({}, async () => {
 		const harness = await createContribution(store, [], {

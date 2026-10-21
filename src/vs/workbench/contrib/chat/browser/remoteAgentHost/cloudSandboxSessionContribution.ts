@@ -56,6 +56,7 @@ import { readCloudSandboxProjects } from '../../../../../platform/agentHost/comm
 import { getGitHubRepositoryFromRemoteUrl } from '../../../git/common/utils.js';
 import { withSessionWorkspaceless } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { CloudSandboxSessionFeed } from './cloudSandboxSessionFeed.js';
+import { CloudSandboxStartupError } from './cloudSandboxStartupError.js';
 
 const LOG_PREFIX = '[CloudSandboxAgentHost]';
 const DISCOVERY_STALE_AFTER_MS = 60_000;
@@ -1051,18 +1052,31 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		if (!this._isEnabled()) {
 			throw new Error('Copilot cloud sandbox connections are not enabled.');
 		}
-		const accountKey = await this._apiService.getAccountKey();
-		if (!this._isEnabled() || token.isCancellationRequested) {
-			throw new CancellationError();
+		let created: ICloudSandboxCreatedSession;
+		let enabledToken: CancellationToken;
+		let provisioningStartedAt: number;
+		let phase: 'preparation' | 'creation' = 'preparation';
+		try {
+			const accountKey = await this._apiService.getAccountKey();
+			if (!this._isEnabled() || token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			if (!accountKey) {
+				throw new CloudSandboxAuthenticationRequiredError();
+			}
+			this._restoreAccount(accountKey);
+			enabledToken = this._enabledCts.token;
+			progress?.report(localize('sandbox.provisioningContainer', "Setting up cloud container"));
+			provisioningStartedAt = Date.now();
+			phase = 'creation';
+			created = await this._apiService.createSession(request, token);
+		} catch (error) {
+			if (isCancellationError(error) || token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			this._logService.error(`${LOG_PREFIX} Cloud session ${phase} failed.`, error);
+			throw this._instantiationService.createInstance(CloudSandboxStartupError, error, phase);
 		}
-		if (!accountKey) {
-			throw new CloudSandboxAuthenticationRequiredError();
-		}
-		this._restoreAccount(accountKey);
-		const enabledToken = this._enabledCts.token;
-		progress?.report(localize('sandbox.provisioningContainer', "Setting up cloud container"));
-		const provisioningStartedAt = Date.now();
-		const created = await this._apiService.createSession(request, token);
 		const name = request.repoNwo ?? created.taskId;
 		const title = newSessionTitle(request.prompt, name);
 		const address = cloudSandboxAddress(created.environmentId);
@@ -1103,7 +1117,10 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			if (seededProvider && this._providerInstances.get(address) === seededProvider) {
 				seededProvider.publishWithheldSession?.(created.sessionId);
 			}
-			throw error;
+			if (isCancellationError(error) || token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			throw this._instantiationService.createInstance(CloudSandboxStartupError, error, 'connection');
 		} finally {
 			const releaseProvisioning = () => { this._provisioning.delete(address); };
 			if (connectionAttempt) {

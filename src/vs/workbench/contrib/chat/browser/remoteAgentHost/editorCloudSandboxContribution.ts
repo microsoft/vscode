@@ -57,6 +57,7 @@ import { createCloudSandboxDraftOptionGroups, createCloudSandboxSessionConfig, r
 import { CloudSandboxSessionContribution, ICloudSandboxSessionEnvironment } from './cloudSandboxSessionContribution.js';
 import { CloudSandboxSessionListController } from './cloudSandboxSessionListController.js';
 import { IRemoteAgentHostConnectionCustomizationService } from './remoteAgentHostConnectionCustomization.js';
+import { CloudSandboxStartupError } from './cloudSandboxStartupError.js';
 
 /** Session type offered in the session type picker; creating a session provisions a new sandbox. */
 export const CLOUD_SANDBOX_SESSION_TYPE = SessionType.CloudSandbox;
@@ -453,6 +454,11 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 			}
 			await this._sendFirstTurn(sessionResource, sessionType, request, draftRequest);
 			return {};
+		} catch (error) {
+			if (error instanceof CloudSandboxStartupError && !token.isCancellationRequested) {
+				progress([error.detailsCommand]);
+			}
+			throw error;
 		} finally {
 			inputBlocked?.set(false, undefined);
 		}

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import type { ToolExecutionCompleteContentResource, ToolExecutionCompleteResult } from '@github/copilot-sdk';
+import type { SessionEvent, ToolExecutionCompleteContentResource, ToolExecutionCompleteResult } from '@github/copilot-sdk';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -129,6 +129,97 @@ suite('mapSessionEvents — history replay', () => {
 			leaksPhaseContent: false,
 		});
 	});
+
+	test('restores Fusion after review cancellation with distinct workflow and agent-loop turn IDs', async () => {
+		const events: SessionEvent[] = [
+			event('user.message', { content: 'First request', turnId: '0' }, { id: 'user-1' }),
+			event('session.fusion_resolved', fusion.resolved, { id: 'route-1', parentId: 'user-1' }),
+			event('abort', { reason: 'user_initiated' }, { id: 'abort-1', parentId: 'route-1' }),
+		];
+		for (const index of [2, 3]) {
+			const next = fusionTurnData(index);
+			events.push(
+				event('session.fusion_resolved', { ...next.resolved, turnId: `${next.resolved.fusionId}:turn` }, { id: `route-${index}` }),
+				event('session.info', { infoType: 'test', message: 'Preparing' }, { id: `info-${index}`, parentId: `route-${index}` }),
+				event('user.message', { content: `Request ${index}`, turnId: '0' }, { id: `user-${index}`, parentId: `info-${index}` }),
+				event('assistant.fusion_phase_completed', next.phaseCompleted),
+				event('assistant.turn_start', { turnId: '0' }),
+				event('assistant.message', { messageId: `answer-${index}`, content: `Answer ${index}` }),
+				event('session.fusion_completed', { ...next.completed, turnId: `${next.resolved.fusionId}:turn` }),
+				event('session.idle', {}),
+			);
+		}
+		const { turns } = await mapSessionEvents(session, undefined, events);
+		assert.deepStrictEqual(turns.map(turn => ({ id: turn.id, parts: fusionParts(turn.responseParts) })), [
+			{ id: 'user-1', parts: ['selected', 'cancelled'] },
+			{ id: 'user-2', parts: ['selected', 'succeeded', 'Answer 2'] },
+			{ id: 'user-3', parts: ['selected', 'succeeded', 'Answer 3'] },
+		]);
+	});
+
+	test('Fusion ancestry stops at a preparation error before the user echo', async () => {
+		const { turns } = await mapSessionEvents(session, undefined, [
+			event('user.message', { content: 'Cancelled request', turnId: '0' }, { id: 'user-1' }),
+			event('abort', { reason: 'user_initiated' }, { id: 'abort' }),
+			event('session.fusion_resolved', { ...fusion.resolved, turnId: 'workflow-turn' }, { id: 'route', parentId: 'abort' }),
+			event('session.error', { errorType: 'preparation', message: 'Preparation failed' }, { id: 'error', parentId: 'route' }),
+			event('user.message', { content: 'Next request', turnId: '1' }, { id: 'user-2', parentId: 'error' }),
+			event('assistant.message', { messageId: 'answer', content: 'Next answer' }),
+		]);
+		assert.deepStrictEqual(turns.map(turn => ({ id: turn.id, parts: fusionParts(turn.responseParts) })), [
+			{ id: 'user-1', parts: [] },
+			{ id: 'user-2', parts: ['Next answer'] },
+		]);
+	});
+
+	test('Fusion ancestry keeps a new route through a late old resolution', async () => {
+		const first = event('session.fusion_resolved', { ...fusion.resolved, turnId: 'workflow-old' }, { id: 'route-old' });
+		const next = fusionTurnData(2);
+		const { turns } = await mapSessionEvents(session, undefined, [
+			event('user.message', { content: 'Cancelled request', turnId: '0' }, { id: 'user-1' }),
+			first,
+			event('abort', { reason: 'user_initiated' }, { id: 'abort' }),
+			event('session.fusion_resolved', next.resolved, { id: 'route-new', parentId: 'abort' }),
+			event('session.fusion_resolved', first.data, { id: 'late-old', parentId: 'route-new' }),
+			event('session.info', { infoType: 'test', message: 'Preparing' }, { id: 'info', parentId: 'late-old' }),
+			event('user.message', { content: 'Next request', turnId: '0' }, { id: 'user-2', parentId: 'info' }),
+			event('assistant.fusion_phase_completed', next.phaseCompleted),
+			event('session.fusion_completed', next.completed),
+			event('assistant.message', { messageId: 'answer', content: 'Next answer' }),
+		]);
+		assert.deepStrictEqual(turns.map(turn => ({ id: turn.id, parts: fusionParts(turn.responseParts) })), [
+			{ id: 'user-1', parts: ['selected', 'cancelled'] },
+			{ id: 'user-2', parts: ['selected', 'succeeded', 'Next answer'] },
+		]);
+	});
+
+	for (const routing of ['after-user', 'before-user', 'after-cancellation'] as const) {
+		test(`keeps Fusion progress on its owning request across steering (${routing})`, async () => {
+			const resolution = event('session.fusion_resolved', { ...fusion.resolved, turnId: 'workflow-turn' }, {
+				id: 'route', parentId: routing === 'after-user' ? 'user-1' : null,
+			});
+			const { turns } = await mapSessionEvents(session, undefined, [
+				...(routing === 'after-cancellation' ? [
+					event('user.message', { content: 'Cancelled request', turnId: '0' }, { id: 'cancelled-user' }),
+					event('abort', { reason: 'user_initiated' }),
+				] : []),
+				...(routing !== 'after-user' ? [resolution] : []),
+				event('user.message', { content: 'First request', turnId: '0' }, {
+					id: 'user-1', parentId: routing !== 'after-user' ? 'route' : null,
+				}),
+				...(routing === 'after-user' ? [resolution] : []),
+				event('assistant.fusion_phase_completed', fusion.phaseCompleted, { id: 'phase', parentId: 'route' }),
+				event('user.message', { content: 'Steering request', turnId: '1' }, { id: 'user-2', parentId: 'phase' }),
+				event('session.fusion_completed', { ...fusion.completed, turnId: 'workflow-turn' }),
+				event('assistant.message', { messageId: 'answer-2', content: 'Steering answer' }),
+			]);
+			assert.deepStrictEqual(turns.map(turn => ({ id: turn.id, parts: fusionParts(turn.responseParts) })), [
+				...(routing === 'after-cancellation' ? [{ id: 'cancelled-user', parts: [] }] : []),
+				{ id: 'user-1', parts: ['selected', 'succeeded'] },
+				{ id: 'user-2', parts: ['Steering answer'] },
+			]);
+		});
+	}
 
 	test('restores committed Fusion phase tools and intermediate text under the phase tile', async () => {
 		const committed = { fusionId: 'fusion-1', phaseId: 'phase-1', syntheticModel: 'hydrafusion', policy: 'max', pattern: 'cascade', commitId: 'commit-1' };

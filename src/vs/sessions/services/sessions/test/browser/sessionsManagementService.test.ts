@@ -9,6 +9,8 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
+import { createErrorWithActions } from '../../../../../base/common/errorMessage.js';
+import { toAction } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, observableValue, waitForState } from '../../../../../base/common/observable.js';
@@ -5405,8 +5407,12 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	const actionableStartupError = createErrorWithActions('Could not start the session', [
+		toAction({ id: 'test.details', label: 'Show Details', run: () => { } }),
+	]);
 	for (const { error, expectedNotifications } of [
 		{ error: new Error('Container setup failed'), expectedNotifications: ['Failed to start session: Container setup failed'] },
+		{ error: actionableStartupError, expectedNotifications: [actionableStartupError] },
 		{ error: new CancellationError(), expectedNotifications: [] },
 		{ error: new WorkspaceNotTrustedError(), expectedNotifications: [] },
 	]) {

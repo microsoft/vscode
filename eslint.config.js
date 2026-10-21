@@ -983,7 +983,6 @@ export default defineConfig(
 					'exclude': [
 						'src/vs/platform/agentHost/test/node/agentHostDebugLogs.test.ts',
 						'src/vs/platform/agentHost/test/node/agentService.test.ts',
-						'src/vs/platform/agentHost/test/node/copilotAgent.test.ts',
 						'src/vs/sessions/contrib/layout/test/browser/chatLayoutOwnership.test.ts',
 						'src/vs/sessions/contrib/layout/test/browser/desktopLayoutController.test.ts',
 					]
