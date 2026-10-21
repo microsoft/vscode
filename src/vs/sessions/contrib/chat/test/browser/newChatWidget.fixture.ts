@@ -8,6 +8,7 @@ import { BaseActionViewItem } from '../../../../../base/browser/ui/actionbar/act
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { toAction } from '../../../../../base/common/actions.js';
 import { assert } from '../../../../../base/common/assert.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -55,8 +56,10 @@ import { ICustomizationHarnessService } from '../../../../../workbench/contrib/c
 import { IChatRequestVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IPromptsService, PromptsStorage } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
-import { CustomizationMigration, CustomizationMigrationType, FileCustomizationMigration, FileCustomizationMigrationType, ICustomizationMigrationHint, ICustomizationMigrationService, McpServerCustomizationMigration, PluginMarketplaceCustomizationMigration } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigration, CustomizationMigrationType, FileCustomizationMigration, FileCustomizationMigrationType, ICustomizationMigrationHint, ICustomizationMigrationIgnoredGroup, ICustomizationMigrationService, McpServerCustomizationMigration, PluginMarketplaceCustomizationMigration } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
 import { ICustomizationMigrationTelemetryService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationTelemetryService.js';
+import { CustomizationMigrationCategoryId } from '../../../../../workbench/contrib/chat/browser/aiCustomization/customizationMigrationCategories.js';
+import { getCustomizationMigrationGroupIgnoreKey, storeIgnoredCustomizationMigrationGroupKeys } from '../../../../../workbench/contrib/chat/browser/aiCustomization/customizationMigrationIgnoredGroups.js';
 import { IMcpWorkbenchService } from '../../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { CHAT_ATTACH_CONTEXT_ACTION_ID, ChatAgentLocation, ChatConfiguration, ChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { renderModePickerTrigger } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
@@ -199,6 +202,7 @@ interface INewChatWidgetFixtureOptions {
 	readonly phoneLayout?: boolean;
 	readonly chatBackground?: 'codicons' | 'loud';
 	readonly migrationCount?: number;
+	readonly ignoreMigrations?: boolean;
 	readonly experimentalComposerLayout?: boolean;
 	readonly toggleExperimentalComposerLayout?: boolean;
 	readonly unifiedWorkspacePicker?: boolean;
@@ -409,6 +413,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		phoneLayout = false,
 		chatBackground,
 		migrationCount = 0,
+		ignoreMigrations = false,
 		experimentalComposerLayout = false,
 		toggleExperimentalComposerLayout = false,
 		unifiedWorkspacePicker = experimentalComposerLayout,
@@ -435,6 +440,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		state: AgentFeedbackState.Accepted,
 	}));
 	const workspace = createFixtureWorkspace(withRemoteWorkspace);
+	const projectRoot = workspace.folders[0]?.workingDirectory;
 	const sessionTypes = createFixtureSessionTypes();
 	const models = withConfiguredModel ? [createFixtureConfiguredModel()] : withAutoModel ? [createFixtureAutoModel()] : [];
 	const provider = createFixtureProvider(workspace, sessionTypes, models, disposableStore, withControlPickers);
@@ -467,6 +473,16 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	});
 	disposableStore.add(configurationService.onDidChangeConfigurationEmitter);
 	const storageService = disposableStore.add(new InMemoryStorageService());
+	if (ignoreMigrations) {
+		storeIgnoredCustomizationMigrationGroupKeys(storageService, new Set([
+			getCustomizationMigrationGroupIgnoreKey(
+				'agent-host-copilotcli',
+				CustomizationMigrationCategoryId.PromptFiles,
+				PromptsStorage.local,
+				projectRoot,
+			),
+		]));
+	}
 	if (showTip || connectorRecommendations) {
 		storageService.store(AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY, 2, StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
@@ -625,6 +641,8 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			}());
 			reg.defineInstance(IHistoryService, new class extends mock<IHistoryService>() { }());
 			reg.defineInstance(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
+				override readonly activeProjectRoot = constObservable(projectRoot);
+				override getActiveProjectRoot() { return projectRoot; }
 				override async getFilteredPromptSlashCommands() { return []; }
 			}());
 			reg.defineInstance(IPromptsService, new class extends mock<IPromptsService>() {
@@ -658,7 +676,10 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 					return { type, candidates, files: candidates.map(candidate => candidate.uri) };
 				}
 
-				override async computeMigrationHint(): Promise<ICustomizationMigrationHint | undefined> {
+				override async computeMigrationHint(_resource: URI, _token?: CancellationToken, ignoredGroups: readonly ICustomizationMigrationIgnoredGroup[] = []): Promise<ICustomizationMigrationHint | undefined> {
+					if (ignoredGroups.some(group => group.type === CustomizationMigrationType.PromptFiles && group.storage === PromptsStorage.local)) {
+						return undefined;
+					}
 					return migrationCount > 0 ? {
 						migrationFlowId: 'fixture-migration',
 						message: `${migrationCount} agent customizations need an update to keep working.`,
@@ -1062,7 +1083,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			await nextFrame();
 		}
 	}
-	if (migrationCount > 0) {
+	if (migrationCount > 0 && !ignoreMigrations) {
 		const notice = view.element.querySelector<HTMLElement>('.new-chat-migration-notice');
 		const input = view.element.querySelector<HTMLElement>('.new-chat-input-container');
 		assert(!!notice && !!input && targetWindow.getComputedStyle(notice).display !== 'none');
@@ -1074,6 +1095,9 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			'The migration notice must not move or resize the centered input.');
 		assert(notice.getBoundingClientRect().bottom <= container.getBoundingClientRect().bottom,
 			'The migration notice must fit below the input.');
+	} else if (ignoreMigrations) {
+		const notice = view.element.querySelector<HTMLElement>('.new-chat-migration-notice');
+		assert(!!notice && targetWindow.getComputedStyle(notice).display === 'none');
 	}
 	if (connectorRecommendations) {
 		if (connectorPrompt !== undefined) {
@@ -1375,6 +1399,12 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		render: context => renderNewChatWidget(context, { withWorkspace: true, migrationCount: 4 }),
+	}),
+	MigrationsIgnored: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The composer is shown without a migration notice because all available migrations were ignored.'],
+		render: context => renderNewChatWidget(context, { withWorkspace: true, migrationCount: 4, ignoreMigrations: true }),
 	}),
 	MigrationsNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot' },
