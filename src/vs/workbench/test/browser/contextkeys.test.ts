@@ -5,8 +5,7 @@
 
 import assert from 'assert';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
-import { URI } from '../../../base/common/uri.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
+import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
@@ -33,10 +32,10 @@ suite('ResourceContextKey', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('set rewrites the keys after another instance changed them', () => {
+	test('set rewrites the keys after another instance changed them', function () {
 		const first = disposables.add(instantiationService.createInstance(ResourceContextKey));
 		const second = disposables.add(instantiationService.createInstance(ResourceContextKey));
-		const resource = URI.file('/folder/file.txt');
+		const resource = toResource.call(this, '/folder/file.txt');
 
 		first.set(resource);
 		assert.strictEqual(contextKeyService.getContextKeyValue('resource'), resource.toString());
@@ -51,9 +50,9 @@ suite('ResourceContextKey', () => {
 		assert.strictEqual(contextKeyService.getContextKeyValue('resourcePath'), resource.fsPath);
 	});
 
-	test('set skips the write when the keys already hold the resource', () => {
+	test('set skips the write when the keys already hold the resource', function () {
 		const key = disposables.add(instantiationService.createInstance(ResourceContextKey));
-		const resource = URI.file('/folder/file.txt');
+		const resource = toResource.call(this, '/folder/file.txt');
 		key.set(resource);
 
 		let changes = 0;
@@ -61,5 +60,14 @@ suite('ResourceContextKey', () => {
 		key.set(resource);
 
 		assert.strictEqual(changes, 0);
+	});
+
+	test('set clears derived keys another writer left behind', () => {
+		const key = disposables.add(instantiationService.createInstance(ResourceContextKey));
+		contextKeyService.createKey('resourceScheme', 'untitled');
+
+		key.set(null);
+
+		assert.strictEqual(contextKeyService.getContextKeyValue('resourceScheme'), null);
 	});
 });
