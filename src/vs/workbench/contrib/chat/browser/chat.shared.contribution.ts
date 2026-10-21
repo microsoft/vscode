@@ -612,7 +612,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.EditorKeepUndoEnabled]: {
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.editor.keepUndo.enabled', "Review the file edits of Agent Host chat sessions in the editor window with **Keep** and **Undo**, like local chat edits. The editor shows the session's Working Set, which the working set above the chat input lists too. Keeping or undoing a change or a file asks the agent host to accept or discard it, so the session's changes reflect it. Takes effect for chats opened after the setting changes."),
-			default: false,
+			default: product.quality !== 'stable',
 			tags: ['experimental'],
 			agentsWindow: { default: false, readOnly: true },
 		},
