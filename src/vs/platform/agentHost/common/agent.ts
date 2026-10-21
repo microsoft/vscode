@@ -15,11 +15,12 @@ import { URI } from '../../../base/common/uri.js';
 import type { IAgentServerToolHost } from './agentServerTools.js';
 import type { AgentHostClientType } from './agentHostClientInfo.js';
 import type { IAgentHostCredentialSource } from './agentHostCredentials.js';
+import type { IAgentHostProcessExitEvent } from './agentHostProcessExit.js';
 import type { CodexModelProvider, IAgentTurnTelemetryCorrelation, IAgentHostClientTelemetryContext, IAgentProviderSendStageRecorder, IAgentProviderTurnTelemetryContext } from './agentHostTelemetry.js';
 import type { AgentPermissionDecisionSource } from './meta/agentPermissionResponseMeta.js';
 import type { IAgentChatUsage } from './meta/agentUsageMeta.js';
 import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
-import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
+import type { AuthenticateTarget, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { CanvasState } from './state/protocol/channels-canvas/state.js';
 import { subagentChatUri, type ChatUriFormat } from './agentHostChatMinting.js';
 import { ProtectedResourceMetadata, type BackgroundWork, type Changeset, type ChatInteractivity, type ChatOrigin, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
@@ -69,7 +70,7 @@ export function toFatalAgentHostStartError(error: Error): AgentHostStartError {
 export interface IAgentHostConnection {
 	readonly client: IChannelClient;
 	readonly store: DisposableStore;
-	readonly onDidProcessExit: Event<{ code: number; signal: string }>;
+	readonly onDidProcessExit: Event<IAgentHostProcessExitEvent>;
 	/** Gracefully shuts down Agent Host providers before the process is disposed. */
 	shutdown(): Promise<void>;
 }
@@ -304,6 +305,9 @@ export interface IAgentCanvasInfo {
 	readonly actionCount: number;
 }
 
+/** `undefined` is unsettled; an array, including an empty one, is authoritative. */
+export type AgentCanvasDefinitionSnapshot = readonly IAgentCanvasInfo[] | undefined;
+
 /** Opens or focuses one stable canvas instance in an initialized provider chat. */
 export interface IAgentCanvasOpenRequest {
 	readonly canvasId: string;
@@ -416,6 +420,15 @@ export type IAgentCustomizationInstallationReview = {
 
 export interface IAgentPluginInstallRequest {
 	readonly source: string;
+}
+
+/** What retrying did for one plugin that the organization's managed settings require. */
+export interface IAgentManagedPluginRetryEntry {
+	/** Plugin spec in `plugin@marketplace` form. */
+	readonly spec: string;
+	readonly status: 'installed' | 'updated' | 'already_present' | 'failed' | 'deferred' | 'not_required';
+	/** Why the plugin was not prepared; present for `failed` and `deferred`. */
+	readonly error?: string;
 }
 
 export interface IAgentPluginMarketplace {
@@ -531,6 +544,8 @@ export interface AuthenticateParams {
 	readonly token: string;
 	/** The access token's remaining lifetime in seconds, when known. */
 	readonly expiresIn?: number;
+	/** The single consumer this token is for; when absent, tokens match by resource and scopes. */
+	readonly target?: AuthenticateTarget;
 	/** Optional client metadata. Hosts must remain usable when it is absent. */
 	readonly _meta?: Record<string, unknown>;
 }
@@ -746,6 +761,12 @@ export interface IAgentChatContext {
 	 * sessions and chats with no recorded launch directory.
 	 */
 	readonly launchWorkingDirectories: readonly URI[] | undefined;
+	/**
+	 * Whether this chat has no workspace of its own: it runs in a host-allocated
+	 * scratch folder. Decided per chat by the host from its recorded folders,
+	 * never from its owner's identity.
+	 */
+	readonly workspaceless: boolean;
 	readonly clientTelemetryContext?: IAgentHostClientTelemetryContext;
 	/** The owning turn's immutable admission snapshot, supplied only for its send. */
 	readonly turnTelemetryContext?: IAgentProviderTurnTelemetryContext;
@@ -801,7 +822,7 @@ export function resolveAgentChatContext(sessionOrContext: AgentChatOperationCont
 	// A bare session URI is the legacy, session-only form (tests and providers' own legacy paths): its owner is that
 	// session. The host always supplies a full context with a live owner.
 	const context = URI.isUri(sessionOrContext)
-		? { owner: fixedChatOwnerRef(sessionOrContext), resource, sessionSettings: undefined, launchWorkingDirectories: undefined }
+		? { owner: fixedChatOwnerRef(sessionOrContext), resource, sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: false }
 		: sessionOrContext;
 	// A chat stores under its own resource or in a session's database, which need not be its current
 	// owner's: a chat stored in its session's database keeps that storage when it changes owner. Never
@@ -916,7 +937,21 @@ export interface IAgentCreateChatRequestOptions extends IAgentCreateChatOptions 
 	 * the provider, while retaining the side-chat provenance itself.
 	 */
 	readonly sideChat?: IAgentCreateChatSideChatSource;
+	/**
+	 * Host-owned workspace requested for a new peer chat. The host prepares it
+	 * (adding the folder to the session, creating a worktree or a scratch
+	 * folder) and resolves it into {@link workingDirectories}; providers never
+	 * receive it. Exclusive with {@link workingDirectories}, {@link fork} and
+	 * {@link sideChat}.
+	 */
+	readonly workspace?: IAgentCreateChatWorkspace;
 }
+
+/** The workspace a client asks for when it creates a peer chat (VS Code `_meta`, validated). */
+export type IAgentCreateChatWorkspace =
+	| { readonly kind: 'folder'; readonly folder: URI; readonly isolation: 'folder' }
+	| { readonly kind: 'folder'; readonly folder: URI; readonly isolation: 'worktree'; readonly baseBranch: string | undefined; readonly prompt: string }
+	| { readonly kind: 'scratch' };
 
 /** Identifies the exact source chat and turn to fork from. */
 export interface IAgentCreateChatForkSource {
@@ -1633,8 +1668,8 @@ export interface IAgent {
 	/** Uninstall a plugin through the provider that owns its installation state. */
 	uninstallPlugin?(request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void>;
 
-	/** List canvas declarations available to one initialized provider chat. */
-	listSessionCanvases?(session: URI, chat: URI, context: AgentChatOperationContext): Promise<readonly IAgentCanvasInfo[]>;
+	/** List canvas declarations available to one initialized provider chat. After returning `undefined`, publish {@link ActionType.ChatCanvasesChanged} when an authoritative snapshot is available. */
+	listSessionCanvases?(session: URI, chat: URI, context: AgentChatOperationContext): Promise<AgentCanvasDefinitionSnapshot>;
 
 	/** Open or focus one canvas instance in an initialized provider chat. */
 	openSessionCanvas?(session: URI, request: IAgentCanvasOpenRequest, chat: URI, context: AgentChatOperationContext): Promise<void>;
@@ -1644,6 +1679,12 @@ export interface IAgent {
 
 	/** Install a plugin through the provider that owns its installation state. */
 	installPlugin?(request: IAgentPluginInstallRequest, session?: URI, chat?: URI): Promise<void>;
+
+	/**
+	 * Retry preparing the plugins required by managed settings in a live chat
+	 * now, even while automatic retries are paused after a failure.
+	 */
+	retryManagedPlugins?(session: URI, chat?: URI): Promise<readonly IAgentManagedPluginRetryEntry[]>;
 
 	/** List plugin marketplaces through the provider that owns marketplace state. */
 	listPluginMarketplaces?(session: URI, chat?: URI): Promise<readonly IAgentPluginMarketplace[]>;

@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { spy } from 'sinon';
-import { addDisposableListener } from '../../../../base/browser/dom.js';
+import { addDisposableListener, isActiveElement } from '../../../../base/browser/dom.js';
 import { EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { SubmenuAction, toAction } from '../../../../base/common/actions.js';
@@ -1822,6 +1822,49 @@ suite('ActionListWidget', () => {
 		]);
 	}));
 
+	test('full-height filtered menus scroll only when content exceeds the available space', async () => {
+		const items = Array.from({ length: Math.floor(mainWindow.innerHeight * 0.6 / 24) }, (_, index) => ({
+			...action(`workspace-${index}`),
+			item: { id: `workspace-${index}`, checked: index === 0 },
+		}));
+		const states = [];
+		for (const { useFullHeight, anchorTop } of [
+			{ useFullHeight: false, anchorTop: 20 },
+			{ useFullHeight: true, anchorTop: 20 },
+			{ useFullHeight: true, anchorTop: mainWindow.innerHeight - 180 },
+		]) {
+			const list = createActionList(disposables, items, {
+				anchor: { x: 10, y: anchorTop, width: 100, height: 20 },
+				listOptions: { showFilter: true, anchorPosition: AnchorPosition.BELOW, useFullHeight },
+			});
+			list.layout(260);
+			const scrollable = list.domNode.querySelector<HTMLElement>('.monaco-scrollable-element')!;
+			const scrollbar = scrollable.querySelector<HTMLElement>('.scrollbar.vertical')!;
+			const rows = scrollable.querySelector<HTMLElement>('.monaco-list-rows')!;
+			scrollable.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+			await timeout(0);
+			const initial = {
+				allRowsFit: list.domNode.clientHeight === rows.clientHeight,
+				scrollbarVisible: scrollbar.classList.contains('visible'),
+				fitsAvailableSpace: list.domNode.parentElement!.getBoundingClientRect().height <= mainWindow.innerHeight - anchorTop - 20 - 30,
+			};
+			list.setFilter('workspace-0');
+			await settleLayout();
+			states.push({
+				initial,
+				filtered: {
+					height: list.domNode.clientHeight,
+					scrollbarVisible: scrollbar.classList.contains('visible'),
+				},
+			});
+		}
+		assert.deepStrictEqual(states, [
+			{ initial: { allRowsFit: false, scrollbarVisible: true, fitsAvailableSpace: true }, filtered: { height: 24, scrollbarVisible: false } },
+			{ initial: { allRowsFit: true, scrollbarVisible: false, fitsAvailableSpace: true }, filtered: { height: 24, scrollbarVisible: false } },
+			{ initial: { allRowsFit: false, scrollbarVisible: true, fitsAvailableSpace: true }, filtered: { height: 24, scrollbarVisible: false } },
+		]);
+	});
+
 	test('max visible items caps the height at the rows through that many actions, recomputed after filtering', () => withWindowInnerHeight(600, () => {
 		const list = createActionList(disposables, [
 			action('first'),
@@ -2838,21 +2881,34 @@ suite('ActionListWidget', () => {
 		);
 	});
 
-	test('rebuilding the items in place can preserve the scroll position', () => {
-		const items = Array.from({ length: 20 }, (_, index) => action(`item-${index}`));
-		const widget = createActionListWidget(disposables, {
-			items: items.map((item, index) => index === 0 ? { ...item, item: { id: 'item-0', checked: true } } : item),
-			listOptions: { showFilter: true, focusFilterOnOpen: true },
+	for (const { focusItemId, focusFilter } of [
+		{ focusItemId: undefined, focusFilter: false },
+		{ focusItemId: 'item-15', focusFilter: false },
+		{ focusItemId: 'item-15', focusFilter: true },
+	]) {
+		test(`rebuilding the items in place preserves scroll and combobox focus (focused item: ${focusItemId}, focus filter: ${focusFilter})`, async () => {
+			const items = Array.from({ length: 20 }, (_, index) => action(`item-${index}`));
+			const widget = createActionListWidget(disposables, {
+				items: items.map((item, index) => index === 0 ? { ...item, item: { id: 'item-0', checked: true } } : item),
+				listOptions: { showFilter: true, focusFilterOnOpen: true, filterAsCombobox: true },
+			});
+			widget.layout(120, 200);
+			widget.focus();
+			if (focusFilter) {
+				widget.domNode.querySelector<HTMLElement>('.monaco-list')!.focus();
+			}
+			const list = (widget as unknown as { _list: { scrollTop: number } })._list;
+			list.scrollTop = 120;
+
+			widget.updateItems(items.map(item => ({ ...item })), focusItemId, { preserveScrollPosition: true, focusFilter });
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				scrollTop: list.scrollTop,
+				filterFocused: widget.filterInput && isActiveElement(widget.filterInput),
+			}, { scrollTop: 120, filterFocused: true });
 		});
-		widget.layout(120, 200);
-		widget.focus();
-		const list = (widget as unknown as { _list: { scrollTop: number } })._list;
-		list.scrollTop = 120;
-
-		widget.updateItems(items.map(item => ({ ...item })), undefined, { preserveScrollPosition: true });
-
-		assert.strictEqual(list.scrollTop, 120);
-	});
+	}
 
 	test('refreshing an open submenu keeps its row focused while the filter has focus', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const submenuAction = toAction({ id: 'child', label: 'Child', run: () => { } });

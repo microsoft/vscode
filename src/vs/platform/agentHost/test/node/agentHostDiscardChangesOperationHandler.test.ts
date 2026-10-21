@@ -24,12 +24,12 @@ import { buildBranchChangesetUri, buildCompareTurnsChangesetUri, buildSessionCha
 import { ChangesetOperationTargetKind, type InvokeChangesetOperationParams } from '../../common/state/protocol/channels-changeset/commands.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { buildChatUri, buildDefaultChatUri, FileEditKind, MessageKind, SessionStatus, type ISessionFileDiff } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, FileEditKind, MessageKind, SessionStatus, type ISessionFileDiff, type TextRange } from '../../common/state/sessionState.js';
 import { AgentHostDiscardChangesOperationHandler } from '../../node/agentHostDiscardChangesOperationHandler.js';
 import { AgentHostDiscardChangesOperationContribution } from '../../node/agentHostDiscardChangesOperationProvider.js';
 import { AgentHostFileEditRevert } from '../../node/agentHostFileEditRevert.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
-import { createFileEditAcceptRecord, isFileEditAcceptRecord } from '../../node/fileEditAccept.js';
+import { createFileEditAcceptRecord, createPartialFileEditAcceptRecord, isFileEditAcceptRecord } from '../../node/fileEditAccept.js';
 import { createFileEditDiscardRecord } from '../../node/fileEditDiscard.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { computeSessionDiffs, computeTurnDiffs, computeWorkingSetDiffs } from '../../node/sessionDiffAggregator.js';
@@ -157,6 +157,7 @@ function setup(disposables: Pick<DisposableStore, 'add'>, opts?: { readonly with
 		new NullLogService(),
 		stateManager,
 		changesets,
+		new InProcessDiffComputeService(),
 	);
 	return { handler, gitService, fileService, diskFileService, trackedDb, tracked, trackedSession, discardedTurns, stateManager, refreshes, session };
 }
@@ -770,7 +771,7 @@ suite('AgentHostDiscardChangesOperationHandler - last turn', () => {
 		});
 	});
 
-	test('leaves a turn-created file untouched when it can not be deleted conditionally', async () => {
+	test('deletes a file the last turn created and records the discard', async () => {
 		const harness = setup(disposables);
 		const chat = buildDefaultChatUri(harness.session.toString());
 		addTurn(harness.stateManager, chat, 'turn-1');
@@ -781,31 +782,62 @@ suite('AgentHostDiscardChangesOperationHandler - last turn', () => {
 		});
 		await harness.diskFileService.writeFile(target, VSBuffer.fromString('new\n'));
 
-		let error: ProtocolError | undefined;
-		try {
-			await harness.handler.invoke({
+		const result = await harness.handler.invoke({
+			channel: buildTurnChangesetUri(chat, 'turn-1'),
+			operationId: AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_CHANGES,
+			target: makeResourceTarget(target),
+		}, CancellationToken.None);
+
+		const diffService = new TestDiffComputeService();
+		assert.deepStrictEqual({
+			exists: await harness.diskFileService.exists(target),
+			turnDiffs: await computeTurnDiffs('agent:/session', harness.trackedDb, diffService, 'turn-1'),
+			sessionDiffs: await computeSessionDiffs('agent:/session', harness.trackedDb, diffService),
+			discardRows: (await harness.trackedDb.getAllFileEdits()).slice(1).map(row => row.kind),
+			discardedTurns: harness.discardedTurns,
+			message: result.message,
+		}, {
+			exists: false,
+			turnDiffs: [],
+			sessionDiffs: [],
+			discardRows: [FileEditKind.Delete],
+			discardedTurns: [{ owner: chat, turnIds: ['turn-1'] }],
+			message: { markdown: 'Discarded the last turn\'s changes to `file.ts`.' },
+		});
+	});
+
+	for (const deletedByAnotherActor of [false, true]) {
+		test(`rolls back only its own deletion when recording a created-file discard fails (external deletion: ${deletedByAnotherActor})`, async () => {
+			const { handler, diskFileService, trackedDb, stateManager, session } = setup(disposables);
+			const chat = buildDefaultChatUri(session.toString());
+			addTurn(stateManager, chat, 'turn-1');
+			trackedDb.addEdit({
+				turnId: 'turn-1', toolCallId: 'tc1', filePath: target.fsPath, kind: FileEditKind.Create,
+				addedLines: undefined, removedLines: undefined,
+				beforeContent: undefined, afterContent: encodeString('new\n'),
+			});
+			await diskFileService.writeFile(target, VSBuffer.fromString('new\n'));
+			trackedDb.storeFileEdits = async (_edits, beforeCommit) => {
+				if (deletedByAnotherActor) {
+					await diskFileService.del(target);
+				}
+				await beforeCommit?.((toolCallId, filePath) => trackedDb.readFileEditContent(toolCallId, filePath));
+				throw new Error('commit failed');
+			};
+
+			await assert.rejects(() => handler.invoke({
 				channel: buildTurnChangesetUri(chat, 'turn-1'),
 				operationId: AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_CHANGES,
 				target: makeResourceTarget(target),
-			}, CancellationToken.None);
-		} catch (e) {
-			error = e as ProtocolError;
-		}
+			}, CancellationToken.None), /commit failed/);
 
-		assert.deepStrictEqual({
-			content: (await harness.diskFileService.readFile(target)).value.toString(),
-			code: error?.code,
-			message: error?.message,
-			recordedEdits: (await harness.trackedDb.getAllFileEdits()).length,
-			discardedTurns: harness.discardedTurns,
-		}, {
-			content: 'new\n',
-			code: JsonRpcErrorCodes.InternalError,
-			message: 'The last turn created \'file.ts\', which can\'t be discarded safely. Delete the file manually if it is no longer needed.',
-			recordedEdits: 1,
-			discardedTurns: [],
+			const content = await diskFileService.exists(target) ? (await diskFileService.readFile(target)).value.toString() : undefined;
+			assert.deepStrictEqual({ content, recordedEdits: (await trackedDb.getAllFileEdits()).length }, {
+				content: deletedByAnotherActor ? undefined : 'new\n',
+				recordedEdits: 1,
+			});
 		});
-	});
+	}
 
 	test('rejects requests it can not apply without changing the file', async () => {
 		const cases: Record<string, (harness: Awaited<ReturnType<typeof setupLastTurn>>) => Promise<{ channel?: string; target?: URI | null }>> = {
@@ -1110,40 +1142,46 @@ suite('AgentHostDiscardChangesOperationHandler - session changes', () => {
 		});
 	});
 
-	test('leaves a file the session created untouched', async () => {
+	test('deletes a file the session created, along with later changes to it', async () => {
 		const harness = setup(disposables);
 		const chat = buildDefaultChatUri(harness.session.toString());
 		addTurn(harness.stateManager, chat, 'turn-1');
+		addTurn(harness.stateManager, chat, 'turn-2');
 		harness.trackedDb.addEdit({
 			turnId: 'turn-1', toolCallId: 'tc1', filePath: target.fsPath, kind: FileEditKind.Create,
 			addedLines: undefined, removedLines: undefined,
 			beforeContent: undefined, afterContent: encodeString('new\n'),
 		});
-		await harness.diskFileService.writeFile(target, VSBuffer.fromString('new\n'));
+		harness.trackedDb.addEdit({
+			turnId: 'turn-2', toolCallId: 'tc2', filePath: target.fsPath, kind: FileEditKind.Edit,
+			addedLines: undefined, removedLines: undefined,
+			beforeContent: encodeString('new\n'), afterContent: encodeString('new\nmore\n'),
+		});
+		// The user changed the file after the session's last edit.
+		await harness.diskFileService.writeFile(target, VSBuffer.fromString('new\nmore\nuser\n'));
 
-		let error: ProtocolError | undefined;
-		try {
-			await harness.handler.invoke({
-				channel: buildSessionChangesetUri(harness.session.toString()),
-				operationId: AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_CHANGES,
-				target: makeResourceTarget(target),
-			}, CancellationToken.None);
-		} catch (e) {
-			error = e as ProtocolError;
-		}
+		const result = await harness.handler.invoke({
+			channel: buildSessionChangesetUri(harness.session.toString()),
+			operationId: AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_CHANGES,
+			target: makeResourceTarget(target),
+		}, CancellationToken.None);
 
+		const diffService = new TestDiffComputeService();
 		assert.deepStrictEqual({
-			content: (await harness.diskFileService.readFile(target)).value.toString(),
-			code: error?.code,
-			message: error?.message,
-			recordedEdits: (await harness.trackedDb.getAllFileEdits()).length,
+			exists: await harness.diskFileService.exists(target),
+			sessionDiffs: await computeSessionDiffs('agent:/session', harness.trackedDb, diffService),
+			turnDiffs: [
+				await computeTurnDiffs('agent:/session', harness.trackedDb, diffService, 'turn-1'),
+				await computeTurnDiffs('agent:/session', harness.trackedDb, diffService, 'turn-2'),
+			],
 			discardedTurns: harness.discardedTurns,
+			message: result.message,
 		}, {
-			content: 'new\n',
-			code: JsonRpcErrorCodes.InternalError,
-			message: 'The session created \'file.ts\', which can\'t be discarded safely. Delete the file manually if it is no longer needed.',
-			recordedEdits: 1,
-			discardedTurns: [],
+			exists: false,
+			sessionDiffs: [],
+			turnDiffs: [[], []],
+			discardedTurns: [{ owner: chat, turnIds: ['turn-1', 'turn-2'] }],
+			message: { markdown: 'Discarded the session\'s changes to `file.ts`.' },
 		});
 	});
 
@@ -1375,10 +1413,12 @@ suite('AgentHostDiscardChangesOperationHandler - working set', () => {
 			beforeContent: encodeString(before), afterContent: encodeString(after),
 		});
 		const accept = (turnId: string, content: string) => harness.trackedDb.addEdit(createFileEditAcceptRecord(turnId, target.fsPath, encodeString(content)));
-		const discard = () => harness.handler.invoke({
-			channel: buildWorkingSetChangesetUri(harness.session.toString()),
+		const discard = (range?: { readonly range: TextRange; readonly side?: 'before' | 'after' }, channel = buildWorkingSetChangesetUri(harness.session.toString())) => harness.handler.invoke({
+			channel,
 			operationId: AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_CHANGES,
-			target: makeResourceTarget(target),
+			target: range
+				? { kind: ChangesetOperationTargetKind.Range, resource: target.toString() as unknown as InvokeChangesetOperationParams['channel'], ...range }
+				: makeResourceTarget(target),
 		}, CancellationToken.None);
 		const diffService = new InProcessDiffComputeService();
 		const describe = async () => ({
@@ -1409,6 +1449,36 @@ suite('AgentHostDiscardChangesOperationHandler - working set', () => {
 			after: { content: lines({ 0: 'L1', 2: 'U3' }), workingSet: 0, session: 1, turns: [1, 0] },
 			discardedTurns: [{ owner: chat, turnIds: ['turn-1', 'turn-2'] }],
 			message: { markdown: 'Discarded the changes to `file.ts` that have not been accepted.' },
+		});
+	});
+
+	test('deletes a file the session created unless its creation was accepted', async () => {
+		const results: Record<string, unknown> = {};
+		for (const [name, acceptCreation] of [['notAccepted', false], ['accepted', true]] as const) {
+			const { trackedDb, edit, accept, discard, diskFileService, session } = setupWorkingSet();
+			trackedDb.addEdit({
+				turnId: 'turn-1', toolCallId: 'tc1', filePath: target.fsPath, kind: FileEditKind.Create,
+				addedLines: undefined, removedLines: undefined,
+				beforeContent: undefined, afterContent: encodeString(lines()),
+			});
+			if (acceptCreation) {
+				accept('turn-1', lines());
+			}
+			edit('turn-2', 'tc2', lines(), lines({ 0: 'L1' }));
+			await diskFileService.writeFile(target, VSBuffer.fromString(lines({ 0: 'L1' })));
+
+			const result = await discard();
+
+			results[name] = {
+				content: await diskFileService.readFile(target).then(file => file.value.toString(), () => undefined),
+				workingSet: (await computeWorkingSetDiffs([{ sessionUri: session.toString(), db: trackedDb }], new InProcessDiffComputeService())).length,
+				message: result.message,
+			};
+		}
+
+		assert.deepStrictEqual(results, {
+			notAccepted: { content: undefined, workingSet: 0, message: { markdown: 'Discarded the changes to `file.ts` that have not been accepted.' } },
+			accepted: { content: lines(), workingSet: 0, message: { markdown: 'Discarded the changes to `file.ts` that have not been accepted.' } },
 		});
 	});
 
@@ -1502,6 +1572,122 @@ suite('AgentHostDiscardChangesOperationHandler - working set', () => {
 		});
 	});
 
+	/** A range on the zero-based lines from `start` through `end`. */
+	function lineRange(start: number, end = start): TextRange {
+		return { start: { line: start, character: 0 }, end: { line: end, character: 2 } };
+	}
+
+	test('reverts only the hunks that a range touches, keeping the other changes and the user\'s, in the turn of the file\'s last edit', async () => {
+		const { edit, discard, describe, diskFileService, trackedDb, discardedTurns, chat } = setupWorkingSet();
+		edit('turn-1', 'tc1', lines(), lines({ 0: 'L1' }));
+		edit('turn-2', 'tc2', lines({ 0: 'L1' }), lines({ 0: 'L1', 4: 'L5' }));
+		// The user changed the third line after the last edit.
+		await diskFileService.writeFile(target, VSBuffer.fromString(lines({ 0: 'L1', 2: 'U3', 4: 'L5' })));
+
+		const result = await discard({ range: lineRange(0) });
+
+		const rows = await trackedDb.getAllFileEdits();
+		assert.deepStrictEqual({
+			after: await describe(),
+			recorded: rows.slice(2).map(row => `${row.turnId}:${isFileEditAcceptRecord(row) ? 'accept' : 'discard'}`),
+			discardedTurns,
+			message: result.message,
+		}, {
+			// The second turn's changeset now also reverts the first turn's change.
+			after: { content: lines({ 2: 'U3', 4: 'L5' }), workingSet: 1, session: 1, turns: [1, 1] },
+			recorded: ['turn-2:discard'],
+			discardedTurns: [{ owner: chat, turnIds: ['turn-1', 'turn-2'] }],
+			message: { markdown: 'Discarded the changes to `file.ts` in the given range.' },
+		});
+	});
+
+	test('discards every change that has not been accepted when a range touches every hunk', async () => {
+		const { edit, discard, describe, diskFileService } = setupWorkingSet();
+		edit('turn-1', 'tc1', lines(), lines({ 0: 'L1', 4: 'L5' }));
+		await diskFileService.writeFile(target, VSBuffer.fromString(lines({ 0: 'L1', 4: 'L5' })));
+
+		const result = await discard({ range: lineRange(0, 5) });
+
+		assert.deepStrictEqual({ after: await describe(), message: result.message }, {
+			after: { content: lines(), workingSet: 0, session: 0, turns: [0, 0] },
+			message: { markdown: 'Discarded the changes to `file.ts` that have not been accepted.' },
+		});
+	});
+
+	test('reverts one hunk of a file whose line endings the session converted, keeping the conversion and the other hunk', async () => {
+		const { edit, discard, describe, diskFileService } = setupWorkingSet();
+		edit('turn-1', 'tc1', 'one\r\ntwo\r\nthree\r\nfour\r\nfive\r\n', 'one\nTWO\nthree\nfour\nFIVE\n');
+		await diskFileService.writeFile(target, VSBuffer.fromString('one\nTWO\nthree\nfour\nFIVE\n'));
+
+		const result = await discard({ range: lineRange(1) });
+
+		assert.deepStrictEqual({ after: await describe(), message: result.message }, {
+			after: { content: 'one\ntwo\nthree\nfour\nFIVE\n', workingSet: 1, session: 1, turns: [1, 0] },
+			message: { markdown: 'Discarded the changes to `file.ts` in the given range.' },
+		});
+	});
+
+	test('reverts the changes that a partial accept left out, keeping the accepted ones', async () => {
+		const { edit, discard, describe, diskFileService, trackedDb } = setupWorkingSet();
+		edit('turn-1', 'tc1', lines(), lines({ 0: 'L1', 4: 'L5' }));
+		trackedDb.addEdit(createPartialFileEditAcceptRecord('turn-1', target.fsPath, encodeString(lines({ 0: 'L1' })), encodeString(lines({ 0: 'L1', 4: 'L5' }))));
+		await diskFileService.writeFile(target, VSBuffer.fromString(lines({ 0: 'L1', 4: 'L5' })));
+		const before = await describe();
+
+		await discard();
+
+		assert.deepStrictEqual({ before, after: await describe() }, {
+			before: { content: lines({ 0: 'L1', 4: 'L5' }), workingSet: 1, session: 1, turns: [1, 0] },
+			after: { content: lines({ 0: 'L1' }), workingSet: 0, session: 1, turns: [1, 0] },
+		});
+	});
+
+	test('rejects a range it can not discard without changing the file', async () => {
+		const cases: Record<string, (context: ReturnType<typeof setupWorkingSet>) => Promise<{ readonly range?: TextRange; readonly channel?: string }>> = {
+			created: async ({ trackedDb }) => {
+				trackedDb.addEdit({
+					turnId: 'turn-1', toolCallId: 'tc1', filePath: target.fsPath, kind: FileEditKind.Create,
+					addedLines: undefined, removedLines: undefined,
+					beforeContent: undefined, afterContent: encodeString(lines()),
+				});
+				return {};
+			},
+			noChangeInRange: async ({ edit }) => {
+				edit('turn-1', 'tc1', lines(), lines({ 0: 'L1' }));
+				return { range: lineRange(3) };
+			},
+			// The user changed the same line after the edit.
+			overlapping: async ({ edit, diskFileService }) => {
+				edit('turn-1', 'tc1', lines(), lines({ 0: 'L1', 4: 'L5' }));
+				await diskFileService.writeFile(target, VSBuffer.fromString(lines({ 0: 'U1', 4: 'L5' })));
+				return {};
+			},
+			sessionChanges: async ({ edit, session }) => {
+				edit('turn-1', 'tc1', lines(), lines({ 0: 'L1', 4: 'L5' }));
+				return { channel: buildSessionChangesetUri(session.toString()) };
+			},
+		};
+		const results: Record<string, unknown> = {};
+		for (const [name, arrange] of Object.entries(cases)) {
+			const context = setupWorkingSet();
+			const { range, channel } = await arrange(context);
+			let error: ProtocolError | undefined;
+			try {
+				await context.discard({ range: range ?? lineRange(0) }, channel);
+			} catch (e) {
+				error = e as ProtocolError;
+			}
+			results[name] = { code: error?.code, message: error?.message, rows: (await context.trackedDb.getAllFileEdits()).length };
+		}
+
+		assert.deepStrictEqual(results, {
+			created: { code: JsonRpcErrorCodes.InvalidParams, message: 'Changes to \'file.ts\' can only be discarded for the whole file.', rows: 1 },
+			noChangeInRange: { code: JsonRpcErrorCodes.InvalidParams, message: '\'file.ts\' has no changes to discard in the given range.', rows: 1 },
+			overlapping: { code: JsonRpcErrorCodes.InternalError, message: 'Couldn\'t discard the changes to \'file.ts\' that have not been accepted because the same lines were changed outside of the session.', rows: 1 },
+			sessionChanges: { code: JsonRpcErrorCodes.InvalidParams, message: 'Operation \'discard-changes\' requires a resource target.', rows: 1 },
+		});
+	});
+
 	test('rejects a file whose changes were all accepted without changing it', async () => {
 		const { edit, accept, discard, describe, diskFileService, trackedDb } = setupWorkingSet();
 		edit('turn-1', 'tc1', lines(), lines({ 0: 'L1' }));
@@ -1536,7 +1722,7 @@ suite('AgentHostDiscardChangesOperationContribution', () => {
 		const confirmations = (changesetUri: string, changesetKind: ChangesetKind, uncommittedChanges = 1) => contribution
 			.getOperations({ sessionKey: session.toString(), changesetUri, changesetKind, gitState: { uncommittedChanges } })
 			.map(operation => `${operation.id}: ${operation.confirmation}`);
-		const lastTurnConfirmation = 'discard-changes: Are you sure you want to discard the last turn\'s changes to \'{0}\'? Changes made outside of the last turn will be kept. This action cannot be undone.';
+		const lastTurnConfirmation = 'discard-changes: Are you sure you want to discard the last turn\'s changes to \'{0}\'? Changes made outside of the last turn will be kept, except in a file the last turn created, which is deleted along with any later changes to it. This action cannot be undone.';
 
 		const completed = {
 			branch: confirmations(buildBranchChangesetUri(chat), ChangesetKind.Branch, 0),
@@ -1560,13 +1746,32 @@ suite('AgentHostDiscardChangesOperationContribution', () => {
 				cleanUncommitted: [],
 				lastTurn: [lastTurnConfirmation],
 				olderTurn: [],
-				session: ['discard-changes: Are you sure you want to discard the session\'s changes to \'{0}\'? Changes made outside of the session will be kept. This action cannot be undone.'],
+				session: ['discard-changes: Are you sure you want to discard the session\'s changes to \'{0}\'? Changes made outside of the session will be kept, except in a file the session created, which is deleted along with any later changes to it. This action cannot be undone.'],
 				workingSet: ['discard-changes: undefined'],
 			},
 			running: {
 				runningTurn: [lastTurnConfirmation],
 				previousTurn: [],
 			},
+		});
+	});
+
+	test('offers discarding the hunks of a range only on the Working Set', () => {
+		const { stateManager, session } = setup(disposables);
+		const chat = buildDefaultChatUri(session.toString());
+		const contribution = disposables.add(new AgentHostDiscardChangesOperationContribution(stateManager, new (mock<IInstantiationService>())()));
+		const scopes = (changesetUri: string, changesetKind: ChangesetKind) => contribution
+			.getOperations({ sessionKey: session.toString(), changesetUri, changesetKind, gitState: { uncommittedChanges: 1 } })
+			.map(operation => operation.scopes);
+
+		assert.deepStrictEqual({
+			workingSet: scopes(buildWorkingSetChangesetUri(session.toString()), ChangesetKind.WorkingSet),
+			session: scopes(buildSessionChangesetUri(session.toString()), ChangesetKind.Session),
+			uncommitted: scopes(buildUncommittedChangesetUri(chat), ChangesetKind.Uncommitted),
+		}, {
+			workingSet: [['resource', 'range']],
+			session: [['resource']],
+			uncommitted: [['resource']],
 		});
 	});
 

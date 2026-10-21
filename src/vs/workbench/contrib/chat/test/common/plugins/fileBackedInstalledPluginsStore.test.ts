@@ -8,6 +8,7 @@ import { DeferredPromise, timeout } from '../../../../../../base/common/async.js
 import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from '../../../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Schemas } from '../../../../../../base/common/network.js';
+import { waitForState } from '../../../../../../base/common/observable.js';
 import { isLinux, isWindows } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
@@ -29,8 +30,10 @@ class TestFileService {
 	private readonly _files = new Map<string, string>();
 	private readonly _folders = new Set<string>();
 	private readonly _versions = new Map<string, number>();
+	private readonly _onDidSetFile = new Emitter<URI>();
 	private _version = 0;
-	isWatching = false;
+	/** Completes when the first watcher is created, which a store does once it finished initializing. */
+	readonly watching = new DeferredPromise<void>();
 
 	constructor(
 		private readonly _failWrites = false,
@@ -70,7 +73,7 @@ class TestFileService {
 	}
 
 	createWatcher(): IFileSystemWatcher {
-		this.isWatching = true;
+		void this.watching.complete();
 		return {
 			onDidChange: this._onDidChange,
 			dispose: () => { },
@@ -80,10 +83,18 @@ class TestFileService {
 	setFile(resource: URI, content: string): void {
 		this._files.set(resource.toString(), content);
 		this._versions.set(resource.toString(), ++this._version);
+		this._onDidSetFile.fire(resource);
 	}
 
 	getFile(resource: URI): string | undefined {
 		return this._files.get(resource.toString());
+	}
+
+	/** Resolves once `resource` exists, e.g. after a store wrote it. */
+	async whenFileExists(resource: URI): Promise<void> {
+		if (this.getFile(resource) === undefined) {
+			await Event.toPromise(Event.filter(this._onDidSetFile.event, uri => uri.toString() === resource.toString()));
+		}
 	}
 }
 
@@ -108,17 +119,6 @@ suite('FileBackedInstalledPluginsStore', () => {
 			},
 			enabled: true,
 		};
-	}
-
-	async function waitFor(predicate: () => boolean): Promise<void> {
-		for (let i = 0; i < 40; i++) {
-			if (predicate()) {
-				return;
-			}
-			await timeout(10);
-		}
-
-		assert.fail('Condition not met in time');
 	}
 
 	function createPluginsStore(agentPluginsHome: URI, fileService: TestFileService, storageService = store.add(new InMemoryStorageService()), oldCacheRoot?: URI): FileBackedInstalledPluginsStore {
@@ -156,7 +156,7 @@ suite('FileBackedInstalledPluginsStore', () => {
 			store.add(new AgentPluginEnablementService(storageService)),
 		));
 
-		await waitFor(() => !!fileService.getFile(installedJson));
+		await fileService.watching.p;
 
 		const serialized = fileService.getFile(installedJson);
 		assert.ok(serialized);
@@ -239,7 +239,7 @@ suite('FileBackedInstalledPluginsStore', () => {
 			store.add(new AgentPluginEnablementService(storageService)),
 		));
 
-		await waitFor(() => !!fileService.getFile(installedJson)?.includes('"relativePath"'));
+		await fileService.watching.p;
 
 		assert.deepStrictEqual({
 			pluginUri: pluginsStore.get()[0].pluginUri.toString(),
@@ -276,7 +276,7 @@ suite('FileBackedInstalledPluginsStore', () => {
 		test(`resolves managed plugins after moving the install with ${label}`, async () => {
 			const fileService = new TestFileService();
 			const pluginsStore = createPluginsStore(originalHome, fileService);
-			await waitFor(() => fileService.isWatching);
+			await fileService.watching.p;
 
 			const relativePath = 'github.com/org/repo/plugins/my plugin #%20';
 			const plugin = {
@@ -287,13 +287,13 @@ suite('FileBackedInstalledPluginsStore', () => {
 			pluginsStore.set([plugin], undefined);
 
 			const installedJson = URI.joinPath(originalHome, 'installed.json');
-			await waitFor(() => !!fileService.getFile(installedJson));
+			await fileService.whenFileExists(installedJson);
 			const serialized = fileService.getFile(installedJson)!;
 			pluginsStore.dispose();
 
 			fileService.setFile(URI.joinPath(relocatedHome, 'installed.json'), serialized);
 			const relocatedStore = createPluginsStore(relocatedHome, fileService);
-			await waitFor(() => relocatedStore.get().length === 1);
+			await waitForState(relocatedStore.value, plugins => plugins.length === 1);
 
 			assert.deepStrictEqual({
 				persisted: JSON.parse(serialized),
@@ -323,7 +323,7 @@ suite('FileBackedInstalledPluginsStore', () => {
 		];
 		const fileService = new TestFileService();
 		const pluginsStore = createPluginsStore(agentPluginsHome, fileService);
-		await waitFor(() => fileService.isWatching);
+		await fileService.watching.p;
 
 		pluginsStore.set([agentPluginsHome, ...externalUris].map(pluginUri => ({
 			pluginUri,
@@ -331,14 +331,14 @@ suite('FileBackedInstalledPluginsStore', () => {
 		})), undefined);
 
 		const installedJson = URI.joinPath(agentPluginsHome, 'installed.json');
-		await waitFor(() => !!fileService.getFile(installedJson));
+		await fileService.whenFileExists(installedJson);
 		const serialized = fileService.getFile(installedJson)!;
 		pluginsStore.dispose();
 
 		const relocatedHome = URI.file('/relocated/data/agent-plugins');
 		fileService.setFile(URI.joinPath(relocatedHome, 'installed.json'), serialized);
 		const relocatedStore = createPluginsStore(relocatedHome, fileService);
-		await waitFor(() => relocatedStore.get().length === externalUris.length + 1);
+		await waitForState(relocatedStore.value, plugins => plugins.length === externalUris.length + 1);
 
 		assert.deepStrictEqual({
 			persisted: JSON.parse(serialized),
@@ -364,16 +364,16 @@ suite('FileBackedInstalledPluginsStore', () => {
 				const pluginUri = URI.joinPath(originalHome.with({ path: originalHome.path.replace('/Portable/', '/PORTABLE/') }), relativePath);
 				const fileService = new TestFileService();
 				const pluginsStore = createPluginsStore(originalHome, fileService);
-				await waitFor(() => fileService.isWatching);
+				await fileService.watching.p;
 				pluginsStore.set([{ pluginUri, marketplace: 'org/repo' }], undefined);
 				const installedJson = URI.joinPath(originalHome, 'installed.json');
-				await waitFor(() => !!fileService.getFile(installedJson));
+				await fileService.whenFileExists(installedJson);
 				const content = fileService.getFile(installedJson)!;
 				pluginsStore.dispose();
 
 				fileService.setFile(URI.joinPath(relocatedHome, 'installed.json'), content);
 				const relocatedStore = createPluginsStore(relocatedHome, fileService);
-				await waitFor(() => relocatedStore.get().length === 1);
+				await waitForState(relocatedStore.value, plugins => plugins.length === 1);
 
 				const managed = scheme !== Schemas.file || !isLinux;
 				assert.deepStrictEqual({
@@ -396,7 +396,7 @@ suite('FileBackedInstalledPluginsStore', () => {
 		storageService.store(LEGACY_INSTALLED_PLUGINS_STORAGE_KEY, JSON.stringify([createLegacyEntry(originalUri.fsPath)]), StorageScope.APPLICATION, StorageTarget.MACHINE);
 		const fileService = new TestFileService();
 		const pluginsStore = createPluginsStore(agentPluginsHome, fileService, storageService, oldCacheRoot);
-		await waitFor(() => fileService.isWatching);
+		await fileService.watching.p;
 
 		assert.deepStrictEqual({
 			pluginUri: pluginsStore.get()[0].pluginUri.toString(),
@@ -412,7 +412,7 @@ suite('FileBackedInstalledPluginsStore', () => {
 		const onDidChange = store.add(new Emitter<FileChangesEvent>());
 		const fileService = new TestFileService(false, onDidChange.event);
 		const pluginsStore = createPluginsStore(agentPluginsHome, fileService);
-		await waitFor(() => fileService.isWatching);
+		await fileService.watching.p;
 
 		const installedJson = URI.joinPath(agentPluginsHome, 'installed.json');
 		const relativePath = 'github.com/org/repo/plugins/added';
@@ -427,7 +427,7 @@ suite('FileBackedInstalledPluginsStore', () => {
 		});
 		fileService.setFile(installedJson, content);
 		onDidChange.fire(new FileChangesEvent([{ resource: installedJson, type: FileChangeType.ADDED }], false));
-		await waitFor(() => pluginsStore.get().length === 1);
+		await waitForState(pluginsStore.value, plugins => plugins.length === 1);
 
 		const entry = {
 			pluginUri: URI.joinPath(agentPluginsHome, relativePath).toString(),
@@ -454,7 +454,7 @@ suite('FileBackedInstalledPluginsStore', () => {
 			installed: [{ pluginUri: originalUri.toString(), relativePath: 'nested/../plugin', marketplace: 'org/repo' }],
 		}));
 		const pluginsStore = createPluginsStore(agentPluginsHome, fileService);
-		await waitFor(() => fileService.isWatching);
+		await fileService.watching.p;
 
 		assert.deepStrictEqual({
 			pluginUri: pluginsStore.get()[0].pluginUri.toString(),
@@ -475,7 +475,7 @@ suite('FileBackedInstalledPluginsStore', () => {
 			installed: [{ pluginUri: URI.joinPath(agentPluginsHome, 'plugin').toString(), relativePath: 'plugin', marketplace: 'org/repo' }],
 		}));
 		const pluginsStore = createPluginsStore(agentPluginsHome, fileService);
-		await waitFor(() => fileService.isWatching);
+		await fileService.watching.p;
 
 		onDidChange.fire(new FileChangesEvent([{ resource: installedJson, type: FileChangeType.UPDATED }], false));
 		await timeout(50);
@@ -512,12 +512,12 @@ suite('FileBackedInstalledPluginsStore', () => {
 					fileService.setFile(installedJson, content);
 				}
 				const pluginsStore = createPluginsStore(agentPluginsHome, fileService);
-				await waitFor(() => fileService.isWatching);
+				await fileService.watching.p;
 				if (!onStartup) {
 					fileService.setFile(installedJson, content);
 					onDidChange.fire(new FileChangesEvent([{ resource: installedJson, type: FileChangeType.ADDED }], false));
 				}
-				await waitFor(() => pluginsStore.get().length === 1);
+				await waitForState(pluginsStore.value, plugins => plugins.length === 1);
 				const loaded = {
 					pluginUri: pluginsStore.get()[0].pluginUri.toString(),
 					enablementUri: pluginsStore.get()[0].enablementUri?.toString(),
@@ -528,7 +528,7 @@ suite('FileBackedInstalledPluginsStore', () => {
 				const relocatedHome = URI.file('/relocated/data/agent-plugins');
 				fileService.setFile(URI.joinPath(relocatedHome, 'installed.json'), serialized);
 				const relocatedStore = createPluginsStore(relocatedHome, fileService);
-				await waitFor(() => relocatedStore.get().length === 1);
+				await waitForState(relocatedStore.value, plugins => plugins.length === 1);
 
 				assert.deepStrictEqual({
 					loaded,
@@ -581,7 +581,7 @@ suite('FileBackedInstalledPluginsStore', () => {
 					}));
 					const pluginsStore = createPluginsStore(agentPluginsHome, fileService);
 					if (!onStartup) {
-						await waitFor(() => fileService.isWatching);
+						await fileService.watching.p;
 						blocked = true;
 						fileService.setFile(installedJson, JSON.stringify({ version: 1, installed: [manifestEntry] }));
 						onDidChange.fire(new FileChangesEvent([{ resource: installedJson, type: FileChangeType.UPDATED }], false));
@@ -625,7 +625,7 @@ suite('FileBackedInstalledPluginsStore', () => {
 			}());
 			const onDidChange = store.add(new Emitter<FileChangesEvent>());
 			const fileService = store.add(new class extends FileService {
-				isWatching = false;
+				readonly watching = new DeferredPromise<void>();
 				attempts = 0;
 				migrations = 0;
 
@@ -645,7 +645,7 @@ suite('FileBackedInstalledPluginsStore', () => {
 				}
 
 				override createWatcher(): IFileSystemWatcher {
-					this.isWatching = true;
+					void this.watching.complete();
 					return { onDidChange: onDidChange.event, dispose: () => { } };
 				}
 			}(new NullLogService()));
@@ -663,12 +663,13 @@ suite('FileBackedInstalledPluginsStore', () => {
 				storageService,
 				store.add(new AgentPluginEnablementService(storageService)),
 			));
-			await waitFor(() => fileService.isWatching);
+			await fileService.watching.p;
 			if (!onStartup) {
 				await fileService.writeFile(installedJson, initialContent);
 				onDidChange.fire(new FileChangesEvent([{ resource: installedJson, type: FileChangeType.ADDED }], false));
 			}
-			await waitFor(() => fileService.migrations > 0 && pluginsStore.get().length === 1);
+			// Conflicting writes reload the manifest; the store applies it once the migration write succeeds.
+			await waitForState(pluginsStore.value, plugins => fileService.migrations > 0 && plugins.length === 1);
 
 			assert.deepStrictEqual({
 				attempts: fileService.attempts,
@@ -706,18 +707,19 @@ suite('FileBackedInstalledPluginsStore', () => {
 				fileService.setFile(installedJson, initialContent);
 			}
 			const pluginsStore = createPluginsStore(agentPluginsHome, fileService);
-			await waitFor(() => fileService.isWatching);
+			await fileService.watching.p;
 			if (!onStartup) {
 				fileService.setFile(installedJson, initialContent);
 				onDidChange.fire(new FileChangesEvent([{ resource: installedJson, type: FileChangeType.ADDED }], false));
 			}
-			await waitFor(() => !!fileService.getFile(installedJson)?.includes('"relativePath"'));
+			// Conflicting writes reload the manifest; the store applies it once the migration write succeeds.
+			await waitForState(pluginsStore.value, plugins => plugins.length === entries.length && !!fileService.getFile(installedJson)?.includes('"relativePath"'));
 			const persisted = JSON.parse(fileService.getFile(installedJson)!);
 
 			const relocatedHome = URI.file('/relocated/data/agent-plugins');
 			fileService.setFile(URI.joinPath(relocatedHome, 'installed.json'), fileService.getFile(installedJson)!);
 			const relocatedStore = createPluginsStore(relocatedHome, fileService);
-			await waitFor(() => relocatedStore.get().length === entries.length);
+			await waitForState(relocatedStore.value, plugins => plugins.length === entries.length);
 
 			assert.deepStrictEqual({
 				file: persisted,
@@ -749,7 +751,7 @@ suite('FileBackedInstalledPluginsStore', () => {
 		}(true);
 		fileService.setFile(installedJson, content);
 		const pluginsStore = createPluginsStore(agentPluginsHome, fileService);
-		await waitFor(() => fileService.isWatching);
+		await fileService.watching.p;
 		await timeout(250);
 
 		assert.deepStrictEqual({
@@ -784,7 +786,7 @@ suite('FileBackedInstalledPluginsStore', () => {
 				}],
 			}));
 			const pluginsStore = createPluginsStore(relocatedHome, fileService, storageService);
-			await waitFor(() => pluginsStore.get().length === 1);
+			await waitForState(pluginsStore.value, plugins => plugins.length === 1);
 			const reopenedEnablementService = store.add(new AgentPluginEnablementService(storageService));
 			assert.strictEqual(reopenedEnablementService.readEnabled(relocatedUri.toString()), state);
 		});
@@ -813,12 +815,13 @@ suite('FileBackedInstalledPluginsStore', () => {
 					}));
 				}
 				const firstProfile = createPluginsStore(relocatedHome, fileService, profiles[0], fromLegacyStorage ? originalHome : undefined);
-				await waitFor(() => firstProfile.get().length === 1);
-				await waitFor(() => !!fileService.getFile(installedJson)?.includes('"enablementUri"'));
+				await waitForState(firstProfile.value, plugins => plugins.length === 1);
+				// The migration write is part of initialization, which ends with creating the watcher.
+				await fileService.watching.p;
 				firstProfile.dispose();
 
 				const secondProfile = createPluginsStore(relocatedHome, fileService, profiles[1]);
-				await waitFor(() => secondProfile.get().length === 1);
+				await waitForState(secondProfile.value, plugins => plugins.length === 1);
 				assert.deepStrictEqual({
 					identity: JSON.parse(fileService.getFile(installedJson)!).installed[0].enablementUri,
 					states: profiles.map(storageService => store.add(new AgentPluginEnablementService(storageService)).readEnabled(relocatedUri.toString())),

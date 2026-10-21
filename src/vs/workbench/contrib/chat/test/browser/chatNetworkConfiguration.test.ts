@@ -14,6 +14,16 @@ import { chatNetworkDomainConfigurationMigrations, chatNetworkDomainConfiguratio
 suite('Chat network configuration', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('tags network allow and deny lists as chat permissions', () => {
+		assert.deepStrictEqual(
+			Object.entries(chatNetworkDomainConfigurationProperties).map(([key, setting]) => ({ key, tags: setting.tags })),
+			[
+				{ key: AgentNetworkDomainSettingId.AllowedNetworkDomains, tags: ['chatPermissions'] },
+				{ key: AgentNetworkDomainSettingId.DeniedNetworkDomains, tags: ['chatPermissions'] },
+			],
+		);
+	});
+
 	test('presents valid managed allowed hosts and ignores invalid values', () => {
 		const presentation = chatNetworkDomainConfigurationProperties[AgentNetworkDomainSettingId.AllowedNetworkDomains].managedSettingsPresentation!;
 		const consoleWarn = stub(console, 'warn');

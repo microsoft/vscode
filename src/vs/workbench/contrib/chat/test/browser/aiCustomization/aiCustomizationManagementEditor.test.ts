@@ -33,7 +33,8 @@ import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME } from '../../../../../../platform/a
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { AICustomizationManagementEditor, isCurrentConnectorDetailNavigation, isCurrentPluginContributionNavigation } from '../../../browser/aiCustomization/aiCustomizationManagementEditor.js';
+import { AICustomizationManagementEditor, CopilotConnectorDetailOpenResult, isCurrentConnectorDetailNavigation, isCurrentPluginContributionNavigation } from '../../../browser/aiCustomization/aiCustomizationManagementEditor.js';
+import { ICopilotConnector, ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
 import { IAICustomizationListItem } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
 import { AgentPluginItemKind, IAgentPluginItem } from '../../../browser/agentPluginEditor/agentPluginItems.js';
 import { ChatConfiguration } from '../../../common/constants.js';
@@ -90,6 +91,50 @@ suite('aiCustomizationManagementEditor', () => {
 			['Agent Customizations', '(Copilot · vscode)'],
 			['Agent Customizations', undefined],
 		]);
+	});
+
+	test('opens a Copilot connector detail by display name', async () => {
+		const input = store.add(new AICustomizationManagementEditorInput());
+		const connector: ICopilotConnector = {
+			name: 'connector-catalog-entry-7f3a',
+			displayName: 'Linear',
+			description: 'Triage your open issues in Linear',
+			tags: [],
+			keywords: [],
+			capabilities: [],
+			representativeQueries: [],
+			connectionStatus: 'not_connected',
+			scopes: [],
+			mcpServers: [],
+		};
+		const opened: ICopilotConnector[] = [];
+		const selectedSections: AICustomizationManagementSection[] = [];
+		const harness = {
+			contentNavigationGeneration: 1,
+			input,
+			copilotConnectorsService: {
+				getConnectors: async () => [connector],
+			} as Pick<ICopilotConnectorsService, 'getConnectors'>,
+			selectSectionById: (section: AICustomizationManagementSection) => selectedSections.push(section),
+			showEmbeddedConnectorDetail: (candidate: ICopilotConnector) => opened.push(candidate),
+		};
+		const showCopilotConnectorDetail = Reflect.get(AICustomizationManagementEditor.prototype, 'showCopilotConnectorDetail') as (
+			this: typeof harness,
+			connectorName: string,
+			connectorDisplayName?: string,
+		) => Promise<CopilotConnectorDetailOpenResult>;
+
+		const result = await showCopilotConnectorDetail.call(harness, 'linear', 'Linear');
+
+		assert.deepStrictEqual({
+			result,
+			selectedSections,
+			opened: opened.map(candidate => candidate.name),
+		}, {
+			result: CopilotConnectorDetailOpenResult.Opened,
+			selectedSections: [AICustomizationManagementSection.McpServers],
+			opened: ['connector-catalog-entry-7f3a'],
+		});
 	});
 
 	test('rejects stale plugin contribution navigation', () => {

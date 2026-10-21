@@ -9,7 +9,7 @@ import { ISessionDataService, type ISessionDatabase } from '../../common/session
 import { parseSessionDbUri, type ISessionDbUriFields } from '../../common/sessionDbUri.js';
 import { AhpErrorCodes, ContentEncoding, ProtocolError, type ResourceReadResult } from '../../common/state/sessionProtocol.js';
 import type { IAgentHostResourceProvider } from '../agentHostResourceProviders.js';
-import { isFileEditAcceptRecord } from '../fileEditAccept.js';
+import { getWorkingSetFileEditRecords } from '../fileEditAccept.js';
 import { computeWorkingSetFileContents } from '../workingSetFileContents.js';
 
 /** Reads before/after file-edit content, and Working Set baselines, from a session database. */
@@ -58,8 +58,6 @@ export class SessionDbResourceProvider implements IAgentHostResourceProvider {
 		if (end < 0) {
 			throw new ProtocolError(AhpErrorCodes.NotFound, `File edit not found: toolCallId=${fields.toolCallId}, filePath=${fields.filePath}`);
 		}
-		const recordsUpToEnd = records.slice(0, end + 1);
-		const start = Math.max(recordsUpToEnd.findLastIndex(isFileEditAcceptRecord), 0);
-		return (await computeWorkingSetFileContents(db, recordsUpToEnd.slice(start), this._diffComputeService)).baseline;
+		return (await computeWorkingSetFileContents(db, getWorkingSetFileEditRecords(records.slice(0, end + 1)), this._diffComputeService)).baseline;
 	}
 }

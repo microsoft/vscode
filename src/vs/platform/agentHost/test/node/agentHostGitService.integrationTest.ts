@@ -484,6 +484,13 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 		});
 	});
 
+	(hasGit ? test : test.skip)('getHEAD returns undefined for an unborn HEAD', async () => {
+		tmpRoot = mkdtempSync(join(tmpdir(), 'agent-host-unborn-'));
+		cp.execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: tmpRoot, stdio: 'pipe' });
+
+		assert.strictEqual(await svc!.getHEAD(URI.file(tmpRoot)), undefined);
+	});
+
 	(hasGit ? test : test.skip)('getCurrentBranchName throws on failed strict lookup without changing best-effort callers', async () => {
 		tmpRoot = mkdtempSync(join(tmpdir(), 'agent-host-nongit-'));
 		const directory = URI.file(tmpRoot);

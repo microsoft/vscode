@@ -123,8 +123,8 @@ suite('MarkdownRenderer', () => {
 			await Promise.resolve();
 			const source = image.getAttribute('src');
 			result.dispose();
-			assert.deepStrictEqual({ before, source, read, disposed }, {
-				before: null, source: 'data:image/png;base64,AA==', read: [resource.toString()], disposed: true,
+			assert.deepStrictEqual({ before, source, resource: image.getAttribute('data-src'), read, disposed }, {
+				before: null, source: 'data:image/png;base64,AA==', resource: resource.toString(), read: [resource.toString()], disposed: true,
 			});
 		});
 
@@ -242,6 +242,51 @@ suite('MarkdownRenderer', () => {
 			);
 		});
 
+		test('remote image validation checks mapped destinations', () => {
+			const destinations = [
+				'https://example.com/image.png',
+				'file://remote-host/share/image.png',
+				'vscode-remote://ssh-remote+host/other-image.png',
+			];
+			const source = 'file:///image.png';
+			const checkedUris: string[] = [];
+			const results = destinations.map(destination => store.add(renderMarkdown({
+				value: `![image](${source})`,
+				uris: { [source]: URI.parse(destination) },
+			}, {
+				sanitizerConfig: {
+					remoteImageIsAllowed: uri => {
+						checkedUris.push(uri.toString());
+						return false;
+					},
+					replaceWithPlaintext: true,
+				},
+			})).element);
+
+			assert.deepStrictEqual({
+				checkedUris,
+				imageCounts: results.map(result => result.querySelectorAll('img').length),
+			}, {
+				checkedUris: destinations.map(destination => URI.parse(destination).toString()),
+				imageCounts: [0, 0, 0],
+			});
+		});
+
+		test('local file images mapped by a remote extension host remain allowed', () => {
+			const source = 'file:///images/image.png';
+			const result = store.add(renderMarkdown({
+				value: `![image](${source})`,
+				uris: { [source]: URI.parse('vscode-remote://ssh-remote+host/images/image.png') },
+			}, {
+				sanitizerConfig: {
+					remoteImageIsAllowed: () => false,
+					replaceWithPlaintext: true,
+				},
+			})).element;
+
+			assert.strictEqual(result.querySelectorAll('img[src]').length, 1);
+		});
+
 		test('relative image with a network-backed file base URI is rendered as plaintext', () => {
 			const markdown = new MarkdownString('![image](image.png)');
 			markdown.baseUri = URI.parse('file://remote-host/share/base.md');
@@ -309,7 +354,7 @@ suite('MarkdownRenderer', () => {
 				return;
 			}
 			const result: HTMLElement = store.add(renderMarkdown({ value: `![image](file:///images/cat.gif)` })).element;
-			assertNodeEquals(result, '<div><p><img src="vscode-file://vscode-app/images/cat.gif" alt="image"></p></div>');
+			assertNodeEquals(result, '<div><p><img src="vscode-file://vscode-app/images/cat.gif" alt="image" data-src="file:///images/cat.gif"></p></div>');
 		});
 	});
 
@@ -821,7 +866,7 @@ suite('MarkdownRenderer', () => {
 			mds.appendMarkdown(`<img src="file:///images/cat.gif">`);
 
 			const result = store.add(renderMarkdown(mds)).element;
-			assert.strictEqual(result.innerHTML, `<img src="vscode-file://vscode-app/images/cat.gif">`);
+			assert.strictEqual(result.innerHTML, `<img src="vscode-file://vscode-app/images/cat.gif" data-src="file:///images/cat.gif">`);
 		});
 
 		test('Should only allow checkbox inputs', () => {

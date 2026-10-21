@@ -289,7 +289,7 @@
 	display: flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size80);
-	height: var(--vscode-spacing-size320);
+	height: var(--vscode-spacing-size280);
 	padding: 0 var(--vscode-spacing-size80);
 	border-radius: var(--vscode-cornerRadius-small);
 	color: var(--vscode-foreground);

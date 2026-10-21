@@ -467,6 +467,7 @@ suite('AgentHostGitStateService', () => {
 			discardFileService,
 			new NullLogService(), h.stateManager,
 			createNoopChangesetService(),
+			new InProcessDiffComputeService(),
 		);
 		const result = await handler.invoke({
 			channel,
@@ -1852,7 +1853,7 @@ suite('AgentHostGitStateService', () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const calls: { owner: string; repo: string; branch: string; headOwner: string | undefined }[] = [];
 			const query = new class extends mock<IPullRequestsClient>() {
-				override async list({ owner, name: repo }: RepositoryRef, _signal: AbortSignal, options?: ListPullRequestsOptions) {
+				override async list({ owner, repo }: RepositoryRef, _signal: AbortSignal, options?: ListPullRequestsOptions) {
 					const head = options?.query?.head;
 					assert.ok(head);
 					const separator = head.indexOf(':');

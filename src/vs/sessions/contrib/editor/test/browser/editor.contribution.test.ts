@@ -9,6 +9,9 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { decodeKeybinding } from '../../../../../base/common/keybindings.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { OS } from '../../../../../base/common/platform.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../base/common/resources.js';
@@ -19,6 +22,7 @@ import { IAccessibilityService } from '../../../../../platform/accessibility/com
 import { IMenuService, isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -32,18 +36,19 @@ import { FileOperationError, FileOperationResult, IFileService } from '../../../
 import product from '../../../../../platform/product/common/product.js';
 import { IQuickInputService, IQuickPick, IQuickPickItem, QuickInputType } from '../../../../../platform/quickinput/common/quickInput.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { editorBackground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { Extensions as ThemeServiceExtensions, IThemingRegistry } from '../../../../../platform/theme/common/themeService.js';
-import { EditorInputCapabilities } from '../../../../../workbench/common/editor.js';
+import { EditorInputCapabilities, EditorsOrder, ITextDiffEditorPane } from '../../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { TAB_ACTIVE_BACKGROUND } from '../../../../../workbench/common/theme.js';
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, LayoutSettings, ModernUIEditorTabStyle, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAuxiliaryWindow, IAuxiliaryWindowService } from '../../../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
-import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
+import { IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { generateColorThemeCSS } from '../../../../../workbench/services/themes/browser/colorThemeCss.js';
 import { ColorThemeData } from '../../../../../workbench/services/themes/common/colorThemeData.js';
 import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
@@ -60,7 +65,7 @@ import { IActiveSession } from '../../../../services/sessions/common/sessionsMan
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { SessionChangesEditorInput } from '../../../changes/browser/sessionChangesEditorInput.js';
-import { NewBrowserTabAction, NewChangesTabAction, NewFileTabAction, NewSearchTabAction } from '../../browser/addTabActions.js';
+import { NewBrowserTabAction, NewChangesTabAction, NewFileTabAction, NewSearchTabAction, OpenBrowserAction } from '../../browser/addTabActions.js';
 import { EmptyFileEditor } from '../../browser/emptyFileEditor.js';
 import { emptyFileEditorConfiguration } from '../../browser/emptyFileEditor.contribution.js';
 import { EmptyFileEditorSearch, EmptyFileEditorSearchPickerFocusedContext } from '../../browser/emptyFileEditorSearch.js';
@@ -660,6 +665,57 @@ suite('Sessions - Editor Contribution', () => {
 		});
 	});
 
+	test('empty file editor opens an untitled file on double-click in empty space', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		store.add(registerEmptyFileEditorActions());
+		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
+		const configurationService = new TestConfigurationService({
+			[SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING]: false,
+		});
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configurationService);
+		const commands: string[] = [];
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+			override executeCommand<T>(id: string): Promise<T | undefined> {
+				commands.push(id);
+				return Promise.resolve(undefined);
+			}
+		});
+		const editor = store.add(instantiationService.createInstance(EmptyFileEditor, new class extends mock<IEditorGroup>() {
+			override windowId = mainWindow.vscodeWindowId;
+		}()));
+		const container = appendElement(mainWindow.document.body, 'empty-file-editor-test');
+		store.add({ dispose: () => container.remove() });
+		editor.create(container);
+		const doubleClick = (selector: string) => {
+			container.querySelector(selector)?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+			return commands.splice(0);
+		};
+
+		const disabled = doubleClick('.empty-file-editor');
+		await configurationService.setUserConfiguration(SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING, true);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			affectsConfiguration: setting => setting === SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING,
+			source: ConfigurationTarget.USER,
+			affectedKeys: new Set([SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING]),
+			change: { keys: [SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING], overrides: [] },
+		});
+
+		assert.deepStrictEqual({
+			disabled,
+			emptySpace: doubleClick('.empty-file-editor'),
+			emptyStateText: doubleClick('.sessions-empty-state-description'),
+			searchInput: doubleClick('.empty-file-editor-search input'),
+			actions: doubleClick('.empty-file-editor-actions'),
+		}, {
+			disabled: [],
+			emptySpace: ['workbench.action.files.newUntitledFile'],
+			emptyStateText: ['workbench.action.files.newUntitledFile'],
+			searchInput: [],
+			actions: [],
+		});
+	});
+
 	test('empty file editor shows file search and new file action', () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		store.add(registerEmptyFileEditorActions());
@@ -715,6 +771,73 @@ suite('Sessions - Editor Contribution', () => {
 				{ id: 'workbench.action.files.newUntitledFile', args: [] },
 			],
 			triggers: [`config.${SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING}`],
+		});
+	});
+
+	test('empty file editor focuses an empty search input, otherwise its container', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		store.add(registerEmptyFileEditorActions());
+		const configurationService = new TestConfigurationService({
+			[SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING]: true,
+		});
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
+		const editor = store.add(instantiationService.createInstance(EmptyFileEditor, new class extends mock<IEditorGroup>() {
+			override windowId = mainWindow.vscodeWindowId;
+		}()));
+		const container = appendElement(mainWindow.document.body, 'empty-file-editor-focus-test');
+		// Focusing scrolls the document to the element; restore it so later tests measure unscrolled bounds.
+		store.add({ dispose: () => mainWindow.scrollTo(0, 0) });
+		store.add({ dispose: () => container.remove() });
+
+		editor.create(container);
+		const input = container.querySelector<HTMLInputElement>('.empty-file-editor-search input');
+		assert.ok(input);
+		// Keyboard focus must be inside the editor part so `editorAreaFocus` keeps Cmd+N on New File.
+		const focusedElement = () => {
+			const activeElement = mainWindow.document.activeElement;
+			return activeElement === input ? 'searchInput' : activeElement === container.querySelector('.empty-file-editor') ? 'editorContainer' : 'other';
+		};
+
+		editor.focus();
+		const emptySearch = focusedElement();
+		// Set the text without an input event so no picker opens; focusing the input would open one.
+		input.value = 'app';
+		editor.focus();
+		const nonEmptySearch = focusedElement();
+
+		const editorContainer = container.querySelector('.empty-file-editor');
+		assert.deepStrictEqual({
+			role: editorContainer?.getAttribute('role'),
+			ariaLabel: editorContainer?.getAttribute('aria-label'),
+			emptySearch,
+			nonEmptySearch,
+			pickerOpen: !!instantiationService.get(IQuickInputService).currentQuickInput,
+		}, {
+			role: 'group',
+			ariaLabel: 'Files editor',
+			emptySearch: 'searchInput',
+			nonEmptySearch: 'editorContainer',
+			pickerOpen: false,
+		});
+	});
+
+	test('empty file editor search picker keeps Cmd+N on New File', () => {
+		const ctrlCmdN = decodeKeybinding(KeyMod.CtrlCmd | KeyCode.KeyN, OS)!.getHashCode();
+		const rule = KeybindingsRegistry.getDefaultKeybindings()
+			.find(item => item.command === 'workbench.action.files.newUntitledFile' && item.keybinding?.getHashCode() === ctrlCmdN && item.weight1 > KeybindingWeight.SessionsContrib);
+		const evaluate = (values: Record<string, boolean>) => rule?.when?.evaluate({ getValue: <T>(key: string) => values[key] as T | undefined }) ?? true;
+
+		assert.deepStrictEqual({
+			// Outweighs the Agents Window New Session binding, which also matches outside the editor area.
+			registered: !!rule,
+			pickerFocused: evaluate({ [EmptyFileEditorSearchPickerFocusedContext.key]: true }),
+			elsewhere: evaluate({}),
+		}, {
+			registered: true,
+			pickerFocused: true,
+			elsewhere: false,
 		});
 	});
 
@@ -1160,6 +1283,72 @@ suite('Sessions - Editor Contribution', () => {
 		})), [{ isBrowserEditor: true, pinned: true }]);
 	});
 
+	test('session activity bar browser action activates an existing browser tab or opens a new preview tab', async () => {
+		const createBrowserInput = (url: string | undefined): BrowserEditorInput => {
+			const input = Object.create(BrowserEditorInput.prototype) as BrowserEditorInput;
+			Object.defineProperty(input, 'url', { value: url });
+			return input;
+		};
+		const newInput = createBrowserInput(undefined);
+		const navigatedInput = createBrowserInput('https://example.com');
+		const blankInput = createBrowserInput(undefined);
+		const otherInput = Object.create(EditorInput.prototype) as EditorInput;
+		const browserPane = new class extends mock<ITextDiffEditorPane>() { };
+		const group = new class extends mock<IEditorGroup>() { };
+		const names = new Map<unknown, string>([[newInput, 'new'], [navigatedInput, 'navigated'], [blankInput, 'blank'], [otherInput, 'other'], [browserPane, 'browserPane'], [group, 'group']]);
+		const name = (value: unknown) => names.get(value) ?? String(value);
+
+		const run = async (mruEditors: EditorInput[]) => {
+			const calls: unknown[] = [];
+			const instantiationService = store.add(new TestInstantiationService());
+			instantiationService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
+				override readonly mainPart = new class extends mock<IEditorPart>() {
+					override readonly activeGroup = Object.assign(group, {
+						getEditors: (order: EditorsOrder) => order === EditorsOrder.MOST_RECENTLY_ACTIVE ? mruEditors : []
+					});
+				};
+			});
+			instantiationService.stub(IBrowserViewWorkbenchService, new class extends mock<IBrowserViewWorkbenchService>() {
+				override getOrCreateLazy(): BrowserEditorInput {
+					return newInput;
+				}
+			});
+			instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
+				override async openEditor(...args: unknown[]): Promise<ITextDiffEditorPane> {
+					calls.push({ openEditor: name(args[0]), options: args[1], group: name(args[2]) });
+					return browserPane;
+				}
+			});
+			instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+				override async executeCommand<R>(id: string, ...args: unknown[]): Promise<R> {
+					calls.push({ command: id, editorPane: name(args[0]) });
+					return undefined as R;
+				}
+			});
+
+			await new OpenBrowserAction().run(instantiationService);
+			return calls;
+		};
+
+		assert.deepStrictEqual({
+			noBrowserTab: await run([otherInput]),
+			existingNavigatedTab: await run([otherInput, navigatedInput, blankInput]),
+			existingBlankTab: await run([blankInput, navigatedInput]),
+		}, {
+			noBrowserTab: [
+				{ openEditor: 'new', options: undefined, group: 'group' },
+				{ command: BrowserViewCommandId.FocusUrlInput, editorPane: 'browserPane' },
+			],
+			existingNavigatedTab: [
+				{ openEditor: 'navigated', options: undefined, group: 'group' },
+			],
+			existingBlankTab: [
+				{ openEditor: 'blank', options: undefined, group: 'group' },
+				{ command: BrowserViewCommandId.FocusUrlInput, editorPane: 'browserPane' },
+			],
+		});
+	});
+
 	test('Add Tab menu stays available in dock-only mode', () => {
 		const getWhen = (action: NewFileTabAction | NewChangesTabAction | NewSearchTabAction): ContextKeyExpression => {
 			const menu = action.desc.menu;
@@ -1222,9 +1411,9 @@ suite('Sessions - Editor Contribution', () => {
 	});
 
 	test('the session activity bar offers each tab whenever it is available', () => {
-		const actions = { changes: new NewChangesTabAction(), files: new NewFileTabAction(), browser: new NewBrowserTabAction(), search: new NewSearchTabAction() };
-		// Search is only offered in the Add Tab dropdown.
-		const evaluate = (action: NewChangesTabAction | NewFileTabAction | NewBrowserTabAction | NewSearchTabAction, values: Record<string, ContextKeyValue>): boolean | undefined => {
+		const actions = { changes: new NewChangesTabAction(), files: new NewFileTabAction(), browser: new OpenBrowserAction(), addBrowserTab: new NewBrowserTabAction(), search: new NewSearchTabAction() };
+		// Search and the explicit new browser tab are only offered in the Add Tab dropdown.
+		const evaluate = (action: NewChangesTabAction | NewFileTabAction | OpenBrowserAction | NewBrowserTabAction | NewSearchTabAction, values: Record<string, ContextKeyValue>): boolean | undefined => {
 			const menu = action.desc.menu;
 			const item = (Array.isArray(menu) ? menu : [menu]).find(item => item?.id === Menus.SessionActivityBar);
 			return item?.when?.evaluate({ getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined } satisfies IContext);

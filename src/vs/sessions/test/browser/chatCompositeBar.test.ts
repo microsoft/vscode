@@ -1125,17 +1125,23 @@ suite('Sessions - ChatCompositeBar', () => {
 		}
 	});
 
-	test('shows archive or restore for manageable chat tabs', async () => {
-		const snapshots: { archived: boolean; actionId: string | undefined; commandIds: readonly string[] }[] = [];
+	test('groups Rename with archive or restore for manageable chat tabs', async () => {
+		const snapshots: { archived: boolean; actionId: string | undefined; menuIds: readonly string[]; commandIds: readonly string[] }[] = [];
 		for (const archived of [false, true]) {
 			const { commandService, container, contextMenuService, tabs } = createHarness(disposables, { secondaryArchived: archived, secondaryCanArchive: true });
 			mainWindow.document.body.appendChild(container);
 			try {
 				tabs[1].dispatchEvent(new MouseEvent(EventType.CONTEXT_MENU, { bubbles: true, cancelable: true, button: 2 }));
 				const expectedActionId = archived ? UNARCHIVE_CHAT_COMMAND_ID : ARCHIVE_CHAT_COMMAND_ID;
-				const action = contextMenuService.delegate?.getActions().find(candidate => candidate.id === expectedActionId);
+				const actions = contextMenuService.delegate?.getActions() ?? [];
+				const action = actions.find(candidate => candidate.id === expectedActionId);
 				await action?.run();
-				snapshots.push({ archived, actionId: action?.id, commandIds: commandService.calls.map(call => call.commandId) });
+				snapshots.push({
+					archived,
+					actionId: action?.id,
+					menuIds: actions.map(action => action instanceof Separator ? 'separator' : action.id),
+					commandIds: commandService.calls.map(call => call.commandId),
+				});
 			} finally {
 				container.remove();
 			}
@@ -1145,11 +1151,13 @@ suite('Sessions - ChatCompositeBar', () => {
 			{
 				archived: false,
 				actionId: ARCHIVE_CHAT_COMMAND_ID,
+				menuIds: [RENAME_CHAT_COMMAND_ID, ARCHIVE_CHAT_COMMAND_ID, 'separator', 'sessionCompositeBar.deleteChat'],
 				commandIds: [ARCHIVE_CHAT_COMMAND_ID],
 			},
 			{
 				archived: true,
 				actionId: UNARCHIVE_CHAT_COMMAND_ID,
+				menuIds: [RENAME_CHAT_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID, 'separator', 'sessionCompositeBar.deleteChat'],
 				commandIds: [UNARCHIVE_CHAT_COMMAND_ID],
 			},
 		]);

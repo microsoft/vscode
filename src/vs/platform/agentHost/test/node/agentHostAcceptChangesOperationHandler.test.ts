@@ -15,16 +15,18 @@ import type { IFileEditContent, IFileEditRecord, ISessionDatabase } from '../../
 import { ChangesetOperationTargetKind, type InvokeChangesetOperationParams } from '../../common/state/protocol/channels-changeset/commands.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { buildChatUri, buildDefaultChatUri, FileEditKind, MessageKind, SessionStatus } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, FileEditKind, MessageKind, SessionStatus, type TextRange } from '../../common/state/sessionState.js';
 import { AgentHostAcceptChangesOperationHandler } from '../../node/agentHostAcceptChangesOperationHandler.js';
 import { AgentHostAcceptChangesOperationContribution } from '../../node/agentHostAcceptChangesOperationProvider.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
-import { isFileEditAcceptRecord } from '../../node/fileEditAccept.js';
+import { getWorkingSetFileEditRecords, isFileEditAcceptRecord } from '../../node/fileEditAccept.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { computeWorkingSetDiffs } from '../../node/sessionDiffAggregator.js';
+import { computeWorkingSetFileContents } from '../../node/workingSetFileContents.js';
 import { createNoopChangesetService, TestDiffComputeService } from '../common/sessionTestHelpers.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
+import { InProcessDiffComputeService } from './inProcessDiffComputeService.js';
 
 const SESSION = 'agent:/session';
 const FILE = URI.file('/repo/src/file.ts');
@@ -78,19 +80,44 @@ function setup(disposables: Pick<DisposableStore, 'add'>) {
 	const changesets = createNoopChangesetService();
 	changesets.openTrackedSessionDatabases = () => ({ ...tracked, workingDirectories: [URI.file('/repo').toString()], dispose: () => { } });
 	changesets.onFileEditsAccepted = owner => { accepted.push(owner); };
-	const handler = new AgentHostAcceptChangesOperationHandler(new NullLogService(), stateManager, changesets);
-	const invoke = (resource: URI | undefined, channel = buildWorkingSetChangesetUri(SESSION)) => handler.invoke({
+	const diffService = new InProcessDiffComputeService();
+	const handler = new AgentHostAcceptChangesOperationHandler(new NullLogService(), stateManager, changesets, diffService);
+	const invoke = (resource: URI | undefined, channel = buildWorkingSetChangesetUri(SESSION), range?: IRangeTarget) => handler.invoke({
 		channel,
 		operationId: AgentHostAcceptChangesOperationHandler.OPERATION_ACCEPT_CHANGES,
 		// The protocol target carries the protocol `URI` (a branded string).
-		target: resource ? { kind: ChangesetOperationTargetKind.Resource, resource: resource.toString() as unknown as InvokeChangesetOperationParams['channel'] } : undefined,
+		target: !resource ? undefined : range
+			? { kind: ChangesetOperationTargetKind.Range, resource: resource.toString() as unknown as InvokeChangesetOperationParams['channel'], ...range }
+			: { kind: ChangesetOperationTargetKind.Resource, resource: resource.toString() as unknown as InvokeChangesetOperationParams['channel'] },
 	}, CancellationToken.None);
 	const workingSet = async () => {
 		const diffs = await computeWorkingSetDiffs(tracked.sources.map(source => ({ sessionUri: source.storage, db: source.db })), new TestDiffComputeService(), tracked.folderScope);
 		return diffs.map(diff => diff.after?.uri ?? diff.before?.uri).sort();
 	};
+	/** The text of the file's Working Set baseline and current content. */
+	const contents = async (resource = FILE) => {
+		const records = (await db.getAllFileEdits()).filter(record => record.filePath === resource.fsPath);
+		const { baseline, current } = await computeWorkingSetFileContents(db, getWorkingSetFileEditRecords(records), diffService);
+		const decode = (bytes: Uint8Array | undefined) => bytes && new TextDecoder().decode(bytes);
+		return { baseline: decode(baseline), current: decode(current) };
+	};
 	const rows = async () => (await db.getAllFileEdits()).map(record => isFileEditAcceptRecord(record) ? `accept:${record.turnId}:${record.kind}` : record.toolCallId);
-	return { stateManager, chat, db, tracked, accepted, invoke, workingSet, rows };
+	return { stateManager, chat, db, tracked, accepted, invoke, workingSet, contents, rows };
+}
+
+interface IRangeTarget {
+	readonly range: TextRange;
+	readonly side?: 'before' | 'after';
+}
+
+/** A range on the zero-based lines from `start` through `end`. */
+function lineRange(start: number, end = start): TextRange {
+	return { start: { line: start, character: 0 }, end: { line: end, character: 2 } };
+}
+
+/** Six lines, with the given zero-based lines replaced. */
+function lines(changes: Record<number, string> = {}): string {
+	return ['l1', 'l2', 'l3', 'l4', 'l5', 'l6'].map((line, index) => changes[index] ?? line).join('\n') + '\n';
 }
 
 async function toError(promise: Promise<unknown>): Promise<{ code: number; message: string } | undefined> {
@@ -174,6 +201,63 @@ suite('AgentHostAcceptChangesOperationHandler', () => {
 		});
 	});
 
+	test('accepts the hunks that a range touches, leaving the other changes in the working set', async () => {
+		const { db, chat, accepted, invoke, contents, rows } = setup(disposables);
+		await storeEdit(db, 't1', 'tc1', FILE, FileEditKind.Edit, lines(), lines({ 0: 'L1', 4: 'L5' }));
+
+		const result = await invoke(FILE, undefined, { range: lineRange(4) });
+		const afterRange = { contents: await contents(), rows: await rows() };
+		// The remaining hunk, addressed on the baseline's side, is every change that is left.
+		await invoke(FILE, undefined, { range: lineRange(0), side: 'before' });
+		const afterRest = { contents: await contents(), rows: await rows() };
+		// Without changes, accepting a range records nothing.
+		await invoke(FILE, undefined, { range: lineRange(0) });
+
+		assert.deepStrictEqual({ result, afterRange, afterRest, afterRepeat: await rows(), accepted }, {
+			result: { message: { markdown: 'Accepted the changes to `file.ts`.' } },
+			afterRange: { contents: { baseline: lines({ 4: 'L5' }), current: lines({ 0: 'L1', 4: 'L5' }) }, rows: ['tc1', 'accept:t1:edit'] },
+			afterRest: { contents: { baseline: lines({ 0: 'L1', 4: 'L5' }), current: lines({ 0: 'L1', 4: 'L5' }) }, rows: ['tc1', 'accept:t1:edit', 'accept:t1:edit'] },
+			afterRepeat: ['tc1', 'accept:t1:edit', 'accept:t1:edit'],
+			accepted: [chat, chat],
+		});
+	});
+
+	test('accepts every change to a file after accepting some of them', async () => {
+		const { db, invoke, contents, rows } = setup(disposables);
+		await storeEdit(db, 't1', 'tc1', FILE, FileEditKind.Edit, lines(), lines({ 0: 'L1', 4: 'L5' }));
+		await invoke(FILE, undefined, { range: lineRange(0) });
+
+		await invoke(FILE);
+
+		assert.deepStrictEqual({ contents: await contents(), rows: await rows() }, {
+			contents: { baseline: lines({ 0: 'L1', 4: 'L5' }), current: lines({ 0: 'L1', 4: 'L5' }) },
+			rows: ['tc1', 'accept:t1:edit', 'accept:t1:edit'],
+		});
+	});
+
+	test('rejects a range of changes that can\'t be split into hunks, or that touches none of them, without recording anything', async () => {
+		const cases: Record<string, (db: ISessionDatabase) => Promise<void>> = {
+			created: db => storeEdit(db, 't1', 'tc1', FILE, FileEditKind.Create, undefined, lines()),
+			deleted: db => storeEdit(db, 't1', 'tc1', FILE, FileEditKind.Delete, lines(), undefined),
+			notText: db => db.storeFileEdit({ turnId: 't1', toolCallId: 'tc1', filePath: FILE.fsPath, kind: FileEditKind.Edit, beforeContent: new Uint8Array([0xff, 0x01]), afterContent: new Uint8Array([0xff, 0x02]), addedLines: undefined, removedLines: undefined }),
+			noChangeInRange: db => storeEdit(db, 't1', 'tc1', FILE, FileEditKind.Edit, lines(), lines({ 0: 'L1' })),
+		};
+		const results: Record<string, unknown> = {};
+		for (const [name, arrange] of Object.entries(cases)) {
+			const context = setup(disposables);
+			await arrange(context.db);
+			results[name] = { error: await toError(context.invoke(FILE, undefined, { range: lineRange(3) })), rows: await context.rows() };
+		}
+
+		const wholeFileOnly = { error: { code: JsonRpcErrorCodes.InvalidParams, message: `Changes to 'file.ts' can only be accepted for the whole file.` }, rows: ['tc1'] };
+		assert.deepStrictEqual(results, {
+			created: wholeFileOnly,
+			deleted: wholeFileOnly,
+			notText: wholeFileOnly,
+			noChangeInRange: { error: { code: JsonRpcErrorCodes.InvalidParams, message: `'file.ts' has no changes to accept in the given range.` }, rows: ['tc1'] },
+		});
+	});
+
 	test('rejects requests that cannot be accepted without recording anything', async () => {
 		const cases: Record<string, (context: ReturnType<typeof setup>) => Promise<{ readonly target?: URI | null; readonly channel?: string }>> = {
 			notWorkingSet: async () => ({ channel: buildSessionChangesetUri(SESSION) }),
@@ -223,7 +307,7 @@ suite('AgentHostAcceptChangesOperationHandler', () => {
 		const rejected = (message: string) => ({ error: { code: JsonRpcErrorCodes.InvalidParams, message }, accepted: [], acceptRows: [] });
 		assert.deepStrictEqual(results, {
 			notWorkingSet: rejected(`Not a working set changeset URI: ${buildSessionChangesetUri(SESSION)}`),
-			missingTarget: rejected(`Operation 'accept-changes' requires a resource target.`),
+			missingTarget: rejected(`Operation 'accept-changes' requires a resource or range target.`),
 			fileNotInSession: rejected(`'unknown.ts' has no changes to accept.`),
 			outsideFolderScope: rejected(`'file.ts' has no changes to accept.`),
 			turnRunning: rejected(`Changes can't be accepted while a turn is running.`),
@@ -247,7 +331,7 @@ suite('AgentHostAcceptChangesOperationContribution', () => {
 			workingSet: operations(ChangesetKind.WorkingSet),
 			others: [ChangesetKind.Session, ChangesetKind.Branch, ChangesetKind.Uncommitted, ChangesetKind.Turn].flatMap(operations),
 		}, {
-			workingSet: [{ id: 'accept-changes', label: 'Accept Changes', icon: 'check', scopes: ['resource'], status: 'idle' }],
+			workingSet: [{ id: 'accept-changes', label: 'Accept Changes', icon: 'check', scopes: ['resource', 'range'], status: 'idle' }],
 			others: [],
 		});
 	});
