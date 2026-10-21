@@ -12,53 +12,94 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: large-control
+          - name: large-devdrive-workspace
             runner: vscode-large-runners-windows-8-core
-            devdrive: false
+            variant: devdrive
             jobs: ''
-          - name: large-devdrive-temp
+          - name: large-noflush
             runner: vscode-large-runners-windows-8-core
-            devdrive: true
+            variant: noflush
             jobs: ''
-          - name: large-jobs3
-            runner: vscode-large-runners-windows-8-core
-            devdrive: false
-            jobs: '--jobs 3'
-          - name: 1es-control
-            runner: 1es
-            devdrive: false
-            jobs: ''
-    runs-on: ${{ matrix.runner == '1es' && fromJSON(format('["self-hosted", "1ES.Pool=1es-vscode-oss-windows-2022-x64", "JobId=ahexp-{0}-{1}"]', github.run_id, github.run_attempt)) || matrix.runner }}
+    runs-on: ${{ matrix.runner }}
     env:
       VSCODE_ARCH: x64
       VSCODE_SKIP_PRELAUNCH: '1'
     steps:
-      - name: Checkout microsoft/vscode
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          lfs: true
-
-      - name: Create Dev Drive for TEMP
-        if: ${{ matrix.devdrive }}
+      - name: Mount Dev Drive at the workspace and TEMP
+        if: ${{ matrix.variant == 'devdrive' }}
         shell: pwsh
         run: |
           $sw = [Diagnostics.Stopwatch]::StartNew()
           $script = Join-Path $env:RUNNER_TEMP 'devdrive.txt'
-          "create vdisk file=`"C:\devdrive.vhdx`" maximum=61440 type=expandable`nattach vdisk`ncreate partition primary`nassign letter=R" | Out-File -Encoding ascii $script
+          "create vdisk file=`"C:\devdrive.vhdx`" maximum=102400 type=expandable`nattach vdisk`ncreate partition primary`nassign letter=R" | Out-File -Encoding ascii $script
           diskpart /s $script
-          try {
-            Format-Volume -DriveLetter R -DevDrive -Confirm:$false -Force | Out-Null
-            'Formatted R: as a Dev Drive'
-          } catch {
-            "Dev Drive format failed ($_); falling back to ReFS"
-            Format-Volume -DriveLetter R -FileSystem ReFS -Confirm:$false -Force | Out-Null
-          }
+          Format-Volume -DriveLetter R -DevDrive -Confirm:$false -Force | Out-Null
           fsutil devdrv query R: 2>&1
+          New-Item -ItemType Directory -Force -Path $env:GITHUB_WORKSPACE | Out-Null
+          if (Get-ChildItem -Force -LiteralPath $env:GITHUB_WORKSPACE) { throw 'Workspace is not empty' }
+          Add-PartitionAccessPath -DriveLetter R -AccessPath $env:GITHUB_WORKSPACE
           New-Item -ItemType Directory -Path R:\tmp | Out-Null
           Add-Content -Path $env:GITHUB_ENV -Value "TEMP=R:\tmp"
           Add-Content -Path $env:GITHUB_ENV -Value "TMP=R:\tmp"
           "Dev Drive ready in $([int]$sw.Elapsed.TotalSeconds)s"
           Get-Volume -DriveLetter R | Format-Table -AutoSize
+          Get-Item -LiteralPath $env:GITHUB_WORKSPACE | Format-List FullName, Attributes, LinkType, Target
+
+      - name: Suppress disk cache flushes
+        if: ${{ matrix.variant == 'noflush' }}
+        shell: pwsh
+        run: |
+          Add-Type -TypeDefinition @'
+          using System;
+          using System.ComponentModel;
+          using System.Runtime.InteropServices;
+          using Microsoft.Win32.SafeHandles;
+          public static class DiskCache {
+            [StructLayout(LayoutKind.Sequential)]
+            public struct DISK_CACHE_SETTING { public uint Version; public int State; [MarshalAs(UnmanagedType.U1)] public bool IsPowerProtected; }
+            [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+            static extern SafeFileHandle CreateFile(string name, uint access, uint share, IntPtr sa, uint disposition, uint flags, IntPtr template);
+            [DllImport("kernel32.dll", SetLastError = true)]
+            static extern bool DeviceIoControl(SafeFileHandle h, uint code, ref DISK_CACHE_SETTING inBuf, int inSize, ref DISK_CACHE_SETTING outBuf, int outSize, out int returned, IntPtr overlapped);
+            public static string SetPowerProtected(int disk) {
+              using (var h = CreateFile(@"\\.\PhysicalDrive" + disk, 0xC0000000, 3, IntPtr.Zero, 3, 0, IntPtr.Zero)) {
+                if (h.IsInvalid) { throw new Win32Exception(); }
+                var s = new DISK_CACHE_SETTING();
+                int size = Marshal.SizeOf(typeof(DISK_CACHE_SETTING));
+                int r;
+                if (!DeviceIoControl(h, 0x740E0, ref s, 0, ref s, size, out r, IntPtr.Zero)) { throw new Win32Exception(); }
+                string before = "version=" + s.Version + " state=" + s.State + " powerProtected=" + s.IsPowerProtected;
+                s.Version = (uint)size;
+                s.IsPowerProtected = true;
+                if (!DeviceIoControl(h, 0x7C0E4, ref s, size, ref s, 0, out r, IntPtr.Zero)) { throw new Win32Exception(); }
+                return before;
+              }
+            }
+          }
+          '@
+          function Test-Fsync([string] $Root) {
+            $dir = Join-Path $Root "fsbench-$([guid]::NewGuid().ToString('N'))"
+            New-Item -ItemType Directory -Path $dir | Out-Null
+            $bytes = [byte[]]::new(4096)
+            $sw = [Diagnostics.Stopwatch]::StartNew()
+            for ($i = 0; $i -lt 300; $i++) { $fs = [IO.File]::Open("$dir\s$i", 'Create'); $fs.Write($bytes, 0, 4096); $fs.Flush($true); $fs.Dispose() }
+            $fsync = $sw.Elapsed.TotalMilliseconds / 300
+            $sw.Restart()
+            for ($i = 0; $i -lt 5000; $i++) { [IO.File]::WriteAllBytes("$dir\f$i", $bytes) }
+            $create = $sw.Elapsed.TotalMilliseconds / 5000
+            Remove-Item -LiteralPath $dir -Recurse -Force
+            'fsync {0:N2} ms/file, create {1:N3} ms/file' -f $fsync, $create
+          }
+          "Before: $(Test-Fsync $env:RUNNER_TEMP)"
+          $disk = (Get-Partition -DriveLetter C).DiskNumber
+          "Disk $disk cache setting before: $([DiskCache]::SetPowerProtected($disk))"
+          Get-PhysicalDisk | ForEach-Object { Get-StorageAdvancedProperty -PhysicalDisk $_ } | Format-Table -AutoSize
+          "After: $(Test-Fsync $env:RUNNER_TEMP)"
+
+      - name: Checkout microsoft/vscode
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          lfs: true
 
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
