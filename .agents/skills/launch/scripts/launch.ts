@@ -36,6 +36,7 @@ interface ILaunchOptions {
 	readonly skipPreLaunch: boolean;
 	readonly disableWorkspaceTrust: boolean;
 	readonly reuse: boolean;
+	readonly wait: boolean;
 	readonly extraArgs: readonly string[];
 }
 
@@ -72,6 +73,7 @@ function parseArguments(args: readonly string[], fromPowerShell: boolean): ILaun
 	let skipPreLaunch = false;
 	let disableWorkspaceTrust = false;
 	let reuse = process.env.CODE_OSS_DEV_REUSE === '1';
+	let wait = false;
 	let extraArgs: string[] = [];
 
 	const value = (index: number, name: string) => {
@@ -107,6 +109,7 @@ function parseArguments(args: readonly string[], fromPowerShell: boolean): ILaun
 			case '--disable-workspace-trust': disableWorkspaceTrust = true; break;
 			case '--reuse': reuse = true; break;
 			case '--fresh': reuse = false; break;
+			case '--wait': wait = true; break;
 			case '--': extraArgs = args.slice(index + 1); index = args.length; break;
 			default:
 				// PowerShell drops an unquoted `--`, so a workspace path also starts the arguments for Code
@@ -118,7 +121,7 @@ function parseArguments(args: readonly string[], fromPowerShell: boolean): ILaun
 				throw new UsageError(`Unknown arg: ${argument}${fromPowerShell ? `. To pass it to Code OSS, put it after '--', quoted: PowerShell drops an unquoted --.` : ''}`);
 		}
 	}
-	return { agents, sessionTitle, sourceUserDataDir, repo, extensions, full, skipPreLaunch, disableWorkspaceTrust, reuse, extraArgs };
+	return { agents, sessionTitle, sourceUserDataDir, repo, extensions, full, skipPreLaunch, disableWorkspaceTrust, reuse, wait, extraArgs };
 }
 
 async function main(): Promise<number> {
@@ -180,7 +183,8 @@ async function main(): Promise<number> {
 			...options.extraArgs,
 		];
 		log(`logs: ${logFile}`);
-		const pid = await startCode(repo, codeScript, launchArgs, logFile);
+		const code = await startCode(repo, codeScript, launchArgs, logFile, options.wait);
+		const pid = code.pid;
 		await writeState(runDir, { kind: reused ? 'reuse' : 'fresh', codePid: pid, lastUsedAt: Date.now() });
 
 		log(`waiting for CDP on port ${cdpPort} (timeout ${CDP_TIMEOUT_MS / 1000}s)...`);
@@ -188,6 +192,13 @@ async function main(): Promise<number> {
 		if (ready.status !== 'ready') {
 			log(ready.status === 'timeout' ? `timed out waiting for CDP on port ${cdpPort}. Log tail:` : `Code OSS (PID ${pid}) exited before CDP came up. Log tail:`);
 			writeLogTail(logFile);
+			if (options.wait) {
+				const cleanup = spawn(process.execPath, [path.join(scriptsDir, 'cleanup', 'cleanup.ts'), runDir], { stdio: 'inherit' });
+				await new Promise<void>((resolve, reject) => {
+					cleanup.once('error', reject);
+					cleanup.once('exit', code => code === 0 ? resolve() : reject(new Error(`Launch cleanup exited with ${code}.`)));
+				});
+			}
 			return 1;
 		}
 		log(`CDP ready after ${ready.elapsedMs}ms`);
@@ -220,6 +231,13 @@ async function main(): Promise<number> {
 				totalMs: Math.round(finishedAt - startedAt),
 			},
 		}) + '\n');
+		if (options.wait) {
+			const result = await code.exited;
+			if (result.signal) {
+				throw new Error(`Code OSS exited with signal ${result.signal}.`);
+			}
+			return result.code ?? 1;
+		}
 		return 0;
 	} finally {
 		if (reused) {
@@ -368,11 +386,11 @@ function runPreLaunch(repo: string, logFile: string): Promise<boolean> {
 }
 
 /**
- * Starts Code OSS detached from this process and returns the PID of its main process.
+ * Starts Code OSS detached by default, or in the caller's process tree when waiting.
  * On Windows, Electron is started directly as scripts/code.bat would after pre-launch, because
  * passing arguments through cmd.exe breaks on characters such as `&` and `%`.
  */
-async function startCode(repo: string, codeScript: string, launchArgs: readonly string[], logFile: string): Promise<number> {
+async function startCode(repo: string, codeScript: string, launchArgs: readonly string[], logFile: string, wait: boolean) {
 	const env: NodeJS.ProcessEnv = { ...process.env, VSCODE_SKIP_PRELAUNCH: '1' };
 	// Host-only configuration, commonly inherited from VS Code's integrated terminal and agent runtimes
 	for (const name of ['ELECTRON_RUN_AS_NODE', 'GIT_CONFIG_COUNT', 'GIT_CONFIG_PARAMETERS', 'CODE_OSS_DEV_REFS_VOLUMES', 'UV_THREADPOOL_SIZE']) {
@@ -394,13 +412,18 @@ async function startCode(repo: string, codeScript: string, launchArgs: readonly 
 
 	const logFd = openSync(logFile, 'a');
 	try {
-		const child = spawn(command, args, { cwd: repo, env, detached: true, stdio: ['ignore', logFd, logFd] });
+		const child = spawn(command, args, { cwd: repo, env, detached: !wait, stdio: ['ignore', logFd, logFd] });
+		const exited = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(resolve => {
+			child.once('exit', (code, signal) => resolve({ code, signal }));
+		});
 		await new Promise<void>((resolve, reject) => {
 			child.once('spawn', resolve);
 			child.once('error', reject);
 		});
-		child.unref();
-		return child.pid!;
+		if (!wait) {
+			child.unref();
+		}
+		return { pid: child.pid!, exited };
 	} finally {
 		closeSync(logFd);
 	}

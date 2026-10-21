@@ -85,12 +85,11 @@ Build outputs are written to `out/` (desktop), `dist/` (web), and `notebook-out/
 The experimental repository-root `dev.workspace.ts` can manage the initial
 `install-fast` / `build-fast` / Electron preparation, core transpile watcher,
 Markdown extension-host watcher, and the three Markdown webview watchers.
-It launches this checkout's Code OSS with a persistent per-slot profile and verifies
-Markdown extension activation before reporting ready.
-Settings and keybindings are shared with other worktrees of this repository;
-application state and extension installations stay separate, allowing different
-source builds to run simultaneously. The window title includes the slot and
-branch, with live branch updates while the built-in Git extension is enabled.
+The `codeOss` node invokes `.agents/skills/launch/scripts/launch.ts` through `scripts/dev-workspace-codeoss.mts`. It reuses the graph's prepared build outputs, waits for the launcher's CDP readiness and Markdown extension activation, then reports the application PID, debug ports, profile directory, run directory, and log file as its service value.
+
+The launch skill seeds an isolated profile and shared-authentication directory from the authenticated Code OSS development profile. This replaces the previous persistent per-slot profile/shared-settings setup; the source profile is never modified. See the [launch skill](../../.agents/skills/launch/SKILL.md) for profile selection and the GitHub sign-in flow. Configure Marketplace endpoints locally in the ignored `product.overrides.json`. The window title includes the slot and branch, with live branch updates while the built-in Git extension is enabled.
+
+The adapter invokes the TypeScript launcher with `--wait`, keeping Code OSS in the managed process tree. Deactivating or restarting the node stops that instance, rather than leaving a detached window behind. Manually launched instances with different profiles remain independent.
 
 The local setup uses a directory link at `.tmp/dev-workspace` pointing to a
 built `vscode-packages/dev-workspace` package. Use the Node version from
@@ -112,6 +111,23 @@ node .tmp\dev-workspace\dist\cli.js inputs dev.workspace.ts '{"markdownEditorPat
 node .tmp\dev-workspace\dist\cli.js activate dev.workspace.ts codeOss
 node .tmp\dev-workspace\dist\cli.js tui dev.workspace.ts
 ```
+
+Alternatively, let the Hub daemon own the workspace server (use the Node version from `.nvmrc`):
+
+```powershell
+hub services run --endpoint npipe://./pipe/linkrpc-hub-hdieterichs `
+  --namespace dev-workspace-vscode-slot2 --id main --detach --cwd $PWD.Path `
+  -- fnm exec --using=24.18.0 node .tmp\dev-workspace\dist\cli.js serve dev.workspace.ts
+
+$env:LINKRPC_ENDPOINT = 'npipe://./pipe/linkrpc-hub-hdieterichs'
+$services = hub services list --endpoint $env:LINKRPC_ENDPOINT --namespace dev-workspace-vscode-slot2 | ConvertFrom-Json
+$env:DEV_WORKSPACE_SERVICE_ID = ($services | Where-Object id -eq main).serviceId
+node .tmp\dev-workspace\dist\cli.js activate dev.workspace.ts codeOss
+node .tmp\dev-workspace\dist\cli.js value dev.workspace.ts codeOss
+node .tmp\dev-workspace\dist\cli.js tui dev.workspace.ts
+```
+
+Start only one workspace server per checkout. Managed services use the returned service ID, not a hand-written tunnel alias. The server remains daemon-owned after the launch command returns; the example does not configure reboot persistence or automatic restart.
 
 `markdownEditorPath` is a live, persisted project input. Set it to `null` to
 restore the published dependency. The link step runs after installation and

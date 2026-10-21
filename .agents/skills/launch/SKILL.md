@@ -58,6 +58,7 @@ SESSION_TITLE=<title-from-get_current_session>
 "$LAUNCH" --clone-extensions=github.vscode-pull-request-github,ms-vscode.hexeditor  # copy only these extensions
 "$LAUNCH" --full                             # skip slim excludes; copy everything
 "$LAUNCH" --skip-prelaunch                   # reuse already-current build outputs
+"$LAUNCH" --wait                             # remain alive for a process supervisor
 "$LAUNCH" --disable-workspace-trust          # avoid trust prompts for trusted automation inputs
 "$LAUNCH" --reuse                            # sync a kept run directory instead of copying (see below)
 ```
@@ -85,6 +86,8 @@ $sessionTitle = '<title-from-get_current_session>'
 PowerShell drops an unquoted `--` before the script sees it. A path after it still reaches Code OSS, but flags such as `--verbose` need the separator quoted as `'--'`; otherwise the launcher reports them as unknown. If the local execution policy blocks scripts, invoke it with `powershell -ExecutionPolicy Bypass -File <path-to-launch.ps1> <args>`, which passes all arguments unchanged.
 
 ### Handle a missing sign-in
+
+For a process supervisor, invoke `launch.ts --wait` directly with the repository's Node version. It prints the same readiness JSON, then remains alive until Code OSS exits and propagates its exit status. Code OSS stays in the supervisor's process tree/group instead of detaching, so stopping the managed process tree also stops the application. The default launcher still detaches. Do not use the PowerShell wrapper for process-tree ownership: it deliberately isolates its child handles.
 
 If the source profile is missing or has no stored GitHub session, **do not stop and do not ask before launching**. Continue until the isolated Code OSS window reaches the normal GitHub/Copilot sign-in UI. Don't give up when Code OSS needs a sign-in.
 

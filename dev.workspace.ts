@@ -96,9 +96,12 @@ const preview = markdownMedia('preview', 'esbuild.webview.mts', 'preview-src', '
 const notebook = markdownMedia('notebook', 'esbuild.notebook.mts', 'notebook', 'notebook-out');
 const codeOss = service({
 	executable: process.execPath,
-	args: ['.tmp/dev-workspace/scripts/vscode.mjs', 'extensions/markdown-language-features', '.'],
+	args: ['scripts/dev-workspace-codeoss.mts'],
 	dependencies: [electron, coreWatch, extensionsWatch, editor.watching, preview.watching, notebook.watching],
-	derivation: { recipe: 'vscode-slot-markdown-v1', inputs: {} },
+	derivation: {
+		recipe: 'vscode-slot-launch-skill-v1',
+		inputs: { adapter: sourceTree('scripts/dev-workspace-codeoss.mts'), launcher: sourceTree('.agents/skills/launch') },
+	},
 	update: 'keep',
 	ready: { message: true, timeoutMs: 120_000 },
 });
