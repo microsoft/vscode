@@ -635,21 +635,6 @@
 	font-weight: var(--vscode-fontWeight-regular);
 }
 
-.action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-fusion-tier .detail {
-	padding-left: var(--vscode-spacing-size200);
-	font-size: var(--vscode-fontSize-label1);
-	line-height: 1.5;
-	opacity: 1;
-}
-
-.action-widget .chat-model-picker-tabbed .monaco-list-row.action.chat-model-picker-fusion-tier > .codicon:first-child {
-	height: var(--vscode-spacing-size160);
-}
-
-.action-widget .chat-model-picker-tabbed .monaco-list .monaco-list-row.action.chat-model-picker-fusion-tier > .title {
-	line-height: 1.5;
-}
-
 .action-widget .chat-model-picker-tabbed .monaco-list-row .action-list-item-toolbar .actions-container {
 	gap: var(--vscode-spacing-size20);
 }

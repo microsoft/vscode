@@ -101,6 +101,7 @@ jobs:
         - output: pipelineArtifact
           targetPath: $(Build.ArtifactStagingDirectory)/out/client/$(CLIENT_ARCHIVE_NAME)
           artifactName: vscode_client_linux_$(VSCODE_ARCH)_archive-unsigned
+          condition: and(succeeded(), ne(variables['CLIENT_ARCHIVE_PUBLISHED'], 'true'))
           displayName: Publish client archive
           sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-linux-$(VSCODE_ARCH)
           sbomPackageName: "VS Code Linux $(VSCODE_ARCH) (unsigned)"
@@ -109,6 +110,7 @@ jobs:
           - output: pipelineArtifact
             targetPath: $(Build.ArtifactStagingDirectory)/out/server/vscode-server-linux-$(VSCODE_ARCH).tar.gz
             artifactName: vscode_server_linux_$(VSCODE_ARCH)_archive-unsigned
+            condition: and(succeeded(), ne(variables['SERVER_ARCHIVE_PUBLISHED'], 'true'))
             displayName: Publish server archive
             sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)
             sbomPackageName: "VS Code Linux $(VSCODE_ARCH) Server"
@@ -116,6 +118,7 @@ jobs:
           - output: pipelineArtifact
             targetPath: $(Build.ArtifactStagingDirectory)/out/web/vscode-server-linux-$(VSCODE_ARCH)-web.tar.gz
             artifactName: vscode_web_linux_$(VSCODE_ARCH)_archive-unsigned
+            condition: and(succeeded(), ne(variables['WEB_ARCHIVE_PUBLISHED'], 'true'))
             displayName: Publish web server archive
             sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)-web
             sbomPackageName: "VS Code Linux $(VSCODE_ARCH) Web"
@@ -123,6 +126,7 @@ jobs:
         - output: pipelineArtifact
           targetPath: $(Build.ArtifactStagingDirectory)/out/deb/$(DEB_PACKAGE_NAME)
           artifactName: vscode_client_linux_$(VSCODE_ARCH)_deb-package
+          condition: and(succeeded(), ne(variables['DEB_PACKAGE_PUBLISHED'], 'true'))
           displayName: Publish deb package
           sbomBuildDropPath: .build/linux/deb
           sbomPackageName: "VS Code Linux $(VSCODE_ARCH) DEB"
@@ -130,6 +134,7 @@ jobs:
         - output: pipelineArtifact
           targetPath: $(Build.ArtifactStagingDirectory)/out/rpm/$(RPM_PACKAGE_NAME)
           artifactName: vscode_client_linux_$(VSCODE_ARCH)_rpm-package
+          condition: and(succeeded(), ne(variables['RPM_PACKAGE_PUBLISHED'], 'true'))
           displayName: Publish rpm package
           sbomBuildDropPath: .build/linux/rpm
           sbomPackageName: "VS Code Linux $(VSCODE_ARCH) RPM"
@@ -138,6 +143,7 @@ jobs:
           - output: pipelineArtifact
             targetPath: $(Build.ArtifactStagingDirectory)/out/snap/$(SNAP_PACKAGE_NAME)
             artifactName: vscode_client_linux_$(VSCODE_ARCH)_snap
+            condition: and(succeeded(), ne(variables['SNAP_PACKAGE_PUBLISHED'], 'true'))
             displayName: Publish snap package
             sbomBuildDropPath: $(SNAP_EXTRACTED_PATH)
             sbomPackageName: "VS Code Linux $(VSCODE_ARCH) SNAP"
@@ -156,3 +162,19 @@ jobs:
           VSCODE_BUILD_LINUX_SNAP: ${{ parameters.VSCODE_BUILD_LINUX_SNAP }}
 
       - template: ./steps/product-build-linux-package-finalize.yml@self
+
+      # Pipeline artifacts can't be overwritten, so a retry of this job must skip
+      # the artifacts that an earlier attempt already published, for example
+      # before timing out (see ../common/checkForArtifact.ts)
+      - script: >-
+          node build/azure-pipelines/common/checkForArtifact.ts
+          CLIENT_ARCHIVE_PUBLISHED vscode_client_linux_$(VSCODE_ARCH)_archive-unsigned
+          SERVER_ARCHIVE_PUBLISHED vscode_server_linux_$(VSCODE_ARCH)_archive-unsigned
+          WEB_ARCHIVE_PUBLISHED vscode_web_linux_$(VSCODE_ARCH)_archive-unsigned
+          DEB_PACKAGE_PUBLISHED vscode_client_linux_$(VSCODE_ARCH)_deb-package
+          RPM_PACKAGE_PUBLISHED vscode_client_linux_$(VSCODE_ARCH)_rpm-package
+          SNAP_PACKAGE_PUBLISHED vscode_client_linux_$(VSCODE_ARCH)_snap
+        env:
+          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+        continueOnError: true
+        displayName: Check for artifacts published by an earlier attempt

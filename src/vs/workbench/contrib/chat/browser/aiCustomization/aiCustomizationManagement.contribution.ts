@@ -137,6 +137,7 @@ type AICustomizationContext = {
 	uri: URI | string;
 	name?: string;
 	promptType?: PromptsType;
+	source?: AICustomizationSource;
 	storage?: PromptsStorage;
 	skipMarketplaceUninstall?: boolean;
 	[key: string]: unknown;
@@ -165,7 +166,8 @@ function extractSource(context: AICustomizationContext): AICustomizationSource |
 	if (URI.isUri(context) || typeof context === 'string') {
 		return undefined;
 	}
-	return context.storage;
+	// The item list passes `source`; the discovery page passes `storage`.
+	return context.source ?? context.storage;
 }
 
 /**
@@ -882,9 +884,9 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 				if (pane instanceof AICustomizationManagementEditor) {
 					const section = typeof target === 'string' ? target : target?.section ?? AICustomizationManagementSection.McpServers;
 					if (typeof target !== 'string' && target?.connectorName) {
-						const result = await pane.showCopilotConnectorDetail(target.connectorName);
+						const result = await pane.showCopilotConnectorDetail(target.connectorName, target.connectorDisplayName);
 						if (result === CopilotConnectorDetailOpenResult.NotFound) {
-							throw new Error(`Copilot connector '${target.connectorName}' is not available`);
+							throw new Error(`Copilot connector '${target.connectorDisplayName ?? target.connectorName}' is not available`);
 						}
 					} else {
 						const sourceId = typeof target === 'string' ? undefined : target?.sourceId;

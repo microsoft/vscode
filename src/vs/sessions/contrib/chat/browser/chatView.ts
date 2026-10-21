@@ -255,6 +255,10 @@ export class ChatView extends AbstractChatView {
 
 	override readonly kind: ChatViewKind = 'chat';
 
+	override get scrollDownButtonDomNode(): HTMLElement {
+		return this._widget.scrollDownButtonDomNode;
+	}
+
 	private readonly _widget: ChatWidget;
 	private readonly _widgetContainer: HTMLElement;
 	private readonly _externalSessionBanner: ExternalSessionBanner;
@@ -689,7 +693,9 @@ export class ChatView extends AbstractChatView {
 			const draftLoaded = isEqual(this._loadedChatResource.read(reader), resource);
 			const failure = this._loadFailure.read(reader);
 			const loadStatus = failure && isEqual(failure.resource, resource) ? failure.status : undefined;
-			this._widget.setReadOnly(interactivity !== ChatInteractivity.Full || loading || modelReadOnly || !!loadStatus, !loadStatus && interactivity !== ChatInteractivity.ReadOnly && !modelReadOnly && (((draftOnly || loading) && draftLoaded) || this.isInputBlocked.read(reader)), loadStatus);
+			const keepInputVisible = !loadStatus && interactivity !== ChatInteractivity.ReadOnly
+				&& (this.isInputBlocked.read(reader) || (!modelReadOnly && (draftOnly || loading) && draftLoaded));
+			this._widget.setReadOnly(interactivity !== ChatInteractivity.Full || loading || modelReadOnly || !!loadStatus, keepInputVisible, loadStatus);
 		});
 
 		// Skip loading if we're already showing this chat

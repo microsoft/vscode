@@ -108,6 +108,7 @@ import { AgentHostLanguageModelProvider } from '../../../browser/agentSessions/a
 import { AgentHostSessionListContribution } from '../../../browser/agentSessions/agentHost/agentHostSessionListContribution.js';
 import { AgentHostSessionListController } from '../../../browser/agentSessions/agentHost/agentHostSessionListController.js';
 import { AgentHostSessionListStore, type IAgentHostSessionListConnection } from '../../../browser/agentSessions/agentHost/agentHostSessionListStore.js';
+import { AgentHostSnapshotController } from '../../../browser/agentSessions/agentHost/agentHostSnapshotController.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { TestChatEntitlementService, TestFileService } from '../../../../../test/common/workbenchTestServices.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
@@ -1088,6 +1089,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	});
 	instantiationService.stub(IChatEditingService, {
 		registerEditingSessionProvider: () => toDisposable(() => { }),
+		createEditingSession: () => upcastPartial<IChatEditingSession>({ entries: constObservable([]), requestDisablement: constObservable([]), dispose: () => { } }),
 	});
 	instantiationService.stub(IChatResponseFileChangesService, {
 		registerProvider: () => toDisposable(() => { }),
@@ -1282,7 +1284,7 @@ function createSessionListController(disposables: DisposableStore, instantiation
 	return disposables.add(instantiationService.createInstance(AgentHostSessionListController, sessionType, provider, sessionListStore, description, 'local'));
 }
 
-function createContribution(disposables: DisposableStore, opts?: { backendSessionScheme?: string; authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>; languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>; configOverrides?: Record<string, unknown>; provider?: string; chatSessionsServiceOverride?: Partial<IChatSessionsService>; chatDebugServiceOverride?: Partial<IChatDebugService>; remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>; customizationServiceOverride?: IAgentHostCustomizationService; agentHostTerminalServiceOverride?: Partial<IAgentHostTerminalService>; languageModelsServiceOverride?: Partial<ILanguageModelsService>; workspaceFolders?: readonly URI[]; hideAutoExplainability?: boolean; pendingTreatment?: Promise<void>; requiresWorkspaceTrust?: boolean }) {
+function createContribution(disposables: DisposableStore, opts?: { backendSessionScheme?: string; authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>; languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>; configOverrides?: Record<string, unknown>; provider?: string; chatSessionsServiceOverride?: Partial<IChatSessionsService>; chatDebugServiceOverride?: Partial<IChatDebugService>; remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>; customizationServiceOverride?: IAgentHostCustomizationService; agentHostTerminalServiceOverride?: Partial<IAgentHostTerminalService>; languageModelsServiceOverride?: Partial<ILanguageModelsService>; workspaceFolders?: readonly URI[]; hideAutoExplainability?: boolean; pendingTreatment?: Promise<void>; requiresWorkspaceTrust?: boolean; retainConsumedSteeringMessages?: boolean }) {
 	const { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, trustController, modelService, workingCopyService, accessibilitySignalCalls } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride, opts?.languageModels, opts?.provisionalServiceOverride, false, opts?.languageModelToolsServiceOverride, opts?.configOverrides, opts?.chatSessionsServiceOverride, opts?.chatDebugServiceOverride, opts?.remoteAgentHostServiceOverride, opts?.customizationServiceOverride, opts?.agentHostTerminalServiceOverride, opts?.languageModelsServiceOverride, opts?.workspaceFolders);
 
 	if (opts?.hideAutoExplainability || opts?.pendingTreatment) {
@@ -1316,6 +1318,7 @@ function createContribution(disposables: DisposableStore, opts?: { backendSessio
 		connection: agentHostService,
 		connectionAuthority: 'local',
 		requiresWorkspaceTrust: opts?.requiresWorkspaceTrust,
+		retainConsumedSteeringMessages: opts?.retainConsumedSteeringMessages,
 		supportsCanvasPresentation: opts?.provider === 'copilotcli',
 		isNewSession: sessionResource => listController.isNewSession(sessionResource),
 		onSessionMaterialized: sessionResource => listController.notifySessionMaterialized(sessionResource),
@@ -10917,6 +10920,31 @@ suite('AgentHostChatContribution', () => {
 
 	suite('history loading', () => {
 
+		test('an ordinary existing session returns an authentication history error without waiting for initial authentication', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const resource = URI.parse('agent-host-copilot:/ordinary-auth-race');
+			const backend = AgentSession.uri('copilot', 'ordinary-auth-race');
+			agentHostService.setAuthenticationPending(true);
+			agentHostService.failNextSubscriptionFor.add(backend.toString());
+			agentHostService.failNextSubscriptionError.set(backend.toString(), new Error('authentication required for https://api.github.com'));
+
+			const session = disposables.add(await sessionHandler.provideChatSessionContent(resource, CancellationToken.None));
+			agentHostService.setAuthenticationPending(false);
+
+			assert.deepStrictEqual({
+				history: session.history,
+				error: session.historyLoadError?.message,
+				authenticationPending: agentHostService.authenticationPending.get(),
+			}, {
+				history: [
+					{ type: 'request', prompt: '', participant: 'agent-host-copilot', isSystemInitiated: true, systemInitiatedLabel: 'Couldn\'t open session' },
+					{ type: 'response', parts: [], participant: 'agent-host-copilot', errorDetails: { message: 'authentication required for https://api.github.com' } },
+				],
+				error: 'authentication required for https://api.github.com',
+				authenticationPending: false,
+			});
+		});
+
 		suite('cloud sandbox promotion', () => {
 			async function createSandbox(options?: { cached?: boolean; peer?: boolean; newSession?: boolean }) {
 				const { instantiationService, agentHostService, chatService } = createTestServices(disposables, {
@@ -11889,18 +11917,16 @@ suite('AgentHostChatContribution', () => {
 		});
 
 		test('Fusion response footers name the Fusion tier they ran as', async () => {
-			const footers = async (balanceUsesHydraFusion: boolean, providerTiers = false) => {
+			const footers = async () => {
 				const languageModels = new Map<string, ILanguageModelChatMetadata>([
 					['agent-host-copilot:auto', upcastPartial<ILanguageModelChatMetadata>({
-						name: 'Fusion', autoModelFusion: { balanceUsesHydraFusion },
+						name: 'Copilot Fusion', autoModelFusion: { balanceUsesHydraFusion: false },
 						configurationSchema: {
 							properties: {
-								tier: providerTiers
-									? { type: 'string', enum: ['balance', 'hydrafusion', 'hydrafusion-max'], enumItemLabels: ['Standard', 'High', 'Max'] }
-									: { type: 'string', enum: ['balance', 'intelligence'], enumItemLabels: ['Standard', 'High'] },
+								tier: { type: 'string', enum: ['balance', 'hydrafusion', 'hydrafusion-max'], enumItemLabels: ['Standard', 'High', 'Max'] },
 							},
 						},
-						...(providerTiers && { autoModelProviderTiers: true }),
+						autoModelProviderTiers: true,
 					})],
 				]);
 				const { sessionHandler, agentHostService } = createContribution(disposables, { languageModels, provider: 'copilotcli' });
@@ -11922,11 +11948,7 @@ suite('AgentHostChatContribution', () => {
 				disposables.add(toDisposable(() => session.dispose()));
 				return session.history.filter(item => item.type === 'response').map(item => item.details);
 			};
-			assert.deepStrictEqual({ routed: await footers(true), notRouted: await footers(false), providerTiers: await footers(false, true) }, {
-				routed: ['Fusion Max • 15.5 credits', 'Fusion High • 15.5 credits'],
-				notRouted: ['Fusion Max • 15.5 credits', 'HydraFusion • 15.5 credits'],
-				providerTiers: ['Fusion Max • 15.5 credits', 'Fusion High • 15.5 credits'],
-			});
+			assert.deepStrictEqual(await footers(), ['Copilot Fusion Max • 15.5 credits', 'Copilot Fusion High • 15.5 credits']);
 		});
 
 		test('history requests get per-turn model selection from usage or message model', async () => {
@@ -12265,7 +12287,7 @@ suite('AgentHostChatContribution', () => {
 		test('completed output-only terminal whose command still runs stays attached after the turn ends and the command exits, until the chat closes', async () => {
 			let attachmentDisposed = false;
 			const onDidChange = disposables.add(new Emitter<void>());
-			const source = { onDidChange: onDidChange.event, output: 'tick 1\n', hasExited: false, exitCode: undefined };
+			const source = { onDidChange: onDidChange.event, output: 'tick 1\n', outputPosition: { generation: 0, start: 0 }, hasExited: false, exitCode: undefined };
 			const { sessionHandler, agentHostService, chatAgentService, instantiationService } = createContribution(disposables, {
 				agentHostTerminalServiceOverride: {
 					attachOutputTerminal: () => toDisposable(() => attachmentDisposed = true),
@@ -17549,14 +17571,109 @@ suite('AgentHostChatContribution', () => {
 	suite('server-initiated turns', () => {
 		function createPendingChatModel(sessionResource: URI, pendingRequests: IChatPendingRequest[]): { model: IChatModel; firePendingRequestsChanged(): void } {
 			const onDidChangePendingRequests = disposables.add(new Emitter<void>());
+			const pendingRequestHandoffs = observableValue<readonly IChatRequestModel[]>('handoffs', []);
 			return {
 				model: upcastPartial<IChatModel>({
 					sessionResource,
+					onDidDispose: Event.None,
+					onDidChange: Event.None,
 					onDidChangePendingRequests: onDidChangePendingRequests.event,
 					getPendingRequests: () => pendingRequests,
+					pendingRequestHandoffs,
+					setPendingRequestHandoffs: requests => pendingRequestHandoffs.set(requests, undefined),
 				}),
 				firePendingRequestsChanged: () => onDidChangePendingRequests.fire(),
 			};
+		}
+
+		async function openSteeringHandoff(retainConsumedSteeringMessages = false, provider = 'copilot') {
+			const services = createContribution(disposables, { retainConsumedSteeringMessages, provider });
+			const { sessionHandler, agentHostService, chatService, instantiationService } = services;
+			const backendSession = AgentSession.uri(provider, 'handoff-scope');
+			const resource = URI.from({ scheme: 'agent-host-copilot', path: '/handoff-scope' });
+			const chat = agentHostService.defaultChatUri = 'ahp-chat:/host-assigned/handoff';
+			const summary = {
+				resource: backendSession.toString(), provider, title: 'Steering', status: SessionStatus.InProgress,
+				createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
+			};
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState(summary), lifecycle: SessionLifecycle.Ready,
+			});
+			agentHostService.chatStates.set(chat, {
+				...createChatState(createDefaultChatSummary(summary, chat)),
+				activeTurn: createActiveTurn('active', { text: 'Working', origin: { kind: MessageKind.User } }, new Date(0).toISOString()),
+			});
+			const session = disposables.add(await sessionHandler.provideChatSessionContent(resource, CancellationToken.None));
+			const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, {
+				initialLocation: ChatAgentLocation.Chat, canUseTools: false, resource, disableBackgroundKeepAlive: true,
+			}));
+			chatService.applyRemotePendingRequests = (_resource, requests) => {
+				model.replacePendingRequests(requests.map(remote => ({
+					request: upcastPartial<IChatRequestModel>({ id: remote.id, message: { text: remote.message, parts: [] } }),
+					kind: remote.kind, sendOptions: {},
+				})));
+			};
+			chatService.setSession(resource, model);
+			const started: string[] = [];
+			disposables.add(session.onDidStartServerRequest!(request => {
+				model.addRequest({ text: request.prompt, parts: [] }, { variables: [] }, 0, undefined, undefined,
+					undefined, undefined, undefined, undefined, undefined, undefined, undefined, request.id);
+				started.push(request.id);
+			}));
+			let serverSeq = 0;
+			const fire = (action: AgentHostChatAction) => agentHostService.fireAction({ channel: chat, action, serverSeq: ++serverSeq, origin: undefined });
+			const steering = { text: 'change direction', origin: { kind: MessageKind.User } };
+			fire({ type: ActionType.ChatPendingMessageSet, kind: PendingMessageKind.Steering, id: 'steer', message: steering });
+			return { ...services, model, fire, steering, started, session };
+		}
+
+		for (const provider of ['copilotcli', 'claude', 'codex', 'custom']) {
+			test(`does not retain steering folded into the current turn by ${provider}`, async () => {
+				const { model, fire, agentHostService } = await openSteeringHandoff(false, provider);
+				fire({ type: ActionType.ChatPendingMessageRemoved, kind: PendingMessageKind.Steering, id: 'steer' });
+				const afterRemoval = model.pendingRequestHandoffs.get();
+				fire({ type: ActionType.ChatResponsePart, turnId: 'active', part: { kind: ResponsePartKind.Markdown, id: 'reply', content: 'Following the steering' } });
+				fire({ type: ActionType.ChatTurnComplete, turnId: 'active', duration: 1 });
+				assert.deepStrictEqual({
+					afterRemoval, afterCompletion: model.pendingRequestHandoffs.get(), pending: model.getPendingRequests(),
+					repeatedSends: agentHostService.dispatchedActions.filter(({ action }) => action.type === ActionType.ChatPendingMessageSet),
+				}, { afterRemoval: [], afterCompletion: [], pending: [], repeatedSends: [] });
+			});
+		}
+
+		for (const ordering of ['remove-first', 'complete-first', 'atomic'] as const) {
+			test(`sandbox handoff reaches the actual model without resending (${ordering})`, async () => {
+				const { model, fire, steering, started, agentHostService } = await openSteeringHandoff(true);
+				if (ordering === 'complete-first') {
+					fire({ type: ActionType.ChatTurnComplete, turnId: 'active', duration: 1 });
+				}
+				if (ordering !== 'atomic') {
+					fire({ type: ActionType.ChatPendingMessageRemoved, kind: PendingMessageKind.Steering, id: 'steer' });
+				}
+				const retained = model.pendingRequestHandoffs.get().map(request => request.id);
+				fire({
+					type: ActionType.ChatTurnStarted, turnId: 'host-turn', message: steering, startedAt: new Date(0).toISOString(),
+					...(ordering === 'atomic' ? { queuedMessageId: 'steer' } : {})
+				});
+				assert.deepStrictEqual({
+					retained, handoffs: model.pendingRequestHandoffs.get(), pending: model.getPendingRequests(),
+					started, requests: model.getRequests().map(request => request.id),
+					repeatedSends: agentHostService.dispatchedActions.filter(({ action }) => action.type === ActionType.ChatPendingMessageSet),
+				}, { retained: ordering === 'atomic' ? [] : ['steer'], handoffs: [], pending: [], started: ['host-turn'], requests: ['host-turn'], repeatedSends: [] });
+			});
+		}
+
+		for (const completeFirst of [false, true]) {
+			test(`Stop retires sandbox handoff without waiting for a server echo (completed=${completeFirst})`, async () => {
+				const { model, fire, session } = await openSteeringHandoff(true);
+				fire({ type: ActionType.ChatPendingMessageRemoved, kind: PendingMessageKind.Steering, id: 'steer' });
+				if (completeFirst) {
+					fire({ type: ActionType.ChatTurnComplete, turnId: 'active', duration: 1 });
+				}
+				const beforeStop = model.pendingRequestHandoffs.get().map(request => request.id);
+				await session.interruptActiveResponseCallback!();
+				assert.deepStrictEqual({ beforeStop, afterStop: model.pendingRequestHandoffs.get() }, { beforeStop: ['steer'], afterStop: [] });
+			});
 		}
 
 		test('passively refreshed history reaches the open contributed session', async () => {
@@ -18048,7 +18165,7 @@ suite('AgentHostChatContribution', () => {
 
 		for (const legacyId of ['legacy', 'b']) {
 			test(`restores steering lists from an opaque advertised chat without host metadata (legacy=${legacyId})`, async () => {
-				const { sessionHandler, agentHostService, chatService } = createContribution(disposables);
+				const { sessionHandler, agentHostService, chatService } = createContribution(disposables, { retainConsumedSteeringMessages: true });
 				agentHostService.setInitializeResult({ _meta: undefined });
 				const backendSession = AgentSession.uri('copilot', 'restored-steering-list');
 				const chatUri = agentHostService.defaultChatUri = 'ahp-chat:/host-selected/steering-list';
@@ -18061,6 +18178,7 @@ suite('AgentHostChatContribution', () => {
 				agentHostService.sessionStates.set(backendSession.toString(), { ...createSessionState(summary), lifecycle: SessionLifecycle.Ready });
 				agentHostService.chatStates.set(chatUri, {
 					...createChatState(createDefaultChatSummary(summary, chatUri)),
+					activeTurn: createActiveTurn('active', { text: 'Working', origin: { kind: MessageKind.User } }, new Date(0).toISOString()),
 					steeringMessage: message(legacyId),
 					queuedMessages: [
 						message('queued'),
@@ -18089,6 +18207,8 @@ suite('AgentHostChatContribution', () => {
 					serverSeq: 1, origin: undefined,
 				});
 				const afterConsumption = pending.map(request => request.request.id);
+				const handoffAfterConsumption = chatModel.model.pendingRequestHandoffs.get().map(request => request.id);
+				chatModel.firePendingRequestsChanged();
 				agentHostService.fireAction({
 					channel: chatUri,
 					action: { type: ActionType.ChatPendingMessageSet, kind: PendingMessageKind.Steering, ...message('c') },
@@ -18103,6 +18223,7 @@ suite('AgentHostChatContribution', () => {
 				assert.deepStrictEqual({
 					restored,
 					afterConsumption,
+					handoffAfterConsumption,
 					afterAnotherSteer,
 					afterMirrorRemoval: pending.map(request => request.request.id),
 					echoed: agentHostService.dispatchedActions.filter(({ action }) =>
@@ -18110,6 +18231,7 @@ suite('AgentHostChatContribution', () => {
 				}, {
 					restored: legacyId === 'legacy' ? ['legacy', 'a', 'b', 'queued'] : ['a', 'b', 'queued'],
 					afterConsumption: legacyId === 'legacy' ? ['legacy', 'b', 'queued'] : ['b', 'queued'],
+					handoffAfterConsumption: ['a'],
 					afterAnotherSteer: ['b', 'c', 'queued'],
 					afterMirrorRemoval: ['b', 'queued'],
 					echoed: [],
@@ -18609,6 +18731,7 @@ suite('AgentHostChatContribution', () => {
 				onDidChangePendingRequests: Event.None,
 				getPendingRequests: () => [],
 				getRequests: () => [upcastPartial<IChatRequestModel>({ id: serverTurnId, response })],
+				startEditingSession: () => { },
 			}));
 
 			agentHostService.fireAction({
@@ -18692,6 +18815,35 @@ suite('AgentHostChatContribution', () => {
 				isComplete: false,
 				markdown: ['new response'],
 			});
+		}));
+
+		test('a server-initiated steering request is undone with the checkpoint it follows', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService, chatService } = createContribution(disposables);
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-steered-checkpoint' });
+			const controller = disposables.add(new AgentHostSnapshotController(sessionResource, 'local', undefined, new NullLogService(), disposables.add(new TestFileService())));
+			chatService.setSession(sessionResource, upcastPartial<IChatModel>({
+				sessionResource,
+				editingSession: controller,
+				getRequests: () => [],
+				onDidChangePendingRequests: Event.None,
+				getPendingRequests: () => [],
+			}));
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
+			const steeringTurnId = 'server-steering-turn';
+			agentHostService.fireAction({
+				channel: session!,
+				action: { type: 'chat/turnStarted', startedAt: '2025-01-01T00:00:00.000Z', session, turnId: steeringTurnId, message: { text: 'Steering', origin: { kind: MessageKind.User } } } as ChatAction,
+				serverSeq: 3,
+				origin: undefined,
+			});
+			await timeout(10);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId: steeringTurnId } as ChatAction);
+			await turnPromise;
+
+			// Start Over restores the checkpoint before the first request.
+			await controller.restoreSnapshot(turnId!, undefined);
+
+			assert.deepStrictEqual(controller.requestDisablement.get().map(disablement => disablement.requestId), [turnId, steeringTurnId]);
 		}));
 
 		test('stale client completion does not complete a server-initiated steering response', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

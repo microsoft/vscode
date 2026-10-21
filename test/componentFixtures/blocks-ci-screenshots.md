@@ -103,13 +103,13 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/a92e0c554f09d1e7d3b864d0b1cd5c70c057b2acbe4fb67daadeba0cb8351eb8)
 
 #### sessions/chat/newWidget/newChatWidget/ConnectorRecommendations/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/8e48750743f6859f03cdb5201c2fd0b52a0b130c4e147bdc00f1d7f335c2c4f4)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/2c7bdd5be84d32e0b3bc7daeafc769044cfeeb79bf5fee43d7c82744cdc7df71)
 
 #### sessions/chat/newWidget/newChatWidget/ConnectorRecommendationsPhoneWithNotices/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/c2b81e0723faa35cce6d96c8a2de77e49cdc99e449e248c8b6026fd65e60f0ed)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/0f5932d21d6ea7913cdda9d7c72bcf9bc983765a68ebeb6987916d0e91aa9175)
 
 #### sessions/chat/newWidget/newChatWidget/ConnectorRecommendationsWithNotices/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/2ddfeb79b2f0ca91826c2132be5e1c965e6830278be81b6dcf2d4a62be6e0bcb)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/a948352d01a47298eca294adb82e2d80b6862252aae2287e1842d5b17ece45e3)
 
 #### sessions/chat/newWidget/newChatWidget/MigrationsBackground/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/d117e1148e7fc460f84e909e263cd27c60051a6a13e00cff72295484ef5f0440)
@@ -136,7 +136,7 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/4b05abe9f3cd5edd1af987628b73d59c80418d02ecf0d68fb943e9a5f4690eeb)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionPhoneExperimentalComposer/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/277cef0f7c1097d1aca0f2207ed62866ee6814728c93d6c6e69357dd66bd1bcc)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/e4d58fa48aa5774fc7ee8b204be606bd6e81709da310a415e2a3f8d70992b121)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionPhoneSettingsDisabled/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/70b8b515b79c73019a2efc31491532c9af089d3d9fa6736ab20eb222a352691a)

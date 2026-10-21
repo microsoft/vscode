@@ -188,6 +188,7 @@ interface IAutomationsFixtureOptions {
 	readonly pluginTemplate?: boolean;
 	readonly showDropTarget?: boolean;
 	readonly cloud?: boolean;
+	readonly repositoryOnly?: boolean;
 	readonly nativeCloud?: boolean;
 	readonly followUp?: boolean;
 	readonly historyState?: AutomationCatalogueState;
@@ -207,6 +208,11 @@ export default defineThemedFixtureGroup({ path: 'sessions/automations/' }, {
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast'],
 		render: ctx => renderAutomations(ctx, { width: 1000, height: 720, populated: true }),
+	}),
+	RepositoryOnly: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast'],
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 720, populated: true, repositoryOnly: true }),
 	}),
 	Empty: defineComponentFixture({
 		labels: { kind: 'screenshot' },
@@ -300,7 +306,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/automations/' }, {
 });
 
 function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFixtureOptions): void {
-	const data = options.cloud ? createCloudData() : options.populated ? createPopulatedData() : { automations: [], runs: [] };
+	const data = options.repositoryOnly ? createRepositoryOnlyData() : options.cloud ? createCloudData() : options.populated ? createPopulatedData() : { automations: [], runs: [] };
 	const configurationService = new TestConfigurationService({
 		chat: { automations: { enabled: true } },
 	});
@@ -437,6 +443,17 @@ function createCloudData(): IAutomationsFixtureData {
 		...(status === 'failed' ? { errorMessage: 'Cancelled' } : {}),
 	}));
 	return { automations, runs };
+}
+
+function createRepositoryOnlyData(): IAutomationsFixtureData {
+	return {
+		automations: createPopulatedData().automations.slice(0, 2).map(automation => ({
+			...automation,
+			ownership: 'repository',
+			targetDisplay: { label: 'example/private-project', icon: Codicon.cloud },
+		})),
+		runs: [],
+	};
 }
 
 function createPopulatedData(): IAutomationsFixtureData {

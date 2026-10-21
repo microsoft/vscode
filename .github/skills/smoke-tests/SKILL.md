@@ -43,7 +43,7 @@ The runner exits non-zero if any test fails, so a `0` exit code means every sele
 
 ### Sharding in PR CI
 
-The GitHub PR workflows split the Electron smoke tests with a matrix (`shard: [1, 2]`) on the `<os>-electron-smoke-test-shards` jobs in `.github/workflows/pr.yml`, which pass `--shard` to the runner. They report as `<OS> (shard 1/2) / Electron-Smoke` and `<OS> (shard 2/2) / Electron-Smoke`. A matrix gate job, `electron-smoke-checks`, reports the required `<OS> / Electron-Smoke` checks and fails a platform's check if any of its shards did not succeed. To change the shard count, edit the matrix list. Near the top of each shard's `smoke-test-runner.log`, a `Running smoke test shard <index>/<total>` line lists the suites that shard ran.
+The GitHub PR workflows split the Electron smoke tests with a matrix (`shard: [1, 2]`) on the `<os>-electron-smoke-test-shards` jobs in `.github/workflows/pr.yml`, which pass `--shard` to the runner. They report as `<OS> (shard 1/2) / Electron-Smoke` and `<OS> (shard 2/2) / Electron-Smoke`. A gate job, `required-checks`, reports the required `<OS> / Electron-Smoke` checks and fails a platform's check if any of its shards did not succeed. The shards are skipped, and the check passes, when the pull request only changes paths the smoke tests cannot read (see `.github/actions/detect-changes/detect.ts`). To change the shard count, edit the matrix list. Near the top of each shard's `smoke-test-runner.log`, a `Running smoke test shard <index>/<total>` line lists the suites that shard ran.
 
 Some placement is coupled to the workflows, and `test/smoke/src/shard.ts` encodes it:
 

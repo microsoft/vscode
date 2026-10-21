@@ -333,6 +333,8 @@ suite('SessionInputBannerWidget', () => {
 				dropdownActions: [
 					{ label: 'Fix Checks', primary: true, run() { } },
 					{ label: 'Address Comments', primary: true, run() { } },
+					{ label: 'Reveal Checks', run() { } },
+					{ label: 'Reveal Comments', run() { } },
 				],
 				run() { },
 			}],
@@ -348,7 +350,7 @@ suite('SessionInputBannerWidget', () => {
 		}, {
 			splitButtonCount: 1,
 			primaryLabels: ['Fix Checks & Address Comments'],
-			dropdownLabels: ['Fix Checks', 'Address Comments'],
+			dropdownLabels: ['Fix Checks', 'Address Comments', 'Reveal Checks', 'Reveal Comments'],
 		});
 	});
 });

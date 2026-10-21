@@ -1566,22 +1566,8 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		});
 	});
 
-	test('settings filter includes defaults, approvals, risk assessment, and sandbox controls', () => {
-		assert.deepStrictEqual(AGENT_HOST_PERMISSIONS_SETTINGS_QUERY.slice('@id:'.length).split(','), [
-			'chat.defaultConfiguration',
-			'chat.permissions.default',
-			'chat.tools.global.autoApprove',
-			'chat.tools.edits.autoApprove',
-			'chat.tools.urls.autoApprove',
-			'chat.tools.eligibleForAutoApproval',
-			'chat.tools.riskAssessment.*',
-			'chat.tools.terminal.enableAutoApprove',
-			'chat.tools.terminal.autoApprove',
-			'chat.tools.terminal.autoApproveWorkspaceNpmScripts',
-			'chat.tools.terminal.ignoreDefaultAutoApproveRules',
-			'chat.tools.terminal.blockDetectedFileWrites',
-			'chat.agent.sandbox.*',
-		]);
+	test('settings filter uses the chat permissions tag', () => {
+		assert.strictEqual(AGENT_HOST_PERMISSIONS_SETTINGS_QUERY, '@tag:chatPermissions');
 	});
 
 	test('gate only combines usable Copilot schemas', () => {

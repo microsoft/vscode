@@ -438,7 +438,7 @@ suite('ModelPickerActionItem', () => {
 		const fusion: ILanguageModelChatMetadataAndIdentifier = {
 			...auto,
 			metadata: {
-				...auto.metadata, name: 'Fusion', autoModelFusion: { balanceUsesHydraFusion: false }, autoModelProviderTiers: true,
+				...auto.metadata, name: 'Copilot Fusion', autoModelFusion: { balanceUsesHydraFusion: false }, autoModelProviderTiers: true,
 				configurationSchema: { properties: { tier: { type: 'string', group: 'navigation', title: 'Effort Level', enum: ['balance', 'hydrafusion', 'hydrafusion-max'], enumItemLabels: ['Standard', 'High', 'Max'], default: 'balance' } } },
 			},
 		};
@@ -449,8 +449,8 @@ suite('ModelPickerActionItem', () => {
 			label: domNode.querySelector('.chat-input-picker-label')?.textContent,
 			hover: getHoverContents(),
 		}, {
-			label: 'Fusion',
-			hover: 'Models • Fusion Max',
+			label: 'Copilot Fusion',
+			hover: 'Models • Copilot Fusion Max',
 		});
 	});
 

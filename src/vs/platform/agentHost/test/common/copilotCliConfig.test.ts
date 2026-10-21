@@ -12,6 +12,19 @@ suite('copilotCliConfig', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('image watermark is an independent default-off preference', () => {
+		const watermark = copilotCliConfigSchema.toProtocol().properties.imageGenerationWatermark;
+		assert.deepStrictEqual({
+			type: watermark?.type,
+			default: watermark?.default,
+			title: watermark?.title,
+		}, {
+			type: 'boolean',
+			default: false,
+			title: 'Image Watermark',
+		});
+	});
+
 	test('normalizeModelFamilyAlias accepts plausible model ids and rejects non-ids', () => {
 		assert.deepStrictEqual(
 			['claude-opus-4.8', 'openai/gpt-5', '', ' padded ', 'has\u0000nul', 'x'.repeat(129)].map(normalizeModelFamilyAlias),
