@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { constObservable } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { SessionOptionsRow } from '../../browser/sessionOptionsRow.js';
@@ -52,5 +52,33 @@ suite('Sessions - SessionOptionsRow', () => {
 			tab: ['folder', 'isolation', 'branch', 'Hide Session Options'],
 			arrow: ['folder', 'isolation', 'branch', 'Hide Session Options', 'folder'],
 		});
+	});
+
+	test('focus moves to the primary picker, not the hidden toggle, when the options go away', () => {
+		const document = mainWindow.document;
+		const container = document.body.appendChild(document.createElement('div'));
+		store.add(toDisposable(() => container.remove()));
+		const row = container.appendChild(document.createElement('div'));
+		const folder = row.appendChild(document.createElement('a'));
+		folder.tabIndex = 0;
+		folder.role = 'button';
+		folder.setAttribute('aria-label', 'folder');
+		const hasDetails = observableValue('hasDetails', true);
+		const sessionOptionsRow = store.add(new SessionOptionsRow(row, container, {
+			user: 'test',
+			useExperimentalLayout: constObservable(true),
+			screenReaderOptimized: constObservable(false),
+			expanded: constObservable(true),
+			collapsedShowIcons: constObservable(true),
+			hasDetails,
+			setExpanded: () => { },
+		}));
+		const isolation = sessionOptionsRow.repositoryControlsHost.appendChild(document.createElement('a'));
+		isolation.tabIndex = 0;
+		isolation.role = 'button';
+		isolation.focus();
+		hasDetails.set(false, undefined);
+
+		assert.deepStrictEqual({ focused: document.activeElement?.getAttribute('aria-label'), toggleHidden: sessionOptionsRow.toggle.element.hidden }, { focused: 'folder', toggleHidden: true });
 	});
 });

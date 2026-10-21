@@ -79,10 +79,8 @@ export class SessionOptionsRow extends Disposable {
 		toggle.element.classList.add('new-chat-session-options-toggle');
 		toggle.element.setAttribute('aria-controls', sessionOptions.id);
 		this._register(toggle.onDidClick(() => options.setExpanded(!options.expanded.get())));
-		this._register(dom.addDisposableListener(row, dom.EventType.KEY_DOWN, event => {
-			if (!options.useExperimentalLayout.get() || event.altKey || event.ctrlKey || event.metaKey || !['Tab', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
-				return;
-			}
+		/** The row's enabled, visible picker and toggle buttons, in order. */
+		const getRowControls = (): HTMLElement[] => {
 			const controls: HTMLElement[] = [];
 			const walker = row.ownerDocument.createTreeWalker(row, NodeFilter.SHOW_ELEMENT);
 			for (let node = walker.nextNode(); node; node = walker.nextNode()) {
@@ -93,6 +91,13 @@ export class SessionOptionsRow extends Disposable {
 					controls.push(node);
 				}
 			}
+			return controls;
+		};
+		this._register(dom.addDisposableListener(row, dom.EventType.KEY_DOWN, event => {
+			if (!options.useExperimentalLayout.get() || event.altKey || event.ctrlKey || event.metaKey || !['Tab', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
+				return;
+			}
+			const controls = getRowControls();
 			const activeElement = dom.getActiveElement();
 			const index = controls.findIndex(control => control === activeElement);
 			if (index < 0) {
@@ -136,7 +141,12 @@ export class SessionOptionsRow extends Disposable {
 			sessionOptions.classList.toggle('collapsed-icon-rail', iconRail);
 			toggle.element.hidden = !disclosureAvailable;
 			if (!showDetails && sessionOptions.contains(dom.getActiveElement())) {
-				toggle.focus();
+				if (!toggle.element.hidden) {
+					toggle.focus();
+				} else {
+					// No toggle to land on (the options went away entirely): the nearest primary picker instead.
+					getRowControls().reverse().find(control => !sessionOptions.contains(control) && control !== toggle.element)?.focus();
+				}
 			}
 			sessionOptions.inert = !showDetails;
 			sessionOptions.hidden = !showDetails;
