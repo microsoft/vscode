@@ -131,6 +131,51 @@ export interface WorktreeSessionEntry {
 	readonly created: number;
 }
 
+/** SDK client name the VS Code extension host passes when it creates or resumes a Copilot CLI session. */
+export const VSCODE_COPILOT_CLI_CLIENT_NAME = 'vscode';
+
+/**
+ * On-disk evidence of which client created a Copilot CLI session.
+ */
+export interface ICopilotCLISessionProvenanceEvidence {
+	/** Contents of the session's `vscode.metadata.json`, if any. */
+	readonly marker: Pick<ChatSessionMetadataFile, 'origin' | 'repositoryProperties' | 'worktreeProperties' | 'workspaceFolder'> | undefined;
+	/** SDK `client_name` of the runtime that created or last resumed the session. */
+	readonly clientName: string | undefined;
+	/** Whether the session's `vscode.requests.metadata.json`, written when VS Code sends a request, exists. */
+	readonly hasRequestsFile: boolean;
+}
+
+/**
+ * Whether a Copilot CLI session was created by VS Code. Any positive evidence wins:
+ * the `vscode` SDK client name (used only by the extension host), the request
+ * sidecar, or a marker with `origin: 'vscode'`. Origin-less markers from older
+ * builds count when they carry VS Code workspace properties.
+ *
+ * A stored `origin: 'other'` does not override positive evidence: earlier builds
+ * wrote it whenever they read a session without a marker, including sessions
+ * VS Code had just created.
+ *
+ * Keep in sync with `isExtensionHostCliSession` in the agent host
+ * (`src/vs/platform/agentHost/node/copilot/copilotAgent.ts`); both test suites
+ * share the same table of vectors.
+ */
+export function isVSCodeCopilotCLISession(evidence: ICopilotCLISessionProvenanceEvidence): boolean {
+	if (evidence.clientName === VSCODE_COPILOT_CLI_CLIENT_NAME || evidence.hasRequestsFile) {
+		return true;
+	}
+	const marker = evidence.marker;
+	if (!marker) {
+		return false;
+	}
+	if (marker.origin !== undefined) {
+		return marker.origin === 'vscode';
+	}
+	return marker.repositoryProperties !== undefined
+		|| marker.worktreeProperties !== undefined
+		|| marker.workspaceFolder !== undefined;
+}
+
 export const IChatSessionMetadataStore = createServiceIdentifier<IChatSessionMetadataStore>('IChatSessionMetadataStore');
 
 export interface IChatSessionMetadataStore {
@@ -159,7 +204,11 @@ export interface IChatSessionMetadataStore {
 	 */
 	storeForkedSessionMetadata(sourceSessionId: string, targetSessionId: string, customTitle: string): Promise<void>;
 	setSessionOrigin(sessionId: string): Promise<void>;
-	getSessionOrigin(sessionId: string): Promise<'vscode' | 'other'>;
+	/**
+	 * Whether VS Code created the session, per {@link isVSCodeCopilotCLISession}.
+	 * @param clientName The session's SDK client name, when the caller knows it.
+	 */
+	getSessionOrigin(sessionId: string, clientName?: string): Promise<'vscode' | 'other'>;
 	setSessionParentId(sessionId: string, parentSessionId: string): Promise<void>;
 	/**
 	 * Returns the parent lineage info for a session, distinguishing forked sessions

@@ -18,7 +18,7 @@ import { CancellationTokenSource } from '../../../../util/vs/base/common/cancell
 import { Disposable, DisposableMap, toDisposable } from '../../../../util/vs/base/common/lifecycle';
 import { generateUuid } from '../../../../util/vs/base/common/uuid';
 import { dirname } from '../../../../util/vs/base/common/resources';
-import { ChatSessionMetadataFile, IChatSessionMetadataStore, RepositoryProperties, RequestDetails, WorkspaceFolderEntry } from '../../common/chatSessionMetadataStore';
+import { ChatSessionMetadataFile, IChatSessionMetadataStore, isVSCodeCopilotCLISession, RepositoryProperties, RequestDetails, WorkspaceFolderEntry } from '../../common/chatSessionMetadataStore';
 import { ChatSessionWorktreeData, ChatSessionWorktreeProperties } from '../../common/chatSessionWorktreeService';
 import { isUntitledSessionId } from '../../common/utils';
 import { IWorkspaceInfo } from '../../common/workspaceInfo';
@@ -447,20 +447,26 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 		await this.updateMetadataFields(sessionId, { origin: 'vscode' });
 	}
 
-	public async getSessionOrigin(sessionId: string): Promise<'vscode' | 'other'> {
-		const metadata = await this.getSessionMetadata(sessionId, false);
-		if (!metadata || Object.keys(metadata).length === 0) {
-			// We always store some metadata
-			return 'other';
+	public async getSessionOrigin(sessionId: string, clientName?: string): Promise<'vscode' | 'other'> {
+		const marker = await this.getSessionMetadata(sessionId);
+		const isVSCode = (hasRequestsFile: boolean) => isVSCodeCopilotCLISession({ marker, clientName, hasRequestsFile });
+		// Probe the request sidecar only when the marker and client name are inconclusive.
+		return isVSCode(false) || isVSCode(await this.hasRequestDetailsFile(sessionId)) ? 'vscode' : 'other';
+	}
+
+	private async hasRequestDetailsFile(sessionId: string): Promise<boolean> {
+		if (isUntitledSessionId(sessionId)) {
+			return false;
 		}
-		if (metadata.origin) {
-			return metadata.origin;
+		if (this._requestDetailsCache.has(sessionId)) {
+			return true;
 		}
-		// Older sessions, guess.
-		if (metadata?.repositoryProperties || metadata?.worktreeProperties || metadata?.workspaceFolder) {
-			return 'vscode';
+		try {
+			const stat = await this.fileSystemService.stat(this.getRequestMappingFileUri(sessionId));
+			return (stat.type & FileType.File) !== 0;
+		} catch {
+			return false;
 		}
-		return 'other';
 	}
 
 	public async setSessionParentId(sessionId: string, parentSessionId: string): Promise<void> {
@@ -469,7 +475,7 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 	}
 
 	public async getSessionParentId(sessionId: string): Promise<{ parentSessionId: string; kind: 'forked' | 'sub-session' } | undefined> {
-		const metadata = await this.getSessionMetadata(sessionId, false);
+		const metadata = await this.getSessionMetadata(sessionId);
 		if (!metadata?.parentSessionId || !metadata.kind) {
 			return undefined;
 		}
@@ -482,11 +488,17 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 	}
 
 	public async getSessionArchived(sessionId: string): Promise<boolean> {
-		const metadata = await this.getSessionMetadata(sessionId, false);
+		const metadata = await this.getSessionMetadata(sessionId);
 		return metadata?.archived === true;
 	}
 
-	private async getSessionMetadata(sessionId: string, createMetadataFileIfNotFound = true): Promise<ChatSessionMetadataFile | undefined> {
+	/**
+	 * Reads a session's metadata from the cache or its per-session file. Reads never
+	 * write: a missing file is only remembered in memory, so reading a session (e.g.
+	 * while listing) cannot stamp it with a provenance, or race the origin written
+	 * when VS Code creates it.
+	 */
+	private async getSessionMetadata(sessionId: string): Promise<ChatSessionMetadataFile | undefined> {
 		if (isUntitledSessionId(sessionId)) {
 			return undefined;
 		}
@@ -497,19 +509,7 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 		if (sessionId in this._cache) {
 			return this._cache[sessionId];
 		}
-
-		const metadata = await this.readSessionMetadataFile(sessionId);
-		if (metadata) {
-			return metadata;
-		}
-
-		// So we don't try again.
-		this._cache[sessionId] = {};
-		if (createMetadataFileIfNotFound) {
-			await this.updateSessionMetadata(sessionId, { origin: 'other' });
-			this.updateGlobalStorage();
-		}
-		return undefined;
+		return this.readSessionMetadataFile(sessionId);
 	}
 
 	/** Reads a per-session metadata file directly. Returns `undefined` if it doesn't exist or is invalid. */
@@ -524,15 +524,16 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 					this._updateFolderIndex(sessionId, metadata);
 					return metadata;
 				}
-
-				// So we don't try again.
-				this._cache[sessionId] = {};
-				return undefined;
 			} catch {
-				// So we don't try again.
-				this._cache[sessionId] = {};
-				return undefined;
+				// Missing or unreadable.
 			}
+			if (sessionId in this._cache) {
+				// A write raced this read; keep the metadata it cached.
+				return this._cache[sessionId];
+			}
+			// So we don't try again.
+			this._cache[sessionId] = {};
+			return undefined;
 		});
 	}
 
@@ -1079,10 +1080,10 @@ function isFileNotFoundError(error: unknown): boolean {
 
 /**
  * Whether a bulk metadata entry describes a session created by VS Code and is
- * safe to backfill. Mirrors `getSessionOrigin` (and the agent host's legacy
- * marker check): an explicit `origin` wins, and origin-less entries (written
- * before `origin` existed) count only when they carry VS Code-specific
- * workspace properties.
+ * safe to backfill. Mirrors the marker evidence of `isVSCodeCopilotCLISession`
+ * (and the agent host's legacy marker check): an explicit `origin` wins, and
+ * origin-less entries (written before `origin` existed) count only when they
+ * carry VS Code-specific workspace properties.
  */
 function isBackfillableSessionMetadata(sessionId: string, entry: ChatSessionMetadataFile | undefined): entry is ChatSessionMetadataFile {
 	if (!SAFE_SESSION_ID.test(sessionId) || sessionId === '.' || sessionId === '..' || isUntitledSessionId(sessionId)) {

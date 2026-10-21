@@ -18,6 +18,7 @@ import { TelemetryEventMeasurements, TelemetryEventProperties } from '../../../.
 import { mock } from '../../../../../util/common/test/simpleMock';
 import { Emitter } from '../../../../../util/vs/base/common/event';
 import { URI } from '../../../../../util/vs/base/common/uri';
+import { isVSCodeCopilotCLISession } from '../../../common/chatSessionMetadataStore';
 import { ChatSessionWorktreeProperties } from '../../../common/chatSessionWorktreeService';
 import { IWorkspaceInfo } from '../../../common/workspaceInfo';
 import { getCopilotCLISessionDir } from '../../../copilotcli/node/cliHelpers';
@@ -167,6 +168,26 @@ function makeWorktreeV2Props(overrides?: Partial<ChatSessionWorktreeProperties>)
 		...overrides,
 	} as ChatSessionWorktreeProperties;
 }
+
+/**
+ * Copilot CLI session provenance vectors: `vscode` is whether VS Code created the
+ * session. Keep identical to the agent host's copy in
+ * `src/vs/platform/agentHost/test/node/copilotAgent.test.ts`.
+ */
+const copilotCliProvenanceVectors: readonly { readonly name: string; readonly marker: { readonly origin?: 'vscode' | 'other'; readonly customTitle?: string; readonly workspaceFolder?: { readonly folderPath: string; readonly timestamp: number } } | undefined; readonly clientName: string | undefined; readonly requestsFile: boolean; readonly vscode: boolean }[] = [
+	{ name: 'origin vscode', marker: { origin: 'vscode' }, clientName: undefined, requestsFile: false, vscode: true },
+	{ name: 'origin vscode, resumed in the CLI', marker: { origin: 'vscode' }, clientName: 'github/cli', requestsFile: false, vscode: true },
+	{ name: 'origin other, client vscode (recovered)', marker: { origin: 'other' }, clientName: 'vscode', requestsFile: false, vscode: true },
+	{ name: 'no marker, client vscode (recovered)', marker: undefined, clientName: 'vscode', requestsFile: false, vscode: true },
+	{ name: 'no origin, folder info', marker: { workspaceFolder: { folderPath: '/workspace', timestamp: 1 } }, clientName: undefined, requestsFile: false, vscode: true },
+	{ name: 'no origin, no folder info, client vscode (recovered)', marker: { customTitle: 'Legacy' }, clientName: 'vscode', requestsFile: false, vscode: true },
+	{ name: 'origin other, requests file, no client (recovered)', marker: { origin: 'other' }, clientName: undefined, requestsFile: true, vscode: true },
+	{ name: 'origin other, requests file, resumed in the CLI (recovered)', marker: { origin: 'other' }, clientName: 'github/cli', requestsFile: true, vscode: true },
+	{ name: 'origin other, client github/cli (external)', marker: { origin: 'other' }, clientName: 'github/cli', requestsFile: false, vscode: false },
+	{ name: 'no marker, client github/cli (external)', marker: undefined, clientName: 'github/cli', requestsFile: false, vscode: false },
+	{ name: 'no marker, no client, no requests file (unknown)', marker: undefined, clientName: undefined, requestsFile: false, vscode: false },
+	{ name: 'no marker, client vscode-agent-host (agent host owned)', marker: undefined, clientName: 'vscode-agent-host', requestsFile: false, vscode: false },
+];
 
 
 class MockFileSystemServiceWithMotification extends MockFileSystemService {
@@ -550,21 +571,77 @@ describe('ChatSessionMetadataStore', () => {
 			store.dispose();
 		});
 
-		it('should write empty metadata file when per-session file read fails', async () => {
+		it('does not write a metadata file when reading a session without one', async () => {
 			mockFs.mockFile(BULK_METADATA_FILE, JSON.stringify({}));
+			await mockFs.createDirectory(sessionDirectoryUri('session-no-file'));
 			// No per-session file → read will fail
 
 			const store = await createStore();
+			const writeSpy = vi.spyOn(mockFs, 'writeFile');
 			await store.getSessionWorkspaceFolder('session-no-file');
+			await store.getCustomTitle('session-no-file');
+			await vi.advanceTimersByTimeAsync(5_000);
 
-			// Wait for writes to settle
-			await vi.advanceTimersByTimeAsync(0);
+			// Reads must not stamp a provenance: the session may have been created by VS Code.
+			const perSessionWrites = writeSpy.mock.calls.filter(c => c[0].toString().includes('session-no-file'));
+			expect({ perSessionWrites, origin: await store.getSessionOrigin('session-no-file') }).toEqual({ perSessionWrites: [], origin: 'other' });
+			store.dispose();
+		});
 
-			// Verify empty file was written
-			const fileUri = sessionMetadataFileUri('session-no-file');
-			const rawContent = await mockFs.readFile(fileUri);
-			const written = JSON.parse(new TextDecoder().decode(rawContent));
-			expect(written).toEqual(expect.objectContaining({ origin: 'other' }));
+		it('does not let a read racing session creation mark the session as external', async () => {
+			mockFs.mockFile(BULK_METADATA_FILE, JSON.stringify({}));
+			await mockFs.createDirectory(sessionDirectoryUri('new-session'));
+			const store = await createStore();
+
+			await Promise.all([
+				store.setSessionOrigin('new-session'),
+				store.getCustomTitle('new-session'),
+			]);
+			await vi.advanceTimersByTimeAsync(5_000);
+
+			const written = JSON.parse(new TextDecoder().decode(await mockFs.readFile(sessionMetadataFileUri('new-session'))));
+			expect({ writtenOrigin: written.origin, origin: await store.getSessionOrigin('new-session') }).toEqual({ writtenOrigin: 'vscode', origin: 'vscode' });
+			store.dispose();
+		});
+	});
+
+	// ──────────────────────────────────────────────────────────────────────────
+	// getSessionOrigin — provenance evidence
+	// ──────────────────────────────────────────────────────────────────────────
+	describe('getSessionOrigin - provenance evidence', () => {
+		it('classifies the shared provenance vectors', () => {
+			expect(copilotCliProvenanceVectors.map(({ name, marker, clientName, requestsFile }) => ({ name, vscode: isVSCodeCopilotCLISession({ marker, clientName, hasRequestsFile: requestsFile }) })))
+				.toEqual(copilotCliProvenanceVectors.map(({ name, vscode }) => ({ name, vscode })));
+		});
+
+		it('reads the marker and request sidecar for the shared provenance vectors', async () => {
+			mockFs.mockFile(BULK_METADATA_FILE, JSON.stringify({}));
+			for (const [index, { marker, requestsFile }] of copilotCliProvenanceVectors.entries()) {
+				if (marker) {
+					mockFs.mockFile(sessionMetadataFileUri(`provenance-${index}`), JSON.stringify(marker));
+				}
+				if (requestsFile) {
+					mockFs.mockFile(sessionRequestMetadataFileUri(`provenance-${index}`), '[]');
+				}
+			}
+			const store = await createStore();
+
+			const origins = [];
+			for (const [index, { name, clientName }] of copilotCliProvenanceVectors.entries()) {
+				origins.push({ name, origin: await store.getSessionOrigin(`provenance-${index}`, clientName) });
+			}
+
+			expect(origins).toEqual(copilotCliProvenanceVectors.map(({ name, vscode }) => ({ name, origin: vscode ? 'vscode' : 'other' })));
+			store.dispose();
+		});
+
+		it('treats folder information from the bulk cache as VS Code evidence for origin-less entries', async () => {
+			mockFs.mockFile(BULK_METADATA_FILE, JSON.stringify({
+				'bulk-legacy': { workspaceFolder: { folderPath: Uri.file('/workspace').fsPath, timestamp: 1 } },
+			}));
+			const store = await createStore();
+
+			expect(await store.getSessionOrigin('bulk-legacy')).toBe('vscode');
 			store.dispose();
 		});
 	});

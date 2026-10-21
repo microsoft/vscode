@@ -815,8 +815,14 @@ const COMPUTER_USE_HELPER_APP_ICON_SIZE = 128;
 /** `origin` value written by the VS Code extension-host Copilot CLI feature. */
 const EXTENSION_HOST_CLI_MARKER_ORIGIN = 'vscode';
 
+/** SDK client name the VS Code extension host passes when it creates or resumes a Copilot CLI session. */
+const EXTENSION_HOST_CLI_CLIENT_NAME = 'vscode';
+
 /** File name of the marker written beside a Copilot CLI session's SDK event log. */
 const EXTENSION_HOST_CLI_MARKER_FILE = 'vscode.metadata.json';
+
+/** File name of the request sidecar the extension host writes when VS Code sends a request. */
+const EXTENSION_HOST_CLI_REQUESTS_FILE = 'vscode.requests.metadata.json';
 
 /**
  * Shape of the `vscode.metadata.json` marker written next to a Copilot CLI
@@ -861,11 +867,10 @@ function parseExtensionHostCliMarker(raw: string): IExtensionHostCliMarker | und
 }
 
 /**
- * Whether a marker identifies a chat created by the VS Code extension host —
- * the only chats migration ever adopts.
+ * Whether a marker alone identifies a chat created by the VS Code extension
+ * host. See {@link isExtensionHostCliSession} for the full provenance rule.
  *
- * Mirrors the extension host's `getSessionOrigin`: honor an explicit `origin`
- * (the GitHub Copilot app writes `other`), else guess `vscode` only when older
+ * Honors an explicit `origin`, else guesses `vscode` only when older
  * origin-less markers carry VS Code-specific properties.
  */
 function isExtensionHostCliMarker(marker: IExtensionHostCliMarker | undefined): boolean {
@@ -878,6 +883,41 @@ function isExtensionHostCliMarker(marker: IExtensionHostCliMarker | undefined): 
 	return marker.repositoryProperties !== undefined
 		|| marker.worktreeProperties !== undefined
 		|| marker.workspaceFolder !== undefined;
+}
+
+/** On-disk evidence of which client created a Copilot CLI session. */
+export interface IExtensionHostCliProvenanceEvidence {
+	/** The session's `vscode.metadata.json` marker, if any. */
+	readonly marker: IExtensionHostCliMarker | undefined;
+	/** SDK `client_name` of the runtime that created or last resumed the session. */
+	readonly clientName: string | undefined;
+	/** Whether the extension host's `vscode.requests.metadata.json` sidecar exists. */
+	readonly hasRequestsFile: boolean;
+}
+
+/**
+ * Whether a Copilot CLI session was created by the VS Code extension host —
+ * the only chats migration ever adopts. Any positive evidence wins: the
+ * `vscode` SDK client name (used only by the extension host), the request
+ * sidecar, or a marker per {@link isExtensionHostCliMarker}.
+ *
+ * A stored `origin: 'other'` does not override positive evidence: earlier
+ * extension builds wrote it whenever they read a session without a marker,
+ * including sessions they had just created.
+ *
+ * Keep in sync with the extension's `isVSCodeCopilotCLISession`
+ * (`extensions/copilot/src/extension/chatSessions/common/chatSessionMetadataStore.ts`);
+ * both test suites share the same table of vectors.
+ */
+export function isExtensionHostCliSession(evidence: IExtensionHostCliProvenanceEvidence): boolean {
+	return evidence.clientName === EXTENSION_HOST_CLI_CLIENT_NAME
+		|| evidence.hasRequestsFile
+		|| isExtensionHostCliMarker(evidence.marker);
+}
+
+/** Whether `sessionId` is a single opaque path segment that is safe to probe on disk. */
+function isOpaqueCopilotSessionId(sessionId: string): boolean {
+	return !!sessionId && !/[\x00-\x1f\x7f/\\]/.test(sessionId) && sessionId !== '.' && sessionId !== '..';
 }
 
 /**
@@ -4521,8 +4561,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * Enumerates the SDK catalog under `~/.copilot` and classifies every chat
 	 * Agent Host does not already know about:
 	 *
-	 * - a legacy extension-host Copilot CLI chat is *internal* and adoptable in
-	 *   place (see {@link ensureChatAdopted}), so it keeps `external: false`;
+	 * - a legacy extension-host Copilot CLI chat (per {@link isExtensionHostCliSession})
+	 *   is *internal* and adoptable in place (see {@link ensureChatAdopted}), so
+	 *   it keeps `external: false`;
 	 * - a non-adoptable chat is external only when its persisted `clientName`
 	 *   identifies the standalone CLI or GitHub Copilot app. This value records
 	 *   the runtime client that created or last resumed the chat, not immutable
@@ -4593,8 +4634,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 					completed.delete(s.sessionId);
 					return undefined;
 				}
-				const marker = await this._readDiscoveryMarker(s.sessionId);
-				const adoptable = isExtensionHostCliMarker(marker);
+				const sdkClientName = s.isRemote ? undefined : s.clientName;
+				const { marker, adoptable } = await this._readDiscoveryMarker(s.sessionId, sdkClientName);
 				if (adoptable && !emitAdoptable) {
 					suppressedAdoptable++;
 					return undefined;
@@ -4610,7 +4651,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 						outsideImportWindow++;
 						return undefined;
 					}
-					const clientName = s.isRemote ? undefined : s.clientName;
+					const clientName = sdkClientName;
 					if (clientName === undefined || !COPILOT_EXTERNAL_SESSION_CLIENT_NAMES.has(clientName)) {
 						if (clientName === undefined && !s.isRemote) {
 							// The SDK reads client_name from workspace.yaml, which readiness watching observes.
@@ -4715,23 +4756,30 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return completed;
 	}
 
-	private async _readDiscoveryMarker(sessionId: string): Promise<IExtensionHostCliMarker | undefined> {
+	/**
+	 * Reads the marker for discovery and classifies the chat as adoptable per
+	 * {@link isExtensionHostCliSession}. A marker that is malformed, or that has
+	 * no recognizable origin while no other evidence identifies the chat as the
+	 * extension host's, is incomplete and retried when the session changes.
+	 */
+	private async _readDiscoveryMarker(sessionId: string, clientName: string | undefined): Promise<{ readonly marker: IExtensionHostCliMarker | undefined; readonly adoptable: boolean }> {
 		this._extensionHostCliMarkerCache.delete(sessionId);
 		let raw: string;
 		try {
 			raw = await fs.readFile(this._extensionHostCliSidecarPath(sessionId, EXTENSION_HOST_CLI_MARKER_FILE), 'utf8');
 		} catch (error) {
 			if (error && typeof error === 'object' && hasKey(error, { code: true }) && error.code === 'ENOENT') {
-				return undefined;
+				return { marker: undefined, adoptable: await this._hasExtensionHostCliProvenance(sessionId, undefined, clientName) };
 			}
 			throw error;
 		}
 		const marker = parseExtensionHostCliMarker(raw);
-		if (!marker || (!isExtensionHostCliMarker(marker) && typeof marker.origin !== 'string')) {
+		const adoptable = !!marker && await this._hasExtensionHostCliProvenance(sessionId, marker, clientName);
+		if (!marker || (!adoptable && typeof marker.origin !== 'string')) {
 			throw new IncompleteCopilotSessionMarkerError(`Incomplete Copilot session marker for ${sessionId}`);
 		}
 		this._extensionHostCliMarkerCache.set(sessionId, Promise.resolve(extensionHostCliMarkerRead(marker)));
-		return marker;
+		return { marker, adoptable };
 	}
 
 	private _createDiscoveryResultMetrics(): ICopilotDiscoveryResultMetrics | undefined {
@@ -4883,7 +4931,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 		// Project resolution and an empty database do not establish native ownership; adoption requires a persisted cwd.
 		const marker = !storedMetadata?.workingDirectory ? await this._readExtensionHostCliMarker(sessionId) : undefined;
-		const adoptable = isExtensionHostCliMarker(marker);
+		const adoptable = !storedMetadata?.workingDirectory && await this._isExtensionHostCliSessionWithMarker(sessionId, marker);
 		const sdkCwd = typeof sessionMetadata?.context?.workingDirectory === 'string' ? sessionMetadata.context.workingDirectory : undefined;
 		let workingDirectories = storedMetadata?.workingDirectories;
 		if (!workingDirectories) {
@@ -5806,7 +5854,48 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private async _isExtensionHostCliSession(sessionId: string): Promise<boolean> {
-		return isExtensionHostCliMarker(await this._readExtensionHostCliMarker(sessionId));
+		return this._isExtensionHostCliSessionWithMarker(sessionId, await this._readExtensionHostCliMarker(sessionId));
+	}
+
+	/**
+	 * {@link isExtensionHostCliSession} for a single session given its marker:
+	 * the SDK client name is read from `workspace.yaml` only when the marker is
+	 * inconclusive.
+	 */
+	private async _isExtensionHostCliSessionWithMarker(sessionId: string, marker: IExtensionHostCliMarker | undefined): Promise<boolean> {
+		if (isExtensionHostCliMarker(marker)) {
+			return true;
+		}
+		return this._hasExtensionHostCliProvenance(sessionId, marker, await this._readExtensionHostCliClientName(sessionId));
+	}
+
+	/**
+	 * {@link isExtensionHostCliSession} given the marker and the SDK client name:
+	 * the request sidecar is probed only when those are inconclusive.
+	 */
+	private async _hasExtensionHostCliProvenance(sessionId: string, marker: IExtensionHostCliMarker | undefined, clientName: string | undefined): Promise<boolean> {
+		return isExtensionHostCliSession({ marker, clientName, hasRequestsFile: false })
+			|| isExtensionHostCliSession({ marker, clientName, hasRequestsFile: await this._hasExtensionHostCliRequestsFile(sessionId) });
+	}
+
+	/** The SDK client name in `workspace.yaml` when it is the extension host's, which the bounded diagnostic reader preserves verbatim. */
+	private async _readExtensionHostCliClientName(sessionId: string): Promise<string | undefined> {
+		if (!isOpaqueCopilotSessionId(sessionId)) {
+			return undefined;
+		}
+		const { lastKnownClient } = await this._readLegacyClientMetadata(sessionId);
+		return lastKnownClient === EXTENSION_HOST_CLI_CLIENT_NAME ? lastKnownClient : undefined;
+	}
+
+	private async _hasExtensionHostCliRequestsFile(sessionId: string): Promise<boolean> {
+		if (!isOpaqueCopilotSessionId(sessionId)) {
+			return false;
+		}
+		try {
+			return (await fs.stat(this._extensionHostCliSidecarPath(sessionId, EXTENSION_HOST_CLI_REQUESTS_FILE))).isFile();
+		} catch {
+			return false;
+		}
 	}
 
 	/** Reads the marker from disk, bypassing the cache, for its mutable fields. */
@@ -5827,14 +5916,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 	/**
 	 * Whether the user archived this session in the extension host list, or
 	 * `undefined` when the current state cannot be established (unreadable or
-	 * malformed marker, or one that no longer identifies a VS Code legacy chat).
-	 * Callers that would commit to the state must not treat that as unarchived.
+	 * malformed marker, or a session that no longer identifies as a VS Code
+	 * legacy chat). Callers that would commit to the state must not treat that
+	 * as unarchived. A missing marker means the extension host never archived it.
 	 */
 	private async _readExtensionHostCliArchiveState(sessionId: string): Promise<{ archived: boolean | undefined; diagnostics: IExtensionHostCliMarkerRead['diagnostics'] }> {
 		// Archive state is toggled in the extension host while this agent runs, so it
 		// cannot be served from the marker cache, which memoizes successful reads.
 		const { marker, diagnostics } = await this._readExtensionHostCliMarkerUncached(sessionId);
-		return { archived: isExtensionHostCliMarker(marker) ? marker?.archived === true : undefined, diagnostics };
+		const readable = diagnostics.markerStatus === 'valid' || diagnostics.markerStatus === 'missing';
+		return { archived: readable && await this._isExtensionHostCliSessionWithMarker(sessionId, marker) ? marker?.archived === true : undefined, diagnostics };
 	}
 
 	/** Classifies `path` as an existing directory, confirmed absent/non-directory, or transiently inaccessible. */
@@ -5997,7 +6088,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// Only migrate legacy EH Copilot CLI sessions — never other Copilot SDK
 			// sessions (standalone CLI, Local agent, …) that share `~/.copilot`.
 			const markerRead = await this._readExtensionHostCliMarkerWithDiagnostics(sessionId);
-			if (!isExtensionHostCliMarker(markerRead.marker)) {
+			if (!await this._isExtensionHostCliSessionWithMarker(sessionId, markerRead.marker)) {
 				this._logService.info(`[Copilot] Adoption declined for ${sessionId}: marker=${markerRead.diagnostics.markerStatus}, provenance=${markerRead.diagnostics.provenance}, cached=${markerRead.diagnostics.markerFromCache}`);
 				return { adopted: false, eligible: false, reason: 'notLegacyChat', diagnostics: await this._getLegacyDeclineDiagnostics(sessionId, markerRead) };
 			}
@@ -6135,7 +6226,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private async _adoptLegacyTurnUsage(session: URI, sessionId: string): Promise<void> {
 		// Absent for sessions predating the extension host's credit tracking, so a
 		// missing sidecar is the expected case, not a failure.
-		const raw = await fs.readFile(this._extensionHostCliSidecarPath(sessionId, 'vscode.requests.metadata.json'), 'utf8').catch(() => undefined);
+		const raw = await fs.readFile(this._extensionHostCliSidecarPath(sessionId, EXTENSION_HOST_CLI_REQUESTS_FILE), 'utf8').catch(() => undefined);
 		if (raw === undefined) {
 			return;
 		}
@@ -6184,7 +6275,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * tracking, in which case the chat editor simply keeps no migrated-turn fallback.
 	 */
 	private async _readExtensionHostCliLastTurnId(sessionId: string): Promise<string | undefined> {
-		const raw = await fs.readFile(this._extensionHostCliSidecarPath(sessionId, 'vscode.requests.metadata.json'), 'utf8').catch(() => undefined);
+		const raw = await fs.readFile(this._extensionHostCliSidecarPath(sessionId, EXTENSION_HOST_CLI_REQUESTS_FILE), 'utf8').catch(() => undefined);
 		if (raw === undefined) {
 			return undefined;
 		}

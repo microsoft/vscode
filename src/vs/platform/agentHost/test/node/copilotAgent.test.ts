@@ -101,7 +101,7 @@ import { IAgentHostGitService, type IAddWorktreeOptions, type IBranch, type IDef
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { IAgentHostOTelService, NullAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { AgentHostCompletions, IAgentHostCompletions } from '../../node/agentHostCompletions.js';
-import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, CopilotAgent, getCopilotManagedSettingsDiagnostics, type CopilotAutoTierMetadata, rebaseUnder, REFRESH_DEBOUNCE_MS, resolveCopilotOtlpMetricsEndpoint } from '../../node/copilot/copilotAgent.js';
+import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, CopilotAgent, getCopilotManagedSettingsDiagnostics, type CopilotAutoTierMetadata, isExtensionHostCliSession, rebaseUnder, REFRESH_DEBOUNCE_MS, resolveCopilotOtlpMetricsEndpoint } from '../../node/copilot/copilotAgent.js';
 import { buildCopilotBuiltinAgents, buildCopilotBuiltinAgentsContainer, COPILOT_BUILTIN_AGENTS, COPILOT_BUILTIN_AGENT_NAMES, getCopilotBuiltinAgentUri } from '../../node/copilot/copilotBuiltinAgents.js';
 import { ICopilotChatDiscoveryScan } from '../../node/copilot/copilotChatDiscovery.js';
 import { COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY, deferCopilotSdkExecution } from '../../node/copilot/copilotSessionExecutionMarker.js';
@@ -1695,6 +1695,26 @@ async function writeExtensionHostMarker(userHome: URI, sessionId: string, metada
 	await fs.mkdir(dir, { recursive: true });
 	await fs.writeFile(join(dir, 'vscode.metadata.json'), JSON.stringify(metadata), 'utf8');
 }
+
+/**
+ * Copilot CLI session provenance vectors: `vscode` is whether VS Code created the
+ * session. Keep identical to the extension's copy in
+ * `extensions/copilot/src/extension/chatSessions/copilotcli/vscode-node/test/chatSessionMetadataStoreImpl.spec.ts`.
+ */
+const copilotCliProvenanceVectors: readonly { readonly name: string; readonly marker: { readonly origin?: 'vscode' | 'other'; readonly customTitle?: string; readonly workspaceFolder?: { readonly folderPath: string; readonly timestamp: number } } | undefined; readonly clientName: string | undefined; readonly requestsFile: boolean; readonly vscode: boolean }[] = [
+	{ name: 'origin vscode', marker: { origin: 'vscode' }, clientName: undefined, requestsFile: false, vscode: true },
+	{ name: 'origin vscode, resumed in the CLI', marker: { origin: 'vscode' }, clientName: 'github/cli', requestsFile: false, vscode: true },
+	{ name: 'origin other, client vscode (recovered)', marker: { origin: 'other' }, clientName: 'vscode', requestsFile: false, vscode: true },
+	{ name: 'no marker, client vscode (recovered)', marker: undefined, clientName: 'vscode', requestsFile: false, vscode: true },
+	{ name: 'no origin, folder info', marker: { workspaceFolder: { folderPath: '/workspace', timestamp: 1 } }, clientName: undefined, requestsFile: false, vscode: true },
+	{ name: 'no origin, no folder info, client vscode (recovered)', marker: { customTitle: 'Legacy' }, clientName: 'vscode', requestsFile: false, vscode: true },
+	{ name: 'origin other, requests file, no client (recovered)', marker: { origin: 'other' }, clientName: undefined, requestsFile: true, vscode: true },
+	{ name: 'origin other, requests file, resumed in the CLI (recovered)', marker: { origin: 'other' }, clientName: 'github/cli', requestsFile: true, vscode: true },
+	{ name: 'origin other, client github/cli (external)', marker: { origin: 'other' }, clientName: 'github/cli', requestsFile: false, vscode: false },
+	{ name: 'no marker, client github/cli (external)', marker: undefined, clientName: 'github/cli', requestsFile: false, vscode: false },
+	{ name: 'no marker, no client, no requests file (unknown)', marker: undefined, clientName: undefined, requestsFile: false, vscode: false },
+	{ name: 'no marker, client vscode-agent-host (agent host owned)', marker: undefined, clientName: 'vscode-agent-host', requestsFile: false, vscode: false },
+];
 
 /**
  * Attaches a discovery listener — which is what starts a discovery pass — then
@@ -16888,6 +16908,116 @@ suite('CopilotAgent', () => {
 		});
 	});
 
+	suite('Copilot CLI session provenance', () => {
+
+		async function writeProvenanceEvidence(userHome: URI, sessionId: string, vector: typeof copilotCliProvenanceVectors[number]): Promise<void> {
+			const directory = join(getCopilotHomePath(userHome.fsPath, {}), 'session-state', sessionId);
+			await fs.mkdir(directory, { recursive: true });
+			if (vector.marker) {
+				await fs.writeFile(join(directory, 'vscode.metadata.json'), JSON.stringify(vector.marker), 'utf8');
+			}
+			if (vector.clientName) {
+				await fs.writeFile(join(directory, 'workspace.yaml'), `client_name: ${vector.clientName}`, 'utf8');
+			}
+			if (vector.requestsFile) {
+				await fs.writeFile(join(directory, 'vscode.requests.metadata.json'), '[]', 'utf8');
+			}
+		}
+
+		test('classifies the shared provenance vectors', () => {
+			assert.deepStrictEqual(
+				copilotCliProvenanceVectors.map(({ name, marker, clientName, requestsFile }) => ({ name, vscode: isExtensionHostCliSession({ marker, clientName, hasRequestsFile: requestsFile }) })),
+				copilotCliProvenanceVectors.map(({ name, vscode }) => ({ name, vscode })),
+			);
+		});
+
+		test('discovery treats recovered sessions as adoptable and leaves external rules unchanged', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/provenance-discovery-home-`));
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/provenance-discovery-cwd-`);
+			const client = new TestCopilotClient(copilotCliProvenanceVectors.map((vector, index) => sdkSession(`provenance-${index}`, workingDirectory, { clientName: vector.clientName, modifiedTime: new Date() })));
+			const { agent } = createTestAgentContext(disposables, {
+				sessionDataService: disposables.add(new TestSessionDataService()),
+				copilotClient: client,
+				userHome,
+				rootConfig: { [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true },
+			});
+			try {
+				for (const [index, vector] of copilotCliProvenanceVectors.entries()) {
+					await writeProvenanceEvidence(userHome, `provenance-${index}`, vector);
+				}
+				const discovered = new Map((await collectDiscoveredChats(agent)).map(chat => [chat.id, { external: chat.external, adoptable: chat.adoptable }]));
+				assert.deepStrictEqual(
+					copilotCliProvenanceVectors.map(({ name }, index) => ({ name, discovered: discovered.get(`provenance-${index}`) })),
+					copilotCliProvenanceVectors.map(({ name, vscode, clientName }) => ({
+						name,
+						// Non-VS Code sessions keep the existing external rules: only allowlisted clients surface.
+						discovered: vscode ? { external: false, adoptable: true } : clientName === 'github/cli' ? { external: true, adoptable: false } : undefined,
+					})),
+				);
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(workingDirectory, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
+		test('single-session metadata and adoption honor the shared provenance vectors', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/provenance-adopt-home-`));
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/provenance-adopt-cwd-`);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			// The SDK metadata carries no client name here, so these paths must read it from `workspace.yaml`.
+			const client = new TestCopilotClient(copilotCliProvenanceVectors.map((_, index) => sdkSession(`provenance-${index}`, workingDirectory)));
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				const results = [];
+				for (const [index, vector] of copilotCliProvenanceVectors.entries()) {
+					const session = AgentSession.uri('copilotcli', `provenance-${index}`);
+					const chat = defaultChatUri(session);
+					await writeProvenanceEvidence(userHome, `provenance-${index}`, vector);
+					const metadata = await agent.getChatMetadata(chat, exactChatContext(session, chat, session));
+					const adoption = await ensureDefaultChatAdopted(agent, session);
+					results.push({ name: vector.name, adoptable: readSessionEhcliAdoptable(metadata?._meta) === true, adopted: adoption.adopted, reason: adoption.reason });
+				}
+				assert.deepStrictEqual(results, copilotCliProvenanceVectors.map(({ name, vscode }) => ({
+					name, adoptable: vscode, adopted: vscode, reason: vscode ? 'adopted' : 'notLegacyChat',
+				})));
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(workingDirectory, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
+		test('adopts a session without a marker when VS Code evidence identifies it', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/provenance-archive-home-`));
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/provenance-archive-cwd-`);
+			const sessionId = 'provenance-archive';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				const directory = join(getCopilotHomePath(userHome.fsPath, {}), 'session-state', sessionId);
+				await fs.mkdir(directory, { recursive: true });
+				await fs.writeFile(join(directory, 'vscode.requests.metadata.json'), JSON.stringify([{ vscodeRequestId: 'vsc-1', copilotRequestId: 'evt-1', creditsUsed: 2 }]), 'utf8');
+
+				// A missing marker means the extension host never archived it, so the archived state is known.
+				const adopted = await ensureDefaultChatAdopted(agent, session);
+				const db = await sessionDataService.tryOpenDatabase(session);
+				const usages = [...(await db?.object.getTurnUsages() ?? new Map()).keys()];
+				db?.dispose();
+
+				assert.deepStrictEqual({ adopted: adopted.adopted, reason: adopted.reason, usages }, { adopted: true, reason: 'adopted', usages: ['evt-1'] });
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(workingDirectory, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+	});
+
 	suite('external chat discovery', () => {
 
 		async function createLiveDiscoveryAgent(sessions: TestCopilotSessionMetadata[], options?: { gitService?: TestAgentHostGitService; logService?: ILogService; useRealResumePath?: boolean }) {
@@ -28506,17 +28636,13 @@ suite('CopilotAgent', () => {
 
 				// The GitHub Copilot app writes the same marker with `origin: 'other'`.
 				await writeExtensionHostMarker(userHome, sessionId, { origin: 'other' });
-				// Credits are migrated for legacy VS Code sessions only: a sidecar
-				// belonging to another Copilot host must never be read or applied.
-				await writeExtensionHostRequestDetails(userHome, sessionId, [
-					{ vscodeRequestId: 'vsc-1', copilotRequestId: 'evt-1', creditsUsed: 9 },
-				]);
+				await fs.writeFile(join(getCopilotHomePath(userHome.fsPath, {}), 'session-state', sessionId, 'workspace.yaml'), 'client_name: "github/autopilot"', 'utf8');
 
 				const adopted = await ensureDefaultChatAdopted(agent, session);
 
 				assert.deepStrictEqual(
 					{ adopted, getSessionMetadataCalls: client.getSessionMetadataCalls, openedDatabases: sessionDataService.openedSessions },
-					{ adopted: { adopted: false, eligible: false, reason: 'notLegacyChat', diagnostics: { ...uninspectedStorage, markerOrigin: 'other', markerStatus: 'valid', provenance: 'external', markerFromCache: false } }, getSessionMetadataCalls: [], openedDatabases: [] },
+					{ adopted: { adopted: false, eligible: false, reason: 'notLegacyChat', diagnostics: { ...uninspectedStorage, workspaceMetadataStatus: 'valid', lastKnownClient: 'github-autopilot', markerOrigin: 'other', markerStatus: 'valid', provenance: 'external', markerFromCache: false } }, getSessionMetadataCalls: [], openedDatabases: [] },
 				);
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
@@ -28649,7 +28775,7 @@ suite('CopilotAgent', () => {
 		}
 
 		for (const { name, raw, status, clientName } of [
-			{ name: 'extension host', raw: 'client_name: vscode', status: 'valid', clientName: 'vscode' },
+			// `client_name: vscode` identifies the extension host as the creator; see the shared provenance vectors.
 			{ name: 'agent host', raw: 'client_name: vscode-agent-host', status: 'valid', clientName: 'vscode-agent-host' },
 			{ name: 'standalone CLI', raw: 'client_name: github/cli', status: 'valid', clientName: 'github-cli' },
 			{ name: 'Copilot app', raw: 'client_name: "github/autopilot"', status: 'valid', clientName: 'github-autopilot' },
@@ -28788,7 +28914,7 @@ suite('CopilotAgent', () => {
 				await writeExtensionHostMarker(userHome, sessionId, { origin: 'other' }, copilotHome);
 				const path = join(copilotHome, 'session-state', sessionId, 'workspace.yaml');
 				const results: IAgentChatAdoptionResult[] = [];
-				for (const client of ['vscode', 'github/cli']) {
+				for (const client of ['"github/autopilot"', 'github/cli']) {
 					await fs.writeFile(path, `client_name: ${client}`);
 					results.push(await ensureDefaultChatAdopted(agent, AgentSession.uri('copilotcli', sessionId)));
 				}
@@ -28796,7 +28922,7 @@ suite('CopilotAgent', () => {
 					reason: result.reason, provenance: result.diagnostics?.provenance,
 					client: result.diagnostics?.lastKnownClient, cachedMarker: result.diagnostics?.markerFromCache,
 				})), [
-					{ reason: 'notLegacyChat', provenance: 'external', client: 'vscode', cachedMarker: false },
+					{ reason: 'notLegacyChat', provenance: 'external', client: 'github-autopilot', cachedMarker: false },
 					{ reason: 'notLegacyChat', provenance: 'external', client: 'github-cli', cachedMarker: true },
 				]);
 			} finally {

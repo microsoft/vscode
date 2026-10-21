@@ -157,6 +157,8 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 	private readonly _newSessionIds = new Set<string>();
 	/** Sessions created or forked by this window. The origin metadata write is async, so treat them as local right away. */
 	private readonly _vscodeOriginSessionIds = new Set<string>();
+	/** SDK client name last observed for each session, which is evidence of whether VS Code created it. */
+	private readonly _sessionClientNames = new Map<string, string | undefined>();
 	/** Bridge processor that forwards SDK native OTel spans to the debug panel. */
 	private _bridgeProcessor: CopilotCliBridgeSpanProcessor | undefined;
 	/** Whether we've attempted to install the bridge (only try once). */
@@ -343,6 +345,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		if (!metadata || token.isCancellationRequested) {
 			return;
 		}
+		this._sessionClientNames.set(sessionId, metadata.clientName);
 		if (metadata.clientName === AGENT_HOST_COPILOT_CLIENT_NAME) {
 			return;
 		}
@@ -448,6 +451,9 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		try {
 			const sessionManager = await raceCancellationError(this.getSessionManager(), token);
 			const sessionMetadataList = await raceCancellationError(sessionManager.listSessions(), token);
+			for (const metadata of sessionMetadataList) {
+				this._sessionClientNames.set(metadata.sessionId, metadata.clientName);
+			}
 
 			await this._sessionTracker.initialize();
 
@@ -468,7 +474,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 					}
 					const workingDirectory = metadata.context?.cwd ? URI.file(metadata.context.cwd) : undefined;
 					this._sessionWorkingDirectories.set(metadata.sessionId, workingDirectory);
-					if (!await this.shouldShowSession(metadata.sessionId, metadata.context)) {
+					if (!await this.shouldShowSession(metadata.sessionId, metadata.context, metadata.clientName)) {
 						return;
 					}
 					// A legacy session stays in this list until it is opened: opening adopts it
@@ -565,7 +571,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 	private async constructSessionItemImpl(metadata: LocalSessionMetadata, token: CancellationToken): Promise<ICopilotCLISessionItem | undefined> {
 		const workingDirectory = metadata.context?.cwd ? URI.file(metadata.context.cwd) : undefined;
 		this._sessionWorkingDirectories.set(metadata.sessionId, workingDirectory);
-		const shouldShowSession = await this.shouldShowSession(metadata.sessionId, metadata.context);
+		const shouldShowSession = await this.shouldShowSession(metadata.sessionId, metadata.context, metadata.clientName);
 		if (!shouldShowSession) {
 			return undefined;
 		}
@@ -695,20 +701,38 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 	 * Sessions created outside VS Code (e.g. started from the terminal CLI) are never surfaced by
 	 * this provider. The Agent Host owns external session visibility via
 	 * `chat.agentSessions.showExternalAgentSessions`.
+	 *
+	 * @param clientName The session's SDK client name; when omitted, the last observed one is used.
 	 */
-	private async isExternalSession(sessionId: string): Promise<boolean> {
+	private async isExternalSession(sessionId: string, clientName?: string): Promise<boolean> {
 		if (isUntitledSessionId(sessionId) || this._vscodeOriginSessionIds.has(sessionId)) {
 			return false;
 		}
-		return await this._chatSessionMetadataStore.getSessionOrigin(sessionId) !== 'vscode';
+		return await this._chatSessionMetadataStore.getSessionOrigin(sessionId, clientName ?? await this.getSessionClientName(sessionId)) !== 'vscode';
 	}
 
-	private async shouldShowSession(sessionId: string, context?: SessionContext): Promise<boolean> {
+	/** The SDK client name last observed for a session, read from disk when it has not been listed yet. */
+	private async getSessionClientName(sessionId: string): Promise<string | undefined> {
+		if (this._sessionClientNames.has(sessionId)) {
+			return this._sessionClientNames.get(sessionId);
+		}
+		try {
+			const sessionManager = await this.getSessionManager();
+			const clientName = (await sessionManager.getSessionMetadata({ sessionId }))?.clientName;
+			this._sessionClientNames.set(sessionId, clientName);
+			return clientName;
+		} catch (error) {
+			this.logService.trace(`[CopilotCLISession] Failed to read the client name of session ${sessionId}: ${error}`);
+			return undefined;
+		}
+	}
+
+	private async shouldShowSession(sessionId: string, context?: SessionContext, clientName?: string): Promise<boolean> {
 		if (isUntitledSessionId(sessionId)) {
 			return true;
 		}
 
-		if (await this.isExternalSession(sessionId)) {
+		if (await this.isExternalSession(sessionId, clientName)) {
 			return false;
 		}
 
@@ -1202,6 +1226,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		this._partialSessionHistories.delete(sessionId);
 		this._sessionWorkingDirectories.delete(sessionId);
 		this._vscodeOriginSessionIds.delete(sessionId);
+		this._sessionClientNames.delete(sessionId);
 		try {
 			{
 				const session = this._sessionWrappers.get(sessionId);

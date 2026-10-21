@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
-import { IChatSessionMetadataStore, RepositoryProperties, RequestDetails, WorkspaceFolderEntry } from '../chatSessionMetadataStore';
+import { IChatSessionMetadataStore, isVSCodeCopilotCLISession, RepositoryProperties, RequestDetails, WorkspaceFolderEntry } from '../chatSessionMetadataStore';
 import { ChatSessionWorktreeProperties } from '../chatSessionWorktreeService';
 import { IWorkspaceInfo } from '../workspaceInfo';
 
@@ -145,8 +145,12 @@ export class MockChatSessionMetadataStore implements IChatSessionMetadataStore {
 		this._sessionOrigins.set(sessionId, origin);
 	}
 
-	async getSessionOrigin(sessionId: string): Promise<'vscode' | 'other'> {
-		return this._sessionOrigins.get(sessionId) ?? 'vscode';
+	async getSessionOrigin(sessionId: string, clientName?: string): Promise<'vscode' | 'other'> {
+		const origin = this._sessionOrigins.get(sessionId);
+		if (origin === undefined) {
+			return 'vscode';
+		}
+		return isVSCodeCopilotCLISession({ marker: { origin }, clientName, hasRequestsFile: this._requestDetails.has(sessionId) }) ? 'vscode' : 'other';
 	}
 
 	setSessionParentId(_sessionId: string, _parentSessionId: string): Promise<void> {

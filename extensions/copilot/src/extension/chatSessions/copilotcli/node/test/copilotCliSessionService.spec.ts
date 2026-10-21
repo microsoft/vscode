@@ -777,6 +777,39 @@ describe('CopilotCLISessionService', () => {
 			});
 		});
 
+		it('lists sessions with VS Code evidence even when their marker says they are external', async () => {
+			const sessions = [
+				{ id: 'recovered-client', clientName: 'vscode', requests: false },
+				{ id: 'recovered-requests', clientName: undefined, requests: true },
+				{ id: 'external-cli', clientName: 'github/cli', requests: false },
+			];
+			for (const { id, clientName, requests } of sessions) {
+				const sdkSession = new MockCliSdkSession(id, new Date(0));
+				sdkSession.clientName = clientName;
+				sdkSession.summary = id;
+				manager.sessions.set(id, sdkSession);
+				// Older builds stamped `origin: 'other'` on sessions they merely read.
+				metadataStore.setSessionOriginForTest(id, 'other');
+				if (requests) {
+					await metadataStore.updateRequestDetails(id, [{ vscodeRequestId: 'request-1' }]);
+				}
+			}
+
+			// Targeted lookups before any listing must read the client name themselves.
+			const targeted = [];
+			for (const { id } of sessions) {
+				targeted.push((await service.getSessionItem(id, CancellationToken.None))?.id);
+			}
+
+			expect({
+				targeted,
+				listed: (await service.getAllSessions(CancellationToken.None)).map(item => item.id).sort(),
+			}).toEqual({
+				targeted: ['recovered-client', 'recovered-requests', undefined],
+				listed: ['recovered-client', 'recovered-requests'],
+			});
+		});
+
 		it('will not list created sessions', async () => {
 			const session = await service.createSession({ model: 'gpt-test', ...sessionOptionsFor(URI.file('/tmp')) }, CancellationToken.None);
 			disposables.add(session);
