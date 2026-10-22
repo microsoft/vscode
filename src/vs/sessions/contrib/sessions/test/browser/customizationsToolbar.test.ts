@@ -107,21 +107,12 @@ suite('Customizations toolbar', () => {
 		const removedHint = new DeferredPromise<ICustomizationMigrationHint | undefined>();
 		const migrationHint: ICustomizationMigrationHint = { migrationFlowId: 'flow', message: 'Migrations available', counts: [] };
 		const ignoredGroupsSeen: ICustomizationMigrationIgnoredGroup[][] = [];
-		let migrationCheckCount = 0;
+		const migrationResponses = [migrationHint, refreshedHint.p, removedHint.p];
 		const migrationService = new class extends mock<ICustomizationMigrationService>() {
 			override readonly onDidChangeCustomizations = customizationsChanged.event;
-			override async computeMigrationHint(_resource: URI, _token?: CancellationToken, ignoredGroups: readonly ICustomizationMigrationIgnoredGroup[] = []): Promise<ICustomizationMigrationHint | undefined> {
+			override computeMigrationHint(_resource: URI, _token?: CancellationToken, ignoredGroups: readonly ICustomizationMigrationIgnoredGroup[] = []): Promise<ICustomizationMigrationHint | undefined> {
 				ignoredGroupsSeen.push([...ignoredGroups]);
-				if (migrationCheckCount++ === 0) {
-					return migrationHint;
-				}
-				if (migrationCheckCount === 2) {
-					return refreshedHint.p;
-				}
-				if (migrationCheckCount === 3) {
-					return removedHint.p;
-				}
-				return ignoredGroups.length > 0 ? undefined : migrationHint;
+				return Promise.resolve(migrationResponses.shift() ?? (ignoredGroups.length > 0 ? undefined : migrationHint));
 			}
 		};
 		const activeProjectRoot = constObservable(URI.file('/worktrees/one'));
@@ -154,13 +145,13 @@ suite('Customizations toolbar', () => {
 		};
 		customizationsChanged.fire();
 		const refreshingState = state.migrationAvailable.get();
-		await refreshedHint.complete(migrationHint);
+		void refreshedHint.complete(migrationHint);
 		await refreshedHint.p;
 		await Promise.resolve();
 		const refreshedState = state.migrationAvailable.get();
 		customizationsChanged.fire();
 		const removingState = state.migrationAvailable.get();
-		await removedHint.complete(undefined);
+		void removedHint.complete(undefined);
 		await removedHint.p;
 		await Promise.resolve();
 		const removedState = state.migrationAvailable.get();
