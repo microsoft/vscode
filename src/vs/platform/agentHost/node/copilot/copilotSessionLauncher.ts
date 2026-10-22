@@ -1137,13 +1137,6 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			await raw.rpc.agent.list();
 			await this._applyScriptSafety(raw, plan.sessionId);
 			await sandboxConfig(raw);
-			if (this._configurationService.getRootValue(platformRootSchema, AgentHostSessionSyncEnabledConfigKey) === true) {
-				try {
-					await raw.rpc.remote.enable({ mode: 'export' });
-				} catch (err) {
-					this._logService.warn(`[Copilot:${plan.sessionId}] Failed to enable session history export`, err);
-				}
-			}
 			if (this._configurationService.getRootValue(platformRootSchema, AgentHostMcpConnectorsEnabledConfigKey) === true) {
 				const result = await reconcileCopilotConnectors(raw, this._logService);
 				if (result.connectorServers) {
