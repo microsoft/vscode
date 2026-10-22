@@ -346,6 +346,7 @@ export class ChatViewSessionActivityBar extends Disposable {
 		const monitor = store.add(new GlobalPointerMoveMonitor());
 		store.add(this.hoverService.setupDelayedHover(dragHandle, {
 			content: localize('sessionActivityBar.dragHandle', "Drag to move. Double-click to reset the position."),
+			appearance: { showPointer: true },
 			position: { hoverPosition: HoverPosition.LEFT },
 		}));
 		store.add(addDisposableListener(dragHandle, EventType.DBLCLICK, () => {

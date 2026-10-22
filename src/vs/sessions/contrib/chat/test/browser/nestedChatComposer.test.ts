@@ -5,6 +5,8 @@
 
 import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { IManagedHoverContentOrFactory } from '../../../../../base/browser/ui/hover/hover.js';
+import { IHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegate.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -46,6 +48,8 @@ suite('Sessions - New Nested Session composer', () => {
 		const shown: string[][] = [];
 		const lists: { rows: string[]; options: { className: string | undefined; inlineDescription: boolean | undefined } }[] = [];
 		const instantiationService = store.add(new TestInstantiationService());
+		const hoverDelegate: IHoverDelegate = { placement: 'element', delay: 500, showHover: () => undefined };
+		const hovers = new Map<HTMLElement, { delegate: IHoverDelegate; content: IManagedHoverContentOrFactory }>();
 		instantiationService.stub(IActionWidgetService, {
 			isVisible: false,
 			hide: () => { },
@@ -66,7 +70,13 @@ suite('Sessions - New Nested Session composer', () => {
 			getUriBasenameLabel: (uri: URI) => uri.path.split('/').pop() ?? '',
 			getUriLabel: (uri: URI) => uri.path,
 		} as Partial<ILabelService>);
-		instantiationService.stub(IHoverService, { setupDelayedHover: () => toDisposable(() => { }) } as Partial<IHoverService>);
+		instantiationService.stub(IHoverService, {
+			setupDelayedHover: () => toDisposable(() => { }),
+			setupManagedHover: (delegate, target, content) => {
+				hovers.set(target, { delegate, content });
+				return { dispose: () => hovers.delete(target), show: () => { }, hide: () => { }, update: () => { } };
+			},
+		} as Partial<IHoverService>);
 		const controls = store.add(instantiationService.createInstance(NestedChatWorkspaceControls, {
 			support: value,
 			resolveFolder: async () => folderInfo,
@@ -77,12 +87,23 @@ suite('Sessions - New Nested Session composer', () => {
 			openLocalFolder: async () => URI.file('/opened'),
 		}));
 		const row = mainWindow.document.createElement('div');
-		controls.renderFolderPicker(row);
+		controls.renderFolderPicker(row, hoverDelegate);
 		const repositoryContainer = mainWindow.document.createElement('div');
-		const repositoryControls = store.add(controls.renderRepositoryControls(repositoryContainer));
+		const repositoryControls = store.add(controls.renderRepositoryControls(repositoryContainer, hoverDelegate));
 		const trigger = () => row.querySelector<HTMLElement>('.nested-chat-folder-picker .action-label')!;
 		return {
 			controls, shown, lists, trigger,
+			tooltip() {
+				const content = hovers.get(trigger())?.content;
+				return typeof content === 'function' ? content() : content;
+			},
+			hoverPresentation() {
+				return Array.from(hovers, ([target, hover]) => ({
+					nativeTitle: target.title,
+					sharedDelegate: hover.delegate === hoverDelegate,
+					placement: hover.delegate.placement,
+				}));
+			},
 			async pickFolder(label: string) {
 				pick = label;
 				trigger().click();
@@ -154,7 +175,7 @@ suite('Sessions - New Nested Session composer', () => {
 		const singleFolder = createControls(constObservable(support(repo, false)), git, { folderExists: async () => false });
 		await new Promise(resolve => setTimeout(resolve, 0));
 		await missing.pickFolder('nothing');
-		const describe = (h: ReturnType<typeof createControls>) => ({ folder: h.state().folder, title: h.trigger().title, description: h.trigger().getAttribute('aria-description'), workspace: h.controls.getWorkspace() });
+		const describe = (h: ReturnType<typeof createControls>) => ({ folder: h.state().folder, title: h.trigger().title, tooltip: h.tooltip(), description: h.trigger().getAttribute('aria-description'), workspace: h.controls.getWorkspace() });
 		assert.deepStrictEqual({
 			missing: { ...describe(missing), items: missing.shown[0] },
 			cannotTell: describe(cannotTell),
@@ -162,14 +183,26 @@ suite('Sessions - New Nested Session composer', () => {
 		}, {
 			missing: {
 				folder: 'No Workspace',
-				title: 'No Workspace. The session\'s folder repo no longer exists.',
+				title: '',
+				tooltip: 'No Workspace. The session\'s folder repo no longer exists.',
 				description: 'The session\'s folder repo no longer exists.',
 				workspace: { kind: 'scratch' },
 				items: ['recent', 'No Workspace', '', 'Browse...', 'Open Folder...'],
 			},
-			cannotTell: { folder: 'repo', title: 'repo', description: null, workspace: undefined },
-			singleFolder: { folder: 'repo', title: 'Folder for the Nested Session, repo', description: null, workspace: undefined },
+			cannotTell: { folder: 'repo', title: '', tooltip: 'repo', description: null, workspace: undefined },
+			singleFolder: { folder: 'repo', title: '', tooltip: 'Folder for the Nested Session, repo', description: null, workspace: undefined },
 		});
+	});
+
+	test('folder, isolation, and branch pickers share the composer hover delegate', async () => {
+		const harness = createControls(constObservable(support(repo)));
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		assert.deepStrictEqual(harness.hoverPresentation(), Array.from({ length: 3 }, () => ({
+			nativeTitle: '',
+			sharedDelegate: true,
+			placement: 'element',
+		})));
 	});
 
 	test('a send waits for the check of the session folder', async () => {

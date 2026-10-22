@@ -599,12 +599,12 @@ export class WorkspacePicker extends Disposable {
 	 * Calling it again replaces the trigger created by the previous
 	 * {@link render} call.
 	 */
-	render(container: HTMLElement): HTMLElement {
+	render(container: HTMLElement, hoverDelegate?: IHoverDelegate): HTMLElement {
 		this._renderDisposables.clear();
 
 		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot.sessions-chat-workspace-picker'));
 		this._renderDisposables.add({ dispose: () => slot.remove() });
-		this._renderDisposables.add(this._addTrigger(slot));
+		this._renderDisposables.add(this._addTrigger(slot, undefined, hoverDelegate));
 
 		return slot;
 	}

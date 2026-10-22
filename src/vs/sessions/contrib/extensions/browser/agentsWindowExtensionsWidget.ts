@@ -134,6 +134,7 @@ class ExtensionRowRenderer implements IListRenderer<IAgentsWindowExtensionEntry,
 		private readonly isEnabled: (extension: IExtension) => boolean,
 		private readonly canChangeEnablement: (extension: IExtension) => boolean,
 		private readonly setEnabled: (extension: IExtension, enabled: boolean) => void,
+		private readonly hoverService: IHoverService,
 	) { }
 
 	renderTemplate(container: HTMLElement): IExtensionRowTemplateData {
@@ -171,7 +172,9 @@ class ExtensionRowRenderer implements IListRenderer<IAgentsWindowExtensionEntry,
 
 		const runtimeStateLabel = getRuntimeStateLabel(extension);
 		templateData.runtimeState.textContent = runtimeStateLabel ?? '';
-		templateData.runtimeState.title = extension.runtimeState?.reason ?? '';
+		if (extension.runtimeState?.reason) {
+			templateData.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(templateData.runtimeState, { content: extension.runtimeState.reason }));
+		}
 		templateData.runtimeState.style.display = runtimeStateLabel ? '' : 'none';
 
 		templateData.container.classList.toggle('disabled', !enabled);
@@ -261,6 +264,7 @@ export class AgentsWindowExtensionsWidget extends Disposable implements IAICusto
 					extension => this.isEnabled(extension),
 					extension => this.canChangeEnablement(extension),
 					(extension, enabled) => this.setEnabled(extension, enabled),
+					hoverService,
 				)),
 			],
 			{

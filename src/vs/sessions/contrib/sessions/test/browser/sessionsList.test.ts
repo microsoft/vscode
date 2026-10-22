@@ -2043,13 +2043,13 @@ suite('Sessions - SessionsList', () => {
 					configurationService.setUserConfiguration(SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, showFrom);
 					instantiationService.stub(IHoverService, {
 						...NullHoverService,
-						setupDelayedHover: (...args: Parameters<IHoverService['setupDelayedHover']>) => {
+						setupDelayedHoverAtMouse: (...args: Parameters<IHoverService['setupDelayedHoverAtMouse']>) => {
 							const target = args[0];
 							const options = args[1];
 							if (target.classList.contains('session-external-application-badge') && typeof options !== 'function' && typeof options.content === 'string') {
 								badgeHover = options.content;
 							}
-							return NullHoverService.setupDelayedHover(...args);
+							return NullHoverService.setupDelayedHoverAtMouse(...args);
 						},
 					});
 				});
@@ -8404,7 +8404,7 @@ suite('Sessions - SessionsList', () => {
 			const { container } = renderSessionChatsList(session, undefined, false, true, false, instantiationService => {
 				instantiationService.stub(IHoverService, {
 					...NullHoverService,
-					setupDelayedHover: (target, options) => {
+					setupDelayedHoverAtMouse: (target, options) => {
 						hovers.set(target, typeof options === 'function' ? options : () => options);
 						return toDisposable(() => hovers.delete(target));
 					},
