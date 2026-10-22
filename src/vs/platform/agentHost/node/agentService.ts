@@ -118,7 +118,7 @@ import { AgentHostWorktreeCoOwnership, type ISessionWorktreeRecords, type IWorkt
 import { parseSessionArtifacts, readSessionArtifacts, SessionArtifactType, stringifySessionArtifacts, withSessionArtifacts, type ISessionArtifact } from '../common/sessionArtifacts.js';
 import { SessionArtifactCollection } from '../common/sessionArtifactCollection.js';
 import { AgentHostCatalogDatabaseReference, AgentHostCatalogSyncService, type AgentHostCatalogSyncResult, IAgentHostCatalogSyncRequest } from './agentHostCatalogSyncService.js';
-import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, AgentHostCatalogData, decodeAgentHostCatalogPayload, hashAgentHostCatalogPayload } from './agentHostCatalogProjection.js';
+import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, AgentHostCatalogData, decodeAgentHostCatalogPayload, decodeAgentHostCatalogPayloadData, hashAgentHostCatalogPayload } from './agentHostCatalogProjection.js';
 import { AgentHostCatalogReconciliationService, AgentHostCatalogReconciliationSourceResult, IAgentHostCatalogReconciliationOptions } from './agentHostCatalogReconciliationService.js';
 import { IAgentHostStorageService } from './agentHostStorageService.js';
 import { AgentHostCatalogListReader, type AgentHostCatalogListManyResult } from './agentHostCatalogListReader.js';
@@ -3533,11 +3533,11 @@ export class AgentService extends Disposable implements IAgentService {
 				reconciliationMetadata = await this._getCatalogReconciliationMetadata(agent, registered, () => this._isChatBacking(registered.session, this._chatOwnership.createRecordedOwnerLookup()));
 			}
 			if (source?.verified && !reconciliationMetadata) {
-				const decoded = decodeAgentHostCatalogPayload(source.payload);
+				const decoded = decodeAgentHostCatalogPayloadData(source.payload, { forMigration: true, payloadVersion: source.payloadVersion });
 				if (!decoded.ok || !snapshot.header) {
 					throw new Error(`Invalid normalized session aggregate for ${registered.session.toString()}: ${decoded.ok ? 'missing header' : decoded.error}`);
 				}
-				const data = decoded.value.data;
+				const data = decoded.value;
 				const summary = this._stateManager.getSessionSummary(registered.session.toString());
 				return {
 					status: 'available',
@@ -3578,21 +3578,21 @@ export class AgentService extends Disposable implements IAgentService {
 			? await this._readOrMigrateLegacyPeerChatCatalog(agent, registered.session, database)
 			: await this._readOrImportPeerChatCatalogWithoutLocalDatabase(agent, registered.session);
 		const central = await this._orchestratorDatabase.getSessionV2(registered.session.toString());
-		const decoded = central && decodeAgentHostCatalogPayload(central.payload);
-		const defaultChat = this._resolveDefaultChat(registered.session, snapshot, decoded?.ok ? decoded.value.data.chats.find(chat => chat.kind === 'default')?.uri : undefined);
+		const decoded = central && decodeAgentHostCatalogPayloadData(central.payload, { forMigration: true, payloadVersion: central.payloadVersion });
+		const defaultChat = this._resolveDefaultChat(registered.session, snapshot, decoded?.ok ? decoded.value.chats.find(chat => chat.kind === 'default')?.uri : undefined);
 		const defaultChatMetadata = snapshot?.authorityVersion === 2 ? undefined
-			: await this._readLegacyDefaultChatMetadata(registered.session, defaultChat, decoded?.ok ? decoded.value.data : undefined);
+			: await this._readLegacyDefaultChatMetadata(registered.session, defaultChat, decoded?.ok ? decoded.value : undefined);
 		if (!database) {
 			if (decoded?.ok) {
-				status = decoded.value.data.isRead ? status | SessionStatus.IsRead : status & ~SessionStatus.IsRead;
+				status = decoded.value.isRead ? status | SessionStatus.IsRead : status & ~SessionStatus.IsRead;
 				if (!readSessionEhcliAdoptable(metadata._meta) || readSessionEhcliAdopted(metadata._meta)) {
-					status = decoded.value.data.isArchived ? status | SessionStatus.IsArchived : status & ~SessionStatus.IsArchived;
+					status = decoded.value.isArchived ? status | SessionStatus.IsArchived : status & ~SessionStatus.IsArchived;
 				}
-				metadataFallbacks = hasLiveState ? {} : this._catalogMetadataFallbacks(decoded.value.data);
-				if (!hasLiveState && metadata.summary && decoded.value.data.titleSource === AGENT_HOST_TITLE_SOURCE_AUTO) {
+				metadataFallbacks = hasLiveState ? {} : this._catalogMetadataFallbacks(decoded.value);
+				if (!hasLiveState && metadata.summary && decoded.value.titleSource === AGENT_HOST_TITLE_SOURCE_AUTO) {
 					metadataFallbacks = { ...metadataFallbacks, [SESSION_CUSTOM_TITLE_KEY]: metadata.summary };
 				}
-				centralMeta = hasLiveState ? undefined : decoded.value.data._meta;
+				centralMeta = hasLiveState ? undefined : decoded.value._meta;
 				meta = { ...centralMeta, ...metadata._meta };
 			}
 		}
@@ -4106,8 +4106,8 @@ export class AgentService extends Disposable implements IAgentService {
 		]);
 		const codexCatalogModels = new Map<string, string | undefined>();
 		for (const row of codexCatalogRows) {
-			const decoded = decodeAgentHostCatalogPayload(row.payload);
-			codexCatalogModels.set(row.session, decoded.ok ? readCodexSessionModel(decoded.value.data)?.id : undefined);
+			const decoded = decodeAgentHostCatalogPayloadData(row.payload, { forMigration: true, payloadVersion: row.payloadVersion });
+			codexCatalogModels.set(row.session, decoded.ok ? readCodexSessionModel(decoded.value)?.id : undefined);
 		}
 		const registeredKeys = new Set(runtimeCompatibleKeys);
 		const exclusions = new Map(persistedExclusions.map(exclusion => [exclusion.session, exclusion]));
@@ -4502,8 +4502,8 @@ export class AgentService extends Disposable implements IAgentService {
 			this._logService.warn(`[AgentService] Failed to read existing catalog state for ${session.toString()}`, error);
 			return { status: 'incomplete' };
 		}
-		const decodedCatalog = existingCatalog ? decodeAgentHostCatalogPayload(existingCatalog.payload) : undefined;
-		const existingCatalogData = decodedCatalog?.ok ? decodedCatalog.value.data : undefined;
+		const decodedCatalog = existingCatalog ? decodeAgentHostCatalogPayloadData(existingCatalog.payload, { forMigration: true, payloadVersion: existingCatalog.payloadVersion }) : undefined;
+		const existingCatalogData = decodedCatalog?.ok ? decodedCatalog.value : undefined;
 		return {
 			status: 'ready',
 			identity,
@@ -10951,8 +10951,8 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!row) {
 			return false;
 		}
-		const decoded = decodeAgentHostCatalogPayload(row.payload);
-		return decoded.ok && readSessionEhcliAdoptable(decoded.value.data._meta);
+		const decoded = decodeAgentHostCatalogPayloadData(row.payload, { forMigration: true, payloadVersion: row.payloadVersion });
+		return decoded.ok && readSessionEhcliAdoptable(decoded.value._meta);
 	}
 
 	private async _applyPassiveSessionMetadata(session: string, action: IIsArchivedChangedAction | IIsReadChangedAction): Promise<IIsArchivedChangedAction | IIsReadChangedAction | undefined> {
@@ -11173,11 +11173,19 @@ export class AgentService extends Disposable implements IAgentService {
 						continue;
 					}
 					// A failed central write must not be discarded by the next flag update.
-					const decoded = decodeAgentHostCatalogPayload(candidate.payload);
-					if (decoded.ok && (candidate !== pending
-						|| (decoded.value.payload === pending.payload && hashAgentHostCatalogPayload(pending.payload) === pending.payloadHash))) {
+					let data: AgentHostCatalogData | undefined;
+					if (candidate === pending) {
+						const decoded = decodeAgentHostCatalogPayload(candidate.payload);
+						if (decoded.ok && decoded.value.payload === pending.payload && hashAgentHostCatalogPayload(pending.payload) === pending.payloadHash) {
+							data = decoded.value.data;
+						}
+					} else if (catalog) {
+						const decoded = decodeAgentHostCatalogPayloadData(catalog.payload, { forMigration: true, payloadVersion: catalog.payloadVersion });
+						data = decoded.ok ? decoded.value : undefined;
+					}
+					if (data) {
 						request = {
-							data: decoded.value.data,
+							data,
 							legacyMetadata: {},
 						};
 						break;
@@ -15275,13 +15283,13 @@ export class AgentService extends Disposable implements IAgentService {
 					if (!isCurrent()) {
 						return;
 					}
-					const decoded = source && decodeAgentHostCatalogPayload(source.payload);
+					const decoded = source && decodeAgentHostCatalogPayloadData(source.payload, { forMigration: true, payloadVersion: source.payloadVersion });
 					if (!decoded || !decoded.ok) {
 						throw new Error(`Missing restored catalog source for ${parentSessionStr}`);
 					}
 					const metadataFallbacks: Record<string, string> = {};
 					const chats = new Map<string, ICatalogChat>();
-					for (const chat of decoded.value.data.chats) {
+					for (const chat of decoded.value.chats) {
 						if (chat.summary !== undefined) {
 							metadataFallbacks[customChatTitleMetadataKey(chat.uri)] = chat.summary;
 						}

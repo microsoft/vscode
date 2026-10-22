@@ -94,7 +94,7 @@ import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri
 import { CompatibleAgentHostDatabase } from '../../node/compatibleAgentHostDatabase.js';
 import { AgentHostDatabase, type AgentHostDatabaseChatV2WriteResult, AgentHostDatabaseSessionChatCatalogReplaceResult, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabase, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSession, IAgentHostDatabaseSessionChat, IAgentHostDatabaseSessionChatCatalog, IAgentHostDatabaseSessionListCatalog, IAgentHostDatabaseSessionsV2Exclusion, IAgentHostDatabaseSessionsV2ExclusionExpectation, IAgentHostDatabaseSessionOptions, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Envelope, IAgentHostDatabaseSessionV2Receipt } from '../../node/agentHostDatabase.js';
 import { CHAT_INHERITED_TURN_METADATA_KEY, CHAT_ORIGIN_METADATA_KEY, CHAT_PROVIDER_DATA_METADATA_KEY, CHAT_WORKING_DIRECTORIES_METADATA_KEY, PEER_CHATS_METADATA_KEY, type AgentHostPeerChatStore, type IImportedOlderBuildChatEdit, type IOlderBuildEditsImport, type IPersistedPeerChat } from '../../node/agentHostPeerChatStore.js';
-import { AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT, AGENT_HOST_CATALOG_PAYLOAD_VERSION, AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT, decodeAgentHostCatalogPayload, encodeAgentHostCatalogPayload, type AgentHostCatalogData } from '../../node/agentHostCatalogProjection.js';
+import { AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT, AGENT_HOST_CATALOG_MIGRATABLE_PAYLOAD_VERSIONS, AGENT_HOST_CATALOG_PAYLOAD_VERSION, AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT, decodeAgentHostCatalogPayload, encodeAgentHostCatalogPayload, hashAgentHostCatalogPayload, type AgentHostCatalogData } from '../../node/agentHostCatalogProjection.js';
 import type { IAgentHostStorageService } from '../../node/agentHostStorageService.js';
 import { AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY, CATALOG_VERIFICATION_VERSION, type IAgentHostCatalogReconciliationReport } from '../../node/agentHostCatalogReconciliationService.js';
 import { AgentSessionRegistry, type IRegisteredSession } from '../../node/agentSessionRegistry.js';
@@ -2386,15 +2386,18 @@ suite('AgentService (node dispatcher)', () => {
 				return super.getChatMetadata(chat, context);
 			}
 		}
-		// Rows written with an older payload version are listed through the provider
-		// until reconciliation rewrites them, which gives a deterministic point at
-		// which to hold the listing open.
-		class OutdatedPayloadDatabase extends TestAgentHostOrchestratorDatabase {
+		// An unsupported payload uses the provider fallback, which gives a
+		// deterministic point at which to hold the listing open.
+		class UnsupportedPayloadDatabase extends TestAgentHostOrchestratorDatabase {
 			override async readSessionListCatalogs(sessions: readonly string[]): Promise<readonly IAgentHostDatabaseSessionListCatalog[]> {
-				return (await super.readSessionListCatalogs(sessions)).map(catalog => ({ ...catalog, payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION - 1 }));
+				return (await super.readSessionListCatalogs(sessions)).map(catalog => ({
+					...catalog,
+					payloadVersion: 0,
+					payload: catalog.payload.replace(`"payloadVersion":${AGENT_HOST_CATALOG_PAYLOAD_VERSION}`, '"payloadVersion":0'),
+				}));
 			}
 		}
-		const catalogDatabase = new OutdatedPayloadDatabase();
+		const catalogDatabase = new UnsupportedPayloadDatabase();
 		const agent = disposables.add(new GatedAgent('copilot'));
 		const svc = disposables.add(createTestAgentService(
 			new RecordingLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
@@ -13845,8 +13848,22 @@ suite('AgentService (node dispatcher)', () => {
 		class CentralCatalogDatabase extends TestAgentHostOrchestratorDatabase {
 			private readonly _catalogs = new Map<string, IAgentHostDatabaseSessionV2Envelope>();
 
-			setCatalog(session: URI, data: AgentHostCatalogData): void {
-				this._catalogs.set(session.toString(), catalogEnvelope(session, data));
+			setCatalog(session: URI, data: AgentHostCatalogData, payloadVersion = AGENT_HOST_CATALOG_PAYLOAD_VERSION): void {
+				const envelope = catalogEnvelope(session, data);
+				if (payloadVersion === AGENT_HOST_CATALOG_PAYLOAD_VERSION) {
+					this._catalogs.set(session.toString(), envelope);
+					return;
+				}
+				const payload = envelope.payload.replace(
+					`"payloadVersion":${AGENT_HOST_CATALOG_PAYLOAD_VERSION}`,
+					`"payloadVersion":${payloadVersion}`
+				);
+				this._catalogs.set(session.toString(), {
+					...envelope,
+					payloadVersion,
+					payload,
+					payloadHash: hashAgentHostCatalogPayload(payload),
+				});
 			}
 
 			override async getSessionV2(session: string): Promise<IAgentHostDatabaseSessionV2 | undefined> {
@@ -16439,6 +16456,54 @@ suite('AgentService (node dispatcher)', () => {
 				sessionDatabaseOpens: 0,
 			});
 		});
+
+		for (const payloadVersion of AGENT_HOST_CATALOG_MIGRATABLE_PAYLOAD_VERSIONS) {
+			test(`central list preserves payload version ${payloadVersion} metadata without a provider or session database`, async () => {
+				const orchestratorDatabase = new CentralCatalogDatabase();
+				const session = AgentSession.uri('copilot', `offline-v${payloadVersion}`);
+				await orchestratorDatabase.registerSessionV2(session.toString(), {
+					provider: 'copilot',
+					startTime: 10,
+					source: 'explicit',
+				}, { checkTombstone: false });
+				orchestratorDatabase.setCatalog(session, {
+					...centralData(session, 40, 'Available centrally'),
+					isRead: true,
+					isArchived: true,
+					_meta: { [SESSION_META_MULTI_ROOT_KEY]: { workspaceFile: 'file:///workspace/project.code-workspace' } },
+				}, payloadVersion);
+				let databaseOpens = 0;
+				const svc = createCentralCatalogService({
+					...createSessionDataService(),
+					tryOpenDatabase: async () => {
+						databaseOpens++;
+						return undefined;
+					},
+				}, orchestratorDatabase);
+				await svc.whenCatalogReconciliationIdle();
+				databaseOpens = 0;
+
+				const listed = await svc.listSessions();
+
+				assert.deepStrictEqual({
+					sessions: listed.map(metadata => ({
+						resource: metadata.session.toString(),
+						summary: metadata.summary,
+						status: metadata.status,
+						multiRoot: readSessionMultiRootMetadata(metadata._meta),
+					})),
+					databaseOpens,
+				}, {
+					sessions: [{
+						resource: session.toString(),
+						summary: 'Available centrally',
+						status: SessionStatus.Idle | SessionStatus.IsRead | SessionStatus.IsArchived,
+						multiRoot: { workspaceFile: 'file:///workspace/project.code-workspace' },
+					}],
+					databaseOpens: 0,
+				});
+			});
+		}
 
 		test('central list applies the same live state overlay as legacy listing', async () => {
 			const orchestratorDatabase = new CentralCatalogDatabase();

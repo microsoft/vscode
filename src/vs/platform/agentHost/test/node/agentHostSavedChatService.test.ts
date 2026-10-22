@@ -17,7 +17,7 @@ import type { ISessionDatabase, ISessionDataService } from '../../common/session
 import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, buildChatUri, buildDefaultChatUri, ChatInteractivity, ChatOriginKind, MessageKind, ResponsePartKind, TurnState, type Turn } from '../../common/state/sessionState.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentHostCatalogListReader } from '../../node/agentHostCatalogListReader.js';
-import { encodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
+import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, encodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
 import { CHAT_BACKING_METADATA_KEY, chatCatalogV2ToCatalogChats } from '../../node/agentHostCatalogSourceResolver.js';
 import { AgentHostSavedChatService, type AgentHostSavedChatArchiveTarget, type IAgentHostSavedChatReadContext, type IAgentHostSavedChatReader } from '../../node/agentHostSavedChatService.js';
 import { CHAT_WORKING_DIRECTORIES_METADATA_KEY } from '../../node/agentHostPeerChatStore.js';
@@ -116,7 +116,7 @@ suite('AgentHostSavedChatService', () => {
 		assert.ok(encoded.ok);
 		assert.strictEqual(await database.upsertSessionV2FromChatCatalog({
 			session: session.toString(), sessionGeneration: 'saved-owner-generation', sourceRevision: 1,
-			payloadVersion: 2, payload: encoded.value.payload, payloadHash: encoded.value.payloadHash, verified: true,
+			payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION, payload: encoded.value.payload, payloadHash: encoded.value.payloadHash, verified: true,
 		}, undefined, snapshot.header.revision), 'applied');
 		await database.registerSessionV2(alias.toString(), { provider: 'codex', startTime: 1, source: 'discovery' }, { checkTombstone: false });
 		assert.strictEqual(await database.excludeSessionV2({ provider: 'codex', session: alias.toString(), reason: 'backing', fingerprint: 'backing-v1' }, {
@@ -394,7 +394,7 @@ suite('AgentHostSavedChatService', () => {
 					chats: [{ uri: buildDefaultChatUri(resource), kind: 'default', order: 0 }],
 				});
 				assert.ok(encoded.ok);
-				await result.database.upsertSessionV2({ session: resource.toString(), sessionGeneration: resource.toString(), sourceRevision: 1, payloadVersion: 2, payload: encoded.value.payload, payloadHash: encoded.value.payloadHash, verified: true }, undefined);
+				await result.database.upsertSessionV2({ session: resource.toString(), sessionGeneration: resource.toString(), sourceRevision: 1, payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION, payload: encoded.value.payload, payloadHash: encoded.value.payloadHash, verified: true }, undefined);
 			};
 			await registerDestination();
 			const archived: AgentHostSavedChatArchiveTarget[] = [];
