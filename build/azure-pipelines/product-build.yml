@@ -1522,6 +1522,7 @@ extends:
 
       - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
         - stage: node_modules
+          condition: false
           dependsOn: []
           jobs:
             - template: build/azure-pipelines/win32/product-build-win32-node-modules.yml@self
