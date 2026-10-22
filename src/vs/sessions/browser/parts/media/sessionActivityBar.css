@@ -113,3 +113,39 @@
 .monaco-workbench .session-activity-bar .monaco-action-bar.vertical .action-label.submenu-open:not(.disabled) {
 	background-color: var(--vscode-toolbar-activeBackground);
 }
+
+/* Like the workbench activity bar's, activity badges overlap the bottom-right corner of the entry's icon, sized for the strip's compact entries. */
+.monaco-workbench .session-activity-bar .monaco-action-bar.vertical .action-item {
+	position: relative;
+}
+
+.monaco-workbench .session-activity-bar .session-activity-bar-badge {
+	display: none;
+	position: absolute;
+	top: var(--vscode-spacing-size120);
+	right: var(--vscode-spacing-size20);
+	box-sizing: border-box;
+	width: var(--vscode-spacing-size80);
+	height: var(--vscode-spacing-size80);
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: var(--vscode-activityBarBadge-background);
+	color: var(--vscode-activityBarBadge-foreground);
+	pointer-events: none;
+}
+
+.monaco-workbench .session-activity-bar .session-activity-bar-badge.visible {
+	display: block;
+}
+
+.monaco-workbench .session-activity-bar .session-activity-bar-badge.count {
+	top: var(--vscode-spacing-size100);
+	right: 0;
+	width: auto;
+	min-width: var(--vscode-spacing-size120);
+	height: var(--vscode-spacing-size120);
+	padding: 0 var(--vscode-spacing-size20);
+	font-size: var(--vscode-fontSize-label3);
+	line-height: calc(var(--vscode-spacing-size120) - 2 * var(--vscode-strokeThickness));
+	text-align: center;
+}

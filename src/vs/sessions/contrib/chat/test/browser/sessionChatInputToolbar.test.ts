@@ -44,7 +44,7 @@ import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionChangesStatsCache } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
-import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, SESSION_CHANGES_CHANGESET_ID, SessionArtifactKind, SessionStatus, type IChat, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionArtifact, type ISessionCanvas, type ISessionChangeset, type ISessionFolder, type ISessionGitRepository, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, SESSION_CHANGES_CHANGESET_ID, SessionArtifactKind, SessionStatus, type IChat, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionArtifact, type ISessionCanvas, type ISessionChangeset, type ISessionFileChange, type ISessionFolder, type ISessionGitRepository, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { REVEAL_CANVAS_COMMAND_ID } from '../../../../../workbench/contrib/canvases/common/canvas.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../changes/common/sessionChangesService.js';
@@ -55,7 +55,7 @@ import type { IResolvedSessionPullRequest } from '../../../github/browser/pullRe
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { GitHubPullRequestModel } from '../../../github/browser/models/githubPullRequestModel.js';
 import { GitHubIssueModel } from '../../../github/browser/models/githubIssueModel.js';
-import { buildSessionIssueSections, buildSessionPullRequestSections, computeSessionInputPillStats, SessionChatInputToolbar } from '../../browser/sessionChatInputToolbar.js';
+import { buildSessionIssueSections, buildSessionPullRequestSections, computeSessionInputPillStats, readLoadedSessionInputPillStats, SessionChatInputToolbar } from '../../browser/sessionChatInputToolbar.js';
 import { buildSessionArtifactSections, type ISessionArtifactActions } from '../../browser/sessionArtifacts.js';
 
 suite('SessionChatInputToolbar', () => {
@@ -320,6 +320,42 @@ suite('SessionChatInputToolbar', () => {
 			derived(reader => computeSessionInputPillStats(session, chat, reader, changesStatsCache)).get(),
 			{ files: 3, insertions: 12, deletions: 5 },
 		);
+	});
+
+	test('reports loaded stats only once the main chat file list resolves beyond the session summary', () => {
+		const changeset = (changes: readonly ISessionFileChange[]) => upcastPartial<ISessionChangeset>({
+			id: 'branch',
+			isDefault: constObservable(true),
+			isLoadingChanges: constObservable(false),
+			changes: constObservable(changes),
+		});
+		const createChat = (changes: readonly ISessionFileChange[]) => upcastPartial<IChat>({
+			resource: URI.parse('test://main-chat'),
+			workspace: constObservable(upcastPartial<ISessionWorkspace>({ folders: [] })),
+			changesets: constObservable([changeset(changes)]),
+			changes: constObservable(changes),
+		});
+		const createSession = (chat: IChat, summaryFiles: number | undefined) => upcastPartial<IActiveSession>({
+			loading: constObservable(false),
+			sessionId: 'provider:session',
+			activeChat: constObservable(chat),
+			mainChat: constObservable(chat),
+			changesSummary: summaryFiles === undefined ? undefined : constObservable({ files: summaryFiles, additions: 7, deletions: 2 }),
+		});
+		const read = (chat: IChat, summaryFiles: number | undefined) => derived(reader => readLoadedSessionInputPillStats(createSession(chat, summaryFiles), chat, reader)).get();
+		const change = { modifiedUri: URI.file('/change.ts'), insertions: 7, deletions: 2 };
+
+		assert.deepStrictEqual({
+			onlySessionSummaryKnown: read(createChat([]), 1),
+			resolved: read(createChat([change]), 1),
+			noChanges: read(createChat([]), 0),
+			noSummary: read(createChat([]), undefined),
+		}, {
+			onlySessionSummaryKnown: undefined,
+			resolved: { files: 1, insertions: 7, deletions: 2 },
+			noChanges: { files: 0, insertions: 0, deletions: 0 },
+			noSummary: { files: 0, insertions: 0, deletions: 0 },
+		});
 	});
 
 	for (const worktree of [false, true]) {
