@@ -2757,6 +2757,37 @@ suite('Sessions - SessionsList', () => {
 		}
 
 		for (const mode of ['more', 'less'] as const) {
+			test(`shows the themed list hover background for sticky ${mode} and clears it on mouse out`, () => {
+				const grouped = sessions(20);
+				const fixture = createList(grouped, {
+					groups: [group],
+					memberships: new Map(grouped.map(session => [session.sessionId, group.id])),
+					cappedGroupIds: mode === 'more' ? [group.id] : undefined,
+				});
+				fixture.container.style.setProperty('--vscode-list-hoverBackground', 'rgba(10, 20, 30, 0.1)');
+				fixture.container.style.setProperty('--vscode-descriptionForeground', 'rgb(100, 110, 120)');
+				fixture.container.style.setProperty('--vscode-foreground', 'rgb(200, 210, 220)');
+				const appearance = () => {
+					const style = mainWindow.getComputedStyle(fixture.button);
+					return { background: style.backgroundColor, color: style.color };
+				};
+				const resting = appearance();
+				fixture.button.classList.add('hovered');
+				fixture.button.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+				const hovered = appearance();
+				fixture.container.style.setProperty('--vscode-list-hoverBackground', 'rgb(30, 40, 50)');
+				const changedTheme = appearance();
+				fixture.button.classList.remove('hovered');
+				fixture.button.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }));
+
+				assert.deepStrictEqual({ resting, hovered, changedTheme, restored: appearance() }, {
+					resting: { background: 'rgba(0, 0, 0, 0)', color: 'rgb(100, 110, 120)' },
+					hovered: { background: 'rgba(10, 20, 30, 0.1)', color: 'rgb(200, 210, 220)' },
+					changedTheme: { background: 'rgb(30, 40, 50)', color: 'rgb(200, 210, 220)' },
+					restored: resting,
+				});
+			});
+
 			test(`uses the original row's markup, typography, separators and insets for ${mode}`, () => {
 				const grouped = sessions(20);
 				const fixture = createList(grouped, {
