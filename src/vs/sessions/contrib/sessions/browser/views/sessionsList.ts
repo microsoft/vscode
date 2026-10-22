@@ -4060,6 +4060,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private readonly navigationList: WorkbenchList<ISessionSection> | undefined;
 	private navigationSections: readonly ISessionSection[] = [];
 	private sessions: ISession[] = [];
+	private readonly pendingListUpdate = this._register(new MutableDisposable());
+	private refreshPending = false;
 	private readonly sessionChatsObserver = this._register(new MutableDisposable());
 	private readonly sessionChatsUpdate = this._register(new MutableDisposable());
 	private readonly activeSessionUpdate = this._register(new MutableDisposable());
@@ -4272,7 +4274,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		subscribeProviderCapabilities();
 		this._register(sessionsProvidersService.onDidChangeProviders(() => {
 			subscribeProviderCapabilities();
-			this.update();
+			this.scheduleListUpdate();
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING) || e.affectsConfiguration(SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING) || e.affectsConfiguration(ChatSessionArchiveActionWordingSettingId)) {
@@ -4876,7 +4878,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		this._register(this._sessionsManagementService.onDidChangeSessions(e => {
 			if (this.visible) {
-				this.refresh();
+				// Move and reveal operations depend on concrete deltas being rendered synchronously.
+				if (e.added.length || e.removed.length || e.changed.length) {
+					this.refresh();
+				} else {
+					this.scheduleListUpdate(true);
+				}
 			}
 			// A removed session may have been the last one in its workspace.
 			// Garbage-collect manual order / promotion entries for identities
@@ -4918,7 +4925,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		this._register(this._agentHostFilterService.onDidChange(() => {
 			if (this.visible) {
-				this.update();
+				this.scheduleListUpdate();
 			}
 		}));
 		this._register(this.filters.onDidChange(() => this.update()));
@@ -4968,7 +4975,28 @@ export class SessionsList extends Disposable implements ISessionsList {
 		});
 	}
 
+	private scheduleListUpdate(refresh = false): void {
+		this.refreshPending ||= refresh;
+		if (!this.pendingListUpdate.value) {
+			this.pendingListUpdate.value = DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.listContainer), () => {
+				this.pendingListUpdate.clear();
+				if (this.visible) {
+					if (this.refreshPending) {
+						this.refresh();
+					} else {
+						this.update();
+					}
+				}
+			});
+		}
+	}
+
 	refresh(): void {
+		this.refreshPending = true;
+		this.update();
+	}
+
+	private refreshSessions(): void {
 		this.sessions = this._sessionsManagementService.getSessions();
 		this.sessionChatsUpdate.clear();
 		let initialized = false;
@@ -4991,10 +5019,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 		for (const session of this.sessions) {
 			this._sessionsListModelService.migrateLegacyReadState(session);
 		}
-		this.update();
 	}
 
 	update(expandAll?: boolean): void {
+		this.pendingListUpdate.clear();
+		if (this.refreshPending) {
+			this.refreshPending = false;
+			this.refreshSessions();
+		}
 		const activeSession = this._sessionsService.activeSession.get();
 		const onboardingSession = this.onboardingTarget.get()?.session;
 		const nextNestedSessionResources = new Set(

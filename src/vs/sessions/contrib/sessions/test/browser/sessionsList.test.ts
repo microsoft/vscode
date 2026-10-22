@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
-import { $, append } from '../../../../../base/browser/dom.js';
+import { $, append, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
@@ -73,6 +73,7 @@ import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSIONS_W
 import { getSessionApplication } from '../../../../common/sessionApplication.js';
 import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
+import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import type { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
 import { ISessionsListModelService, SessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
@@ -81,9 +82,9 @@ import { ISessionSectionOrderService, SessionSectionOrderService } from '../../.
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionChangeset, ISessionChangesSummary, ISessionFileChange, ISessionFolder, ISessionType, SessionArtifactKind, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
+import { ISessionChangeEvent, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { computeReorderSortChanges, groupByDate, groupByEnvironment, groupByRepository, groupByWorkspace, groupSessionsForList, ISessionChatItem, ISessionSection, limitSessionsForList, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting, QUICK_CHATS_SECTION_ID } from '../../browser/views/sessionsList.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IChatService, IChatToolInvocation } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -171,6 +172,169 @@ suite('Sessions - SessionsList', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const noHeaderStatusTrigger = { pending: constObservable(false), includeExpanded: constObservable(false), report: () => { } };
 	const noKeybindingService = new class extends mock<IKeybindingService>() { };
+
+	suite('catalogue refresh scheduling', () => {
+		async function nextFrame(): Promise<void> {
+			await new Promise<void>(resolve => {
+				disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve(), -1000));
+			});
+		}
+
+		async function createFixture() {
+			const original = createTestSession('Original').session;
+			const changes = disposables.add(new Emitter<ISessionChangeEvent>());
+			const providers = disposables.add(new Emitter<ISessionsProvidersChangeEvent>());
+			const hosts = disposables.add(new Emitter<void>());
+			let reads = 0;
+			const management = new class extends TestSessionsManagementService {
+				override readonly onDidChangeSessions = changes.event;
+				override getSessions(): ISession[] {
+					reads++;
+					return super.getSessions();
+				}
+			}([original]);
+			const harness = createListHarness(disposables, [original], instantiationService => {
+				instantiationService.stub(ISessionsManagementService, management);
+				instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+					override readonly onDidChangeProviders = providers.event;
+					override getProviders(): ISessionsProvider[] { return []; }
+				});
+				instantiationService.stub(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() {
+					override readonly onDidChange = hosts.event;
+					override readonly selectedHost = undefined;
+				});
+			});
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(400, 400);
+			await nextFrame();
+			reads = 0;
+			let updates = 0;
+			harness.store.add(list.onDidUpdate(() => updates++));
+			const invalidateCatalogue = () => {
+				hosts.fire();
+				changes.fire({ added: [], removed: [], changed: [] });
+				providers.fire({ added: [], removed: [] });
+			};
+			return {
+				harness, list, management, original, changes, invalidateCatalogue,
+				counts: () => ({ reads, updates }),
+				titles: () => [...container.querySelectorAll('.session-title')].map(element => element.textContent),
+			};
+		}
+
+		test('coalesces provider, catalogue and host invalidations while preserving focus and selection', async () => {
+			const fixture = await createFixture();
+			fixture.list.setFocusedItem({ session: fixture.original.resource });
+			fixture.list.setSelectedItems([{ session: fixture.original.resource }]);
+			fixture.list.focus();
+			const added = createTestSession('Added').session;
+			fixture.management.sessions = [fixture.original, added];
+			for (let index = 0; index < 125; index++) {
+				fixture.invalidateCatalogue();
+			}
+			const before = fixture.counts();
+			await nextFrame();
+
+			assert.deepStrictEqual({
+				before, after: fixture.counts(),
+				titles: fixture.titles().sort(),
+				focused: fixture.list.getFocusedSessions()?.map(session => session.sessionId),
+				selected: fixture.list.getItemRow({ session: fixture.original.resource })?.getAttribute('aria-selected'),
+			}, {
+				before: { reads: 0, updates: 0 }, after: { reads: 1, updates: 1 },
+				titles: ['Added', 'Original'], focused: [fixture.original.sessionId], selected: 'true',
+			});
+		});
+
+		for (const operation of ['added', 'removed', 'changed'] as const) {
+			test(`keeps concrete session ${operation} synchronous and cancels a redundant queued refresh`, async () => {
+				const fixture = await createFixture();
+				fixture.invalidateCatalogue();
+				const replacement = createTestSession('Replacement').session;
+				fixture.management.sessions = operation === 'removed' ? [] : [replacement];
+				fixture.changes.fire({
+					added: operation === 'added' ? [replacement] : [],
+					removed: operation === 'removed' ? [fixture.original] : [],
+					changed: operation === 'changed' ? [replacement] : [],
+				});
+				const immediate = { ...fixture.counts(), titles: fixture.titles() };
+				await nextFrame();
+
+				assert.deepStrictEqual({ immediate, after: fixture.counts() }, {
+					immediate: { reads: operation === 'removed' ? 2 : 1, updates: 1, titles: operation === 'removed' ? [] : ['Replacement'] },
+					after: { reads: operation === 'removed' ? 2 : 1, updates: 1 },
+				});
+			});
+		}
+
+		for (const explicit of ['refresh', 'update'] as const) {
+			test(`an explicit ${explicit} reads the latest pending catalogue synchronously`, async () => {
+				const fixture = await createFixture();
+				fixture.management.sessions = [createTestSession('Latest').session];
+				fixture.invalidateCatalogue();
+				if (explicit === 'update') {
+					fixture.list.update(true);
+				} else {
+					fixture.list.refresh();
+				}
+				const beforeFrame = fixture.counts();
+				await nextFrame();
+
+				assert.deepStrictEqual({
+					beforeFrame, afterFrame: fixture.counts(),
+					titles: fixture.titles(),
+				}, {
+					beforeFrame: { reads: 1, updates: 1 }, afterFrame: { reads: 1, updates: 1 },
+					titles: ['Latest'],
+				});
+			});
+		}
+
+		test('does not render a hidden list and refreshes its latest catalogue when shown', async () => {
+			const fixture = await createFixture();
+			fixture.invalidateCatalogue();
+			fixture.list.setVisible(false);
+			fixture.management.sessions = [createTestSession('Latest').session];
+			fixture.invalidateCatalogue();
+			await nextFrame();
+			const hidden = fixture.counts();
+			fixture.list.setVisible(true);
+			const shown = { ...fixture.counts(), titles: fixture.titles() };
+			await nextFrame();
+
+			assert.deepStrictEqual({ hidden, shown, settled: fixture.counts() }, {
+				hidden: { reads: 0, updates: 0 }, shown: { reads: 1, updates: 1, titles: ['Latest'] },
+				settled: { reads: 1, updates: 1 },
+			});
+		});
+
+		test('cancels pending work when the list is disposed', async () => {
+			const fixture = await createFixture();
+			fixture.invalidateCatalogue();
+			fixture.list.dispose();
+			await nextFrame();
+			assert.deepStrictEqual(fixture.counts(), { reads: 0, updates: 0 });
+		});
+
+		test('does not lose catalogue changes raised while rendering', async () => {
+			const fixture = await createFixture();
+			fixture.harness.store.add(Event.once(fixture.list.onDidUpdate)(() => {
+				fixture.management.sessions = [createTestSession('Latest').session];
+				fixture.invalidateCatalogue();
+			}));
+			fixture.invalidateCatalogue();
+			await nextFrame();
+			await nextFrame();
+			assert.deepStrictEqual({ ...fixture.counts(), titles: fixture.titles() }, {
+				reads: 2, updates: 2, titles: ['Latest'],
+			});
+		});
+	});
 
 	test('uses the large radius token for list hovers even when pointer styles load later', () => {
 		const pointerStyle = $('style');
