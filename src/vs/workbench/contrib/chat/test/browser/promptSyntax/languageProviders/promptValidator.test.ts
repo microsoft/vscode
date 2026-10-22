@@ -28,7 +28,10 @@ import { PromptFileParser } from '../../../../common/promptSyntax/promptFilePars
 import { ICustomAgent, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
 import { MockChatModeService } from '../../../common/mockChatModeService.js';
 import { MockPromptsService } from '../../../common/promptSyntax/service/mockPromptsService.js';
-import { createVSCodeHarnessDescriptor, ICustomizationHarnessService } from '../../../../common/customizationHarnessService.js';
+import { createVSCodeHarnessDescriptor, ICustomizationHarnessService, type IAgentFileToolInventoryEntry } from '../../../../common/customizationHarnessService.js';
+import { constObservable, ISettableObservable, observableValue } from '../../../../../../../base/common/observable.js';
+import type { AgentModelCatalogStatus } from '../../../../../../../platform/agentHost/common/agentModelCatalogStatus.js';
+import { Event } from '../../../../../../../base/common/event.js';
 
 suite('PromptValidator', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -36,6 +39,9 @@ suite('PromptValidator', () => {
 	let instaService: TestInstantiationService;
 	let testConfigService: TestConfigurationService;
 	let activeTarget: Target;
+	let modelCatalogueStatus: ISettableObservable<AgentModelCatalogStatus | undefined>;
+	let copilotToolInventory: readonly IAgentFileToolInventoryEntry[] | Error | undefined;
+	let otherCopilotToolInventory: readonly IAgentFileToolInventoryEntry[] | Error | undefined;
 
 	const existingRef1 = URI.parse('myFs://test/reference1.md');
 	const existingRef2 = URI.parse('myFs://test/reference2.md');
@@ -43,6 +49,9 @@ suite('PromptValidator', () => {
 
 	setup(async () => {
 		activeTarget = Target.Undefined;
+		modelCatalogueStatus = observableValue('modelCatalogueStatus', 'pending');
+		copilotToolInventory = undefined;
+		otherCopilotToolInventory = undefined;
 
 		testConfigService = new TestConfigurationService();
 		testConfigService.setUserConfiguration(ChatConfiguration.ExtensionToolsEnabled, true);
@@ -126,11 +135,14 @@ suite('PromptValidator', () => {
 		const testModels: ILanguageModelChatMetadata[] = [
 			{ id: 'mae-4', name: 'MAE 4', vendor: 'olama', version: '1.0', family: 'mae', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: { [ChatAgentLocation.Chat]: true } } satisfies ILanguageModelChatMetadata,
 			{ id: 'mae-4.1', name: 'MAE 4.1', vendor: 'copilot', version: '1.0', family: 'mae', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: { [ChatAgentLocation.Chat]: true } } satisfies ILanguageModelChatMetadata,
-			{ id: 'mae-3.5-turbo', name: 'MAE 3.5 Turbo', vendor: 'copilot', version: '1.0', family: 'mae', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, isDefaultForLocation: { [ChatAgentLocation.Chat]: true } } satisfies ILanguageModelChatMetadata
+			{ id: 'mae-3.5-turbo', name: 'MAE 3.5 Turbo', vendor: 'copilot', version: '1.0', family: 'mae', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, isDefaultForLocation: { [ChatAgentLocation.Chat]: true } } satisfies ILanguageModelChatMetadata,
+			{ id: 'copilot-model', name: 'Copilot Model', vendor: 'copilot-test', version: '1.0', family: 'copilot', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: {}, targetChatSessionType: 'copilot-test', configurationSchema: { type: 'object', properties: { reasoningEffort: { type: 'string', enum: ['low', 'high'] } } } } satisfies ILanguageModelChatMetadata,
+			{ id: 'gemini/Google/models/gemini-flash', name: 'Private Model', vendor: 'copilot-test', version: '1.0', family: 'private', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, byokModelIdentifier: 'gemini/Google/models/gemini-flash', maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: {}, targetChatSessionType: 'copilot-test' } satisfies ILanguageModelChatMetadata,
 		];
 
 		instaService.stub(ILanguageModelsService, {
 			getLanguageModelIds() { return testModels.map(m => m.id); },
+			lookupLanguageModel(id: string) { return testModels.find(model => model.id === id); },
 			lookupLanguageModelByQualifiedName(qualifiedName: string) {
 				for (const metadata of testModels) {
 					if (ILanguageModelChatMetadata.matchesQualifiedName(qualifiedName, metadata)) {
@@ -138,7 +150,8 @@ suite('PromptValidator', () => {
 					}
 				}
 				return undefined;
-			}
+			},
+			hasResolvedVendor: () => true,
 		});
 
 		const customChatMode = new CustomChatMode({
@@ -175,8 +188,44 @@ suite('PromptValidator', () => {
 		};
 		promptsService.setCustomModes([customMode]);
 		instaService.stub(IPromptsService, promptsService);
+		const localDescriptor = createVSCodeHarnessDescriptor();
+		const copilotDescriptor = {
+			...localDescriptor,
+			id: 'copilot-test',
+			customAgentTarget: Target.GitHubCopilot,
+			modelCatalogueStatus,
+			itemProvider: {
+				onDidChange: Event.None,
+				provideChatSessionCustomizations: async () => [],
+				provideAgentFileTools: async () => {
+					if (copilotToolInventory instanceof Error) {
+						throw copilotToolInventory;
+					}
+					return copilotToolInventory;
+				},
+			},
+		};
+		const otherCopilotDescriptor = {
+			...localDescriptor,
+			id: 'other-copilot-test',
+			customAgentTarget: Target.GitHubCopilot,
+			modelCatalogueStatus,
+			itemProvider: {
+				onDidChange: Event.None,
+				provideChatSessionCustomizations: async () => [],
+				provideAgentFileTools: async () => {
+					if (otherCopilotToolInventory instanceof Error) {
+						throw otherCopilotToolInventory;
+					}
+					return otherCopilotToolInventory;
+				},
+			},
+		};
 		instaService.stub(ICustomizationHarnessService, {
-			getActiveDescriptor: () => ({ ...createVSCodeHarnessDescriptor(), customAgentTarget: activeTarget }),
+			activeHarness: constObservable('copilot-test'),
+			availableHarnesses: constObservable([localDescriptor, copilotDescriptor, otherCopilotDescriptor]),
+			getActiveDescriptor: () => activeTarget === Target.GitHubCopilot ? copilotDescriptor : localDescriptor,
+			getSessionResourceForHarness: harnessId => URI.parse(`test:/${harnessId}`),
 		});
 	});
 
@@ -790,6 +839,113 @@ suite('PromptValidator', () => {
 			assert.deepStrictEqual(await validate(content, PromptsType.agent), []);
 		});
 
+		test('github-copilot agent validates models after catalogue resolution', async () => {
+			activeTarget = Target.GitHubCopilot;
+			modelCatalogueStatus.set('ready', undefined);
+			const content = [
+				'---',
+				'description: Test',
+				'model: [copilot-model, unavailable-model]',
+				'---',
+			].join('\n');
+
+			const markers = await validate(content, PromptsType.agent);
+
+			assert.deepStrictEqual(markers.map(marker => ({
+				message: marker.message,
+				tags: marker.tags,
+			})), [{
+				message: `Model 'unavailable-model' is not available for the GitHub Copilot harness.`,
+				tags: [MarkerTag.Unnecessary],
+			}]);
+		});
+
+		test('github-copilot agent accepts runtime model identifiers and aliases', async () => {
+			activeTarget = Target.GitHubCopilot;
+			modelCatalogueStatus.set('ready', undefined);
+			const content = [
+				'---',
+				'description: Test',
+				'model:',
+				'  - copilot-model',
+				'  - Copilot Model',
+				'  - Copilot Model (copilot)',
+				'  - copilot-model:defaultReasoningEffort=high',
+				'  - gemini/Google/models/gemini-flash',
+				'  - gemini/Google/models/gemini-flash:defaultReasoningEffort=high',
+				'  - Private Model',
+				'  - Copilot Model (agent-host-copilotcli)',
+				'---',
+			].join('\n');
+
+			const markers = await validate(content, PromptsType.agent);
+
+			assert.deepStrictEqual(markers.map(marker => marker.message), [
+				`Model 'Private Model' is not available for the GitHub Copilot harness.`,
+				`Model 'Copilot Model (agent-host-copilotcli)' is not available for the GitHub Copilot harness.`,
+			]);
+		});
+
+		test('github-copilot agent does not validate models while catalogue is pending', async () => {
+			activeTarget = Target.GitHubCopilot;
+			const content = [
+				'---',
+				'description: Test',
+				'model: unavailable-model',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual(await validate(content, PromptsType.agent), []);
+		});
+
+		test('github-copilot agent does not validate models after catalogue failure', async () => {
+			activeTarget = Target.GitHubCopilot;
+			modelCatalogueStatus.set('error', undefined);
+			const content = [
+				'---',
+				'description: Test',
+				'model: unavailable-model',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual(await validate(content, PromptsType.agent), []);
+		});
+
+		test('github-copilot agent does not validate models without a host readiness extension', async () => {
+			activeTarget = Target.GitHubCopilot;
+			modelCatalogueStatus.set(undefined, undefined);
+			const content = [
+				'---',
+				'description: Test',
+				'model: unavailable-model',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual(await validate(content, PromptsType.agent), []);
+		});
+
+		test('github-copilot agent validates model-specific reasoning effort', async () => {
+			activeTarget = Target.GitHubCopilot;
+			modelCatalogueStatus.set('ready', undefined);
+			const content = [
+				'---',
+				'description: Test',
+				'model: copilot-model',
+				'reasoning-effort: unsupported',
+				'---',
+			].join('\n');
+
+			const markers = await validate(content, PromptsType.agent);
+
+			assert.deepStrictEqual(markers.map(marker => ({
+				message: marker.message,
+				tags: marker.tags,
+			})), [{
+				message: `Reasoning effort 'unsupported' is not supported by the selected model.`,
+				tags: [MarkerTag.Unnecessary],
+			}]);
+		});
+
 		test('github-copilot agent supports all canonical hook events and aliases', async () => {
 			const canonicalEvents = [
 				'sessionStart',
@@ -971,6 +1127,70 @@ suite('PromptValidator', () => {
 			]);
 		});
 
+		test('validates github-copilot tools from authoritative matching inventories', async () => {
+			copilotToolInventory = [
+				{ name: 'publisher.extension/client-tool', availability: 'available' },
+				{ name: 'disabled', availability: 'disabled' },
+				{ name: 'unavailable', availability: 'unavailable' },
+			];
+			otherCopilotToolInventory = [{ name: 'other.extension/remote-client-tool', availability: 'available' }];
+			const content = [
+				'---',
+				'description: Test',
+				'target: github-copilot',
+				'tools: [web, todo, publisher.extension/client-tool, other.extension/remote-client-tool, disabled, unavailable, missing, newToolSetRef]',
+				'---',
+			].join('\n');
+
+			const markers = await validate(content, PromptsType.agent);
+
+			assert.deepStrictEqual(markers.map(marker => ({ message: marker.message, tags: marker.tags })), [
+				{ message: `Tool 'disabled' is recognized but disabled for the matching GitHub Copilot harness.`, tags: [MarkerTag.Unnecessary] },
+				{ message: `Tool 'unavailable' is recognized but currently unavailable for the matching GitHub Copilot harness.`, tags: [MarkerTag.Unnecessary] },
+				{ message: `Tool 'missing' is not recognized by the matching GitHub Copilot harness.`, tags: [MarkerTag.Unnecessary] },
+				{ message: `Tool set 'newToolSetRef' is not supported by the GitHub Copilot harness. List individual tools instead.`, tags: [MarkerTag.Unnecessary] },
+			]);
+		});
+
+		test('github-copilot tool validation remains fail-open until every inventory is ready', async () => {
+			const content = [
+				'---',
+				'description: Test',
+				'target: github-copilot',
+				'tools: [missing]',
+				'---',
+			].join('\n');
+			const states: (readonly IAgentFileToolInventoryEntry[] | Error | undefined)[] = [undefined, new Error('inventory failed')];
+			const results: string[][] = [];
+			for (const state of states) {
+				copilotToolInventory = state;
+				otherCopilotToolInventory = [];
+				results.push((await validate(content, PromptsType.agent)).map(marker => marker.message));
+			}
+
+			assert.deepStrictEqual(results, [[], []]);
+		});
+
+		test('github-copilot tool validation refreshes when the inventory changes', async () => {
+			const content = [
+				'---',
+				'description: Test',
+				'target: github-copilot',
+				'tools: [appearing-tool]',
+				'---',
+			].join('\n');
+			copilotToolInventory = [];
+			otherCopilotToolInventory = [];
+			const before = (await validate(content, PromptsType.agent)).map(marker => marker.message);
+			copilotToolInventory = [{ name: 'appearing-tool', availability: 'available' }];
+			const after = (await validate(content, PromptsType.agent)).map(marker => marker.message);
+
+			assert.deepStrictEqual({ before, after }, {
+				before: [`Tool 'appearing-tool' is not recognized by the matching GitHub Copilot harness.`],
+				after: [],
+			});
+		});
+
 		test('github-copilot infer is accepted as legacy', async () => {
 			const content = [
 				'---',
@@ -1080,7 +1300,38 @@ suite('PromptValidator', () => {
 			].join('\n');
 			const markers = await validate(content, PromptsType.agent);
 			// Variable references should not be validated for github-copilot target
-			assert.deepStrictEqual(markers, [], 'Variable references are not validated for github-copilot target');
+			assert.deepStrictEqual(markers, []);
+		});
+
+		test('github-copilot agent validates body syntax', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'---',
+				'Work in {{cwd}} and {{unknownPlaceholder}}.',
+				'Use #file:README.md and #tool:newToolSetRef',
+			].join('\n');
+
+			const markers = await validate(content, PromptsType.agent);
+
+			assert.deepStrictEqual(markers.map(marker => ({
+				message: marker.message,
+				tags: marker.tags,
+			})), [
+				{
+					message: `Local '#file:' references are not expanded by the GitHub Copilot harness.`,
+					tags: [MarkerTag.Unnecessary],
+				},
+				{
+					message: `Unknown GitHub Copilot placeholder '{{unknownPlaceholder}}'.`,
+					tags: [MarkerTag.Unnecessary],
+				},
+				{
+					message: `Tool set 'newToolSetRef' is not supported by the GitHub Copilot harness. List individual tools in the 'tools' frontmatter attribute.`,
+					tags: [MarkerTag.Unnecessary],
+				},
+			]);
 		});
 
 		test('github-copilot agent rejects unsupported attributes', async () => {

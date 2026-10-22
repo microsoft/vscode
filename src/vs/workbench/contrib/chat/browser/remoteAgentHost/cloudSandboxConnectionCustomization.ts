@@ -6,7 +6,6 @@
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { AgentHostProtocolClient } from '../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
-import { GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../../../../platform/agentHost/common/agentService.js';
 import { AuthRequiredReason } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import {
 	CLOUD_SANDBOX_ADDRESS_PREFIX,
@@ -39,8 +38,9 @@ function isGitHubResource(resource: string): boolean {
  * The {@link IRemoteAgentHostConnectionCustomization} for a cloud sandbox address, supplying the
  * ways the sandbox host deviates from the generic path:
  *
- *  - **Auth**: the host only accepts a sealed envelope, so the connection's `encrypted_github_token`
- *    is presented instead of the resolved bearer. Fails closed if no sealed token is available.
+ *  - **Auth**: managed sandboxes receive the connection's sealed GitHub token. User-local hosts
+ *    receive an identity-only token sealed at protocol dispatch against a trusted recipient and
+ *    the current connection challenge.
  *  - **Scheme**: the host advertises provider `copilot` but addresses sessions as `ahp-session`.
  *  - **Directory**: prepare an advertised repository checkout before creating a session.
  *
@@ -50,7 +50,6 @@ export function createCloudSandboxConnectionCustomization(
 	address: string,
 	sandboxService: ICloudSandboxAgentHostService,
 	userLocal = false,
-	sealUserLocal?: (request: IAgentHostAuthenticateRequest) => Promise<IAgentHostAuthenticateRequest>,
 ): IRemoteAgentHostConnectionCustomization | undefined {
 	const environmentId = cloudSandboxEnvironmentId(address);
 	if (environmentId === undefined) {
@@ -59,6 +58,9 @@ export function createCloudSandboxConnectionCustomization(
 	const resolveAuthentication = async (resource: string, scopes: readonly string[] | undefined, renew: boolean): Promise<IAgentHostAuthenticateRequest> => {
 		if (!isGitHubResource(resource)) {
 			throw new Error(`Cloud sandbox cannot authenticate the non-GitHub resource '${resource}'.`);
+		}
+		if (userLocal) {
+			return { ...await sandboxService.resolveUserLocalAuthentication(environmentId, resource, renew), scopes };
 		}
 		const sealed = renew
 			? await sandboxService.refreshSealedGitHubToken(environmentId)
@@ -74,11 +76,8 @@ export function createCloudSandboxConnectionCustomization(
 			if (reason !== AuthRequiredReason.Expired && isCloudSandboxSealedToken(request.token)) {
 				return request;
 			}
-			if (userLocal && (request.target || new URL(request.resource).origin !== new URL(GITHUB_COPILOT_PROTECTED_RESOURCE.resource).origin)) {
-				if (!sealUserLocal) {
-					throw new Error('User-local Mission Control sealing is unavailable.');
-				}
-				return sealUserLocal(request);
+			if (userLocal && (request.target || !isGitHubResource(request.resource))) {
+				return request;
 			}
 			const authentication = await resolveAuthentication(request.resource, request.scopes, reason === AuthRequiredReason.Expired);
 			return request.target ? { ...authentication, target: request.target } : authentication;

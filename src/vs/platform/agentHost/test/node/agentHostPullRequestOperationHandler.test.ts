@@ -248,7 +248,7 @@ class TestGitHubClient {
 			}();
 			override readonly repositories = new class extends mock<IRepositoriesClient>() {
 				override async get(repository: RepositoryRef, signal: AbortSignal, options?: ApiRequestOptions): Promise<Repository> {
-					client.calls.push(`repositories.get:${repository.owner}/${repository.name}`);
+					client.calls.push(`repositories.get:${repository.owner}/${repository.repo}`);
 					client.repositoryRequests.push({ repository, signal, options });
 					if (client.capabilitiesError) {
 						throw client.capabilitiesError;
@@ -927,7 +927,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 			}, {
 				autoMergeAllowed: settings.auto,
 				mergeMethods: settings.methods,
-				requests: [{ repository: { owner: 'microsoft', name: 'vscode' }, options: { caller: 'agentHost.pullRequest' }, aborted: false }],
+				requests: [{ repository: { owner: 'microsoft', repo: 'vscode' }, options: { caller: 'agentHost.pullRequest' }, aborted: false }],
 				leases: { acquired: 1, disposed: 1 },
 			});
 		});
@@ -1840,7 +1840,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 					if (scenario.cancelled) {
 						source.cancel();
 					}
-					await client.pullRequests.list({ owner: 'microsoft', name: 'vscode' }, new AbortController().signal, { query: { page: 2 } });
+					await client.pullRequests.list({ owner: 'microsoft', repo: 'vscode' }, new AbortController().signal, { query: { page: 2 } });
 					await createResponse.complete(new Response(JSON.stringify(pullRequest), { status: 201 }));
 				})(),
 			]);

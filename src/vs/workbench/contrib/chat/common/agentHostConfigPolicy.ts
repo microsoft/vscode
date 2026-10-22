@@ -10,7 +10,7 @@ import { getAvailableSessionApprovalValues, getSessionApprovalProperty, writeSes
 import { SessionConfigKey } from '../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ResolveSessionConfigResult, SessionConfigSchema } from '../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY } from '../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_DISABLE_ASSISTED_PERMISSIONS_MODE_KEY, COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, IManagedSettingsService } from '../../../../platform/policy/common/copilotManagedSettings.js';
 import { ChatConfiguration, ChatPermissionLevel, getChatPermissionLevelFromDefaultConfiguration, IChatDefaultConfiguration } from './constants.js';
 
 export function usesHostApprovalPolicy(schema: SessionConfigSchema | undefined): boolean {
@@ -33,6 +33,26 @@ export function autoApprovePolicyValue(policyData: IPolicyData): false | undefin
 
 export function isAutoApprovePolicyRestricted(configurationService: IConfigurationService, schema?: SessionConfigSchema): boolean {
 	return !usesHostApprovalPolicy(schema) && configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
+}
+
+/**
+ * Whether enterprise policy known to this client disables an approval level. Hosts report withheld levels without a
+ * reason, so only levels proven here are attributed to policy. An explicit mode restriction replaces the legacy
+ * global auto-approval policy, matching the managed-settings precedence the Copilot host applies.
+ */
+export function isApprovalLevelDisabledByKnownPolicy(level: string, configurationService: IConfigurationService, managedSettingsService: IManagedSettingsService): boolean {
+	const assisted = managedSettingsService.getManagedSettingValue(COPILOT_DISABLE_ASSISTED_PERMISSIONS_MODE_KEY);
+	const bypass = managedSettingsService.getManagedSettingValue(COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY);
+	const legacy = configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false
+		&& typeof assisted !== 'boolean' && bypass !== 'disable' && bypass !== 'enable';
+	switch (level) {
+		case ChatPermissionLevel.Assisted:
+			return assisted === true || legacy;
+		case ChatPermissionLevel.AutoApprove:
+			return bypass === 'disable' || legacy;
+		default:
+			return false;
+	}
 }
 
 export function isAutoApproveValuePolicyRestricted(value: unknown, policyRestricted: boolean): boolean {

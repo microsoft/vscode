@@ -156,6 +156,8 @@ export interface ISessionStateChatMove {
 	readonly coOwnedWorktrees: readonly ISessionStateSharedWorktree[];
 	/** The worktree lists the move changes, in its transaction. A session that ends by the move keeps none. */
 	readonly worktreeLists: ISessionStateWorktreeListChanges;
+	/** Other session-level values the move changes in its transaction (`null` deletes), such as the artifacts its chats recorded. A session that ends by the move keeps no old-format copy of those it gives the target. */
+	readonly values?: { readonly source: Readonly<Record<string, string | null>>; readonly target: Readonly<Record<string, string | null>> };
 }
 
 export type SessionStateChatMoveResult =
@@ -180,6 +182,8 @@ export interface ISessionStateChatPromotion {
 	readonly coOwnedWorktrees: readonly ISessionStateSharedWorktree[];
 	/** The worktree lists the promotion changes, in its transaction: the source's, and the new session's to start with. */
 	readonly worktreeLists: ISessionStateWorktreeListChanges;
+	/** Other session-level values the promotion changes in the source, in its transaction (`null` deletes), such as the artifacts the promoted chats recorded. */
+	readonly sourceValues?: Readonly<Record<string, string | null>>;
 }
 
 export type SessionStateChatPromotionResult =

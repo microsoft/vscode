@@ -607,7 +607,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		});
 	});
 
-	test('graduated backend disposal belongs only to the real UI resource', async () => {
+	test('disposing either UI mapping preserves the graduated backend', async () => {
 		const ui = untitledChatUri('retained-backend-disposal');
 		const real = ui.with({ path: '/real-retained-backend-disposal' });
 		const backend = await provisional.getOrCreate(ui, 'copilot', undefined);
@@ -625,8 +625,38 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 			mapping: provisional.get(boundResource),
 		}, {
 			afterOldDisposal: [],
-			disposed: [backend.toString()],
+			disposed: [],
 			mapping: undefined,
+		});
+	});
+
+	test('does not rebind a backend it no longer owns', async () => {
+		const ui = untitledChatUri('rebound-ownership');
+		const real = ui.with({ path: '/real-rebound-ownership' });
+		const backend = await provisional.getOrCreate(ui, 'copilot', undefined);
+		assert.ok(backend);
+		const rebound = await provisional.tryRebind(ui, real, 'copilot');
+		assert.ok(rebound);
+		const boundResource = real.with({ path: rebound.path });
+		const destination = ui.with({ path: '/another-rebound-resource' });
+		seedImportedConversation(destination);
+		const createsAfterRebind = agentHost.createCalls.length;
+		const disposalsAfterRebind = agentHost.disposeAttempts.length;
+
+		const result = await provisional.tryRebind(boundResource, destination, 'copilot');
+
+		assert.deepStrictEqual({
+			result,
+			mapping: provisional.get(boundResource)?.toString(),
+			creates: agentHost.createCalls.length - createsAfterRebind,
+			disposals: agentHost.disposeAttempts.slice(disposalsAfterRebind).map(uri => uri.toString()),
+			importedTitle: importStore.take(destination)?.title,
+		}, {
+			result: undefined,
+			mapping: backend.toString(),
+			creates: 0,
+			disposals: [],
+			importedTitle: 'Original imported conversation',
 		});
 	});
 
@@ -1204,6 +1234,125 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 
 		assert.strictEqual(agentHost.createCalls.length, createsBeforeReorder);
 	});
+
+	for (const { change, initialFolders, updatedFolders, addedFolders, removedFolders } of [
+		{ change: 'a secondary workspace folder is added', initialFolders: ['one', 'two'], updatedFolders: ['one', 'two', 'three'], addedFolders: ['three'], removedFolders: [] },
+		{ change: 'a secondary workspace folder is removed', initialFolders: ['one', 'two', 'three'], updatedFolders: ['one', 'three'], addedFolders: [], removedFolders: ['two'] },
+		{ change: 'a single-root workspace becomes multi-root', initialFolders: ['one'], updatedFolders: ['one', 'two'], addedFolders: ['two'], removedFolders: [] },
+	]) {
+		test(`does not recreate or dispose a started session when ${change}`, async () => {
+			const primary = URI.file('/workspace/one');
+			workspaceFolders = initialFolders.map(folder => URI.file(`/workspace/${folder}`));
+			workspaceConfiguration = URI.file('/workspace/demo.code-workspace');
+			workbenchState = WorkbenchState.WORKSPACE;
+			agentHost.rootStateAgents = [agentInfo('copilot', true)];
+			const ui = untitledChatUri('started-workspace-folders-changed');
+			const real = URI.from({ scheme: 'agent-host-copilot', path: '/real-started-workspace-folders-changed' });
+
+			await provisional.getOrCreate(ui, 'copilot', primary);
+			const rebound = await provisional.tryRebind(ui, real, 'copilot');
+			assert.ok(rebound);
+			const boundResource = real.with({ path: rebound.path });
+			const realBackend = provisional.get(boundResource);
+			assert.ok(realBackend);
+			const createsAfterRebind = agentHost.createCalls.length;
+			const disposalsAfterRebind = agentHost.disposeAttempts.length;
+			const scopesAfterRebind = acquiredScopeRoots.length;
+
+			workspaceFolders = updatedFolders.map(folder => URI.file(`/workspace/${folder}`));
+			onDidChangeWorkspaceFolders.fire({
+				added: addedFolders.map(folder => workspaceFolder(URI.file(`/workspace/${folder}`), updatedFolders.indexOf(folder))),
+				removed: removedFolders.map(folder => workspaceFolder(URI.file(`/workspace/${folder}`), initialFolders.indexOf(folder))),
+				changed: [],
+			});
+			await provisional.waitForPending(boundResource);
+
+			assert.deepStrictEqual({
+				createsAfterChange: agentHost.createCalls.length - createsAfterRebind,
+				disposalRequests: agentHost.disposeAttempts.slice(disposalsAfterRebind).map(uri => uri.toString()),
+				additionalScopes: acquiredScopeRoots.slice(scopesAfterRebind),
+				currentBackend: provisional.get(boundResource)?.toString(),
+				workingDirectories: provisional.getProvisionalWorkingDirectories(boundResource)?.map(directory => directory.toString()),
+			}, {
+				createsAfterChange: 0,
+				disposalRequests: [],
+				additionalScopes: [],
+				currentBackend: realBackend.toString(),
+				workingDirectories: initialFolders.map(folder => URI.file(`/workspace/${folder}`).toString()),
+			});
+		});
+	}
+
+	test('does not recreate or dispose a rebound backend when its folder selection changes', async () => {
+		const primary = URI.file('/workspace/one');
+		const secondary = URI.file('/workspace/two');
+		workspaceFolders = [primary, secondary];
+		agentHost.rootStateAgents = [agentInfo('copilot', true)];
+		const ui = untitledChatUri('rebound-folder-selection');
+		const real = ui.with({ path: '/real-folder-selection' });
+		await provisional.getOrCreate(ui, 'copilot', primary);
+		const rebound = await provisional.tryRebind(ui, real, 'copilot');
+		assert.ok(rebound);
+		const boundResource = real.with({ path: rebound.path });
+		const createsAfterRebind = agentHost.createCalls.length;
+		const disposalsAfterRebind = agentHost.disposeAttempts.length;
+		agentHost.resolveQueue.push({ schema: makeSchema(false), values: { isolation: 'folder' } });
+
+		folderService.setFolder(boundResource, secondary);
+		await provisional.waitForPending(boundResource);
+
+		assert.deepStrictEqual({
+			createsAfterChange: agentHost.createCalls.length - createsAfterRebind,
+			disposalRequests: agentHost.disposeAttempts.slice(disposalsAfterRebind).map(uri => uri.toString()),
+			currentBackend: provisional.get(boundResource)?.toString(),
+		}, {
+			createsAfterChange: 0,
+			disposalRequests: [],
+			currentBackend: rebound.toString(),
+		});
+	});
+
+	for (const cleanupReason of ['chat model disposal', 'mapping disposal', 'service disposal']) {
+		for (const rebound of [false, true]) {
+			test(`${rebound ? 'preserves a rebound backend' : 'deletes an abandoned draft backend'} during ${cleanupReason}`, async () => {
+				const ui = untitledChatUri('backend-ownership');
+				if (rebound) {
+					agentHost.returnedSession = URI.parse('ahp-session://other-host/untitled-persisted?identity=preserved');
+				}
+				agentHost.resolveQueue.push({ schema: makeSchema(false), values: { isolation: 'worktree' } });
+				const backend = await provisional.applyConfigChange(ui, 'copilot', undefined, { isolation: 'worktree' });
+				assert.ok(backend);
+				let sessionResource = ui;
+				if (rebound) {
+					const real = ui.with({ path: '/real-backend-ownership' });
+					const bound = await provisional.tryRebind(ui, real, 'copilot');
+					assert.ok(bound);
+					sessionResource = real.with({ path: bound.path });
+				}
+				const disposalRequestsBeforeCleanup = agentHost.disposeAttempts.length;
+
+				if (cleanupReason === 'chat model disposal') {
+					onDidDisposeChatSession.fire({ sessionResources: [sessionResource], reason: 'disposed' });
+				} else if (cleanupReason === 'mapping disposal') {
+					await provisional.disposeSession(sessionResource);
+				} else {
+					provisional.dispose();
+				}
+				await provisional.waitForPending(sessionResource);
+				await flush();
+
+				assert.deepStrictEqual({
+					mapping: provisional.get(sessionResource),
+					config: provisional.getResolvedConfig(sessionResource),
+					disposalRequests: agentHost.disposeAttempts.slice(disposalRequestsBeforeCleanup).map(uri => uri.toString()),
+				}, {
+					mapping: undefined,
+					config: undefined,
+					disposalRequests: rebound ? [] : [backend.toString()],
+				});
+			});
+		}
+	}
 
 	test('does not reselect or dispose a started session when its primary folder is removed', async () => {
 		const primary = URI.file('/workspace/one');

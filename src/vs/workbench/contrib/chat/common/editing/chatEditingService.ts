@@ -27,7 +27,14 @@ import { IChatAgentResult } from '../participants/chatAgents.js';
 export const IChatEditingService = createDecorator<IChatEditingService>('chatEditingService');
 
 export interface IChatEditingSessionProvider {
-	createEditingSession(chatSessionResource: URI): IChatEditingSession;
+	/**
+	 * Creates the editing session of a chat. The chat model may not be
+	 * registered with the chat service yet.
+	 *
+	 * @param isGlobalEditingSession Whether the session is the long lived one of
+	 * a chat in the chat view or an editor, rather than a short lived one.
+	 */
+	createEditingSession(chatSessionResource: URI, isGlobalEditingSession: boolean): IChatEditingSession;
 }
 
 export interface IChatEditingService {
@@ -113,7 +120,7 @@ export interface ISnapshotEntry {
  * and multi-diff via {@link IChatEditingSession}.
  */
 export interface IChatEditReviewSession extends IDisposable {
-	readonly isGlobalEditingSession: boolean;
+	readonly isGlobalEditingSession: IObservable<boolean>;
 	readonly chatSessionResource: URI;
 	readonly onDidDispose: Event<void>;
 	readonly entries: IObservable<readonly IModifiedFileEntry[]>;
@@ -124,7 +131,7 @@ export interface IChatEditReviewSession extends IDisposable {
 }
 
 export interface IChatEditingSession extends IChatEditReviewSession {
-	readonly supportsKeepUndo: boolean;
+	readonly supportsKeepUndo: IObservable<boolean>;
 	readonly state: IObservable<ChatEditingSessionState>;
 	/** Requests disabled by undo/redo in the session */
 	readonly requestDisablement: IObservable<IChatRequestDisablement[]>;
@@ -421,7 +428,11 @@ export interface IModifiedFileEntry {
 	readonly lastModifyingRequestId: string;
 
 	readonly state: IObservable<ModifiedFileEntryState>;
-	readonly isCurrentlyBeingModifiedBy: IObservable<{ responseModel: IChatResponseModel; undoStopId: string | undefined } | undefined>;
+	/**
+	 * Set while an agent writes the file. The response is unknown when the
+	 * agent runs elsewhere, like an agent host's, which only reports the file.
+	 */
+	readonly isCurrentlyBeingModifiedBy: IObservable<{ responseModel: IChatResponseModel | undefined; undoStopId: string | undefined } | undefined>;
 	readonly lastModifyingResponse: IObservable<IChatResponseModel | undefined>;
 	readonly rewriteRatio: IObservable<number>;
 

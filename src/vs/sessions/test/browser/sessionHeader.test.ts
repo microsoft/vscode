@@ -46,9 +46,9 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, capabilities: 
 	instantiationService.stub(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
 		override readonly onDidChange = Event.None;
 		override isSessionPinned(): boolean { return false; }
-		override getStatusIcon(_status: SessionStatus, isRead: boolean): ThemeIcon {
+		override getStatusIcon(status: SessionStatus, isRead: boolean): ThemeIcon {
 			statusIconReads.push(isRead);
-			return ThemeIcon.fromId('circle');
+			return status === SessionStatus.NeedsInput ? Codicon.commentUnresolved : Codicon.circle;
 		}
 	}());
 	instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
@@ -515,6 +515,92 @@ suite('Sessions - Headers', () => {
 			secondCompleted: { main: true, second: false },
 		});
 	});
+
+	for (const kind of [ChatOriginKind.User, ChatOriginKind.Fork, ChatOriginKind.SideChat, ChatOriginKind.Tool]) {
+		test(`keeps session and pane header status independent of a ${kind} chat`, () => {
+			const { store, instantiationService, header, session, activeChat, mainChat, secondChat } = createHarness(disposables);
+			const child = { ...secondChat, origin: { kind } };
+			session.chats.set([mainChat, child], undefined);
+			const createChatHeader = (chat: IChat) => {
+				const chatHeader = store.add(instantiationService.createInstance(ChatHeader));
+				chatHeader.setChat({ session, chat: constObservable(chat), activate: () => { } });
+				return chatHeader;
+			};
+			const mainHeader = createChatHeader(mainChat);
+			const childHeader = createChatHeader(child);
+			const status = (target: SessionHeader | ChatHeader) => {
+				if (target.element.querySelector('.monaco-pixel-spinner:not([data-icon-fading-out])')) {
+					return SessionStatus.InProgress;
+				}
+				return target.element.querySelector('.codicon-comment-unresolved:not([data-icon-fading-out])')
+					? SessionStatus.NeedsInput : SessionStatus.Completed;
+			};
+			const snapshot = () => [header, mainHeader, childHeader].map(status);
+			const snapshots = [snapshot()];
+
+			child.status.set(SessionStatus.InProgress, undefined);
+			session.status.set(SessionStatus.InProgress, undefined);
+			snapshots.push(snapshot());
+			mainChat.status.set(SessionStatus.NeedsInput, undefined);
+			session.status.set(SessionStatus.NeedsInput, undefined);
+			snapshots.push(snapshot());
+			mainChat.status.set(SessionStatus.Completed, undefined);
+			session.status.set(SessionStatus.InProgress, undefined);
+			snapshots.push(snapshot());
+			child.status.set(SessionStatus.NeedsInput, undefined);
+			session.status.set(SessionStatus.NeedsInput, undefined);
+			snapshots.push(snapshot());
+			activeChat.set(child, undefined);
+			snapshots.push(snapshot());
+			activeChat.set(mainChat, undefined);
+			mainChat.status.set(SessionStatus.InProgress, undefined);
+			snapshots.push(snapshot());
+			mainChat.status.set(SessionStatus.Completed, undefined);
+			snapshots.push(snapshot());
+			child.status.set(SessionStatus.Completed, undefined);
+			session.status.set(SessionStatus.Completed, undefined);
+			snapshots.push(snapshot());
+
+			const completed = SessionStatus.Completed;
+			const working = SessionStatus.InProgress;
+			const waiting = SessionStatus.NeedsInput;
+			assert.deepStrictEqual(snapshots, [
+				[completed, completed, completed],
+				[completed, completed, working],
+				[waiting, waiting, working],
+				[completed, completed, working],
+				[completed, completed, waiting],
+				[waiting, completed, waiting],
+				[working, working, waiting],
+				[completed, completed, waiting],
+				[completed, completed, completed],
+			]);
+		});
+	}
+
+	for (const aggregateStatus of [SessionStatus.InProgress, SessionStatus.NeedsInput]) {
+		test(`does not inherit aggregate status ${aggregateStatus} or unread state when no chat is bound`, () => {
+			const { store, instantiationService, session, mainChat, statusIconReads } = createHarness(disposables);
+			const chat = observableValue<IChat | undefined>('headerChat', mainChat);
+			const bar = store.add(instantiationService.createInstance(SessionHeaderBar, undefined));
+			bar.setContext({ session, chat });
+			session.status.set(aggregateStatus, undefined);
+			session.isRead.set(false, undefined);
+			chat.set(undefined, undefined);
+
+			assert.deepStrictEqual({
+				title: bar.element.querySelector('.label-name')?.textContent,
+				inProgress: bar.element.querySelector('.monaco-pixel-spinner:not([data-icon-fading-out])') !== null,
+				needsInput: bar.element.querySelector('.codicon-comment-unresolved:not([data-icon-fading-out])') !== null,
+				isRead: statusIconReads.at(-1),
+			}, {
+				title: 'New Session',
+				inProgress: false,
+				needsInput: false,
+				isRead: true,
+			});
+		});
+	}
 
 	test('shows New Session for an untitled nested session', () => {
 		const { store, instantiationService, session, activeChat, secondChat } = createHarness(disposables);

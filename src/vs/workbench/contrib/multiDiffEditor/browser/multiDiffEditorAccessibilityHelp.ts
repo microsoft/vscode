@@ -9,6 +9,7 @@ import { AccessibleViewRegistry, IAccessibleViewImplementation } from '../../../
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { MultiDiffEditorFileListFocusedContext } from '../common/multiDiffEditor.js';
 import { MultiDiffEditor } from './multiDiffEditor.js';
 
@@ -29,7 +30,10 @@ class MultiDiffEditorFileListAccessibilityHelp implements IAccessibleViewImpleme
 			localize('multiDiffEditor.fileListHelp.overview', "You are in the changed files list of a multi diff editor."),
 			localize('multiDiffEditor.fileListHelp.navigation', "Use the Up and Down Arrow keys to navigate files. In tree mode, use the Left and Right Arrow keys to collapse or expand folders."),
 			localize('multiDiffEditor.fileListHelp.open', "Press Enter to reveal the selected file and move focus to its diff."),
-			localize('multiDiffEditor.fileListHelp.actions', "Use Toggle Files in the editor toolbar or Command Palette to show or hide the changed files. The Files View & Position submenu in the editor toolbar's More Actions menu switches between a list and a folder tree, and moves the files to the left or right of the diffs."),
+			accessor.get(IWorkbenchEnvironmentService).isSessionsWindow
+				// The Agents window offers Toggle Details instead of Toggle Files, and the submenu in the tab bar's More Actions menu.
+				? localize('multiDiffEditor.fileListHelp.agentsWindowActions', "Use Toggle Details in the editor toolbar{0} to show or hide the changed files. The Files View & Position submenu in the tab bar's More Actions menu switches between a list and a folder tree, and moves the files to the left or right of the diffs.", '<keybinding:workbench.action.agentSessions.toggleDetails>')
+				: localize('multiDiffEditor.fileListHelp.actions', "Use Toggle Files in the editor toolbar or Command Palette to show or hide the changed files. The Files View & Position submenu in the editor toolbar's More Actions menu switches between a list and a folder tree, and moves the files to the left or right of the diffs."),
 		].join('\n');
 
 		return new AccessibleContentProvider(

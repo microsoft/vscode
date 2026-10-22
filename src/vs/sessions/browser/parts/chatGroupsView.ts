@@ -525,6 +525,9 @@ export class ChatGroupsView extends Themable {
 				if (owner) {
 					owner.activeResourceId.set(activeId, tx);
 					this._setActiveGroup(owner);
+					if (!this._restorePending) {
+						this._expandGroupIfCollapsed(owner);
+					}
 				}
 			}
 			this._lastSessionActiveChatId = activeId;
@@ -994,6 +997,10 @@ export class ChatGroupsView extends Themable {
 			this._sessionsService.openChat(session, URI.parse(activeResourceId)).catch(onUnexpectedError);
 		}
 
+		this._expandGroupIfCollapsed(entry);
+	}
+
+	private _expandGroupIfCollapsed(entry: IGroupEntry): void {
 		if (!this._grid || this._groups.length < 2 || !this._isGroupCollapsed(entry.view)) {
 			return;
 		}

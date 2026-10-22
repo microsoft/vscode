@@ -12,7 +12,7 @@ import { ActionType, type ActionEnvelope, type StateAction } from '../../../../.
 import { CustomizationEnablementKind, CustomizationType, MessageKind, SessionLifecycle, SessionStatus, TerminalClaimKind, type ChatSummary, type ClientPluginCustomization, type SessionActiveClient, type SessionSummary, type Snapshot } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { isJsonRpcNotification, ReconnectResultType, type AhpRequest, type AhpServerNotification, type AhpSuccessResponse, type ProtocolMessage } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { SESSION_META_FOLDER_PICKER_KEY } from '../../../../../platform/agentHost/common/state/sessionState.js';
-import { IClientTransport } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
+import { getProtocolMessageSize, parseProtocolMessage, IClientTransport } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { EditorRemoteAgentHostTransport } from '../../common/editorRemoteAgentHostTransport.js';
 
 const authority = 'wsl+ubuntu';
@@ -38,6 +38,7 @@ class TestClientTransport extends Disposable implements IClientTransport {
 	readonly onClose = this.closeEmitter.event;
 	connected = false;
 	disposed = false;
+	bufferedAmount = 0;
 
 	async connect(): Promise<void> {
 		this.connected = true;
@@ -155,6 +156,21 @@ suite('EditorRemoteAgentHostTransport', () => {
 		store.add(transport.onMessage(message => received.push(message)));
 		return { underlying, transport, received };
 	}
+
+	test('preserves windowed TCP messages and their original sizes without URI rewriting', () => {
+		const { underlying, transport, received } = createTransport();
+		for (const method of ['channel/snapshot', 'channel/frame', 'channel/credit', 'tcp/data', 'tcp/eof', 'tcp/reset']) {
+			const text = `{ "jsonrpc":"2.0", "method":"${method}", "params":{"channel":"ahp-tcp:/test","data":"\\\\u0061"} }`;
+			const message = parseProtocolMessage(text);
+			underlying.messageEmitter.fire(message);
+			assert.strictEqual(received.at(-1), message);
+			assert.strictEqual(getProtocolMessageSize(received.at(-1)!), text.length * 2);
+			transport.send(message);
+			assert.strictEqual(underlying.messages.at(-1), message);
+		}
+		underlying.bufferedAmount = 256 * 1024;
+		assert.strictEqual(transport.bufferedAmount, underlying.bufferedAmount);
+	});
 
 	test('round-trips directory actions when the remote authority contains uppercase characters', () => {
 		const { underlying, transport, received } = createTransport('wsl+Ubuntu');

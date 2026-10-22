@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { stub } from 'sinon';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { isMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { constObservable, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -40,7 +41,7 @@ import { MockKeybindingService } from '../../../../../../platform/keybinding/tes
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { NullOpenerService } from '../../../../../../platform/opener/test/common/nullOpenerService.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
-import { COPILOT_SANDBOX_ALLOW_BYPASS_KEY, IManagedSettingsService, ManagedSettingsData } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_SANDBOX_ALLOW_BYPASS_KEY, IManagedSettingsService, ManagedSettingsData, NullManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IAgentHostNewSessionFolderService } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
@@ -273,6 +274,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		const managedSandboxEnforced = observableValue('managedSandboxEnforced', false);
 		const managedSandboxAllowsBypass = observableValue('managedSandboxAllowsBypass', false);
 		instantiationService.stub(IAgentHostEnablementService, { managedSandboxEnforced, managedSandboxAllowsBypass });
+		instantiationService.set(IManagedSettingsService, new NullManagedSettingsService());
 		instantiationService.stub(IChatPhoneInputPresenter, { enabled: constObservable(false) });
 		instantiationService.stub(IWorkbenchEnvironmentService, { remoteAuthority });
 		const menu = dom.$('div');
@@ -1236,20 +1238,39 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 
 		test(`renders host approval restrictions as disabled rows (${combined ? 'combined' : 'separate'} picker)`, async () => {
 			const { modePicker, permissionPicker, configuration, config, actionWidget, dispatches } = setup(combined);
+			config.schema.properties.availableApprovalModes = { type: 'array', title: 'Available', readOnly: true };
+			config.values.availableApprovalModes = ['default'];
+			await (combined ? modePicker : permissionPicker)['_showPicker'](document.createElement('div'));
+			const unattributed = actionWidget.items.filter(item => item.disabled).map(item => isMarkdownString(item.description) ? item.description.value : item.description);
+			actionWidget.hide();
 			configuration.policyRestricted = true;
 			config.schema.properties.availableApprovalModes = { type: 'array', title: 'Available', readOnly: true };
 			config.values.availableApprovalModes = ['default'];
 			const picker = combined ? modePicker : permissionPicker;
 			await picker['_showPicker'](document.createElement('div'));
 			const levels = actionWidget.items.filter(item => ['Manual permissions', 'Assisted permissions', 'Allow all'].includes(item.label ?? ''))
-				.map(item => ({ label: item.label, disabled: item.disabled, badge: item.badge }));
+				.map(item => ({
+					label: item.label, disabled: item.disabled, badge: item.badge, detail: item.detail, ariaDescription: item.ariaDescription,
+					description: typeof item.description === 'object' ? item.description.value : item.description,
+					hover: isMarkdownString(item.hover?.content) ? item.hover?.content.value : item.hover?.content,
+				}));
 			await assert.rejects(actionWidget.select('Assisted permissions'), /does not offer/);
+			const policy = isWeb ? {
+				ariaDescription: 'Unavailable. The agent host doesn\'t allow this permission level for this session.',
+				description: 'Unavailable',
+				hover: 'The agent host doesn\'t allow this permission level for this session.',
+			} : {
+				ariaDescription: 'Disabled by policy. Your organization\'s policy doesn\'t allow this permission level.',
+				description: '$(briefcase) Disabled by policy',
+				hover: 'Your organization\'s policy doesn\'t allow this permission level.',
+			};
 
-			assert.deepStrictEqual({ levels, dispatches }, {
+			assert.deepStrictEqual({ unattributed, levels, dispatches }, {
+				unattributed: ['Unavailable', 'Unavailable'],
 				levels: [
-					{ label: 'Manual permissions', disabled: false, badge: undefined },
-					{ label: 'Assisted permissions', disabled: true, badge: 'New' },
-					{ label: 'Allow all', disabled: true, badge: undefined },
+					{ label: 'Manual permissions', disabled: false, badge: undefined, detail: undefined, ariaDescription: undefined, description: undefined, hover: 'Copilot asks before running tools unless your configured settings allow the tool.' },
+					{ label: 'Assisted permissions', disabled: true, badge: undefined, detail: undefined, ...policy },
+					{ label: 'Allow all', disabled: true, badge: undefined, detail: undefined, ...policy },
 				],
 				dispatches: [],
 			});
@@ -1268,6 +1289,18 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			});
 
 			assert.strictEqual(actionWidget.isVisible, false);
+		});
+
+		test(`does not attribute a remote host's withheld modes to desktop policy (${combined ? 'combined' : 'separate'} picker)`, async () => {
+			const { modePicker, permissionPicker, configuration, config, actionWidget } = setup(combined, undefined, 'ssh-remote+test');
+			configuration.policyRestricted = true;
+			config.schema.properties.availableApprovalModes = { type: 'array', title: 'Available', readOnly: true };
+			config.values.availableApprovalModes = ['default'];
+			await (combined ? modePicker : permissionPicker)['_showPicker'](document.createElement('div'));
+			assert.deepStrictEqual(actionWidget.items.filter(item => item.disabled).map(item => isMarkdownString(item.description) ? item.description.value : item.description), [
+				'Unavailable',
+				'Unavailable',
+			]);
 		});
 	}
 
@@ -1766,6 +1799,7 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 				override readonly remoteAuthority = undefined;
 			}(),
 			new class extends mock<IContextViewService>() { }(),
+			managedSettingsService,
 		));
 		widget.viewModel = new class extends mock<IChatViewModel>() {
 			override readonly sessionResource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/test-session' });
@@ -2090,11 +2124,15 @@ suite('AgentHostChatInputPicker - resolveConfigChipValue', () => {
 			});
 		});
 
-		test('directs users to their administrator when approvals are disabled by policy', () => {
-			assert.strictEqual(
-				getConfigPickerItemHover(SessionConfigKey.AutoApprove, { value: 'assisted', label: 'Assisted permissions' }, true),
-				'Disabled by your organization. Contact your administrator.'
-			);
+		test('attributes unavailable approvals to policy only when policy is known', () => {
+			const text = (hover: ReturnType<typeof getConfigPickerItemHover>) => isMarkdownString(hover) ? hover.value : hover;
+			assert.deepStrictEqual({
+				policy: text(getConfigPickerItemHover(SessionConfigKey.AutoApprove, { value: 'assisted', label: 'Assisted permissions', disabledByPolicy: true }, true)),
+				unattributed: text(getConfigPickerItemHover(SessionConfigKey.AutoApprove, { value: 'assisted', label: 'Assisted permissions' }, true)),
+			}, {
+				policy: 'Your organization\'s policy doesn\'t allow this permission level.',
+				unattributed: 'The agent host doesn\'t allow this permission level for this session.',
+			});
 		});
 
 		test('explains the selected Codex permissions preset on the trigger hover', () => {

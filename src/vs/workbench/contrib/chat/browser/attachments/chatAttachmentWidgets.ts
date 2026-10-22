@@ -2059,14 +2059,9 @@ export class BrowserViewAttachmentWidget extends AbstractChatAttachmentWidget {
 }
 
 export function hookUpResourceAttachmentDragAndContextMenu(accessor: ServicesAccessor, widget: HTMLElement, resource: URI): IDisposable {
-	const contextKeyService = accessor.get(IContextKeyService);
 	const instantiationService = accessor.get(IInstantiationService);
 
 	const store = new DisposableStore();
-
-	// Context
-	const scopedContextKeyService = store.add(contextKeyService.createScoped(widget));
-	setResourceContext(accessor, scopedContextKeyService, resource);
 
 	// Drag and drop
 	widget.draggable = true;
@@ -2076,8 +2071,20 @@ export function hookUpResourceAttachmentDragAndContextMenu(accessor: ServicesAcc
 	}));
 
 	// Context menu
-	store.add(addBasicContextMenu(accessor, widget, scopedContextKeyService, MenuId.ChatInputResourceAttachmentContext, resource));
+	store.add(hookUpResourceContextMenu(accessor, widget, resource, MenuId.ChatInputResourceAttachmentContext));
 
+	return store;
+}
+
+/**
+ * Shows the actions of {@link menuId} for {@link resource} when {@link widget} opens a context menu,
+ * using resource context keys scoped to the widget.
+ */
+export function hookUpResourceContextMenu(accessor: ServicesAccessor, widget: HTMLElement, resource: URI, menuId: MenuId): IDisposable {
+	const store = new DisposableStore();
+	const scopedContextKeyService = store.add(accessor.get(IContextKeyService).createScoped(widget));
+	setResourceContext(accessor, scopedContextKeyService, resource);
+	store.add(addBasicContextMenu(accessor, widget, scopedContextKeyService, menuId, resource));
 	return store;
 }
 

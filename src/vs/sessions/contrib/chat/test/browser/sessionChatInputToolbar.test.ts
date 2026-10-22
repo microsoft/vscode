@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../../base/common/async.js';
 import { isManagedHoverTooltipHTMLElement } from '../../../../../base/browser/ui/hover/hover.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
@@ -22,11 +23,12 @@ import { CanvasesEnabledSettingId } from '../../../../../platform/agentHost/comm
 import { RootConfigState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { ArtifactIntegrationsSettingId, ArtifactSnapshot, IArtifactModel } from '../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import type { IChatPillEntry } from '../../../../../workbench/browser/chatPills.js';
 import { IBrowserViewWorkbenchService } from '../../../../../workbench/contrib/browserView/common/browserView.js';
 import type { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
@@ -42,25 +44,28 @@ import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionChangesStatsCache } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
-import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, SESSION_CHANGES_CHANGESET_ID, SessionArtifactKind, SessionStatus, type IChat, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionArtifact, type ISessionCanvas, type ISessionChangeset, type ISessionFolder, type ISessionGitRepository, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, SESSION_CHANGES_CHANGESET_ID, SessionArtifactKind, SessionStatus, type IChat, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionArtifact, type ISessionCanvas, type ISessionChangeset, type ISessionFileChange, type ISessionFolder, type ISessionGitRepository, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { REVEAL_CANVAS_COMMAND_ID } from '../../../../../workbench/contrib/canvases/common/canvas.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../changes/common/sessionChangesService.js';
 import { getGitHubHoverDate, getGitHubHoverDescription, getGitHubHoverTitle, getGitHubHoverTitleParts } from '../../../github/browser/githubHover.js';
 import { createIssueHover } from '../../../github/browser/issueHover.js';
-import { GitHubCIOverallStatus, GitHubIssueState, GitHubIssueStateReason, GitHubPullRequestState, type IGitHubIssue, type IGitHubPullRequest } from '../../../github/common/types.js';
+import { GitHubCIOverallStatus, GitHubIssueState, GitHubIssueStateReason, GitHubPullRequestState, OPEN_ISSUE_ACTION_ID, OPEN_PULL_REQUEST_ACTION_ID, OPEN_PULL_REQUEST_CHANGES_ACTION_ID, type IGitHubIssue, type IGitHubPullRequest } from '../../../github/common/types.js';
 import type { IResolvedSessionPullRequest } from '../../../github/browser/pullRequestIconStatus.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { GitHubPullRequestModel } from '../../../github/browser/models/githubPullRequestModel.js';
 import { GitHubIssueModel } from '../../../github/browser/models/githubIssueModel.js';
-import { buildSessionIssueSections, buildSessionPullRequestSections, computeSessionInputPillStats, SessionChatInputToolbar } from '../../browser/sessionChatInputToolbar.js';
+import { buildSessionIssueSections, buildSessionPullRequestSections, computeSessionInputPillStats, readLoadedSessionInputPillStats, SessionChatInputToolbar } from '../../browser/sessionChatInputToolbar.js';
 import { buildSessionArtifactSections, type ISessionArtifactActions } from '../../browser/sessionArtifacts.js';
 
 suite('SessionChatInputToolbar', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createServices() {
+	function createServices(artifactIntegrationsEnabled = false) {
 		const instantiationService = workbenchInstantiationService(undefined, store);
+		const configuration = new TestConfigurationService({ [ArtifactIntegrationsSettingId]: artifactIntegrationsEnabled });
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configuration);
 		instantiationService.stub(IChatService, upcastPartial<IChatService>({
 			chatModels: constObservable([]),
 		}));
@@ -81,7 +86,7 @@ suite('SessionChatInputToolbar', () => {
 			visibleSessions: constObservable([]),
 			activeSession: constObservable(undefined),
 		}));
-		return { instantiationService, visibility };
+		return { instantiationService, visibility, configuration };
 	}
 
 	test('keeps copied feedback stable across section refreshes', async () => {
@@ -315,6 +320,42 @@ suite('SessionChatInputToolbar', () => {
 			derived(reader => computeSessionInputPillStats(session, chat, reader, changesStatsCache)).get(),
 			{ files: 3, insertions: 12, deletions: 5 },
 		);
+	});
+
+	test('reports loaded stats only once the main chat file list resolves beyond the session summary', () => {
+		const changeset = (changes: readonly ISessionFileChange[]) => upcastPartial<ISessionChangeset>({
+			id: 'branch',
+			isDefault: constObservable(true),
+			isLoadingChanges: constObservable(false),
+			changes: constObservable(changes),
+		});
+		const createChat = (changes: readonly ISessionFileChange[]) => upcastPartial<IChat>({
+			resource: URI.parse('test://main-chat'),
+			workspace: constObservable(upcastPartial<ISessionWorkspace>({ folders: [] })),
+			changesets: constObservable([changeset(changes)]),
+			changes: constObservable(changes),
+		});
+		const createSession = (chat: IChat, summaryFiles: number | undefined) => upcastPartial<IActiveSession>({
+			loading: constObservable(false),
+			sessionId: 'provider:session',
+			activeChat: constObservable(chat),
+			mainChat: constObservable(chat),
+			changesSummary: summaryFiles === undefined ? undefined : constObservable({ files: summaryFiles, additions: 7, deletions: 2 }),
+		});
+		const read = (chat: IChat, summaryFiles: number | undefined) => derived(reader => readLoadedSessionInputPillStats(createSession(chat, summaryFiles), chat, reader)).get();
+		const change = { modifiedUri: URI.file('/change.ts'), insertions: 7, deletions: 2 };
+
+		assert.deepStrictEqual({
+			onlySessionSummaryKnown: read(createChat([]), 1),
+			resolved: read(createChat([change]), 1),
+			noChanges: read(createChat([]), 0),
+			noSummary: read(createChat([]), undefined),
+		}, {
+			onlySessionSummaryKnown: undefined,
+			resolved: { files: 1, insertions: 7, deletions: 2 },
+			noChanges: { files: 0, insertions: 0, deletions: 0 },
+			noSummary: { files: 0, insertions: 0, deletions: 0 },
+		});
 	});
 
 	for (const worktree of [false, true]) {
@@ -1090,12 +1131,13 @@ suite('SessionChatInputToolbar', () => {
 			sections.set(build(title), undefined);
 		}
 		const updatedEntry = sections.get()[0].entries[0];
-		await firstEntry.toolbarActions?.[0].run();
+		const copyAction = (entry: IChatPillEntry) => entry.toolbarActions?.find(action => action.id.startsWith('sessionChatPills.copyPullRequest.'));
+		await copyAction(firstEntry)?.run();
 		await firstEntry.promotedAction?.run();
 		const snapshot = {
 			tooltipUpdates, managedUpdates,
 			sameDescriptor: firstHover === updatedEntry.pillHover,
-			sameCopyAction: firstEntry.toolbarActions?.[0] === updatedEntry.toolbarActions?.[0],
+			sameCopyAction: !!copyAction(firstEntry) && copyAction(firstEntry) === copyAction(updatedEntry),
 			sameRemoveAction: firstEntry.promotedAction === updatedEntry.promotedAction,
 			focusPreserved: mainWindow.document.activeElement === focusedControl,
 			title: element.querySelector('.sessions-pr-hover-title')?.getAttribute('title'),
@@ -1450,10 +1492,10 @@ suite('SessionChatInputToolbar', () => {
 		const dashboardEntry = entries.find(entry => entry.label === dashboard.title);
 		assert.ok(dashboardEntry);
 		dashboardEntry.select();
-		const closeActionLabels = entries.flatMap(entry => entry.toolbarActions.map(action => action.label));
-		await dashboardEntry.toolbarActions[0]?.run();
+		const rowActionLabels = entries.flatMap(entry => entry.toolbarActions.map(action => action.label));
+		await dashboardEntry.toolbarActions.find(action => action.label === 'Close Canvas Dashboard')?.run();
 
-		assert.deepStrictEqual({ single, multiple, commandCalls, closeActionLabels, closeCalls }, {
+		assert.deepStrictEqual({ single, multiple, commandCalls, rowActionLabels, closeCalls }, {
 			single: { label: 'Preview', ariaLabel: 'Open canvas Preview', closeLabel: 'Close Canvas Preview' },
 			multiple: { label: '2 Canvases', ariaLabel: 'Show 2 canvases', closeLabel: undefined },
 			commandCalls: [
@@ -1476,7 +1518,7 @@ suite('SessionChatInputToolbar', () => {
 					},
 				},
 			],
-			closeActionLabels: ['Close Canvas Preview', 'Close Canvas Dashboard'],
+			rowActionLabels: ['Pin Preview', 'Close Canvas Preview', 'Pin Dashboard', 'Close Canvas Dashboard'],
 			closeCalls: [
 				{ session: session.sessionId, chat: chat.resource.toString(), canvas: preview.resource.toString() },
 				{ session: session.sessionId, chat: chat.resource.toString(), canvas: dashboard.resource.toString() },
@@ -1699,9 +1741,9 @@ suite('SessionChatInputToolbar', () => {
 		const recordedOpenIds: string[] = [];
 		const pullRequests = refs.map(ref => ({ ref, pullRequest: undefined, icon: Codicon.gitPullRequest, status: {} }));
 		const commandService = upcastPartial<ICommandService>({
-			executeCommand: async (_command, arg) => {
+			executeCommand: async (command, arg) => {
 				assert.ok(arg && typeof arg === 'object');
-				opened.push(arg);
+				opened.push({ command, ...arg });
 				return undefined;
 			},
 		});
@@ -1720,7 +1762,9 @@ suite('SessionChatInputToolbar', () => {
 		await entries[0].promotedAction?.run();
 		await entries[1].promotedAction?.run();
 		await issueEntry.promotedAction?.run();
-		await entries[0].toolbarActions?.[0].run();
+		for (const action of entries[0].toolbarActions ?? []) {
+			await action.run();
+		}
 		entries[0].open();
 		entries[2].open();
 		issueEntry.open();
@@ -1729,6 +1773,7 @@ suite('SessionChatInputToolbar', () => {
 			ids: entries.map(entry => entry.id),
 			removable: [...entries.map(entry => !!entry.promotedAction), !!issueEntry.promotedAction],
 			removeLabels: [...entries, issueEntry].map(entry => entry.promotedAction && [entry.promotedAction.label, entry.promotedAction.hoverLabel]),
+			toolbarLabels: entries[0].toolbarActions?.map(action => [action.label, action.hoverLabel]),
 			unsupported: unsupported.map(entry => !!entry.promotedAction),
 			removed, copied, recordedOpenIds, opened,
 		}, {
@@ -1740,14 +1785,19 @@ suite('SessionChatInputToolbar', () => {
 				undefined,
 				['Remove Issue Artifact from Session', 'Remove Artifact'],
 			],
+			toolbarLabels: [
+				['Open Pull Request Changes', 'Open Changes'],
+				['Copy pull request URL', 'Copy URL'],
+			],
 			unsupported: [false, false, false],
 			removed: ['reference-a', 'reference-b', 'issue-reference'],
 			copied: [refs[0].uri.toString(true)],
 			recordedOpenIds: ['reference-a', 'issue-reference'],
 			opened: [
-				{ pullRequest: refs[0] },
-				{ pullRequest: refs[2] },
-				{ issue: issueRef },
+				{ command: OPEN_PULL_REQUEST_CHANGES_ACTION_ID, pullRequest: refs[0] },
+				{ command: OPEN_PULL_REQUEST_ACTION_ID, pullRequest: refs[0] },
+				{ command: OPEN_PULL_REQUEST_ACTION_ID, pullRequest: refs[2] },
+				{ command: OPEN_ISSUE_ACTION_ID, issue: issueRef },
 			],
 		});
 	});
@@ -2024,6 +2074,167 @@ suite('SessionChatInputToolbar', () => {
 		}
 	}
 
+	test('promotes every matched artifact and reference, keeps unmatched entries grouped, and scopes removal to the clicked pill', async () => {
+		const { instantiationService, configuration } = createServices();
+		const setEnabled = async (enabled: boolean) => {
+			await configuration.setUserConfiguration(ArtifactIntegrationsSettingId, enabled);
+			configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+				affectsConfiguration: setting => setting === ArtifactIntegrationsSettingId,
+			}));
+			await timeout(0);
+		};
+		const chat = upcastPartial<IChat>({ resource: URI.parse('chat:main'), title: constObservable('Chat'), status: constObservable(SessionStatus.Completed) });
+		const records: readonly ISessionArtifact[] = [
+			{ id: 'one', kind: SessionArtifactKind.Website, label: 'One', isArtifact: true, link: URI.parse('https://experiments.test/one') },
+			{ id: 'two', kind: SessionArtifactKind.Website, label: 'Two', isArtifact: true, link: URI.parse('https://experiments.test/two') },
+			{ id: 'reference', kind: SessionArtifactKind.Website, label: 'Reference', isArtifact: false, link: URI.parse('https://experiments.test/reference') },
+			{ id: 'plain', kind: SessionArtifactKind.Website, label: 'Plain', isArtifact: true, link: URI.parse('https://example.test/plain') },
+		];
+		const artifacts = observableValue('artifacts', records);
+		const session = upcastPartial<IActiveSession>({
+			sessionId: 'quick-chat', resource: URI.parse('session:quick-chat'), artifacts,
+			loading: constObservable(false),
+			capabilities: constObservable({ supportsMultipleChats: false, supportsRemoveArtifacts: true, supportsArtifactIntegrations: true }),
+			chats: constObservable([chat]), workspace: constObservable(undefined),
+		});
+		const snapshots = new Map(records.map(record => [record.id, observableValue<ArtifactSnapshot>(record.id, {
+			authority: { id: 'client', targetHost: 'vendor', location: 'client' }, session: 'vendor-session://opaque',
+			artifact: { id: record.id, label: record.label, resource: record.link!.toString(), isArtifact: record.isArtifact },
+			contributions: [], runs: [],
+		})]));
+		const removed: string[] = [];
+		const acquired: string[] = [];
+		let menu: readonly IAction[] = [];
+		instantiationService.stub(IGitHubService, upcastPartial<IGitHubService>({}));
+		instantiationService.stub(IContextMenuService, {
+			showContextMenu: delegate => {
+				assert.ok(delegate.getActions);
+				menu = delegate.getActions();
+			},
+		});
+		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
+			onDidChangeSessions: Event.None,
+			acquireArtifactIntegration: async (_session, id) => {
+				acquired.push(id);
+				return new ImmortalReference(upcastPartial<IArtifactModel>({ snapshot: snapshots.get(id)! }));
+			},
+			removeSessionArtifact: async (_session, id) => {
+				removed.push(id);
+				artifacts.set(artifacts.get().filter(record => record.id !== id), undefined);
+			},
+		}));
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+		toolbar.setSession(session, chat);
+		await timeout(0);
+		const initial = {
+			integrated: toolbar.element.querySelectorAll('.artifact-integration-pill').length,
+			grouped: !!toolbar.element.querySelector('[aria-label="Show 3 artifacts"]'),
+			acquired: acquired.length,
+		};
+		await setEnabled(true);
+		for (const id of ['one', 'two', 'reference']) {
+			const snapshot = snapshots.get(id)!;
+			snapshot.set({
+				...snapshot.get(), mainIntegrationId: 'experiments',
+				contributions: [{
+					integrationId: 'experiments', label: 'Experiments', actions: [], options: [],
+					configuration: { revision: 0, values: {}, generations: {}, disablements: {} },
+					view: {
+						availability: { kind: 'available' }, main: { icon: { id: 'beaker' }, label: id, detailsId: 'main' },
+						sections: [], stateActions: [], generalActions: [], automationAvailability: [],
+					},
+				}],
+			}, undefined);
+		}
+		const integrated = [...toolbar.element.querySelectorAll<HTMLElement>('.artifact-integration-pill')];
+		const promoted = {
+			labels: integrated.map(pill => pill.querySelector('.chat-pill-label')?.textContent),
+			referencesGrouped: !!toolbar.element.querySelector('[aria-label="Show 1 reference"]'),
+			artifactsGrouped: !!toolbar.element.querySelector('[aria-label="Show 3 artifacts"]'),
+		};
+		integrated[1].dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
+		const removalIds = menu.filter(action => action.id.startsWith('sessions.artifacts.remove.')).map(action => action.id);
+		integrated[2].dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
+		await menu.find(action => action.id === 'sessions.artifacts.remove.reference')!.run();
+		snapshots.get('two')!.set({ ...snapshots.get('two')!.get(), contributions: [], mainIntegrationId: undefined }, undefined);
+		assert.deepStrictEqual({
+			initial, promoted, removalIds, removed,
+			remaining: toolbar.element.querySelectorAll('.artifact-integration-pill').length,
+			regrouped: !!toolbar.element.querySelector('[aria-label="Show 2 artifacts"]'),
+		}, {
+			initial: { integrated: 0, grouped: true, acquired: 0 },
+			promoted: { labels: ['one', 'two', 'reference'], referencesGrouped: false, artifactsGrouped: false },
+			removalIds: ['sessions.artifacts.remove.two'], removed: ['reference'], remaining: 1, regrouped: true,
+		});
+		await setEnabled(false);
+		const disabled = {
+			pills: toolbar.element.querySelectorAll('.artifact-integration-pill').length,
+			grouped: !!toolbar.element.querySelector('[aria-label="Show 3 artifacts"]'),
+		};
+		await setEnabled(true);
+		assert.deepStrictEqual({ disabled, restored: toolbar.element.querySelectorAll('.artifact-integration-pill').length }, {
+			disabled: { pills: 0, grouped: true }, restored: 1,
+		});
+	});
+
+	test('decorates a promoted PR as a details disclosure and leaves reference links plain', async () => {
+		const { instantiationService } = createServices(true);
+		const link = URI.parse('https://github.com/microsoft/vscode/pull/42');
+		const chat = upcastPartial<IChat>({ resource: URI.parse('chat:main'), title: constObservable('Chat'), status: constObservable(SessionStatus.Completed) });
+		const artifacts = observableValue<readonly ISessionArtifact[]>('artifacts', [
+			{ id: 'recorded', kind: SessionArtifactKind.PullRequest, label: 'Recorded title', isArtifact: true, isGitHub: true, link },
+			{ id: 'reference', kind: SessionArtifactKind.PullRequest, label: 'Reference title', isArtifact: false, isGitHub: true, link },
+		]);
+		const session = upcastPartial<IActiveSession>({
+			sessionId: 'quick-chat', resource: URI.parse('session:quick-chat'), artifacts,
+			loading: constObservable(false),
+			capabilities: constObservable({ supportsMultipleChats: false, supportsRemoveArtifacts: true, supportsArtifactIntegrations: true }),
+			chats: constObservable([chat]), workspace: constObservable(undefined),
+		});
+		const snapshot = observableValue<ArtifactSnapshot>('integrated PR', {
+			authority: { id: 'host', targetHost: 'self', location: 'host' }, session: 'session:quick-chat',
+			artifact: { id: 'recorded', label: 'Recorded title', resource: link.toString(), isArtifact: true },
+			mainIntegrationId: 'github.pullRequest', runs: [],
+			contributions: [{
+				integrationId: 'github.pullRequest', label: 'GitHub Pull Request', actions: [], options: [],
+				configuration: { revision: 0, values: {}, generations: {}, disablements: {} },
+				view: {
+					availability: { kind: 'available' },
+					main: { icon: { id: 'git-pull-request' }, label: '#42', detailsId: 'main' },
+					sections: [
+						{ id: 'checks', icon: { id: 'pending' }, label: '3/5', detailsId: 'checks' },
+						{ id: 'comments', icon: { id: 'comment-discussion' }, label: '2', detailsId: 'comments' },
+					],
+					stateActions: [], generalActions: [], automationAvailability: [],
+				},
+			}],
+		});
+		instantiationService.stub(IGitHubService, upcastPartial<IGitHubService>({
+			createPullRequestModelReference: () => new ImmortalReference(upcastPartial<GitHubPullRequestModel>({ pullRequest: constObservable(undefined) })),
+		}));
+		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
+			onDidChangeSessions: Event.None,
+			acquireArtifactIntegration: async (_session, id) => new ImmortalReference(upcastPartial<IArtifactModel>({
+				snapshot: id === 'recorded' ? snapshot : constObservable({ ...snapshot.get(), artifact: { id, label: 'Reference', resource: link.toString() }, contributions: [] }),
+				acquireDetails: async () => ({ details: constObservable({ title: 'Recorded title', availability: { kind: 'available' as const }, items: [], links: [], completeness: 'complete' as const }), dispose: () => { } }),
+			})),
+		}));
+		let opened = 0;
+		instantiationService.stub(ISessionsService, 'setActive', () => { });
+		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({ executeCommand: async () => { opened++; return undefined; } }));
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+		toolbar.setSession(session, chat);
+		await timeout(0);
+		const labels = () => [...toolbar.element.querySelectorAll('.artifact-integration-pill .chat-pill-label')].map(element => element.textContent);
+		const initial = labels();
+		const contribution = snapshot.get().contributions[0];
+		snapshot.set({ ...snapshot.get(), contributions: [{ ...contribution, view: { ...contribution.view, sections: [contribution.view.sections[0]] } }] }, undefined);
+		toolbar.element.querySelector<HTMLElement>('.artifact-integration-pill .chat-dropdown-pill-button')!.click();
+		assert.deepStrictEqual({
+			initial, updated: labels(), integratedPills: toolbar.element.querySelectorAll('.artifact-integration-pill').length, opened,
+			referencesPresent: !!toolbar.element.querySelector('.chat-dropdown-pill-button[aria-label="Show 1 reference"]'),
+		}, { initial: ['#42', '3/5', '2'], updated: ['#42', '3/5'], integratedPills: 1, opened: 0, referencesPresent: true });
+	});
 	for (const providerId of [LOCAL_AGENT_HOST_PROVIDER_ID, `${REMOTE_AGENT_HOST_PROVIDER_PREFIX}custom-host`]) {
 		test(`renders the explicitly selected PR above the main input with automatic association disabled on ${providerId}`, () => {
 			const { instantiationService } = createServices();

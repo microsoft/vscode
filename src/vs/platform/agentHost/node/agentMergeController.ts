@@ -7,7 +7,7 @@ import { RunOnceScheduler, SequencerByKey } from '../../../base/common/async.js'
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { structuralEquals } from '../../../base/common/equals.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, DisposableMap, DisposableStore, IReference, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { autorun } from '../../../base/common/observable.js';
 import { isEqual } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
@@ -16,11 +16,11 @@ import { IGitHubAccountClient } from '../../github/common/account/account.js';
 import { IGitHubClient } from '../../github/common/githubService.js';
 import { IParsedPullRequestUrl, parsePullRequestUrl } from '../../github/common/githubUrls.js';
 import { GitHubWorkflowRerunOptions, PullRequestReplyAndResolveResult } from '../../github/common/githubPullRequestMutationService.js';
-import { PullRequestChecks, PullRequestRef, PullRequestSnapshot, PullRequestSubscription } from '../../github/common/githubPullRequestService.js';
-import { GitHubRequestError } from '../../github/common/githubTransport.js';
+import { PullRequestChecks, PullRequestRef, PullRequestSnapshot, PullRequestSubscription, firstCredentialFailure } from '../../github/common/githubPullRequestService.js';
+import { GitHubRequestError, isSamlEnforcementError } from '../../github/common/githubTransport.js';
 import { ILogService } from '../../log/common/log.js';
 import { getWorkingDirectoryKey } from '../common/agentHostWorkingDirectories.js';
-import { AgentMergeConfigKey, AgentMergeConfiguration, AgentMergeConfigurationChangeScope, AgentMergeDisableReason, AgentMergeFolderState, AgentMergeSessionOverrides, AgentMergeTarget, AGENT_MERGE_UNKNOWN_COMMIT, agentMergeConfigurationChangedNotice, agentMergeDisableReasons, agentMergeDisabledNotice, agentMergeEnabledNotice, agentMergeGateFragments, agentMergeMergePullRequestDemotedNotice, agentMergeRootConfigSchema, classifyAgentMergeRequiredChecks, evaluateAgentMerge, isAnyAgentMergeEnabled, readAgentMergeFolderState, readAgentMergeFolderStates, readAgentMergeChatInjectedConfigurations, readAgentMergeInjectedConfiguration, resolveMergeMethod, shouldStopMergingAfterAgentChanges, withAgentMergeFolderControllerState, withAgentMergeChatInjectedConfiguration, withAgentMergeFolderState, withAgentMergeInjectedConfiguration, hasAgentMergeFolderControllerState, hasAgentMergeElevation, AgentMergeFolderControllerState, getAgentMergeCheckActivity, getAgentMergeRepairBlockers, hasAgentMergeRepairProgress } from '../common/agentMerge.js';
+import { AgentMergeConfiguration, AgentMergeConfigurationChangeScope, AgentMergeDisableReason, AgentMergeFolderState, AgentMergeSessionOverrides, AgentMergeTarget, AGENT_MERGE_UNKNOWN_COMMIT, agentMergeConfigurationChangedNotice, agentMergeDisableReasons, agentMergeDisabledNotice, agentMergeEnabledNotice, agentMergeGateFragments, agentMergeMergePullRequestDemotedNotice, agentMergeMoveConflictNotice, classifyAgentMergeRequiredChecks, evaluateAgentMerge, isAnyAgentMergeEnabled, readAgentMergeFolderState, readAgentMergeFolderStates, readAgentMergeChatInjectedConfigurations, readAgentMergeInjectedConfiguration, resolveMergeMethod, shouldStopMergingAfterAgentChanges, withAgentMergeFolderControllerState, withAgentMergeChatInjectedConfiguration, withAgentMergeFolderState, withAgentMergeInjectedConfiguration, hasAgentMergeFolderControllerState, hasAgentMergeElevation, AgentMergeFolderControllerState, getAgentMergeCheckActivity, getAgentMergeRepairBlockers, hasAgentMergeRepairProgress } from '../common/agentMerge.js';
 import { buildAgentMergePrompt } from '../common/agentMergePrompt.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
@@ -38,7 +38,7 @@ import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { AgentHostStateManager, ChatRemovalReason, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 import { getWorkflowRuns, IAgentMergeTurnContext, isFailedConclusion } from './agentMergeTools.js';
-import { getAgentMergeConfiguration } from './agentMergeConfiguration.js';
+import { getAgentMergeConfiguration, isAgentMergeEnabled } from './agentMergeConfiguration.js';
 import { isAuthRequiredError, type IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 
 const snapshotDebounce = 30_000;
@@ -87,6 +87,9 @@ interface IDeferredWorkflowRerun {
 }
 
 interface IActiveAgentMergeTurnContext extends IAgentMergeTurnContext {
+	/** Where the repair runs now: a chat that moves takes its repair along (see {@link AgentMergeController.transferFolders}). */
+	session: string;
+	folderKey: string;
 	readonly reviewReplies: Promise<PullRequestReplyAndResolveResult>[];
 	completing: boolean;
 }
@@ -129,9 +132,10 @@ class AgentMergeRuntime extends Disposable {
 		return this.apiClientReference.value;
 	}
 
+	/** Where the folder is monitored now: a chat that moves takes its monitoring along (see {@link AgentMergeController.transferFolders}). */
 	constructor(
-		readonly session: string,
-		readonly folderKey: string,
+		public session: string,
+		public folderKey: string,
 		evaluate: () => void,
 	) {
 		super();
@@ -164,6 +168,9 @@ export class AgentMergeController extends Disposable {
 	 */
 	private readonly _monitoredSessions = new Set<string>();
 	private readonly _announcedConfigurations = new Map<string, IAnnouncedAgentMergeConfiguration>();
+
+	/** Folders whose monitoring a move is bringing into their new session, which announces nothing for them. */
+	private readonly _arrivingFolders = new Set<string>();
 
 	constructor(
 		private readonly _options: IAgentMergeControllerOptions,
@@ -200,6 +207,10 @@ export class AgentMergeController extends Disposable {
 			}
 			for (const [folderKey, current] of currentStates) {
 				const previous = previousStates.get(folderKey);
+				// A folder that moved with its chat keeps running as it did: nothing was turned on or chosen afresh.
+				if (this._arrivingFolders.delete(this._runtimeKey(session, folderKey))) {
+					continue;
+				}
 				if (current.enabled && current.target && (!previous?.enabled || !previous.target)) {
 					this._postEnabledNotice(session, folderKey, current);
 				} else {
@@ -216,7 +227,7 @@ export class AgentMergeController extends Disposable {
 			if (isAhpChatChannel(envelope.channel) && (envelope.action.type === ActionType.ChatTurnComplete || envelope.action.type === ActionType.ChatTurnCancelled || envelope.action.type === ActionType.ChatError)) {
 				void this._completeTurn(envelope.channel);
 			} else if (envelope.action.type === ActionType.SessionChatRemoved && this._stateManager.chatRemovalReason(envelope.channel, envelope.action.chat) === ChatRemovalReason.Deleted) {
-				// A deleted chat's turn never reports its end. A moved chat's does; moves refuse Agent Merge owners anyway.
+				// A deleted chat's turn never reports its end. A moved chat's does, in the session it moved to.
 				void this._completeTurn(envelope.action.chat);
 			}
 		}));
@@ -404,6 +415,67 @@ export class AgentMergeController extends Disposable {
 	}
 
 	/**
+	 * Moves the monitoring of `folders` from `source` to `target`, whose chats moved there with their Agent Merge: the
+	 * runtime, a repair turn it is running and what it announced carry on in `target`, so the repair keeps running and
+	 * nothing is announced again. An evaluation in progress in `source` finds its runtime moved and stops; the next one
+	 * runs in `target` once it has. The folders in `conflicts` stay behind, as `target` already monitors their pull
+	 * request: the chat that ran it is told, and their monitoring stops as `source` publishes them off, without the
+	 * generic notice. Runs synchronously right before the sessions' new configuration is published; the returned
+	 * disposable is disposed right after.
+	 */
+	transferFolders(source: string, target: string, folders: readonly string[], conflicts: readonly { readonly folderKey: string; readonly chat: string }[]): IDisposable {
+		for (const { folderKey, chat } of conflicts) {
+			const key = this._runtimeKey(source, folderKey);
+			this._logService.info(`[AgentMergeController] Turning Agent Merge off for a moved chat whose new session already runs it for the pull request: session=${source}, target=${target}, folder=${folderKey}`);
+			this._monitoredSessions.delete(key);
+			this._announcedConfigurations.delete(key);
+			try {
+				this._options.postNotice(chat, AgentSystemNotificationKind.AgentMergeDisabled, agentMergeMoveConflictNotice());
+			} catch (error) {
+				this._logService.warn(`[AgentMergeController] Failed to post an Agent Merge notice: chat=${chat}`, error);
+			}
+		}
+		const arriving: string[] = [];
+		for (const folderKey of folders) {
+			const from = this._runtimeKey(source, folderKey);
+			const to = this._runtimeKey(target, folderKey);
+			if (this._runtimes.has(to)) {
+				this._logService.warn(`[AgentMergeController] Not moving monitoring into a folder that is already monitored: session=${source}, target=${target}, folder=${folderKey}`);
+				continue;
+			}
+			arriving.push(to);
+			this._arrivingFolders.add(to);
+			const runtime = this._runtimes.deleteAndLeak(from);
+			if (runtime) {
+				runtime.session = target;
+				this._runtimes.set(to, runtime);
+				// Its next evaluation waits for the one still running in `source`, which stops as its runtime moved.
+				void this._evaluations.queue(to, () => this._evaluations.queue(from, async () => { }));
+			}
+			const turn = this._activeTurns.get(from);
+			if (turn) {
+				this._activeTurns.delete(from);
+				turn.session = target;
+				this._activeTurns.set(to, turn);
+			}
+			if (this._monitoredSessions.delete(from)) {
+				this._monitoredSessions.add(to);
+			}
+			const announced = this._announcedConfigurations.get(from);
+			if (announced) {
+				this._announcedConfigurations.delete(from);
+				this._announcedConfigurations.set(to, announced);
+			}
+			this._logService.info(`[AgentMergeController] Moved folder monitoring with its chat: session=${source}, target=${target}, folder=${folderKey}, runtime=${runtime !== undefined}, repairTurn=${turn !== undefined}`);
+		}
+		return toDisposable(() => {
+			for (const key of arriving) {
+				this._arrivingFolders.delete(key);
+			}
+		});
+	}
+
+	/**
 	 * The repair turn `chat` is running, if any. Only the chat running the
 	 * repair gets its authorization: other chats working in the same folder
 	 * run their own turns concurrently. A session URI stands for its default chat.
@@ -586,7 +658,7 @@ export class AgentMergeController extends Disposable {
 			runtime.deferredWorkflowReruns.clear();
 		}
 		if (!runtime) {
-			runtime = new AgentMergeRuntime(session, folderKey, () => this._queueEvaluation(key));
+			const created: AgentMergeRuntime = runtime = new AgentMergeRuntime(session, folderKey, () => this._queueEvaluation(this._runtimeKey(created.session, created.folderKey)));
 			this._runtimes.set(key, runtime);
 			if (chat) {
 				this._captureRuntimeCredentials(runtime, chat);
@@ -606,7 +678,7 @@ export class AgentMergeController extends Disposable {
 	}
 
 	private _isFeatureEnabled(): boolean {
-		return this._configurationService.getRootValue(agentMergeRootConfigSchema, AgentMergeConfigKey.Enabled) ?? false;
+		return isAgentMergeEnabled(this._configurationService);
 	}
 
 	/**
@@ -1524,10 +1596,15 @@ export class AgentMergeController extends Disposable {
 		const result = await runtime.client.mutations.merge(preparation, { method, authorization }, runtime.abortController.signal);
 		this._logService.info(`[AgentMergeController] Pull request merged natively: session=${session}, method=${method}, outcome=${result.outcome}`);
 		const mergedPullRequest = preparation.snapshot.core.value!;
+		// Where the folder is monitored now: its chat may have moved while the merge ran, taking its monitoring along.
+		if (!this._isCurrentRuntime(this._runtimeKey(runtime.session, runtime.folderKey), runtime)) {
+			return;
+		}
+		const mergedState = this._stateManager.getSessionState(runtime.session);
 		this._disable(
-			session,
+			runtime.session,
 			runtime.folderKey,
-			currentState,
+			readAgentMergeFolderState(mergedState?.config?.values, runtime.folderKey, this._sessionFolderKey(mergedState)) ?? currentState,
 			agentMergeDisableReasons.pullRequestMerged(mergedPullRequest.number, mergedPullRequest.url),
 			AgentSystemNotificationKind.AgentMergePullRequestMerged,
 		);
@@ -1547,13 +1624,16 @@ export class AgentMergeController extends Disposable {
 			}
 			return;
 		}
-		const [key, context] = entry;
+		const context = entry[1];
 		if (context.completing) {
 			return;
 		}
 		context.completing = true;
+		// Read where the repair runs once its replies settled: the chat may have moved meanwhile, taking it along.
+		let key = entry[0];
 		try {
 			const replies = await Promise.allSettled(context.reviewReplies);
+			key = this._runtimeKey(context.session, context.folderKey);
 			const folder = { sessionUri: context.session, folderKey: context.folderKey };
 			const session = context.session;
 			const state = this._stateManager.getSessionState(session);
@@ -1600,8 +1680,9 @@ export class AgentMergeController extends Disposable {
 			}
 			this._schedule(key, 0);
 		} finally {
-			if (this._activeTurns.get(key) === context) {
-				this._activeTurns.delete(key);
+			const current = this._findActiveTurnEntry(context.chat);
+			if (current?.[1] === context) {
+				this._activeTurns.delete(current[0]);
 			}
 		}
 	}
@@ -1884,7 +1965,7 @@ export class AgentMergeController extends Disposable {
 	 * GitHub, which only the first refresh of a subscription reports by throwing.
 	 */
 	private _reportBlockedCredential(session: string, runtime: AgentMergeRuntime, snapshot: PullRequestSnapshot): void {
-		const blocked = firstCredentialFailure(snapshot);
+		const blocked = firstCredentialFailure(snapshot, agentMergeGateFragments);
 		if (!blocked) {
 			runtime.reportedCredentialFailure = undefined;
 			return;
@@ -2003,20 +2084,4 @@ function githubErrorKind(error: unknown): string {
 	return error instanceof GitHubRequestError
 		? `${error.kind}${error.statusCode === undefined ? '' : `:${error.statusCode}`}`
 		: error instanceof Error ? error.name : typeof error;
-}
-
-/** Detects the SAML single sign-on refusal GitHub returns for organizations that enforce it. */
-export function isSamlEnforcementError(message: string): boolean {
-	return message.toLowerCase().includes('saml enforcement');
-}
-
-/** Finds the first fragment the gate needs that GitHub refused to serve. */
-export function firstCredentialFailure(snapshot: PullRequestSnapshot): { readonly id: string; readonly kind: 'authentication' | 'authorization'; readonly message: string } | undefined {
-	for (const fragment of agentMergeGateFragments) {
-		const error = snapshot[fragment].error;
-		if (error?.kind === 'authentication' || error?.kind === 'authorization') {
-			return { id: `${fragment}:${error.kind}`, kind: error.kind, message: error.message };
-		}
-	}
-	return undefined;
 }

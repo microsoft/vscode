@@ -8,6 +8,7 @@ import { readUsageInfoMeta, type UsageInfoMeta, type IAgentContextUsage, type IA
 import { decodeBase64 } from '../../../../../../base/common/buffer.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { escapeMarkdownLinkLabel, escapeMarkdownSyntaxTokens, IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { escapeIcons } from '../../../../../../base/common/iconLabels.js';
 import { type Tokens } from '../../../../../../base/common/marked/marked.js';
 import { rewriteMarkdownLinks as rewriteMarkdownSource } from '../../../../../../base/common/markdownLinks.js';
@@ -19,6 +20,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { getTurnError, MessageKind, ToolCallCancellationReason, ToolCallContributorKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ResponsePartKind, getInlineToolInput, getToolFileEdits, getToolOutputText, getToolSubagentContent, hasReportedUsage, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ActiveTurn, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ICompletedToolCall, type InputRequestResponsePart, type Message, type TerminalCommandResult, type ToolCallPendingConfirmationState, type ToolCallState, type ToolResultSubagentContent, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { readAgentPlanReview, type IAgentPlanReview } from '../../../../../../platform/agentHost/common/meta/agentPlanReview.js';
+import { isComputerUseActivationAccepted, readComputerUseActivationCard, readComputerUseSetupCard } from '../../../../../../platform/agentHost/common/meta/computerUse.js';
 import { getToolKind as getProtocolToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { copilotCliToolInputContract, readToolCallMeta, readToolCallPresentation, type IAgentToolOutputChunk } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
 import { readImageGenerationToolMetadata } from '../../../../../../platform/agentHost/common/meta/agentImageGenerationMeta.js';
@@ -34,6 +36,7 @@ import { getAgentFeedbackAttachmentMetadata, isAgentFeedbackAnnotationsAttachmen
 import { getBrowserViewAttachmentMetadata, isBrowserViewAttachment } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
 import { readAgentMessageDelegationMeta } from '../../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
 import { isAgentMergeMessage } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
+import { readArtifactIntegrationNotice, readArtifactIntegrationRequest } from '../../../../../../platform/agentHost/common/meta/agentHostArtifactIntegrationMeta.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSystemNotificationWorkspaceKind, readAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { isViewUnreviewedCommentsTool, isAddCommentTool } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import { AGENT_HOST_SESSION_LINK_SCHEME, buildOpenSessionLinkUri, isCreateChatTool, isCreateSessionTool, isSendMessageTool, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
@@ -64,6 +67,8 @@ import { stripSystemNotificationWrapper } from '../../chatRequestText.js';
 import type { IRange } from '../../../../../../editor/common/core/range.js';
 import { isSessionReferenceTrajectoryAttachment, restoreSessionReferenceVariableEntryFromAttachment } from './agentHostSessionReferenceAttachment.js';
 import { restoreChatReferenceVariableEntryFromAttachment } from './agentHostChatReferenceAttachment.js';
+import { AGENT_HOST_RETRY_MANAGED_PLUGINS_COMMAND_ID, type IAgentHostManagedPluginRetryTarget } from './agentHostManagedPluginRetry.js';
+import { getComputerUseActivationCardText, getComputerUseSetupCardText } from './computerUseSetup.js';
 
 export const BOOLEAN_TRUE_OPTION_ID = 'true';
 export const BOOLEAN_FALSE_OPTION_ID = 'false';
@@ -364,6 +369,34 @@ export function inputRequestResponsePartToProgress(part: InputRequestResponsePar
 		};
 	}
 
+	if (readComputerUseSetupCard(inputReq)) {
+		// A settled record of the setup; its steps are the host's business, not the transcript's.
+		const { title, message } = getComputerUseSetupCardText();
+		return {
+			kind: 'elicitationSerialized',
+			title,
+			message: new MarkdownString(message),
+			subtitle: '',
+			source: undefined,
+			state: part.response === ChatInputResponseKind.Accept ? ElicitationState.Accepted : ElicitationState.Rejected,
+			isHidden: false,
+		};
+	}
+
+	const computerUseActivation = readComputerUseActivationCard(inputReq);
+	if (computerUseActivation) {
+		const { title, message } = getComputerUseActivationCardText(computerUseActivation.reason);
+		return {
+			kind: 'elicitationSerialized',
+			title,
+			message: new MarkdownString(message),
+			subtitle: '',
+			source: undefined,
+			state: isComputerUseActivationAccepted(part.response, inputReq.answers) ? ElicitationState.Accepted : ElicitationState.Rejected,
+			isHidden: false,
+		};
+	}
+
 	const carousel = createInputRequestCarousel(inputReq, connectionAuthority);
 	const answers = part.response === ChatInputResponseKind.Accept
 		? convertProtocolAnswers(inputReq.answers)
@@ -488,9 +521,7 @@ function getMcpAppData(tc: ToolCallState, connectionAuthority: string): ChatMcpA
 	const resourceUri = ui.resourceUri;
 	const channelValue = ui.channel;
 	if (channelValue === undefined) {
-		// No channel yet — the App's sub-RPCs would have nowhere to go.
-		// Skip mounting until the customization reaches Ready and the
-		// producer re-emits with the channel populated.
+		// A channel is required to mount the App; the model retries unavailable-server load failures on status changes.
 		return undefined;
 	}
 	return {
@@ -498,6 +529,7 @@ function getMcpAppData(tc: ToolCallState, connectionAuthority: string): ChatMcpA
 		resourceUri,
 		connectionAuthority,
 		serverId: tc.contributor.customizationId,
+		serverName: readToolCallMeta(tc).mcpServerName,
 		channel: channelValue,
 	};
 }
@@ -554,7 +586,7 @@ function isSameMcpAppData(a: ChatMcpAppData | undefined, b: ChatMcpAppData | und
 		return false;
 	}
 	if (a?.kind === 'agentHost' && b?.kind === 'agentHost') {
-		return a.serverId === b.serverId && a.channel === b.channel && a.connectionAuthority === b.connectionAuthority;
+		return a.serverId === b.serverId && a.serverName === b.serverName && a.channel === b.channel && a.connectionAuthority === b.connectionAuthority;
 	}
 	if (a?.kind === 'local' && b?.kind === 'local') {
 		return a.serverDefinitionId === b.serverDefinitionId && a.collectionId === b.collectionId;
@@ -573,7 +605,12 @@ export function isSubagentToolName(toolName: string): boolean {
 	return SUBAGENT_TOOL_NAMES.has(toolName);
 }
 
-export function systemNotificationToChatPart(content: StringOrMarkdown | undefined, connectionAuthority: string, _meta?: Record<string, unknown>): IChatProgress | undefined {
+/**
+ * @param managedPluginRetry The chat a managed plugin preparation failure can
+ * be retried for. When omitted, for example for a host without the local
+ * retry path, the failure is shown without a Retry link.
+ */
+export function systemNotificationToChatPart(content: StringOrMarkdown | undefined, connectionAuthority: string, _meta?: Record<string, unknown>, managedPluginRetry?: IAgentHostManagedPluginRetryTarget): IChatProgress | undefined {
 	const meta = readAgentSystemNotificationMeta({ _meta });
 	if (meta.kind === AgentSystemNotificationKind.ResponseRoundEnded) {
 		// The chat model already treats an empty thinking chunk as the end of a thinking section.
@@ -596,17 +633,19 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 	const markdown = typeof value === 'string'
 		? new MarkdownString(stripSystemNotificationWrapper(value))
 		: { ...value, value: stripSystemNotificationWrapper(value.value) };
+	const artifactNotice = readArtifactIntegrationNotice({ _meta });
+	if (artifactNotice) {
+		const icon = artifactNotice.iconId ? ThemeIcon.fromString(`$(${artifactNotice.iconId})`) : undefined;
+		return {
+			kind: 'systemNotification', content: markdown, collapsible: true, renderInlineTiming: true,
+			icon: artifactNotice.kind === 'disabled' ? Codicon.circleSlash : icon ?? Codicon.link,
+		};
+	}
 	switch (meta.kind) {
 		case AgentSystemNotificationKind.FusionProgress: {
+			// The workflow selection only names the HydraFusion model for the response footer; it is not shown.
 			if (meta.fusionStatus === 'selected') {
-				const description = meta.fusionDescription === undefined
-					? markdown.value
-					: escapeMarkdownSyntaxTokens(meta.fusionDescription);
-				return description ? {
-					kind: 'systemNotification',
-					content: { ...markdown, value: description },
-					presentation: 'workflowDescription',
-				} : undefined;
+				return undefined;
 			}
 			return {
 				kind: 'systemNotification',
@@ -620,7 +659,13 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 		case AgentSystemNotificationKind.ByokToolLimitExceeded:
 			return { kind: 'warning', content: withConfigureToolsLink(markdown.value), keepVisibleWhenCollapsed: true };
 		case AgentSystemNotificationKind.ManagedPluginPreparationFailure:
-			return { kind: 'warning', content: new MarkdownString(escapeHostText(markdown.value)), keepVisibleWhenCollapsed: true };
+			return {
+				kind: 'warning',
+				content: managedPluginRetry
+					? withCommandLink(markdown.value, AGENT_HOST_RETRY_MANAGED_PLUGINS_COMMAND_ID, [managedPluginRetry], localize('agentHost.managedPluginPreparationFailure.retry', "Retry"))
+					: new MarkdownString(escapeHostText(markdown.value)),
+				keepVisibleWhenCollapsed: true,
+			};
 		case AgentSystemNotificationKind.WorktreeCreationFailure:
 			return meta.severity === AgentSystemNotificationSeverity.Warning
 				? { kind: 'warning', content: markdown }
@@ -660,19 +705,22 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 	}
 }
 
-/**
- * Appends a link that opens the Tools section of the Chat Customizations editor.
- * The host's text is HTML-encoded and then markdown-escaped, so autolinks, HTML
- * and markdown links in it render as plain text and only this link can run the
- * trusted command.
- */
+/** Appends a link that opens the Tools section of the Chat Customizations editor. */
 function withConfigureToolsLink(hostText: string): MarkdownString {
-	const commandArgs = encodeURIComponent(JSON.stringify([AICustomizationManagementSection.Tools]));
-	const link = `command:${AICustomizationManagementCommands.OpenEditor}?${commandArgs}`;
-	const label = escapeMarkdownLinkLabel(localize('agentHost.byokToolLimitExceeded.configureTools', "Configure Tools"));
-	const escapedHostText = escapeHostText(hostText);
-	return new MarkdownString(`${escapedHostText} [${label}](${link})`, {
-		isTrusted: { enabledCommands: [AICustomizationManagementCommands.OpenEditor] },
+	return withCommandLink(hostText, AICustomizationManagementCommands.OpenEditor, [AICustomizationManagementSection.Tools], localize('agentHost.byokToolLimitExceeded.configureTools', "Configure Tools"));
+}
+
+/**
+ * Appends a link that runs one trusted command. The host's text is HTML-encoded
+ * and then markdown-escaped, so autolinks, HTML and markdown links in it render
+ * as plain text and only this link can run the command.
+ */
+function withCommandLink(hostText: string, commandId: string, args: readonly unknown[], label: string): MarkdownString {
+	// Parentheses in the arguments would end the markdown link destination.
+	const commandArgs = encodeURIComponent(JSON.stringify(args)).replace(/\(/g, '%28').replace(/\)/g, '%29');
+	const link = `command:${commandId}?${commandArgs}`;
+	return new MarkdownString(`${escapeHostText(hostText)} [${escapeMarkdownLinkLabel(label)}](${link})`, {
+		isTrusted: { enabledCommands: [commandId] },
 	});
 }
 
@@ -689,13 +737,22 @@ function escapeHostText(hostText: string): string {
 
 /** Keep live phase activity visible after its own milestones, but not after answer/tool content. */
 export function getAgentHostActivityProgressId(parts: readonly ResponsePart[]): string | undefined {
-	if (parts.length === 0) {
-		return 'agentHost.chatActivity';
+	let shownMilestones = 0;
+	for (const part of parts) {
+		if (part.kind !== ResponsePartKind.SystemNotification) {
+			return undefined;
+		}
+		const meta = readAgentSystemNotificationMeta(part);
+		if (meta.kind !== AgentSystemNotificationKind.FusionProgress) {
+			return undefined;
+		}
+		// A workflow selection is not shown, so it cannot hide the row before it.
+		if (meta.fusionStatus !== 'selected') {
+			shownMilestones++;
+		}
 	}
-	// Each milestone boundary needs a new activity row, rather than updating an earlier row now hidden by that milestone.
-	return parts.every(part => part.kind === ResponsePartKind.SystemNotification
-		&& readAgentSystemNotificationMeta(part).kind === AgentSystemNotificationKind.FusionProgress)
-		? `agentHost.chatActivity:fusion:${parts.length}` : undefined;
+	// Each shown milestone needs a new activity row, rather than updating an earlier row now hidden by that milestone.
+	return shownMilestones ? `agentHost.chatActivity:fusion:${shownMilestones}` : 'agentHost.chatActivity';
 }
 
 /**
@@ -1166,7 +1223,7 @@ export function usageInfoToQuotas(usage: UsageInfo | undefined): IAgentHostQuota
  * Requests preserve the selected model. Response details use the actual model, except for Fusion's workflow label.
  * The `lookup` callback supplies the session-level fallback for missing model metadata.
  */
-export function turnsToHistory(backendSession: URI, turns: readonly Turn[], participantId: string, connectionAuthority: string, lookup?: TurnModelLookup, errorContext?: IChatErrorContext, terminalCommandPrefix?: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority), errorDetailsProvider?: (turn: Turn) => IChatResponseErrorDetails | undefined, contextUsage?: IAgentContextUsage): IChatSessionHistoryItem[] {
+export function turnsToHistory(backendSession: URI, turns: readonly Turn[], participantId: string, connectionAuthority: string, lookup?: TurnModelLookup, errorContext?: IChatErrorContext, terminalCommandPrefix?: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority), errorDetailsProvider?: (turn: Turn) => IChatResponseErrorDetails | undefined, contextUsage?: IAgentContextUsage, managedPluginRetry?: IAgentHostManagedPluginRetryTarget): IChatSessionHistoryItem[] {
 	const history: IChatSessionHistoryItem[] = [];
 	for (const turn of turns) {
 		const rawModelId = turn.usage?.model;
@@ -1178,6 +1235,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 		const origin = messageToRequestOrigin(backendSession, turn.message, participantId, connectionAuthority);
 		const isSystemInitiated = turn.message.origin.kind === MessageKind.SystemNotification;
 		const requestSource = messageToRequestSource(turn.message);
+		const artifactRequest = readArtifactIntegrationRequest(turn.message);
 		// A message runs as a terminal command when it starts with the host's
 		// advertised prefix and has a non-empty command after it (mirroring the
 		// host-side bang parser, where a lone `!` is forwarded to the agent).
@@ -1199,6 +1257,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 				systemInitiatedLabel: readMessageSystemInitiatedLabel(turn.message),
 			} : {}),
 			...(requestSource !== undefined ? { requestSource } : {}),
+			...(artifactRequest ? { artifactRequest } : {}),
 			...(isTerminalRequest ? {
 				isTerminalRequest: true,
 			} : {}),
@@ -1247,7 +1306,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 					break;
 				case ResponsePartKind.SystemNotification:
 					{
-						const progress = systemNotificationToChatPart(rp.content, connectionAuthority, rp._meta);
+						const progress = systemNotificationToChatPart(rp.content, connectionAuthority, rp._meta, managedPluginRetry);
 						if (progress) {
 							parts.push(progress);
 						}
@@ -1291,6 +1350,9 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 export function messageToRequestSource(message: Message): ChatRequestSource | undefined {
 	if (message.origin.kind === MessageKind.SystemNotification && isAgentMergeMessage(message)) {
 		return 'agentMerge';
+	}
+	if (readArtifactIntegrationRequest(message)) {
+		return 'artifactIntegration';
 	}
 	return undefined;
 }
@@ -1638,7 +1700,7 @@ function textRangeToIRange(range: TextRange): IRange {
  * reasoning, completed tool calls) and live {@link ChatToolInvocation}
  * objects for running tool calls and pending confirmations.
  */
-export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTurn, connectionAuthority: string, mcpServerAuthority = sessionResource.authority, toolInvocationOptions?: IAgentHostToolInvocationOptions, lookup?: TurnModelLookup, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority), subagentToolCallIds?: ReadonlySet<string>): IChatProgress[] {
+export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTurn, connectionAuthority: string, mcpServerAuthority = sessionResource.authority, toolInvocationOptions?: IAgentHostToolInvocationOptions, lookup?: TurnModelLookup, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority), subagentToolCallIds?: ReadonlySet<string>, managedPluginRetry?: IAgentHostManagedPluginRetryTarget): IChatProgress[] {
 	const parts: IChatProgress[] = [];
 	const usage = usageInfoToChatUsage(activeTurn.usage, lookup?.toModelDisplayName);
 	if (usage) {
@@ -1679,7 +1741,7 @@ export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTur
 			}
 			case ResponsePartKind.SystemNotification:
 				{
-					const progress = systemNotificationToChatPart(rp.content, connectionAuthority, rp._meta);
+					const progress = systemNotificationToChatPart(rp.content, connectionAuthority, rp._meta, managedPluginRetry);
 					if (progress) {
 						parts.push(progress);
 					}
@@ -3197,6 +3259,8 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 		);
 		if (mcpAppInput) {
 			const existingInput = invocation.toolSpecificData?.kind === 'input' ? invocation.toolSpecificData : undefined;
+			// Clear `HiddenAfterComplete` from confirmation so the MCP App stays visible.
+			invocation.presentation = undefined;
 			invocation.toolSpecificData = mcpAppInput;
 			if (!existingInput || !isSameMcpAppData(existingInput.mcpAppData, mcpAppInput.mcpAppData)) {
 				invocation.notifyToolSpecificDataChanged();

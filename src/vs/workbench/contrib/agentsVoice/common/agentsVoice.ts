@@ -56,13 +56,14 @@ export const AGENTS_VOICE_WINDOW_DEFAULT_WIDTH = 400;
 export const AGENTS_VOICE_WINDOW_DEFAULT_HEIGHT = 70;
 
 /**
- * Storage keys for persisting window state across restarts.
+ * Storage keys for persisting Voice Mode state across restarts.
  */
 export const enum AgentsVoiceStorageKeys {
 	WindowOpen = 'agentsVoice.windowOpen',
 	WindowBounds = 'agentsVoice.windowBounds',
 	TranscriptIndex = 'agentsVoice.transcriptIndex',
 	OnboardingCompleted = 'agentsVoice.onboardingCompleted',
+	GptLiveNoticeShown = 'agentsVoice.gptLiveNoticeShown',
 	/**
 	 * First-run introduction shown above the chat input. Distinct from
 	 * {@link OnboardingCompleted}, which tracks the Voice Mode window's own
