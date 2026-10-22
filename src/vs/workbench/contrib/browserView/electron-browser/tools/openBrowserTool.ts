@@ -24,7 +24,7 @@ import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation,
 import { BrowserViewSharingState, IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
 import { BrowserChatToolReferenceName } from '../../../../../platform/browserView/common/browserChatToolReferenceNames.js';
-import { createBrowserPageLink, errorResult, findExistingPagesByHost, getBrowserNetworkPolicyError, getExistingPagesResult, getExternalTunnelNetworkPolicyError, getSessionId, remoteUrlRewriteNotice, rewriteRemoteLocalhostUrl } from './browserToolHelpers.js';
+import { createBrowserPageLink, errorResult, findExistingPagesByHost, getBrowserNetworkPolicyError, getExistingPagesResult, getExternalTunnelNetworkPolicyError, getSessionId, localNetworkFallbackNotice, remoteUrlRewriteNotice, rewriteRemoteLocalhostUrl } from './browserToolHelpers.js';
 import { IRemoteExplorerService } from '../../../../services/remote/common/remoteExplorerService.js';
 import { getAgentBrowserViewCreationDefaults } from '../../../../../platform/browserView/common/browserView.js';
 import { ISandboxNetworkRestrictions } from '../../../../../platform/sandbox/common/sandboxSettingsResolutionHelper.js';
@@ -173,15 +173,18 @@ export class OpenBrowserTool implements IToolImpl {
 		}
 
 		if (!params.forceNew) {
+			// Existing pages are reused only on the network a new page would use.
+			const pageNetwork = network && this.browserViewService.getNetworkStatus(network).proxySupported === false ? undefined : network;
+
 			// If there are already-shared pages, tell the model to reuse them
-			const shared = findExistingPagesByHost(this.browserViewService, params.url, network, { includeBlank: true, sharingState: BrowserViewSharingState.Shared, activeSessionId });
+			const shared = findExistingPagesByHost(this.browserViewService, params.url, pageNetwork, { includeBlank: true, sharingState: BrowserViewSharingState.Shared, activeSessionId });
 			const alreadyShared = await getExistingPagesResult(this.editorService, shared, { agentNetworkFilterService: this.agentNetworkFilterService });
 			if (alreadyShared) {
 				return withNotice(alreadyShared);
 			}
 
 			// If there are unshared pages on the same host, prompt user to share one
-			const unshared = findExistingPagesByHost(this.browserViewService, params.url, network, { includeBlank: false, activeSessionId })
+			const unshared = findExistingPagesByHost(this.browserViewService, params.url, pageNetwork, { includeBlank: false, activeSessionId })
 				.filter(editor => editor.model?.sharingState === BrowserViewSharingState.Available);
 			if (unshared.length > 0) {
 				const shareResult = await this._promptForUnsharedPages(invocation, unshared, params, token);
@@ -336,7 +339,9 @@ export class OpenBrowserTool implements IToolImpl {
 			openSource: 'cdpCreated'
 		}, { preserveFocus: true });
 		const summary = await this.playwrightService.waitForPageAndGetSummary(sessionId, input.id, url, OPEN_PAGE_READY_TIMEOUT_MS);
-		return this._pageResult(input.id, summary, localize('browser.open.result', "Opened {0}", createBrowserPageLink(input.id)));
+		const result = this._pageResult(input.id, summary, localize('browser.open.result', "Opened {0}", createBrowserPageLink(input.id)));
+		const notice = localNetworkFallbackNotice(input);
+		return notice ? { ...result, content: [notice, ...result.content] } : result;
 	}
 
 	private async _shareExistingPage(sessionId: string, editor: BrowserEditorInput): Promise<IToolResult> {

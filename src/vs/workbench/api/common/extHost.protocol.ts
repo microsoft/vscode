@@ -1275,10 +1275,19 @@ export interface ExtHostManagedSocketsShape {
 }
 
 export interface MainThreadBrowserTunnelProxyShape extends IDisposable {
+	/** Opens a TCP connection on the network of the agent host with the given connection authority. */
+	$openNetworkConnection(authority: string, host: string, port: number): Promise<number>;
+	/** Resolves the next chunk, or `undefined` at EOF. At most one read is pending per connection. */
+	$readNetworkConnection(id: number): Promise<VSBuffer | undefined>;
+	/** Resolves once the agent host connection has accepted the data. */
+	$writeNetworkConnection(id: number, data: VSBuffer): Promise<void>;
+	/** Half-closes the connection once previously written data has been delivered. */
+	$endNetworkConnection(id: number): Promise<void>;
+	$closeNetworkConnection(id: number): void;
 }
 
 export interface ExtHostBrowserTunnelProxyShape {
-	/** Starts (or returns the running) proxy whose connections use the remote network with this authority. */
+	/** Starts (or returns the running) proxy whose connections use the network with this authority: the window's remote or an agent host. */
 	$acquireNetworkProxy(authority: string): Promise<ITunnelProxyInfo>;
 	$releaseNetworkProxy(authority: string): void;
 }

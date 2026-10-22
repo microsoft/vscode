@@ -96,6 +96,7 @@ suite('OpenBrowserTool', () => {
 			upcastPartial<IEditorService>({}),
 			upcastPartial<IBrowserViewWorkbenchService>({
 				resolveNetwork: () => ({ authority: 'remote' }),
+				getNetworkStatus: () => ({ label: 'remote', connected: true, proxySupported: true }),
 				createBrowserView: async (options, openOptions) => {
 					createOptions = options;
 					editorOpenOptions = openOptions;
@@ -220,33 +221,40 @@ suite('OpenBrowserTool', () => {
 			model: { value: upcastPartial<IBrowserViewModel>({ network, sharingState: BrowserViewSharingState.Shared }) },
 		});
 		const pages = [page('local-page', undefined), page('remote-page', { authority: 'remote' })];
-		const tool = new OpenBrowserTool(
-			upcastPartial<IPlaywrightService>({}),
-			upcastPartial<IEditorService>({ activeEditor: undefined, visibleEditors: [] }),
-			upcastPartial<IBrowserViewWorkbenchService>({
-				resolveNetwork: () => ({ authority: 'remote' }),
-				getContextualBrowserViews: () => new Map(pages.map(p => [p.id, p])),
-			}),
-			upcastPartial<IRemoteExplorerService>({}),
-			upcastPartial<AgentNetworkFilterService>({ isUriAllowed: () => true }),
-			upcastPartial<IChatService>({}),
-			new TestConfigurationService(),
-			upcastPartial<ILogService>({}),
-			upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: true }),
-		);
+		const reused: Record<string, string[]> = {};
+		// A host that cannot proxy browsers puts new pages on the local network.
+		for (const proxySupported of [true, false]) {
+			const tool = new OpenBrowserTool(
+				upcastPartial<IPlaywrightService>({}),
+				upcastPartial<IEditorService>({ activeEditor: undefined, visibleEditors: [] }),
+				upcastPartial<IBrowserViewWorkbenchService>({
+					resolveNetwork: () => ({ authority: 'remote' }),
+					getNetworkStatus: () => ({ label: 'remote', connected: true, proxySupported }),
+					getContextualBrowserViews: () => new Map(pages.map(p => [p.id, p])),
+				}),
+				upcastPartial<IRemoteExplorerService>({}),
+				upcastPartial<AgentNetworkFilterService>({ isUriAllowed: () => true }),
+				upcastPartial<IChatService>({}),
+				new TestConfigurationService(),
+				upcastPartial<ILogService>({}),
+				upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: true }),
+			);
 
-		const result = await tool.invoke(
-			upcastPartial<IToolInvocation>({
-				parameters: { url: 'http://localhost:3000/' },
-				context: { sessionResource: URI.parse('chat:session') },
-			}),
-			async () => 0,
-			upcastPartial<ToolProgress>({ report: () => { } }),
-			CancellationToken.None,
-		);
+			const result = await tool.invoke(
+				upcastPartial<IToolInvocation>({
+					parameters: { url: 'http://localhost:3000/' },
+					context: { sessionResource: URI.parse('chat:session') },
+				}),
+				async () => 0,
+				upcastPartial<ToolProgress>({ report: () => { } }),
+				CancellationToken.None,
+			);
 
-		const text = result.content.map(part => part.kind === 'text' ? part.value : '').join('');
-		assert.deepStrictEqual({ remote: text.includes('[remote-page]'), local: text.includes('[local-page]') }, { remote: true, local: false });
+			const text = result.content.map(part => part.kind === 'text' ? part.value : '').join('');
+			reused[proxySupported ? 'supported' : 'unsupported'] = pages.map(p => p.id).filter(id => text.includes(`[${id}]`));
+		}
+
+		assert.deepStrictEqual(reused, { supported: ['remote-page'], unsupported: ['local-page'] });
 	});
 
 	test('rechecks policy before existing-page discovery', async () => {
@@ -258,6 +266,7 @@ suite('OpenBrowserTool', () => {
 		});
 		const browserViewService = upcastPartial<IBrowserViewWorkbenchService>({
 			resolveNetwork: () => ({ authority: 'remote' }),
+			getNetworkStatus: () => ({ label: 'remote', connected: true, proxySupported: true }),
 			getContextualBrowserViews: () => {
 				discoveryCount++;
 				return new Map();
