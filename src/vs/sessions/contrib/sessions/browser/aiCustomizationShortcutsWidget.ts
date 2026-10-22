@@ -256,7 +256,8 @@ export class AICustomizationShortcutsWidget extends Disposable {
 			return;
 		}
 		const visible = this._collapsed && this._showExtensionSuggestionsBadge;
-		if (visible === !this._headerSuggestionBadgeElement.classList.contains('hidden')) {
+		const currentlyVisible = !this._headerSuggestionBadgeElement.classList.contains('hidden');
+		if (visible === currentlyVisible) {
 			return;
 		}
 		this._headerSuggestionBadgeElement.classList.toggle('hidden', !visible);

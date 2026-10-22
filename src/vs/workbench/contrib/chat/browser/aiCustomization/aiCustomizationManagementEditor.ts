@@ -22,7 +22,7 @@ import { DisposableStore, IDisposable, IReference, MutableDisposable, toDisposab
 import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
-import { autorun } from '../../../../../base/common/observable.js';
+import { autorun, derived } from '../../../../../base/common/observable.js';
 import { Orientation, Sizing, SplitView } from '../../../../../base/browser/ui/splitview/splitview.js';
 import { Color } from '../../../../../base/common/color.js';
 import { localize } from '../../../../../nls.js';
@@ -3339,11 +3339,17 @@ export class AICustomizationManagementEditor extends EditorPane {
 	 * Shows the badges that contributed sections describe on their navigation entries.
 	 */
 	private registerContributedSectionBadges(): void {
-		this.editorDisposables.add(autorun(reader => {
+		// Resolve the badge observables once per harness so that badge changes only re-read them.
+		const sectionBadges = derived(this, reader => {
 			const activeHarness = this.harnessService.activeHarness.read(reader);
-			for (const section of this.workspaceService.managementSections) {
+			return this.workspaceService.managementSections.map(section => {
 				const getBadge = aiCustomizationManagementSectionRegistry.get(section, activeHarness)?.getBadge;
-				this.updateSectionBadge(section, getBadge ? this.instantiationService.invokeFunction(getBadge).read(reader) : undefined);
+				return { section, badge: getBadge ? this.instantiationService.invokeFunction(getBadge) : undefined };
+			});
+		});
+		this.editorDisposables.add(autorun(reader => {
+			for (const { section, badge } of sectionBadges.read(reader)) {
+				this.updateSectionBadge(section, badge?.read(reader));
 			}
 		}));
 	}
