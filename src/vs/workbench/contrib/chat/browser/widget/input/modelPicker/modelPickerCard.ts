@@ -23,7 +23,7 @@ import { IOpenerService } from '../../../../../../../platform/opener/common/open
 import { getModelContextWindowTotal, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
 import { formatModelCost, getCreditsPerMillionTokensLabel, getMaxContextLabel, getModelCostMetrics, renderModelDescription } from './modelPickerDetails.js';
 import { createMessageBanner, HYDRA_FUSION_LEARN_MORE_URL } from './modelPickerHover.js';
-import { getChangedModelConfigProperties, getModelConfigChoices, getModelConfigProperty, IModelConfigProperty, IModelConfigurationAccess, isExtendedContext, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT, ModelConfigChangeListener, setModelConfigValues } from './modelPickerModelConfig.js';
+import { getChangedModelConfigProperties, getModelConfigChoices, getModelConfigProperty, IModelConfigProperty, IModelConfigurationAccess, isExtendedContext, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT, MODEL_CONFIG_GROUP_SPEED, ModelConfigChangeListener, setModelConfigValues } from './modelPickerModelConfig.js';
 import { getCategoryLabel, getPriceCategoryLabel, getRoutingModelBadge, isAutoModel, isHighCostCategory, isHydraFusionModel, isMultiplierPricing } from './modelPickerPresentation.js';
 import { IModelSpeedVariants } from './modelPickerVariants.js';
 import { getOrganizationDefaultDescription } from './modelPickerBadges.js';
@@ -210,7 +210,7 @@ export class ModelCard extends DisposableStore {
 	}
 
 	focus(): void {
-		const control = this._groupControls.get(MODEL_CONFIG_GROUP_EFFORT) ?? this._groupControls.get(MODEL_CONFIG_GROUP_CONTEXT);
+		const control = this._groupControls.get(MODEL_CONFIG_GROUP_EFFORT) ?? this._groupControls.get(MODEL_CONFIG_GROUP_CONTEXT) ?? this._groupControls.get(MODEL_CONFIG_GROUP_SPEED);
 		if (control) {
 			control.focusActiveItem();
 		} else {
@@ -668,10 +668,18 @@ export class ModelCard extends DisposableStore {
 	}
 
 	/**
-	 * The two speeds the provider offers the same model at. Picking one selects that
-	 * model, since the twins are separate models with their own prices.
+	 * Service tiers keep the same model and update its configuration. Otherwise,
+	 * speed variants select a separate model with its own price.
 	 */
 	private _renderSpeedSection(): void {
+		const property = this._configProperty(MODEL_CONFIG_GROUP_SPEED);
+		if (property) {
+			this._renderChoiceSection(property, MODEL_CONFIG_GROUP_SPEED, property.schema.title ?? localize('models.speed', "Speed"));
+			if (property.schema.description) {
+				this._renderDescription(property.schema.description);
+			}
+			return;
+		}
 		const variants = this._options.speedVariants;
 		if (!variants) {
 			return;

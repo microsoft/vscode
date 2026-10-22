@@ -153,6 +153,30 @@ suite('ModelCard', () => {
 		return Array.from(card.element.querySelectorAll('[role="radio"][aria-checked="true"]'), option => option.textContent ?? '');
 	}
 
+	test('service-tier speed choices keep the model and effort, show usage information, and reset', async () => {
+		const model = createModel();
+		model.metadata.configurationSchema!.properties!.serviceTier = {
+			type: 'string', title: 'Speed', group: 'speed', enum: ['default', 'priority'], enumItemLabels: ['Standard', 'Fast'],
+			default: 'default', description: 'Faster tiers can use more of your allowance.',
+		};
+		const result = createCard({}, { model });
+		element(result.card.element, '[role="radio"][aria-label="Fast"]').click();
+		await timeout(0);
+		const fastSummary = getModelConfigSummary(model, result.configurationAccess);
+		const usageVisible = result.card.element.textContent?.includes('Faster tiers can use more of your allowance.');
+		element(result.card.element, '[aria-label="Reset to Default"]').click();
+		await timeout(0);
+		assert.deepStrictEqual({
+			writes: result.writes, changes: result.changes, selectedModels: result.selectedModels,
+			fastSummary, usageVisible, selected: selectedOptions(result.card),
+		}, {
+			writes: [{ serviceTier: 'priority' }, { effort: 'medium', context: 264000, serviceTier: 'default' }],
+			changes: [['speed', 'serviceTier', 'default', 'priority'], ['speed', 'serviceTier', 'priority', 'default']],
+			selectedModels: ['copilot/test-model', 'copilot/test-model'], fastSummary: 'Medium · 264K · Fast', usageVisible: true,
+			selected: ['Medium', '264K', 'Standard'],
+		});
+	});
+
 	/** The option labels of the first segmented control, split where a row break sits. */
 	function segmentRows(card: ModelCard): string[][] {
 		const rows: string[][] = [[]];

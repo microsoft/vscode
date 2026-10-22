@@ -19,6 +19,8 @@ type ModelConfigurationReader = Pick<IModelConfigurationAccess, 'getModelConfigu
 export const MODEL_CONFIG_GROUP_EFFORT = 'navigation';
 /** The context window group: how much context the model is given. */
 export const MODEL_CONFIG_GROUP_CONTEXT = 'tokens';
+/** The service tier of a model, independent of its reasoning effort. */
+export const MODEL_CONFIG_GROUP_SPEED = 'speed';
 
 export type IModelConfigPropertySchema = NonNullable<ILanguageModelConfigurationSchema['properties']>[string];
 
@@ -51,7 +53,7 @@ export function setModelConfigValues(
 		configurationEdits.set(configurationAccess, edits = new SequencerByKey<string>());
 	}
 	return edits.queue(model.identifier, async () => {
-		const changes = [MODEL_CONFIG_GROUP_EFFORT, MODEL_CONFIG_GROUP_CONTEXT].flatMap(group => {
+		const changes = [MODEL_CONFIG_GROUP_EFFORT, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_SPEED].flatMap(group => {
 			const property = getModelConfigProperty(model, configurationAccess, group, useModelConfigurationSchema);
 			return property && Object.hasOwn(values, property.key) && property.value !== values[property.key]
 				? [{ group, key: property.key, fromValue: property.value, toValue: values[property.key] }]
@@ -109,7 +111,8 @@ export function getModelConfigProperty(
 	const currentConfig = configurationAccess.getModelConfiguration(model.identifier) ?? {};
 	const aliases = group === MODEL_CONFIG_GROUP_EFFORT
 		? ['tier', 'autoTier', 'thinkingLevel', 'reasoningEffort']
-		: group === MODEL_CONFIG_GROUP_CONTEXT ? ['contextSize', 'contextTier'] : [];
+		: group === MODEL_CONFIG_GROUP_CONTEXT ? ['contextSize', 'contextTier']
+			: group === MODEL_CONFIG_GROUP_SPEED ? ['serviceTier'] : [];
 	const alias = aliases.find(key => Object.hasOwn(properties, key) && properties[key].group === group);
 	const keys = alias ? [alias] : Object.keys(properties);
 	for (const key of keys) {
@@ -148,7 +151,7 @@ export function isExtendedContext(property: IModelConfigProperty): boolean {
 	return values.length > 1 && property.value === values[values.length - 1];
 }
 
-/** A short readout of the effective effort and context, including defaults. */
+/** A short readout of the effective effort, context and speed, including defaults. */
 export function getModelConfigSummary(
 	model: ILanguageModelChatMetadataAndIdentifier | undefined,
 	configurationAccess: ModelConfigurationReader,
@@ -174,13 +177,13 @@ export function getModelConfigDisplayValues(
 	useModelConfigurationSchema = false,
 ): { group: string; label: string; description: string }[] {
 	const values: { group: string; label: string; description: string }[] = [];
-	for (const group of [MODEL_CONFIG_GROUP_EFFORT, MODEL_CONFIG_GROUP_CONTEXT]) {
+	for (const group of [MODEL_CONFIG_GROUP_EFFORT, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_SPEED]) {
 		const property = getModelConfigProperty(model, configurationAccess, group, useModelConfigurationSchema);
 		if (property?.value !== undefined && property.schema.enum?.includes(property.value)) {
 			const label = getModelConfigValueLabel(property.schema, property.value);
 			const title = property.schema.title ?? (group === MODEL_CONFIG_GROUP_EFFORT
 				? localize('chat.effort.header', "Effort Level")
-				: localize('chat.context.header', "Context"));
+				: group === MODEL_CONFIG_GROUP_SPEED ? localize('chat.speed.header', "Speed") : localize('chat.context.header', "Context"));
 			values.push({
 				group, label, description: property.schema.readOnly
 					? localize('chat.modelPicker.managedConfigValue', "{0}: {1}, managed by the agent host", title, label)
@@ -197,14 +200,14 @@ export function getModelConfigDisplayValues(
 	return values;
 }
 
-/** The effort and context properties whose effective values differ from their defaults. */
+/** The effort, context and speed properties whose effective values differ from their defaults. */
 export function getChangedModelConfigProperties(
 	model: ILanguageModelChatMetadataAndIdentifier | undefined,
 	configurationAccess: IModelConfigurationAccess,
 	useModelConfigurationSchema = false,
 ): IModelConfigProperty[] {
 	const properties: IModelConfigProperty[] = [];
-	for (const group of [MODEL_CONFIG_GROUP_EFFORT, MODEL_CONFIG_GROUP_CONTEXT]) {
+	for (const group of [MODEL_CONFIG_GROUP_EFFORT, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_SPEED]) {
 		const property = getModelConfigProperty(model, configurationAccess, group, useModelConfigurationSchema);
 		if (!property || property.schema.readOnly || property.value === undefined || property.value === property.schema.default) {
 			continue;
