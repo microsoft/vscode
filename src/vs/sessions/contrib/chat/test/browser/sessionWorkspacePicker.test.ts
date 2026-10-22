@@ -1220,8 +1220,8 @@ suite('WorkspacePicker - Connection Status', () => {
 						? items.find(item => item.label === 'Remote')?.filterItems?.map(item => item.label) ?? []
 						: items.filter(item => item.label?.startsWith('Provider ')).map(item => item.label),
 					hostIcons: consolidated
-						? items.find(item => item.label === 'Remote')?.filterItems?.map(item => item.group?.icon) ?? []
-						: items.filter(item => item.label?.startsWith('Provider ')).map(item => item.group?.icon),
+						? items.find(item => item.label === 'Remote')?.filterItems?.map(item => item.group?.icon?.id) ?? []
+						: items.filter(item => item.label?.startsWith('Provider ')).map(item => item.group?.icon?.id),
 				};
 			};
 			const states = [snapshot()];
@@ -1232,7 +1232,7 @@ suite('WorkspacePicker - Connection Status', () => {
 			const offline = {
 				workspaces: [tunnel.id], browse: ['Browse Tunnel'],
 				hosts: [consolidated ? `Manage ${tunnel.label}` : tunnel.label],
-				hostIcons: [Codicon.remote],
+				hostIcons: [Codicon.remote.id],
 			};
 			assert.deepStrictEqual({
 				states, retainedSessions: environment.getSessions().length,
@@ -1241,7 +1241,7 @@ suite('WorkspacePicker - Connection Status', () => {
 				states: [offline, {
 					workspaces: [environment.id, tunnel.id], browse: ['Browse Environment', 'Browse Tunnel'],
 					hosts: [environment, tunnel].map(provider => consolidated ? `Manage ${provider.label}` : provider.label),
-					hostIcons: [Codicon.remote, Codicon.remote],
+					hostIcons: [Codicon.remote.id, Codicon.remote.id],
 				}, offline],
 				retainedSessions: 1, recentsUnchanged: true,
 			});
@@ -1479,9 +1479,9 @@ suite('WorkspacePicker - Connection Status', () => {
 				{ label: 'Manage Provider agenthost-wsl', ariaLabel: 'Provider agenthost-wsl, Online · 2 active sessions' },
 			],
 			unifiedSubmenu: [
-				{ label: 'Manage Provider agenthost-tunnel-one', icon: Codicon.cloud.id },
-				{ label: 'Manage Provider agenthost-tunnel-two', icon: Codicon.cloud.id },
-				{ label: 'Manage Provider agenthost-tunnel-idle', icon: Codicon.cloud.id },
+				{ label: 'Manage Provider agenthost-tunnel-one', icon: Codicon.remote.id },
+				{ label: 'Manage Provider agenthost-tunnel-two', icon: Codicon.remote.id },
+				{ label: 'Manage Provider agenthost-tunnel-idle', icon: Codicon.remote.id },
 				{ label: 'Manage Provider agenthost-ssh', icon: Codicon.remote.id },
 				{ label: 'Manage Provider agenthost-wsl', icon: Codicon.remote.id },
 			],
