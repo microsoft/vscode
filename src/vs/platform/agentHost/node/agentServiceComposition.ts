@@ -47,6 +47,7 @@ import { URI } from '../../../base/common/uri.js';
 import { AgentMergeTools } from './agentMergeTools.js';
 import { AgentServerToolHost, IAgentHostServerToolService } from './shared/agentServerToolHost.js';
 import { buildServerToolGroups } from './shared/serverToolGroups.js';
+import { createDeferralDemoServerToolGroups, DEFERRAL_DEMO_ENV_VAR, parseDeferralDemoMode } from './shared/deferralDemoServerTools.js';
 import { IAgentHostWorktreeIsolation } from './shared/worktreeIsolation.js';
 import type { ISessionServerToolAccessor } from './shared/sessionServerTools.js';
 import { type IAgentServiceFoundation } from './agentServiceFoundation.js';
@@ -244,7 +245,7 @@ export function createAgentServiceComposition(
 		};
 		const serverToolHost = new AgentServerToolHost(
 			stateManager,
-			buildServerToolGroups(
+			[...buildServerToolGroups(
 				sessionServerToolAccessor,
 				agentMergeTools,
 				{
@@ -277,7 +278,7 @@ export function createAgentServiceComposition(
 					getIntegrations: () => artifactIntegrationDirectory.integrations.get(),
 					acquireArtifact: acquireIntegratedArtifact,
 				},
-			),
+			), ...createDeferralDemoServerToolGroups(parseDeferralDemoMode(process.env[DEFERRAL_DEMO_ENV_VAR]))],
 		);
 		services.set(IAgentHostServerToolService, serverToolHost);
 		let chatMovesEnabled = configurationService.getRootValue(chatMoveRootConfigSchema, ChatMoveConfigKey.Enabled) === true;

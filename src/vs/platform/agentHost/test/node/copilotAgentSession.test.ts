@@ -126,6 +126,7 @@ import { AgentSandboxEnabledValue } from '../../../sandbox/common/settings.js';
 import { createNoopGitService, createSessionDataService, createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { OtelData } from '../../common/otlp/otlpLogEmitter.js';
 import { type IAgentServerToolDefinition, IAgentServerToolHost, type IServerToolConfirmationDisplay } from '../../common/agentServerTools.js';
+import { createDeferralDemoServerToolGroups, DeferralDemoToolName, type DeferralDemoMode } from '../../node/shared/deferralDemoServerTools.js';
 import { ArtifactServerToolName, SessionServerToolName } from '../../common/serverToolNames.js';
 import { readSessionArtifacts } from '../../common/sessionArtifacts.js';
 import { AgentServerToolHost } from '../../node/shared/agentServerToolHost.js';
@@ -26297,6 +26298,27 @@ Use the attached image as context.
 			const tools = runtime.createServerSdkTools();
 			assert.deepStrictEqual(tools.map(t => t.name).sort(), [...serverToolHost.toolNames].sort());
 			assert.deepStrictEqual(tools.map(t => t.defer), tools.map(() => 'never'));
+		});
+
+		test('deferral demo: deferLoading maps to the SDK defer flag only while tool search is active', async () => {
+			const sdkDefer = async (mode: DeferralDemoMode) => {
+				const [group] = createDeferralDemoServerToolGroups(mode);
+				const sessionDefinitions = group.definitions.map(definition => group.getDefinitionForSession?.(definition, 'copilot:/demo') ?? definition);
+				const { runtime } = await createAgentSession(disposables, { serverToolHost: new FakeServerToolHost(sessionDefinitions) });
+				const byName = (tools: readonly { name: string; defer?: string }[]) => Object.fromEntries(tools.map(tool => [tool.name, tool.defer]));
+				return { toolSearchOn: byName(runtime.createServerSdkTools(true)), toolSearchOff: byName(runtime.createServerSdkTools(false)) };
+			};
+
+			assert.deepStrictEqual({ deferred: await sdkDefer('deferred'), eager: await sdkDefer('eager') }, {
+				deferred: {
+					toolSearchOn: { [DeferralDemoToolName.LookupReleaseCodename]: 'auto', [DeferralDemoToolName.PinSessionNote]: 'auto' },
+					toolSearchOff: { [DeferralDemoToolName.LookupReleaseCodename]: 'never', [DeferralDemoToolName.PinSessionNote]: 'never' },
+				},
+				eager: {
+					toolSearchOn: { [DeferralDemoToolName.LookupReleaseCodename]: 'auto', [DeferralDemoToolName.PinSessionNote]: 'never' },
+					toolSearchOff: { [DeferralDemoToolName.LookupReleaseCodename]: 'never', [DeferralDemoToolName.PinSessionNote]: 'never' },
+				},
+			});
 		});
 
 		for (const resume of [false, true]) {
