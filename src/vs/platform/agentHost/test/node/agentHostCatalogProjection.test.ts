@@ -14,10 +14,11 @@ import { SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, 
 import {
 	AGENT_HOST_CATALOG_ARTIFACT_LIMIT,
 	AGENT_HOST_CATALOG_CHILD_LIMIT,
+	AGENT_HOST_CATALOG_MIGRATABLE_PAYLOAD_VERSIONS,
 	AGENT_HOST_CATALOG_PAYLOAD_VERSION,
-	AGENT_HOST_CATALOG_PREVIOUS_PAYLOAD_VERSION,
 	AgentHostCatalogData,
 	decodeAgentHostCatalogPayload,
+	decodeAgentHostCatalogPayloadData,
 	encodeAgentHostCatalogPayload,
 	hashAgentHostCatalogPayload,
 	reviveAgentHostCatalogData,
@@ -111,22 +112,37 @@ suite('AgentHostCatalogProjection', () => {
 		const data = createData();
 		const withOrigin = decodeAgentHostCatalogPayload(encode({ ...data, origin }).payload);
 		const withoutOrigin = decodeAgentHostCatalogPayload(encode(data).payload);
-		const previousPayload = encode(data).payload.replace(`"payloadVersion":${AGENT_HOST_CATALOG_PAYLOAD_VERSION}`, `"payloadVersion":${AGENT_HOST_CATALOG_PREVIOUS_PAYLOAD_VERSION}`);
-		const previous = decodeAgentHostCatalogPayload(previousPayload, AGENT_HOST_CATALOG_PREVIOUS_PAYLOAD_VERSION);
-		const previousAsCurrent = decodeAgentHostCatalogPayload(previousPayload);
+		const migrated = AGENT_HOST_CATALOG_MIGRATABLE_PAYLOAD_VERSIONS.map(payloadVersion => {
+			const payload = encode(data).payload.replace(`"payloadVersion":${AGENT_HOST_CATALOG_PAYLOAD_VERSION}`, `"payloadVersion":${payloadVersion}`);
+			const decoded = decodeAgentHostCatalogPayloadData(payload, { forMigration: true, payloadVersion });
+			const asCurrent = decodeAgentHostCatalogPayload(payload);
+			return { payloadVersion, origin: decoded.ok ? decoded.value.origin : decoded.reason, asCurrent: asCurrent.ok ? 'current' : asCurrent.reason };
+		});
 		assert.deepStrictEqual({
 			version: AGENT_HOST_CATALOG_PAYLOAD_VERSION,
 			current: withOrigin.ok && withOrigin.value.data.origin,
 			ordinary: withoutOrigin.ok && withoutOrigin.value.data.origin,
-			previous: previous.ok && previous.value.data.origin,
-			previousAsCurrent: previousAsCurrent.ok ? 'current' : previousAsCurrent.reason,
+			migrated,
 		}, {
 			version: 3,
 			current: origin,
 			ordinary: undefined,
-			previous: undefined,
-			previousAsCurrent: 'outdated',
+			migrated: [
+				{ payloadVersion: 1, origin: undefined, asCurrent: 'outdated' },
+				{ payloadVersion: 2, origin: undefined, asCurrent: 'outdated' },
+			],
 		});
+	});
+
+	test('migration decoding remains bounded to shipped payload versions', () => {
+		const data = createData();
+		const future = decodeAgentHostCatalogPayloadData(JSON.stringify({ payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION + 1, data }), { forMigration: true });
+		const malformed = decodeAgentHostCatalogPayloadData(JSON.stringify({ payloadVersion: AGENT_HOST_CATALOG_MIGRATABLE_PAYLOAD_VERSIONS[0], data: {} }), { forMigration: true });
+
+		assert.deepStrictEqual({
+			future: future.ok ? 'ok' : future.reason,
+			malformed: malformed.ok ? 'ok' : malformed.reason,
+		}, { future: 'outdated', malformed: 'invalid' });
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

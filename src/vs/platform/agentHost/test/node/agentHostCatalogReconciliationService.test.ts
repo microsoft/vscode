@@ -15,7 +15,7 @@ import type { ISessionDataService } from '../../common/sessionDataService.js';
 import { AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY, AgentHostCatalogReconciliationService, AgentHostCatalogReconciliationSourceResult, CATALOG_VERIFICATION_VERSION, IAgentHostCatalogReconciliationOptions } from '../../node/agentHostCatalogReconciliationService.js';
 import { AgentHostCatalogSyncService } from '../../node/agentHostCatalogSyncService.js';
 import { chatCatalogV2ToCatalogChats } from '../../node/agentHostCatalogSourceResolver.js';
-import { AgentHostCatalogData, AGENT_HOST_CATALOG_PAYLOAD_VERSION, encodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
+import { AgentHostCatalogData, AGENT_HOST_CATALOG_MIGRATABLE_PAYLOAD_VERSIONS, AGENT_HOST_CATALOG_PAYLOAD_VERSION, encodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
 import { AgentHostDatabase, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Envelope, IAgentHostDatabaseSessionV2Receipt } from '../../node/agentHostDatabase.js';
 import type { IRegisteredSession } from '../../node/agentSessionRegistry.js';
 import type { IAgentHostStorageService } from '../../node/agentHostStorageService.js';
@@ -584,30 +584,32 @@ suite('AgentHostCatalogReconciliationService', () => {
 		});
 	});
 
-	test('re-projects the previous payload version after serving it during migration', async () => {
-		const harness = await createHarness(['one']);
-		const session = registered('one');
-		await harness.sync.synchronize(session.session, { data: catalogData('one'), legacyMetadata: { customTitle: 'one' } });
-		harness.central.reportedPayloadVersion = AGENT_HOST_CATALOG_PAYLOAD_VERSION - 1;
-		harness.central.upsertCalls = 0;
-		const service = harness.createService(async registeredSession => ({
-			status: 'available',
-			request: { data: catalogData(registeredSession.session.path), legacyMetadata: { customTitle: registeredSession.session.path } },
-		}));
+	for (const payloadVersion of AGENT_HOST_CATALOG_MIGRATABLE_PAYLOAD_VERSIONS) {
+		test(`re-projects payload version ${payloadVersion} after serving it during migration`, async () => {
+			const harness = await createHarness(['one']);
+			const session = registered('one');
+			await harness.sync.synchronize(session.session, { data: catalogData('one'), legacyMetadata: { customTitle: 'one' } });
+			harness.central.reportedPayloadVersion = payloadVersion;
+			harness.central.upsertCalls = 0;
+			const service = harness.createService(async registeredSession => ({
+				status: 'available',
+				request: { data: catalogData(registeredSession.session.path), legacyMetadata: { customTitle: registeredSession.session.path } },
+			}));
 
-		const report = await service.runPass();
-		const migrated = await harness.central.getSessionV2(session.session.toString());
+			const report = await service.runPass();
+			const migrated = await harness.central.getSessionV2(session.session.toString());
 
-		assert.deepStrictEqual({
-			outcomes: report.outcomes,
-			upsertCalls: harness.central.upsertCalls,
-			payloadVersion: migrated?.payloadVersion,
-		}, {
-			outcomes: [{ session: 'agenthost:one', status: 'succeeded', reason: 'synchronized', sourceRevision: 1 }],
-			upsertCalls: 1,
-			payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION,
+			assert.deepStrictEqual({
+				outcomes: report.outcomes,
+				upsertCalls: harness.central.upsertCalls,
+				payloadVersion: migrated?.payloadVersion,
+			}, {
+				outcomes: [{ session: 'agenthost:one', status: 'succeeded', reason: 'synchronized', sourceRevision: 1 }],
+				upsertCalls: 1,
+				payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION,
+			});
 		});
-	});
+	}
 
 	test('replays a pending payload into missing sessions_v2 and clears the payload after acknowledgement', async () => {
 		const harness = await createHarness(['one']);
