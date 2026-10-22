@@ -89,8 +89,12 @@ suite('Webview shell messaging', () => {
 		const compiledDir = FileAccess.asFileUri('vs/workbench/contrib/webview/test/node').fsPath;
 		const sourceDir = resolve(compiledDir).replaceAll('\\', '/').replace('/out/vs/workbench/', '/src/vs/workbench/');
 		const html = readFileSync(join(sourceDir, '../../browser/pre/index.html'), 'utf8');
-		const handler = html.match(/const handleMouseMove = \(\(\) => \{[\s\S]*?\r?\n\t{2}\}\)\(\);/)?.[0];
-		assert.ok(handler);
+		const startMarker = '// #region Mouse activity forwarding';
+		const endMarker = '// #endregion Mouse activity forwarding';
+		const start = html.indexOf(startMarker);
+		const end = html.indexOf(endMarker, start + startMarker.length);
+		assert.ok(start !== -1 && end > start, 'Mouse activity forwarding markers must delimit the preload handler');
+		const handler = html.slice(start + startMarker.length, end);
 		const frames: FrameRequestCallback[] = [];
 		const messages: { channel: string; data: WebviewMouseActivity }[] = [];
 		const handleMouseMove: (event: MouseEvent) => void = new Function('window', 'hostMessaging', `${handler}\nreturn handleMouseMove;`)(

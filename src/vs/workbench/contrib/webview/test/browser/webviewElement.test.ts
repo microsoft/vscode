@@ -142,10 +142,15 @@ suite('WebviewElement', () => {
 	};
 
 	async function sendWebviewMessage<K extends keyof FromWebviewMessage>(webview: WebviewElement, port: MessagePort, channel: K, data: FromWebviewMessage[K]): Promise<void> {
-		const drained = Event.toPromise(webview.onMessage, store.add(new DisposableStore()));
-		port.postMessage({ channel, data });
-		port.postMessage({ channel: 'onmessage', data: { message: 'done' } });
-		await drained;
+		const disposables = new DisposableStore();
+		try {
+			const drained = Event.toPromise(webview.onMessage, disposables);
+			port.postMessage({ channel, data });
+			port.postMessage({ channel: 'onmessage', data: { message: 'done' } });
+			await drained;
+		} finally {
+			disposables.dispose();
+		}
 	}
 
 	async function sendMouseMove(webview: WebviewElement, port: MessagePort, event = mouseMove): Promise<void> {

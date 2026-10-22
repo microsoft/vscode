@@ -18,6 +18,7 @@ import { ILayoutService } from '../../../../../platform/layout/browser/layoutSer
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { TestLayoutService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { SashGrippersController } from '../../browser/sash.js';
+import { webviewMouseActivityEvent } from '../../../webview/common/webview.js';
 import '../../browser/sash.contribution.js';
 import '../../../../browser/media/style.css';
 import '../../../modernUI/browser/media/sashHandles.css';
@@ -110,6 +111,33 @@ suite('Sash grippers', () => {
 		assert.strictEqual(isHidden(container), false);
 	}));
 
+	test('ignores malformed webview activity without resetting the idle timer', () => runWithFakedTimers({}, async () => {
+		const { container } = createController();
+		const targetWindow = getWindow(container);
+		const malformedEvents = [
+			new Event(webviewMouseActivityEvent),
+			...[undefined, null, 'invalid', {}, { screenX: 1 }, { screenX: '1', screenY: 2 },
+				{ screenX: 1, screenY: '2' }, { screenX: NaN, screenY: 2 }, { screenX: 1, screenY: Infinity }]
+				.map(detail => new CustomEvent(webviewMouseActivityEvent, { detail })),
+		];
+		await timeout(1999);
+		for (const event of malformedEvents) {
+			targetWindow.dispatchEvent(event);
+		}
+		await timeout(1);
+		const idle = isHidden(container);
+		const invalidWhileIdle = malformedEvents.map(event => {
+			targetWindow.dispatchEvent(event);
+			return isHidden(container);
+		});
+		targetWindow.dispatchEvent(new CustomEvent(webviewMouseActivityEvent, { detail: { screenX: 1, screenY: 2 } }));
+		assert.deepStrictEqual({ idle, invalidWhileIdle, afterValidMovement: isHidden(container) }, {
+			idle: true,
+			invalidWhileIdle: malformedEvents.map(() => true),
+			afterValidMovement: false,
+		});
+	}));
+
 	test('uses the configured delay and reschedules pending hides when it changes', () => runWithFakedTimers({}, async () => {
 		const { container, configurationService } = createController();
 		await timeout(1500);
@@ -196,7 +224,8 @@ suite('Sash grippers', () => {
 		const idle = [isHidden(container), isHidden(auxiliaryContainer)];
 		moveMouse(container);
 		const mainMoving = [isHidden(container), isHidden(auxiliaryContainer)];
-		moveMouse(auxiliaryContainer);
+		const auxiliaryWindow = getWindow(auxiliaryContainer);
+		auxiliaryWindow.dispatchEvent(new auxiliaryWindow.CustomEvent(webviewMouseActivityEvent, { detail: { screenX: 1, screenY: 2 } }));
 		const auxiliaryMoving = [isHidden(container), isHidden(auxiliaryContainer)];
 		auxiliaryDisposables.dispose();
 		auxiliaryContainer.classList.add('sash-grippers-hidden');

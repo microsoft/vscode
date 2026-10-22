@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-KexddR1ys4RIK5RvXKFvqHl1QwJUQ/h3BI3TokeD7bM=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-r276TsHbdWJnsWBkBVhoPNK3PT9ng29r81o15iXB+vA=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -739,6 +739,7 @@
 			return e.keyCode === 116;
 		}
 
+		// #region Mouse activity forwarding
 		const handleMouseMove = (() => {
 			/** @type {{ x: number; y: number } | undefined} */
 			let lastPosition;
@@ -770,6 +771,7 @@
 				});
 			};
 		})();
+		// #endregion Mouse activity forwarding
 
 		let isHandlingScroll = false;
 

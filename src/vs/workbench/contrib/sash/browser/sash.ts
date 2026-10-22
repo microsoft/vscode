@@ -121,8 +121,15 @@ export class SashGrippersController extends Disposable implements IWorkbenchCont
 				showGrippers();
 			};
 			activityListeners.add(addDisposableListener(targetWindow, EventType.MOUSE_MOVE, onMouseActivity, true));
-			activityListeners.add(addDisposableListener(targetWindow, webviewMouseActivityEvent, (e: CustomEvent<WebviewMouseActivity>) => {
-				onMouseActivity(e.detail);
+			activityListeners.add(addDisposableListener(targetWindow, webviewMouseActivityEvent, (e: globalThis.Event) => {
+				if (e instanceof CustomEvent || e instanceof targetWindow.CustomEvent) {
+					const detail: Partial<WebviewMouseActivity> | null | undefined = e.detail;
+					if (typeof detail === 'object' && detail !== null
+						&& typeof detail.screenX === 'number' && Number.isFinite(detail.screenX)
+						&& typeof detail.screenY === 'number' && Number.isFinite(detail.screenY)) {
+						onMouseActivity({ screenX: detail.screenX, screenY: detail.screenY });
+					}
+				}
 			}));
 			showGrippers();
 		};
