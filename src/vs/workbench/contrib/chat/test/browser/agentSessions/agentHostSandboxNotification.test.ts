@@ -1071,7 +1071,7 @@ suite('AgentHostSandboxNotification', () => {
 					actions: [], dismissible: true, autoDismissOnMessage: false, sessionResources: [resource],
 				},
 				links: ['Learn more'],
-				openedLinks: ['https://code.visualstudio.com/docs/agents/run/agent-sandboxing#_why-certificate-trust-is-needed'],
+				openedLinks: ['https://aka.ms/vscode-sandboxing-certtrust'],
 				dismissible: 'function',
 				dispatched: [],
 			});
