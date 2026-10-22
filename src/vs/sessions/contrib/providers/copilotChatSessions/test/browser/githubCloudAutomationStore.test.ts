@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { useFakeTimers } from 'sinon';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
-import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
@@ -259,7 +260,7 @@ suite('GitHubCloudAutomationStore', () => {
 		assert.deepStrictEqual({
 			target: target.get(), calls: api.calls.map(call => call.method), entries: store.entries.get(),
 			cached: target === store.getWorkspaceTarget(URI.file('/repo')),
-		}, { target: { workspace }, calls: ['capability'], entries: [], cached: true });
+		}, { target: { workspace, repositoryLabel: 'microsoft/vscode-internalbacklog' }, calls: ['capability'], entries: [], cached: true });
 	});
 
 	test('background refresh updates cached repository eligibility in both directions', async () => {
@@ -309,6 +310,61 @@ suite('GitHubCloudAutomationStore', () => {
 			repository: false,
 			workspace: undefined,
 		});
+	});
+
+	test('temporarily suppresses repeated failed capability checks and retries after expiry', async () => {
+		const clock = useFakeTimers();
+		const { store, api } = setup();
+		try {
+			api.manageability.set(repository.repo, new Error('Offline'));
+			const first = await store.isRepositoryManageable(repository, CancellationToken.None);
+			const second = await store.isRepositoryManageable(repository, CancellationToken.None);
+			const callsBeforeExpiry = api.calls.length;
+			await clock.tickAsync(30_000);
+			const third = await store.isRepositoryManageable(repository, CancellationToken.None);
+			assert.deepStrictEqual({ first, second, third, callsBeforeExpiry, calls: api.calls.length }, {
+				first: false, second: false, third: false, callsBeforeExpiry: 1, calls: 2,
+			});
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('successful capability checks clear transient failure suppression', async () => {
+		const { store, api } = setup();
+		api.manageability.set(repository.repo, new Error('Offline'));
+		await store.isRepositoryManageable(repository, CancellationToken.None);
+		await store.refresh();
+		api.manageability.set(repository.repo, true);
+		assert.strictEqual(await store.isRepositoryManageable(repository, CancellationToken.None), true);
+		assert.strictEqual(api.calls.filter(call => call.method === 'capability').length, 2);
+	});
+
+	test('cancelled capability checks do not enter transient failure suppression', async () => {
+		const { store, api } = setup();
+		const pending = new DeferredPromise<boolean>();
+		api.manageability.set(repository.repo, pending.p);
+		const source = disposables.add(new CancellationTokenSource());
+		const first = assert.rejects(store.isRepositoryManageable(repository, source.token), isCancellationError);
+		await api.manageabilityStarted.p;
+		source.cancel();
+		await pending.complete(true);
+		await first;
+		api.manageability.set(repository.repo, new Error('Offline'));
+		assert.strictEqual(await store.isRepositoryManageable(repository, CancellationToken.None), false);
+		assert.strictEqual(api.calls.filter(call => call.method === 'capability').length, 2);
+	});
+
+	test('bounds transient capability failure suppression', async () => {
+		const { store, api } = setup();
+		for (let index = 0; index <= 100; index++) {
+			const ref = { owner: 'owner', repo: `repo-${index}` };
+			api.manageability.set(ref.repo, new Error('Offline'));
+			await store.isRepositoryManageable(ref, CancellationToken.None);
+		}
+		const first = { owner: 'owner', repo: 'repo-0' };
+		await store.isRepositoryManageable(first, CancellationToken.None);
+		assert.strictEqual(api.calls.filter(call => call.method === 'capability').length, 102);
 	});
 
 	for (const invalidate of ['account', 'dispose'] as const) {

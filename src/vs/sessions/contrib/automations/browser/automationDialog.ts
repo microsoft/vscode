@@ -2629,6 +2629,10 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 					: target?.disabledReason
 					?? (!target?.workspace ? localize('automation.form.githubRepositoryRequired', "Cloud automations require a supported repository on GitHub.com.") : undefined)
 					?? (item.disabled ? localize('automation.form.workspaceUnavailable', "The workspace provider is unavailable.") : undefined);
+				const repositoryLabel = target?.repositoryLabel;
+				const availabilityDescription = repositoryLabel && reason
+					? localize('automation.form.repositoryAvailabilityDescription', "{0}. {1}", repositoryLabel, reason)
+					: repositoryLabel ?? reason;
 				const location = typeof item.description === 'string' && item.description ? item.description : undefined;
 				// The location is not shown inline, but it distinguishes repositories with the same name.
 				const name = location ? localize('automation.form.repositoryAriaLabel', "{0}, {1}", item.label ?? '', location) : item.label ?? '';
@@ -2643,10 +2647,10 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 					toolbarActions: undefined,
 					iconClasses: undefined,
 					disabled: reason !== undefined,
-					description: reason ? new MarkdownString('$(info)', { supportThemeIcons: true }) : undefined,
-					ariaDescription: reason,
-					tooltip: reason,
-					hover: reason ? { content: reason } : undefined,
+					description: reason ? new MarkdownString(repositoryLabel ? localize('automation.form.repositoryDescription', "{0} {1}", '$(info)', repositoryLabel) : '$(info)', { supportThemeIcons: true }) : repositoryLabel,
+					ariaDescription: availabilityDescription,
+					tooltip: availabilityDescription,
+					hover: availabilityDescription ? { content: availabilityDescription } : undefined,
 					className: 'automation-cloud-repository',
 					group: { title: '', icon: Codicon.repo },
 				}];
@@ -2762,7 +2766,7 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 	}
 
 	/**
-	 * The mobile sheet shows descriptions as text and has no hover, so repository rows carry their location and reason
+	 * The mobile sheet shows descriptions as text and has no hover, so repository rows carry their identity and reason
 	 * instead of the info icon. Add repository comes first because the sheet focuses its first row, which may be disabled.
 	 */
 	protected _buildMobileItems(): IActionListItem<IWorkspacePickerItem>[] {

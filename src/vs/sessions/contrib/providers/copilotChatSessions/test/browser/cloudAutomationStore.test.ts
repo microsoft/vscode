@@ -60,6 +60,8 @@ class TestApi extends mock<IAutomationsClient>() {
 	readonly historyOptions: (TaskListOptions | undefined)[] = [];
 	readonly calls: string[] = [];
 	readonly configurationRepositories: string[] = [];
+	activeConfigurations = 0;
+	maxActiveConfigurations = 0;
 	definitions: readonly AutomationDetail[] = [definition];
 	tasks: readonly Task[] = [];
 	listError: Error | undefined;
@@ -85,16 +87,21 @@ class TestApi extends mock<IAutomationsClient>() {
 		this.configurationRepositories.push(repository.repo);
 		this.lastSignal = signal;
 		await this.manageabilityStarted.complete();
-		const result = this.repositoryManageability.get(repository.repo);
-		if (result instanceof Error) {
-			throw result;
+		this.maxActiveConfigurations = Math.max(this.maxActiveConfigurations, ++this.activeConfigurations);
+		try {
+			const result = this.repositoryManageability.get(repository.repo);
+			if (result instanceof Error) {
+				throw result;
+			}
+			return {
+				automations_enabled: true,
+				can_manage_automations: result ?? await this.pendingManageability ?? this.canManage,
+				allow_read_access_triggers: false,
+				require_trigger_scoped_writes: false,
+			};
+		} finally {
+			this.activeConfigurations--;
 		}
-		return {
-			automations_enabled: true,
-			can_manage_automations: result ?? await this.pendingManageability ?? this.canManage,
-			allow_read_access_triggers: false,
-			require_trigger_scoped_writes: false,
-		};
 	}
 	override async list(): Promise<PaginatedResponse<ListRepoAutomationsResponse>> {
 		this.calls.push('list');
@@ -845,6 +852,47 @@ suite('CloudAutomationStore', () => {
 			repositories: [['owner/public'], ['owner/public']], selected: URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/owner/public/HEAD' }).toString(),
 			configurationRepositories: ['public', 'private'],
 		});
+	});
+
+	test('repository search submits capability checks in bounded batches and preserves result order', async () => {
+		const pending = new DeferredPromise<boolean>();
+		const repositories = Array.from({ length: 100 }, (_, index) => ({
+			owner: 'owner', name: `repo-${index}`, fullName: `owner/repo-${index}`, defaultBranch: 'main', isPrivate: index % 2 === 0, description: '',
+		}));
+		const { provider, api, set, instantiation } = setup(undefined, undefined, upcastPartial<IGitHubService>({
+			authenticateForRepositoryAccess: async () => { },
+			getRepositories: async () => repositories,
+		}));
+		const searchStarted = new DeferredPromise<void>();
+		const searchResult = new DeferredPromise<readonly string[]>();
+		instantiation.stubInstance(RepositoryPicker, {
+			pickRepository: async search => {
+				void searchStarted.complete();
+				void searchResult.complete(await search('', CancellationToken.None));
+				return undefined;
+			},
+			dispose: () => { },
+		});
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		api.configurationRepositories.length = 0;
+		api.maxActiveConfigurations = 0;
+		api.pendingManageability = pending.p;
+		const selection = provider.configuration.pickWorkspace(CancellationToken.None);
+		await searchStarted.p;
+		await timeout(0);
+		const startedBeforeRelease = api.configurationRepositories.length;
+		await pending.complete(true);
+		assert.deepStrictEqual({
+			startedBeforeRelease,
+			maxActiveConfigurations: api.maxActiveConfigurations,
+			result: await searchResult.p,
+		}, {
+			startedBeforeRelease: 5,
+			maxActiveConfigurations: 5,
+			result: repositories.map(repository => repository.fullName),
+		});
+		await selection;
 	});
 
 	test('repository selection fails closed if cloud is disabled while the picker is open', async () => {

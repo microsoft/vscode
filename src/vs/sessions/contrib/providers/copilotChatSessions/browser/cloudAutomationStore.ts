@@ -185,10 +185,14 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 				checkAccount();
 				const repositories = await this.gitHubService.getRepositories(getGitHubRepositoryId(query.trim()) ?? query, requestToken);
 				checkAccount();
-				const results = await Promise.all(repositories.map(async repository => {
-					const [owner, repo] = repository.fullName.split('/');
-					return await store.isRepositoryManageable({ owner, repo }, requestToken) ? repository.fullName : undefined;
-				}));
+				const results: (string | undefined)[] = [];
+				for (let offset = 0; offset < repositories.length; offset += 5) {
+					checkAccount();
+					results.push(...await Promise.all(repositories.slice(offset, offset + 5).map(async repository => {
+						const [owner, repo] = repository.fullName.split('/');
+						return await store.isRepositoryManageable({ owner, repo }, requestToken) ? repository.fullName : undefined;
+					})));
+				}
 				return results.filter(repository => repository !== undefined);
 			}, {
 				allowRepositoryUrl: true,
