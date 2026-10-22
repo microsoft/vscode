@@ -35,6 +35,9 @@ suite('LocalModelSetupService', () => {
 		const configurationService = store.add(new AgentConfigurationService(stateManager, logService));
 		const proxyResolver: IAgentHostProxyResolver = {
 			_serviceBrand: undefined,
+			clientCertificates: [],
+			setClientCertificates: () => { },
+			loadCertificates: async () => [],
 			onDidRegisterConnection: Event.None,
 			onDidChangeConfiguration: Event.None,
 			register: () => toDisposable(() => { }),

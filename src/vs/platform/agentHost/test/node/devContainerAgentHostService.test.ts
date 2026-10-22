@@ -27,7 +27,7 @@ import { VSCODE_REMOTE_CONTAINERS_SESSION_ENV } from '../../common/devContainerA
 import { IRequestService } from '../../../request/common/request.js';
 import { IGitHubService } from '../../../github/common/githubService.js';
 import { URI } from '../../../../base/common/uri.js';
-import { DevContainerAgentHostMainService, getDevContainerCliPath, getDevContainerExecArgs, IDevContainerRelay, parseDevContainerMounts, parseDevContainerUpResult, waitForDevContainerRelayConnection } from '../../node/devContainerAgentHostService.js';
+import { DevContainerAgentHostMainService, getDevContainerCliPath, getDevContainerExecArgs, IDevContainerRelay, parseDevContainerMounts, parseDevContainerUpResult, RemoteDevContainerAgentHostService, waitForDevContainerRelayConnection } from '../../node/devContainerAgentHostService.js';
 import { ISshExec, shellEscape } from '../../node/sshRemoteAgentHostHelpers.js';
 import { devContainerServerCacheMount } from '../../node/devContainerServerCache.js';
 import { DevContainerSample } from '../../common/devContainerSamples.js';
@@ -66,6 +66,8 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 	relayResult: Promise<IDevContainerRelay> | undefined;
 	readonly execCommands: string[] = [];
 	readonly dockerCommands: string[][] = [];
+	dockerEndpoint = 'unix:///var/run/docker.sock';
+	dockerContextExitCode = 0;
 	readonly devContainerArgs: string[][] = [];
 	readonly devContainerEnvironments: (NodeJS.ProcessEnv | undefined)[] = [];
 	execEnvironment: NodeJS.ProcessEnv | undefined;
@@ -83,7 +85,6 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 	endpointPolls = 0;
 	loadedCertificates = 0;
 	writtenCertificates: readonly string[] | undefined;
-	forceConcurrentRenameCollision = false;
 	private _spawnedAgentHost = false;
 	inheritedEnvironment: typeof process.env = process.env;
 	platform: NodeJS.Platform = process.platform;
@@ -102,9 +103,6 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 	readonly checkedHostDirectories: string[] = [];
 	readonly hostGitConfig = new Map<string, string>();
 	readonly containerGitConfig = new Map<string, string>();
-	private _renameCalls = 0;
-	private readonly _firstRenameStarted = new DeferredPromise<void>();
-	private readonly _secondRenameFinished = new DeferredPromise<void>();
 
 	constructor(
 		private readonly _libc = '',
@@ -159,6 +157,9 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 
 	protected override _runDocker(args: readonly string[]): Promise<{ stdout: string; stderr: string; code: number }> {
 		this.dockerCommands.push([...args]);
+		if (args[0] === 'context') {
+			return Promise.resolve({ stdout: this.dockerEndpoint, stderr: '', code: this.dockerContextExitCode });
+		}
 		if (args[0] === 'exec') {
 			return Promise.resolve({ stdout: `${this.containerSessionIds.join('\n')}\n`, stderr: '', code: 0 });
 		}
@@ -189,26 +190,6 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 
 	getCertificatesDirectory(): string {
 		return this._getCertificatesDirectory();
-	}
-
-	protected override async _renameCertificateFile(from: string, to: string): Promise<void> {
-		if (!this.forceConcurrentRenameCollision) {
-			return super._renameCertificateFile(from, to);
-		}
-		this._renameCalls++;
-		if (this._renameCalls === 1) {
-			this._firstRenameStarted.complete();
-			await this._secondRenameFinished.p;
-			const error = new Error('Target already exists') as NodeJS.ErrnoException;
-			error.code = 'EEXIST';
-			throw error;
-		}
-		await this._firstRenameStarted.p;
-		try {
-			await super._renameCertificateFile(from, to);
-		} finally {
-			this._secondRenameFinished.complete();
-		}
 	}
 
 	protected override _runDevContainer(connectionId: string, args: readonly string[], _token: CancellationToken, environment?: NodeJS.ProcessEnv): Promise<{ stdout: string; stderr: string; code: number }> {
@@ -360,7 +341,7 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 			if (command.includes(`/proc/43/environ`)) {
 				return { stdout: `${NullTelemetryService.sessionId}\n`, stderr: '', code: 0 };
 			}
-			if (command.startsWith(`${VSCODE_REMOTE_CONTAINERS_SESSION_ENV}=`)) {
+			if (command.includes(`${VSCODE_REMOTE_CONTAINERS_SESSION_ENV}=`)) {
 				this._spawnedAgentHost = true;
 			}
 			return { stdout: '', stderr: '', code: 0 };
@@ -385,6 +366,73 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 
 suite('Dev Container Agent Host Main Service', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const enabled of [true, false]) {
+		test(`reports local certificate eligibility without injecting the AH environment (system certificates: ${enabled})`, async () => {
+			const service = store.add(new TestDevContainerAgentHostMainService('', false, undefined, {}, enabled, ['LOCAL CA']));
+			service.inheritedEnvironment = {};
+			service.endpointSessionId = undefined;
+			const result = await service.connect({ connectionId: 'certificates', workspaceFolder: '/workspace', name: 'Certificates' });
+
+			assert.deepStrictEqual({
+				eligible: result.forwardClientCertificates,
+				configuresCertificates: service.execCommands.some(command => command.includes('export NODE_EXTRA_CA_CERTS=')),
+				logsCertificates: service.devContainerArgs.flat().some(argument => argument.includes('LOCAL CA')),
+			}, { eligible: true, configuresCertificates: false, logsCertificates: false });
+		});
+	}
+
+	for (const { name, environment, endpoint, forwards } of [
+		{ name: 'local Unix socket', environment: { DOCKER_HOST: 'unix:///var/run/docker.sock' }, endpoint: '', forwards: true },
+		{ name: 'local Windows pipe', environment: { DOCKER_HOST: 'npipe:////./pipe/docker_engine' }, endpoint: '', forwards: true },
+		{ name: 'SSH Docker host', environment: { DOCKER_HOST: 'ssh://remote.example' }, endpoint: '', forwards: false },
+		{ name: 'TCP Docker host', environment: { DOCKER_HOST: 'tcp://remote.example:2376' }, endpoint: '', forwards: false },
+		{ name: 'forwarded Docker host', environment: { VSCODE_DOCKER_HOST: 'tcp://localhost:1234' }, endpoint: '', forwards: false },
+		{ name: 'active remote context', environment: {}, endpoint: 'ssh://remote.example', forwards: false },
+		{ name: 'explicit remote context overriding a local host', environment: { DOCKER_CONTEXT: 'remote', DOCKER_HOST: 'unix:///var/run/docker.sock' }, endpoint: 'ssh://remote.example', forwards: false },
+		{ name: 'local context overriding a remote host', environment: { DOCKER_CONTEXT: 'desktop-linux', DOCKER_HOST: 'ssh://remote.example' }, endpoint: 'unix:///var/run/docker.sock', forwards: true },
+	]) {
+		test(`certificate forwarding with ${name}`, async () => {
+			const service = store.add(new TestDevContainerAgentHostMainService('', false, undefined, environment, true, ['LOCAL CA']));
+			service.inheritedEnvironment = {};
+			service.dockerEndpoint = endpoint;
+			service.endpointSessionId = undefined;
+			const result = await service.connect({ connectionId: name, workspaceFolder: '/workspace', name });
+			assert.deepStrictEqual({
+				eligible: result.forwardClientCertificates,
+				configuresCertificates: service.execCommands.some(command => command.includes('export NODE_EXTRA_CA_CERTS=')),
+			}, { eligible: forwards ? true : undefined, configuresCertificates: false });
+		});
+	}
+
+	test('does not forward certificates when Docker locality cannot be determined', async () => {
+		const log = new TestLogService();
+		const service = store.add(new TestDevContainerAgentHostMainService('', false, undefined, {}, true, ['LOCAL CA'], new Set(), '/tmp', log));
+		service.inheritedEnvironment = {};
+		service.dockerContextExitCode = 1;
+		service.endpointSessionId = undefined;
+		const result = await service.connect({ connectionId: 'unknown', workspaceFolder: '/workspace', name: 'Unknown Docker host' });
+		assert.deepStrictEqual({
+			eligible: result.forwardClientCertificates,
+			warned: log.warnings.some(warning => warning.message.includes('not forwarding certificates')),
+		}, { eligible: undefined, warned: true });
+	});
+
+	test('a remote launcher never forwards its host certificates into containers', async () => {
+		const service = store.add(new class extends RemoteDevContainerAgentHostService {
+			shouldForwardCertificates(): Promise<boolean> {
+				return this._shouldForwardCertificates(CancellationToken.None);
+			}
+		}(
+			new NullLogService(),
+			new class extends mock<IProductService>() { }(),
+			NullTelemetryService,
+			new class extends mock<INativeEnvironmentService>() { }(),
+			new class extends mock<IRequestService>() { }(),
+			new class extends mock<IGitHubService>() { }(),
+		));
+		assert.strictEqual(await service.shouldForwardCertificates(), false);
+	});
 
 	test('parses the final Dev Container CLI result', () => {
 		assert.deepStrictEqual(parseDevContainerUpResult([
@@ -480,7 +528,6 @@ suite('Dev Container Agent Host Main Service', () => {
 		const testTmpDir = await mkdtemp(join(tmpdir(), 'vscode-dev-container-certificates-'));
 		try {
 			const service = store.add(new TestDevContainerAgentHostMainService('', false, undefined, process.env, true, [], new Set(), testTmpDir));
-			service.forceConcurrentRenameCollision = true;
 			const paths = await Promise.all([
 				service.writeCertificatesFile(['CERT A', 'CERT B']),
 				service.writeCertificatesFile(['CERT A', 'CERT B']),
@@ -650,6 +697,7 @@ suite('Dev Container Agent Host Main Service', () => {
 				remoteWorkspaceFolder: '/workspaces/project',
 				hostWorkspaceFolder: '/workspace',
 				sandboxSupported: false,
+				forwardClientCertificates: true,
 			},
 			devContainerArgs: [
 				['read-configuration', '--log-level', 'debug', '--workspace-folder', '/workspace', '--include-merged-configuration'],
@@ -1096,7 +1144,7 @@ suite('Dev Container Agent Host Main Service', () => {
 				.every(command => command.at(-1)?.includes(VSCODE_REMOTE_CONTAINERS_SESSION_ENV)),
 		}, {
 			relayDisposed: true,
-			dockerOperations: ['exec', 'stop', 'exec', 'rm'],
+			dockerOperations: ['context', 'exec', 'stop', 'context', 'exec', 'rm'],
 			sessionChecksUseMarker: true,
 		});
 	});
@@ -1121,7 +1169,7 @@ suite('Dev Container Agent Host Main Service', () => {
 		}, {
 			stopped: false,
 			removed: false,
-			dockerCommands: ['exec', 'exec'],
+			dockerCommands: ['context', 'exec', 'exec', 'context'],
 		});
 	});
 
@@ -1130,7 +1178,7 @@ suite('Dev Container Agent Host Main Service', () => {
 		await service.connect({ connectionId: 'connection', workspaceFolder: '/workspace', name: 'Project' });
 		await service.stopContainer('/WORKSPACE');
 		await assert.rejects(service.connect({ connectionId: 'automatic-reconnect', workspaceFolder: '/Workspace', name: 'Project' }), /is stopped/);
-		assert.deepStrictEqual(service.dockerCommands.map(command => command[0]), ['exec', 'stop']);
+		assert.deepStrictEqual(service.dockerCommands.map(command => command[0]), ['context', 'exec', 'stop']);
 	});
 
 	test('keeps automatic reconnects suspended when an explicit resume fails', async () => {

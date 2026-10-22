@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { IRequestService } from '../../../../../../platform/request/common/request.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
@@ -59,7 +60,7 @@ suite('Dev Container Agent Host Connector', () => {
 				override readonly onDidCloseConnection = Event.None;
 				override async connect(config: IDevContainerAgentHostConfig) {
 					configs.push(config);
-					return { connectionId: config.connectionId, address: 'devcontainer:sample', name: config.name, remoteWorkspaceFolder: '/workspace', sandboxSupported: !sandboxEnabled };
+					return { connectionId: config.connectionId, address: 'devcontainer:sample', name: config.name, remoteWorkspaceFolder: '/workspace', sandboxSupported: !sandboxEnabled, forwardClientCertificates: true };
 				}
 				override async disconnect() { }
 			}();
@@ -88,10 +89,11 @@ suite('Dev Container Agent Host Connector', () => {
 				}(),
 				new class extends mock<IFileService>() { }(),
 				new class extends mock<IRemoteAgentHostService>() { }(),
-				new class extends mock<ISessionsProvidersService>() { }(),
+				new class extends mock<ISessionsProvidersService>() { }(), new class extends mock<IRequestService>() { override async loadCertificates(): Promise<string[]> { return ['CLIENT CA']; } }(),
 			));
 			const target = await connector.createConnection(devContainerSampleUri(devContainerSamples[0]), 'devcontainer:sample', CancellationToken.None, { resume: true, sandboxEnabled });
 			store.add(target.transportDisposable!);
+			assert.deepStrictEqual(await target.resolveClientCertificates?.(), ['CLIENT CA']);
 			const first = store.add(target.transportFactory());
 			assert.ok(isClientTransport(first));
 			await first.connect();
@@ -167,7 +169,7 @@ suite('Dev Container Agent Host Connector', () => {
 				override async exists(): Promise<never> { throw new Error('Samples do not have a host path'); }
 			}(),
 			new class extends mock<IRemoteAgentHostService>() { }(),
-			new class extends mock<ISessionsProvidersService>() { }(),
+			new class extends mock<ISessionsProvidersService>() { }(), new class extends mock<IRequestService>() { override async loadCertificates(): Promise<string[]> { return ['CLIENT CA']; } }(),
 		));
 		const source = devContainerSampleUri(devContainerSamples[0]);
 		await connector.isAvailable(source);
@@ -238,7 +240,7 @@ suite('Dev Container Agent Host Connector', () => {
 				}(),
 				new class extends mock<IFileService>() { }(),
 				new class extends mock<IRemoteAgentHostService>() { }(),
-				new class extends mock<ISessionsProvidersService>() { }(),
+				new class extends mock<ISessionsProvidersService>() { }(), new class extends mock<IRequestService>() { override async loadCertificates(): Promise<string[]> { return ['CLIENT CA']; } }(),
 			));
 			const workspace = URI.file('/unsupported-project');
 			const observed: { workspace: string; supported: boolean }[] = [];
@@ -465,7 +467,7 @@ suite('Dev Container Agent Host Connector', () => {
 				override async connect(config: IDevContainerAgentHostConfig) {
 					configs.push(config);
 					outputs.fire({ connectionId: config.connectionId, data: 'remote container output' });
-					return { connectionId: config.connectionId, address: 'devcontainer:container', name: config.name, remoteWorkspaceFolder: '/workspaces/project' };
+					return { connectionId: config.connectionId, address: 'devcontainer:container', name: config.name, remoteWorkspaceFolder: '/workspaces/project', forwardClientCertificates: true };
 				}
 				override async disconnect(id: string): Promise<void> {
 					disconnected.push(id);
@@ -518,7 +520,7 @@ suite('Dev Container Agent Host Connector', () => {
 					override readonly configuredEntries = [entry];
 					override getConnection(): IAgentConnection { return connection; }
 				}(),
-				new class extends mock<ISessionsProvidersService>() { }(),
+				new class extends mock<ISessionsProvidersService>() { }(), new class extends mock<IRequestService>() { override async loadCertificates(): Promise<string[]> { return ['CLIENT CA']; } }(),
 			));
 			const available = await connector.isAvailable(workspaceUri);
 			supported = false;
@@ -529,6 +531,7 @@ suite('Dev Container Agent Host Connector', () => {
 			dockerAvailable = true;
 			await connector.showLog(workspaceUri);
 			const target = await connector.createConnection(workspaceUri, 'devcontainer:test', CancellationToken.None);
+			assert.strictEqual(target.resolveClientCertificates, undefined);
 			await connector.showLog(workspaceUri);
 			assert.deepStrictEqual(shownChannels, [writtenChannels[0], writtenChannels[0]]);
 			target.transportDisposable?.dispose();
@@ -743,7 +746,7 @@ suite('Dev Container Agent Host Connector', () => {
 			outputService,
 			new class extends mock<IFileService>() { }(),
 			new class extends mock<IRemoteAgentHostService>() { }(),
-			new class extends mock<ISessionsProvidersService>() { }(),
+			new class extends mock<ISessionsProvidersService>() { }(), new class extends mock<IRequestService>() { override async loadCertificates(): Promise<string[]> { return ['CLIENT CA']; } }(),
 		));
 
 		await assert.rejects(

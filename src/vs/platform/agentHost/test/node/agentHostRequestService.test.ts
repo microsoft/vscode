@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { rootCertificates } from 'tls';
+import { X509Certificate } from 'crypto';
 import { streamToBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
@@ -26,6 +28,9 @@ class TestProxyResolver implements IAgentHostProxyResolver {
 	declare readonly _serviceBrand: undefined;
 	readonly onDidRegisterConnection = Event.None;
 	readonly onDidChangeConfiguration = Event.None;
+	readonly clientCertificates: readonly string[] = [];
+	setClientCertificates(): void { }
+	async loadCertificates(): Promise<string[]> { return ['native-ca', 'client-ca']; }
 
 	lastInput: string | URL | Request | undefined;
 	lastInit: RequestInit | undefined;
@@ -71,6 +76,36 @@ function createAgentConfigurationService(disposables: Pick<DisposableStore, 'add
 
 suite('AgentHostProxyResolver', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('retains only client certificates in memory and combines them with native trust for AH requests', async () => {
+		const configurationService = createAgentConfigurationService(disposables);
+		const resolver = disposables.add(new AgentHostProxyResolver(configurationService, new NullLogService()));
+		const environment = { ...process.env };
+		let changes = 0;
+		disposables.add(resolver.onDidChangeConfiguration(() => changes++));
+		const certificate = new X509Certificate(rootCertificates[0]).toString();
+		resolver.setClientCertificates('first', [certificate]);
+		resolver.setClientCertificates('second', [certificate]);
+		resolver.setClientCertificates('first', []);
+		const combined = await resolver.loadCertificates();
+		assert.deepStrictEqual({
+			clientCertificates: resolver.clientCertificates,
+			includesClient: combined.includes(certificate),
+			changes,
+			environmentUnchanged: JSON.stringify(process.env) === JSON.stringify(environment),
+		}, { clientCertificates: [certificate], includesClient: true, changes: 1, environmentUnchanged: true });
+		resolver.setClientCertificates('second', []);
+		assert.deepStrictEqual({ certificates: resolver.clientCertificates, changes }, { certificates: [], changes: 2 });
+	});
+
+	test('rejects malformed certificates without changing existing client trust', () => {
+		const configurationService = createAgentConfigurationService(disposables);
+		const resolver = disposables.add(new AgentHostProxyResolver(configurationService, new NullLogService()));
+		const certificate = new X509Certificate(rootCertificates[0]).toString();
+		resolver.setClientCertificates('client', [certificate]);
+		assert.throws(() => resolver.setClientCertificates('client', ['invalid PEM']));
+		assert.deepStrictEqual(resolver.clientCertificates, [certificate]);
+	});
 
 	test('loads system and process CA certificates without changing the source arrays', async () => {
 		const systemCertificates = ['system-ca'];

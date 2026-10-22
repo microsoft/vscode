@@ -412,6 +412,14 @@ suite('AhpJsonlLogger', () => {
 		}, { bytesWithinBudget: true, fileCount: 1, latest: 2 });
 	});
 
+	test('redacts client certificate payloads without modifying the live request', () => {
+		const request = { method: 'vscode/setClientCertificates', params: { certificates: ['PRIVATE CLIENT CA'] } };
+		assert.deepStrictEqual({
+			logged: JSON.parse(stringifyAhpLogEntry(request)).params.certificates,
+			live: request.params.certificates,
+		}, { logged: '<redacted>', live: ['PRIVATE CLIENT CA'] });
+	});
+
 	test('preserves existing authentication redaction markers', () => {
 		assert.deepStrictEqual(['<redacted>', '[REDACTED]'].map(token => JSON.parse(stringifyAhpLogEntry({
 			method: 'authenticate', params: { token },

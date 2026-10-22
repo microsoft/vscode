@@ -29,6 +29,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ISharedProcessService } from '../../../../../platform/ipc/electron-browser/services.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IRequestService } from '../../../../../platform/request/common/request.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -322,6 +323,7 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 		@IFileService private readonly _fileService: IFileService,
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
+		@IRequestService private readonly _requestService: IRequestService,
 	) {
 		super();
 		this._mainService = ProxyChannel.toService<IDevContainerAgentHostMainService>(
@@ -401,7 +403,7 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 					}
 				}));
 			}
-			const result = await mainService.connect({
+			let result = await mainService.connect({
 				connectionId,
 				...source,
 				name,
@@ -433,7 +435,7 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 				connectionIds.add(reconnectConnectionId);
 				outputWriter.addConnection(reconnectConnectionId);
 				try {
-					await mainService.connect({
+					result = await mainService.connect({
 						connectionId: reconnectConnectionId,
 						...source,
 						name,
@@ -481,6 +483,12 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 				hostWorkspaceFolder: result.hostWorkspaceFolder,
 				repository: result.repository,
 				sandboxSupported: result.sandboxSupported,
+				resolveClientCertificates: remoteService ? undefined : async () => {
+					if (!result.forwardClientCertificates) {
+						return undefined;
+					}
+					return this._configurationService.getValue<boolean>('http.systemCertificates') !== false ? this._requestService.loadCertificates() : [];
+				},
 				transportFactory,
 				transportDisposable: combinedDisposable(
 					connectionStore,

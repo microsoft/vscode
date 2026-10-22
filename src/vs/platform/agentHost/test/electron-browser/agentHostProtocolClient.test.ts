@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { SetClientCertificatesExtensionMethod } from '../../common/clientCertificatesProtocol.js';
 import sinon from 'sinon';
 import { CancelablePromise, DeferredPromise, raceTimeout, timeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
@@ -552,6 +553,223 @@ suite('AgentHostProtocolClient', () => {
 			disposed: 1,
 			rejected: { id: 62, result: undefined, error: 'This client is not serving artifact integrations' },
 		});
+	});
+
+	suite('client certificates', () => {
+		for (const duringReconnect of [false, true]) {
+			for (const lateFailure of [false, true]) {
+				test(`ignores a late certificate ${lateFailure ? 'failure' : 'resolution'} from an interrupted ${duringReconnect ? 'reconnect' : 'initial connection'}`, async () => {
+					const pendingCertificates = new DeferredPromise<readonly string[]>();
+					const resolutionStarted = new DeferredPromise<void>();
+					const transports: TestProtocolTransport[] = [];
+					const transportFactory = () => {
+						const transport = disposables.add(new class extends TestProtocolTransport implements IClientTransport {
+							async connect(): Promise<void> { }
+							override send(message: ProtocolTransportMessage): void {
+								super.send(message);
+								if (hasKey(message, { id: true, method: true }) && typeof message.id === 'number') {
+									const result = message.method === 'initialize'
+										? { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [{ resource: ROOT_STATE_URI, fromSeq: 0, state: { agents: [], activeSessions: 1 } }], _meta: { 'vscode.clientCertificates': true } }
+										: message.method === 'reconnect'
+											? { type: ReconnectResultType.Replay, actions: [], missing: [] }
+											: {};
+									queueMicrotask(() => this.fireMessage({ jsonrpc: '2.0', id: message.id, result }));
+								}
+							}
+						}());
+						transports.push(transport);
+						return transport;
+					};
+					let resolutions = 0;
+					const trust = createWorkspaceTrustServices();
+					const client = disposables.add(new AgentHostProtocolClient(
+						'test.example:1234', transportFactory,
+						{
+							resolveClientCertificates: async () => {
+								if (resolutions++ === (duringReconnect ? 1 : 0)) {
+									resolutionStarted.complete();
+									return pendingCertificates.p;
+								}
+								return ['CURRENT CA'];
+							},
+							reconnectPolicy: { autoRestore: true, initialDelayMs: 1, maxDelayMs: 1, maxAttempts: 3 },
+						},
+						new NullLogService(), createPermissionService(), new TestConfigurationService(), NullTelemetryService,
+						workspaceTrustEnablementService, trust.management, trust.request, defaultAccountService,
+					));
+					const connecting = client.connect();
+					const initialResult = duringReconnect ? connecting : assert.rejects(connecting);
+					if (duringReconnect) {
+						await connecting;
+						transports[0].fireClose();
+					}
+					await resolutionStarted.p;
+					const recovered = Event.toPromise(client.onDidReconnect);
+					transports.at(-1)!.fireClose();
+					await recovered;
+					await initialResult;
+					transports.at(-1)!.fireMessage({
+						jsonrpc: '2.0', method: 'action', params: {
+							channel: ROOT_STATE_URI, serverSeq: 1, origin: undefined,
+							action: { type: ActionType.RootActiveSessionsChanged, activeSessions: 2 },
+						},
+					});
+					if (lateFailure) {
+						pendingCertificates.error(new Error('Stale certificate failure'));
+					} else {
+						pendingCertificates.complete(['STALE CA']);
+					}
+					await timeout(0);
+					const root = client.rootState.value;
+					assert.ok(root && !(root instanceof Error));
+					assert.deepStrictEqual({
+						state: client.connectionState,
+						activeSessions: root.activeSessions,
+						requests: transports.map(transport => transport.sentMessages
+							.filter(message => hasKey(message, { method: true }) && message.method === SetClientCertificatesExtensionMethod)
+							.map(message => hasKey(message, { params: true }) ? message.params : undefined)),
+					}, {
+						state: AgentHostClientState.Connected,
+						activeSessions: 2,
+						requests: duringReconnect
+							? [[{ certificates: ['CURRENT CA'] }], [], [{ certificates: ['CURRENT CA'] }]]
+							: [[], [{ certificates: ['CURRENT CA'] }]],
+					});
+				});
+			}
+		}
+
+		for (const duringReconnect of [false, true]) {
+			test(`does not finish an interrupted ${duringReconnect ? 'reconnect' : 'initial connection'} after its certificate acknowledgment`, async () => {
+				const transports: TestProtocolTransport[] = [];
+				const transportFactory = () => {
+					const interrupt = transports.length === (duringReconnect ? 1 : 0);
+					const transport = disposables.add(new class extends TestProtocolTransport implements IClientTransport {
+						async connect(): Promise<void> { }
+						override send(message: ProtocolTransportMessage): void {
+							super.send(message);
+							if (hasKey(message, { id: true, method: true }) && typeof message.id === 'number') {
+								const result = message.method === 'initialize'
+									? { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [], _meta: { 'vscode.clientCertificates': true } }
+									: message.method === 'reconnect'
+										? { type: ReconnectResultType.Replay, actions: [], missing: [] }
+										: {};
+								queueMicrotask(() => {
+									this.fireMessage({ jsonrpc: '2.0', id: message.id, result });
+									if (interrupt && message.method === SetClientCertificatesExtensionMethod) {
+										this.fireClose();
+									}
+								});
+							}
+						}
+					}());
+					transports.push(transport);
+					return transport;
+				};
+				const trust = createWorkspaceTrustServices();
+				const client = disposables.add(new AgentHostProtocolClient(
+					'test.example:1234', transportFactory,
+					{
+						resolveClientCertificates: async () => ['CLIENT CA'],
+						reconnectPolicy: { autoRestore: true, initialDelayMs: 1, maxDelayMs: 1, maxAttempts: 3 },
+					},
+					new NullLogService(), createPermissionService(), new TestConfigurationService(), NullTelemetryService,
+					workspaceTrustEnablementService, trust.management, trust.request, defaultAccountService,
+				));
+				let connectedCount = 0;
+				disposables.add(client.onDidChangeConnectionState(state => {
+					if (state === AgentHostClientState.Connected) {
+						connectedCount++;
+					}
+				}));
+				const recovered = Event.toPromise(client.onDidReconnect);
+				const connecting = client.connect();
+				const initialResult = duringReconnect ? connecting : assert.rejects(connecting);
+				if (duringReconnect) {
+					await connecting;
+					transports[0].fireClose();
+				}
+				await recovered;
+				await initialResult;
+				assert.deepStrictEqual({ connectedCount, transports: transports.length }, {
+					connectedCount: duringReconnect ? 2 : 1,
+					transports: duringReconnect ? 3 : 2,
+				});
+			});
+		}
+
+		test('sends certificates before authentication on connect and reconnect', async () => {
+			const transports: TestProtocolTransport[] = [];
+			const transportFactory = () => {
+				const transport = disposables.add(new class extends TestProtocolTransport implements IClientTransport {
+					async connect(): Promise<void> { }
+					override send(message: ProtocolTransportMessage): void {
+						super.send(message);
+						if (hasKey(message, { id: true, method: true }) && typeof message.id === 'number') {
+							const result = message.method === 'initialize'
+								? { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [], _meta: { 'vscode.clientCertificates': true } }
+								: message.method === 'reconnect'
+									? { type: ReconnectResultType.Replay, actions: [], missing: [] }
+									: message.method === 'authenticate' ? { authenticated: true } : {};
+							queueMicrotask(() => this.fireMessage({ jsonrpc: '2.0', id: message.id, result }));
+						}
+					}
+				}());
+				transports.push(transport);
+				return transport;
+			};
+			const trust = createWorkspaceTrustServices();
+			const client = disposables.add(new AgentHostProtocolClient(
+				'test.example:1234', transportFactory,
+				{
+					resolveClientCertificates: async () => ['CLIENT CA'],
+					resolveInitialAuthentication: async () => ({ resource: 'https://api.github.com', token: 'test-token' }),
+					reconnectPolicy: { autoRestore: true, initialDelayMs: 1, maxDelayMs: 1, maxAttempts: 1 },
+				},
+				new NullLogService(), createPermissionService(), new TestConfigurationService(), NullTelemetryService,
+				workspaceTrustEnablementService, trust.management, trust.request, defaultAccountService,
+			));
+			await client.connect();
+			const reconnected = Event.toPromise(client.onDidReconnect);
+			transports[0].fireClose();
+			await reconnected;
+			assert.deepStrictEqual(transports.map(transport => transport.sentMessages.flatMap(message =>
+				hasKey(message, { method: true }) && ['initialize', 'reconnect', SetClientCertificatesExtensionMethod, 'authenticate'].includes(message.method) ? [message.method] : [],
+			)), [
+				['initialize', SetClientCertificatesExtensionMethod, 'authenticate'],
+				['reconnect', SetClientCertificatesExtensionMethod, 'authenticate'],
+			]);
+		});
+
+		for (const capability of [undefined, false, 'true', true]) {
+			test(`uses the explicit API only when the host advertises support (${capability})`, async () => {
+				let loads = 0;
+				const transport = disposables.add(new class extends TestProtocolTransport {
+					override send(message: ProtocolTransportMessage): void {
+						super.send(message);
+						if (hasKey(message, { id: true, method: true }) && typeof message.id === 'number') {
+							const result = message.method === 'initialize'
+								? { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [], _meta: { 'vscode.clientCertificates': capability } }
+								: {};
+							queueMicrotask(() => this.fireMessage({ jsonrpc: '2.0', id: message.id, result }));
+						}
+					}
+				}());
+				const trust = createWorkspaceTrustServices();
+				const client = disposables.add(new AgentHostProtocolClient(
+					'test.example:1234', transport,
+					{ resolveClientCertificates: async () => { loads++; return ['CLIENT CA']; } },
+					new NullLogService(), createPermissionService(), new TestConfigurationService(), NullTelemetryService,
+					workspaceTrustEnablementService, trust.management, trust.request, defaultAccountService,
+				));
+				await client.connect();
+				const requests = transport.sentMessages.filter(message => hasKey(message, { method: true }) && message.method === SetClientCertificatesExtensionMethod);
+				assert.deepStrictEqual({ loads, requests: requests.map(message => hasKey(message, { params: true }) ? message.params : undefined) }, {
+					loads: capability === true ? 1 : 0,
+					requests: capability === true ? [{ certificates: ['CLIENT CA'] }] : [],
+				});
+			});
+		}
 	});
 
 	suite('worktree disk usage', () => {

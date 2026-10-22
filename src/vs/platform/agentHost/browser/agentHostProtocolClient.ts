@@ -28,6 +28,8 @@ import { AGENT_HOST_CREATE_SESSION_IMPORT_CHUNK_CHARS, serializeCreateSessionImp
 import { vArray, vEnum, vObj, vOptionalProp, vString, vUndefined, vUnknown } from '../../../base/common/validation.js';
 import { AgentHostChannelScheduler, readChannelFlowControl } from '../common/agentHostChannelDelivery.js';
 import { AgentHostTcpBudget, AgentHostTcpConnection, agentHostTcpReceiveLimits, type IAgentHostTcpConnection } from '../common/agentHostTcpConnection.js';
+import { SetClientCertificatesExtensionMethod } from '../common/clientCertificatesProtocol.js';
+import { supportsAgentHostClientCertificates } from '../common/meta/agentHostClientCertificatesMeta.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../files/common/files.js';
@@ -237,6 +239,8 @@ export interface IAgentHostProtocolClientOptions {
 	readonly resolveInitialAuthentication?: () => Promise<AuthenticateParams | undefined>;
 	/** Resolves existing credentials for advertised resources before protected requests are released. */
 	readonly resolveAdvertisedAuthentication?: (agents: readonly AgentInfo[]) => Promise<readonly AuthenticateParams[]>;
+	/** Supplies client trust roots only for a remote that shares the client's network. */
+	readonly resolveClientCertificates?: () => Promise<readonly string[] | undefined>;
 	/** Releases resources owned by the logical protocol client after its final disposal. */
 	readonly onDispose?: () => void;
 }
@@ -478,6 +482,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private _connectionOperation: 'connect' | 'recover' = 'connect';
 	private readonly _resolveInitialAuthentication: (() => Promise<AuthenticateParams | undefined>) | undefined;
 	private readonly _resolveAdvertisedAuthentication: IAgentHostProtocolClientOptions['resolveAdvertisedAuthentication'];
+	private readonly _resolveClientCertificates: IAgentHostProtocolClientOptions['resolveClientCertificates'];
 	private readonly _onDispose: (() => void) | undefined;
 	private _didDispose = false;
 
@@ -553,6 +558,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		this._prepareAuthentication = options?.prepareAuthentication;
 		this._resolveInitialAuthentication = options?.resolveInitialAuthentication;
 		this._resolveAdvertisedAuthentication = options?.resolveAdvertisedAuthentication;
+		this._resolveClientCertificates = options?.resolveClientCertificates;
 		this._onDispose = options?.onDispose;
 
 		if (typeof transportOrFactory === 'function') {
@@ -792,6 +798,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 */
 	async connect(): Promise<void> {
 		const watch = StopWatch.create(false);
+		const connectionState = this._state;
+		const connectionTransport = this._transport;
 		let stage = 'transport';
 		try {
 			if (isClientTransport(this._transport)) {
@@ -821,8 +829,13 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			}, { bypassInitializeQueue: true }));
 			this._logService.info(`[RemoteAgentHostProtocol] Initialized: address=${this._address} clientId=${this._clientId} durationMs=${watch.elapsed()}`);
 			this._applyInitializeResult(result);
-			// Keep the snapshot even if authentication must finish on a later replay reconnect.
+			// Keep the snapshot even if connection setup must finish on a later replay reconnect.
 			this._hydrateInitializedRootState(result);
+			stage = 'clientCertificates';
+			await this._forwardClientCertificates();
+			if (this._state !== connectionState || this._transport !== connectionTransport) {
+				throw transportLostError(this._address);
+			}
 			if (this._resolveInitialAuthentication || this._resolveAdvertisedAuthentication || this._authentication.size > 0) {
 				stage = 'authentication';
 				await this._traceConnection('protocol.authentication', () => this._restoreAuthentication(AgentHostClientState.Connecting));
@@ -842,6 +855,9 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			this._resetLivenessTimers();
 		} catch (error) {
 			this._logService.warn(`[RemoteAgentHostProtocol] Connection failed: address=${this._address} clientId=${this._clientId} stage=${stage} durationMs=${watch.elapsed()} pendingRequests=${this._pendingRequests.size}`);
+			if (this._state !== connectionState || this._transport !== connectionTransport) {
+				throw error;
+			}
 			const protocolError = error instanceof ProtocolError
 				? error
 				: new ProtocolError(AHP_CLIENT_CONNECTION_CLOSED, error instanceof Error ? error.message : String(error));
@@ -1094,6 +1110,13 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				this._authenticationHandshake = result;
 			}
 			this._applyReconnectResult(result, freshInitialize, restoreAuthentication);
+			await this._forwardClientCertificates();
+			if (!this._checkReconnectState(reconnect) || reconnect.attempt !== attempt || this._transport !== transport) {
+				return;
+			}
+			if (!reconnect.transportConnected) {
+				throw transportLostError(this._address);
+			}
 			this._updateManagedSettingsPermissions(true);
 			// A replacement transport may need authentication even when the host remembers this client.
 			if (restoreAuthentication) {
@@ -1171,6 +1194,25 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			oldGate.error(err);
 			this._scheduleReconnect();
 		}
+	}
+
+	private async _forwardClientCertificates(): Promise<void> {
+		if (!this._resolveClientCertificates || !supportsAgentHostClientCertificates(this._initializeResult.get())) {
+			return;
+		}
+		const state = this._state;
+		const transport = this._transport;
+		const checkConnection = () => {
+			if (this._state !== state || this._transport !== transport || (state.kind === AgentHostClientState.Reconnecting && !state.reconnect.transportConnected)) {
+				throw transportLostError(this._address);
+			}
+		};
+		const certificates = await this._raceClose(this._resolveClientCertificates(), transport);
+		checkConnection();
+		if (certificates !== undefined) {
+			await this._dispatchRequest<void>(SetClientCertificatesExtensionMethod, { certificates }, { bypassInitializeQueue: true, bypassReconnectGate: true });
+		}
+		checkConnection();
 	}
 
 	private async _reconnectOrInitialize(lastSeenServerSeq: number, subscriptions: string[]): Promise<{ result: CommandMap['reconnect']['result'] & { readonly _meta?: Record<string, unknown> }; freshInitialize: boolean }> {
