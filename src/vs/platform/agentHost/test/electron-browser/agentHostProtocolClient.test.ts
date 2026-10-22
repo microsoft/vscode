@@ -4995,6 +4995,43 @@ suite('AgentHostProtocolClient', () => {
 			});
 		}
 
+		for (const encryption of ['mcp-key', 'missing-key', 'provider-key-only'] as const) {
+			test(`untargeted non-GitHub MCP credentials require trusted relay encryption: ${encryption}`, async () => {
+				const sealed: IMissionControlCredentialSealingRequest[] = [];
+				const { client, transports } = createFactoryClient(undefined, undefined, undefined, undefined, undefined, undefined, {
+					sealAuthenticationToken: async request => {
+						sealed.push(request);
+						return 'copilot-sealed.v1.key.ciphertext';
+					},
+				}, undefined, AgentHostClientConnectionKind.MissionControl);
+				const key = { keyId: 'key', publicKey: 'public-key', algorithm: 'x25519-sealedbox', use: encryption === 'mcp-key' ? 'mcp-auth-token' : 'auth-token' };
+				const connecting = client.connect();
+				await initializeAdvertised(transports[0], { 'copilot.encryptionKeys': encryption === 'missing-key' ? [] : [key] });
+				await connecting;
+				const resource = 'https://mcp.example.test';
+				const authenticating = client.authenticate({ resource, scopes: ['read'], token: 'mcp-token' });
+				if (encryption === 'mcp-key') {
+					const request = await waitForRequestAtWithin(transports[0], 'authenticate', 0);
+					transports[0].fireMessage({ jsonrpc: '2.0', id: request.id, result: {} });
+					const subscription = await waitForRequestAtWithin(transports[0], 'subscribe', 0);
+					transports[0].fireMessage({ jsonrpc: '2.0', id: subscription.id, result: { snapshot: { resource: ROOT_STATE_URI, fromSeq: 0, state: client.rootState.value } } });
+					await authenticating;
+					assert.deepStrictEqual({
+						sealed: sealed.map(request => [request.token, request.resource, request.key.use]),
+						params: request.params,
+					}, {
+						sealed: [['mcp-token', resource, 'mcp-auth-token']],
+						params: { channel: ROOT_STATE_URI, resource, scopes: ['read'], token: 'copilot-sealed.v1.key.ciphertext' },
+					});
+				} else {
+					await assert.rejects(authenticating, /no supported credential encryption key/);
+					assert.deepStrictEqual({
+						sealed, authenticationSent: transports[0].sentMessages.some(message => hasKey(message, { method: true }) && message.method === 'authenticate'),
+					}, { sealed: [], authenticationSent: false });
+				}
+			});
+		}
+
 		test('initial encryption failures do not publish a ready connection or release protected requests', async () => {
 			const { client, transports } = createFactoryClient(undefined, undefined, undefined, undefined, undefined, undefined, {
 				resolveAdvertisedAuthentication: async () => [{ resource: advertisedAgent.protectedResources[0].resource, token: 'must-not-leak' }],

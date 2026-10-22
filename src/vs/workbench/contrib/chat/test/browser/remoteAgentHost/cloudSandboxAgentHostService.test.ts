@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
-import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { DeferredPromise, raceCancellationError, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
@@ -106,6 +106,7 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 	let account: string | undefined = 'account-a';
 	let ownEnvironment: string | undefined;
 	const identityRequests: { account: string; forceRefresh: boolean }[] = [];
+	let identityResult: ((token: CancellationToken) => Promise<ICloudSandboxIdentityToken>) | undefined;
 	let environmentKeys: readonly IHostEncryptionKey[] | undefined;
 	let environmentReads = 0;
 	const telemetry = store.add(new CloudSandboxTelemetryService(new class extends mock<ITelemetryService>() {
@@ -141,9 +142,9 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 	instantiationService.stub(ICloudSandboxApiService, new class extends mock<ICloudSandboxApiService>() {
 		override readonly onDidChangeAccount = accountChanged.event;
 		override async getAccountKey(): Promise<string | undefined> { return account; }
-		override async getIdentityToken(account: string, _token: CancellationToken, forceRefresh = false): Promise<ICloudSandboxIdentityToken> {
+		override async getIdentityToken(account: string, token: CancellationToken, forceRefresh = false): Promise<ICloudSandboxIdentityToken> {
 			identityRequests.push({ account, forceRefresh });
-			return { token: 'identity-only-token' };
+			return identityResult ? identityResult(token) : { token: 'identity-only-token' };
 		}
 		override async getEnvironment(id: string) {
 			environmentReads++;
@@ -220,6 +221,7 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 		requestCalls: () => calls,
 		requests,
 		identityRequests,
+		setIdentityResult: (value: (token: CancellationToken) => Promise<ICloudSandboxIdentityToken>) => { identityResult = value; },
 		environmentReads: () => environmentReads,
 		setEnvironmentKeys: (keys: readonly IHostEncryptionKey[] | undefined) => { environmentKeys = keys; },
 		events,
@@ -290,6 +292,63 @@ suite('CloudSandboxAgentHostService', () => {
 			controlPlaneRequests: 1, environmentReads: 1,
 		});
 	});
+
+	for (const authentication of ['initial', 'renewal'] as const) {
+		for (const teardown of ['connection disposal', 'disconnect', 'service disposal', 'account change', 'replace'] as const) {
+			test(`cancels user-local ${authentication} identity requests on ${teardown}`, async () => {
+				const fixture = createService(store, [{ kind: 'token', token: clientToken(undefined) }]);
+				fixture.service.connectThroughFactory = true;
+				const connecting = fixture.service.connect({
+					environmentId: 'native', name: 'Native', environmentKind: 'user-local',
+				}, CancellationToken.None);
+				await fixture.started;
+				fixture.settle();
+				await connecting;
+				fixture.instantiationService.stubInstance(AgentHostProtocolClient, new class extends mock<AgentHostProtocolClient>() {
+					override readonly onDidConnectionDiagnostic = Event.None;
+				}());
+				const spy = sinon.spy(fixture.instantiationService, 'createInstance');
+				const factory = fixture.getFactory();
+				const created = await factory.createConnection(fixture.entries()[0], { userInitiated: true });
+				assert.ok(created.transportDisposable);
+				store.add(created.transportDisposable);
+				const options = spy.getCalls().find(call => call.args[0] === AgentHostProtocolClient)?.args[3] as IAgentHostProtocolClientOptions;
+				assert.ok(options.resolveInitialAuthentication);
+				const requested = new DeferredPromise<CancellationToken>();
+				const response = new DeferredPromise<ICloudSandboxIdentityToken>();
+				fixture.setIdentityResult(token => {
+					requested.complete(token);
+					return raceCancellationError(response.p, token);
+				});
+				const pending = authentication === 'initial' ? options.resolveInitialAuthentication()
+					: fixture.service.resolveUserLocalAuthentication('native', 'https://api.github.com', true);
+				const cancelled = assert.rejects(pending, isCancellationError);
+				const token = await requested.p;
+				if (teardown === 'connection disposal') {
+					created.transportDisposable.dispose();
+				} else if (teardown === 'disconnect') {
+					await fixture.service.disconnect('native');
+				} else if (teardown === 'service disposal') {
+					fixture.service.dispose();
+				} else if (teardown === 'account change') {
+					fixture.changeAccount('account-b');
+				} else {
+					const stagingFactory = factory as IRemoteAgentHostConnectionFactory & {
+						stageConfiguration(options: ICloudSandboxConnectOptions, token: ICloudSandboxClientToken): void;
+					};
+					stagingFactory.stageConfiguration({ environmentId: 'native', name: 'Replacement', environmentKind: 'user-local' }, clientToken(undefined));
+				}
+				await cancelled;
+				await response.complete({ token: 'late-identity' });
+				await assert.rejects(options.resolveInitialAuthentication(), isCancellationError);
+				assert.deepStrictEqual({
+					cancelled: token.isCancellationRequested, requests: fixture.identityRequests,
+				}, {
+					cancelled: true, requests: [{ account: 'account-a', forceRefresh: authentication === 'renewal' }],
+				});
+			});
+		}
+	}
 
 	for (const environmentKind of ['user-local', undefined] as const) {
 		test(`captures wire traffic only on the ${environmentKind ? 'host for Mission Control' : 'client for cloud sandboxes'}`, async () => {

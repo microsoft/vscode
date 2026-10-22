@@ -70,7 +70,7 @@ suite('CloudSandboxConnectionCustomization authentication', () => {
 		});
 	});
 
-	test('user-local MCP renewal remains raw until the trusted protocol send boundary', async () => {
+	test('user-local MCP renewal without a target remains raw until the trusted protocol send boundary', async () => {
 		const service = new class extends mock<ICloudSandboxAgentHostService>() { }();
 		const customization = createCloudSandboxConnectionCustomization(cloudSandboxAddress('env-1'), service, true);
 		assert.ok(customization?.authenticate);

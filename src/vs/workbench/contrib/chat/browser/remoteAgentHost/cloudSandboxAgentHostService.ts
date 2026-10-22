@@ -76,6 +76,7 @@ interface IStagedCloudSandboxConnection {
 	readonly clientId: string;
 	readonly refreshState: CloudSandboxCredentialRefreshState;
 	refresher: CloudSandboxCredentialRefresher | undefined;
+	authenticationLifetime: CancellationTokenSource | undefined;
 	reconnectRequiresRefresh: boolean;
 	lastAuthenticationToken: string | undefined;
 	trustedEncryptionKeys: readonly IHostEncryptionKey[] | undefined;
@@ -103,6 +104,11 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 		super();
 		this.entries = this._entries;
 		this._surface = getCloudSandboxConnectionSurface(this._environmentService.isSessionsWindow, isWeb);
+		this._register(toDisposable(() => {
+			for (const staged of this._stagedConnections.values()) {
+				staged.authenticationLifetime?.dispose(true);
+			}
+		}));
 		// Staging is cleared only by an explicit `unstageConfiguration`, never by
 		// observing the connection disappear. The service withdraws an entry
 		// before arming a retry, so treating that as removal would delete the
@@ -161,6 +167,7 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 	stageConfiguration(options: ICloudSandboxConnectOptions, clientToken: ICloudSandboxClientToken): IRemoteAgentHostEntry {
 		const address = cloudSandboxAddress(options.environmentId);
 		this._pendingConnections.deleteAndDispose(address);
+		this._stagedConnections.get(address)?.authenticationLifetime?.dispose(true);
 		const entry: IRemoteAgentHostEntry = {
 			name: options.name,
 			connection: {
@@ -178,6 +185,7 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 			clientId: clientToken.client_id,
 			refreshState: new CloudSandboxCredentialRefreshState(),
 			refresher: undefined,
+			authenticationLifetime: undefined,
 			reconnectRequiresRefresh: true,
 			lastAuthenticationToken: undefined,
 			trustedEncryptionKeys: options.trustedEncryptionKeys,
@@ -188,6 +196,7 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 
 	unstageConfiguration(address: string): void {
 		this._pendingConnections.deleteAndDispose(address);
+		this._stagedConnections.get(address)?.authenticationLifetime?.dispose(true);
 		this._stagedConnections.delete(address);
 		this._updateEntries();
 	}
@@ -205,8 +214,13 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 		if (!staged || staged.options.environmentKind !== 'user-local' || !staged.options.accountKey) {
 			throw new Error('Mission Control identity authentication requires a staged user-local connection.');
 		}
-		const identity = await this._apiService.getIdentityToken(staged.options.accountKey, CancellationToken.None, forceRefresh);
-		if (!this.isCurrentConfiguration(staged.entry)) {
+		const lifetime = staged.authenticationLifetime;
+		if (!lifetime || lifetime.token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		const token = lifetime.token;
+		const identity = await this._apiService.getIdentityToken(staged.options.accountKey, token, forceRefresh);
+		if (token.isCancellationRequested || staged.authenticationLifetime !== lifetime || !this.isCurrentConfiguration(staged.entry)) {
 			throw new CancellationError();
 		}
 		const expiresIn = identity.expiresAt === undefined ? undefined : Math.floor((identity.expiresAt - Date.now()) / 1000);
@@ -243,8 +257,10 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 		const store = new DisposableStore();
 		this._pendingConnections.set(address, store);
 		try {
+			staged.authenticationLifetime?.dispose(true);
 			const lifetime = new CancellationTokenSource();
 			store.add(toDisposable(() => lifetime.dispose(true)));
+			staged.authenticationLifetime = lifetime;
 			const telemetry = this._connectionTelemetry.get(address);
 			const diagnosticObserver = (event: IConnectionDiagnosticEvent) => telemetry?.recordConnectionDiagnostic(event);
 			const refresher = store.add(this._instantiationService.createInstance(
@@ -322,7 +338,7 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 							await traceConnectionOperation(diagnosticObserver, 'credentials', () => refresher.refreshAuthenticationCredentials());
 						}
 					},
-					resolveInitialAuthentication: () => this._resolveInitialAuthentication(staged),
+					resolveInitialAuthentication: () => this._resolveInitialAuthentication(staged, lifetime.token),
 					sealAuthenticationToken: staged.options.environmentKind === 'user-local' ? async request => {
 						if (await this._apiService.getAccountKey() !== staged.options.accountKey) {
 							throw new CancellationError();
@@ -354,7 +370,10 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 		}
 	}
 
-	private async _resolveInitialAuthentication(staged: IStagedCloudSandboxConnection): Promise<AuthenticateParams | undefined> {
+	private async _resolveInitialAuthentication(staged: IStagedCloudSandboxConnection, token: CancellationToken): Promise<AuthenticateParams | undefined> {
+		if (token.isCancellationRequested || !this.isCurrentConfiguration(staged.entry)) {
+			throw new CancellationError();
+		}
 		if (staged.options.environmentKind === 'user-local') {
 			return this.resolveUserLocalAuthentication(staged.options.environmentId, GITHUB_COPILOT_PROTECTED_RESOURCE.resource);
 		}
