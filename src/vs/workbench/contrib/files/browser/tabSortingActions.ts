@@ -82,5 +82,60 @@ export class SortEditorsByExtensionAction extends Action2 {
 	}
 }
 
+export class SortEditorsByNameAction extends Action2 {
+	static readonly ID = 'workbench.action.files.sortEditorsByName';
+
+	constructor() {
+		super({
+			id: SortEditorsByNameAction.ID,
+			title: nls.localize2('sortEditorsByName', "Sort Tabs by Name"), // 表示名
+			f1: true, // コマンドパレット(F1)に表示
+			category: Categories.File,
+			menu: {
+				id: MenuId.EditorTitleContext, // タブ右クリックメニュー
+				group: '2_close',             // 拡張子順と同じグループ
+				order: 11                     // 拡張子順(10)のすぐ下に配置
+			}
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorGroupService = accessor.get(IEditorGroupsService);
+		const group = editorGroupService.activeGroup;
+		if (!group) { return; }
+
+		const editors = group.getEditors(EditorsOrder.SEQUENTIAL);
+		if (editors.length <= 1) { return; }
+
+		// アルファベットの名前順でソートするロジック
+		const sortedEditors = [...editors].sort((a, b) => {
+			const uriA = EditorResourceAccessor.getOriginalUri(a);
+			const uriB = EditorResourceAccessor.getOriginalUri(b);
+
+			// 拡張子を無視して純粋なファイル名(basename)を取得
+			const nameA = uriA ? basename(uriA.path).toLowerCase() : 'zzzz';
+			const nameB = uriB ? basename(uriB.path).toLowerCase() : 'zzzz';
+
+			// ファイル名が同じ場合は、拡張子(extname)でさらにソート
+			if (nameA === nameB) {
+				const extA = uriA ? extname(uriA.path).toLowerCase() : '';
+				const extB = uriB ? extname(uriB.path).toLowerCase() : '';
+				return extA.localeCompare(extB);
+			}
+			return nameA.localeCompare(nameB);
+		});
+
+		// ソート結果に基づいて、実際のタブ位置を正確に移動
+		for (let i = 0; i < sortedEditors.length; i++) {
+			const editor = sortedEditors[i];
+			const currentIndex = group.getIndexOfEditor(editor);
+			if (currentIndex !== i) {
+				group.moveEditor(editor, group, { index: i });
+			}
+		}
+	}
+}
+
 // コマンドをVS Codeの仕組みに登録
 registerAction2(SortEditorsByExtensionAction);
+registerAction2(SortEditorsByNameAction);
