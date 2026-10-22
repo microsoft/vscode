@@ -7,6 +7,7 @@ import assert from 'assert';
 import { $ } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../base/common/async.js';
+import { IAction, toAction } from '../../../base/common/actions.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
@@ -38,6 +39,7 @@ import { AgentWorkbenchLayout } from '../../browser/workbench.js';
 import { IChatSessionHistoryStatus } from '../../../platform/chat/common/chatSessionHistory.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../browser/parts/chatView.js';
 import { ChatGroupsView } from '../../browser/parts/chatGroupsView.js';
+import { ChatGroupView } from '../../browser/parts/chatGroupView.js';
 import { GRID_GAP_SASH_CLASS } from '../../browser/parts/gridGap.js';
 import { SessionDropTarget } from '../../browser/parts/sessionDropTarget.js';
 import { DraggedSessionIdentifier, SessionsDataTransfers } from '../../browser/dnd.js';
@@ -402,6 +404,22 @@ suite('Sessions - ChatGroupsView', () => {
 		const before = view['_mainChatResource'] !== undefined;
 		view.setSession(undefined, options);
 		assert.deepStrictEqual([before, view['_mainChatResource']], [true, undefined]);
+	});
+
+	test('clearing a chat group releases its activity action observation', async () => {
+		const { instantiationService, configurationService } = createHarness(disposables, true, true);
+		await configurationService.setUserConfiguration(SESSION_ACTIVITY_BAR_SETTING, true);
+		const group = disposables.add(instantiationService.createInstance(ChatGroupView));
+		let observations = 0;
+		const actions = derived<readonly IAction[]>(reader => {
+			observations++;
+			reader.store.add(toDisposable(() => observations--));
+			return [toAction({ id: 'test.chatAction', label: 'Chat Action', run: () => { } })];
+		});
+		group['_sessionActivityBar'].setChatActions(actions);
+		const before = observations;
+		group.setContext(undefined);
+		assert.deepStrictEqual({ before, after: observations }, { before: 1, after: 0 });
 	});
 
 	test('releases the main chat resource observable on disposal', () => {

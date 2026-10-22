@@ -12,6 +12,8 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IURLService } from '../../../../platform/url/common/url.js';
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
+import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
+import { sessionActivityBarChatActionContext } from '../../../common/contextkeys.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IGitHubIssueRef, ISession } from '../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
@@ -46,6 +48,12 @@ class OpenIssueAction extends Action2 {
 			title: localize2('agentSessions.openIssue', 'Open Issue'),
 			icon: Codicon.issues,
 			f1: false,
+			menu: {
+				id: Menus.SessionActivityBar,
+				group: SessionActivityBarGroup.GitHub,
+				order: 1,
+				when: sessionActivityBarChatActionContext(OpenIssueAction.ID),
+			},
 		});
 	}
 
