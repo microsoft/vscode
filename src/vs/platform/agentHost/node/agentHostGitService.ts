@@ -1442,7 +1442,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 					child.kill();
 					return;
 				}
-				void killTree(child.pid, true).catch(() => child.kill('SIGKILL'));
+				void killTree(child.pid, true, message => this._logService.debug(`[agentHostGitService] ${message}`)).catch(() => child.kill('SIGKILL'));
 			}, timeoutMs);
 			child.on('exit', () => clearTimeout(timer));
 		});
