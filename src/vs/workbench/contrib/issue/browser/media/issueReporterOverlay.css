@@ -357,10 +357,29 @@
 	overflow: hidden;
 }
 
+.issue-reporter-wizard .wizard-description-input,
 .issue-reporter-wizard .wizard-description-preview {
 	box-sizing: border-box;
 	padding: var(--vscode-spacing-size160);
+	font: inherit;
+	line-height: 1.5;
 	overflow-wrap: anywhere;
+}
+
+.issue-reporter-wizard .wizard-description-input {
+	display: block;
+	width: 100%;
+	min-height: 160px;
+	max-height: 400px;
+	resize: vertical;
+	border: 0;
+	border-radius: inherit;
+	background: transparent;
+	color: inherit;
+}
+
+.issue-reporter-wizard .wizard-description-input:focus {
+	outline: none;
 }
 
 .issue-reporter-wizard .wizard-description-preview pre {

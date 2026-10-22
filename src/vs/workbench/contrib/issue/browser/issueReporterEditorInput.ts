@@ -9,11 +9,8 @@ import { EditorInputCapabilities, GroupIdentifier } from '../../../common/editor
 import { ConfirmResult, IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IssueReporterAttachment, IssueReporterData } from '../common/issue.js';
 import { IIssueReporterDiagnosticsState, IScreenshot } from './issueReporterOverlay.js';
-import { ICodeEditorViewState } from '../../../../editor/common/editorCommon.js';
-import { ITextModel } from '../../../../editor/common/model.js';
-import { ILanguageService } from '../../../../editor/common/languages/language.js';
-import { IModelService } from '../../../../editor/common/services/model.js';
-import { DisposableMap, IDisposable } from '../../../../base/common/lifecycle.js';
+import { $, addDisposableListener, EventType } from '../../../../base/browser/dom.js';
+import { DisposableMap, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
@@ -27,24 +24,28 @@ export class IssueReporterEditorInput extends EditorInput {
 	static readonly RESOURCE = URI.from({ scheme: 'vscode-issue-reporter', path: 'reporter' });
 
 	readonly data: IssueReporterData | undefined;
-	private _descriptionModel: ITextModel | undefined;
-	descriptionViewState: ICodeEditorViewState | null = null;
+	/** Both hosts reuse the draft's native text control rather than reconstructing its contents. */
+	readonly descriptionInput = $<HTMLTextAreaElement>('textarea.wizard-description-input');
+	private descriptionScrollTop = 0;
 	readonly diagnosticsState: IIssueReporterDiagnosticsState = { included: {}, expanded: new Set() };
 
-	get descriptionModel(): ITextModel {
-		if (!this._descriptionModel) {
-			const model = this._register(this.modelService.createModel(this.data?.issueBody ?? '', this.languageService.createById('markdown')));
-			this._register(model.onDidChangeContent(() => {
-				if (this.data) {
-					this.data.issueBody = model.getValue();
-				}
-			}));
-			this._descriptionModel = model;
+	attachDescriptionInput(container: HTMLElement): void {
+		if (this.descriptionInput.parentElement !== container) {
+			if (this.descriptionInput.isConnected) {
+				this.descriptionScrollTop = this.descriptionInput.scrollTop;
+			}
+			container.appendChild(this.descriptionInput);
+			this.descriptionInput.scrollTop = this.descriptionScrollTop;
 		}
-		return this._descriptionModel;
 	}
 
-	/** Set by the editor pane to check if user has entered data */
+	saveDescriptionScrollPosition(container: HTMLElement): void {
+		if (container.contains(this.descriptionInput)) {
+			this.descriptionScrollTop = this.descriptionInput.scrollTop;
+		}
+	}
+
+	/** Set by the reporter controller to check whether the draft can close or move. */
 	hasUserInputFn: (() => boolean) | undefined;
 	hasPendingOperationsFn: (() => boolean) | undefined;
 
@@ -80,11 +81,16 @@ export class IssueReporterEditorInput extends EditorInput {
 	constructor(
 		data: IssueReporterData | undefined,
 		@IDialogService private readonly dialogService: IDialogService,
-		@IModelService private readonly modelService: IModelService,
-		@ILanguageService private readonly languageService: ILanguageService,
 	) {
 		super();
 		this.data = data;
+		this.descriptionInput.value = data?.issueBody ?? '';
+		this._register(addDisposableListener(this.descriptionInput, EventType.INPUT, () => {
+			if (this.data) {
+				this.data.issueBody = this.descriptionInput.value;
+			}
+		}));
+		this._register(toDisposable(() => this.descriptionInput.remove()));
 
 		this.closeHandler = {
 			showConfirm: () => !!this.hasUserInputFn?.(),

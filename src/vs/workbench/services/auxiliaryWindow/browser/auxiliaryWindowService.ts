@@ -56,6 +56,8 @@ export interface IAuxiliaryWindowOpenOptions {
 	readonly transparent?: boolean;
 	readonly notResizable?: boolean;
 	readonly disableMaximize?: boolean;
+	/** Limit native menus to text editing and window controls instead of routing commands to the workbench. */
+	readonly disableWorkbenchMenu?: boolean;
 	readonly noBackgroundThrottling?: boolean;
 	readonly backgroundColor?: string;
 }
@@ -398,6 +400,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 			options?.transparent ? 'window-transparent=yes' : undefined,
 			options?.notResizable ? 'window-not-resizable=yes' : undefined,
 			options?.disableMaximize ? 'window-disable-maximize=yes' : undefined,
+			options?.disableWorkbenchMenu ? 'window-disable-workbench-menu=yes' : undefined,
 			options?.noBackgroundThrottling ? 'window-no-background-throttling=yes' : undefined,
 			options?.backgroundColor && /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(options.backgroundColor) ? `window-background-color=${options.backgroundColor}` : undefined,
 		]);

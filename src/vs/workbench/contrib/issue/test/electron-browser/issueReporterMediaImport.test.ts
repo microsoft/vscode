@@ -20,8 +20,6 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ipcRenderer } from '../../../../../base/parts/sandbox/electron-browser/globals.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
-import { Selection } from '../../../../../editor/common/core/selection.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -33,14 +31,10 @@ import { ILogService, NullLogService } from '../../../../../platform/log/common/
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { INotificationService, NoOpNotification } from '../../../../../platform/notification/common/notification.js';
 import product from '../../../../../platform/product/common/product.js';
-import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
-import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
-import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { IUserInteractionService } from '../../../../../platform/userInteraction/browser/userInteractionService.js';
 import { UserInteractionService } from '../../../../../platform/userInteraction/browser/userInteractionServiceImpl.js';
 import { IUpdateService, StateType } from '../../../../../platform/update/common/update.js';
 import { IUserDataProfile, IUserDataProfilesService } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
-import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { TestLayoutService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
@@ -55,7 +49,7 @@ import { IScreenshotService } from '../../browser/screenshotService.js';
 import { IIssueFormService, IssueReporterAttachment, IssueReporterData, IssueSource, IssueType } from '../../common/issue.js';
 import { resolveIssueReporterTarget } from '../../common/issueReporterTarget.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
-import { IssueReporterEditorPane } from '../../electron-browser/issueReporterEditorPane.js';
+import { IssueReporterController } from '../../electron-browser/issueReporterController.js';
 import { issueReporterImageFixture, issueReporterVideoFixtures } from '../common/issueReporterMediaFixtures.js';
 
 interface INativeResourceAccess {
@@ -101,16 +95,12 @@ class MediaFileService extends mock<IFileService>() {
 	}
 }
 
-class MediaTestPane extends IssueReporterEditorPane {
+class MediaTestController extends IssueReporterController {
 	readonly imports: Promise<void>[] = [];
 	readonly decoding = new DeferredPromise<void>();
 	imageDecoder: ((dataUrl: string, token: CancellationToken) => Promise<{ width: number; height: number }>) | undefined;
 	thumbnailDecoder: ((resource: URI) => Promise<string | undefined>) | undefined;
 	thumbnailRequests = 0;
-
-	mount(parent: HTMLElement): void {
-		this.createEditor(parent);
-	}
 
 	protected override readAttachmentImage(dataUrl: string, token: CancellationToken): Promise<{ width: number; height: number }> {
 		void this.decoding.complete();
@@ -243,7 +233,7 @@ suite('Issue reporter media import lifecycle', () => {
 		const instantiation = workbenchInstantiationService(undefined, store);
 		instantiation.stub(IConfigurationService, new TestConfigurationService({ 'editor.editContext': false }));
 		instantiation.stub(IUserInteractionService, new UserInteractionService());
-		for (const dependency of _util.getServiceDependencies(IssueReporterEditorPane as typeof IssueReporterEditorPane & _util.DI_TARGET_OBJ)) {
+		for (const dependency of _util.getServiceDependencies(IssueReporterController as typeof IssueReporterController & _util.DI_TARGET_OBJ)) {
 			if (dependency.id !== IInstantiationService && dependency.id !== IConfigurationService && dependency.id !== IKeybindingService) {
 				instantiation.stub(dependency.id, {});
 			}
@@ -252,9 +242,6 @@ suite('Issue reporter media import lifecycle', () => {
 		const openEditor = spy(async (_input: EditorInput | IUntypedEditorInput) => undefined);
 		const errors: string[] = [];
 		const warnings: string[] = [];
-		const group = new class extends mock<IEditorGroup>() { }();
-		instantiation.stub(IStorageService, store.add(new InMemoryStorageService()));
-		instantiation.stub(IThemeService, new TestThemeService());
 		instantiation.stub(ILogService, new NullLogService());
 		instantiation.stub(IRecordingService, recording ?? { isSupported: false, onDidChangeState: Event.None, onDidFailRecording: Event.None });
 		instantiation.stub(INotificationService, {
@@ -271,11 +258,16 @@ suite('Issue reporter media import lifecycle', () => {
 			}(),
 		});
 		instantiation.stub(IContextViewService, { getContextViewElement: () => mainWindow.document.createElement('div') });
-		instantiation.stub(IMarkdownRendererService, { render: () => ({ element: mainWindow.document.createElement('div'), dispose: () => { } }) });
+		instantiation.stub(IMarkdownRendererService, {
+			render: markdown => {
+				const element = mainWindow.document.createElement('div');
+				element.textContent = markdown.value;
+				return { element, dispose: () => { } };
+			},
+		});
 		instantiation.stub(IIssueFormService, { submitIssue: submit });
 		instantiation.stub(IUpdateService, { state: { type: StateType.Uninitialized }, onStateChange: Event.None });
 		instantiation.stub(IEditorService, { openEditor });
-		instantiation.stub(IEditorGroupsService, { activateGroup: () => group });
 		const container = mainWindow.document.createElement('div');
 		container.style.width = '800px';
 		container.style.height = '900px';
@@ -284,13 +276,13 @@ suite('Issue reporter media import lifecycle', () => {
 		instantiation.stub(IWorkbenchLayoutService, new class extends TestLayoutService {
 			override getContainer(): HTMLElement { return container; }
 		}());
-		const pane = store.add(instantiation.createInstance(MediaTestPane, group));
-		pane.mount(container);
-		await pane.setInput(input, undefined, {}, CancellationToken.None);
-		const editor = container.querySelector<HTMLTextAreaElement>('textarea.inputarea')!;
-		const model = input.descriptionModel;
-		const widget = instantiation.get(ICodeEditorService).listCodeEditors().find(editor => editor.getModel() === model)!;
-		return { pane, input, files, container, submit, openEditor, errors, warnings, editor, widget, model };
+		const pane = store.add(instantiation.createInstance(MediaTestController, container, {
+			reveal: async () => { await openEditor(input); },
+			close: () => input.dispose(),
+		}));
+		pane.setInput(input);
+		const editor = input.descriptionInput;
+		return { pane, input, files, container, submit, openEditor, errors, warnings, editor };
 	}
 
 	function image(name = 'image.png'): InstrumentedMediaFile {
@@ -308,7 +300,7 @@ suite('Issue reporter media import lifecycle', () => {
 		return { blob, mimeType: blob.type, durationMs: 500, sizeBytes: blob.size };
 	}
 
-	test('allocates one Markdown model for ten matching reporter candidates and disposes it with the used input', () => {
+	test('keeps native input ownership without allocating Markdown models', () => {
 		const instantiation = workbenchInstantiationService(undefined, store);
 		const modelService = instantiation.get(IModelService);
 		const before = modelService.getModels().length;
@@ -320,11 +312,11 @@ suite('Issue reporter media import lifecycle', () => {
 			if (selected === candidate) {
 				editors.push(selected);
 			}
-			selected.descriptionModel.getValue();
+			assert.strictEqual(selected.descriptionInput.value, data.issueBody);
 		}
 		const used = modelService.getModels().length - before;
 		candidates.forEach(candidate => candidate.dispose());
-		assert.deepStrictEqual({ unused, editors: editors.length, used, remaining: modelService.getModels().length - before }, { unused: 0, editors: 1, used: 1, remaining: 0 });
+		assert.deepStrictEqual({ unused, editors: editors.length, used, remaining: modelService.getModels().length - before }, { unused: 0, editors: 1, used: 0, remaining: 0 });
 	});
 
 	test('opens generic copies read-only with an explanation and retains that state until input disposal', async () => {
@@ -713,8 +705,8 @@ suite('Issue reporter media import lifecycle', () => {
 			generated: /[/\\]issue-attachments[/\\]import-[a-f\d-]+\.mov$/.test(path),
 			originalInName: path.includes('original'),
 			writes: files.writes.length,
-			editor: openEditor.firstCall.args,
-		}, { generated: true, originalInName: false, writes: 1, editor: [{ resource: URI.file(path), options: { override: 'vscode.videoPreview' } }] });
+			editor: openEditor.firstCall.args[0],
+		}, { generated: true, originalInName: false, writes: 1, editor: { resource: URI.file(path), options: { override: 'vscode.videoPreview' } } });
 	});
 
 	for (const [kind, maximum] of [['image', MAX_ISSUE_IMAGE_BYTES], ['video', MAX_ISSUE_VIDEO_BYTES], ['file', MAX_ISSUE_FILE_BYTES]] as const) {
@@ -851,24 +843,24 @@ suite('Issue reporter media import lifecycle', () => {
 		}, { order: ['A.png', 'capture', 'B.png'], identities: saved.map(attachment => attachment.id), annotationPreserved: true, remaining: ['capture', 'B.png'], checks: 2, deletions: [owned.path] });
 	});
 
-	test('keeps the Markdown model, selection and undo history across pane moves', async () => {
+	test('keeps native text and selection across pane moves and supports subsequent undo', async () => {
 		const first = await createPane();
-		const model = first.model;
-		first.widget.setSelection(new Selection(1, 1, 1, 12));
-		const transfer = new DataTransfer();
-		transfer.setData('text/plain', '**Markdown**');
-		first.editor.dispatchEvent(new ClipboardEvent('paste', { clipboardData: transfer, bubbles: true, cancelable: true }));
-		first.widget.setSelection(new Selection(1, 3, 1, 11));
+		first.editor.focus();
+		first.editor.setSelectionRange(0, 11);
+		document.execCommand('insertText', false, '**Markdown**');
+		first.editor.setSelectionRange(2, 10);
 		first.pane.dispose();
 		const second = await createPane(first.input, first.files);
-		const restored = { sameModel: second.model === model, value: model.getValue(), selection: second.widget.getSelection() };
-		await model.undo();
-		assert.deepStrictEqual({ restored, undone: model.getValue() }, {
-			restored: { sameModel: true, value: '**Markdown**', selection: new Selection(1, 3, 1, 11) },
-			undone: 'Description',
+		const restored = { sameInput: second.editor === first.editor, value: second.editor.value, selection: [second.editor.selectionStart, second.editor.selectionEnd] };
+		second.editor.focus();
+		document.execCommand('insertText', false, 'new text');
+		document.execCommand('undo');
+		assert.deepStrictEqual({ restored, undone: second.editor.value }, {
+			restored: { sameInput: true, value: '**Markdown**', selection: [2, 10] },
+			undone: '**Markdown**',
 		});
 		first.input.dispose();
-		assert.deepStrictEqual({ disposed: model.isDisposed(), body: first.input.data?.issueBody }, { disposed: true, body: 'Description' });
+		assert.deepStrictEqual({ attached: second.editor.isConnected, body: first.input.data?.issueBody }, { attached: false, body: '**Markdown**' });
 	});
 
 	test('keeps diagnostic inclusion and expansion choices with the input across pane moves', async () => {
@@ -895,13 +887,53 @@ suite('Issue reporter media import lifecycle', () => {
 
 	test('retains description scroll position across pane moves', async () => {
 		const first = await createPane(createInput({ issueBody: Array.from({ length: 30 }, (_, index) => `## Heading ${index}\n\nParagraph ${index}`).join('\n\n') }));
-		first.widget.setScrollTop(100);
-		const before = first.widget.getScrollTop();
+		first.editor.scrollTop = 100;
+		const before = first.editor.scrollTop;
 		first.pane.dispose();
 		const second = await createPane(first.input, first.files);
-		const restored = second.widget.getScrollTop();
+		const restored = second.editor.scrollTop;
 		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
-		assert.deepStrictEqual({ before, restored, afterLayout: second.widget.getScrollTop() }, { before: 100, restored: 100, afterLayout: 100 });
+		assert.deepStrictEqual({ before, restored, afterLayout: second.editor.scrollTop }, { before: 100, restored: 100, afterLayout: 100 });
+	});
+
+	test('keeps native draft text and selection when adopted by a different document', async () => {
+		const first = await createPane();
+		first.editor.focus();
+		first.editor.select();
+		document.execCommand('insertText', false, 'A moved draft');
+		first.editor.setSelectionRange(2, 7);
+		const frame = document.createElement('iframe');
+		document.body.appendChild(frame);
+		store.add(toDisposable(() => frame.remove()));
+		frame.contentDocument!.body.appendChild(first.container);
+		const moved = { text: first.editor.value, selection: [first.editor.selectionStart, first.editor.selectionEnd], document: first.editor.ownerDocument === frame.contentDocument };
+		first.pane.dispose();
+		const second = await createPane(first.input, first.files);
+		assert.deepStrictEqual({ moved, restored: { same: second.editor === first.editor, text: second.editor.value, selection: [second.editor.selectionStart, second.editor.selectionEnd], document: second.editor.ownerDocument === document } }, {
+			moved: { text: 'A moved draft', selection: [2, 7], document: true },
+			restored: { same: true, text: 'A moved draft', selection: [2, 7], document: true },
+		});
+	});
+
+	test('refreshes a cached Preview and its native field descriptions after a pane roundtrip', async () => {
+		const first = await createPane();
+		first.container.querySelectorAll<HTMLElement>('.wizard-description-tabs [role=tab]')[1].click();
+		const second = await createPane(first.input, first.files);
+		second.editor.focus();
+		second.editor.select();
+		document.execCommand('insertText', false, 'Text changed in the other pane');
+		first.pane.setInput(first.input);
+		const identifiers = [first.container, second.container].flatMap(container => [...container.querySelectorAll('[id]')].map(element => element.id));
+		assert.deepStrictEqual({
+			preview: first.container.querySelector('.wizard-description-preview')?.textContent,
+			inputOwner: first.container.contains(first.editor),
+			description: first.editor.getAttribute('aria-describedby'),
+			uniqueIdentifiers: new Set(identifiers).size === identifiers.length,
+		}, {
+			preview: 'Text changed in the other pane', inputOwner: true,
+			description: first.container.querySelector('.wizard-description-guidance')!.id,
+			uniqueIdentifiers: true,
+		});
 	});
 
 	test('keeps an in-progress import when the same input is hidden and shown again', async () => {
@@ -911,8 +943,7 @@ suite('Issue reporter media import lifecycle', () => {
 		file.readGate = new DeferredPromise<void>();
 		wizard['requestAddAttachments']([file]);
 		await file.reading.p;
-		pane.clearInput();
-		await pane.setInput(input, undefined, {}, CancellationToken.None);
+		pane.setInput(input);
 		await file.readGate.complete();
 		await pane.waitForImports();
 		assert.deepStrictEqual({ sameWizard: pane.getWizard() === wizard, attachments: savedFiles(input)?.length }, { sameWizard: true, attachments: 1 });
@@ -927,8 +958,7 @@ suite('Issue reporter media import lifecycle', () => {
 		pending.readGate = new DeferredPromise<void>();
 		wizard['requestAddAttachments']([pending]);
 		await pending.reading.p;
-		pane.clearInput();
-		await pane.setInput(input, undefined, {}, CancellationToken.None);
+		pane.setInput(input);
 		await pending.readGate.complete();
 		await pane.waitForImports();
 		assert.deepStrictEqual(savedFiles(input)?.map(file => file.name), ['first.png', 'second.png']);
@@ -939,11 +969,10 @@ suite('Issue reporter media import lifecycle', () => {
 			const first = await createPane();
 			const wizard = first.pane.getWizard()!;
 			wizard.markPreviewOpened();
-			first.pane.clearInput();
 			const second = await createPane(first.input, first.files);
 			second.pane.getWizard()!.markPreviewOpened();
-			second.pane.clearInput();
-			await first.pane.setInput(first.input, undefined, {}, CancellationToken.None);
+			const movedController = IssueReporterController.getAnyLiveInstance();
+			first.pane.setInput(first.input);
 			if (otherPane === 'disposed') {
 				second.pane.dispose();
 			}
@@ -979,10 +1008,14 @@ suite('Issue reporter media import lifecycle', () => {
 			wizard.markPreviewOpened();
 			assert.deepStrictEqual({
 				reused: first.pane.getWizard() === wizard,
+				movedController: movedController === second.pane,
+				returnedController: IssueReporterController.getAnyLiveInstance() === first.pane,
 				pending,
 				completed: { pending: wizard.hasPendingOperations(), move: first.input.canMove(1, 2), confirm: first.input.closeHandler.showConfirm() },
 			}, {
 				reused: true,
+				movedController: true,
+				returnedController: true,
 				pending: [
 					{ operation: 'upload', pending: true, move: 'string', confirm: true },
 					{ operation: 'import', pending: true, move: 'string', confirm: true },
@@ -1037,8 +1070,7 @@ suite('Issue reporter media import lifecycle', () => {
 		pane.getWizard()!['requestAddAttachments']([video()]);
 		await pane.waitForImports();
 		input.savedAttachments = [];
-		pane.clearInput();
-		await pane.setInput(input, undefined, {}, CancellationToken.None);
+		pane.setInput(input);
 		assert.deepStrictEqual({ recordings: pane.getWizard()!.getFileAttachments(), filesLeft: files.files.size }, { recordings: [], filesLeft: 0 });
 	});
 
@@ -1062,7 +1094,7 @@ suite('Issue reporter media import lifecycle', () => {
 		pane.getWizard()!['requestAddAttachments']([file]);
 		await file.reading.p;
 		const replacement = createInput();
-		await pane.setInput(replacement, undefined, {}, CancellationToken.None);
+		pane.setInput(replacement);
 		await pane.waitForImports();
 		await file.readGate.complete();
 		assert.deepStrictEqual({ old: savedFiles(input), current: pane.getWizard()!.getFileAttachments(), writes: files.writes, decoding: pane.decoding.isSettled }, { old: undefined, current: [], writes: [], decoding: false });
@@ -1084,7 +1116,7 @@ suite('Issue reporter media import lifecycle', () => {
 		files.writeGate = new DeferredPromise<void>();
 		pane.getWizard()!['requestAddAttachments']([video()]);
 		await files.writeStarted.p;
-		await pane.setInput(createInput(), undefined, {}, CancellationToken.None);
+		pane.setInput(createInput());
 		await files.writeGate.complete();
 		await pane.waitForImports();
 		assert.deepStrictEqual({ old: savedFiles(input), current: pane.getWizard()!.getFileAttachments(), filesLeft: files.files.size, deletions: files.deletions }, { old: undefined, current: [], filesLeft: 0, deletions: files.writes });

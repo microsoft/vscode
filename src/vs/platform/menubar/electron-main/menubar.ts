@@ -12,6 +12,7 @@ import { isMacintosh, language } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
 import * as nls from '../../../nls.js';
 import { IAuxiliaryWindowsMainService } from '../../auxiliaryWindow/electron-main/auxiliaryWindows.js';
+import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryWindow.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 import { ILifecycleMainService } from '../../lifecycle/electron-main/lifecycleMainService.js';
@@ -178,8 +179,8 @@ export class Menubar extends Disposable {
 
 		// Listen to some events from window service to update menu
 		this._register(this.windowsMainService.onDidChangeWindowsCount(e => this.onDidChangeWindowsCount(e)));
-		this._register(this.nativeHostMainService.onDidBlurMainWindow(() => this.onDidChangeWindowFocus()));
-		this._register(this.nativeHostMainService.onDidFocusMainWindow(() => this.onDidChangeWindowFocus()));
+		this._register(this.nativeHostMainService.onDidBlurMainOrAuxiliaryWindow(() => this.onDidChangeWindowFocus()));
+		this._register(this.nativeHostMainService.onDidFocusMainOrAuxiliaryWindow(() => this.onDidChangeWindowFocus()));
 
 		// Rebuild menu when update state changes so update menu items reflect
 		// the current state (e.g. "Restart to Update" instead of "Check for Updates...").
@@ -266,6 +267,12 @@ export class Menubar extends Disposable {
 		const oldMenu = Menu.getApplicationMenu();
 		if (oldMenu) {
 			this.oldMenus.push(oldMenu);
+		}
+
+		if (isMacintosh && this.focusedStandaloneWindow) {
+			this.installStandaloneWindowMenu();
+			this.menuGC.schedule();
+			return;
 		}
 
 		// If we don't have a menu yet, set it to null to avoid the electron menu.
@@ -405,12 +412,44 @@ export class Menubar extends Disposable {
 		}
 	}
 
+	private get focusedStandaloneWindow(): IAuxiliaryWindow | undefined {
+		const window = this.auxiliaryWindowsMainService.getFocusedWindow();
+		return window?.disableWorkbenchMenu ? window : undefined;
+	}
+
+	private installStandaloneWindowMenu(): void {
+		const menu = new Menu();
+		const application = new Menu();
+		this.setMacApplicationMenu(application);
+		menu.append(new MenuItem({ label: this.productService.nameShort, submenu: application }));
+
+		const file = new Menu();
+		file.append(this.createRoleMenuItem(nls.localize('standaloneCloseWindow', "Close Window"), 'workbench.action.closeActiveEditor', 'close'));
+		menu.append(new MenuItem({ label: nls.localize('standaloneFile', "File"), submenu: file }));
+
+		const edit = new Menu();
+		edit.append(this.createRoleMenuItem(nls.localize('standaloneUndo', "Undo"), 'undo', 'undo'));
+		edit.append(this.createRoleMenuItem(nls.localize('standaloneRedo', "Redo"), 'redo', 'redo'));
+		edit.append(__separator__());
+		edit.append(this.createRoleMenuItem(nls.localize('standaloneCut', "Cut"), 'editor.action.clipboardCutAction', 'cut'));
+		edit.append(this.createRoleMenuItem(nls.localize('standaloneCopy', "Copy"), 'editor.action.clipboardCopyAction', 'copy'));
+		edit.append(this.createRoleMenuItem(nls.localize('standalonePaste', "Paste"), 'editor.action.clipboardPasteAction', 'paste'));
+		edit.append(__separator__());
+		edit.append(this.createRoleMenuItem(nls.localize('standaloneSelectAll', "Select All"), 'editor.action.selectAll', 'selectAll'));
+		menu.append(new MenuItem({ label: nls.localize('standaloneEdit', "Edit"), submenu: edit }));
+
+		const window = new Menu();
+		this.setMacWindowMenu(window, true);
+		menu.append(new MenuItem({ label: nls.localize('mWindow', "Window"), submenu: window, role: 'window' }));
+		this.doSetApplicationMenu(menu);
+	}
+
 	private setMacApplicationMenu(macApplicationMenu: Menu): void {
-		const about = this.createMenuItem(nls.localize('mAbout', "About {0}", this.productService.nameLong), 'workbench.action.showAboutDialog');
+		const about = this.createMenuItem(nls.localize('mAbout', "About {0}", this.productService.nameLong), 'workbench.action.showAboutDialog', this.focusedStandaloneWindow ? false : undefined);
 		const checkForUpdates = this.getUpdateMenuItems();
 
 		let preferences;
-		if (this.shouldDrawMenu('Preferences')) {
+		if (!this.focusedStandaloneWindow && this.shouldDrawMenu('Preferences')) {
 			const preferencesMenu = new Menu();
 			this.setMenuById(preferencesMenu, 'Preferences');
 			preferences = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miPreferences', comment: ['&& denotes a mnemonic'] }, "&&Preferences")), submenu: preferencesMenu });
@@ -594,20 +633,22 @@ export class Menubar extends Disposable {
 		const options: MenuItemConstructorOptions = {
 			label: this.mnemonicLabel(label),
 			role,
-			enabled: true
+			enabled: true,
+			// A stale standalone menu must not intercept a newly focused workbench's shortcuts.
+			registerAccelerator: !this.focusedStandaloneWindow
 		};
 
 		return new MenuItem(this.withKeybinding(commandId, options));
 	}
 
-	private setMacWindowMenu(macWindowMenu: Menu): void {
+	private setMacWindowMenu(macWindowMenu: Menu, nativeOnly = false): void {
 		const minimize = new MenuItem({ label: nls.localize('mMinimize', "Minimize"), role: 'minimize', accelerator: 'Command+M', enabled: this.windowsMainService.getWindowCount() > 0 });
 		const zoom = new MenuItem({ label: nls.localize('mZoom', "Zoom"), role: 'zoom', enabled: this.windowsMainService.getWindowCount() > 0 });
 		const bringAllToFront = new MenuItem({ label: nls.localize('mBringToFront', "Bring All to Front"), role: 'front', enabled: this.windowsMainService.getWindowCount() > 0 });
-		const switchWindow = this.createMenuItem(nls.localize({ key: 'miSwitchWindow', comment: ['&& denotes a mnemonic'] }, "Switch &&Window..."), 'workbench.action.switchWindow');
+		const switchWindow = nativeOnly ? undefined : this.createMenuItem(nls.localize({ key: 'miSwitchWindow', comment: ['&& denotes a mnemonic'] }, "Switch &&Window..."), 'workbench.action.switchWindow');
 
 		const nativeTabMenuItems: MenuItem[] = [];
-		if (this.currentEnableNativeTabs) {
+		if (!nativeOnly && this.currentEnableNativeTabs) {
 			nativeTabMenuItems.push(__separator__());
 
 			nativeTabMenuItems.push(this.createMenuItem(nls.localize('mNewTab', "New Tab"), 'workbench.action.newWindowTab'));
@@ -622,7 +663,7 @@ export class Menubar extends Disposable {
 			minimize,
 			zoom,
 			__separator__(),
-			switchWindow,
+			...(switchWindow ? [switchWindow] : []),
 			...nativeTabMenuItems,
 			__separator__(),
 			bringAllToFront
@@ -685,6 +726,9 @@ export class Menubar extends Disposable {
 	private createMenuItem(labelOpt: string, commandId: string, enabledOpt?: boolean, checkedOpt?: boolean): MenuItem {
 		const label = this.mnemonicLabel(labelOpt);
 		const click = (menuItem: MenuItem & IMenuItemWithKeybinding, window: BaseWindow | undefined, event: KeyboardEvent) => {
+			if (this.handleStandaloneWindowCommand(commandId)) {
+				return;
+			}
 			const userSettingsLabel = menuItem ? menuItem.userSettingsLabel : null;
 			if (userSettingsLabel && event.triggeredByAccelerator) {
 				this.runActionInRenderer({ type: 'keybinding', userSettingsLabel });
@@ -765,6 +809,9 @@ export class Menubar extends Disposable {
 	}
 
 	private runActionInRenderer(invocation: IMenuItemInvocation): boolean {
+		if (this.handleStandaloneWindowCommand(invocation.type === 'commandId' ? invocation.commandId : undefined)) {
+			return true;
+		}
 
 		// We want to support auxililary windows that may have focus by
 		// returning their parent windows as target to support running
@@ -818,6 +865,31 @@ export class Menubar extends Disposable {
 		}
 	}
 
+	private handleStandaloneWindowCommand(commandId: string | undefined): boolean {
+		const window = this.focusedStandaloneWindow;
+		if (!window) {
+			return false;
+		}
+
+		const nativeWindow = window.win;
+		if (!nativeWindow?.isDestroyed()) {
+			const contents = nativeWindow?.webContents;
+			switch (commandId) {
+				case 'undo': contents?.undo(); break;
+				case 'redo': contents?.redo(); break;
+				case 'editor.action.clipboardCutAction': contents?.cut(); break;
+				case 'editor.action.clipboardCopyAction': contents?.copy(); break;
+				case 'editor.action.clipboardPasteAction': contents?.paste(); break;
+				case 'editor.action.selectAll': contents?.selectAll(); break;
+				case 'workbench.action.closeActiveEditor':
+				case 'workbench.action.closeWindow': nativeWindow?.close(); break;
+			}
+		}
+
+		// A suppressed dispatch is handled, so fallback actions must not open another window.
+		return true;
+	}
+
 	private withKeybinding(commandId: string | undefined, options: MenuItemConstructorOptions & IMenuItemWithKeybinding): MenuItemConstructorOptions {
 		const binding = typeof commandId === 'string' ? this.keybindings[commandId] : undefined;
 
@@ -857,6 +929,9 @@ export class Menubar extends Disposable {
 
 		const originalClick = options.click;
 		options.click = (item, window, event) => {
+			if (commandId !== 'workbench.action.quit' && this.handleStandaloneWindowCommand(commandId)) {
+				return;
+			}
 			this.reportMenuActionTelemetry(commandId);
 			originalClick?.(item, window, event);
 		};

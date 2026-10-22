@@ -18,7 +18,7 @@ import { TestThemeService } from '../../../../../platform/theme/test/common/test
 import { URI } from '../../../../../base/common/uri.js';
 import { EditorPaneDescriptor, EditorPaneRegistry } from '../../../../browser/editor.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { TestStorageService, TestWorkspaceTrustManagementService } from '../../../common/workbenchTestServices.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { EditorService } from '../../../../services/editor/browser/editorService.js';
@@ -139,6 +139,56 @@ suite('EditorPane', () => {
 		assert(!editor.input);
 		assert(!editor.getControl());
 	});
+
+	for (const retainDom of [false, true]) {
+		test(`native input pane ${retainDom ? 'retains DOM and undo' : 'detaches by default'} when switching editors`, async () => {
+			class NativeInput extends OtherTestInput { }
+			class NativeEditor extends EditorPane {
+				readonly text = document.createElement('textarea');
+				constructor(group: IEditorGroup) {
+					super('nativeInputEditor', group, NullTelemetryService, NullThemeService, disposables.add(new TestStorageService()));
+				}
+				override get retainDomOnHide(): boolean { return retainDom; }
+				layout(): void { }
+				protected override createEditor(parent: HTMLElement): void {
+					this.text.value = 'Original text';
+					parent.appendChild(this.text);
+				}
+			}
+			const instantiationService = workbenchInstantiationService(undefined, disposables);
+			disposables.add(editorRegistry.registerEditorPane(EditorPaneDescriptor.create(NativeEditor, 'nativeInputEditor', 'Native input'), [new SyncDescriptor(NativeInput)]));
+			disposables.add(editorRegistry.registerEditorPane(EditorPaneDescriptor.create(OtherTestEditor, 'testOtherEditor', 'Other editor'), [new SyncDescriptor(OtherTestInput)]));
+			const part = await createEditorPart(instantiationService, disposables);
+			const container = part.getContainer()!;
+			document.body.appendChild(container);
+			disposables.add(toDisposable(() => container.remove()));
+			instantiationService.stub(IEditorGroupsService, part);
+			const service = disposables.add(instantiationService.createInstance(EditorService, undefined));
+			instantiationService.stub(IEditorService, service);
+			const input = disposables.add(new NativeInput());
+			const other = disposables.add(new OtherTestInput());
+			const pane = await service.openEditor(input, { pinned: true });
+			assert.ok(pane instanceof NativeEditor);
+			pane.text.focus();
+			pane.text.select();
+			document.execCommand('insertText', false, 'Edited text');
+			pane.text.setSelectionRange(2, 5);
+			await service.openEditor(other, { pinned: true });
+			const hidden = { connected: pane.text.isConnected, display: pane.getContainer()!.style.display };
+			const restoredPane = await service.openEditor(input);
+			const restored = { same: restoredPane === pane, connected: pane.text.isConnected, selection: [pane.text.selectionStart, pane.text.selectionEnd] };
+			pane.text.focus();
+			if (retainDom) {
+				document.execCommand('undo');
+			}
+			assert.deepStrictEqual({ hidden, restored, text: pane.text.value }, {
+				hidden: { connected: retainDom, display: 'none' },
+				restored: { same: true, connected: true, selection: [2, 5] },
+				text: retainDom ? 'Original text' : 'Edited text',
+			});
+			await part.activeGroup.closeAllEditors();
+		});
+	}
 
 	test('EditorPaneDescriptor', () => {
 		const editorDescriptor = EditorPaneDescriptor.create(TestEditor, 'id', 'name');

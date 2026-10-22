@@ -16,15 +16,7 @@ import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelSc
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ITreeViewsDnDService } from '../../../../../editor/common/services/treeViewsDndService.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
-import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
-import { EditorOption } from '../../../../../editor/common/config/editorOptions.js';
-import { Selection } from '../../../../../editor/common/core/selection.js';
-import { CompletionItemInsertTextRule, CompletionItemKind } from '../../../../../editor/common/languages.js';
-import { ILanguageService } from '../../../../../editor/common/languages/language.js';
-import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
-import { SuggestController } from '../../../../../editor/contrib/suggest/browser/suggestController.js';
-import { ISuggestMemoryService } from '../../../../../editor/contrib/suggest/browser/suggestMemory.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -43,9 +35,8 @@ import { DEFAULT_EDITOR_PART_OPTIONS, IEditorGroupsView, IEditorGroupView } from
 import { EditorDropTarget } from '../../../../browser/parts/editor/editorDropTarget.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from '../../../codeEditor/browser/simpleEditorOptions.js';
-import { TabCompletionController } from '../../../snippets/browser/tabCompletion.js';
 import { extractIssueData } from '../../browser/issueFormService.js';
+import { IssueReporterEditorInput } from '../../browser/issueReporterEditorInput.js';
 import { IIssueReporterAttachmentImport, IIssueReporterDiagnosticsState, IScreenshot, IssueReporterOverlay } from '../../browser/issueReporterOverlay.js';
 import { RecordingState } from '../../browser/recordingService.js';
 import { ScreenshotAnnotationEditor } from '../../browser/screenshotAnnotation.js';
@@ -85,9 +76,8 @@ suite('IssueReporterOverlay', () => {
 		captureContainer?: HTMLElement;
 	} = {}) {
 		const instantiation = workbenchInstantiationService(undefined, store);
-		instantiation.stub(IConfigurationService, new TestConfigurationService({ 'editor.editContext': false }));
+		instantiation.stub(IConfigurationService, new TestConfigurationService({ 'editor.fontFamily': 'monospace', 'editor.fontSize': 28 }));
 		instantiation.stub(IUserInteractionService, new UserInteractionService());
-		instantiation.stub(ISuggestMemoryService, { select: () => 0, memorize: () => { } });
 		const hovers = new Map<HTMLElement, string>();
 		instantiation.stub(IHoverService, {
 			...NullHoverService,
@@ -119,9 +109,8 @@ suite('IssueReporterOverlay', () => {
 			issueTitle: 'Repository selection', issueBody: 'Issue description',
 			...overrides,
 		};
-		const languageService = instantiation.get(ILanguageService);
-		store.add(languageService.registerLanguage({ id: 'markdown' }));
-		const model = store.add(instantiation.get(IModelService).createModel(data.issueBody ?? '', languageService.createById('markdown')));
+		const input = store.add(instantiation.createInstance(IssueReporterEditorInput, data));
+		const editor = input.descriptionInput;
 		const container = document.createElement('div');
 		container.style.width = '800px';
 		container.style.height = '900px';
@@ -129,7 +118,7 @@ suite('IssueReporterOverlay', () => {
 		store.add(toDisposable(() => container.remove()));
 		let menu: IContextMenuDelegate | undefined;
 		const overlay = store.add(instantiation.createInstance(IssueReporterOverlay,
-			data, model, false, container, new TestContextViewService(),
+			data, input, false, container, new TestContextViewService(),
 			{ showContextMenu: delegate => { menu = delegate; } }, true, options.resolveExtensionIssueData, undefined, false, undefined, undefined,
 			undefined,
 			options.captureContainer,
@@ -144,10 +133,11 @@ suite('IssueReporterOverlay', () => {
 		overlay.show();
 		const preview = container.querySelector<HTMLElement>('.wizard-preview')!;
 		const description = container.querySelector<HTMLElement>('.wizard-description-editor')!;
-		const editor = description.querySelector<HTMLTextAreaElement>('textarea.inputarea')!;
-		const widget = instantiation.get(ICodeEditorService).listCodeEditors().find(editor => editor.getModel() === model)!;
-		const setSelection = (anchor: number, active: number) => widget.setSelection(Selection.fromPositions(model.getPositionAt(anchor), model.getPositionAt(active)));
-		const setText = (text: string) => model.setValue(text);
+		const setSelection = (anchor: number, active: number) => editor.setSelectionRange(anchor, active);
+		const setText = (text: string) => {
+			editor.value = text;
+			editor.dispatchEvent(new InputEvent('input', { bubbles: true }));
+		};
 		const writeTab = container.querySelector<HTMLElement>('.wizard-description-tabs [role=tab]')!;
 		const previewTab = container.querySelectorAll<HTMLElement>('.wizard-description-tabs [role=tab]')[1];
 		const descriptionPreview = container.querySelector<HTMLElement>('.wizard-description-preview')!;
@@ -160,7 +150,17 @@ suite('IssueReporterOverlay', () => {
 			menu?.onHide?.(false);
 			await action.run();
 		};
-		return { overlay, model, editor, widget, container, data, preview, writeTab, previewTab, descriptionPreview, description, files, feedback, opened, instantiation, hovers, imports, completeImport, setSelection, setText, selectRepository, getMenu: () => menu };
+		return { overlay, editor, container, data, preview, writeTab, previewTab, descriptionPreview, description, files, feedback, opened, instantiation, hovers, imports, completeImport, setSelection, setText, selectRepository, getMenu: () => menu };
+	}
+
+	function insertNativeText(editor: HTMLTextAreaElement, text: string): void {
+		editor.focus();
+		assert.strictEqual(editor.ownerDocument.execCommand('insertText', false, text), true);
+	}
+
+	function undoNativeText(editor: HTMLTextAreaElement): void {
+		editor.focus();
+		assert.strictEqual(editor.ownerDocument.execCommand('undo'), true);
 	}
 
 	function paste(target: HTMLElement, files: readonly File[], text?: string): ClipboardEvent {
@@ -171,6 +171,10 @@ suite('IssueReporterOverlay', () => {
 		}
 		const event = new ClipboardEvent('paste', { clipboardData: transfer, bubbles: true, cancelable: true });
 		target.dispatchEvent(event);
+		// Synthetic clipboard events do not perform the browser's default insertion.
+		if (!event.defaultPrevented && text && target instanceof HTMLTextAreaElement) {
+			insertNativeText(target, text);
+		}
 		return event;
 	}
 
@@ -182,6 +186,9 @@ suite('IssueReporterOverlay', () => {
 		}
 		const event = new DragEvent('drop', { dataTransfer: transfer, bubbles: true, cancelable: true });
 		target.dispatchEvent(event);
+		if (!event.defaultPrevented && text && target instanceof HTMLTextAreaElement) {
+			insertNativeText(target, text);
+		}
 		return event;
 	}
 
@@ -209,9 +216,9 @@ suite('IssueReporterOverlay', () => {
 	}
 
 	test('shows one form with Write and Preview tabs and no wizard navigation', () => {
-		const { container, editor, model, files, preview } = createReporter();
+		const { container, editor, files, preview } = createReporter();
 		assert.deepStrictEqual({
-			editor: { role: editor.getAttribute('role'), multiline: editor.getAttribute('aria-multiline'), language: model.getLanguageId() },
+			editor: { tag: editor.tagName, label: editor.getAttribute('aria-label') },
 			tabs: [...container.querySelectorAll('[role=tab]')].map(tab => ({ label: tab.textContent, selected: tab.getAttribute('aria-selected') })),
 			forms: container.querySelectorAll('.issue-reporter-form').length,
 			descriptions: container.querySelectorAll('.wizard-description-editor').length,
@@ -222,7 +229,7 @@ suite('IssueReporterOverlay', () => {
 			titleLabel: container.querySelector('.wizard-title-field input')?.getAttribute('aria-label'),
 			duplicateHint: container.textContent?.includes('Markdown is supported. You can also paste or drop files here'),
 			githubAcceptanceHint: container.textContent?.includes('GitHub decides which files it accepts.'),
-		}, { editor: { role: 'textbox', multiline: 'true', language: 'markdown' }, tabs: [{ label: 'Write', selected: 'true' }, { label: 'Preview', selected: 'false' }], forms: 1, descriptions: 1, oldSteps: 0, disclosures: [], attachments: { role: 'group', tabIndex: 0 }, action: 'Preview on GitHub', titleLabel: 'Title', duplicateHint: false, githubAcceptanceHint: false });
+		}, { editor: { tag: 'TEXTAREA', label: 'Description, Markdown. Paste or drop files to attach them.' }, tabs: [{ label: 'Write', selected: 'true' }, { label: 'Preview', selected: 'false' }], forms: 1, descriptions: 1, oldSteps: 0, disclosures: [], attachments: { role: 'group', tabIndex: 0 }, action: 'Preview on GitHub', titleLabel: 'Title', duplicateHint: false, githubAcceptanceHint: false });
 	});
 
 	test('keeps the capture bar in the source document when the report view moves', () => {
@@ -261,82 +268,48 @@ suite('IssueReporterOverlay', () => {
 		assert.deepStrictEqual({ dirty: overlay.hasUnsavedChanges(), closeVisible: overlay.getPanel().querySelector<HTMLElement>('.wizard-close-btn')?.style.display }, { dirty: true, closeVisible: 'none' });
 	});
 
-	test('preserves Markdown selection, ordinary paste and undo', async () => {
-		const { editor, model, setSelection } = createReporter({ issueBody: 'before selected after' });
+	test('preserves native selection, ordinary paste and undo', () => {
+		const { editor, setSelection } = createReporter({ issueBody: 'before selected after' });
 		setSelection(7, 15);
 		paste(editor, [], '**replacement**');
-		const pasted = model.getValue();
-		await model.undo();
-		assert.deepStrictEqual({ pasted, undone: model.getValue() }, { pasted: 'before **replacement** after', undone: 'before selected after' });
+		const pasted = editor.value;
+		undoNativeText(editor);
+		assert.deepStrictEqual({ pasted, undone: editor.value }, { pasted: 'before **replacement** after', undone: 'before selected after' });
 	});
 
-	test('disables automatic and explicit description suggestions without changing other simple editors', () => runWithFakedTimers({}, async () => {
-		const { overlay, widget, model, container, instantiation } = createReporter({ issueBody: '' });
-		let completions = 0;
-		const completionRequested = new DeferredPromise<void>();
-		store.add(instantiation.get(ILanguageFeaturesService).completionProvider.register('markdown', {
-			_debugDisplayName: 'issue reporter suggestion test',
-			triggerCharacters: ['b'],
-			provideCompletionItems: model => {
-				completions++;
-				void completionRequested.complete();
-				return {
-					suggestions: [{
-						label: 'bold', kind: CompletionItemKind.Snippet, insertText: '**${1:text}**',
-						insertTextRules: CompletionItemInsertTextRule.InsertAsSnippet, range: model.getFullModelRange(),
-					}]
-				};
-			},
-		}));
-		widget.focus();
-		widget.trigger('keyboard', 'type', { text: '- b' });
-		await timeout(1000);
-		await widget.getAction('editor.action.triggerSuggest')?.run();
-		SuggestController.get(widget)?.triggerSuggest();
-		await timeout(1000);
-		const description = {
-			completions,
-			text: model.getValue(),
-			language: model.getLanguageId(),
-			quick: widget.getOption(EditorOption.quickSuggestions),
-			trigger: widget.getOption(EditorOption.suggestOnTriggerCharacters),
-			words: widget.getOption(EditorOption.suggest).showWords,
-			snippets: widget.getOption(EditorOption.snippetSuggestions),
-			tab: widget.getOption(EditorOption.tabCompletion),
-			inline: widget.getOption(EditorOption.inlineSuggest).enabled,
-			suggestController: !!widget.getContribution(SuggestController.ID),
-			tabController: !!widget.getContribution(TabCompletionController.ID),
-			suggestionWidgets: container.querySelectorAll('.suggest-widget').length,
-		};
-		const controlContainer = document.createElement('div');
-		container.appendChild(controlContainer);
-		const control = store.add(instantiation.createInstance(CodeEditorWidget, controlContainer,
-			getSimpleEditorOptions(instantiation.get(IConfigurationService)), getSimpleCodeEditorWidgetOptions()));
-		control.setModel(model);
-		control.focus();
-		const controller = SuggestController.get(control)!;
-		controller.triggerSuggest();
-		await completionRequested.p;
-		const otherEditorCanSuggest = completions > 0;
-		control.dispose();
-		overlay.dispose();
+	test('uses a native text box without allocating a code editor or model', () => {
+		const { editor, container, instantiation } = createReporter({ issueBody: '' });
+		insertNativeText(editor, '- b');
 		assert.deepStrictEqual({
-			description,
-			otherEditorCanSuggest,
+			text: editor.value,
+			codeEditors: instantiation.get(ICodeEditorService).listCodeEditors().length,
+			models: instantiation.get(IModelService).getModels().length,
+			monaco: container.querySelectorAll('.monaco-editor, .suggest-widget').length,
 		}, {
-			description: {
-				completions: 0, text: '- b', language: 'markdown',
-				quick: { other: 'off', comments: 'off', strings: 'off' }, trigger: false, words: false,
-				snippets: 'none', tab: 'off', inline: false,
-				suggestController: false, tabController: false, suggestionWidgets: 0,
-			},
-			otherEditorCanSuggest: true,
+			text: '- b', codeEditors: 0, models: 0, monaco: 0,
 		});
-	}));
+	});
+
+	test('matches Preview typography with comfortable native text insets', () => {
+		const { editor, container, previewTab, descriptionPreview } = createReporter();
+		container.style.setProperty('--vscode-fontSize-body1', '13px');
+		container.style.setProperty('--vscode-spacing-size160', '16px');
+		const inputStyle = mainWindow.getComputedStyle(editor);
+		const write = { family: inputStyle.fontFamily, size: inputStyle.fontSize, lineHeight: inputStyle.lineHeight, padding: inputStyle.padding };
+		previewTab.click();
+		const previewStyle = mainWindow.getComputedStyle(descriptionPreview.querySelector('p')!);
+		const preview = { family: previewStyle.fontFamily, size: previewStyle.fontSize, lineHeight: previewStyle.lineHeight };
+		assert.deepStrictEqual({
+			write: { family: write.family, size: write.size, lineHeight: write.lineHeight },
+			padding: write.padding,
+			previewPadding: mainWindow.getComputedStyle(descriptionPreview).padding,
+			proportional: !write.family.includes('monospace'),
+		}, { write: preview, padding: '16px', previewPadding: '16px', proportional: true });
+	});
 
 	test('previews rendered Markdown without submitting and preserves edits and undo across toggles', async () => {
 		const markdown = '# Heading\n\nA **bold** description with [a link](https://example.com).\n\n- first\n- second\n\n```ts\nconst answer = 42;\n```';
-		const { overlay, editor, widget, model, setSelection, preview, previewTab, writeTab, description, descriptionPreview, data } = createReporter({ issueBody: markdown });
+		const { overlay, editor, setSelection, preview, previewTab, writeTab, description, descriptionPreview, data } = createReporter({ issueBody: markdown });
 		const submissions: string[] = [];
 		store.add(overlay.onDidSubmit(event => submissions.push(event.body)));
 		previewTab.click();
@@ -354,36 +327,37 @@ suite('IssueReporterOverlay', () => {
 		const start = markdown.indexOf('bold');
 		setSelection(start, start + 4);
 		paste(editor, [], 'edited');
-		const selection = widget.getSelection();
+		const selection = [editor.selectionStart, editor.selectionEnd];
 		previewTab.click();
 		const updated = descriptionPreview.querySelector('strong')?.textContent;
 		writeTab.click();
-		const restoredSelection = widget.getSelection();
+		const restoredSelection = [editor.selectionStart, editor.selectionEnd];
 		preview.click();
 		const edited = markdown.replace('**bold**', '**edited**');
-		await model.undo();
+		undoNativeText(editor);
 		assert.deepStrictEqual({
-			rendered, updated, selectionPreserved: selection?.equalsSelection(restoredSelection!),
-			undone: model.getValue(), draft: data.issueBody, submitted: submissions.length === 1 && submissions[0].includes(edited),
+			rendered, updated, selection, restoredSelection,
+			undone: editor.value, draft: data.issueBody, submitted: submissions.length === 1 && submissions[0].includes(edited),
 		}, {
 			rendered: { heading: 'Heading', bold: 'bold', list: 2, code: 'const answer = 42;', writeHidden: true, previewHidden: false, submissions: 0 },
-			updated: 'edited', selectionPreserved: true,
+			updated: 'edited', selection: [start + 6, start + 6], restoredSelection: [start + 6, start + 6],
 			undone: markdown, draft: markdown,
 			submitted: true,
 		});
 	});
 
 	test('keeps pasted HTML inert when rendering the preview', async () => {
-		const { editor, model, setSelection, previewTab, descriptionPreview } = createReporter({ issueBody: '' });
+		const { editor, setSelection, previewTab, descriptionPreview } = createReporter({ issueBody: '' });
 		setSelection(0, 0);
 		const transfer = new DataTransfer();
 		transfer.setData('text/html', '<strong>Formatted</strong><img src=x onerror=alert(1)><script>alert(1)</script>');
 		const source = '**Formatted** &amp; safe\n\n<iframe src="https://example.com"></iframe>\n<script>alert(1)</script>';
 		transfer.setData('text/plain', source);
 		editor.dispatchEvent(new ClipboardEvent('paste', { clipboardData: transfer, bubbles: true, cancelable: true }));
+		insertNativeText(editor, source);
 		previewTab.click();
 		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
-		assert.deepStrictEqual({ value: model.getValue(), activeContent: descriptionPreview.querySelector('script, iframe, [onerror], [onclick]') }, { value: source, activeContent: null });
+		assert.deepStrictEqual({ value: editor.value, activeContent: descriptionPreview.querySelector('script, iframe, [onerror], [onclick]') }, { value: source, activeContent: null });
 	});
 
 	test('does not activate command or data links from untrusted Markdown', async () => {
@@ -455,36 +429,49 @@ suite('IssueReporterOverlay', () => {
 		}
 
 		test('claims file-only paste and leaves plain text for the editor', () => {
-			const { editor, overlay, model, setSelection } = createReporter({ issueBody: '' });
+			const { editor, overlay, setSelection } = createReporter({ issueBody: '' });
 			const requests: number[] = [];
 			store.add(overlay.onDidRequestAddAttachments(files => requests.push(files.length)));
 			setSelection(0, 0);
 			const file = paste(editor, images(1));
 			const text = paste(editor, [], 'Plain text');
-			assert.deepStrictEqual({ file: file.defaultPrevented, text: text.defaultPrevented, requests, value: model.getValue() }, { file: true, text: true, requests: [1], value: 'Plain text' });
+			assert.deepStrictEqual({ file: file.defaultPrevented, text: text.defaultPrevented, requests, value: editor.value }, { file: true, text: false, requests: [1], value: 'Plain text' });
 		});
 
 		test('processes mixed description paste once without preventing editor text insertion', () => {
-			const { overlay, editor, model, setSelection } = createReporter({ issueBody: 'before selected after' });
+			const { overlay, editor, setSelection } = createReporter({ issueBody: 'before selected after' });
 			const requests: number[] = [];
 			store.add(overlay.onDidRequestAddAttachments(files => requests.push(files.length)));
 			setSelection(7, 15);
 			const event = paste(editor, images(1), 'replacement');
-			assert.deepStrictEqual({ requests, text: model.getValue(), claimedByEditor: event.defaultPrevented }, { requests: [1], text: 'before replacement after', claimedByEditor: true });
+			assert.deepStrictEqual({ requests, text: editor.value, claimedByEditor: event.defaultPrevented }, { requests: [1], text: 'before replacement after', claimedByEditor: false });
+		});
+
+		test('leaves mixed description drop text and undo to the native control', () => {
+			const { overlay, editor, setSelection } = createReporter({ issueBody: 'before selected after' });
+			const requests: number[] = [];
+			store.add(overlay.onDidRequestAddAttachments(files => requests.push(files.length)));
+			setSelection(7, 15);
+			const event = drop(editor, images(1), 'replacement');
+			const dropped = editor.value;
+			undoNativeText(editor);
+			assert.deepStrictEqual({ requests, dropped, prevented: event.defaultPrevented, undone: editor.value }, {
+				requests: [1], dropped: 'before replacement after', prevented: false, undone: 'before selected after',
+			});
 		});
 
 		for (const action of ['paste', 'drop'] as const) {
 			test(`inserts mixed ${action} text at the selection with undo and quiet completion`, async () => {
-				const { files, model, setSelection, feedback, completeImport } = createReporter({ issueBody: 'before selected after' });
+				const { files, editor, setSelection, feedback, completeImport } = createReporter({ issueBody: 'before selected after' });
 				setSelection(7, 15);
 				const event = action === 'paste' ? paste(files, images(2), 'replacement') : drop(files, images(2), 'replacement');
 				const pending = feedback.textContent;
 				completeImport(attachment);
 				completeImport({ ...attachment, filePath: '/owned/second.zip' });
-				const pasted = model.getValue();
-				await model.undo();
+				const pasted = editor.value;
+				undoNativeText(editor);
 				assert.deepStrictEqual({
-					prevented: event.defaultPrevented, pending, pasted, undone: model.getValue(),
+					prevented: event.defaultPrevented, pending, pasted, undone: editor.value,
 					feedback: feedback.textContent, hidden: feedback.hidden, cards: files.querySelectorAll('.wizard-file-card').length,
 				}, { prevented: true, pending: 'Importing 2 file(s)...', pasted: 'before replacement after', undone: 'before selected after', feedback: '', hidden: true, cards: 2 });
 			});
@@ -935,6 +922,26 @@ suite('IssueReporterOverlay', () => {
 		container.querySelector<HTMLElement>('[data-source="vscode"]')!.click();
 		await pending.complete({ ...data, uri: URI.parse('https://github.com/publisher/custom/issues/new'), privateUri: undefined });
 		assert.deepStrictEqual({ target: resolveIssueReporterTarget(data, product)?.url, choice: data.issueRepository }, { target: internalIssueReporterUrl, choice: 'microsoft/vscode-internalbacklog' });
+	});
+
+	test('appends an asynchronous extension template without replacing native draft text or selection', async () => {
+		const pending = new DeferredPromise<IssueReporterData | undefined>();
+		const extension = { id: 'publisher.extension', name: 'extension', displayName: 'Extension', publisher: 'publisher', version: '1', isTheme: false, isBuiltin: false, bugsUrl: 'https://github.com/publisher/extension/issues', repositoryUrl: undefined };
+		const { container, data, editor, setText, setSelection, previewTab, descriptionPreview, writeTab } = createReporter({ enabledExtensions: [extension] }, { resolveExtensionIssueData: () => pending.p });
+		container.querySelector<HTMLElement>('[data-source="extension"]')!.click();
+		const select = container.querySelector<HTMLSelectElement>('.wizard-extension-field select')!;
+		select.selectedIndex = 1;
+		select.dispatchEvent(new Event('change', { bubbles: true }));
+		setText('User draft');
+		setSelection(2, 6);
+		previewTab.click();
+		await pending.complete({ ...data, issueTitle: 'Extension title', issueBody: '### Extension template' });
+		await timeout(0);
+		const rendered = descriptionPreview.querySelector('h3')?.textContent;
+		writeTab.click();
+		assert.deepStrictEqual({ text: editor.value, draft: data.issueBody, title: data.issueTitle, selection: [editor.selectionStart, editor.selectionEnd], rendered }, {
+			text: 'User draft\n### Extension template', draft: 'User draft\n### Extension template', title: 'Repository selection', selection: [2, 6], rendered: 'Extension template',
+		});
 	});
 
 	function closeAnnotation(container: HTMLElement, action: 'Save' | 'Discard'): void {

@@ -6,7 +6,7 @@
 import { IMenuService } from '../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { ConfirmResult, IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IWorkbenchGitHubService } from '../../../services/github/common/githubService.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
@@ -17,29 +17,33 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import product from '../../../../platform/product/common/product.js';
 import { DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { addDisposableListener, EventType } from '../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Event } from '../../../../base/common/event.js';
-import { IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { isMacintosh } from '../../../../base/common/platform.js';
+import { AuxiliaryWindowMode, IAuxiliaryWindow, IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IssueFormService } from '../browser/issueFormService.js';
 import { IGitHubUploadService } from '../browser/githubUploadService.js';
 import { IssueReporterEditorInput } from '../browser/issueReporterEditorInput.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { IAuxiliaryEditorPart, IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IIssueFormService, IssueReporterData } from '../common/issue.js';
 import { IssueReporter } from './issueReporterService.js';
+import { IssueReporterController } from './issueReporterController.js';
 import { localize } from '../../../../nls.js';
 
 class ReporterWindow extends DisposableStore {
 	readonly ready = new DeferredPromise<void>();
 	closeOperation: Promise<boolean> | undefined;
-	initialEditor: { readonly input: IssueReporterEditorInput; readonly group: IEditorGroup } | undefined;
+	controller: IssueReporterController | undefined;
 
-	constructor(readonly part: IAuxiliaryEditorPart, input: IssueReporterEditorInput) {
+	constructor(readonly auxiliaryWindow: IAuxiliaryWindow, readonly input: IssueReporterEditorInput) {
 		super();
-		this.initialEditor = { input, group: part.activeGroup };
+		this.add(input);
 		this.add(toDisposable(() => {
-			this.initialEditor = undefined;
 			void this.ready.complete();
 		}));
 	}
@@ -116,6 +120,13 @@ export class NativeIssueFormService extends IssueFormService implements IIssueFo
 		if (this._store.isDisposed) {
 			return;
 		}
+		for (const window of this.reporterWindows.values()) {
+			if (!window.isDisposed && !window.input.isDisposed()) {
+				await this.hostService.focus(window.auxiliaryWindow.window);
+				window.controller?.focus();
+				return;
+			}
+		}
 		for (const group of this.editorGroupService.groups) {
 			const existing = group.editors.find((editor): editor is IssueReporterEditorInput => editor instanceof IssueReporterEditorInput);
 			if (existing) {
@@ -125,7 +136,7 @@ export class NativeIssueFormService extends IssueFormService implements IIssueFo
 		}
 
 		const input = this.instantiationService.createInstance(IssueReporterEditorInput, data);
-		let part: IAuxiliaryEditorPart | undefined;
+		let auxiliaryWindow: IAuxiliaryWindow | undefined;
 		let reporterWindow: ReporterWindow | undefined;
 		try {
 			if (this.configurationService.getValue<string>('issueReporter.wizard.openLocation') === 'editor') {
@@ -134,35 +145,76 @@ export class NativeIssueFormService extends IssueFormService implements IIssueFo
 				return;
 			}
 
-			part = await this.editorGroupService.createAuxiliaryEditorPart();
+			auxiliaryWindow = await this.auxiliaryWindowService.open({
+				mode: AuxiliaryWindowMode.Normal,
+				nativeTitlebar: true,
+				disableWorkbenchMenu: true,
+				bounds: { width: 800, height: 900 },
+			});
 			if (this._store.isDisposed) {
 				return;
 			}
-			const auxiliaryWindow = this.auxiliaryWindowService.getWindow(part.windowId);
-			if (!auxiliaryWindow?.registerCloseHandler) {
+			if (!auxiliaryWindow.registerCloseHandler) {
 				throw new Error(localize('reporterWindowCloseUnsupported', "The issue reporter window could not be opened with safe close handling."));
 			}
-			reporterWindow = new ReporterWindow(part, input);
-			this.reporterWindows.set(part.windowId, reporterWindow);
+			reporterWindow = new ReporterWindow(auxiliaryWindow, input);
+			const windowId = auxiliaryWindow.window.vscodeWindowId;
+			this.reporterWindows.set(windowId, reporterWindow);
 			const window = reporterWindow;
-			window.add(Event.once(auxiliaryWindow.onWillDispose)(() => this.reporterWindows.deleteAndDispose(window.part.windowId)));
+			window.add(Event.once(auxiliaryWindow.onWillDispose)(() => this.reporterWindows.deleteAndDispose(windowId)));
+			window.add(Event.once(auxiliaryWindow.onUnload)(() => window.auxiliaryWindow.dispose()));
 			window.add(auxiliaryWindow.registerCloseHandler({
 				close: () => this.closeReporterWindow(window),
-				isReadyToClose: () => !window.isDisposed && window.ready.isSettled && window.part.groups.every(group => group.isEmpty),
+				isReadyToClose: () => !window.isDisposed && window.ready.isSettled && input.isDisposed(),
 			}));
-			await this.editorService.openEditor(input, { pinned: true }, window.initialEditor!.group);
+			this.registerReporterWindowKeys(window);
+			auxiliaryWindow.window.document.title = localize('issueReporterWindowTitle', "Issue Reporter");
+			auxiliaryWindow.container.classList.add('issue-reporter-window');
+			const controller = window.add(this.instantiationService.createInstance(IssueReporterController, auxiliaryWindow.container, {
+				reveal: async () => {
+					if (!window.isDisposed && !input.isDisposed()) {
+						await this.hostService.focus(window.auxiliaryWindow.window);
+						window.controller?.focus();
+					}
+				},
+				close: () => window.auxiliaryWindow.window.close(),
+				getPreviewGroup: () => this.editorGroupService.mainPart.activeGroup,
+			}));
+			window.controller = controller;
+			window.add(auxiliaryWindow.onDidLayout(dimension => controller.layout(dimension)));
+			controller.setInput(input);
+			auxiliaryWindow.layout();
+		} catch (error) {
+			if (auxiliaryWindow && reporterWindow) {
+				input.dispose();
+				auxiliaryWindow.window.close();
+			}
+			throw error;
 		} finally {
 			if (reporterWindow) {
-				reporterWindow.initialEditor = undefined;
 				void reporterWindow.ready.complete();
 			}
-			if (!this.editorGroupService.groups.some(group => group.editors.includes(input))) {
+			if (!reporterWindow && !this.editorGroupService.groups.some(group => group.editors.includes(input))) {
 				input.dispose();
-				if (part?.groups.every(group => group.isEmpty)) {
-					part.close();
-				}
+				auxiliaryWindow?.dispose();
 			}
 		}
+	}
+
+	private registerReporterWindowKeys(window: ReporterWindow): void {
+		const targetWindow = window.auxiliaryWindow.window;
+		window.add(addDisposableListener(targetWindow.document, EventType.KEY_DOWN, (event: KeyboardEvent) => {
+			// Let controls and native editing handle keys, but never dispatch them to the workbench.
+			event.stopPropagation();
+			const key = new StandardKeyboardEvent(event);
+			const primary = isMacintosh ? key.metaKey : key.ctrlKey;
+			const secondary = isMacintosh ? key.ctrlKey : key.metaKey;
+			if (primary && !secondary && !key.altKey && key.keyCode === KeyCode.KeyW) {
+				event.preventDefault();
+				window.auxiliaryWindow.window.close();
+			}
+		}));
+		window.add(addDisposableListener(targetWindow.document, EventType.KEY_UP, event => event.stopPropagation()));
 	}
 
 	private closeReporterWindow(window: ReporterWindow): Promise<boolean> {
@@ -181,25 +233,19 @@ export class NativeIssueFormService extends IssueFormService implements IIssueFo
 	}
 
 	private async doCloseReporterWindow(window: ReporterWindow): Promise<boolean> {
-		const snapshots = window.part.groups.map(group => ({ group, editors: [...group.editors] }));
-		const initial = window.initialEditor;
-		if (initial) {
-			const snapshot = snapshots.find(snapshot => snapshot.group === initial.group);
-			if (snapshot && !snapshot.editors.includes(initial.input)) {
-				snapshot.editors.push(initial.input);
-			}
-		}
 		await window.ready.p;
 		if (window.isDisposed) {
 			return false;
 		}
-		for (const { group, editors } of snapshots) {
-			const remaining = editors.filter(editor => group.editors.includes(editor));
-			if (remaining.length && !await group.closeEditors(remaining)) {
-				return false;
-			}
+		if (!window.input.isDisposed() && window.input.closeHandler.showConfirm()
+			&& await window.input.closeHandler.confirm([]) === ConfirmResult.CANCEL) {
+			return false;
 		}
-		return !window.isDisposed && window.part.groups.every(group => group.isEmpty);
+		if (window.isDisposed) {
+			return false;
+		}
+		window.input.dispose();
+		return true;
 	}
 
 	/**

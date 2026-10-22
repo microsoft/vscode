@@ -25,14 +25,9 @@ import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
-import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
-import { ICodeEditorViewState } from '../../../../editor/common/editorCommon.js';
-import { ITextModel } from '../../../../editor/common/model.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { isRemoteDiagnosticError } from '../../../../platform/diagnostics/common/diagnostics.js';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles, defaultKeybindingLabelStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
@@ -41,10 +36,10 @@ import { IIssueReporterAttachmentUpload, IIssueReporterFileAttachment, IIssueRep
 import { resolveIssueReporterTarget } from '../common/issueReporterTarget.js';
 import { renderIssueReporterRepositoryPicker } from './issueReporterRepositoryPicker.js';
 import { IssueReporterModel } from './issueReporterModel.js';
+import { IssueReporterEditorInput } from './issueReporterEditorInput.js';
 import { getIssueReporterScreenshotFile, MAX_ISSUE_ATTACHMENTS as MAX_ATTACHMENTS, validateIssueReporterMediaFile } from './issueReporterMedia.js';
 import { RecordingState } from './recordingService.js';
 import { IAnnotationEditorState, ScreenshotAnnotationEditor } from './screenshotAnnotation.js';
-import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from '../../codeEditor/browser/simpleEditorOptions.js';
 
 export interface IScreenshot extends IIssueReporterScreenshot {
 	readonly width: number;
@@ -112,7 +107,6 @@ export class IssueReporterOverlay {
 	private extensionDataRequest = 0;
 	private typeButtonGroup!: HTMLElement;
 	private typeError!: HTMLElement;
-	private descriptionEditor!: CodeEditorWidget;
 	private descriptionContainer!: HTMLElement;
 	private descriptionPreview!: HTMLElement;
 	private descriptionWriteTab!: Button;
@@ -163,9 +157,13 @@ export class IssueReporterOverlay {
 	private closeButton: Button | undefined;
 	private _hideToolbarInScreenshots = true;
 
+	private get descriptionInput(): HTMLTextAreaElement {
+		return this.input.descriptionInput;
+	}
+
 	constructor(
 		private data: IssueReporterData,
-		private readonly descriptionModel: ITextModel,
+		private readonly input: IssueReporterEditorInput,
 		private readonly recordingSupported: boolean = false,
 		private readonly container: HTMLElement,
 		private readonly contextViewService: IContextViewService,
@@ -179,9 +177,7 @@ export class IssueReporterOverlay {
 		private readonly resolveKeybinding: ((commandId: string) => ResolvedKeybinding | undefined) | undefined = undefined,
 		private readonly diagnosticsState: IIssueReporterDiagnosticsState = { included: {}, expanded: new Set() },
 		private readonly captureContainer: HTMLElement = container,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 		@IHoverService private readonly hoverService: IHoverService,
 	) {
@@ -189,7 +185,7 @@ export class IssueReporterOverlay {
 		const hasStandaloneExtensionData = !!data.data && !data.extensionId;
 		this.model = this.disposables.add(new IssueReporterModel({
 			...data,
-			issueDescription: descriptionModel.getValue(),
+			issueDescription: this.descriptionInput.value,
 			issueType: data.issueType || IssueType.Bug,
 			allExtensions: data.enabledExtensions,
 			extensionData: hasStandaloneExtensionData ? data.data : undefined,
@@ -658,7 +654,7 @@ export class IssueReporterOverlay {
 		aiBtn.element.title = localize('generateTitle', "Generate title from description");
 		aiBtn.enabled = !!this.data.issueBody?.trim();
 		this.disposables.add(aiBtn.onDidClick(() => {
-			const desc = this.descriptionModel.getValue().trim();
+			const desc = this.descriptionInput.value.trim();
 			if (desc && !aiBtn.element.classList.contains('loading')) {
 				// Lock width to prevent layout shift during loading
 				aiBtn.element.style.minWidth = `${aiBtn.element.offsetWidth}px`;
@@ -690,7 +686,7 @@ export class IssueReporterOverlay {
 		this.titleError = this.createFieldError(titleGroup, localize('titleRequired', "Enter a title to continue."));
 
 		const descriptionGroup = append(page, $('div.wizard-field'));
-		const descLabel = append(descriptionGroup, $('label.wizard-field-label'));
+		const descLabel = append(descriptionGroup, $<HTMLLabelElement>('label.wizard-field-label'));
 		descLabel.textContent = localize('description', "Description");
 		this.appendRequiredMarker(descLabel);
 
@@ -719,28 +715,20 @@ export class IssueReporterOverlay {
 			}
 		}));
 		this.descriptionContainer = append(descriptionGroup, $('div.wizard-description-editor'));
-		this.descriptionEditor = this.disposables.add(this.instantiationService.createInstance(CodeEditorWidget, this.descriptionContainer, {
-			...getSimpleEditorOptions(this.configurationService),
-			ariaLabel: localize('descriptionEditorLabel', "Description, Markdown. Paste or drop files to attach them."),
-			tabFocusMode: true,
-			fontFamily: this.configurationService.getValue<string>('editor.fontFamily'),
-			fontSize: this.configurationService.getValue<number>('editor.fontSize'),
-			padding: { top: 8, bottom: 8 },
-			wordWrap: 'on',
-			dragAndDrop: true,
-			automaticLayout: true,
-			quickSuggestions: false,
-			suggestOnTriggerCharacters: false,
-			suggest: { showWords: false, showSnippets: false },
-			snippetSuggestions: 'none',
-			tabCompletion: 'off',
-			inlineSuggest: { enabled: false },
-		}, getSimpleCodeEditorWidgetOptions({ suggestions: false })));
-		this.descriptionEditor.setModel(this.descriptionModel);
+		this.descriptionInput.classList.add('wizard-description-input');
+		this.descriptionInput.setAttribute('aria-label', localize('descriptionInputLabel', "Description, Markdown. Paste or drop files to attach them."));
+		this.descriptionInput.rows = 10;
+		this.descriptionInput.required = true;
+		this.restoreDescriptionInput();
+		const descriptionId = `issue-description-${generateUuid()}`;
+		this.descriptionInput.id ||= descriptionId;
+		descLabel.htmlFor = this.descriptionInput.id;
+		this.descriptionGuidance.id = `${descriptionId}-guidance`;
+		this.descriptionInput.setAttribute('aria-describedby', this.descriptionGuidance.id);
 		this.descriptionPreview = append(descriptionGroup, $('div.wizard-description-preview'));
 		this.descriptionPreview.tabIndex = 0;
 		for (const [button, panel, suffix] of [[this.descriptionWriteTab, this.descriptionContainer, 'write'], [this.descriptionPreviewTab, this.descriptionPreview, 'preview']] as const) {
-			const id = `issue-description-${this.descriptionModel.id}-${suffix}`;
+			const id = `${descriptionId}-${suffix}`;
 			button.element.id = `${id}-tab`;
 			button.element.setAttribute('aria-controls', id);
 			panel.id = id;
@@ -748,9 +736,11 @@ export class IssueReporterOverlay {
 			panel.setAttribute('aria-labelledby', button.element.id);
 		}
 		this.setDescriptionPreview(false);
-		this.disposables.add(this.descriptionEditor.onDidContentSizeChange(() => this.layout()));
-		this.disposables.add(this.descriptionModel.onDidChangeContent(() => {
-			this.data.issueBody = this.descriptionModel.getValue();
+		this.disposables.add(addDisposableListener(this.descriptionInput, EventType.INPUT, () => {
+			if (!this.descriptionContainer.contains(this.descriptionInput)) {
+				return;
+			}
+			this.data.issueBody = this.descriptionInput.value;
 			this.model.update({ issueDescription: this.data.issueBody });
 			if (this.hasDescriptionContent()) {
 				this.setFieldError(this.descriptionContainer, this.descriptionError, false);
@@ -762,6 +752,7 @@ export class IssueReporterOverlay {
 			}
 		}));
 		this.descriptionError = this.createFieldError(descriptionGroup, localize('descriptionRequired', "Enter a description to continue."));
+		this.descriptionError.id = `${descriptionId}-error`;
 		this.disposables.add(addDisposableListener(this.descriptionContainer, EventType.PASTE, (event: ClipboardEvent) => {
 			const files = this.getAttachmentFiles(event.clipboardData);
 			if (!files.length || event.defaultPrevented) {
@@ -800,14 +791,13 @@ export class IssueReporterOverlay {
 		} else {
 			this.descriptionPreviewDisposables.clear();
 			this.descriptionPreview.replaceChildren();
-			this.layout();
 		}
 	}
 
 	private renderDescriptionPreview(): void {
 		this.descriptionPreviewDisposables.clear();
 		this.descriptionPreview.replaceChildren();
-		const text = this.descriptionModel.getValue();
+		const text = this.descriptionInput.value;
 		if (!text.trim()) {
 			this.descriptionPreview.textContent = localize('emptyDescriptionPreview', "Nothing to preview.");
 			return;
@@ -816,30 +806,40 @@ export class IssueReporterOverlay {
 		this.descriptionPreview.appendChild(rendered.element);
 	}
 
-	layout(): void {
-		if (!this.previewingDescription) {
-			this.descriptionEditor.layout({
-				width: this.descriptionContainer.clientWidth,
-				height: Math.max(160, Math.min(400, this.descriptionEditor.getContentHeight())),
-			});
+	restoreDescriptionInput(): void {
+		this.input.attachDescriptionInput(this.descriptionContainer);
+		if (this.descriptionError) {
+			this.setFieldError(this.descriptionContainer, this.descriptionError, this.descriptionContainer.classList.contains('invalid-input'));
+		}
+		if (this.previewingDescription) {
+			this.renderDescriptionPreview();
 		}
 	}
 
-	saveDescriptionViewState(): ICodeEditorViewState | null {
-		return this.descriptionEditor.saveViewState();
-	}
-
-	restoreDescriptionViewState(state: ICodeEditorViewState | null): void {
-		if (state) {
-			this.descriptionEditor.restoreViewState(state);
+	private insertDescriptionText(text: string, atEnd = false): void {
+		const input = this.descriptionInput;
+		const targetWindow = getWindow(input);
+		const activeElement = targetWindow.document.activeElement;
+		const { selectionStart, selectionEnd, selectionDirection } = input;
+		this.descriptionContainer.hidden = false;
+		if (atEnd) {
+			input.setSelectionRange(input.value.length, input.value.length);
 		}
-	}
-
-	private insertDescriptionText(text: string): void {
-		const selection = this.descriptionEditor.getSelection() ?? this.descriptionModel.getFullModelRange().collapseToEnd();
-		this.descriptionEditor.pushUndoStop();
-		this.descriptionEditor.executeEdits('issueReporter', [{ range: selection, text }]);
-		this.descriptionEditor.pushUndoStop();
+		// Native insertion preserves undo without focusing a background reporter window.
+		if (!atEnd || targetWindow.document.hasFocus()) {
+			input.focus({ preventScroll: true });
+		}
+		if (targetWindow.document.activeElement !== input || !targetWindow.document.execCommand('insertText', false, text)) {
+			input.setRangeText(text, input.selectionStart, input.selectionEnd, 'end');
+			input.dispatchEvent(new InputEvent('input', { bubbles: true }));
+		}
+		if (atEnd) {
+			input.setSelectionRange(selectionStart, selectionEnd, selectionDirection);
+		}
+		if (targetWindow.document.hasFocus() && isHTMLElement(activeElement)) {
+			activeElement.focus({ preventScroll: true });
+		}
+		this.descriptionContainer.hidden = this.previewingDescription;
 	}
 
 	private appendRequiredMarker(label: HTMLElement): void {
@@ -1086,18 +1086,11 @@ export class IssueReporterOverlay {
 		extension.uri = issueData.uri;
 		extension.privateUri = issueData.privateUri;
 		this.data.data = issueData.data;
-		this.data.issueBody = issueData.issueBody ?? this.data.issueBody;
-		this.data.issueTitle = issueData.issueTitle ?? this.data.issueTitle;
 		if (issueData.issueTitle && !this.titleInput.value.trim()) {
 			this.titleInput.value = issueData.issueTitle;
 		}
-		if (issueData.issueBody && !this.descriptionModel.getValue().includes(issueData.issueBody)) {
-			this.descriptionModel.pushStackElement();
-			this.descriptionModel.pushEditOperations([], [{
-				range: this.descriptionModel.getFullModelRange().collapseToEnd(),
-				text: `${this.descriptionModel.getValue() ? '\n' : ''}${issueData.issueBody}`,
-			}], () => null);
-			this.descriptionModel.pushStackElement();
+		if (issueData.issueBody && !this.descriptionInput.value.includes(issueData.issueBody)) {
+			this.insertDescriptionText(`${this.descriptionInput.value ? '\n' : ''}${issueData.issueBody}`, true);
 		}
 		if (issueData.data) {
 			extension.extensionData = issueData.data;
@@ -1218,7 +1211,7 @@ export class IssueReporterOverlay {
 	}
 
 	private hasDescriptionContent(): boolean {
-		return !!this.descriptionModel.getValue().trim();
+		return !!this.descriptionInput.value.trim();
 	}
 
 	private updateGenerateTitleButtonState(): void {
@@ -1238,6 +1231,10 @@ export class IssueReporterOverlay {
 	private setFieldError(field: HTMLElement, error: HTMLElement, hasError: boolean): void {
 		field.classList.toggle('invalid-input', hasError);
 		field.setAttribute('aria-invalid', String(hasError));
+		if (field === this.descriptionContainer) {
+			this.descriptionInput.setAttribute('aria-invalid', String(hasError));
+			this.descriptionInput.setAttribute('aria-describedby', hasError ? `${this.descriptionGuidance.id} ${error.id}` : this.descriptionGuidance.id);
+		}
 		error.classList.toggle('hidden', !hasError);
 	}
 
@@ -1615,12 +1612,12 @@ export class IssueReporterOverlay {
 				this.titleInput.focus();
 			} else {
 				this.setDescriptionPreview(false);
-				this.descriptionEditor.focus();
+				this.descriptionInput.focus();
 			}
 			return;
 		}
 
-		const description = this.descriptionModel.getValue().trim();
+		const description = this.descriptionInput.value.trim();
 		this.updateIssueSourceFlags();
 		this.model.update({ issueDescription: description, issueTitle: title, ...(this.selectedIssueType !== undefined ? { issueType: this.selectedIssueType } : {}) });
 
@@ -1637,8 +1634,6 @@ export class IssueReporterOverlay {
 
 		this.wizardPanel.classList.add('open', 'wizard-embedded');
 		this.wizardPanel.style.maxHeight = 'none';
-		append(this.container, this.wizardPanel);
-		this.layout();
 		this.wizardPanel.focus();
 	}
 
@@ -1693,11 +1688,25 @@ export class IssueReporterOverlay {
 		for (const target of [this.wizardPanel, this.descriptionContainer]) {
 			for (const type of [EventType.DRAG_ENTER, EventType.DRAG_OVER, EventType.DROP]) {
 				this.disposables.add(addDisposableListener(target, type, (event: DragEvent) => {
-					if (event.defaultPrevented || !this.hasAttachmentFiles(event.dataTransfer)) {
+					if (event.defaultPrevented) {
 						return;
 					}
 					const inDescription = isHTMLElement(event.target) && this.descriptionContainer.contains(event.target);
 					const hasText = event.dataTransfer?.types.includes('text/plain');
+					if (event.target === this.descriptionInput && hasText) {
+						event.stopPropagation();
+						if (type === EventType.DROP) {
+							this.screenshotContainer.classList.remove('drag-over');
+							const files = this.getAttachmentFiles(event.dataTransfer);
+							if (files.length) {
+								this.requestAddAttachments(files);
+							}
+						}
+						return;
+					}
+					if (!this.hasAttachmentFiles(event.dataTransfer)) {
+						return;
+					}
 					if (!inDescription && this.isTextInputTarget(event.target) && hasText) {
 						event.stopPropagation();
 						return;
@@ -1709,12 +1718,6 @@ export class IssueReporterOverlay {
 					}
 					this.screenshotContainer.classList.toggle('drag-over', type !== EventType.DROP);
 					if (type === EventType.DROP) {
-						if (inDescription) {
-							const position = this.descriptionEditor.getTargetAtClientPoint(event.clientX, event.clientY)?.position;
-							if (position) {
-								this.descriptionEditor.setPosition(position);
-							}
-						}
 						this.requestAddAttachments(this.getAttachmentFiles(event.dataTransfer), event.dataTransfer?.getData('text/plain'));
 					}
 				}, target === this.descriptionContainer));
@@ -2085,7 +2088,7 @@ export class IssueReporterOverlay {
 	}
 
 	private buildIssueBody(): string {
-		const description = this.descriptionModel.getValue().trim();
+		const description = this.descriptionInput.value.trim();
 		const diagnosticOptions = this.getDiagnosticOptions();
 		this.model.update({
 			issueDescription: description,
@@ -2376,7 +2379,7 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 	private getDraftKey(): string {
 		return JSON.stringify({
 			title: this.titleInput.value.trim(),
-			description: this.descriptionModel.getValue().trim(),
+			description: this.descriptionInput.value.trim(),
 			issueType: this.selectedIssueType,
 			issueSource: this.selectedIssueSource,
 			issueTarget: this.getIssueTargetUrl(),
@@ -2535,6 +2538,7 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 
 	dispose(): void {
 		this.disposed = true;
+		this.input.saveDescriptionScrollPosition(this.descriptionContainer);
 		this.attachments.splice(0, this.attachments.length, ...this.getAttachments());
 		this.attachmentCards.clear();
 		this.diagnosticControls.clear();
