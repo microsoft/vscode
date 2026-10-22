@@ -55,7 +55,7 @@ class SessionActionLimiter {
 	}
 
 	record(session: string): void {
-		const recent = this.prune(session);
+		const recent = this.getRecentActions(session);
 		recent.push(this.now());
 		this.timestamps.set(session, recent);
 		this.sweepIdleSessions();
@@ -68,24 +68,23 @@ class SessionActionLimiter {
 		}
 		this.lastSweep = this.now();
 		for (const session of [...this.timestamps.keys()]) {
-			this.prune(session);
+			const recent = this.getRecentActions(session);
+			if (recent.length === 0) {
+				this.timestamps.delete(session);
+			} else {
+				this.timestamps.set(session, recent);
+			}
 		}
 	}
 
-	private prune(session: string): number[] {
+	private getRecentActions(session: string): number[] {
 		const cutoff = this.now() - this.windowMs;
-		const recent = (this.timestamps.get(session) ?? []).filter(time => time > cutoff);
-		if (recent.length === 0) {
-			this.timestamps.delete(session);
-		} else {
-			this.timestamps.set(session, recent);
-		}
-		return recent;
+		return (this.timestamps.get(session) ?? []).filter(time => time > cutoff);
 	}
 
 	/** Returns an actionable error message when `session` has exhausted its allowance, or `undefined` when another action is allowed now. */
 	describeLimit(action: string, session: string): string | undefined {
-		const recent = this.prune(session);
+		const recent = this.getRecentActions(session);
 		if (recent.length < this.maxActions) {
 			return undefined;
 		}
@@ -2113,8 +2112,9 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 					return applySetWorkspaceTool(accessor, rawArgs, URI.parse(currentChannel), context.turnId);
 				}
 				case SessionServerToolName.CreateSession: {
-					const sourceSession = currentSessionUri(accessor, currentChannel).toString();
-					const relationship = getCreateSessionRelationship(rawArgs, accessor.supportsChatWorkingDirectories(currentSessionUri(accessor, currentChannel)));
+					const sourceSessionUri = currentSessionUri(accessor, currentChannel);
+					const sourceSession = sourceSessionUri.toString();
+					const relationship = getCreateSessionRelationship(rawArgs, accessor.supportsChatWorkingDirectories(sourceSessionUri));
 					const limiter = relationship === 'currentSession' ? createdChats : createdSessions;
 					const limitMessage = enforceAgentOrchestrationLimits ? limiter.describeLimit(relationship === 'currentSession' ? 'create more chats' : 'create more sessions', sourceSession) : undefined;
 					if (limitMessage) {
