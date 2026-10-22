@@ -12,7 +12,7 @@ import { isErrorWithActions, toErrorMessage } from '../../../../base/common/erro
 import { isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, derivedObservableWithCache, disposableObservableValue, IObservable, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, waitForState } from '../../../../base/common/observable.js';
+import { autorun, derived, derivedObservableWithCache, disposableObservableValue, IObservable, IReader, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -497,16 +497,7 @@ export class NewChatWidget extends Disposable {
 					|| provider.connectionStatus && !RemoteAgentHostConnectionStatus.isConnected(provider.connectionStatus.read(reader)))) {
 					return false;
 				}
-				const folderUri = this._workspacePicker.selectedFolderUri;
-				if (folderUri) {
-					if (!session.workspace.read(reader)?.folders.some(folder => isEqual(folder.root, folderUri))
-						|| !getEnvironmentWorkspaceProvider(environment, this.sessionsProvidersService.getProviders(), folderUri)) {
-						return false;
-					}
-					if (environment.kind === 'container' && this._workspacePicker.getDevContainerWorkspaceAvailability(folderUri, session.providerId) !== true) {
-						return false;
-					}
-				} else if (environment.kind === 'cloud' || environment.kind === 'container' || !session.isQuickChat?.read(reader)) {
+				if (!this._canSendRequestToWorkspace(session, environment, reader)) {
 					return false;
 				}
 			}
@@ -2070,7 +2061,6 @@ export class NewChatWidget extends Disposable {
 				synthesisHarness: synthesisModelId ? resolveHarness(synthesisModelId) : undefined,
 				branch,
 			});
-			this._comparisonSelection.reset();
 			try {
 				if (this.configurationService.getValue<boolean>(COMPARE_AGENTS_OPEN_IN_GRID_SETTING)) {
 					// An empty composer would create a new draft and cancel the grid navigation.
@@ -2080,6 +2070,8 @@ export class NewChatWidget extends Disposable {
 			} catch (error) {
 				this.logService.error('Failed to open session comparison:', error);
 				this.notificationService.error(error);
+			} finally {
+				this._comparisonSelection.reset();
 			}
 			return true;
 		} catch (error) {
@@ -2181,6 +2173,20 @@ export class NewChatWidget extends Disposable {
 			}
 		}
 		return true;
+	}
+
+	private _canSendRequestToWorkspace(session: ISession, environment: ISessionCreationEnvironment, reader: IReader): boolean {
+		const folderUri = this._workspacePicker.selectedFolderUri;
+		if (!folderUri) {
+			return environment.kind !== 'cloud' && environment.kind !== 'container' && !!session.isQuickChat?.read(reader);
+		}
+		const workspace = session.workspace.read(reader);
+		const matchesWorkspace = workspace && (environment.kind === 'cloud'
+			? this._workspacePicker.matchesSelectedWorkspace(workspace, reader)
+			: workspace.folders.some(folder => isEqual(folder.root, folderUri)));
+		return !!matchesWorkspace
+			&& !!getEnvironmentWorkspaceProvider(environment, this.sessionsProvidersService.getProviders(), folderUri)
+			&& (environment.kind !== 'container' || this._workspacePicker.getDevContainerWorkspaceAvailability(folderUri, session.providerId) === true);
 	}
 
 	private _getWorkspaceRoots(session: ISession): readonly URI[] {

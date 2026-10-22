@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import '../media/sessionsList.css';
+import { SessionGroupAppearancePicker } from './sessionGroupAppearancePicker.js';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { Gesture } from '../../../../../base/browser/touch.js';
@@ -77,7 +78,7 @@ import { ISessionsManagementService, IActiveSession } from '../../../../services
 import { getSessionComparisonHarnessLabel, getSessionComparisonParticipantsInDisplayOrder, ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsListModelService, SessionSortMode } from '../../../../services/sessions/browser/sessionsListModelService.js';
-import { getSessionGroupIdOfSection, getSessionGroupSectionId, ISessionGroup, ISessionGroupPlacement, ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
+import { getSessionGroupIdOfSection, getSessionGroupSectionId, ISessionGroup, ISessionGroupAppearance, ISessionGroupPlacement, ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
 import { InputBox, MessageType } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { IWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/common/assignmentService.js';
@@ -124,6 +125,7 @@ import { Menus } from '../../../../browser/menus.js';
 import { getSessionConversationStatusAriaLabel } from '../../../../browser/sessionConversationGroups.js';
 import { getAgentMergeAwarePullRequestIcon, getSessionAgentMergeConfigurationObservable, ISessionAgentMergeConfiguration, isAgentMergePullRequestIcon } from '../../../../browser/sessionAgentMerge.js';
 import { BlockedSessionReason, BlockedSessions } from '../../../blockedSessions/browser/blockedSessions.js';
+import { getExtensionSuggestionsBadgeDescription } from '../../../extensions/browser/agentsWindowExtensionSuggestions.js';
 import { KeybindingLabel } from '../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { logSessionsInteraction } from '../../../../common/sessionsTelemetry.js';
 
@@ -174,6 +176,9 @@ export const SessionChatItemCanDeleteContext = new RawContextKey<boolean>('sessi
 /** Whether the chat item's chat can move out of its session, e.g. into a new session: its provider moves chats and the chat is movable. */
 export const SessionChatItemCanMoveContext = new RawContextKey<boolean>('sessionChatItem.canMove', false);
 export const SessionChatItemIsArchivedContext = new RawContextKey<boolean>('sessionChatItem.isArchived', false);
+export const SessionChatItemIsReadContext = new RawContextKey<boolean>('sessionChatItem.isRead', true);
+/** Whether the chat item's chat can be marked read or unread on its own: it is its session's main chat, or its session tracks read state per chat. */
+export const SessionChatItemCanSetReadStateContext = new RawContextKey<boolean>('sessionChatItem.canSetReadState', false);
 export const SessionChatItemIsUntitledContext = new RawContextKey<boolean>('sessionChatItem.isUntitled', false);
 /** Whether the chat row stands on its own in its section instead of being nested under its session's row. */
 export const SessionChatItemIsStandaloneContext = new RawContextKey<boolean>('sessionChatItem.isStandalone', false);
@@ -2321,7 +2326,7 @@ function renderSessionHeaderIcon(template: ISessionHeaderTemplate, sessions: rea
 		const renderedIcon = iconOverride?.read(reader) ?? icon;
 		DOM.clearNode(template.icon);
 		template.icon.className = 'session-section-icon';
-		template.icon.style.color = renderedIcon?.color ? asCssVariable(renderedIcon.color.id) : '';
+		template.icon.style.color = status === undefined && renderedIcon?.color ? asCssVariable(renderedIcon.color.id) : '';
 		template.icon.style.display = status !== undefined || renderedIcon ? '' : 'none';
 		if (status !== undefined) {
 			const statusIcon = reader.store.add(instantiationService.createInstance(SessionStatusIcon, template.icon));
@@ -2394,7 +2399,9 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 	});
 	private readonly customizationsIcon = derived(this, reader => this.customizationMigrationsAvailable.read(reader)
 		? { ...Codicon.circleFilled, color: themeColorFromId('activityWarningBadge.background') }
-		: undefined);
+		: this.customizationExtensionSuggestionsAvailable.read(reader)
+			? { ...Codicon.circleFilled, color: themeColorFromId('activityBarBadge.background') }
+			: undefined);
 
 	constructor(
 		private readonly hideSectionCount: boolean,
@@ -2421,7 +2428,10 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		} = { onDidActivateNewSession: Event.None },
 		/** The New Session dropdown's entries for starting a session in each environment a section spans. */
 		private readonly getNewSessionEnvironmentActions?: (section: ISessionSection) => readonly IAction[],
+		/** Whether installed extensions can be enabled in the Agents window, signaled on the Customizations entry. */
+		private readonly customizationExtensionSuggestionsAvailable: IObservable<boolean> = constObservable(false),
 		private readonly getGroupDepth: (section: ISessionSection) => number = () => 0,
+		private readonly getAppearance: (sectionId: string) => ISessionGroupAppearance | undefined = () => undefined,
 	) { }
 
 	renderTemplate(container: HTMLElement): ISessionSectionTemplate {
@@ -2567,7 +2577,9 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 				() => withSessionsListHoverPresentation({
 					content: this.customizationMigrationsAvailable.get()
 						? localize('customizationsMigrationHover', "Some customizations need an update to keep working.")
-						: element.label,
+						: this.customizationExtensionSuggestionsAvailable.get()
+							? getExtensionSuggestionsBadgeDescription()
+							: element.label,
 				}),
 			));
 			template.elementDisposables.add(autorun(reader => {
@@ -2609,10 +2621,16 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 				}
 			}));
 		} else {
+			const defaultIcon = getSessionSectionIcon(element.id);
+			const appearance = isSessionGroupingSection(element.id) ? this.getAppearance(element.id) : undefined;
+			const icon = appearance ? {
+				id: appearance.icon ?? defaultIcon?.id ?? Codicon.folder.id,
+				color: appearance.color ? themeColorFromId(appearance.color) : defaultIcon?.color,
+			} : defaultIcon;
 			renderSessionHeaderIcon(
 				template,
 				element.sessions,
-				getSessionSectionIcon(element.id),
+				icon,
 				this.showUnreadInCollapsedSections,
 				this.sessionsWithFailingCI,
 				this.headerStatusTrigger,
@@ -2806,8 +2824,10 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 
 		const isComparison = element.comparison !== undefined;
 		template.container.classList.toggle('session-comparison-group', isComparison);
-		template.icon.className = 'session-section-icon';
-		template.icon.classList.add(...ThemeIcon.asClassNameArray(isComparison ? Codicon.layers : Codicon.folderLibrary));
+		const groupIcon: ThemeIcon = isComparison ? Codicon.layers : {
+			id: element.group.icon ?? Codicon.folderLibrary.id,
+			color: element.group.color ? themeColorFromId(element.group.color) : undefined,
+		};
 		template.label.textContent = element.comparison?.title ?? element.group.name;
 		const comparison = element.comparison;
 		if (comparison) {
@@ -2819,7 +2839,7 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 		}
 		template.description.classList.toggle('visible', isComparison);
 		this.updateChevron(template, node.collapsible, node.collapsed);
-		renderSessionHeaderIcon(template, element.subtreeSessions, isComparison ? Codicon.layers : Codicon.folderLibrary, this.showUnreadInCollapsedSections, this.sessionsWithFailingCI, this.headerStatusTrigger, this.instantiationService);
+		renderSessionHeaderIcon(template, element.subtreeSessions, groupIcon, this.showUnreadInCollapsedSections, this.sessionsWithFailingCI, this.headerStatusTrigger, this.instantiationService);
 		if (isComparison) {
 			for (const eventType of ['pointerdown', 'pointerup', 'click', 'dblclick'] as const) {
 				template.elementDisposables.add(DOM.addDisposableListener(template.chevron, eventType, event => {
@@ -3041,6 +3061,7 @@ interface ISessionsAccessibilityProviderOptions extends ICompactInputNeededPrese
 	readonly includeQuickChatInAriaLabel?: boolean;
 	readonly customizationsCount?: IObservable<number>;
 	readonly customizationMigrationsAvailable?: IObservable<boolean>;
+	readonly customizationExtensionSuggestionsAvailable?: IObservable<boolean>;
 	readonly newSessionKeybindingAriaLabel?: IObservable<string | undefined>;
 	readonly showUnreadInCollapsedSections?: IObservable<boolean>;
 	readonly sessionsWithFailingCI?: IObservable<ReadonlySet<string>>;
@@ -3142,7 +3163,9 @@ class SessionsAccessibilityProvider {
 						: localize('customizationsCountAria', "{0} customizations", count);
 					return this.options?.customizationMigrationsAvailable?.read(reader)
 						? localize('customizationsMigrationAvailableAria', "{0}, {1}, customization migrations available", element.label, countLabel)
-						: localize('customizationsAria', "{0}, {1}", element.label, countLabel);
+						: this.options?.customizationExtensionSuggestionsAvailable?.read(reader)
+							? localize('customizationsExtensionSuggestionsAria', "{0}, {1}, {2}", element.label, countLabel, getExtensionSuggestionsBadgeDescription())
+							: localize('customizationsAria', "{0}, {1}", element.label, countLabel);
 				});
 			}
 			if (isShortcutSection(element.id)) {
@@ -3862,6 +3885,8 @@ interface ISessionsListControlBaseOptions {
 	readonly showNavigationShortcuts?: () => boolean;
 	readonly customizationsCount?: IObservable<number>;
 	readonly customizationMigrationsAvailable?: IObservable<boolean>;
+	/** Whether installed extensions can be enabled in the Agents window, signaled on the Customizations navigation entry. */
+	readonly customizationExtensionSuggestionsAvailable?: IObservable<boolean>;
 	readonly navigationContainer?: HTMLElement;
 	readonly onDidChangeNavigationHeight?: () => void;
 	readonly focusNewSessionInput?: () => void;
@@ -4140,6 +4165,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	/** The group whose header is currently showing its inline name editor. */
 	private _editingGroupId: string | undefined;
 	private _groupRenderer!: SessionGroupRenderer;
+	private readonly groupAppearancePicker: SessionGroupAppearancePicker;
 	private _sectionRenderer!: SessionSectionRenderer;
 	private _sessionsProvidersService!: ISessionsProvidersService;
 	private _dropTargetHeader: ISessionDropTargetHeader | undefined;
@@ -4204,6 +4230,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
+		this.groupAppearancePicker = this._register(instantiationService.createInstance(SessionGroupAppearancePicker));
 		this.filters = this._register(instantiationService.createInstance(SessionsListFilters));
 		for (const key of [SessionsList.EXCLUDED_TYPES_KEY, SessionsList.EXCLUDED_STATUSES_KEY, SessionsList.EXCLUDE_READ_KEY, SessionsList.SHOW_EMPTY_GROUPS_KEY]) {
 			this.storageService.remove(key, StorageScope.PROFILE);
@@ -4384,6 +4411,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const newSessionKeybindingAriaLabel = observableFromEvent(this, keybindingService.onDidUpdateKeybindings, () => keybindingService.lookupKeybinding(NEW_SESSION_ACTION_ID, this.contextKeyService)?.getAriaLabel() ?? undefined);
 		const customizationsCount = this.options.customizationsCount ?? constObservable(0);
 		const customizationMigrationsAvailable = this.options.customizationMigrationsAvailable ?? constObservable(false);
+		const customizationExtensionSuggestionsAvailable = this.options.customizationExtensionSuggestionsAvailable ?? constObservable(false);
 		const createSectionRenderer = (templateId?: string, rowClassName?: string) => new SessionSectionRenderer(
 			true /* hideSectionCount */,
 			selectHeader,
@@ -4411,7 +4439,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 				} : undefined,
 			},
 			section => this.getNewSessionEnvironmentActions(section),
+			customizationExtensionSuggestionsAvailable,
 			section => this.getRowGroupDepth(section),
+			sectionId => this._sessionGroupsService.getSectionAppearance(sectionId),
 		);
 		const sectionRenderer = createSectionRenderer(undefined, 'session-list-section-row');
 		const shortcutSectionRenderer = createSectionRenderer(SESSION_SHORTCUT_SECTION_TEMPLATE_ID, 'session-list-shortcut-row');
@@ -4457,6 +4487,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 						widgetAriaLabel: localize('sessionsNavigation', "Sessions Navigation"),
 						customizationsCount,
 						customizationMigrationsAvailable,
+						customizationExtensionSuggestionsAvailable,
 						newSessionKeybindingAriaLabel,
 					}),
 					keyboardNavigationLabelProvider: {
@@ -7271,6 +7302,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 			[SessionChatItemCanArchiveContext.key, capabilities.canArchive],
 			[SessionChatItemCanDeleteContext.key, capabilities.canDelete],
 			[SessionChatItemIsArchivedContext.key, element.chat.isArchived.get()],
+			[SessionChatItemIsReadContext.key, element.chat.isRead.get()],
+			[SessionChatItemCanSetReadStateContext.key, isEqual(element.chat.resource, element.session.mainChat.get().resource) || element.session.capabilities.get().supportsIndependentChatReadState === true],
 			[SessionChatItemIsUntitledContext.key, element.chat.status.get() === SessionStatus.Untitled],
 			[SessionChatItemIsStandaloneContext.key, !!element.standalone],
 			[SessionChatItemCanMoveUpContext.key, this.getAdjacentChatMove(element, 'up') !== undefined],
@@ -7412,7 +7445,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 					run: () => this.moveSectionToGroup(section, undefined),
 				}));
 			}
-			actions.push(new Separator());
+			actions.push(new Separator(), ...this.getGroupAppearanceActions(
+				this._sessionGroupsService.getSectionAppearance(section.id),
+				icon => this._sessionGroupsService.setSectionIcon(section.id, icon),
+				color => this._sessionGroupsService.setSectionColor(section.id, color),
+			), new Separator());
 		}
 		actions.push(this.getCreateGroupAction());
 		this.contextMenuService.showContextMenu({
@@ -7461,6 +7498,21 @@ export class SessionsList extends Disposable implements ISessionsList {
 		});
 	}
 
+	private getGroupAppearanceActions(appearance: ISessionGroupAppearance | undefined, setIcon: (icon: string | undefined) => void, setColor: (color: string | undefined) => void): IAction[] {
+		return [
+			toAction({
+				id: 'sessions.changeGroupIcon',
+				label: localize('changeGroupIcon', "Change Icon..."),
+				run: () => this.groupAppearancePicker.changeIcon(setIcon),
+			}),
+			toAction({
+				id: 'sessions.changeGroupColor',
+				label: localize('changeGroupColor', "Change Color..."),
+				run: () => this.groupAppearancePicker.changeColor(appearance?.color, setColor),
+			}),
+		];
+	}
+
 	private showGroupContextMenu(groupItem: ISessionGroupItem, anchor: ITreeContextMenuEvent<SessionListItem>['anchor']): void {
 		const actions: IAction[] = [];
 		const comparison = groupItem.comparison;
@@ -7483,6 +7535,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 		actions.push(this.canHoldSubgroups(groupItem.group.id) ? this.getCreateSubgroupAction(groupItem) : this.getCreateGroupAction());
 		if (!comparison) {
 			actions.push(
+				new Separator(),
+				...this.getGroupAppearanceActions(
+					groupItem.group,
+					icon => this._sessionGroupsService.setGroupIcon(groupItem.group.id, icon),
+					color => this._sessionGroupsService.setGroupColor(groupItem.group.id, color),
+				),
 				new Separator(),
 				toAction({
 					id: 'sessions.renameGroupAction',

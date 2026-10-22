@@ -38,6 +38,7 @@ import { CommandsRegistry, ICommandService } from '../../../../../platform/comma
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { SessionGroupAppearancePicker } from '../../browser/views/sessionGroupAppearancePicker.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
@@ -310,6 +311,88 @@ suite('Sessions - SessionsList', () => {
 					appearance: { showPointer: true },
 					position: { hoverPosition: HoverPosition.RIGHT, forcePosition: true },
 					persistence: { hideOnHover: false },
+				},
+			});
+		});
+
+		test('signals extension suggestions on the Customizations entry unless migrations need attention', () => {
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stubInstance(MenuWorkbenchToolBar, new class extends mock<MenuWorkbenchToolBar>() {
+				override set context(_context: unknown) { }
+				override dispose(): void { }
+			});
+			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+			const automationService = new class extends mock<IAutomationService>() {
+				override readonly runs = constObservable<readonly IAutomationRun[]>([]);
+			};
+			let hoverOptions: Parameters<IHoverService['setupDelayedHover']>[1] | undefined;
+			const hoverService = new class extends mock<IHoverService>() {
+				override setupDelayedHover(...args: Parameters<IHoverService['setupDelayedHover']>): ReturnType<IHoverService['setupDelayedHover']> {
+					hoverOptions = args[1];
+					return NullHoverService.setupDelayedHover(...args);
+				}
+			};
+			const customizationMigrationsAvailable = observableValue(disposables, false);
+			const customizationExtensionSuggestionsAvailable = observableValue(disposables, true);
+			const renderer = new SessionSectionRenderer(
+				true,
+				() => { },
+				constObservable(true),
+				constObservable(new Set<string>()),
+				noHeaderStatusTrigger,
+				instantiationService,
+				hoverService,
+				contextKeyService,
+				automationService,
+				constObservable([]),
+				new class extends mock<IUriIdentityService>() {
+					override readonly extUri = new ExtUri(() => true);
+				},
+				new class extends mock<ICustomViewService>() { },
+				new class extends mock<IMenuService>() { },
+				noKeybindingService,
+				constObservable(false),
+				customizationMigrationsAvailable,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				customizationExtensionSuggestionsAvailable,
+			);
+			const container = document.createElement('div');
+			const template = renderer.renderTemplate(container);
+			disposables.add(template.disposables);
+			renderer.renderElement(upcastPartial<Parameters<SessionSectionRenderer['renderElement']>[0]>({
+				element: { id: 'customizations', label: 'Customizations', sessions: [] },
+				collapsible: false,
+				collapsed: false,
+			}), 0, template);
+			const readState = () => ({
+				hover: (typeof hoverOptions === 'function' ? hoverOptions() : hoverOptions)?.content,
+				hasDot: template.icon.classList.contains('codicon-circle-filled'),
+				iconColor: template.icon.style.color,
+			});
+			const withSuggestions = readState();
+			customizationMigrationsAvailable.set(true, undefined);
+			const withMigrations = readState();
+			customizationMigrationsAvailable.set(false, undefined);
+			customizationExtensionSuggestionsAvailable.set(false, undefined);
+
+			assert.deepStrictEqual({ withSuggestions, withMigrations, withoutSignals: readState() }, {
+				withSuggestions: {
+					hover: 'Some installed extensions can be enabled in the Agents window.',
+					hasDot: true,
+					iconColor: 'var(--vscode-activityBarBadge-background)',
+				},
+				withMigrations: {
+					hover: 'Some customizations need an update to keep working.',
+					hasDot: true,
+					iconColor: 'var(--vscode-activityWarningBadge-background)',
+				},
+				withoutSignals: {
+					hover: 'Customizations',
+					hasDot: false,
+					iconColor: '',
 				},
 			});
 		});
@@ -1385,6 +1468,49 @@ suite('Sessions - SessionsList', () => {
 				peerUnread: ['Workspace'],
 				chatsRead: [],
 				mainUnread: ['Workspace'],
+			});
+		});
+
+		test('custom group appearance yields to unread status and returns when read', () => {
+			const customGroup = { ...group, icon: 'rocket', color: 'charts.blue' };
+			const { session, isRead } = createTestSession('Unread', { isRead: false });
+			const { list, container } = renderList([session], {
+				groups: [customGroup],
+				memberships: new Map([[session.sessionId, group.id]]),
+			});
+			const snapshot = () => {
+				const icon = getHeader(container, group.name).querySelector<HTMLElement>('.session-section-icon')!;
+				return { rocket: icon.classList.contains('codicon-rocket'), color: icon.style.color, unread: !!icon.querySelector('.codicon-circle-filled') };
+			};
+			const expanded = snapshot();
+			list.collapseAllSections();
+			const collapsedUnread = snapshot();
+			isRead.set(true, undefined);
+			const collapsedRead = snapshot();
+			assert.deepStrictEqual({ expanded, collapsedUnread, collapsedRead }, {
+				expanded: { rocket: true, color: 'var(--vscode-charts-blue)', unread: false },
+				collapsedUnread: { rocket: false, color: '', unread: true },
+				collapsedRead: { rocket: true, color: 'var(--vscode-charts-blue)', unread: false },
+			});
+		});
+
+		test('workspace appearance yields to unread status and returns when read', () => {
+			const { session, isRead } = createTestSession('Unread', { isRead: false });
+			const { list, container } = renderList([session], {
+				sectionAppearances: new Map([['workspace:Workspace', { icon: 'rocket', color: 'terminal.ansiBlue' }]]),
+			});
+			const snapshot = () => {
+				const icon = getHeader(container, 'Workspace').querySelector<HTMLElement>('.session-section-icon')!;
+				return { rocket: icon.classList.contains('codicon-rocket'), color: icon.style.color, unread: !!icon.querySelector('.codicon-circle-filled') };
+			};
+			const expanded = snapshot();
+			list.collapseAllSections();
+			const collapsedUnread = snapshot();
+			isRead.set(true, undefined);
+			assert.deepStrictEqual({ expanded, collapsedUnread, collapsedRead: snapshot() }, {
+				expanded: { rocket: true, color: 'var(--vscode-terminal-ansiBlue)', unread: false },
+				collapsedUnread: { rocket: false, color: '', unread: true },
+				collapsedRead: { rocket: true, color: 'var(--vscode-terminal-ansiBlue)', unread: false },
 			});
 		});
 
@@ -3306,6 +3432,43 @@ suite('Sessions - SessionsList', () => {
 
 			assert.deepStrictEqual(contextMenus.at(-1)?.filter(action => action.id === 'sessions.moveSectionToGroup'), []);
 		});
+
+		for (const [grouping, sectionId, label, connected] of [
+			[SessionsGrouping.Workspace, 'workspace:vscode', 'vscode', true],
+			[SessionsGrouping.Repository, 'repository:microsoft/vscode', 'vscode', true],
+			[SessionsGrouping.Environment, 'environment:host', 'My Host', false],
+		] as const) {
+			test(`${grouping} headers support independent appearance and reset while nested`, async () => {
+				const resetPicker = sinon.stub(SessionGroupAppearancePicker.prototype, 'changeIcon').callsFake(async setIcon => setIcon(undefined));
+				disposables.add(toDisposable(() => resetPicker.restore()));
+				const parent: ISessionGroup = { id: 'parent', name: 'Parent', createdAt: 1 };
+				const { rowOf, contextMenus } = render([repositorySession('Session', 'host', 1)], {
+					groups: [parent],
+					sectionMemberships: new Map([[sectionId, parent.id]]),
+					sectionAppearances: new Map([[sectionId, { icon: 'rocket', color: 'terminal.ansiCyan' }]]),
+				}, connected, grouping);
+				const snapshot = () => {
+					const header = rowOf(label).querySelector<HTMLElement>('.session-section-icon')!;
+					return { icon: header.className, color: header.style.color };
+				};
+				const before = snapshot();
+				rowOf(label).dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+				const actions = contextMenus.at(-1)!;
+				await actions.find(action => action.id === 'sessions.changeGroupIcon')!.run();
+				assert.deepStrictEqual({
+					before,
+					appearanceActions: actions.filter(action => ['sessions.changeGroupIcon', 'sessions.changeGroupColor', 'sessions.resetGroupIcon'].includes(action.id)).map(action => ({ id: action.id, enabled: action.enabled })),
+					after: snapshot(),
+				}, {
+					before: { icon: 'session-section-icon codicon codicon-rocket', color: 'var(--vscode-terminal-ansiCyan)' },
+					appearanceActions: [
+						{ id: 'sessions.changeGroupIcon', enabled: true },
+						{ id: 'sessions.changeGroupColor', enabled: true },
+					],
+					after: { icon: `session-section-icon codicon codicon-${grouping === SessionsGrouping.Workspace ? 'folder' : grouping === SessionsGrouping.Repository ? 'repo' : 'remote'}`, color: 'var(--vscode-terminal-ansiCyan)' },
+				});
+			});
+		}
 
 		/** Drags `source` onto the top quarter of `target`, as the tree's drag and drop reads it. */
 		function drag(source: HTMLElement, target: HTMLElement): void {
@@ -5657,6 +5820,7 @@ suite('Sessions - SessionsList', () => {
 						override getGroup(groupId: string) { return groupId === group.id ? group : undefined; }
 						override getGroupOfSession(sessionId: string) { return memberships.get(sessionId); }
 						override getGroupOfSection() { return undefined; }
+						override getSectionAppearance() { return undefined; }
 						override getSectionIdsInGroup() { return []; }
 						override getChildIds() { return []; }
 						override getSessionIdsInGroup(groupId: string) {
@@ -6811,6 +6975,29 @@ suite('Sessions - SessionsList', () => {
 					{ title: 'First chat', last: false },
 					{ title: 'Second chat', last: true },
 				],
+			});
+		});
+
+		test('reorders nested chat rows when the session reorders its chats, without a session change event', async () => {
+			const main = createChat('Main chat');
+			const first = { ...createChat('First chat'), createdAt: new Date('2024-01-01') };
+			const second = { ...createChat('Second chat'), createdAt: new Date('2024-01-01') };
+			const chats = observableValue<readonly IChat[]>('chats', [main, first, second]);
+			const session: ISession = {
+				...createTestSession('Session').session,
+				chats,
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const { container } = renderSessionChatsList(session);
+			const initial = chatRowTitles(container);
+
+			chats.set([main, second, first], undefined);
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+
+			assert.deepStrictEqual({ initial, reordered: chatRowTitles(container) }, {
+				initial: ['First chat', 'Second chat'],
+				reordered: ['Second chat', 'First chat'],
 			});
 		});
 

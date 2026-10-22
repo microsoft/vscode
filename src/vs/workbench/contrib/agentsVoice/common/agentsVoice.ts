@@ -47,6 +47,7 @@ export function getAgentsVoicePolicyValue(policyData: IPolicyData): false | unde
 export const enum AgentsVoiceSettingId {
 	ShowButton = 'agents.voice.showButton',
 	UseBYOKVoiceModel = 'agents.voice.useBYOKVoiceModel',
+	SessionAwareness = 'agents.voice.sessionAwareness',
 }
 
 /**

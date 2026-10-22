@@ -33,6 +33,8 @@ export interface IModelPickerPresentationOptions {
 
 export interface IModelPickerDelegate {
 	readonly comparison?: IModelPickerComparison;
+	/** Whether a committed comparison is currently being submitted. */
+	readonly comparisonBusy?: IObservable<boolean>;
 	readonly currentModel: IObservable<ILanguageModelChatMetadataAndIdentifier | undefined>;
 	setModel(model: ILanguageModelChatMetadataAndIdentifier): void;
 	/**

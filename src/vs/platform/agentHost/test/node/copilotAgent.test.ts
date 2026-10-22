@@ -66,7 +66,7 @@ import { isAgentModelFusion, readAgentModelAutoTierPromotionsMeta, readAgentMode
 import { TestExperimentTriggerTelemetryService } from '../../../telemetry/test/common/experimentTriggerTestUtils.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { buildAgentHostOTelEnv } from '../../common/agentService.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceTrustConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceTrustConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
@@ -6914,7 +6914,7 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('sync, connector and index settings apply to a scoped runtime at the next idle boundary', async () => {
+		test('connector and index settings apply to a scoped runtime at the next idle boundary', async () => {
 			const { agent, clients, options, launches, configurationService } = setup();
 			const session = AgentSession.uri('copilotcli', 'scoped-forced-off-config');
 			const chat = defaultChatUri(session);
@@ -6926,7 +6926,6 @@ suite('CopilotAgent', () => {
 				await agent.chats.sendMessage(chat, 'first', [directory], undefined, 'first', undefined, context);
 				chatEntriesBySdkId(agent).get(launches[0].sessionId)!.chatSession.discardActiveTurn();
 				configurationService.updateRootConfig({
-					[AgentHostSessionSyncEnabledConfigKey]: true,
 					[AgentHostMcpConnectorsEnabledConfigKey]: true,
 					[CopilotCliConfigKey.LocalIndexEnabled]: true,
 				});
@@ -6935,10 +6934,9 @@ suite('CopilotAgent', () => {
 					scopedStarts: options.filter(options => options.gitHubToken !== undefined).length,
 					scopedStops: clients.filter((_client, index) => options[index].gitHubToken !== undefined).map(client => client.stopCallCount),
 					launches: launches.map(launch => launch.kind),
-					remote: options.at(-1)?.enableRemoteSessions,
 					sessionStore: launches.at(-1)?.config.enableSessionStore,
 					connectors: launches.at(-1)?.config.featureFlags?.CONNECTORS,
-				}, { scopedStarts: 2, scopedStops: [1, 0], launches: ['create', 'resume'], remote: true, sessionStore: true, connectors: true });
+				}, { scopedStarts: 2, scopedStops: [1, 0], launches: ['create', 'resume'], sessionStore: true, connectors: true });
 			} finally {
 				await disposeAgent(agent);
 			}
@@ -7029,14 +7027,14 @@ suite('CopilotAgent', () => {
 					const storageOptions = current.options.at(-1)!;
 					assert.deepStrictEqual({
 						deletionModes: current.options.slice(clientsBeforeDeletion).map(options => options.mode),
-						storage: { token: storageOptions.gitHubToken, loggedInUser: storageOptions.useLoggedInUser, remote: storageOptions.enableRemoteSessions },
+						storage: { token: storageOptions.gitHubToken, loggedInUser: storageOptions.useLoggedInUser },
 						deleted: current.clients.flatMap(client => client.deletedSessionIds),
 						stops: current.clients.filter((_client, index) => current.options[index].mode === 'empty').map(client => client.stopCallCount),
 						sameHome: !cold && current.options[0].baseDirectory === storageOptions.baseDirectory,
 						backing: chatBackings(current.agent).get(chat.toString()),
 					}, {
 						deletionModes: ['empty'],
-						storage: { token: undefined, loggedInUser: false, remote: false },
+						storage: { token: undefined, loggedInUser: false },
 						deleted: [sdkId], stops: [1],
 						sameHome: !cold, backing: undefined,
 					});
@@ -7064,13 +7062,13 @@ suite('CopilotAgent', () => {
 				await restored.agent.materializeChat(chat, context, created.providerData);
 				await restored.agent.chats.disposeChat(chat, context);
 				assert.deepStrictEqual({
-					options: restored.options.map(options => ({ mode: options.mode, token: options.gitHubToken, remote: options.enableRemoteSessions })),
+					options: restored.options.map(options => ({ mode: options.mode, token: options.gitHubToken })),
 					metadata: restored.clients.flatMap(client => client.getSessionMetadataCalls),
 					deleted: restored.clients.flatMap(client => client.deletedSessionIds),
 					stops: restored.clients.map(client => client.stopCallCount),
 					launches: restored.launches.length,
 				}, {
-					options: [0, 1].map(() => ({ mode: 'empty', token: undefined, remote: false })),
+					options: [0, 1].map(() => ({ mode: 'empty', token: undefined })),
 					metadata: [sdkId], deleted: [sdkId], stops: [1, 1], launches: 0,
 				});
 			} finally {
@@ -7597,16 +7595,16 @@ suite('CopilotAgent', () => {
 					kinds: launches.map(launch => launch.kind),
 					sameIdentity: launches.every(launch => launch.sessionId === first.sessionId) && chatBackings(agent).get(chat.toString())?.sdkSessionId === first.sessionId,
 					resumedStaticToken: launches[2].config.gitHubToken,
-					scopedOptions: options.filter(option => option.gitHubToken !== undefined).map(option => ({ token: option.gitHubToken, useLoggedInUser: option.useLoggedInUser, remote: option.enableRemoteSessions })),
+					scopedOptions: options.filter(option => option.gitHubToken !== undefined).map(option => ({ token: option.gitHubToken, useLoggedInUser: option.useLoggedInUser })),
 					stoppedOldScopedRuntime: clients[1].stopCallCount,
 				}, {
 					afterReservation: 1, afterGlobalAuth: { live: true, scopedStops: 0, updates: [] },
 					oldToken: 'scoped-a', newToken: 'scoped-b', kinds: ['create', 'resume', 'resume'], sameIdentity: true, resumedStaticToken: 'scoped-c',
 					hasTokenProviders: [false, false, false],
 					scopedOptions: [
-						{ token: 'scoped-a', useLoggedInUser: false, remote: false },
-						{ token: 'scoped-b', useLoggedInUser: false, remote: false },
-						{ token: 'scoped-c', useLoggedInUser: false, remote: false },
+						{ token: 'scoped-a', useLoggedInUser: false },
+						{ token: 'scoped-b', useLoggedInUser: false },
+						{ token: 'scoped-c', useLoggedInUser: false },
 					],
 					stoppedOldScopedRuntime: 1,
 				});

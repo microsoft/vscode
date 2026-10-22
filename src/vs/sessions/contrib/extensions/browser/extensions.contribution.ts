@@ -7,12 +7,14 @@ import { localize } from '../../../../nls.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { EXTENSIONS_AGENTS_WINDOW_MANAGEMENT, EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY } from '../../../../platform/extensions/common/extensions.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { aiCustomizationManagementSectionRegistry } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementSectionRegistry.js';
 import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { extensionsViewIcon } from '../../../../workbench/contrib/extensions/browser/extensionsIcons.js';
 import { AgentsWindowExtensionsAccessibilityHelp } from './agentsWindowExtensionsAccessibilityHelp.js';
+import { AGENTS_WINDOW_EXTENSION_SUGGESTIONS_SETTING, AgentsWindowExtensionSuggestionsService, getExtensionSuggestionsBadgeDescription, IAgentsWindowExtensionSuggestionsService } from './agentsWindowExtensionSuggestions.js';
 import { AgentsWindowExtensionsWidget } from './agentsWindowExtensionsWidget.js';
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
@@ -35,8 +37,18 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},
+		[AGENTS_WINDOW_EXTENSION_SUGGESTIONS_SETTING]: {
+			type: 'boolean',
+			scope: ConfigurationScope.APPLICATION,
+			markdownDescription: localize('extensions.experimental.agentsWindowSuggestions', "When enabled, the Agents window suggests installed extensions that could be useful there, such as extensions that add tools, MCP servers, or syntax highlighting. The Extensions section of Agent Customizations lists them in a Suggested group, and its entry point shows a badge while they are disabled, until you open the section. Requires `#{0}#`.", EXTENSIONS_AGENTS_WINDOW_MANAGEMENT),
+			default: product.quality !== 'stable',
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+		},
 	},
 });
+
+registerSingleton(IAgentsWindowExtensionSuggestionsService, AgentsWindowExtensionSuggestionsService, InstantiationType.Delayed);
 
 aiCustomizationManagementSectionRegistry.register({
 	id: AICustomizationManagementSection.Extensions,
@@ -45,6 +57,7 @@ aiCustomizationManagementSectionRegistry.register({
 	description: localize('agentsWindowExtensions.navigationDescription', "Choose which installed extensions run in the Agents window."),
 	enablementSettings: [EXTENSIONS_AGENTS_WINDOW_MANAGEMENT],
 	supportsHarness: () => true,
+	getBadge: accessor => accessor.get(IAgentsWindowExtensionSuggestionsService).showBadge.map(show => show ? getExtensionSuggestionsBadgeDescription() : undefined),
 	create: (instantiationService, container) => instantiationService.createInstance(AgentsWindowExtensionsWidget, container),
 });
 
