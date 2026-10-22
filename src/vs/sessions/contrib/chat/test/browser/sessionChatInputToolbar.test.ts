@@ -144,11 +144,22 @@ suite('SessionChatInputToolbar', () => {
 		}));
 		const opened: { command: string; number: number | undefined }[] = [];
 		let editor: EditorInput | undefined;
+		let editors: { editor: EditorInput; groupId: number }[] = [];
+		const revealed: { editor: EditorInput; groupId: number | undefined }[] = [];
 		let paneVisible = false;
 		let detailVisible = false;
 		const stateChanged = store.add(new Emitter<void>());
-		instantiationService.stub(IEditorService, 'onDidActiveEditorChange', stateChanged.event);
-		instantiationService.stub(IEditorService, 'activeEditor', undefined);
+		instantiationService.stub(IEditorService, upcastPartial<IEditorService>({
+			onDidActiveEditorChange: stateChanged.event,
+			get activeEditor() { return editor; },
+			getEditors: () => editors,
+		}));
+		instantiationService.stub(IEditorService, 'openEditor', async (input: EditorInput, _options: object, groupId?: number) => {
+			revealed.push({ editor: input, groupId });
+			editor = input;
+			stateChanged.fire();
+			return undefined;
+		});
 		instantiationService.stub(IAgentWorkbenchLayoutService, upcastPartial<IAgentWorkbenchLayoutService>({
 			onDidChangePartVisibility: Event.map(stateChanged.event, () => ({ partId: 'workbench.parts.editor', visible: paneVisible })),
 			isSidePaneVisible: () => paneVisible || detailVisible,
@@ -169,14 +180,17 @@ suite('SessionChatInputToolbar', () => {
 		store.add(autorun(reader => toolbar.activityBarActions.read(reader)));
 		await timeout(0);
 		return {
-			...services, toolbar, session, main, peer, artifacts, artifact, opened, sentiment, pullRequest, extensionsChanged,
+			...services, toolbar, session, main, peer, artifacts, artifact, opened, revealed, sentiment, pullRequest, extensionsChanged,
 			setEditor: (input: EditorInput | undefined) => {
 				editor = input;
-				instantiationService.stub(IEditorService, 'activeEditor', editor);
+				if (input && !editors.some(entry => entry.editor === input)) {
+					editors.unshift({ editor: input, groupId: 1 });
+				}
 				stateChanged.fire();
 			},
 			setPaneVisible: (visible: boolean) => { paneVisible = visible; stateChanged.fire(); },
 			setDetailVisible: (visible: boolean) => { detailVisible = visible; stateChanged.fire(); },
+			setEditors: (inputs: { editor: EditorInput; groupId: number }[]) => { editors = inputs; },
 		};
 	}
 
@@ -190,7 +204,7 @@ suite('SessionChatInputToolbar', () => {
 			assert.deepStrictEqual({ before, after: toolbar.activityBarActions.get()[0].checked, opened }, { before: false, after: true, opened: [] });
 		});
 
-		test(`activity bar checks and toggles ${kind} editors opened through any entry point`, async () => {
+		test(`activity bar keeps ${kind} editors visible on repeated activation`, async () => {
 			const { toolbar, setEditor, setPaneVisible, artifact, main, opened } = await createGitHubActivityBar(kind, LOCAL_AGENT_HOST_PROVIDER_ID);
 			const editor = store.add(new TestEditorInput(artifact(1, main).link!, 'test.githubEditor'));
 			const states = [toolbar.activityBarActions.get()[0].checked];
@@ -203,20 +217,42 @@ suite('SessionChatInputToolbar', () => {
 			states.push(toolbar.activityBarActions.get()[0].checked);
 			setEditor(undefined);
 			states.push(toolbar.activityBarActions.get()[0].checked);
-			assert.deepStrictEqual({ states, opened }, { states: [false, true, false, true, false], opened: [] });
+			assert.deepStrictEqual({ states, opened }, { states: [false, true, true, true, false], opened: [] });
 		});
 
-		test(`activity bar recognizes restored ${kind} overview webviews without opening them`, async () => {
-			const { instantiationService, toolbar, setEditor, setPaneVisible, opened } = await createGitHubActivityBar(kind, LOCAL_AGENT_HOST_PROVIDER_ID);
+		test(`activity bar reveals restored inactive ${kind} overview webviews instead of opening a reference`, async () => {
+			const { instantiationService, toolbar, setEditors, setPaneVisible, opened, revealed } = await createGitHubActivityBar(kind, LOCAL_AGENT_HOST_PROVIDER_ID);
 			const viewType = kind === SessionArtifactKind.PullRequest ? 'PullRequestOverview' : 'IssueOverview';
 			const editor = store.add(instantiationService.createInstance(WebviewInput, {
 				viewType: `mainThreadWebview-${viewType}`, providedId: viewType, name: 'Restored overview', iconPath: undefined,
 			}, upcastPartial<IOverlayWebview>({ dispose: () => { } })));
-			setEditor(editor);
+			setEditors([{ editor, groupId: 7 }]);
 			setPaneVisible(true);
 			const checked = toolbar.activityBarActions.get()[0].checked;
 			await toolbar.activityBarActions.get()[0].run();
-			assert.deepStrictEqual({ checked, afterToggle: toolbar.activityBarActions.get()[0].checked, opened }, { checked: true, afterToggle: false, opened: [] });
+			assert.deepStrictEqual({ checked, afterOpen: toolbar.activityBarActions.get()[0].checked, opened, revealed }, { checked: false, afterOpen: true, opened: [], revealed: [{ editor, groupId: 7 }] });
+		});
+
+		test(`activity bar prefers the active ${kind} editor over other open editors`, async () => {
+			const { toolbar, setEditor, setEditors, artifacts, artifact, main, opened, revealed } = await createGitHubActivityBar(kind, LOCAL_AGENT_HOST_PROVIDER_ID);
+			artifacts.set([...artifacts.get(), artifact(4, main)], undefined);
+			await timeout(0);
+			const first = store.add(new TestEditorInput(artifact(1, main).link!, 'test.githubEditor'));
+			const active = store.add(new TestEditorInput(artifact(4, main).link!, 'test.githubEditor'));
+			setEditors([{ editor: first, groupId: 2 }, { editor: active, groupId: 3 }]);
+			setEditor(active);
+			await toolbar.activityBarActions.get()[0].run();
+			assert.deepStrictEqual({ opened, revealed }, { opened: [], revealed: [{ editor: active, groupId: 3 }] });
+		});
+
+		test(`activity bar skips disposed and unrelated ${kind} editors`, async () => {
+			const { toolbar, setEditors, artifact, main, opened, revealed } = await createGitHubActivityBar(kind, LOCAL_AGENT_HOST_PROVIDER_ID);
+			const disposed = new TestEditorInput(artifact(1, main).link!, 'test.githubEditor');
+			disposed.dispose();
+			const unrelated = store.add(new TestEditorInput(URI.parse('file:///unrelated.txt'), 'test.fileEditor'));
+			setEditors([{ editor: disposed, groupId: 2 }, { editor: unrelated, groupId: 3 }]);
+			await toolbar.activityBarActions.get()[0].run();
+			assert.deepStrictEqual({ opened: opened.map(entry => entry.number), revealed }, { opened: [1], revealed: [] });
 		});
 	}
 
@@ -264,19 +300,16 @@ suite('SessionChatInputToolbar', () => {
 			});
 		});
 
-		test(`activity bar filters ${kind} dropdown entries by opener support`, async () => {
+		test(`activity bar opens the first opener-supported ${kind} without a picker`, async () => {
 			const { toolbar, artifacts, artifact, main, opened } = await createGitHubActivityBar(kind, LOCAL_AGENT_HOST_PROVIDER_ID,
-				async uri => uri.path.endsWith('/5') ? undefined : upcastPartial<IExternalUriOpener>({ id: 'supported' }));
+				async uri => uri.path.endsWith('/1') ? undefined : upcastPartial<IExternalUriOpener>({ id: 'supported' }));
 			artifacts.set([...artifacts.get(), artifact(4, main), artifact(5, main)], undefined);
 			await timeout(0);
-			const dropdown = toolbar.activityBarActions.get()[0].dropdownActions!;
-			const labels = dropdown.map(action => action.label);
-			await dropdown[1].run();
+			await toolbar.activityBarActions.get()[0].run();
 			assert.deepStrictEqual({
 				label: toolbar.activityBarActions.get()[0].label,
-				numbers: labels.map(label => label.match(/#\d+/)?.[0]),
 				opened: opened.map(entry => entry.number),
-			}, { label: `Open ${kind === SessionArtifactKind.PullRequest ? 'Pull Request' : 'Issue'} (2)`, numbers: ['#1', '#4'], opened: [4] });
+			}, { label: `Open ${kind === SessionArtifactKind.PullRequest ? 'Pull Request' : 'Issue'} (2)`, opened: [4] });
 		});
 	}
 
@@ -395,29 +428,25 @@ suite('SessionChatInputToolbar', () => {
 				});
 			});
 
-			test(`activity bar dropdown opens current-chat ${kind} entries on ${providerId}`, async () => {
+			test(`activity bar opens the first of multiple current-chat ${kind} entries on ${providerId}`, async () => {
 				const { toolbar, artifacts, artifact, main, opened } = await createGitHubActivityBar(kind, providerId);
 				artifacts.set([...artifacts.get(), artifact(4, main)], undefined);
 				await timeout(0);
-				const actions = toolbar.activityBarActions.get()[0].dropdownActions!;
-				const labels = actions.map(action => action.label);
-				await actions[1].run();
+				await toolbar.activityBarActions.get()[0].run();
 
 				assert.deepStrictEqual({
 					label: toolbar.activityBarActions.get()[0].label,
-					picks: labels.map(label => label.replace(/^\$\([^)]+\) /, '')),
 					opened,
 				}, {
 					label: `Open ${kind === SessionArtifactKind.PullRequest ? 'Pull Request' : 'Issue'} (2)`,
-					picks: ['#1 Item 1', '#4 Item 4'],
-					opened: [{ command: kind === SessionArtifactKind.PullRequest ? OPEN_PULL_REQUEST_ACTION_ID : OPEN_ISSUE_ACTION_ID, number: 4 }],
+					opened: [{ command: kind === SessionArtifactKind.PullRequest ? OPEN_PULL_REQUEST_ACTION_ID : OPEN_ISSUE_ACTION_ID, number: 1 }],
 				});
 			});
 		}
 	}
 
 	for (const transition of ['switch', 'dispose', 'remove', 'remove-one', 'hide', 'opener', 'disable'] as const) {
-		test(`activity bar does not open a stale issue after dropdown ${transition}`, async () => {
+		test(`activity bar resolves current references after ${transition}`, async () => {
 			let openerAvailable = true;
 			const { toolbar, session, peer, artifacts, artifact, main, opened, configuration, sentiment, extensionsChanged } = await createGitHubActivityBar(
 				SessionArtifactKind.Issue, LOCAL_AGENT_HOST_PROVIDER_ID,
@@ -425,7 +454,7 @@ suite('SessionChatInputToolbar', () => {
 			);
 			artifacts.set([...artifacts.get(), artifact(4, main)], undefined);
 			await timeout(0);
-			const selected = toolbar.activityBarActions.get()[0].dropdownActions![1];
+			const selected = toolbar.activityBarActions.get()[0];
 			if (transition === 'switch') {
 				toolbar.setSession(session, peer);
 			} else if (transition === 'dispose') {
@@ -433,7 +462,8 @@ suite('SessionChatInputToolbar', () => {
 			} else if (transition === 'remove') {
 				artifacts.set([], undefined);
 			} else if (transition === 'remove-one') {
-				artifacts.set(artifacts.get().filter(entry => entry.id !== 'artifact-4'), undefined);
+				artifacts.set(artifacts.get().filter(entry => entry.id !== 'artifact-1'), undefined);
+				await timeout(0);
 			} else if (transition === 'hide') {
 				sentiment.set({ hidden: true }, undefined);
 			} else if (transition === 'opener') {
@@ -447,7 +477,7 @@ suite('SessionChatInputToolbar', () => {
 				}));
 			}
 			await selected.run();
-			assert.deepStrictEqual(opened, []);
+			assert.deepStrictEqual(opened.map(entry => entry.number), transition === 'remove-one' ? [4] : []);
 		});
 	}
 

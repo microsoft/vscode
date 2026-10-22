@@ -20,7 +20,6 @@ import { ThemeIcon } from '../../../base/common/themables.js';
 import { Action, IAction, toAction } from '../../../base/common/actions.js';
 import { localize } from '../../../nls.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
-import { DropdownWithPrimaryActionViewItem } from '../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { IMenuEntryActionViewItemOptions, MenuEntryActionViewItem } from '../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { isIMenuItem, MenuItemAction, MenuRegistry, SubmenuItemAction } from '../../../platform/actions/common/actions.js';
 import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
@@ -46,11 +45,6 @@ import { sessionActivityBarChatActionContext } from '../../common/contextkeys.js
 import { isPhoneLayout } from './mobile/mobileLayout.js';
 import { SubmenuFlyout } from './submenuFlyout.js';
 
-/** A chat-owned activity action with an optional adjacent resource dropdown. */
-export interface ISessionActivityBarAction extends IAction {
-	readonly dropdownActions?: readonly IAction[];
-}
-
 /**
  * A vertical activity bar of icon-only actions that open session tabs and toggle the panel and side panel, docked by {@link ChatViewSessionActivityBar}.
  * Each entry opens or activates its side pane tab, revealing the side pane
@@ -69,8 +63,7 @@ export class SessionActivityBar extends Disposable {
 	/** The number of entries, which determines the strip's height. */
 	readonly itemCount: IObservable<number> = this._itemCount;
 
-	private readonly chatActions = observableValue<IObservable<readonly ISessionActivityBarAction[]> | undefined>(this, undefined);
-	readonly hasDropdown = observableValue(this, false);
+	private readonly chatActions = observableValue<IObservable<readonly IAction[]> | undefined>(this, undefined);
 
 	constructor(
 		container: HTMLElement,
@@ -84,7 +77,7 @@ export class SessionActivityBar extends Disposable {
 		this.element = append(container, $('.session-activity-bar'));
 		const scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));
 		const scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])));
-		let actionsById = new Map<string, ISessionActivityBarAction>();
+		let actionsById = new Map<string, IAction>();
 		const renderedChatActions = this._register(new DisposableMap<string, Action>());
 
 		// Like the workbench activity bar, once an entry's hover has shown, moving to another entry shows its hover instantly.
@@ -103,12 +96,6 @@ export class SessionActivityBar extends Disposable {
 			actionViewItemProvider: (action, options) => {
 				const chatAction = renderedChatActions.get(action.id);
 				if (chatAction) {
-					if (actionsById.get(action.id)?.dropdownActions?.length) {
-						const id = action.id;
-						return scopedInstantiationService.createInstance(DropdownWithPrimaryActionViewItem, chatAction, toAction({
-							id: `${id}.dropdown`, label: localize('sessionActivityBar.chooseResource', "Choose {0}", action.label), run: () => { },
-						}), { getActions: () => actionsById.get(id)?.dropdownActions ?? [] }, 'session-activity-bar-dropdown', { hoverDelegate, menuAsChild: false });
-					}
 					return new ActionViewItem(undefined, chatAction, { ...options, icon: true, label: false });
 				}
 				if (action instanceof SubmenuItemAction) {
@@ -136,11 +123,8 @@ export class SessionActivityBar extends Disposable {
 		const enabled = observableFromEvent(this, this.configurationService.onDidChangeConfiguration, () => !!this.configurationService.getValue<boolean>(SESSION_ACTIVITY_BAR_SETTING));
 		this._register(autorun(reader => {
 			const actions = enabled.read(reader) ? this.chatActions.read(reader)?.read(reader) ?? [] : [];
-			const previousActions = actionsById;
 			actionsById = new Map(actions.map(action => [action.id, action]));
-			const changed = actions.length !== renderedChatActions.size || actions.some(action => !renderedChatActions.has(action.id)
-				|| !!action.dropdownActions?.length !== !!previousActions.get(action.id)?.dropdownActions?.length);
-			this.hasDropdown.set(actions.some(action => !!action.dropdownActions?.length), undefined);
+			const changed = actions.length !== renderedChatActions.size || actions.some(action => !renderedChatActions.has(action.id));
 			for (const [id] of renderedChatActions) {
 				if (!actionsById.has(id)) {
 					renderedChatActions.deleteAndDispose(id);
@@ -196,7 +180,7 @@ export class SessionActivityBar extends Disposable {
 		}));
 	}
 
-	setChatActions(actions: IObservable<readonly ISessionActivityBarAction[]> | undefined): void {
+	setChatActions(actions: IObservable<readonly IAction[]> | undefined): void {
 		this.chatActions.set(actions, undefined);
 	}
 }
@@ -290,9 +274,7 @@ export class ChatViewSessionActivityBar extends Disposable {
 		this._register(this.registerDragListeners(dragHandle));
 
 		const phoneLayout = observableFromEvent(this, layoutService.onDidLayoutMainContainer, () => isPhoneLayout(layoutService));
-		const columnWidth = derived(this, reader => COLUMN_WIDTH + (activityBar.hasDropdown.read(reader) ? 24 : 0));
-		this.reservedWidth = derived(this, reader => activityBar.visible.read(reader) && !phoneLayout.read(reader) ? columnWidth.read(reader) + CONTENT_GAP - AGENTS_CONTENT_HORIZONTAL_PADDING : 0);
-		this._register(autorun(reader => container.style.setProperty('--session-activity-bar-column-width', `${columnWidth.read(reader)}px`)));
+		this.reservedWidth = derived(this, reader => activityBar.visible.read(reader) && !phoneLayout.read(reader) ? ChatViewSessionActivityBar.RESERVED_WIDTH : 0);
 
 		this._register(autorun(reader => {
 			activityBar.itemCount.read(reader);
@@ -344,7 +326,7 @@ export class ChatViewSessionActivityBar extends Disposable {
 		this.applyPosition();
 	}
 
-	setChatActions(actions: IObservable<readonly ISessionActivityBarAction[]> | undefined): void {
+	setChatActions(actions: IObservable<readonly IAction[]> | undefined): void {
 		this.activityBar?.setChatActions(actions);
 	}
 

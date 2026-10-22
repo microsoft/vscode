@@ -70,7 +70,8 @@ import { createPullRequestHover, getPullRequestChecksStatusLabel } from '../../g
 import { ArtifactDetailsContextView } from './artifactDetailsContextView.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ChatPillHoverCache, createChatPillHover } from '../../../../workbench/browser/chatPillHover.js';
-import { ISessionActivityBarAction } from '../../../browser/parts/sessionActivityBar.js';
+import { EditorsOrder } from '../../../../workbench/common/editor.js';
+import { EditorInput } from '../../../../workbench/common/editor/editorInput.js';
 
 const copiedLabel = localize('sessionChatPills.copied', "Copied");
 const copiedToClipboardStatus = localize('sessionChatPills.copiedToClipboard', "Copied to clipboard");
@@ -413,7 +414,7 @@ export class SessionChatInputToolbar extends Disposable {
 	readonly element: HTMLElement;
 	readonly onDidChangeChatPetPlatform: Event<void>;
 	readonly onDidChangeVisibility: Event<boolean>;
-	readonly activityBarActions: IObservable<readonly ISessionActivityBarAction[]>;
+	readonly activityBarActions: IObservable<readonly IAction[]>;
 	private readonly _inputPills: ChatInputPills;
 	private _inputElement: HTMLElement | undefined;
 
@@ -647,7 +648,7 @@ export class SessionChatInputToolbar extends Disposable {
 			}
 			const chat = this._chat.read(reader);
 			const session = this._session.read(reader);
-			const createAction = (id: string, title: string, sections: IObservable<readonly IChatPillSection[]>, icon: ThemeIcon, viewType: string, refs: readonly (IGitHubPullRequestRef | IGitHubIssueRef)[]): ISessionActivityBarAction[] => {
+			const createAction = (id: string, title: string, sections: IObservable<readonly IChatPillSection[]>, icon: ThemeIcon, viewType: string, refs: readonly (IGitHubPullRequestRef | IGitHubIssueRef)[]): IAction[] => {
 				const supported = activityBarOpeners.read(reader).read(reader);
 				const entries = getChatPillEntries(sections.read(reader)).filter(entry => supported.has(entry.id));
 				if (!entries.length) {
@@ -656,13 +657,10 @@ export class SessionChatInputToolbar extends Disposable {
 				const label = entries.length === 1
 					? entries[0].ariaLabel ?? entries[0].label
 					: localize('sessionChatPills.activityBar.openEntries', "{0} ({1})", title, entries.length);
-				const matchesEditor = () => {
-					const editor = activeEditor.read(undefined);
-					return editor instanceof WebviewInput && editor.providerId === viewType
-						|| !!editor?.resource && refs.some(ref => supported.has(ref.recordedReferenceId ?? ref.uri.toString()) && isEqual(ref.uri, editor.resource));
-				};
-				activeEditor.read(reader);
-				const checked = editorPaneVisible.read(reader) && matchesEditor();
+				const matchesEditor = (editor: EditorInput | undefined, availableEntries = entries) => !!editor && !editor.isDisposed() && (
+					editor instanceof WebviewInput && editor.providerId === viewType
+					|| !!editor.resource && refs.some(ref => availableEntries.some(entry => entry.id === (ref.recordedReferenceId ?? ref.uri.toString())) && isEqual(ref.uri, editor.resource)));
+				const checked = editorPaneVisible.read(reader) && matchesEditor(activeEditor.read(reader));
 				const currentEntries = () => {
 					if (this._store.isDisposed || !gitHubActionsEnabled.read(undefined) || !pillsVisible.read(undefined) || this._debugData.read(undefined) || entitlementService.sentimentObs.read(undefined).hidden || this._chat.read(undefined) !== chat || this._session.read(undefined) !== session) {
 						return [];
@@ -670,36 +668,24 @@ export class SessionChatInputToolbar extends Disposable {
 					const supported = activityBarOpeners.read(undefined).read(undefined);
 					return getChatPillEntries(sections.read(undefined)).filter(entry => supported.has(entry.id));
 				};
-				const openEntry = (entryId: string) => {
-					currentEntries().find(entry => entry.id === entryId)?.open();
-				};
-				const action: ISessionActivityBarAction = {
-					...toAction({
-						id, label, class: ThemeIcon.asClassName(icon), checked,
-						run: async () => {
-							const entries = currentEntries();
-							if (!entries.length) {
-								return;
-							}
-							if (matchesEditor()) {
-								if (layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
-									layoutService.hideSidePane();
-								} else {
-									layoutService.revealEditorPartExplicitly();
-								}
-								return;
-							}
-							openEntry(entries[0].id);
-						},
-					}),
-					dropdownActions: entries.length > 1 ? entries.map(entry => toAction({
-						id: entry.id,
-						label: `${entry.badge ? `${entry.badge} ` : ''}${entry.label}`,
-						class: entry.icon ? ThemeIcon.asClassName(entry.icon) : undefined,
-						run: () => openEntry(entry.id),
-					})) : undefined,
-				};
-				return [action];
+				return [toAction({
+					id, label, class: ThemeIcon.asClassName(icon), checked,
+					run: async () => {
+						const entries = currentEntries();
+						if (!entries.length) {
+							return;
+						}
+						const editors = editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE);
+						const existing = editors.find(({ editor }) => editor === editorService.activeEditor && matchesEditor(editor, entries))
+							?? editors.find(({ editor }) => matchesEditor(editor, entries));
+						if (existing) {
+							layoutService.revealEditorPartExplicitly();
+							await editorService.openEditor(existing.editor, { revealIfOpened: true }, existing.groupId);
+							return;
+						}
+						entries[0].open();
+					},
+				})];
 			};
 			return [
 				...createAction(OPEN_PULL_REQUEST_ACTION_ID, localize('sessionChatPills.activityBar.openPullRequest', "Open Pull Request"), activityBarPullRequests.sections, activityBarPullRequests.icon.read(reader), 'PullRequestOverview', pullRequestRefs.read(reader)),
