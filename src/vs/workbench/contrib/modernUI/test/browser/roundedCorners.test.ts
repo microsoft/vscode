@@ -19,6 +19,7 @@ import '../../browser/media/suggestWidget.css';
 suite('Suggestion menu corners', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const controlCorners = ['4px', '4px', '4px', '4px'];
+	const workbenchClasses = ['modern-ui', 'agent-sessions-workbench'] as const;
 
 	function corners(element: HTMLElement): string[] {
 		const style = getWindow(element).getComputedStyle(element);
@@ -40,12 +41,9 @@ suite('Suggestion menu corners', () => {
 		}
 	});
 
-	for (const { workbenchClass, kind } of [
-		{ workbenchClass: 'modern-ui', kind: 'editor' },
-		{ workbenchClass: 'modern-ui', kind: 'workbench' },
-		{ workbenchClass: 'agent-sessions-workbench', kind: 'editor' },
-		{ workbenchClass: 'agent-sessions-workbench', kind: 'workbench' },
-	]) {
+	for (const { workbenchClass, kind } of workbenchClasses.flatMap(workbenchClass =>
+		['editor', 'workbench'].map(kind => ({ workbenchClass, kind }))
+	)) {
 		function createList(count: number, withStatusBar = false, theme = 'vs') {
 			const root = append(document.body, $(`.monaco-workbench.${workbenchClass}.${theme}`));
 			store.add(toDisposable(() => root.remove()));
@@ -182,7 +180,7 @@ suite('Suggestion menu corners', () => {
 		});
 	}
 
-	for (const workbenchClass of ['modern-ui', 'agent-sessions-workbench']) {
+	for (const workbenchClass of workbenchClasses) {
 		test(`${workbenchClass} workbench suggestion resize sashes remain reachable outside the widget`, () => {
 			const root = append(document.body, $(`.monaco-workbench.${workbenchClass}`));
 			store.add(toDisposable(() => root.remove()));

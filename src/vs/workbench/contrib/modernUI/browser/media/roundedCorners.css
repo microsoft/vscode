@@ -194,7 +194,7 @@
 	overflow: hidden;
 }
 
-/* Editor / workbench hover and parameter hint widgets */
+/* Editor / workbench hover and parameter hints. Suggestion widgets use suggestWidget.css. */
 .modern-ui .monaco-hover,
 .modern-ui .monaco-editor .parameter-hints-widget {
 	border-radius: var(--vscode-cornerRadius-large);
