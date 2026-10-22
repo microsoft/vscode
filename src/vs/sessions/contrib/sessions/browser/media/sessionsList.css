@@ -41,6 +41,7 @@
 }
 
 .sessions-list-control {
+	position: relative;
 	flex: 1 1 auto;
 	height: 100%;
 	min-height: 0;
@@ -66,6 +67,11 @@
 
 		&.focused.selected {
 			background-image: linear-gradient(var(--vscode-list-inactiveSelectionBackground, transparent), var(--vscode-list-inactiveSelectionBackground, transparent));
+		}
+
+		/* The opaque sticky background hides the row tint, so paint it as an overlay. */
+		&:not(.selected):not(.focused):not(:hover, .hovered):has(.session-item.needs-input) {
+			background-image: linear-gradient(color-mix(in srgb, var(--vscode-list-warningForeground) 8%, transparent), color-mix(in srgb, var(--vscode-list-warningForeground) 8%, transparent));
 		}
 	}
 
@@ -134,15 +140,7 @@
 	/* Suppressed while selected so the selection highlight is not overpainted. */
 	.monaco-list-row:not(.selected):not(.focused):not(:hover, .hovered):has(.session-item.needs-input),
 	.monaco-list-row:not(.selected):not(.focused):not(:hover, .hovered) .session-chat-item.needs-input {
-		animation: session-needs-input-accent-pulse 3s ease-in-out infinite;
-	}
-
-	@media (prefers-reduced-motion: reduce) {
-		.monaco-list-row:not(.selected):not(.focused):not(:hover, .hovered):has(.session-item.needs-input),
-		.monaco-list-row:not(.selected):not(.focused):not(:hover, .hovered) .session-chat-item.needs-input {
-			animation: none;
-			background-color: color-mix(in srgb, var(--vscode-list-warningForeground) 8%, transparent);
-		}
+		background-color: color-mix(in srgb, var(--vscode-list-warningForeground) 8%, transparent);
 	}
 
 	.monaco-list-row .force-no-twistie {
@@ -361,16 +359,6 @@
 			flex-shrink: 0;
 			width: 16px;
 			height: 16px;
-		}
-
-		&.session-icon-pulse > .codicon {
-			animation: session-needs-input-pulse 2s ease-in-out infinite;
-		}
-
-		@media (prefers-reduced-motion: reduce) {
-			&.session-icon-pulse > .codicon {
-				animation: none;
-			}
 		}
 	}
 
@@ -822,6 +810,11 @@
 	each nested/side chat row (for that chat), so it is scoped to neither. */
 .session-approval-row {
 	display: none;
+	/* Reset the inherited list-row line-height (set to the full row height).
+		The label's code block renders as plain inline text until it is tokenized,
+		so a dynamic-height probe in that state would measure a line box as tall as
+		the previous row height and grow the row on every re-measure. */
+	line-height: 18px;
 	gap: 8px;
 	margin-top: 4px;
 	margin-left: -6px;
@@ -932,6 +925,16 @@
 		}
 	}
 
+	/* A done chat listed in the Done section on its own row: aligned with session rows, without hierarchy guides. */
+	&.standalone {
+		padding-left: var(--vscode-spacing-size120);
+
+		&::before,
+		&::after {
+			display: none;
+		}
+	}
+
 	.session-chat-title-row {
 		display: flex;
 		align-items: center;
@@ -1024,16 +1027,6 @@
 			width: var(--vscode-spacing-size120);
 			height: var(--vscode-spacing-size120);
 		}
-
-		&.session-icon-pulse > .codicon {
-			animation: session-needs-input-pulse 2s ease-in-out infinite;
-		}
-
-		@media (prefers-reduced-motion: reduce) {
-			&.session-icon-pulse > .codicon {
-				animation: none;
-			}
-		}
 	}
 
 	&.unread .session-chat-title,
@@ -1070,6 +1063,10 @@
 
 .sessions-list-control.compact .session-chat-item {
 	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size120) var(--vscode-spacing-size60) var(--vscode-spacing-size360);
+
+	&.standalone {
+		padding-left: var(--vscode-spacing-size120);
+	}
 
 	&::after {
 		height: calc(var(--vscode-spacing-size60) + var(--vscode-spacing-size80));
@@ -1121,8 +1118,35 @@
 }
 
 .monaco-list-row:hover .session-show-more:hover,
-.monaco-list-row.hovered .session-show-more {
+.monaco-list-row.hovered .session-show-more,
+.sessions-list-sticky-show-more .session-show-more:is(:hover, .hovered, :focus-visible) {
 	color: var(--vscode-foreground);
+}
+
+.sessions-list-sticky-show-more {
+	position: absolute;
+	bottom: 0;
+	left: var(--vscode-spacing-size40);
+	right: var(--vscode-spacing-size40);
+	z-index: 1;
+	padding-bottom: var(--vscode-spacing-size20);
+	background-color: var(--vscode-agents-background);
+
+	.monaco-button.session-show-more {
+		height: 26px;
+		text-decoration: none;
+		border-radius: var(--vscode-cornerRadius-small);
+
+		&:is(:hover, .hovered) {
+			outline: var(--vscode-strokeThickness) dashed var(--vscode-contrastActiveBorder, transparent);
+			outline-offset: calc(-1 * var(--vscode-strokeThickness));
+		}
+
+		&:focus-visible {
+			outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+			outline-offset: calc(-1 * var(--vscode-strokeThickness));
+		}
+	}
 }
 
 /* Muted placeholder row for the empty "Chats" section, aligned with chat titles. */
@@ -1314,6 +1338,23 @@
 	}
 }
 
+/*
+ * A nested custom group steps in one level for each group it is nested in. A
+ * level is the header icon and its gap, so a subgroup's header starts where its
+ * parent's label does; the group's sessions and rows line up with its header.
+ */
+.sessions-list-control {
+	--session-group-indent: calc(var(--vscode-codiconFontSize, 16px) + var(--vscode-spacing-size60));
+}
+
+.session-item,
+.session-chat-item,
+.session-group,
+.session-show-more,
+.session-placeholder {
+	margin-left: calc(var(--session-group-depth, 0) * var(--session-group-indent, 0px));
+}
+
 /* Session groups render like sections, with an inline name editor. */
 .session-group {
 	.session-group-description {
@@ -1402,97 +1443,37 @@
 	display: block;
 }
 
+/* Feedback while moving a chat or session: a clear insertion line between rows (also when placing a session between sessions of Pinned or a custom group), and an outlined list for a new session. Moving into a session highlights its rows with the list's drop background, as in the Explorer. */
+.sessions-list-control.move-drag .monaco-list .monaco-list-rows .monaco-list-row.drop-target-before::before,
+.sessions-list-control.move-drag .monaco-list .monaco-list-rows .monaco-list-row.drop-target-after::after {
+	height: calc(2 * var(--vscode-strokeThickness));
+	background-color: var(--vscode-focusBorder);
+	z-index: 1;
+}
+
+/* Among a session's nested rows, the line starts at their indent, unlike a line placing a session between sessions. */
+.sessions-list-control.move-drag.move-drag-nested .monaco-list .monaco-list-rows .monaco-list-row.drop-target-before::before,
+.sessions-list-control.move-drag.move-drag-nested .monaco-list .monaco-list-rows .monaco-list-row.drop-target-after::after {
+	left: var(--vscode-spacing-size360);
+	width: calc(100% - var(--vscode-spacing-size360));
+}
+
+/* A group dropped among nested groups lands at their depth, so its insertion line starts at their indent. */
+.sessions-list-control.session-group-insertion .monaco-list .monaco-list-rows .monaco-list-row.drop-target-before::before,
+.sessions-list-control.session-group-insertion .monaco-list .monaco-list-rows .monaco-list-row.drop-target-after::after {
+	left: calc(var(--session-group-insertion-depth, 0) * var(--session-group-indent, 0px));
+	width: calc(100% - var(--session-group-insertion-depth, 0) * var(--session-group-indent, 0px));
+}
+
+.sessions-list-control.move-drag .monaco-list.drop-target {
+	box-shadow: inset 0 0 0 var(--vscode-strokeThickness) var(--vscode-focusBorder);
+	border-radius: var(--vscode-cornerRadius-medium);
+}
+
 /* Header-only feedback while dragging sessions into a group or Pinned. */
 .sessions-list-control .monaco-list-row.drop-target:has(.session-section),
 .sessions-list-control .monaco-list-row:has(.session-header-drop-target) {
 	background-color: var(--vscode-list-dropBackground) !important;
-}
-
-@keyframes session-needs-input-pulse {
-
-	0%,
-	100% {
-		opacity: 1;
-	}
-
-	50% {
-		opacity: 0.4;
-	}
-}
-
-/* PROTO: yellow background pulse for "Input needed" session rows. */
-@keyframes session-needs-input-accent-pulse {
-	0%, 100% {
-		background-color: transparent;
-	}
-	50% {
-		background-color: color-mix(in srgb, var(--vscode-list-warningForeground) 12%, transparent);
-	}
-}
-
-/* Shimmer effect for in-progress session titles when not selected. */
-/* Gated behind @supports because some environments apply */
-/* `-webkit-text-fill-color: transparent` without honoring */
-/* `background-clip: text`, which renders gradient-filled blocks */
-/* instead of clipped text. Also disabled under reduced motion. */
-
-@supports ((background-clip: text) or (-webkit-background-clip: text)) {
-	@media not (prefers-reduced-motion: reduce) {
-		.monaco-list-row:not(.selected) .session-item.in-progress .session-title {
-			background: linear-gradient(
-				90deg,
-				var(--vscode-strongForeground) 0%,
-				var(--vscode-strongForeground) 30%,
-				var(--vscode-chat-thinkingShimmer) 50%,
-				var(--vscode-strongForeground) 70%,
-				var(--vscode-strongForeground) 100%
-			);
-			background-size: 400% 100%;
-			background-clip: text;
-			-webkit-background-clip: text;
-			-webkit-text-fill-color: transparent;
-			animation: session-title-shimmer 6s steps(90, jump-none) infinite;
-		}
-
-		.monaco-list-row:not(.selected) .session-item.in-progress .session-title.chat-progress-animation {
-			animation-play-state: paused;
-		}
-
-		.vs-dark .monaco-list-row:not(.selected) .session-item.in-progress .session-title,
-		.hc-black .monaco-list-row:not(.selected) .session-item.in-progress .session-title {
-			background-image: linear-gradient(
-				90deg,
-				var(--vscode-strongForeground) 0%,
-				var(--vscode-strongForeground) 30%,
-				var(--vscode-descriptionForeground) 50%,
-				var(--vscode-strongForeground) 70%,
-				var(--vscode-strongForeground) 100%
-			);
-		}
-
-		.monaco-list-row:not(.selected) .session-item.session-comparison-attempt.in-progress .session-title {
-			background: none;
-			-webkit-text-fill-color: currentColor;
-			animation: none;
-		}
-	}
-}
-
-.monaco-reduce-motion .monaco-list-row:not(.selected) .session-item.in-progress .session-title {
-	background: none;
-	-webkit-text-fill-color: currentColor;
-	animation: none;
-}
-
-@keyframes session-title-shimmer {
-	0% {
-		background-position: 120% 0;
-	}
-
-	50%,
-	100% {
-		background-position: -120% 0;
-	}
 }
 
 /* ---- Mobile Layout: Touch Adaptations ---- */
@@ -1560,6 +1541,15 @@
 		--session-chat-base-height: 44px;
 		padding: 0 var(--vscode-spacing-size120) 0 var(--vscode-spacing-size360);
 		font-size: var(--vscode-fontSize-body1);
+	}
+
+	.session-chat-item.standalone {
+		padding-left: var(--vscode-spacing-size100);
+	}
+
+	/* Standalone rows show Open Parent Session next to the row's own action, so reserve room for both, as session rows do. */
+	.session-chat-item.standalone .session-chat-title-row {
+		padding-right: calc(2 * var(--session-chat-base-height) + var(--vscode-spacing-size80));
 	}
 
 	.session-chat-item::after {

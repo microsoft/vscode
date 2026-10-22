@@ -6,6 +6,7 @@
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { CheckRun } from '../../../../../platform/github/common/core/checks.js';
+import { ApiRequestOptions } from '../../../../../platform/github/common/client/request.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { GitHubCheckConclusion, GitHubCheckStatus, GitHubCIOverallStatus, IGitHubCICheck } from '../../common/types.js';
 import { GitHubApiClient } from '../githubApiClient.js';
@@ -13,9 +14,10 @@ import { GitHubApiClient } from '../githubApiClient.js';
 export class GitHubPRCIFetcher {
 	constructor(readonly client: GitHubApiClient, private readonly _logService: ILogService) { }
 
-	getCheckRuns(owner: string, repo: string, ref: string, token?: CancellationToken): Promise<readonly IGitHubCICheck[]> {
+	getCheckRuns(owner: string, repo: string, ref: string, token?: CancellationToken, options?: ApiRequestOptions): Promise<readonly IGitHubCICheck[]> {
 		return this.client.withClient(async (client, signal) => {
-			const checks = await client.checks.listRuns({ owner, name: repo }, ref, signal, {
+			const checks = await client.checks.listRuns({ owner, repo }, ref, signal, {
+				...options,
 				query: { page: 1, per_page: 100 },
 				maxPages: 100,
 			});
@@ -25,12 +27,12 @@ export class GitHubPRCIFetcher {
 
 	rerunFailedJobs(owner: string, repo: string, runId: number, token?: CancellationToken): Promise<void> {
 		return this.client.withClient((client, signal) =>
-			client.actions.rerunFailedJobs({ owner, name: repo }, runId, signal), token);
+			client.actions.rerunFailedJobs({ owner, repo }, runId, signal), token);
 	}
 
 	getCheckRunAnnotations(owner: string, repo: string, checkRunId: number, token?: CancellationToken): Promise<string> {
 		return this.client.withClient(async (client, signal) => {
-			const repository = { owner, name: repo };
+			const repository = { owner, repo };
 			const sections: string[] = [];
 			try {
 				const { output } = await client.checks.getRun(repository, checkRunId, signal);

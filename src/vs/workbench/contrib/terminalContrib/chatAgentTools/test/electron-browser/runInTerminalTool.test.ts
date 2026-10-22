@@ -670,6 +670,8 @@ suite('RunInTerminalTool', () => {
 
 		test('should automatically repair AppArmor, probe again, and execute', async () => {
 			runInTerminalTool.disableProcessIdAssociation();
+			// The mocked command finishes immediately; don't wait a real second per idle poll.
+			setConfig(TerminalChatAgentToolsSettingId.IdlePollInterval, 1);
 			let forceRefreshCalled = false;
 			terminalSandboxService.checkForSandboxingPrereqs = async forceRefresh => {
 				forceRefreshCalled ||= forceRefresh === true;

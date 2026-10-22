@@ -4,13 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
+import { IReference } from '../../../../base/common/lifecycle.js';
+import { IArtifactModel } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IAutomationSessionTemplate } from '../../../../workbench/contrib/chat/common/automations/automation.js';
-import { IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionType, ISessionWorkspace, ISideChatSelection } from './session.js';
-import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, ISessionConfigurationSnapshot, ISendRequestOptions as ISessionsProviderSendRequestOptions, type SessionResourceResolveReason } from './sessionsProvider.js';
+import { IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionType, ISessionWorkspace, ISideChatSelection, type SessionCanvasDefinitionSnapshot } from './session.js';
+import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, type INestedChatWorkspace, ISessionChangesetOperationInvokedEvent, ISessionConfigurationSnapshot, ISendRequestOptions as ISessionsProviderSendRequestOptions, type SessionResourceResolveReason } from './sessionsProvider.js';
 
 /** Raised when unattended session creation targets a workspace that requires trust. */
 export class WorkspaceNotTrustedError extends Error {
@@ -36,6 +38,11 @@ export interface ISendRequestOptions extends ISessionsProviderSendRequestOptions
 	 */
 	readonly background?: boolean;
 }
+
+/** Where {@link ISessionsManagementService.moveChat} moves a chat: after `after` (first when `undefined`) in `session`, or into a new session. */
+export type ISessionChatMoveTarget =
+	| { readonly kind: 'session'; readonly session: ISession; readonly after: IChat | undefined }
+	| { readonly kind: 'newSession' };
 
 export interface IDeferredNewSessionRequestOptions {
 	readonly kind: 'deferred';
@@ -380,6 +387,8 @@ export interface ISessionsManagementService {
 	readonly onDidReplaceSession: Event<{ readonly from: ISession; readonly to: ISession }>;
 	/** Fires when a provider moved a chat to another of its sessions (see `ISessionsProvider.onDidMoveChat`). */
 	readonly onDidMoveChat: Event<IChatMovedEvent>;
+	/** Fires when the user invokes a changeset operation of a session from any provider. */
+	readonly onDidInvokeChangesetOperation: Event<ISessionChangesetOperationInvokedEvent>;
 	/**
 	 * Fires when the in-progress new session is discarded via
 	 * {@link discardNewSession}: either the composer draft is abandoned without
@@ -477,15 +486,23 @@ export interface ISessionsManagementService {
 	createNewChatInSession(session: ISession, options?: ICreateNewChatInSessionOptions): Promise<IChat | undefined>;
 
 	/**
+	 * Gives `chat`, an untitled chat of `session` that has not sent a request, the chosen workspace via the session's
+	 * provider (see {@link ISessionsProvider.applyNestedChatWorkspace}); `prompt` names a new worktree. Rejects with a
+	 * {@link NestedChatWorkspaceError} when the workspace cannot be applied, including when the provider is unknown.
+	 */
+	applyNestedChatWorkspace(session: ISession, chat: IChat, workspace: INestedChatWorkspace, prompt: string): Promise<void>;
+
+	/**
 	 * Fork an existing chat into a new chat within the same session, seeded
 	 * with the source chat's history up to and including the given turn. Used
-	 * for the fork gesture on sessions that support multiple chats.
+	 * for the fork gesture on sessions that support forking.
 	 *
 	 * @param session The session containing the source chat.
 	 * @param sourceChat The resource URI of the chat to fork from.
 	 * @param turnId The ID of the last turn (request) to include in the fork.
+	 * @param options Optional fork settings.
 	 */
-	forkChatInSession(session: ISession, sourceChat: URI, turnId: string): Promise<IChat>;
+	forkChatInSession(session: ISession, sourceChat: URI, turnId: string, options?: IForkChatOptions): Promise<IChat>;
 
 	/**
 	 * Create a side chat from an existing chat's turn, inheriting the source
@@ -582,7 +599,10 @@ export interface ISessionsManagementService {
 	setSessionReadState(session: ISession, isRead: boolean): Promise<void>;
 
 	/** Mark a chat as read through its provider when it supports independent chat read state. */
-	markChatRead(session: ISession, chat: IChat): Promise<boolean | void>;
+	markChatRead(session: ISession, chat: IChat, options?: IMarkSessionReadOptions): Promise<boolean | void>;
+
+	/** Mark a chat as unread through its provider when it supports independent chat read state. */
+	markChatUnread(session: ISession, chat: IChat): Promise<boolean | void>;
 
 	/** Mark multiple chats as read through one provider operation when supported. */
 	markChatsRead(session: ISession, chats: readonly IChat[]): Promise<void>;
@@ -617,11 +637,30 @@ export interface ISessionsManagementService {
 	/** Rename a session, independently of its chats. */
 	renameSession(session: ISession, title: string): Promise<void>;
 
+	/** Whether the chat of `session` can be moved (see {@link moveChat}); the destination is validated when moving. */
+	canMoveChat(session: ISession, chat: IChat): boolean;
+
+	/**
+	 * Move the chat of `session` after `after` in `destination` (its own session to reorder it, or another session of
+	 * the same provider), or into a new session. Rejects with a user-facing message when the move is refused.
+	 */
+	moveChat(session: ISession, chat: IChat, destination: ISessionChatMoveTarget): Promise<void>;
+
+	/** Whether `session` can move under another session of its provider (see {@link moveSessionUnder}). */
+	canMoveSessionUnder(session: ISession): boolean;
+
+	/**
+	 * Move `session` under `destination`, its chat placed after `after` (first when `undefined`); `session` ends.
+	 * Rejects with a user-facing message when the move is refused.
+	 */
+	moveSessionUnder(session: ISession, destination: ISession, after: IChat | undefined): Promise<void>;
+
 	/** Remove a recorded artifact through its owning provider. */
 	removeSessionArtifact(session: ISession, artifactId: string): Promise<void>;
+	acquireArtifactIntegration(session: ISession, artifactId: string): Promise<IReference<IArtifactModel> | undefined>;
 
-	/** List canvas types registered in one live chat. */
-	listCanvases(session: ISession, chat: IChat): Promise<readonly ISessionCanvasDefinition[]>;
+	/** List canvas types registered in one live chat. `undefined` is unsettled and must be followed by a canvas change when authoritative. */
+	listCanvases(session: ISession, chat: IChat): Promise<SessionCanvasDefinitionSnapshot>;
 
 	/** Open or focus one stable instance of a registered canvas type. */
 	openCanvas(session: ISession, chat: IChat, canvas: ISessionCanvasDefinition, instanceId: string): Promise<void>;

@@ -77,7 +77,11 @@ export class GlyphSurface extends Disposable {
 			this.canvas.remove();
 			this.canvas.width = this.canvas.height = 0;
 		}));
-		const resizeObserver = this._register(new dom.DisposableResizeObserver('ChatImageGlyphSurface', () => this.refresh()));
+		// Repaint in the next frame: painting a reveal frame resizes the image container, which must not
+		// happen while resize observers deliver notifications ("ResizeObserver loop completed with undelivered notifications")
+		const resizeObserver = this._register(new dom.DisposableResizeObserver('ChatImageGlyphSurface', () => {
+			this.nextFrame.value = dom.scheduleAtNextAnimationFrame(dom.getWindow(this.canvas), () => this.refresh());
+		}));
 		this._register(resizeObserver.observe(this.canvas));
 		this._register(themeService.onDidColorThemeChange(() => this.refresh()));
 		this._register(accessibilityService.onDidChangeReducedMotion(() => this.refresh()));

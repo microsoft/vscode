@@ -27,7 +27,13 @@ export type TurnEndReason =
 	| { readonly kind: 'success' }
 	| { readonly kind: 'cancelled' }
 	| { readonly kind: 'error'; readonly error: ErrorInfo; readonly resumable: boolean }
-	| { readonly kind: 'rejected'; readonly error: ErrorInfo }
+	/**
+	 * `recoverable` reports whether the submitter still holds the message, as an
+	 * ordinary client does in its composer draft. Only an unrecoverable
+	 * rejection needs to outlive the session in state, because nothing else
+	 * retains what the user asked for.
+	 */
+	| { readonly kind: 'rejected'; readonly error: ErrorInfo; readonly recoverable: boolean }
 	| { readonly kind: 'localCommand' };
 
 /** A terminal turn outcome offered to contributions after a turn ended. */

@@ -15,12 +15,14 @@ import { joinPath } from '../../../../../../base/common/resources.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostService, IMissionControlOptions } from '../../../../../../platform/agentHost/common/agentService.js';
+import { CloudSandboxEarlyPreparationSettingId, ICloudSandboxDraftPreparationService } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { AgentHostRemoteConnectionsBackend, AgentHostRemoteConnectionsSettingId } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IConfigurationChangeEvent, IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../../platform/configuration/common/configurationRegistry.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { getSingletonServiceDescriptors } from '../../../../../../platform/instantiation/common/extensions.js';
 import { FileOperationError, FileOperationResult, IFileService, IFileStatWithMetadata, IFileStatWithPartialMetadata } from '../../../../../../platform/files/common/files.js';
 import { IPathService } from '../../../../../../platform/path/common/pathService.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -34,8 +36,10 @@ import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticati
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import '../../../browser/remoteAgentHost/remoteAgentHost.contribution.js';
 import { MissionControlSharingService } from '../../../browser/remoteAgentHost/missionControlSharingService.js';
+import { CloudSandboxDraftPreparationService } from '../../../browser/remoteAgentHost/cloudSandboxDraftPreparationService.js';
 
 const remoteControlPolicyOverrideSetting = 'chat.agentHost.experimentalMissionControl.ignoreRemoteControlPolicy';
+const localCredentialSetting = 'chat.agentHost.experimentalMissionControl.useLocalCredentials';
 const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
 const remoteConnectionsSetting = configurationProperties[AgentHostRemoteConnectionsSettingId];
 const remoteControlPolicyOverrideSettingRegistered = configurationProperties[remoteControlPolicyOverrideSetting] !== undefined;
@@ -46,7 +50,6 @@ const removedSettings = {
 	'chat.agentHost.experimentalMissionControl.enabled': true,
 	'chat.agentHost.experimentalMissionControl.endpoint': 'https://example.invalid',
 	'chat.agentHost.experimentalMissionControl.requireConnectionBinding': true,
-	'chat.agentHost.experimentalMissionControl.useLocalCredentials': true,
 	'chat.agentHost.experimentalMissionControlFakeEndpoint': 'http://127.0.0.1:1234',
 };
 const session: AuthenticationSession = { id: 'session', account: { id: 'account', label: 'Account' }, scopes: ['read:user', 'user:email', 'repo', 'workflow'], accessToken: 'test-token' };
@@ -61,6 +64,27 @@ const expectedOptions: IMissionControlOptions = {
 	defaultDirectory: home.fsPath,
 	live: true,
 };
+
+suite('Cloud sandbox preparation configuration', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('registers one shared service and a default-off application experiment setting', () => {
+		const setting = configurationProperties[CloudSandboxEarlyPreparationSettingId];
+		const services = new Map(getSingletonServiceDescriptors());
+
+		assert.deepStrictEqual({
+			type: setting.type,
+			default: setting.default,
+			scope: setting.scope,
+			restricted: setting.restricted,
+			experiment: setting.experiment,
+			service: services.get(ICloudSandboxDraftPreparationService)?.ctor,
+		}, {
+			type: 'boolean', default: false, scope: ConfigurationScope.APPLICATION,
+			restricted: true, experiment: { mode: 'auto' }, service: CloudSandboxDraftPreparationService,
+		});
+	});
+});
 
 suite('Mission Control sharing service', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -175,7 +199,7 @@ suite('Mission Control sharing service', () => {
 		});
 	}
 
-	test('registers a preview backend setting without the removed enablement settings', () => {
+	test('registers a preview backend and default-off local credential setting without removed enablement settings', () => {
 		assert.deepStrictEqual({
 			removed: registeredMissionControlSettings,
 			remoteControlPolicyOverrideSettingRegistered,
@@ -188,7 +212,7 @@ suite('Mission Control sharing service', () => {
 				dataHandling: remoteConnectionsSetting.enumDescriptions?.[1].includes('Session actions are mirrored to GitHub for catalog and history storage. Conversation content is not end-to-end encrypted.'),
 			},
 		}, {
-			removed: [], remoteControlPolicyOverrideSettingRegistered: false,
+			removed: [{ key: localCredentialSetting, default: false }], remoteControlPolicyOverrideSettingRegistered: false,
 			backend: { default: 'devTunnel', enum: ['devTunnel', 'githubEnvironment'], scope: ConfigurationScope.APPLICATION, restricted: true, tags: ['preview', 'advanced'], dataHandling: true },
 		});
 	});
@@ -202,6 +226,7 @@ suite('Mission Control sharing service', () => {
 	}
 
 	for (const [setting, option] of [
+		[localCredentialSetting, 'useLocalCredentials'],
 		[remoteControlPolicyOverrideSetting, 'ignoreRemoteControlPolicy'],
 	] as const) {
 		for (const scenario of [

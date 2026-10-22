@@ -10,7 +10,7 @@ import { Emitter } from '../../../../../../base/common/event.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { PolicyState, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { withAgentModelFusionMeta } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
+import { withAgentModelAutoTierPromotionsMeta, withAgentModelAutoTiersMeta, withAgentModelFusionMeta, type IAgentModelAutoTierPromotion } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
 import { createLocalModelRowMeta } from '../../../../../../platform/agentHost/common/meta/localModelStatus.js';
 import { withAgentManagedModelDefaults, withAgentModelConfigurationDefaults } from '../../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
 import { ILanguageModelChatMetadata } from '../../../common/languageModels.js';
@@ -50,6 +50,17 @@ suite('AgentHostLanguageModelProvider', () => {
 			{ keys: undefined, default: 'high', readOnly: true, managed: undefined },
 			{ keys: undefined, default: 'high', readOnly: true, managed: undefined },
 		]);
+	});
+	test('announces the first models, even none, and later only models that changed', () => {
+		const provider = createProvider();
+		let changes = 0;
+		store.add(provider.onDidChange(() => changes++));
+		const observations = [];
+		for (const models of [[], [], [makeModel('auto')], [makeModel('auto')], [makeModel('auto'), makeModel('gpt-5')]]) {
+			provider.updateModels(models);
+			observations.push(changes);
+		}
+		assert.deepStrictEqual(observations, [1, 1, 2, 2, 3]);
 	});
 	test('retains cloud-service models omitted from the host catalog across root updates', async () => {
 		const provider = createProvider();
@@ -232,8 +243,8 @@ suite('AgentHostLanguageModelProvider', () => {
 	test('presents Auto as Fusion only when its host marks it so', async () => {
 		const provider = createProvider();
 		provider.updateModels([
-			{ ...makeModel('auto', withAgentModelFusionMeta({ discountPercent: 10 }, { balanceUsesHydraFusion: true })), name: 'Fusion' },
-			{ ...makeModel('gpt-5', withAgentModelFusionMeta(undefined, { balanceUsesHydraFusion: true })) },
+			{ ...makeModel('auto', withAgentModelFusionMeta(undefined)), name: 'Copilot Fusion' },
+			{ ...makeModel('gpt-5', withAgentModelFusionMeta(undefined)) },
 		]);
 		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
 		const fusionOf = async (meta?: Record<string, unknown>) => {
@@ -242,16 +253,92 @@ suite('AgentHostLanguageModelProvider', () => {
 			return (await host.provideLanguageModelChatInfo(undefined, CancellationToken.None))[0].metadata.autoModelFusion;
 		};
 		assert.deepStrictEqual({
-			models: infos.map(m => ({ name: m.metadata.name, fusion: m.metadata.autoModelFusion, tooltip: m.metadata.tooltip })),
+			models: infos.map(m => ({ name: m.metadata.name, fusion: m.metadata.autoModelFusion, detail: m.metadata.detail, tooltip: m.metadata.tooltip })),
 			plain: await fusionOf(),
-			malformed: [await fusionOf({ 'vscode.chat.fusion': {} }), await fusionOf({ 'vscode.chat.fusion': { balanceUsesHydraFusion: 'true' } })],
+			malformed: [await fusionOf({ 'vscode.chat.fusion': true }), await fusionOf({ 'vscode.chat.fusion': 'fusion' })],
 		}, {
 			models: [
-				{ name: 'Fusion', fusion: { balanceUsesHydraFusion: true }, tooltip: 'Fusion routes based on your task and real-time system health and model performance.' },
-				{ name: 'gpt-5', fusion: undefined, tooltip: undefined },
+				{ name: 'Copilot Fusion', fusion: true, detail: undefined, tooltip: 'Copilot Fusion chooses models and workflows based on your task. [Learn more](https://docs.github.com/en/early-access/copilot/hydrafusion)' },
+				{ name: 'gpt-5', fusion: undefined, detail: undefined, tooltip: undefined },
 			],
 			plain: undefined,
 			malformed: [undefined, undefined],
+		});
+	});
+
+	test('lists the provider\'s unavailable Auto tiers as disabled entries in the provider\'s order', async () => {
+		const tierOf = async (model: SessionModelInfo) => {
+			const host = createProvider();
+			host.updateModels([model]);
+			const property = (await host.provideLanguageModelChatInfo(undefined, CancellationToken.None))[0].metadata.configurationSchema?.properties?.tier;
+			return { enum: property?.enum, labels: property?.enumItemLabels, descriptions: property?.enumDescriptions, disabled: property?.enumItemDisabled, default: property?.default };
+		};
+		const configSchema: SessionModelInfo['configSchema'] = {
+			type: 'object',
+			properties: { tier: { type: 'string', title: 'Optimize for', enum: ['balance', 'hydrafusion'], enumLabels: ['Balance', 'High'], enumDescriptions: ['', 'Fusion'], default: 'balance' } },
+		};
+		const meta = withAgentModelAutoTiersMeta(undefined, {
+			tiers: [
+				{ id: 'balance', label: 'Balance', enabled: true },
+				{ id: 'premium', label: 'Premium', enabled: false },
+				{ id: 'hydrafusion', label: 'High', enabled: true },
+				{ id: 'hydrafusion-max', label: 'Max', enabled: false, message: 'This tier requires models that the user does not have access to.' },
+			],
+		});
+
+		assert.deepStrictEqual({
+			withUnavailable: await tierOf({ ...makeModel('auto', meta), configSchema }),
+			plain: await tierOf({ ...makeModel('auto'), configSchema }),
+			notAuto: await tierOf({ ...makeModel('gpt-5', meta), configSchema }),
+			allUnavailable: await tierOf({
+				...makeModel('auto', withAgentModelAutoTiersMeta(undefined, { tiers: [{ id: 'balance', label: 'Balance', enabled: false, message: 'Paused' }, { id: 'hydrafusion-max', label: 'Max', enabled: false }] })),
+				configSchema: { type: 'object', properties: { tier: { type: 'string', title: 'Optimize for', enum: [] } } },
+			}),
+		}, {
+			withUnavailable: {
+				enum: ['balance', 'premium', 'hydrafusion', 'hydrafusion-max'],
+				labels: ['Balance', 'Premium', 'High', 'Max'],
+				descriptions: ['', '', 'Fusion', 'This tier requires models that the user does not have access to.'],
+				disabled: [false, true, false, true],
+				default: 'balance',
+			},
+			plain: { enum: ['balance', 'hydrafusion'], labels: ['Balance', 'High'], descriptions: ['', 'Fusion'], disabled: undefined, default: 'balance' },
+			notAuto: { enum: ['balance', 'hydrafusion'], labels: ['Balance', 'High'], descriptions: ['', 'Fusion'], disabled: undefined, default: 'balance' },
+			allUnavailable: { enum: ['balance', 'hydrafusion-max'], labels: ['Balance', 'Max'], descriptions: ['Paused', ''], disabled: [true, true], default: undefined },
+		});
+	});
+
+	test('Fusion\'s discount comes only from the service\'s running tier promotions, never from Auto\'s own discount', async () => {
+		const day = 24 * 60 * 60 * 1000;
+		const iso = (offset: number) => new Date(Date.now() + offset).toISOString();
+		const configSchema: SessionModelInfo['configSchema'] = {
+			type: 'object',
+			properties: { tier: { type: 'string', title: 'Effort Level', enum: ['balance', 'hydrafusion'], default: 'balance' } },
+		};
+		const running = { id: 'launch', message: 'Get 30% off', discountPercent: 30, tierIds: ['balance', 'hydrafusion', 'hydrafusion-max'], startsAt: iso(-day), endsAt: iso(day), showBanner: true };
+		const presented = async (fusion: boolean, promotions: IAgentModelAutoTierPromotion[]) => {
+			const provider = createProvider();
+			let meta = withAgentModelAutoTierPromotionsMeta({ discountPercent: 10 }, promotions);
+			meta = fusion ? withAgentModelFusionMeta(meta) : meta;
+			provider.updateModels([{ ...makeModel('auto', meta), configSchema }]);
+			const { metadata } = (await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None))[0];
+			return { detail: metadata.detail, discount: metadata.autoModelDiscountPercent, promotions: metadata.autoModelTierPromotions?.map(promotion => promotion.id) };
+		};
+
+		assert.deepStrictEqual({
+			running: await presented(true, [running]),
+			upcoming: await presented(true, [{ ...running, startsAt: iso(day), endsAt: iso(2 * day) }]),
+			ended: await presented(true, [{ ...running, startsAt: iso(-2 * day), endsAt: iso(-day) }]),
+			oneTier: await presented(true, [{ ...running, tierIds: ['hydrafusion'] }]),
+			none: await presented(true, []),
+			notFusion: await presented(false, [running]),
+		}, {
+			running: { detail: '30% discount', discount: undefined, promotions: ['launch'] },
+			upcoming: { detail: undefined, discount: undefined, promotions: undefined },
+			ended: { detail: undefined, discount: undefined, promotions: undefined },
+			oneTier: { detail: undefined, discount: undefined, promotions: ['launch'] },
+			none: { detail: undefined, discount: undefined, promotions: undefined },
+			notFusion: { detail: '10% discount', discount: 10, promotions: undefined },
 		});
 	});
 

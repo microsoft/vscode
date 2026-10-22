@@ -81,7 +81,7 @@ suite('ChatConfiguration defaults', () => {
 				visible: isVisibleEditorChatSessionType(localChatSessionType, configuration, sessions, workspace, false, enabled, true),
 			})));
 		assert.deepStrictEqual(results, Array.from({ length: 4 }, () => ({
-			computed: SessionType.AgentHostCopilot, explicit: SessionType.AgentHostCopilot, remembered: SessionType.AgentHostCopilot, usable: false, visible: false,
+			computed: SessionType.AgentHostCopilot, explicit: SessionType.AgentHostCopilot, remembered: SessionType.AgentHostCopilot, usable: false, visible: true,
 		})));
 	});
 
@@ -104,7 +104,7 @@ suite('ChatConfiguration defaults', () => {
 		function requiresAgentHost(configuration: IConfigurationService, sandbox: boolean, permissions: boolean, allowLocal = true): boolean {
 			const settings: ManagedSettingsData = {
 				[COPILOT_SANDBOX_ENABLED_KEY]: sandbox,
-				...(permissions ? { 'permissions.allow': '[]' } : {}),
+				...(permissions ? { 'permissions.deny': '["Shell"]' } : {}),
 				[COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY]: allowLocal,
 				[COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY]: true,
 			};
@@ -175,7 +175,7 @@ suite('ChatConfiguration defaults', () => {
 				results: Array.from({ length: 4 }, () => ({
 					computed: SessionType.AgentHostCopilot, explicit: SessionType.AgentHostCopilot,
 					remembered: SessionType.AgentHostCopilot, current: SessionType.AgentHostCopilot,
-					usable: false, visible: false,
+					usable: false, visible: true,
 				})),
 				stored: localChatSessionType,
 			});

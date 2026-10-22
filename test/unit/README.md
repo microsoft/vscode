@@ -22,6 +22,7 @@ Unit tests from layers `common` and `browser` are run inside `chromium`, `webkit
 - you can run these tests locally via `npm run test-browser -- --browser chromium --browser webkit`
 - to debug, open `<vscode>/test/unit/browser/renderer.html` inside a browser and use the `?m=<amd_module>`-query to specify what AMD module to load, e.g `file:///Users/jrieken/Code/vscode/test/unit/browser/renderer.html?m=vs/base/test/common/strings.test` runs all tests from `strings.test.ts`
 - to run only a subset of tests use the `--run` or `--glob` options
+- if no test progress is reported for 5 minutes (e.g. the page is frozen), the run aborts and prints the in-flight test, whether the page still responds, and the browser processes' CPU usage; on macOS it also writes native stack samples to `.build/logs/browser-unit-stall`. Use `--stall-timeout <seconds>` to change the limit or `--stall-timeout 0` to disable it (it is always disabled with `--debug`)
 
 **Note**: you can enable verbose logging of playwright library by setting a `DEBUG` environment variable before running the tests (https://playwright.dev/docs/debug#verbose-api-logs)
 

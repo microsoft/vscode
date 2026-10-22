@@ -80,9 +80,17 @@ export interface ICustomizationMigrationDashboardScope {
 export interface ICustomizationMigrationDashboardOverview {
 	readonly scopes: readonly ICustomizationMigrationDashboardScope[];
 	readonly manualReviewItems?: readonly (ICustomizationMigrationDashboardItem & { readonly storage: PromptsStorage })[];
+	readonly recoveries?: readonly ICustomizationMigrationDashboardRecovery[];
 	readonly categoryErrors?: readonly ICustomizationMigrationDashboardCategoryError[];
 	readonly hasIgnoredGroups?: boolean;
 	readonly supportsAgentMigration?: boolean;
+}
+
+export interface ICustomizationMigrationDashboardRecovery {
+	readonly id: string;
+	readonly label: string;
+	readonly description: string;
+	readonly canModify: boolean;
 }
 
 export interface ICustomizationMigrationDashboardCategoryError {
@@ -100,6 +108,8 @@ export interface ICustomizationMigrationDashboardCallbacks {
 	readonly showItemActions: (item: ICustomizationMigrationDashboardItem, storage: PromptsStorage, anchor: HTMLElement) => void;
 	readonly ignoreCategory: (id: CustomizationMigrationCategoryId, storage: PromptsStorage) => void;
 	readonly restoreIgnoredCategories: () => void;
+	readonly restoreAgentMigration: (recovery: ICustomizationMigrationDashboardRecovery) => void;
+	readonly deleteAgentMigrationRecovery: (recovery: ICustomizationMigrationDashboardRecovery) => void;
 	readonly retryCategory: (id: CustomizationMigrationCategoryId) => void;
 	readonly openCustomization: (item: ICustomizationMigrationDashboardItem, storage: PromptsStorage) => void;
 	readonly onDidChangeContent?: () => void;
@@ -303,7 +313,7 @@ export class CustomizationMigrationDashboard extends Disposable {
 		this.pendingFocus = undefined;
 		const migrationGroups = this.getMigrationGroups(overview);
 		const categoryErrors = overview.categoryErrors ?? [];
-		this.allMigrationsComplete = migrationGroups.length === 0 && categoryErrors.length === 0 && !overview.hasIgnoredGroups;
+		this.allMigrationsComplete = migrationGroups.length === 0 && categoryErrors.length === 0 && !overview.hasIgnoredGroups && !overview.recoveries?.length;
 		this.prepareRender();
 		const supportsAgentMigration = migrationGroups.length > 0 && overview.supportsAgentMigration !== false;
 		const page = this.renderHeader(
@@ -328,6 +338,9 @@ export class CustomizationMigrationDashboard extends Disposable {
 			DOM.append(page, $('p.migration-empty', {}, overview.hasIgnoredGroups
 				? localize('noActiveMigrations', "No active migrations. Restore ignored migrations to review them.")
 				: localize('noMigrations', "No migrations are needed.")));
+		}
+		if (overview.recoveries?.length) {
+			this.renderRecoveries(page, overview.recoveries);
 		}
 
 		this.layoutTree?.();
@@ -449,13 +462,46 @@ export class CustomizationMigrationDashboard extends Disposable {
 				actions,
 				'migrateWithAgent',
 				localize('migrateWithAgent', "Migrate with Agent"),
-				localize('migrateWithAgentAriaLabel', "Start an agent-guided customization migration"),
+				localize('migrateWithAgentAriaLabel', "Start a guided migration of all customization files that need migration"),
 				migrateWithAgent,
 				'secondary',
 			);
 		}
 		DOM.append(header, $('p.migration-intro', {}, description));
 		return page;
+	}
+
+	private renderRecoveries(parent: HTMLElement, recoveries: readonly ICustomizationMigrationDashboardRecovery[]): void {
+		const section = DOM.append(parent, $('section.migration-recoveries'));
+		DOM.append(section, $('h2', {}, localize('agentMigrationRecoveries', "Agent Migration Recovery")));
+		DOM.append(section, $('p', {}, localize('agentMigrationRecoveriesDescription', "Restore original customization sources from before an agent migration. Destination files created or changed by the agent are not removed.")));
+		for (const recovery of recoveries) {
+			const item = DOM.append(section, $('.migration-recovery-item'));
+			const content = DOM.append(item, $('.migration-recovery-content'));
+			const label = DOM.append(content, $('h3', {}, recovery.label));
+			const description = DOM.append(content, $('p', {}, recovery.description));
+			this.hover(label, recovery.label);
+			this.hover(description, recovery.description);
+			const actions = DOM.append(item, $('.migration-recovery-actions'));
+			const restore = this.button(
+				actions,
+				`restoreAgentMigration:${recovery.id}`,
+				localize('restoreAgentMigrationSources', "Restore Sources"),
+				localize('restoreAgentMigrationSourcesAriaLabel', "Restore original sources for {0}", recovery.label),
+				() => this.callbacks.restoreAgentMigration(recovery),
+				'secondary',
+			);
+			restore.enabled = recovery.canModify;
+			const remove = this.button(
+				actions,
+				`deleteAgentMigrationRecovery:${recovery.id}`,
+				localize('deleteAgentMigrationRecovery', "Delete Backup"),
+				localize('deleteAgentMigrationRecoveryAriaLabel', "Delete backup for {0}", recovery.label),
+				() => this.callbacks.deleteAgentMigrationRecovery(recovery),
+				'secondary',
+			);
+			remove.enabled = recovery.canModify;
+		}
 	}
 
 	private getMigrationGroups(overview: ICustomizationMigrationDashboardOverview): readonly (
