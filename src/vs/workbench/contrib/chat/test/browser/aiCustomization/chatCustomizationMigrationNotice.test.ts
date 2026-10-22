@@ -35,7 +35,7 @@ import { ICustomizationMigrationTelemetryService } from '../../../common/promptS
 class TestMigrationService extends mock<ICustomizationMigrationService>() {
 	readonly requests: URI[] = [];
 	override readonly onDidChangeCustomizations: Event<void>;
-	result: ICustomizationMigrationHint | undefined | Promise<ICustomizationMigrationHint | undefined>;
+	result: Promise<ICustomizationMigrationHint | undefined> = Promise.resolve(undefined);
 
 	constructor(changed: Emitter<void>) {
 		super();
@@ -83,7 +83,7 @@ suite('ChatCustomizationMigrationNotice', () => {
 			message: '1 workspace customization needs an update to keep working.',
 			counts: [{ type: CustomizationMigrationType.PromptFiles, count: 1 }],
 		};
-		migrations.result = hint;
+		migrations.result = Promise.resolve(hint);
 		const migrationTelemetry = new TestMigrationTelemetryService();
 		const sentiment = observableValue<IChatSentiment>(store, {});
 		const show = observableValue(store, showNotice);
@@ -170,20 +170,21 @@ suite('ChatCustomizationMigrationNotice', () => {
 	test('preserves the last known hint until a same-context refresh completes', async () => {
 		const env = setup();
 		await timeout(0);
+		const isVisible = () => env.notice.element.style.display !== 'none';
 
 		const refreshedHint = new DeferredPromise<ICustomizationMigrationHint | undefined>();
 		env.migrations.result = refreshedHint.p;
 		env.changed.fire();
-		const refreshing = env.notice.element.style.display !== 'none';
+		const refreshing = isVisible();
 		void refreshedHint.complete(env.hint);
 		await refreshedHint.p;
 		await timeout(0);
-		const refreshed = env.notice.element.style.display !== 'none';
+		const refreshed = isVisible();
 
 		const removedHint = new DeferredPromise<ICustomizationMigrationHint | undefined>();
 		env.migrations.result = removedHint.p;
 		env.changed.fire();
-		const removing = env.notice.element.style.display !== 'none';
+		const removing = isVisible();
 		void removedHint.complete(undefined);
 		await removedHint.p;
 		await timeout(0);
@@ -192,7 +193,7 @@ suite('ChatCustomizationMigrationNotice', () => {
 			refreshing,
 			refreshed,
 			removing,
-			removed: env.notice.element.style.display !== 'none',
+			removed: isVisible(),
 			availability: env.availability,
 			visibility: env.visibility,
 		}, {
