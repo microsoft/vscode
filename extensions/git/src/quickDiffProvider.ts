@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { FileType, l10n, LogOutputChannel, QuickDiffProvider, Uri, workspace } from 'vscode';
+import { FileType, l10n, LogOutputChannel, QuickDiffProvider, TabInputTextDiff, TabInputTextMultiDiff, Uri, window, workspace } from 'vscode';
 import { IRepositoryResolver, Repository } from './repository';
 import { isDescendant, pathEquals } from './util';
 import { toGitUri } from './uri';
@@ -68,6 +68,20 @@ export class GitQuickDiffProvider implements QuickDiffProvider {
 		const ignored = await this.repository.checkIgnore([uri.fsPath]);
 		if (ignored.size > 0) {
 			this.logger.trace(`[Repository][provideOriginalResource] Resource is git ignored: ${uri.toString()}`);
+			return undefined;
+		}
+
+		const activeTabInput = window.tabGroups.activeTabGroup.activeTab?.input;
+
+		// Ignore file that is on the right-hand side of a diff editor
+		if (activeTabInput instanceof TabInputTextDiff && pathEquals(activeTabInput.modified.fsPath, uri.fsPath)) {
+			this.logger.trace(`[Repository][provideOriginalResource] Resource is on the right-hand side of a diff editor: ${uri.toString()}`);
+			return undefined;
+		}
+
+		// Ignore file that is on the right -hand side of a multi-file diff editor
+		if (activeTabInput instanceof TabInputTextMultiDiff && activeTabInput.textDiffs.some(diff => pathEquals(diff.modified.fsPath, uri.fsPath))) {
+			this.logger.trace(`[Repository][provideOriginalResource] Resource is on the right-hand side of a multi-file diff editor: ${uri.toString()}`);
 			return undefined;
 		}
 
