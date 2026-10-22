@@ -418,10 +418,12 @@
 	width: 100%;
 	height: 26px;
 	min-width: 0;
-	justify-content: space-between;
+	justify-content: flex-start;
+	text-align: left;
 }
 
 .automation-form-event-group .automation-event-button-label {
+	flex: 1;
 	min-width: 0;
 	overflow: hidden;
 	white-space: nowrap;
@@ -430,7 +432,8 @@
 
 .automation-form-event-group .automation-event-button-chevron {
 	flex-shrink: 0;
-	margin-left: var(--vscode-spacing-size40);
+	margin-left: auto;
+	margin-right: 0;
 	font-size: var(--vscode-codiconFontSize-compact);
 }
 
