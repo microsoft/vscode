@@ -53,8 +53,13 @@
 	}
 }
 
+.sessions-watermark-actions .monaco-action-bar.vertical {
+	height: auto;
+}
+
 .sessions-watermark-actions .monaco-action-bar.vertical .actions-container {
 	display: block;
+	height: auto;
 }
 
 .sessions-watermark-actions .monaco-action-bar .sessions-add-tab-watermark-entry {

@@ -281,6 +281,10 @@ suite('Sessions - Search editor empty state', () => {
 		const resultsContainer = container.querySelector<HTMLElement>('.search-results');
 		const detailsToggle = query.querySelector<HTMLElement>('.includes-excludes > .expand');
 		assert.ok(resultsContainer && detailsToggle);
+		// Keep the browser runner's quirks mode from stretching single-line inputs to the pane height.
+		for (const input of query.querySelectorAll<HTMLInputElement>('.file-types input')) {
+			input.style.height = 'auto';
+		}
 		const populatedLayouts = [];
 		for (const agentsWindow of [true, false]) {
 			root.classList.toggle('agent-sessions-workbench', agentsWindow);

@@ -11,7 +11,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { decodeKeybinding } from '../../../../../base/common/keybindings.js';
+import { decodeKeybinding, ResolvedKeybinding } from '../../../../../base/common/keybindings.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { OS } from '../../../../../base/common/platform.js';
 import { constObservable } from '../../../../../base/common/observable.js';
@@ -853,7 +853,7 @@ suite('Sessions - Editor Contribution', () => {
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		instantiationService.stub(IConfigurationService, configurationService);
 		const onDidUpdateKeybindings = store.add(new Emitter<void>());
-		let keybinding = USLayoutResolvedKeybinding.resolveKeybinding(decodeKeybinding(KeyMod.CtrlCmd | KeyCode.KeyP, OS)!, OS)[0];
+		let keybinding: ResolvedKeybinding | undefined = USLayoutResolvedKeybinding.resolveKeybinding(decodeKeybinding(KeyMod.CtrlCmd | KeyCode.KeyP, OS)!, OS)[0];
 		instantiationService.stub(IKeybindingService, new class extends MockKeybindingService {
 			override get onDidUpdateKeybindings() { return onDidUpdateKeybindings.event; }
 			override lookupKeybinding(id: string) {
@@ -872,14 +872,27 @@ suite('Sessions - Editor Contribution', () => {
 		const beforeExpected = `Open File... (${keybinding.getAriaLabel()})`;
 		keybinding = USLayoutResolvedKeybinding.resolveKeybinding(decodeKeybinding(KeyMod.CtrlCmd | KeyCode.KeyO, OS)!, OS)[0];
 		onDidUpdateKeybindings.fire();
+		const afterExpected = `Open File... (${keybinding.getAriaLabel()})`;
+		const after = row?.getAttribute('aria-label');
+		const hintHidden = row?.querySelector<HTMLElement>('.sessions-add-tab-watermark-keybinding')?.hidden;
+		const updatedKeybinding = keybinding;
+		keybinding = undefined;
+		onDidUpdateKeybindings.fire();
+		const removed = { label: row?.getAttribute('aria-label'), trailing: row?.lastElementChild?.className };
+		keybinding = updatedKeybinding;
+		onDidUpdateKeybindings.fire();
 		assert.deepStrictEqual({
 			before,
-			after: row?.getAttribute('aria-label'),
-			hintHidden: row?.querySelector<HTMLElement>('.sessions-add-tab-watermark-keybinding')?.hidden,
+			after,
+			hintHidden,
+			removed,
+			restored: { label: row?.getAttribute('aria-label'), hints: row?.querySelectorAll('.sessions-add-tab-watermark-keybinding').length },
 		}, {
 			before: beforeExpected,
-			after: `Open File... (${keybinding.getAriaLabel()})`,
+			after: afterExpected,
 			hintHidden: false,
+			removed: { label: 'Open File...', trailing: 'sessions-add-tab-watermark-label' },
+			restored: { label: afterExpected, hints: 1 },
 		});
 	});
 
@@ -1116,6 +1129,7 @@ suite('Sessions - Editor Contribution', () => {
 	});
 
 	test('empty file editor inline search anchors results and restores the field on Escape', async () => {
+		await mainWindow.document.fonts.ready;
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const queries: IFileQuery[] = [];
 		const onDidSearch = store.add(new Emitter<void>());
@@ -1133,6 +1147,7 @@ suite('Sessions - Editor Contribution', () => {
 		});
 		const container = appendElement(mainWindow.document.body, 'empty-file-editor-search');
 		container.style.width = '320px';
+		container.style.height = '28px';
 		store.add(toDisposable(() => container.remove()));
 		store.add(toDisposable(() => mainWindow.scrollTo(0, 0)));
 		const search = store.add(instantiationService.createInstance(EmptyFileEditorSearch, container));
@@ -1153,14 +1168,12 @@ suite('Sessions - Editor Contribution', () => {
 		assert.ok(pickerContainer);
 		store.add(toDisposable(() => pickerContainer.remove()));
 		const pickerInputBounds = pickerContainer.querySelector('.quick-input-filter')?.getBoundingClientRect();
+		assert.ok(pickerInputBounds);
 		const initialState = {
 			anchored: pickerContainer.classList.contains('quick-input-widget-overlay'),
 			query: picker.value,
 			fieldHidden: container.style.visibility,
-			boundsMatch: pickerInputBounds?.left === inputBounds.left
-				&& pickerInputBounds.top === inputBounds.top
-				&& pickerInputBounds.width === inputBounds.width
-				&& pickerInputBounds.height === inputBounds.height,
+			bounds: { left: pickerInputBounds.left, top: pickerInputBounds.top, width: pickerInputBounds.width, height: pickerInputBounds.height },
 		};
 		picker.value = 'other';
 		await waitForCondition(onDidSearch.event, () => queries.some(query => query.filePattern === 'other'));
@@ -1196,7 +1209,7 @@ suite('Sessions - Editor Contribution', () => {
 				anchored: true,
 				query: 'app',
 				fieldHidden: 'hidden',
-				boundsMatch: true,
+				bounds: { left: inputBounds.left, top: inputBounds.top, width: inputBounds.width, height: inputBounds.height },
 			},
 			mirroredValue: 'other',
 			afterEscape: { value: '', fieldVisibility: '', fieldFocused: true, pickerClosed: true },

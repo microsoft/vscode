@@ -176,12 +176,18 @@ export class SessionsWatermarkActionViewItem extends BaseActionViewItem {
 
 		append(row, $('span.sessions-add-tab-watermark-label')).textContent = this._action.label;
 
-		const keybindingContainer = append(row, $('span.sessions-add-tab-watermark-keybinding', { 'aria-hidden': 'true' }));
+		const keybindingContainer = $('span.sessions-add-tab-watermark-keybinding', { 'aria-hidden': 'true' });
 		const keybindingLabel = this._register(new KeybindingLabel(keybindingContainer, OS, defaultKeybindingLabelStyles));
 		const updateKeybinding = () => {
 			const keybinding = this._action instanceof MenuItemAction ? this.lookupKeybinding(this._action.id) : undefined;
 			keybindingLabel.set(keybinding);
-			keybindingContainer.hidden = !keybinding;
+			if (keybinding) {
+				if (keybindingContainer.parentElement !== row) {
+					append(row, keybindingContainer);
+				}
+			} else {
+				keybindingContainer.remove();
+			}
 			const keybindingAriaLabel = keybinding?.getAriaLabel();
 			row.setAttribute('aria-label', keybindingAriaLabel
 				? localize('addTabWatermarkEntryAriaLabel', "{0} ({1})", this._action.label, keybindingAriaLabel)

@@ -122,7 +122,7 @@ export class EmptyFileEditorSearch extends Disposable {
 	}
 
 	private showPicker(value: string, anchor?: HTMLElement): void {
-		if (this.picker) {
+		if (this.picker || this._store.isDisposed) {
 			return;
 		}
 
