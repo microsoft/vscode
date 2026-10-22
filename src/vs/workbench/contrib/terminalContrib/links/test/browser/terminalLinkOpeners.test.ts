@@ -120,6 +120,48 @@ suite('Workbench - TerminalLinkOpeners', () => {
 		xterm = store.add(new TerminalCtor({ allowProposedApi: true, logger: TestXtermLogger }));
 	});
 
+	suite('TerminalLocalFileLinkOpener', () => {
+		test('should open a file URI with a line fragment at that line', async () => {
+			const opener = instantiationService.createInstance(TerminalLocalFileLinkOpener);
+			await opener.open({
+				text: 'file:///foo/bar.php#L65',
+				uri: URI.parse('file:///foo/bar.php#L65'),
+				bufferRange: { start: { x: 1, y: 1 }, end: { x: 23, y: 1 } },
+				type: TerminalBuiltinLinkType.LocalFile
+			});
+			deepStrictEqual(activationResult, {
+				link: 'file:///foo/bar.php',
+				source: 'editor',
+				selection: {
+					startColumn: 1,
+					startLineNumber: 65,
+					endColumn: undefined,
+					endLineNumber: undefined
+				},
+			});
+		});
+
+		test('should open a file URI with a line range fragment at that range', async () => {
+			const opener = instantiationService.createInstance(TerminalLocalFileLinkOpener);
+			await opener.open({
+				text: 'file:///foo/bar.php#L65-L70',
+				uri: URI.parse('file:///foo/bar.php#L65-L70'),
+				bufferRange: { start: { x: 1, y: 1 }, end: { x: 27, y: 1 } },
+				type: TerminalBuiltinLinkType.LocalFile
+			});
+			deepStrictEqual(activationResult, {
+				link: 'file:///foo/bar.php',
+				source: 'editor',
+				selection: {
+					startColumn: 1,
+					startLineNumber: 65,
+					endColumn: 1,
+					endLineNumber: 70
+				},
+			});
+		});
+	});
+
 	suite('TerminalSearchLinkOpener', () => {
 		let opener: TestTerminalSearchLinkOpener;
 		let capabilities: TerminalCapabilityStore;

@@ -10,7 +10,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { ITextEditorSelection } from '../../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { extractSelection, IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { ITerminalLinkOpener, ITerminalSimpleLink, TerminalBuiltinLinkType } from './links.js';
@@ -47,9 +47,11 @@ export class TerminalLocalFileLinkOpener implements ITerminalLinkOpener {
 				endColumn: linkSuffix.colEnd
 			};
 		}
+		// Handle a line in the URI fragment (e.g. file:///foo.ts#L10), which isn't part of the file path
+		const { uri: resource, selection: fragmentSelection } = extractSelection(link.uri);
 		await this._editorService.openEditor({
-			resource: link.uri,
-			options: { pinned: true, selection, revealIfOpened: true }
+			resource,
+			options: { pinned: true, selection: selection ?? fragmentSelection, revealIfOpened: true }
 		});
 	}
 }
