@@ -2257,7 +2257,7 @@ suite('CopilotSessionLauncher session history export', () => {
 				const launcher = createTestLauncher(undefined, { [AgentHostSessionSyncEnabledConfigKey]: enabled }, logService);
 				const basePlan = {
 					client: returningSession(session), sessionId: session.sessionId, workingDirectory: testWorkingDirectory,
-					resolvedAgentName: undefined, snapshot: { tools: [], plugins: [], mcpServers: {} },
+					resolvedAgentName: undefined, snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 					activeClientToolSet: new ActiveClientToolSet(), shellManager: undefined,
 					githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
 				};
