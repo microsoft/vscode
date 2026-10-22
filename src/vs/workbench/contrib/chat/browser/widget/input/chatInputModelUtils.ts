@@ -33,7 +33,8 @@ function isSessionScoped(sessionType: string | undefined): sessionType is string
 /**
  * Whether `allModels` is a pool scoped to `sessionType` rather than the general-purpose one.
  * Shared by the picker filter and the session-validity check so both agree on which models
- * a session can use.
+ * belong to the session's pool. This is only about scoping: mode and location support are
+ * applied by the picker (see {@link isModelEligible}), not by the validity check.
  */
 function hasSessionScopedModels(
 	allModels: ILanguageModelChatMetadataAndIdentifier[],
@@ -122,7 +123,9 @@ export function isModelSupportedForInlineChat(
 
 /**
  * Whether the picker may offer this entry at all: it must carry metadata (cached entries are
- * read back unvalidated), be user-selectable, and run in the current mode and location.
+ * read back unvalidated), be user-selectable, and run in the current mode and location. Mode
+ * and location are the picker's concern — {@link isModelValidForSession} deliberately omits
+ * them because it has no mode or location to work with.
  */
 function isModelEligible(
 	entry: ILanguageModelChatMetadataAndIdentifier,
@@ -153,14 +156,20 @@ export function hasModelsTargetingSession(
 }
 
 /**
- * Check if a model is valid for the current session's model pool.
+ * Check if a model belongs to the current session's model pool.
  * If the session has a scoped pool (see {@link hasSessionScopedModels}), the model must target
  * that session type, or be an unscoped BYOK (custom endpoint) model, which is offered alongside
  * them. If the pool is not scoped, the model must not be session-specific — so the local session
- * type always accepts general-purpose models, matching {@link filterModelsForSession}.
+ * type always accepts general-purpose models, as {@link filterModelsForSession} does.
  *
  * A non-selectable model (an explicit `isUserSelectable: false`) is never valid: it is hidden
  * from the picker, so a restored selection must not be treated as usable either.
+ *
+ * Only pool membership, metadata presence and selectability are validated. Mode and location
+ * compatibility are deliberately not part of this check: callers that need them pass a separate
+ * `isModelSupportedHere` predicate (see {@link shouldResetModelToDefault} and
+ * {@link resolveModelFromSyncState}), while the picker applies them through
+ * {@link isModelEligible}.
  */
 export function isModelValidForSession(
 	model: ILanguageModelChatMetadataAndIdentifier,
