@@ -203,7 +203,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		const providerCopyMimeTypes = providers.flatMap(x => x.copyMimeTypes ?? []);
 
 		// Save off a handle pointing to data that VS Code maintains.
-		const handle = generateUuid();
+		const handle = e.metadata.id ?? generateUuid();
 		this.setCopyMetadata(e.clipboardData, {
 			id: handle,
 			providerCopyMimeTypes,
@@ -521,6 +521,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			location: ProgressLocation.Window,
 			title: localize('pasteAsProgress', "Running paste handlers"),
 		}, () => p);
+		this._currentPasteOperation = p;
 	}
 
 	private setCopyMetadata(clipboardData: IWritableClipboardData, metadata: CopyMetadata) {
@@ -542,7 +543,10 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		}
 
 		if (e.metadata) {
+			const copyOperation = CopyPasteController._currentCopyOperation;
 			return {
+				id: e.metadata.id,
+				providerCopyMimeTypes: copyOperation && copyOperation.handle === e.metadata.id ? copyOperation.operations.flatMap(operation => operation.providerMimeTypes) : undefined,
 				defaultPastePayload: {
 					mode: e.metadata.mode,
 					multicursorText: e.metadata.multicursorText ?? null,

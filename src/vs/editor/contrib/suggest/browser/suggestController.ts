@@ -1129,8 +1129,8 @@ registerEditorCommand(new class extends EditorCommand {
 			}
 		});
 	}
-	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
-		getWindow(editor.getDomNode()).document.execCommand('copy');
+	runEditorCommand(accessor: ServicesAccessor, _editor: ICodeEditor) {
+		return accessor.get(ICommandService).executeCommand<void>('editor.action.clipboardCopyAction');
 	}
 }());
 

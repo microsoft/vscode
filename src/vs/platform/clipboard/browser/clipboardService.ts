@@ -11,7 +11,9 @@ import { Event } from '../../../base/common/event.js';
 import { hash } from '../../../base/common/hash.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
+import { IReadonlyVSDataTransfer } from '../../../base/common/dataTransfer.js';
 import { IClipboardService } from '../common/clipboardService.js';
+import { readClipboardData, supportsClipboardData, writeClipboardData } from './clipboardData.js';
 import { ILayoutService } from '../../layout/browser/layoutService.js';
 import { ILogService } from '../../log/common/log.js';
 
@@ -48,6 +50,23 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 	triggerPaste(): Promise<void> | undefined {
 		this.logService.trace('BrowserClipboardService#triggerPaste');
 		return undefined;
+	}
+
+	get supportsClipboardData(): boolean {
+		return supportsClipboardData(getActiveWindow().navigator.clipboard, typeof ClipboardItem === 'undefined' ? undefined : ClipboardItem);
+	}
+
+	readData(): Promise<IReadonlyVSDataTransfer> {
+		this.logService.trace('BrowserClipboardService#readData');
+		return readClipboardData(getActiveWindow().navigator.clipboard);
+	}
+
+	writeData(data: IReadonlyVSDataTransfer): Promise<void> {
+		this.logService.trace('BrowserClipboardService#writeData');
+		if (data.size) {
+			this.clearResourcesState();
+		}
+		return writeClipboardData(getActiveWindow().navigator.clipboard, data);
 	}
 
 	async readImage(): Promise<Uint8Array> {

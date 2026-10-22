@@ -4,9 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../base/common/uri.js';
+import { createStringDataTransferItem, IReadonlyVSDataTransfer, VSDataTransfer } from '../../../../base/common/dataTransfer.js';
 import { IClipboardService } from '../../common/clipboardService.js';
 
 export class TestClipboardService implements IClipboardService {
+	readonly supportsClipboardData: boolean = true;
+
+	private data: IReadonlyVSDataTransfer = new VSDataTransfer();
+
+	async readData(): Promise<IReadonlyVSDataTransfer | undefined> {
+		return this.data;
+	}
+
+	async writeData(data: IReadonlyVSDataTransfer): Promise<void> {
+		if (!data.size) {
+			return;
+		}
+		const snapshot = new VSDataTransfer();
+		for (const [mime, item] of data) {
+			snapshot.append(mime, item.asFile() ? item : createStringDataTransferItem(await item.asString()));
+		}
+		this.data = snapshot;
+	}
+
 	readImage(): Promise<Uint8Array> {
 		throw new Error('Method not implemented.');
 	}
@@ -26,18 +46,18 @@ export class TestClipboardService implements IClipboardService {
 
 	_serviceBrand: undefined;
 
-	private text: string | undefined = undefined;
-
 	triggerPaste(): Promise<void> | undefined {
 		return Promise.resolve();
 	}
 
 	async writeText(text: string, type?: string): Promise<void> {
-		this.text = text;
+		const data = new VSDataTransfer();
+		data.replace('text/plain', createStringDataTransferItem(text));
+		this.data = data;
 	}
 
 	async readText(type?: string): Promise<string> {
-		return this.text ?? '';
+		return await this.data.get('text/plain')?.asString() ?? '';
 	}
 
 	private findText: string | undefined = undefined;

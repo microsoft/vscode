@@ -18,7 +18,7 @@ import { Position } from '../../../../common/core/position.js';
 import { Selection } from '../../../../common/core/selection.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { ClipboardStoredMetadata, CopyOptions, createClipboardCopyEvent, createClipboardPasteEvent, IClipboardCopyEvent, IClipboardPasteEvent, InMemoryClipboardMetadataManager } from '../clipboardUtils.js';
+import { ClipboardStoredMetadata, createClipboardCopyEvent, createClipboardPasteEvent, IClipboardCopyEvent, IClipboardPasteEvent, InMemoryClipboardMetadataManager } from '../clipboardUtils.js';
 import { _debugComposition, ITextAreaWrapper, ITypeData, TextAreaState } from './textAreaEditContextState.js';
 import { ViewContext } from '../../../../common/viewModel/viewContext.js';
 
@@ -388,13 +388,6 @@ export class TextAreaInput extends Disposable {
 
 		this._register(this._textArea.onCopy((e) => {
 			this._logService.trace(`TextAreaInput#onCopy`, e);
-
-			// !!!!!
-			// This is a workaround for what we think is an Electron bug where
-			// execCommand('copy') does not always work (it does not fire a clipboard event)
-			// !!!!!
-			// We signal that we have executed a copy command
-			CopyOptions.electronBugWorkaroundCopyEventHasFired = true;
 
 			// Fire onWillCopy event to allow interception
 			const copyEvent = createClipboardCopyEvent(e, /* isCut */ false, this._host.context, this._logService, this._browser.isFirefox);

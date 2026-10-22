@@ -5,11 +5,14 @@
 
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { URI } from '../../../../base/common/uri.js';
-import { isMacintosh } from '../../../../base/common/platform.js';
+import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { getActiveWindow } from '../../../../base/browser/dom.js';
+import { IReadonlyVSDataTransfer } from '../../../../base/common/dataTransfer.js';
+import { readClipboardData, supportsClipboardData, writeClipboardData } from '../../../../platform/clipboard/browser/clipboardData.js';
 
 export class NativeClipboardService implements IClipboardService {
 
@@ -25,6 +28,26 @@ export class NativeClipboardService implements IClipboardService {
 	async triggerPaste(targetWindowId: number): Promise<void> {
 		this.logService.trace('NativeClipboardService#triggerPaste called');
 		return this.nativeHostService.triggerPaste({ targetWindowId });
+	}
+
+	get supportsClipboardData(): boolean {
+		return supportsClipboardData(getActiveWindow().navigator.clipboard, typeof ClipboardItem === 'undefined' ? undefined : ClipboardItem);
+	}
+
+	async readData(): Promise<IReadonlyVSDataTransfer | undefined> {
+		this.logService.trace('NativeClipboardService#readData');
+		const clipboard = getActiveWindow().navigator.clipboard;
+		const fileFormats = isMacintosh ? ['public.file-url', 'NSFilenamesPboardType'] : isWindows ? ['FileNameW', 'CF_HDROP'] : ['text/uri-list', 'x-special/gnome-copied-files'];
+		const hasFiles = await Promise.all(fileFormats.map(format => this.nativeHostService.hasClipboard(format)));
+		if (hasFiles.some(Boolean)) {
+			return undefined;
+		}
+		return readClipboardData(clipboard);
+	}
+
+	writeData(data: IReadonlyVSDataTransfer): Promise<void> {
+		this.logService.trace('NativeClipboardService#writeData');
+		return writeClipboardData(getActiveWindow().navigator.clipboard, data);
 	}
 
 	async readImage(): Promise<Uint8Array> {

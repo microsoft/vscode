@@ -5,7 +5,7 @@
 
 import './nativeEditContext.css';
 import { isFirefox } from '../../../../../base/browser/browser.js';
-import { addDisposableListener, getActiveElement, getWindow, getWindowId } from '../../../../../base/browser/dom.js';
+import { addDisposableListener, getWindow, getWindowId } from '../../../../../base/browser/dom.js';
 import { FastDomNode } from '../../../../../base/browser/fastDomNode.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
@@ -16,7 +16,7 @@ import { ViewConfigurationChangedEvent, ViewCursorStateChangedEvent, ViewDecorat
 import { ViewContext } from '../../../../common/viewModel/viewContext.js';
 import { RestrictedRenderingContext, RenderingContext, HorizontalPosition } from '../../../view/renderingContext.js';
 import { ViewController } from '../../../view/viewController.js';
-import { CopyOptions, createClipboardCopyEvent, createClipboardPasteEvent } from '../clipboardUtils.js';
+import { createClipboardCopyEvent, createClipboardPasteEvent } from '../clipboardUtils.js';
 import { AbstractEditContext } from '../editContext.js';
 import { editContextAddDisposableListener, FocusTracker, ITypeData } from './nativeEditContextUtils.js';
 import { ScreenReaderSupport } from './screenReaderSupport.js';
@@ -117,13 +117,6 @@ export class NativeEditContext extends AbstractEditContext {
 
 		this._register(addDisposableListener(this.domNode.domNode, 'copy', (e) => {
 			this.logService.trace('NativeEditContext#copy');
-
-			// !!!!!
-			// This is a workaround for what we think is an Electron bug where
-			// execCommand('copy') does not always work (it does not fire a clipboard event)
-			// !!!!!
-			// We signal that we have executed a copy command
-			CopyOptions.electronBugWorkaroundCopyEventHasFired = true;
 
 			const copyEvent = createClipboardCopyEvent(e, /* isCut */ false, this._context, this.logService, isFirefox);
 			this._onWillCopy.fire(copyEvent);
@@ -354,11 +347,6 @@ export class NativeEditContext extends AbstractEditContext {
 
 	private _prepareScreenReaderForPaste(): void {
 		this._screenReaderSupport.onWillPaste();
-	}
-
-	public handleWillCopy(): void {
-		this.logService.trace('NativeEditContext#handleWillCopy');
-		this.logService.trace('NativeEditContext#isFocused : ', this.domNode.domNode === getActiveElement());
 	}
 
 	public writeScreenReaderContent(): void {

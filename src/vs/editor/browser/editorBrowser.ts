@@ -1053,6 +1053,12 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 */
 	_getViewModel(): IViewModel | null;
 
+	/** @internal */
+	handleClipboardCopy(event: IClipboardCopyEvent): void;
+
+	/** @internal */
+	handleClipboardPaste(event: IClipboardPasteEvent): void;
+
 	/**
 	 * Get all the decorations on a line (filtering out decorations from other editors).
 	 */

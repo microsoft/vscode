@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { createClipboardPasteEvent } from '../../../browser/controller/editContext/clipboardUtils.js';
+import { ClipboardStoredMetadata, createClipboardPasteEvent, createClipboardPasteEventFromData } from '../../../browser/controller/editContext/clipboardUtils.js';
 
 suite('ClipboardUtils', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -38,6 +38,64 @@ suite('ClipboardUtils', () => {
 			filesWithPaths: { text: '/home/john/Downloads/example.txt\n/home/john/Downloads/my folder/notes #1.md', metadata: null },
 			filesWithoutPaths: { text: 'example.txt\nnotes #1.md', metadata: null },
 			inMemoryFiles: { text: 'example.txt\nnotes #1.md', metadata: null },
+		});
+	});
+
+	test('normalizes custom Clipboard API formats for editor metadata and paste providers', async () => {
+		const clipboardData = new DataTransfer();
+		const metadata: ClipboardStoredMetadata = {
+			version: 1,
+			id: 'clipboard-test',
+			isFromEmptySelection: false,
+			isBlock: true,
+			multicursorText: ['left', 'right'],
+			mode: 'test-language',
+		};
+		clipboardData.setData('text/plain', 'left\nright');
+		clipboardData.setData('web application/vnd.code.editor-data', JSON.stringify(metadata));
+		clipboardData.setData('web application/vnd.code.copymetadata', '{"id":"provider-test"}');
+		const event = createClipboardPasteEventFromData(clipboardData);
+		const external = event.toExternalVSDataTransfer();
+		event.setHandled();
+		assert.deepStrictEqual({
+			text: event.text,
+			metadata: event.metadata,
+			types: event.clipboardData.types,
+			providerData: event.clipboardData.getData('application/vnd.code.copymetadata'),
+			externalProviderData: await external?.get('application/vnd.code.copymetadata')?.asString(),
+			handled: event.isHandled,
+			browserEvent: event.browserEvent,
+		}, {
+			text: 'left\nright',
+			metadata,
+			types: ['text/plain', 'application/vnd.code.editor-data', 'application/vnd.code.copymetadata'],
+			providerData: '{"id":"provider-test"}',
+			externalProviderData: '{"id":"provider-test"}',
+			handled: true,
+			browserEvent: undefined,
+		});
+	});
+
+	test('preserves empty unprefixed values when prefixed formats are also present', async () => {
+		const clipboardData = new DataTransfer();
+		clipboardData.setData('text/plain', '');
+		clipboardData.setData('web text/plain', 'stale text');
+		clipboardData.setData('application/x-test', '');
+		clipboardData.setData('web application/x-test', 'stale custom data');
+		const event = createClipboardPasteEventFromData(clipboardData);
+		const external = event.toExternalVSDataTransfer();
+		assert.deepStrictEqual({
+			text: event.text,
+			textAlias: event.clipboardData.getData('Text'),
+			customData: event.clipboardData.getData('application/x-test'),
+			externalCustomData: await external?.get('application/x-test')?.asString(),
+			types: event.clipboardData.types,
+		}, {
+			text: '',
+			textAlias: '',
+			customData: '',
+			externalCustomData: '',
+			types: ['text/plain', 'application/x-test'],
 		});
 	});
 });

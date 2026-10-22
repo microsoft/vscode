@@ -28,6 +28,10 @@ export class BrowserClipboardService extends BaseBrowserClipboardService {
 		super(layoutService, logService);
 	}
 
+	override get supportsClipboardData(): boolean {
+		return !this.environmentService.extensionTestsLocationURI && super.supportsClipboardData;
+	}
+
 	override async writeText(text: string, type?: string): Promise<void> {
 		this.logService.trace('BrowserClipboardService#writeText called with type:', type, ' with text.length:', text.length);
 		if (!!this.environmentService.extensionTestsLocationURI && typeof type !== 'string') {
