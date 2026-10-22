@@ -1,0 +1,67 @@
+{
+	"NODE_ENV": {
+		"prefix": "NODE_ENV",
+		"body": "NODE_ENV=${1:development}",
+		"description": "Node.js environment mode"
+	},
+	"PORT": {
+		"prefix": "PORT",
+		"body": "PORT=${1:3000}",
+		"description": "Server port number"
+	},
+	"DATABASE_URL": {
+		"prefix": "DATABASE_URL",
+		"body": "DATABASE_URL=${1:protocol}://${2:user}:${3:pass}@${4:host}:${5:port}/${6:dbname}",
+		"description": "Database connection URL"
+	},
+	"REDIS_URL": {
+		"prefix": "REDIS_URL",
+		"body": "REDIS_URL=${1:redis}://${2:host}:${3:6379}",
+		"description": "Redis connection URL"
+	},
+	"API_KEY": {
+		"prefix": "API_KEY",
+		"body": "API_KEY=${1:your-api-key}",
+		"description": "Third-party API key"
+	},
+	"SECRET_KEY": {
+		"prefix": "SECRET",
+		"body": "SECRET_KEY=${1:your-secret-key}",
+		"description": "Application secret key"
+	},
+	"DEBUG": {
+		"prefix": "DEBUG",
+		"body": "DEBUG=${1:*}",
+		"description": "Debug namespace filter"
+	},
+	"LOG_LEVEL": {
+		"prefix": "LOG",
+		"body": "LOG_LEVEL=${1|debug,info,warn,error|}",
+		"description": "Logging level"
+	},
+	"HOST": {
+		"prefix": "HOST",
+		"body": "HOST=${1:0.0.0.0}",
+		"description": "Server host address"
+	},
+	"export": {
+		"prefix": "export",
+		"body": "export ${1:KEY}=${2:value}",
+		"description": "Export environment variable"
+	},
+	"JWT_SECRET": {
+		"prefix": "JWT",
+		"body": "JWT_SECRET=${1:your-jwt-secret}\nJWT_EXPIRES_IN=${2:7d}",
+		"description": "JWT authentication config"
+	},
+	"AWS credentials": {
+		"prefix": "AWS",
+		"body": "AWS_ACCESS_KEY_ID=${1:your-access-key}\nAWS_SECRET_ACCESS_KEY=${2:your-secret-key}\nAWS_REGION=${3:us-east-1}",
+		"description": "AWS SDK credentials"
+	},
+	"Comment block": {
+		"prefix": "###",
+		"body": "# ${1:section}",
+		"description": "Section comment"
+	}
+}
