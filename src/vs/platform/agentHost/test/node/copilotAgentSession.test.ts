@@ -84,6 +84,7 @@ import { COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY } from '../../node/copilot/
 import { SessionDataService } from '../../node/sessionDataService.js';
 import type { ICopilotMcpServerInfo } from '../../node/copilot/copilotAgent.js';
 import { CopilotGitHubCredentials, CopilotGitHubSessionCredentials } from '../../node/copilot/copilotGitHubCredentials.js';
+import { GENERATED_IMAGE_PRESENTATION_CONTEXT } from '../../node/copilot/copilotGeneratedImages.js';
 import { AhpErrorCodes, AuthenticateTargetKind } from '../../common/state/sessionProtocol.js';
 import { CopilotGitHubTelemetryForwarder } from '../../node/copilot/copilotGitHubTelemetryForwarder.js';
 import { ShellManager } from '../../node/copilot/copilotShellTools.js';
@@ -24152,16 +24153,15 @@ Use the attached image as context.
 			fileEditCoordinator.reportDiscarded(discarded);
 			const imageResultAfterUndo = await capturedRuntime.current!.handlePostToolUse(hookInput('image_generation'));
 			const otherToolResult = await capturedRuntime.current!.handlePostToolUse(hookInput('view'));
-			const imageContext = 'The generated images are already displayed in the chat and listed as artifacts. Do not embed them again in Markdown or register them with add_artifact_or_reference.';
 
 			assert.deepStrictEqual({ imageResult, imageResultAfterUndo, otherToolResult, saved: storedFileContents.get(image.toString()) }, {
 				imageResult: {
 					modifiedResult: { resultType: 'success', textResultForLlm: `Image generated successfully.\nimage_id: ${imageId}\npath: ${image.fsPath}` },
-					additionalContext: imageContext,
+					additionalContext: GENERATED_IMAGE_PRESENTATION_CONTEXT,
 				},
 				imageResultAfterUndo: {
 					modifiedResult: { resultType: 'success', textResultForLlm: `Image generated successfully.\nimage_id: ${imageId}\npath: ${image.fsPath}` },
-					additionalContext: `${imageContext}\n\n${describeDiscardedFileEdits(discarded)}`,
+					additionalContext: `${GENERATED_IMAGE_PRESENTATION_CONTEXT}\n\n${describeDiscardedFileEdits(discarded)}`,
 				},
 				otherToolResult: undefined,
 				saved: 'synthetic image bytes',
@@ -24188,7 +24188,7 @@ Use the attached image as context.
 				failure: await capturedRuntime.current!.handlePostToolUse({ ...hook, toolResult: { ...toolResult, resultType: 'failure' } }),
 				empty: await capturedRuntime.current!.handlePostToolUse({ ...hook, toolResult: { resultType: 'success', textResultForLlm: 'No image was returned.' } }),
 			}, {
-				success: { additionalContext: 'The generated images are already displayed in the chat and listed as artifacts. Do not embed them again in Markdown or register them with add_artifact_or_reference.' },
+				success: { additionalContext: GENERATED_IMAGE_PRESENTATION_CONTEXT },
 				failure: undefined,
 				empty: undefined,
 			});

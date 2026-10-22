@@ -120,7 +120,7 @@ import { COPILOT_FUSION_PHASE_AGENT_NAME, CopilotFusionProgress, formatFusionRev
 import { CopilotFusionRequestCorrelation, getFusionEventKey, getFusionEventSdkTurnId, isSyntheticUserMessage } from './copilotFusionEventIdentity.js';
 import { CopilotFusionMessageChunks, isLastAssistantMessageChunk } from './copilotFusionMessageChunks.js';
 import { addAttachmentDisplayKindToMimeType, addSimpleAttachmentDisplayKindToMimeType } from './copilotAttachmentUtils.js';
-import { appendGeneratedImagePaths, getGeneratedImages, saveGeneratedImages } from './copilotGeneratedImages.js';
+import { appendGeneratedImagePaths, GENERATED_IMAGE_PRESENTATION_CONTEXT, getGeneratedImages, saveGeneratedImages } from './copilotGeneratedImages.js';
 import { buildPendingEditContentUri } from './pendingEditContentStore.js';
 import { IAgentHostCustomizationEnablementService } from '../agentHostCustomizationEnablementService.js';
 import { describeDiscardedFileEdits, IAgentHostFileEditCoordinator } from '../agentHostFileEditCoordinator.js';
@@ -8344,19 +8344,22 @@ export class CopilotAgentSession extends Disposable {
 		const result = input.toolName === CopilotToolName.ImageGeneration ? await this._saveGeneratedImages(input) : undefined;
 		const discardedEdits = this._takeDiscardedEditNotes();
 		if (result?.additionalContext && discardedEdits) {
-			return { ...result, additionalContext: `${result.additionalContext}\n\n${discardedEdits.additionalContext}` };
+			return { ...result, ...discardedEdits, additionalContext: `${result.additionalContext}\n\n${discardedEdits.additionalContext}` };
 		}
 		return result ? { ...result, ...discardedEdits } : discardedEdits;
 	}
 
-	/** Saves generated images where the Copilot CLI does and avoids duplicating their built-in presentation. */
+	/**
+	 * Saves images in the CLI session folder and adds saved `path:` entries to the tool result.
+	 * Only successful image results get duplicate-presentation guidance, even when no file is saved.
+	 */
 	private async _saveGeneratedImages(input: PostToolUseHookInput): Promise<PostToolUseHookOutput> {
 		const images = getGeneratedImages(input.toolResult);
 		if (!images.length) {
 			return undefined;
 		}
 		const presentationContext = input.toolResult.resultType === 'success' ? {
-			additionalContext: 'The generated images are already displayed in the chat and listed as artifacts. Do not embed them again in Markdown or register them with add_artifact_or_reference.',
+			additionalContext: GENERATED_IMAGE_PRESENTATION_CONTEXT,
 		} : undefined;
 		try {
 			const sessionDirectory = URI.joinPath(this._copilotHomeService.home, SESSION_STATE_DIRECTORY, this.sessionId);
