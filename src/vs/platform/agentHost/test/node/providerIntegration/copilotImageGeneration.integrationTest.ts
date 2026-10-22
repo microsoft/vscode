@@ -239,14 +239,14 @@ suite('Agent Host Provider Integration — Copilot image generation', function (
 
 		assert.deepStrictEqual({
 			response: completed.responseText.trim(),
-			toolResult: toolResult.replace(/sha256:[0-9a-f]{64}/, 'sha256:<id>').replace(path ?? '<no path>', '<path>'),
+			toolResult: toolResult.replace(/sha256:[0-9a-f]{64}/, 'sha256:<id>').replaceAll(path ?? '<no path>', '<path>'),
 			location: { insideHome: location[0] !== '..', folder: [location.at(-4), location.at(-2)], fileName: path && basename(path) },
 			savedImage: path ? (await readFile(path)).equals(Buffer.from(GENERATED_PNG, 'base64')) : false,
 			imageRequests,
 			unexpectedRequests,
 		}, {
 			response: 'IMAGE_SAVED',
-			toolResult: 'Image generated successfully.\nimage_id: sha256:<id>\npath: <path>',
+			toolResult: 'Image generated successfully.\nimage_id: sha256:<id>\npath: <path>\nsaved_to: <path>',
 			location: { insideHome: true, folder: ['session-state', 'images'], fileName: 'image-dc2f9147f39d1c93.png' },
 			savedImage: true,
 			imageRequests: ['POST /v1/images/generations'],

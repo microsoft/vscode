@@ -22,7 +22,7 @@ import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import type { TerminalSandboxEngine } from '../../../sandbox/common/terminalSandboxEngine.js';
 import { type ITelemetryService, TelemetryConfiguration, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceTrustConfigKey, platformSessionSchema, type IAgentHostWorkspaceTrust, type SchemaValues } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceTrustConfigKey, platformSessionSchema, type IAgentHostWorkspaceTrust, type SchemaValues } from '../../common/agentHostSchema.js';
 import type { IAgentHostManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
 import { toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { readSessionSandboxState } from '../../common/meta/agentSandboxStateMeta.js';
@@ -228,7 +228,6 @@ suite('CopilotSessionLauncher customization policy session', () => {
 			enableSessionStore: captured?.enableSessionStore,
 			infiniteSessions: captured?.infiniteSessions,
 			memory: captured?.memory,
-			remoteSession: captured?.remoteSession,
 			managedSettings: captured?.managedSettings,
 			featureFlags: captured?.featureFlags,
 			gitHubToken: captured?.gitHubToken,
@@ -246,7 +245,6 @@ suite('CopilotSessionLauncher customization policy session', () => {
 			enableSessionStore: false,
 			infiniteSessions: { enabled: false },
 			memory: { enabled: false },
-			remoteSession: 'off',
 			managedSettings: { permissions },
 			featureFlags: {
 				...catalogInstallationFeatureFlags,
@@ -1588,7 +1586,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 			rpc: { managedSettings: createUnmanagedCopilotSettings(), sandbox: { proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() { }, getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
 		} as unknown as CopilotClient;
 		const permissions: IAgentHostManagedSettingsPermissions = { disableBypassPermissionsMode: 'disable', deny: ['Shell'] };
-		const launcher = createTestLauncher(permissions, { [AgentHostMcpConnectorsEnabledConfigKey]: true, [AgentHostByokModelsEnabledConfigKey]: true, [AgentHostSessionSyncEnabledConfigKey]: true });
+		const launcher = createTestLauncher(permissions, { [AgentHostMcpConnectorsEnabledConfigKey]: true, [AgentHostByokModelsEnabledConfigKey]: true });
 		let byokResolutions = 0;
 		launcher.resolveByokSessionConfig = async () => { byokResolutions++; return { providers: [], models: [] }; };
 		const pluginDirectory = URI.joinPath(testWorkingDirectory, 'scoped-plugin');
@@ -1626,7 +1624,6 @@ suite('CopilotSessionLauncher shared session config', () => {
 			environment: config.systemMessage?.mode === 'customize' ? config.systemMessage.sections?.environment_context : undefined,
 			sessionStore: config.enableSessionStore,
 			oauthStorage: config.mcpOAuthTokenStorage,
-			remoteSession: config.remoteSession,
 			connectors: config.featureFlags?.CONNECTORS,
 			tools: config.availableTools, excludedTools: config.excludedTools,
 			providers: config.providers, models: config.models, managedSettings: config.managedSettings,
@@ -1637,7 +1634,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 			skipCustomInstructions: undefined, onDemandInstructions: undefined, hostGit: undefined, sessionTelemetry: undefined,
 			coauthor: undefined, builtinSkills: undefined, localAgents: undefined,
 			environment: undefined,
-			sessionStore: true, oauthStorage: 'in-memory', remoteSession: 'export',
+			sessionStore: true, oauthStorage: 'in-memory',
 			tools: [...COPILOT_DEFAULT_AVAILABLE_TOOLS],
 			excludedTools: [...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
 			providers: [], models: [], managedSettings: { permissions },
