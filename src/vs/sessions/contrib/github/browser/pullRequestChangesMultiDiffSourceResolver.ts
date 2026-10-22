@@ -6,7 +6,7 @@
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { derived, derivedObservableWithCache, ObservablePromise, ValueWithChangeEventFromObservable } from '../../../../base/common/observable.js';
+import { autorun, derived, derivedObservableWithCache, ObservablePromise, ValueWithChangeEventFromObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -14,7 +14,7 @@ import { IWorkbenchContribution } from '../../../../workbench/common/contributio
 import { createEditorOpenError, IResourceMultiDiffEditorInput, isEditorOpenError } from '../../../../workbench/common/editor.js';
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { IGitHubPullRequestRef } from '../../../services/sessions/common/session.js';
-import { IGitHubPullRequestChanges } from '../common/types.js';
+import { GitHubPullRequestState, IGitHubPullRequestChanges } from '../common/types.js';
 import { toPRContentUri } from '../common/utils.js';
 import { IGitHubService } from './githubService.js';
 
@@ -28,7 +28,8 @@ const PULL_REQUEST_CHANGES_SCHEME = 'sessions-pull-request-changes';
  */
 export function createPullRequestChangesEditorInput(pullRequest: PullRequestIdentity): IResourceMultiDiffEditorInput {
 	return {
-		multiDiffSource: URI.from({ scheme: PULL_REQUEST_CHANGES_SCHEME, path: `/${pullRequest.owner}/${pullRequest.repo}/pull/${pullRequest.number}` }),
+		// GitHub owner and repository names are case-insensitive, so every entry point shares one editor per pull request.
+		multiDiffSource: URI.from({ scheme: PULL_REQUEST_CHANGES_SCHEME, path: `/${pullRequest.owner.toLowerCase()}/${pullRequest.repo.toLowerCase()}/pull/${pullRequest.number}` }),
 		// Matches the pull request overview editor's title while the changes load.
 		label: `#${pullRequest.number}`,
 		options: { pinned: true },
@@ -111,8 +112,19 @@ export class PullRequestChangesMultiDiffSourceResolver extends Disposable implem
 		}
 
 		// The editor observes these for its lifetime, which holds the shared model
-		// reference; the model reports new head commits while the session polls it.
-		const model = derived(this, reader => reader.store.add(this._gitHubService.createPullRequestModelReference(pullRequest.owner, pullRequest.repo, pullRequest.number)).object);
+		// reference and keeps it polling, so new head commits arrive even when the
+		// session stops polling this pull request or tracks it under other casing.
+		const model = derived(this, reader => {
+			const pullRequestModel = reader.store.add(this._gitHubService.createPullRequestModelReference(pullRequest.owner, pullRequest.repo, pullRequest.number)).object;
+			// A stable boolean keeps poll results from restarting the poll loop.
+			const shouldPoll = derived(this, pollReader => pullRequestModel.pullRequest.read(pollReader)?.state !== GitHubPullRequestState.Merged);
+			reader.store.add(autorun(pollReader => {
+				if (shouldPoll.read(pollReader)) {
+					pollReader.store.add(pullRequestModel.startPolling());
+				}
+			}));
+			return pullRequestModel;
+		});
 		const livePullRequest = derived(this, reader => model.read(reader).pullRequest.read(reader));
 		const headSha = derived(this, reader => livePullRequest.read(reader)?.headSha);
 		const baseRef = derived(this, reader => livePullRequest.read(reader)?.baseRef);
@@ -122,7 +134,7 @@ export class PullRequestChangesMultiDiffSourceResolver extends Disposable implem
 			if (!sha) {
 				return undefined;
 			}
-			if (sha === initialChanges.headSha && base === initialChanges.baseRef) {
+			if (sha === initialChanges.headSha && (base === undefined || base === initialChanges.baseRef)) {
 				return ObservablePromise.resolved<IGitHubPullRequestChanges | undefined>(initialChanges);
 			}
 			return new ObservablePromise(this._getChanges(pullRequest).catch(error => {

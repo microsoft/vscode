@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore, IReference } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, observableFromValueWithChangeEvent, observableValue, waitForState } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -15,7 +15,7 @@ import { MultiDiffSourceResolverService } from '../../../../../workbench/contrib
 import { IGitHubService } from '../../browser/githubService.js';
 import { GitHubPullRequestModel } from '../../browser/models/githubPullRequestModel.js';
 import { createPullRequestChangesEditorInput, PullRequestChangesMultiDiffSourceResolver } from '../../browser/pullRequestChangesMultiDiffSourceResolver.js';
-import { IGitHubPullRequest, IGitHubPullRequestChanges } from '../../common/types.js';
+import { GitHubPullRequestState, IGitHubPullRequest, IGitHubPullRequestChanges } from '../../common/types.js';
 import { parsePRContentUri } from '../../common/utils.js';
 
 suite('PullRequestChangesMultiDiffSourceResolver', () => {
@@ -33,6 +33,7 @@ suite('PullRequestChangesMultiDiffSourceResolver', () => {
 		readonly requested: unknown[][] = [];
 		readonly livePullRequest = observableValue<IGitHubPullRequest | undefined>('pullRequest', undefined);
 		readonly references = { acquired: 0, released: 0 };
+		readonly polling = { started: 0, stopped: 0 };
 
 		constructor(private readonly _getChanges: () => IGitHubPullRequestChanges) {
 			super();
@@ -46,7 +47,13 @@ suite('PullRequestChangesMultiDiffSourceResolver', () => {
 		override createPullRequestModelReference(): IReference<GitHubPullRequestModel> {
 			this.references.acquired++;
 			return {
-				object: upcastPartial<GitHubPullRequestModel>({ pullRequest: this.livePullRequest }),
+				object: upcastPartial<GitHubPullRequestModel>({
+					pullRequest: this.livePullRequest,
+					startPolling: () => {
+						this.polling.started++;
+						return toDisposable(() => this.polling.stopped++);
+					},
+				}),
 				dispose: () => this.references.released++,
 			};
 		}
@@ -100,22 +107,29 @@ suite('PullRequestChangesMultiDiffSourceResolver', () => {
 		});
 
 		const initial = snapshot();
-		// The session's polling reports a new head commit and title through the shared model.
+		// Partial pull request data without a base ref keeps the loaded changes.
+		gitHubService.livePullRequest.set(upcastPartial<IGitHubPullRequest>({ headSha: 'head-1', title: 'Open pull request changes in a multi diff editor' }), undefined);
+		// The polled shared model reports a new head commit and title.
 		head = 'head-2';
 		gitHubService.livePullRequest.set(upcastPartial<IGitHubPullRequest>({ headSha: 'head-2', title: 'Fix typo' }), undefined);
 		await waitForState(resources, items => items.length === 1);
 		const updated = snapshot();
+		gitHubService.livePullRequest.set(upcastPartial<IGitHubPullRequest>({ headSha: 'head-2', title: 'Fix typo', state: GitHubPullRequestState.Merged }), undefined);
+		const pollingAfterMerge = { ...gitHubService.polling };
 		observing.dispose();
 
 		assert.deepStrictEqual({
 			source: source.toString(true),
+			sourceIgnoresCasing: createPullRequestChangesEditorInput({ owner: 'UpStream', repo: 'Project', number: 7 }).multiDiffSource!.toString() === source.toString(),
 			canHandle: [source, source.with({ path: '/upstream/project/pull/latest' }), URI.parse('multi-diff-editor:/upstream/project/pull/7')].map(uri => resolver.canHandleUri(uri)),
 			requested: gitHubService.requested,
 			initial,
 			updated,
+			pollingAfterMerge,
 			references: gitHubService.references,
 		}, {
 			source: 'sessions-pull-request-changes:/upstream/project/pull/7',
+			sourceIgnoresCasing: true,
 			canHandle: [true, false, false],
 			requested: [['upstream', 'project', 7], ['upstream', 'project', 7]],
 			initial: {
@@ -130,6 +144,7 @@ suite('PullRequestChangesMultiDiffSourceResolver', () => {
 				label: '#7 Fix typo',
 				files: [['app.ts@merge-base-2', 'app.ts@head-2']],
 			},
+			pollingAfterMerge: { started: 1, stopped: 1 },
 			references: { acquired: 1, released: 1 },
 		});
 	});
