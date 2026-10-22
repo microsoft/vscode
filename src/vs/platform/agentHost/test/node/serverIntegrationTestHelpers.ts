@@ -674,6 +674,13 @@ export interface IServerHandle {
 }
 
 const SERVER_SHUTDOWN_TIMEOUT_MS = isCI || isWindows || AGENT_HOST_E2E_COVERAGE ? 30_000 : 5_000;
+/**
+ * The server's own graceful-shutdown budget. A restart must persist what the
+ * replacement server restores, and on a loaded CI machine that can take longer
+ * than the server's 4.5s default, so it gets most of the time
+ * {@link stopServer} already waits, keeping the rest for capturing descendants.
+ */
+const SERVER_GRACEFUL_SHUTDOWN_TIMEOUT_MS = Math.max(4_500, SERVER_SHUTDOWN_TIMEOUT_MS - 5_000);
 const SERVER_EXIT_TIMEOUT_MS = 1_000;
 const SERVER_DESCENDANT_CLEANUP_TIMEOUT_MS = 5_000;
 
@@ -1033,7 +1040,7 @@ async function startMockLlmServer(scenarios?: readonly IMockScenario[]): Promise
 export async function startServer(options?: { readonly quiet?: boolean; readonly userDataDir?: string; readonly env?: NodeJS.ProcessEnv; readonly startupTimeoutMs?: number }): Promise<IServerHandle> {
 	return new Promise((resolve, reject) => {
 		const serverPath = fileURLToPath(new URL('../../node/agentHostServerMain.js', import.meta.url));
-		const args = ['--enable-mock-agent', '--port', '0', '--without-connection-token'];
+		const args = ['--enable-mock-agent', '--port', '0', '--without-connection-token', '--shutdown-timeout', String(SERVER_GRACEFUL_SHUTDOWN_TIMEOUT_MS)];
 		if (options?.quiet ?? true) {
 			args.push('--quiet');
 		}
@@ -1120,7 +1127,7 @@ export async function startRealServer(options: { readonly homeDir: string; reado
 	const capiUrl = capiReplayProxy?.url ?? mockLlmServer?.url;
 	return new Promise((resolve, reject) => {
 		const serverPath = fileURLToPath(new URL('../../node/agentHostServerMain.js', import.meta.url));
-		const args = ['--port', '0', '--without-connection-token'];
+		const args = ['--port', '0', '--without-connection-token', '--shutdown-timeout', String(SERVER_GRACEFUL_SHUTDOWN_TIMEOUT_MS)];
 		if (options.claudeSdkRoot) {
 			args.push('--claude-sdk-root', options.claudeSdkRoot);
 		}
