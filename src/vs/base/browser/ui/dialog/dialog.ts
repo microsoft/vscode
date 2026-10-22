@@ -479,10 +479,12 @@ export class Dialog extends Disposable {
 
 					if (focusableElements.length === 0) {
 						// Nothing to move focus to, so it stays inside the dialog
+						EventHelper.stop(e, true);
+						return;
 					}
 
 					// Focus next element (with wrapping)
-					else if (evt.equals(KeyCode.Tab) || evt.equals(KeyCode.RightArrow)) {
+					if (evt.equals(KeyCode.Tab) || evt.equals(KeyCode.RightArrow)) {
 						const newFocusedIndex = (focusedIndex + 1) % focusableElements.length;
 						focusableElements[newFocusedIndex].focus();
 					}
