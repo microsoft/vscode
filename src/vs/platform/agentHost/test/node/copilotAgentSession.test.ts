@@ -275,6 +275,8 @@ class MockCopilotSession {
 		apiVersion: 1, availability: 'enabled', runtimeServers: [], pendingConnections: 0,
 	};
 	readonly connectorReconcileCalls: Parameters<CopilotSession['rpc']['connectors']['reconcile']>[0][] = [];
+	connectorCatalog: Awaited<ReturnType<CopilotSession['rpc']['connectors']['refresh']>> = { revision: 1, refreshedAtMs: 1, connectors: [] };
+	readonly connectorCatalogRefreshCalls: Parameters<CopilotSession['rpc']['connectors']['refresh']>[0][] = [];
 	onConnectorReconcile: (() => Promise<void>) | undefined;
 	onConnectorCapabilities: (() => Promise<void>) | undefined;
 	onMcpAuthenticationStateChanged: (() => void) | undefined;
@@ -768,6 +770,10 @@ class MockCopilotSession {
 			},
 			getAccount: async () => this.connectorAccount,
 			getStatus: async () => this.connectorStatus,
+			refresh: async (request: Parameters<CopilotSession['rpc']['connectors']['refresh']>[0]) => {
+				this.connectorCatalogRefreshCalls.push(request);
+				return this.connectorCatalog;
+			},
 			reconcile: async (request: Parameters<CopilotSession['rpc']['connectors']['reconcile']>[0]) => {
 				this.connectorReconcileCalls.push(request);
 				await this.onConnectorReconcile?.();
@@ -29285,6 +29291,49 @@ Use the attached image as context.
 					});
 				});
 			}
+
+			test('adds newly connected Connectors while another Connector is stopped, keeping ordinary reconciliation deferred', async () => {
+				const { session, mockSession } = await createAgentSession(disposables, { rootValues });
+				const calendar = { connectorName: 'calendar', runtimeServerId: 'calendar-id', status: 'stopped' } as const;
+				mockSession.connectorStatus.runtimeServers = [calendar];
+				mockSession.connectorCatalog = {
+					revision: 2, refreshedAtMs: 2, connectors: [
+						{ name: 'calendar', displayName: 'Calendar', status: 'connected', runtimeServerIds: ['calendar-id'] },
+						{ name: 'drive', displayName: 'Drive', status: 'not_connected', runtimeServerIds: [] },
+						{ name: 'slack', displayName: 'Slack', status: 'connected', runtimeServerIds: [] },
+					],
+				};
+				mockSession.onConnectorReconcile = async () => {
+					mockSession.connectorStatus = {
+						...mockSession.connectorStatus,
+						catalog: mockSession.connectorCatalog,
+						runtimeServers: [calendar, { connectorName: 'slack', runtimeServerId: 'slack-id', status: 'connected' }],
+					};
+					mockSession.mcpListResult = { servers: [{ name: 'calendar-id', status: 'stopped', source: 'managed' }, { name: 'slack-id', status: 'connected', source: 'managed' }] };
+				};
+				const progress = () => ({
+					catalogRefreshes: mockSession.connectorCatalogRefreshCalls.length,
+					calls: mockSession.connectorReconcileCalls.length,
+					pending: session.hasPendingConnectorRefresh,
+				});
+				session.markConnectorConfigurationChanged();
+				await session.refreshConnectors();
+				const added = { ...progress(), servers: session.topLevelMcpCustomizations().map(server => readMcpServerDisplayName(server)) };
+				await session.refreshConnectors();
+				const retried = progress();
+				session.markConnectorConfigurationChanged();
+				await session.refreshConnectors();
+				assert.deepStrictEqual({
+					added, retried, changedAgain: progress(), calls: mockSession.connectorReconcileCalls,
+					enable: mockSession.mcpEnableCalls, start: mockSession.mcpStartServerCalls,
+				}, {
+					added: { catalogRefreshes: 1, calls: 1, pending: true, servers: ['Calendar', 'Slack'] },
+					retried: { catalogRefreshes: 1, calls: 1, pending: true },
+					changedAgain: { catalogRefreshes: 2, calls: 1, pending: true },
+					calls: [{ accountId: 'session-account', refreshCatalog: false, forceConnectorName: 'slack' }],
+					enable: [], start: [],
+				});
+			});
 
 			test('resolves newly discovered host-disabled Connector servers before publishing tools', async () => {
 				const { session, mockSession } = await createAgentSession(disposables, {

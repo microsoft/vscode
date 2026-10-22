@@ -25,6 +25,15 @@ export interface ICopilotConnectorServers {
 	readonly authorizationRequired: boolean;
 }
 
+/** The outcome of one Connector reconciliation attempt. */
+export interface ICopilotConnectorReconcileResult {
+	/** The requested reconciliation ran; a deferred request or a targeted addition alone leaves this false. */
+	readonly reconciled: boolean;
+	readonly connectorServers?: ICopilotConnectorServers;
+	/** A deferred ordinary refresh checked the refreshed catalog and added any newly connected Connectors. */
+	readonly newlyConnectedChecked?: boolean;
+}
+
 /** Uses this SDK session's account handle; a failed attempt retains current state for publication and retry. */
 export async function reconcileCopilotConnectors(
 	session: CopilotSession,
@@ -33,13 +42,16 @@ export async function reconcileCopilotConnectors(
 		readonly forceConnectorName?: string;
 		readonly canReconcile?: () => boolean;
 		readonly preserveStoppedServers?: boolean;
+		/** When an ordinary refresh must defer to preserve stopped servers, still add newly connected Connectors. */
+		readonly addNewlyConnected?: boolean;
 		readonly token?: CancellationToken;
 		readonly onReconcileRequested?: (rpc: Promise<ConnectorStatus>) => void;
 	} = {},
-): Promise<{ readonly reconciled: boolean; readonly connectorServers?: ICopilotConnectorServers }> {
+): Promise<ICopilotConnectorReconcileResult> {
 	const { forceConnectorName, canReconcile = () => true, token = CancellationToken.None } = options;
 	let status: ConnectorStatus;
 	let reconciled = false;
+	let newlyConnectedChecked = false;
 	try {
 		const capabilities = await raceCancellationError(session.rpc.connectors.getCapabilities(), token);
 		if (!canReconcile()) {
@@ -65,6 +77,9 @@ export async function reconcileCopilotConnectors(
 			logService.warn(`[Copilot:${session.sessionId}] Connector MCP reconciliation skipped because the session account could not be resolved`);
 			return { reconciled };
 		}
+		let target = forceConnectorName;
+		let refreshCatalog = true;
+		let addingNewlyConnected = false;
 		if (options.preserveStoppedServers) {
 			const current = await raceCancellationError(session.rpc.connectors.getStatus(), token);
 			if (!canReconcile()) {
@@ -74,18 +89,33 @@ export async function reconcileCopilotConnectors(
 				(forceConnectorName === undefined || server.connectorName === forceConnectorName)
 				&& (server.status === 'stopped' || server.status === 'not_configured' || server.status === 'disabled')
 			)) {
-				logService.info(`[Copilot:${session.sessionId}] Deferring Connector MCP reconciliation to preserve stopped or disabled servers`);
-				return { reconciled, connectorServers: copilotConnectorServers(current) };
+				if (forceConnectorName === undefined && options.addNewlyConnected && capabilities.targetedReconcile) {
+					// A targeted reconcile adds catalog members without restarting unrelated stopped servers or applying their
+					// configuration changes, so it cannot satisfy this ordinary refresh, which stays deferred.
+					target = await newlyConnectedConnector(session, account.accountId, current, token);
+					if (!canReconcile()) {
+						return { reconciled };
+					}
+					addingNewlyConnected = target !== undefined;
+					newlyConnectedChecked = !addingNewlyConnected;
+				}
+				if (!addingNewlyConnected) {
+					logService.info(`[Copilot:${session.sessionId}] Deferring Connector MCP reconciliation to preserve stopped or disabled servers`);
+					return { reconciled, connectorServers: copilotConnectorServers(current), newlyConnectedChecked };
+				}
+				logService.info(`[Copilot:${session.sessionId}] Adding newly connected Connectors through targeted reconciliation; ordinary reconciliation remains deferred to preserve stopped or disabled servers`);
+				refreshCatalog = false;
 			}
 		}
 		const reconcile = session.rpc.connectors.reconcile({
 			accountId: account.accountId,
-			refreshCatalog: true,
-			...(forceConnectorName !== undefined ? { forceConnectorName } : {}),
+			refreshCatalog,
+			...(target !== undefined ? { forceConnectorName: target } : {}),
 		});
 		options.onReconcileRequested?.(reconcile);
 		status = await raceCancellationError(reconcile, token);
-		reconciled = true;
+		reconciled = !addingNewlyConnected;
+		newlyConnectedChecked = addingNewlyConnected;
 		logService.info(`[Copilot:${session.sessionId}] Reconciled ${status.runtimeServers.length} connector MCP server(s) through the Copilot runtime`);
 	} catch (error) {
 		if (isCancellationError(error) && token.isCancellationRequested) {
@@ -108,7 +138,18 @@ export async function reconcileCopilotConnectors(
 	return {
 		reconciled,
 		connectorServers: copilotConnectorServers(status),
+		newlyConnectedChecked,
 	};
+}
+
+/**
+ * Refreshes the catalog and returns a connected Connector that has no runtime server in this session yet.
+ * Reconciliation projects the whole catalog, so targeting one such Connector adds all of them.
+ */
+async function newlyConnectedConnector(session: CopilotSession, accountId: string, current: ConnectorStatus, token: CancellationToken): Promise<string | undefined> {
+	const catalog = await raceCancellationError(session.rpc.connectors.refresh({ accountId }), token);
+	const projected = new Set(current.runtimeServers.map(server => server.connectorName));
+	return catalog.connectors.find(connector => connector.status === 'connected' && !projected.has(connector.name))?.name;
 }
 
 function copilotConnectorServers(status: ConnectorStatus): ICopilotConnectorServers {

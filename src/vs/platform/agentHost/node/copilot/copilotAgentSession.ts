@@ -1491,6 +1491,7 @@ export class CopilotAgentSession extends Disposable {
 						forceConnectorName,
 						canReconcile,
 						preserveStoppedServers: true,
+						addNewlyConnected: forceConnectorName === undefined && requestGeneration !== this._newlyConnectedCheckedGeneration,
 						token,
 						onReconcileRequested: rpc => {
 							this._recordRuntimeMutation('customizationsChanged');
@@ -1498,6 +1499,9 @@ export class CopilotAgentSession extends Disposable {
 						},
 					});
 					reconciled = result.reconciled;
+					if (result.newlyConnectedChecked && forceConnectorName === undefined) {
+						this._newlyConnectedCheckedGeneration = requestGeneration;
+					}
 					if (reconciled) {
 						// The runtime restarted these servers, so their requests are stale even if this refresh is now cancelled.
 						this._cancelStaleCopilotConnectorAuthRequests(staleAuthRequestIds);
@@ -1835,6 +1839,8 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _pendingMcpAuthRequests = new PendingRequestRegistry<McpAuthResult | null | undefined, IPendingMcpAuthRequest>();
 	private _connectorRefreshGeneration = 0;
 	private readonly _pendingConnectorRefreshes = new Map<string | undefined, number>();
+	/** The ordinary refresh generation whose deferral already added newly connected Connectors from a refreshed catalog. */
+	private _newlyConnectedCheckedGeneration: number | undefined;
 	private _connectorRefresh: Promise<void> | undefined;
 	private readonly _connectorRefreshCancellation = this._register(new MutableDisposable<CancellationTokenSource>());
 	private _outstandingConnectorReconcile: Promise<void> | undefined;
