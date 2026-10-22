@@ -15,14 +15,18 @@ import { isIMenuItem, MenuRegistry } from '../../../../../platform/actions/commo
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { IResourceMultiDiffEditorInput, isResourceMultiDiffEditorInput } from '../../../../../workbench/common/editor.js';
+import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { Menus } from '../../../../browser/menus.js';
+import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { SessionHasPullRequestContext } from '../../../../common/contextkeys.js';
 import { IGitHubPullRequestRef, ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import '../../browser/pullRequestActions.js';
+import { createPullRequestChangesEditorInput } from '../../browser/pullRequestChangesMultiDiffSourceResolver.js';
 import { SessionPullRequestPresentationModel } from '../../browser/pullRequestIconStatus.js';
 import { IGitHubService } from '../../browser/githubService.js';
-import { GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPullRequest } from '../../common/types.js';
+import { GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPullRequest, OPEN_PULL_REQUEST_CHANGES_ACTION_ID } from '../../common/types.js';
 import { GitHubPullRequestModel } from '../../browser/models/githubPullRequestModel.js';
 import { GitHubPullRequestCIModel } from '../../browser/models/githubPullRequestCIModel.js';
 import { GitHubPullRequestReviewThreadsModel } from '../../browser/models/githubPullRequestReviewThreadsModel.js';
@@ -316,6 +320,41 @@ suite('Pull Request Actions', () => {
 		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.agentSessions.action.copyPullRequestUrl')!.handler(accessor, { pullRequest: secondPullRequest }));
 
 		assert.deepStrictEqual(clipboardService.writes, [secondPullRequestUri.toString(true)]);
+	});
+
+	test('Open Pull Request Changes opens the pull request changes editor input', async () => {
+		const pullRequest = { owner: 'upstream', repo: 'project', number: 7, uri: URI.parse('https://github.com/upstream/project/pull/7') };
+		const opened: IResourceMultiDiffEditorInput[] = [];
+		let revealed = 0;
+
+		const instantiationService = new TestInstantiationService();
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable(undefined);
+		});
+		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
+			override async openEditor(...args: unknown[]): Promise<undefined> {
+				if (isResourceMultiDiffEditorInput(args[0])) {
+					opened.push(args[0]);
+				}
+				return undefined;
+			}
+		});
+		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() {
+			override revealEditorPartExplicitly(): void {
+				revealed++;
+			}
+		});
+
+		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(OPEN_PULL_REQUEST_CHANGES_ACTION_ID)!.handler(accessor, { pullRequest }));
+
+		const expected = createPullRequestChangesEditorInput(pullRequest);
+		assert.deepStrictEqual({
+			revealed,
+			opened: opened.map(editor => ({ multiDiffSource: editor.multiDiffSource?.toString(true), label: editor.label, pinned: editor.options?.pinned, resources: editor.resources })),
+		}, {
+			revealed: 1,
+			opened: [{ multiDiffSource: expected.multiDiffSource?.toString(true), label: '#7', pinned: true, resources: undefined }],
+		});
 	});
 
 });

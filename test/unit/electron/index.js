@@ -329,6 +329,33 @@ app.on('ready', async () => {
 		}
 	});
 
+	ipcMain.handle('vscode:test-file-resource', async (_event, requestUrl, roots) => {
+		const [{ ProtocolMainService }, { URI }] = await Promise.all([
+			import(url.pathToFileURL(path.join(__dirname, `../../../${outDir}/vs/platform/protocol/electron-main/protocolMainService.js`)).href),
+			import(url.pathToFileURL(path.join(__dirname, `../../../${outDir}/vs/base/common/uri.js`)).href),
+		]);
+		// Preserve the production root registration and guard; replace only protocol registration and file transport.
+		class TestProtocolMainService extends ProtocolMainService {
+			handleProtocols() { }
+			async createFileResponse(_request, filePath) {
+				return new Response(filePath);
+			}
+		}
+		/** @type {string[]} */
+		const errors = [];
+		const service = new TestProtocolMainService(
+			{ ...roots, workspaceStorageHome: URI.file(roots.workspaceStorageHome), isBuilt: true },
+			{ defaultProfile: { globalStorageHome: URI.file(roots.globalStorageHome) } },
+			{ error: message => errors.push(message) },
+		);
+		try {
+			const response = await service.handleResourceRequest(new Request(requestUrl));
+			return { status: response.status, path: response.ok ? await response.text() : undefined, errors };
+		} finally {
+			service.dispose();
+		}
+	});
+
 	// needed when loading resources from the renderer, e.g xterm.js or the encoding lib
 	session.defaultSession.protocol.handle('vscode-file', request => {
 		const fileUrl = new URL(request.url.replace(/^vscode-file:/, 'file:'));

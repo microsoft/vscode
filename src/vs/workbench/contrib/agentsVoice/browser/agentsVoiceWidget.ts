@@ -20,7 +20,7 @@ import { createOnboarding } from './components/onboardingComponent.js';
 import { createVoiceBar } from './components/voiceBarComponent.js';
 import { FONT_SIZE, addKeyboardActivation, isSecondaryPointerGesture } from './components/tokens.js';
 import type { VoiceState, IPendingToolConfirmation, ITranscriptTurn } from '../../chat/browser/voiceClient/voiceSessionController.js';
-import { computeVoiceMicGlowBoxShadow, IVoiceGlowColors, voiceGlowStateColor } from '../../chat/browser/voiceClient/voiceGlow.js';
+import { computeVoiceMicGlowBoxShadow, IVoiceGlowColors } from '../../chat/browser/voiceClient/voiceGlow.js';
 import { createVoiceGlowController, GlowThemeKind, IVoiceGlowController } from '../../chat/browser/voiceClient/voiceGlowController.js';
 
 export interface VoiceWidgetCallbacks {
@@ -604,13 +604,11 @@ export class AgentsVoiceWidget extends Disposable {
 			this._register(reshowDisposable);
 		}
 
-		// Run the 60Hz waveform/glow loop only while there is something to
-		// animate (onboarding, listening, or speaking). Idle/disconnected render
-		// no glow, so keeping a frame loop alive then would burn CPU for nothing.
+		// Keep the connection glow alive between voice turns.
 		this._register(autorun(reader => {
 			const onboarding = this._showOnboarding.read(reader);
-			const voiceState = this._voiceState.read(reader);
-			if (onboarding || voiceState === 'listening' || voiceState === 'speaking') {
+			const connected = this._isConnected.read(reader);
+			if (onboarding || connected) {
 				this._startWaveformAnimation();
 			} else {
 				this._stopWaveformAnimation();
@@ -692,13 +690,10 @@ export class AgentsVoiceWidget extends Disposable {
 
 		// The ambient glow is owned by the glow controller; clear it whenever the
 		// input box shouldn't be lit so no stale frame is left behind.
-		const shouldShowInputGlow = showConnected && (voiceState === 'listening' || voiceState === 'speaking');
+		const shouldShowInputGlow = isConnected;
 		if (!shouldShowInputGlow) {
 			this._glowController?.clear();
 		}
-
-		// Toggle processing comet animation when agent is thinking
-		this._inputBoxContainer!.classList.toggle('processing', voiceState === 'processing');
 
 		if (hasTranscript) {
 			if (showExpanded) {
@@ -730,16 +725,12 @@ export class AgentsVoiceWidget extends Disposable {
 					|| localize('agentsVoice.reconnecting', "Reconnecting...");
 			} else if (isConnecting) {
 				this._inputBoxPlaceholder!.textContent = localize('agentsVoice.connecting', "Connecting...");
-			} else if (isConnected && voiceState === 'listening') {
-				this._inputBoxPlaceholder!.textContent = localize('agentsVoice.listening', "Listening");
-			} else if (isConnected && voiceState === 'speaking') {
-				this._inputBoxPlaceholder!.textContent = keyLabel
-					? localize('agentsVoice.pressToBargeIn', "Speak or use {0}", keyLabel)
-					: localize('agentsVoice.speakToBargeIn', "Speak to barge in");
+			} else if (isConnected && (voiceState === 'listening' || voiceState === 'speaking')) {
+				this._inputBoxPlaceholder!.textContent = '';
 			} else if (isConnected) {
 				this._inputBoxPlaceholder!.textContent = keyLabel
-					? localize('agentsVoice.holdToTalkOrBargeIn', "Hold {0} to talk or barge in", keyLabel)
-					: localize('agentsVoice.holdMicToTalkOrBargeIn', "Hold the mic to talk or barge in");
+					? localize('agentsVoice.holdToTalk', "Hold {0} to talk", keyLabel)
+					: localize('agentsVoice.holdMicToTalk', "Hold the mic to talk");
 			} else if (keyLabel) {
 				this._inputBoxPlaceholder!.textContent = localize('agentsVoice.holdToTalk', "Hold {0} to talk", keyLabel);
 			} else {
@@ -791,13 +782,12 @@ export class AgentsVoiceWidget extends Disposable {
 		this._inputBoxMicBtn!.title = micTooltip;
 		this._inputBoxMicBtn!.ariaLabel = micTooltip;
 		const micColor = voiceState === 'error' ? 'var(--vscode-editorError-foreground)'
-			: voiceState === 'listening' ? 'var(--vscode-editorInfo-foreground)'
-				: voiceState === 'speaking' ? 'var(--vscode-agentsVoice-speakingForeground)'
-					: 'var(--vscode-descriptionForeground)';
+			: isConnected ? 'var(--vscode-editorInfo-foreground)'
+				: 'var(--vscode-descriptionForeground)';
 		this._inputBoxMicBtn!.style.color = micColor;
-		const micIsActive = voiceState === 'listening' || voiceState === 'speaking';
+		const micIsActive = isConnected;
 		this._inputBoxMicBtn!.classList.toggle('agents-voice-mode-active', micIsActive);
-		this._inputBoxMicBtn!.style.setProperty('--agents-voice-input-icon-rgb', voiceState === 'speaking' ? '163,113,247' : '88,166,255');
+		this._inputBoxMicBtn!.style.setProperty('--agents-voice-input-icon-rgb', '88,166,255');
 		this._inputBoxMicBtn!.style.borderRadius = '50%';
 		if (!micIsActive) {
 			this._inputBoxMicBtn!.style.boxShadow = 'none';
@@ -1121,11 +1111,11 @@ export class AgentsVoiceWidget extends Disposable {
 		const animate = () => {
 			this._animationFrameId = getWindow(this.container).requestAnimationFrame(animate);
 			const onboarding = this._showOnboarding.get();
-			const voiceState = this._voiceState.get();
+			const connected = this._isConnected.get();
 			// The reactive autorun starts/stops this loop; guard against a frame
 			// that races a transition to a non-glowing state (styles are cleared
 			// by _stopWaveformAnimation()).
-			if (!(onboarding || voiceState === 'listening' || voiceState === 'speaking')) {
+			if (!(onboarding || connected)) {
 				return;
 			}
 
@@ -1146,22 +1136,21 @@ export class AgentsVoiceWidget extends Disposable {
 			}
 
 			// Animate input box container border/shadow (inputBoxLayout)
-			if (this._glowController && (voiceState === 'listening' || voiceState === 'speaking')) {
-				this._glowController.render(voiceState, intensity, this.callbacks.isMotionReduced());
+			if (this._glowController && connected) {
+				this._glowController.render(intensity, this.callbacks.isMotionReduced());
 			}
 
 			const colors = this.callbacks.getGlowColors();
 			if (this._inputBoxMicBtn) {
-				const iconGlowActive = voiceState === 'listening' || voiceState === 'speaking';
-				this._inputBoxMicBtn.style.boxShadow = iconGlowActive
-					? computeVoiceMicGlowBoxShadow(voiceState, intensity, colors)
+				this._inputBoxMicBtn.style.boxShadow = connected
+					? computeVoiceMicGlowBoxShadow(intensity, colors)
 					: 'none';
 			}
 
 			// Classic layout glow div
 			this._glowDiv.style.display = '';
 			const baseOpacity = 0.15 + intensity * 0.4;
-			const { r, g, b } = voiceGlowStateColor(onboarding ? 'speaking' : voiceState, colors).rgba;
+			const { r, g, b } = colors.listening.rgba;
 			const rgb = `${r},${g},${b}`;
 			this._glowDiv.style.background = `radial-gradient(ellipse 40% 70% at 50% 0%, rgba(${rgb},${baseOpacity}) 0%, transparent 100%), radial-gradient(ellipse 70% 100% at 50% 0%, rgba(${rgb},${baseOpacity * 0.4}) 0%, transparent 100%)`;
 		};
@@ -1173,8 +1162,7 @@ export class AgentsVoiceWidget extends Disposable {
 			getWindow(this.container).cancelAnimationFrame(this._animationFrameId);
 			this._animationFrameId = undefined;
 		}
-		// Clear any glow left by the last rendered frame so idle/disconnected
-		// shows no residual glow now that the loop no longer runs while idle.
+		// Clear any glow left by the last rendered frame after disconnecting.
 		this._glowDiv.style.display = 'none';
 		this._glowController?.clear();
 		if (this._inputBoxMicBtn) {

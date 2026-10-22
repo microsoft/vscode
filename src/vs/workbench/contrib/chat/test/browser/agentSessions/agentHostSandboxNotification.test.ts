@@ -783,25 +783,41 @@ suite('AgentHostSandboxNotification', () => {
 					modelTargetChatSessionType: constObservable('agent-host-copilot'),
 					sessionResource: constObservable(resource),
 				}));
+				const descriptionElement = widget.domNode.querySelector<HTMLElement>('.chat-input-notification-description');
+				assert.ok(descriptionElement);
 				const button = widget.domNode.querySelector<HTMLElement>('.chat-input-notification-actions .monaco-button');
 				assert.ok(button);
 				const renderedButton = { label: button.textContent, role: button.getAttribute('role'), tabIndex: button.tabIndex, ariaLabel: button.ariaLabel };
-				const descriptionElement = store.add(renderMarkdown(notification.description)).element;
-				button.click();
+				const actions = widget.domNode.querySelectorAll('.chat-input-notification-actions .monaco-button').length;
+				if (outcome === 'installed') {
+					const enterEvent = new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true, cancelable: true });
+					// StandardKeyboardEvent reads keyCode; define it explicitly rather than relying on the legacy constructor option.
+					Object.defineProperty(enterEvent, 'keyCode', { get: () => 13 });
+					button.dispatchEvent(enterEvent);
+				} else {
+					button.click();
+				}
 				assert.ok(installing);
+				const pending = service.getActiveNotification()?.id;
 				await installing;
 				await Promise.resolve();
 				assert.deepStrictEqual({
 					renderedButton, calls, confirmations: confirmations.length,
-					descriptionLinks: descriptionElement.querySelectorAll('a').length,
+					description: descriptionElement.textContent,
+					descriptionLinks: Array.from(descriptionElement.querySelectorAll('a'), link => link.textContent),
+					descriptionEnding: descriptionElement.textContent?.trimEnd().endsWith('Learn more.'),
 					untrustedContent: descriptionElement.textContent?.includes('untrusted'),
 					keepOpen: notification.actions[0].keepOpen,
+					actions, pending,
 					remaining: service.getActiveNotification()?.id,
 					errors: installationErrors,
 				}, {
-					renderedButton: { label: 'Install', role: 'button', tabIndex: 0, ariaLabel: 'Sandbox trusted CA is not installed Install' },
+					renderedButton: { label: 'Install', role: 'button', tabIndex: 0, ariaLabel: 'Sandbox trusted CA is not installed (optional) Install' },
 					calls: outcome === 'cancelled' ? 0 : 1, confirmations: 1,
-					descriptionLinks: 0, untrustedContent: false, keepOpen: true,
+					description: 'Install the sandbox certificate authority (CA) so developer tools can connect securely through a proxy that adds credentials to outgoing requests without exposing them to agent tools. Learn more.',
+					descriptionLinks: ['Learn more'], descriptionEnding: true, untrustedContent: false,
+					keepOpen: true,
+					actions: 1, pending: id,
 					remaining: outcome === 'installed' ? undefined : id,
 					errors: outcome === 'failed' ? ['Could not install the sandbox certificate: OS authorization denied'] : [],
 				});
@@ -1029,7 +1045,7 @@ suite('AgentHostSandboxNotification', () => {
 			assert.deepStrictEqual({ calls, remaining: service.notifications.size, errors: installationErrors }, { calls: 0, remaining: 0, errors: [] });
 		});
 
-		test('shows a nonblocking informational notice when the asynchronous status arrives', () => {
+		test('explains the certificate purpose and links to trust guidance when the asynchronous status arrives', () => {
 			const subscription = store.add(new TestSubscription());
 			subscription.setValue();
 			const service = new NotificationService();
@@ -1041,16 +1057,21 @@ suite('AgentHostSandboxNotification', () => {
 			assert.ok(notice);
 			const { onDismiss, description, ...body } = notice;
 			assert.ok(isMarkdownString(description));
-			const rendered = store.add(renderMarkdown(description));
-			assert.deepStrictEqual({ before, body: { ...body, description: rendered.element.textContent?.replace(/\u00a0/g, ' ') }, dismissible: typeof onDismiss, dispatched }, {
+			const openedLinks: string[] = [];
+			const rendered = store.add(renderMarkdown(description, { actionHandler: url => openedLinks.push(url) }));
+			const links = [...rendered.element.querySelectorAll('a')];
+			links[0]?.click();
+			assert.deepStrictEqual({ before, body: { ...body, description: rendered.element.textContent }, links: links.map(link => link.textContent), openedLinks, dismissible: typeof onDismiss, dispatched }, {
 				before: 0,
 				body: {
 					id, inputUri,
 					severity: ChatInputNotificationSeverity.Info,
-					message: 'Sandbox trusted CA is not installed',
-					description: 'Some tools in this session\'s sandbox might require the sandbox certificate authority (CA) to be trusted by the agent host\'s operating system. Install it in the OS trust store to enable those tools to connect securely.',
+					message: 'Sandbox trusted CA is not installed (optional)',
+					description: 'Install the sandbox certificate authority (CA) so developer tools can connect securely through a proxy that adds credentials to outgoing requests without exposing them to agent tools. Learn more.',
 					actions: [], dismissible: true, autoDismissOnMessage: false, sessionResources: [resource],
 				},
+				links: ['Learn more'],
+				openedLinks: ['https://aka.ms/vscode-sandboxing-certtrust'],
 				dismissible: 'function',
 				dispatched: [],
 			});
@@ -1150,7 +1171,7 @@ suite('AgentHostSandboxNotification', () => {
 			service.dismissNotification(warning.id);
 			const info = service.getActiveNotification();
 			assert.ok(info);
-			const certificateRendered = widget.domNode.textContent?.includes('Sandbox trusted CA is not installed');
+			const certificateRendered = widget.domNode.textContent?.includes('Sandbox trusted CA is not installed (optional)');
 			const installButton = widget.domNode.querySelector<HTMLElement>('.chat-input-notification-actions .monaco-button');
 			const renderedButton = { label: installButton?.textContent, tabIndex: installButton?.tabIndex };
 			service.dismissNotification(info.id);

@@ -666,7 +666,7 @@ suite('Sessions list context menus', () => {
 				actions: {
 					ids: grouped
 						? ['sessionsViewPane.markAllInSectionRead', 'vs.actions.separator', 'sessions.createSubgroup', 'vs.actions.separator', 'sessions.renameGroupAction', 'sessions.deleteGroupAction']
-						: ['sessionsViewPane.markAllInSectionRead', 'vs.actions.separator', 'sessions.createGroup'],
+						: ['sessionsViewPane.markAllInSectionRead', 'vs.actions.separator', 'sessions.moveSectionToGroup', 'sessions.moveSectionToGroup.target', 'sessions.moveSectionToGroup.group', 'vs.actions.separator', 'sessions.createGroup'],
 					disposableIds: [],
 				},
 				readSessions: ['Visible', 'Filtered'],
@@ -717,8 +717,9 @@ suite('Sessions list context menus', () => {
 		const configurationService = new TestConfigurationService({ 'chat.agentHost.moveChats.enabled': true });
 		const harness = createListHarness(disposables, [session], instantiationService => {
 			instantiationService.stub(IConfigurationService, configurationService);
-			// No sessions list view: nothing to reveal the new session in.
+			// No sessions list view showing: nothing to reveal the new session in, and a refusal is a notification.
 			instantiationService.stub(IViewsService, new class extends mock<IViewsService>() {
+				override isViewVisible() { return false; }
 				override getViewWithId() { return null; }
 			});
 			instantiationService.stub(IDialogService, new class extends mock<IDialogService>() {

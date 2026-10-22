@@ -22,6 +22,7 @@ import { resolveChangesetSubscriptions } from '../../node/agentHostChangesetSumm
 import { ChangesetDiffStrategy, IAgentHostChangesetService, StaticChangesetKind } from '../../common/agentHostChangesetService.js';
 import { IAgentHostChangesetOperationService } from '../../common/agentHostChangesetOperationService.js';
 import { AgentHostChangesetOperationService } from '../../node/agentHostChangesetOperationService.js';
+import { AgentHostFileEditCoordinator } from '../../node/agentHostFileEditCoordinator.js';
 import { IAgentHostFileMonitorOptions, IAgentHostFileMonitorService } from '../../node/agentHostFileMonitorService.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
@@ -106,7 +107,7 @@ suite('ChangesetSessionCoordinator', () => {
 				super.scheduleOwnerOperationsUpdate(ownerKey);
 			}
 		}
-		const operationService = disposables.add(new RecordingOperationService(stateManager, gitStateService, subscriptions, configurationService, createTestChatOwnershipService(stateManager)));
+		const operationService = disposables.add(new RecordingOperationService(stateManager, gitStateService, subscriptions, configurationService, createTestChatOwnershipService(stateManager), disposables.add(new AgentHostFileEditCoordinator())));
 		const instantiationService = disposables.add(new InstantiationService(new ServiceCollection(
 			[ILogService, logService],
 			[IAgentHostStateManager, stateManager],
@@ -1380,6 +1381,64 @@ suite('ChangesetSessionCoordinator', () => {
 		}, {
 			removedOwners: [peer],
 			disposals: [],
+		});
+	});
+
+	test('the branch summary refreshes only the folders of chats in use, not those of archived chats or their subagents', () => {
+		const session = AgentSession.uri('mock', 'summary-in-use').toString();
+		const defaultChat = buildDefaultChatUri(session);
+		const visible = buildChatUri(session, 'visible');
+		const archived = buildChatUri(session, 'archived');
+		const subagent = buildChatUri(session, 'subagent');
+		const environment = createEnvironment();
+		createSession(environment.stateManager, session, 'file:///default');
+		const storage = creationTimeChatStorageResource(session, visible, defaultChat);
+		environment.stateManager.addChat(session, visible, storage, { workingDirectories: ['file:///visible'] });
+		environment.stateManager.addChat(session, archived, storage, { workingDirectories: ['file:///archived'] });
+		environment.stateManager.addChat(session, subagent, storage, { origin: { kind: ChatOriginKind.Tool, chat: archived, toolCallId: 'tool' }, workingDirectories: ['file:///deleted-worktree'] });
+		environment.stateManager.dispatchServerAction(archived, { type: ActionType.ChatIsArchivedChanged, isArchived: true });
+		environment.stateManager.setSessionConfig(session, { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Isolation]: 'worktree' } });
+
+		environment.coordinator.onFirstSubscriber(URI.parse(session));
+
+		assert.deepStrictEqual([...new Set(environment.changesets.branchRefreshes)].sort(), [
+			buildBranchChangesetOwner(session, ['file:///default']),
+			buildBranchChangesetOwner(session, ['file:///visible']),
+		].sort());
+	});
+
+	test('archiving a chat releases its branch summary and unarchiving it subscribes again', async () => {
+		const session = AgentSession.uri('mock', 'summary-archive-toggle').toString();
+		const defaultChat = buildDefaultChatUri(session);
+		const peer = buildChatUri(session, 'peer');
+		const defaultRoot = URI.file('/projects/default');
+		const peerRoot = URI.file('/projects/peer');
+		const environment = createEnvironment(undefined, createRoutingGitService(new Map([
+			[defaultRoot.toString(), defaultRoot],
+			[peerRoot.toString(), peerRoot],
+		])));
+		createSession(environment.stateManager, session, defaultRoot.toString());
+		environment.stateManager.addChat(session, peer, creationTimeChatStorageResource(session, peer, defaultChat), { workingDirectories: [peerRoot.toString()] });
+		environment.stateManager.setSessionConfig(session, { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Isolation]: 'worktree' } });
+		environment.coordinator.onFirstSubscriber(URI.parse(session));
+		await environment.monitor.waitForAcquisitions(2);
+		const peerOwner = buildBranchChangesetOwner(session, [peerRoot.toString()]);
+
+		environment.stateManager.dispatchServerAction(peer, { type: ActionType.ChatIsArchivedChanged, isArchived: true });
+		await environment.monitor.waitForDisposals(1);
+		const archived = { removedOwners: [...environment.changesets.removedOwners], disposals: [...environment.monitor.disposals] };
+		environment.changesets.clearRefreshes();
+		environment.stateManager.dispatchServerAction(peer, { type: ActionType.ChatIsArchivedChanged, isArchived: false });
+		await environment.monitor.waitForAcquisitions(3);
+
+		assert.deepStrictEqual({
+			archived,
+			restoredRefreshes: [...new Set(environment.changesets.branchRefreshes)],
+			acquisitions: environment.monitor.acquisitions.filter(root => root === peerRoot.toString()),
+		}, {
+			archived: { removedOwners: [peerOwner], disposals: [peerRoot.toString()] },
+			restoredRefreshes: [buildBranchChangesetOwner(session, [defaultRoot.toString()]), peerOwner],
+			acquisitions: [peerRoot.toString(), peerRoot.toString()],
 		});
 	});
 

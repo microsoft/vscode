@@ -9,9 +9,10 @@ import { normalize } from '../../../base/common/path.js';
 import { isLinux } from '../../../base/common/platform.js';
 import { joinPath } from '../../../base/common/resources.js';
 import { TernarySearchTree } from '../../../base/common/ternarySearchTree.js';
+import { Promises } from '../../../base/node/pfs.js';
 import { URI } from '../../../base/common/uri.js';
 import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
-import { BrowserViewStorageScope, IBrowserViewNetwork, IBrowserViewSessionOptions } from '../common/browserView.js';
+import { BrowserViewStorageScope, IBrowserViewNetwork, IBrowserViewSessionOptions, toBrowserViewSessionOptions } from '../common/browserView.js';
 import { BrowserSessionTrust, IBrowserSessionTrust } from './browserSessionTrust.js';
 import { BrowserSessionHistory, IBrowserSessionHistory } from './browserSessionHistory.js';
 import { BrowserSessionPermissions, IBrowserSessionPermissions } from './browserSessionPermissions.js';
@@ -57,7 +58,7 @@ export class BrowserSession {
 	 *
 	 * ID derivation rules (one-to-one with Electron sessions):
 	 *  - Global scope         -> `"global"`
-	 *  - Workspace scope      -> `"workspace:${workspaceId}"`
+	 *  - Workspace scope      -> `"workspace:${workspaceId}[:${partition}]"`
 	 *  - Ephemeral per-view   -> `"ephemeral:${viewId}"`
 	 *  - Agent scope          -> `"agent:${identityHash}"`
 	 *  - Custom type          -> `"${type}:${viewId}"`
@@ -135,17 +136,50 @@ export class BrowserSession {
 	static getOrCreateGlobal(instantiationService: IInstantiationService): BrowserSession {
 		const electronSession = session.fromPartition('persist:vscode-browser');
 		return BrowserSession._bySession.get(electronSession)
-			?? instantiationService.createInstance(BrowserSession, 'global', electronSession, BrowserViewStorageScope.Global, undefined);
+			?? instantiationService.createInstance(BrowserSession, 'global', electronSession, BrowserViewStorageScope.Global, undefined, undefined);
 	}
 
 	/**
-	 * Get or create a workspace-scope session for the given workspace.
+	 * Get workspace storage, optionally partitioned by a hashed affinity.
+	 * Partitions share the workspace's storage lifetime.
 	 */
-	static getOrCreateWorkspace(instantiationService: IInstantiationService, workspaceId: string, workspaceStorageHome: URI, network?: IBrowserViewNetwork): BrowserSession {
-		const storage = joinPath(workspaceStorageHome, workspaceId, 'browserStorage');
+	static getOrCreateWorkspace(instantiationService: IInstantiationService, workspaceId: string, workspaceStorageHome: URI, network?: IBrowserViewNetwork, affinity?: string): BrowserSession {
+		const partition = affinity === undefined ? undefined : createHash('sha256').update(affinity).digest('hex');
+		const storage = partition
+			? joinPath(BrowserSession.getWorkspaceAffinityStorageHome(workspaceStorageHome, workspaceId), partition)
+			: joinPath(workspaceStorageHome, workspaceId, 'browserStorage');
+		const id = partition ? `workspace:${workspaceId}:${partition}` : `workspace:${workspaceId}`;
 		const electronSession = session.fromPath(storage.fsPath);
 		return BrowserSession._bySession.get(electronSession)
-			?? instantiationService.createInstance(BrowserSession, `workspace:${workspaceId}`, electronSession, BrowserViewStorageScope.Workspace, network);
+			?? instantiationService.createInstance(BrowserSession, id, electronSession, BrowserViewStorageScope.Workspace, network, affinity);
+	}
+
+	private static getWorkspaceAffinityStorageHome(workspaceStorageHome: URI, workspaceId: string): URI {
+		return joinPath(workspaceStorageHome, workspaceId, 'browserStorageAffinities');
+	}
+
+	/**
+	 * Clear workspace storage and all affinity partitions, including unused ones.
+	 */
+	static async clearWorkspace(instantiationService: IInstantiationService, workspaceId: string, workspaceStorageHome: URI, storage: IApplicationStorageMainService): Promise<void> {
+		const sessions = [BrowserSession.getOrCreateWorkspace(instantiationService, workspaceId, workspaceStorageHome).electronSession];
+		const affinityHome = BrowserSession.getWorkspaceAffinityStorageHome(workspaceStorageHome, workspaceId);
+		let partitions: string[] = [];
+		try {
+			partitions = await Promises.readdir(affinityHome.fsPath);
+		} catch (error) {
+			if (error.code !== 'ENOENT') {
+				throw error;
+			}
+		}
+		for (const partition of partitions) {
+			sessions.push(session.fromPath(joinPath(affinityHome, partition).fsPath));
+		}
+		await Promise.all(sessions.map(electronSession => {
+			const browserSession = BrowserSession._bySession.get(electronSession);
+			browserSession?.connectStorage(storage);
+			return (browserSession ?? electronSession).clearData();
+		}));
 	}
 
 	/**
@@ -159,7 +193,7 @@ export class BrowserSession {
 		const sessionId = `${type ?? 'ephemeral'}:${viewId}`;
 		const electronSession = session.fromPartition(`vscode-browser-${type}${viewId}`);
 		return BrowserSession._bySession.get(electronSession)
-			?? instantiationService.createInstance(BrowserSession, sessionId, electronSession, BrowserViewStorageScope.Ephemeral, network);
+			?? instantiationService.createInstance(BrowserSession, sessionId, electronSession, BrowserViewStorageScope.Ephemeral, network, undefined);
 	}
 
 	/** Get or create an in-memory agent session by affinity, workspace, or window, and network. */
@@ -180,7 +214,7 @@ export class BrowserSession {
 		const identityHash = createHash('sha256').update(identity).digest('hex');
 		const electronSession = session.fromPartition(`vscode-browser-agent-${identityHash}`);
 		return BrowserSession._bySession.get(electronSession)
-			?? instantiationService.createInstance(BrowserSession, `agent:${identityHash}`, electronSession, BrowserViewStorageScope.Agent, network);
+			?? instantiationService.createInstance(BrowserSession, `agent:${identityHash}`, electronSession, BrowserViewStorageScope.Agent, network, affinity);
 	}
 
 	/**
@@ -212,7 +246,7 @@ export class BrowserSession {
 				return BrowserSession.getOrCreateGlobal(instantiationService);
 			case BrowserViewStorageScope.Workspace:
 				if (workspaceId) {
-					return BrowserSession.getOrCreateWorkspace(instantiationService, workspaceId, workspaceStorageHome, options.network);
+					return BrowserSession.getOrCreateWorkspace(instantiationService, workspaceId, workspaceStorageHome, options.network, options.affinity);
 				}
 				return BrowserSession.getOrCreateEphemeral(instantiationService, viewId, undefined, options.network);
 			case BrowserViewStorageScope.Ephemeral:
@@ -277,6 +311,7 @@ export class BrowserSession {
 		/** Resolved storage scope. */
 		readonly storageScope: BrowserViewStorageScope,
 		private _network: IBrowserViewNetwork | undefined,
+		private readonly affinity: string | undefined,
 		@IAgentNetworkFilterService private readonly agentNetworkFilterService: IAgentNetworkFilterService,
 	) {
 		this._trust = new BrowserSessionTrust(this);
@@ -294,6 +329,11 @@ export class BrowserSession {
 	/** The remote network this session's traffic is bound to, if any. */
 	get network(): IBrowserViewNetwork | undefined {
 		return this._network;
+	}
+
+	/** The options that select this session. */
+	get options(): IBrowserViewSessionOptions {
+		return toBrowserViewSessionOptions(this.storageScope, this.affinity, this._network);
 	}
 
 	/**

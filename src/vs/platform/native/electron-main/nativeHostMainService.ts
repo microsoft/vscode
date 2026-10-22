@@ -5,14 +5,14 @@
 
 import * as fs from 'fs';
 import { exec } from 'child_process';
-import { app, BrowserWindow, clipboard, contentTracing, Display, Menu, MessageBoxOptions, MessageBoxReturnValue, nativeImage, Notification, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, powerMonitor, powerSaveBlocker, SaveDialogOptions, SaveDialogReturnValue, screen, shell, systemPreferences, webContents } from 'electron';
+import { app, BrowserWindow, clipboard, contentTracing, desktopCapturer, Display, Menu, MessageBoxOptions, MessageBoxReturnValue, nativeImage, Notification, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, powerMonitor, powerSaveBlocker, SaveDialogOptions, SaveDialogReturnValue, screen, shell, systemPreferences, webContents } from 'electron';
 import { arch, cpus, freemem, loadavg, platform, release, totalmem, type } from 'os';
 import { promisify } from 'util';
 import { memoize } from '../../../base/common/decorators.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { matchesSomeScheme, Schemas } from '../../../base/common/network.js';
-import { dirname, join, posix, resolve, win32 } from '../../../base/common/path.js';
+import { dirname, isAbsolute, join, posix, resolve, win32 } from '../../../base/common/path.js';
 import { isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
 import { AddFirstParameterToFunctions, hasKey } from '../../../base/common/types.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
@@ -703,6 +703,16 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		shell.showItemInFolder(path);
 	}
 
+	async startFileDrag(windowId: number | undefined, path: string, options?: INativeHostOptions): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		if (!window?.win || !isAbsolute(path) || !await Promises.exists(path)) {
+			return;
+		}
+		// macOS requires an image under the cursor; the file's own icon shows what the drop adds.
+		const icon = await app.getFileIcon(path, { size: 'normal' });
+		window.win.webContents.startDrag({ file: path, icon });
+	}
+
 	async setRepresentedFilename(windowId: number | undefined, path: string, options?: INativeHostOptions): Promise<void> {
 		const window = this.windowById(options?.targetWindowId, windowId);
 		window?.setRepresentedFilename(path);
@@ -824,6 +834,20 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return 'granted';
 	}
 
+	async requestScreenCaptureAccess(): Promise<boolean> {
+		if (!isMacintosh) {
+			return true;
+		}
+		const status = systemPreferences.getMediaAccessStatus('screen');
+		if (status === 'granted' || status === 'restricted') {
+			return status === 'granted';
+		}
+
+		// Electron has no screen-permission request API; enumerate screens in the application process to request access.
+		await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 0, height: 0 } });
+		return systemPreferences.getMediaAccessStatus('screen') === 'granted';
+	}
+
 	async isAdmin(): Promise<boolean> {
 		let isAdmin: boolean;
 		if (isWindows) {
@@ -921,6 +945,11 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			freemem: freemem(),
 			loadavg: loadavg()
 		};
+	}
+
+	async getFreeDiskSpace(_windowId: number | undefined, path: string): Promise<number> {
+		const { bavail, bsize } = await fs.promises.statfs(path);
+		return bavail * bsize;
 	}
 
 	async getOSProperties(): Promise<IOSProperties> {

@@ -228,12 +228,19 @@ export class AgentHostSandboxNotification extends Disposable {
 			this._notificationService.deleteNotification(this._certificateId);
 			return;
 		}
+		const learnMore = new MarkdownString().appendLink(
+			'https://aka.ms/vscode-sandboxing-certtrust',
+			localize('agentHost.sandboxCertificateWhyTrust', "Learn more"),
+		);
 		const description = new MarkdownString();
-		description.appendText(this._certificateOperation === 'remove'
+		description.appendMarkdown(this._certificateOperation === 'remove'
 			? localize('agentHost.sandboxCertificateRemovingDetail', "Removing trust from the agent host's operating system trust store. The stored certificate authority is kept.")
 			: this._certificateOperation === 'rotate'
 				? localize('agentHost.sandboxCertificateRotatingDetail', "Replacing the certificate authority and establishing operating system trust. Running sandboxed tools may need to restart.")
-				: localize('agentHost.sandboxCertificateMissingDetail', "Some tools in this session's sandbox might require the sandbox certificate authority (CA) to be trusted by the agent host's operating system. Install it in the OS trust store to enable those tools to connect securely."));
+				: localize({
+					key: 'agentHost.sandboxCertificateMissingDetail',
+					comment: ['{0} is a Markdown link labeled "Learn more" that opens certificate trust documentation.'],
+				}, "Install the sandbox certificate authority (CA) so developer tools can connect securely through a proxy that adds credentials to outgoing requests without exposing them to agent tools. {0}.", learnMore.value));
 		this._notificationService.setNotification({
 			id: this._certificateId,
 			inputUri,
@@ -244,7 +251,7 @@ export class AgentHostSandboxNotification extends Disposable {
 					? localize('agentHost.sandboxCertificateRotating', "Rotating sandbox certificate")
 					: this._certificateOperation === 'install'
 						? localize('agentHost.sandboxCertificateInstalling', "Installing sandbox certificate")
-						: localize('agentHost.sandboxCertificateMissing', "Sandbox trusted CA is not installed"),
+						: localize('agentHost.sandboxCertificateMissing', "Sandbox trusted CA is not installed (optional)"),
 			description,
 			actions: canInstall && !this._certificateBusy ? [{
 				kind: ChatInputNotificationActionKind.Command,

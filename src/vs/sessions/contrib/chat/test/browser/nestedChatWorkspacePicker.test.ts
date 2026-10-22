@@ -21,27 +21,27 @@ suite('NestedChatWorkspacePicker', () => {
 	const git: INestedChatFolderInfo = { supportsWorktree: true, defaultBranch: 'main' };
 	const plain: INestedChatFolderInfo = { supportsWorktree: false, defaultBranch: undefined };
 
-	function support(sessionFolder: URI | undefined, multipleFolders: boolean, sessionFolders: URI[] = sessionFolder ? [sessionFolder] : []): INestedChatWorkspaceSupport {
-		return { sessionFolder, sessionFolders, multipleFolders, browseActions: [browse] };
+	function support(sessionFolder: URI | undefined, multipleFolders: boolean): INestedChatWorkspaceSupport {
+		return { sessionFolder, multipleFolders, browseActions: [browse] };
 	}
 
 	function describe(choice: NestedChatFolderChoice): string {
 		return choice.kind === 'scratch' ? 'scratch' : choice.folder.path;
 	}
 
-	test('offers the folders, browsing and No Workspace per session and agent', () => {
+	test('offers the session folder, recent folders, browsing and No Workspace per session and agent', () => {
 		const cases = {
-			workspaceSession: support(repo, true, [repo, other]),
-			workspacelessSession: support(undefined, true, [other]),
+			workspaceSession: support(repo, true),
+			workspacelessSession: support(undefined, true),
 			singleFolderWorkspaceSession: support(repo, false),
 			singleFolderWorkspacelessSession: support(undefined, false),
 		};
 		assert.deepStrictEqual(Object.fromEntries(Object.entries(cases).map(([name, value]) => {
-			const options = getNestedChatFolderOptions(value, { recentFolders: [URI.file('/recent'), other], canOpenLocalFolder: true });
+			const options = getNestedChatFolderOptions(value, { recentFolders: [URI.file('/recent'), repo, other], canOpenLocalFolder: true });
 			return [name, { default: describe(getDefaultNestedChatFolder(value)), choices: options.choices.map(describe), browse: options.browseActions.length, openFolder: options.openFolder }];
 		})), {
-			workspaceSession: { default: '/repo', choices: ['/repo', '/other', '/recent', 'scratch'], browse: 1, openFolder: true },
-			workspacelessSession: { default: 'scratch', choices: ['/other', '/recent', 'scratch'], browse: 1, openFolder: true },
+			workspaceSession: { default: '/repo', choices: ['/repo', '/recent', '/other', 'scratch'], browse: 1, openFolder: true },
+			workspacelessSession: { default: 'scratch', choices: ['/recent', '/repo', '/other', 'scratch'], browse: 1, openFolder: true },
 			singleFolderWorkspaceSession: { default: '/repo', choices: ['/repo'], browse: 0, openFolder: false },
 			singleFolderWorkspacelessSession: { default: 'scratch', choices: ['scratch'], browse: 0, openFolder: false },
 		});

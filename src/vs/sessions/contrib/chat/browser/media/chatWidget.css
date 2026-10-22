@@ -116,12 +116,12 @@
 	margin-inline: calc(var(--vscode-spacing-size100) + var(--vscode-strokeThickness));
 }
 
-.monaco-workbench.agent-sessions-workbench .sessions-chat-widget:not(.new-chat-in-session) .new-chat-widget-content.experimental-new-session-composer .new-chat-session-options {
+.monaco-workbench.agent-sessions-workbench .sessions-chat-widget .new-chat-widget-content.experimental-new-session-composer .new-chat-session-options {
 	background-color: color-mix(in srgb, var(--vscode-agentsChatInput-background) 75%, var(--session-view-background));
 	border-radius: var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) 0 0;
 }
 
-.monaco-workbench.agent-sessions-workbench:is(.hc-black, .hc-light) .sessions-chat-widget:not(.new-chat-in-session) .new-chat-widget-content.experimental-new-session-composer .new-chat-session-options {
+.monaco-workbench.agent-sessions-workbench:is(.hc-black, .hc-light) .sessions-chat-widget .new-chat-widget-content.experimental-new-session-composer .new-chat-session-options {
 	background-color: var(--vscode-agentsChatInput-background);
 }
 
@@ -324,7 +324,7 @@
 
 /* Flex centering shares attachment growth above and below the midpoint. Offset
  * that growth so the bottom controls stay anchored and the composer grows up. */
-.sessions-chat-widget:not(.new-chat-in-session) > .new-chat-widget-container > .new-chat-widget-content {
+.sessions-chat-widget > .new-chat-widget-container > .new-chat-widget-content {
 	position: relative;
 	/* Composer controls take precedence over the blank session drag strip. */
 	z-index: 1;
@@ -351,6 +351,24 @@
 	font-weight: var(--vscode-fontWeight-semiBold);
 	line-height: 1.4;
 	margin: 0;
+}
+
+.new-session-welcome-pet-platform {
+	display: none;
+	position: absolute;
+	top: 0;
+	height: var(--vscode-spacing-size40);
+	box-sizing: content-box;
+	padding-inline: var(--vscode-spacing-size40);
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: var(--vscode-descriptionForeground);
+	pointer-events: none;
+	transform: translate(-50%, -50%);
+}
+
+.new-session-welcome-message-title.chat-pet-platform-occupied + .new-session-welcome-pet-platform {
+	display: block;
 }
 
 .new-session-welcome-message-actions {
@@ -672,11 +690,23 @@
 
 .experimental-new-session-composer .sessions-workspace-category-picker {
 	justify-content: flex-start;
-	gap: var(--vscode-spacing-size40);
+	gap: var(--vscode-spacing-size80) !important;
 }
 
 .experimental-new-session-composer .sessions-workspace-category-picker > .sessions-chat-session-type-picker {
 	margin-left: auto;
+}
+
+.experimental-new-session-composer .sessions-workspace-category-picker .new-chat-session-options-details,
+.experimental-new-session-composer .sessions-workspace-category-picker .new-chat-session-options-toggle {
+	margin-left: 0;
+}
+
+.experimental-new-session-composer .sessions-workspace-category-picker .action-label > .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+	width: var(--vscode-codiconFontSize-compact);
+	height: var(--vscode-codiconFontSize-compact);
+	line-height: var(--vscode-codiconFontSize-compact);
 }
 
 .new-chat-repository-controls-host {
@@ -711,6 +741,11 @@
 
 .sessions-workspace-category-picker-slot {
 	flex: 0 1 auto;
+}
+
+.sessions-chat-picker-slot > .monaco-toolbar,
+.sessions-chat-picker-slot > .monaco-toolbar .action-item {
+	min-width: 0;
 }
 
 .sessions-workspace-category-picker-slot[hidden] {
@@ -799,7 +834,7 @@
 	pointer-events: auto;
 }
 
-.sessions-workspace-picker-trigger.workspace-clearable:is(:hover, :focus-within) > .action-label > .codicon:first-child {
+.sessions-workspace-picker-trigger.workspace-clearable:is(:hover, :focus-within) .action-label > .codicon:first-child {
 	opacity: 0;
 }
 

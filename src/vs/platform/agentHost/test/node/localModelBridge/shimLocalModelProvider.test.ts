@@ -293,6 +293,7 @@ const proxyResolver: IAgentHostProxyResolver = {
 	getConfigurationValue: () => undefined,
 	resolveProxy: async () => undefined,
 	fetch: () => Promise.reject(new Error('no network in tests')),
+	createWebSocket: () => { throw new Error('no network in tests'); },
 };
 
 function liveConfig(overrides: Partial<ILocalModelLiveConfig> = {}): ILocalModelLiveConfig {
