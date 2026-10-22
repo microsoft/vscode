@@ -128,6 +128,7 @@ import { AgentHostGitHubEndpointService, IAgentHostGitHubEndpointService } from 
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { createNoopCustomizationEnablementService } from './testCustomizationEnablementService.js';
 import { CopilotAgentSession, type ICopilotCanvasHandoff } from '../../node/copilot/copilotAgentSession.js';
+import { CopilotProjectExtensionLaunchPolicy } from '../../node/copilot/copilotProjectExtensionLaunchPolicy.js';
 import { ModelCallTurnCorrelation, type IModelCallTurnCorrelationResult } from '../../node/copilot/modelCallTurnCorrelation.js';
 import { addCopilotSandboxPath, createCopilotCliEnvironment } from '../../node/copilot/copilotCliEnvironment.js';
 import { CopilotClientStartupConfigChangedError } from '../../node/copilot/copilotFailureTelemetry.js';
@@ -4117,10 +4118,10 @@ suite('CopilotAgent', () => {
 			let initializationCalls = 0;
 			let registered = false;
 			const internals = agent as unknown as {
-				_acquireExtensionLaunchAdmission(directories: readonly URI[]): Promise<IDisposable>;
+				_acquireProjectExtensionLaunchAdmission(session: CopilotAgentSession): Promise<IDisposable>;
 				_initializeAndRegisterSession(session: CopilotAgentSession, register: () => void): Promise<void>;
 			};
-			internals._acquireExtensionLaunchAdmission = async () => {
+			internals._acquireProjectExtensionLaunchAdmission = async () => {
 				admissionStarted.complete();
 				await releaseAdmission.p;
 				return toDisposable(() => { admissionDisposed = true; });
@@ -4159,6 +4160,53 @@ suite('CopilotAgent', () => {
 			} finally {
 				releaseAdmission.complete();
 				await disposeAgent(agent);
+			}
+		});
+
+		test('exempts from workspace trust only the scratch folder the host allocated a workspace-less chat', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/trust-scratch-home-`));
+			const { agent } = createTestAgentContext(disposables, {
+				copilotClient: new TestCopilotClient([]),
+				userHome,
+				rootConfig: { [AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [] } },
+			});
+			const internals = agent as unknown as {
+				_projectExtensionLaunchPolicy: CopilotProjectExtensionLaunchPolicy;
+				_acquireProjectExtensionLaunchAdmission(session: CopilotAgentSession): Promise<IDisposable>;
+			};
+			const chatsRoot = workspacelessChatsRoot(userHome);
+			const launches = async (folder: URI, workspaceless: boolean) => {
+				const modulePath = URI.joinPath(folder, '.github', 'extensions', 'preview', 'extension.mjs');
+				await fs.mkdir(dirname(modulePath.fsPath), { recursive: true });
+				await fs.writeFile(modulePath.fsPath, '');
+				const admission = await internals._acquireProjectExtensionLaunchAdmission({
+					workspacelessFolder: workspaceless ? folder : undefined,
+					extensionLaunchDirectories: [folder],
+				} as unknown as CopilotAgentSession);
+				try {
+					return !!(await internals._projectExtensionLaunchPolicy.resolveLaunch(modulePath.fsPath, 'project', '/copilot-sdk/extension-bootstrap.mjs')).launch;
+				} finally {
+					admission.dispose();
+				}
+			};
+
+			try {
+				assert.deepStrictEqual({
+					defaultChatScratch: await launches(URI.joinPath(chatsRoot, 'session-id'), true),
+					peerChatScratch: await launches(URI.joinPath(chatsRoot, '6d5c0b8e-3f8a-4a51-9b77-0d2c1f5e7a10'), true),
+					chatNotWorkspaceless: await launches(URI.joinPath(chatsRoot, 'foldered-chat'), false),
+					nestedUnderChatsRoot: await launches(URI.joinPath(chatsRoot, 'other-client', 'chat'), true),
+					outsideChatsRoot: await launches(URI.joinPath(userHome, 'project'), true),
+				}, {
+					defaultChatScratch: true,
+					peerChatScratch: true,
+					chatNotWorkspaceless: false,
+					nestedUnderChatsRoot: false,
+					outsideChatsRoot: false,
+				});
+			} finally {
+				await disposeAgent(agent);
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 			}
 		});
 	});
