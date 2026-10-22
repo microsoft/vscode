@@ -146,6 +146,8 @@ const relayKeepAliveTimeoutMs = 15 * 60_000;
 /** Web PubSub retains a dropped reliable connection for about a minute. */
 const relayRecoveryWindowMs = 60_000;
 const relayRecoveryAttemptTimeoutMs = 10_000;
+/** A loss within this time of a recovery counts as the same unstable connection for backoff. */
+const relayFlapWindowMs = 60_000;
 const relayPingIntervalMs = 20_000;
 /** Without any inbound frame (including ping replies) for this long, the socket is treated as dead. */
 const relayLivenessTimeoutMs = 60_000;
@@ -390,6 +392,9 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 		}
 	}, relayRecoveryWindowMs + relayRecoveryAttemptTimeoutMs));
 	private _recoveries = 0;
+	private _recoveredAt: number | undefined;
+	/** Outages that began soon after the previous recovery, which extend the reconnection backoff. */
+	private _flaps = 0;
 	private _acknowledgedSinceRecovery = false;
 	private _lastInbound = 0;
 	private _closeInfo: IMissionControlRelayClose | undefined;
@@ -517,8 +522,12 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 		this._liveness.cancel();
 		this._ackTimeout.cancel();
 		socket?.close();
-		const attempts = this._recovering?.attempts ?? 0;
-		const delay = attempts === 0 ? 0 : Math.min(5_000, 500 * 2 ** (attempts - 1));
+		if (!this._recovering) {
+			// A socket lost again soon after a recovery keeps backing off instead of reconnecting immediately.
+			this._flaps = this._recoveredAt !== undefined && Date.now() - this._recoveredAt < relayFlapWindowMs ? this._flaps + 1 : 0;
+		}
+		const step = (this._recovering?.attempts ?? 0) + this._flaps;
+		const delay = step === 0 ? 0 : Math.min(5_000, 500 * 2 ** (step - 1));
 		// 1008 means the service removed the connection, so it cannot be resumed.
 		if (this._resumption && this._ready.isSettled && closeCode !== 1008
 			&& (this._recovering?.watch.elapsed() ?? 0) + delay < relayRecoveryWindowMs) {
@@ -627,6 +636,7 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 		}
 		this._confirming = undefined;
 		this._recoveryDeadline.cancel();
+		this._recoveredAt = Date.now();
 		this._onDidRecover.fire({
 			reason: recovering.reason, closeCode: recovering.closeCode, activeClients: recovering.activeClients,
 			attempts: recovering.attempts, durationMs: recovering.watch.elapsed(), interruptedClients: recovering.interruptedCount,
@@ -954,7 +964,6 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 			return;
 		}
 		this._lastInbound = Date.now();
-		this._confirmRecovery();
 		try {
 			if (data.length > 2 * 1024 * 1024) {
 				throw new Error('Mission Control WPS frame exceeds receive limit');
@@ -964,6 +973,10 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 				throw new Error('Invalid WPS frame');
 			}
 			const fields = frame as Record<string, unknown>;
+			// The service announces `disconnected` before closing a connection, including a rejected resumption.
+			if (!(fields.type === 'system' && fields.event === 'disconnected')) {
+				this._confirmRecovery();
+			}
 			if (fields.type === 'system' && fields.event === 'connected') {
 				const connectionId = fields.connectionId;
 				const reconnectionToken = fields.reconnectionToken;

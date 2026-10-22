@@ -517,6 +517,49 @@ suite('Mission Control WPS', () => {
 			}
 		});
 
+		test('a disconnected notice does not confirm a resumption the service then closes', async () => {
+			const { key } = signingFixture();
+			const clock = sinon.useFakeTimers();
+			try {
+				const { server, sockets, recoveries, connect } = createRecoverableServer(key);
+				await connect();
+				sockets[0].emit('close', 1006);
+				await clock.tickAsync(0);
+				sockets[1].emit('open');
+				sockets[1].emit('message', JSON.stringify({ type: 'system', event: 'disconnected', message: 'rejected' }));
+				sockets[1].emit('close', 1008);
+				const { error: _, ...closeInfo } = server.closeInfo!;
+				assert.deepStrictEqual({ closed: server.isClosed, recoveries: recoveries.length, closeInfo }, {
+					closed: true, recoveries: 0,
+					closeInfo: { reason: 'socketClose', closeCode: 1006, activeClients: 0, attempts: 1 },
+				});
+			} finally {
+				clock.restore();
+			}
+		});
+
+		test('backs off when a recovered socket is lost again soon after', async () => {
+			const { key } = signingFixture();
+			const clock = sinon.useFakeTimers();
+			try {
+				const { server, sockets, urls, recoveries, connect } = createRecoverableServer(key);
+				await connect();
+				sockets[0].emit('close', 1006);
+				await clock.tickAsync(0);
+				sockets[1].emit('open');
+				sockets[1].emit('message', JSON.stringify({ type: 'pong' }));
+				sockets[1].emit('close', 1006);
+				await clock.tickAsync(1);
+				const beforeBackoff = urls.length;
+				await clock.tickAsync(500);
+				assert.deepStrictEqual({ closed: server.isClosed, recoveries: recoveries.length, beforeBackoff, afterBackoff: urls.length }, {
+					closed: false, recoveries: 1, beforeBackoff: 2, afterBackoff: 3,
+				});
+			} finally {
+				clock.restore();
+			}
+		});
+
 		test('a join acknowledged after its lane was replaced does not announce the replacement again', async () => {
 			const { key, signed } = signingFixture();
 			const clock = sinon.useFakeTimers();
