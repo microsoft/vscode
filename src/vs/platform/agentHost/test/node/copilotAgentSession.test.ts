@@ -29275,7 +29275,7 @@ Use the attached image as context.
 			});
 
 			for (const status of ['stopped', 'not_configured', 'disabled'] as const) {
-				test(`defers unsafe Connector refresh while preserving ${status} intent and permits unrelated targeted recovery`, async () => {
+				test(`defers unsafe Connector refresh while preserving ${status} intent and permits safe reconciliation`, async () => {
 					const { session, mockSession } = await createAgentSession(disposables, { rootValues });
 					mockSession.connectorStatus.runtimeServers = [{ connectorName: 'calendar', runtimeServerId: 'calendar-id', status }];
 					session.markConnectorConfigurationChanged();
@@ -29286,7 +29286,11 @@ Use the attached image as context.
 						calls: mockSession.connectorReconcileCalls, pending: session.hasPendingConnectorRefresh,
 						enable: mockSession.mcpEnableCalls, start: mockSession.mcpStartServerCalls,
 					}, {
-						calls: [{ accountId: 'session-account', refreshCatalog: true, forceConnectorName: 'mail' }],
+						calls: [
+							// Ordinary reconciliation keeps disabled servers disabled, so only a disabled target defers.
+							...status === 'disabled' ? [{ accountId: 'session-account', refreshCatalog: true }] : [],
+							{ accountId: 'session-account', refreshCatalog: true, forceConnectorName: 'mail' },
+						],
 						pending: true, enable: [], start: [],
 					});
 				});
