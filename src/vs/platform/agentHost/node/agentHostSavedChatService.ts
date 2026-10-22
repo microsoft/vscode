@@ -316,7 +316,7 @@ export class AgentHostSavedChatService {
 		if (snapshot.identity.session !== key || catalog && (catalog.provider !== snapshot.identity.provider || snapshot.header?.sessionGeneration !== undefined && snapshot.header.sessionGeneration !== catalog.sessionGeneration)) {
 			throw new Error(`Saved session catalog identity does not match: ${key}`);
 		}
-		const decoded = catalog ? decodeAgentHostCatalogPayloadData(catalog.payload) : undefined;
+		const decoded = catalog ? decodeAgentHostCatalogPayloadData(catalog.payload, { forMigration: true, payloadVersion: catalog.payloadVersion }) : undefined;
 		if (decoded && !decoded.ok) {
 			throw new Error(`Saved session catalog is invalid: ${decoded.error}`);
 		}

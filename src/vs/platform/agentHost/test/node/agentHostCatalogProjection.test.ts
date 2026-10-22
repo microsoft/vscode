@@ -14,9 +14,11 @@ import { SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, 
 import {
 	AGENT_HOST_CATALOG_ARTIFACT_LIMIT,
 	AGENT_HOST_CATALOG_CHILD_LIMIT,
+	AGENT_HOST_CATALOG_MIGRATABLE_PAYLOAD_VERSIONS,
 	AGENT_HOST_CATALOG_PAYLOAD_VERSION,
 	AgentHostCatalogData,
 	decodeAgentHostCatalogPayload,
+	decodeAgentHostCatalogPayloadData,
 	encodeAgentHostCatalogPayload,
 	hashAgentHostCatalogPayload,
 	reviveAgentHostCatalogData,
@@ -105,20 +107,42 @@ function encode(data: AgentHostCatalogData = createData()) {
 }
 
 suite('AgentHostCatalogProjection', () => {
-	test('optional automation provenance round trips without invalidating existing v2 payloads', () => {
+	test('optional automation provenance round trips across current and previous payload versions', () => {
 		const origin = { kind: SessionOriginKind.Automation, automation: 'ahp-automation:/a', run: 'ahp-automation-run:/r' } as const;
 		const data = createData();
 		const withOrigin = decodeAgentHostCatalogPayload(encode({ ...data, origin }).payload);
 		const withoutOrigin = decodeAgentHostCatalogPayload(encode(data).payload);
+		const migrated = AGENT_HOST_CATALOG_MIGRATABLE_PAYLOAD_VERSIONS.map(payloadVersion => {
+			const payload = encode(data).payload.replace(`"payloadVersion":${AGENT_HOST_CATALOG_PAYLOAD_VERSION}`, `"payloadVersion":${payloadVersion}`);
+			const decoded = decodeAgentHostCatalogPayloadData(payload, { forMigration: true, payloadVersion });
+			const asCurrent = decodeAgentHostCatalogPayload(payload);
+			return { payloadVersion, origin: decoded.ok ? decoded.value.origin : decoded.reason, asCurrent: asCurrent.ok ? 'current' : asCurrent.reason };
+		});
 		assert.deepStrictEqual({
 			version: AGENT_HOST_CATALOG_PAYLOAD_VERSION,
 			current: withOrigin.ok && withOrigin.value.data.origin,
-			legacy: withoutOrigin.ok && withoutOrigin.value.data.origin,
+			ordinary: withoutOrigin.ok && withoutOrigin.value.data.origin,
+			migrated,
 		}, {
-			version: 2,
+			version: 3,
 			current: origin,
-			legacy: undefined,
+			ordinary: undefined,
+			migrated: [
+				{ payloadVersion: 1, origin: undefined, asCurrent: 'outdated' },
+				{ payloadVersion: 2, origin: undefined, asCurrent: 'outdated' },
+			],
 		});
+	});
+
+	test('migration decoding remains bounded to shipped payload versions', () => {
+		const data = createData();
+		const future = decodeAgentHostCatalogPayloadData(JSON.stringify({ payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION + 1, data }), { forMigration: true });
+		const malformed = decodeAgentHostCatalogPayloadData(JSON.stringify({ payloadVersion: AGENT_HOST_CATALOG_MIGRATABLE_PAYLOAD_VERSIONS[0], data: {} }), { forMigration: true });
+
+		assert.deepStrictEqual({
+			future: future.ok ? 'ok' : future.reason,
+			malformed: malformed.ok ? 'ok' : malformed.reason,
+		}, { future: 'outdated', malformed: 'invalid' });
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -163,7 +187,7 @@ suite('AgentHostCatalogProjection', () => {
 				ok: true,
 				value: { data: typedData, payload: encoded.payload },
 			},
-			payload: '{"data":{"_meta":{"agentHost/createdBySession":{"chat":"agent-chat://test/parent/default","session":"agent-session://test/parent","turnId":"turn-1"},"agentHost/sessionArtifacts":[{"id":"artifact-1","isArtifact":true,"label":"Catalog payload","link":"https://github.com/microsoft/vscode/pull/1","type":"pullRequest"}],"ehcliAdoptable":true,"ehcliAdopted":true,"git":{"branchName":"feature/catalog","hasGitHubRemote":true,"incomingChanges":2},"github":{"issueUrls":["https://github.com/microsoft/vscode/issues/2"],"owner":"microsoft","pullRequestUrls":["https://github.com/microsoft/vscode/pull/1"],"repo":"vscode"},"multiRoot":{"workspaceFile":"file:///workspace/project.code-workspace"},"vscode.folderPicker":{"hidden":true,"primary":"file:///workspace"},"vscode.sourceControl":{"latestOutcome":"merge","merge":{"commit":"0123456789abcdef"}},"workspaceless":true},"changes":{"additions":12,"deletions":4,"files":2},"chats":[{"kind":"default","order":0,"origin":{"kind":"default","metadata":{"a":1,"b":2}},"summary":"Main","titleSource":"auto","uri":"agent-chat://test/session/default"},{"archived":true,"kind":"peer","order":1,"origin":{"kind":"subagent"},"summary":"Peer","titleSource":"agent","uri":"agent-chat://test/session/peer"}],"isArchived":false,"isChatBacking":false,"isRead":true,"modifiedTime":1720000000000,"project":{"displayName":"workspace","uri":"file:///workspace"},"summary":"Implement opaque catalog payload","titleSource":"user","workingDirectories":["file:///workspace","file:///workspace/secondary"]},"payloadVersion":2}',
+			payload: '{"data":{"_meta":{"agentHost/createdBySession":{"chat":"agent-chat://test/parent/default","session":"agent-session://test/parent","turnId":"turn-1"},"agentHost/sessionArtifacts":[{"id":"artifact-1","isArtifact":true,"label":"Catalog payload","link":"https://github.com/microsoft/vscode/pull/1","type":"pullRequest"}],"ehcliAdoptable":true,"ehcliAdopted":true,"git":{"branchName":"feature/catalog","hasGitHubRemote":true,"incomingChanges":2},"github":{"issueUrls":["https://github.com/microsoft/vscode/issues/2"],"owner":"microsoft","pullRequestUrls":["https://github.com/microsoft/vscode/pull/1"],"repo":"vscode"},"multiRoot":{"workspaceFile":"file:///workspace/project.code-workspace"},"vscode.folderPicker":{"hidden":true,"primary":"file:///workspace"},"vscode.sourceControl":{"latestOutcome":"merge","merge":{"commit":"0123456789abcdef"}},"workspaceless":true},"changes":{"additions":12,"deletions":4,"files":2},"chats":[{"kind":"default","order":0,"origin":{"kind":"default","metadata":{"a":1,"b":2}},"summary":"Main","titleSource":"auto","uri":"agent-chat://test/session/default"},{"archived":true,"kind":"peer","order":1,"origin":{"kind":"subagent"},"summary":"Peer","titleSource":"agent","uri":"agent-chat://test/session/peer"}],"isArchived":false,"isChatBacking":false,"isRead":true,"modifiedTime":1720000000000,"project":{"displayName":"workspace","uri":"file:///workspace"},"summary":"Implement opaque catalog payload","titleSource":"user","workingDirectories":["file:///workspace","file:///workspace/secondary"]},"payloadVersion":3}',
 			hash: hashAgentHostCatalogPayload(encoded.payload),
 		});
 	});

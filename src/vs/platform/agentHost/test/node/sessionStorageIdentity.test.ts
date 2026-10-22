@@ -27,6 +27,7 @@ import { SessionStorageIdentity, storedChatUri } from '../../node/sessionStorage
 import { SessionDataService } from '../../node/sessionDataService.js';
 import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, ChatOriginKind, MessageKind, MessageAttachmentKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type Message, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { StringSHA1 } from '../../../../base/common/hash.js';
+import { stableStringify } from '../../../../base/common/objects.js';
 import { uuidFromSha1 } from '../../common/agentHostChatIdentity.js';
 import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, decodeAgentHostCatalogPayloadData, encodeAgentHostCatalogPayload, hashAgentHostCatalogPayload, type AgentHostCatalogData } from '../../node/agentHostCatalogProjection.js';
 import { AgentHostPeerChatStore } from '../../node/agentHostPeerChatStore.js';
@@ -38,6 +39,7 @@ import { AgentHostDatabaseTestDirectory } from './agentHostDatabaseTestUtils.js'
 
 suite('Session storage identity compatibility', () => {
 	const store = new DisposableStore();
+	const legacyCatalogPayloadVersion = 2;
 	let databases: AgentHostDatabaseTestDirectory;
 	let directory: string;
 
@@ -92,6 +94,32 @@ suite('Session storage identity compatibility', () => {
 			decoded: resources,
 			opaque: ['ahp-session://tenant/new?revision=1', 'conversation://tenant/chat', 'codex:/new', 'copilotcli:/historical'],
 			message: { text: 'ahp-session:/new', providerData: '{"uri":"ahp-session:/new"}' },
+		});
+	});
+
+	test('maps identity fields and hashes in migratable legacy catalog payloads', () => {
+		const codec = new SessionStorageIdentity();
+		const session = 'ahp-session:/new';
+		codec.add({ runtime: session, storage: 'copilotcli:/new', provider: 'copilotcli' });
+		const encoded = encodeAgentHostCatalogPayload(payload(session));
+		assert.ok(encoded.ok);
+		const legacyValue = JSON.parse(encoded.value.payload) as { payloadVersion: number };
+		legacyValue.payloadVersion = legacyCatalogPayloadVersion;
+		const runtimePayload = stableStringify(legacyValue);
+		const runtimeHash = hashAgentHostCatalogPayload(runtimePayload);
+		const stored = codec.record({ payload: runtimePayload, payloadHash: runtimeHash }, 'storage');
+		const storedPayload = decodeAgentHostCatalogPayloadData(stored.payload, { forMigration: true, payloadVersion: legacyCatalogPayloadVersion });
+		assert.ok(storedPayload.ok);
+		assert.deepStrictEqual({
+			version: JSON.parse(stored.payload).payloadVersion,
+			session: storedPayload.value.chats.map(chat => chat.uri),
+			hashValid: hashAgentHostCatalogPayload(stored.payload) === stored.payloadHash,
+			runtime: codec.record(stored, 'runtime'),
+		}, {
+			version: legacyCatalogPayloadVersion,
+			session: [buildDefaultChatUri('copilotcli:/new'), buildChatUri('copilotcli:/new', 'peer')],
+			hashValid: true,
+			runtime: { payload: runtimePayload, payloadHash: runtimeHash },
 		});
 	});
 

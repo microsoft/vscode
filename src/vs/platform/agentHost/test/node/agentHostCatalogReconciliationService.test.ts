@@ -15,8 +15,8 @@ import type { ISessionDataService } from '../../common/sessionDataService.js';
 import { AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY, AgentHostCatalogReconciliationService, AgentHostCatalogReconciliationSourceResult, CATALOG_VERIFICATION_VERSION, IAgentHostCatalogReconciliationOptions } from '../../node/agentHostCatalogReconciliationService.js';
 import { AgentHostCatalogSyncService } from '../../node/agentHostCatalogSyncService.js';
 import { chatCatalogV2ToCatalogChats } from '../../node/agentHostCatalogSourceResolver.js';
-import { AgentHostCatalogData, AGENT_HOST_CATALOG_PAYLOAD_VERSION, encodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
-import { AgentHostDatabase, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Envelope } from '../../node/agentHostDatabase.js';
+import { AgentHostCatalogData, AGENT_HOST_CATALOG_MIGRATABLE_PAYLOAD_VERSIONS, AGENT_HOST_CATALOG_PAYLOAD_VERSION, encodeAgentHostCatalogPayload, hashAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
+import { AgentHostDatabase, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Envelope, IAgentHostDatabaseSessionV2Receipt } from '../../node/agentHostDatabase.js';
 import type { IRegisteredSession } from '../../node/agentSessionRegistry.js';
 import type { IAgentHostStorageService } from '../../node/agentHostStorageService.js';
 import { createTestSessionStateStore } from './chatMetadataTestHelpers.js';
@@ -91,6 +91,7 @@ class RecordingCatalogDatabase extends AgentHostDatabase {
 	dirtyAfterUpsertCount = 0;
 	nonCanonicalPayloadReads = 0;
 	conflictingEnvelope: IAgentHostDatabaseSessionV2Envelope | undefined;
+	reportedPayloadVersion: number | undefined;
 
 	constructor() {
 		super(':memory:');
@@ -110,6 +111,9 @@ class RecordingCatalogDatabase extends AgentHostDatabase {
 			return 'conflict';
 		}
 		const result = await super.upsertSessionV2(envelope, expectedSessionGeneration);
+		if ((result === 'applied' || result === 'replayed') && envelope.payloadVersion === AGENT_HOST_CATALOG_PAYLOAD_VERSION) {
+			this.reportedPayloadVersion = undefined;
+		}
 		if (this.dirtyAfterUpsertCount > 0 && (result === 'applied' || result === 'replayed')) {
 			this.dirtyAfterUpsertCount--;
 			await super.markSessionV2PayloadDirty(envelope.session);
@@ -137,7 +141,38 @@ class RecordingCatalogDatabase extends AgentHostDatabase {
 			this.nonCanonicalPayloadReads--;
 			return { ...result, payload: ` ${result.payload}` };
 		}
-		return result;
+		return this._withReportedPayloadVersion(result);
+	}
+
+	private _withReportedPayloadVersion(result: IAgentHostDatabaseSessionV2 | undefined): IAgentHostDatabaseSessionV2 | undefined {
+		if (!result || this.reportedPayloadVersion === undefined) {
+			return result;
+		}
+		const payload = result.payload.replace(
+			`"payloadVersion":${AGENT_HOST_CATALOG_PAYLOAD_VERSION}`,
+			`"payloadVersion":${this.reportedPayloadVersion}`
+		);
+		return {
+			...result,
+			payloadVersion: this.reportedPayloadVersion,
+			payload,
+			payloadHash: hashAgentHostCatalogPayload(payload),
+		};
+	}
+
+	override async listSessionsV2Receipts(): Promise<readonly IAgentHostDatabaseSessionV2Receipt[]> {
+		const receipts = await super.listSessionsV2Receipts();
+		if (this.reportedPayloadVersion === undefined) {
+			return receipts;
+		}
+		return Promise.all(receipts.map(async receipt => {
+			const reported = this._withReportedPayloadVersion(await super.getSessionV2(receipt.session));
+			if (!reported) {
+				return receipt;
+			}
+			const { payload, ...reportedReceipt } = reported;
+			return reportedReceipt;
+		}));
 	}
 }
 
@@ -177,6 +212,8 @@ interface ITestHarness {
 
 suite('AgentHostCatalogReconciliationService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const shippedCatalogVerificationVersion = 3;
+	const catalogV3VerificationVersion = 4;
 
 	async function createHarness(names: readonly string[], missing: ReadonlySet<string> = new Set(), providerOf?: (name: string) => AgentProvider): Promise<ITestHarness> {
 		const central = store.add(new RecordingCatalogDatabase());
@@ -573,6 +610,33 @@ suite('AgentHostCatalogReconciliationService', () => {
 		});
 	});
 
+	for (const payloadVersion of AGENT_HOST_CATALOG_MIGRATABLE_PAYLOAD_VERSIONS) {
+		test(`re-projects payload version ${payloadVersion} after serving it during migration`, async () => {
+			const harness = await createHarness(['one']);
+			const session = registered('one');
+			await harness.sync.synchronize(session.session, { data: catalogData('one'), legacyMetadata: { customTitle: 'one' } });
+			harness.central.reportedPayloadVersion = payloadVersion;
+			harness.central.upsertCalls = 0;
+			const service = harness.createService(async registeredSession => ({
+				status: 'available',
+				request: { data: catalogData(registeredSession.session.path), legacyMetadata: { customTitle: registeredSession.session.path } },
+			}));
+
+			const report = await service.runPass();
+			const migrated = await harness.central.getSessionV2(session.session.toString());
+
+			assert.deepStrictEqual({
+				outcomes: report.outcomes,
+				upsertCalls: harness.central.upsertCalls,
+				payloadVersion: migrated?.payloadVersion,
+			}, {
+				outcomes: [{ session: 'agenthost:one', status: 'succeeded', reason: 'synchronized', sourceRevision: 1 }],
+				upsertCalls: 1,
+				payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION,
+			});
+		});
+	}
+
 	test('replays a pending payload into missing sessions_v2 and clears the payload after acknowledgement', async () => {
 		const harness = await createHarness(['one']);
 		const session = registered('one');
@@ -884,23 +948,25 @@ suite('AgentHostCatalogReconciliationService', () => {
 		const session = registered('one');
 		await harness.sync.synchronize(session.session, { data: catalogData('one'), legacyMetadata: { customTitle: 'one' } });
 		const storage = new TestStorageService();
-		storage.set(AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY, CATALOG_VERIFICATION_VERSION - 1);
+		storage.set(AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY, shippedCatalogVerificationVersion);
 		const resolveSource = async (): Promise<AgentHostCatalogReconciliationSourceResult> => ({
 			status: 'available',
 			request: { data: { ...catalogData('one'), isArchived: true }, legacyMetadata: { customTitle: 'one', isArchived: 'true' } },
 		});
-		const upgraded = harness.createService(resolveSource, undefined, storage);
+		const options = { fullVerificationIntervalMs: Number.MAX_SAFE_INTEGER, now: () => 0 };
+		const upgraded = harness.createService(resolveSource, options, storage);
 		await upgraded.runPass();
-		const restarted = harness.createService(resolveSource, undefined, storage);
+		const restarted = harness.createService(resolveSource, options, storage);
 		const afterRestart = await restarted.runPass();
 		const row = await harness.central.getSessionV2(session.session.toString());
+		assert.strictEqual(CATALOG_VERIFICATION_VERSION, catalogV3VerificationVersion);
 		assert.deepStrictEqual({
 			archived: row && JSON.parse(row.payload).data.isArchived,
 			markAllCalls: harness.central.markAllCalls,
 			verificationVersion: storage.get(AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY),
 			afterRestart: afterRestart.outcomes,
 		}, {
-			archived: true, markAllCalls: 1, verificationVersion: CATALOG_VERIFICATION_VERSION, afterRestart: [],
+			archived: true, markAllCalls: 1, verificationVersion: catalogV3VerificationVersion, afterRestart: [],
 		});
 	});
 

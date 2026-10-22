@@ -19,7 +19,7 @@ import { SessionArtifactType, stringifySessionArtifacts } from '../../common/ses
 import { ActionType } from '../../common/state/sessionActions.js';
 import { AH_META_IS_ARCHIVED_DB_KEY, MessageKind, SessionStatus, isSessionStatusArchived, type SessionSummary, type Turn } from '../../common/state/sessionState.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
-import { encodeAgentHostCatalogPayload, decodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
+import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, encodeAgentHostCatalogPayload, decodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
 import { chatCatalogV2ToCatalogChats } from '../../node/agentHostCatalogSourceResolver.js';
 import { encodeProviderData } from '../../node/agentChatBackings.js';
 import { IClaudeAgentSdkService } from '../../node/claude/claudeAgentSdkService.js';
@@ -151,7 +151,7 @@ suite('AgentHostSavedChatContinuation', () => {
 			assert.ok(snapshot.header);
 			const encoded = encodeAgentHostCatalogPayload({ modifiedTime: 1, isRead: true, isArchived: false, summary: 'Saved source', workingDirectories: ['file:///saved/project'], chats: chatCatalogV2ToCatalogChats(snapshot) });
 			assert.ok(encoded.ok);
-			await database.upsertSessionV2FromChatCatalog({ session: session.toString(), sessionGeneration: `${providerId}-generation`, sourceRevision: 1, payloadVersion: 2, payload: encoded.value.payload, payloadHash: encoded.value.payloadHash, verified: true }, undefined, snapshot.header.revision);
+			await database.upsertSessionV2FromChatCatalog({ session: session.toString(), sessionGeneration: `${providerId}-generation`, sourceRevision: 1, payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION, payload: encoded.value.payload, payloadHash: encoded.value.payloadHash, verified: true }, undefined, snapshot.header.revision);
 		}
 		getTestAgentHostProviderService(svc).associateSession(source, 'claude');
 		const stateManager = getTestAgentStateManager(svc);
