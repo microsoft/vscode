@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { DocumentId } from '../../../../platform/inlineEdits/common/dataTypes/documentId';
 import { Edits, RootedEdit } from '../../../../platform/inlineEdits/common/dataTypes/edit';
 import { LanguageId } from '../../../../platform/inlineEdits/common/dataTypes/languageId';
-import { DEFAULT_REJECTED_EDITS_MAX_EDITS_AFTER, DiffHistoryOptions, RejectedEditsMemoryMode } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { DEFAULT_REJECTED_EDITS_MAX_EDITS_AFTER, DiffHistoryOptions, PromptMemoryOptions, RejectedEditsMemoryMode, RejectedEditsPlacement } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { StatelessNextEditDocument } from '../../../../platform/inlineEdits/common/statelessNextEditProvider';
 import { IXtabHistoryEditEntry, IXtabHistoryEntry, IXtabHistoryRejectedEditEntry } from '../../../../platform/inlineEdits/common/workspaceEditTracker/nesXtabHistoryTracker';
 import { LineEdit } from '../../../../util/vs/editor/common/core/edits/lineEdit';
@@ -52,8 +52,8 @@ describe('getEditDiffHistory', () => {
 		return Math.ceil(s.length / 4);
 	}
 
-	function runGetEditDiffHistory(activeDoc: StatelessNextEditDocument, xtabHistory: readonly IXtabHistoryEntry[], docsInPrompt: Set<DocumentId>, computeTokens: (s: string) => number, options: DiffHistoryOptions, rejectedEditHistory: readonly IXtabHistoryRejectedEditEntry[] = [], rejectedEditsMode: RejectedEditsMemoryMode | undefined = RejectedEditsMemoryMode.DiffWithTags): string {
-		const res = getEditDiffHistory(activeDoc, xtabHistory, docsInPrompt, computeTokens, options, rejectedEditHistory, { rejectedEdits: rejectedEditsMode });
+	function runGetEditDiffHistory(activeDoc: StatelessNextEditDocument, xtabHistory: readonly IXtabHistoryEntry[], docsInPrompt: Set<DocumentId>, computeTokens: (s: string) => number, options: DiffHistoryOptions, rejectedEditHistory: readonly IXtabHistoryRejectedEditEntry[] = [], rejectedEditsMode: RejectedEditsMemoryMode | undefined = RejectedEditsMemoryMode.DiffWithTags, memoryOptions: PromptMemoryOptions = {}): string {
+		const res = getEditDiffHistory(activeDoc, xtabHistory, docsInPrompt, computeTokens, options, rejectedEditHistory, { ...memoryOptions, rejectedEdits: rejectedEditsMode });
 		const lines = [
 			res.nDiffs + ' diffs',
 			'-------------',
@@ -328,6 +328,41 @@ describe('getEditDiffHistory', () => {
 			: { promptPiece: `${pair}\n`, nDiffs: 1, totalTokens: maxTokens });
 	});
 
+	describe('rejection placement and repetitions', () => {
+		const docId = DocumentId.create('file:///workspace/src/a.ts');
+		const activeDoc = createActiveDocument(docId, new StringText('aaa\nbbb\nccc'));
+		const before = { ...createHistoryEntry(docId, 'aaa\nbbb\nccc', [new StringReplacement(new OffsetRange(0, 3), 'AAA')]), ordinal: 1 };
+		const rejectedEntry: IXtabHistoryRejectedEditEntry = { kind: 'rejectedEdit', docId, ordinal: 2, hunks: [{ startLineNumber: 1, oldLines: ['bbb'], newLines: ['BBB'] }] };
+		const after = { ...createHistoryEntry(docId, 'AAA\nbbb\nccc', [new StringReplacement(new OffsetRange(8, 11), 'CCC')]), ordinal: 3 };
+		const render = (mode: RejectedEditsMemoryMode, memory: PromptMemoryOptions = {}) =>
+			runGetEditDiffHistory(activeDoc, [before, after], new Set(), computeTokens, diffHistoryOptions, [rejectedEntry], mode, memory);
+		const lastHunk = (result: string) => result.trimEnd().split('\n').slice(-3).join('\n');
+
+		it('places the rejection at its own position by default and as the newest entries with the newest placement', () => {
+			expect(lastHunk(render(RejectedEditsMemoryMode.AppliedThenUndone))).toContain('+CCC');
+			expect(lastHunk(render(RejectedEditsMemoryMode.AppliedThenUndone, { rejectedEditsPlacement: RejectedEditsPlacement.InPlace }))).toContain('+CCC');
+
+			const newest = render(RejectedEditsMemoryMode.AppliedThenUndone, { rejectedEditsPlacement: RejectedEditsPlacement.Newest });
+			expect(lastHunk(newest)).toBe('@@ -1,1 +1,1 @@\n-BBB\n+bbb');
+			expect(newest.indexOf('+CCC')).toBeLessThan(newest.indexOf('+BBB'));
+		});
+
+		it('applies the newest placement to the tagged mode as well', () => {
+			const newest = render(RejectedEditsMemoryMode.DiffWithTags, { rejectedEditsPlacement: RejectedEditsPlacement.Newest });
+			expect(lastHunk(newest)).toContain('<|rejected/|>');
+		});
+
+		it('writes the applied/undone pair as many times as asked and counts it as one entry', () => {
+			const count = (text: string, part: string) => text.split(part).length - 1;
+			const once = render(RejectedEditsMemoryMode.AppliedThenUndone);
+			const twice = render(RejectedEditsMemoryMode.AppliedThenUndone, { rejectedEditsRepetitions: 2 });
+
+			expect(count(once, '+BBB')).toBe(1);
+			expect(count(twice, '+BBB')).toBe(2);
+			expect(once.split('\n')[0]).toBe(twice.split('\n')[0]);
+		});
+	});
+
 	it('leaves the history unchanged in applied-then-undone mode when there is no rejection', () => {
 		const docId = DocumentId.create('file:///workspace/src/a.ts');
 		const activeDoc = createActiveDocument(docId, new StringText('aaa\nbbb'));
@@ -383,6 +418,15 @@ describe('getEditDiffHistory', () => {
 
 			expect(select([edit(9), ...editsAfter(DEFAULT_REJECTED_EDITS_MAX_EDITS_AFTER)])).toEqual([rejected]);
 			expect(select(editsAfter(DEFAULT_REJECTED_EDITS_MAX_EDITS_AFTER + 1))).toEqual([]);
+		});
+
+		it('keeps only the most recent rejections when a maximum count is set', () => {
+			const rejections = [{ ...rejection(docId, 1, 1), ordinal: 1 }, { ...rejection(docId, 2, 1), ordinal: 2 }, { ...rejection(docId, 3, 1), ordinal: 3 }];
+			const select = (rejectedEditsMaxCount?: number) => selectRejectedEditsForPrompt({ ...APPLIED_THEN_UNDONE, rejectedEditsMaxCount }, rejections, [], doc);
+
+			expect(select(undefined)).toEqual(rejections);
+			expect(select(2)).toEqual(rejections.slice(1));
+			expect(select(0)).toEqual([]);
 		});
 
 		it('applies the edit limit to every mode and reads it from the memory options', () => {

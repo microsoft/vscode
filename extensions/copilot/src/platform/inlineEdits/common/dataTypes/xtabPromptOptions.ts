@@ -107,6 +107,14 @@ export enum RejectedEditsMemoryMode {
  */
 export const DEFAULT_REJECTED_EDITS_MAX_EDITS_AFTER = 4;
 
+/** Where a rejection is placed in the edit history. */
+export enum RejectedEditsPlacement {
+	/** At the position where the rejection happened, so later edits push it back like any other entry. */
+	InPlace = 'inPlace',
+	/** As the newest entries on every request, for as long as the rejection is used. */
+	Newest = 'newest',
+}
+
 export type PromptMemoryOptions = {
 	readonly rejectedEdits?: RejectedEditsMemoryMode;
 	/**
@@ -115,12 +123,21 @@ export type PromptMemoryOptions = {
 	 * Defaults to {@link DEFAULT_REJECTED_EDITS_MAX_EDITS_AFTER}.
 	 */
 	readonly rejectedEditsMaxEditsAfter?: number;
+	/** Where rejections are placed in the edit history. Applies to every `rejectedEdits` mode. Defaults to {@link RejectedEditsPlacement.InPlace}. */
+	readonly rejectedEditsPlacement?: RejectedEditsPlacement;
+	/** How many times the applied-then-undone pair is written. Only for {@link RejectedEditsMemoryMode.AppliedThenUndone}. Defaults to 1. */
+	readonly rejectedEditsRepetitions?: number;
+	/** At most this many of the most recent rejections are used. Applies to every `rejectedEdits` mode. Defaults to all recorded rejections. */
+	readonly rejectedEditsMaxCount?: number;
 };
 
 export namespace PromptMemoryOptions {
 	export const VALIDATOR: IValidator<PromptMemoryOptions> = vObj({
 		'rejectedEdits': vUnion(vEnum(RejectedEditsMemoryMode.DiffWithTags, RejectedEditsMemoryMode.AppliedThenUndone), vUndefined()),
 		'rejectedEditsMaxEditsAfter': vUnion(vNumber(), vUndefined()),
+		'rejectedEditsPlacement': vUnion(vEnum(RejectedEditsPlacement.InPlace, RejectedEditsPlacement.Newest), vUndefined()),
+		'rejectedEditsRepetitions': vUnion(vNumber(), vUndefined()),
+		'rejectedEditsMaxCount': vUnion(vNumber(), vUndefined()),
 	});
 }
 
