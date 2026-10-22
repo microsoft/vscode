@@ -29301,16 +29301,20 @@ Use the attached image as context.
 						{ name: 'calendar', displayName: 'Calendar', status: 'connected', runtimeServerIds: ['calendar-id'] },
 						{ name: 'drive', displayName: 'Drive', status: 'not_connected', runtimeServerIds: [] },
 						{ name: 'slack', displayName: 'Slack', status: 'connected', runtimeServerIds: [] },
+						{ name: 'teams', displayName: 'Teams', status: 'connected', runtimeServerIds: [] },
 					],
 				};
 				mockSession.onConnectorReconcile = async () => {
+					// A targeted reconcile projects only its target.
+					const runtimeServerId = `${mockSession.connectorReconcileCalls.at(-1)?.forceConnectorName}-id`;
 					mockSession.connectorStatus = {
 						...mockSession.connectorStatus,
 						catalog: mockSession.connectorCatalog,
-						runtimeServers: [calendar, { connectorName: 'slack', runtimeServerId: 'slack-id', status: 'connected' }],
+						runtimeServers: [...mockSession.connectorStatus.runtimeServers, { connectorName: runtimeServerId.slice(0, -3), runtimeServerId, status: 'connected' }],
 					};
-					mockSession.mcpListResult = { servers: [{ name: 'calendar-id', status: 'stopped', source: 'managed' }, { name: 'slack-id', status: 'connected', source: 'managed' }] };
+					mockSession.mcpListResult = { servers: [...mockSession.mcpListResult.servers, { name: runtimeServerId, status: 'connected', source: 'managed' }] };
 				};
+				mockSession.mcpListResult = { servers: [{ name: 'calendar-id', status: 'stopped', source: 'managed' }] };
 				const progress = () => ({
 					catalogRefreshes: mockSession.connectorCatalogRefreshCalls.length,
 					calls: mockSession.connectorReconcileCalls.length,
@@ -29327,10 +29331,13 @@ Use the attached image as context.
 					added, retried, changedAgain: progress(), calls: mockSession.connectorReconcileCalls,
 					enable: mockSession.mcpEnableCalls, start: mockSession.mcpStartServerCalls,
 				}, {
-					added: { catalogRefreshes: 1, calls: 1, pending: true, servers: ['Calendar', 'Slack'] },
-					retried: { catalogRefreshes: 1, calls: 1, pending: true },
-					changedAgain: { catalogRefreshes: 2, calls: 1, pending: true },
-					calls: [{ accountId: 'session-account', refreshCatalog: false, forceConnectorName: 'slack' }],
+					added: { catalogRefreshes: 1, calls: 2, pending: true, servers: ['Calendar', 'Slack', 'Teams'] },
+					retried: { catalogRefreshes: 1, calls: 2, pending: true },
+					changedAgain: { catalogRefreshes: 2, calls: 2, pending: true },
+					calls: [
+						{ accountId: 'session-account', refreshCatalog: false, forceConnectorName: 'slack' },
+						{ accountId: 'session-account', refreshCatalog: false, forceConnectorName: 'teams' },
+					],
 					enable: [], start: [],
 				});
 			});

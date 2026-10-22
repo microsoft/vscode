@@ -31,7 +31,7 @@ suite('Copilot SDK Connector reconciliation', function () {
 	let mcpUrl: string;
 	let mailEndpoint: string;
 	let mailConnected: boolean;
-	let driveConnected: boolean;
+	let newConnectorsConnected: boolean;
 	let initializations: Record<string, number>;
 	let unexpectedRequests: string[];
 	let tlsErrors: string[];
@@ -40,7 +40,7 @@ suite('Copilot SDK Connector reconciliation', function () {
 		home = await mkdtemp(join(tmpdir(), 'copilot-connectors-'));
 		mailEndpoint = 'mail';
 		mailConnected = true;
-		driveConnected = false;
+		newConnectorsConnected = false;
 		initializations = {};
 		unexpectedRequests = [];
 		tlsErrors = [];
@@ -108,9 +108,9 @@ suite('Copilot SDK Connector reconciliation', function () {
 				json({ login: 'connector-test', id: 1 });
 			} else if (path === '/copilot-connectors/api/v1/plugins') {
 				json({
-					plugins: ['mail', 'calendar', 'drive'].map(name => ({
+					plugins: ['mail', 'calendar', 'drive', 'files'].map(name => ({
 						name, metadata: { displayName: `Test ${name}`, tier: 'standard', releaseTag: 'preview' },
-						connection: { status: name === 'mail' && !mailConnected || name === 'drive' && !driveConnected ? 'available' : 'connected' },
+						connection: { status: name === 'mail' && !mailConnected || (name === 'drive' || name === 'files') && !newConnectorsConnected ? 'available' : 'connected' },
 						mcpServers: { mcpServers: { [name]: { type: 'http', url: `${mcpUrl}/mcp/${name === 'mail' ? mailEndpoint : name}` } } },
 					})),
 				});
@@ -228,17 +228,17 @@ suite('Copilot SDK Connector reconciliation', function () {
 			mailStarts: beforeDeferred['mail-relocated'] + 1, unexpectedRequests: [],
 		});
 
-		driveConnected = true;
+		newConnectorsConnected = true;
 		const added = await reconcileCopilotConnectors(session, log, { preserveStoppedServers: true, addNewlyConnected: true });
 		const afterAdd = (await session.rpc.connectors.getStatus()).runtimeServers;
 		assert.deepStrictEqual({
 			reconciled: added.reconciled, newlyConnectedChecked: added.newlyConnectedChecked,
 			servers: afterAdd.map(({ connectorName, status }) => ({ connectorName, status })).sort((a, b) => a.connectorName.localeCompare(b.connectorName)),
-			calendarStarts: initializations.calendar, driveStarts: initializations.drive, unexpectedRequests,
+			calendarStarts: initializations.calendar, driveStarts: initializations.drive, filesStarts: initializations.files, unexpectedRequests,
 		}, {
 			reconciled: false, newlyConnectedChecked: true,
-			servers: [{ connectorName: 'calendar', status: 'stopped' }, { connectorName: 'drive', status: 'connected' }, { connectorName: 'mail', status: 'connected' }],
-			calendarStarts: beforeDeferred.calendar, driveStarts: 1, unexpectedRequests: [],
+			servers: [{ connectorName: 'calendar', status: 'stopped' }, { connectorName: 'drive', status: 'connected' }, { connectorName: 'files', status: 'connected' }, { connectorName: 'mail', status: 'connected' }],
+			calendarStarts: beforeDeferred.calendar, driveStarts: 1, filesStarts: 1, unexpectedRequests: [],
 		});
 		await session.disconnect();
 	});
