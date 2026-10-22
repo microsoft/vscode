@@ -331,6 +331,18 @@ suite('Copilot managed settings projection', () => {
 		assert.strictEqual(managedModelValue(), managedModelValue());
 	});
 
+	test('managedModelValue reads the Copilot Fusion name as Auto', () => {
+		const value = managedModelValue();
+		assert.deepStrictEqual(
+			{
+				topLevel: value({ managedSettings: { [COPILOT_TOP_LEVEL_MODEL_KEY]: ' Fusion ' } } as IPolicyData),
+				legacy: value({ managedSettings: { [COPILOT_MODEL_KEY]: 'fusion' } } as IPolicyData),
+				otherModel: value({ managedSettings: { [COPILOT_TOP_LEVEL_MODEL_KEY]: 'fusion-preview' } } as IPolicyData),
+			},
+			{ topLevel: 'auto', legacy: 'auto', otherModel: 'fusion-preview' },
+		);
+	});
+
 	test('managedSettingsDisabledValue forces false only while managed settings are active', () => {
 		assert.deepStrictEqual({
 			active: managedSettingsDisabledValue({ managedSettingsActive: true }),
