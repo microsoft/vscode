@@ -28,8 +28,9 @@ import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { getPromptFileExtension } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { MockChatModeService } from '../../../common/mockChatModeService.js';
-import { createVSCodeHarnessDescriptor, ICustomizationHarnessService } from '../../../../common/customizationHarnessService.js';
+import { createVSCodeHarnessDescriptor, ICustomizationHarnessService, type IAgentFileToolInventoryEntry } from '../../../../common/customizationHarnessService.js';
 import { constObservable } from '../../../../../../../base/common/observable.js';
+import { Event } from '../../../../../../../base/common/event.js';
 
 suite('PromptHeaderAutocompletion', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -37,9 +38,13 @@ suite('PromptHeaderAutocompletion', () => {
 	let instaService: TestInstantiationService;
 	let completionProvider: PromptHeaderAutocompletion;
 	let activeTarget: Target;
+	let copilotToolInventory: readonly IAgentFileToolInventoryEntry[];
+	let otherCopilotToolInventory: readonly IAgentFileToolInventoryEntry[];
 
 	setup(async () => {
 		activeTarget = Target.Undefined;
+		copilotToolInventory = [];
+		otherCopilotToolInventory = [];
 		const testConfigService = new TestConfigurationService();
 		testConfigService.setUserConfiguration(ChatConfiguration.ExtensionToolsEnabled, true);
 		instaService = workbenchInstantiationService({
@@ -105,12 +110,31 @@ suite('PromptHeaderAutocompletion', () => {
 
 		instaService.stub(IChatModeService, new MockChatModeService());
 		const localDescriptor = createVSCodeHarnessDescriptor();
-		const copilotDescriptor = { ...localDescriptor, id: 'copilot-test', customAgentTarget: Target.GitHubCopilot };
-		const otherCopilotDescriptor = { ...localDescriptor, id: 'other-copilot-test', customAgentTarget: Target.GitHubCopilot };
+		const copilotDescriptor = {
+			...localDescriptor,
+			id: 'copilot-test',
+			customAgentTarget: Target.GitHubCopilot,
+			itemProvider: {
+				onDidChange: Event.None,
+				provideChatSessionCustomizations: async () => [],
+				provideAgentFileTools: async () => copilotToolInventory,
+			},
+		};
+		const otherCopilotDescriptor = {
+			...localDescriptor,
+			id: 'other-copilot-test',
+			customAgentTarget: Target.GitHubCopilot,
+			itemProvider: {
+				onDidChange: Event.None,
+				provideChatSessionCustomizations: async () => [],
+				provideAgentFileTools: async () => otherCopilotToolInventory,
+			},
+		};
 		instaService.stub(ICustomizationHarnessService, {
 			activeHarness: constObservable('copilot-test'),
 			availableHarnesses: constObservable([localDescriptor, copilotDescriptor, otherCopilotDescriptor]),
 			getActiveDescriptor: () => activeTarget === Target.GitHubCopilot ? copilotDescriptor : localDescriptor,
+			getSessionResourceForHarness: harnessId => URI.parse(`test:/${harnessId}`),
 		});
 
 		completionProvider = instaService.createInstance(PromptHeaderAutocompletion);
@@ -419,7 +443,27 @@ suite('PromptHeaderAutocompletion', () => {
 
 			const labels = (await getCompletions(content, PromptsType.agent)).map(item => item.label);
 
-			assert.deepStrictEqual(labels, ['execute', 'read', 'edit', 'search', 'agent']);
+			assert.deepStrictEqual(labels, ['execute', 'read', 'edit', 'search', 'agent', 'web', 'todo', '*', 'github/*', 'playwright/*']);
+		});
+
+		test('complete github-copilot tools from all matching harness inventories', async () => {
+			copilotToolInventory = [
+				{ name: 'publisher.extension/clientTool', description: 'Provided by the client', availability: 'available' },
+				{ name: 'github/*', availability: 'available' },
+				{ name: 'disabled/*', availability: 'disabled' },
+			];
+			otherCopilotToolInventory = [{ name: 'other.extension/remoteClientTool', availability: 'available' }];
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'tools: [|]',
+				'---',
+			].join('\n');
+
+			const labels = (await getCompletions(content, PromptsType.agent)).map(item => item.label);
+
+			assert.deepStrictEqual(labels, ['execute', 'read', 'edit', 'search', 'agent', 'web', 'todo', '*', 'publisher.extension/clientTool', 'github/*', 'disabled/*', 'other.extension/remoteClientTool', 'playwright/*']);
 		});
 
 		test('complete github-copilot github properties', async () => {

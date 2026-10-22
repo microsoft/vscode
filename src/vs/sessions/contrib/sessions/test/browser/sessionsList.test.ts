@@ -6,7 +6,7 @@
 import assert from 'assert';
 import sinon from 'sinon';
 import { $, append } from '../../../../../base/browser/dom.js';
-import { DeferredPromise, retry, timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
@@ -5763,7 +5763,7 @@ suite('Sessions - SessionsList', () => {
 		function renderProgressTitles() {
 			const sessions = [
 				createTestSession('First', { status: SessionStatus.InProgress }).session,
-				createTestSession('Second', { status: SessionStatus.InProgress }).session,
+				createTestSession('Second', { status: SessionStatus.NeedsInput }).session,
 			];
 			const harness = createListHarness(disposables, sessions);
 			const container = harness.createContainer();
@@ -5778,42 +5778,24 @@ suite('Sessions - SessionsList', () => {
 			return { container, titles };
 		}
 
-		test('keeps title shimmers on the shared clock when motion resumes', async function () {
-			if (mainWindow.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-				this.skip();
-			}
-			const { container, titles } = renderProgressTitles();
-			const animations = () => titles.map(title => title.getAnimations().find(animation => (animation as CSSAnimation).animationName === 'session-title-shimmer'));
-			const waitForSharedMotion = async () => retry(async () => {
-				const [first, second] = animations();
-				assert.ok(first?.playState === 'paused' && second?.playState === 'paused'
-					&& typeof first.currentTime === 'number' && first.currentTime > 0
-					&& first.currentTime === second.currentTime);
-			}, 10, 100);
-			await waitForSharedMotion();
-			const before = animations()[0]?.currentTime;
-			await retry(async () => assert.notStrictEqual(animations()[0]?.currentTime, before), 10, 100);
-			container.classList.add('monaco-reduce-motion');
-			await retry(async () => assert.ok(animations().every(animation => !animation)), 10, 100);
-			container.classList.remove('monaco-reduce-motion');
-			await waitForSharedMotion();
-		});
-
-		test('workbench reduced motion leaves in-progress session titles static', () => {
-			const { container, titles } = renderProgressTitles();
-			container.classList.add('monaco-reduce-motion');
-			assert.deepStrictEqual(titles.map(title => {
-				const style = mainWindow.getComputedStyle(title);
-				return {
-					managed: title.classList.contains('chat-progress-animation'),
-					animation: style.animationName,
-					solid: style.webkitTextFillColor === style.color,
-				};
-			}), [
-				{ managed: true, animation: 'none', solid: true },
-				{ managed: true, animation: 'none', solid: true },
-			]);
-		});
+		for (const reducedMotion of [false, true]) {
+			test(`session titles stay static with reduced motion ${reducedMotion ? 'enabled' : 'disabled'}`, () => {
+				const { container, titles } = renderProgressTitles();
+				container.classList.toggle('monaco-reduce-motion', reducedMotion);
+				assert.deepStrictEqual(titles.map(title => {
+					const style = mainWindow.getComputedStyle(title);
+					return {
+						managed: title.classList.contains('chat-progress-animation'),
+						animation: style.animationName,
+						background: style.backgroundImage,
+						solid: style.webkitTextFillColor === style.color,
+					};
+				}), [
+					{ managed: false, animation: 'none', background: 'none', solid: true },
+					{ managed: false, animation: 'none', background: 'none', solid: true },
+				]);
+			});
+		}
 	});
 
 	suite('session toolbar keyboard focus', () => {
@@ -8082,7 +8064,6 @@ suite('Sessions - SessionsList', () => {
 
 			const { container } = renderSessionChatsList(session, undefined, true, false);
 			setSessionChatsExpanded(container, false);
-
 			assert.deepStrictEqual({
 				childStatusObservers,
 				parentHasProgress: !!container.querySelector('.session-item .session-icon > .monaco-pixel-spinner:not([data-icon-fading-out])'),
@@ -8164,6 +8145,38 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		test('needs-input session and chat rows have static icons and warning backgrounds', () => {
+			const main = createChat('Main chat', undefined, ChatInteractivity.Full, SessionStatus.NeedsInput);
+			const waiting = createChat('Waiting chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.NeedsInput);
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, waiting]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+
+			const container = renderSessionChats(session, undefined, true);
+			container.style.setProperty('--vscode-list-warningForeground', 'rgb(255, 0, 0)');
+			const parent = container.querySelector<HTMLElement>('.session-item')!;
+			const child = container.querySelector<HTMLElement>('.session-chat-item')!;
+			assert.deepStrictEqual([parent, child].map(item => {
+				const row = item.closest<HTMLElement>('.monaco-list-row')!;
+				const background = item === parent ? row : item;
+				const icon = item.querySelector<HTMLElement>('.session-icon > .codicon, .session-chat-icon > .codicon')!;
+				return {
+					needsInput: item.classList.contains('needs-input'),
+					pulses: !!item.querySelector('.session-icon-pulse'),
+					iconAnimation: mainWindow.getComputedStyle(icon).animationName,
+					backgroundAnimation: mainWindow.getComputedStyle(background).animationName,
+					hasWarningBackground: ['color(srgb 1 0 0 / 0.08)', 'rgba(255, 0, 0, 0.08)'].includes(mainWindow.getComputedStyle(background).backgroundColor),
+				};
+			}), [
+				{ needsInput: true, pulses: false, iconAnimation: 'none', backgroundAnimation: 'none', hasWarningBackground: true },
+				{ needsInput: true, pulses: false, iconAnimation: 'none', backgroundAnimation: 'none', hasWarningBackground: true },
+			]);
+		});
+
 		test('needs-input chat row keeps its attention indicator without looping animations', () => {
 			const main = createChat('Main chat');
 			const waiting = createChat('Waiting chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.NeedsInput);
@@ -8195,6 +8208,53 @@ suite('Sessions - SessionsList', () => {
 				animations: ['none', 'none', 'none', 'none'],
 			});
 		});
+
+		for (const mainStatus of [SessionStatus.Completed, SessionStatus.InProgress, SessionStatus.NeedsInput]) {
+			test(`collapsed parent shows aggregate input and restores its own status when expanded (${mainStatus})`, () => {
+				const main = createChat('Main chat', undefined, ChatInteractivity.Full, mainStatus);
+				const working = createChat('Working chat', ChatOriginKind.User, ChatInteractivity.ReadOnly, SessionStatus.InProgress);
+				const waiting = createChat('Waiting chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.NeedsInput);
+				const session: ISession = {
+					...createTestSession('Session').session,
+					status: constObservable(SessionStatus.NeedsInput),
+					chats: constObservable([main, working, waiting]),
+					mainChat: constObservable(main),
+					capabilities: constObservable({ supportsMultipleChats: true }),
+				};
+				const { container } = renderSessionChatsList(session, undefined, true);
+				const snapshot = () => ({
+					...sessionRowSnapshot(container),
+					parentHasProgress: !!container.querySelector('.session-item .monaco-pixel-spinner:not([data-icon-fading-out])'),
+					children: [...container.querySelectorAll<HTMLElement>('.session-chat-item')].map(item => ({
+						needsInput: item.classList.contains('needs-input'),
+						hasProgress: !!item.querySelector('.monaco-pixel-spinner:not([data-icon-fading-out])'),
+					})),
+				});
+				const expanded = snapshot();
+				setSessionChatsExpanded(container, false);
+				const collapsed = snapshot();
+				setSessionChatsExpanded(container, true);
+				const reexpanded = snapshot();
+				const ownStatus = {
+					inProgress: mainStatus === SessionStatus.InProgress,
+					needsInput: mainStatus === SessionStatus.NeedsInput,
+					ariaLabel: mainStatus === SessionStatus.InProgress ? 'Session, State: In Progress'
+						: mainStatus === SessionStatus.NeedsInput ? 'Session, updated now, State: Attention Needed'
+							: 'Session, updated now, State: Completed, in Workspace',
+					parentHasProgress: mainStatus === SessionStatus.InProgress,
+					children: [{ needsInput: false, hasProgress: true }, { needsInput: true, hasProgress: false }],
+				};
+				assert.deepStrictEqual({ expanded, collapsed, reexpanded }, {
+					expanded: ownStatus,
+					collapsed: {
+						inProgress: false, needsInput: true,
+						ariaLabel: mainStatus === SessionStatus.InProgress ? 'Session, State: Attention Needed' : 'Session, updated now, State: Attention Needed',
+						parentHasProgress: false, children: [],
+					},
+					reexpanded: ownStatus,
+				});
+			});
+		}
 
 		function sessionRowSnapshot(container: HTMLElement) {
 			const row = container.querySelector<HTMLElement>('.session-item');
@@ -9376,6 +9436,38 @@ suite('Sessions - SessionsList', () => {
 				});
 			}
 		}
+
+		test('keeps the static warning tint on a sticky needs-input session row', async () => {
+			const main = createChat('Main chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.NeedsInput);
+			const peers = Array.from({ length: 30 }, (_, index) => createChat(`Chat ${index}`, ChatOriginKind.User));
+			const session: ISession = {
+				...createTestSession('Pending approval', { status: SessionStatus.NeedsInput }).session,
+				chats: constObservable([main, ...peers]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const harness = createListHarness(disposables, [session]);
+			const container = harness.createContainer(400, 600);
+			container.style.setProperty('--vscode-list-warningForeground', 'rgb(255, 0, 0)');
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				compact: () => true,
+				onSessionOpen: () => { },
+			}));
+			list.layout(600, 400);
+			setSessionChatsExpanded(container, true);
+			await timeout(0);
+			const tree = Reflect.get(list, 'tree') as { scrollTop: number };
+			let stickyImage: string | undefined;
+			for (let position = 0; position < 900 && !stickyImage; position += 75) {
+				tree.scrollTop = position;
+				await timeout(0);
+				const sticky = Array.from(container.querySelectorAll<HTMLElement>('.monaco-tree-sticky-row')).find(row => row.querySelector('.session-item.needs-input'));
+				stickyImage = sticky ? mainWindow.getComputedStyle(sticky).backgroundImage : undefined;
+			}
+			assert.ok(stickyImage && stickyImage !== 'none');
+		});
 
 		test('renders a pending approval on the owning chat row only, not on its siblings', () => {
 			const main = createChat('Main chat');
