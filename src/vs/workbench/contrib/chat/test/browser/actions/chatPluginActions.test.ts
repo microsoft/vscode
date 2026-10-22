@@ -38,6 +38,7 @@ suite('InstallFromSourceAction', () => {
 		const showEmitter = store.add(new Emitter<void>());
 		const inputBox = new class extends mock<IInputBox>() {
 			override value = '';
+			override title: string | undefined;
 			override validationMessage: string | undefined;
 			override busy = false;
 			override enabled = true;
@@ -51,6 +52,9 @@ suite('InstallFromSourceAction', () => {
 		}();
 		const session = URI.parse('agent-host-copilotcli:/session');
 		const activeSessionResource = observableValue('activeSession', session);
+		const harnesses = new Map<string, IHarnessDescriptor>([
+			[session.scheme, { id: 'test', label: 'Test', icon: { id: 'vm' }, pluginInstallProvider }],
+		]);
 		const localInstalls: string[] = [];
 		const validations: string[] = [];
 		instantiationService.stub(IQuickInputService, new class extends mock<IQuickInputService>() {
@@ -58,8 +62,8 @@ suite('InstallFromSourceAction', () => {
 		}());
 		instantiationService.stub(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
 			override readonly activeSessionResource = activeSessionResource;
-			override getDescriptorForSession() {
-				return { id: 'test', label: 'Test', icon: { id: 'vm' }, pluginInstallProvider };
+			override getDescriptorForSession(sessionResource: URI) {
+				return harnesses.get(sessionResource.scheme);
 			}
 		}());
 		instantiationService.stub(IPluginInstallService, new class extends mock<IPluginInstallService>() {
@@ -78,7 +82,7 @@ suite('InstallFromSourceAction', () => {
 			}
 		}());
 		const result = instantiationService.invokeFunction(accessor => new InstallFromSourceAction().run(accessor, { skipReveal: true }));
-		return { inputBox, acceptEmitter, showEmitter, result, localInstalls, validations, session, activeSessionResource };
+		return { inputBox, acceptEmitter, showEmitter, result, localInstalls, validations, session, activeSessionResource, harnesses };
 	}
 
 	test('uses the harness installer for repository, folder, and marketplace sources without changing VS Code plugin locations', async () => {
@@ -90,7 +94,6 @@ suite('InstallFromSourceAction', () => {
 				installFromSource: async (session, source) => { installs.push({ session, source }); },
 			});
 			fixture.inputBox.value = ` ${source} `;
-			fixture.activeSessionResource.set(URI.parse('other:/session'), undefined);
 			fixture.acceptEmitter.fire();
 
 			results.push({
@@ -106,6 +109,60 @@ suite('InstallFromSourceAction', () => {
 			localInstalls: [],
 			validations: [],
 		})));
+	});
+
+	test('uses the selected harness at submission and updates the title when switching harnesses', async () => {
+		const installs: { harness: string; session: URI; source: string }[] = [];
+		const fixture = createFixture({
+			installFromSource: async (session, source) => { installs.push({ harness: 'original', session, source }); },
+		});
+		const initialTitle = fixture.inputBox.title;
+		fixture.harnesses.set('other', {
+			id: 'other', label: 'Other', icon: { id: 'vm' },
+			pluginInstallProvider: {
+				installFromSource: async (session, source) => { installs.push({ harness: 'other', session, source }); },
+			},
+		});
+		const session = URI.parse('other:/session');
+		fixture.activeSessionResource.set(session, undefined);
+		fixture.inputBox.value = 'owner/repo';
+		fixture.acceptEmitter.fire();
+
+		assert.deepStrictEqual({
+			installed: await fixture.result,
+			initialTitle,
+			title: fixture.inputBox.title,
+			installs,
+			localInstalls: fixture.localInstalls,
+		}, {
+			installed: true,
+			initialTitle: 'Install Plugin from Source (Test)',
+			title: 'Install Plugin from Source (Other)',
+			installs: [{ harness: 'other', session, source: 'owner/repo' }],
+			localInstalls: [],
+		});
+	});
+
+	test('switches to the existing installer when the selected harness has no native installer', async () => {
+		const fixture = createFixture({
+			installFromSource: async () => { assert.fail('The original harness must not install the plugin'); },
+		});
+		fixture.harnesses.set('local', { id: 'local', label: 'Local', icon: { id: 'vm' } });
+		fixture.activeSessionResource.set(URI.parse('local:/session'), undefined);
+		fixture.inputBox.value = 'owner/repo';
+		fixture.acceptEmitter.fire();
+
+		assert.deepStrictEqual({
+			installed: await fixture.result,
+			title: fixture.inputBox.title,
+			localInstalls: fixture.localInstalls,
+			validations: fixture.validations,
+		}, {
+			installed: true,
+			title: 'Install Plugin from Source (Local)',
+			localInstalls: ['owner/repo'],
+			validations: ['owner/repo'],
+		});
 	});
 
 	test('preserves the existing installer for harnesses without a source installer', async () => {

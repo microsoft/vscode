@@ -6,6 +6,7 @@
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { autorun } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../nls.js';
@@ -84,11 +85,16 @@ export class InstallFromSourceAction extends Action2 {
 		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 		const fileDialogService = accessor.get(IFileDialogService);
 		const customizationHarnessService = accessor.get(ICustomizationHarnessService);
-		const sessionResource = customizationHarnessService.activeSessionResource.get();
-		const pluginInstallProvider = customizationHarnessService.getDescriptorForSession(sessionResource)?.pluginInstallProvider;
 
 		const store = new DisposableStore();
 		const inputBox = store.add(quickInputService.createInputBox());
+		store.add(autorun(reader => {
+			const sessionResource = customizationHarnessService.activeSessionResource.read(reader);
+			const harness = customizationHarnessService.getDescriptorForSession(sessionResource);
+			inputBox.title = harness
+				? localize('installPluginFromSourceForHarness', "Install Plugin from Source ({0})", harness.label)
+				: localize('installPluginFromSourceTitle', "Install Plugin from Source");
+		}));
 		const pickFolderButton: IQuickInputButton = {
 			iconClass: ThemeIcon.asClassName(Codicon.folder),
 			tooltip: localize('pickPluginFolder', "Pick Folder"),
@@ -106,6 +112,9 @@ export class InstallFromSourceAction extends Action2 {
 			if (!source) {
 				return;
 			}
+
+			const sessionResource = customizationHarnessService.activeSessionResource.get();
+			const pluginInstallProvider = customizationHarnessService.getDescriptorForSession(sessionResource)?.pluginInstallProvider;
 
 			// Quick format validation keeps the input box open for correction.
 			const validationError = pluginInstallProvider ? undefined : pluginInstallService.validatePluginSource(source);
