@@ -4783,15 +4783,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const emitAdoptable = this._isMigrateLegacyCopilotCliEnabled();
 		const recoveryEstimate: CopilotCliRecoveryEstimateEvent | undefined = !sessionIds && !this._reportedCopilotCliRecoveryEstimate
 			&& isCopilotSessionTelemetryEnabled(this._configurationService, this._telemetryService) ? {
-				catalogSessionCount: catalog.length,
-				evaluatedSessionCount: 0,
-				alreadyEligibleSessionCount: 0,
-				recoverableByClientNameSessionCount: 0,
-				recoverableByRequestFileSessionCount: 0,
-				notRecoverableSessionCount: 0,
-				failedSessionCount: 0,
-				migrationEnabled: emitAdoptable,
-			} : undefined;
+			catalogSessionCount: catalog.length,
+			evaluatedSessionCount: 0,
+			alreadyEligibleSessionCount: 0,
+			recoverableByClientNameSessionCount: 0,
+			recoverableByRequestFileSessionCount: 0,
+			notRecoverableSessionCount: 0,
+			failedSessionCount: 0,
+			migrationEnabled: emitAdoptable,
+		} : undefined;
 		const projectLimiter = new Limiter<IAgentSessionProjectInfo | undefined>(4);
 		const metadataLimiter = new Limiter<IAgentDiscoveredChat | undefined>(4);
 		const projectByContext = new Map<string, Promise<IAgentSessionProjectInfo | undefined>>();
