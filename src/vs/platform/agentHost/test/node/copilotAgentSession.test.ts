@@ -6025,6 +6025,23 @@ suite('CopilotAgentSession', () => {
 		]);
 	});
 
+	test('records the turn that owned each compaction attempt for forwarded compaction telemetry', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		session.resetTurnState('compaction-turn');
+		mockSession.fire('session.compaction_start', { compactionAttemptId: 'attempt-in-turn' } as SessionEventPayload<'session.compaction_start'>['data']);
+		session.discardActiveTurn();
+		// Completion is recorded under the turn that was active when the attempt started.
+		mockSession.fire('session.compaction_complete', { success: true, compactionAttemptId: 'attempt-in-turn' } as SessionEventPayload<'session.compaction_complete'>['data']);
+		mockSession.fire('session.compaction_start', { compactionAttemptId: 'attempt-between-turns' } as SessionEventPayload<'session.compaction_start'>['data']);
+		mockSession.fire('session.compaction_complete', { success: false, compactionAttemptId: 'attempt-without-start' } as SessionEventPayload<'session.compaction_complete'>['data']);
+
+		assert.deepStrictEqual(await Promise.all(['attempt-in-turn', 'attempt-between-turns', 'attempt-without-start'].map(id => session.compactionTurnCorrelation.resolve(id))), [
+			{ turnId: 'compaction-turn', outcome: 'mappingAvailable' },
+			{ turnId: undefined, outcome: 'noOwningTurn' },
+			{ turnId: undefined, outcome: 'noOwningTurn' },
+		]);
+	});
+
 	test('model-call diagnostics preserve SDK timings and never infer the active turn', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
 		session.modelCallTurnCorrelation.record('old-call', 'old-turn');

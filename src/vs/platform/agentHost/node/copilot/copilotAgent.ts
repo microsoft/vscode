@@ -114,6 +114,7 @@ import { getLocalModelThinkingLevels, type LocalModelThinkingSupport } from './l
 import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitProject.js';
 import { findRelocatedAgentName, parsedPluginsEqual, toChildCustomizations } from './copilotPluginConverters.js';
 import { CopilotGitHubTelemetryForwarder, type ICopilotModelCallCorrelationTelemetry } from './copilotGitHubTelemetryForwarder.js';
+import { COMPACTION_REQUEST_KIND, isCompactionTelemetryKind, type ICompactionTurnCorrelationResult } from './compactionTurnCorrelation.js';
 import { CopilotGitHubCredentials, CopilotGitHubSessionCredentials } from './copilotGitHubCredentials.js';
 import { CopilotSecondaryAssignmentContext } from './copilotSecondaryAssignmentContext.js';
 import { CopilotSessionLauncher, getCopilotHydraFusionConfig, AutoTierConfigKey, ContextSizeConfigKey, CopilotAutoTierConfigKey, CopilotReasoningEffortConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, getCopilotCustomAgents, getLocalModelSelectionId, isCopilotReasoningEffort, isCopilotSessionTelemetryEnabled, resolveCopilotAutoTier, resolveCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotAppliedCustomizations } from './copilotSessionLauncher.js';
@@ -3479,11 +3480,26 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private async _forwardGitHubTelemetry(notification: GitHubTelemetryNotification): Promise<void> {
 		if (notification.event.kind === 'response.success' || notification.event.kind === 'response.error') {
 			await this._forwardResponseTelemetry(notification);
+		} else if (isCompactionTelemetryKind(notification.event.kind)) {
+			await this._forwardCompactionTelemetry(notification);
 		} else {
 			const modelCallId = this._modelCallIdForTelemetry(notification);
 			const session = notification.sessionId ? this._findSessionBySdkId(notification.sessionId) : undefined;
 			this._gitHubTelemetryForwarder.forward(notification, undefined, undefined, modelCallId ? session?.modelCallTurnCorrelation.getTelemetryContext(modelCallId) : undefined);
 		}
+	}
+
+	private async _forwardCompactionTelemetry(notification: GitHubTelemetryNotification): Promise<void> {
+		const session = notification.sessionId ? this._findSessionBySdkId(notification.sessionId) : undefined;
+		const attemptId = notification.event.properties.compaction_attempt_id;
+		const modelCallId = this._modelCallIdForTelemetry(notification);
+		const telemetryContext = modelCallId ? session?.modelCallTurnCorrelation.getTelemetryContext(modelCallId) : undefined;
+		const correlation: ICompactionTurnCorrelationResult = !session
+			? { turnId: undefined, outcome: 'sessionNotFound' }
+			: typeof attemptId !== 'string' || !attemptId
+				? { turnId: undefined, outcome: 'missingAttemptId' }
+				: await session.compactionTurnCorrelation.resolve(attemptId);
+		this._gitHubTelemetryForwarder.forwardCompaction(notification, correlation, telemetryContext);
 	}
 
 	private _modelCallIdForTelemetry(notification: GitHubTelemetryNotification): string | undefined {
@@ -3508,7 +3524,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			forward(undefined, 'sessionNotFound');
 			return;
 		}
-		if (modelCallId !== undefined) {
+		// Compaction summarization calls never complete a turn's model call, so no exact mapping
+		// will ever arrive for them; the compaction runs within whatever turn is active.
+		if (modelCallId !== undefined && event.properties.requestKind !== COMPACTION_REQUEST_KIND) {
 			const correlatedTurnId = session.modelCallTurnCorrelation.take(modelCallId);
 			if (correlatedTurnId) {
 				forward(correlatedTurnId, 'mappingAvailable');
