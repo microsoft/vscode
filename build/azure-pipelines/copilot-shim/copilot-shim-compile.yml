@@ -15,6 +15,9 @@ parameters:
     type: boolean
     default: false
 
+# Cargo steps fetch crates from the ADO Cargo feed, which intermittently cancels HTTP/2 streams
+# ("[92] HTTP/2 stream ... CANCEL"), so they fetch without multiplexing, with more cargo retries,
+# and retry the step on top.
 steps:
   - ${{ if contains(parameters.COPILOT_SHIM_TARGET, '-linux-') }}:
     - script: |
@@ -72,8 +75,11 @@ steps:
           echo "Copilot shim has no GLIBC dependency newer than 2.28."
         fi
       displayName: Compile ${{ parameters.COPILOT_SHIM_TARGET }}
+      retryCountOnTaskFailure: 2
       workingDirectory: $(Build.SourcesDirectory)/copilot_shim
       env:
+        CARGO_HTTP_MULTIPLEXING: "false"
+        CARGO_NET_RETRY: "5"
         RUSTC_WRAPPER: sccache
         SCCACHE_DIR: $(Pipeline.Workspace)/sccache
         ${{ each pair in parameters.COPILOT_SHIM_ENV }}:
@@ -82,8 +88,11 @@ steps:
   - ${{ else }}:
     - script: cargo build --release --locked --target ${{ parameters.COPILOT_SHIM_TARGET }} --bin copilot
       displayName: Compile ${{ parameters.COPILOT_SHIM_TARGET }}
+      retryCountOnTaskFailure: 2
       workingDirectory: $(Build.SourcesDirectory)/copilot_shim
       env:
+        CARGO_HTTP_MULTIPLEXING: "false"
+        CARGO_NET_RETRY: "5"
         RUSTC_WRAPPER: sccache
         SCCACHE_DIR: $(Pipeline.Workspace)/sccache
         ${{ each pair in parameters.COPILOT_SHIM_ENV }}:
