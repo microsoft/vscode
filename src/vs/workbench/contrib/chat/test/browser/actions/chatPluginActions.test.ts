@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -16,7 +17,7 @@ import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources 
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { INotification, INotificationHandle, INotificationService } from '../../../../../../platform/notification/common/notification.js';
-import { IInputBox, IInputOptions, IPickOptions, IQuickInputHideEvent, IQuickInputService, IQuickPickItem, QuickInputHideReason, QuickPickInput } from '../../../../../../platform/quickinput/common/quickInput.js';
+import { IInputBox, IPickOptions, IQuickInputButton, IQuickInputHideEvent, IQuickInputService, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, QuickInputHideReason, QuickPickInput } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { InstallFromSourceAction, ManagePluginMarketplacesAction } from '../../../browser/actions/chatPluginActions.js';
 import { getPluginCustomizationMarketplaceSourceId } from '../../../browser/aiCustomization/pluginCustomizationMarketplaceProvider.js';
@@ -221,12 +222,16 @@ suite('ManagePluginMarketplacesAction', () => {
 
 	class TestQuickInputService extends mock<IQuickInputService>() {
 		readonly pickSnapshots: { id: string | undefined; label: string; type: string }[][] = [];
+		readonly quickPickSnapshots: { id: string | undefined; label: string; type: string }[][] = [];
+		readonly quickPickHasBackButton: boolean[] = [];
+		readonly inputBoxSnapshots: { title: string | undefined; placeholder: string | undefined; prompt: string | undefined; hasBackButton: boolean }[] = [];
 		readonly picks: QuickPickInput<IQuickPickItem>[][] = [];
-		inputOptions: IInputOptions | undefined;
 		inputValue: string | undefined;
+		inputBackCount = 0;
 		pickIds: (string | undefined)[] = [];
 		buttonItemIds: string[] = [];
 		readonly removedItemIds: string[] = [];
+		override readonly backButton: IQuickInputButton = { iconClass: 'back', tooltip: 'Back' };
 
 		override async pick<T extends IQuickPickItem>(picks: QuickPickInput<T>[], options?: IPickOptions<T>): Promise<T | undefined> {
 			this.picks.push(picks);
@@ -260,9 +265,99 @@ suite('ManagePluginMarketplacesAction', () => {
 			return undefined;
 		}
 
-		override async input(options?: IInputOptions): Promise<string | undefined> {
-			this.inputOptions = options;
-			return this.inputValue;
+		override createQuickPick<T extends IQuickPickItem>(options: { useSeparators: true }): IQuickPick<T, { useSeparators: true }>;
+		override createQuickPick<T extends IQuickPickItem>(options?: { useSeparators: boolean }): IQuickPick<T, { useSeparators: false }>;
+		override createQuickPick<T extends IQuickPickItem>(_options?: { useSeparators: boolean }): IQuickPick<T, { useSeparators: true }> | IQuickPick<T, { useSeparators: false }> {
+			const disposables = new DisposableStore();
+			const acceptEmitter = disposables.add(new Emitter<IQuickPickDidAcceptEvent>());
+			const hideEmitter = disposables.add(new Emitter<IQuickInputHideEvent>());
+			const buttonEmitter = disposables.add(new Emitter<IQuickInputButton>());
+			const service = this;
+			return new class extends mock<IQuickPick<T>>() {
+				override title: string | undefined;
+				override placeholder: string | undefined;
+				override items: readonly T[] = [];
+				override buttons: readonly IQuickInputButton[] = [];
+				override selectedItems: readonly T[] = [];
+				override readonly onDidAccept = acceptEmitter.event;
+				override readonly onDidHide = hideEmitter.event;
+				override readonly onDidTriggerButton = buttonEmitter.event;
+
+				override show(): void {
+					service.quickPickSnapshots.push(this.items.map(item => ({ id: item.id, label: item.label, type: item.type ?? 'item' })));
+					service.quickPickHasBackButton.push(this.buttons.includes(service.backButton));
+					const id = service.pickIds.shift();
+					if (id === 'back') {
+						buttonEmitter.fire(service.backButton);
+						return;
+					}
+					const selected = this.items.find(item => item.id === id);
+					if (selected) {
+						this.selectedItems = [selected];
+						acceptEmitter.fire({ inBackground: false });
+					} else {
+						this.hide();
+					}
+				}
+
+				override hide(): void {
+					hideEmitter.fire({ reason: QuickInputHideReason.Other });
+				}
+
+				override dispose(): void {
+					disposables.dispose();
+				}
+			}();
+		}
+
+		override createInputBox(): IInputBox {
+			const disposables = new DisposableStore();
+			const acceptEmitter = disposables.add(new Emitter<void>());
+			const changeValueEmitter = disposables.add(new Emitter<string>());
+			const hideEmitter = disposables.add(new Emitter<IQuickInputHideEvent>());
+			const buttonEmitter = disposables.add(new Emitter<IQuickInputButton>());
+			const service = this;
+			return new class extends mock<IInputBox>() {
+				override title: string | undefined;
+				override placeholder: string | undefined;
+				override prompt: string | undefined;
+				override buttons: readonly IQuickInputButton[] = [];
+				override value = '';
+				override validationMessage: string | undefined;
+				override readonly onDidAccept = acceptEmitter.event;
+				override readonly onDidChangeValue = changeValueEmitter.event;
+				override readonly onDidHide = hideEmitter.event;
+				override readonly onDidTriggerButton = buttonEmitter.event;
+
+				override show(): void {
+					service.inputBoxSnapshots.push({
+						title: this.title,
+						placeholder: this.placeholder,
+						prompt: this.prompt,
+						hasBackButton: this.buttons.includes(service.backButton),
+					});
+					if (service.inputBackCount > 0) {
+						service.inputBackCount--;
+						buttonEmitter.fire(service.backButton);
+						return;
+					}
+					if (service.inputValue !== undefined) {
+						this.value = service.inputValue;
+						changeValueEmitter.fire(this.value);
+						acceptEmitter.fire();
+					} else {
+						this.hide();
+					}
+				}
+
+				override hide(): void {
+					hideEmitter.fire({ reason: QuickInputHideReason.Other });
+				}
+
+				override dispose(): void {
+					disposables.dispose();
+				}
+			}();
 		}
 	}
 
@@ -331,11 +426,7 @@ suite('ManagePluginMarketplacesAction', () => {
 
 		assert.deepStrictEqual({
 			firstPick: fixture.quickInputService.pickSnapshots[0],
-			input: {
-				title: fixture.quickInputService.inputOptions?.title,
-				placeHolder: fixture.quickInputService.inputOptions?.placeHolder,
-				prompt: fixture.quickInputService.inputOptions?.prompt,
-			},
+			input: fixture.quickInputService.inputBoxSnapshots[0],
 			updates: fixture.configurationService.updates,
 			notifications: fixture.notifications,
 		}, {
@@ -346,8 +437,9 @@ suite('ManagePluginMarketplacesAction', () => {
 			],
 			input: {
 				title: 'Add Plugin Marketplace',
-				placeHolder: 'owner/repo, Git URL, or local repository URI',
+				placeholder: 'owner/repo, Git URL, or local repository URI',
 				prompt: 'Only add marketplaces you trust.',
+				hasBackButton: true,
 			},
 			updates: [{
 				key: ChatConfiguration.PluginMarketplaces,
@@ -380,6 +472,32 @@ suite('ManagePluginMarketplacesAction', () => {
 		}]);
 	});
 
+	test('returns to the marketplace list from the add marketplace input', async () => {
+		const fixture = createFixture({
+			[ChatConfiguration.PluginMarketplaces]: [],
+			[ChatConfiguration.ExtraMarketplaces]: {},
+		});
+		fixture.quickInputService.pickIds.push('addMarketplace', undefined);
+		fixture.quickInputService.inputBackCount = 1;
+
+		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
+
+		assert.deepStrictEqual({
+			marketplacePickCount: fixture.quickInputService.pickSnapshots.length,
+			inputs: fixture.quickInputService.inputBoxSnapshots,
+			configurationUpdates: fixture.configurationService.updates,
+		}, {
+			marketplacePickCount: 2,
+			inputs: [{
+				title: 'Add Plugin Marketplace',
+				placeholder: 'owner/repo, Git URL, or local repository URI',
+				prompt: 'Only add marketplaces you trust.',
+				hasBackButton: true,
+			}],
+			configurationUpdates: [],
+		});
+	});
+
 	test('uses provider inventory and force-removes dependent plugins', async () => {
 		const removeCalls: { name: string; force?: boolean }[] = [];
 		const provider: ICustomizationMarketplaceManagementProvider = {
@@ -409,7 +527,7 @@ suite('ManagePluginMarketplacesAction', () => {
 
 		assert.deepStrictEqual({
 			firstPick: fixture.quickInputService.pickSnapshots[0],
-			actions: fixture.quickInputService.pickSnapshots[1],
+			actions: fixture.quickInputService.quickPickSnapshots[0],
 			configurationUpdates: fixture.configurationService.updates,
 			removeCalls,
 		}, {
@@ -486,6 +604,49 @@ suite('ManagePluginMarketplacesAction', () => {
 		});
 	});
 
+	test('returns to the provider marketplace list from the marketplace actions', async () => {
+		let listCalls = 0;
+		const provider: ICustomizationMarketplaceManagementProvider = {
+			onDidChange: Event.None,
+			list: async () => {
+				listCalls++;
+				return [{
+					name: 'provider-marketplace',
+					source: 'GitHub: owner/provider-marketplace',
+					isDefault: false,
+					managed: false,
+					available: true,
+				}];
+			},
+			add: async () => { throw new Error('Unexpected add'); },
+			queryMarketplace: async () => ({ items: [], total: 0 }),
+			remove: async () => { throw new Error('Unexpected remove'); },
+			refresh: async () => { throw new Error('Unexpected refresh'); },
+		};
+		const fixture = createFixture({
+			[ChatConfiguration.PluginMarketplaces]: [],
+			[ChatConfiguration.ExtraMarketplaces]: {},
+		}, false, provider);
+		fixture.quickInputService.pickIds.push('provider-marketplace', 'back', undefined);
+
+		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
+
+		assert.deepStrictEqual({
+			listCalls,
+			marketplacePickCount: fixture.quickInputService.pickSnapshots.length,
+			actions: fixture.quickInputService.quickPickSnapshots,
+			hasBackButton: fixture.quickInputService.quickPickHasBackButton,
+		}, {
+			listCalls: 2,
+			marketplacePickCount: 2,
+			actions: [[
+				{ id: 'refreshMarketplace', label: 'Refresh Marketplace', type: 'item' },
+				{ id: 'removeMarketplace', label: 'Remove Marketplace', type: 'item' },
+			]],
+			hasBackButton: [true],
+		});
+	});
+
 	test('adds marketplaces through the provider without updating local configuration', async () => {
 		const addCalls: string[] = [];
 		const provider: ICustomizationMarketplaceManagementProvider = {
@@ -517,6 +678,44 @@ suite('ManagePluginMarketplacesAction', () => {
 		});
 	});
 
+	test('returns to the provider marketplace list from the add marketplace input', async () => {
+		const addCalls: string[] = [];
+		const provider: ICustomizationMarketplaceManagementProvider = {
+			onDidChange: Event.None,
+			list: async () => [],
+			add: async (_session, source) => {
+				addCalls.push(source);
+				return { name: 'provider-marketplace', source, isDefault: false, managed: false, available: true };
+			},
+			queryMarketplace: async () => ({ items: [], total: 0 }),
+			remove: async () => ({ removed: true }),
+			refresh: async () => [],
+		};
+		const fixture = createFixture({
+			[ChatConfiguration.PluginMarketplaces]: [],
+			[ChatConfiguration.ExtraMarketplaces]: {},
+		}, false, provider);
+		fixture.quickInputService.pickIds.push('addMarketplace', undefined);
+		fixture.quickInputService.inputBackCount = 1;
+
+		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
+
+		assert.deepStrictEqual({
+			marketplacePickCount: fixture.quickInputService.pickSnapshots.length,
+			inputs: fixture.quickInputService.inputBoxSnapshots,
+			addCalls,
+		}, {
+			marketplacePickCount: 2,
+			inputs: [{
+				title: 'Add Plugin Marketplace',
+				placeholder: 'owner/repo, Git URL, or local repository URI',
+				prompt: 'Only add marketplaces you trust.',
+				hasBackButton: true,
+			}],
+			addCalls: [],
+		});
+	});
+
 	test('shows plugins from a configured marketplace in Customizations', async () => {
 		const marketplace = parseMarketplaceReference('anthropics/claude-code')!;
 		const otherMarketplace = parseMarketplaceReference('microsoft/vscode-marketplace')!;
@@ -529,7 +728,7 @@ suite('ManagePluginMarketplacesAction', () => {
 		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
 
 		assert.deepStrictEqual({
-			actions: fixture.quickInputService.pickSnapshots[1],
+			actions: fixture.quickInputService.quickPickSnapshots[0],
 			commands: fixture.commands,
 		}, {
 			actions: [
@@ -543,6 +742,34 @@ suite('ManagePluginMarketplacesAction', () => {
 					sourceId: getPluginCustomizationMarketplaceSourceId(marketplace),
 				}],
 			}],
+		});
+	});
+
+	test('returns to the marketplace list from the marketplace actions', async () => {
+		const marketplace = parseMarketplaceReference('anthropics/claude-code')!;
+		const fixture = createFixture({
+			[ChatConfiguration.PluginMarketplaces]: [marketplace.rawValue],
+			[ChatConfiguration.ExtraMarketplaces]: {},
+		});
+		fixture.quickInputService.pickIds.push(marketplace.canonicalId, 'back', undefined);
+
+		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
+
+		assert.deepStrictEqual({
+			marketplacePickCount: fixture.quickInputService.pickSnapshots.length,
+			actions: fixture.quickInputService.quickPickSnapshots,
+			hasBackButton: fixture.quickInputService.quickPickHasBackButton,
+			configurationUpdates: fixture.configurationService.updates,
+			commands: fixture.commands,
+		}, {
+			marketplacePickCount: 2,
+			actions: [[
+				{ id: 'showPlugins', label: 'Show Plugins', type: 'item' },
+				{ id: 'removeMarketplace', label: 'Remove Marketplace', type: 'item' },
+			]],
+			hasBackButton: [true],
+			configurationUpdates: [],
+			commands: [],
 		});
 	});
 

@@ -267,6 +267,7 @@ export class ManagePluginMarketplacesAction extends Action2 {
 		const pluginRepositoryService = accessor.get(IAgentPluginRepositoryService);
 		const commandService = accessor.get(ICommandService);
 		const fileService = accessor.get(IFileService);
+		const marketplaceService = accessor.get(IPluginMarketplaceService);
 
 		while (true) {
 			const { extraValues, effectiveValues } = readConfiguredMarketplaces(configurationService);
@@ -275,7 +276,6 @@ export class ManagePluginMarketplacesAction extends Action2 {
 				{ reference },
 			]));
 			const refs = [...configuredMarketplaces.values()];
-			const marketplaceService = accessor.get(IPluginMarketplaceService);
 			const policyCanonicalIds = new Set(parseMarketplaceReferences(extraValues).map(reference => reference.canonicalId));
 			const defaultCanonicalIds = new Set(parseMarketplaceReferences(
 				configurationService.inspect<readonly unknown[]>(ChatConfiguration.PluginMarketplaces)?.defaultValue ?? []
@@ -327,7 +327,10 @@ export class ManagePluginMarketplacesAction extends Action2 {
 				return;
 			}
 			if (selected.kind === 'add') {
-				await this.addLocalMarketplace(quickInputService, notificationService, configurationService, refs.map(({ reference }) => reference));
+				const result = await this.addLocalMarketplace(quickInputService, notificationService, configurationService, refs.map(({ reference }) => reference));
+				if (result === 'back') {
+					continue;
+				}
 				return;
 			}
 
@@ -348,10 +351,10 @@ export class ManagePluginMarketplacesAction extends Action2 {
 				return;
 			}
 
-			const action = await quickInputService.pick(actionItems, {
-				title: localize('managePluginMarketplace', "Manage Plugin Marketplace"),
-				placeHolder: localize('selectMarketplaceAction', "Select an action for '{0}'", ref.displayLabel),
-			});
+			const action = await this.pickMarketplaceAction(quickInputService, actionItems, ref.displayLabel);
+			if (action === 'back') {
+				continue;
+			}
 			if (!action) {
 				return;
 			}
@@ -436,6 +439,9 @@ export class ManagePluginMarketplacesAction extends Action2 {
 			}
 			if (selected.kind === 'add') {
 				const source = await this.promptMarketplaceSource(quickInputService, marketplaces.map(marketplace => marketplace.source));
+				if (source === 'back') {
+					continue;
+				}
 				if (source !== undefined) {
 					await provider.add(sessionResource, source);
 				}
@@ -455,10 +461,10 @@ export class ManagePluginMarketplacesAction extends Action2 {
 					label: localize('removeMarketplace', "Remove Marketplace"),
 				});
 			}
-			const action = await quickInputService.pick(actions, {
-				title: localize('managePluginMarketplace', "Manage Plugin Marketplace"),
-				placeHolder: localize('selectMarketplaceAction', "Select an action for '{0}'", marketplace.name),
-			});
+			const action = await this.pickMarketplaceAction(quickInputService, actions, marketplace.name);
+			if (action === 'back') {
+				continue;
+			}
 			if (!action) {
 				return;
 			}
@@ -476,6 +482,44 @@ export class ManagePluginMarketplacesAction extends Action2 {
 			}
 			await this.removeProviderMarketplace(dialogService, provider, sessionResource, marketplace);
 		}
+	}
+
+	private pickMarketplaceAction(
+		quickInputService: IQuickInputService,
+		items: readonly IQuickPickItem[],
+		marketplaceLabel: string,
+	): Promise<IQuickPickItem | 'back' | undefined> {
+		const store = new DisposableStore();
+		const picker = store.add(quickInputService.createQuickPick<IQuickPickItem>());
+		picker.title = localize('managePluginMarketplace', "Manage Plugin Marketplace");
+		picker.placeholder = localize('selectMarketplaceAction', "Select an action for '{0}'", marketplaceLabel);
+		picker.items = items;
+		picker.buttons = [quickInputService.backButton];
+
+		return new Promise(resolve => {
+			let resolved = false;
+			const complete = (result: IQuickPickItem | 'back' | undefined, hide: boolean) => {
+				if (resolved) {
+					return;
+				}
+				resolved = true;
+				resolve(result);
+				if (hide) {
+					picker.hide();
+				}
+			};
+			store.add(picker.onDidAccept(() => complete(picker.selectedItems[0], true)));
+			store.add(picker.onDidTriggerButton(button => {
+				if (button === quickInputService.backButton) {
+					complete('back', true);
+				}
+			}));
+			store.add(picker.onDidHide(() => {
+				complete(undefined, false);
+				store.dispose();
+			}));
+			picker.show();
+		});
 	}
 
 	private async removeProviderMarketplace(
@@ -512,10 +556,10 @@ export class ManagePluginMarketplacesAction extends Action2 {
 		notificationService: INotificationService,
 		configurationService: IConfigurationService,
 		configuredMarketplaces: readonly IMarketplaceReference[],
-	): Promise<void> {
+	): Promise<'back' | undefined> {
 		const value = await this.promptMarketplaceSource(quickInputService, configuredMarketplaces.map(reference => reference.rawValue));
-		if (value === undefined) {
-			return;
+		if (value === undefined || value === 'back') {
+			return value;
 		}
 
 		const validationError = this.getMarketplaceInputError(value, configuredMarketplaces);
@@ -530,18 +574,55 @@ export class ManagePluginMarketplacesAction extends Action2 {
 		}
 		const { userValues } = readConfiguredMarketplaces(configurationService);
 		await configurationService.updateValue(ChatConfiguration.PluginMarketplaces, [...userValues, reference.rawValue]);
+		return undefined;
 	}
 
-	private promptMarketplaceSource(quickInputService: IQuickInputService, configuredSources: readonly string[]): Promise<string | undefined> {
+	private promptMarketplaceSource(quickInputService: IQuickInputService, configuredSources: readonly string[]): Promise<string | 'back' | undefined> {
 		const configuredMarketplaces = configuredSources
 			.map(parseMarketplaceReference)
 			.filter((reference): reference is IMarketplaceReference => !!reference);
-		return quickInputService.input({
-			title: localize('addPluginMarketplace', "Add Plugin Marketplace"),
-			placeHolder: localize('pluginMarketplaceSourcePlaceholder', "owner/repo, Git URL, or local repository URI"),
-			prompt: localize('marketplaceTrustPrompt', "Only add marketplaces you trust."),
-			ignoreFocusLost: true,
-			validateInput: async input => this.getMarketplaceInputError(input, configuredMarketplaces),
+
+		const store = new DisposableStore();
+		const inputBox = store.add(quickInputService.createInputBox());
+		inputBox.title = localize('addPluginMarketplace', "Add Plugin Marketplace");
+		inputBox.placeholder = localize('pluginMarketplaceSourcePlaceholder', "owner/repo, Git URL, or local repository URI");
+		inputBox.prompt = localize('marketplaceTrustPrompt', "Only add marketplaces you trust.");
+		inputBox.buttons = [quickInputService.backButton];
+		inputBox.ignoreFocusOut = true;
+
+		return new Promise(resolve => {
+			let resolved = false;
+			const complete = (result: string | 'back' | undefined, hide: boolean) => {
+				if (resolved) {
+					return;
+				}
+				resolved = true;
+				resolve(result);
+				if (hide) {
+					inputBox.hide();
+				}
+			};
+			store.add(inputBox.onDidAccept(() => {
+				const validationError = this.getMarketplaceInputError(inputBox.value, configuredMarketplaces);
+				if (validationError) {
+					inputBox.validationMessage = validationError;
+					return;
+				}
+				complete(inputBox.value, true);
+			}));
+			store.add(inputBox.onDidChangeValue(value => {
+				inputBox.validationMessage = this.getMarketplaceInputError(value, configuredMarketplaces);
+			}));
+			store.add(inputBox.onDidTriggerButton(button => {
+				if (button === quickInputService.backButton) {
+					complete('back', true);
+				}
+			}));
+			store.add(inputBox.onDidHide(() => {
+				complete(undefined, false);
+				store.dispose();
+			}));
+			inputBox.show();
 		});
 	}
 
