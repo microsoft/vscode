@@ -5,9 +5,11 @@
 
 import * as DOM from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
+import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { ISelectBoxOptions, SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
 import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -188,6 +190,10 @@ export class AutomationTriggerEditor extends Disposable {
 		const count = Object.values(this.state.cloudTrigger!.triggers).reduce((total, trigger) => total + (trigger.types?.length ?? 0), 0);
 		const label = count > 1 ? localize('automation.trigger.eventCount', "{0} events selected", count) : summary;
 		this.eventsButton.label = label;
+		const chevron = renderIcon(Codicon.chevronDownCompact);
+		chevron.classList.add('automation-event-button-chevron');
+		chevron.setAttribute('aria-hidden', 'true');
+		DOM.reset(this.eventsButton.element, DOM.$('span.automation-event-button-label', undefined, label), chevron);
 		this.eventsButton.element.setAttribute('aria-label', count > 1
 			? localize('automation.trigger.selectedEventsCount', "Select events. {0}. Current selection: {1}", label, summary)
 			: localize('automation.trigger.selectedEvents', "Select events. Current selection: {0}", summary));

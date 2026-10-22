@@ -525,12 +525,15 @@ suite('Automation dialog creation', () => {
 		const options = picker.leaves.map(item => item.label);
 		picker.hide();
 		const button = dialog.container.querySelector<HTMLElement>('.automation-event-button')!;
+		const chevron = button.querySelector<HTMLElement>('.automation-event-button-chevron');
+		const buttonPresentation = { text: button.textContent, ariaLabel: button.getAttribute('aria-label'), chevronAriaHidden: chevron?.getAttribute('aria-hidden') };
 		const closed = { focused: DOM.getActiveElement() === button, dialogOpen: !!dialog.container.querySelector('.automation-dialog'), customPopup: !!dialog.container.querySelector('.automation-event-options') };
 		dialog.saveButton.click();
 		const result = await dialog.result;
-		assert.deepStrictEqual({ options, maxVisibleItems: picker.listOptions?.maxVisibleItems, closed, patch: result?.value.cloudTrigger }, {
+		assert.deepStrictEqual({ options, maxVisibleItems: picker.listOptions?.maxVisibleItems, buttonPresentation, closed, patch: result?.value.cloudTrigger }, {
 			options: ['Pull request opened', 'Timeline comment', 'Review comment', 'Review submitted'],
 			maxVisibleItems: 8,
+			buttonPresentation: { text: '2 events selected', ariaLabel: 'Select events. 2 events selected. Current selection: Timeline comment, Review comment', chevronAriaHidden: 'true' },
 			closed: { focused: true, dialogOpen: true, customPopup: false }, patch: undefined,
 		});
 	});

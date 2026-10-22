@@ -418,6 +418,20 @@
 	width: 100%;
 	height: 26px;
 	min-width: 0;
+	justify-content: space-between;
+}
+
+.automation-form-event-group .automation-event-button-label {
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.automation-form-event-group .automation-event-button-chevron {
+	flex-shrink: 0;
+	margin-left: var(--vscode-spacing-size40);
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .automation-prompt-section {
