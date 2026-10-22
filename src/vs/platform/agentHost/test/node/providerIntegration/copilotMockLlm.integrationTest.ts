@@ -506,6 +506,106 @@ session = await joinSession({
 		}
 	});
 
+	test('launches a blocked project canvas extension only after its workspace becomes trusted', async function () {
+		this.timeout(180_000);
+		const workspaceDir = await mkdtemp(`${tmpdir()}/test-untrusted-mock-canvas`);
+		tempDirs.push(workspaceDir);
+		const extensionDir = join(workspaceDir, '.github', 'extensions', 'untrusted-canvas');
+		const launchLog = join(extensionDir, 'launches');
+		await mkdir(extensionDir, { recursive: true });
+		await writeFile(join(extensionDir, 'extension.mjs'), `
+import { appendFileSync } from 'node:fs';
+import { createCanvas, joinSession } from '@github/copilot-sdk/extension';
+appendFileSync(new URL('./launches', import.meta.url), process.pid + '\\n');
+await joinSession({
+	canvases: [createCanvas({
+		id: 'untrusted-canvas',
+		displayName: 'Untrusted canvas',
+		description: 'Starts only in a trusted workspace.',
+		open: () => ({ url: 'http://127.0.0.1:43119/' })
+	})]
+});
+`, 'utf8');
+
+		let previousRootConfig: ICanvasRootConfig | undefined;
+		try {
+			const sessionUri = await createProviderSession(
+				client,
+				CANVAS_COPILOT_CONFIG,
+				'real-sdk-untrusted-mock-canvas',
+				createdSessions,
+				URI.file(workspaceDir),
+				async () => {
+					previousRootConfig = await readCanvasRootConfig();
+					await setRootConfig({
+						[AgentHostCanvasesEnabledConfigKey]: true,
+						[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [] },
+					}, 1);
+				},
+			);
+			const turnId = 'turn-untrusted-canvas';
+			dispatchTurn(client, sessionUri, turnId, `[scenario:${CANVAS_EXTENSION_TURN_SCENARIO_ID}] Complete without a canvas.`, 2);
+			await client.waitForNotification(n =>
+				isActionNotification(n, ActionType.ChatTurnComplete)
+				&& (getActionEnvelope(n).action as ChatTurnCompleteAction).turnId === turnId,
+				90_000,
+			);
+
+			const launches = async () => {
+				try {
+					return (await readFile(launchLog, 'utf8')).split('\n').filter(Boolean).map(Number);
+				} catch (error) {
+					if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+						return [];
+					}
+					throw error;
+				}
+			};
+			const isRunning = (pid: number) => {
+				try {
+					process.kill(pid, 0);
+					return true;
+				} catch (error) {
+					return (error as NodeJS.ErrnoException).code !== 'ESRCH';
+				}
+			};
+			const launchesBeforeTrust = await launches();
+			await setRootConfig({
+				[AgentHostCanvasesEnabledConfigKey]: true,
+				[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [URI.file(workspaceDir).toString()] },
+			}, 3);
+			await retry(async () => assert.notStrictEqual((await launches()).length, 0), 50, 200);
+			await timeout(3_000);
+			const launchesAfterTrust = await launches();
+			const extensionPid = launchesAfterTrust[launchesAfterTrust.length - 1];
+			const runningAfterTrust = isRunning(extensionPid);
+
+			await setRootConfig({
+				[AgentHostCanvasesEnabledConfigKey]: true,
+				[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [] },
+			}, 4);
+			// Revoking trust stops the running extension, and the launch provider refuses to start it again.
+			await retry(async () => assert.strictEqual(isRunning(extensionPid), false), 50, 200);
+			await timeout(5_000);
+
+			assert.deepStrictEqual({
+				launchesBeforeTrust: launchesBeforeTrust.length,
+				launchesAfterTrust: launchesAfterTrust.length,
+				runningAfterTrust,
+				launchesAfterRevocation: (await launches()).length,
+			}, {
+				launchesBeforeTrust: 0,
+				launchesAfterTrust: 1,
+				runningAfterTrust: true,
+				launchesAfterRevocation: 1,
+			});
+		} finally {
+			if (previousRootConfig) {
+				await restoreCanvasRootConfig(previousRootConfig, 5);
+			}
+		}
+	});
+
 	test('routes a client tool after steering to the client that sent the steering message', async function () {
 		this.timeout(180_000);
 		const originalClientId = 'steering-original-client';
