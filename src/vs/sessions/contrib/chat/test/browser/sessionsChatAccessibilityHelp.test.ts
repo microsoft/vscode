@@ -58,11 +58,12 @@ suite('SessionsChatAccessibilityHelp', () => {
 			instantiationService.stub(IAgentWorkbenchLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop, mainContainer: container });
 			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
 			assert.deepStrictEqual({
-				optIn: content.includes('Pull request and issue actions are off by default. Enable Show Pull Request and Issue Actions in the activity bar\'s context menu to show them.'),
-				chatScope: content.includes('Open Pull Request and Open Issue are also available for the active chat\'s pull requests and issues when a contributed opener is available for their links.'),
-				singleAndMultiple: content.includes('A single supported reference opens directly; multiple supported references open a picker.'),
-				cancel: content.includes('Enter to choose a reference, or Escape to cancel.'),
-			}, { optIn: enabled, chatScope: enabled, singleAndMultiple: enabled, cancel: enabled });
+				optIn: content.includes('Pull request and issue actions are off by default. Enable Show Pull Request and Issue Actions in the activity bar\'s context menu to show them in the side-pane group.'),
+				chatScope: content.includes('Open Pull Request and Open Issue are available for the active chat\'s references when a contributed opener is available for their links.'),
+				reuse: content.includes('Each action reveals an already-open matching editor, preferring the active editor, or opens the first supported reference if none is open.'),
+				checked: content.includes('A checked button means the editor is visible; activating it keeps the editor open and focuses it.'),
+				direct: content.includes('These actions open directly, without a dropdown or picker, even with multiple references.'),
+			}, { optIn: enabled, chatScope: enabled, reuse: enabled, checked: enabled, direct: enabled });
 		});
 	}
 
@@ -270,13 +271,21 @@ suite('SessionsChatAccessibilityHelp', () => {
 				githubEnvironment: content.includes('GitHub environment'),
 				sharingKeyboard: content.includes('Enter or Space to enable or disable sharing'),
 				fileSystemAccess: content.includes('read and modify files across this machine'),
-				backendPicker: content.includes('Select Remote Connection Method dropdown chooses Dev Tunnels or GitHub Environments'),
+				backendPicker: content.includes('single Remote Connections button opens a menu that offers Off, Dev Tunnels, and GitHub Environments'),
+				enabling: content.includes('Selecting a method updates the setting and enables sharing'),
+				disabling: content.includes('Selecting Off disables sharing'),
+				remembered: content.includes('without changing the preferred method'),
+				footer: content.includes('The footer shows the name used to identify this machine on other clients'),
+				rename: content.includes('press Tab to reach the name link in the footer') && content.includes('Renaming while Off does not enable sharing'),
 				previewSetting: content.includes('The preview setting chat.agentHost.remoteConnections selects the connection method'),
 			}, {
 				discoveryHelp: enabled, folderBrowsing: enabled, refreshHelp: enabled, hiddenHelp: false,
 				githubEnvironment: !hidden && !aiDisabled, sharingKeyboard: !hidden && !aiDisabled,
 				fileSystemAccess: !hidden && !aiDisabled, backendPicker: !hidden && !aiDisabled,
 				previewSetting: !hidden && !aiDisabled,
+				enabling: !hidden && !aiDisabled, disabling: !hidden && !aiDisabled, remembered: !hidden && !aiDisabled,
+				footer: !hidden && !aiDisabled,
+				rename: !hidden && !aiDisabled,
 			});
 		});
 	}

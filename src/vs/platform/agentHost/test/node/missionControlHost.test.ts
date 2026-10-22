@@ -841,6 +841,48 @@ suite('Mission Control host integration', () => {
 		]);
 	});
 
+	test('logs heartbeat responses and publish failures without adding heartbeat telemetry or logging mirror backpressure', () => {
+		const instantiation = store.add(new TestInstantiationService());
+		const creations = sinon.spy(instantiation, 'createInstance');
+		store.add(toDisposable(() => creations.restore()));
+		const { events } = createHost(instantiation);
+		const logService = instantiation.get(ILogService);
+		const info = sinon.spy(logService, 'info');
+		const warn = sinon.spy(logService, 'warn');
+		store.add(toDisposable(() => {
+			info.restore();
+			warn.restore();
+		}));
+		const options = creations.getCalls().find(call => call.args[0] === MissionControlEnvironment)!.args[1] as IMissionControlEnvironmentHost;
+		options.onDiagnostic!({
+			operationId: '', phase: 'heartbeatResponse', timestamp: 0, outcome: 'info',
+			detail: 'environmentId=environment; advertisedStatus=online; httpStatus=200',
+		});
+		for (const failure of ['queueLimit', 'mirrorBackpressure'] as const) {
+			options.onPublishDiagnostic!({
+				operationId: '', phase: 'relayPublish', timestamp: 0, outcome: 'failed', failure,
+				detail: 'queuedFrames=508; inFlightFrames=4; attemptedFrames=1',
+			});
+		}
+		for (const detail of [undefined, '']) {
+			options.onPublishDiagnostic!({
+				operationId: '', phase: 'relayPublish', timestamp: 0, outcome: 'failed', failure: 'socketFailure', detail,
+			});
+		}
+		assert.deepStrictEqual({
+			info: info.args, warnings: warn.args,
+			heartbeatTelemetry: events.filter(event => event.eventName === 'agentHost.missionControlOperation'),
+		}, {
+			info: [['[AgentHost] Mission Control heartbeat response; environmentId=environment; advertisedStatus=online; httpStatus=200']],
+			warnings: [
+				['[AgentHost] Mission Control publish failed; reason=queueLimit; queuedFrames=508; inFlightFrames=4; attemptedFrames=1'],
+				['[AgentHost] Mission Control publish failed; reason=socketFailure'],
+				['[AgentHost] Mission Control publish failed; reason=socketFailure'],
+			],
+			heartbeatTelemetry: [],
+		});
+	});
+
 	test('routes Copilot compatibility requests by advertised session ownership and publishes plan refresh hints', async () => {
 		const instantiation = store.add(new TestInstantiationService());
 		const creations = sinon.spy(instantiation, 'createInstance');

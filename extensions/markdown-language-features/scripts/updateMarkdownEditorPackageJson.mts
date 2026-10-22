@@ -6,6 +6,7 @@
 import { readFile, stat, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import * as path from 'node:path';
+import { resolveMarkdownEditorPackage } from './markdownEditorPackage.mts';
 import type {
 	EditorCommandDefinition,
 	EditorCommandKeybinding,
@@ -330,7 +331,7 @@ export function debounceAsync<T>(callback: () => Promise<T>, delay: number): () 
 }
 
 async function loadCommandDefinitions(): Promise<readonly EditorCommandDefinition[]> {
-	const commandsUrl = import.meta.resolve('@vscode/markdown-editor/commands');
+	const { commandsUrl } = await resolveMarkdownEditorPackage();
 	const commandsPath = fileURLToPath(commandsUrl);
 	const version = (await stat(commandsPath)).mtimeMs;
 	const module = await import(`${commandsUrl}?version=${version}`) as {

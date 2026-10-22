@@ -267,8 +267,8 @@ suite('Pull Request Actions', () => {
 			visibleWithPullRequest: item.when?.evaluate(withPullRequest),
 			visibleWithoutPullRequest: item.when?.evaluate(withoutPullRequest),
 		})), [{
-			group: SessionActivityBarGroup.GitHub,
-			order: 0,
+			group: SessionActivityBarGroup.SidePanel,
+			order: 100,
 			icon: Codicon.gitPullRequest,
 			visibleWithPullRequest: true,
 			visibleWithoutPullRequest: false,
