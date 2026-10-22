@@ -495,7 +495,22 @@ type ModelCallTurnCorrelatedClassification = {
 		"cache_write_1h_tokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Prompt-cache tokens written with the 1 hour lifetime.", "isMeasurement": true },
 		"total_nano_aiu": { "classification": "SystemMetaData", "purpose": "BusinessInsight", "comment": "Model cost of the compaction in nano AI units.", "isMeasurement": true },
 		"duration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Duration of the compaction model calls in milliseconds.", "isMeasurement": true },
-		"status_code": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "HTTP status code of a failed compaction model call.", "isMeasurement": true }
+		"status_code": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "HTTP status code of a failed compaction model call.", "isMeasurement": true },
+		"summarizer_attempt_settled": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the latest summarizer request had settled when the outcome was decided, telling a deadline that cut off a request in flight from one that fired between requests." },
+		"summarizer_input_shrunk": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the compaction ran on history shrunk after an earlier deadline failure." },
+		"summarizer_duration_ms": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Duration of the latest summarizer request in milliseconds.", "isMeasurement": true },
+		"summarizer_attempts": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of summarizer request attempts.", "isMeasurement": true },
+		"summarizer_attempt_age_ms": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Age of the latest summarizer request attempt in milliseconds when the outcome was decided.", "isMeasurement": true },
+		"summarizer_ttft_ms": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Time to the summarizer's first token in milliseconds.", "isMeasurement": true },
+		"summarizer_output_ttft_ms": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Time to the summarizer's first output in milliseconds.", "isMeasurement": true },
+		"summarizer_answer_ttft_ms": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Time to the summarizer's first answer output, as opposed to reasoning, in milliseconds.", "isMeasurement": true },
+		"summarizer_stream_events": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of stream events the summarizer request received.", "isMeasurement": true },
+		"summarizer_output_events": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of output events the summarizer request received.", "isMeasurement": true },
+		"summarizer_max_stream_gap_ms": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Longest gap between the summarizer's stream events in milliseconds.", "isMeasurement": true },
+		"summarizer_max_output_gap_before_answer_ms": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Longest gap between the summarizer's outputs before its first answer output, in milliseconds.", "isMeasurement": true },
+		"summarizer_max_output_gap_after_answer_ms": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Longest gap between the summarizer's outputs after its first answer output, in milliseconds.", "isMeasurement": true },
+		"summarizer_idle_ms": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Time since the summarizer's last stream event when the outcome was decided, in milliseconds.", "isMeasurement": true },
+		"summarizer_since_last_output_ms": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Time since the summarizer's last output when the outcome was decided, in milliseconds.", "isMeasurement": true }
 	}
 */
 
