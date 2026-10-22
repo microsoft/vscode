@@ -1998,11 +1998,11 @@ suite('AgentHostSessionInputPills', () => {
 				hoverText: 'microsoft/vscodeon Sep 1Live pull request 332982 #332982OpenLive pull request bodymain←feature@pr-author opened this pull request',
 				actionLabels: [
 					'Copy Pull Request URL',
-					'Remove Artifact Chat: unify Agent Host status pills across chat surfaces from Session',
 					'Pin Live pull request 332982',
+					'Remove Artifact Chat: unify Agent Host status pills across chat surfaces from Session',
 					'Copy Pull Request URL',
-					'Remove Artifact sessions: preserve recorded issue titles in pills from Session',
 					'Pin Live pull request 335387',
+					'Remove Artifact sessions: preserve recorded issue titles in pills from Session',
 				],
 			},
 			issue: {
