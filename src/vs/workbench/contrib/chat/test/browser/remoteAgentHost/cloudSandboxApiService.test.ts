@@ -896,7 +896,7 @@ suite('CloudSandboxApiService session feed', () => {
 		{ url: 'wss://user:password@feed.example.test/' },
 		{ url: 'wss://feed.example.test/#secret' },
 		{ reconnect_after: new Date(0).toISOString() },
-		{ reconnect_after: new Date(Date.now() + 20 * 60_000).toISOString() },
+		{ get reconnect_after() { return new Date(Date.now() + 20 * 60_000).toISOString(); } },
 		{ frame_schema_version: 2 },
 		{ subprotocol: 'json.reliable.webpubsub.azure.v1' },
 		{ group: '' },
