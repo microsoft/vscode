@@ -456,6 +456,21 @@ class ScopedCopilotClient extends Disposable {
 	}
 }
 
+interface ICopilotModelCatalog {
+	readonly models: readonly IAgentModelInfo[];
+	readonly autoTierMetadata: CopilotAutoTierMetadata | undefined;
+	readonly freeLongContextModels: ReadonlySet<string>;
+	readonly fallbackAuto: boolean;
+}
+
+interface IScopedCopilotModelCatalog {
+	readonly credentials: CopilotGitHubSessionCredentials;
+	readonly startup: CopilotAgentStartupConfig;
+	readonly token: CancellationToken;
+	readonly promise: Promise<readonly IAgentModelInfo[]>;
+	catalog?: ICopilotModelCatalog;
+}
+
 interface ICopilotClientProxyState {
 	readonly proxy: string | undefined;
 	readonly noProxy: string | undefined;
@@ -976,6 +991,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	readonly onMcpNotification = this._onMcpNotification.event;
 	private readonly _models = observableValue<readonly IAgentModelInfo[]>(this, []);
 	readonly models = this._models;
+	private readonly _scopedModelCatalogs = new WeakMap<IAgentHostCredentialSource, IScopedCopilotModelCatalog>();
+	private readonly _scopedModelClients = this._register(new DisposableMap<IAgentHostCredentialSource, ScopedCopilotClient>());
 	/**
 	 * The two sources merged into {@link _models}: CAPI models from the CLI's
 	 * `models.list` and BYOK models from the renderer bridge registry's serving
@@ -1608,6 +1625,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (!source) {
 			return undefined;
 		}
+		const previousSource = this._credentialSources.get(context.chatKey);
+		const previousCatalog = previousSource && this._scopedModelCatalogs.get(previousSource);
 		this._credentialSources.set(context.chatKey, source);
 		const prepared = this._preparedCredentials.get(context.chatKey);
 		if (!preparing) {
@@ -1620,6 +1639,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			&& (candidate.expiresAt === undefined || Number.isFinite(candidate.expiresAt)) && isScopedCredentialUsable(candidate);
 		if (!usable(available)) {
 			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Scoped Copilot authentication is required', { resources: [resource] });
+		}
+		if (previousCatalog?.credentials.isCurrentCredential(available)) {
+			this._scopedModelCatalogs.set(source, previousCatalog);
 		}
 		const credential = !preparing && turnId !== undefined && prepared?.turnId === turnId ? prepared.credential : available;
 		if (!usable(credential)) {
@@ -3420,6 +3442,69 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return this._scheduledModelRefresh?.deferred.p ?? this._modelRefreshInFlight ?? this._startModelRefresh(++this._modelCatalogGeneration);
 	}
 
+	async getModelsForCredentials(source: IAgentHostCredentialSource, token = CancellationToken.None): Promise<readonly IAgentModelInfo[]> {
+		if (token.isCancellationRequested || this._shutdownPromise) {
+			throw new CancellationError();
+		}
+		const resource = this._gitHubEndpointService.getCopilotResource();
+		const credential = source.getCredential({ resource: resource.resource, scopes: resource.scopes_supported });
+		if (!credential || !isScopedCredentialUsable(credential)) {
+			this._scopedModelCatalogs.delete(source);
+			return [];
+		}
+		const startup = this._readClientStartupConfig();
+		let entry = this._scopedModelCatalogs.get(source);
+		if (!entry || !entry.credentials.isCurrentCredential(credential) || !entry.startup.equals(startup) || entry.token.isCancellationRequested && !entry.catalog) {
+			const credentials = CopilotGitHubSessionCredentials.fromCredential(credential);
+			const created: IScopedCopilotModelCatalog = {
+				credentials,
+				startup,
+				token,
+				promise: Promise.resolve().then(async () => {
+					if (token.isCancellationRequested || this._store.isDisposed) {
+						throw new CancellationError();
+					}
+					const runtime = new ScopedCopilotClient(credential,
+						() => this._startClientWithConfigRetry({ kind: 'credential', credential }),
+						error => this._logService.error('[Copilot] Failed to stop model discovery runtime', error));
+					this._scopedModelClients.set(source, runtime);
+					try {
+						const client = await raceCancellationError(runtime.starting, token);
+						const catalog = await raceCancellationError(this._listModels(client, credential.token, []), token);
+						const policy = await this._managedSettingsResolver.resolve(client.rpc.managedSettings, credential.token, undefined, token);
+						const current = source.getCredential({ resource: resource.resource });
+						if (this._store.isDisposed || !current || !credentials.isCurrentCredential(current)) {
+							throw new CancellationError();
+						}
+						const providerTiers = startup.dynamicAutoTiers ? catalog.autoTierMetadata : undefined;
+						const models = [
+							...this._presentModels(catalog.models, catalog.autoTierMetadata, policy),
+							...this._getUnlistedHydraFusionModels(providerTiers, catalog.models, true).map(model => this._withModelConfigAliases(model)),
+						];
+						created.catalog = { ...catalog, models };
+						return models;
+					} finally {
+						try {
+							await runtime.stop();
+						} finally {
+							if (this._scopedModelClients.get(source) === runtime) {
+								this._scopedModelClients.deleteAndDispose(source);
+							}
+						}
+					}
+				}).catch(error => {
+					if (this._scopedModelCatalogs.get(source) === created) {
+						this._scopedModelCatalogs.delete(source);
+					}
+					throw error;
+				}),
+			};
+			this._scopedModelCatalogs.set(source, created);
+			entry = created;
+		}
+		return entry.promise;
+	}
+
 	/**
 	 * Invalidates an in-flight refresh immediately, then starts one refresh on
 	 * the next task. Repeated lifecycle triggers before that task
@@ -3501,7 +3586,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		try {
 			const client = await this._ensureClient();
-			const { models, autoTierMetadata } = await this._listModels(client, tokenAtRefreshStart);
+			const { models, autoTierMetadata, freeLongContextModels } = await this._listModels(client, tokenAtRefreshStart);
 			if (this._githubCredentials.token !== tokenAtRefreshStart || this._modelCatalogGeneration !== generation || this._shutdownPromise) {
 				return;
 			}
@@ -3510,6 +3595,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 				this._setAutoTierMetadata(autoTierMetadata);
 				this._capiModels = models;
 				this._managedModelPolicy = modelPolicy;
+				this._freeLongContextModels.clear();
+				for (const model of freeLongContextModels) {
+					this._freeLongContextModels.add(model);
+				}
 				this._publishModels();
 				this._publishModelCatalogStatus('ready');
 			}
@@ -3556,11 +3645,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 */
 	private _publishModels(): void {
 		const fusion = this._isFusionEnabled();
-		const capiModels = this._capiModels
-			.map(model => this._managedModelPolicy ? projectCopilotManagedModelConfiguration(model, this._managedModelPolicy, this._logService) : model)
-			// Fusion's tiers route through HydraFusion, so they only offer what its settings enable.
-			.filter(model => !fusion || !isCopilotHydraFusionModelId(model.id) || (model.id === COPILOT_HYDRA_FUSION_MAX_MODEL_ID ? this._isHydraFusionV2Enabled() : this._isHydraFusionEnabled()))
-			.map(model => this._asPresented(model, fusion));
+		const capiModels = this._presentModels(this._capiModels, this._autoTierMetadata, this._managedModelPolicy);
 		if (this._capiModels.some(model => isAutoModel(model.id))) {
 			this._reportDynamicAutoTiersExperimentTrigger();
 		}
@@ -3575,14 +3660,20 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
+	private _presentModels(models: readonly IAgentModelInfo[], autoTierMetadata: CopilotAutoTierMetadata | undefined, policy: Parameters<typeof projectCopilotManagedModelConfiguration>[1] | undefined): IAgentModelInfo[] {
+		const fusion = this._lastStartupConfig.dynamicAutoTiers && !!autoTierMetadata && offersFusionAutoTier(autoTierMetadata, this._isHydraFusionV2Enabled());
+		return models
+			.map(model => policy ? projectCopilotManagedModelConfiguration(model, policy, this._logService) : model)
+			.filter(model => !fusion || !isCopilotHydraFusionModelId(model.id) || (model.id === COPILOT_HYDRA_FUSION_MAX_MODEL_ID ? this._isHydraFusionV2Enabled() : this._isHydraFusionEnabled()))
+			.map(model => this._withModelConfigAliases(this._asPresented(model, fusion)));
+	}
+
 	/**
 	 * HydraFusion models the runtime's catalog omits, as the runtime does not list HydraFusion itself. With CAPI's tiers,
 	 * one for each HydraFusion tier the account can run; otherwise, those the HydraFusion setting enables.
 	 */
-	private _getUnlistedHydraFusionModels(providerTiers: CopilotAutoTierMetadata | undefined): IAgentModelInfo[] {
+	private _getUnlistedHydraFusionModels(providerTiers: CopilotAutoTierMetadata | undefined, capiModels = this._capiModels, signedIn = !!this._githubCredentials.token): IAgentModelInfo[] {
 		const hydraFusionModels: IAgentModelInfo[] = [];
-		// HydraFusion runs on Copilot, so it can't be offered without a GitHub account.
-		const signedIn = !!this._githubCredentials.token;
 		// Outside CAPI's tiers, only the HydraFusion setting offers these rows, even while dynamic Auto tiers keep the runtime's HydraFusion on.
 		const settingEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusion) === true;
 		const settingV2Enabled = settingEnabled && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusionV2) === true;
@@ -3592,7 +3683,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const enabled = providerTiers
 				? providerTiers.tiers.some(tier => tier.id === id && tier.type === 'fusion' && isRunnableAutoTier(tier, hydraFusionV2))
 				: id === COPILOT_HYDRA_FUSION_MAX_MODEL_ID ? settingV2Enabled : settingEnabled;
-			if (signedIn && enabled && !this._capiModels.some(model => model.id === id)) {
+			if (signedIn && enabled && !capiModels.some(model => model.id === id)) {
 				hydraFusionModels.push({
 					provider: this.id,
 					id,
@@ -4116,11 +4207,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * Returns `undefined` when the model exposes no such picker (or the model list isn't loaded yet),
 	 * leaving the SDK on its default tier.
 	 */
-	private _longContextWindowFor(modelId: string | undefined): number | undefined {
+	private _longContextWindowFor(modelId: string | undefined, models = this._models.get()): number | undefined {
 		if (!modelId) {
 			return undefined;
 		}
-		const windows = this._models.get().find(m => m.id === modelId)?.configSchema?.properties?.[ContextSizeConfigKey]?.enum;
+		const windows = models.find(m => m.id === modelId)?.configSchema?.properties?.[ContextSizeConfigKey]?.enum;
 		const numericWindows = windows?.filter((w): w is number => typeof w === 'number');
 		return numericWindows && numericWindows.length > 0 ? Math.max(...numericWindows) : undefined;
 	}
@@ -4129,8 +4220,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * Whether the model has a larger long-context window at no additional cost. When true, a session
 	 * with no explicit selection defaults to `long_context` while the picker still offers both sizes.
 	 */
-	private _isFreeLongContext(modelId: string | undefined): boolean {
-		return !!modelId && this._freeLongContextModels.has(modelId);
+	private _isFreeLongContext(modelId: string | undefined, models = this._freeLongContextModels): boolean {
+		return !!modelId && models.has(modelId);
+	}
+
+	private _getScopedModelCatalog(source: IAgentHostCredentialSource | undefined): ICopilotModelCatalog | undefined {
+		if (!source) {
+			return undefined;
+		}
+		const entry = this._scopedModelCatalogs.get(source);
+		const credential = source.getCredential({ resource: this._gitHubEndpointService.getCopilotResource().resource });
+		return credential && entry?.credentials.isCurrentCredential(credential) ? entry.catalog : undefined;
 	}
 
 	/**
@@ -4913,15 +5013,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/** Returns the tier metadata with the models, so the caller applies both under one ownership check. */
-	private async _listModels(client: CopilotClient, gitHubToken: string): Promise<{ readonly models: IAgentModelInfo[]; readonly autoTierMetadata: CopilotAutoTierMetadata | undefined }> {
+	private async _listModels(client: CopilotClient, gitHubToken: string, previousModels = this._capiModels): Promise<ICopilotModelCatalog> {
 		this._logService.info('[Copilot] Listing models...');
 		const { models, auto } = await client.rpc.models.list(this._getEnterpriseHost() ? {} : { gitHubToken });
 		const promotions = auto ? collectAutoTierPromotions(auto.tiers) : [];
 		// Empty SDK results can also mean discovery failed, so do not replace an already loaded catalog.
-		if (!models.length && this._capiModels.some(model => !this._fallbackAutoModels.has(model))) {
+		if (!models.length && previousModels.some(model => !this._fallbackAutoModels.has(model))) {
 			throw new Error('Model refresh returned an empty catalog; retaining the previous models');
 		}
-		this._freeLongContextModels.clear();
+		const freeLongContextModels = new Set<string>();
 		const result = models.map((m): IAgentModelInfo => {
 			const billing = normalizeCAPIBilling(m.billing);
 			const configSchema = this._createModelConfigSchema(m, billing, auto);
@@ -4931,7 +5031,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				&& !!tokenPrices.longContext?.contextMax
 				&& tokenPrices.longContext.contextMax > tokenPrices.contextMax;
 			if (hasLargerLongContext && !hasLongContextSurcharge(billing)) {
-				this._freeLongContextModels.add(m.id);
+				freeLongContextModels.add(m.id);
 			}
 			return {
 				provider: this.id,
@@ -4955,7 +5055,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._logService.info('[Copilot] No models listed; offering Auto');
 			result.push(this._getFallbackAutoModel(auto, promotions));
 		}
-		return { models: result, autoTierMetadata: auto };
+		return { models: result, autoTierMetadata: auto, freeLongContextModels, fallbackAuto: result.some(model => this._fallbackAutoModels.has(model)) };
 	}
 
 	/** The Auto entry offered when the runtime lists no models, with its routing profiles. */
@@ -8184,7 +8284,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private async _validateModelSelection(model: ModelSelection): Promise<void> {
+	private async _validateModelSelection(model: ModelSelection, credentials?: IAgentHostCredentialSource): Promise<void> {
+		if (credentials) {
+			const catalog = this._getScopedModelCatalog(credentials);
+			const models = catalog?.models ?? [];
+			if (!catalog?.fallbackAuto && models.length && !models.some(candidate => candidate.id === model.id)) {
+				throw new Error(localize('copilotAgent.modelNotAvailable', "Model '{0}' is not available.", model.id));
+			}
+			return;
+		}
 		// An invalidating refresh follows a token rotation or a client restart and
 		// does not clear the published catalog, so that catalog still belongs to
 		// the superseded credential and may list a model the new one cannot use.
@@ -8215,10 +8323,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private async _changeModelOnce(chat: URI, model: ModelSelection, operationContext: URI | IAgentChatContext): Promise<void> {
 		const context = this._resolveChatContext(chat, operationContext);
 		await this._queueChatTurn(context, 'changeModel', undefined, async token => {
-			await raceCancellationError(this._validateModelSelection(model), token);
+			const credentials = context.credentials ?? this._credentialSources.get(context.chatKey);
+			await raceCancellationError(this._validateModelSelection(model, credentials), token);
 			let current = this._resolveChatContext(chat, operationContext);
-			const longContextWindow = this._longContextWindowFor(model.id);
-			const freeLongContext = this._isFreeLongContext(model.id);
+			const catalog = this._getScopedModelCatalog(credentials);
+			const longContextWindow = this._longContextWindowFor(model.id, credentials ? catalog?.models ?? [] : undefined);
+			const freeLongContext = catalog ? catalog.freeLongContextModels.has(model.id) : !credentials && this._isFreeLongContext(model.id);
 			// A `family` alias routes the host's prompt and tool profile only. The
 			// selected model's reasoning-effort override is resolved separately.
 			const provisional = this._provisionalSessions.get(current.provisionalKey);
@@ -8543,10 +8653,24 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * A pre-warmed launch defers the on-device Auto session start until a send claims it.
 	 */
 	private _createAgentSession(launchPlan: CopilotSessionLaunchPlan, customizationDirectory: URI | undefined, activeClient: ActiveClient, identity: ICopilotAgentSessionIdentity, options?: { readonly deferAutoSessionStart?: boolean }): CopilotAgentSession {
+		const credentials = this._credentialSources.get(identity.chatChannelUri.toString());
+		const scopedEntry = credentials && this._scopedModelCatalogs.get(credentials);
+		const catalog = () => scopedEntry?.catalog;
+		const availableModels = () => credentials ? catalog()?.models ?? [] : this._models.get();
+		if (credentials) {
+			const model = launchPlan.kind === 'create' ? launchPlan.model : launchPlan.fallback.model;
+			const context = {
+				longContextWindow: this._longContextWindowFor(model?.id, availableModels()),
+				freeLongContext: !!model && catalog()?.freeLongContextModels.has(model.id) === true,
+			};
+			launchPlan = launchPlan.kind === 'create'
+				? { ...launchPlan, ...context }
+				: { ...launchPlan, fallback: { ...launchPlan.fallback, ...context } };
+		}
 		launchPlan = {
 			...launchPlan,
-			availableModels: () => this._models.get(),
-			modelPolicyModels: () => this._capiModels.map(model => this._asPresented(model)),
+			availableModels,
+			modelPolicyModels: () => credentials ? availableModels() : this._capiModels.map(model => this._asPresented(model)),
 			managedSettingsResolver: this._managedSettingsResolver,
 		};
 		const { owner, chatChannelUri } = identity;

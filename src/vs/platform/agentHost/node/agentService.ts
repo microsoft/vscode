@@ -1949,6 +1949,14 @@ export class AgentService extends Disposable implements IAgentService {
 
 	// ---- auth ---------------------------------------------------------------
 
+	async getModelsForCredentials(provider: string, credentials: IAgentHostCredentialSource, token?: CancellationToken): Promise<readonly IAgentModelInfo[]> {
+		const agent = this._providerService.getProvider(provider);
+		if (!agent) {
+			throw new Error(`Unknown agent provider: ${provider}`);
+		}
+		return agent.getModelsForCredentials?.(credentials, token) ?? [];
+	}
+
 	async authenticate(params: AuthenticateParams, scope?: IAgentHostAuthenticationScope): Promise<AuthenticateResult> {
 		if (params.target) {
 			if (params.target.kind !== AuthenticateTargetKind.McpServer) {

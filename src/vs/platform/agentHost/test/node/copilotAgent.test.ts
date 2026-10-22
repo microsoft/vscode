@@ -6016,6 +6016,192 @@ suite('CopilotAgent', () => {
 			return { agent, clients, options, launches, configurationService };
 		}
 
+		test('discovers and caches models without a host token using only the caller credential', async () => {
+			const { agent, clients, options } = setup();
+			const credentials = { getCredential: () => ({ resource: 'https://api.github.com', token: 'caller-token', expiresAt: undefined, revision: 1 }) };
+			try {
+				const first = await agent.getModelsForCredentials(credentials);
+				const second = await agent.getModelsForCredentials(credentials);
+				assert.deepStrictEqual({
+					models: first.map(model => model.id),
+					cached: first === second,
+					sharedModels: agent.models.get(),
+					tokens: options.map(option => option.gitHubToken),
+					modelRequests: clients.flatMap(client => client.modelListRequests),
+					policyTokens: clients.flatMap(client => client.managedSettingsRequests.map(request => request.gitHubToken)),
+					stops: clients.map(client => client.stopCallCount),
+				}, {
+					models: ['gpt-4o'],
+					cached: true,
+					sharedModels: [],
+					tokens: ['caller-token'],
+					modelRequests: [{ gitHubToken: 'caller-token' }],
+					policyTokens: ['caller-token'],
+					stops: [1],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('scoped model catalogs isolate grants and refresh after rotation without changing host models', async () => {
+			const { agent, clients } = setup(undefined, [], [], undefined, {
+				onClientCreated: (client, options) => {
+					const token = options.gitHubToken;
+					assert.ok(token);
+					client.modelListResponses.push([{ id: token, name: token }]);
+				},
+			});
+			let token = 'first-token';
+			const first = { getCredential: () => ({ resource: 'https://api.github.com', token, expiresAt: undefined, revision: 1 }) };
+			const second = { getCredential: () => ({ resource: 'https://api.github.com', token: 'second-token', expiresAt: undefined, revision: 1 }) };
+			try {
+				const initial = await agent.getModelsForCredentials(first);
+				const independent = await agent.getModelsForCredentials(second);
+				token = 'rotated-token';
+				const rotated = await agent.getModelsForCredentials(first);
+				assert.deepStrictEqual({
+					catalogs: [initial, independent, rotated].map(models => models.map(model => model.id)),
+					shared: agent.models.get(),
+					stops: clients.map(client => client.stopCallCount),
+				}, {
+					catalogs: [['first-token'], ['second-token'], ['rotated-token']],
+					shared: [],
+					stops: [1, 1, 1],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('scoped model discovery never borrows a host credential when its grant is missing or expired', async () => {
+			const { agent, options } = setup();
+			try {
+				await agent.authenticate('https://api.github.com', 'host-token');
+				await agent.refreshModels();
+				const before = options.length;
+				const missing = await agent.getModelsForCredentials({ getCredential: () => undefined });
+				const expired = await agent.getModelsForCredentials({
+					getCredential: () => ({ resource: 'https://api.github.com', token: 'expired-token', expiresAt: 1, revision: 1 }),
+				});
+				assert.deepStrictEqual({ missing, expired, additionalClients: options.length - before }, {
+					missing: [], expired: [], additionalClients: 0,
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('scoped model discovery applies the caller managed defaults without publishing them globally', async () => {
+			const { agent } = setup(undefined, [], [], undefined, {
+				onClientCreated: client => {
+					client.modelListResponses.push([{ id: 'gpt-4o', name: 'GPT-4o', supportedReasoningEfforts: ['low', 'high'] }]);
+					client.managedSettingsResolution = {
+						...client.managedSettingsResolution,
+						values: { model: 'gpt-4o', effortLevel: 'high' },
+					};
+				},
+			});
+			const credentials = { getCredential: () => ({ resource: 'https://api.github.com', token: 'caller-token', expiresAt: undefined, revision: 1 }) };
+			try {
+				const models = await agent.getModelsForCredentials(credentials);
+				assert.deepStrictEqual({
+					defaultEffort: models[0].configSchema?.properties.thinkingLevel?.default,
+					aliasChoices: models[0].configSchema?.properties.reasoningEffort?.enum,
+					shared: agent.models.get(),
+				}, { defaultEffort: 'high', aliasChoices: ['low', 'high'], shared: [] });
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('scoped model discovery offers Auto when the runtime returns an empty catalog', async () => {
+			const { agent } = setup(undefined, [], [], undefined, {
+				onClientCreated: client => client.modelListResponses.push([]),
+			});
+			const credentials = { getCredential: () => ({ resource: 'https://api.github.com', token: 'caller-token', expiresAt: undefined, revision: 1 }) };
+			try {
+				const models = await agent.getModelsForCredentials(credentials);
+				assert.deepStrictEqual({ models: models.map(model => model.id), shared: agent.models.get() }, {
+					models: ['auto'], shared: [],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('scoped model discovery failures propagate and can be retried with the same credential', async () => {
+			const { agent, clients } = setup(undefined, [], [], undefined, {
+				onClientCreated: client => {
+					if (clients.length === 1) {
+						client.modelListErrors.push(new Error('model discovery unavailable'));
+					}
+				},
+			});
+			const credentials = { getCredential: () => ({ resource: 'https://api.github.com', token: 'caller-token', expiresAt: undefined, revision: 1 }) };
+			try {
+				await assert.rejects(agent.getModelsForCredentials(credentials), /model discovery unavailable/);
+				const models = await agent.getModelsForCredentials(credentials);
+				assert.deepStrictEqual({ models: models.map(model => model.id), stops: clients.map(client => client.stopCallCount) }, {
+					models: ['gpt-4o'], stops: [1, 1],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('cancelling scoped model discovery stops its runtime and does not populate the catalog', async () => {
+			const gate = new DeferredPromise<void>();
+			const started = new DeferredPromise<void>();
+			const cancellation = disposables.add(new CancellationTokenSource());
+			const { agent, clients } = setup(undefined, [], [], undefined, {
+				onClientCreated: client => {
+					client.modelListGate = gate.p;
+					started.complete();
+				},
+			});
+			const credentials = { getCredential: () => ({ resource: 'https://api.github.com', token: 'caller-token', expiresAt: undefined, revision: 1 }) };
+			try {
+				const discovery = agent.getModelsForCredentials(credentials, cancellation.token);
+				const cancelled = assert.rejects(discovery, isCancellationError);
+				await started.p;
+				await clients[0].waitForCalls(() => clients[0].modelListRequests.length > 0);
+				cancellation.cancel();
+				await cancelled;
+				assert.deepStrictEqual({ stops: clients.map(client => client.stopCallCount), shared: agent.models.get() }, {
+					stops: [1], shared: [],
+				});
+			} finally {
+				gate.complete();
+				await disposeAgent(agent);
+			}
+		});
+
+		test('scoped model selection is validated against the caller catalog rather than the host catalog', async () => {
+			const { agent } = setup(undefined, [], [], undefined, {
+				onClientCreated: (client, options) => {
+					if (options.gitHubToken) {
+						client.modelListResponses.push([{ id: 'caller-model', name: 'Caller Model' }]);
+					}
+				},
+			});
+			const session = AgentSession.uri('copilotcli', 'scoped-catalog-selection');
+			const chat = defaultChatUri(session);
+			const credentials = { getCredential: () => ({ resource: 'https://api.github.com', token: 'caller-token', expiresAt: undefined, revision: 1 }) };
+			const context = { ...exactChatContext(session, chat, session), credentials };
+			try {
+				await agent.authenticate('https://api.github.com', 'host-token');
+				await agent.refreshModels();
+				await agent.getModelsForCredentials(credentials);
+				await provisionSession(agent, { session, credentials, model: { id: 'caller-model' }, workingDirectories: [URI.file(process.cwd())] });
+				await agent.chats.changeModel(chat, { id: 'caller-model' }, context);
+				await assert.rejects(agent.chats.changeModel(chat, { id: 'gpt-4o' }, context), /not available/);
+				assert.deepStrictEqual(agent.models.get().map(model => model.id), ['gpt-4o']);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		for (const rotate of [false, true]) {
 			test(`prewarming uses the caller credential and ${rotate ? 'replaces a rotated sponsor' : 'keeps the runtime'} on first send`, async () => {
 				const { agent, clients, options, launches } = setup();
