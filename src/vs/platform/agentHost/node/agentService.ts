@@ -10004,7 +10004,12 @@ export class AgentService extends Disposable implements IAgentService {
 	private async _persistAutomationSessionOrigin(session: URI, origin: SessionOrigin): Promise<SessionOrigin> {
 		let persisted = origin;
 		await this._sessionStateStore.update(session, SESSION_ORIGIN_KEY, previous => {
-			persisted = readPersistedSessionOrigin(previous) ?? origin;
+			try {
+				persisted = readPersistedSessionOrigin(previous) ?? origin;
+			} catch (error) {
+				this._logService.warn(`[AgentService] Keeping unreadable session origin for ${session}`, error);
+				return previous ?? null;
+			}
 			return JSON.stringify(persisted);
 		}, SessionStateMirrorFlush.Coalesced);
 		return persisted;

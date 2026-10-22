@@ -3467,7 +3467,14 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			if (!deleteHistory && legacySessions !== undefined && legacySessions.length > 0) {
 				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'legacySessions requires deleteHistory');
 			}
-			return this._agentService.deleteAutomation(automation, deleteHistory, legacySessions?.map(session => URI.parse(session, true)));
+			const sessions = legacySessions?.map(session => {
+				const resource = URI.parse(session, true);
+				if (!resource.scheme || !resource.path.startsWith('/') || resource.path.length < 2 || resource.query || resource.fragment || isAhpChatChannel(resource.toString())) {
+					throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'legacySessions must contain session URIs');
+				}
+				return resource;
+			});
+			return this._agentService.deleteAutomation(automation, deleteHistory, sessions);
 		} catch (error) {
 			return Promise.reject(error);
 		}

@@ -87,6 +87,7 @@ interface IStoredAutomations {
 /** Host-side session operations for executing an Automation's saved template. */
 export interface IAgentHostAutomationExecution {
 	isSessionTemplateAvailable(template: AutomationSessionTemplate, reader?: IReader): boolean;
+	/** Chooses an unused session identity without reserving resources; callers may discard it without cleanup. */
 	allocateSession(template: AutomationSessionTemplate): Promise<{ readonly session: URI; readonly provider: string }>;
 	createSession(template: AutomationSessionTemplate, run: AutomationRunState, session: URI, activeClient?: SessionActiveClient): Promise<URI>;
 	getRecoverableSessionProvider(session: URI, expectedProvider?: string): Promise<string | undefined>;

@@ -1954,6 +1954,9 @@ suite('ProtocolServerHandler', () => {
 		for (const [index, params] of [
 			{ automation: 'copilot:/a', deleteHistory: true },
 			{ automation: 'ahp-automation:/a', deleteHistory: false, legacySessions: ['copilot:/s1'] },
+			{ automation: 'ahp-automation:/a', deleteHistory: true, legacySessions: ['ahp-chat:/c1'] },
+			{ automation: 'ahp-automation:/a', deleteHistory: true, legacySessions: ['copilot:/s1?revision=1'] },
+			{ automation: 'ahp-automation:/a', deleteHistory: true, legacySessions: ['copilot:'] },
 			{ automation: 'ahp-automation:/a' },
 		].entries()) {
 			const id = index + 20;

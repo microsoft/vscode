@@ -3000,6 +3000,22 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		}
 
+		test('malformed persisted automation origin does not block a known origin', async () => {
+			const origin = { kind: SessionOriginKind.Automation, automation: 'ahp-automation:/a', run: 'ahp-automation-run:/r' } as const;
+			const svc = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+			));
+			const session = URI.parse('copilot:/malformed-origin');
+			const store = getTestSessionStateStore(svc);
+			await store.writeMetadata(session, session, { [SESSION_ORIGIN_KEY]: '{' }, SessionStateMirrorFlush.Immediate);
+			const internal = svc as unknown as { _persistAutomationSessionOrigin: AgentService['_persistAutomationSessionOrigin'] };
+
+			const persisted = await internal._persistAutomationSessionOrigin(session, origin);
+			const stored = Object.fromEntries(await store.readWithoutImport(session, [SESSION_ORIGIN_KEY]))[SESSION_ORIGIN_KEY];
+
+			assert.deepStrictEqual({ persisted, stored }, { persisted: origin, stored: '{' });
+		});
+
 		test('surfaced sessions retain automation origin through initial announcements and partial refreshes', async () => {
 			const origin = { kind: SessionOriginKind.Automation, automation: 'ahp-automation:/a', run: 'ahp-automation-run:/r' } as const;
 			const svc = disposables.add(createTestAgentService(
