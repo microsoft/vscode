@@ -6,6 +6,7 @@
 import { equals } from '../../../../base/common/arrays.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { getOrSet } from '../../../../base/common/map.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -305,6 +306,7 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 	/** sessionId -> groupId */
 	private readonly _membership = new Map<string, string>();
 	private readonly _sectionMembership = new Map<string, string>();
+	private _defaultChildIds: Map<string, string[]> | undefined;
 	private readonly _explicitlyUngroupedSessionIds = new Set<string>();
 
 	/**
@@ -558,15 +560,27 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 	}
 
 	getSectionIdsInGroup(groupId: string): string[] {
-		return [...this._sectionMembership].filter(([, parentId]) => parentId === groupId).map(([sectionId]) => sectionId);
+		return this.getDefaultChildIds(groupId).filter(id => this._sectionMembership.get(id) === groupId);
 	}
 
 	getChildIds(groupId: string): string[] {
-		const ids = [
-			...this.sortGroups([...this._groups.values()].filter(group => group.parentId === groupId)).map(group => group.id),
-			...this.getSectionIdsInGroup(groupId),
-		];
-		return resolveSectionOrder(this._childOrders.get(groupId) ?? [], ids);
+		return resolveSectionOrder(this._childOrders.get(groupId) ?? [], this.getDefaultChildIds(groupId));
+	}
+
+	private getDefaultChildIds(groupId: string): readonly string[] {
+		if (!this._defaultChildIds) {
+			const children = new Map<string, string[]>();
+			for (const group of this.getGroups()) {
+				if (group.parentId !== undefined) {
+					getOrSet(children, group.parentId, []).push(group.id);
+				}
+			}
+			for (const [sectionId, parentId] of this._sectionMembership) {
+				getOrSet(children, parentId, []).push(sectionId);
+			}
+			this._defaultChildIds = children;
+		}
+		return this._defaultChildIds.get(groupId) ?? [];
 	}
 
 	moveSection(sectionId: string, parentId: string | undefined, placement?: ISessionGroupPlacement): void {
@@ -634,12 +648,9 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 				this.markExplicitlyUngrouped(sessionId);
 			}
 		}
-		const sectionMembership = new Map<string, string>();
-		for (const [sectionId, parentId] of this._sectionMembership) {
-			if (deletedIds.has(parentId)) {
-				sectionMembership.set(sectionId, parentId);
-				this._sectionMembership.delete(sectionId);
-			}
+		const sectionMembership = new Map([...this._sectionMembership].filter(([, parentId]) => deletedIds.has(parentId)));
+		for (const sectionId of sectionMembership.keys()) {
+			this._sectionMembership.delete(sectionId);
 		}
 		this.save();
 		this._onDidChange.fire({ groupsChanged: true, membershipChanged: new Set(membership.keys()) });
@@ -865,6 +876,8 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 	}
 
 	private save(): void {
+		// Invalidate derived children before synchronous change listeners query the updated state.
+		this._defaultChildIds = undefined;
 		if (this._groups.size === 0 && this._explicitlyUngroupedSessionIds.size === 0) {
 			this.storageService.remove(SessionGroupsService.STORAGE_KEY, StorageScope.PROFILE);
 			return;

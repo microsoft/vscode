@@ -490,6 +490,7 @@ suite('Sessions - Delete group undo', () => {
 		deleteGroup(sectionParent.id);
 		const sectionNotice = notices.pop()!;
 		const releasedSection = groupsService.getGroupOfSection('environment:local');
+		assert.ok(sectionNotice.undo);
 		await sectionNotice.undo();
 		const restoredSection = groupsService.getGroupOfSection('environment:local');
 		deleteGroup(sectionParent.id);

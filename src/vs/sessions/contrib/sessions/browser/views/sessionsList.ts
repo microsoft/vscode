@@ -64,6 +64,7 @@ import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/com
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
+import * as aria from '../../../../../base/browser/ui/aria/aria.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { Action, ActionRunner, IAction, Separator, SubmenuAction, toAction } from '../../../../../base/common/actions.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -7092,9 +7093,16 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	private moveSectionToGroup(section: ISessionSection, parentId: string | undefined): void {
-		this.moveHeader({ id: section.id }, parentId === undefined
-			? { kind: 'topLevel', targetId: this._topLevelOrder[0], position: 'after' }
-			: { kind: 'into', groupId: parentId });
+		if (parentId !== undefined) {
+			this.moveHeader({ id: section.id }, { kind: 'into', groupId: parentId });
+		} else {
+			const targetId = this._topLevelOrder[0];
+			if (targetId !== undefined) {
+				this.moveHeader({ id: section.id }, { kind: 'topLevel', targetId, position: 'after' });
+			} else {
+				this._sessionGroupsService.moveSection(this.getSectionGroupKey(section.id), undefined);
+			}
+		}
 		const element = this.findTreeElement((element): element is ISessionSection => isSessionSection(element) && element.id === section.id);
 		if (element) {
 			this.tree.expandTo(element);

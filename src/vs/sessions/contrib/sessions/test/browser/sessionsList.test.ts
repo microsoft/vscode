@@ -4440,6 +4440,7 @@ suite('Sessions - SessionsList', () => {
 					onDidReplaceNewDraftSession: Event.None,
 					onDidStartSession: Event.None,
 					onDidDiscardNewSession: Event.None,
+					onDidMoveChat: Event.None,
 					getSessions: () => harness.managementService.sessions,
 					getInFlightNewSessionRequests: () => [],
 					getSession: resource => harness.managementService.getSession(resource),
@@ -4587,6 +4588,28 @@ suite('Sessions - SessionsList', () => {
 				nested: { expanded: 'true', level: '3', focused: true },
 				removed: { parent: undefined, level: '1', focused: true, promoted: true },
 			});
+		});
+
+		test('a stale section-removal action does not reorder when no top-level headers remain', async () => {
+			const { harness, list, container, contextMenus } = render(SessionsGrouping.Workspace, new Map([['workspace:vscode', docs.id]]), true);
+			rowOf(container, 'vscode').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+			const remove = contextMenus.at(-1)!.find(action => action.id === 'sessions.removeSectionFromGroup');
+			assert.ok(remove);
+			const groupsService = harness.instantiationService.get(ISessionGroupsService);
+			for (const group of groupsService.getTree().getSubgroups(undefined)) {
+				groupsService.deleteGroup(group.id);
+			}
+			harness.managementService.sessions.length = 0;
+			list.refresh();
+			const reorder = sinon.spy(harness.instantiationService.get(ISessionSectionOrderService), 'reorder');
+			disposables.add(toDisposable(() => reorder.restore()));
+
+			await remove.run();
+
+			assert.deepStrictEqual({
+				parent: groupsService.getGroupOfSection('workspace:vscode'),
+				reorders: reorder.callCount,
+			}, { parent: undefined, reorders: 0 });
 		});
 
 		test('group Mark All as Read includes active nested sections but not another group\'s members', async () => {

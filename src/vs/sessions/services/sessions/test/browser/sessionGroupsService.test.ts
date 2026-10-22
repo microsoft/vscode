@@ -729,6 +729,46 @@ suite('SessionGroupsService', () => {
 		assert.deepStrictEqual({ current: state(service), reloaded: state(reloaded) }, { current: expected, reloaded: expected });
 	});
 
+	test('refreshes indexed child lookups after group and section changes', () => {
+		loadGroups([
+			{ id: 'first', name: 'First', createdAt: 1 },
+			{ id: 'second', name: 'Second', createdAt: 2 },
+		]);
+		const state = (groups = service) => ['first', 'second'].map(id => ({
+			children: groups.getChildIds(id),
+			sections: groups.getSectionIdsInGroup(id),
+		}));
+		const empty = state();
+		const child = service.createGroup('Child', [], 'first');
+		service.moveSection('workspace:Alpha', 'first');
+		service.moveSection('environment:local', 'first');
+		const created = state();
+		service.moveGroup(child.id, 'second');
+		service.moveSection('workspace:Alpha', 'second');
+		const moved = state();
+		const deleted = service.deleteGroup('first')!;
+		const removed = state();
+		service.restoreGroups(deleted);
+		const restored = state();
+		const reloaded = disposables.add(instantiationService.createInstance(SessionGroupsService));
+		const expectedRestored = [
+			{ children: ['environment:local'], sections: ['environment:local'] },
+			{ children: ['workspace:Alpha', child.id], sections: ['workspace:Alpha'] },
+		];
+
+		assert.deepStrictEqual({ empty, created, moved, removed, restored, reloaded: state(reloaded) }, {
+			empty: [{ children: [], sections: [] }, { children: [], sections: [] }],
+			created: [
+				{ children: ['environment:local', 'workspace:Alpha', child.id], sections: ['workspace:Alpha', 'environment:local'] },
+				{ children: [], sections: [] },
+			],
+			moved: expectedRestored,
+			removed: [{ children: [], sections: [] }, expectedRestored[1]],
+			restored: expectedRestored,
+			reloaded: expectedRestored,
+		});
+	});
+
 	test('moves sections between groups and back to the top level, rejecting missing parents', () => {
 		const first = service.createGroup('First');
 		const second = service.createGroup('Second');
