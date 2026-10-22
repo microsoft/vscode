@@ -20007,6 +20007,56 @@ suite('CopilotAgent', () => {
 				await disposeAgent(agent);
 			}
 		});
+
+		test('does not forward instructions the runtime loads from the Copilot home as instructionDirectories', async () => {
+			const fileService = disposables.add(new FileService(new NullLogService()));
+			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+
+			const workspace = URI.file('/workspace');
+			const userHome = URI.file('/mock-home');
+			const userInstructionsRoot = URI.joinPath(userHome, '.copilot', 'instructions');
+			const workspaceInstructionsRoot = URI.joinPath(workspace, '.github', 'instructions');
+			const userInstructionFile = URI.joinPath(userInstructionsRoot, 'user.instructions.md');
+			const workspaceInstructionFile = URI.joinPath(workspaceInstructionsRoot, 'workspace.instructions.md');
+			await fileService.createFolder(userInstructionsRoot);
+			await fileService.createFolder(workspaceInstructionsRoot);
+			await fileService.writeFile(userInstructionFile, VSBuffer.fromString('---\napplyTo: "**"\n---\nuser instruction'));
+			await fileService.writeFile(workspaceInstructionFile, VSBuffer.fromString('---\napplyTo: "**"\n---\nworkspace instruction'));
+
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([], [{ id: 'claude-sonnet', name: 'Claude Sonnet' }]);
+			client.getInstructionDiscoveryPaths = async () => ({
+				paths: [
+					{ path: userInstructionsRoot.fsPath, location: 'user', kind: 'directory', preferredForCreation: false },
+					{ path: workspaceInstructionsRoot.fsPath, location: 'repository', kind: 'directory', preferredForCreation: false, projectPath: workspace.fsPath },
+				],
+			});
+			client.discoverInstructions = async () => ({
+				sources: [
+					{ id: customizationId(userInstructionFile.toString()), label: basename(userInstructionFile.path), sourcePath: userInstructionFile.fsPath, content: '', type: 'vscode', location: 'user' },
+					{ id: customizationId(workspaceInstructionFile.toString()), label: basename(workspaceInstructionFile.path), sourcePath: workspaceInstructionFile.fsPath, content: '', type: 'vscode', location: 'repository', projectPath: workspace.fsPath },
+				],
+			});
+			const instructionDirectories: (readonly string[] | undefined)[] = [];
+			client.createSession = async config => {
+				instructionDirectories.push(config.instructionDirectories);
+				return new MockCopilotSession(config.sessionId) as unknown as CopilotSession;
+			};
+			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, fileService, userHome });
+
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				const session = AgentSession.uri('copilotcli', 'session-user-instructions-not-forwarded');
+				const chat = defaultChatUri(session);
+				const result = await provisionSession(agent, { session, workingDirectories: [workspace], activeClient: { clientId: 'client-1', tools: [] } });
+				await getDefaultChatCustomizations(agent, session);
+				await agent.chats.warmChat!(chat, exactChatContext(result.session, chat, result.session));
+
+				assert.deepStrictEqual(instructionDirectories, [[workspaceInstructionsRoot.fsPath]]);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
 	});
 
 	suite('pre-warmed sessions', () => {
