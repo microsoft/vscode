@@ -73,11 +73,26 @@ suite('SessionEnvironmentPicker', () => {
 		const supportedCloud = provider('cloud', 'cloud', {
 			getSessionTypes: () => [{ id: 'cloud-agent', label: 'Cloud', icon: Codicon.cloud, authRequirement: SessionTypeAuthRequirement.GitHub }],
 		});
+
 		assert.deepStrictEqual([
 			getEnvironmentWorkspaceProvider(local, [localProvider, cloudProvider], folder)?.id,
 			getEnvironmentWorkspaceProvider(cloud, [localProvider, cloudProvider], folder)?.id,
 			getEnvironmentWorkspaceProvider(cloud, [localProvider, supportedCloud], folder)?.id,
 		], [LOCAL_AGENT_HOST_PROVIDER_ID, undefined, 'cloud']);
+	});
+
+	test('connection descriptions use the shared Connected, Connecting and Disconnected labels', () => {
+		const states = [
+			RemoteAgentHostConnectionStatus.connected, RemoteAgentHostConnectionStatus.connecting,
+			RemoteAgentHostConnectionStatus.disconnected, RemoteAgentHostConnectionStatus.reconnecting,
+			RemoteAgentHostConnectionStatus.incompatible('Update required', ['1']),
+		];
+		const providers = states.map((connectionStatus, index) => upcastPartial<IAgentHostSessionsProvider>({
+			...provider(`agenthost-remote-${index}`, 'remote'), connectionStatus: constObservable(connectionStatus),
+		}));
+		assert.deepStrictEqual(getSessionCreationEnvironments(providers).map(environment => environment.description), [
+			'Connected', 'Connecting', 'Disconnected', 'Disconnected', 'Disconnected',
+		]);
 	});
 
 	test('an explicitly selected host never resolves through another host or a hidden provider', () => {

@@ -6,68 +6,38 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
-import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
-import { IListRenderer } from '../../../../../base/browser/ui/list/list.js';
-import { RenderIndentGuides } from '../../../../../base/browser/ui/tree/abstractTree.js';
-import { IObjectTreeElement, ObjectTreeElementCollapseState } from '../../../../../base/browser/ui/tree/tree.js';
-import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Action } from '../../../../../base/common/actions.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
+import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
-import { ISSHRemoteAgentHostService } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { ISSHRemoteAgentHostService } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { WSL_INSTALL_DOCS_URL } from '../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
-import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
+import { WorkbenchTable } from '../../../../../platform/list/browser/listService.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { Link } from '../../../../../platform/opener/browser/link.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { AccessibilityVerbositySettingId } from '../../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
-import { CUSTOMIZATION_GROUP_HEADER_HEIGHT, CustomizationGroupHeaderRenderer, ICustomizationGroupHeaderEntry } from '../../../../../workbench/contrib/chat/browser/aiCustomization/customizationGroupHeaderRenderer.js';
-import { CustomizationToggle } from '../../../../../workbench/contrib/chat/browser/aiCustomization/customizationToggle.js';
-import { asTreeRenderer, customizationTreeStyles, getCustomizationTreeContentHeight } from '../../../../../workbench/contrib/chat/browser/aiCustomization/customizationTree.js';
-import { setVirtualizedRowActionsTabbable } from '../../../../../workbench/contrib/chat/browser/aiCustomization/customizationCardList.js';
 import { IEditorService, MODAL_GROUP } from '../../../../../workbench/services/editor/common/editorService.js';
+import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
 import { getVisibleRemoteKinds, ICustomizationRemote, IRemotesModel, RemoteKind, remoteKindLabels } from './remotesModel.js';
-import { getStatusHover, getStatusLabel } from './remoteHostOptions.js';
-import '../../../../../workbench/contrib/chat/browser/aiCustomization/media/aiCustomizationManagement.css';
+import { getConnectionLabel, IRemoteEmptyEntry, IRemoteTableRow, RemotesTableRenderer, RemoteRowAction, RemoteTableEntry } from './remotesTable.js';
 import './media/remotesWidget.css';
-
-interface IRemoteEntry {
-	readonly type: 'remote';
-	readonly remote: ICustomizationRemote;
-	readonly checked: boolean;
-	readonly busy: boolean;
-	readonly connecting?: boolean;
-}
-
-interface IRemoteGroupEntry extends ICustomizationGroupHeaderEntry {
-	readonly kind: RemoteKind;
-	readonly warning?: string;
-}
-
-interface IRemoteEmptyEntry {
-	readonly type: 'empty';
-	readonly id: string;
-	readonly label: string;
-	readonly description?: string;
-	readonly documentation?: { readonly label: string; readonly href: string };
-}
-
-type RemoteTreeEntry = IRemoteGroupEntry | IRemoteEntry | IRemoteEmptyEntry;
 
 const remoteSetup: Record<RemoteKind, { readonly label: string; readonly description: string; readonly documentation: { readonly label: string; readonly href: string } }> = {
 	ssh: {
@@ -92,198 +62,22 @@ const remoteSetup: Record<RemoteKind, { readonly label: string; readonly descrip
 	},
 };
 
-interface IRemoteEmptyTemplate {
-	readonly label: HTMLElement;
-	readonly description: HTMLElement;
-	readonly actions: HTMLElement;
-	readonly disposables: DisposableStore;
-	id?: string;
-}
-
-class RemoteEmptyRenderer implements IListRenderer<IRemoteEmptyEntry, IRemoteEmptyTemplate> {
-	readonly templateId = 'remoteEmpty';
-	private readonly templates = new Set<IRemoteEmptyTemplate>();
-	private focusedId: string | undefined;
-
-	constructor(
-		private readonly hoverService: IHoverService,
-		private readonly openerService: IOpenerService,
-	) { }
-
-	renderTemplate(container: HTMLElement): IRemoteEmptyTemplate {
-		container.classList.add('remotes-empty-row');
-		const template = {
-			label: dom.append(container, dom.$('.remotes-empty-label')),
-			description: dom.append(container, dom.$('.remotes-empty-description')),
-			actions: dom.append(container, dom.$('.remotes-empty-actions')),
-			disposables: new DisposableStore(),
-		};
-		this.templates.add(template);
-		return template;
-	}
-
-	renderElement(entry: IRemoteEmptyEntry, _index: number, template: IRemoteEmptyTemplate): void {
-		template.disposables.clear();
-		template.id = entry.id;
-		template.label.textContent = entry.label;
-		template.description.textContent = entry.description ?? '';
-		template.description.hidden = !entry.description;
-		dom.clearNode(template.actions);
-		template.disposables.add(this.hoverService.setupDelayedHover(template.label, { content: entry.label }));
-		if (entry.description) {
-			template.disposables.add(this.hoverService.setupDelayedHover(template.description, { content: entry.description }));
-		}
-		if (entry.documentation) {
-			template.disposables.add(new Link(template.actions, entry.documentation, {}, this.hoverService, this.openerService));
-		}
-		setVirtualizedRowActionsTabbable(template.actions, entry.id === this.focusedId);
-	}
-
-	setFocusedId(id: string | undefined): void {
-		this.focusedId = id;
-		for (const template of this.templates) {
-			setVirtualizedRowActionsTabbable(template.actions, template.id === id);
-		}
-	}
-
-	disposeElement(_entry: IRemoteEmptyEntry, _index: number, template: IRemoteEmptyTemplate): void {
-		template.disposables.clear();
-		template.id = undefined;
-	}
-
-	disposeTemplate(template: IRemoteEmptyTemplate): void {
-		this.templates.delete(template);
-		template.disposables.dispose();
-	}
-}
-
-interface IRemoteTemplate {
-	readonly container: HTMLElement;
-	readonly name: HTMLElement;
-	readonly detail: HTMLElement;
-	readonly connectionState: HTMLElement;
-	readonly connectionAction: Action;
-	readonly toolbar: WorkbenchToolBar;
-	readonly toggle: CustomizationToggle;
-	readonly disposables: DisposableStore;
-	readonly elementDisposables: DisposableStore;
-	entry?: IRemoteEntry;
-}
-
-function getConnectionLabel(remote: ICustomizationRemote, connecting?: boolean): string {
-	return connecting === undefined ? getStatusLabel(remote.connectionStatus)
-		: connecting ? getStatusLabel(RemoteAgentHostConnectionStatus.connecting) : localize('remotes.disconnecting', "Disconnecting");
-}
-
-class RemoteRenderer implements IListRenderer<IRemoteEntry, IRemoteTemplate> {
-	readonly templateId = 'remote';
-	private readonly templates = new Set<IRemoteTemplate>();
-	private focusedId: string | undefined;
-
-	constructor(
-		private readonly hoverService: IHoverService,
-		private readonly setEnabled: (id: string, enabled: boolean) => void,
-		private readonly setConnected: (id: string, connected: boolean) => void,
-		private readonly instantiationService: IInstantiationService,
-	) { }
-
-	renderTemplate(container: HTMLElement): IRemoteTemplate {
-		const disposables = new DisposableStore();
-		const elementDisposables = disposables.add(new DisposableStore());
-		container.classList.add('remotes-list-item');
-		const details = dom.append(container, dom.$('.remotes-details'));
-		const name = dom.append(details, dom.$('.remotes-name'));
-		const detail = dom.append(details, dom.$('.remotes-detail'));
-		const connectionState = dom.append(container, dom.$('.remotes-connection-state'));
-		const actions = dom.append(container, dom.$('.remotes-connection-actions'));
-		const connectionAction = disposables.add(new Action('remotes.connection', '', undefined, true, async () => {
-			if (template.entry) {
-				this.setConnected(template.entry.remote.id, !RemoteAgentHostConnectionStatus.isConnected(template.entry.remote.connectionStatus));
-			}
-		}));
-		const toolbar = disposables.add(this.instantiationService.createInstance(WorkbenchToolBar, actions, { ariaLabel: localize('remotes.connectionActions', "Connection actions") }));
-		toolbar.setActions([connectionAction]);
-		const toggle = disposables.add(new CustomizationToggle({ ariaLabel: '' }));
-		dom.append(container, toggle.domNode);
-		const template: IRemoteTemplate = { container, name, detail, connectionState, connectionAction, toolbar, toggle, disposables, elementDisposables };
-		disposables.add(dom.addDisposableGenericMouseDownListener(actions, event => dom.EventHelper.stop(event, true)));
-		disposables.add(dom.addDisposableGenericMouseDownListener(toggle.domNode, event => dom.EventHelper.stop(event, true)));
-		disposables.add(dom.addDisposableListener(toggle.domNode, dom.EventType.KEY_DOWN, event => {
-			const keyboardEvent = new StandardKeyboardEvent(event);
-			if (keyboardEvent.keyCode === KeyCode.Space || keyboardEvent.keyCode === KeyCode.Enter) {
-				keyboardEvent.stopPropagation();
-			}
-		}));
-		disposables.add(toggle.onChange(enabled => {
-			if (template.entry) {
-				this.setEnabled(template.entry.remote.id, enabled);
-			}
-		}));
-		this.templates.add(template);
-		return template;
-	}
-
-	renderElement(entry: IRemoteEntry, _index: number, template: IRemoteTemplate): void {
-		template.elementDisposables.clear();
-		template.entry = entry;
-		const { remote } = entry;
-		template.container.dataset.remoteId = remote.id;
-		template.container.classList.toggle('disabled', !entry.checked);
-		template.container.setAttribute('aria-busy', String(entry.busy));
-		template.name.textContent = remote.name;
-		template.detail.textContent = remote.unavailableReason ?? remote.detail;
-		template.connectionState.textContent = getConnectionLabel(remote, entry.connecting);
-		const connected = RemoteAgentHostConnectionStatus.isConnected(remote.connectionStatus);
-		template.connectionAction.label = connected ? localize('remotes.disconnect', "Disconnect {0}", remote.name) : localize('remotes.connect', "Connect to {0}", remote.name);
-		template.connectionAction.class = ThemeIcon.asClassName(connected ? Codicon.debugDisconnect : Codicon.debugConnected);
-		template.connectionAction.enabled = !entry.busy && !remote.unavailableReason
-			&& !RemoteAgentHostConnectionStatus.isConnecting(remote.connectionStatus)
-			&& !RemoteAgentHostConnectionStatus.isReconnecting(remote.connectionStatus);
-		template.toolbar.setFocusable(remote.id === this.focusedId);
-		template.toggle.checked = entry.checked;
-		template.toggle.disabled = !!remote.unavailableReason || entry.connecting !== undefined;
-		template.toggle.setAriaLabel(
-			localize('remotes.switchLabel', "Show {0} ({1}) in the location picker", remote.name, remoteKindLabels[remote.kind]),
-			remote.unavailableReason ?? (entry.checked ? localize('remotes.hideRemote', "Hide {0} from the location picker", remote.name) : localize('remotes.showRemote', "Show {0} in the location picker", remote.name)),
-		);
-		template.toggle.setTabIndex(remote.id === this.focusedId ? 0 : -1);
-		template.elementDisposables.add(this.hoverService.setupDelayedHover(template.name, { content: remote.name }));
-		template.elementDisposables.add(this.hoverService.setupDelayedHover(template.detail, { content: template.detail.textContent }));
-		template.elementDisposables.add(this.hoverService.setupDelayedHover(template.connectionState, {
-			content: entry.connecting === undefined ? getStatusHover(remote.connectionStatus) : template.connectionState.textContent,
-		}));
-	}
-
-	setFocusedId(id: string | undefined): void {
-		this.focusedId = id;
-		for (const template of this.templates) {
-			template.toggle.setTabIndex(template.entry?.remote.id === id ? 0 : -1);
-			template.toolbar.setFocusable(template.entry?.remote.id === id);
-		}
-	}
-
-	disposeElement(_entry: IRemoteEntry, _index: number, template: IRemoteTemplate): void {
-		template.elementDisposables.clear();
-		template.entry = undefined;
-	}
-
-	disposeTemplate(template: IRemoteTemplate): void {
-		this.templates.delete(template);
-		template.disposables.dispose();
-	}
-}
-
 export class RemotesWidget extends Disposable {
 	readonly domNode: HTMLElement;
-	private readonly tree: WorkbenchObjectTree<RemoteTreeEntry>;
-	private readonly treeContainer: HTMLElement;
+	private readonly table: WorkbenchTable<IRemoteTableRow>;
+	private readonly tableContainer: HTMLElement;
+	private readonly tableInner: HTMLElement;
+	private readonly tableScrollable: DomScrollableElement;
+	private readonly tableMinWidth: number;
 	private readonly message: HTMLElement;
 	private readonly searchInput: InputBox;
 	private readonly refreshAction: Action;
 	private readonly refreshRequest = this._register(new MutableDisposable<CancellationTokenSource>());
-	private readonly pending = new Map<string, boolean>();
+	private readonly pendingActions = new Set<string>();
 	private readonly pendingConnections = new Map<string, boolean>();
+	private readonly collapsedKinds = new Set<RemoteKind>();
 	private readonly kinds: readonly RemoteKind[];
+	private rows: IRemoteTableRow[] = [];
 	private visible = false;
 	private query = '';
 	private failedKinds: readonly RemoteKind[] = [];
@@ -294,7 +88,7 @@ export class RemotesWidget extends Disposable {
 		container: HTMLElement,
 		private readonly model: IRemotesModel,
 		operatingSystem: OperatingSystem,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextViewService contextViewService: IContextViewService,
 		@IHoverService hoverService: IHoverService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -303,82 +97,113 @@ export class RemotesWidget extends Disposable {
 		@ISSHRemoteAgentHostService private readonly sshService: ISSHRemoteAgentHostService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IOpenerService openerService: IOpenerService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
 	) {
 		super();
 		this._register(model);
 		this.kinds = getVisibleRemoteKinds(operatingSystem);
-		this.domNode = dom.append(container, dom.$('.mcp-list-widget.remotes-widget'));
-		const header = dom.append(this.domNode, dom.$('.section-title-header'));
-		const titleRow = dom.append(header, dom.$('.section-title-row'));
-		dom.append(titleRow, dom.$('h2.section-title')).textContent = localize('remotes.title', "Remotes");
-		this.refreshAction = this._register(new Action('remotes.refresh', localize('remotes.refresh', "Refresh"), ThemeIcon.asClassName(Codicon.refresh), true, () => this.refresh()));
-		const toolbar = this._register(instantiationService.createInstance(WorkbenchToolBar, dom.append(titleRow, dom.$('.section-title-actions')), { ariaLabel: localize('remotes.actions', "Remotes actions") }));
-		toolbar.setActions([this.refreshAction]);
-		dom.append(header, dom.$('p.section-title-description')).textContent = localize('remotes.description', "Choose which remotes appear in the New Session location picker. Hiding a remote may disconnect it.");
-		const searchContainer = dom.append(dom.append(this.domNode, dom.$('.list-search-and-button-container')), dom.$('.list-search-container'));
-		this.searchInput = this._register(new InputBox(searchContainer, contextViewService, {
+		this.domNode = dom.append(container, dom.$('.remotes-widget'));
+		const searchRow = dom.append(this.domNode, dom.$('.remotes-search-row'));
+		this.searchInput = this._register(new InputBox(dom.append(searchRow, dom.$('.remotes-search-container')), contextViewService, {
 			placeholder: localize('remotes.searchPlaceholder', "Type to search..."),
 			ariaLabel: localize('remotes.searchLabel', "Search remotes"),
 			inputBoxStyles: defaultInputBoxStyles,
 		}));
 		this._register(this.searchInput.onDidChange(query => this.setSearchQuery(query)));
+		this.refreshAction = this._register(new Action('remotes.refresh', localize('remotes.refresh', "Refresh"), ThemeIcon.asClassName(Codicon.refresh), true, () => this.refresh()));
+		const toolbar = this._register(instantiationService.createInstance(WorkbenchToolBar, dom.append(searchRow, dom.$('.remotes-header-actions')), { ariaLabel: localize('remotes.actions', "Remotes actions") }));
+		toolbar.setActions([this.refreshAction]);
+		dom.append(this.domNode, dom.$('p.remotes-description')).textContent = localize('remotes.description', "Connect to remote environments and manage their settings.");
 		this.message = dom.append(this.domNode, dom.$('.remotes-message', { role: 'status' }));
-		this.treeContainer = dom.append(this.domNode, dom.$('.mcp-list-container.customization-tree-container'));
-		let label = localize('remotes.treeLabel', "Remotes shown in the New Session location picker");
+		this.tableContainer = dom.append(this.domNode, dom.$('.remotes-table-container'));
+		const viewport = dom.$('.remotes-table-viewport');
+		this.tableInner = dom.append(viewport, dom.$('.remotes-table-inner'));
+		this.tableScrollable = this._register(new DomScrollableElement(viewport, {
+			horizontal: ScrollbarVisibility.Auto,
+			vertical: ScrollbarVisibility.Hidden,
+			useShadows: false,
+			scrollYToX: true,
+		}));
+		this.tableContainer.appendChild(this.tableScrollable.getDomNode());
+
+		let label = localize('remotes.tableLabel', "Remote environments. Columns: Name, Address, Connection, Actions.");
 		const helpKeybinding = keybindingService.lookupKeybinding('editor.action.accessibilityHelp')?.getAriaLabel();
 		if (configurationService.getValue<boolean>(AccessibilityVerbositySettingId.Remotes) && helpKeybinding) {
-			label = localize('remotes.treeLabelWithHelp', "{0}. Use {1} for accessibility help.", label, helpKeybinding);
+			label = localize('remotes.tableLabelWithHelp', "{0} Use {1} for accessibility help.", label, helpKeybinding);
 		}
-		const renderer = new RemoteRenderer(hoverService, (id, enabled) => { void this.setEnabled(id, enabled); }, (id, connected) => { void this.setConnected(id, connected); }, instantiationService);
-		const emptyRenderer = new RemoteEmptyRenderer(hoverService, openerService);
-		this.tree = this._register(instantiationService.createInstance(WorkbenchObjectTree<RemoteTreeEntry>,
-			'RemotesCustomizationTree', this.treeContainer, {
-			getHeight: entry => entry.type === 'group-header' ? CUSTOMIZATION_GROUP_HEADER_HEIGHT : entry.type === 'empty' ? 76 : 56,
-			getTemplateId: entry => entry.type === 'group-header' ? 'remoteGroup' : entry.type === 'empty' ? emptyRenderer.templateId : renderer.templateId,
-		}, [
-			asTreeRenderer(new CustomizationGroupHeaderRenderer<IRemoteGroupEntry>('remoteGroup', hoverService, (entry, container, disposables) => this.renderGroupActions(entry, container, disposables), (entry, container, disposables) => {
-				if (entry.warning) {
-					const icon = dom.append(container, renderIcon(Codicon.warning));
-					icon.classList.add('remotes-refresh-warning');
-					icon.setAttribute('aria-hidden', 'true');
-					disposables.add(hoverService.setupDelayedHover(icon, { content: entry.warning }));
-				}
-			})),
-			asTreeRenderer(renderer),
-			asTreeRenderer(emptyRenderer),
-		], {
-			indent: 8,
-			renderIndentGuides: RenderIndentGuides.None,
-			hideTwistiesOfChildlessElements: false,
-			overrideStyles: customizationTreeStyles,
+		const columnDefinitions = [
+			{ id: 'gutter', label: '', weight: 0, minimumWidth: 28, maximumWidth: 28 },
+			{ id: 'name', label: localize('remotes.nameColumn', "Name"), weight: 0.35, minimumWidth: 160 },
+			{ id: 'address', label: localize('remotes.addressColumn', "Address"), weight: 0.45, minimumWidth: 160 },
+			{ id: 'connection', label: localize('remotes.connectionColumn', "Connection"), weight: 0.2, minimumWidth: 112 },
+			{ id: 'actions', label: '', weight: 0, minimumWidth: 104, maximumWidth: 104 },
+		] as const;
+		const renderers = columnDefinitions.map(column => new RemotesTableRenderer(
+			column.id, (entry, action) => this.runRowAction(entry, action),
+			instantiationService, hoverService, openerService,
+		));
+		const columns = columnDefinitions.map((column, index) => ({
+			...column, tooltip: column.label, templateId: renderers[index].templateId, project: (row: IRemoteTableRow) => row,
+		}));
+		this.tableMinWidth = columns.reduce((sum, column) => sum + column.minimumWidth, 0);
+		this.table = this._register(instantiationService.createInstance(WorkbenchTable<IRemoteTableRow>,
+			'RemotesTable', this.tableInner, {
+			headerRowHeight: 30,
+			getHeight: row => row.entry.type === 'group' ? 30 : row.entry.type === 'empty' ? 60 : 26,
+		}, columns, renderers, {
+			identityProvider: { getId: row => row.id },
+			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: row => row.entry.type === 'remote' ? row.entry.remote.name : row.entry.label },
+			accessibilityProvider: {
+				getWidgetAriaLabel: () => label,
+				getAriaLabel: row => {
+					const entry = row.entry;
+					return entry.type === 'group'
+						? entry.warning
+							? localize('remotes.groupWarningLabel', "{0}, {1} remotes. Warning: {2}", entry.label, entry.count, entry.warning)
+							: localize('remotes.groupLabel', "{0}, {1} remotes", entry.label, entry.count)
+						: entry.type === 'empty'
+							? [entry.label, entry.description, entry.documentation?.label].filter(Boolean).join(' ')
+							: this.getRemoteAriaLabel(entry.remote);
+				},
+			},
 			multipleSelectionSupport: false,
 			setRowLineHeight: false,
 			horizontalScrolling: false,
-			identityProvider: { getId: entry => entry.type === 'remote' ? entry.remote.id : entry.id },
-			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: entry => entry.type === 'remote' ? entry.remote.name : entry.label },
-			accessibilityProvider: {
-				getWidgetAriaLabel: () => label,
-				getAriaLabel: entry => entry.type === 'group-header'
-					? entry.warning
-						? localize('remotes.groupWarningLabel', "{0}, {1} remotes. Warning: {2}", entry.label, entry.count, entry.warning)
-						: localize('remotes.groupLabel', "{0}, {1} remotes", entry.label, entry.count)
-					: entry.type === 'empty'
-						? [entry.label, entry.description, entry.documentation?.label].filter(Boolean).join(' ')
-						: this.getRemoteAriaLabel(entry.remote, entry.checked),
-			},
+			openOnSingleClick: true,
+			alwaysConsumeMouseWheel: false,
 		}));
-		this._register(this.tree.onDidChangeFocus(event => {
-			const entry = event.elements[0];
-			renderer.setFocusedId(entry?.type === 'remote' ? entry.remote.id : undefined);
-			emptyRenderer.setFocusedId(entry?.type === 'empty' ? entry.id : undefined);
+		this._register(this.table.onDidChangeFocus(event => {
+			for (const renderer of renderers) {
+				renderer.setFocusedId(event.elements[0]?.id);
+			}
+		}));
+		this._register(this.table.onDidOpen(event => {
+			if (event.element?.entry.type === 'group') {
+				this.toggleGroup(event.element.entry.kind);
+			}
+		}));
+		this._register(dom.addDisposableListener(this.table.getHTMLElement(), dom.EventType.KEY_DOWN, event => {
+			if (!dom.isHTMLElement(event.target) || !event.target.classList.contains('monaco-list')) {
+				return;
+			}
+			const keyboardEvent = new StandardKeyboardEvent(event);
+			const entry = this.table.getFocusedElements()[0]?.entry;
+			if (entry?.type === 'group' && (keyboardEvent.keyCode === KeyCode.LeftArrow || keyboardEvent.keyCode === KeyCode.RightArrow)) {
+				keyboardEvent.preventDefault();
+				keyboardEvent.stopPropagation();
+				const collapse = keyboardEvent.keyCode === KeyCode.LeftArrow;
+				if (entry.collapsed !== collapse) {
+					this.toggleGroup(entry.kind);
+				}
+			}
 		}));
 		this._register(dom.addDisposableListener(this.searchInput.inputElement, dom.EventType.KEY_DOWN, event => {
 			const keyboardEvent = new StandardKeyboardEvent(event);
 			if (keyboardEvent.keyCode === KeyCode.DownArrow) {
 				keyboardEvent.preventDefault();
-				this.tree.domFocus();
-				if (!this.tree.getFocus().length) {
-					this.tree.focusFirst();
+				this.table.domFocus();
+				if (!this.table.getFocus().length) {
+					this.table.focusFirst();
 				}
 			}
 		}));
@@ -390,33 +215,42 @@ export class RemotesWidget extends Disposable {
 		}));
 	}
 
-	private renderGroupActions(entry: IRemoteGroupEntry, container: HTMLElement, disposables: DisposableStore): void {
-		if (entry.kind !== 'ssh') {
-			return;
+	private runRowAction(entry: RemoteTableEntry, action: RemoteRowAction): void {
+		if (entry.type === 'group') {
+			if (action === 'toggleGroup') {
+				this.toggleGroup(entry.kind);
+			} else if (action === 'configure') {
+				void this.openConfiguration(entry.kind);
+			}
+		} else if (entry.type === 'remote') {
+			if (action === 'connect') {
+				void this.setConnected(entry.remote.id, !RemoteAgentHostConnectionStatus.isConnected(entry.remote.connectionStatus));
+			} else if (action === 'rename' || action === 'remove') {
+				void this.manageRemote(entry.remote.id, action);
+			}
 		}
-		const action = disposables.add(new Action('remotes.openSSHConfig', localize('remotes.openSSHConfig', "Open SSH Configuration"), ThemeIcon.asClassName(Codicon.settingsGear), true, async () => {
-			try {
+	}
+
+	private toggleGroup(kind: RemoteKind): void {
+		if (!this.collapsedKinds.delete(kind)) {
+			this.collapsedKinds.add(kind);
+		}
+		this.render();
+		const index = this.rows.findIndex(row => row.entry.type === 'group' && row.entry.kind === kind);
+		this.table.setFocus([index]);
+	}
+
+	private async openConfiguration(kind: RemoteKind): Promise<void> {
+		try {
+			if (kind === 'ssh') {
 				const resource = await this.sshService.ensureUserSSHConfig();
 				await this.editorService.openEditor({ resource, options: { pinned: true } }, MODAL_GROUP);
-			} catch (error) {
-				this.notificationService.error(error);
+			} else if (kind === 'tunnel') {
+				await this.preferencesService.openSettings({ query: 'chat.remoteAgentHosts' });
 			}
-		}));
-		const toolbar = disposables.add(this.instantiationService.createInstance(WorkbenchToolBar, container, { ariaLabel: localize('remotes.sshActions', "SSH actions") }));
-		toolbar.setActions([action]);
-		const updateFocus = () => {
-			const focused = this.tree.getFocus()[0];
-			toolbar.setFocusable(focused?.type === 'group-header' && focused.id === entry.id);
-		};
-		disposables.add(this.tree.onDidChangeFocus(updateFocus));
-		disposables.add(dom.addDisposableGenericMouseDownListener(container, event => dom.EventHelper.stop(event, true)));
-		disposables.add(dom.addDisposableListener(container, dom.EventType.KEY_DOWN, event => {
-			const keyboardEvent = new StandardKeyboardEvent(event);
-			if (keyboardEvent.keyCode === KeyCode.Space || keyboardEvent.keyCode === KeyCode.Enter) {
-				keyboardEvent.stopPropagation();
-			}
-		}));
-		updateFocus();
+		} catch (error) {
+			this.notificationService.error(error);
+		}
 	}
 
 	setVisible(visible: boolean): void {
@@ -437,6 +271,9 @@ export class RemotesWidget extends Disposable {
 		this.query = normalizedQuery;
 		this.searchInput.value = query;
 		if (changed) {
+			if (this.query) {
+				this.collapsedKinds.clear();
+			}
 			this.render();
 		}
 	}
@@ -507,54 +344,58 @@ export class RemotesWidget extends Disposable {
 
 	private render(): void {
 		const remotes = this.getFilteredRemotes();
-		const children = this.kinds.map((kind, index): IObjectTreeElement<RemoteTreeEntry> => {
-			const entries = remotes.filter(remote => remote.kind === kind);
-			const warning = this.getRefreshWarning(kind);
-			return {
-				element: {
-					type: 'group-header', id: `remote-group-${kind}`, kind, label: remoteKindLabels[kind],
-					icon: Codicon.remote, count: entries.length, isFirst: index === 0, collapsed: false,
-					warning,
-					description: warning ?? localize('remotes.groupDescription', "{0} locations available for new sessions.", remoteKindLabels[kind]),
-				},
-				collapsible: true,
-				collapsed: this.query ? ObjectTreeElementCollapseState.Expanded : ObjectTreeElementCollapseState.PreserveOrExpanded,
-				children: entries.length ? entries.map(remote => ({
-					element: {
-						type: 'remote', remote, checked: this.pending.get(remote.id) ?? remote.enabled,
-						busy: this.pending.has(remote.id) || this.pendingConnections.has(remote.id), connecting: this.pendingConnections.get(remote.id),
-					},
-				})) : [{ element: this.getEmptyEntry(kind) }],
-			};
-		});
-		this.tree.setChildren(null, children);
-		if (!this.tree.getFocus().length) {
-			this.tree.setFocus([children[0].element]);
+		const entries: RemoteTableEntry[] = [];
+		for (const kind of this.kinds) {
+			const groupRemotes = remotes.filter(remote => remote.kind === kind);
+			const collapsed = this.collapsedKinds.has(kind);
+			entries.push({
+				type: 'group', id: `remote-group-${kind}`, kind, label: remoteKindLabels[kind],
+				count: groupRemotes.length, collapsed, warning: this.getRefreshWarning(kind),
+			});
+			if (!collapsed) {
+				entries.push(...(groupRemotes.length ? groupRemotes.map((remote): RemoteTableEntry => ({
+					type: 'remote', remote,
+					busy: this.pendingActions.has(remote.id) || this.pendingConnections.has(remote.id), connecting: this.pendingConnections.get(remote.id),
+				})) : [this.getEmptyEntry(kind)]));
+			}
+		}
+		this.rows = entries.map(entry => ({ id: entry.type === 'remote' ? entry.remote.id : entry.id, entry }));
+		this.table.splice(0, this.table.length, this.rows);
+		if (!this.table.getFocus().length) {
+			this.table.focusFirst();
 		}
 		this.layout();
 	}
 
-	private async setEnabled(id: string, enabled: boolean): Promise<void> {
-		if (this.pending.has(id) || this.pendingConnections.has(id)) {
-			this.render();
+	private async manageRemote(id: string, action: 'rename' | 'remove'): Promise<void> {
+		if (this.pendingActions.has(id) || this.pendingConnections.has(id)) {
 			return;
 		}
-		this.pending.set(id, enabled);
+		this.pendingActions.add(id);
 		this.render();
 		try {
-			await this.model.setEnabled(id, enabled);
+			await this.model[action](id);
 		} catch (error) {
-			this.notificationService.error(error);
+			if (!isCancellationError(error)) {
+				this.notificationService.error(error);
+			}
 		} finally {
-			this.pending.delete(id);
+			this.pendingActions.delete(id);
 			if (!this._store.isDisposed) {
 				this.render();
+				const active = dom.getActiveElement();
+				const activeRow = dom.isHTMLElement(active) && this.domNode.contains(active) ? active.closest<HTMLElement>('[data-remote-id]') : undefined;
+				const index = this.rows.findIndex(row => row.id === id);
+				if (action === 'rename' && activeRow && activeRow.dataset.remoteId !== id && index >= 0) {
+					this.table.setFocus([index]);
+					this.table.domFocus();
+				}
 			}
 		}
 	}
 
 	private async setConnected(id: string, connected: boolean): Promise<void> {
-		if (this.pending.has(id) || this.pendingConnections.has(id)) {
+		if (this.pendingActions.has(id) || this.pendingConnections.has(id)) {
 			return;
 		}
 		this.pendingConnections.set(id, connected);
@@ -573,9 +414,9 @@ export class RemotesWidget extends Disposable {
 		}
 	}
 
-	private getRemoteAriaLabel(remote: ICustomizationRemote, enabled = remote.enabled): string {
-		return localize('remotes.accessibleRow', "{0}: {1}. {2}. Connection: {3}", remote.name,
-			enabled ? localize('remotes.shown', "Shown") : localize('remotes.hidden', "Not shown"), remote.unavailableReason ?? remote.detail, getConnectionLabel(remote, this.pendingConnections.get(remote.id)));
+	private getRemoteAriaLabel(remote: ICustomizationRemote): string {
+		return localize('remotes.accessibleRow', "{0}. Address: {1}. Connection: {2}", remote.name,
+			remote.unavailableReason ?? remote.detail, getConnectionLabel(remote, this.pendingConnections.get(remote.id)));
 	}
 
 	private getRefreshWarning(kind: RemoteKind): string | undefined {
@@ -611,7 +452,13 @@ export class RemotesWidget extends Disposable {
 
 	layout(): void {
 		if (this.domNode.clientWidth > 0 && this.domNode.clientHeight > 0) {
-			this.tree.layout(getCustomizationTreeContentHeight(this.domNode, this.treeContainer, this.domNode.clientHeight), this.treeContainer.clientWidth);
+			const contentOffset = Math.max(0, this.tableContainer.getBoundingClientRect().top - this.domNode.getBoundingClientRect().top);
+			const height = Math.max(0, this.domNode.clientHeight - contentOffset);
+			const width = Math.max(this.tableMinWidth, this.tableContainer.clientWidth);
+			this.tableContainer.style.height = `${height}px`;
+			this.tableInner.style.width = `${width}px`;
+			this.table.layout(height, width);
+			this.tableScrollable.scanDomNode();
 		}
 	}
 

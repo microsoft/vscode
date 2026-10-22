@@ -20,6 +20,7 @@ import { ISharedProcessService } from '../../../../../../platform/ipc/electron-b
 import { EditorInputCapabilities } from '../../../../../../workbench/common/editor.js';
 import { IChatEntitlementService } from '../../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IEditorService } from '../../../../../../workbench/services/editor/common/editorService.js';
+import { IPreferencesService } from '../../../../../../workbench/services/preferences/common/preferences.js';
 import { TestEditorGroupView, workbenchInstantiationService } from '../../../../../../workbench/test/browser/workbenchTestServices.js';
 import { OPEN_REMOTES_EDITOR_COMMAND_ID } from '../../../../../common/sessionCommands.js';
 import { RemotesEditorInput } from '../../browser/remotesEditorInput.js';
@@ -29,7 +30,7 @@ import '../../electron-browser/remotes.contribution.js';
 
 class TestRemotesModel extends Disposable implements IRemotesModel {
 	readonly remotes = observableValue<readonly ICustomizationRemote[]>(this, [
-		{ id: 'ssh:build', kind: 'ssh', name: 'Build server', detail: 'build.example.com', enabled: true, connectionStatus: RemoteAgentHostConnectionStatus.connected },
+		{ id: 'ssh:build', kind: 'ssh', name: 'Build server', detail: 'build.example.com', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.connected },
 	]);
 	readonly refreshTokens: CancellationToken[] = [];
 	pendingRefresh: DeferredPromise<readonly RemoteKind[]> | undefined;
@@ -40,8 +41,9 @@ class TestRemotesModel extends Disposable implements IRemotesModel {
 		return this.pendingRefresh?.p ?? [];
 	}
 
-	async setEnabled(): Promise<void> { }
 	async setConnected(): Promise<void> { }
+	async rename(): Promise<void> { }
+	async remove(): Promise<void> { }
 
 	override dispose(): void {
 		this.disposed = true;
@@ -57,6 +59,7 @@ suite('RemotesEditor', () => {
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const instantiation = workbenchInstantiationService({ configurationService: () => configuration }, store);
 		instantiation.stub(ISSHRemoteAgentHostService, {});
+		instantiation.stub(IPreferencesService, {});
 		instantiation.stub(ISharedProcessService, { getChannel: () => ({ call: async (): Promise<never> => { throw new Error('Unexpected IPC call'); }, listen: () => Event.None }) });
 		const model = store.add(new TestRemotesModel());
 		instantiation.stubInstance(RemotesModel, model);

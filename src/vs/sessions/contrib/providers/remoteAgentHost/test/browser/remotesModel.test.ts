@@ -21,6 +21,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { IInputOptions, IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IAgentHostSessionsProvider } from '../../../../../common/agentHostSessionsProvider.js';
 import { DevContainerAgentHostEnabledSettingId, IDevContainerAgentHostService } from '../../../../../common/devContainerAgentHostService.js';
@@ -50,6 +51,18 @@ suite('RemotesModel', () => {
 		const removals: string[] = [];
 		const connectionChanges: { id: string; connected: boolean }[] = [];
 		const reconnects: string[] = [];
+		const displayNames = new Map<string, string>();
+		const displayNamesChanged = store.add(new Emitter<string>());
+		const renameInputs: IInputOptions[] = [];
+		let renameInput: string | undefined;
+		const setDisplayName = (address: string, name: string | undefined) => {
+			if (name?.trim()) {
+				displayNames.set(address, name.trim());
+			} else {
+				displayNames.delete(address);
+			}
+			displayNamesChanged.fire(address);
+		};
 		let connectionFailure: Error | undefined;
 		const logEntries: { message: string; args: readonly unknown[] }[] = [];
 		let wslDiscoveryCalls = 0;
@@ -62,12 +75,23 @@ suite('RemotesModel', () => {
 		instantiationService.stub(IRemoteAgentHostService, {
 			connections: [],
 			onDidChangeConnections: Event.None,
+			onDidChangeDisplayName: displayNamesChanged.event,
+			getDisplayNameOverride: address => displayNames.get(address),
+			setDisplayName,
 			reconnect: address => { reconnects.push(address); },
 			waitForConnection: async address => {
 				if (connectionFailure) {
 					throw connectionFailure;
 				}
 				return { address, name: address, status: RemoteAgentHostConnectionStatus.connected };
+			},
+		});
+		instantiationService.stub(IQuickInputService, {
+			input: async options => {
+				if (options) {
+					renameInputs.push(options);
+				}
+				return renameInput;
 			},
 		});
 		instantiationService.stub(ISSHRemoteAgentHostService, {
@@ -114,6 +138,10 @@ suite('RemotesModel', () => {
 			const provider = new class extends mock<IAgentHostSessionsProvider>() {
 				override readonly id = `agenthost-${address}`;
 				override readonly remoteAddress = address;
+				override canRemove = true;
+				override get label(): string {
+					return displayNames.get(address) ?? (address === 'ssh:build' ? 'build' : address === 'wsl:Ubuntu' ? 'Ubuntu' : 'Laptop');
+				}
 				override readonly connectionStatus = observableValue<RemoteAgentHostConnectionStatus>(this, RemoteAgentHostConnectionStatus.disconnected);
 				override async connect() {
 					connectionChanges.push({ id: address, connected: true });
@@ -152,6 +180,7 @@ suite('RemotesModel', () => {
 		return {
 			model, storage, configuration, removals, logEntries, initializationReentered, providers, providersChanged, connectionChanges, reconnects,
 			failConnection: (error: Error) => { connectionFailure = error; },
+			renameInputs, setRenameInput: (value: string | undefined) => { renameInput = value; }, setDisplayName,
 			getWSLDiscoveryCalls: () => wslDiscoveryCalls, setSSHDiscovery: (discovery: () => Promise<string[]>) => { sshDiscovery = discovery; },
 		};
 	}
@@ -167,37 +196,36 @@ suite('RemotesModel', () => {
 	test('merges discovery and registered remotes, deduplicates and groups in the requested order', async () => {
 		const { model } = setup();
 		await model.refresh(CancellationToken.None);
-		assert.deepStrictEqual(model.remotes.get().map(({ kind, name, enabled }) => ({ kind, name, enabled })), [
-			{ kind: 'ssh', name: 'build', enabled: false },
-			{ kind: 'wsl', name: 'Ubuntu', enabled: true },
-			{ kind: 'tunnel', name: 'Laptop', enabled: false },
+		assert.deepStrictEqual(model.remotes.get().map(({ kind, name, canRemove }) => ({ kind, name, canRemove })), [
+			{ kind: 'ssh', name: 'build', canRemove: false },
+			{ kind: 'wsl', name: 'Ubuntu', canRemove: true },
+			{ kind: 'tunnel', name: 'Laptop', canRemove: false },
 		]);
 	});
 
-	test('adds without calling connect and delegates removals while retaining unchecked rows', async () => {
+	test('Remove forgets registered remotes and discovery can find them again', async () => {
 		const { model, storage, removals } = setup();
 		await model.refresh(CancellationToken.None);
 		const ids = model.remotes.get().map(remote => remote.id);
 		for (const id of ids) {
-			await model.setEnabled(id, true);
+			await model.setConnected(id, true);
 		}
 		const entries = readSSHRemoteAgentHostEntries(storage);
-		const checked = model.remotes.get().map(remote => remote.enabled);
+		const removable = model.remotes.get().map(remote => remote.canRemove);
 		for (const id of ids) {
-			await model.setEnabled(id, false);
+			await model.remove(id);
 		}
-		const unchecked = model.remotes.get().map(remote => remote.enabled);
-		await model.setEnabled('wsl:Ubuntu', true);
-		await model.setEnabled('tunnel:laptop', true);
+		const afterRemoval = model.remotes.get();
+		await model.refresh(CancellationToken.None);
 		assert.deepStrictEqual({
-			checked, unchecked, removals,
+			removable, afterRemoval, removals,
 			ssh: entries[0],
-			restored: model.remotes.get().filter(remote => remote.enabled).map(remote => remote.kind),
+			rediscovered: model.remotes.get().map(remote => ({ kind: remote.kind, canRemove: remote.canRemove })),
 		}, {
-			checked: [true, true, true], unchecked: [false, false, false],
+			removable: [true, true, true], afterRemoval: [],
 			removals: ['ssh:build', 'wsl:Ubuntu', 'tunnel:laptop'],
 			ssh: { name: 'build', connectionToken: undefined, connection: { type: 'ssh', address: 'ssh:build', hostName: 'build.example', user: 'developer', port: 22, sshConfigHost: 'build' } },
-			restored: ['wsl', 'tunnel'],
+			rediscovered: [{ kind: 'ssh', canRemove: false }, ...(isWindows ? [{ kind: 'wsl', canRemove: false }] : []), { kind: 'tunnel', canRemove: false }],
 		});
 	});
 
@@ -230,7 +258,8 @@ suite('RemotesModel', () => {
 		const { model, configuration } = setup(async () => { calls++; return []; });
 		await configuration.setUserConfiguration('chat.disableAIFeatures', true);
 		await model.refresh(CancellationToken.None);
-		await assert.rejects(model.setEnabled('wsl:Ubuntu', false), /no longer available/);
+		await assert.rejects(model.remove('wsl:Ubuntu'), /no longer available/);
+		await assert.rejects(model.rename('wsl:Ubuntu'), /no longer available/);
 		assert.strictEqual(calls, 0);
 	});
 
@@ -248,12 +277,12 @@ suite('RemotesModel', () => {
 
 	test('WSL discovery follows the platform', async () => {
 		const { model, getWSLDiscoveryCalls } = setup();
-		await model.setEnabled('wsl:Ubuntu', false);
+		await model.remove('wsl:Ubuntu');
 		await model.refresh(CancellationToken.None);
 		assert.deepStrictEqual({
-			shown: model.remotes.get().filter(remote => remote.kind === 'wsl').map(remote => remote.enabled),
+			removable: model.remotes.get().filter(remote => remote.kind === 'wsl').map(remote => remote.canRemove),
 			discoveryCalls: getWSLDiscoveryCalls(),
-		}, { shown: [false], discoveryCalls: isWindows ? 1 : 0 });
+		}, { removable: isWindows ? [false] : [], discoveryCalls: isWindows ? 1 : 0 });
 	});
 
 	test('tracks provider connection state and stops observing removed providers', async () => {
@@ -283,12 +312,12 @@ suite('RemotesModel', () => {
 			await model.setConnected(id, true);
 			await model.setConnected(id, true);
 		}
-		const connected = model.remotes.get().map(({ enabled, connectionStatus }) => [enabled, connectionStatus.kind]);
+		const connected = model.remotes.get().map(({ canRemove, connectionStatus }) => [canRemove, connectionStatus.kind]);
 		for (const id of ids) {
 			await model.setConnected(id, false);
 		}
 		assert.deepStrictEqual({
-			connectionChanges, connected, disconnected: model.remotes.get().map(({ enabled, connectionStatus }) => [enabled, connectionStatus.kind]),
+			connectionChanges, connected, disconnected: model.remotes.get().map(({ canRemove, connectionStatus }) => [canRemove, connectionStatus.kind]),
 		}, {
 			connectionChanges: [...ids.map(id => ({ id, connected: true })), ...ids.map(id => ({ id, connected: false }))],
 			connected: [[true, 'connected'], [true, 'connected'], [true, 'connected']],
@@ -317,5 +346,50 @@ suite('RemotesModel', () => {
 		await assert.rejects(model.setConnected('ssh:build', false), /no longer available/);
 		await assert.rejects(model.setConnected('missing', true), /no longer available/);
 		assert.deepStrictEqual(connectionChanges, [{ id: 'ssh:build', connected: true }]);
+	});
+
+	test('Remove is unavailable for discovery-only or non-removable providers', async () => {
+		const { model, providers, providersChanged, removals } = setup();
+		await model.refresh(CancellationToken.None);
+		await assert.rejects(model.remove('ssh:build'), /cannot be removed/);
+		providers.get('wsl:Ubuntu')!.canRemove = false;
+		providersChanged.fire({ added: [], removed: [] });
+		await assert.rejects(model.remove('wsl:Ubuntu'), /cannot be removed/);
+		assert.deepStrictEqual({ removals, canRemove: model.remotes.get().map(remote => remote.canRemove) }, {
+			removals: [], canRemove: [false, false, false],
+		});
+	});
+
+	test('Rename uses the Manage prompt and display-name overrides without changing the address', async () => {
+		const { model, renameInputs, setRenameInput, setDisplayName } = setup();
+		await model.refresh(CancellationToken.None);
+		setRenameInput('Build machine');
+		await model.rename('ssh:build');
+		const renamed = model.remotes.get().find(remote => remote.id === 'ssh:build')!;
+		setDisplayName('ssh:build', 'From another UI');
+		const externalName = model.remotes.get().find(remote => remote.id === 'ssh:build')?.name;
+		setRenameInput('');
+		await model.rename('ssh:build');
+		assert.deepStrictEqual({
+			renamed: { name: renamed.name, address: renamed.id, canRemove: renamed.canRemove }, externalName,
+			defaultName: model.remotes.get().find(remote => remote.id === 'ssh:build')?.name,
+			input: { value: renameInputs[0].value, selection: renameInputs[0].valueSelection },
+		}, {
+			renamed: { name: 'Build machine', address: 'ssh:build', canRemove: false }, externalName: 'From another UI',
+			defaultName: 'build', input: { value: 'build', selection: [0, 5] },
+		});
+	});
+
+	test('Rename also works for discovery-only rows without registering or connecting them', async () => {
+		const { model, storage, providers, providersChanged, setRenameInput, connectionChanges } = setup();
+		await model.refresh(CancellationToken.None);
+		providers.clear();
+		providersChanged.fire({ added: [], removed: [] });
+		setRenameInput('Discovered server');
+		await model.rename('ssh:build');
+		const remote = model.remotes.get().find(remote => remote.id === 'ssh:build')!;
+		assert.deepStrictEqual({ name: remote.name, canRemove: remote.canRemove, entries: readSSHRemoteAgentHostEntries(storage), connectionChanges }, {
+			name: 'Discovered server', canRemove: false, entries: [], connectionChanges: [],
+		});
 	});
 });

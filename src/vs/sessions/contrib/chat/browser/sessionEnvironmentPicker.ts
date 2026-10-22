@@ -20,7 +20,7 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { Menus } from '../../../browser/menus.js';
-import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
+import { getAgentHostConnectionStatusLabel, isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { SessionWorkspacePickerGroupContext } from '../../../common/contextkeys.js';
 import { SESSION_WORKSPACE_GROUP_REMOTE } from '../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
@@ -54,11 +54,7 @@ export function getSessionCreationEnvironments(providers: readonly ISessionsProv
 			continue;
 		}
 		const connection = provider.connectionStatus.get();
-		const description = connection.kind === 'connected'
-			? localize('environmentPicker.connected', "Connected")
-			: connection.kind === 'connecting'
-				? localize('environmentPicker.connecting', "Connecting")
-				: localize('environmentPicker.disconnected', "Disconnected");
+		const description = getAgentHostConnectionStatusLabel(connection);
 		environments.push({ id: provider.id, kind: 'remote', label: provider.label, icon: provider.icon, providerIds: [provider.id], description });
 	}
 	return environments;

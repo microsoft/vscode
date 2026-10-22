@@ -13,27 +13,29 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { ISSHRemoteAgentHostService } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IResourceEditorInput } from '../../../../../../platform/editor/common/editor.js';
 import { IEditorService, MODAL_GROUP, PreferredGroup } from '../../../../../../workbench/services/editor/common/editorService.js';
+import { IPreferencesService } from '../../../../../../workbench/services/preferences/common/preferences.js';
 import { workbenchInstantiationService } from '../../../../../../workbench/test/browser/workbenchTestServices.js';
 import { ICustomizationRemote, IRemotesModel, RemoteKind } from '../../browser/remotesModel.js';
 import { RemotesWidget } from '../../browser/remotesWidget.js';
 
 class TestRemotesModel extends Disposable implements IRemotesModel {
 	readonly remotes = observableValue<readonly ICustomizationRemote[]>(this, [
-		{ id: 'ssh:build', kind: 'ssh', name: 'Build server', detail: 'build.example.com', enabled: true, connectionStatus: RemoteAgentHostConnectionStatus.connected },
-		{ id: 'wsl:Ubuntu', kind: 'wsl', name: 'Ubuntu', detail: 'Ubuntu', enabled: true, connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
-		{ id: 'tunnel:laptop', kind: 'tunnel', name: 'Laptop', detail: 'work-laptop', enabled: false, connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
-		{ id: 'container:project', kind: 'devContainer', name: 'Project', detail: '/project', enabled: true, connectionStatus: RemoteAgentHostConnectionStatus.connected },
+		{ id: 'ssh:build', kind: 'ssh', name: 'Build server', detail: 'build.example.com', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.connected },
+		{ id: 'wsl:Ubuntu', kind: 'wsl', name: 'Ubuntu', detail: 'Ubuntu', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
+		{ id: 'tunnel:laptop', kind: 'tunnel', name: 'Laptop', detail: 'work-laptop', canRemove: false, connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
+		{ id: 'container:project', kind: 'devContainer', name: 'Project', detail: '/project', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.connected },
 	]);
-	readonly changes: { id: string; enabled: boolean }[] = [];
+	readonly managementChanges: { id: string; action: 'rename' | 'remove' }[] = [];
 	readonly connectionChanges: { id: string; connected: boolean }[] = [];
 	pendingConnection: DeferredPromise<void> | undefined;
-	pendingChange: DeferredPromise<void> | undefined;
+	pendingManagement: DeferredPromise<void> | undefined;
 	failedKinds: readonly RemoteKind[] = [];
 	pendingRefresh: DeferredPromise<readonly RemoteKind[]> | undefined;
 	refreshCalls = 0;
@@ -43,17 +45,23 @@ class TestRemotesModel extends Disposable implements IRemotesModel {
 		return this.pendingRefresh?.p ?? this.failedKinds;
 	}
 
-	async setEnabled(id: string, enabled: boolean): Promise<void> {
-		this.changes.push({ id, enabled });
-		await this.pendingChange?.p;
-		this.remotes.set(this.remotes.get().map(remote => remote.id === id ? { ...remote, enabled } : remote), undefined);
+	async rename(id: string): Promise<void> {
+		this.managementChanges.push({ id, action: 'rename' });
+		await this.pendingManagement?.p;
+		this.remotes.set(this.remotes.get().map(remote => remote.id === id ? { ...remote, name: 'Renamed remote' } : remote).sort((a, b) => a.name.localeCompare(b.name)), undefined);
+	}
+
+	async remove(id: string): Promise<void> {
+		this.managementChanges.push({ id, action: 'remove' });
+		await this.pendingManagement?.p;
+		this.remotes.set(this.remotes.get().filter(remote => remote.id !== id), undefined);
 	}
 
 	async setConnected(id: string, connected: boolean): Promise<void> {
 		this.connectionChanges.push({ id, connected });
 		await this.pendingConnection?.p;
 		this.remotes.set(this.remotes.get().map(remote => remote.id === id ? {
-			...remote, enabled: connected, connectionStatus: connected ? RemoteAgentHostConnectionStatus.connected : RemoteAgentHostConnectionStatus.disconnected,
+			...remote, canRemove: connected, connectionStatus: connected ? RemoteAgentHostConnectionStatus.connected : RemoteAgentHostConnectionStatus.disconnected,
 		} : remote), undefined);
 	}
 }
@@ -71,6 +79,7 @@ suite('RemotesWidget', () => {
 		const hoverContents = new Map<HTMLElement, string>();
 		const opened: { input: IResourceEditorInput; group: PreferredGroup | undefined }[] = [];
 		const documentation: string[] = [];
+		const settings: Parameters<IPreferencesService['openSettings']>[0][] = [];
 		let configFailure: Error | undefined;
 		let configRequests = 0;
 		instantiationService.stub(ISSHRemoteAgentHostService, {
@@ -84,8 +93,12 @@ suite('RemotesWidget', () => {
 		});
 		instantiationService.stub(IEditorService, 'openEditor', async (input: IResourceEditorInput, group?: PreferredGroup) => { opened.push({ input, group }); return undefined; });
 		instantiationService.stub(IOpenerService, { open: async resource => { documentation.push(resource.toString()); return true; } });
+		instantiationService.stub(IPreferencesService, { openSettings: async options => { settings.push(options); return undefined; } });
 		instantiationService.stub(INotificationService, 'error', (error: Parameters<INotificationService['error']>[0]) => { errors.push(error); });
 		instantiationService.stub(IHoverService, new class extends mock<IHoverService>() {
+			override setupManagedHover(...args: Parameters<IHoverService['setupManagedHover']>) {
+				return NullHoverService.setupManagedHover(...args);
+			}
 			override setupDelayedHover(...args: Parameters<IHoverService['setupDelayedHover']>) {
 				const options = typeof args[1] === 'function' ? args[1]() : args[1];
 				if (typeof options.content === 'string') {
@@ -97,37 +110,41 @@ suite('RemotesWidget', () => {
 		const model = store.add(new TestRemotesModel());
 		const widget = store.add(instantiationService.createInstance(RemotesWidget, parent, model, operatingSystem));
 		widget.layout();
-		return { widget, parent, model, errors, hoverContents, opened, documentation, configRequests: () => configRequests, failConfig: (error: Error) => { configFailure = error; } };
+		return { widget, parent, model, errors, hoverContents, opened, documentation, settings, configRequests: () => configRequests, failConfig: (error: Error) => { configFailure = error; } };
 	}
 
-	function getSwitch(parent: HTMLElement, id: string): HTMLButtonElement {
+	function getManagementAction(parent: HTMLElement, id: string, action: 'rename' | 'remove'): HTMLElement {
 		const row = [...parent.querySelectorAll<HTMLElement>('[data-remote-id]')].find(row => row.dataset.remoteId === id);
-		const control = row?.querySelector<HTMLButtonElement>('[role="switch"]');
-		assert.ok(control, `Missing switch for ${id}`);
+		const control = row?.querySelector<HTMLElement>(action === 'rename' ? '.codicon-edit' : '.codicon-trash');
+		assert.ok(control, `Missing ${action} action for ${id}`);
 		return control;
 	}
 
 	function getConnectionAction(parent: HTMLElement, id: string): HTMLElement {
 		const row = [...parent.querySelectorAll<HTMLElement>('[data-remote-id]')].find(row => row.dataset.remoteId === id);
-		const action = row?.querySelector<HTMLElement>('.remotes-connection-actions [role="button"]');
+		const action = row?.querySelector<HTMLElement>('.remotes-actions-column [role="button"]');
 		assert.ok(action, `Missing connection action for ${id}`);
 		return action;
 	}
 
 	for (const operatingSystem of [OperatingSystem.Windows, OperatingSystem.Macintosh, OperatingSystem.Linux]) {
-		test(`uses a grouped tree and switches with platform-specific roots (${operatingSystem})`, () => {
+		test(`uses a grouped table without visibility controls and with platform-specific sections (${operatingSystem})`, () => {
 			const { parent, widget } = createWidget(operatingSystem);
 			assert.deepStrictEqual({
+				tables: parent.querySelectorAll('.monaco-table').length,
 				trees: parent.querySelectorAll('[role="tree"]').length,
-				roots: [...parent.querySelectorAll('.group-label')].map(element => element.textContent),
-				switches: parent.querySelectorAll('[role="switch"]').length,
+				columns: [...parent.querySelectorAll('.monaco-table-th')].map(element => element.textContent),
+				roots: [...parent.querySelectorAll('.remotes-group-row .remotes-name')].map(element => element.textContent),
+				switches: parent.querySelectorAll('[role="switch"]:not([hidden])').length,
 				checkboxes: parent.querySelectorAll('[role="checkbox"]').length,
 				accessibleWSL: widget.getAccessibilityContent().includes('Ubuntu'),
 				accessibleContainers: widget.getAccessibilityContent().includes('Project'),
 			}, {
-				trees: 1,
+				tables: 1,
+				trees: 0,
+				columns: ['', 'Name', 'Address', 'Connection', ''],
 				roots: operatingSystem === OperatingSystem.Windows ? ['WSL', 'SSH', 'Tunnels'] : ['SSH', 'Tunnels'],
-				switches: operatingSystem === OperatingSystem.Windows ? 3 : 2,
+				switches: 0,
 				checkboxes: 0,
 				accessibleWSL: operatingSystem === OperatingSystem.Windows,
 				accessibleContainers: false,
@@ -135,63 +152,126 @@ suite('RemotesWidget', () => {
 		});
 	}
 
-	test('updates the switch without losing its DOM focus or duplicating an in-flight change', async () => {
-		const { parent, model } = createWidget();
-		const control = getSwitch(parent, 'ssh:build');
-		control.focus();
-		model.pendingChange = new DeferredPromise<void>();
-		control.click();
-		control.click();
-		await model.pendingChange.complete();
-		await timeout(0);
-		assert.deepStrictEqual({
-			changes: model.changes,
-			sameControl: getSwitch(parent, 'ssh:build') === control,
-			focused: dom.getActiveElement() === control,
-			checked: control.getAttribute('aria-checked'),
-		}, { changes: [{ id: 'ssh:build', enabled: false }], sameControl: true, focused: true, checked: 'false' });
-	});
-
-	test('allows native switch keyboard activation instead of tree expansion or selection', () => {
+	test('aligns compact rows under resizable column headers', () => {
 		const { parent } = createWidget();
-		const control = getSwitch(parent, 'ssh:build');
-		control.focus();
-		const events = [
-			new KeyboardEvent('keydown', { key: ' ', keyCode: 32, bubbles: true, cancelable: true }),
-			new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }),
-		];
-		for (const event of events) {
-			control.dispatchEvent(event);
-		}
-		assert.deepStrictEqual(events.map(event => event.defaultPrevented), [false, false]);
+		const headers = [...parent.querySelectorAll<HTMLElement>('.monaco-table-th')];
+		const row = parent.querySelector<HTMLElement>('[data-remote-id="ssh:build"]')!;
+		const cells = [...row.querySelectorAll<HTMLElement>('.monaco-table-td')];
+		assert.deepStrictEqual({
+			values: cells.slice(1, 4).map(cell => cell.textContent),
+			aligned: cells.every((cell, index) => Math.abs(cell.getBoundingClientRect().x - headers[index].getBoundingClientRect().x) < 1),
+			rowHeight: row.getBoundingClientRect().height,
+			groupHeight: parent.querySelector('.remotes-group-row')!.getBoundingClientRect().height,
+			headerHeight: headers[1].getBoundingClientRect().height,
+			actionsWidth: headers[4].getBoundingClientRect().width >= 104,
+			sashes: parent.querySelectorAll('.monaco-sash.vertical').length > 0,
+		}, {
+			values: ['Build server', 'build.example.com', 'Connected'], aligned: true,
+			rowHeight: 26, groupHeight: 30, headerHeight: 30, actionsWidth: true, sashes: true,
+		});
 	});
 
-	test('restores the switch and surfaces a failed visibility change', async () => {
-		const { parent, model, errors } = createWidget();
-		model.pendingChange = new DeferredPromise<void>();
-		const control = getSwitch(parent, 'tunnel:laptop');
+	test('group keyboard collapse and expansion preserves rows through refresh', () => {
+		const { parent, model } = createWidget();
+		const list = parent.querySelector<HTMLElement>('.monaco-table .monaco-list')!;
+		list.focus();
+		const shown = () => parent.querySelectorAll('[data-remote-id="ssh:build"]').length;
+		const states = [shown()];
+		list.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', keyCode: 37, bubbles: true, cancelable: true }));
+		states.push(shown());
+		model.remotes.set([...model.remotes.get()], undefined);
+		states.push(shown());
+		list.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true, cancelable: true }));
+		states.push(shown());
+		assert.deepStrictEqual(states, [1, 0, 0, 1]);
+	});
+
+	test('search expands groups to reveal matching table rows', () => {
+		const { parent, widget } = createWidget();
+		parent.querySelector<HTMLElement>('.remotes-gutter-column .codicon-chevron-down')!.click();
+		widget.setSearchQuery('build.example');
+		assert.deepStrictEqual({
+			remotes: [...parent.querySelectorAll<HTMLElement>('[data-remote-id]')].map(row => row.dataset.remoteId),
+			expanded: parent.querySelector('.remotes-group-row')?.closest('.monaco-list-row')?.getAttribute('aria-expanded'),
+		}, { remotes: ['ssh:build'], expanded: 'true' });
+	});
+
+	test('Rename preserves keyboard focus and prevents duplicate management actions', async () => {
+		const { parent, model } = createWidget();
+		const control = getManagementAction(parent, 'ssh:build', 'rename');
+		control.focus();
+		model.pendingManagement = new DeferredPromise<void>();
 		control.click();
-		const error = new Error('Could not register tunnel');
-		await model.pendingChange.error(error);
+		control.click();
+		await model.pendingManagement.complete();
 		await timeout(0);
 		assert.deepStrictEqual({
-			checked: getSwitch(parent, 'tunnel:laptop').getAttribute('aria-checked'),
+			changes: model.managementChanges,
+			sameControl: getManagementAction(parent, 'ssh:build', 'rename') === control,
+			focused: dom.getActiveElement() === control,
+			name: parent.querySelector('[data-remote-id="ssh:build"] .remotes-name')?.textContent,
+		}, { changes: [{ id: 'ssh:build', action: 'rename' }], sameControl: true, focused: true, name: 'Renamed remote' });
+	});
+
+	test('Remove is enabled only for removable registered remotes', async () => {
+		const { parent, model } = createWidget();
+		const discoveryOnly = getManagementAction(parent, 'tunnel:laptop', 'remove');
+		const discoveryOnlyLabel = discoveryOnly.getAttribute('aria-label');
+		discoveryOnly.click();
+		getManagementAction(parent, 'ssh:build', 'remove').click();
+		await timeout(0);
+		assert.deepStrictEqual({
+			discoveryOnlyDisabled: discoveryOnly.getAttribute('aria-disabled'), discoveryOnlyLabel,
+			changes: model.managementChanges,
+			rows: [...parent.querySelectorAll<HTMLElement>('[data-remote-id]')].map(row => row.dataset.remoteId),
+		}, {
+			discoveryOnlyDisabled: 'true', discoveryOnlyLabel: 'Remove Laptop: only registered remotes that support removal can be removed.',
+			changes: [{ id: 'ssh:build', action: 'remove' }], rows: ['tunnel:laptop'],
+		});
+	});
+
+	test('renaming a sorted row does not leave keyboard focus on another remote action', async () => {
+		const { parent, model } = createWidget();
+		model.remotes.set([...model.remotes.get(), {
+			id: 'ssh:other', kind: 'ssh', name: 'Other', detail: 'other.example.com', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.connected,
+		}], undefined);
+		parent.querySelector('[data-remote-id="ssh:build"] .remotes-name')!.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+		const rename = getManagementAction(parent, 'ssh:build', 'rename');
+		rename.focus();
+		rename.click();
+		await timeout(0);
+		assert.deepStrictEqual({
+			focusedRemote: parent.querySelector<HTMLElement>('.monaco-list-row.focused [data-remote-id]')?.dataset.remoteId,
+			listFocused: dom.getActiveElement() === parent.querySelector('.monaco-table .monaco-list'),
+		}, { focusedRemote: 'ssh:build', listFocused: true });
+	});
+
+	test('surfaces failed management operations and re-enables the action', async () => {
+		const { parent, model, errors } = createWidget();
+		model.pendingManagement = new DeferredPromise<void>();
+		const control = getManagementAction(parent, 'tunnel:laptop', 'rename');
+		control.click();
+		const error = new Error('Could not save name');
+		await model.pendingManagement.error(error);
+		await timeout(0);
+		assert.deepStrictEqual({
+			disabled: getManagementAction(parent, 'tunnel:laptop', 'rename').getAttribute('aria-disabled'),
 			errors,
-		}, { checked: 'false', errors: [error] });
+		}, { disabled: null, errors: [error] });
 	});
 
 	test('preserves collapsed groups through inventory updates', () => {
 		const { parent, model } = createWidget();
-		parent.querySelector('.monaco-tl-twistie')!.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
-		const expandedBeforeUpdate = parent.querySelector('.ai-customization-group-header')!.closest('.monaco-list-row')?.getAttribute('aria-expanded');
+		parent.querySelector<HTMLElement>('.remotes-gutter-column .codicon-chevron-down')!.click();
+		const expandedBeforeUpdate = parent.querySelector('.remotes-group-row')!.closest('.monaco-list-row')?.getAttribute('aria-expanded');
 		model.remotes.set([...model.remotes.get()], undefined);
-		const firstGroup = parent.querySelector('.ai-customization-group-header')!.closest('.monaco-list-row');
+		const firstGroup = parent.querySelector('.remotes-group-row')!.closest('.monaco-list-row');
 		assert.deepStrictEqual({
 			expandedBeforeUpdate,
 			expanded: firstGroup?.getAttribute('aria-expanded'),
 			sshRows: parent.querySelectorAll('[data-remote-id="ssh:build"]').length,
-			switches: parent.querySelectorAll('[role="switch"]').length,
-		}, { expandedBeforeUpdate: 'false', expanded: 'false', sshRows: 0, switches: 1 });
+			rows: parent.querySelectorAll('[data-remote-id]').length,
+		}, { expandedBeforeUpdate: 'false', expanded: 'false', sshRows: 0, rows: 1 });
 	});
 
 	test('search matches names, details and groups and filters the accessible view', () => {
@@ -207,12 +287,15 @@ suite('RemotesWidget', () => {
 		assert.deepStrictEqual(matches, [['ssh:build'], ['tunnel:laptop'], [], ['ssh:build', 'tunnel:laptop']]);
 	});
 
-	test('shows unavailable remotes with disabled switches', () => {
+	test('unavailable remotes cannot connect but can still be renamed', () => {
 		const { parent, model } = createWidget();
-		model.remotes.set([{ id: 'ssh:unavailable', kind: 'ssh', name: 'Unavailable', detail: 'Host', enabled: false, unavailableReason: 'Unavailable host', connectionStatus: RemoteAgentHostConnectionStatus.disconnected }], undefined);
-		const control = getSwitch(parent, 'ssh:unavailable');
+		model.remotes.set([{ id: 'ssh:unavailable', kind: 'ssh', name: 'Unavailable', detail: 'Host', canRemove: false, unavailableReason: 'Unavailable host', connectionStatus: RemoteAgentHostConnectionStatus.disconnected }], undefined);
+		const control = getConnectionAction(parent, 'ssh:unavailable');
 		control.click();
-		assert.deepStrictEqual({ disabled: control.disabled, changes: model.changes }, { disabled: true, changes: [] });
+		assert.deepStrictEqual({
+			disabled: control.getAttribute('aria-disabled'), changes: model.connectionChanges,
+			renameDisabled: getManagementAction(parent, 'ssh:unavailable', 'rename').getAttribute('aria-disabled'),
+		}, { disabled: 'true', changes: [], renameDisabled: null });
 	});
 
 	test('shows live connection states and the corresponding inline action', () => {
@@ -231,19 +314,19 @@ suite('RemotesWidget', () => {
 				disabled: action.getAttribute('aria-disabled') === 'true',
 			};
 		});
-		assert.deepStrictEqual({ observed, accessible: widget.getAccessibilityContent().includes('Connection: Incompatible') }, {
+		assert.deepStrictEqual({ observed, accessible: widget.getAccessibilityContent().includes('Connection: Disconnected') }, {
 			observed: [
-				{ status: 'Online', action: 'Disconnect Build server', disabled: false },
-				{ status: 'Offline', action: 'Connect to Build server', disabled: false },
+				{ status: 'Connected', action: 'Disconnect Build server', disabled: false },
+				{ status: 'Disconnected', action: 'Connect to Build server', disabled: false },
 				{ status: 'Connecting', action: 'Connect to Build server', disabled: true },
-				{ status: 'Reconnecting', action: 'Connect to Build server', disabled: true },
-				{ status: 'Incompatible', action: 'Connect to Build server', disabled: false },
+				{ status: 'Disconnected', action: 'Connect to Build server', disabled: true },
+				{ status: 'Disconnected', action: 'Connect to Build server', disabled: false },
 			],
 			accessible: true,
 		});
 	});
 
-	test('connect is keyboard accessible and prevents concurrent connection and visibility changes', async () => {
+	test('connect is keyboard accessible and prevents concurrent connection and management changes', async () => {
 		const { parent, model } = createWidget();
 		const action = getConnectionAction(parent, 'tunnel:laptop');
 		parent.querySelector('[data-remote-id="tunnel:laptop"] .remotes-name')!.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
@@ -255,43 +338,43 @@ suite('RemotesWidget', () => {
 			action.dispatchEvent(new KeyboardEvent(type, { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
 		}
 		const busy = {
-			actionDisabled: action.getAttribute('aria-disabled'), switchDisabled: getSwitch(parent, 'tunnel:laptop').disabled,
+			actionDisabled: action.getAttribute('aria-disabled'), renameDisabled: getManagementAction(parent, 'tunnel:laptop', 'rename').getAttribute('aria-disabled'),
 			state: parent.querySelector('[data-remote-id="tunnel:laptop"] .remotes-connection-state')?.textContent,
 		};
 		action.click();
-		getSwitch(parent, 'tunnel:laptop').click();
+		getManagementAction(parent, 'tunnel:laptop', 'rename').click();
 		await model.pendingConnection.complete();
 		await timeout(0);
 		assert.deepStrictEqual({
-			tabIndex, busy, connectionChanges: model.connectionChanges, visibilityChanges: model.changes,
-			action: action.getAttribute('aria-label'), checked: getSwitch(parent, 'tunnel:laptop').getAttribute('aria-checked'),
+			tabIndex, busy, connectionChanges: model.connectionChanges, managementChanges: model.managementChanges,
+			action: action.getAttribute('aria-label'), removeDisabled: getManagementAction(parent, 'tunnel:laptop', 'remove').getAttribute('aria-disabled'),
 			sameControl: getConnectionAction(parent, 'tunnel:laptop') === action, focused: dom.getActiveElement() === action,
 		}, {
-			tabIndex: 0, busy: { actionDisabled: 'true', switchDisabled: true, state: 'Connecting' },
-			connectionChanges: [{ id: 'tunnel:laptop', connected: true }], visibilityChanges: [],
-			action: 'Disconnect Laptop', checked: 'true', sameControl: true, focused: true,
+			tabIndex: 0, busy: { actionDisabled: 'true', renameDisabled: 'true', state: 'Connecting' },
+			connectionChanges: [{ id: 'tunnel:laptop', connected: true }], managementChanges: [],
+			action: 'Disconnect Laptop', removeDisabled: null, sameControl: true, focused: true,
 		});
 	});
 
-	test('disconnect follows the model visibility changes and keeps the group expanded', async () => {
+	test('disconnect updates removal availability and keeps the group expanded', async () => {
 		const { parent, model, widget } = createWidget();
 		model.pendingConnection = new DeferredPromise<void>();
 		getConnectionAction(parent, 'ssh:build').click();
 		const busy = {
 			state: parent.querySelector('[data-remote-id="ssh:build"] .remotes-connection-state')?.textContent,
 			accessible: widget.getAccessibilityContent().includes('Connection: Disconnecting'),
-			switchDisabled: getSwitch(parent, 'ssh:build').disabled,
+			removeDisabled: getManagementAction(parent, 'ssh:build', 'remove').getAttribute('aria-disabled'),
 		};
 		await model.pendingConnection.complete();
 		await timeout(0);
 		assert.deepStrictEqual({
 			busy,
 			connectionChanges: model.connectionChanges, action: getConnectionAction(parent, 'ssh:build').getAttribute('aria-label'),
-			checked: getSwitch(parent, 'ssh:build').getAttribute('aria-checked'),
-			expanded: parent.querySelector('.ai-customization-group-header')?.closest('.monaco-list-row')?.getAttribute('aria-expanded'),
+			removeDisabled: getManagementAction(parent, 'ssh:build', 'remove').getAttribute('aria-disabled'),
+			expanded: parent.querySelector('.remotes-group-row')?.closest('.monaco-list-row')?.getAttribute('aria-expanded'),
 		}, {
-			busy: { state: 'Disconnecting', accessible: true, switchDisabled: true },
-			connectionChanges: [{ id: 'ssh:build', connected: false }], action: 'Connect to Build server', checked: 'false', expanded: 'true',
+			busy: { state: 'Disconnecting', accessible: true, removeDisabled: 'true' },
+			connectionChanges: [{ id: 'ssh:build', connected: false }], action: 'Connect to Build server', removeDisabled: 'true', expanded: 'true',
 		});
 	});
 
@@ -304,9 +387,9 @@ suite('RemotesWidget', () => {
 		await model.pendingConnection.error(error);
 		await timeout(0);
 		assert.deepStrictEqual({
-			errors, disabled: action.getAttribute('aria-disabled'), switchDisabled: getSwitch(parent, 'tunnel:laptop').disabled,
+			errors, disabled: action.getAttribute('aria-disabled'), renameDisabled: getManagementAction(parent, 'tunnel:laptop', 'rename').getAttribute('aria-disabled'),
 			status: parent.querySelector('[data-remote-id="tunnel:laptop"] .remotes-connection-state')?.textContent,
-		}, { errors: [error], disabled: null, switchDisabled: false, status: 'Offline' });
+		}, { errors: [error], disabled: null, renameDisabled: null, status: 'Disconnected' });
 	});
 
 	test('shows refresh warnings on the failed groups, with simple tooltips and accessible labels', async () => {
@@ -315,10 +398,10 @@ suite('RemotesWidget', () => {
 		model.failedKinds = ['ssh', 'tunnel', 'devContainer'];
 		widget.setVisible(true);
 		await timeout(0);
-		const warnings = [...parent.querySelectorAll<HTMLElement>('.remotes-refresh-warning')].map(icon => {
-			const group = icon.closest('.ai-customization-group-header')!;
+		const warnings = [...parent.querySelectorAll<HTMLElement>('.remotes-refresh-warning:not([hidden])')].map(icon => {
+			const group = icon.closest('.remotes-group-row')!;
 			return {
-				group: group.querySelector('.group-label')?.textContent,
+				group: group.querySelector('.remotes-name')?.textContent,
 				tooltip: hoverContents.get(icon),
 				announced: group.closest('.monaco-list-row')?.getAttribute('aria-label')?.includes(hoverContents.get(icon)!),
 			};
@@ -339,8 +422,8 @@ suite('RemotesWidget', () => {
 
 	test('retains warnings during retry and clears only the recovered groups', async () => {
 		const { parent, model, widget } = createWidget();
-		const warningGroups = () => [...parent.querySelectorAll('.remotes-refresh-warning')].map(icon => icon.closest('.ai-customization-group-header')?.querySelector('.group-label')?.textContent);
-		const refresh = () => parent.querySelector<HTMLElement>('.section-title-actions .codicon-refresh')!.click();
+		const warningGroups = () => [...parent.querySelectorAll('.remotes-refresh-warning:not([hidden])')].map(icon => icon.closest('.remotes-group-row')?.querySelector('.remotes-name')?.textContent);
+		const refresh = () => parent.querySelector<HTMLElement>('.remotes-header-actions .codicon-refresh')!.click();
 		model.failedKinds = ['ssh', 'tunnel'];
 		widget.setVisible(true);
 		await timeout(0);
@@ -364,7 +447,7 @@ suite('RemotesWidget', () => {
 		const { parent, model, widget } = createWidget();
 		widget.setVisible(true);
 		await timeout(0);
-		const refresh = parent.querySelector<HTMLElement>('.section-title-actions .codicon-refresh')!;
+		const refresh = parent.querySelector<HTMLElement>('.remotes-header-actions .codicon-refresh')!;
 		const idle = {
 			label: refresh.getAttribute('aria-label'),
 			role: refresh.getAttribute('role'),
@@ -397,29 +480,29 @@ suite('RemotesWidget', () => {
 		widget.setVisible(false);
 		await model.pendingRefresh.complete(['tunnel']);
 		await timeout(0);
-		const canceled = parent.querySelectorAll('.remotes-refresh-warning').length;
+		const canceled = parent.querySelectorAll('.remotes-refresh-warning:not([hidden])').length;
 		model.pendingRefresh = undefined;
 		model.failedKinds = ['wsl', 'devContainer'];
 		widget.setVisible(true);
 		await timeout(0);
 		assert.deepStrictEqual({
 			canceled,
-			hidden: parent.querySelectorAll('.remotes-refresh-warning').length,
+			hidden: parent.querySelectorAll('.remotes-refresh-warning:not([hidden])').length,
 			accessibleWarning: widget.getAccessibilityContent().includes('Window log'),
 		}, { canceled: 0, hidden: 0, accessibleWarning: false });
 	});
 
 	test('the SSH gear opens the user config in a modal without collapsing its node or connecting', async () => {
 		const { parent, model, opened, configRequests } = createWidget();
-		const gear = parent.querySelector<HTMLElement>('.group-actions .codicon-settings-gear')!;
+		const gear = parent.querySelector<HTMLElement>('.remotes-group-row .codicon-settings-gear')!;
 		assert.ok(gear);
 		gear.click();
 		await timeout(0);
 		assert.deepStrictEqual({
 			configRequests: configRequests(),
 			opened,
-			expanded: parent.querySelector('.ai-customization-group-header')?.closest('.monaco-list-row')?.getAttribute('aria-expanded'),
-			changes: model.changes,
+			expanded: parent.querySelector('.remotes-group-row')?.closest('.monaco-list-row')?.getAttribute('aria-expanded'),
+			changes: model.connectionChanges,
 		}, {
 			configRequests: 1,
 			opened: [{ input: { resource: URI.file('/home/test/.ssh/config'), options: { pinned: true } }, group: MODAL_GROUP }],
@@ -432,19 +515,52 @@ suite('RemotesWidget', () => {
 		const { parent, opened, errors, failConfig } = createWidget();
 		const error = new Error('Cannot create SSH config');
 		failConfig(error);
-		parent.querySelector<HTMLElement>('.group-actions .codicon-settings-gear')!.click();
+		parent.querySelector<HTMLElement>('.remotes-group-row .codicon-settings-gear')!.click();
 		await timeout(0);
 		assert.deepStrictEqual({ opened, errors }, { opened: [], errors: [error] });
 	});
 
-	test('the SSH gear and setup links follow tree focus and support keyboard activation', async () => {
+	test('the Tunnels gear opens the same settings filter as Manage', async () => {
+		const { parent, settings, opened, configRequests } = createWidget();
+		parent.querySelector<HTMLElement>('[aria-label="Open Tunnel Settings"]')!.click();
+		await timeout(0);
+		assert.deepStrictEqual({ settings, opened, configRequests: configRequests() }, {
+			settings: [{ query: 'chat.remoteAgentHosts' }], opened: [], configRequests: 0,
+		});
+	});
+
+	test('Rename and Remove are reachable and operable through toolbar keyboard navigation', async () => {
+		const { parent, model } = createWidget();
+		const connection = getConnectionAction(parent, 'ssh:build');
+		connection.focus();
+		connection.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', keyCode: 9, bubbles: true }));
+		connection.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true, cancelable: true }));
+		const rename = getManagementAction(parent, 'ssh:build', 'rename');
+		assert.strictEqual(dom.getActiveElement(), rename);
+		for (const type of ['keydown', 'keyup']) {
+			rename.dispatchEvent(new KeyboardEvent(type, { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+		}
+		await timeout(0);
+		rename.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true, cancelable: true }));
+		const remove = getManagementAction(parent, 'ssh:build', 'remove');
+		assert.strictEqual(dom.getActiveElement(), remove);
+		for (const type of ['keydown', 'keyup']) {
+			remove.dispatchEvent(new KeyboardEvent(type, { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+		}
+		await timeout(0);
+		assert.deepStrictEqual({ changes: model.managementChanges, removedRows: parent.querySelectorAll('[data-remote-id="ssh:build"]').length }, {
+			changes: [{ id: 'ssh:build', action: 'rename' }, { id: 'ssh:build', action: 'remove' }], removedRows: 0,
+		});
+	});
+
+	test('the SSH gear and setup links follow table focus and support keyboard activation', async () => {
 		const { widget, parent, model, configRequests, documentation } = createWidget();
 		model.remotes.set([], undefined);
 		widget.setVisible(true);
 		await timeout(0);
-		const tree = parent.querySelector<HTMLElement>('[role="tree"]')!;
-		tree.focus();
-		const gear = parent.querySelector<HTMLElement>('.group-actions .codicon-settings-gear')!;
+		const table = parent.querySelector<HTMLElement>('.monaco-table .monaco-list')!;
+		table.focus();
+		const gear = parent.querySelector<HTMLElement>('.remotes-group-row .codicon-settings-gear')!;
 		const initialGearTabIndex = gear.tabIndex;
 		gear.focus();
 		gear.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', keyCode: 9, bubbles: true }));
@@ -452,7 +568,7 @@ suite('RemotesWidget', () => {
 			gear.dispatchEvent(new KeyboardEvent(type, { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
 		}
 		await timeout(0);
-		tree.focus();
+		table.focus();
 		parent.querySelector('.remotes-empty-label')!.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
 		const link = parent.querySelector<HTMLElement>('.remotes-empty-actions .monaco-link')!;
 		const focusedLinkTabIndex = link.tabIndex;
@@ -460,7 +576,7 @@ suite('RemotesWidget', () => {
 		link.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
 		assert.deepStrictEqual({
 			initialGearTabIndex, focusedGearTabIndex: gear.tabIndex, focusedLinkTabIndex, configRequests: configRequests(), documentation,
-			expanded: parent.querySelector('.ai-customization-group-header')?.closest('.monaco-list-row')?.getAttribute('aria-expanded'),
+			expanded: parent.querySelector('.remotes-group-row')?.closest('.monaco-list-row')?.getAttribute('aria-expanded'),
 		}, {
 			initialGearTabIndex: 0, focusedGearTabIndex: -1, focusedLinkTabIndex: 0, configRequests: 1,
 			documentation: ['https://aka.ms/vscode-agent-ssh'],
@@ -478,7 +594,7 @@ suite('RemotesWidget', () => {
 		}
 		assert.deepStrictEqual({
 			labels: [...parent.querySelectorAll('.remotes-empty-label')].map(element => element.textContent),
-			counts: [...parent.querySelectorAll('.group-count')].map(element => element.textContent),
+			counts: [...parent.querySelectorAll('.remotes-group-count:not([hidden])')].map(element => element.textContent),
 			documentation,
 			accessibleGuidance: widget.getAccessibilityContent().includes('SSH Setup Guide: https://aka.ms/vscode-agent-ssh'),
 		}, {
@@ -504,7 +620,7 @@ suite('RemotesWidget', () => {
 		await timeout(0);
 		const refreshed = labels();
 		widget.setSearchQuery('nonexistent');
-		assert.deepStrictEqual({ loading, refreshed, filtered: labels(), setupLinks: parent.querySelectorAll('.remotes-empty-actions .monaco-link').length }, {
+		assert.deepStrictEqual({ loading, refreshed, filtered: labels(), setupLinks: parent.querySelectorAll('.remotes-empty-actions:not([hidden]) .monaco-link').length }, {
 			loading: ['Looking for SSH locations...', 'Looking for Tunnels locations...'],
 			refreshed: ['No SSH hosts configured.', 'Could not refresh Tunnels.'],
 			filtered: ['No matching remotes.', 'No matching remotes.'],
