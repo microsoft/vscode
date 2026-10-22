@@ -83,6 +83,7 @@ interface ITestWireRequest {
 		readonly threadId?: string;
 		readonly model?: string;
 		readonly modelProvider?: string;
+		readonly serviceTier?: string;
 		readonly serviceTierForTurn?: string;
 		readonly config?: Readonly<Record<string, JsonValue>>;
 		readonly includeTurns?: boolean;
@@ -2150,6 +2151,10 @@ suite('CodexAgent createChat', () => {
 			const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true });
 			const peer = disposables.add(createTestPeer());
 			connectPeer(agent, peer);
+			const requests: ITestWireRequest[] = [];
+			const recordRequest = (chunk: Buffer) => requests.push(JSON.parse(chunk.toString('utf8')) as ITestWireRequest);
+			peer.transport.stdin.on('data', recordRequest);
+			disposables.add(toDisposable(() => peer.transport.stdin.off('data', recordRequest)));
 			// A synthetic catalog lets this test verify the wire contract without a paid model call.
 			agent['_models'].set(agent.models.get().map(model => ({ ...model, configSchema: { type: 'object' as const, properties: { serviceTier: { type: 'string' as const, title: 'Speed', default: 'default', enum: ['default', 'priority'] } } } })), undefined);
 			const session = AgentSession.uri('codex', 'service-tier');
@@ -2164,8 +2169,12 @@ suite('CodexAgent createChat', () => {
 			const turn = await readNextRequest(peer.outbound);
 			peer.push({ id: turn.id, result: {} });
 			await sending;
-			assert.deepStrictEqual({ method: turn.method, tier: turn.params.serviceTierForTurn, model: turn.params.model }, {
-				method: 'turn/start', tier: expected, model: 'gpt-test',
+			assert.deepStrictEqual({
+				method: turn.method, tier: turn.params.serviceTierForTurn, model: turn.params.model,
+				nativeSettingsWrites: requests.filter(request => /^config\/.*write$/i.test(request.method) || request.method.endsWith('/settings/update')
+					|| request.params.serviceTier !== undefined || request.params.config?.service_tier !== undefined),
+			}, {
+				method: 'turn/start', tier: expected, model: 'gpt-test', nativeSettingsWrites: [],
 			});
 		});
 	}

@@ -22,6 +22,8 @@ export const MODEL_CONFIG_GROUP_CONTEXT = 'tokens';
 /** The service tier of a model, independent of its reasoning effort. */
 export const MODEL_CONFIG_GROUP_SPEED = 'speed';
 
+const MODEL_CONFIG_GROUPS = [MODEL_CONFIG_GROUP_EFFORT, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_SPEED] as const;
+
 export type IModelConfigPropertySchema = NonNullable<ILanguageModelConfigurationSchema['properties']>[string];
 
 /** One configurable property of a model, with the value currently in effect. */
@@ -53,7 +55,7 @@ export function setModelConfigValues(
 		configurationEdits.set(configurationAccess, edits = new SequencerByKey<string>());
 	}
 	return edits.queue(model.identifier, async () => {
-		const changes = [MODEL_CONFIG_GROUP_EFFORT, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_SPEED].flatMap(group => {
+		const changes = MODEL_CONFIG_GROUPS.flatMap(group => {
 			const property = getModelConfigProperty(model, configurationAccess, group, useModelConfigurationSchema);
 			return property && Object.hasOwn(values, property.key) && property.value !== values[property.key]
 				? [{ group, key: property.key, fromValue: property.value, toValue: values[property.key] }]
@@ -177,7 +179,7 @@ export function getModelConfigDisplayValues(
 	useModelConfigurationSchema = false,
 ): { group: string; label: string; description: string }[] {
 	const values: { group: string; label: string; description: string }[] = [];
-	for (const group of [MODEL_CONFIG_GROUP_EFFORT, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_SPEED]) {
+	for (const group of MODEL_CONFIG_GROUPS) {
 		const property = getModelConfigProperty(model, configurationAccess, group, useModelConfigurationSchema);
 		if (property?.value !== undefined && property.schema.enum?.includes(property.value)) {
 			const label = getModelConfigValueLabel(property.schema, property.value);
@@ -207,7 +209,7 @@ export function getChangedModelConfigProperties(
 	useModelConfigurationSchema = false,
 ): IModelConfigProperty[] {
 	const properties: IModelConfigProperty[] = [];
-	for (const group of [MODEL_CONFIG_GROUP_EFFORT, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_SPEED]) {
+	for (const group of MODEL_CONFIG_GROUPS) {
 		const property = getModelConfigProperty(model, configurationAccess, group, useModelConfigurationSchema);
 		if (!property || property.schema.readOnly || property.value === undefined || property.value === property.schema.default) {
 			continue;

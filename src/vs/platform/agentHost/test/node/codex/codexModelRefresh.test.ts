@@ -188,6 +188,28 @@ suite('CodexAgent model refresh', () => {
 			agent['_createModelConfigSchema'](undefined, undefined, undefined, undefined, undefined, tiers)), [undefined, undefined, undefined]);
 	});
 
+	test('falls back only to an advertised string schema default', () => {
+		const agent = createAgent(disposables, async () => []);
+		const id = toCodexModelSelectionId('openai', 'native-model');
+		const observations = ['standard', undefined, 0, 'unlisted'].map(defaultTier => {
+			agent['_models'].set([{
+				provider: 'codex', id, name: 'Native Model', supportsVision: false,
+				configSchema: { type: 'object', properties: { serviceTier: { type: 'string', title: 'Speed', enum: ['standard', 'priority'], default: defaultTier } } },
+			}], undefined);
+			return {
+				unset: agent['_getServiceTierForTurn']({ id }),
+				retired: agent['_getServiceTierForTurn']({ id, config: { serviceTier: 'retired' } }),
+				selected: agent['_getServiceTierForTurn']({ id, config: { serviceTier: 'priority' } }),
+			};
+		});
+		assert.deepStrictEqual(observations, [
+			{ unset: 'standard', retired: 'standard', selected: 'priority' },
+			{ unset: undefined, retired: undefined, selected: 'priority' },
+			{ unset: undefined, retired: undefined, selected: 'priority' },
+			{ unset: undefined, retired: undefined, selected: 'priority' },
+		]);
+	});
+
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('keeps the persistent app-server stopped until a Codex session is selected', async () => {

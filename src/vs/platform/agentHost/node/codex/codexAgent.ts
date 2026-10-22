@@ -1975,7 +1975,10 @@ export class CodexAgent extends Disposable implements IAgent {
 			return undefined;
 		}
 		const selected = model?.config?.serviceTier;
-		return typeof selected === 'string' && schema.enum?.includes(selected) ? selected : 'default';
+		if (typeof selected === 'string' && schema.enum?.includes(selected)) {
+			return selected;
+		}
+		return typeof schema.default === 'string' && schema.enum?.includes(schema.default) ? schema.default : undefined;
 	}
 
 	/**

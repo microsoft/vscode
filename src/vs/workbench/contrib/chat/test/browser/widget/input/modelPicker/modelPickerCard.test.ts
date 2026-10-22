@@ -159,13 +159,15 @@ suite('ModelCard', () => {
 			type: 'string', title: 'Speed', group: 'speed', enum: ['default', 'priority'], enumItemLabels: ['Standard', 'Fast'],
 			default: 'default', description: 'Faster tiers can use more of your allowance.',
 		};
-		const result = createCard({}, { model });
+		let accepted = new DeferredPromise<void>();
+		const result = createCard({}, { model, onDidAccept: () => accepted.complete() });
 		element(result.card.element, '[role="radio"][aria-label="Fast"]').click();
-		await timeout(0);
+		await accepted.p;
 		const fastSummary = getModelConfigSummary(model, result.configurationAccess);
 		const usageVisible = result.card.element.textContent?.includes('Faster tiers can use more of your allowance.');
+		accepted = new DeferredPromise<void>();
 		element(result.card.element, '[aria-label="Reset to Default"]').click();
-		await timeout(0);
+		await accepted.p;
 		assert.deepStrictEqual({
 			writes: result.writes, changes: result.changes, selectedModels: result.selectedModels,
 			fastSummary, usageVisible, selected: selectedOptions(result.card),
