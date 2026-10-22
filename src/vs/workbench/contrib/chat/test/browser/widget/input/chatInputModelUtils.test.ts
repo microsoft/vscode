@@ -495,7 +495,7 @@ suite('ChatInputModelUtils', () => {
 			assert.strictEqual(isModelValidForSession(generalModel, allModels, 'cloud'), false);
 		});
 
-		test('unscoped BYOK model IS valid when pool has models targeting the session', () => {
+		test('unscoped BYOK model is valid when pool has models targeting the session', () => {
 			const byok = createVendorModel('openai-compatible', 'my-endpoint', 'My Endpoint');
 			const sessionModel = createSessionModel('cloud-gpt', 'Cloud GPT', 'cloud');
 			const allModels = [byok, sessionModel];
