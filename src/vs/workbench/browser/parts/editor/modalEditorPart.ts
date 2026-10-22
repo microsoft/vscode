@@ -747,7 +747,6 @@ export class ModalEditorPart {
 			const activeEditor = editorPart.activeGroup.activeEditor;
 			const editorModalOptions = isModalEditorOptionsProvider(activeEditor) ? activeEditor.getModalEditorOptions() : undefined;
 			modalElement.classList.toggle('compact-header', !!editorModalOptions?.compactHeader);
-			modalElement.classList.toggle('compact-header-active-editor-tab', !!editorModalOptions?.compactHeader && editorModalOptions.compactHeaderBackground === 'activeEditorTab');
 			canMoveToEditorAreaContext.set(canMoveModalEditorToEditorArea(activeEditor));
 			layoutModal();
 		}));
