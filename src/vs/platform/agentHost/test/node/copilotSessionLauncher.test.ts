@@ -3363,7 +3363,7 @@ suite('CopilotSessionLauncher resume config', () => {
 			sessionId: 'sess-1',
 			workingDirectory: URI.file('/workspace'),
 			resolvedAgentName: undefined,
-			snapshot: { tools: [], plugins: [], mcpServers: {} },
+			snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 			activeClientToolSet: new ActiveClientToolSet(),
 			shellManager: undefined,
 			githubCredentials: CopilotGitHubSessionCredentials.fromToken('token'),
