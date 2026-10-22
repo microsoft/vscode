@@ -53,7 +53,7 @@ import { ConfigurationTarget, IConfigurationService } from '../../../../../../pl
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
 import { IDialogService, IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
-import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
+import { ExtensionIdentifier, type IExtensionDescription } from '../../../../../../platform/extensions/common/extensions.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
@@ -727,12 +727,12 @@ class BackendSchemeTestProvider extends LocalAgentHostSessionsProvider {
 
 function createProvider(disposables: DisposableStore, agentHostService: MockAgentHostService, contributions = [
 	{ type: 'agent-host-copilotcli', name: 'copilot', displayName: 'Copilot', description: 'test', icon: undefined },
-], options?: { chatSessionsService?: Partial<IChatSessionsService>; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; languageModelsService?: Partial<ILanguageModelsService>; languageModelIds?: string[]; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; languageModelChanges?: Event<string>; hiddenLanguageModelIds?: ReadonlySet<string>; languageModelVisibilityChanges?: Event<void>; getChatModel?: (resource: URI) => IChatModel | undefined; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; visibleSessions?: IObservable<readonly (IActiveSession | undefined)[]>; activeClient?: Omit<SessionActiveClient, 'clientId'>; activeClientAgents?: IObservable<readonly AgentCustomization[]>; activeClientScope?: (sessionType: string, roots: readonly URI[]) => IAgentCustomizationScope; storageService?: IStorageService; recentWorkspacesService?: ISessionsRecentWorkspacesService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; requestWorkspaceTrust?: (uri: URI) => Promise<boolean>; workspaceTrustBarrier?: DeferredPromise<void>; workspaceTrustError?: Error; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; gitHubService?: IGitHubService; devContainerAgentHostService?: IDevContainerAgentHostService; sessionsProvidersService?: ISessionsProvidersService; pathService?: IPathService; labelService?: ILabelService; providerCtor?: typeof LocalAgentHostSessionsProvider }): LocalAgentHostSessionsProvider {
+], options?: { chatSessionsService?: Partial<IChatSessionsService>; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; languageModelsService?: Partial<ILanguageModelsService>; languageModelIds?: string[]; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; languageModelChanges?: Event<string>; hiddenLanguageModelIds?: ReadonlySet<string>; languageModelVisibilityChanges?: Event<void>; getChatModel?: (resource: URI) => IChatModel | undefined; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; visibleSessions?: IObservable<readonly (IActiveSession | undefined)[]>; activeClient?: Omit<SessionActiveClient, 'clientId'>; activeClientAgents?: IObservable<readonly AgentCustomization[]>; activeClientScope?: (sessionType: string, roots: readonly URI[]) => IAgentCustomizationScope; storageService?: IStorageService; recentWorkspacesService?: ISessionsRecentWorkspacesService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; requestWorkspaceTrust?: (uri: URI) => Promise<boolean>; workspaceTrustBarrier?: DeferredPromise<void>; workspaceTrustError?: Error; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; gitHubService?: IGitHubService; devContainerAgentHostService?: IDevContainerAgentHostService; sessionsProvidersService?: ISessionsProvidersService; pathService?: IPathService; labelService?: ILabelService; providerCtor?: typeof LocalAgentHostSessionsProvider; commandService?: Partial<ICommandService>; extensionService?: Partial<IExtensionService> }): LocalAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IAgentHostService, agentHostService);
-	instantiationService.stub(ICommandService, new class extends mock<ICommandService>() { }());
-	instantiationService.stub(IExtensionService, new class extends mock<IExtensionService>() {
+	instantiationService.stub(ICommandService, options?.commandService ?? new class extends mock<ICommandService>() { }());
+	instantiationService.stub(IExtensionService, options?.extensionService ?? new class extends mock<IExtensionService>() {
 		override async getExtension() { return undefined; }
 	}());
 	instantiationService.stub(IAgentHostConnectionsService, new class extends mock<IAgentHostConnectionsService>() {
@@ -8269,6 +8269,67 @@ suite('LocalAgentHostSessionsProvider', () => {
 				naming: sentConfig?.[SessionConfigKey.WorktreeBranchNaming],
 				prefix: sentConfig?.[SessionConfigKey.WorktreeBranchPrefix],
 			}, { naming: optIn ? { useGitSettings: true } : undefined, prefix: 'team/' });
+		});
+	}
+
+	for (const failure of ['lookup', 'generation']) {
+		test(`first send falls back to prompt naming when Git ${failure} fails`, async () => {
+			const configService = new TestConfigurationService();
+			configService.setUserConfiguration('chat.agentHost.branchName.useGitSettings', true);
+			configService.setUserConfiguration('git.branchRandomName.enable', true);
+			configService.setUserConfiguration('git.branchPrefix', 'team/');
+			const error = new Error(`Git ${failure} failed`);
+			let sentConfig: Record<string, unknown> | undefined;
+			const provider = createProvider(disposables, agentHost, undefined, {
+				configurationService: configService,
+				openSession: true,
+				extensionService: {
+					getExtension: async () => {
+						if (failure === 'lookup') {
+							throw error;
+						}
+						return new class extends mock<IExtensionDescription>() { }();
+					},
+				},
+				commandService: { executeCommand: async () => { throw error; } },
+				sendRequest: async (resource, _message, options): Promise<ChatSendResult> => {
+					sentConfig = options?.agentHostSessionConfig;
+					agentHost.addSession(createSession(AgentSession.id(resource), { summary: 'Created From Send' }));
+					return { kind: 'sent', data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
+				},
+			});
+			const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+			await provider.whenSessionConfigResolved(session.sessionId, CancellationToken.None);
+			const chat = await provider.createNewChat(session.sessionId);
+			await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+			assert.deepStrictEqual({
+				naming: sentConfig?.[SessionConfigKey.WorktreeBranchNaming],
+				prefix: sentConfig?.[SessionConfigKey.WorktreeBranchPrefix],
+			}, { naming: { useGitSettings: true }, prefix: 'team/' });
+		});
+	}
+
+	for (const failedLookup of [false, true]) {
+		test(`host exit while preparing a Git name still aborts first send (lookup failed=${failedLookup})`, async () => {
+			const configService = new TestConfigurationService();
+			configService.setUserConfiguration('chat.agentHost.branchName.useGitSettings', true);
+			configService.setUserConfiguration('git.branchRandomName.enable', true);
+			const provider = createProvider(disposables, agentHost, undefined, {
+				configurationService: configService,
+				extensionService: {
+					getExtension: async () => {
+						agentHost.fireAgentHostExit();
+						if (failedLookup) {
+							throw new Error('Git lookup failed during host exit');
+						}
+						return undefined;
+					},
+				},
+			});
+			const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+			await provider.whenSessionConfigResolved(session.sessionId, CancellationToken.None);
+			const chat = await provider.createNewChat(session.sessionId);
+			await assert.rejects(provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' }), /Agent host exited while preparing its branch name/);
 		});
 	}
 

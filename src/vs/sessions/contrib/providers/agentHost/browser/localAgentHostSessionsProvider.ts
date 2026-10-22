@@ -372,9 +372,14 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 		let exited = false;
 		try {
 			disposables.add(this._agentHostService.onAgentHostExit(() => { exited = true; }));
-			const candidate = await this._extensionService.getExtension('vscode.git')
-				? await this._commandService.executeCommand<{ branchName: string; branchPrefix: string } | undefined>('git.api.generateRandomBranchName', resource.toString())
-				: undefined;
+			let candidate: { branchName: string; branchPrefix: string } | undefined;
+			try {
+				candidate = await this._extensionService.getExtension('vscode.git')
+					? await this._commandService.executeCommand<{ branchName: string; branchPrefix: string } | undefined>('git.api.generateRandomBranchName', resource.toString())
+					: undefined;
+			} catch (error) {
+				this._logService.warn('[LocalAgentHostSessionsProvider] Failed to prepare a Git branch name; using prompt-derived naming.', error);
+			}
 			if (exited) {
 				throw new Error('Agent host exited while preparing its branch name.');
 			}
