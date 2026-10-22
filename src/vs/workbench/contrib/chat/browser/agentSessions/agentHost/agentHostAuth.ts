@@ -893,6 +893,25 @@ function logAuthenticationSessionResolution(
  * Prompts the user to authenticate one of the provided protected resources and
  * forwards the resulting token to the agent host connection.
  */
+export class AgentHostInteractiveAuthentication {
+	constructor(
+		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
+		@ICommandService private readonly commandService: ICommandService,
+		@ILogService private readonly logService: ILogService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
+	) { }
+
+	async request(resource: ProtectedResourceMetadata, options: IAgentHostAuthenticationOptions): Promise<void> {
+		await forceAuthenticationInteractively(this.authenticationService, this.commandService, this.logService, this.telemetryService, resource, {
+			...options,
+			preferConnectorScopedSession: this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled) === true,
+			getDefaultAccount: () => this.defaultAccountService.currentDefaultAccount,
+		}, 'hostChallenge');
+	}
+}
+
 export async function resolveAuthenticationInteractively(
 	accessor: ServicesAccessor,
 	protectedResources: readonly ProtectedResourceMetadata[],
