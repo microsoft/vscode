@@ -70,6 +70,7 @@ A descriptor may define:
 - an optional, session-scoped MCP compatibility provider;
 - an optional MCP migration provider;
 - an optional provider-owned marketplace management service;
+- an optional provider-owned plugin source installer that leaves native installation and configuration to the harness;
 - required agent availability;
 - external items, enablement, and plugin actions.
 
