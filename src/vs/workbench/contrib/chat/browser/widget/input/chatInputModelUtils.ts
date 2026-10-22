@@ -74,11 +74,8 @@ export function filterModelsForSession(
 				continue;
 			}
 
-			// `isModelEligible` is not a type guard, so assert the invariant once per iteration.
-			const metadata = entry.metadata;
-			if (!metadata) {
-				continue;
-			}
+			// `isModelEligible` already rejects entries with missing metadata; assert for the type system.
+			const metadata = entry.metadata!;
 
 			const targetSessionType = metadata.targetChatSessionType;
 			if (targetSessionType === sessionType) {
