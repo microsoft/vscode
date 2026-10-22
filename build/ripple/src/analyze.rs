@@ -32,6 +32,10 @@ pub struct ImportSpec {
 	pub specifier: String,
 	/// True when the module is not loaded at runtime because only types are used from it.
 	pub type_only: bool,
+	/// A string literal that may name a repository file or folder from the repository root, such
+	/// as a grammar that a test reads. It refers to nothing unless the path exists, and never to
+	/// a package.
+	pub root: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -192,6 +196,10 @@ struct Member {
 	span: Span,
 	has_init: bool,
 	kind: MemberKind,
+	/// The member's position among its siblings is observable: it decides when its initializer
+	/// runs (static fields, namespace members) or the order of enumeration (object properties,
+	/// enum members). The order of methods is not.
+	ordered: bool,
 }
 
 fn js_str(s: &oxc_str::JSStr) -> String {
@@ -444,6 +452,7 @@ fn class_members(c: &Class, out: &mut Vec<Member>) {
 						span: m.span,
 						has_init: true,
 						kind,
+						ordered: false,
 					});
 				}
 			}
@@ -458,6 +467,7 @@ fn class_members(c: &Class, out: &mut Vec<Member>) {
 						span: p.span,
 						has_init: true,
 						kind: MemberKind::Static,
+						ordered: true,
 					});
 				}
 			}
@@ -486,6 +496,7 @@ fn member_list(decl: &Declaration, config: &Config) -> Vec<Member> {
 					span: m.span,
 					has_init: m.initializer.is_some(),
 					kind: MemberKind::Enum,
+					ordered: true,
 				});
 			}
 		}
@@ -510,6 +521,7 @@ fn member_list(decl: &Declaration, config: &Config) -> Vec<Member> {
 									span: p.span,
 									has_init: true,
 									kind: MemberKind::Object,
+									ordered: true,
 								});
 							}
 						}
@@ -528,6 +540,7 @@ fn member_list(decl: &Declaration, config: &Config) -> Vec<Member> {
 									span: s.span(),
 									has_init: true,
 									kind: MemberKind::Namespace,
+									ordered: true,
 								});
 							}
 						}
@@ -541,8 +554,15 @@ fn member_list(decl: &Declaration, config: &Config) -> Vec<Member> {
 	out
 }
 
-/// A member span of a memberized declaration: (span, member declaration, has initializer, kind).
-type MemberSpan = (Span, u32, bool, MemberKind);
+/// A member of a memberized declaration, by source span.
+#[derive(Clone, Copy)]
+struct MemberSpan {
+	span: Span,
+	decl: u32,
+	has_init: bool,
+	kind: MemberKind,
+	ordered: bool,
+}
 
 /// Adds the members of declaration `parent` as declarations of their own.
 fn memberize(
@@ -580,13 +600,28 @@ fn memberize(
 			gate,
 			..Decl::default()
 		});
-		spans.push((m.span, child, m.has_init, m.kind));
+		spans.push(MemberSpan {
+			span: m.span,
+			decl: child,
+			has_init: m.has_init,
+			kind: m.kind,
+			ordered: m.ordered,
+		});
 		children.push(child);
 		if m.kind != MemberKind::Instance {
 			named.push((m.name.into_boxed_str(), child));
 		}
 	}
 	named.sort();
+	// Members sharing a name, such as a getter and its setter, are one dependency: `X.name`
+	// resolves to the first, which depends on the others.
+	for group in named.chunk_by(|a, b| a.0 == b.0) {
+		for &(_, other) in &group[1..] {
+			facts.decls[group[0].1 as usize]
+				.refs
+				.push(Ref::Local(other));
+		}
+	}
 	named.dedup_by(|a, b| a.0 == b.0);
 	facts.decls[parent as usize].members = named;
 	facts.decls[parent as usize].children = children;
@@ -599,6 +634,28 @@ fn looks_like_path(s: &str, config: &Config) -> bool {
 		&& !s
 			.bytes()
 			.any(|b| b.is_ascii_whitespace() || b == b'*' || b == b'$' || b == b'{')
+}
+
+/// Strings that may name a repository file or folder from the repository root, such as
+/// `'extensions/json/syntaxes/JSON.tmLanguage.json'`. The linker keeps those that exist.
+fn may_name_repository_path(s: &str) -> bool {
+	s.len() > 3
+		&& s.len() < 240
+		&& s.contains('/')
+		&& !s.starts_with(['/', '.', ' '])
+		&& !s.ends_with(['/', ' '])
+		&& !s.contains("//")
+		&& !s.bytes().any(|b| {
+			b < b' '
+				|| matches!(
+					b,
+					b'*' | b'$'
+						| b'{' | b'}' | b':'
+						| b'?' | b'#' | b'|'
+						| b'<' | b'>' | b'"'
+						| b'\\'
+				)
+		})
 }
 
 fn is_identifier_like(s: &str) -> bool {
@@ -674,6 +731,7 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 		facts.specs.push(ImportSpec {
 			specifier,
 			type_only,
+			root: false,
 		});
 		(facts.specs.len() - 1) as u32
 	};
@@ -826,11 +884,11 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 		}
 	}
 
-	member_spans.sort_unstable_by_key(|m| (m.0.start, std::cmp::Reverse(m.0.end)));
+	member_spans.sort_unstable_by_key(|m| (m.span.start, std::cmp::Reverse(m.span.end)));
 	// The innermost member containing a source position (members do not nest).
 	let member_at = |pos: u32| -> Option<u32> {
-		let i = member_spans.partition_point(|m| m.0.start <= pos);
-		(i > 0 && pos < member_spans[i - 1].0.end).then(|| member_spans[i - 1].1)
+		let i = member_spans.partition_point(|m| m.span.start <= pos);
+		(i > 0 && pos < member_spans[i - 1].span.end).then(|| member_spans[i - 1].decl)
 	};
 	// The declaration owning a source position: a member, a declaration or the initializer.
 	let node_at = |pos: u32| -> Option<u32> {
@@ -963,11 +1021,13 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 			AstKind::Super(s) => s.span,
 			_ => continue,
 		};
-		let i = member_spans.partition_point(|m| m.0.start <= span.start);
-		if i == 0 || span.start >= member_spans[i - 1].0.end {
+		let i = member_spans.partition_point(|m| m.span.start <= span.start);
+		if i == 0 || span.start >= member_spans[i - 1].span.end {
 			continue;
 		}
-		let (_, member, _, kind) = member_spans[i - 1];
+		let MemberSpan {
+			decl: member, kind, ..
+		} = member_spans[i - 1];
 		if !matches!(kind, MemberKind::Static | MemberKind::Object) {
 			continue;
 		}
@@ -1117,14 +1177,20 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 	let mut excluded: Vec<Span> = Vec::new();
 	let mut deferred = vec![false; nodes.len()];
 	let mut path_strings: Vec<(u32, String)> = Vec::new();
+	let mut root_paths: Vec<(u32, String)> = Vec::new();
 	let mut dynamic: Vec<(u32, String)> = Vec::new();
 	let mut globals: Vec<(u32, String)> = Vec::new();
 	let mut uses: Vec<(u32, u64)> = Vec::new();
-	// Effects of the code inside each declaration (function bodies included), and direct calls
-	// of local functions, at load time (by statement) and later (by declaration).
+	// What the code of each declaration or member does when it runs later (function bodies,
+	// constructors, methods): effects outside the module, and the local functions and members it
+	// calls. A class's own code is its constructor, instance fields and superclass, which is what
+	// constructing it runs; its methods are members.
 	let mut escaping = vec![false; facts.decls.len()];
 	let mut local_calls: Vec<Vec<SymbolId>> = vec![Vec::new(); facts.decls.len()];
+	let mut member_calls: Vec<Vec<u32>> = vec![Vec::new(); facts.decls.len()];
+	// Calls of local functions and members at load time, by the declaration making them.
 	let mut load_calls: Vec<(usize, SymbolId)> = Vec::new();
+	let mut load_member_calls: Vec<(usize, Vec<u32>)> = Vec::new();
 	let debug_effects = std::env::var_os("RIPPLE_EFFECT_DEBUG").is_some();
 	// Top-level declarations by symbol, and whether a symbol is mutable module state (`let`/`var`).
 	let locals_of: HashMap<SymbolId, Vec<u32>> = targets
@@ -1145,8 +1211,107 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 			.get()
 			.and_then(|r| scoping.get_reference(r).symbol_id())
 	};
-	let mut order_relevant = vec![false; facts.decls.len()];
+	// The module state that mutating `object` (or its `property`) changes: the member it names,
+	// if the root declaration has one, or else the root declaration if it is a variable. Calling
+	// a method of a class or function is not taken as mutating it.
+	let state_of = |facts: &FileFacts, object: &Expression, property: Option<&str>| -> Vec<u32> {
+		let mut cur = object;
+		let mut first = property.map(str::to_owned);
+		let root = loop {
+			match cur {
+				Expression::StaticMemberExpression(m) => {
+					first = Some(m.property.name.as_str().to_owned());
+					cur = &m.object;
+				}
+				Expression::ComputedMemberExpression(m) => {
+					first = match &m.expression {
+						Expression::StringLiteral(s) => Some(js_str(&s.value)),
+						_ => None,
+					};
+					cur = &m.object;
+				}
+				Expression::PrivateFieldExpression(m) => {
+					first = None;
+					cur = &m.object;
+				}
+				Expression::CallExpression(c) => {
+					first = None;
+					cur = &c.callee;
+				}
+				Expression::ParenthesizedExpression(p) => cur = &p.expression,
+				Expression::TSAsExpression(x) => cur = &x.expression,
+				Expression::TSSatisfiesExpression(x) => cur = &x.expression,
+				Expression::TSNonNullExpression(x) => cur = &x.expression,
+				Expression::Identifier(id) => break id,
+				_ => return Vec::new(),
+			}
+		};
+		let Some(sym) = symbol_of(root) else {
+			return Vec::new();
+		};
+		let Some(locals) = locals_of.get(&sym) else {
+			return Vec::new();
+		};
+		let variable = scoping.symbol_flags(sym).intersects(SymbolFlags::Variable);
+		locals
+			.iter()
+			.filter_map(|&t| {
+				let members = &facts.decls[t as usize].members;
+				let member = first
+					.as_deref()
+					.and_then(|p| members.binary_search_by(|(n, _)| (**n).cmp(p)).ok());
+				match member {
+					Some(i) => Some(members[i].1),
+					None => variable.then_some(t),
+				}
+			})
+			.collect()
+	};
+	// The members a call runs: `X.name(...)` where `X` is a local declaration with a member of
+	// that name, or `this.name(...)` in a class or object literal with one.
+	let called_members = |facts: &FileFacts, callee: &Expression, pos: u32| -> Vec<u32> {
+		let Expression::StaticMemberExpression(m) = callee.get_inner_expression() else {
+			return Vec::new();
+		};
+		let name = m.property.name.as_str();
+		let named = |p: u32| {
+			let members = &facts.decls[p as usize].members;
+			members
+				.binary_search_by(|(n, _)| (**n).cmp(name))
+				.ok()
+				.map(|i| members[i].1)
+		};
+		match m.object.get_inner_expression() {
+			Expression::Identifier(id) => symbol_of(id)
+				.and_then(|sym| locals_of.get(&sym))
+				.into_iter()
+				.flatten()
+				.filter_map(|&p| named(p))
+				.collect(),
+			Expression::ThisExpression(_) => {
+				let Some(Owner::Decl(p)) = stmt_index(pos).map(|si| owners[si]) else {
+					return Vec::new();
+				};
+				let gate = name_id(name);
+				facts.decls[p as usize]
+					.children
+					.iter()
+					.copied()
+					.filter(|&c| facts.decls[c as usize].gate == gate)
+					.chain(named(p))
+					.collect()
+			}
+			_ => Vec::new(),
+		}
+	};
+	// The first position of order-relevant load-time code in each declaration or member, or
+	// `u32::MAX` if it has none.
+	let mut order_pos = vec![u32::MAX; facts.decls.len()];
+	// Module state depends on the load-time code that writes or mutates it, as (state, writer).
 	let mut writes: Vec<(u32, u32)> = Vec::new();
+	// Module state that the function bodies (and constructors) of each declaration mutate. It
+	// depends on the load-time code that calls them.
+	let mut mutated_by: Vec<Vec<u32>> = vec![Vec::new(); facts.decls.len()];
 	for node in nodes.iter() {
 		let id = node.id();
 		let kind = node.kind();
@@ -1265,19 +1430,35 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 					uses.push((p.span.start, name_id(&n)));
 				}
 			}
-			AstKind::StringLiteral(s) => {
-				let value = js_str(&s.value);
-				if is_identifier_like(&value) {
-					uses.push((s.span.start, name_id(&value)));
+			AstKind::StringLiteral(_) | AstKind::TemplateLiteral(_) => {
+				let (pos, value) = match kind {
+					AstKind::StringLiteral(s) => (s.span.start, js_str(&s.value)),
+					AstKind::TemplateLiteral(t) if t.expressions.is_empty() => (
+						t.span.start,
+						t.quasis[0]
+							.value
+							.cooked
+							.as_ref()
+							.map(js_str)
+							.unwrap_or_default(),
+					),
+					_ => (0, String::new()),
+				};
+				if matches!(kind, AstKind::StringLiteral(_)) && is_identifier_like(&value) {
+					uses.push((pos, name_id(&value)));
 				}
-				if looks_like_path(&value, config) {
-					match nodes.parent_kind(id) {
-						AstKind::ImportDeclaration(_)
+				let module_specifier = matches!(
+					nodes.parent_kind(id),
+					AstKind::ImportDeclaration(_)
 						| AstKind::ExportAllDeclaration(_)
 						| AstKind::ExportFromDeclaration(_)
-						| AstKind::ImportExpression(_) => {}
-						_ => path_strings.push((s.span.start, value)),
-					}
+						| AstKind::ImportExpression(_)
+				);
+				if module_specifier {
+				} else if looks_like_path(&value, config) {
+					path_strings.push((pos, value));
+				} else if may_name_repository_path(&value) {
+					root_paths.push((pos, value));
 				}
 			}
 			_ => {}
@@ -1304,32 +1485,128 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 				_ => false,
 			};
 			if relevant {
-				if let Some(Owner::Decl(d)) = stmt_index(kind.span().start).map(|si| owners[si]) {
-					order_relevant[d as usize] = true;
+				let pos = kind.span().start;
+				if let Some(n) = node_at(pos).filter(|&n| n != 0) {
+					order_pos[n as usize] = order_pos[n as usize].min(pos);
 				}
 			}
-			// Mutable module state depends on the code that writes it at load time.
-			let written = match kind {
-				AstKind::AssignmentExpression(a) => match &a.left {
-					AssignmentTarget::AssignmentTargetIdentifier(t) => symbol_of(t),
-					_ => None,
-				},
-				AstKind::UpdateExpression(u) => match &u.argument {
-					SimpleAssignmentTarget::AssignmentTargetIdentifier(t) => symbol_of(t),
-					_ => None,
-				},
-				_ => None,
+		}
+		// Module state this node writes or mutates: assignments, updates and deletes, methods that
+		// may mutate their receiver, and values passed to calls that may mutate them.
+		let assigned = |t: &IdentifierReference| -> Vec<u32> {
+			symbol_of(t)
+				.and_then(|sym| locals_of.get(&sym))
+				.cloned()
+				.unwrap_or_default()
+		};
+		let computed_key = |e: &Expression| match e {
+			Expression::StringLiteral(s) => Some(js_str(&s.value)),
+			_ => None,
+		};
+		let arguments = |facts: &FileFacts, args: &[Argument]| -> Vec<u32> {
+			args.iter()
+				.filter_map(|a| a.as_expression())
+				.flat_map(|e| state_of(facts, e, None))
+				.collect()
+		};
+		let mutated: Vec<u32> = match kind {
+			AstKind::AssignmentExpression(a) => match &a.left {
+				AssignmentTarget::AssignmentTargetIdentifier(t) => assigned(t),
+				AssignmentTarget::StaticMemberExpression(m) => {
+					state_of(&facts, &m.object, Some(m.property.name.as_str()))
+				}
+				AssignmentTarget::ComputedMemberExpression(m) => {
+					state_of(&facts, &m.object, computed_key(&m.expression).as_deref())
+				}
+				AssignmentTarget::PrivateFieldExpression(m) => state_of(&facts, &m.object, None),
+				_ => Vec::new(),
+			},
+			AstKind::UpdateExpression(u) => match &u.argument {
+				SimpleAssignmentTarget::AssignmentTargetIdentifier(t) => assigned(t),
+				SimpleAssignmentTarget::StaticMemberExpression(m) => {
+					state_of(&facts, &m.object, Some(m.property.name.as_str()))
+				}
+				SimpleAssignmentTarget::ComputedMemberExpression(m) => {
+					state_of(&facts, &m.object, computed_key(&m.expression).as_deref())
+				}
+				_ => Vec::new(),
+			},
+			AstKind::UnaryExpression(u) if u.operator == UnaryOperator::Delete => {
+				match &u.argument {
+					Expression::StaticMemberExpression(m) => {
+						state_of(&facts, &m.object, Some(m.property.name.as_str()))
+					}
+					Expression::ComputedMemberExpression(m) => {
+						state_of(&facts, &m.object, computed_key(&m.expression).as_deref())
+					}
+					_ => Vec::new(),
+				}
+			}
+			AstKind::CallExpression(c) if !is_pure_callee(&c.callee, config) => match &c.callee {
+				Expression::StaticMemberExpression(m)
+					if PURE_METHODS.contains(&m.property.name.as_str()) =>
+				{
+					Vec::new()
+				}
+				Expression::StaticMemberExpression(m) => {
+					let mut s = state_of(&facts, &m.object, None);
+					s.extend(arguments(&facts, &c.arguments));
+					s
+				}
+				_ => arguments(&facts, &c.arguments),
+			},
+			AstKind::NewExpression(n) if escapes(&n.callee) != Escape::No => {
+				arguments(&facts, &n.arguments)
+			}
+			_ => Vec::new(),
+		};
+		if !mutated.is_empty() {
+			let pos = kind.span().start;
+			if !deferred[id.index()] {
+				if let Some(writer) = node_at(pos) {
+					writes.extend(
+						mutated
+							.iter()
+							.filter(|&&l| l != writer)
+							.map(|&l| (l, writer)),
+					);
+				}
+			} else if let Some(n) = node_at(pos) {
+				mutated_by[n as usize].extend(mutated);
+			}
+		}
+		// Constructing a class runs the constructor of its superclass.
+		if let AstKind::Class(c) = kind {
+			if let (Some(heritage), Some(n)) = (&c.heritage, node_at(kind.span().start)) {
+				match escapes(&heritage.expression) {
+					Escape::Yes => escaping[n as usize] = true,
+					Escape::Call(sym) => local_calls[n as usize].push(sym),
+					Escape::No => {}
+				}
+			}
+		}
+		// Calling a member of a local declaration (`Registry.register(x)`) or of the enclosing
+		// class or object (`this.update()`) runs that member's code.
+		if let AstKind::CallExpression(c) = kind {
+			let pos = kind.span().start;
+			let targets = if is_pure_callee(&c.callee, config) {
+				Vec::new()
+			} else {
+				called_members(&facts, &c.callee, pos)
 			};
-			if let (Some(locals), Some(writer)) = (
-				written.and_then(|sym| locals_of.get(&sym)),
-				node_at(kind.span().start),
-			) {
-				writes.extend(
-					locals
-						.iter()
-						.filter(|&&l| l != writer)
-						.map(|&l| (l, writer)),
-				);
+			if !targets.is_empty() {
+				if deferred[id.index()] {
+					if let Some(n) = node_at(pos) {
+						member_calls[n as usize].extend(targets);
+					}
+				} else {
+					match stmt_index(pos).map(|si| owners[si]) {
+						Some(Owner::Decl(d)) => load_member_calls.push((d as usize, targets)),
+						Some(Owner::Init) => load_member_calls.push((0, targets)),
+						_ => {}
+					}
+				}
+				continue;
 			}
 		}
 		// Effects that can be observed outside this module. Effects on module-local state only
@@ -1340,6 +1617,7 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 				Escape::No
 			}
 			AstKind::CallExpression(c) => escapes(&c.callee),
+			AstKind::NewExpression(n) => escapes(&n.callee),
 			AstKind::AssignmentExpression(a) => match &a.left {
 				AssignmentTarget::AssignmentTargetIdentifier(_) => Escape::No,
 				AssignmentTarget::StaticMemberExpression(m) => escapes(&m.object),
@@ -1370,10 +1648,12 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 			_ => continue,
 		};
 		if deferred[id.index()] {
-			match escape {
-				Escape::Yes => escaping[owner] = true,
-				Escape::Call(sym) => local_calls[owner].push(sym),
-				Escape::No => {}
+			if let Some(n) = node_at(kind.span().start) {
+				match escape {
+					Escape::Yes => escaping[n as usize] = true,
+					Escape::Call(sym) => local_calls[n as usize].push(sym),
+					Escape::No => {}
+				}
 			}
 			continue;
 		}
@@ -1403,12 +1683,8 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 		}
 	}
 
-	for (state, writer) in writes {
-		facts.decls[state as usize].refs.push(Ref::Local(writer));
-	}
-
-	// A local function is impure if its body has escaping effects or calls an impure (or unknown)
-	// function. Load-time calls of impure local functions are global effects.
+	// A local function, constructor or method is impure if its code has escaping effects or calls
+	// an impure (or unknown) function or member. Load-time calls of impure ones are global effects.
 	let mut decls_of: HashMap<SymbolId, Vec<u32>> = HashMap::new();
 	for (sym, target) in &targets {
 		if let SymbolTarget::Locals(locals) = target {
@@ -1426,11 +1702,12 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 		let mut changed = false;
 		for d in 0..impure.len() {
 			if !impure[d]
-				&& local_calls[d].iter().any(|s| {
+				&& (local_calls[d].iter().any(|s| {
 					decls_of
 						.get(s)
 						.is_none_or(|ts| ts.iter().any(|&t| impure[t as usize]))
-				}) {
+				}) || member_calls[d].iter().any(|&t| impure[t as usize]))
+			{
 				impure[d] = true;
 				changed = true;
 			}
@@ -1439,16 +1716,50 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 			break;
 		}
 	}
-	for (owner, sym) in load_calls {
-		if decls_of
-			.get(&sym)
+	// Load-time calls, with the declarations they run (`None` for unknown functions).
+	let load_time_calls: Vec<(usize, Option<Vec<u32>>)> = load_calls
+		.iter()
+		.map(|(owner, sym)| (*owner, decls_of.get(sym).cloned()))
+		.chain(
+			load_member_calls
+				.into_iter()
+				.map(|(owner, targets)| (owner, Some(targets))),
+		)
+		.collect();
+	for (owner, callees) in &load_time_calls {
+		if callees
+			.as_ref()
 			.is_none_or(|ts| ts.iter().any(|&t| impure[t as usize]))
 		{
 			facts.global_effects = true;
-			if owner != 0 {
-				facts.decls[owner].pinned = true;
+			if *owner != 0 {
+				facts.decls[*owner].pinned = true;
 			}
 		}
+	}
+	// State mutated by the functions, constructors and methods that load-time code calls,
+	// directly or through others, depends on that code.
+	for (owner, callees) in &load_time_calls {
+		let mut seen: Vec<bool> = vec![false; facts.decls.len()];
+		let mut stack: Vec<u32> = callees.clone().unwrap_or_default();
+		while let Some(d) = stack.pop() {
+			if std::mem::replace(&mut seen[d as usize], true) {
+				continue;
+			}
+			writes.extend(
+				mutated_by[d as usize]
+					.iter()
+					.filter(|&&s| s as usize != *owner)
+					.map(|&s| (s, *owner as u32)),
+			);
+			for s in &local_calls[d as usize] {
+				stack.extend(decls_of.get(s).into_iter().flatten());
+			}
+			stack.extend(&member_calls[d as usize]);
+		}
+	}
+	for (state, writer) in writes {
+		facts.decls[state as usize].refs.push(Ref::Local(writer));
 	}
 
 	excluded.sort_unstable_by_key(|s| (s.start, s.end));
@@ -1464,16 +1775,20 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 		i > 0 && pos < merged[i - 1].end
 	};
 
-	let add_all = |facts: &mut FileFacts, pos: u32, specifier: String| {
+	let add_all = |facts: &mut FileFacts, pos: u32, specifier: String, root: bool| {
 		if is_excluded(pos) {
 			return;
 		}
 		let Some(src) = node_at(pos) else { return };
 		let spec = push_spec(facts, specifier, false);
+		facts.specs[spec as usize].root = root;
 		facts.decls[src as usize].refs.push(Ref::All(spec));
 	};
 	for (pos, specifier) in dynamic.into_iter().chain(path_strings) {
-		add_all(&mut facts, pos, specifier);
+		add_all(&mut facts, pos, specifier, false);
+	}
+	for (pos, specifier) in root_paths {
+		add_all(&mut facts, pos, specifier, true);
 	}
 	for (pos, name) in globals {
 		if let Some(src) = node_at(pos) {
@@ -1504,7 +1819,10 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 		let mut statement = Xxh3::new();
 		let start = tokens.partition_point(|t| t.start() < span.start);
 		let mut ex = merged.partition_point(|e| e.end <= span.start);
-		let mut m = member_spans.partition_point(|m| m.0.end <= span.start);
+		let mut m = member_spans.partition_point(|m| m.span.end <= span.start);
+		// The member whose tokens are being hashed. The parent's hash records where each ordered
+		// member is, so moving one changes the parent although no member changed.
+		let mut entered: Option<usize> = None;
 		for t in &tokens[start..] {
 			if t.start() >= span.end {
 				break;
@@ -1518,12 +1836,19 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 			if ex < merged.len() && merged[ex].start <= t.start() {
 				continue;
 			}
-			while m < member_spans.len() && member_spans[m].0.end <= t.start() {
+			while m < member_spans.len() && member_spans[m].span.end <= t.start() {
 				m += 1;
 			}
-			let target = if m < member_spans.len() && member_spans[m].0.start <= t.start() {
-				member_spans[m].1 as usize
+			let target = if m < member_spans.len() && member_spans[m].span.start <= t.start() {
+				if entered != Some(m) && member_spans[m].ordered {
+					let key = &facts.decls[member_spans[m].decl as usize].key;
+					hashers[d].update(&[0xfa]);
+					hashers[d].update(key.as_bytes());
+				}
+				entered = Some(m);
+				member_spans[m].decl as usize
 			} else {
+				entered = None;
 				d
 			};
 			let h = &mut hashers[target];
@@ -1534,11 +1859,23 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 		}
 		// The evaluation order of the module body, identified by declaration keys (and by content
 		// for initializer statements). Function declarations are hoisted, so their order is free.
+		// Members whose load-time code is order-relevant are entries of their own, so reordering
+		// them, or moving their declaration, selects the code that uses them.
 		match owners[si] {
 			Owner::Init => facts.order.push((statement.digest() ^ 0x1, 0)),
-			Owner::Decl(d) if order_relevant[d as usize] => facts
-				.order
-				.push((xxh3_64(facts.decls[d as usize].key.as_bytes()), d)),
+			Owner::Decl(d) => {
+				let mut entries: Vec<(u32, u32)> = std::iter::once(d)
+					.chain(facts.decls[d as usize].children.iter().copied())
+					.filter(|&n| order_pos[n as usize] != u32::MAX)
+					.map(|n| (order_pos[n as usize], n))
+					.collect();
+				entries.sort_unstable();
+				for (_, n) in entries {
+					facts
+						.order
+						.push((xxh3_64(facts.decls[n as usize].key.as_bytes()), n));
+				}
+			}
 			_ => {}
 		}
 	}
@@ -1598,7 +1935,13 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 	}
 	// An enum member without an initializer is the previous member's value plus one.
 	let mut previous: Option<u64> = None;
-	for &(_, child, has_init, kind) in &member_spans {
+	for &MemberSpan {
+		decl: child,
+		has_init,
+		kind,
+		..
+	} in &member_spans
+	{
 		let decl = &mut facts.decls[child as usize];
 		if kind == MemberKind::Enum && !has_init {
 			decl.hash =

@@ -254,7 +254,13 @@ impl<'s> Linker<'s> {
 			let resolved: Vec<Res> = facts
 				.specs
 				.iter()
-				.map(|s| self.resolve_specifier(&entry.path, &s.specifier))
+				.map(|s| {
+					if s.root {
+						self.resolve_path(&s.specifier)
+					} else {
+						self.resolve_specifier(&entry.path, &s.specifier)
+					}
+				})
 				.collect();
 			self.res[f as usize] = Some(resolved.into_boxed_slice());
 		}

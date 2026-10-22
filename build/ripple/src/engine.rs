@@ -758,4 +758,235 @@ mod tests {
 			Vec::<String>::new()
 		);
 	}
+
+	/// A test importing `read` from `src/app/lib.ts`.
+	const TEST_READ: (&str, &str) = (
+		"src/app/test/a.test.ts",
+		"import { read } from '../lib.js';\ntest('a', () => read());\n",
+	);
+
+	/// The test files selected when `src/app/lib.ts` changes from `before` to `after`.
+	fn selected_by_lib(before: &str, after: &str, others: &[(&str, &str)]) -> Vec<String> {
+		let lib = |content| std::iter::once(("src/app/lib.ts", content));
+		let base: Vec<(&str, &str)> = lib(before).chain(others.iter().copied()).collect();
+		let head: Vec<(&str, &str)> = lib(after).chain(others.iter().copied()).collect();
+		selected(&base, &head)
+	}
+
+	#[test]
+	fn repository_paths_in_strings_select_their_readers() {
+		let test = (
+			"src/app/test/grammars.test.ts",
+			"const grammars = ['data/syntaxes/JSON.tmLanguage.json', 'data/syntaxes/Regular Expressions (JS).tmLanguage', 'text/plain'];\ntest('a', () => load(grammars));\n",
+		);
+		let json = |c: &'static str| ("data/syntaxes/JSON.tmLanguage.json", c);
+		let regex = |c: &'static str| ("data/syntaxes/Regular Expressions (JS).tmLanguage", c);
+		assert_eq!(
+			(
+				selected(
+					&[json("{}"), regex("a"), test],
+					&[json("{ x"), regex("a"), test]
+				),
+				selected(
+					&[json("{}"), regex("a"), test],
+					&[json("{}"), regex("b"), test]
+				),
+			),
+			(vec![test.0.to_owned()], vec![test.0.to_owned()])
+		);
+		// Strings that name no repository file are not packages either.
+		let graph = Graph::build(&snapshot(&[json("{}"), test]), for_tests());
+		assert!(!graph.packages.contains_key("text"));
+	}
+
+	#[test]
+	fn reordering_members_with_load_time_effects_selects_their_users() {
+		let test = (
+			"src/app/test/a.test.ts",
+			"import { values } from '../lib.js';\ntest('a', () => values.first);\n",
+		);
+		assert_eq!(
+			selected_by_lib(
+				"let n = 0;\nexport const values = { first: ++n, second: ++n };\n",
+				"let n = 0;\nexport const values = { second: ++n, first: ++n };\n",
+				&[test]
+			),
+			vec![test.0]
+		);
+	}
+
+	#[test]
+	fn reordering_properties_selects_the_users_of_the_whole_object() {
+		let keys = (
+			"src/app/test/keys.test.ts",
+			"import { values } from '../lib.js';\ntest('a', () => Object.keys(values));\n",
+		);
+		let member = (
+			"src/app/test/member.test.ts",
+			"import { values } from '../lib.js';\ntest('a', () => values.a);\n",
+		);
+		assert_eq!(
+			selected_by_lib(
+				"export const values = { a: 1, b: 2 };\n",
+				"export const values = { b: 2, a: 1 };\n",
+				&[keys, member]
+			),
+			vec![keys.0]
+		);
+	}
+
+	#[test]
+	fn moving_methods_selects_nothing() {
+		let test = (
+			"src/app/test/a.test.ts",
+			"import { C } from '../lib.js';\ntest('a', () => new C().f() + C.g());\n",
+		);
+		assert_eq!(
+			selected_by_lib(
+				"export class C {\n\tf() { return 1; }\n\tstatic g() { return 2; }\n\th() { return 3; }\n}\n",
+				"export class C {\n\th() { return 3; }\n\tstatic g() { return 2; }\n\tf() { return 1; }\n}\n",
+				&[test]
+			),
+			Vec::<String>::new()
+		);
+	}
+
+	#[test]
+	fn load_time_construction_runs_the_constructor() {
+		let writer = (
+			"src/app/writer.ts",
+			"export class Writer { constructor(value) { globalThis.value = value; } }\n",
+		);
+		let cases = [
+			// A local class whose constructor writes a global.
+			"class Writer {\n\tconstructor(value) { globalThis.value = value; }\n}\nconst init = new Writer(1);\nexport function read() { return globalThis.value; }\n",
+			// An imported class: its constructor may have effects.
+			"import { Writer } from './writer.js';\nconst init = new Writer(1);\nexport function read() { return 1; }\n",
+			// A local class inheriting the constructor of an imported class.
+			"import { Writer } from './writer.js';\nclass Derived extends Writer { }\nconst init = new Derived(1);\nexport function read() { return 1; }\n",
+		];
+		for before in cases {
+			let after = before.replace("(1)", "(2)");
+			assert_eq!(
+				selected_by_lib(before, &after, &[TEST_READ, writer]),
+				vec![TEST_READ.0],
+				"{before}"
+			);
+		}
+		// Constructing built-in values has no effects outside the module.
+		assert_eq!(
+			selected_by_lib(
+				"const cache = new Map([[1, 'a']]);\nexport function read() { return 1; }\n",
+				"const cache = new Map([[1, 'b']]);\nexport function read() { return 1; }\n",
+				&[TEST_READ]
+			),
+			Vec::<String>::new()
+		);
+	}
+
+	#[test]
+	fn load_time_mutations_make_state_depend_on_the_writer() {
+		let cases = [
+			"const state = [];\nconst init = state.push(1);\nexport function read() { return state[0]; }\n",
+			"const state = new Map();\nconst init = state.set('a', 1);\nexport function read() { return state.get('a'); }\n",
+			"const state = {};\nconst init = (state.value = 1);\nexport function read() { return state.value; }\n",
+			"const state = { list: [] };\nconst init = state.list.push(1);\nexport function read() { return state.list[0]; }\n",
+			"const state = [];\nfunction add(x) { state.push(x); }\nconst init = add(1);\nexport function read() { return state[0]; }\n",
+			"let n = 0;\nfunction assign(x) { n = x; }\nconst init = assign(1);\nexport function read() { return n; }\n",
+			"const state = [];\nfunction fill(s, x) { s.push(x); }\nconst init = fill(state, 1);\nexport function read() { return state[0]; }\n",
+			"let n = 0;\nclass W { constructor(x) { n = x; } }\nconst init = new W(1);\nexport function read() { return n; }\n",
+			"class C {\n\tstatic list = [];\n\tstatic read() { return C.list[0]; }\n}\nconst init = C.list.push(1);\nexport function read() { return C.read(); }\n",
+		];
+		for before in cases {
+			let after = before.replace("1)", "2)").replace("= 1)", "= 2)");
+			assert_ne!(before, after);
+			assert_eq!(
+				selected_by_lib(before, &after, &[TEST_READ]),
+				vec![TEST_READ.0],
+				"{before}"
+			);
+		}
+	}
+
+	#[test]
+	fn static_accessor_pairs_are_one_dependency() {
+		let test = (
+			"src/app/test/a.test.ts",
+			"import { Value } from '../lib.js';\ntest('a', () => { Value.value = 1; return Value.value; });\n",
+		);
+		let lib = |setter: &str| {
+			format!(
+				"let n = 0;\nexport class Value {{\n\tstatic get value() {{ return n; }}\n\tstatic set value(v) {{ n = {setter}; }}\n}}\n"
+			)
+		};
+		assert_eq!(
+			selected_by_lib(&lib("v"), &lib("v + 1"), &[test]),
+			vec![test.0]
+		);
+	}
+
+	#[test]
+	fn constructing_a_class_runs_its_constructor_not_its_methods() {
+		let other = (
+			"src/app/test/other.test.ts",
+			"import { other } from '../lib.js';\ntest('a', () => other());\n",
+		);
+		let user = (
+			"src/app/test/user.test.ts",
+			"import { access } from '../lib.js';\ntest('a', () => access.run());\n",
+		);
+		let register = (
+			"src/app/register.ts",
+			"export function register(x) { globalThis.x = x; }\n",
+		);
+		let lib = |class: &str| {
+			format!(
+				"import {{ register }} from './register.js';\n{class}\nexport const access = new Impl();\nexport function other() {{ return 1; }}\n"
+			)
+		};
+		let cases = [
+			// Methods run when called: only the users of the instance depend on them.
+			(
+				"class Impl { run() { register(1); } }",
+				"class Impl { run() { register(2); } }",
+				vec![user.0],
+			),
+			// The constructor runs at load time: every test loading the module depends on it.
+			(
+				"class Impl { constructor() { register(1); } run() { } }",
+				"class Impl { constructor() { register(2); } run() { } }",
+				vec![other.0, user.0],
+			),
+			// So do the methods it calls.
+			(
+				"class Impl { constructor() { this.init(); } init() { register(1); } run() { } }",
+				"class Impl { constructor() { this.init(); } init() { register(2); } run() { } }",
+				vec![other.0, user.0],
+			),
+		];
+		for (before, after, expected) in cases {
+			assert_eq!(
+				selected_by_lib(&lib(before), &lib(after), &[other, user, register]),
+				expected,
+				"{before}"
+			);
+		}
+	}
+
+	#[test]
+	fn load_time_calls_of_static_methods_run_them() {
+		let lib = |v: &str| {
+			format!(
+				"import {{ register }} from './register.js';\nclass Registry {{ static add(x) {{ register(x + {v}); }} }}\nconst init = Registry.add(1);\nexport function read() {{ return 1; }}\n"
+			)
+		};
+		let register = (
+			"src/app/register.ts",
+			"export function register(x) { globalThis.x = x; }\n",
+		);
+		assert_eq!(
+			selected_by_lib(&lib("1"), &lib("2"), &[TEST_READ, register]),
+			vec![TEST_READ.0]
+		);
+	}
 }
