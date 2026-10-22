@@ -5,6 +5,7 @@
 
 import * as dom from '../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
+import { findLast } from '../../../../base/common/arraysFind.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -151,7 +152,7 @@ export class SessionOptionsRow extends Disposable {
 					return;
 				}
 				// The innermost picker under the pointer; its own context menu is replaced by one that also collapses it.
-				const picker = getLabeledPickerResponsiveItems(row).findLast(item => item.element?.contains(target));
+				const picker = findLast(getLabeledPickerResponsiveItems(row), item => !!item.element?.contains(target));
 				const pickerId = picker?.element && iconOnlyPickers.getPickerId(picker.element);
 				if (!pickerId) {
 					return;
