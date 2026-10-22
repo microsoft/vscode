@@ -790,7 +790,10 @@ suite('AgentHostSandboxNotification', () => {
 				const renderedButton = { label: button.textContent, role: button.getAttribute('role'), tabIndex: button.tabIndex, ariaLabel: button.ariaLabel };
 				const actions = widget.domNode.querySelectorAll('.chat-input-notification-actions .monaco-button').length;
 				if (outcome === 'installed') {
-					button.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+					const enterEvent = new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true, cancelable: true });
+					// StandardKeyboardEvent reads keyCode; define it explicitly rather than relying on the legacy constructor option.
+					Object.defineProperty(enterEvent, 'keyCode', { get: () => 13 });
+					button.dispatchEvent(enterEvent);
 				} else {
 					button.click();
 				}
