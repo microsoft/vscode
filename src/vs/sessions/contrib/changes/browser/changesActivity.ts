@@ -8,7 +8,8 @@ import { $, append } from '../../../../base/browser/dom.js';
 import { IManagedHoverContent } from '../../../../base/browser/ui/hover/hover.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Event } from '../../../../base/common/event.js';
-import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, derivedOpts, IObservable, IReader, ISettableObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { localize } from '../../../../nls.js';
@@ -43,6 +44,8 @@ export const MAX_SEEN_CHANGES_CHATS = 200;
 
 const SEEN_CHANGES_STORAGE_KEY = 'sessions.changesActivity.seenChanges';
 
+const SEEN_CHANGES_PERSIST_DELAY = 1000;
+
 interface IStoredSeenChanges {
 	readonly chat: string;
 	readonly files: number;
@@ -60,6 +63,7 @@ export class SeenChangesStore extends Disposable {
 
 	/** Insertion ordered, least recently seen first. */
 	private readonly entries: ISettableObservable<ReadonlyMap<string, IDiffStats>>;
+	private readonly persistScheduler: RunOnceScheduler;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -67,6 +71,12 @@ export class SeenChangesStore extends Disposable {
 		super();
 
 		this.entries = observableValue<ReadonlyMap<string, IDiffStats>>(this, this.load());
+
+		// Stats can change many times while the user watches an agent edit, so persisting is batched.
+		// Registered before the scheduler, so a pending write is flushed before the scheduler is disposed.
+		this._register(toDisposable(() => this.flush()));
+		this.persistScheduler = this._register(new RunOnceScheduler(() => this.persist(), SEEN_CHANGES_PERSIST_DELAY));
+		this._register(this.storageService.onWillSaveState(() => this.flush()));
 
 		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, SEEN_CHANGES_STORAGE_KEY, this._store)(e => {
 			if (e.external) {
@@ -99,7 +109,18 @@ export class SeenChangesStore extends Disposable {
 		}
 
 		this.entries.set(updated, undefined);
-		const stored = [...updated].map(([chat, stats]) => ({ chat, ...stats } satisfies IStoredSeenChanges));
+		this.persistScheduler.schedule();
+	}
+
+	private flush(): void {
+		if (this.persistScheduler.isScheduled()) {
+			this.persistScheduler.cancel();
+			this.persist();
+		}
+	}
+
+	private persist(): void {
+		const stored = [...this.entries.get()].map(([chat, stats]) => ({ chat, ...stats } satisfies IStoredSeenChanges));
 		this.storageService.store(SEEN_CHANGES_STORAGE_KEY, JSON.stringify(stored), StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
 

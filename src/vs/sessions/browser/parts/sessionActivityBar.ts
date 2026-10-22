@@ -373,9 +373,10 @@ export class ChatViewSessionActivityBar extends Disposable {
 
 /**
  * An entry of the strip that shows the activity reported for its command through
- * {@link ISessionActivityBarActivityService}: a count for number badges, and a dot
- * for other badges since the strip's entries are too small to carry an icon.
- * Badge descriptions are appended to the entry's hover and accessible label.
+ * {@link ISessionActivityBarActivityService}, using the most recent activity: a count
+ * for a number badge, and a dot for other badges since the strip's entries are too
+ * small to carry an icon. The badge description is appended to the entry's hover and
+ * accessible label.
  * Contributions that customize an entry with `IActionViewItemService` can extend
  * this to keep its activity.
  */
@@ -411,19 +412,15 @@ export class SessionActivityBarActionViewItem extends MenuEntryActionViewItem {
 		this.updateActivity();
 	}
 
-	protected getBadges(): readonly IBadge[] {
-		return this.activityService.getActivity(this._menuItemAction.id).map(activity => activity.badge);
+	/** The badge of the most recent activity reported for the entry's command, which the entry shows. */
+	protected getBadge(): IBadge | undefined {
+		return this.activityService.getActivity(this._menuItemAction.id).at(-1)?.badge;
 	}
 
 	protected override getTooltip(): string {
-		let title = super.getTooltip();
-		for (const badge of this.getBadges()) {
-			const description = badge.getDescription();
-			if (description) {
-				title = localize('sessionActivityBar.titleWithActivity', "{0} - {1}", title, description);
-			}
-		}
-		return title;
+		const title = super.getTooltip();
+		const description = this.getBadge()?.getDescription();
+		return description ? localize('sessionActivityBar.titleWithActivity', "{0} - {1}", title, description) : title;
 	}
 
 	private updateActivity(): void {
@@ -432,13 +429,13 @@ export class SessionActivityBarActionViewItem extends MenuEntryActionViewItem {
 			return;
 		}
 
-		const badges = this.getBadges();
-		const count = badges.reduce((total, badge) => total + (badge instanceof NumberBadge ? badge.number : 0), 0);
-		badgeElement.classList.toggle('visible', count > 0 || badges.some(badge => !(badge instanceof NumberBadge)));
+		const badge = this.getBadge();
+		const count = badge instanceof NumberBadge ? badge.number : 0;
+		badgeElement.classList.toggle('visible', !!badge && (!(badge instanceof NumberBadge) || count > 0));
 		badgeElement.classList.toggle('count', count > 0);
 		badgeElement.textContent = count > 99 ? '99+' : count > 0 ? `${count}` : '';
 
-		const colors = badges[0]?.getColors(this._themeService.getColorTheme());
+		const colors = badge?.getColors(this._themeService.getColorTheme());
 		badgeElement.style.backgroundColor = colors?.badgeBackground?.toString() ?? '';
 		badgeElement.style.color = colors?.badgeForeground?.toString() ?? '';
 		badgeElement.style.borderColor = colors?.badgeBorder?.toString() ?? '';

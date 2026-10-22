@@ -15,6 +15,7 @@ import { IVisibleEditorPane } from '../../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
+import { StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { NEW_CHANGES_TAB_COMMAND_ID } from '../../../editor/browser/addTabActions.js';
@@ -47,23 +48,23 @@ suite('Sessions - Changes Activity', () => {
 		});
 	});
 
-	test('persists seen changes and evicts the least recently seen chat', () => {
+	test('persists seen changes in batches and evicts the least recently seen chat', () => {
 		const storageService = store.add(new TestStorageService());
-		const seen = store.add(new SeenChangesStore(storageService));
+		const seen = new SeenChangesStore(storageService);
 		for (let i = 0; i <= MAX_SEEN_CHANGES_CHATS; i++) {
 			seen.set(`chat${i}`, stats(i));
 		}
 		// Seeing chat1 again keeps it over chat2.
 		seen.set('chat1', stats(7));
 		seen.set('overflow', stats(3));
+		const persistedBeforeFlush = storageService.get('sessions.changesActivity.seenChanges', StorageScope.APPLICATION);
+		seen.dispose();
 
 		const restored = store.add(new SeenChangesStore(storageService));
-		assert.deepStrictEqual(['chat0', 'chat1', 'chat2', 'overflow'].map(chat => restored.get(chat, undefined)), [
-			undefined,
-			stats(7),
-			undefined,
-			stats(3),
-		]);
+		assert.deepStrictEqual({ persistedBeforeFlush, restored: ['chat0', 'chat1', 'chat2', 'overflow'].map(chat => restored.get(chat, undefined)) }, {
+			persistedBeforeFlush: undefined,
+			restored: [undefined, stats(7), undefined, stats(3)],
+		});
 	});
 });
 

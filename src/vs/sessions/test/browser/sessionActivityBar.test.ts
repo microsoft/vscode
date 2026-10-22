@@ -218,18 +218,29 @@ suite('Sessions - Session Activity Bar', () => {
 		const changesItem = activityBar.element.querySelector<HTMLElement>('.action-item')!;
 		const itemBounds = changesItem.getBoundingClientRect();
 		const badgeBounds = changesItem.querySelector('.session-activity-bar-badge')!.getBoundingClientRect();
-		const dotPosition = { top: badgeBounds.top - itemBounds.top, right: itemBounds.right - badgeBounds.right, width: badgeBounds.width, height: badgeBounds.height };
+		const centerX = (badgeBounds.left + badgeBounds.right) / 2;
+		const centerY = (badgeBounds.top + badgeBounds.bottom) / 2;
+		const dotPlacement = {
+			insideEntry: badgeBounds.left >= itemBounds.left && badgeBounds.right <= itemBounds.right && badgeBounds.top >= itemBounds.top && badgeBounds.bottom <= itemBounds.bottom,
+			bottomRightQuadrant: centerX > (itemBounds.left + itemBounds.right) / 2 && centerY > (itemBounds.top + itemBounds.bottom) / 2,
+			smallerThanEntry: badgeBounds.width < itemBounds.width / 2 && badgeBounds.height < itemBounds.height / 2,
+		};
 		const count = activityService.showActivity(browser.id, { badge: new NumberBadge(120, n => `${n} pages`) });
 		const withCount = state();
+		// The most recent activity is shown, not an aggregate of every activity.
+		const moreRecentCount = activityService.showActivity(browser.id, { badge: new NumberBadge(3, n => `${n} tabs`) });
+		const withMoreRecentCount = state();
+		moreRecentCount.dispose();
 		dot.dispose();
 		count.dispose();
 		const cleared = state();
 
-		assert.deepStrictEqual({ initial, withDot, dotPosition, withCount, cleared }, {
+		assert.deepStrictEqual({ initial, withDot, dotPlacement, withCount, withMoreRecentCount, cleared }, {
 			initial: [{ ariaLabel: 'Changes', badge: undefined }, { ariaLabel: 'Browser', badge: undefined }],
 			withDot: [{ ariaLabel: 'Changes - New changes', badge: 'dot' }, { ariaLabel: 'Browser', badge: undefined }],
-			dotPosition: { top: 12, right: 2, width: 8, height: 8 },
+			dotPlacement: { insideEntry: true, bottomRightQuadrant: true, smallerThanEntry: true },
 			withCount: [{ ariaLabel: 'Changes - New changes', badge: 'dot' }, { ariaLabel: 'Browser - 120 pages', badge: '99+' }],
+			withMoreRecentCount: [{ ariaLabel: 'Changes - New changes', badge: 'dot' }, { ariaLabel: 'Browser - 3 tabs', badge: '3' }],
 			cleared: [{ ariaLabel: 'Changes', badge: undefined }, { ariaLabel: 'Browser', badge: undefined }],
 		});
 	});
