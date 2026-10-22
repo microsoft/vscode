@@ -172,6 +172,9 @@ export const SessionChatItemCanDeleteContext = new RawContextKey<boolean>('sessi
 /** Whether the chat item's chat can move out of its session, e.g. into a new session: its provider moves chats and the chat is movable. */
 export const SessionChatItemCanMoveContext = new RawContextKey<boolean>('sessionChatItem.canMove', false);
 export const SessionChatItemIsArchivedContext = new RawContextKey<boolean>('sessionChatItem.isArchived', false);
+export const SessionChatItemIsReadContext = new RawContextKey<boolean>('sessionChatItem.isRead', true);
+/** Whether the chat item's chat can be marked read or unread on its own: it is its session's main chat, or its session tracks read state per chat. */
+export const SessionChatItemCanSetReadStateContext = new RawContextKey<boolean>('sessionChatItem.canSetReadState', false);
 export const SessionChatItemIsUntitledContext = new RawContextKey<boolean>('sessionChatItem.isUntitled', false);
 /** Whether the chat row stands on its own in its section instead of being nested under its session's row. */
 export const SessionChatItemIsStandaloneContext = new RawContextKey<boolean>('sessionChatItem.isStandalone', false);
@@ -6858,6 +6861,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 			[SessionChatItemCanArchiveContext.key, capabilities.canArchive],
 			[SessionChatItemCanDeleteContext.key, capabilities.canDelete],
 			[SessionChatItemIsArchivedContext.key, element.chat.isArchived.get()],
+			[SessionChatItemIsReadContext.key, element.chat.isRead.get()],
+			[SessionChatItemCanSetReadStateContext.key, isEqual(element.chat.resource, element.session.mainChat.get().resource) || element.session.capabilities.get().supportsIndependentChatReadState === true],
 			[SessionChatItemIsUntitledContext.key, element.chat.status.get() === SessionStatus.Untitled],
 			[SessionChatItemIsStandaloneContext.key, !!element.standalone],
 			[SessionChatItemCanMoveUpContext.key, this.getAdjacentChatMove(element, 'up') !== undefined],
