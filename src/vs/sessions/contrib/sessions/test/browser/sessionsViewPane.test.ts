@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { SplitView, Sizing } from '../../../../../base/browser/ui/splitview/splitview.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -18,6 +19,7 @@ import { ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { AICustomizationShortcutsWidget } from '../../browser/aiCustomizationShortcutsWidget.js';
 import { getCustomizationsPresentation, SessionsView } from '../../browser/views/sessionsView.js';
+import { SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
 import '../../browser/media/sessionsViewPane.css';
 
 const registerEditorTabHeightClass = Reflect.get(Workbench.prototype, 'registerEditorTabHeightClass') as (this: {
@@ -45,6 +47,27 @@ const updateHeaderLayout = Reflect.get(SessionsView.prototype, 'updateHeaderLayo
 
 suite('Sessions - SessionsViewPane', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('offers and selects environment grouping in the mobile sheet', async () => {
+		const container = mainWindow.document.createElement('div');
+		const selected = new DeferredPromise<SessionsGrouping>();
+		const host = {
+			layoutService: { mainContainer: container },
+			currentGrouping: SessionsGrouping.Environment,
+			currentSorting: SessionsSorting.Created,
+			setGrouping: (grouping: SessionsGrouping) => selected.complete(grouping),
+			setSorting: () => assert.fail('Expected grouping selection'),
+		};
+		const openSheet = Reflect.get(SessionsView.prototype, 'openSortGroupSheet') as (this: typeof host) => void;
+		openSheet.call(host);
+		const option = [...container.querySelectorAll<HTMLButtonElement>('.mobile-sort-group-sheet-item')]
+			.find(row => row.textContent?.trim() === 'Group by Environment');
+		assert.ok(option);
+		const checked = option.getAttribute('aria-selected');
+		option.click();
+
+		assert.deepStrictEqual({ checked, selected: await selected.p }, { checked: 'true', selected: SessionsGrouping.Environment });
+	});
 
 	test('selects control and treatment presentations only when AI UI is visible on desktop', () => {
 		assert.deepStrictEqual({
