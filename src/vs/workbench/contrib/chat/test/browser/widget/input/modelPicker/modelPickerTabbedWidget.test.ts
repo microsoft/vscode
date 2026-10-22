@@ -42,6 +42,7 @@ import { StateType } from '../../../../../../../../platform/update/common/update
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../../../services/chat/common/chatEntitlementService.js';
 import { ITabbedModelPickerContext, TabbedModelPicker } from '../../../../../browser/widget/input/modelPicker/modelPickerTabbedWidget.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelProviderDescriptor, ILanguageModelsService, IModelConfigurationAccess, IModelControlEntry, IModelsControlManifest } from '../../../../../common/languageModels.js';
+import { languageModelSourcePresentationRegistry } from '../../../../../common/languageModelSourcePresentation.js';
 import type { IModelConfigPropertySchema } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
 import { ChatConfiguration } from '../../../../../common/constants.js';
 import { IModelPickerComparison, IModelPickerComparisonState, ModelComparisonAvailableContext, ModelComparisonPickerFocusedContext } from '../../../../../browser/widget/input/modelPicker/modelPickerComparison.js';
@@ -324,6 +325,63 @@ suite('TabbedModelPicker', () => {
 	function goBack(popup: HTMLElement): void {
 		element(popup, '[role="button"][aria-label^="Back to Models"]').click();
 	}
+
+	test('source attribution survives row badges, search and details without changing selection or pin identities', async () => {
+		for (const [sourceId, label] of [['first-source', 'First provider'], ['second-source', 'Second provider']]) {
+			disposables.add(languageModelSourcePresentationRegistry.register({
+				ownerVendor: 'copilot', sourceId, label, icon: Codicon.server, description: `Models supplied by ${label}`,
+			}));
+		}
+		const first = model('first', false);
+		const second = model('second', false);
+		const sourceModels = [first, second].map((model, index) => ({
+			...model,
+			metadata: {
+				...model.metadata,
+				name: 'Shared model',
+				modelGroup: { id: 'copilot', sourceId: index === 0 ? 'first-source' : 'second-source' },
+				promo: index === 0 ? { id: 'promo', discountPercent: 25, message: 'Model promotion.' } : undefined,
+			},
+		}));
+		const { picker, popup, selections, pins } = createPicker({ models: sourceModels });
+		const summarizeRows = () => Array.from(popup.querySelectorAll<HTMLElement>('.chat-model-picker-model'), row => ({
+			name: row.querySelector('.title')?.textContent,
+			badge: row.querySelector('.action-item-badge')?.textContent || undefined,
+			sourceMentions: row.getAttribute('aria-label')?.match(/(?:First|Second) provider/g)?.length,
+		})).sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''));
+		const rows = summarizeRows();
+		const heading = popup.querySelector('.chat-model-picker-tabbar [aria-label="Models"]')?.getAttribute('aria-label');
+		openDetails(popup, 'Shared model (First provider)');
+		const details = {
+			name: popup.querySelector('.chat-model-card-name')?.textContent,
+			label: popup.querySelector('.tabbed-action-list-details')?.getAttribute('aria-label'),
+		};
+		element(popup, '[aria-label="Pin Model"]').click();
+		await timeout(0);
+		goBack(popup);
+		picker.openWithFilter({ initialFilterValue: 'Shared model', initialFocusItemId: second.identifier });
+		const search = summarizeRows();
+		element(popup, '.chat-model-picker-model[aria-label^="Shared model (Second provider)"]').click();
+		await timeout(0);
+		assert.deepStrictEqual({
+			heading, rows, details, search, selections, pins,
+			models: sourceModels.map(model => ({ identifier: model.identifier, name: model.metadata.name })),
+		}, {
+			heading: 'Models',
+			rows: [
+				{ name: 'Shared model (First provider)', badge: '25% off', sourceMentions: 1 },
+				{ name: 'Shared model (Second provider)', badge: undefined, sourceMentions: 1 },
+			],
+			details: { name: 'Shared model (First provider)', label: 'Shared model (First provider) Details' },
+			search: [
+				{ name: 'Shared model (First provider)', badge: '25% off', sourceMentions: 1 },
+				{ name: 'Shared model (Second provider)', badge: undefined, sourceMentions: 1 },
+			],
+			selections: [second.identifier],
+			pins: [first.identifier],
+			models: [{ identifier: first.identifier, name: 'Shared model' }, { identifier: second.identifier, name: 'Shared model' }],
+		});
+	});
 
 	test('dialog-hosted details preserve the requested popup layer and below-anchor placement', () => {
 		const result = createPicker({ inDialog: true, contextViewLayer: 1, details: models[0].identifier });

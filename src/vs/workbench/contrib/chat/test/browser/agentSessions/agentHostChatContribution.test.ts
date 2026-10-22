@@ -14,6 +14,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError, isCancellationError, transformErrorForSerialization, transformErrorFromSerialization } from '../../../../../../base/common/errors.js';
 import { AgentPolicyError } from '../../../../../../platform/agentHost/common/agent.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { toAgentModelExecutionMeta } from '../../../../../../platform/agentHost/common/meta/agentModelProvider.js';
 import { Disposable, DisposableStore, IDisposable, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
@@ -8486,6 +8487,67 @@ suite('AgentHostChatContribution', () => {
 			assert.deepStrictEqual({ details: result.details, metadata: result.metadata }, { details: 'Opus 4.7 • 1.5 credits', metadata: undefined });
 		}));
 
+		test('live response uses captured provider attribution instead of the current catalog', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const results = [];
+			for (const [currentSource, validExecution] of [[undefined, true], ['different-provider', true], ['executing-provider', true], ['executing-provider', false]] as const) {
+				const languageModels = new Map<string, ILanguageModelChatMetadata>(currentSource ? [[
+					'agent-host-copilot:shared-model',
+					upcastPartial<ILanguageModelChatMetadata>({ name: 'Current Catalog Name', pricing: '99x', modelGroup: { id: 'copilot', sourceId: currentSource } }),
+				]] : []);
+				const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { languageModels });
+				const { turnPromise, turnId, fire, collected } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+				fire({
+					type: ActionType.ChatUsage, turnId, usage: {
+						model: 'shared-model', inputTokens: 4, outputTokens: 2,
+						_meta: validExecution ? toAgentModelExecutionMeta({
+							modelId: 'shared-model', modelDisplayName: 'Captured Model',
+							provider: { id: 'executing-provider', kind: 'future', label: 'Captured Provider' },
+						}) : { 'vscode.modelExecution': { modelId: 'shared-model' } },
+					}
+				});
+				fire({ type: ActionType.ChatTurnComplete, turnId, duration: 100 });
+				const result = await turnPromise;
+				results.push({
+					details: result.details,
+					actualModelId: collected.flat().findLast(part => part.kind === 'usage')?.actualModelId,
+				});
+			}
+			assert.deepStrictEqual(results, [
+				{ details: 'Captured Model (Captured Provider)', actualModelId: undefined },
+				{ details: 'Captured Model (Captured Provider)', actualModelId: undefined },
+				{ details: 'Captured Model (Captured Provider)', actualModelId: 'agent-host-copilot:shared-model' },
+				{ details: 'shared-model', actualModelId: undefined },
+			]);
+		}));
+
+		test('captured execution attribution preserves hidden Auto and Fusion workflow labels', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const details = [];
+			for (const selection of ['auto', 'hydrafusion']) {
+				const languageModels = new Map<string, ILanguageModelChatMetadata>([
+					['agent-host-copilot:auto', upcastPartial<ILanguageModelChatMetadata>({ name: 'Auto' })],
+					['agent-host-copilot:hydrafusion', upcastPartial<ILanguageModelChatMetadata>({ name: 'HydraFusion' })],
+				]);
+				const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
+					languageModels, provider: 'copilotcli', hideAutoExplainability: true,
+				});
+				const { turnPromise, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+					userSelectedModelId: `agent-host-copilot:${selection}`,
+				});
+				fire({
+					type: ActionType.ChatUsage, turnId, usage: {
+						model: 'actual-model', inputTokens: 4, outputTokens: 2,
+						_meta: {
+							...toAgentModelExecutionMeta({ modelId: 'actual-model', provider: { id: 'provider', kind: 'future', label: 'Source' } }),
+							...(selection === 'auto' ? { autoModeResolved: { chosenModel: 'actual-model' } } : {}),
+						},
+					}
+				});
+				fire({ type: ActionType.ChatTurnComplete, turnId, duration: 100 });
+				details.push((await turnPromise).details);
+			}
+			assert.deepStrictEqual(details, ['Auto', 'HydraFusion']);
+		}));
+
 		for (const cancelled of [false, true]) {
 			test(`Fusion response footer keeps the selected workflow model (cancelled: ${cancelled})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 				const languageModels = new Map<string, ILanguageModelChatMetadata>([
@@ -8839,6 +8901,50 @@ suite('AgentHostChatContribution', () => {
 				hidden: { modelId: 'agent-host-copilot:auto', modelName: 'Auto' },
 				shown: { modelId: 'agent-host-copilot:gpt-5.4-mini', modelName: 'GPT-5.4 mini' },
 			});
+		}));
+
+		test('subagent usage shows captured provider attribution without inventing a registered model id', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			const parentSession = mintedTestChatOwner(session);
+			assert.ok(parentSession);
+			const childChat = buildSubagentChatUri(parentSession, 'source-task');
+			fire({ type: ActionType.ChatToolCallStart, turnId, toolCallId: 'source-task', toolName: 'task', displayName: 'Task' });
+			fire({
+				type: ActionType.ChatToolCallReady, turnId, toolCallId: 'source-task', invocationMessage: 'Delegating work',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			});
+			await timeout(0);
+			agentHostService.fireAction({
+				channel: childChat,
+				action: {
+					type: ActionType.ChatTurnStarted, turnId: 'child-turn', startedAt: '2025-01-01T00:00:00.000Z',
+					message: { text: 'Explore', origin: { kind: MessageKind.User }, model: { id: 'selected-model' } },
+				},
+				serverSeq: 1000, origin: undefined,
+			});
+			await timeout(0);
+			agentHostService.fireAction({
+				channel: childChat,
+				action: {
+					type: ActionType.ChatUsage, turnId: 'child-turn',
+					usage: {
+						model: 'actual-model',
+						_meta: toAgentModelExecutionMeta({
+							modelId: 'actual-model', modelDisplayName: 'Captured Child',
+							provider: { id: 'provider', kind: 'future', label: 'Source' },
+						}),
+					},
+				},
+				serverSeq: 1001, origin: undefined,
+			});
+			await timeout(0);
+			const invocation = collected.flat().find(part => part.kind === 'toolInvocation' && part.toolCallId === 'source-task');
+			const data = invocation?.kind === 'toolInvocation' && invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData : undefined;
+			const model = { modelId: data?.modelId, modelName: data?.modelName };
+			fire({ type: ActionType.ChatTurnComplete, turnId, duration: 1 });
+			await turnPromise;
+			assert.deepStrictEqual(model, { modelId: undefined, modelName: 'Captured Child (Source)' });
 		}));
 
 		for (const [background, delayedMetadata] of [[false, false], [true, false], [true, true]]) {
@@ -12290,6 +12396,42 @@ suite('AgentHostChatContribution', () => {
 				return session.history.filter(item => item.type === 'response').map(item => item.details);
 			};
 			assert.deepStrictEqual(await footers(), ['Copilot Fusion Max • 15.5 credits', 'Copilot Fusion High • 15.5 credits']);
+		});
+
+		test('restored responses retain captured providers without waiting for any model catalog', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const sessionUri = AgentSession.uri('copilot', 'captured-provider-history');
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/captured-provider-history' });
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...createSessionState({
+					resource: sessionUri.toString(), provider: 'copilot', title: 'Test',
+					status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+				}),
+				lifecycle: SessionLifecycle.Ready,
+				turns: ['First Source', 'Second Source'].map((label, index) => ({
+					id: `turn-${index}`,
+					message: { text: `Q${index}`, origin: { kind: MessageKind.User }, model: { id: `opaque-selection-${index}` } },
+					responseParts: [],
+					usage: {
+						model: 'same-model', inputTokens: 4, outputTokens: 2,
+						_meta: toAgentModelExecutionMeta({
+							modelId: 'same-model', modelDisplayName: 'Captured Model',
+							provider: { id: `provider-${index}`, kind: 'future', label },
+						}),
+					},
+					state: TurnState.Complete,
+				})),
+			});
+			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => session.dispose()));
+			assert.deepStrictEqual(session.history.map(item => item.type === 'request'
+				? { modelId: item.modelId }
+				: { details: item.details, actualModelId: item.parts.find(part => part.kind === 'usage')?.actualModelId }), [
+				{ modelId: 'agent-host-copilot:opaque-selection-0' },
+				{ details: 'Captured Model (First Source)', actualModelId: undefined },
+				{ modelId: 'agent-host-copilot:opaque-selection-1' },
+				{ details: 'Captured Model (Second Source)', actualModelId: undefined },
+			]);
 		});
 
 		test('history requests get per-turn model selection from usage or message model', async () => {
@@ -19215,6 +19357,49 @@ suite('AgentHostChatContribution', () => {
 
 			assert.deepStrictEqual(results, [{ metadata: { resolvedModel: 'gpt-5.4-mini' } }]);
 		}));
+
+		for (const validProvenance of [true, false]) {
+			test(`server-initiated response details retain captured provenance without a catalog (${validProvenance})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const { sessionHandler, agentHostService, chatAgentService, chatService } = createContribution(disposables);
+				const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-server-provider' });
+				const { turnPromise, turnId, fire, chatSession } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
+				fire({ type: ActionType.ChatTurnComplete, turnId, duration: 10 });
+				await turnPromise;
+
+				const serverTurnId = 'server-provider-turn';
+				const results: IChatAgentResult[] = [];
+				const response = upcastPartial<IChatResponseModel>({
+					get result() { return results.at(-1); },
+					setResult: (result: IChatAgentResult) => { results.push(result); },
+				});
+				chatService.setSession(sessionResource, upcastPartial<IChatModel>({
+					sessionResource, onDidChangePendingRequests: Event.None, getPendingRequests: () => [],
+					getRequests: () => [upcastPartial<IChatRequestModel>({ id: serverTurnId, response })],
+					startEditingSession: () => { },
+				}));
+				fire({
+					type: ActionType.ChatTurnStarted, turnId: serverTurnId, startedAt: '2026-10-21T00:00:00.000Z',
+					message: { text: 'Other client request', origin: { kind: MessageKind.User }, model: { id: 'shared-model' } },
+				});
+				await timeout(10);
+				fire({
+					type: ActionType.ChatUsage, turnId: serverTurnId,
+					usage: {
+						model: 'shared-model', inputTokens: 10, outputTokens: 2,
+						_meta: validProvenance ? toAgentModelExecutionMeta({
+							modelId: 'shared-model', modelDisplayName: 'Captured Model',
+							provider: { id: 'executing-provider', kind: 'future', label: 'Captured Source' },
+						}) : { 'vscode.modelExecution': { modelId: 'shared-model' } },
+					},
+				});
+				fire({ type: ActionType.ChatTurnComplete, turnId: serverTurnId, duration: 10 });
+				await timeout(10);
+				assert.deepStrictEqual({ results, complete: chatSession.isCompleteObs?.get() }, {
+					results: [{ details: validProvenance ? 'Captured Model (Captured Source)' : 'shared-model' }],
+					complete: true,
+				});
+			}));
+		}
 
 		test('stale completion from a replaced server turn does not complete the next response', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);

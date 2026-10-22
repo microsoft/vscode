@@ -12,9 +12,12 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { PolicyState, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { withAgentModelAutoTierPromotionsMeta, withAgentModelAutoTiersMeta, withAgentModelFusionMeta, type IAgentModelAutoTierPromotion } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
 import { createLocalModelRowMeta } from '../../../../../../platform/agentHost/common/meta/localModelStatus.js';
+import { toAgentModelProviderMeta } from '../../../../../../platform/agentHost/common/meta/agentModelProvider.js';
+import { createAgentModelByokMeta } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { withAgentManagedModelDefaults, withAgentModelConfigurationDefaults } from '../../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
 import { ILanguageModelChatMetadata } from '../../../common/languageModels.js';
 import { AgentHostLanguageModelProvider } from '../../../browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
+import { getLanguageModelDisplayNameWithSubscriptionSource, languageModelSourcePresentationRegistry } from '../../../common/languageModelSourcePresentation.js';
 
 suite('AgentHostLanguageModelProvider', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -652,6 +655,83 @@ suite('AgentHostLanguageModelProvider', () => {
 			'huggingface/allenai/Olmo-3-7B-Instruct:cheapest': { id: 'huggingface' },
 			'acme/model': { id: 'acme' },
 		});
+	});
+
+	test('uses model-provider references without parsing opaque ids or changing model names', async () => {
+		const provider = createProvider();
+		provider.updateModels([
+			{ ...makeModel('opaque/first'), name: 'Shared Model', _meta: toAgentModelProviderMeta({ id: 'first-provider', kind: 'first', label: 'First Source' }) },
+			{ ...makeModel('opaque/second'), name: 'Shared Model', _meta: toAgentModelProviderMeta({ id: 'second-provider', kind: 'second', label: 'Second Source' }) },
+		]);
+		const models = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		assert.deepStrictEqual(models.map(model => ({
+			id: model.identifier, name: model.metadata.name, group: model.metadata.modelGroup,
+			displayName: getLanguageModelDisplayNameWithSubscriptionSource(model),
+		})), [
+			{ id: 'copilotcli:opaque/first', name: 'Shared Model', group: { id: 'copilotcli', sourceId: 'first-provider' }, displayName: 'Shared Model (First Source)' },
+			{ id: 'copilotcli:opaque/second', name: 'Shared Model', group: { id: 'copilotcli', sourceId: 'second-provider' }, displayName: 'Shared Model (Second Source)' },
+		]);
+	});
+
+	test('does not grant forwarded BYOK a native source presentation', async () => {
+		const provider = createProvider();
+		provider.updateModels([{
+			...makeModel('configured/model'),
+			_meta: {
+				...createAgentModelByokMeta('configured/model'),
+				...toAgentModelProviderMeta({ id: 'claimed-native', kind: 'copilot', label: 'GitHub Copilot' }),
+				modelSourceId: 'claimed-native',
+			},
+		}]);
+		const [model] = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		assert.deepStrictEqual({
+			group: model.metadata.modelGroup,
+			byokIdentifier: model.metadata.byokModelIdentifier,
+			presentation: languageModelSourcePresentationRegistry.get('copilotcli', 'claimed-native'),
+		}, { group: { id: 'configured' }, byokIdentifier: 'configured/model', presentation: undefined });
+	});
+
+	test('publishes source registrations before models and disposes them when the catalog changes', () => {
+		const provider = createProvider();
+		const labels: Array<string | undefined> = [];
+		store.add(provider.onDidChange(() => labels.push(languageModelSourcePresentationRegistry.get('copilotcli', 'native-source')?.label)));
+		for (const label of ['First Label', 'Updated Label']) {
+			provider.updateModels([makeModel('model', toAgentModelProviderMeta({ id: 'native-source', kind: 'future', label }))]);
+		}
+		provider.updateModels([]);
+		assert.deepStrictEqual(labels, ['First Label', 'Updated Label', undefined]);
+	});
+
+	test('never borrows default-account pricing for an explicitly attributed model', async () => {
+		const { catalogue: known } = catalogue([{ id: 'same-model', maxInputTokens: 1000, maxOutputTokens: 100, multiplierNumeric: 2 }]);
+		const provider = store.add(new AgentHostLanguageModelProvider('agent-host-copilot', 'agent-host-copilot', known));
+		provider.updateModels([{
+			...makeModel('same-model'),
+			provider: 'copilot',
+			_meta: toAgentModelProviderMeta({ id: 'another-account', kind: 'copilot', label: 'Provider' }),
+		}]);
+		const [model] = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		assert.deepStrictEqual({
+			pricing: model.metadata.pricing,
+			multiplier: model.metadata.multiplierNumeric,
+			maxInputTokens: model.metadata.maxInputTokens,
+		}, { pricing: undefined, multiplier: undefined, maxInputTokens: 0 });
+	});
+
+	test('malformed model provenance does not regain legacy identity or default-account pricing', async () => {
+		const { catalogue: known } = catalogue([{ id: 'opaque/model', multiplierNumeric: 2 }]);
+		const provider = store.add(new AgentHostLanguageModelProvider('agent-host-copilot', 'agent-host-copilot', known));
+		provider.updateModels([{
+			...makeModel('opaque/model'),
+			provider: 'copilot',
+			_meta: { 'vscode.modelProvider': { id: 'incomplete' }, modelSourceId: 'claimed-native' },
+		}]);
+		const [model] = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		assert.deepStrictEqual({
+			group: model.metadata.modelGroup,
+			pricing: model.metadata.pricing,
+			source: languageModelSourcePresentationRegistry.get('agent-host-copilot', 'claimed-native'),
+		}, { group: { id: 'copilot' }, pricing: undefined, source: undefined });
 	});
 
 	test('omits the model group when the provider is empty', async () => {

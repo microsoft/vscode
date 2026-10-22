@@ -21,6 +21,7 @@ import { ILogService, LogLevel, NullLogService } from '../../../log/common/log.j
 import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../../telemetry/common/telemetryUtils.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
+import { toAgentModelProviderMeta } from '../../common/meta/agentModelProvider.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { AgentPolicyError, AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID, IAgent, type AgentModelCallFinishedOutcome, type IAgentTurnTokenUsage } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
@@ -1690,6 +1691,29 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			{ model: 'unknown', modelSelectionKind: 'explicit', isBYOK: false },
 			{ model: 'byokModel', modelSelectionKind: 'default', isBYOK: true },
 		]);
+	});
+
+	test('does not trust opaque model-provider selections as telemetry model names', () => {
+		setupSession();
+		agent.setModels([
+			{
+				provider: 'mock', id: 'opaque-account-bound-model', name: 'Shared Model', supportsVision: false,
+				_meta: toAgentModelProviderMeta({ id: 'private-account-provider', kind: 'loki', label: 'Microsoft 365 Copilot' })
+			},
+			{
+				provider: 'mock', id: 'future-provider-model', name: 'Another Model', supportsVision: false,
+				_meta: toAgentModelProviderMeta({ id: 'configured-provider', kind: 'future', label: 'My Provider' })
+			},
+			{
+				provider: 'mock', id: 'opaque-model-with-invalid-provenance', name: 'Unknown Source', supportsVision: false,
+				_meta: { 'vscode.modelProvider': { id: 'incomplete-provider' } },
+			},
+		]);
+		for (const model of agent.models.get()) {
+			startTurn(model.id, 'hello', model.id);
+			fire({ type: ActionType.ChatTurnComplete, turnId: model.id, duration: 1000 });
+		}
+		assert.deepStrictEqual(completedEvents().map(event => (event.data as Record<string, unknown>).model), ['unknown', 'unknown', 'unknown']);
 	});
 
 	test('uses the resolved usage model while preserving Auto selection', () => {

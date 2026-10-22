@@ -143,6 +143,7 @@ import { reportCopilotTodoStoreOperation } from './copilotTodoStoreTelemetry.js'
 import { ModelCallTurnCorrelation } from './modelCallTurnCorrelation.js';
 import { CopilotSubagentTracking } from './copilotSubagentTracking.js';
 import { agentModelCallMetaKey, readAgentModelCallDiagnostics } from '../../common/meta/agentModelCallMeta.js';
+import { toAgentModelExecutionMeta, type IAgentModelExecution } from '../../common/meta/agentModelProvider.js';
 
 type CopilotSdkAttachment = Required<MessageOptions>['attachments'][number];
 type GitHubCredentialsUpdateResult = Awaited<ReturnType<CopilotSession['rpc']['gitHubAuth']['setCredentials']>>;
@@ -766,6 +767,7 @@ interface UsageContext {
 	model?: string;
 	cacheReadTokens?: number;
 	cost?: number;
+	modelExecution?: IAgentModelExecution;
 }
 
 /** Which SDK source produced an MCP lifecycle log record. */
@@ -9717,12 +9719,19 @@ export class CopilotAgentSession extends Disposable {
 			}
 
 			// This event's own context usage (the model call that produced it).
-			const eventContext = {
+			const eventContext: UsageContext = {
 				inputTokens: e.data.inputTokens,
 				outputTokens: e.data.outputTokens,
 				model: e.data.model,
 				cacheReadTokens: e.data.cacheReadTokens,
 				...(typeof e.data.cost === 'number' ? { cost: e.data.cost } : {}),
+				...(e.data.provider ? {
+					modelExecution: {
+						provider: e.data.provider,
+						modelId: e.data.model,
+						...(e.data.modelDisplayName !== undefined ? { modelDisplayName: e.data.modelDisplayName } : {}),
+					}
+				} : {}),
 			};
 			const modelCall = readAgentModelCallDiagnostics({
 				_meta: {
@@ -9770,7 +9779,7 @@ export class CopilotAgentSession extends Disposable {
 			// the credit total for the given scope. `copilotUsage` is the scope's
 			// Copilot billing metadata, or `undefined` when nothing is billed yet.
 			const buildUsage = (context: UsageContext, scopedCopilotUsage: UsageInfoMeta['copilotUsage'], isParentScope: boolean, directOwnerToolCallId: string | undefined): UsageInfo => {
-				const metadata: UsageInfoMeta = {};
+				const metadata: UsageInfoMeta = { ...toAgentModelExecutionMeta(context.modelExecution) };
 				const modelConfiguration = directOwnerToolCallId ? readAgentRuntimeModelConfiguration(this._lastSubagentUsageByToolCallId.get(directOwnerToolCallId)) : undefined;
 				if (modelConfiguration) {
 					metadata[agentModelConfigurationMetaKey] = modelConfiguration;
