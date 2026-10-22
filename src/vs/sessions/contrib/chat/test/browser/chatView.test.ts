@@ -12,18 +12,19 @@ import { DeferredPromise, retry, timeout } from '../../../../../base/common/asyn
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event as VSCodeEvent } from '../../../../../base/common/event.js';
-import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { autorun, constObservable, derived, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
 import { Selection } from '../../../../../editor/common/core/selection.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IChatSessionHistoryStatus } from '../../../../../platform/chat/common/chatSessionHistory.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -35,6 +36,7 @@ import { CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT } from '../../../../../workbench/con
 import { getCompactCodicon } from '../../../../../workbench/contrib/chat/browser/chatIcons.js';
 import { IChatRequestTranscriptContextVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatInputNoticeHost, ChatInputNoticeLane } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHost.js';
+import { ChatActionRequestContentPart } from '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatActionRequestContentPart.js';
 import { ChatInputNoticeVariant, ChatInputNoticeWidget } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeWidget.js';
 import { renderChatInputPickerSplit } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { isChatInputStackSlotShowing } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
@@ -1316,6 +1318,7 @@ suite('Sessions - Chat View', () => {
 			_updateWidgetLockState: () => { },
 			_setLoading: (value: boolean) => loading.push(value),
 			_layoutChatWidget: () => { },
+			_selectionSideChatController: { setChat: () => { } },
 			showProgressWhile: (promise: Promise<void>) => completions.push(promise),
 			_widget: {
 				getInput: () => inputState.inputText,
@@ -2260,7 +2263,7 @@ suite('Sessions - Chat View', () => {
 		assert.strictEqual(isVisible.get(), false);
 	});
 
-	test('configures the peer chat composer with its own repository controls and pet platform', () => {
+	test('configures the peer chat composer with its own chat, repository controls and pet platform', () => {
 		let inputOptions: INewChatComposerInputOptions | undefined;
 		const repositoryControls = { visible: constObservable(true), dispose: () => { } };
 		const petPlatform = dom.$('a.action-label');
@@ -2275,10 +2278,12 @@ suite('Sessions - Chat View', () => {
 				return input;
 			}) as IInstantiationService['createInstance'];
 		}();
+		// Another chat of the session is active, such as one open in another group.
+		const activeChat = upcastPartial<IChat>({ resource: URI.parse('chat:/active-elsewhere') });
 		const sessionsService = new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable<IActiveSession | undefined>(undefined);
+			override readonly activeSession = constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ sessionId: 'session', activeChat: constObservable(activeChat) }));
 		}();
-		disposables.add(new NewChatInSessionWidget(
+		const widget = disposables.add(new NewChatInSessionWidget(
 			{},
 			new TestConfigurationService(),
 			instantiationService,
@@ -2292,12 +2297,18 @@ suite('Sessions - Chat View', () => {
 			disposables.add(new InMemoryStorageService()),
 			new TestAccessibilityService(),
 		));
+		const beforeChat = inputOptions?.chat?.get();
+		const view: NewChatView = Object.assign(Object.create(NewChatView.prototype), { _widget: widget });
+		const viewChat = upcastPartial<IChat>({ resource: URI.parse('chat:/composer') });
+		view.setChat(viewChat);
 
 		const renderRepositoryControls = inputOptions?.renderRepositoryControls;
 		assert.deepStrictEqual({
+			beforeChat,
+			chat: inputOptions?.chat?.get()?.resource.toString(),
 			repositoryControls: typeof renderRepositoryControls === 'function' ? renderRepositoryControls(dom.$('div')) : renderRepositoryControls,
 			petPlatform: inputOptions?.getChatPetPlatformElements?.(),
-		}, { repositoryControls, petPlatform: [petPlatform] });
+		}, { beforeChat: undefined, chat: 'chat:/composer', repositoryControls, petPlatform: [petPlatform] });
 	});
 
 	test('positions peer chat content for centered attachment growth', () => {
@@ -2953,7 +2964,7 @@ suite('Sessions - Chat View', () => {
 	});
 
 	for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
-		test(`keeps the agent merge card opaque over the chat background (${theme})`, () => {
+		test(`keeps the shared action request card opaque over the chat background (${theme})`, () => {
 			const workbench = dom.$(`.monaco-workbench.agent-sessions-workbench.${theme}`);
 			workbench.style.setProperty('--session-view-background', '#202020');
 			workbench.style.setProperty('--vscode-chat-statusBackground', 'rgba(255, 255, 255, 0.3)');
@@ -2961,8 +2972,14 @@ suite('Sessions - Chat View', () => {
 			const chatView = dom.append(part, dom.$('.chat-view'));
 			const session = dom.append(chatView, dom.$('.interactive-session'));
 			const request = dom.append(session, dom.$('.interactive-item-container.interactive-request'));
-			const merge = dom.append(request, dom.$('.chat-agent-merge'));
-			const card = dom.append(merge, dom.$('.chat-agent-merge-card'));
+			const actionRequest = disposables.add(new ChatActionRequestContentPart({
+				title: 'Action', label: 'Action request', source: 'Test', message: 'Test message',
+			}, new class extends mock<IHoverService>() {
+				override setupDelayedHover() { return Disposable.None; }
+			}()));
+			dom.append(request, actionRequest.domNode);
+			const card = actionRequest.domNode.querySelector<HTMLElement>('.chat-action-request-card')!;
+			const disclosure = actionRequest.domNode.querySelector<HTMLElement>('.chat-action-request-disclosure')!;
 			dom.getWindow(workbench).document.body.appendChild(workbench);
 			disposables.add(toDisposable(() => workbench.remove()));
 
@@ -2970,8 +2987,9 @@ suite('Sessions - Chat View', () => {
 				const style = dom.getWindow(card).getComputedStyle(card);
 				return { color: style.backgroundColor, image: style.backgroundImage };
 			};
+			disclosure.click();
 			const expanded = background();
-			merge.classList.add('collapsed');
+			disclosure.click();
 			const collapsed = background();
 			part.classList.remove('has-chat-background');
 			const plain = background();
@@ -4373,6 +4391,7 @@ suite('Sessions - Chat View', () => {
 		const progressDelays: (number | undefined)[] = [];
 		const loadingStates: boolean[] = [];
 		const boundModels: (string | undefined)[] = [];
+		const selectionBindings: { resource: URI | undefined; readOnly: boolean }[] = [];
 		const onDidDisposeSession = disposables.add(new Emitter<{ readonly sessionResources: readonly URI[]; readonly reason: 'cleared' | 'disposed' }>());
 		const viewStore = disposables.add(new DisposableStore());
 		const view: {
@@ -4406,6 +4425,9 @@ suite('Sessions - Chat View', () => {
 			_saveCurrentViewState: () => { },
 			_updateWidgetLockState: () => { },
 			_layoutChatWidget: () => { },
+			_selectionSideChatController: {
+				setChat: (resource: URI | undefined, isReadOnly: IObservable<boolean>) => selectionBindings.push({ resource, readOnly: isReadOnly.get() }),
+			},
 			showProgressWhile: (_promise: Promise<void>, delay?: number) => progressDelays.push(delay),
 			_widget: {
 				getInput: () => '',
@@ -4429,7 +4451,7 @@ suite('Sessions - Chat View', () => {
 			view._reloadChatForReplacedProvider(['remote-agent']);
 		};
 		const release = (resource: URI) => onDidDisposeSession.fire({ sessionResources: [resource], reason: 'disposed' });
-		return { open, attach, reload, release, dispose: () => viewStore.dispose(), requests, progressDelays, loadingStates, boundModels };
+		return { open, attach, reload, release, dispose: () => viewStore.dispose(), requests, progressDelays, loadingStates, boundModels, selectionBindings };
 	}
 
 	test('shows loading progress within 100ms of opening a chat', () => {
@@ -4456,17 +4478,18 @@ suite('Sessions - Chat View', () => {
 
 	test('shows loading progress across a provider reload until the reloaded model attaches', async () => {
 		const resource = URI.parse('remote-agent:/session');
-		const { open, attach, reload, release, progressDelays, loadingStates, boundModels } = createLoadingFeedbackView();
+		const { open, attach, reload, release, progressDelays, loadingStates, boundModels, selectionBindings } = createLoadingFeedbackView();
 		open(resource);
 		await attach(0, resource);
 		reload();
 		release(resource);
 		await timeout(0);
 		await attach(1, resource);
-		assert.deepStrictEqual({ progressDelays, loadingStates, boundModels }, {
+		assert.deepStrictEqual({ progressDelays, loadingStates, boundModels, selectionBindings }, {
 			progressDelays: [100, 100, 100],
 			loadingStates: [true, false, true, true, false],
 			boundModels: ['/session', undefined, '/session'],
+			selectionBindings: [{ resource: undefined, readOnly: true }],
 		});
 	});
 

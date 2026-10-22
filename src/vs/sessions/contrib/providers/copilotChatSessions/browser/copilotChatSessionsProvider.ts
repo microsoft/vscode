@@ -374,9 +374,9 @@ export class RemoteNewSession extends Disposable implements ICopilotChatSession 
 		// Set workspace data
 		this._workspaceData.set(sessionWorkspace, undefined);
 		this._repoUri = sessionWorkspace?.folders[0]?.root;
-		if (this._repoUri) {
-			const id = this._repoUri.path.substring(1);
-			this.setOption('repositories', { id, name: id });
+		const repoNwo = this.repoNwo;
+		if (repoNwo) {
+			this.setOption('repositories', { id: repoNwo, name: repoNwo });
 		}
 
 		this.mainChat = observableValue<IChat>(this, buildChatFromSession(this));
@@ -1231,6 +1231,14 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				for (const model of models) {
 					if (this._cloudChatObservers.has(model)) {
 						continue;
+					}
+					// Draft selections made before the chat loaded were dropped, and its
+					// content provider seeded defaults such as the legacy Cloud provider's
+					// "no repository" placeholder. The chat input validates these options
+					// to enable Send, so apply the draft's selections now, not only on send.
+					const draft = this._newSessions.get(toSessionId(this.id, model.sessionResource));
+					if (draft?.selectedOptions.size) {
+						this.chatSessionsService.updateSessionOptions(model.sessionResource, draft.selectedOptions);
 					}
 					let wasRunning = false;
 					let startedAt: number | undefined;

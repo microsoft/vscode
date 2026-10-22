@@ -31,6 +31,7 @@ import { getOlderHostSubagentChatUri } from '../../../../../../platform/agentHos
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { newAgentHostChatUri, newAgentHostSessionUri } from '../../../../../../platform/agentHost/common/agentHostSessionIdentity.js';
 import { getAgentHostChatId } from '../../../../../../platform/agentHost/common/agentHostChatIdentity.js';
+import { IChatSideChatOrigin, IChatSideChatSelection } from '../../../common/chatSideChatService.js';
 import { getTelemetryChatId } from '../../../../../../platform/agentHost/common/agentTelemetryCorrelation.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IPosition } from '../../../../../../editor/common/core/position.js';
@@ -56,6 +57,7 @@ import { readMcpRoutingServers } from '../../../../../../platform/agentHost/comm
 import { filterSessionConfigValues } from '../../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { readAttachmentDetail, withAttachmentDetail } from '../../../../../../platform/agentHost/common/meta/attachmentMeta.js';
 import { AgentPermissionDecisionSource, readAgentPermissionResponseMeta, toAgentPermissionResponseMeta } from '../../../../../../platform/agentHost/common/meta/agentPermissionResponseMeta.js';
+import { readArtifactIntegrationRequest } from '../../../../../../platform/agentHost/common/meta/agentHostArtifactIntegrationMeta.js';
 import { readCompletionAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentCompletionAttachmentMeta.js';
 import { readSlashCommandResource, type ISlashCommandResource } from '../../../../../../platform/agentHost/common/meta/agentSlashCommandOutputMeta.js';
 import { IRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -121,6 +123,7 @@ import { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatAgentLocation, ChatConfiguratio
 import { readAgentCustomizationMeta } from '../../../../../../platform/agentHost/common/meta/agentCustomizationMeta.js';
 import { normalizeAgentHostApprovalConfig } from '../../../common/agentHostConfigPolicy.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
+import { IChatSessionReviewPreferencesService } from '../../../common/editing/chatSessionReviewPreferences.js';
 import { HIDE_AUTO_EXPLAINABILITY_TREATMENT } from '../../../common/chatAutoModeExplainability.js';
 import { AUTO_RAW_MODEL_ID, getLanguageModelDisplayNameWithProvider, ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
 import { getLanguageModelDisplayNameWithSubscriptionSource } from '../../../common/languageModelSourcePresentation.js';
@@ -140,6 +143,9 @@ import { IAgentHostSessionWorkingDirectoryResolver, RequestedWorkingDirectory } 
 import { IAgentHostSessionWorkingDirectorySynchronizer } from './agentHostSessionWorkingDirectorySynchronizer.js';
 import { IAgentHostShellInitSynchronizer } from './agentHostShellInitSynchronizer.js';
 import { IAgentHostNewSessionFolderService, computeWorkingDirectories } from './agentHostNewSessionFolderService.js';
+import { AgentHostEditReview } from './agentHostEditReview.js';
+import { ITextFileService } from '../../../../../services/textfile/common/textfiles.js';
+import { observableConfigValue } from '../../../../../../platform/observable/common/platformObservableUtils.js';
 import { AgentHostSnapshotController } from './agentHostSnapshotController.js';
 import { AgentHostResponseFileChangesProvider, resolveTurnChangesetUri } from './agentHostResponseFileChanges.js';
 import type { AgentHostPromptCacheNotification } from './agentHostPromptCacheNotification.js';
@@ -379,6 +385,7 @@ interface IStartServerRequestOptions {
 	readonly modelConfiguration?: IChatSessionServerRequest['modelConfiguration'];
 	readonly isSystemInitiated?: boolean;
 	readonly requestSource?: IChatSessionServerRequest['requestSource'];
+	readonly artifactRequest?: IChatSessionServerRequest['artifactRequest'];
 	readonly systemInitiatedLabel?: string;
 	readonly isHidden?: boolean;
 	readonly isRequestHidden?: boolean;
@@ -714,6 +721,26 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 	private readonly _chatState = observableValue<IObservable<ChatState | undefined>>(this, constObservable(undefined));
 	readonly backgroundShellCount = derived(this, reader =>
 		this._chatState.read(reader).read(reader)?.backgroundWork?.filter(work => work.kind === BackgroundWorkKind.Shell).length);
+	readonly sideChatOrigin = derived<IChatSideChatOrigin | undefined>(this, reader => {
+		if (this._disposed.read(reader)) {
+			return undefined;
+		}
+		const session = this._sessionState.read(reader).read(reader);
+		const chat = this._chatState.read(reader).read(reader);
+		const origin = session?.chats.find(summary => summary.resource === chat?.resource)?.origin;
+		if (!session || origin?.kind !== ChatOriginKind.SideChat) {
+			return undefined;
+		}
+		const sourceChat = session.chats.find(summary => summary.resource === origin.chat);
+		return {
+			sourceSessionResource: getAgentHostSessionResource(this.sessionResource).with({
+				fragment: origin.chat === session.defaultChat ? '' : getAgentHostChatId(origin.chat),
+			}),
+			sourceTurnId: origin.turnId,
+			sourceTitle: sourceChat?.title,
+			selection: origin.selection ? { text: origin.selection.text } : undefined,
+		};
+	});
 	private readonly _disposed = observableValue(this, false);
 	private readonly _onDidChangeCanvasDefinitions = this._register(new Emitter<void>());
 	private readonly _canvasDefinitionsTracking = this._register(new MutableDisposable<IDisposable>());
@@ -740,6 +767,10 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 		return this._supportsFork() ? this._forkSessionIfWritable : undefined;
 	}
 	private readonly _forkSessionIfWritable: NonNullable<IChatSession['forkSession']>;
+	get createSideChat(): IChatSession['createSideChat'] {
+		return this._supportsSideChat() ? this._createSideChatIfWritable : undefined;
+	}
+	private readonly _createSideChatIfWritable: NonNullable<IChatSession['createSideChat']>;
 	readonly renameSession: IChatSession['renameSession'];
 	readonly transferredState: IChatSession['transferredState'];
 	prepareForClientTools: IChatSession['prepareForClientTools'];
@@ -764,6 +795,8 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 		onDispose: () => void,
 		interruptActiveResponse: () => boolean,
 		private readonly _supportsFork: () => boolean,
+		private readonly _createSideChat: NonNullable<IChatSession['createSideChat']>,
+		private readonly _supportsSideChat: () => boolean,
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
@@ -841,6 +874,12 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 				throw new Error('Session is read-only');
 			}
 			return this._forkSession(request, token, options);
+		};
+		this._createSideChatIfWritable = (turnId, token, selection) => {
+			if (this.isReadOnly.get()) {
+				throw new Error('Session is read-only');
+			}
+			return this._createSideChat(turnId, token, selection);
 		};
 		this.renameSession = (title, token) => {
 			if (this.isReadOnly.get()) {
@@ -939,6 +978,7 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 			...(options?.modelId ? { modelId: options.modelId, modelConfiguration: options.modelConfiguration } : {}),
 			isSystemInitiated: options?.isSystemInitiated,
 			requestSource: options?.requestSource,
+			...(options?.artifactRequest ? { artifactRequest: options.artifactRequest } : {}),
 			systemInitiatedLabel: options?.systemInitiatedLabel,
 			isHidden: options?.isHidden,
 			isRequestHidden: options?.isRequestHidden,
@@ -1411,10 +1451,19 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
+		@ITextFileService textFileService: ITextFileService,
 		@IComputerUseSetupService private readonly _computerUseSetupService: IComputerUseSetupService,
+		@IChatSessionReviewPreferencesService reviewPreferences: IChatSessionReviewPreferencesService,
 	) {
 		super();
 		this._config = config;
+		const workingSetEnabled = observableConfigValue(ChatConfiguration.EditorWorkingSetEnabled, false, this._configurationService);
+		const reviewEnabled = derived(reader => workingSetEnabled.read(reader) && reviewPreferences.keepUndoEnabled.read(reader));
+		this._register(autorun(reader => {
+			if (reviewEnabled.read(reader)) {
+				reader.store.add(textFileService.files.retainResolvedContent());
+			}
+		}));
 		if (config.supportsCanvasPresentation && config.provider === COPILOT_CLI_AGENT_PROVIDER_ID) {
 			this._canvasProvider = this._register(this._instantiationService.createInstance(AgentHostCanvasCollection, `${config.connectionAuthority}/${config.provider}`, config.connection));
 		}
@@ -1480,8 +1529,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		this._register(this._chatEditingService.registerEditingSessionProvider(
 			config.sessionType,
 			{
-				createEditingSession: (chatSessionResource: URI) => {
-					return this._instantiationService.createInstance(
+				createEditingSession: (chatSessionResource: URI, isGlobalEditingSession: boolean) => {
+					const controller = this._instantiationService.createInstance(
 						AgentHostSnapshotController,
 						chatSessionResource,
 						config.connectionAuthority,
@@ -1490,6 +1539,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 							resolve: requestId => this._resolveTurnFileEdits(chatSessionResource, requestId),
 						} : undefined,
 					);
+					// Inline chat edits are short lived and reviewed by inline chat itself, and a subagent's
+					// chat shares its parent session's Working Set.
+					if (isGlobalEditingSession && this._shouldReviewEdits(chatSessionResource)) {
+						const instantiationService = this._instantiationService;
+						controller.attachReview(reviewEnabled, () => instantiationService.createInstance(AgentHostEditReview, chatSessionResource));
+					}
+					return controller;
 				},
 			},
 		));
@@ -1791,6 +1847,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 								...(isMessageRequestHiddenFromTranscript(sessionState.activeTurn.message) ? { isRequestHidden: true } : {}),
 								isSystemInitiated: sessionState.activeTurn.message.origin.kind === MessageKind.SystemNotification,
 								requestSource: messageToRequestSource(sessionState.activeTurn.message),
+								artifactRequest: readArtifactIntegrationRequest(sessionState.activeTurn.message),
 								origin: messageToRequestOrigin(resolvedSession, sessionState.activeTurn.message, this._config.agentId, this._config.connectionAuthority),
 							});
 							history.push({
@@ -1953,6 +2010,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				() => {
 					const agent = this._getRootState()?.agents.find(agent => agent.provider === this._config.provider);
 					return agent?.capabilities?.multipleChats?.fork === true;
+				},
+				(turnId: string, token: CancellationToken, selection?: IChatSideChatSelection) =>
+					this._createSideChat(sessionResource, resolvedSession, turnId, token, selection),
+				() => {
+					const agent = this._getRootState()?.agents.find(agent => agent.provider === this._config.provider);
+					return agent?.capabilities?.multipleChats?.sideChat === true;
 				},
 			);
 		} catch (err) {
@@ -2532,6 +2595,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			agentHostMessageOrigin: pending.message.origin,
 			metadata: pending.message._meta,
 			isSystemInitiated: pending.message.origin.kind === MessageKind.SystemNotification,
+			requestSource: messageToRequestSource(pending.message),
+			artifactRequest: readArtifactIntegrationRequest(pending.message),
 			systemInitiatedLabel: readMessageSystemInitiatedLabel(pending.message),
 		});
 
@@ -2907,6 +2972,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					modelConfiguration: activeTurn.message.model?.config,
 					isSystemInitiated: activeTurn.message.origin.kind === MessageKind.SystemNotification,
 					requestSource: messageToRequestSource(activeTurn.message),
+					artifactRequest: readArtifactIntegrationRequest(activeTurn.message),
 					systemInitiatedLabel: readMessageSystemInitiatedLabel(activeTurn.message),
 					isHidden: isMessageHiddenFromTranscript(activeTurn.message),
 					isRequestHidden: isMessageRequestHiddenFromTranscript(activeTurn.message),
@@ -6339,6 +6405,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		opts.sink(editParts);
 	}
 
+	/** Subagent chats share their parent's Working Set instead of owning another editor review. */
+	private _shouldReviewEdits(chatSessionResource: URI): boolean {
+		const session = this._resolveSessionUri(chatSessionResource);
+		const chat = this._getChatURIOrDefault(chatSessionResource, session);
+		return !this._isSubagentChat(session.toString(), chat);
+	}
+
 	/** Records snapshot data and returns the per-file edit pills for a completed tool call. */
 	private _hydrateFileEdits(
 		sessionResource: URI,
@@ -6433,6 +6506,45 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return undefined;
 		}
 		return this._connectionsService.findSessionResource(legacy, authority) ? legacy : undefined;
+	}
+
+	private async _createSideChat(sessionResource: URI, backendSession: URI, turnId: string, token: CancellationToken, selection?: IChatSideChatSelection): Promise<IChatSessionItem> {
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		const agent = this._getRootState()?.agents.find(agent => agent.provider === this._config.provider);
+		if (!agent?.capabilities?.multipleChats?.sideChat) {
+			throw new Error(`Provider ${this._config.provider} does not support side chats`);
+		}
+		const sessionUri = backendSession.toString();
+		const rawState = this._getRawSessionState(sessionUri);
+		if (!rawState) {
+			throw new Error(`Cannot create side chat: session state is not hydrated for ${sessionUri}`);
+		}
+		const sourceChat = this._resolveChatUriFromState(sessionResource, rawState);
+		const sourceState = this._getSessionState(sessionUri, sourceChat);
+		if (sourceState?.activeTurn?.id !== turnId && !sourceState?.turns.some(turn => turn.id === turnId)) {
+			throw new Error(`Cannot create side chat: turn ${turnId} not found`);
+		}
+		const chat = URI.parse(newAgentHostChatUri(sessionUri, rawState.defaultChat, this._config.connection.initializeResult.get()));
+		await this._config.connection.createChat(backendSession, chat, {
+			model: lastTurnModelSelection(sourceState),
+			sideChat: { source: URI.parse(sourceChat), turnId, ...(selection ? { selection } : {}) },
+		});
+		const subscription = this._ensureSessionSubscription(sessionUri);
+		const summary = await waitForState(
+			observableFromSubscription(this, subscription).map(state => state?.chats.find(summary => summary.resource === chat.toString())),
+			(summary): summary is ChatSummary => !!summary,
+			undefined,
+			token,
+		);
+		const now = Date.now();
+		return {
+			resource: sessionResource.with({ fragment: getAgentHostChatId(summary.resource) }),
+			label: summary.title || localize('agentHost.sideChatLabel', "Side Chat"),
+			iconPath: getAgentSessionProviderIcon(this._config.sessionType),
+			timing: { created: now, lastRequestStarted: now, lastRequestEnded: now },
+		};
 	}
 
 	private _isNewSessionResource(sessionResource: URI): boolean {

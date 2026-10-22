@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
-import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
@@ -18,7 +18,7 @@ import { IPlatformCustomizationMarketplaceService } from '../../../../../../plat
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
-import { CustomizationMarketplaceMediaType, CustomizationMarketplaceRecoveryGroup, ICustomizationMarketplaceCursor, ICustomizationMarketplaceEntry, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceService, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceMediaType, CustomizationMarketplaceQueryProgressCallback, CustomizationMarketplaceRecoveryGroup, ICustomizationMarketplaceCursor, ICustomizationMarketplaceEntry, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceService, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { IMarketplaceReference, IPluginMarketplacePage, IPluginMarketplaceQuery, IPluginMarketplaceService, MarketplaceType, parseMarketplaceReference, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { ICustomizationHarnessService, ICustomizationMarketplaceManagementProvider, ICustomizationMarketplaceSearchProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
@@ -219,6 +219,53 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 			items: [CustomizationMarketplaceSources.McpGallery.id],
 			platformRequests: [{ query: '', mediaType: undefined, pageSize: 30, cursor: undefined, sourceIds: [CustomizationMarketplaceSources.McpGallery.id] }],
 		});
+	});
+
+	test('reports when each Browse source settles from the start of the query', async () => {
+		const clock = sinon.useFakeTimers({ now: 1_000 });
+		store.add(toDisposable(() => clock.restore()));
+		const configuration = createConfiguration([]);
+		const telemetryService = new TestTelemetryService();
+		const sourceId = CustomizationMarketplaceSources.McpGallery.id;
+		const platformService = new class extends mock<ICustomizationMarketplaceService>() {
+			override readonly sources = [CustomizationMarketplaceSources.McpGallery];
+			override readonly allSources = this.sources;
+			override async query(_options: ICustomizationMarketplaceQuery, _token: CancellationToken, onProgress?: CustomizationMarketplaceQueryProgressCallback) {
+				clock.tick(75);
+				onProgress?.({
+					page: { items: [] },
+					completedSourceIds: [sourceId],
+					cachedSourceIds: [],
+					totalSourceCount: 1,
+				});
+				return { items: [] };
+			}
+		}();
+		const service = createService(
+			configuration,
+			platformService,
+			new class extends mock<ICopilotConnectorsService>() { }(),
+			undefined,
+			undefined,
+			[],
+			{ active: false, onDidChange: Event.None },
+			telemetryService,
+		);
+
+		await service.query({}, CancellationToken.None, () => { });
+
+		assert.deepStrictEqual(
+			telemetryService.events
+				.filter(event => event.name === 'chatCustomizationMarketplace.browseSourceLoaded')
+				.map(event => ({ name: event.name, ...event.data })),
+			[{
+				name: 'chatCustomizationMarketplace.browseSourceLoaded',
+				sourceCategory: 'mcpGallery',
+				outcome: 'success',
+				cacheStatus: 'miss',
+				timeToSourceSettledMs: 75,
+			}],
+		);
 	});
 
 	test('projects provider-managed marketplaces as discover sources', async () => {
@@ -622,6 +669,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 				outcome: event.data.outcome,
 				availableCount: event.data.availableCount,
 				unavailableCount: event.data.unavailableCount,
+				cacheStatus: event.data.cacheStatus,
 			})).sort((first, second) => String(first.feedSlot).localeCompare(String(second.feedSlot))),
 		}, {
 			sections: ['Editor\'s picks', 'Connect your work'],
@@ -632,20 +680,62 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 				outcome: 'success',
 				availableCount: 0,
 				unavailableCount: 0,
+				cacheStatus: 'miss',
 			}, {
 				name: 'chatCustomizationMarketplace.browseFeedLoaded',
 				feedSlot: 'editorsPicks',
 				outcome: 'success',
 				availableCount: 0,
 				unavailableCount: 0,
+				cacheStatus: 'miss',
 			}, {
 				name: 'chatCustomizationMarketplace.browseFeedLoaded',
 				feedSlot: 'planBuildAndShip',
 				outcome: 'timeout',
 				availableCount: 0,
 				unavailableCount: 0,
+				cacheStatus: 'miss',
 			}],
 		});
+	});
+
+	test('reports curated sections independently as their feeds settle', async () => {
+		const configuration = createConfiguration([CustomizationMarketplaceSources.AgentFinderPublicFeed.id]);
+		const feeds = new Map<string, DeferredPromise<ICustomizationMarketplaceSourcePage>>();
+		const service = createService(
+			configuration,
+			new class extends mock<ICustomizationMarketplaceService>() {
+				override readonly sources = [];
+				override async query() { return { items: [] }; }
+			}(),
+			new class extends mock<ICopilotConnectorsService>() { }(),
+			{
+				async query() { throw new Error('Unexpected search'); },
+				getFeed(_session, feedId) {
+					const result = new DeferredPromise<ICustomizationMarketplaceSourcePage>();
+					feeds.set(feedId, result);
+					return result.p;
+				},
+			},
+		);
+		const progress: { sections: readonly string[]; completed: number }[] = [];
+		const result = service.getBrowseSections({}, CancellationToken.None, update => {
+			progress.push({
+				sections: update.result.sections.map(section => section.title),
+				completed: update.completedSectionCount,
+			});
+		});
+		await timeout(0);
+		feeds.get('feed__PqOfrWzroUguZ-KABZICA')!.complete({ items: [] });
+		await timeout(0);
+		assert.deepStrictEqual(progress, [{ sections: ['Connect your work'], completed: 1 }]);
+		feeds.get('feed_OufQ29dQsJosnkuqn7nf-Q')!.complete({ items: [] });
+		feeds.get('feed_mi1XpaezpCJqxQXaxB1FZg')!.complete({ items: [] });
+		assert.deepStrictEqual((await result)?.sections.map(section => section.title), [
+			'Editor\'s picks',
+			'Plan, build, and ship',
+			'Connect your work',
+		]);
 	});
 
 	test('ignores changes to the current default authentication session', () => {

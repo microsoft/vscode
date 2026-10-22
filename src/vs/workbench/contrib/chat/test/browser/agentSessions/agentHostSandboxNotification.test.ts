@@ -800,6 +800,7 @@ suite('AgentHostSandboxNotification', () => {
 				await Promise.resolve();
 				assert.deepStrictEqual({
 					renderedButton, calls, confirmations: confirmations.length,
+					description: descriptionElement.textContent,
 					descriptionLinks: Array.from(descriptionElement.querySelectorAll('a'), link => link.textContent),
 					descriptionEnding: descriptionElement.textContent?.trimEnd().endsWith('Learn more.'),
 					untrustedContent: descriptionElement.textContent?.includes('untrusted'),
@@ -810,6 +811,7 @@ suite('AgentHostSandboxNotification', () => {
 				}, {
 					renderedButton: { label: 'Install', role: 'button', tabIndex: 0, ariaLabel: 'Sandbox trusted CA is not installed (optional) Install' },
 					calls: outcome === 'cancelled' ? 0 : 1, confirmations: 1,
+					description: 'Install the sandbox certificate authority (CA) so developer tools can connect securely through a proxy that adds credentials to outgoing requests without exposing them to agent tools. Learn more.',
 					descriptionLinks: ['Learn more'], descriptionEnding: true, untrustedContent: false,
 					keepOpen: true,
 					actions: 1, pending: id,
@@ -1056,7 +1058,7 @@ suite('AgentHostSandboxNotification', () => {
 			const rendered = store.add(renderMarkdown(description, { actionHandler: url => openedLinks.push(url) }));
 			const links = [...rendered.element.querySelectorAll('a')];
 			links[0]?.click();
-			assert.deepStrictEqual({ before, body: { ...body, description: rendered.element.textContent?.replace(/\u00a0/g, ' ') }, links: links.map(link => link.textContent), openedLinks, dismissible: typeof onDismiss, dispatched }, {
+			assert.deepStrictEqual({ before, body: { ...body, description: rendered.element.textContent }, links: links.map(link => link.textContent), openedLinks, dismissible: typeof onDismiss, dispatched }, {
 				before: 0,
 				body: {
 					id, inputUri,

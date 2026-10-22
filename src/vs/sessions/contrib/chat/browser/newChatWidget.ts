@@ -10,7 +10,7 @@ import { Action, toAction } from '../../../../base/common/actions.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { isErrorWithActions, toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
-import { Event } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, derivedObservableWithCache, disposableObservableValue, IObservable, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { isWeb } from '../../../../base/common/platform.js';
@@ -61,6 +61,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { ChatInputTipPresenter } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputTipPresenter.js';
 import { chatInputStackClass, chatInputStackSlotClass, chatInputSurfaceStackClass, ChatInputStackSlot, setChatInputStackSlot } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
 import { IChatPetService } from '../../../../workbench/contrib/chat/browser/chatPetService.js';
+import type { IChatPetPlatformOccupation } from '../../../../workbench/contrib/chat/browser/widget/chatPetWidget.js';
 import { IChatTipService } from '../../../../workbench/contrib/chat/browser/chatTipService.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
@@ -176,13 +177,16 @@ export class NewChatWidget extends Disposable {
 	private _workspaceSessionOptionsHost: HTMLElement | undefined;
 	private readonly _sessionOptionsExpanded = observableValue(this, true);
 	private _quickChatHeaderPickerHost: HTMLElement | undefined;
+	private _welcomeMessageTitle: HTMLElement | undefined;
+	private _welcomePetPlatform: HTMLElement | undefined;
+	private readonly _onDidChangeChatPetPlatform = this._register(new Emitter<void>());
 
 	private readonly _session: IObservable<IActiveSession | undefined>;
 
 	/** Whether the active draft is a workspace-less quick chat. */
 	private readonly _isQuickChatComposer: IObservable<boolean>;
 	private readonly _isWorkspacePickerQuickChat: IObservable<boolean>;
-	private readonly _workspaceOptOutTarget: IObservable<IPreferredSessionType | undefined>;
+	private readonly _workspaceOptOutTarget: IObservable<ICreateNewSessionOptions | undefined>;
 	private readonly _workspaceOptOutEnabled: IObservable<boolean>;
 	private readonly _useConsolidatedRemoteWorkspaces: IObservable<boolean>;
 	private readonly _compareAgentsEnabled: IObservable<boolean>;
@@ -374,13 +378,7 @@ export class NewChatWidget extends Disposable {
 		});
 		this._workspaceOptOutTarget = derived(this, reader => {
 			sessionTypesChanged.read(reader);
-			const environment = this._environment.read(reader);
-			const session = this._session.read(reader);
-			if (!session || environment?.kind === 'cloud' || environment?.kind === 'container') {
-				return undefined;
-			}
-			const target = { providerId: session.providerId, sessionTypeId: session.sessionType };
-			return this.sessionsManagementService.isQuickChatTargetAvailable(target) ? target : undefined;
+			return this._getWorkspaceOptOutTarget(this._environment.read(reader), this._session.read(reader));
 		});
 		const recentWorkspacesChanged = observableSignalFromEvent(this, this.recentWorkspacesService.onDidChangeRecentWorkspaces);
 		const availableEnvironments = derived(this, reader => {
@@ -560,8 +558,13 @@ export class NewChatWidget extends Disposable {
 			supportsBackground: true,
 			deferredNotificationsEnabled,
 			petHostPreferred: this.options.petHostPreferred,
-			getChatPetPlatformElements: () => this._workspacePicker.getChatPetPlatformElements(),
-			onDidChangeChatPetPlatform: this._workspacePicker.onDidChangeChatPetPlatform,
+			getChatPetPlatformElements: () => [
+				...(this._welcomeMessageTitle ? [this._welcomeMessageTitle] : []),
+				...this._workspacePicker.getChatPetPlatformElements(),
+			],
+			getChatPetBasePlatformElement: () => this._workspacePickerRow?.classList.contains('new-chat-session-options') ? this._workspacePickerRow : undefined,
+			onDidChangeChatPetPlatform: Event.any(this._workspacePicker.onDidChangeChatPetPlatform, this._onDidChangeChatPetPlatform.event),
+			setChatPetPlatformOccupation: occupation => this._setChatPetPlatformOccupation(occupation),
 			sessionTypePickerOptions: {
 				providerId: creationProviderId,
 				allowedProviders: derived(this, reader => {
@@ -779,6 +782,8 @@ export class NewChatWidget extends Disposable {
 		const chatWidgetContent = dom.append(chatWidgetContainer, dom.$(`.new-chat-widget-content.${chatInputStackClass}`));
 		const welcomeMessage = dom.append(chatWidgetContent, dom.$('.new-session-welcome-message'));
 		const welcomeMessageTitle = dom.append(welcomeMessage, dom.$('h2.new-session-welcome-message-title'));
+		this._welcomeMessageTitle = welcomeMessageTitle;
+		this._welcomePetPlatform = dom.append(welcomeMessage, dom.$('span.new-session-welcome-pet-platform', { 'aria-hidden': 'true' }));
 		const welcomeMessageActions = dom.append(welcomeMessage, dom.$('.new-session-welcome-message-actions'));
 		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, welcomeMessageActions, Menus.NewSessionWelcome, {
 			ariaLabel: localize('newSession.welcome.actions', "Welcome message actions"),
@@ -828,6 +833,7 @@ export class NewChatWidget extends Disposable {
 				this._welcomePhraseIndex,
 			);
 			chatWidgetContent.classList.toggle('welcome-phrases-visible', !!phrase);
+			this._onDidChangeChatPetPlatform.fire();
 			this._announceWelcomeMessage(phrase, inputVisible);
 		}));
 		this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => void this._refreshGitHubProfileName()));
@@ -1155,6 +1161,31 @@ export class NewChatWidget extends Disposable {
 		return phrase;
 	}
 
+	private _setChatPetPlatformOccupation(occupation: IChatPetPlatformOccupation | undefined): void {
+		const title = this._welcomeMessageTitle;
+		if (!title) {
+			return;
+		}
+		const bounds = title.getBoundingClientRect();
+		const platform = this._welcomePetPlatform;
+		const occupied = !!occupation
+			&& !!platform
+			&& bounds.width > 0
+			&& bounds.height > 0
+			&& occupation.centerX >= bounds.left
+			&& occupation.centerX <= bounds.right
+			&& Math.abs(occupation.top - bounds.top) < 1;
+		title.classList.toggle('chat-pet-platform-occupied', occupied);
+		if (occupied && platform) {
+			const platformParentBounds = platform.parentElement?.getBoundingClientRect() ?? bounds;
+			platform.style.left = `${occupation.centerX - platformParentBounds.left}px`;
+			platform.style.width = `${occupation.width}px`;
+		} else {
+			platform?.style.removeProperty('left');
+			platform?.style.removeProperty('width');
+		}
+	}
+
 	private _announceWelcomeMessage(phrase: string | undefined, inputVisible: boolean): void {
 		if (
 			!phrase
@@ -1226,12 +1257,14 @@ export class NewChatWidget extends Disposable {
 				|| this._newSessionCreation.value || this._workspacePicker.selectedFolderUri) {
 				return;
 			}
-			if (this.sessionsManagementService.isQuickChatTargetAvailable()) {
+			const environment = this._environment.get();
+			const target = environment ? this._workspaceOptOutTarget.get() : undefined;
+			if (environment ? !!target : this.sessionsManagementService.isQuickChatTargetAvailable()) {
 				if (this._workspacePicker.isNoWorkspaceSelected()) {
-					this.selectNoWorkspace();
+					this.selectNoWorkspace(target);
 				} else {
 					// An automatic fallback must not persist a user choice or supersede a window-open workspace.
-					this._createdSessionId = this.sessionsService.openQuickChat(undefined, true)?.sessionId;
+					this._createdSessionId = this.sessionsService.openQuickChat(target, true)?.sessionId;
 				}
 			}
 		} catch (error) {
@@ -1467,11 +1500,49 @@ export class NewChatWidget extends Disposable {
 		this._pendingPreferredUpgrade.clear();
 		this._newSessionCreation.clear();
 		this._workspacePicker.selectNoWorkspace(selectionOptions?.userSelection !== false);
-		return this._openQuickChat(options, selectionOptions?.preserveNavigation);
+		const environment = this._environment.get();
+		const session = environment?.kind === 'cloud' || environment?.kind === 'container'
+			? this.sessionsService.openQuickChat(options, selectionOptions?.preserveNavigation)
+			: this._openQuickChat(options, selectionOptions?.preserveNavigation);
+		if (session && environment && (environment.kind === 'container' || !environment.providerIds.includes(session.providerId))) {
+			this._reconcileWorkspaceEnvironment({ providerId: session.providerId });
+		}
+		return session;
 	}
 
 	private _openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean): IActiveSession | undefined {
+		const environment = this._environment.get();
+		if (!options && environment) {
+			options = this._workspaceOptOutTarget.get();
+			if (!options) {
+				this.logService.trace(`Waiting for a compatible quick-chat harness in environment '${environment.id}' (providers: ${environment.providerIds.join(', ')}).`);
+				return undefined;
+			}
+		}
 		return this.sessionsService.openQuickChat(options, preserveNavigation);
+	}
+
+	private _getWorkspaceOptOutTarget(environment: ISessionCreationEnvironment | undefined, session: ISession | undefined): ICreateNewSessionOptions | undefined {
+		if (environment?.kind === 'cloud' || environment?.kind === 'container') {
+			return undefined;
+		}
+		if (!environment || (session && environment.providerIds.includes(session.providerId))) {
+			const target = session && { providerId: session.providerId, sessionTypeId: session.sessionType };
+			if (target && this.sessionsManagementService.isQuickChatTargetAvailable(target)) {
+				return target;
+			}
+			if (!environment) {
+				return undefined;
+			}
+			const providerTarget = session && { providerId: session.providerId };
+			if (providerTarget && this.sessionsManagementService.isQuickChatTargetAvailable(providerTarget)) {
+				return providerTarget;
+			}
+		}
+		const targets = this.sessionsManagementService.getQuickChatSessionTypes().filter(target => environment.providerIds.includes(target.providerId));
+		const preferred = session && targets.find(target => target.sessionType.id === session.sessionType);
+		return preferred ? { providerId: preferred.providerId, sessionTypeId: preferred.sessionType.id }
+			: targets[0] && { providerId: targets[0].providerId };
 	}
 
 	private _getNoWorkspaceOption(): IWorkspacePickerNoWorkspaceOption | undefined {
@@ -1576,6 +1647,7 @@ export class NewChatWidget extends Disposable {
 			// experiment trigger when the composer actually reaches that collapsed state — before
 			// the setting is read, so both arms count and users who never collapse don't dilute it.
 			onDidCollapse: () => logSettingExperimentTrigger(this.telemetryService, COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING),
+			onDidChangeLayout: () => this._onDidChangeChatPetPlatform.fire(),
 		}));
 		const sessionOptions = sessionOptionsRow.details;
 		const toggle = sessionOptionsRow.toggle;
@@ -1656,7 +1728,13 @@ export class NewChatWidget extends Disposable {
 		if (!folderUri || !workspace) {
 			this._changingEnvironment = true;
 			try {
-				this._workspacePicker.clearSelection();
+				if ((environment.kind === 'local' || environment.kind === 'remote')
+					&& (session?.isQuickChat?.get() || this._workspaceOptOutEnabled.get())) {
+					this._workspacePicker.selectNoWorkspace(false);
+					await this._onWorkspaceSelected(undefined);
+				} else {
+					this._workspacePicker.clearSelection();
+				}
 			} finally {
 				this._changingEnvironment = false;
 			}

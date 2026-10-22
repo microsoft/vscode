@@ -353,6 +353,24 @@
 	margin: 0;
 }
 
+.new-session-welcome-pet-platform {
+	display: none;
+	position: absolute;
+	top: 0;
+	height: var(--vscode-spacing-size40);
+	box-sizing: content-box;
+	padding-inline: var(--vscode-spacing-size40);
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: var(--vscode-descriptionForeground);
+	pointer-events: none;
+	transform: translate(-50%, -50%);
+}
+
+.new-session-welcome-message-title.chat-pet-platform-occupied + .new-session-welcome-pet-platform {
+	display: block;
+}
+
 .new-session-welcome-message-actions {
 	left: 100%;
 	opacity: 0;

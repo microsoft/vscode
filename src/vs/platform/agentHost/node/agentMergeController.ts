@@ -16,11 +16,11 @@ import { IGitHubAccountClient } from '../../github/common/account/account.js';
 import { IGitHubClient } from '../../github/common/githubService.js';
 import { IParsedPullRequestUrl, parsePullRequestUrl } from '../../github/common/githubUrls.js';
 import { GitHubWorkflowRerunOptions, PullRequestReplyAndResolveResult } from '../../github/common/githubPullRequestMutationService.js';
-import { PullRequestChecks, PullRequestRef, PullRequestSnapshot, PullRequestSubscription } from '../../github/common/githubPullRequestService.js';
-import { GitHubRequestError } from '../../github/common/githubTransport.js';
+import { PullRequestChecks, PullRequestRef, PullRequestSnapshot, PullRequestSubscription, firstCredentialFailure } from '../../github/common/githubPullRequestService.js';
+import { GitHubRequestError, isSamlEnforcementError } from '../../github/common/githubTransport.js';
 import { ILogService } from '../../log/common/log.js';
 import { getWorkingDirectoryKey } from '../common/agentHostWorkingDirectories.js';
-import { AgentMergeConfigKey, AgentMergeConfiguration, AgentMergeConfigurationChangeScope, AgentMergeDisableReason, AgentMergeFolderState, AgentMergeSessionOverrides, AgentMergeTarget, AGENT_MERGE_UNKNOWN_COMMIT, agentMergeConfigurationChangedNotice, agentMergeDisableReasons, agentMergeDisabledNotice, agentMergeEnabledNotice, agentMergeGateFragments, agentMergeMergePullRequestDemotedNotice, agentMergeRootConfigSchema, classifyAgentMergeRequiredChecks, evaluateAgentMerge, isAnyAgentMergeEnabled, readAgentMergeFolderState, readAgentMergeFolderStates, readAgentMergeChatInjectedConfigurations, readAgentMergeInjectedConfiguration, resolveMergeMethod, shouldStopMergingAfterAgentChanges, withAgentMergeFolderControllerState, withAgentMergeChatInjectedConfiguration, withAgentMergeFolderState, withAgentMergeInjectedConfiguration, hasAgentMergeFolderControllerState, hasAgentMergeElevation, AgentMergeFolderControllerState, getAgentMergeCheckActivity, getAgentMergeRepairBlockers, hasAgentMergeRepairProgress } from '../common/agentMerge.js';
+import { AgentMergeConfiguration, AgentMergeConfigurationChangeScope, AgentMergeDisableReason, AgentMergeFolderState, AgentMergeSessionOverrides, AgentMergeTarget, AGENT_MERGE_UNKNOWN_COMMIT, agentMergeConfigurationChangedNotice, agentMergeDisableReasons, agentMergeDisabledNotice, agentMergeEnabledNotice, agentMergeGateFragments, agentMergeMergePullRequestDemotedNotice, classifyAgentMergeRequiredChecks, evaluateAgentMerge, isAnyAgentMergeEnabled, readAgentMergeFolderState, readAgentMergeFolderStates, readAgentMergeChatInjectedConfigurations, readAgentMergeInjectedConfiguration, resolveMergeMethod, shouldStopMergingAfterAgentChanges, withAgentMergeFolderControllerState, withAgentMergeChatInjectedConfiguration, withAgentMergeFolderState, withAgentMergeInjectedConfiguration, hasAgentMergeFolderControllerState, hasAgentMergeElevation, AgentMergeFolderControllerState, getAgentMergeCheckActivity, getAgentMergeRepairBlockers, hasAgentMergeRepairProgress } from '../common/agentMerge.js';
 import { buildAgentMergePrompt } from '../common/agentMergePrompt.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
@@ -38,7 +38,7 @@ import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { AgentHostStateManager, ChatRemovalReason, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 import { getWorkflowRuns, IAgentMergeTurnContext, isFailedConclusion } from './agentMergeTools.js';
-import { getAgentMergeConfiguration } from './agentMergeConfiguration.js';
+import { getAgentMergeConfiguration, isAgentMergeEnabled } from './agentMergeConfiguration.js';
 import { isAuthRequiredError, type IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 
 const snapshotDebounce = 30_000;
@@ -606,7 +606,7 @@ export class AgentMergeController extends Disposable {
 	}
 
 	private _isFeatureEnabled(): boolean {
-		return this._configurationService.getRootValue(agentMergeRootConfigSchema, AgentMergeConfigKey.Enabled) ?? false;
+		return isAgentMergeEnabled(this._configurationService);
 	}
 
 	/**
@@ -1884,7 +1884,7 @@ export class AgentMergeController extends Disposable {
 	 * GitHub, which only the first refresh of a subscription reports by throwing.
 	 */
 	private _reportBlockedCredential(session: string, runtime: AgentMergeRuntime, snapshot: PullRequestSnapshot): void {
-		const blocked = firstCredentialFailure(snapshot);
+		const blocked = firstCredentialFailure(snapshot, agentMergeGateFragments);
 		if (!blocked) {
 			runtime.reportedCredentialFailure = undefined;
 			return;
@@ -2003,20 +2003,4 @@ function githubErrorKind(error: unknown): string {
 	return error instanceof GitHubRequestError
 		? `${error.kind}${error.statusCode === undefined ? '' : `:${error.statusCode}`}`
 		: error instanceof Error ? error.name : typeof error;
-}
-
-/** Detects the SAML single sign-on refusal GitHub returns for organizations that enforce it. */
-export function isSamlEnforcementError(message: string): boolean {
-	return message.toLowerCase().includes('saml enforcement');
-}
-
-/** Finds the first fragment the gate needs that GitHub refused to serve. */
-export function firstCredentialFailure(snapshot: PullRequestSnapshot): { readonly id: string; readonly kind: 'authentication' | 'authorization'; readonly message: string } | undefined {
-	for (const fragment of agentMergeGateFragments) {
-		const error = snapshot[fragment].error;
-		if (error?.kind === 'authentication' || error?.kind === 'authorization') {
-			return { id: `${fragment}:${error.kind}`, kind: error.kind, message: error.message };
-		}
-	}
-	return undefined;
 }

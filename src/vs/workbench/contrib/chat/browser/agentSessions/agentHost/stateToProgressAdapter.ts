@@ -8,6 +8,7 @@ import { readUsageInfoMeta, type UsageInfoMeta, type IAgentContextUsage, type IA
 import { decodeBase64 } from '../../../../../../base/common/buffer.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { escapeMarkdownLinkLabel, escapeMarkdownSyntaxTokens, IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { escapeIcons } from '../../../../../../base/common/iconLabels.js';
 import { type Tokens } from '../../../../../../base/common/marked/marked.js';
 import { rewriteMarkdownLinks as rewriteMarkdownSource } from '../../../../../../base/common/markdownLinks.js';
@@ -35,6 +36,7 @@ import { getAgentFeedbackAttachmentMetadata, isAgentFeedbackAnnotationsAttachmen
 import { getBrowserViewAttachmentMetadata, isBrowserViewAttachment } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
 import { readAgentMessageDelegationMeta } from '../../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
 import { isAgentMergeMessage } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
+import { readArtifactIntegrationNotice, readArtifactIntegrationRequest } from '../../../../../../platform/agentHost/common/meta/agentHostArtifactIntegrationMeta.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSystemNotificationWorkspaceKind, readAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { isViewUnreviewedCommentsTool, isAddCommentTool } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import { AGENT_HOST_SESSION_LINK_SCHEME, buildOpenSessionLinkUri, isCreateChatTool, isCreateSessionTool, isSendMessageTool, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
@@ -617,6 +619,14 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 	const markdown = typeof value === 'string'
 		? new MarkdownString(stripSystemNotificationWrapper(value))
 		: { ...value, value: stripSystemNotificationWrapper(value.value) };
+	const artifactNotice = readArtifactIntegrationNotice({ _meta });
+	if (artifactNotice) {
+		const icon = artifactNotice.iconId ? ThemeIcon.fromString(`$(${artifactNotice.iconId})`) : undefined;
+		return {
+			kind: 'systemNotification', content: markdown, collapsible: true, renderInlineTiming: true,
+			icon: artifactNotice.kind === 'disabled' ? Codicon.circleSlash : icon ?? Codicon.link,
+		};
+	}
 	switch (meta.kind) {
 		case AgentSystemNotificationKind.FusionProgress: {
 			// The workflow selection only names the HydraFusion model for the response footer; it is not shown.
@@ -1211,6 +1221,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 		const origin = messageToRequestOrigin(backendSession, turn.message, participantId, connectionAuthority);
 		const isSystemInitiated = turn.message.origin.kind === MessageKind.SystemNotification;
 		const requestSource = messageToRequestSource(turn.message);
+		const artifactRequest = readArtifactIntegrationRequest(turn.message);
 		// A message runs as a terminal command when it starts with the host's
 		// advertised prefix and has a non-empty command after it (mirroring the
 		// host-side bang parser, where a lone `!` is forwarded to the agent).
@@ -1232,6 +1243,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 				systemInitiatedLabel: readMessageSystemInitiatedLabel(turn.message),
 			} : {}),
 			...(requestSource !== undefined ? { requestSource } : {}),
+			...(artifactRequest ? { artifactRequest } : {}),
 			...(isTerminalRequest ? {
 				isTerminalRequest: true,
 			} : {}),
@@ -1324,6 +1336,9 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 export function messageToRequestSource(message: Message): ChatRequestSource | undefined {
 	if (message.origin.kind === MessageKind.SystemNotification && isAgentMergeMessage(message)) {
 		return 'agentMerge';
+	}
+	if (readArtifactIntegrationRequest(message)) {
+		return 'artifactIntegration';
 	}
 	return undefined;
 }

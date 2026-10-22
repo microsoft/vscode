@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import * as dom from '../../../../../../../base/browser/dom.js';
+import { IAction } from '../../../../../../../base/common/actions.js';
 import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
@@ -20,6 +21,7 @@ import { IConfigurationService } from '../../../../../../../platform/configurati
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../../../../platform/contextview/browser/contextView.js';
 import { IUntypedEditorInput, isResourceDiffEditorInput, isResourceEditorInput, isResourceMultiDiffEditorInput } from '../../../../../../common/editor.js';
 import { EditorInput } from '../../../../../../common/editor/editorInput.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
@@ -32,6 +34,7 @@ import '../../../../browser/chatEditing/chatEditingActions.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { ChatConfiguration, ChatModeKind } from '../../../../common/constants.js';
 import { emptySessionEntryDiff, IChatEditingService, IChatEditingSession, IEditSessionEntryDiff } from '../../../../common/editing/chatEditingService.js';
+import { ChatSessionReviewPreferencesService, IChatSessionReviewPreferencesService } from '../../../../common/editing/chatSessionReviewPreferences.js';
 import { IChatModel } from '../../../../common/model/chatModel.js';
 import { IChatViewModel } from '../../../../common/model/chatViewModel.js';
 
@@ -40,9 +43,22 @@ suite('ChatSessionWorkingSet', () => {
 
 	function createWorkingSet(initialDiffs: readonly IEditSessionEntryDiff[], openInDiffEditor = true, undo: IObservable<IChatSessionWorkingSetUndo | undefined> = constObservable(undefined), keepEnabled?: IObservable<boolean>, keepResult?: Promise<boolean>) {
 		const instantiationService = workbenchInstantiationService(undefined, store);
-		const configurationService = new TestConfigurationService({ [ChatConfiguration.OpenChangedFileInDiffEditor]: openInDiffEditor });
+		const configurationService = new TestConfigurationService({ [ChatConfiguration.OpenChangedFileInDiffEditor]: openInDiffEditor, [ChatConfiguration.EditorWorkingSetEnabled]: true });
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IConfigurationService, 'updateValue', (key: string, value: boolean) => configurationService.setUserConfiguration(key, value));
+		const reviewPreferences = store.add(instantiationService.createInstance(ChatSessionReviewPreferencesService));
+		instantiationService.stub(IChatSessionReviewPreferencesService, reviewPreferences);
+		let menuActions: readonly IAction[] = [];
+		let closeMenu = () => { };
+		let inputFocusCalls = 0;
+		instantiationService.stub(IContextMenuService, {
+			showContextMenu: delegate => {
+				assert.ok(delegate.getActions);
+				menuActions = delegate.getActions();
+				closeMenu = () => delegate.onHide?.(false);
+			},
+		});
 		instantiationService.stub(IContextKeyService, store.add(instantiationService.createInstance(ContextKeyService)));
 		// Runs the commands of the rows' menu, which the working set's file actions are.
 		const executed: { readonly id: string; readonly resource: string | undefined }[] = [];
@@ -78,19 +94,82 @@ suite('ChatSessionWorkingSet', () => {
 			},
 			keepEnabled,
 			undo,
-		}));
+		}, () => { inputFocusCalls++; }));
 		document.body.appendChild(workingSet.domNode);
 		store.add(toDisposable(() => workingSet.domNode.remove()));
 		const rows = () => [...workingSet.domNode.querySelectorAll<HTMLElement>('.monaco-list-row')];
 		const fileAction = (row: HTMLElement, label: string) => row.querySelector<HTMLElement>(`.action-label[aria-label="${label}"]`)!;
 		const headerButtons = () => [...workingSet.domNode.querySelectorAll<HTMLElement>('.chat-editing-session-actions .monaco-button')];
 		const headerButton = (label: string) => headerButtons().find(button => button.getAttribute('aria-label') === label)!;
-		return { workingSet, diffs, collapsed, opened, instantiationService, kept, signals, executed, rows, fileAction, headerButtons, headerButton };
+		return { workingSet, diffs, collapsed, opened, instantiationService, configurationService, reviewPreferences, kept, signals, executed, rows, fileAction, headerButtons, headerButton, menuActions: () => menuActions, closeMenu: () => closeMenu(), inputFocusCalls: () => inputFocusCalls };
 	}
 
 	const readFileActions = (rows: readonly HTMLElement[]) => rows.map(row => [...row.querySelectorAll('.action-label')]
 		.map(action => action.getAttribute('aria-disabled') === 'true' ? `${action.getAttribute('aria-label')} (disabled)` : action.getAttribute('aria-label')));
 	const readHeaderButtons = (buttons: readonly HTMLElement[]) => buttons.map(button => button.getAttribute('aria-disabled') === 'true' ? `${button.getAttribute('aria-label')} (disabled)` : button.getAttribute('aria-label'));
+
+	test('the context menu toggles header and file review controls without hiding diffs', async () => {
+		const undone: string[] = [];
+		const { workingSet, rows, headerButtons, menuActions, kept, signals } = createWorkingSet([
+			emptySessionEntryDiff(URI.file('/before.ts'), URI.file('/after.ts')),
+		], true, constObservable({
+			enabled: constObservable(true),
+			undo: async diffs => { undone.push(...diffs.map(diff => diff.modifiedURI.path)); return true; },
+		}));
+		const read = () => ({ header: readHeaderButtons(headerButtons()), rows: readFileActions(rows()) });
+		const states = [read()];
+		rows()[0].dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+		const menu = menuActions().map(action => ({ label: action.label, checked: action.checked }));
+		await menuActions()[0].run();
+		await timeout(0);
+		states.push(read());
+		await workingSet.keepFiles([URI.file('/after.ts')]);
+		await workingSet.undoFiles([URI.file('/after.ts')]);
+		workingSet.domNode.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+		const unchecked = menuActions()[0].checked;
+		await menuActions()[0].run();
+		await timeout(0);
+		states.push(read());
+
+		assert.deepStrictEqual({ states, menu, unchecked, kept, undone, signals }, {
+			states: [
+				{ header: ['Keep All Edits', 'Undo All Edits', 'View All Edits'], rows: [['Keep', 'Undo', 'Open Changes in Diff Editor']] },
+				{ header: ['View All Edits'], rows: [['Open Changes in Diff Editor']] },
+				{ header: ['Keep All Edits', 'Undo All Edits', 'View All Edits'], rows: [['Keep', 'Undo', 'Open Changes in Diff Editor']] },
+			],
+			menu: [{ label: 'Keep and Undo', checked: true }, { label: '', checked: undefined }, { label: 'Show Pill', checked: undefined }],
+			unchecked: false, kept: [], undone: [], signals: [],
+		});
+	});
+
+	test('keyboard context menu toggles review and restores focus when an action disappears', async () => {
+		const { workingSet, rows, fileAction, menuActions, closeMenu } = createWorkingSet([emptySessionEntryDiff(URI.file('/before.ts'), URI.file('/after.ts'))]);
+		const keep = fileAction(rows()[0], 'Keep');
+		keep.focus();
+		const event = new KeyboardEvent('keydown', { key: 'F10', keyCode: 121, shiftKey: true, bubbles: true, cancelable: true });
+		keep.dispatchEvent(event);
+		await menuActions()[0].run();
+		await timeout(0);
+		closeMenu();
+
+		assert.deepStrictEqual({ prevented: event.defaultPrevented, enabled: workingSet.keepUndoEnabled, focused: dom.getActiveElement() === workingSet.domNode.querySelector('.monaco-button') }, {
+			prevented: true, enabled: false, focused: true,
+		});
+	});
+
+	test('Show Pill disables the existing Working Set setting without changing the review preference', async () => {
+		const { workingSet, configurationService, menuActions, closeMenu, inputFocusCalls } = createWorkingSet([emptySessionEntryDiff(URI.file('/before.ts'), URI.file('/after.ts'))]);
+		workingSet.domNode.querySelector<HTMLElement>('.monaco-button')!.focus();
+		workingSet.domNode.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
+		const showPill = menuActions().find(action => action.label === 'Show Pill')!;
+		closeMenu();
+		await showPill.run();
+		workingSet.domNode.remove();
+
+		assert.deepStrictEqual({ workingSet: configurationService.getValue(ChatConfiguration.EditorWorkingSetEnabled), review: workingSet.keepUndoEnabled, inputFocusCalls: inputFocusCalls() }, {
+			workingSet: false, review: true, inputFocusCalls: 1,
+		});
+	});
 
 	test('shows session files and counts with Keep and Open Changes in Diff Editor on each file and Keep and View All Edits in the heading', () => {
 		const { workingSet, rows, headerButtons } = createWorkingSet([

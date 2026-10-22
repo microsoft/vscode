@@ -37,6 +37,8 @@ export const ARCHIVE_CHAT_COMMAND_ID = 'sessionsViewPane.archiveChat';
 /** Unarchives a chat independently of its session. Registered in `sessionsViewActions.ts`. */
 export const UNARCHIVE_CHAT_COMMAND_ID = 'sessionsViewPane.unarchiveChat';
 
+export const SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID = 'sessionsViewPane.showApplicationFilters';
+
 export {
 	AGENT_SESSION_MARK_READ_ACTION_ID as MARK_SESSION_READ_COMMAND_ID,
 	AGENT_SESSION_MARK_UNREAD_ACTION_ID as MARK_SESSION_UNREAD_COMMAND_ID,

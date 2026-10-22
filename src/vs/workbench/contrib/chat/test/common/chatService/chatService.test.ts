@@ -6,9 +6,10 @@
 import assert from 'assert';
 import { COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY, COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, IManagedSettingsService, NullManagedSettingsService, TemporaryDefaultToLocalHarnessSettingId } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { AccountPolicyGateState, IAccountPolicyGateService } from '../../../../../services/policies/common/accountPolicyService.js';
-import { spy, stub } from 'sinon';
+import { spy, stub, useFakeTimers } from 'sinon';
 import { DeferredPromise, disposableTimeout, installFakeRunWhenIdle, raceTimeout, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { createTestArtifactRequestPresentation } from '../../../../../../platform/artifactIntegrations/test/common/artifactIntegrationTestUtils.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -58,7 +59,7 @@ import { ChatPasteAttachmentMetadata, IChatRequestVariableEntry, toPasteVariable
 import { IChatVariablesService } from '../../../common/attachments/chatVariables.js';
 import { IChatDebugService } from '../../../common/chatDebugService.js';
 import { ChatDebugServiceImpl } from '../../../common/chatDebugServiceImpl.js';
-import { ChatRequestQueueKind, ChatSendResult, IChatFollowup, IChatModelReference, IChatProgress, IChatService, IChatUserActionEvent, ResponseModelState } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ChatSendResult, IChatFollowup, IChatModelReference, IChatProgress, IChatService, IChatUserActionEvent, ResponseModelState, IRemotePendingRequest } from '../../../common/chatService/chatService.js';
 import { backfillTransferredModel, backfillRestoredPickerState, ChatService, rekeyIntendedModel } from '../../../common/chatService/chatServiceImpl.js';
 import { ChatOpenDiagnosticsService, IChatOpenDiagnosticsService } from '../../../common/chatOpenDiagnosticsService.js';
 import { IIntendedModelSelection, ModelSelectionReason } from '../../../common/modelSelection.js';
@@ -69,14 +70,15 @@ import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatModel, IChatModel, ISerializableChatData, ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
+import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatSessionOperationLog } from '../../../common/model/chatSessionOperationLog.js';
 import { IChatSessionIndex } from '../../../common/model/chatSessionStore.js';
-import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
+import { getChatSessionType, LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { ChatViewModel, isPendingDividerVM, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatAgentService, IChatAgent, IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
 import { IConfiguredHooksInfo, IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
-import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { MockChatVariablesService } from '../mockChatVariables.js';
 import { MockPromptsService } from '../promptSyntax/service/mockPromptsService.js';
 import { MockLanguageModelToolsService } from '../tools/mockLanguageModelToolsService.js';
@@ -2207,6 +2209,40 @@ suite('ChatService', () => {
 		});
 	});
 
+	test('syncPendingRequestsFromRemote updates and removes artifact action snapshots without rebuilding unchanged requests', () => {
+		const service = createChatService();
+		const model = testDisposables.add(startSessionModel(service)).object;
+		const request: IRemotePendingRequest = {
+			id: 'remote-artifact', kind: ChatRequestQueueKind.Queued, message: 'Analyse the scorecard.',
+			isSystemInitiated: true, agentHostMessageOrigin: { kind: MessageKind.SystemNotification },
+		};
+		const firstPresentation = createTestArtifactRequestPresentation();
+		const secondPresentation = createTestArtifactRequestPresentation({ source: 'manual' });
+		let changes = 0;
+		testDisposables.add(model.onDidChangePendingRequests(() => changes++));
+		service.syncPendingRequestsFromRemote(model.sessionResource, [{ ...request, requestSource: 'artifactIntegration', artifactRequest: firstPresentation }]);
+		const first = model.getPendingRequests()[0].request;
+		service.syncPendingRequestsFromRemote(model.sessionResource, [{ ...request, requestSource: 'artifactIntegration', artifactRequest: secondPresentation }]);
+		const second = model.getPendingRequests()[0].request;
+		service.syncPendingRequestsFromRemote(model.sessionResource, [{ ...request, requestSource: 'artifactIntegration', artifactRequest: structuredClone(secondPresentation) }]);
+		const unchanged = model.getPendingRequests()[0].request === second;
+		service.syncPendingRequestsFromRemote(model.sessionResource, [request]);
+		const cleared = model.getPendingRequests()[0].request;
+		assert.deepStrictEqual({
+			changes, unchanged,
+			first: first.artifactRequest, second: second.artifactRequest, cleared: cleared.artifactRequest,
+			sources: [first.requestSource, second.requestSource, cleared.requestSource],
+			ids: [first.id, second.id, cleared.id],
+			messages: [first.message.text, second.message.text, cleared.message.text],
+		}, {
+			changes: 3, unchanged: true,
+			first: firstPresentation, second: secondPresentation, cleared: undefined,
+			sources: ['artifactIntegration', 'artifactIntegration', undefined],
+			ids: [request.id, request.id, request.id],
+			messages: [request.message, request.message, request.message],
+		});
+	});
+
 	test('remote pending requests reconcile model-only edits and preserve selections on legacy text updates', async () => {
 		const service = createChatService();
 		const model = testDisposables.add(startSessionModel(service)).object;
@@ -3489,6 +3525,51 @@ suite('ChatService', () => {
 		]);
 	});
 
+	test('native peer side chats invoke their own participant rather than the default extension participant', async () => {
+		const sessionType = 'agent-host-copilot';
+		const sessionsService = new MockChatSessionsService();
+		sessionsService.setContributions([{ type: sessionType, name: 'Native', displayName: 'Native', description: 'Native' }]);
+		testDisposables.add(sessionsService.registerChatSessionContentProvider(sessionType, {
+			provideChatSessionContent: async sessionResource => ({
+				sessionResource, history: [], onWillDispose: Event.None, dispose: () => { },
+			}),
+		}));
+		instantiationService.stub(IChatSessionsService, sessionsService);
+		const invoked: { agentId: string; resource: string; message: string }[] = [];
+		testDisposables.add(chatAgentService.registerAgent('extension-default', { ...getAgentData('extension-default'), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation('extension-default', {
+			async invoke(request) {
+				invoked.push({ agentId: request.agentId, resource: request.sessionResource.toString(), message: request.message });
+				return {};
+			},
+		}));
+		testDisposables.add(chatAgentService.registerAgent(sessionType, getAgentData(sessionType)));
+		testDisposables.add(chatAgentService.registerAgentImplementation(sessionType, {
+			async invoke(request) {
+				invoked.push({ agentId: request.agentId, resource: request.sessionResource.toString(), message: request.message });
+				return {};
+			},
+		}));
+		const service = createChatService();
+		for (const fragment of ['first-side-chat', 'second-side-chat']) {
+			const resource = URI.from({ scheme: sessionType, path: '/source-session', fragment });
+			const reference = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(reference);
+			testDisposables.add(reference);
+			const result = await service.sendRequest(resource, 'Remember the source context', {
+				location: ChatAgentLocation.Chat,
+				agentIdSilent: getChatSessionType(resource),
+			});
+			ChatSendResult.assertSent(result);
+			await result.data.responseCompletePromise;
+		}
+		assert.deepStrictEqual(invoked, ['first-side-chat', 'second-side-chat'].map(fragment => ({
+			agentId: sessionType,
+			resource: `${sessionType}:/source-session#${fragment}`,
+			message: 'Remember the source context',
+		})));
+	});
+
 	test('sendRequest with agentIdSilent passes agent host session capabilities to the request parser', async () => {
 		const sessionType = 'agent-host-copilot';
 		const sessionResource = URI.from({ scheme: sessionType, path: '/session-silent' });
@@ -4606,6 +4687,86 @@ suite('ChatService', () => {
 			await waitForResponse(ref.object, requestId, 'Refreshed');
 
 			assert.deepStrictEqual(ref.object.getRequests().map(request => [request.id, request.response?.response.toString()]), [[requestId, 'Refreshed']]);
+		});
+
+		test('times live reasoning but not reasoning replayed from history', async () => {
+			const progress = observableValue<IChatProgress[]>('progress', []);
+			const isComplete = observableValue('isComplete', false);
+			const { resource } = setupRemoteProvider({
+				history: [
+					{ type: 'request', prompt: 'Earlier', participant: remoteScheme },
+					{ type: 'response', parts: [{ kind: 'thinking', id: 'restored', value: 'Restored reasoning' }, { kind: 'markdownContent', content: new MarkdownString('Earlier answer') }], participant: remoteScheme },
+					{ type: 'request', prompt: 'Now', participant: remoteScheme },
+				],
+				progressObs: progress,
+				isCompleteObs: isComplete,
+				interruptActiveResponseCallback: async () => true,
+			});
+			const service = createChatService();
+			instantiationService.stub(IChatService, service);
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+			await waitForRequestCount(ref.object, 2);
+
+			const clock = useFakeTimers({ now: 5000, toFake: ['Date'] });
+			try {
+				progress.set([{ kind: 'thinking', id: 'live', value: 'Live reasoning' }], undefined);
+				clock.tick(1500);
+				progress.set([{ kind: 'thinking', id: 'live', value: 'Live reasoning' }, { kind: 'markdownContent', content: new MarkdownString('Answer') }], undefined);
+			} finally {
+				clock.restore();
+			}
+			isComplete.set(true, undefined);
+
+			assert.deepStrictEqual(ref.object.getRequests().map(request => request.response?.response.value.flatMap(part => part.kind === 'thinking'
+				? [{ id: part.id, startedAt: part.reasoningStartedAt, durationMs: part.reasoningDurationMs }]
+				: [])), [
+				[{ id: 'restored', startedAt: undefined, durationMs: undefined }],
+				[{ id: 'live', startedAt: 5000, durationMs: 1500 }],
+			]);
+		});
+
+		test('does not time work already underway when it reconnects to a running turn', async () => {
+			const runningTool = new ChatToolInvocation({ invocationMessage: 'Reading a.ts' }, { id: 'read_file', displayName: 'Read file', modelDescription: 'Read file', source: ToolDataSource.Internal }, 'running', undefined, {});
+			const snapshot: IChatProgress[] = [{ kind: 'thinking', id: 'underway', value: 'Reasoning before the reconnect' }, runningTool];
+			const progress = observableValue<IChatProgress[]>('progress', snapshot);
+			const isComplete = observableValue('isComplete', false);
+			const { resource } = setupRemoteProvider({
+				history: [{ type: 'request', prompt: 'Now', participant: remoteScheme }],
+				progressObs: progress,
+				isCompleteObs: isComplete,
+				interruptActiveResponseCallback: async () => true,
+			});
+			const service = createChatService();
+			instantiationService.stub(IChatService, service);
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+			await waitForRequestCount(ref.object, 1);
+
+			const clock = useFakeTimers({ now: 5000, toFake: ['Date'] });
+			try {
+				progress.set([...snapshot, { kind: 'markdownContent', content: new MarkdownString('Between') }, { kind: 'thinking', id: 'live', value: 'Live reasoning' }], undefined);
+				clock.tick(1500);
+				progress.set([...progress.get(), { kind: 'markdownContent', content: new MarkdownString('Answer') }], undefined);
+			} finally {
+				clock.restore();
+			}
+			isComplete.set(true, undefined);
+
+			assert.deepStrictEqual({
+				reasoning: ref.object.getRequests()[0].response?.response.value.flatMap(part => part.kind === 'thinking'
+					? [{ id: part.id, startedAt: part.reasoningStartedAt, durationMs: part.reasoningDurationMs }]
+					: []),
+				runningToolStartedAt: runningTool.startedAt,
+			}, {
+				reasoning: [
+					{ id: 'underway', startedAt: undefined, durationMs: undefined },
+					{ id: 'live', startedAt: 5000, durationMs: 1500 },
+				],
+				runningToolStartedAt: undefined,
+			});
 		});
 
 		test('send waits for a sliced live history refresh while preserving the model', async () => {
@@ -5907,6 +6068,32 @@ suite('ChatService', () => {
 				requests: [{ id: 'user', requestSource: undefined }, { id: 'history', requestSource: 'agentMerge' }, { id: 'live', requestSource: 'agentMerge' }],
 				viewModels: [{ id: 'user', requestSource: undefined }, { id: 'history', requestSource: 'agentMerge' }, { id: 'live', requestSource: 'agentMerge' }],
 				serialized: [{ id: 'user', requestSource: undefined }, { id: 'history', requestSource: 'agentMerge' }, { id: 'live', requestSource: 'agentMerge' }],
+			});
+		});
+
+		test('preserves artifact action snapshots in history and live server requests', async () => {
+			const presentation = createTestArtifactRequestPresentation();
+			const onDidStartServerRequest = testDisposables.add(new Emitter<IChatSessionServerRequest>());
+			const { resource } = setupRemoteProvider({
+				history: [{ id: 'history', type: 'request', prompt: 'Original instructions', participant: remoteScheme, isSystemInitiated: true, requestSource: 'artifactIntegration', artifactRequest: presentation }],
+				progressObs: observableValue<IChatProgress[]>('progress', []),
+				interruptActiveResponseCallback: async () => true,
+				onDidStartServerRequest: onDidStartServerRequest.event,
+			});
+			const testService = createChatService();
+			const ref = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+			onDidStartServerRequest.fire({ id: 'live', prompt: 'New instructions', isSystemInitiated: true, requestSource: 'artifactIntegration', artifactRequest: presentation });
+			const viewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, ref.object, undefined));
+			assert.deepStrictEqual({
+				requests: ref.object.getRequests().map(request => request.artifactRequest),
+				viewModels: viewModel.getItems().filter(isRequestVM).map(request => request.artifactRequest),
+				serialized: ref.object.toJSON().requests.map(request => request.artifactRequest),
+				prompts: ref.object.getRequests().map(request => request.message.text),
+			}, {
+				requests: [presentation, presentation], viewModels: [presentation, presentation], serialized: [presentation, presentation],
+				prompts: ['Original instructions', 'New instructions'],
 			});
 		});
 
