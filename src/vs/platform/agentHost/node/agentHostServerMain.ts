@@ -114,9 +114,14 @@ async function parseServerOptions(): Promise<IServerOptions> {
 	const codexSdkRootIdx = argv.indexOf('--codex-sdk-root');
 	const codexSdkRoot = (codexSdkRootIdx >= 0 ? argv[codexSdkRootIdx + 1] : process.env[AgentHostCodexAgentSdkRootEnvVar]) ?? '';
 	const shutdownTimeoutIdx = argv.indexOf('--shutdown-timeout');
-	const shutdownTimeoutMs = shutdownTimeoutIdx >= 0 ? Number(argv[shutdownTimeoutIdx + 1]) : DEFAULT_SHUTDOWN_TIMEOUT_MS;
+	const rawShutdownTimeout = shutdownTimeoutIdx >= 0 ? argv[shutdownTimeoutIdx + 1] : undefined;
+	if (shutdownTimeoutIdx >= 0 && (rawShutdownTimeout === undefined || rawShutdownTimeout.startsWith('--'))) {
+		log(`Error: Missing value for --shutdown-timeout; expected milliseconds (e.g. ${DEFAULT_SHUTDOWN_TIMEOUT_MS})`);
+		process.exit(1);
+	}
+	const shutdownTimeoutMs = rawShutdownTimeout !== undefined ? Number(rawShutdownTimeout) : DEFAULT_SHUTDOWN_TIMEOUT_MS;
 	if (!Number.isSafeInteger(shutdownTimeoutMs) || shutdownTimeoutMs <= 0) {
-		log(`Error: --shutdown-timeout must be a positive number of milliseconds, got '${argv[shutdownTimeoutIdx + 1]}'`);
+		log(`Error: --shutdown-timeout must be a positive number of milliseconds, got '${rawShutdownTimeout}'`);
 		process.exit(1);
 	}
 	const quiet = argv.includes('--quiet');

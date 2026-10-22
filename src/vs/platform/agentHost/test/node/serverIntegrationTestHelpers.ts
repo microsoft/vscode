@@ -675,12 +675,18 @@ export interface IServerHandle {
 
 const SERVER_SHUTDOWN_TIMEOUT_MS = isCI || isWindows || AGENT_HOST_E2E_COVERAGE ? 30_000 : 5_000;
 /**
+ * Part of {@link SERVER_SHUTDOWN_TIMEOUT_MS} kept back from the server's own
+ * graceful-shutdown budget: capturing its descendants before stdin is closed,
+ * and its disposal and exit after the budget ends, share the same deadline.
+ */
+const SERVER_SHUTDOWN_RESERVE_MS = 5_000;
+/**
  * The server's own graceful-shutdown budget. A restart must persist what the
  * replacement server restores, and on a loaded CI machine that can take longer
- * than the server's 4.5s default, so it gets most of the time
- * {@link stopServer} already waits, keeping the rest for capturing descendants.
+ * than the server's 4.5s default, so it gets the time {@link stopServer}
+ * already waits, less {@link SERVER_SHUTDOWN_RESERVE_MS}.
  */
-const SERVER_GRACEFUL_SHUTDOWN_TIMEOUT_MS = Math.max(4_500, SERVER_SHUTDOWN_TIMEOUT_MS - 5_000);
+const SERVER_GRACEFUL_SHUTDOWN_TIMEOUT_MS = Math.max(4_500, SERVER_SHUTDOWN_TIMEOUT_MS - SERVER_SHUTDOWN_RESERVE_MS);
 const SERVER_EXIT_TIMEOUT_MS = 1_000;
 const SERVER_DESCENDANT_CLEANUP_TIMEOUT_MS = 5_000;
 
