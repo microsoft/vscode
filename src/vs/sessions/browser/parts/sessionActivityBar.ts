@@ -17,25 +17,29 @@ import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposab
 import { clamp } from '../../../base/common/numbers.js';
 import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue, transaction } from '../../../base/common/observable.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
+import { IAction, toAction } from '../../../base/common/actions.js';
 import { localize } from '../../../nls.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
 import { IMenuEntryActionViewItemOptions, MenuEntryActionViewItem } from '../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { MenuItemAction, SubmenuItemAction } from '../../../platform/actions/common/actions.js';
+import { isIMenuItem, MenuItemAction, MenuRegistry, SubmenuItemAction } from '../../../platform/actions/common/actions.js';
 import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { IBadge, NumberBadge } from '../../../workbench/services/activity/common/activity.js';
+import { TogglePanelAction } from '../../../workbench/browser/parts/panel/panelActions.js';
 import { ISessionActivityBarActivityService } from '../../services/activity/common/sessionActivityBarActivityService.js';
+import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
 import { IHoverService, WorkbenchHoverDelegate } from '../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
-import { Menus } from '../menus.js';
+import { Menus, SessionActivityBarGroup } from '../menus.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../workbench.js';
 import { AGENTS_CONTENT_HORIZONTAL_PADDING } from '../../common/layoutConstants.js';
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../common/sessionConfig.js';
+import { TOGGLE_SIDE_PANEL_COMMAND_ID } from '../../common/sessionCommands.js';
 import { isPhoneLayout } from './mobile/mobileLayout.js';
 import { SubmenuFlyout } from './submenuFlyout.js';
 
@@ -68,7 +72,8 @@ export class SessionActivityBar extends Disposable {
 
 		this.element = append(container, $('.session-activity-bar'));
 
-		const hoverDelegate = this._register(instantiationService.createInstance(WorkbenchHoverDelegate, 'element', undefined, { position: { hoverPosition: HoverPosition.LEFT } }));
+		// Like the workbench activity bar, once an entry's hover has shown, moving to another entry shows its hover instantly.
+		const hoverDelegate = this._register(instantiationService.createInstance(WorkbenchHoverDelegate, 'element', { instantHover: true }, { position: { hoverPosition: HoverPosition.LEFT } }));
 		const toolbar = this._register(instantiationService.createInstance(MenuWorkbenchToolBar, this.element, Menus.SessionActivityBar, {
 			orientation: ActionsOrientation.VERTICAL,
 			ariaLabel: localize('sessionActivityBar', "Session Activity Bar"),
@@ -384,6 +389,9 @@ export class SessionActivityBarActionViewItem extends MenuEntryActionViewItem {
 
 	private badgeElement: HTMLElement | undefined;
 
+	/** The command that hides what the entry shows when checked, resolved from the entry's group in the menu, which its action does not carry. */
+	private readonly hideCommand: string | undefined;
+
 	constructor(
 		action: MenuItemAction,
 		options: IMenuEntryActionViewItemOptions | undefined,
@@ -394,8 +402,14 @@ export class SessionActivityBarActionViewItem extends MenuEntryActionViewItem {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@ISessionActivityBarActivityService private readonly activityService: ISessionActivityBarActivityService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(action, options, keybindingService, notificationService, contextKeyService, themeService, contextMenuService, accessibilityService);
+
+		const group = MenuRegistry.getMenuItems(Menus.SessionActivityBar).find(item => isIMenuItem(item) && item.command.id === action.id)?.group;
+		const hideCommand = group === SessionActivityBarGroup.SidePanel ? TOGGLE_SIDE_PANEL_COMMAND_ID : group === SessionActivityBarGroup.Panel ? TogglePanelAction.ID : undefined;
+		// The side panel and panel toggles are entries of these groups themselves.
+		this.hideCommand = hideCommand !== action.id ? hideCommand : undefined;
 
 		this._register(activityService.onDidChangeActivity(commandId => {
 			if (commandId === this._menuItemAction.id) {
@@ -415,6 +429,34 @@ export class SessionActivityBarActionViewItem extends MenuEntryActionViewItem {
 	/** The badge of the most recent activity reported for the entry's command, which the entry shows. */
 	protected getBadge(): IBadge | undefined {
 		return this.activityService.getActivity(this._menuItemAction.id).at(-1)?.badge;
+	}
+
+	/**
+	 * The command that hides what a checked entry shows, like the workbench activity bar: the side pane for the
+	 * entries that open its tabs, and the panel for the terminal. `undefined` for unchecked entries and the toggles.
+	 */
+	private getHideCommand(): string | undefined {
+		return this._menuItemAction.enabled && this._menuItemAction.checked ? this.hideCommand : undefined;
+	}
+
+	override getActionToRun(event: EventLike & { readonly altKey?: boolean; readonly shiftKey?: boolean }): IAction {
+		const command = this.getHideCommand();
+		if (command) {
+			return toAction({ id: command, label: this._menuItemAction.label, run: () => this.commandService.executeCommand(command) });
+		}
+		return super.getActionToRun(event);
+	}
+
+	override async onClick(event: MouseEvent): Promise<void> {
+		if (!this.getHideCommand()) {
+			return super.onClick(event);
+		}
+		EventHelper.stop(event, true);
+		try {
+			await this.actionRunner.run(this.getActionToRun(event), this._context);
+		} catch (error) {
+			this._notificationService.error(error);
+		}
 	}
 
 	protected override getTooltip(): string {

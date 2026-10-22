@@ -26,7 +26,7 @@ import { AgentHostArtifactNoticeMetaKey, AgentHostArtifactRequestMetaKey, AgentH
 import { createTestArtifactRequestPresentation } from '../../../../../../platform/artifactIntegrations/test/common/artifactIntegrationTestUtils.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSystemNotificationWorkspaceKind, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentWorkspaceContinuationMeta.js';
-import { withComputerUseSetupCard } from '../../../../../../platform/agentHost/common/meta/computerUse.js';
+import { getComputerUseActivationAnswers, withComputerUseActivationCard, withComputerUseSetupCard } from '../../../../../../platform/agentHost/common/meta/computerUse.js';
 import { ConfirmationOptionKind, McpAuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, toAgentHostContentUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { buildSubagentChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, createErrorResponsePart, MessageAttachmentKind, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, withMessageHiddenFromTranscript, withMessageRequestHiddenFromTranscript, withMessageSystemInitiatedLabel, type ActiveTurn, type ChatInputAnswer, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -619,6 +619,28 @@ suite('stateToProgressAdapter', () => {
 			assert.deepStrictEqual(parts.map(part => part.kind === 'elicitationSerialized' ? { kind: part.kind, title: part.title, state: part.state } : { kind: part.kind }), [
 				{ kind: 'elicitationSerialized', title: 'Computer Use needs permission to control apps and capture their windows.', state: ElicitationState.Accepted },
 				{ kind: 'elicitationSerialized', title: 'Computer Use needs permission to control apps and capture their windows.', state: ElicitationState.Rejected },
+			]);
+		});
+
+		test('restores a request to turn on Computer Use as a settled card that is accepted only when Turn On was submitted', () => {
+			const card = (id: string, response: ChatInputResponseKind, answers: Record<string, ChatInputAnswer>, reason?: string) => ({
+				kind: ResponsePartKind.InputRequest,
+				request: withComputerUseActivationCard({ id, message: 'Copilot asks to turn on Computer Use', questions: [{ kind: ChatInputQuestionKind.SingleSelect, id: 'computerUse', title: 'Computer Use', message: 'Turn on Computer Use?', required: true, options: [{ id: 'turnOn', label: 'Turn On' }, { id: 'notNow', label: 'Not Now' }] }], answers }, reason ? { reason } : {}),
+				response,
+			} as const);
+			const turn = createTurn({
+				responseParts: [
+					card('turned-on', ChatInputResponseKind.Accept, getComputerUseActivationAnswers('turnOn'), 'Open *Calculator*'),
+					card('not-now', ChatInputResponseKind.Accept, getComputerUseActivationAnswers('notNow')),
+					card('declined', ChatInputResponseKind.Decline, getComputerUseActivationAnswers('turnOn')),
+				],
+			});
+			const parts = turnsToHistory(URI.parse('ahp-session:/opaque-host-identity'), [JSON.parse(JSON.stringify(turn))], 'participant').find(item => item.type === 'response')?.parts ?? [];
+			const explanation = 'Computer Use lets Copilot see and control apps on this computer. It stays on for Copilot, including the Copilot CLI, until you run `/computer off`.';
+			assert.deepStrictEqual(parts.map(part => part.kind === 'elicitationSerialized' ? { kind: part.kind, title: part.title, message: typeof part.message === 'string' ? part.message : part.message.value, state: part.state } : { kind: part.kind }), [
+				{ kind: 'elicitationSerialized', title: 'Turn on Computer Use?', message: `Open \\*Calculator\\*\n\n${explanation}`, state: ElicitationState.Accepted },
+				{ kind: 'elicitationSerialized', title: 'Turn on Computer Use?', message: explanation, state: ElicitationState.Rejected },
+				{ kind: 'elicitationSerialized', title: 'Turn on Computer Use?', message: explanation, state: ElicitationState.Rejected },
 			]);
 		});
 

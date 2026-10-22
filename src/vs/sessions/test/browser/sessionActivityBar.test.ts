@@ -13,20 +13,25 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { AnchorAlignment } from '../../../base/common/layout.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
+import { IHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegate.js';
+import { getBaseLayerHoverDelegate, setBaseLayerHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegate2.js';
 import { mock, upcastPartial } from '../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
-import { IMenu, IMenuChangeEvent, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from '../../../platform/actions/common/actions.js';
+import { IMenu, IMenuActionOptions, IMenuChangeEvent, IMenuService, MenuId, MenuItemAction, MenuRegistry, SubmenuItemAction } from '../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
+import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextMenuMenuDelegate, IContextMenuService, IContextViewService } from '../../../platform/contextview/browser/contextView.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { ChatViewSessionActivityBar, SessionActivityBar } from '../../browser/parts/sessionActivityBar.js';
-import { SessionActivityBarGroup } from '../../browser/menus.js';
+import { Menus, SessionActivityBarGroup } from '../../browser/menus.js';
+import { TogglePanelAction } from '../../../workbench/browser/parts/panel/panelActions.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../browser/workbench.js';
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../common/sessionConfig.js';
+import { TOGGLE_SIDE_PANEL_COMMAND_ID } from '../../common/sessionCommands.js';
 import { ISessionActivityBarActivityService, SessionActivityBarActivityService } from '../../services/activity/common/sessionActivityBarActivityService.js';
 import { IconBadge, NumberBadge } from '../../../workbench/services/activity/common/activity.js';
 import { TestContextViewService } from './testContextViewService.js';
@@ -40,6 +45,8 @@ interface ITestEntry {
 	readonly submenu?: readonly { readonly id: string; readonly title: string }[];
 	/** The menu group, `navigation` by default. */
 	readonly group?: string;
+	/** Whether the entry is checked, as when the side pane shows its editor. */
+	readonly checked?: boolean;
 }
 
 const changes: ITestEntry = { id: 'test.changes', title: 'Changes', icon: Codicon.gitCompare };
@@ -77,6 +84,17 @@ suite('Sessions - Session Activity Bar', () => {
 			override isScreenReaderOptimized(): boolean { return false; }
 		});
 
+		const createEntryAction = (entry: ITestEntry, options: IMenuActionOptions | undefined) => {
+			if (!entry.checked) {
+				return instantiationService.createInstance(MenuItemAction, { id: entry.id, title: entry.title, icon: entry.icon }, undefined, options, undefined, undefined);
+			}
+			// The entry's toggled condition holds, as when the side pane shows its editor.
+			const contextKeyService = new class extends mock<IContextKeyService>() {
+				override contextMatchesRules(rules: ContextKeyExpression | undefined): boolean { return !!rules?.evaluate({ getValue: () => undefined }); }
+			};
+			return instantiationService.invokeFunction(accessor => new MenuItemAction({ id: entry.id, title: entry.title, icon: entry.icon, toggled: ContextKeyExpr.true() }, undefined, options, undefined, undefined, contextKeyService, accessor.get(ICommandService)));
+		};
+
 		let entries = initialEntries;
 		let createdMenu: IMenu | undefined;
 		const onDidChangeMenu = testStore.add(new Emitter<IMenuChangeEvent>());
@@ -92,7 +110,7 @@ suite('Sessions - Session Activity Bar', () => {
 							groups.set(group, [...groups.get(group) ?? [], entry.submenu
 								? new SubmenuItemAction({ submenu: MenuId.for(entry.id), title: entry.title, icon: entry.icon }, undefined, entry.submenu.map(item =>
 									instantiationService.createInstance(MenuItemAction, { id: item.id, title: item.title }, undefined, options, undefined, undefined)))
-								: instantiationService.createInstance(MenuItemAction, { id: entry.id, title: entry.title, icon: entry.icon }, undefined, options, undefined, undefined)]);
+								: createEntryAction(entry, options)]);
 						}
 						return [...groups];
 					},
@@ -640,6 +658,22 @@ suite('Sessions - Session Activity Bar', () => {
 		});
 	});
 
+	test('shows the hover of the next entry instantly once one has shown, like the workbench activity bar', () => {
+		const previous = getBaseLayerHoverDelegate();
+		const delegates = new Set<IHoverDelegate>();
+		setBaseLayerHoverDelegate({ ...previous, setupManagedHover: (delegate, ...args) => { delegates.add(delegate); return previous.setupManagedHover(delegate, ...args); } });
+		store.add(toDisposable(() => setBaseLayerHoverDelegate(previous)));
+		createActivityBar(store, [changes, browser]);
+
+		// All entries share one delegate.
+		assert.strictEqual(delegates.size, 1);
+		const [delegate] = delegates;
+		const firstDelay = delegate.delay;
+		delegate.onDidHideHover?.();
+
+		assert.deepStrictEqual({ firstDelayed: firstDelay !== 0, nextDelay: delegate.delay }, { firstDelayed: true, nextDelay: 0 });
+	});
+
 	test('runs an entry when clicked', async () => {
 		const { label, ran } = createActivityBar(store, [changes, browser]);
 
@@ -647,6 +681,33 @@ suite('Sessions - Session Activity Bar', () => {
 		await timeout(0);
 
 		assert.deepStrictEqual(ran, ['test.browser']);
+	});
+
+	test('shows a checked entry as pressed and hides what it shows when it is clicked or activated by keyboard', async () => {
+		const files: ITestEntry = { id: 'test.files', title: 'Files', icon: Codicon.files, group: SessionActivityBarGroup.SidePanel, checked: true };
+		const terminal: ITestEntry = { id: 'test.terminal', title: 'Terminal', icon: Codicon.terminal, group: SessionActivityBarGroup.Panel, checked: true };
+		// The entries' groups determine what they hide, as registered in the menu.
+		for (const entry of [files, terminal]) {
+			store.add(MenuRegistry.appendMenuItem(Menus.SessionActivityBar, { command: { id: entry.id, title: entry.title }, group: entry.group }));
+		}
+		const { label, ran } = createActivityBar(store, [files, { ...browser, group: SessionActivityBarGroup.SidePanel }, terminal]);
+
+		const state = (title: string) => ({ checked: label(title).classList.contains('checked'), pressed: label(title).getAttribute('aria-pressed') });
+		const before = { files: state('Files'), browser: state('Browser'), terminal: state('Terminal') };
+		for (const title of ['Files', 'Browser', 'Terminal']) {
+			label(title).click();
+			await timeout(0);
+		}
+		key(label('Files'), 36, 'Home');
+		key(label('Files'), 13, 'Enter');
+		// The action bar runs the focused entry when Enter is released.
+		label('Files').dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+		await timeout(0);
+
+		assert.deepStrictEqual({ before, ran }, {
+			before: { files: { checked: true, pressed: 'true' }, browser: { checked: false, pressed: null }, terminal: { checked: true, pressed: 'true' } },
+			ran: [TOGGLE_SIDE_PANEL_COMMAND_ID, 'test.browser', TogglePanelAction.ID, TOGGLE_SIDE_PANEL_COMMAND_ID],
+		});
 	});
 
 	test('opens the Canvas submenu to the left on hover, click, and keyboard, and runs its items', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

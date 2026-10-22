@@ -6,6 +6,7 @@
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { autorun } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../nls.js';
@@ -54,7 +55,7 @@ interface IInstallFromSourceActionOptions {
 	readonly skipReveal?: boolean;
 }
 
-class InstallFromSourceAction extends Action2 {
+export class InstallFromSourceAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.installPluginFromSource';
 
 	constructor() {
@@ -83,9 +84,17 @@ class InstallFromSourceAction extends Action2 {
 		const pluginInstallService = accessor.get(IPluginInstallService);
 		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 		const fileDialogService = accessor.get(IFileDialogService);
+		const customizationHarnessService = accessor.get(ICustomizationHarnessService);
 
 		const store = new DisposableStore();
 		const inputBox = store.add(quickInputService.createInputBox());
+		store.add(autorun(reader => {
+			const sessionResource = customizationHarnessService.activeSessionResource.read(reader);
+			const harness = customizationHarnessService.getDescriptorForSession(sessionResource);
+			inputBox.title = harness
+				? localize('installPluginFromSourceForHarness', "Install Plugin from Source ({0})", harness.label)
+				: localize('installPluginFromSourceTitle', "Install Plugin from Source");
+		}));
 		const pickFolderButton: IQuickInputButton = {
 			iconClass: ThemeIcon.asClassName(Codicon.folder),
 			tooltip: localize('pickPluginFolder', "Pick Folder"),
@@ -104,8 +113,11 @@ class InstallFromSourceAction extends Action2 {
 				return;
 			}
 
+			const sessionResource = customizationHarnessService.activeSessionResource.get();
+			const pluginInstallProvider = customizationHarnessService.getDescriptorForSession(sessionResource)?.pluginInstallProvider;
+
 			// Quick format validation keeps the input box open for correction.
-			const validationError = pluginInstallService.validatePluginSource(source);
+			const validationError = pluginInstallProvider ? undefined : pluginInstallService.validatePluginSource(source);
 			if (validationError) {
 				inputBox.validationMessage = validationError;
 				return;
@@ -119,12 +131,18 @@ class InstallFromSourceAction extends Action2 {
 				// Hide the input box so it doesn't conflict with trust/progress dialogs.
 				inputBox.hide();
 
-				const result = await pluginInstallService.installPluginFromSource(source);
-				if (!result.success) {
-					if (result.message) {
-						// Re-open with the error so the user can correct their input.
+				let success: boolean;
+				if (pluginInstallProvider) {
+					await pluginInstallProvider.installFromSource(sessionResource, source);
+					success = true;
+				} else {
+					const result = await pluginInstallService.installPluginFromSource(source);
+					success = result.success;
+					if (!success && result.message) {
 						inputBox.validationMessage = result.message;
 					}
+				}
+				if (!success) {
 					inputBox.show();
 				} else {
 					installed = true;
