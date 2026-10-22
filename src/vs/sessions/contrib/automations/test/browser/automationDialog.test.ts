@@ -1705,7 +1705,7 @@ suite('Automation dialog creation', () => {
 		await dialog.setCloud(true);
 		await dialog.selectWorkspace(previous);
 		await dialog.selectWorkspace(FOLDER);
-		previousTarget.set({ isPublicRepository: true, disabledReason: 'This repository must be private' }, undefined);
+		previousTarget.set({ isRepository: true, disabledReason: 'Cloud automations cannot be managed for this repository.' }, undefined);
 		assert.deepStrictEqual({
 			workspace: dialog.getTarget().workspace,
 			error: dialog.container.querySelector('#automation-target-error')?.textContent,
@@ -2109,8 +2109,8 @@ suite('Automation dialog creation', () => {
 		}, { folder: REPOSITORY.toString(), provider: 'cloud', timeZone: 'UTC' });
 	});
 
-	test('public repository eligibility does not block local creation', async () => {
-		const target = observableValue<IAutomationWorkspaceTarget>('target', { isPublicRepository: true, disabledReason: 'This repository must be private' });
+	test('unmanageable repository eligibility does not block local creation', async () => {
+		const target = observableValue<IAutomationWorkspaceTarget>('target', { isRepository: true, disabledReason: 'Cloud automations cannot be managed for this repository.' });
 		const dialog = openDialog({}, cloudConfiguration(target));
 		dialog.setPrompt('Review changes');
 		await dialog.selectWorkspace(FOLDER);
@@ -2138,7 +2138,7 @@ suite('Automation dialog creation', () => {
 		await dialog.result;
 	});
 
-	test('public repository eligibility does not transfer an existing cloud automation to another provider', async () => {
+	test('unmanageable repository eligibility does not transfer an existing cloud automation to another provider', async () => {
 		const target = observableValue<IAutomationWorkspaceTarget>('target', { workspace: REPOSITORY });
 		const existing: IAutomationDescriptor = {
 			id: 'existing-cloud', name: 'Review', prompt: 'Review changes', enabled: true, createdAt: '', updatedAt: '',
@@ -2146,12 +2146,12 @@ suite('Automation dialog creation', () => {
 			schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 1, timeZone: 'UTC' },
 		};
 		const dialog = openDialog({ existing }, cloudConfiguration(target));
-		target.set({ isPublicRepository: true, disabledReason: 'This repository must be private' }, undefined);
+		target.set({ isRepository: true, disabledReason: 'Cloud automations cannot be managed for this repository.' }, undefined);
 		assert.deepStrictEqual({
 			cloud: !!dialog.container.querySelector('[aria-label="Session Type, Cloud"]'),
 			disabled: dialog.saveButton.getAttribute('aria-disabled'),
 			reason: dialog.container.querySelector('.automation-target-error')?.textContent,
-		}, { cloud: true, disabled: 'true', reason: 'This repository must be private' });
+		}, { cloud: true, disabled: 'true', reason: 'Cloud automations cannot be managed for this repository.' });
 		dialog.cancelButton.click();
 		await dialog.result;
 	});

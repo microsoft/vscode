@@ -56,7 +56,6 @@ export interface IAgentSessionsControlOptions {
 	readonly repositoryGroupLimit?: number;
 	readonly hideSectionCount?: boolean;
 	readonly hideSessionBadge?: boolean;
-	readonly useStatusOnlyIcons?: boolean;
 	readonly compactShowMore?: boolean;
 	readonly itemHeight?: number;
 	readonly sectionHeight?: number;

@@ -341,7 +341,7 @@ class ChatEditingOverlayController {
 
 			// Directly query global editing sessions (inline chat has its own overlay)
 			for (const session of chatEditingService.editingSessionsObs.read(r)) {
-				if (!session.isGlobalEditingSession) {
+				if (!session.isGlobalEditingSession.read(r)) {
 					continue;
 				}
 				const entry = session.readEntry(uri, r);

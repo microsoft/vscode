@@ -12,7 +12,7 @@ import type { Event } from '../../../../base/common/event.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { Promises as FSPromises } from '../../../../base/node/pfs.js';
 import { CloudSandboxRequestError } from '../../common/cloudSandboxAgentHost.js';
-import { emitConnectionDiagnostic, traceConnectionOperation, type ConnectionDiagnosticObserver } from '../../common/connectionDiagnostics.js';
+import { emitConnectionDiagnostic, getConnectionDiagnosticError, traceConnectionOperation, type ConnectionDiagnosticObserver, type IConnectionDiagnosticEvent } from '../../common/connectionDiagnostics.js';
 import { parseRetryAfter } from '../../../github/common/client/headers.js';
 import { isRetryableMissionControlError, MISSION_CONTROL_RETRY_BUDGET_MS, missionControlMaxRetries, missionControlRetryDelay, parseMissionControlError } from '../../../github/common/missionControl/missionControlError.js';
 import type { IMissionControlOptions } from '../../common/agentService.js';
@@ -20,7 +20,7 @@ import { parseGroupName } from '../../common/webPubSub/groups.js';
 import { RELIABLE_JSON_SUBPROTOCOL } from '../../common/webPubSub/framing.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { MissionControlControlVerifier, type IMissionControlSigningKey } from './missionControlControl.js';
-import { MissionControlProtocolServer, type IMissionControlSocket, type MissionControlPublishDiagnosticObserver } from './missionControlProtocolServer.js';
+import { MissionControlProtocolServer, type IMissionControlRelayDetails, type IMissionControlSocket, type MissionControlPublishDiagnosticObserver } from './missionControlProtocolServer.js';
 import { MissionControlAuthentication, MissionControlSealing, resolveMissionControlOwner } from './missionControlAuthentication.js';
 import { MissionControlSessionMirror } from './missionControlSessionMirror.js';
 import type { AhpJsonlLogger } from '../../common/ahpJsonlLogger.js';
@@ -43,6 +43,11 @@ interface IEnvironmentResponse {
 }
 
 const heartbeatInterval = 60_000;
+
+/** A relay loss or recovery, with bounded details for telemetry. */
+export interface IMissionControlRelayDiagnostic extends IConnectionDiagnosticEvent {
+	readonly relay?: IMissionControlRelayDetails;
+}
 const registrationMetadataTimeout = 60_000;
 
 export interface IMissionControlEnvironmentHost {
@@ -741,11 +746,23 @@ export class MissionControlEnvironment extends Disposable {
 		this._handler.value = combinedDisposable(this._host.attach(server, this._initialRoots ?? [], () => this._roots, () => this._options?.projects ?? this._roots, options.defaultDirectory, options.useLocalCredentials === true), server.onClose(() => {
 			if (generation === this._generation && !this._store.isDisposed && this._server.value === server && this._options && !this._recoveryStopped) {
 				if (relayReady) {
-					emitConnectionDiagnostic(this._host.onDiagnostic, { operationId: '', phase: 'relayDisconnected', timestamp: Date.now(), outcome: 'info', durationMs: connectionWatch.elapsed() });
+					const close = server.closeInfo;
+					emitConnectionDiagnostic<IMissionControlRelayDiagnostic>(this._host.onDiagnostic, {
+						operationId: '', phase: 'relayDisconnected', timestamp: Date.now(), outcome: 'info', durationMs: connectionWatch.elapsed(),
+						error: close?.error ? getConnectionDiagnosticError(close.error) : undefined,
+						relay: close ? { reason: close.reason, closeCode: close.closeCode, activeClients: close.activeClients, attempts: close.attempts } : undefined,
+					});
 				}
 				this._heartbeat.value = disposableLongTimeout(() => {
 					this._checkIn().catch(this._host.onError);
 				}, Math.max(this._retryDelay, this._requestNotBefore - Date.now()));
+			}
+		}), server.onDidRecover(recovery => {
+			if (this._server.value === server) {
+				emitConnectionDiagnostic<IMissionControlRelayDiagnostic>(this._host.onDiagnostic, {
+					operationId: '', phase: 'relayRecovery', timestamp: Date.now(), outcome: 'succeeded', durationMs: recovery.durationMs,
+					relay: { reason: recovery.reason, closeCode: recovery.closeCode, activeClients: recovery.activeClients, attempts: recovery.attempts, interruptedClients: recovery.interruptedClients },
+				});
 			}
 		}));
 		await traceConnectionOperation(this._host.onDiagnostic, 'relay', () => server.connect());
