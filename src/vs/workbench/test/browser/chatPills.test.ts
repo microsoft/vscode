@@ -1280,9 +1280,19 @@ suite('ChatPills', () => {
 				summaryAriaLabel: count => `Show ${count} canvases`,
 				promotedActionIcon,
 			}));
-			const container = mainWindow.document.createElement('div');
-			mainWindow.document.body.appendChild(container);
-			store.add(toDisposable(() => container.remove()));
+			const pillsContainer = mainWindow.document.createElement('div');
+			pillsContainer.className = 'chat-pills';
+			const actionBar = mainWindow.document.createElement('div');
+			actionBar.className = 'monaco-action-bar';
+			const actionsContainer = mainWindow.document.createElement('ul');
+			actionsContainer.className = 'actions-container';
+			const container = mainWindow.document.createElement('li');
+			container.className = 'action-item';
+			actionsContainer.appendChild(container);
+			actionBar.appendChild(actionsContainer);
+			pillsContainer.appendChild(actionBar);
+			mainWindow.document.body.appendChild(pillsContainer);
+			store.add(toDisposable(() => pillsContainer.remove()));
 			viewItem.render(container);
 			return { container, hoverActions: () => getDropdownPillHoverOptions.call(viewItem)?.actions?.map(action => action.label) };
 		};
@@ -1303,6 +1313,11 @@ suite('ChatPills', () => {
 			pillHoverActions: hoverActions(),
 			compactGlyph: promoted.classList.contains('codicon-close-compact'),
 			reservesSpace: container.classList.contains('has-promoted-action'),
+			itemDisplay: mainWindow.getComputedStyle(container).display,
+			actionCenterDelta: Math.abs(
+				promoted.getBoundingClientRect().top + promoted.getBoundingClientRect().height / 2
+				- (container.getBoundingClientRect().top + container.getBoundingClientRect().height / 2)
+			),
 			keepsFocus: mouseDown.defaultPrevented,
 			clicked,
 			tapped,
@@ -1321,6 +1336,8 @@ suite('ChatPills', () => {
 				pillHoverActions: undefined,
 				compactGlyph: true,
 				reservesSpace: true,
+				itemDisplay: 'flex',
+				actionCenterDelta: 0,
 				keepsFocus: true,
 				clicked: ['closed'],
 				tapped: ['closed'],
