@@ -8,7 +8,7 @@ import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentProvider } from '../common/agent.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
-import { AGENT_HOST_CATALOG_PAYLOAD_VERSION } from './agentHostCatalogProjection.js';
+import { AGENT_HOST_CATALOG_MIGRATABLE_PAYLOAD_VERSIONS, AGENT_HOST_CATALOG_PAYLOAD_VERSION } from './agentHostCatalogProjection.js';
 import { AgentHostCatalogDatabaseReference, AgentHostCatalogSyncService, IAgentHostCatalogSyncRequest, matchesAcknowledgedCatalogReceipt } from './agentHostCatalogSyncService.js';
 import { AgentHostSessionsV2ExclusionReason, IAgentHostDatabase, IAgentHostDatabaseSession, IAgentHostDatabaseSessionsV2Exclusion, IAgentHostDatabaseSessionOptions, IAgentHostDatabaseSessionV2Receipt } from './agentHostDatabase.js';
 
@@ -207,17 +207,18 @@ export class AgentHostSessionsV2MigrationService<T> {
 				return { status: await this._exclude(provider, candidate, permanentExclusion) };
 			}
 			const hasMatchingReceipt = candidate.catalog ? await this._hasMatchingReceipt(candidate.session, candidate.catalog) : false;
+			const hasCurrentMatchingReceipt = candidate.catalog?.payloadVersion === AGENT_HOST_CATALOG_PAYLOAD_VERSION && hasMatchingReceipt;
 			let effectiveCandidate = candidate;
 			if (candidate.current && candidate.legacy && candidate.legacy.external !== undefined
 				&& (candidate.legacy.modifiedTime > candidate.current.modifiedTime || !this._registrationsEqual(candidate.current, candidate.legacy))
 				&& !this._isLaterExplicitCurrentIncarnation(candidate.current, candidate.legacy, hasMatchingReceipt)) {
 				const reconciled = await this._database.reconcileSessionV2RegistrationFromLegacy(session, candidate.legacy);
 				effectiveCandidate = { ...candidate, current: reconciled };
-				if (candidate.legacy.external !== undefined && hasMatchingReceipt) {
+				if (candidate.legacy.external !== undefined && hasCurrentMatchingReceipt) {
 					return { status: 'synchronized' };
 				}
 			}
-			if (effectiveCandidate.current?.external !== undefined && effectiveCandidate.catalog && hasMatchingReceipt) {
+			if (effectiveCandidate.current?.external !== undefined && effectiveCandidate.catalog && hasCurrentMatchingReceipt) {
 				return { status: 'skipped' };
 			}
 
@@ -321,7 +322,7 @@ export class AgentHostSessionsV2MigrationService<T> {
 	}
 
 	private async _hasMatchingReceipt(session: URI, catalog: IAgentHostDatabaseSessionV2Receipt): Promise<boolean> {
-		if (catalog.payloadVersion !== AGENT_HOST_CATALOG_PAYLOAD_VERSION) {
+		if (catalog.payloadVersion !== AGENT_HOST_CATALOG_PAYLOAD_VERSION && !AGENT_HOST_CATALOG_MIGRATABLE_PAYLOAD_VERSIONS.includes(catalog.payloadVersion)) {
 			return false;
 		}
 		const ref = await this._sessionDataService.tryOpenDatabase(session);

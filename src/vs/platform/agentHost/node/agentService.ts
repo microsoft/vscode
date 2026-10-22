@@ -11276,12 +11276,13 @@ export class AgentService extends Disposable implements IAgentService {
 				const sessionKey = session.toString();
 				const catalog = await this._orchestratorDatabase.getSessionV2(sessionKey);
 				const snapshot = await database.object.getCatalogSyncSnapshot();
-				const pending = snapshot?.state === 'pending'
-					&& snapshot.projectionVersion === AGENT_HOST_CATALOG_PAYLOAD_VERSION
+				const applicablePending = snapshot?.state === 'pending'
 					&& (!catalog || (snapshot.sessionGeneration === catalog.sessionGeneration && snapshot.sourceRevision >= catalog.sourceRevision))
 					? snapshot : undefined;
+				const pending = applicablePending?.projectionVersion === AGENT_HOST_CATALOG_PAYLOAD_VERSION ? applicablePending : undefined;
+				const pendingRequiresReprojection = applicablePending !== undefined && pending === undefined;
 				let request: IAgentHostCatalogSyncRequest | undefined;
-				for (const candidate of [pending, catalog]) {
+				for (const candidate of [pending, pendingRequiresReprojection ? undefined : catalog]) {
 					if (!candidate) {
 						continue;
 					}

@@ -27,6 +27,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, IDisposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { constObservable, waitForState } from '../../../../base/common/observable.js';
+import { stableStringify } from '../../../../base/common/objects.js';
 import { join } from '../../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase, isEqual, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -94,7 +95,7 @@ import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri
 import { CompatibleAgentHostDatabase } from '../../node/compatibleAgentHostDatabase.js';
 import { AgentHostDatabase, type AgentHostDatabaseChatV2WriteResult, AgentHostDatabaseSessionChatCatalogReplaceResult, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabase, IAgentHostDatabaseCatalogSnapshotEntry, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSession, IAgentHostDatabaseSessionChat, IAgentHostDatabaseSessionChatCatalog, IAgentHostDatabaseSessionListCatalog, IAgentHostDatabaseSessionsV2Exclusion, IAgentHostDatabaseSessionsV2ExclusionExpectation, IAgentHostDatabaseSessionOptions, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Envelope, IAgentHostDatabaseSessionV2Receipt } from '../../node/agentHostDatabase.js';
 import { CHAT_INHERITED_TURN_METADATA_KEY, CHAT_ORIGIN_METADATA_KEY, CHAT_PROVIDER_DATA_METADATA_KEY, CHAT_WORKING_DIRECTORIES_METADATA_KEY, PEER_CHATS_METADATA_KEY, type AgentHostPeerChatStore, type IImportedOlderBuildChatEdit, type IOlderBuildEditsImport, type IPersistedPeerChat } from '../../node/agentHostPeerChatStore.js';
-import { AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT, AGENT_HOST_CATALOG_MIGRATABLE_PAYLOAD_VERSIONS, AGENT_HOST_CATALOG_PAYLOAD_VERSION, AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT, decodeAgentHostCatalogPayload, encodeAgentHostCatalogPayload, hashAgentHostCatalogPayload, type AgentHostCatalogData } from '../../node/agentHostCatalogProjection.js';
+import { AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT, AGENT_HOST_CATALOG_MIGRATABLE_PAYLOAD_VERSIONS, AGENT_HOST_CATALOG_PAYLOAD_VERSION, AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT, decodeAgentHostCatalogPayload, decodeAgentHostCatalogPayloadData, encodeAgentHostCatalogPayload, hashAgentHostCatalogPayload, type AgentHostCatalogData } from '../../node/agentHostCatalogProjection.js';
 import type { IAgentHostStorageService } from '../../node/agentHostStorageService.js';
 import { AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY, CATALOG_VERIFICATION_VERSION, type IAgentHostCatalogReconciliationReport } from '../../node/agentHostCatalogReconciliationService.js';
 import { AgentSessionRegistry, type IRegisteredSession } from '../../node/agentSessionRegistry.js';
@@ -210,6 +211,8 @@ function discoveredChat(session: URI, external = true, modifiedTime = Date.now()
 	};
 }
 
+const legacyCatalogPayloadVersion = AGENT_HOST_CATALOG_MIGRATABLE_PAYLOAD_VERSIONS[AGENT_HOST_CATALOG_MIGRATABLE_PAYLOAD_VERSIONS.length - 1];
+
 function createPerSessionDataService(createDatabase: () => TestSessionDatabase = () => new TestSessionDatabase()): { readonly service: ISessionDataService; readonly database: (session: URI) => TestSessionDatabase; readonly databaseOpens: string[]; readonly databaseIds: () => readonly string[] } {
 	const databases = new Map<string, TestSessionDatabase>();
 	const databaseOpens: string[] = [];
@@ -258,6 +261,13 @@ function catalogEnvelope(session: URI, data: AgentHostCatalogData, sessionGenera
 	};
 }
 
+function catalogEnvelopeAtVersion(envelope: IAgentHostDatabaseSessionV2Envelope, payloadVersion: number): IAgentHostDatabaseSessionV2Envelope {
+	const payloadValue = JSON.parse(envelope.payload) as { payloadVersion: number };
+	payloadValue.payloadVersion = payloadVersion;
+	const payload = stableStringify(payloadValue);
+	return { ...envelope, payloadVersion, payload, payloadHash: hashAgentHostCatalogPayload(payload) };
+}
+
 /** Mirrors the database's own derivation of the chat-backing marker from a stored payload. */
 function isChatBackingPayload(payload: string): boolean {
 	const decoded = decodeAgentHostCatalogPayload(payload);
@@ -296,10 +306,10 @@ function restoredSubagentTurn(parentSession: URI, toolCallId: string, title: str
 	};
 }
 
-async function seedVerifiedSessionV2(database: IAgentHostDatabase, sessionData: TestSessionDatabase, session: URI, external: boolean, isRead = true): Promise<void> {
+async function seedVerifiedSessionV2(database: IAgentHostDatabase, sessionData: TestSessionDatabase, session: URI, external: boolean, isRead = true, payloadVersion = AGENT_HOST_CATALOG_PAYLOAD_VERSION): Promise<void> {
 	const provider = AgentSession.provider(session);
 	assert.ok(provider);
-	const envelope = catalogEnvelope(session, {
+	const currentEnvelope = catalogEnvelope(session, {
 		modifiedTime: 1,
 		summary: 'verified',
 		isRead,
@@ -307,6 +317,7 @@ async function seedVerifiedSessionV2(database: IAgentHostDatabase, sessionData: 
 		workingDirectories: [],
 		chats: [{ uri: buildDefaultChatUri(session), order: 0, kind: 'default' }],
 	}, 'verified-generation', 0);
+	const envelope = payloadVersion === AGENT_HOST_CATALOG_PAYLOAD_VERSION ? currentEnvelope : catalogEnvelopeAtVersion(currentEnvelope, payloadVersion);
 	await database.registerSessionV2(session.toString(), {
 		provider,
 		startTime: 1,
@@ -1083,6 +1094,10 @@ class TestAgentHostOrchestratorDatabase extends SessionStateUnsupportedDatabase 
 	/** Test spies for the batched recency-write path. */
 	updateSessionModifiedTimesCalls = 0;
 	lastModifiedTimesBatchSize = 0;
+
+	setSessionV2Catalog(catalog: IAgentHostDatabaseSessionV2): void {
+		this._sessionsV2.set(catalog.session, catalog);
+	}
 
 	async registerSession(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
 		if (registerOptions.checkTombstone && this._tombstones.has(session)) {
@@ -19968,7 +19983,7 @@ suite('AgentService (node dispatcher)', () => {
 				const database = new TransientRegistryWriteDatabase();
 				const perSession = createPerSessionDataService();
 				const session = AgentSession.uri('copilot', 'later-current-incarnation');
-				await seedVerifiedSessionV2(database, perSession.database(session), session, false);
+				await seedVerifiedSessionV2(database, perSession.database(session), session, false, true, legacyCatalogPayloadVersion);
 				await database.reconcileSessionV2RegistrationFromLegacy(session.toString(), {
 					session: session.toString(),
 					provider: 'copilot',
@@ -26536,6 +26551,89 @@ suite('AgentService (node dispatcher)', () => {
 				});
 			});
 		}
+
+		test('passive metadata preserves a legacy pending snapshot when authoritative reprojection is unavailable', async () => {
+			class LegacyPendingSessionDatabase extends TestSessionDatabase {
+				legacy = false;
+
+				override async getCatalogSyncSnapshot(): Promise<ISessionCatalogSyncSnapshot | undefined> {
+					const snapshot = await super.getCatalogSyncSnapshot();
+					if (!this.legacy || snapshot?.state !== 'pending') {
+						return snapshot;
+					}
+					const payloadValue = JSON.parse(snapshot.payload) as { payloadVersion: number };
+					payloadValue.payloadVersion = legacyCatalogPayloadVersion;
+					const payload = stableStringify(payloadValue);
+					return {
+						...snapshot,
+						projectionVersion: legacyCatalogPayloadVersion,
+						payload,
+						payloadHash: hashAgentHostCatalogPayload(payload),
+					};
+				}
+			}
+			const db = new LegacyPendingSessionDatabase();
+			const catalogDatabase = new TransientlyFailingCatalogDatabase();
+			const localService = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase,
+			));
+			registerTestAgentProvider(localService, copilotAgent);
+			const session = await localService.createSession({ legacyChatUris: true, provider: 'copilot' });
+			await localService.whenCatalogReconciliationIdle();
+			const sessionKey = session.toString();
+			const stateManager = getStateManager(localService);
+			stateManager.prepareSessionSummariesForListing([stateManager.getSessionSummary(sessionKey)!]);
+			stateManager.removeSession(sessionKey);
+			const internals = localService as unknown as {
+				_catalogReconciliationService: { dispose(): void };
+				_whenBackgroundCatalogStateWritesIdle(session: string): Promise<void>;
+			};
+			internals._catalogReconciliationService.dispose();
+
+			catalogDatabase.failNextUpsert = true;
+			const archived = Event.toPromise(Event.filter(localService.onDidNotification, notification => notification.type === 'root/sessionSummaryChanged'), disposables);
+			localService.dispatchAction(sessionKey, { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'test-client', 1, AgentHostClientType.EditorWindow);
+			await archived;
+			await internals._whenBackgroundCatalogStateWritesIdle(sessionKey);
+
+			const currentPending = await db.getCatalogSyncSnapshot();
+			const currentCentral = await catalogDatabase.getSessionV2(sessionKey);
+			assert.ok(currentPending?.state === 'pending' && currentCentral);
+			const legacyCentral = catalogEnvelopeAtVersion(currentCentral, legacyCatalogPayloadVersion);
+			catalogDatabase.setSessionV2Catalog({ ...currentCentral, ...legacyCentral });
+			db.legacy = true;
+			await getTestAgentHostProviderService(localService).shutdown();
+
+			const read = Event.toPromise(Event.filter(localService.onDidNotification, notification => notification.type === 'root/sessionSummaryChanged'), disposables);
+			localService.dispatchAction(sessionKey, { type: ActionType.SessionIsReadChanged, isRead: true }, 'test-client', 2, AgentHostClientType.EditorWindow);
+			await read;
+			await internals._whenBackgroundCatalogStateWritesIdle(sessionKey);
+
+			const pending = await db.getCatalogSyncSnapshot();
+			const central = await catalogDatabase.getSessionV2(sessionKey);
+			const pendingData = pending?.state === 'pending'
+				? decodeAgentHostCatalogPayloadData(pending.payload, { forMigration: true, payloadVersion: pending.projectionVersion })
+				: undefined;
+			const centralData = central
+				? decodeAgentHostCatalogPayloadData(central.payload, { forMigration: true, payloadVersion: central.payloadVersion })
+				: undefined;
+			assert.deepStrictEqual({
+				pending: pending?.state,
+				pendingVersion: pending?.projectionVersion,
+				pendingArchived: pendingData?.ok ? pendingData.value.isArchived : undefined,
+				centralVersion: central?.payloadVersion,
+				centralArchived: centralData?.ok ? centralData.value.isArchived : undefined,
+				persistedRead: await db.getMetadata(AH_META_IS_READ_DB_KEY),
+			}, {
+				pending: 'pending',
+				pendingVersion: legacyCatalogPayloadVersion,
+				pendingArchived: true,
+				centralVersion: legacyCatalogPayloadVersion,
+				centralArchived: false,
+				persistedRead: 'true',
+			});
+		});
 
 		test('archiving an un-loaded session succeeds even when its working directory is gone', async () => {
 			// Restore recreates the worktree and throws for a missing directory, and only
