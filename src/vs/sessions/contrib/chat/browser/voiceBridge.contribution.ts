@@ -134,11 +134,12 @@ export class SessionsVoiceBridgeContribution extends Disposable implements IWork
 			const widget = expectedSessionId
 				? this.chatWidgetService.getWidgetBySessionResource(URI.parse(expectedSessionId))
 				: this._activeSessionWidget() ?? this.chatWidgetService.lastFocusedWidget;
-			if (expectedSessionId && widget?.viewModel?.sessionResource.toString() !== expectedSessionId) {
+			const viewModel = widget?.viewModel;
+			if (expectedSessionId && viewModel?.sessionResource.toString() !== expectedSessionId) {
 				return false;
 			}
-			if (widget?.viewModel) {
-				if (widget.viewModel.editing) {
+			if (widget && viewModel) {
+				if (viewModel.editing) {
 					// Let the user review edited input before submitting.
 					widget.input.setValue(text, false);
 					return false;
@@ -146,7 +147,7 @@ export class SessionsVoiceBridgeContribution extends Disposable implements IWork
 					// Preserve any text the user already typed in the input.
 					return widget.acceptInput(combineVoiceInput(widget.getInput(), text), {
 						preserveFocus: true,
-						...(widget.viewModel.model.requestInProgress.get() ? { queue: ChatRequestQueueKind.Steering } : {}),
+						...(viewModel.model?.requestInProgress?.get() === true ? { queue: ChatRequestQueueKind.Steering } : {}),
 					});
 				}
 			}

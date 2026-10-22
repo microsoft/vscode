@@ -106,6 +106,34 @@ suite('SessionsVoiceBridgeContribution - input ownership', () => {
 		});
 	}
 
+	for (const hasModel of [false, true]) {
+		test(`voice bridge submits normally when ${hasModel ? 'request progress' : 'the model'} is unavailable`, async () => {
+			const resource = URI.parse('chat-session:/a');
+			const inputs: { text: string | undefined; options: Parameters<IChatWidget['acceptInput']>[1] }[] = [];
+			const widget = new class extends mock<IChatWidget>() {
+				override readonly viewModel = upcastPartial<IChatViewModel>({
+					sessionResource: resource,
+					...(hasModel ? { model: upcastPartial<IChatModel>({}) } : {}),
+				});
+				override getInput() { return 'Typed draft'; }
+				override async acceptInput(text?: string, options?: Parameters<IChatWidget['acceptInput']>[1]) {
+					inputs.push({ text, options });
+					return undefined;
+				}
+			}();
+			await registerBridge(widget, undefined)('Voice request', resource.toString());
+			assert.deepStrictEqual(inputs, [{
+				text: 'Typed draft Voice request',
+				options: { preserveFocus: true },
+			}]);
+		});
+	}
+
+	test('voice bridge rejects input when the widget has no view model', async () => {
+		const widget = new class extends mock<IChatWidget>() { }();
+		assert.strictEqual(await registerBridge(widget, undefined)('Voice request', 'chat-session:/a'), false);
+	});
+
 	test('does not redirect an existing session turn to a new composer and reports a busy composer honestly', async () => {
 		const sent: string[] = [];
 		const composer = upcastPartial<INewChatVoiceComposer>({

@@ -66,6 +66,21 @@ suite('VoiceLiveInputRouter', () => {
 		});
 	});
 
+	test('normalizes question titles and form context before formatting or deduplicating them', () => {
+		const router = new VoiceLiveInputRouter();
+		const prompts = ['  Deployment settings  ', '  Which region?  '].map(message => {
+			router.updateContext(context('chat-session:/a', {
+				...questions, message,
+				questions: [{ ...questions.questions![0], title: '  Which region?  ' }],
+			}));
+			return router.getQuestionPrompt('chat-session:/a', 'questions');
+		});
+		assert.deepStrictEqual(prompts, [
+			'Deployment settings Which region? 1. West 2. East',
+			'Which region? 1. West 2. East',
+		]);
+	});
+
 	test('omits reply guidance until a voice locale is known', () => {
 		const router = new VoiceLiveInputRouter();
 		const guidance = () => [router.getQuestionReplyGuidance(), router.getApprovalReplyGuidance()];
