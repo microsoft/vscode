@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { spy } from 'sinon';
 import { DeferredPromise, raceCancellationError, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue, waitForState } from '../../../../../../base/common/observable.js';
 import { getMarks } from '../../../../../../base/common/performance.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -26,6 +27,7 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
 import { CloudSandboxSessionHandler } from '../../../browser/remoteAgentHost/cloudSandboxSessionHandler.js';
+import { CloudSandboxReadOnlySessionHandler } from '../../../browser/remoteAgentHost/cloudSandboxReadOnlySessionHandler.js';
 import { CloudSandboxHistoryCache } from '../../../browser/remoteAgentHost/cloudSandboxHistoryCache.js';
 import { IChatProgress, IChatRequestSubmittedEvent, IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionServerRequest } from '../../../common/chatSessionsService.js';
@@ -1018,6 +1020,23 @@ suite('CloudSandboxSessionHandler', () => {
 			uri: handler.resolveChatResponseUri(resource, 'file.txt', 'link'),
 		}, { triggers: ['@', '/'], uri: 'resolved:file.txt' });
 	});
+
+	for (const [kind, resolved] of [['link', 'resolved:file.txt'], ['image', 'data:image/png;base64,aW1hZ2U=']] as const) {
+		test(`skips recorded URI resolution when live resolves a ${kind}`, () => {
+			const handler = createHandler();
+			handler.setLiveProvider({
+				provideChatSessionContent: async () => store.add(new LiveSession()),
+				resolveChatResponseUri: () => resolved,
+			});
+			const recorded = spy(CloudSandboxReadOnlySessionHandler.prototype, 'resolveChatResponseUri');
+			store.add(toDisposable(() => recorded.restore()));
+
+			assert.deepStrictEqual({
+				resolved: handler.resolveChatResponseUri(resource, 'file.txt', kind),
+				recordedCalls: recorded.callCount,
+			}, { resolved, recordedCalls: 0 });
+		});
+	}
 
 	test('keeps recorded file links and images scoped to the sandbox before connecting', async () => {
 		const history = recordedHistory();
