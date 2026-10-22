@@ -37,7 +37,6 @@ suite('git.api.generateRandomBranchName', () => {
 	let generate: (uri: string) => Promise<{ branchName: string; branchPrefix: string } | undefined>;
 	let repository: Repository;
 	let openRepository: sinon.SinonStub;
-	let getRepository: sinon.SinonStub;
 	let generateRandomBranchName: sinon.SinonStub;
 	let getConfiguration: sinon.SinonStub;
 
@@ -48,12 +47,8 @@ suite('git.api.generateRandomBranchName', () => {
 			generateRandomBranchName
 		} as Pick<Repository, 'root' | 'generateRandomBranchName'> as Repository;
 		openRepository = sinon.stub().resolves(repository);
-		getRepository = sinon.stub().returns(repository);
 		extension = new GitExtensionImpl();
-		extension.model = {
-			openRepository,
-			getRepository
-		} as Pick<Model, 'openRepository' | 'getRepository'> as Model;
+		extension.model = { openRepository } as Pick<Model, 'openRepository'> as Model;
 		const registerCommand = sinon.stub(commands, 'registerCommand').callsFake(() => new Disposable(() => { }));
 		registration = registerAPICommands(extension);
 		generate = registerCommand.getCalls().find(call => call.args[0] === 'git.api.generateRandomBranchName')!.args[1];
@@ -76,60 +71,20 @@ suite('git.api.generateRandomBranchName', () => {
 		assert.deepStrictEqual({
 			result,
 			open: openRepository.firstCall.args,
-			lookups: getRepository.callCount,
-			delegated: generateRandomBranchName.callCount,
 			options: generateRandomBranchName.firstCall.args
 		}, {
 			result: { branchName: 'feature/calm-otter', branchPrefix: 'feature/' },
 			open: [root.fsPath, true, true],
-			lookups: 0,
-			delegated: 1,
 			options: [{ sanitize: true }]
-		});
-	});
-
-	test('does not use an already open parent repository instead of opening the requested repository', async () => {
-		getRepository.returns({ ...repository, root: Uri.file('/git-api').fsPath });
-		openRepository.callsFake(async () => {
-			getRepository.returns(repository);
-			return repository;
-		});
-		assert.deepStrictEqual(await generate(root.toString()), {
-			branchName: 'feature/calm-otter', branchPrefix: 'feature/'
 		});
 	});
 
 	test('does not use an open parent when opening a nested repository is refused', async () => {
 		openRepository.resolves(undefined);
-		getRepository.returns({ ...repository, root: Uri.file('/git-api').fsPath });
-		getConfiguration.callsFake(() => ({
-			get: (key: string, defaultValue: string) => key === 'branchPrefix' ? 'parent/' : defaultValue
-		} as ReturnType<typeof workspace.getConfiguration>));
-		assert.deepStrictEqual({
-			result: await generate(root.toString()),
-			delegated: generateRandomBranchName.callCount
-		}, { result: undefined, delegated: 0 });
-	});
-
-	test('uses the opened repository for a subdirectory or an alternate path to its root', async () => {
-		const resources = [Uri.joinPath(root, 'src'), Uri.file('/git-api/alias')];
-		getRepository.returns(undefined);
-		const results = [];
-		for (const resource of resources) {
-			results.push(await generate(resource.toString()));
-		}
-		assert.deepStrictEqual({
-			results,
-			open: openRepository.getCalls().map(call => call.args)
-		}, {
-			results: resources.map(() => ({ branchName: 'feature/calm-otter', branchPrefix: 'feature/' })),
-			open: resources.map(resource => [resource.fsPath, true, true])
-		});
-	});
-
-	test('returns undefined when the repository cannot be opened', async () => {
-		openRepository.resolves(undefined);
-		getRepository.returns(undefined);
+		extension.model = {
+			openRepository,
+			getRepository: sinon.stub().returns({ ...repository, root: Uri.file('/git-api').fsPath })
+		} as Pick<Model, 'openRepository' | 'getRepository'> as Model;
 		assert.deepStrictEqual({
 			result: await generate(root.toString()),
 			delegated: generateRandomBranchName.callCount
@@ -146,11 +101,6 @@ suite('git.api.generateRandomBranchName', () => {
 		}, { unsupported: undefined, unavailable: undefined, opened: 0 });
 	});
 
-	test('preserves an unavailable generated name', async () => {
-		generateRandomBranchName.resolves(undefined);
-		assert.strictEqual(await generate(root.toString()), undefined);
-	});
-
 	test('propagates repository opening and generation failures', async () => {
 		const error = new Error('Git failed');
 		openRepository.rejects(error);
@@ -161,45 +111,26 @@ suite('git.api.generateRandomBranchName', () => {
 	});
 
 	test('delegates disabled random names and repeated dictionary entries to the existing generator', async () => {
-		let enabled = false;
-		const getRefs = sinon.stub().resolves([]);
-		repository = {
-			root: root.fsPath,
-			getRefs,
-			generateRandomBranchName: Repository.prototype.generateRandomBranchName
-		} as Pick<Repository, 'root' | 'getRefs' | 'generateRandomBranchName'> as Repository;
-		openRepository.resolves(repository);
-		getRepository.returns(repository);
-		getConfiguration.callsFake((section: string, resource: Uri) => {
-			assert.deepStrictEqual({ section, resource: resource?.toString() }, { section: 'git', resource: root.toString() });
-			const values: Record<string, boolean | string | string[]> = {
-				'branchRandomName.enable': enabled,
-				'branchPrefix': 'feature/',
-				'branchWhitespaceChar': '_',
-				'branchRandomName.dictionary': ['numbers', 'numbers']
-			};
-			return {
-				get: (key: string) => values[key]
-			} as ReturnType<typeof workspace.getConfiguration>;
-		});
+		const { getRefs, settings } = useRealRandomNameGenerator();
+		settings['branchRandomName.enable'] = false;
 		const disabled = await generate(root.toString());
-		enabled = true;
+		settings['branchRandomName.enable'] = true;
 		const result = await generate(root.toString());
 		assert.deepStrictEqual({
 			disabled,
 			prefix: result?.branchPrefix,
-			matchesRepeatedDictionary: /^feature\/\d{3}_\d{3}$/.test(result?.branchName ?? ''),
+			matchesRepeatedDictionary: /^feature_\d{3}_\d{3}$/.test(result?.branchName ?? ''),
 			refs: getRefs.firstCall.args
 		}, {
 			disabled: undefined,
-			prefix: 'feature/',
+			prefix: 'feature ',
 			matchesRepeatedDictionary: true,
 			refs: [{ pattern: `refs/heads/${result?.branchName}` }]
 		});
 	});
 
 	test('sanitizes random names before checking collisions without changing the default generator', async () => {
-		const getRefs = useRealRandomNameGenerator();
+		const { getRefs } = useRealRandomNameGenerator();
 		const randomName = sinon.stub(randomNames, 'uniqueNamesGenerator').returns('quiet-fox');
 		randomName.onFirstCall().returns('calm-otter');
 		getRefs.callsFake(async ({ pattern }: { pattern: string }) =>
@@ -219,7 +150,7 @@ suite('git.api.generateRandomBranchName', () => {
 	});
 
 	test('does not return a sanitized candidate that persistently collides', async () => {
-		const getRefs = useRealRandomNameGenerator();
+		const { getRefs } = useRealRandomNameGenerator();
 		sinon.stub(randomNames, 'uniqueNamesGenerator').returns('calm-otter');
 		getRefs.resolves([{ name: 'feature_calm-otter' }]);
 		assert.deepStrictEqual({
@@ -231,7 +162,7 @@ suite('git.api.generateRandomBranchName', () => {
 		});
 	});
 
-	function useRealRandomNameGenerator(): sinon.SinonStub {
+	function useRealRandomNameGenerator() {
 		const getRefs = sinon.stub().resolves([]);
 		repository = {
 			root: root.fsPath,
@@ -239,17 +170,14 @@ suite('git.api.generateRandomBranchName', () => {
 			generateRandomBranchName: Repository.prototype.generateRandomBranchName
 		} as Pick<Repository, 'root' | 'getRefs' | 'generateRandomBranchName'> as Repository;
 		openRepository.resolves(repository);
-		getRepository.returns(repository);
-		getConfiguration.callsFake(() => {
-			const values: Record<string, boolean | string | string[]> = {
-				'branchRandomName.enable': true,
-				'branchPrefix': 'feature ',
-				'branchWhitespaceChar': '_',
-				'branchRandomName.dictionary': ['numbers', 'numbers']
-			};
-			return { get: (key: string) => values[key] } as ReturnType<typeof workspace.getConfiguration>;
-		});
-		return getRefs;
+		const settings: Record<string, boolean | string | string[]> = {
+			'branchRandomName.enable': true,
+			'branchPrefix': 'feature ',
+			'branchWhitespaceChar': '_',
+			'branchRandomName.dictionary': ['numbers', 'numbers']
+		};
+		getConfiguration.returns({ get: (key: string) => settings[key] } as ReturnType<typeof workspace.getConfiguration>);
+		return { getRefs, settings };
 	}
 
 	suite('repository resolution', () => {

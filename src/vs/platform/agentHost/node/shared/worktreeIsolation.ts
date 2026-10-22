@@ -1176,6 +1176,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		const worktreeBranchPrefix = typeof config[SessionConfigKey.WorktreeBranchPrefix] === 'string'
 			? config[SessionConfigKey.WorktreeBranchPrefix] as string
 			: undefined;
+		const branchNaming = getAgentBranchNaming(config);
 
 		// Get the default branch, preferring its upstream ref when available
 		const defaultBranch = await this._gitService.getDefaultBranch2(repositoryRoot);
@@ -1190,12 +1191,12 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 				message: prompt,
 				githubToken,
 				branchPrefix: worktreeBranchPrefix,
-				...getAgentBranchNaming(config),
+				...branchNaming,
 				branchNameCollides: async candidate => {
 					if (await this._gitService.branchExists(repositoryRoot, candidate).catch(() => true)) {
 						return true;
 					}
-					const candidateWorktree = URI.joinPath(worktreesRoot, getWorktreeName(candidate, worktreeBranchPrefix, getAgentBranchNaming(config)?.useGitSettings));
+					const candidateWorktree = URI.joinPath(worktreesRoot, getWorktreeName(candidate, worktreeBranchPrefix, branchNaming?.useGitSettings));
 					return fileExists(candidateWorktree.fsPath);
 				},
 			});
@@ -1205,7 +1206,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			// first percentage arrives.
 			onProgress?.(buildWorktreeProgressText(WorktreeCreationPhase.CheckingOut));
 
-			const worktreePath = URI.joinPath(worktreesRoot, getWorktreeName(newBranchName, worktreeBranchPrefix, getAgentBranchNaming(config)?.useGitSettings));
+			const worktreePath = URI.joinPath(worktreesRoot, getWorktreeName(newBranchName, worktreeBranchPrefix, branchNaming?.useGitSettings));
 			await request.onWillCreate?.({ repositoryRoot, worktreePath, baseBranch, branchName: newBranchName });
 			await fs.mkdir(worktreesRoot.fsPath, { recursive: true });
 
