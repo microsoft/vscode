@@ -194,6 +194,23 @@ suite('SessionChatInputToolbar', () => {
 		};
 	}
 
+	for (const suffix of ['#issuecomment-1', '?notification_referrer_id=1', '?notification_referrer_id=1#issuecomment-1']) {
+		test(`activity bar checks and reuses the canonical issue editor for ${suffix}`, async () => {
+			const { toolbar, artifacts, artifact, main, setEditor, setPaneVisible, opened, revealed } = await createGitHubActivityBar(SessionArtifactKind.Issue, LOCAL_AGENT_HOST_PROVIDER_ID);
+			const issue = artifact(1, main);
+			artifacts.set([{ ...issue, link: URI.parse(`${issue.link}${suffix}`) }], undefined);
+			await timeout(0);
+			const editor = store.add(new TestEditorInput(issue.link!, 'test.githubEditor'));
+			setEditor(editor);
+			setPaneVisible(true);
+			const checked = toolbar.activityBarActions.get()[0].checked;
+			await toolbar.activityBarActions.get()[0].run();
+			assert.deepStrictEqual({ checked, opened, revealed }, {
+				checked: true, opened: [], revealed: [{ editor, groupId: 1 }],
+			});
+		});
+	}
+
 	for (const kind of [SessionArtifactKind.PullRequest, SessionArtifactKind.Issue] as const) {
 		test(`activity bar reveals a hidden ${kind} editor instead of toggling the Detail-only pane`, async () => {
 			const { toolbar, setEditor, setDetailVisible, artifact, main, opened } = await createGitHubActivityBar(kind, LOCAL_AGENT_HOST_PROVIDER_ID);

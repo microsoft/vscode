@@ -238,10 +238,14 @@ function groupSessionIssues(issues: readonly IResolvedSessionIssue[]) {
 	}));
 }
 
+function getSessionIssueUri(ref: IGitHubIssueRef): URI {
+	return ref.uri.with({ scheme: Schemas.https, authority: 'github.com', path: `/${ref.owner}/${ref.repo}/issues/${ref.number}`, query: '', fragment: '' });
+}
+
 /** Builds one pill entry per issue, grouping comment links and enriching entries with live details. */
 export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue[], session: IActiveSession | undefined, commandService: ICommandService, clipboardService: IClipboardService, openerService: IOpenerService, sessionsService: ISessionsService, artifactActions?: IRecordedArtifactActions, hoverCache?: ChatPillHoverCache, createCopyAction?: CreateCopyAction): readonly IChatPillSection[] {
 	const entries = groupSessionIssues(issues).map(({ ref, issue, recordedReferenceIds }) => {
-		const uri = ref.uri.with({ scheme: Schemas.https, authority: 'github.com', path: `/${ref.owner}/${ref.repo}/issues/${ref.number}`, query: '', fragment: '' });
+		const uri = getSessionIssueUri(ref);
 		const { entry: presentation, resourceLabel } = getChatReferencePillPresentation('issue', `#${ref.number}`, issue?.title, ref.title);
 		const recordedReferenceId = recordedReferenceIds[0];
 		const createHover = issue ? (density: 'default' | 'compact') => createIssueHover({
@@ -659,7 +663,7 @@ export class SessionChatInputToolbar extends Disposable {
 					: localize('sessionChatPills.activityBar.openEntries', "{0} ({1})", title, entries.length);
 				const matchesEditor = (editor: EditorInput | undefined, availableEntries = entries) => !!editor && !editor.isDisposed() && (
 					editor instanceof WebviewInput && editor.providerId === viewType
-					|| !!editor.resource && refs.some(ref => availableEntries.some(entry => entry.id === (ref.recordedReferenceId ?? ref.uri.toString())) && isEqual(ref.uri, editor.resource)));
+					|| !!editor.resource && refs.some(ref => availableEntries.some(entry => entry.id === (ref.recordedReferenceId ?? ref.uri.toString())) && isEqual(viewType === 'IssueOverview' ? getSessionIssueUri(ref) : ref.uri, editor.resource)));
 				const checked = editorPaneVisible.read(reader) && matchesEditor(activeEditor.read(reader));
 				const currentEntries = () => {
 					if (this._store.isDisposed || !gitHubActionsEnabled.read(undefined) || !pillsVisible.read(undefined) || this._debugData.read(undefined) || entitlementService.sentimentObs.read(undefined).hidden || this._chat.read(undefined) !== chat || this._session.read(undefined) !== session) {
