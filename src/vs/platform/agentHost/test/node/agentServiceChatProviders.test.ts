@@ -38,8 +38,8 @@ class ChatAgent extends MockAgent {
 	readonly spawnEmitter = new Emitter<IAgentSpawnChatEvent>();
 	override readonly onDidSpawnChat = this.spawnEmitter.event;
 
-	constructor(id: string, private readonly _defaultMode: string, multipleChats = true) {
-		super(id, multipleChats ? { multipleChats: { fork: true, sideChat: true } } : {});
+	constructor(id: string, private readonly _defaultMode: string, multipleChats = true, multipleWorkingDirectories = false) {
+		super(id, { ...(multipleChats ? { multipleChats: { fork: true, sideChat: true } } : {}), ...(multipleWorkingDirectories ? { multipleWorkingDirectories: {} } : {}) });
 		const createChat = this.chats.createChat;
 		this.chats.createChat = (chat, context, options) => {
 			this.onCreateChat?.(chat);
@@ -97,15 +97,15 @@ suite('AgentService - chats with their own agent', () => {
 	teardown(() => disposeTestSessionStateDatabases());
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createService(enabled: boolean, options?: { readonly secondSupportsChats?: boolean; readonly catalogDatabase?: AgentHostDatabase; readonly sessionDatabase?: TestSessionDatabase }) {
+	function createService(enabled: boolean, options?: { readonly secondSupportsChats?: boolean; readonly catalogDatabase?: AgentHostDatabase; readonly sessionDatabase?: TestSessionDatabase; readonly folderPerChat?: 'copilot' | 'second' }) {
 		const catalogDatabase = options?.catalogDatabase ?? disposables.add(new AgentHostDatabase(':memory:'));
 		const service = disposables.add(createTestAgentService(
 			new NullLogService(), fileService, createSessionDataService(options?.sessionDatabase ?? new TestSessionDatabase()),
 			{ _serviceBrand: undefined } as IProductService, createNoopGitService(),
 			undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase,
 		));
-		const copilot = disposables.add(new ChatAgent('copilot', 'plan'));
-		const second = disposables.add(new ChatAgent('second', 'agent', options?.secondSupportsChats ?? true));
+		const copilot = disposables.add(new ChatAgent('copilot', 'plan', true, options?.folderPerChat === 'copilot'));
+		const second = disposables.add(new ChatAgent('second', 'agent', options?.secondSupportsChats ?? true, options?.folderPerChat === 'second'));
 		registerTestAgentProvider(service, copilot);
 		registerTestAgentProvider(service, second);
 		if (enabled) {
@@ -163,6 +163,25 @@ suite('AgentService - chats with their own agent', () => {
 			defaultChatAgent: 'copilot',
 		});
 	});
+
+	for (const folderPerChat of ['copilot', 'second'] as const) {
+		test(`a chat's own workspace is checked against the chat's own agent, not its session's (folders per chat: ${folderPerChat})`, async () => {
+			const { service } = createService(true, { folderPerChat });
+			const session = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+			const created = URI.parse(buildChatUri(session, 'created'));
+			const placeholder = URI.parse(buildChatUri(session, 'placeholder'));
+			await service.createChat(session, placeholder, { provider: 'second' });
+			const refusal = (error: string | undefined) => error?.match(/provider (\w+) does not support a workspace per chat/)?.[1];
+
+			assert.deepStrictEqual({
+				createChat: refusal(await rejection(service.createChat(session, created, { provider: 'second', workspace: { kind: 'scratch' } }))),
+				setChatWorkspace: refusal(await rejection(service.setChatWorkspace(session, placeholder, { kind: 'scratch' }))),
+			}, folderPerChat === 'copilot'
+				// The session's agent gives each chat its own folders, but the chat's own agent doesn't.
+				? { createChat: 'second', setChatWorkspace: 'second' }
+				: { createChat: undefined, setChatWorkspace: undefined });
+		});
+	}
 
 	test('a chat without a requested agent, or requesting its session\'s, uses the session\'s agent and reports none', async () => {
 		const { service, copilot } = createService(true);
