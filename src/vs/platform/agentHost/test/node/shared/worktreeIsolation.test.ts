@@ -136,7 +136,7 @@ suite('WorktreeIsolation', () => {
 			getRepositoryRoot: async () => repoRoot,
 			revParse: async (_root, expr) => expr === 'HEAD' ? headCommit : undefined,
 			getCurrentBranch: async () => 'feature',
-			getHEAD: async () => localBranch('feature'),
+			getHEAD: async () => headCommit ? localBranch('feature') : undefined,
 			getDefaultBranch: async () => ({ name: 'main', startPoint: 'main' }),
 			getDefaultBranch2: async () => localBranch('main'),
 			getBranches: async () => [
@@ -550,13 +550,13 @@ suite('WorktreeIsolation', () => {
 		assert.strictEqual(rootReads, 2);
 	});
 
-	test('reads HEAD and the default branch concurrently after validating the commit', async () => {
+	test('reads HEAD and the default branch concurrently without a redundant commit probe', async () => {
 		const finishHEAD = new DeferredPromise<IBranch>();
 		const calls: string[] = [];
 		const isolation = createIsolation(disposables, {
 			gitService: {
 				...createGitService(),
-				revParse: async () => { calls.push('HEAD'); return headCommit; },
+				revParse: async () => { assert.fail('getHEAD already validates the commit'); },
 				getHEAD: () => { calls.push('head'); return finishHEAD.p; },
 				getDefaultBranch2: async () => { calls.push('default'); return undefined; },
 			}
@@ -571,24 +571,21 @@ suite('WorktreeIsolation', () => {
 		}
 		const result = await resolution;
 		assert.deepStrictEqual({ callsBeforeCompletingHEAD, branch: result.branchValue }, {
-			callsBeforeCompletingHEAD: ['HEAD', 'head', 'default'],
+			callsBeforeCompletingHEAD: ['head', 'default'],
 			branch: 'feature',
 		});
 	});
 
-	test('skips branch reads for an unborn HEAD', async () => {
-		const calls: string[] = [];
+	test('an unborn HEAD cannot offer worktree isolation even when a default branch exists', async () => {
 		const isolation = createIsolation(disposables, {
 			gitService: {
 				...createGitService(),
-				revParse: async () => undefined,
-				getHEAD: async () => { calls.push('head'); return localBranch('feature'); },
-				getDefaultBranch2: async () => { calls.push('default'); return undefined; },
+				getHEAD: async () => undefined,
 			}
 		});
 		const result = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: undefined });
-		assert.deepStrictEqual({ calls, isolation: result.isolationValue, branch: result.branchValue }, {
-			calls: [], isolation: 'folder', branch: undefined,
+		assert.deepStrictEqual({ isolation: result.isolationValue, branch: result.branchValue }, {
+			isolation: 'folder', branch: undefined,
 		});
 	});
 

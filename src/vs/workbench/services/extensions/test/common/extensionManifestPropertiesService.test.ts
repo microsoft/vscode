@@ -181,6 +181,17 @@ suite('ExtensionManifestPropertiesService - SessionsWindowSupport', () => {
 		});
 	}
 
+	test('supports product allow-listed extensions regardless of overrides and declarations', async () => {
+		await testConfigurationService.setUserConfiguration(EXTENSIONS_SUPPORT_AGENTS_WINDOW, { 'pub.a': false });
+		testObject = disposables.add(new ExtensionManifestPropertiesService({ ...TestProductService, sessionsWindowAllowedExtensions: ['Pub.A'] }, testConfigurationService, new TestWorkspaceTrustEnablementService(), new NullLogService()));
+
+		assert.deepStrictEqual([
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ main: './out/extension.js', contributes: { commands: [] } })),
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ main: './out/extension.js', contributes: { views: {} } }), true),
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ name: 'b', main: './out/extension.js' })),
+		], [true, true, false]);
+	});
+
 	test('ignores declared agents window support for user extensions when the capability setting is disabled', async () => {
 		await testConfigurationService.setUserConfiguration(EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY, false);
 		testObject = createTestObject();

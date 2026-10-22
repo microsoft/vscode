@@ -679,7 +679,59 @@ export class TestContext {
 		}
 
 		if (notaryResult.status !== 0) {
-			this.error(`Notarization is not valid for ${filePath}: ${notaryResult.stderr}`);
+			// Loose Mach-O files cannot carry a stapled ticket, so Gatekeeper must look the ticket up online and
+			// intermittently reports notarized binaries as unnotarized. Confirm such verdicts with Apple's ticket service.
+			const ticketCdhash = /source=Unnotarized Developer ID/.test(notaryResult.stderr) ? this.findNotarizationTicket(filePath) : undefined;
+			if (!ticketCdhash) {
+				this.error(`Notarization is not valid for ${filePath}: ${notaryResult.stderr}`);
+			}
+
+			this.warn(`Gatekeeper reported ${filePath} as unnotarized, but Apple's ticket service has its notarization ticket (cdhash ${ticketCdhash})`);
+		}
+	}
+
+	/**
+	 * Checks whether Apple's notarization ticket service, which Gatekeeper queries for files without a stapled
+	 * ticket, has a ticket for the SHA-256 code directory hash of the specified file.
+	 * @param filePath The path to the signed file.
+	 * @returns The code directory hash whose ticket was found, or undefined if no ticket was confirmed.
+	 */
+	private findNotarizationTicket(filePath: string): string | undefined {
+		const signature = this.run('codesign', '--display', '--verbose=4', filePath);
+		if (signature.error !== undefined || signature.status !== 0) {
+			this.log(`Failed to read the code signature of ${filePath} (exit code ${signature.status}): ${signature.error?.message ?? signature.stderr}`);
+			return undefined;
+		}
+
+		const details = signature.stderr ?? '';
+		const cdhash = (/^CandidateCDHash sha256=([0-9a-f]{40})$/im.exec(details)?.[1]
+			?? (/^Hash type=sha256 /m.test(details) ? /^CDHash=([0-9a-f]{40})$/im.exec(details)?.[1] : undefined))?.toLowerCase();
+		if (!cdhash) {
+			this.log(`Could not determine the SHA-256 code directory hash of ${filePath}: ${signature.stderr}`);
+			return undefined;
+		}
+
+		const body = JSON.stringify({ records: [{ recordName: `2/2/${cdhash}` }] });
+		// curl truncates an --output file before each retry, unlike stdout, so a retried response is never concatenated.
+		const responsePath = path.join(this.createTempDir(), 'ticket.json');
+		const lookup = this.run(
+			'curl', '-fsS', '--retry', '5', '--retry-delay', '2', '--retry-all-errors', '--retry-max-time', '60', '--max-time', '30',
+			'-H', 'Content-Type: application/json', '-d', body, '--output', responsePath,
+			'https://api.apple-cloudkit.com/database/1/com.apple.gk.ticket-delivery/production/public/records/lookup'
+		);
+		if (lookup.error !== undefined || lookup.status !== 0) {
+			this.log(`Notarization ticket lookup failed for ${cdhash}: ${lookup.error?.message ?? lookup.stderr}`);
+			return undefined;
+		}
+
+		try {
+			const record = JSON.parse(fs.readFileSync(responsePath, 'utf-8')).records?.[0];
+			const found = typeof record?.fields?.signedTicket?.value === 'string';
+			this.log(`Notarization ticket for ${cdhash}: ${found ? 'found' : record?.serverErrorCode ?? 'missing'}`);
+			return found ? cdhash : undefined;
+		} catch (error) {
+			this.log(`Could not parse notarization ticket lookup for ${cdhash}: ${error}`);
+			return undefined;
 		}
 	}
 

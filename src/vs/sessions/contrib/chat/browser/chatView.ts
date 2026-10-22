@@ -190,6 +190,30 @@ export class NewChatView extends AbstractChatView {
 		}
 	}
 
+	override focusEnvironmentPicker(): void {
+		if (this._widget instanceof NewChatWidget) {
+			this._widget.focusEnvironmentPicker();
+		}
+	}
+
+	override focusBranchPicker(): void {
+		if (this._widget instanceof NewChatWidget) {
+			this._widget.focusBranchPicker();
+		}
+	}
+
+	override focusWorktreePicker(): void {
+		if (this._widget instanceof NewChatWidget) {
+			this._widget.focusWorktreePicker();
+		}
+	}
+
+	override focusSyncAction(): void {
+		if (this._widget instanceof NewChatWidget) {
+			this._widget.focusSyncAction();
+		}
+	}
+
 	override openModelComparison(): void {
 		if (this._widget instanceof NewChatWidget) {
 			this._widget.openModelComparison();
@@ -254,6 +278,10 @@ export class ChatView extends AbstractChatView {
 	static readonly LOADING_FEEDBACK_DELAY_MS = 100;
 
 	override readonly kind: ChatViewKind = 'chat';
+
+	override get scrollDownButtonDomNode(): HTMLElement {
+		return this._widget.scrollDownButtonDomNode;
+	}
 
 	private readonly _widget: ChatWidget;
 	private readonly _widgetContainer: HTMLElement;
@@ -689,7 +717,9 @@ export class ChatView extends AbstractChatView {
 			const draftLoaded = isEqual(this._loadedChatResource.read(reader), resource);
 			const failure = this._loadFailure.read(reader);
 			const loadStatus = failure && isEqual(failure.resource, resource) ? failure.status : undefined;
-			this._widget.setReadOnly(interactivity !== ChatInteractivity.Full || loading || modelReadOnly || !!loadStatus, !loadStatus && interactivity !== ChatInteractivity.ReadOnly && !modelReadOnly && (((draftOnly || loading) && draftLoaded) || this.isInputBlocked.read(reader)), loadStatus);
+			const keepInputVisible = !loadStatus && interactivity !== ChatInteractivity.ReadOnly
+				&& (this.isInputBlocked.read(reader) || (!modelReadOnly && (draftOnly || loading) && draftLoaded));
+			this._widget.setReadOnly(interactivity !== ChatInteractivity.Full || loading || modelReadOnly || !!loadStatus, keepInputVisible, loadStatus);
 		});
 
 		// Skip loading if we're already showing this chat
@@ -1115,6 +1145,7 @@ export class ChatView extends AbstractChatView {
 		const inputPartElement = this._widget.inputPart.element;
 		const persistentContentContainer = this._widget.inputPart.persistentContentContainerElement;
 		const pillsNode = this._chatPills.element;
+		this._chatPills.setInputElement(this._widget.inputPart.inputContainerElement);
 		const bannersNode = this._banners.domNode;
 		const comparisonResultNode = this._comparisonResult.domNode;
 		if (persistentContentContainer.firstChild !== pillsNode) {

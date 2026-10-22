@@ -26,6 +26,12 @@ export function sessionFilterKey(filter: SessionFilter): string {
 	return JSON.stringify(filter.kind === 'application' ? [filter.kind, filter.environment, filter.id] : [filter.kind, filter.id]);
 }
 
+/** Orders environments as the Environment filter lists them: this computer, the cloud, then remote hosts by name. */
+export function compareSessionEnvironments(a: ISessionEnvironment, b: ISessionEnvironment): number {
+	const rank = (id: string) => id === 'local' ? 0 : id === 'cloud' ? 1 : 2;
+	return rank(a.id) - rank(b.id) || a.label.localeCompare(b.label) || a.id.localeCompare(b.id);
+}
+
 /**
  * Sessions list state that Reset Filters returns to its default. Reset Filters
  * captures every such state before resetting it, so that undoing the reset
@@ -51,10 +57,7 @@ export function getSessionFilterOptions(sessions: readonly ISession[], environme
 	for (const environment of environments) {
 		byId.set(environment.id, environment);
 	}
-	const ordered = [...byId.values()].sort((a, b) => {
-		const rank = (id: string) => id === 'local' ? 0 : id === 'cloud' ? 1 : 2;
-		return rank(a.id) - rank(b.id) || a.label.localeCompare(b.label) || a.id.localeCompare(b.id);
-	});
+	const ordered = [...byId.values()].sort(compareSessionEnvironments);
 	for (const environment of ordered) {
 		if (environment.isConnected?.read(reader) !== false) {
 			options.push({ filter: { kind: 'environment', id: environment.id }, label: environment.label, group: '2_environments' });

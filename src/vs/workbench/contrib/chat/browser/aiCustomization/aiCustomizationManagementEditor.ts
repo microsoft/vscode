@@ -13,7 +13,7 @@ import { CustomizationMarketplaceConfiguration } from '../../../../../platform/c
 import { dirname as dirnamePath } from '../../../../../base/common/path.js';
 
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
-import { Delayer, RunOnceScheduler, timeout } from '../../../../../base/common/async.js';
+import { Delayer, RunOnceScheduler, Sequencer, timeout } from '../../../../../base/common/async.js';
 import { cancelOnDispose, CancellationToken } from '../../../../../base/common/cancellation.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { getErrorMessage, isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
@@ -36,7 +36,7 @@ import { IEditorOptions } from '../../../../../platform/editor/common/editor.js'
 import { IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { EditorPane } from '../../../../browser/parts/editor/editorPane.js';
-import { IEditorOpenContext } from '../../../../common/editor.js';
+import { IEditorOpenContext, SaveReason } from '../../../../common/editor.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -128,6 +128,7 @@ import { AICustomizationWelcomePage, type ICustomizationMarketplaceOrigin, type 
 import { ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
 import { createCustomizationMigrationAgentPrompt, getCustomizationMigrationConflictTarget, type CustomizationMigrationTargetFolders, type ICustomizationMigrationFailure, type ICustomizationMigrationNameConflict, type IMigratedCustomizationsWithFailureReasonsResult, migrateCustomizations, resolveWorkspaceMigrationTargetFolder } from './customizationMigration.js';
 import { CUSTOMIZATION_MIGRATION_CATEGORIES, CustomizationMigrationCategoryId, getCustomizationMigrationCategory, homepageMigrationCategories, type ICustomizationMigrationCategory } from './customizationMigrationCategories.js';
+import { getCustomizationMigrationGroupIgnoreKey, getIgnoredCustomizationMigrationGroupKeys, storeIgnoredCustomizationMigrationGroupKeys } from './customizationMigrationIgnoredGroups.js';
 import { createCustomizationMigrationRecoveryPlan, ICustomizationMigrationRecoveryManifest, listCustomizationMigrationRecoveries, prepareCustomizationMigrationRecovery, restoreCustomizationMigrationSources, updateCustomizationMigrationRecovery } from './customizationMigrationRecovery.js';
 import { CustomizationMigrationResultToolId } from './customizationMigrationResultTool.js';
 import {
@@ -144,13 +145,6 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { showNoFoldersDialog } from '../promptSyntax/pickers/askForPromptSourceFolder.js';
 
 const $ = DOM.$;
-const CUSTOMIZATION_MIGRATION_IGNORED_GROUPS_STORAGE_KEY = 'chat.customizationMigration.ignoredGroups';
-
-interface IIgnoredMigrationGroupsState {
-	readonly groupKeys: readonly string[];
-}
-
-
 //#region Telemetry
 
 type CustomizationEditorOpenedEvent = {
@@ -503,6 +497,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	private readonly editorDisposables = this._register(new DisposableStore());
 	private _editorContentChanged = false;
+	/**
+	 * Tracks a save that has not been committed to git yet. Auto save clears the dirty state, so
+	 * this is tracked separately from {@link _editorContentChanged} to still commit when leaving the editor.
+	 */
+	private _editorHasUncommittedSave = false;
+	private readonly customizationCommitSequencer = new Sequencer();
 	private _previousActiveHarnessId: string | undefined;
 
 	private sidebarHeaderContainer: HTMLElement | undefined;
@@ -1852,7 +1852,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			.filter(candidate => !this.isMigrationCategoryIgnored(id, candidate.storage)));
 		const count = candidates.length;
 		const hasPendingMigrations = this.pluginMarketplaceMigrationDiscoveryError !== undefined
-			|| homepageMigrationCategories.some(id => this.getMigrationCandidates(getCustomizationMigrationCategory(id)).length > 0);
+			|| count > 0;
 		const enabled = isAgentHostTarget(this.harnessService.activeHarness.get())
 			&& homepageMigrationCategories.some(id => this.isMigrationCategoryEnabled(getCustomizationMigrationCategory(id)))
 			&& hasPendingMigrations;
@@ -2828,20 +2828,16 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private getMigrationGroupIgnoreKey(id: CustomizationMigrationCategoryId, storage: PromptsStorage): string {
-		const harness = this.harnessService.activeHarness.get();
-		if (storage === PromptsStorage.user) {
-			return `${harness}:${storage}:${id}`;
-		}
-		const project = this.workspaceService.activeProjectRoot.get();
-		return `${harness}:${storage}:${project ? getComparisonKey(project) : ''}:${id}`;
+		return getCustomizationMigrationGroupIgnoreKey(
+			this.harnessService.activeHarness.get(),
+			id,
+			storage,
+			this.workspaceService.activeProjectRoot.get(),
+		);
 	}
 
 	private getIgnoredMigrationGroupKeys(): Set<string> {
-		return new Set(this.storageService.getObject<IIgnoredMigrationGroupsState>(
-			CUSTOMIZATION_MIGRATION_IGNORED_GROUPS_STORAGE_KEY,
-			StorageScope.PROFILE,
-			{ groupKeys: [] },
-		).groupKeys);
+		return getIgnoredCustomizationMigrationGroupKeys(this.storageService);
 	}
 
 	private isMigrationCategoryIgnored(id: CustomizationMigrationCategoryId, storage: PromptsStorage): boolean {
@@ -2882,12 +2878,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private storeIgnoredMigrationGroupKeys(groupKeys: Set<string>): void {
-		this.storageService.store(
-			CUSTOMIZATION_MIGRATION_IGNORED_GROUPS_STORAGE_KEY,
-			{ groupKeys: [...groupKeys] },
-			StorageScope.PROFILE,
-			StorageTarget.MACHINE,
-		);
+		storeIgnoredCustomizationMigrationGroupKeys(this.storageService, groupKeys);
 	}
 
 	private getCustomizationMigrationDashboardDestinations(customizations: readonly MigratableConfiguration[]): readonly ICustomizationMigrationDashboardDestination[] {
@@ -3747,7 +3738,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.inEditorContextKey.set(true);
 		this.sectionContextKey.set(this.selectedSection ?? '');
 
-		input.setSaveHandler(() => this.handleBuiltinSave());
+		input.setSaveHandler(() => this.handleSave());
 
 		if (isCustomizationMarketplaceValueFromDefault(this.configurationService)) {
 			logSettingExperimentTrigger(this.telemetryService, CustomizationMarketplaceConfiguration.MarketplaceEnabled);
@@ -4067,14 +4058,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 	}
 
-	public async showCopilotConnectorDetail(connectorName: string): Promise<CopilotConnectorDetailOpenResult> {
+	public async showCopilotConnectorDetail(connectorName: string, connectorDisplayName?: string): Promise<CopilotConnectorDetailOpenResult> {
 		const navigationGeneration = this.contentNavigationGeneration;
 		const input = this.input;
 		const connectors = await this.copilotConnectorsService.getConnectors(CancellationToken.None);
 		if (!isCurrentConnectorDetailNavigation(navigationGeneration, this.contentNavigationGeneration, input, this.input)) {
 			return CopilotConnectorDetailOpenResult.Superseded;
 		}
-		const connector = connectors.find(candidate => candidate.name === connectorName);
+		const connector = connectors.find(candidate => candidate.name === connectorName)
+			?? (connectorDisplayName ? connectors.find(candidate => candidate.displayName === connectorDisplayName) : undefined);
 		if (!connector) {
 			return CopilotConnectorDetailOpenResult.NotFound;
 		}
@@ -4203,7 +4195,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private async openCustomizationItem(item: IAICustomizationListItem, origin: CustomizationDetailOrigin = this.getCurrentDetailBaseOrigin()): Promise<void> {
-		if (item.promptType === PromptsType.skill && item.pluginUri) {
+		if (origin.kind !== 'pluginDetail' && item.promptType === PromptsType.skill && item.pluginUri) {
 			const plugin = this.agentPluginService.plugins.get().find(plugin => isEqual(plugin.uri, item.pluginUri));
 			if (plugin) {
 				await this.showEmbeddedPluginDetail({
@@ -4212,7 +4204,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 					description: plugin.fromMarketplace?.description ?? '',
 					marketplace: plugin.fromMarketplace?.marketplace,
 					plugin,
-				}, origin.kind === 'pluginDetail' ? origin.origin : origin);
+				}, origin);
 			}
 			return;
 		}
@@ -4353,6 +4345,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.editorItemPathElement.removeAttribute('aria-label');
 		}
 		this._editorContentChanged = false;
+		this._editorHasUncommittedSave = false;
 		this.resetEditorSaveIndicator();
 		this.updateEditorActionButton();
 		this.updateEditorDisplayMode();
@@ -4404,6 +4397,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.editorContentContainer?.classList.remove('customization-detail-mode');
 		this.editorDisplayMode = 'preview';
 		this._editorContentChanged = false;
+		this._editorHasUncommittedSave = false;
 		this.editorModelChangeDisposables.clear();
 		this.editorPreviewRenderScheduler.cancel();
 		this.clearEditorPreview();
@@ -4506,7 +4500,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private createExistingCustomizationSaveRequest(): IExistingCustomizationSaveRequest | undefined {
-		if (!this._editorContentChanged || this.currentEditingSource === AICustomizationSources.builtin || !this.currentEditingUri) {
+		if ((!this._editorContentChanged && !this._editorHasUncommittedSave) || this.currentEditingSource === AICustomizationSources.builtin || !this.currentEditingUri) {
 			return undefined;
 		}
 
@@ -4540,9 +4534,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	private async saveExistingCustomization(request: IExistingCustomizationSaveRequest): Promise<void> {
 		await this.fileService.writeFile(request.fileUri, VSBuffer.fromString(request.content));
-		if (request.projectRoot) {
-			await this.workspaceService.commitFiles(request.projectRoot, [request.fileUri]);
+		await this.commitCustomization(request.projectRoot, request.fileUri);
+	}
+
+	/** Serializes commits so an explicit save and leaving the editor cannot commit concurrently. Resolves to `false` when the commit failed. */
+	private async commitCustomization(projectRoot: URI | undefined, fileUri: URI): Promise<boolean> {
+		if (!projectRoot) {
+			return true;
 		}
+		return this.customizationCommitSequencer.queue(() => this.workspaceService.commitFiles(projectRoot, [fileUri]));
 	}
 
 	private async pickBuiltinPromptSaveTarget(): Promise<ISaveTargetQuickPickItem | undefined> {
@@ -4665,6 +4665,47 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const input = this.input;
 		if (input instanceof AICustomizationManagementEditorInput) {
 			input.setDirty(this.shouldShowBuiltinSaveAction());
+		}
+	}
+
+	private async handleSave(): Promise<boolean> {
+		return this.shouldShowBuiltinSaveAction() ? this.handleBuiltinSave() : this.saveCurrentCustomization();
+	}
+
+	/**
+	 * Explicit save of the customization open in the embedded editor. The embedded editor is not
+	 * handled by the generic save command, so the file is saved and committed here.
+	 */
+	private async saveCurrentCustomization(): Promise<boolean> {
+		const fileUri = this.currentEditingUri;
+		if (this.viewMode !== 'editor' || !fileUri || this.currentEditingReadOnly || this.currentEditingSource === AICustomizationSources.builtin) {
+			return false;
+		}
+
+		try {
+			for (const workingCopy of this.workingCopyService.getAll(fileUri) ?? []) {
+				if (workingCopy.isDirty() && !await workingCopy.save({ reason: SaveReason.EXPLICIT })) {
+					// The edit was not written (error, conflict or cancellation), so committing would only commit the previous content
+					return false;
+				}
+			}
+			if (this.currentEditingProjectRoot) {
+				this._editorHasUncommittedSave = false;
+				let committed = false;
+				try {
+					committed = await this.commitCustomization(this.currentEditingProjectRoot, fileUri);
+				} finally {
+					// The file is saved but not committed, so leaving the editor must retry the commit
+					if (!committed) {
+						this._editorHasUncommittedSave = true;
+					}
+				}
+			}
+			return true;
+		} catch (error) {
+			onUnexpectedError(error);
+			this.notificationService.warn(localize('saveCustomizationFailed', "Could not save changes to {0}.", basename(fileUri)));
+			return false;
 		}
 	}
 
@@ -4854,6 +4895,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 				this.editorSaveIndicator.title = localize('saved', "Saved");
 				this.editorSaveIndicator.setAttribute('aria-label', localize('saved', "Saved"));
 				status(localize('saved', "Saved"));
+
+				// Auto save clears the dirty state, so remember that this save still has to be committed
+				this._editorHasUncommittedSave = true;
 			}
 		}));
 	}
@@ -5404,6 +5448,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (saveRequest) {
 			await this.saveExistingCustomization(saveRequest);
 			this._editorContentChanged = false;
+			this._editorHasUncommittedSave = false;
 			this.resetEditorSaveIndicator();
 		}
 		await this.migrateMigrationItem(detail.item);
@@ -5415,6 +5460,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return;
 		}
 		this._editorContentChanged = false;
+		this._editorHasUncommittedSave = false;
 		this.showCustomizationMigrationDashboard();
 	}
 
