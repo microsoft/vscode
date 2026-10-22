@@ -163,6 +163,7 @@ suite('SessionWorktreeCleanupEditor', () => {
 			createWorktree('first', '/repos/app'),
 			createWorktree('second', '/other/app'),
 			createWorktree('third', '/repos/app'),
+			createWorktree('unique', '/repos/zeta'),
 		]);
 		const picker = container.querySelector<HTMLSelectElement>('.session-worktree-cleanup-workspace')!;
 		const options = [...picker.options].map(option => option.textContent);
@@ -174,7 +175,7 @@ suite('SessionWorktreeCleanupEditor', () => {
 		await timeout(0);
 
 		assert.deepStrictEqual({ options, rows, cleaned }, {
-			options: ['All workspaces', 'app (file:///repos/app)', 'app (file:///other/app)'],
+			options: ['All workspaces', 'app (file:///repos/app)', 'app (file:///other/app)', 'zeta'],
 			rows: ['first', 'third'],
 			cleaned: [['first', 'third']],
 		});
@@ -267,15 +268,20 @@ suite('SessionWorktreeCleanupEditor', () => {
 		}, { disabled: states.map(() => 'true'), checked: states.map(() => 'false'), cleaned: [['eligible']] });
 	});
 
-	test('shows a clickable cursor only over the inactivity picker', () => {
-		const { container } = createEditor();
-		const label = container.querySelector<HTMLElement>('.session-worktree-cleanup-controls label')!;
-		const picker = label.querySelector('select')!;
+	test('shows a clickable cursor over both filter pickers but not their labels', async () => {
+		const { container } = await openEditor([
+			createWorktree('first', '/repos/app'),
+			createWorktree('second', '/repos/other'),
+		]);
+		const labels = [...container.querySelectorAll<HTMLElement>('.session-worktree-cleanup-controls label')];
 
-		assert.deepStrictEqual({
+		assert.deepStrictEqual(labels.map(label => ({
 			labelCursor: mainWindow.getComputedStyle(label).cursor,
-			pickerCursor: mainWindow.getComputedStyle(picker).cursor,
-		}, { labelCursor: 'default', pickerCursor: 'pointer' });
+			pickerCursor: mainWindow.getComputedStyle(label.querySelector('select')!).cursor,
+		})), [
+			{ labelCursor: 'default', pickerCursor: 'pointer' },
+			{ labelCursor: 'default', pickerCursor: 'pointer' },
+		]);
 	});
 
 	test('allows cleaning up worktrees used less than seven days ago', async () => {

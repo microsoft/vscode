@@ -95,7 +95,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		const content = dom.append(this.container, dom.$('.session-worktree-cleanup-content'));
 
 		dom.append(content, dom.$('p.session-worktree-cleanup-intro', undefined,
-			localize('sessionWorktreeCleanup.intro', "Review all agent session worktrees, or filter by workspace and inactivity period. Inactive, unpinned sessions can be cleaned up to reclaim disk space, including recently used sessions. Any uncommitted changes are committed before the worktree is removed. Cleaning up a session marks it as done; you can restore the session later to recreate its worktree. Protected sessions are shown but cannot be selected.")));
+			localize('sessionWorktreeCleanup.filteredIntro', "Review all agent session worktrees, or filter by workspace and inactivity period. Inactive, unpinned sessions can be cleaned up to reclaim disk space, including recently used sessions. Any uncommitted changes are committed before the worktree is removed. Cleaning up a session marks it as done; you can restore the session later to recreate its worktree. Protected sessions are shown but cannot be selected.")));
 		dom.append(content, dom.$('p', undefined,
 			dom.$('strong', undefined, localize('sessionWorktreeCleanup.reopen', "You can return to this editor at any time by running Open Worktree Cleanup from the Command Palette."))));
 
@@ -140,7 +140,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		this.emptyState = dom.append(content, dom.$('.session-worktree-cleanup-empty', { role: 'status' }));
 		const emptyStateIcon = dom.append(this.emptyState, renderIcon(Codicon.info));
 		emptyStateIcon.setAttribute('aria-hidden', 'true');
-		dom.append(this.emptyState, dom.$('span', undefined, localize('sessionWorktreeCleanup.empty', "No worktrees match the selected filters.")));
+		dom.append(this.emptyState, dom.$('span', undefined, localize('sessionWorktreeCleanup.noMatchingWorktrees', "No worktrees match the selected filters.")));
 		this.emptyState.classList.add('hidden');
 	}
 
@@ -250,9 +250,13 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		}
 		dom.clearNode(this.workspaceSelect);
 		dom.append(this.workspaceSelect, dom.$('option', { value: '' }, localize('sessionWorktreeCleanup.allWorkspaces', "All workspaces")));
-		for (const [key, workspace] of [...workspaces].sort((a, b) => a[1].label.localeCompare(b[1].label))) {
-			const duplicateLabel = [...workspaces.values()].some(other => other !== workspace && other.label === workspace.label);
-			const label = duplicateLabel
+		const labelCounts = new Map<string, number>();
+		for (const workspace of workspaces.values()) {
+			labelCounts.set(workspace.label, (labelCounts.get(workspace.label) ?? 0) + 1);
+		}
+		const sortedWorkspaces = [...workspaces].sort((a, b) => a[1].label.localeCompare(b[1].label));
+		for (const [key, workspace] of sortedWorkspaces) {
+			const label = labelCounts.get(workspace.label)! > 1
 				? localize('sessionWorktreeCleanup.workspaceWithPath', "{0} ({1})", workspace.label, workspace.uri.toString(true))
 				: workspace.label;
 			dom.append(this.workspaceSelect, dom.$('option', { value: key }, label));
@@ -284,9 +288,9 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		this.summaryRow?.classList.toggle('hidden', isEmpty);
 		this.list.classList.toggle('hidden', isEmpty);
 		this.emptyState?.classList.toggle('hidden', !isEmpty);
-		const summary = localize('sessionWorktreeCleanup.worktreeSummary', "{0} of {1} matching worktrees can be cleaned up, reclaiming about {2}.", eligibleWorktrees, totalWorktrees, ByteSize.formatSize(reclaimableBytes));
+		const summary = localize('sessionWorktreeCleanup.matchingWorktreeSummary', "{0} of {1} matching worktrees can be cleaned up, reclaiming about {2}.", eligibleWorktrees, totalWorktrees, ByteSize.formatSize(reclaimableBytes));
 		const eligibilityDescription = localize(
-			'sessionWorktreeCleanup.eligibilityDescription',
+			'sessionWorktreeCleanup.filteredEligibilityDescription',
 			"Only sessions that are not active, running, waiting for input, pinned, already done, untitled, or in an error state can be selected. Storage must have been measured successfully. The filters limit the table and cleanup selection.",
 		);
 		dom.clearNode(this.summary);
