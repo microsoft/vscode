@@ -915,12 +915,27 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		expectedVisualDescriptions: ['An expanded session with its view pinned remains in its workspace section rather than the Pinned sidebar section. With the pointer over its Task B chat, its sticky marker does not shift the parent icon or hierarchy connectors, and both nested chat rows remain visible.'],
 	}),
 	SessionsList_NestedChatHierarchyGuides: defineSessionsListFixture({
-		sessions: [{ ...NESTED_CHAT_SESSION, pinned: true, sticky: true }],
-		view: { width: 340, expanded: [{ section: 'pinned' }] },
+		sessions: [
+			{ ...NESTED_CHAT_SESSION, pinned: true, sticky: true },
+			{ ...NESTED_CHAT_SESSION, id: 'b', title: 'Review retry behavior', workspace: 'vscode' },
+		],
+		view: { width: 340, height: 420, expanded: [{ section: 'pinned' }] },
 		interaction: { hovered: { session: 'a', chat: 'task-a' } },
 	}, {
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['An expanded pinned and sticky session has two nested chat rows, and the pointer is over the Task A chat. Its compact blue sticky marker does not shift the session icon away from the hierarchy guide. A single high-contrast guide color runs continuously from the parent, through the hovered row, into rounded branches that stop short of each child status icon, without gaps or visible shade changes.'],
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['Two expanded session hierarchies show their connectors while only the first session\'s Task A chat is hovered. The pinned and sticky session\'s marker does not shift its icon away from the guide. Both hierarchies have continuous connectors with rounded branches that stop short of the child status icons.'],
+	}),
+	SessionsList_NestedChatHierarchyGuides_PaneHover: defineSessionsListFixture({
+		sessions: [
+			NESTED_CHAT_SESSION,
+			{ ...NESTED_CHAT_SESSION, id: 'b', title: 'Review retry behavior', workspace: 'vscode' },
+		],
+		view: { width: 340, height: 420, compact: true },
+		interaction: { hovered: 'pane' },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['Both compact session hierarchies show their connectors while the pointer is in the pane without hovering any row. No row actions or collapse twisties are revealed.'],
 	}),
 
 	//#endregion

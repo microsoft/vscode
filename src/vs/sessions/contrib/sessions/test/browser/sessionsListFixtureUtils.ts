@@ -150,8 +150,8 @@ export interface ISessionsListFixtureInteraction {
 	readonly focused?: SessionsListFixtureRow;
 	/** Whether the list owns DOM focus. Defaults to `true` when {@link focused} is set. */
 	readonly listFocused?: boolean;
-	/** The row under the pointer, rendered with the `.hovered` row class. */
-	readonly hovered?: SessionsListFixtureRow;
+	/** The pane or row under the pointer, rendered with the `.hovered` class. */
+	readonly hovered?: SessionsListFixtureRow | 'pane';
 	/** The session, chat, or group row showing its inline rename editor. */
 	readonly renaming?: SessionsListFixtureRow;
 	/** Creates a group from these sessions and shows its name editor, like Create Group. */
@@ -753,6 +753,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 	container.style.width = `${state.frame?.width ?? width}px`;
 	container.style.height = `${state.frame?.height ?? view.height ?? (view.phone ? 260 : 220)}px`;
 	container.style.backgroundColor = 'var(--vscode-sideBar-background, var(--vscode-editor-background))';
+	container.classList.add('agent-sessions-viewpane');
 	if (state.frame) {
 		container.style.position = 'relative';
 	}
@@ -763,7 +764,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 	let listParent = container;
 	let navigationContainer: HTMLElement | undefined;
 	if (header) {
-		container.classList.add('agent-sessions-viewpane', 'agent-sessions-section');
+		container.classList.add('agent-sessions-section');
 		const content = DOM.append(container, DOM.$('.agent-sessions-content'));
 		navigationContainer = DOM.append(content, DOM.$('.agent-sessions-navigation-container'));
 		const sessionsHeaderContainer = DOM.append(content, DOM.$('.agent-sessions-header-container'));
@@ -903,7 +904,11 @@ function applyInteraction(context: ComponentFixtureContext, list: TestSessionsLi
 		context.focus(list);
 	}
 	if (interaction.hovered) {
-		simulateHover(list, resolve(interaction.hovered), context.disposableStore);
+		context.container.classList.add('hovered');
+		context.disposableStore.add(toDisposable(() => context.container.classList.remove('hovered')));
+		if (interaction.hovered !== 'pane') {
+			simulateHover(list, resolve(interaction.hovered), context.disposableStore);
+		}
 	}
 	if (interaction.createGroupFrom) {
 		list.createGroupFromSessions(interaction.createGroupFrom.map(id => getSession(id).session));

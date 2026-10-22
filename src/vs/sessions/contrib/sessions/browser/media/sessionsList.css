@@ -872,6 +872,7 @@
 	opacity: 0;
 }
 
+.agent-sessions-viewpane:is(:hover, .hovered) .monaco-list-row[aria-expanded="true"] .session-item::after,
 .monaco-list-row[aria-expanded="true"] .session-item.session-hierarchy-guides-visible::after {
 	opacity: 1;
 }
@@ -912,6 +913,7 @@
 		opacity: 0;
 	}
 
+	.agent-sessions-viewpane:is(:hover, .hovered) &,
 	&.session-hierarchy-guides-visible {
 		&::before,
 		&::after {
