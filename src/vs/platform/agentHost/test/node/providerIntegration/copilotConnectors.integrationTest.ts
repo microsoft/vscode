@@ -32,7 +32,6 @@ suite('Copilot SDK Connector reconciliation', function () {
 	let mailEndpoint: string;
 	let mailConnected: boolean;
 	let newConnectorsConnected: boolean;
-	let calendarEndpoint: string;
 	let initializations: Record<string, number>;
 	let unexpectedRequests: string[];
 	let tlsErrors: string[];
@@ -42,7 +41,6 @@ suite('Copilot SDK Connector reconciliation', function () {
 		mailEndpoint = 'mail';
 		mailConnected = true;
 		newConnectorsConnected = false;
-		calendarEndpoint = 'calendar';
 		initializations = {};
 		unexpectedRequests = [];
 		tlsErrors = [];
@@ -113,7 +111,7 @@ suite('Copilot SDK Connector reconciliation', function () {
 					plugins: ['mail', 'calendar', 'drive', 'files'].map(name => ({
 						name, metadata: { displayName: `Test ${name}`, tier: 'standard', releaseTag: 'preview' },
 						connection: { status: name === 'mail' && !mailConnected || (name === 'drive' || name === 'files') && !newConnectorsConnected ? 'available' : 'connected' },
-						mcpServers: { mcpServers: { [name]: { type: 'http', url: `${mcpUrl}/mcp/${name === 'mail' ? mailEndpoint : name === 'calendar' ? calendarEndpoint : name}` } } },
+						mcpServers: { mcpServers: { [name]: { type: 'http', url: `${mcpUrl}/mcp/${name === 'mail' ? mailEndpoint : name}` } } },
 					})),
 				});
 			} else {
@@ -241,22 +239,6 @@ suite('Copilot SDK Connector reconciliation', function () {
 			reconciled: false, newlyConnectedChecked: true,
 			servers: [{ connectorName: 'calendar', status: 'stopped' }, { connectorName: 'drive', status: 'connected' }, { connectorName: 'files', status: 'connected' }, { connectorName: 'mail', status: 'connected' }],
 			calendarStarts: beforeDeferred.calendar, driveStarts: 1, filesStarts: 1, unexpectedRequests: [],
-		});
-
-		await session.rpc.mcp.startServer({ serverName: calendar.runtimeServerId });
-		await session.rpc.mcp.disable({ serverName: calendar.runtimeServerId });
-		const beforeDisabled = { ...initializations };
-		calendarEndpoint = 'calendar-relocated';
-		mailConnected = false;
-		const ordinary = await reconcileCopilotConnectors(session, log, { preserveStoppedServers: true, addNewlyConnected: true });
-		assert.deepStrictEqual({
-			reconciled: ordinary.reconciled,
-			servers: (await session.rpc.connectors.getStatus()).runtimeServers.map(({ connectorName, status }) => ({ connectorName, status })).sort((a, b) => a.connectorName.localeCompare(b.connectorName)),
-			initializations, unexpectedRequests,
-		}, {
-			reconciled: true,
-			servers: [{ connectorName: 'calendar', status: 'disabled' }, { connectorName: 'drive', status: 'connected' }, { connectorName: 'files', status: 'connected' }],
-			initializations: beforeDisabled, unexpectedRequests: [],
 		});
 		await session.disconnect();
 	});

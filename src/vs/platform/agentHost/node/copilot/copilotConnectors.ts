@@ -85,10 +85,9 @@ export async function reconcileCopilotConnectors(
 			if (!canReconcile()) {
 				return { reconciled };
 			}
-			// Ordinary reconciliation keeps disabled servers disabled, but restarts a stopped server whose definition changed.
-			if (current.runtimeServers.some(server => forceConnectorName === undefined
-				? server.status === 'stopped' || server.status === 'not_configured'
-				: server.connectorName === forceConnectorName && (server.status === 'stopped' || server.status === 'not_configured' || server.status === 'disabled')
+			if (current.runtimeServers.some(server =>
+				(forceConnectorName === undefined || server.connectorName === forceConnectorName)
+				&& (server.status === 'stopped' || server.status === 'not_configured' || server.status === 'disabled')
 			)) {
 				if (forceConnectorName === undefined && options.addNewlyConnected && capabilities.targetedReconcile) {
 					// A targeted reconcile adds only its target, without restarting, reconfiguring or removing other
@@ -102,10 +101,10 @@ export async function reconcileCopilotConnectors(
 					newlyConnectedChecked = !addingNewlyConnected;
 				}
 				if (!addingNewlyConnected) {
-					logService.info(`[Copilot:${session.sessionId}] Deferring Connector MCP reconciliation to preserve stopped servers`);
+					logService.info(`[Copilot:${session.sessionId}] Deferring Connector MCP reconciliation to preserve stopped or disabled servers`);
 					return { reconciled, connectorServers: copilotConnectorServers(current), newlyConnectedChecked };
 				}
-				logService.info(`[Copilot:${session.sessionId}] Adding newly connected Connectors through targeted reconciliation; ordinary reconciliation remains deferred to preserve stopped servers`);
+				logService.info(`[Copilot:${session.sessionId}] Adding newly connected Connectors through targeted reconciliation; ordinary reconciliation remains deferred to preserve stopped or disabled servers`);
 				refreshCatalog = false;
 			}
 		}
