@@ -14,7 +14,8 @@ import { isWorktreeUnderRepository } from './worktreePaths.js';
 /**
  * Whether `resource` is trusted under the Workspace Trust snapshot the client forwards to the Agent Host
  * (`AgentHostWorkspaceTrustConfigKey`): every resource when trust is disabled, otherwise a resource equal to or under a
- * trusted URI (ignoring path case where the file system does). An absent snapshot is untrusted.
+ * trusted URI, ignoring path case on platforms whose paths are treated case-insensitively (Windows and macOS; this does
+ * not detect a case-sensitive volume). An absent snapshot is untrusted.
  */
 export function isAgentHostWorkspaceTrusted(resource: URI, trust: IAgentHostWorkspaceTrust | undefined): boolean {
 	if (!trust) {

@@ -384,7 +384,7 @@ export type CopilotSessionLaunchPlan = ICopilotCreateSessionLaunchPlan | ICopilo
  * it. Workspace-less (scratch) and non-`file` working directories get no
  * grant. The SDK accepts the grant on create only, never on resume.
  */
-export function getCopilotWorkingDirectoryTrust(plan: Pick<CopilotSessionLaunchPlan, 'workingDirectory' | 'workspaceless' | 'worktreeRepository'>, trust: IAgentHostWorkspaceTrust | undefined): SessionConfig['trustWorkingDirectory'] {
+export function getCopilotWorkingDirectoryTrust(plan: Pick<CopilotSessionLaunchPlan, 'workingDirectory' | 'workspaceless' | 'worktreeRepository'>, trust: IAgentHostWorkspaceTrust | undefined): 'session' | undefined {
 	const workingDirectory = plan.workingDirectory;
 	if (!workingDirectory || plan.workspaceless || workingDirectory.scheme !== Schemas.file) {
 		return undefined;
@@ -1091,9 +1091,11 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	private async _createSession(plan: ICopilotCreateSessionLaunchPlan, config: SandboxAwareSessionConfig, sandboxConfig: (session: CopilotSessionWrapper['session']) => Promise<void>, runtime: ICopilotSessionRuntime, policy: CopilotManagedModelPolicy | undefined): Promise<CopilotSessionWrapper> {
 		const model = policy ? omitCopilotManagedModelDefaults(plan.model, policy) : plan.model;
 		const omittedContextDefault = plan.model?.config?.[ContextSizeConfigKey] !== undefined && model?.config?.[ContextSizeConfigKey] === undefined;
-		const trustWorkingDirectory = getCopilotWorkingDirectoryTrust(plan, this._configurationService.getRootValue(platformRootSchema, AgentHostWorkspaceTrustConfigKey));
-		if (trustWorkingDirectory) {
-			this._logService.info(`[Copilot:${plan.sessionId}] Granting the runtime '${trustWorkingDirectory}' trust for the trusted working directory`);
+		const workspaceTrust = this._configurationService.getRootValue(platformRootSchema, AgentHostWorkspaceTrustConfigKey);
+		const trustWorkingDirectory = getCopilotWorkingDirectoryTrust(plan, workspaceTrust);
+		if (trustWorkingDirectory && plan.workingDirectory) {
+			const inheritedFrom = plan.worktreeRepository && !isAgentHostWorkspaceTrusted(plan.workingDirectory, workspaceTrust) ? `, inherited from worktree repository ${plan.worktreeRepository.fsPath}` : '';
+			this._logService.info(`[Copilot:${plan.sessionId}] Granting the runtime '${trustWorkingDirectory}' trust for trusted working directory ${plan.workingDirectory.fsPath}${inheritedFrom}`);
 		}
 		const raw = await this._withTraceContext(plan.sessionId, () => this._openWithSandboxConfig(plan.sessionId, config, openConfig => plan.client.createSession({
 			...openConfig,
