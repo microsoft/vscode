@@ -229,7 +229,7 @@ export class AgentHostSandboxNotification extends Disposable {
 			return;
 		}
 		const learnMore = new MarkdownString().appendLink(
-			'https://code.visualstudio.com/docs/agents/run/agent-sandboxing#_why-certificate-trust-is-needed',
+			'https://aka.ms/vscode-sandboxing-certtrust',
 			localize('agentHost.sandboxCertificateWhyTrust', "Learn more"),
 		);
 		const description = new MarkdownString();

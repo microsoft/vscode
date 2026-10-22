@@ -1227,6 +1227,8 @@
 		"--modern-ui-tab-hover-background",
 		"--modern-ui-tab-terminal-gutter",
 		"--modern-ui-window-corner-radius",
+		"--sash-grip-opacity",
+		"--sash-grip-transition-duration",
 		"--search-editor-query-layout-offset",
 		"--scroll-shadow-surface",
 		"--vscode-chat-list-background",

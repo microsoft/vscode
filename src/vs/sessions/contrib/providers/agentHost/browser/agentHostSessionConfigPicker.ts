@@ -14,7 +14,7 @@ import { BaseActionViewItem, IActionViewItemOptions } from '../../../../../base/
 import { IHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegate.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { Checkbox } from '../../../../../base/browser/ui/toggle/toggle.js';
-import { toAction } from '../../../../../base/common/actions.js';
+import { IAction, toAction } from '../../../../../base/common/actions.js';
 import { Delayer, SequencerByKey } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
@@ -1692,8 +1692,10 @@ export class PickerActionViewItem extends BaseActionViewItem implements IChatInp
 		disposable?: IDisposable,
 		private readonly _manageFocusableElement = false,
 		options?: IActionViewItemOptions,
+		/** The menu action this picker renders, so toolbars can identify the picker. */
+		action: IAction = { id: '', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } },
 	) {
-		super(undefined, { id: '', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } }, options);
+		super(undefined, action, options);
 		if (disposable) {
 			this._register(disposable);
 		}
@@ -1998,13 +2000,14 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 		store.add(actionViewItemService.register(
 			Menus.NewSessionRepositoryConfig,
 			commandId,
-			(_action, _options, scopedInstantiationService) => {
+			(action, options, scopedInstantiationService) => {
 				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
 				return new PickerActionViewItem(
 					scopedInstantiationService.createInstance(MobileAgentHostSessionConfigPicker, session, property),
 					undefined,
 					true,
-					_options,
+					options,
+					action,
 				);
 			},
 		));

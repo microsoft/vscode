@@ -288,7 +288,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('chat.agentHost.agentOrchestrationLimits.on', "Enforce the limits."),
 				nls.localize('chat.agentHost.agentOrchestrationLimits.off', "Do not enforce the limits."),
 			],
-			description: nls.localize('chat.agentHost.agentOrchestrationLimits', "Controls process-wide limits on sessions and chats created, messages sent, and recursive session spawning by Agent Host session tools. Confirmation requirements and input validation are unchanged."),
+			description: nls.localize('chat.agentHost.agentOrchestrationLimits', "Controls per-session limits, over a sliding one-hour window, on sessions and chats created and messages sent, and the depth of recursive session spawning, by Agent Host session tools. Confirmation requirements and input validation are unchanged."),
 			default: 'on',
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
@@ -312,7 +312,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[AgentHostComputerUseEnabledSettingId]: {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.agentHost.computerUse.enabled', "When enabled, local Copilot agent sessions on macOS and Windows offer GitHub's Computer Use plugin, which can operate desktop applications. The plugin is downloaded on first use. Turn it on with `/computer on` in a Copilot chat; each application still requires your approval."),
+			markdownDescription: nls.localize('chat.agentHost.computerUse.enabled', "When enabled, local Copilot agent sessions on macOS and Windows offer GitHub's Computer Use plugin, which can operate desktop applications. The plugin is downloaded on first use. Turn it on with `/computer on` in a Copilot chat, or when the agent asks. Each application still requires your approval. Changes take effect after a restart."),
 			default: false,
 			tags: ['experimental', 'advanced'],
 			experiment: { mode: 'startup' },

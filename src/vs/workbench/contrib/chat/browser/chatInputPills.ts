@@ -3,23 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { addDisposableListener, EventType, getWindow } from '../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import type { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Action, Separator, SubmenuAction, toAction, type IAction, type IActionRunner } from '../../../../base/common/actions.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { AnchorPosition } from '../../../../base/common/layout.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, derivedOpts, IObservable } from '../../../../base/common/observable.js';
-import type { ThemeIcon } from '../../../../base/common/themables.js';
+import { autorun, constObservable, derived, derivedOpts, IObservable, ISettableObservable, ITransaction, observableFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import type { CodeWindow } from '../../../../base/browser/window.js';
 import { localize } from '../../../../nls.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../browser/labels.js';
 import { ChatChangesPillActionViewItem, type IChatChangesStats } from '../../../browser/chatChangesPill.js';
-import { ChatPillsRow, ChatPillsWidget, getChatPillEntries, getChatPillEntryHoverActions, type ChatPillsCompactMode, type IChatPill, type IChatPillSection } from '../../../browser/chatPills.js';
-import { createChatSectionPill, type IChatDropdownPillOptions } from '../../../browser/chatDropdownPill.js';
+import { ChatPillsRow, ChatPillsWidget, getChatPillEntries, getChatPillEntryHoverActions, withChatPillHoverLabel, type ChatPillsCompactMode, type IChatPill, type IChatPillAction, type IChatPillEntry, type IChatPillSection } from '../../../browser/chatPills.js';
+import { ChatPillSingleEntry, createChatSectionPill, getChatPillInlineEntry, type IChatDropdownPillOptions } from '../../../browser/chatDropdownPill.js';
 import { getSessionChatPillLabel, getSessionChatPillMenu, ISessionChatPillVisibilityService, type ISessionChatPillMenuEntry, SessionChatPillKind } from '../common/sessionChatPills.js';
 import { chatArtifactPillOptions } from './widget/chatTurnPills.js';
 import { sessionBackgroundShellsPillOptions, sessionBrowsersPillOptions, sessionCanvasesPillOptions, sessionCustomizationsPillOptions, sessionIssuesPillOptions, sessionPullRequestsPillOptions, sessionReferencesPillOptions, sessionSubagentsPillOptions } from './sessionChatPillOptions.js';
@@ -29,10 +32,10 @@ export interface IChatInputPillSource {
 	readonly hasData: IObservable<boolean>;
 	/** Whether any entries remain after the pill's own filtering. */
 	readonly isVisible?: IObservable<boolean>;
-	readonly pill: IObservable<IChatPill>;
+	readonly pills: IObservable<readonly IChatPill[]>;
 	getContextMenuActions?(): readonly IAction[];
 	/** Actions on this pill's content, shown directly when its context menu is opened. */
-	getContextMenuPrimaryActions?(): readonly IAction[];
+	getContextMenuPrimaryActions?(pill: IChatPill): readonly IAction[];
 }
 
 export interface IChatInputPillsOptions {
@@ -80,6 +83,60 @@ function setsEqual<T>(first: ReadonlySet<T>, second: ReadonlySet<T>): boolean {
 	return first === second || (first.size === second.size && [...first].every(value => second.has(value)));
 }
 
+const PINNED_CHAT_PILL_ENTRIES_STORAGE_KEY = 'chat.inputPills.pinnedEntries';
+
+function readPinnedChatPillEntries(storageService: IStorageService): ReadonlyMap<string, readonly string[]> {
+	const value = storageService.get(PINNED_CHAT_PILL_ENTRIES_STORAGE_KEY, StorageScope.PROFILE);
+	if (!value) {
+		return new Map();
+	}
+	try {
+		return new Map(JSON.parse(value) as readonly [string, readonly string[]][]);
+	} catch {
+		return new Map();
+	}
+}
+
+function getPinnedEntryStorageKey(scope: string, kind: SessionChatPillKind): string {
+	return JSON.stringify([scope, kind]);
+}
+
+class PinnedChatPillModel {
+	private readonly entry: ISettableObservable<IChatPillEntry>;
+	readonly pill: IObservable<IChatPill>;
+
+	constructor(
+		kind: SessionChatPillKind,
+		entry: IChatPillEntry,
+		title: string,
+		options: IChatDropdownPillOptions,
+		resourceLabels: ResourceLabels,
+		instantiationService: IInstantiationService,
+	) {
+		this.entry = observableValue(this, entry);
+		const action = toAction({
+			id: `chatInputPills.${kind}.pinned.${entry.id}`,
+			label: entry.label,
+			run: () => this.entry.get().open(),
+		});
+		this.pill = createChatSectionPill(
+			action,
+			derived(this, reader => [{ title, entries: [this.entry.read(reader)] }]),
+			{ ...options, singleEntry: ChatPillSingleEntry.Inline, promotedActionIcon: Codicon.unpin },
+			resourceLabels,
+			instantiationService,
+		);
+	}
+
+	setEntry(entry: IChatPillEntry, tx: ITransaction): void {
+		this.entry.set(entry, tx);
+	}
+
+	getEntry(): IChatPillEntry {
+		return this.entry.get();
+	}
+}
+
 /** Creates a source backed by one section/dropdown pill. */
 export function createChatSectionPillSource(
 	kind: SessionChatPillKind,
@@ -89,10 +146,11 @@ export function createChatSectionPillSource(
 	resourceLabels: ResourceLabels,
 	instantiationService: IInstantiationService,
 ): IChatInputPillSource {
+	const pill = createChatSectionPill(action, sections, options, resourceLabels, instantiationService);
 	return {
 		kind,
 		hasData: derived(reader => getChatPillEntries(sections.read(reader)).length > 0),
-		pill: createChatSectionPill(action, sections, options, resourceLabels, instantiationService),
+		pills: derived(reader => [pill.read(reader)]),
 	};
 }
 
@@ -103,11 +161,18 @@ export class StandardChatInputPillSources extends Disposable {
 	constructor(
 		data: IStandardChatInputPillsData,
 		offeredKinds: readonly SessionChatPillKind[],
+		pinScope: IObservable<string | undefined>,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 
 		const offered = new Set(offeredKinds);
+		const pinnedEntryIds = observableFromEvent(
+			this,
+			storageService.onDidChangeValue(StorageScope.PROFILE, PINNED_CHAT_PILL_ENTRIES_STORAGE_KEY, this._store),
+			() => readPinnedChatPillEntries(storageService),
+		);
 		const resourceLabels = this._register(instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
 		const sources: IChatInputPillSource[] = [];
 		if (data.changes && offered.has(SessionChatPillKind.Changes)) {
@@ -125,7 +190,7 @@ export class StandardChatInputPillSources extends Disposable {
 			sources.push({
 				kind: SessionChatPillKind.Changes,
 				hasData: derived(reader => changes.stats.read(reader).files > 0),
-				pill: constObservable(pill),
+				pills: constObservable([pill]),
 				getContextMenuActions: () => changes.getContextMenuActions?.() ?? [],
 				getContextMenuPrimaryActions: () => changes.getContextMenuPrimaryActions?.() ?? [],
 			});
@@ -136,22 +201,106 @@ export class StandardChatInputPillSources extends Disposable {
 				return;
 			}
 			const action = this._register(new Action(`chatInputPills.${kind}`, getSessionChatPillLabel(kind)));
-			const pillSource = createChatSectionPillSource(kind, action, source.sections, {
+			const pillOptions: IChatDropdownPillOptions = {
 				...options,
 				...(source.icon ? { icon: source.icon } : {}),
 				preferredAnchorPosition: AnchorPosition.ABOVE,
+			};
+			const presentation = derived(this, reader => {
+				const sections = source.sections.read(reader);
+				const scope = pinScope.read(reader);
+				const pinnedIds = scope
+					? new Set(pinnedEntryIds.read(reader).get(getPinnedEntryStorageKey(scope, kind)) ?? [])
+					: new Set<string>();
+				const pinnedEntries: IChatPillEntry[] = [];
+				const unpinnedSections = sections.map(section => ({
+					...section,
+					entries: section.entries.filter(entry => {
+						if (!pinnedIds.has(entry.id)) {
+							return true;
+						}
+						pinnedEntries.push(this.withPinAction(entry, kind, scope, true));
+						return false;
+					}),
+				})).filter(section => section.entries.length > 0);
+				const unpinnedEntries = getChatPillEntries(unpinnedSections);
+				const inlineRemaining = pinnedEntries.length > 0 && unpinnedEntries.length === 1 && pillOptions.openHoverOnSelect !== true;
+				const unpinnedOptions = inlineRemaining
+					? { ...pillOptions, singleEntry: ChatPillSingleEntry.Inline }
+					: pillOptions;
+				const pinAvailable = !!scope && unpinnedEntries.length > 0 && !getChatPillInlineEntry(unpinnedEntries, unpinnedOptions);
+				return {
+					inlineRemaining,
+					pinnedEntries,
+					sections: pinAvailable
+						? unpinnedSections.map(section => ({
+							...section,
+							entries: section.entries.map(entry => this.withPinAction(entry, kind, scope, false)),
+						}))
+						: unpinnedSections,
+				};
+			});
+			const unpinnedSections = derived(this, reader => presentation.read(reader).sections);
+			const pillSource = createChatSectionPillSource(kind, action, unpinnedSections, pillOptions, resourceLabels, instantiationService);
+			const inlinePillSource = createChatSectionPillSource(kind, action, unpinnedSections, {
+				...pillOptions,
+				singleEntry: ChatPillSingleEntry.Inline,
 			}, resourceLabels, instantiationService);
+			const unpinnedPills = derived(this, reader => presentation.read(reader).inlineRemaining
+				? inlinePillSource.pills.read(reader)
+				: pillSource.pills.read(reader));
+			const pinnedModels = new Map<string, PinnedChatPillModel>();
+			const pinnedModelsByPill = new WeakMap<IChatPill, PinnedChatPillModel>();
+			const pinnedPills = observableValue<readonly IChatPill[]>(this, []);
+			this._register(autorun(reader => {
+				const entries = presentation.read(reader).pinnedEntries;
+				const retainedIds = new Set(entries.map(entry => entry.id));
+				transaction(tx => {
+					const pills = entries.map(entry => {
+						let model = pinnedModels.get(entry.id);
+						if (!model) {
+							model = new PinnedChatPillModel(kind, entry, pillOptions.title, pillOptions, resourceLabels, instantiationService);
+							pinnedModels.set(entry.id, model);
+						}
+						model.setEntry(entry, tx);
+						const pill = model.pill.read(reader);
+						pinnedModelsByPill.set(pill, model);
+						return pill;
+					});
+					pinnedPills.set(pills, tx);
+				});
+				for (const id of pinnedModels.keys()) {
+					if (!retainedIds.has(id)) {
+						pinnedModels.delete(id);
+					}
+				}
+			}));
+			const pills = derived(this, reader => {
+				const promotedPills = pinnedPills.read(reader);
+				return pillSource.hasData.read(reader)
+					? [...promotedPills, ...unpinnedPills.read(reader)]
+					: promotedPills;
+			});
+			const isVisible = derived(reader => presentation.read(reader).pinnedEntries.length > 0 || pillSource.hasData.read(reader));
 			sources.push({
 				...pillSource,
-				hasData: source.hasData ?? pillSource.hasData,
-				isVisible: pillSource.hasData,
+				pills,
+				hasData: source.hasData ?? isVisible,
+				isVisible,
 				getContextMenuActions: () => source.getContextMenuActions?.() ?? [],
-				getContextMenuPrimaryActions: () => {
+				getContextMenuPrimaryActions: pill => {
+					const pinnedModel = pinnedModelsByPill.get(pill);
+					if (pinnedModel) {
+						return getChatPillEntryHoverActions(pinnedModel.getEntry());
+					}
+					const entries = getChatPillEntries(presentation.get().sections);
+					if (entries.length === 1) {
+						return getChatPillEntryHoverActions(entries[0]);
+					}
 					if (source.getContextMenuPrimaryActions) {
 						return source.getContextMenuPrimaryActions();
 					}
-					const entries = getChatPillEntries(source.sections.get());
-					return entries.length === 1 ? getChatPillEntryHoverActions(entries[0]) : [];
+					return [];
 				},
 			});
 		};
@@ -165,6 +314,61 @@ export class StandardChatInputPillSources extends Disposable {
 		addSections(SessionChatPillKind.Subagents, data.subagents, sessionSubagentsPillOptions);
 		addSections(SessionChatPillKind.BackgroundShells, data.backgroundShells, sessionBackgroundShellsPillOptions);
 		this.sources = sources;
+	}
+
+	private withPinAction(entry: IChatPillEntry, kind: SessionChatPillKind, scope: string | undefined, pinned: boolean): IChatPillEntry {
+		if (!scope) {
+			return entry;
+		}
+		const pinAction = this.createPinAction(entry, kind, scope, pinned);
+		if (pinned) {
+			return {
+				...entry,
+				toolbarActions: [...entry.toolbarActions ?? [], ...(entry.promotedAction ? [entry.promotedAction] : [])],
+				promotedAction: pinAction,
+			};
+		}
+		return {
+			...entry,
+			toolbarActions: [...entry.toolbarActions ?? [], pinAction],
+		};
+	}
+
+	private createPinAction(entry: IChatPillEntry, kind: SessionChatPillKind, scope: string, pinned: boolean): IChatPillAction {
+		return withChatPillHoverLabel(toAction({
+			id: `chatInputPills.${kind}.${pinned ? 'unpin' : 'pin'}.${entry.id}`,
+			label: pinned
+				? localize('chatInputPills.unpinEntry', "Unpin {0}", entry.label)
+				: localize('chatInputPills.pinEntry', "Pin {0}", entry.label),
+			class: ThemeIcon.asClassName(pinned ? Codicon.unpin : Codicon.pin),
+			run: () => this.setPinned(kind, scope, entry.id, entry.label, !pinned),
+		}), pinned
+			? localize('chatInputPills.unpinHoverLabel', "Unpin")
+			: localize('chatInputPills.pinHoverLabel', "Pin"));
+	}
+
+	private setPinned(kind: SessionChatPillKind, scope: string, entryId: string, label: string, pinned: boolean): void {
+		const storageKey = getPinnedEntryStorageKey(scope, kind);
+		const pinnedForSource = new Set(readPinnedChatPillEntries(this.storageService).get(storageKey) ?? []);
+		if (pinned) {
+			pinnedForSource.add(entryId);
+		} else {
+			pinnedForSource.delete(entryId);
+		}
+		const next = new Map(readPinnedChatPillEntries(this.storageService));
+		if (pinnedForSource.size > 0) {
+			next.set(storageKey, [...pinnedForSource]);
+		} else {
+			next.delete(storageKey);
+		}
+		if (next.size > 0) {
+			this.storageService.store(PINNED_CHAT_PILL_ENTRIES_STORAGE_KEY, JSON.stringify([...next]), StorageScope.PROFILE, StorageTarget.MACHINE);
+		} else {
+			this.storageService.remove(PINNED_CHAT_PILL_ENTRIES_STORAGE_KEY, StorageScope.PROFILE);
+		}
+		status(pinned
+			? localize('chatInputPills.pinnedEntry', "Pinned {0}.", label)
+			: localize('chatInputPills.unpinnedEntry', "Unpinned {0}.", label));
 	}
 }
 
@@ -206,7 +410,7 @@ export class ChatInputPills extends Disposable {
 				source.hasData.read(reader) && (source.isVisible?.read(reader) ?? true) && (!source.kind || this._visibility.isVisible(source.kind, reader)));
 		});
 		const model = {
-			pills: derived(this, reader => visibleSources.read(reader).map(source => source.pill.read(reader))),
+			pills: derived(this, reader => visibleSources.read(reader).flatMap(source => source.pills.read(reader))),
 			context: _options.context,
 		};
 		this._pills = this._register(instantiationService.createInstance(ChatPillsWidget, model, {
@@ -232,7 +436,7 @@ export class ChatInputPills extends Disposable {
 			}
 			return kinds;
 		});
-		const showContextMenu = (anchor: HTMLElement | StandardMouseEvent, target?: IChatInputPillSource) => {
+		const showContextMenu = (anchor: HTMLElement | StandardMouseEvent, target?: { readonly source: IChatInputPillSource; readonly pill: IChatPill }) => {
 			const kinds = kindsWithData.get();
 			if (kinds.size === 0) {
 				return;
@@ -246,9 +450,9 @@ export class ChatInputPills extends Disposable {
 			event.preventDefault();
 			event.stopPropagation();
 			const anchor = new StandardMouseEvent(getWindow(this._row.content), event);
-			showContextMenu(anchor, this._getTargetSource(event.target as HTMLElement | null));
+			showContextMenu(anchor, this._getTarget(event.target as HTMLElement | null));
 		}));
-		this._register(this._row.onDidRequestContextMenu(anchor => showContextMenu(anchor, this._getTargetSource(anchor))));
+		this._register(this._row.onDidRequestContextMenu(anchor => showContextMenu(anchor, this._getTarget(anchor))));
 
 		derived(this, reader => {
 			const anyVisible = this._pills.isVisible.read(reader);
@@ -283,27 +487,27 @@ export class ChatInputPills extends Disposable {
 		return this._pills.focusFirst();
 	}
 
-	private _getTargetSource(target: HTMLElement | null): IChatInputPillSource | undefined {
+	private _getTarget(target: HTMLElement | null): { readonly source: IChatInputPillSource; readonly pill: IChatPill } | undefined {
 		const targetPill = this._pills.getPill(target);
 		if (!targetPill) {
 			return undefined;
 		}
 		for (const source of this._options.sources.get()) {
-			if (source.pill.get() === targetPill) {
-				return source;
+			if (source.pills.get().includes(targetPill)) {
+				return { source, pill: targetPill };
 			}
 		}
 		return undefined;
 	}
 
-	private _getVisibilityActions(kindsWithData: ReadonlySet<SessionChatPillKind>, target?: IChatInputPillSource) {
-		const targetKind = target?.kind;
+	private _getVisibilityActions(kindsWithData: ReadonlySet<SessionChatPillKind>, target?: { readonly source: IChatInputPillSource; readonly pill: IChatPill }) {
+		const targetKind = target?.source.kind;
 		const sourceKinds = new Set(this._options.sources.get().flatMap(source => source.kind ? [source.kind] : []));
 		const offeredKinds = this._options.offeredKinds.filter(kind => sourceKinds.has(kind));
 		const menu = getSessionChatPillMenu(kindsWithData, this._visibility.readHiddenKinds(undefined), targetKind, offeredKinds);
 		const restoreFocus = () => this._row.restoreFocus(() => {
 			const pills = this._pills.getPillElements();
-			const targetElement = target ? pills.find(pill => this._getTargetSource(pill)?.pill.get() === target.pill.get()) : undefined;
+			const targetElement = target ? pills.find(pill => this._getTarget(pill)?.pill === target.pill) : undefined;
 			return targetElement ? [targetElement] : pills;
 		}, this._options.focusFallback);
 		const withFocusRestoration = (action: IAction): IAction => {
@@ -350,7 +554,7 @@ export class ChatInputPills extends Disposable {
 				continue;
 			}
 			const actions = source.getContextMenuActions?.() ?? [];
-			const primaryActions = source.pill.get() === target?.pill.get() ? source.getContextMenuPrimaryActions?.() ?? [] : [];
+			const primaryActions = source === target?.source ? source.getContextMenuPrimaryActions?.(target.pill) ?? [] : [];
 			(actions.length ? optionsActions : targetActions).push(...primaryActions.map(withFocusRestoration));
 			if (actions.length) {
 				optionsActions.push(new SubmenuAction(
@@ -382,5 +586,5 @@ export class ChatInputPills extends Disposable {
 
 /** Creates a source for a pill whose data presence is represented by its membership. */
 export function createChatInputPillSource(pill: IChatPill, kind?: SessionChatPillKind): IChatInputPillSource {
-	return { kind, hasData: constObservable(true), pill: constObservable(pill) };
+	return { kind, hasData: constObservable(true), pills: constObservable([pill]) };
 }

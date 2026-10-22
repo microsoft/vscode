@@ -11,7 +11,7 @@ import { observableValue } from '../../../../../../../base/common/observable.js'
 import { URI } from '../../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import { IAgentCustomizationInstallation, IAgentCustomizationMarketplaceSearchRequest } from '../../../../../../../platform/agentHost/common/agent.js';
+import { IAgentCustomizationInstallation, IAgentCustomizationMarketplaceSearchRequest, IAgentPluginInstallRequest } from '../../../../../../../platform/agentHost/common/agent.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentHostService } from '../../../../../../../platform/agentHost/common/agentService.js';
 import { CustomizationMarketplaceRecoveryGroup } from '../../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
@@ -25,6 +25,58 @@ import { IAgentPlugin, IAgentPluginService } from '../../../../common/plugins/ag
 
 suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('installs raw plugin sources through management using the owning backend session and chat', async () => {
+		const frontendSession = URI.parse('agent-host-copilotcli:/frontend');
+		const backendSession = URI.parse('vendor-session://host/opaque-session');
+		const backendChat = URI.parse('vendor-chat://host/opaque-chat');
+		const calls: { provider: string; request: IAgentPluginInstallRequest; session: URI | undefined; chat: URI | undefined }[] = [];
+		let connectionAuthority = AMBIENT_AGENT_HOST_AUTHORITY;
+		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+			'copilotcli',
+			async () => true,
+			new class extends mock<IAgentHostService>() {
+				override readonly onAgentHostStart = Event.None;
+				override readonly onAgentHostExit = Event.None;
+				override async installPlugin(provider: string, request: IAgentPluginInstallRequest, session?: URI, chat?: URI) {
+					if (request.source === 'invalid') {
+						throw new Error('SDK rejected source');
+					}
+					calls.push({ provider, request, session, chat });
+				}
+			}(),
+			new class extends mock<IAgentHostConnectionsService>() {
+				override resolveSessionResourceIdentity() {
+					return { connectionAuthority, backendSession };
+				}
+			}(),
+			new class extends mock<IAgentHostCustomizationService>() {
+				override readonly onDidChangeCustomizations = Event.None;
+				override getBackendChatResource() { return backendChat; }
+			}(),
+			new class extends mock<IAgentPluginService>() {
+				override readonly plugins = observableValue<readonly IAgentPlugin[]>('plugins', []);
+			}(),
+			new class extends mock<IDialogService>() { }(),
+			new NullLogService(),
+		));
+		let changes = 0;
+		store.add(provider.onDidChange(() => changes++));
+		const sources = ['owner/repo', 'https://github.com/owner/repo.git', '/plugins/example', '~/plugins/example', 'file:///plugins/example', 'plugin@marketplace'];
+		for (const source of sources) {
+			await provider.installFromSource(frontendSession, source);
+		}
+		await assert.rejects(provider.installFromSource(frontendSession, 'invalid'), /SDK rejected source/);
+		connectionAuthority = 'remote';
+		await assert.rejects(provider.installFromSource(frontendSession, 'owner/repo'), /selected local Agent Host session is unavailable/);
+
+		assert.deepStrictEqual({ calls, changes }, {
+			calls: sources.map(source => ({
+				provider: 'copilotcli', request: { source }, session: backendSession, chat: backendChat,
+			})),
+			changes: sources.length,
+		});
+	});
 
 	test('routes saved feeds through the owning session and preserves SDK identities and authentication recovery', async () => {
 		const requests: { session: string; request: IAgentCustomizationMarketplaceSearchRequest }[] = [];

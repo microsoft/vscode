@@ -5,7 +5,7 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { autorun, derived } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
@@ -13,7 +13,7 @@ import { ContextKeyExpr, ContextKeyExpression } from '../../../../platform/conte
 import { IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
-import { getCanvasInstanceLabels, getCanvasReferenceKey, ICanvasService } from '../../../../workbench/contrib/canvases/common/canvas.js';
+import { getCanvasInstanceLabels, getCanvasReferenceKey, ICanvasContextService, ICanvasService } from '../../../../workbench/contrib/canvases/common/canvas.js';
 import { getSessionCanvasDefinitionInstanceId, getSessionCanvasDefinitionLabels, ISessionCanvasRegistryService } from '../common/sessionCanvas.js';
 
 export const OPEN_SESSION_CANVAS_COMMAND_ID = 'workbench.action.agentSessions.openCanvas';
@@ -40,6 +40,7 @@ class CanvasMenuActionRegistration extends Disposable {
 	constructor(
 		readonly commandId: string,
 		run: () => Promise<void>,
+		private readonly menu = Menus.SessionsEditorTabsBarAddTabCanvas,
 	) {
 		super();
 		this._register(CommandsRegistry.registerCommand(commandId, run));
@@ -52,7 +53,7 @@ class CanvasMenuActionRegistration extends Disposable {
 		this.title = title;
 		this.group = group;
 		this.order = order;
-		this.menuRegistration.value = MenuRegistry.appendMenuItem(Menus.SessionsEditorTabsBarAddTabCanvas, {
+		this.menuRegistration.value = MenuRegistry.appendMenuItem(this.menu, {
 			command: {
 				id: this.commandId,
 				title,
@@ -66,10 +67,10 @@ class CanvasMenuActionRegistration extends Disposable {
 	}
 }
 
-function appendCanvasSubmenu(menu: MenuId, when: ContextKeyExpression | undefined, group = 'navigation'): IDisposable {
+function appendCanvasSubmenu(menu: MenuId, when: ContextKeyExpression | undefined, group = 'navigation', submenu = Menus.SessionsEditorTabsBarAddTabCanvas): IDisposable {
 	return MenuRegistry.appendMenuItem(menu, {
-		submenu: Menus.SessionsEditorTabsBarAddTabCanvas,
-		title: localize('sessionCanvases.addTab', "Canvas"),
+		submenu,
+		title: localize('sessionCanvases.canvasSubmenu', "Canvas"),
 		icon: Codicon.preview,
 		group,
 		order: 4,
@@ -77,8 +78,9 @@ function appendCanvasSubmenu(menu: MenuId, when: ContextKeyExpression | undefine
 	});
 }
 
-export function registerSessionCanvasActions(canvasService: ICanvasService, registryService: ISessionCanvasRegistryService): IDisposable {
+export function registerSessionCanvasActions(canvasService: ICanvasService, registryService: ISessionCanvasRegistryService, contextService: ICanvasContextService): IDisposable {
 	const store = new DisposableStore();
+	store.add(registerSessionCanvasActivityBarActions(canvasService, contextService));
 	const registrations = store.add(new DisposableMap<string, CanvasMenuActionRegistration>());
 	const submenuRegistration = store.add(new MutableDisposable<IDisposable>());
 	let commandSequence = 0;
@@ -129,9 +131,64 @@ export function registerSessionCanvasActions(canvasService: ICanvasService, regi
 			? combinedDisposable(
 				appendCanvasSubmenu(Menus.SessionsEditorTabsBarAddTab, reopenCanvasWhen),
 				appendCanvasSubmenu(Menus.SessionsEmptyEditorGroupAddTab, reopenCanvasWhen),
-				appendCanvasSubmenu(Menus.SessionActivityBar, canvasAvailableWhen, SessionActivityBarGroup.SidePanel),
 			)
 			: undefined;
+	}));
+	return store;
+}
+
+function registerSessionCanvasActivityBarActions(canvasService: ICanvasService, contextService: ICanvasContextService): IDisposable {
+	const store = new DisposableStore();
+	const registrations = store.add(new DisposableMap<string, CanvasMenuActionRegistration>());
+	const activityBarRegistration = store.add(new MutableDisposable<IDisposable>());
+	let commandSequence = 0;
+	const activeCanvases = derived(reader => canvasService.enabled.read(reader)
+		? contextService.contexts.read(reader).flatMap(context => (context.canvases.read(reader) ?? []).map(canvas => ({
+			reference: { ...context.owner, canvas: canvas.resource },
+			canvas,
+		})))
+		: []);
+	// Match the submenu ID so persisted toolbar hiding survives single/multiple canvas transitions.
+	store.add(CommandsRegistry.registerCommand(Menus.SessionActivityBarCanvas.id, async () => {
+		const targets = activeCanvases.get();
+		if (targets.length === 1) {
+			await canvasService.revealCanvas(targets[0].reference);
+		}
+	}));
+	store.add(autorun(reader => {
+		const targets = activeCanvases.read(reader);
+		const labels = getCanvasInstanceLabels(targets.map(target => target.canvas));
+		const activeKeys = new Set<string>();
+		for (let index = 0; index < targets.length; index++) {
+			const target = targets[index];
+			const key = getCanvasReferenceKey(target.reference);
+			activeKeys.add(key);
+			let registration = registrations.get(key);
+			if (!registration) {
+				registration = new CanvasMenuActionRegistration(
+					`${OPEN_SESSION_CANVAS_COMMAND_ID}.reveal.${++commandSequence}`,
+					() => canvasService.revealCanvas(target.reference),
+					Menus.SessionActivityBarCanvas,
+				);
+				registrations.set(key, registration);
+			}
+			registration.update(labels[index], 'navigation', index);
+		}
+		for (const key of [...registrations.keys()]) {
+			if (!activeKeys.has(key)) {
+				registrations.deleteAndDispose(key);
+			}
+		}
+		activityBarRegistration.value = targets.length === 1
+			? MenuRegistry.appendMenuItem(Menus.SessionActivityBar, {
+				command: { id: Menus.SessionActivityBarCanvas.id, title: labels[0], icon: Codicon.preview },
+				group: SessionActivityBarGroup.SidePanel,
+				order: 4,
+				when: canvasAvailableWhen,
+			})
+			: targets.length > 1
+				? appendCanvasSubmenu(Menus.SessionActivityBar, canvasAvailableWhen, SessionActivityBarGroup.SidePanel, Menus.SessionActivityBarCanvas)
+				: undefined;
 	}));
 	return store;
 }

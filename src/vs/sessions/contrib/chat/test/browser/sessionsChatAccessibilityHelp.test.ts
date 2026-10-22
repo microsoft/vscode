@@ -35,12 +35,36 @@ import { SESSION_ARCHIVE_NUDGE_SETTING } from '../../browser/sessionArchiveNudge
 import { SessionComparisonAccessibleView, SessionsChatAccessibilityHelp } from '../../browser/sessionsChatAccessibilityHelp.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT, SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
-import { SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
+import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
+import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { RemoteSessionToolsEnabledSettingId } from '../../../remoteSessions/common/remoteSessions.js';
 import { DevContainerAgentHostEnabledSettingId, DevContainerSamplesEnabledSettingId } from '../../../../common/devContainerAgentHostService.js';
 import { getCloudSandboxPreparationAccessibilityHelp } from '../../../../../workbench/contrib/chat/browser/actions/chatAccessibilityHelp.js';
 suite('SessionsChatAccessibilityHelp', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const enabled of [true, false]) {
+		test(`documents chat-scoped activity bar selection only when enabled: ${enabled}`, () => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const configuration = new TestConfigurationService({ [SESSION_ACTIVITY_BAR_SETTING]: enabled });
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			instantiationService.stub(IConfigurationService, configuration);
+			stubContextKeyService(instantiationService, configuration);
+			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+			const container = mainWindow.document.createElement('div');
+			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: container });
+			instantiationService.stub(IAgentWorkbenchLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop, mainContainer: container });
+			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
+			assert.deepStrictEqual({
+				optIn: content.includes('Pull request and issue actions are off by default. Enable Show Pull Request and Issue Actions in the activity bar\'s context menu to show them.'),
+				chatScope: content.includes('Open Pull Request and Open Issue are also available for the active chat\'s pull requests and issues when a contributed opener is available for their links.'),
+				singleAndMultiple: content.includes('A single supported reference opens directly; multiple supported references open a picker.'),
+				cancel: content.includes('Enter to choose a reference, or Escape to cancel.'),
+			}, { optIn: enabled, chatScope: enabled, singleAndMultiple: enabled, cancel: enabled });
+		});
+	}
 
 	test('documents navigation through sessions and singleton views', () => {
 		const instantiationService = store.add(new TestInstantiationService());
