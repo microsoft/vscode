@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { WebSocketClientTransport } from '../../browser/webSocketClientTransport.js';
-import type { ITransportCloseDetails } from '../../common/state/sessionTransport.js';
+import { getProtocolMessageSize, type ITransportCloseDetails } from '../../common/state/sessionTransport.js';
 
 class TestWebSocket extends EventTarget implements WebSocket {
 	readonly CONNECTING = 0;
@@ -47,8 +47,10 @@ suite('WebSocketClientTransport', () => {
 		const request = { jsonrpc: '2.0', id: 1, method: 'initialize', params: { clientId: 'client' } } as const;
 		transport.send(request);
 		const response = { jsonrpc: '2.0', id: 1, result: {} };
-		socket.dispatchEvent(new MessageEvent('message', { data: JSON.stringify(response) }));
+		const text = JSON.stringify(response, undefined, 2);
+		socket.dispatchEvent(new MessageEvent('message', { data: text }));
 		assert.deepStrictEqual({ sent: socket.sent, received }, { sent: [JSON.stringify(request)], received: [response] });
+		assert.strictEqual(getProtocolMessageSize(received[0]), text.length * 2);
 	});
 
 	for (const errorFirst of [false, true]) {

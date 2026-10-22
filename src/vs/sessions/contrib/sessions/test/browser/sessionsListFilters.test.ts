@@ -81,6 +81,27 @@ suite('SessionsListFilters', () => {
 		]);
 	});
 
+	test('filters task client applications independently of external status and reuses existing preferences', () => {
+		const filters = createFilters();
+		const sessions = ['copilot-vscode', 'copilot-cli', 'copilot-app'].map(application =>
+			buildTestSession({ id: application, title: application, environment: 'cloud', application, isExternal: false }).session);
+		const before = sessions.filter(session => filters.matches(session)).map(session => session.sessionId);
+		filters.setExcluded({ kind: 'application', environment: 'cloud', id: 'github/cli' }, true);
+		assert.deepStrictEqual({
+			before,
+			after: sessions.filter(session => filters.matches(session)).map(session => session.sessionId),
+			external: sessions.map(session => session.isExternal?.get()),
+			applications: getSessionFilterOptions(sessions, [])
+				.filter(option => option.filter.kind === 'application' && option.filter.environment === 'cloud')
+				.map(option => option.label),
+		}, {
+			before: ['copilot-vscode', 'copilot-cli', 'copilot-app'],
+			after: ['copilot-vscode', 'copilot-app'],
+			external: [false, false, false],
+			applications: ['Copilot App (Cloud)', 'Copilot CLI (Cloud)', 'VS Code (Cloud)'],
+		});
+	});
+
 	for (const environment of ['local', 'remote-id', 'agenthost-build-server:8080']) {
 		test(`defaults ${environment} applications to VS Code and preserves explicit choices through reload and reset`, () => {
 			const storage = store.add(new InMemoryStorageService());

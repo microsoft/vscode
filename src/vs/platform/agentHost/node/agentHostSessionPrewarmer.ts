@@ -7,12 +7,12 @@ import { raceCancellation } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, toDisposable, type IDisposable } from '../../../base/common/lifecycle.js';
-import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { type IAgent, type IAgentChatContext } from '../common/agent.js';
 import { AgentHostPrewarmSessionsConfigKey, AgentHostWorkspaceTrustConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
+import { isAgentHostWorkspaceTrusted } from '../common/agentHostWorkspaceTrust.js';
 import { AgentHostPrewarmSessionsSettingId } from '../common/agentService.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
@@ -69,9 +69,10 @@ export interface IAgentHostPrewarmCandidate {
  * A worktree draft never warms: its enablement stays pending until its
  * worktree is created on the first send, so it fails gate 3. A client that
  * keeps the isolation choice local until Send (the Agents window) never
- * creates such a draft: its draft warms as a folder draft, and a worktree
- * send discards that warm launch and starts cold in the worktree (see
- * `CopilotAgent._takeEarlyLaunch`).
+ * creates such a draft: it creates the draft in the picked folder even when
+ * the user picked a worktree, so the draft warms as a folder draft, and a
+ * worktree send discards that warm launch and starts cold in the worktree
+ * (see `CopilotAgent._takeEarlyLaunch`).
  */
 export class AgentHostSessionPrewarmer extends Disposable {
 
@@ -158,19 +159,6 @@ export class AgentHostSessionPrewarmer extends Disposable {
 
 	/** Mirrors the trust check that gates workspace hooks: an absent trust configuration is untrusted. */
 	private _isTrusted(resource: URI): boolean {
-		const trust = this._configurationService.getRootValue(platformRootSchema, AgentHostWorkspaceTrustConfigKey);
-		if (!trust) {
-			return false;
-		}
-		if (!trust.enabled) {
-			return true;
-		}
-		return trust.trustedUris.some(uri => {
-			try {
-				return extUriBiasedIgnorePathCase.isEqualOrParent(resource, URI.parse(uri));
-			} catch {
-				return false;
-			}
-		});
+		return isAgentHostWorkspaceTrusted(resource, this._configurationService.getRootValue(platformRootSchema, AgentHostWorkspaceTrustConfigKey));
 	}
 }

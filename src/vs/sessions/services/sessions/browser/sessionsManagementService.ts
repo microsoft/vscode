@@ -7,9 +7,10 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
-import { toErrorMessage } from '../../../../base/common/errorMessage.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { isErrorWithActions, toErrorMessage } from '../../../../base/common/errorMessage.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable, IReference } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
+import { IArtifactModel } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -24,10 +25,10 @@ import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/co
 import { ICopilotHomeService } from '../../../../workbench/services/environment/common/copilotHomeService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { getSessionReferenceResource } from './sessionReference.js';
-import { IChatDeletedEvent, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IDeferredNewSessionRequestOptions, IMarkSessionReadOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, NewSessionRequestOptions, WorkspaceNotTrustedError } from '../common/sessionsManagement.js';
+import { IChatDeletedEvent, ISessionChatMoveTarget, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IDeferredNewSessionRequestOptions, IMarkSessionReadOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, NewSessionRequestOptions, WorkspaceNotTrustedError } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
-import { IChatMovedEvent, IDeleteChatOptions, IPreparedNewSession, ISessionChangeEvent, ISessionsProvider, type ISessionsProviderCreateSessionOptions, type SessionResourceResolveReason } from '../common/sessionsProvider.js';
-import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionWorkspace, ISideChatSelection, isActiveSessionStatus, SessionStatus, ISessionType } from '../common/session.js';
+import { IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, type INestedChatWorkspace, IPreparedNewSession, NestedChatWorkspaceError, SessionMoveRefusedError, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISessionsProvider, type ISessionsProviderCreateSessionOptions, type SessionResourceResolveReason } from '../common/sessionsProvider.js';
+import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionWorkspace, ISideChatSelection, isActiveSessionStatus, SessionStatus, ISessionType, type SessionCanvasDefinitionSnapshot } from '../common/session.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
@@ -70,7 +71,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	readonly onDidReplaceSession: Event<{ readonly from: ISession; readonly to: ISession }> = this._onDidReplaceSession.event;
 	private readonly _onDidMoveChat = this._register(new Emitter<IChatMovedEvent>());
 	readonly onDidMoveChat: Event<IChatMovedEvent> = this._onDidMoveChat.event;
-	private readonly _explicitlyMarkedUnreadMainChats = new ResourceMap<number | undefined>();
+	private readonly _onDidInvokeChangesetOperation = this._register(new Emitter<ISessionChangesetOperationInvokedEvent>());
+	readonly onDidInvokeChangesetOperation: Event<ISessionChangesetOperationInvokedEvent> = this._onDidInvokeChangesetOperation.event;
+	private readonly _explicitlyMarkedUnreadChats = new ResourceMap<ResourceMap<number | undefined>>();
 
 	private readonly _onDidDiscardNewSession = this._register(new Emitter<ISession>());
 	readonly onDidDiscardNewSession: Event<ISession> = this._onDidDiscardNewSession.event;
@@ -171,6 +174,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			if (provider.onDidReplaceSession) {
 				disposables.add(provider.onDidReplaceSession(e => this._handleDidReplaceSession(e.from, e.to)));
 			}
+			if (provider.onDidInvokeChangesetOperation) {
+				disposables.add(provider.onDidInvokeChangesetOperation(e => this._onDidInvokeChangesetOperation.fire(e)));
+			}
 			if (provider.onDidChangeSessionTypes) {
 				disposables.add(provider.onDidChangeSessionTypes(() => this._updateSessionTypes()));
 			}
@@ -179,7 +185,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	private _handleDidReplaceSession(from: ISession, to: ISession): void {
-		this._explicitlyMarkedUnreadMainChats.delete(from.resource);
+		this._explicitlyMarkedUnreadChats.delete(from.resource);
 		this.chatWidgetHistoryService.moveHistory(ChatAgentLocation.Chat, from.sessionId, to.sessionId);
 		// Notify the view service so it can update the visible grid slot.
 		this._onDidReplaceSession.fire({ from, to });
@@ -722,7 +728,15 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return created;
 	}
 
-	async forkChatInSession(session: ISession, sourceChat: URI, turnId: string): Promise<IChat> {
+	async applyNestedChatWorkspace(session: ISession, chat: IChat, workspace: INestedChatWorkspace, prompt: string): Promise<void> {
+		const provider = this._getProvider(session);
+		if (!provider) {
+			throw NestedChatWorkspaceError.notSupported();
+		}
+		return provider.applyNestedChatWorkspace(session.sessionId, chat.resource, workspace, prompt);
+	}
+
+	async forkChatInSession(session: ISession, sourceChat: URI, turnId: string, options?: IForkChatOptions): Promise<IChat> {
 		const provider = this._getProvider(session);
 		if (!provider) {
 			throw new Error(`Provider '${session.providerId}' not found for session '${session.sessionId}'`);
@@ -730,7 +744,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		if (!session.capabilities.get().supportsMultipleChats) {
 			throw new Error(`Session '${session.sessionId}' does not support forking into a chat`);
 		}
-		return provider.forkChat(session.sessionId, sourceChat, turnId);
+		return provider.forkChat(session.sessionId, sourceChat, turnId, options);
 	}
 
 	async createSideChatInSession(session: ISession, sourceChat: URI, turnId: string, selection?: ISideChatSelection): Promise<IChat> {
@@ -816,7 +830,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				.catch(e => {
 					if (!isCancellationError(e) && !(e instanceof WorkspaceNotTrustedError)) {
 						this.logService.error('[SessionsManagement] Failed to send background request:', e);
-						this.notificationService.error(localize('newSession.sendFailed', "Failed to start session: {0}", toErrorMessage(e)));
+						this.notificationService.error(isErrorWithActions(e) ? e : localize('newSession.sendFailed', "Failed to start session: {0}", toErrorMessage(e)));
 					}
 				})
 				.finally(() => inFlightRequest?.dispose());
@@ -1321,19 +1335,53 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	async setSessionReadState(session: ISession, isRead: boolean): Promise<void> {
 		if (isRead) {
-			this._explicitlyMarkedUnreadMainChats.delete(session.resource);
+			this._explicitlyMarkedUnreadChats.delete(session.resource);
 		}
 		await this._getProvider(session)?.setSessionReadState(session.sessionId, isRead);
 	}
 
-	async markChatRead(session: ISession, chat: IChat): Promise<boolean | void> {
-		return this._getProvider(session)?.setChatReadState?.(session.sessionId, chat.resource, true) ?? false;
+	markChatRead(session: ISession, chat: IChat, options?: IMarkSessionReadOptions): Promise<boolean | void> {
+		const markers = this._explicitlyMarkedUnreadChats.get(session.resource);
+		if (options?.preserveExplicitUnread
+			&& markers?.has(chat.resource)
+			&& markers.get(chat.resource) === this._getChatReadMarker(chat)) {
+			return Promise.resolve();
+		}
+		return this._setChatReadState(session, chat, true);
+	}
+
+	async markChatUnread(session: ISession, chat: IChat): Promise<boolean | void> {
+		const provider = this._getProvider(session);
+		if (!provider || (!provider.setChatReadState && !this.uriIdentityService.extUri.isEqual(chat.resource, session.mainChat.get().resource))) {
+			return false;
+		}
+		const markers = this._explicitlyMarkedUnreadChats.get(session.resource) ?? new ResourceMap<number | undefined>();
+		const hadExplicitUnread = markers.has(chat.resource);
+		const previousMarker = markers.get(chat.resource);
+		markers.set(chat.resource, this._getChatReadMarker(chat));
+		this._explicitlyMarkedUnreadChats.set(session.resource, markers);
+		try {
+			return await this._setChatReadState(session, chat, false, provider);
+		} catch (error) {
+			if (hadExplicitUnread) {
+				markers.set(chat.resource, previousMarker);
+			} else {
+				markers.delete(chat.resource);
+				if (markers.size === 0) {
+					this._explicitlyMarkedUnreadChats.delete(session.resource);
+				}
+			}
+			throw error;
+		}
 	}
 
 	async markChatsRead(session: ISession, chats: readonly IChat[]): Promise<void> {
 		const provider = this._getProvider(session);
 		if (!provider || chats.length === 0) {
 			return;
+		}
+		for (const chat of chats) {
+			this._clearChatUnreadMarker(session, chat.resource);
 		}
 		if (provider.setChatReadStates) {
 			await provider.setChatReadStates(session.sessionId, chats.map(chat => chat.resource), true);
@@ -1347,50 +1395,38 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	markRead(session: ISession, options?: IMarkSessionReadOptions): Promise<boolean | void> {
-		if (options?.preserveExplicitUnread
-			&& this._explicitlyMarkedUnreadMainChats.has(session.resource)
-			&& this._explicitlyMarkedUnreadMainChats.get(session.resource) === this._getMainChatReadMarker(session)) {
-			return Promise.resolve();
-		}
-		return this._setMainChatReadState(session, true);
+		return this.markChatRead(session, session.mainChat.get(), options);
 	}
 
-	private _getMainChatReadMarker(session: ISession): number | undefined {
-		const chat = session.mainChat.get();
+	private _getChatReadMarker(chat: IChat): number | undefined {
 		return (chat.lastTurnEnd.get() ?? chat.updatedAt.get())?.getTime();
 	}
 
 	async markUnread(session: ISession): Promise<void> {
-		const provider = this._getProvider(session);
-		if (!provider) {
-			return;
-		}
-		const hadExplicitUnread = this._explicitlyMarkedUnreadMainChats.has(session.resource);
-		const previousMarker = this._explicitlyMarkedUnreadMainChats.get(session.resource);
-		this._explicitlyMarkedUnreadMainChats.set(session.resource, this._getMainChatReadMarker(session));
-		try {
-			await this._setMainChatReadState(session, false, provider);
-		} catch (error) {
-			if (hadExplicitUnread) {
-				this._explicitlyMarkedUnreadMainChats.set(session.resource, previousMarker);
-			} else {
-				this._explicitlyMarkedUnreadMainChats.delete(session.resource);
-			}
-			throw error;
-		}
+		await this.markChatUnread(session, session.mainChat.get());
 	}
 
-	private _setMainChatReadState(session: ISession, isRead: boolean, provider = this._getProvider(session)): Promise<boolean | void> {
+	private _setChatReadState(session: ISession, chat: IChat, isRead: boolean, provider = this._getProvider(session)): Promise<boolean | void> {
 		if (isRead) {
-			this._explicitlyMarkedUnreadMainChats.delete(session.resource);
+			this._clearChatUnreadMarker(session, chat.resource);
 		}
 		if (!provider) {
 			return Promise.resolve(false);
 		}
-		const mainChat = session.mainChat.get();
-		return provider.setChatReadState
-			? provider.setChatReadState(session.sessionId, mainChat.resource, isRead)
-			: provider.setSessionReadState(session.sessionId, isRead);
+		if (provider.setChatReadState) {
+			return provider.setChatReadState(session.sessionId, chat.resource, isRead);
+		}
+		return this.uriIdentityService.extUri.isEqual(chat.resource, session.mainChat.get().resource)
+			? provider.setSessionReadState(session.sessionId, isRead)
+			: Promise.resolve(false);
+	}
+
+	private _clearChatUnreadMarker(session: ISession, chat: URI): void {
+		const markers = this._explicitlyMarkedUnreadChats.get(session.resource);
+		markers?.delete(chat);
+		if (markers?.size === 0) {
+			this._explicitlyMarkedUnreadChats.delete(session.resource);
+		}
 	}
 
 	async markAllRead(sessions: readonly ISession[]): Promise<void> {
@@ -1399,7 +1435,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	async deleteSession(session: ISession): Promise<void> {
 		await this._getProvider(session)?.deleteSession(session.sessionId);
-		this._explicitlyMarkedUnreadMainChats.delete(session.resource);
+		this._explicitlyMarkedUnreadChats.delete(session.resource);
 		this._onDidDeleteSession.fire(session);
 	}
 
@@ -1423,7 +1459,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			try {
 				await provider.deleteSessions(providerSessions.map(session => session.sessionId));
 				for (const session of providerSessions) {
-					this._explicitlyMarkedUnreadMainChats.delete(session.resource);
+					this._explicitlyMarkedUnreadChats.delete(session.resource);
 					this._onDidDeleteSession.fire(session);
 				}
 			} catch (error) {
@@ -1437,12 +1473,24 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	async deleteChat(session: ISession, chatUri: URI, options?: IDeleteChatOptions): Promise<boolean> {
+		if (options?.skipConfirmation && !this._isUnsentChat(session, chatUri)) {
+			// Deleting without confirmation is only for drafts with nothing to lose.
+			this.logService.warn(`[SessionsManagement] deleteChat: refusing to delete chat '${chatUri.toString()}' without confirmation: it has been sent`);
+			return false;
+		}
 		const deletedChat = Object.freeze({ session, sessionResource: session.resource, chatResource: chatUri });
 		const deleted = await this._getProvider(session)?.deleteChat(session.sessionId, chatUri, options) ?? false;
 		if (deleted) {
+			this._clearChatUnreadMarker(session, chatUri);
 			this._onDidDeleteChat.fire(deletedChat);
 		}
 		return deleted;
+	}
+
+	/** Whether `chatUri` is an `Untitled` chat of `session` without any request. */
+	private _isUnsentChat(session: ISession, chatUri: URI): boolean {
+		const chat = session.chats.get().find(candidate => this.uriIdentityService.extUri.isEqual(candidate.resource, chatUri));
+		return chat?.status.get() === SessionStatus.Untitled && !this.chatService.getSession(chatUri)?.hasRequests;
 	}
 
 	async renameChat(session: ISession, chatUri: URI, title: string): Promise<void> {
@@ -1455,7 +1503,33 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this._onDidRenameSession.fire(session);
 	}
 
-	async listCanvases(session: ISession, chat: IChat): Promise<readonly ISessionCanvasDefinition[]> {
+	canMoveChat(session: ISession, chat: IChat): boolean {
+		return this._getProvider(session)?.canMoveChat(session.sessionId, chat.resource) === true;
+	}
+
+	async moveChat(session: ISession, chat: IChat, destination: ISessionChatMoveTarget): Promise<void> {
+		const provider = this._getProvider(session);
+		if (!provider || (destination.kind === 'session' && destination.session.providerId !== session.providerId)) {
+			throw new SessionMoveRefusedError(localize('sessions.moveChat.unsupported', "This chat can't be moved there."));
+		}
+		await provider.moveChat(session.sessionId, chat.resource, destination.kind === 'session'
+			? { kind: 'session', sessionId: destination.session.sessionId, after: destination.after?.resource }
+			: { kind: 'newSession' });
+	}
+
+	canMoveSessionUnder(session: ISession): boolean {
+		return this._getProvider(session)?.canMoveSessionUnder(session.sessionId) === true;
+	}
+
+	async moveSessionUnder(session: ISession, destination: ISession, after: IChat | undefined): Promise<void> {
+		const provider = this._getProvider(session);
+		if (!provider || destination.providerId !== session.providerId || destination.sessionId === session.sessionId) {
+			throw new SessionMoveRefusedError(localize('sessions.moveSession.unsupported', "This session can't be moved there."));
+		}
+		await provider.moveSessionUnder(session.sessionId, destination.sessionId, after?.resource);
+	}
+
+	async listCanvases(session: ISession, chat: IChat): Promise<SessionCanvasDefinitionSnapshot> {
 		const provider = this._getProvider(session);
 		if (!session.capabilities.get().supportsCanvases || !provider?.listCanvases) {
 			return [];
@@ -1496,6 +1570,10 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			throw new Error(localize('sessions.importSession.unsupported', "Importing is not supported for this session."));
 		}
 		await provider.importSession(session.sessionId);
+	}
+
+	async acquireArtifactIntegration(session: ISession, artifactId: string): Promise<IReference<IArtifactModel> | undefined> {
+		return this._getProvider(session)?.acquireArtifactIntegration?.(session.sessionId, artifactId);
 	}
 }
 

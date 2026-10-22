@@ -22,17 +22,27 @@ export const RENAME_CHAT_COMMAND_ID = 'sessions.chatCompositeBar.renameChat';
 /** Archives one or more sessions. Registered in `sessionsViewActions.ts`. */
 export const ARCHIVE_SESSION_COMMAND_ID = 'sessionsViewPane.archiveSession';
 
+/** Archives the given sessions and offers to undo it from the Sessions view. Registered in `sessionsViewActions.ts`. */
+export const ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID = 'sessionsViewPane.archiveSessionsWithUndo';
+
+/**
+ * Deletes a custom group and its subgroups, offering to undo it from the Sessions
+ * view when it deletes more than one group. Registered in `sessionsViewActions.ts`.
+ */
+export const DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID = 'sessionsViewPane.deleteSessionGroupWithUndo';
+
 /** Archives a chat independently of its session. Registered in `sessionsViewActions.ts`. */
 export const ARCHIVE_CHAT_COMMAND_ID = 'sessionsViewPane.archiveChat';
 
 /** Unarchives a chat independently of its session. Registered in `sessionsViewActions.ts`. */
 export const UNARCHIVE_CHAT_COMMAND_ID = 'sessionsViewPane.unarchiveChat';
 
-/** Marks one or more sessions as read. Registered in `sessionsViewActions.ts`. */
-export const MARK_SESSION_READ_COMMAND_ID = 'sessionsViewPane.markRead';
+export const SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID = 'sessionsViewPane.showApplicationFilters';
 
-/** Marks one or more sessions as unread. Registered in `sessionsViewActions.ts`. */
-export const MARK_SESSION_UNREAD_COMMAND_ID = 'sessionsViewPane.markUnread';
+export {
+	AGENT_SESSION_MARK_READ_ACTION_ID as MARK_SESSION_READ_COMMAND_ID,
+	AGENT_SESSION_MARK_UNREAD_ACTION_ID as MARK_SESSION_UNREAD_COMMAND_ID,
+} from '../../workbench/common/chatSessionCommands.js';
 
 /** Closes a chat tab. Registered in `sessionsActions.ts`. */
 export const CLOSE_CHAT_COMMAND_ID = 'sessions.chatCompositeBar.closeChat';
@@ -59,7 +69,13 @@ export const SESSION_GRID_FOCUS_COMMANDS = {
 
 export const FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID = 'sessions.focusNewSessionWorkspacePicker';
 
+export const FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_COMMAND_ID = 'sessions.focusNewSessionEnvironmentPicker';
+
 export const FOCUS_NEW_SESSION_HARNESS_PICKER_COMMAND_ID = 'sessions.focusNewSessionHarnessPicker';
+export const FOCUS_NEW_SESSION_BRANCH_PICKER_COMMAND_ID = 'sessions.focusNewSessionBranchPicker';
+export const FOCUS_NEW_SESSION_WORKTREE_PICKER_COMMAND_ID = 'sessions.focusNewSessionWorktreePicker';
+export const FOCUS_SESSION_SYNC_ACTION_COMMAND_ID = 'sessions.focusSessionSyncAction';
+export const COMPARE_SESSION_MODELS_COMMAND_ID = 'sessions.compareModels';
 
 export const FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID = 'sessions.focusPreviousChatGroup';
 

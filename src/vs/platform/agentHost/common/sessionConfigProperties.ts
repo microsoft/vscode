@@ -100,6 +100,15 @@ export function getAvailableSessionApprovalValues(property: ISessionConfigProper
 		? offered.filter(value => available.includes(value)) : offered;
 }
 
+/**
+ * Supported approval values that the host's read-only availability report withholds. Unlike values absent from
+ * the schema, they are supported but not currently allowed; the report does not say why.
+ */
+export function getWithheldSessionApprovalValues(property: ISessionConfigProperty, schema: SessionConfigSchema, values: Readonly<Record<string, unknown>>): readonly string[] {
+	const available = getAvailableSessionApprovalValues(property, schema, values);
+	return (property.schema.enum ?? []).filter((value): value is string => isString(value) && readSessionApprovalLevel(property, value) !== undefined && !available.includes(value));
+}
+
 export function getEffectiveSessionApprovalValue(property: ISessionConfigProperty, schema: SessionConfigSchema, values: Readonly<Record<string, unknown>>): unknown {
 	return schema.properties.effectiveApprovalMode?.type === 'string' && schema.properties.effectiveApprovalMode.readOnly === true && isString(values.effectiveApprovalMode)
 		? values.effectiveApprovalMode : values[property.key] ?? property.schema.default;

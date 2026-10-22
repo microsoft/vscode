@@ -4,9 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { setARIAContainer } from '../../../../../base/browser/ui/aria/aria.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
+import { createErrorWithActions } from '../../../../../base/common/errorMessage.js';
+import { toAction } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, observableValue, waitForState } from '../../../../../base/common/observable.js';
@@ -46,7 +50,7 @@ import { TestPathService } from '../../../../../workbench/test/browser/workbench
 import { SessionTypeAuthRequirement, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionType, ISessionWorkspace, ISideChatSelection, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../common/session.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { IChatMovedEvent, ISessionChangeEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../common/sessionsProvider.js';
+import { IChatMovedEvent, ISessionChatMoveDestination, type IForkChatOptions, type INestedChatWorkspace, NestedChatWorkspaceError, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../common/sessionsProvider.js';
 import { SessionsManagementService } from '../../browser/sessionsManagementService.js';
 import { VisibleSessions } from '../../browser/visibleSessions.js';
 import { ISessionsManagementService, IActiveSession, IChatDeletedEvent, ICreateNewSessionOptions, inheritableSessionTarget, ISendRequestSentEvent, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
@@ -149,6 +153,11 @@ class TestChatService extends mock<IChatService>() {
 	disposedModelRefs = 0;
 	cancelError: Error | undefined;
 	modelRefAvailable = true;
+	readonly resourcesWithRequests: URI[] = [];
+
+	override getSession(sessionResource: URI): IChatModel | undefined {
+		return this.resourcesWithRequests.some(resource => resource.toString() === sessionResource.toString()) ? { hasRequests: true } as IChatModel : undefined;
+	}
 
 	override async acquireOrLoadSession(sessionResource: URI): Promise<IChatModelReference | undefined> {
 		this.loadedResources.push(sessionResource);
@@ -239,7 +248,7 @@ class TestSessionsProvider extends mock<ISessionsProvider>() {
 	override async setSessionReadState(_sessionId: string, _isRead: boolean): Promise<void> { }
 	override async deleteSession(): Promise<void> { }
 	override async deleteSessions(_sessionIds: readonly string[]): Promise<void> { }
-	override async deleteChat(): Promise<boolean> { return true; }
+	override async deleteChat(_sessionId: string, _chatUri: URI): Promise<boolean> { return true; }
 	override deleteNewSession(_sessionId: string): void { }
 	override async sendRequest(_sessionId: string, _chatResource: URI, _options: ISendRequestOptions): Promise<ISession> { return this._session; }
 	override async createNewChat(): Promise<IChat> { return this._session.mainChat.get(); }
@@ -664,6 +673,122 @@ suite('SessionsManagementService', () => {
 				panes: grid.order.length,
 			}, { target: childSlot.id, child: child.resource.toString(), panes: 3 });
 		});
+
+		for (const hasDraft of [false, true]) {
+			test(`a new-session pane can be dragged beside an independent child without replacing its composer (draft: ${hasDraft})`, async () => {
+				const a = created('a');
+				const child: IChat = { ...a.mainChat.get(), resource: URI.parse('test:///a/child') };
+				const parent = { ...a, chats: constObservable([a.mainChat.get(), child]) };
+				const draft = stubSession({ sessionId: 'draft', providerId: 'test', status: constObservable(SessionStatus.Untitled) });
+				const { view, part, service } = harness([parent]);
+				await view.openSession(parent.resource);
+				const visibility = Reflect.get(view, '_visibility') as VisibleSessions;
+				await view.moveChatToGrid(parent.sessionId, child.resource, visibility.getGridSlots()[0].id, 'down');
+				const childSlot = visibility.getRenderedGridSlots().find(slot => visibility.getGridSession(slot.id)?.scopedChatResource)!;
+				const target = part.getFocusedSessionView()!.element;
+				view.insertAt(hasDraft ? draft : undefined, parent.sessionId, 'right');
+				const source = part.getFocusedSessionView()!;
+				const composer = source.element.querySelector('textarea')!;
+				composer.value = 'Keep this draft prompt';
+				const sourceSlot = visibility.getGridSlots()[visibility.getSlot(hasDraft ? draft.sessionId : undefined)!.index];
+				const dragArea = source.element.querySelector<HTMLElement>('.chat-composite-bar-toolbar-floating')!;
+				const sourceBounds = source.element.getBoundingClientRect();
+				dragArea.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, clientX: sourceBounds.left + 100, clientY: sourceBounds.top + 16 }));
+				const dataTransfer = new DataTransfer();
+				const drag = new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer });
+				dragArea.dispatchEvent(drag);
+				const bounds = target.getBoundingClientRect();
+				const clientX = bounds.right - 10;
+				const clientY = bounds.top + bounds.height / 2;
+				target.dispatchEvent(new DragEvent('dragenter', { bubbles: true, dataTransfer, clientX, clientY }));
+				const overlay = target.querySelector<HTMLElement>('#monaco-workbench-session-drop-overlay');
+				assert.ok(overlay);
+				overlay.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer, clientX, clientY }));
+				await timeout(0);
+				dragArea.dispatchEvent(new DragEvent('dragend', { bubbles: true }));
+				const grid = Reflect.get(part, '_gridWidget') as SessionGridLayout;
+				assert.deepStrictEqual({
+					started: !drag.defaultPrevented,
+					draftIsUnlisted: service.getSession(draft.resource) === undefined,
+					target: grid.neighbor(sourceSlot.id, Direction.Left),
+					retained: part.getFocusedSessionView() === source,
+					prompt: source.element.querySelector('textarea')?.value,
+					panes: grid.order.length,
+					cleaned: !LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>().hasData(DraggedSessionIdentifier.prototype),
+				}, { started: true, draftIsUnlisted: true, target: childSlot.id, retained: true, prompt: 'Keep this draft prompt', panes: 3, cleaned: true });
+			});
+		}
+
+		test('an existing session can be dropped beside the empty new-session pane', async () => {
+			const a = created('a');
+			const { view, part } = harness([a]);
+			await view.openSession(a.resource);
+			const source = part.getFocusedSessionView()!;
+			view.insertAt(undefined, a.sessionId, 'right');
+			const target = part.getFocusedSessionView()!;
+			const visibility = Reflect.get(view, '_visibility') as VisibleSessions;
+			const targetSlot = visibility.getGridSlots()[visibility.getSlot(undefined)!.index];
+			const transfer = LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>();
+			disposables.add(toDisposable(() => transfer.clearData(DraggedSessionIdentifier.prototype)));
+			transfer.setData([new DraggedSessionIdentifier(a.sessionId, a.resource)], DraggedSessionIdentifier.prototype);
+			const bounds = target.element.getBoundingClientRect();
+			const dataTransfer = new DataTransfer();
+			const clientX = bounds.right - 10;
+			const clientY = bounds.top + bounds.height / 2;
+			target.element.dispatchEvent(new DragEvent('dragenter', { bubbles: true, dataTransfer, clientX, clientY }));
+			const overlay = target.element.querySelector<HTMLElement>('#monaco-workbench-session-drop-overlay');
+			assert.ok(overlay);
+			overlay.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer, clientX, clientY }));
+			await timeout(0);
+			const grid = Reflect.get(part, '_gridWidget') as SessionGridLayout;
+			const sourceSlot = visibility.getGridSlots()[visibility.getSlot(a.sessionId)!.index];
+			assert.deepStrictEqual({
+				target: grid.neighbor(sourceSlot.id, Direction.Left),
+				retainedSource: part.getFocusedSessionView() === source,
+				retainedTarget: part.getSessionView(undefined) === target,
+				panes: grid.order.length,
+			}, { target: targetSlot.id, retainedSource: true, retainedTarget: true, panes: 2 });
+		});
+
+		for (const detached of [false, true]) {
+			test(`a chat can be dropped beside the empty new-session pane (independent pane: ${detached})`, async () => {
+				const a = created('a');
+				const child: IChat = { ...a.mainChat.get(), resource: URI.parse('test:///a/child') };
+				const parent = { ...a, chats: constObservable([a.mainChat.get(), child]) };
+				const { view, part } = harness([parent]);
+				await view.openSession(parent.resource);
+				const parentView = part.getFocusedSessionView()!;
+				if (detached) {
+					await view.detachChat(view.activeSession.get()!, child.resource);
+				}
+				const childView = detached ? part.getFocusedSessionView() : undefined;
+				view.insertAt(undefined, parent.sessionId, 'right');
+				const target = part.getFocusedSessionView()!;
+				const visibility = Reflect.get(view, '_visibility') as VisibleSessions;
+				const targetSlot = visibility.getGridSlots()[visibility.getSlot(undefined)!.index];
+				const bounds = target.element.getBoundingClientRect();
+				const dataTransfer = new DataTransfer();
+				fillSessionChatDragData(new DragEvent('dragstart', { dataTransfer }), parent.sessionId, child.resource, detached);
+				const clientX = bounds.right - 10;
+				const clientY = bounds.top + bounds.height / 2;
+				target.element.dispatchEvent(new DragEvent('dragenter', { bubbles: true, dataTransfer, clientX, clientY }));
+				const overlay = target.element.querySelector<HTMLElement>('#monaco-workbench-session-drop-overlay');
+				assert.ok(overlay);
+				overlay.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer, clientX, clientY }));
+				await timeout(0);
+				const grid = Reflect.get(part, '_gridWidget') as SessionGridLayout;
+				const childPane = visibility.gridSessions.get().find(session => session?.scopedChatResource?.toString() === child.resource.toString());
+				const childSlot = visibility.getRenderedGridSlots()[visibility.gridSessions.get().indexOf(childPane)];
+				assert.deepStrictEqual({
+					target: grid.neighbor(childSlot.id, Direction.Left),
+					retainedParent: parentView.element.isConnected,
+					retainedTarget: part.getSessionView(undefined) === target,
+					retainedChild: !detached || part.getFocusedSessionView() === childView,
+					activeChat: view.activeSession.get()?.scopedChatResource?.toString(),
+					panes: grid.order.length,
+				}, { target: targetSlot.id, retainedParent: true, retainedTarget: true, retainedChild: true, activeChat: child.resource.toString(), panes: 3 });
+			});
+		}
 
 		for (const mode of [SessionsChatTabsMode.Single, SessionsChatTabsMode.Multiple]) {
 			for (const alreadyVisible of [false, true]) {
@@ -1857,6 +1982,25 @@ suite('SessionsManagementService', () => {
 			});
 		});
 
+		test('forwards changeset operation invocations while their provider is registered', () => {
+			const session = stubSession({ sessionId: 'cached', providerId: 'test' });
+			const onDidInvokeChangesetOperation = disposables.add(new Emitter<ISessionChangesetOperationInvokedEvent>());
+			const provider = new class extends TestSessionsProvider {
+				override readonly onDidInvokeChangesetOperation = onDidInvokeChangesetOperation.event;
+			}(session);
+			const providersService = createProvidersService();
+			const { service } = createSessionsManagementService(session, disposables, providersService);
+			const invocations: ISessionChangesetOperationInvokedEvent[] = [];
+			disposables.add(service.onDidInvokeChangesetOperation(e => invocations.push(e)));
+			const registration = disposables.add(providersService.registerProvider(provider));
+
+			onDidInvokeChangesetOperation.fire({ session, operationId: 'commit' });
+			registration.dispose();
+			onDidInvokeChangesetOperation.fire({ session, operationId: 'sync' });
+
+			assert.deepStrictEqual(invocations, [{ session, operationId: 'commit' }]);
+		});
+
 		test('seeds cached sessions before subscribing to reentrant provider changes', () => {
 			const session = stubSession({ sessionId: 'cached', providerId: 'test' });
 			const onDidChangeSessions = disposables.add(new Emitter<ISessionChangeEvent>());
@@ -2534,6 +2678,48 @@ suite('SessionsManagementService', () => {
 			}]);
 		});
 
+		test('marks only the targeted nested chat read and unread through its provider', async () => {
+			const peerIsRead = observableValue('peerIsRead', false);
+			const main = { ...stubChat, resource: URI.parse('test:/main') };
+			const peer = { ...stubChat, resource: URI.parse('test:/peer'), isRead: peerIsRead };
+			const session = stubSession({
+				sessionId: 'nested-read',
+				providerId: 'test',
+				isRead: constObservable(false),
+				mainChat: constObservable(main),
+				chats: constObservable([main, peer]),
+			});
+			const changes: { sessionId: string; chat: string; isRead: boolean }[] = [];
+			const provider = new class extends TestSessionsProvider {
+				override async setChatReadState(sessionId: string, resource: URI, isRead: boolean): Promise<void> {
+					changes.push({ sessionId, chat: resource.toString(), isRead });
+					peerIsRead.set(isRead, undefined);
+				}
+			}(session);
+			const { service } = createSessionsManagementService(session, disposables, provider);
+
+			await service.markChatRead(session, peer);
+			const afterRead = peerIsRead.get();
+			await service.markChatUnread(session, peer);
+
+			assert.deepStrictEqual({
+				afterRead,
+				afterUnread: peerIsRead.get(),
+				mainIsRead: main.isRead.get(),
+				sessionIsRead: session.isRead.get(),
+				changes,
+			}, {
+				afterRead: true,
+				afterUnread: false,
+				mainIsRead: true,
+				sessionIsRead: false,
+				changes: [
+					{ sessionId: 'nested-read', chat: 'test:/peer', isRead: true },
+					{ sessionId: 'nested-read', chat: 'test:/peer', isRead: false },
+				],
+			});
+		});
+
 		test('falls back to individual chat read changes when batching is unsupported', async () => {
 			const first = { ...stubChat, resource: URI.parse('test:///first') };
 			const second = { ...stubChat, resource: URI.parse('test:///second') };
@@ -2645,6 +2831,40 @@ suite('SessionsManagementService', () => {
 				tool: false,
 				readChanges: ['chat:test:/main:true'],
 			});
+		});
+
+		test('preserves explicit unread on an already-read active nested chat until a new turn', async () => {
+			const peerIsRead = observableValue('peerIsRead', true);
+			const peerUpdatedAt = observableValue<Date | undefined>('peerUpdatedAt', new Date(1));
+			const main = { ...stubChat, resource: URI.parse('test:/main') };
+			const peer = { ...stubChat, resource: URI.parse('test:/peer'), isRead: peerIsRead, updatedAt: peerUpdatedAt };
+			const session = stubSession({
+				sessionId: 'active-nested-unread',
+				providerId: 'test',
+				mainChat: constObservable(main),
+				chats: constObservable([main, peer]),
+			});
+			const changes: boolean[] = [];
+			const provider = new class extends TestSessionsProvider {
+				override async setChatReadState(_sessionId: string, resource: URI, isRead: boolean): Promise<void> {
+					assert.strictEqual(resource.toString(), peer.resource.toString());
+					changes.push(isRead);
+					peerIsRead.set(isRead, undefined);
+				}
+			}(session);
+			const { service, view } = createSessionsManagementService(session, disposables, provider);
+			await view.openChat(session, peer.resource);
+
+			await service.markChatUnread(session, peer);
+			const afterUnread = peerIsRead.get();
+			peerUpdatedAt.set(new Date(2), undefined);
+
+			assert.deepStrictEqual({
+				afterUnread,
+				afterNewTurn: peerIsRead.get(),
+				mainIsRead: main.isRead.get(),
+				changes,
+			}, { afterUnread: false, afterNewTurn: true, mainIsRead: true, changes: [false, true] });
 		});
 
 		test('marks the active peer chat as read once through its provider', async () => {
@@ -5192,8 +5412,12 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	const actionableStartupError = createErrorWithActions('Could not start the session', [
+		toAction({ id: 'test.details', label: 'Show Details', run: () => { } }),
+	]);
 	for (const { error, expectedNotifications } of [
 		{ error: new Error('Container setup failed'), expectedNotifications: ['Failed to start session: Container setup failed'] },
+		{ error: actionableStartupError, expectedNotifications: [actionableStartupError] },
 		{ error: new CancellationError(), expectedNotifications: [] },
 		{ error: new WorkspaceNotTrustedError(), expectedNotifications: [] },
 	]) {
@@ -7237,6 +7461,34 @@ suite('SessionsManagementService', () => {
 				});
 			});
 		}
+
+		test('deletes without confirmation only an untitled chat without requests', async () => {
+			const untitled: IChat = { ...stubChat, resource: URI.parse('test:///untitled'), status: constObservable(SessionStatus.Untitled) };
+			const sentUntitled: IChat = { ...stubChat, resource: URI.parse('test:///sent-untitled'), status: constObservable(SessionStatus.Untitled) };
+			const committed: IChat = { ...stubChat, resource: URI.parse('test:///committed'), status: constObservable(SessionStatus.Completed) };
+			const session = stubSession({ sessionId: 'session', providerId: 'test', chats: constObservable([untitled, sentUntitled, committed]) });
+			const providerDeletes: string[] = [];
+			const provider = new class extends TestSessionsProvider {
+				override async deleteChat(_sessionId: string, chatUri: URI): Promise<boolean> {
+					providerDeletes.push(chatUri.toString());
+					return true;
+				}
+			}(session);
+			const { service, chatService } = createSessionsManagementService(session, disposables, provider);
+			chatService.resourcesWithRequests.push(sentUntitled.resource);
+
+			const results = {
+				untitled: await service.deleteChat(session, untitled.resource, { skipConfirmation: true }),
+				sentUntitled: await service.deleteChat(session, sentUntitled.resource, { skipConfirmation: true }),
+				committed: await service.deleteChat(session, committed.resource, { skipConfirmation: true }),
+				committedConfirmed: await service.deleteChat(session, committed.resource),
+			};
+
+			assert.deepStrictEqual({ results, providerDeletes }, {
+				results: { untitled: true, sentUntitled: false, committed: false, committedConfirmed: true },
+				providerDeletes: [untitled.resource.toString(), committed.resource.toString()],
+			});
+		});
 	});
 
 	suite('createNewChatInSession', () => {
@@ -7326,30 +7578,77 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	suite('applyNestedChatWorkspace', () => {
+
+		test('delegates to the provider and propagates its refusal', async () => {
+			const chat: IChat = { ...stubChat, resource: URI.parse('test:///untitled'), status: constObservable(SessionStatus.Untitled) };
+			const session = stubSession({ sessionId: 'workspace', providerId: 'test', chats: constObservable([chat]) });
+			const calls: string[] = [];
+			let refuse = false;
+			const provider = new class extends TestSessionsProvider {
+				constructor() { super(session); }
+				override async applyNestedChatWorkspace(sessionId: string, chatResource: URI, workspace: INestedChatWorkspace, prompt: string): Promise<void> {
+					calls.push(`${sessionId} ${chatResource.toString()} ${workspace.kind} ${prompt}`);
+					if (refuse) {
+						throw new NestedChatWorkspaceError('refused', 'refused by host');
+					}
+				}
+			};
+			const { service } = createSessionsManagementService(session, disposables, provider);
+
+			await service.applyNestedChatWorkspace(session, chat, { kind: 'scratch' }, 'Fix the bug');
+			refuse = true;
+			const error = await service.applyNestedChatWorkspace(session, chat, { kind: 'folder', folder: URI.file('/repo'), isolation: 'folder' }, '').then(() => undefined, e => e);
+
+			assert.deepStrictEqual({
+				calls,
+				error: error instanceof NestedChatWorkspaceError ? error.kind : undefined,
+			}, {
+				calls: [`workspace ${chat.resource.toString()} scratch Fix the bug`, `workspace ${chat.resource.toString()} folder `],
+				error: 'refused',
+			});
+		});
+
+		test('is not supported when the provider is not found', async () => {
+			const session = stubSession({ sessionId: 'orphan', providerId: 'missing-provider' });
+			const provider = new TestSessionsProvider(stubSession({ sessionId: 'other', providerId: 'test' }));
+			const { service } = createSessionsManagementService(session, disposables, provider);
+
+			const error = await service.applyNestedChatWorkspace(session, stubChat, { kind: 'scratch' }, '').then(() => undefined, e => e);
+
+			assert.strictEqual(error instanceof NestedChatWorkspaceError ? error.kind : undefined, 'notSupported');
+		});
+	});
+
 	suite('forkChatInSession', () => {
 
-		test('asks the provider to fork the chat when the session supports multiple chats', async () => {
+		test('asks the provider to fork the chat with options when the session supports multiple chats', async () => {
 			const sourceChat = URI.parse('test:///source');
 			const forkedChat: IChat = { ...stubChat, resource: URI.parse('test:///forked') };
 			const session = stubSession({ sessionId: 'fork', providerId: 'test', capabilities: constObservable({ supportsMultipleChats: true }) });
-			let forkChatArgs: readonly [string, URI, string] | undefined;
+			let forkChatArgs: readonly [string, URI, string, IForkChatOptions | undefined] | undefined;
 			const provider = new class extends TestSessionsProvider {
 				constructor() { super(session); }
-				override async forkChat(sessionId: string, sourceChat: URI, turnId: string): Promise<IChat> {
-					forkChatArgs = [sessionId, sourceChat, turnId];
+				override async forkChat(sessionId: string, sourceChat: URI, turnId: string, options?: IForkChatOptions): Promise<IChat> {
+					forkChatArgs = [sessionId, sourceChat, turnId, options];
 					return forkedChat;
 				}
 			};
 			const { service } = createSessionsManagementService(session, disposables, provider);
 
-			const result = await service.forkChatInSession(session, sourceChat, 'turn-1');
+			const result = await service.forkChatInSession(session, sourceChat, 'turn-1', { title: 'Named fork' });
 
 			assert.deepStrictEqual({
 				result: result.resource.toString(),
-				args: forkChatArgs?.map(arg => URI.isUri(arg) ? arg.toString() : arg),
+				args: forkChatArgs && [
+					forkChatArgs[0],
+					forkChatArgs[1].toString(),
+					forkChatArgs[2],
+					forkChatArgs[3],
+				],
 			}, {
 				result: forkedChat.resource.toString(),
-				args: ['fork', sourceChat.toString(), 'turn-1'],
+				args: ['fork', sourceChat.toString(), 'turn-1', { title: 'Named fork' }],
 			});
 		});
 
@@ -7367,6 +7666,7 @@ suite('SessionsManagementService', () => {
 
 			await assert.rejects(() => service.forkChatInSession(session, URI.parse('test:///source'), 'turn-1'), /does not support forking into a chat/);
 		});
+
 	});
 
 	suite('createSideChatInSession', () => {
@@ -7870,6 +8170,42 @@ suite('SessionsManagementService', () => {
 			return { ...stubChat, resource: URI.parse(`test:///${session}#${id}`), title: constObservable(id), status: constObservable(SessionStatus.Completed) };
 		}
 
+		test('routes chat and session moves to the owning provider with the provider\'s session ids and chat resources', async () => {
+			const main = chat('A', 'main'), peer = chat('A', 'peer'), mainB = chat('B', 'main');
+			const sessionA = stubSession({ sessionId: 'A', providerId: 'test', chats: constObservable([main, peer]), mainChat: constObservable(main) });
+			const sessionB = stubSession({ sessionId: 'B', providerId: 'test', chats: constObservable([mainB]), mainChat: constObservable(mainB) });
+			const otherProvider = stubSession({ sessionId: 'C', providerId: 'other' });
+			const calls: unknown[] = [];
+			const provider = new class extends TestSessionsProvider {
+				override canMoveChat(sessionId: string, chatUri: URI): boolean { return chatUri.fragment === 'peer'; }
+				override async moveChat(sessionId: string, chatUri: URI, destination: ISessionChatMoveDestination): Promise<void> {
+					calls.push(['moveChat', sessionId, chatUri.toString(), destination.kind === 'session' ? [destination.sessionId, destination.after?.toString()] : destination.kind]);
+				}
+				override canMoveSessionUnder(sessionId: string): boolean { return sessionId === 'B'; }
+				override async moveSessionUnder(sessionId: string, destinationSessionId: string, after: URI | undefined): Promise<void> {
+					calls.push(['moveSessionUnder', sessionId, destinationSessionId, after?.toString()]);
+				}
+			}(sessionA);
+			const { service } = createSessionsManagementService(sessionA, disposables, provider);
+
+			const can = { chats: [main, peer].map(candidate => service.canMoveChat(sessionA, candidate)), sessions: [sessionA, sessionB].map(candidate => service.canMoveSessionUnder(candidate)) };
+			await service.moveChat(sessionA, peer, { kind: 'session', session: sessionB, after: mainB });
+			await service.moveChat(sessionA, peer, { kind: 'session', session: sessionA, after: undefined });
+			await service.moveChat(sessionA, peer, { kind: 'newSession' });
+			await service.moveSessionUnder(sessionB, sessionA, peer);
+			await assert.rejects(service.moveChat(sessionA, peer, { kind: 'session', session: otherProvider, after: undefined }), /can't be moved there/);
+
+			assert.deepStrictEqual({ can, calls }, {
+				can: { chats: [false, true], sessions: [false, true] },
+				calls: [
+					['moveChat', 'A', 'test:/A#peer', ['B', 'test:/B#main']],
+					['moveChat', 'A', 'test:/A#peer', ['A', undefined]],
+					['moveChat', 'A', 'test:/A#peer', 'newSession'],
+					['moveSessionUnder', 'B', 'A', 'test:/A#peer'],
+				],
+			});
+		});
+
 		function setup() {
 			const mainA = chat('A', 'main'), moved = chat('A', 'moved'), mainB = chat('B', 'main'), arrived = chat('B', 'moved');
 			const chatsA = observableValue<readonly IChat[]>('chatsA', [mainA, moved]);
@@ -7900,8 +8236,18 @@ suite('SessionsManagementService', () => {
 				onDidMoveChat.fire({ from: { session: sessionA, chat: mainA.resource }, to: { session: sessionB, chat: arrivedMain.resource } });
 				return arrivedMain;
 			};
+			// Like moveSession, but the move is paired only after the view reacted to the removal.
+			const moveSessionPairedLater = async () => {
+				const arrivedMain = chat('B', 'main-of-A');
+				sessions.splice(sessions.indexOf(sessionA), 1);
+				sessionsChanged.fire({ added: [], removed: [sessionA], changed: [] });
+				await timeout(0);
+				chatsB.set([...chatsB.get(), arrivedMain], undefined);
+				onDidMoveChat.fire({ from: { session: sessionA, chat: mainA.resource }, to: { session: sessionB, chat: arrivedMain.resource } });
+				return arrivedMain;
+			};
 			const fireMove = (from: IChat, to: IChat) => onDidMoveChat.fire({ from: { session: sessionA, chat: from.resource }, to: { session: sessionB, chat: to.resource } });
-			return { view, sessionA, sessionB, mainA, moved, arrived, move, moveSession, chatsA, chatsB, fireMove };
+			return { view, sessions, sessionA, sessionB, mainA, moved, arrived, move, moveSession, moveSessionPairedLater, chatsA, chatsB, fireMove };
 		}
 
 		const shown = (view: SessionsService) => ({
@@ -7921,6 +8267,28 @@ suite('SessionsManagementService', () => {
 			assert.deepStrictEqual(shown(view), { session: 'B', chat: arrived.resource.toString(), visible: ['B'] });
 		});
 
+		test('following a chat that moved announces nothing: the move itself is announced once, by whoever made it', async () => {
+			const { view, sessionA, moved, arrived, move, moveSession } = setup();
+			await view.openSession(sessionA.resource);
+			await view.openChat(sessionA, moved.resource);
+			const container = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+			setARIAContainer(container);
+			const announcements: string[] = [];
+			const observer = new MutationObserver(records => records.forEach(record => record.addedNodes.length && announcements.push(record.target.textContent ?? '')));
+			container.querySelectorAll('.monaco-status, .monaco-alert').forEach(region => observer.observe(region, { childList: true }));
+			try {
+				move(moved, arrived);
+				await timeout(0);
+				moveSession();
+				await timeout(0);
+			} finally {
+				observer.disconnect();
+				container.remove();
+			}
+
+			assert.deepStrictEqual({ announcements, shown: shown(view).session }, { announcements: [], shown: 'B' });
+		});
+
 		test('a session that ended by moving its shown chat under another session leaves its slot to that session, though its removal came first', async () => {
 			const { view, sessionA, mainA, moveSession } = setup();
 			await view.openSession(sessionA.resource);
@@ -7930,6 +8298,36 @@ suite('SessionsManagementService', () => {
 			await timeout(0);
 
 			assert.deepStrictEqual(shown(view), { session: 'B', chat: arrivedMain.resource.toString(), visible: ['B'] });
+		});
+
+		test('a session that ended by moving its shown chat under another session gives that session the slot its fallback took, not another slot', async () => {
+			const { view, sessionA, mainA, moveSessionPairedLater } = setup();
+			await view.openSession(sessionA.resource);
+			await view.openChat(sessionA, mainA.resource);
+
+			const arrivedMain = await moveSessionPairedLater();
+			await timeout(0);
+
+			assert.deepStrictEqual(shown(view), { session: 'B', chat: arrivedMain.resource.toString(), visible: ['B'] });
+		});
+
+		test('a session that ended by moving its shown chat under another session doesn\'t take over a new-session composer opened in another slot', async () => {
+			const { view, sessions, sessionA, mainA, moveSessionPairedLater } = setup();
+			const mainC = chat('C', 'main');
+			const sessionC = stubSession({ sessionId: 'C', providerId: 'test', chats: constObservable([mainC]), mainChat: constObservable(mainC) });
+			sessions.push(sessionC);
+			await view.openSessionsInGrid([sessionC, sessionA]);
+			await view.openChat(sessionA, mainA.resource);
+			const before = shown(view).visible;
+
+			const arrivedMain = moveSessionPairedLater();
+			// While the move is pending, the user opens a composer in a new slot beside C.
+			view.insertAt(undefined, 'C', 'left');
+			await arrivedMain;
+			await timeout(0);
+
+			// The composer stays; B takes the departed slot's index instead.
+			assert.deepStrictEqual({ before, visible: shown(view).visible }, { before: ['C', 'A'], visible: [undefined, 'B', 'C'] });
 		});
 
 		test('a chat chosen after the view fell back from a chat stays shown when that chat\'s move is known later', async () => {

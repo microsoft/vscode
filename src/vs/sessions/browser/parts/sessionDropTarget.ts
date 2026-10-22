@@ -35,7 +35,7 @@ export function getSessionDropDirection(x: number, y: number, width: number, hei
  * it belongs to (if any). Returns the session id and the view's root element.
  */
 export interface ISessionDropTargetDelegate {
-	findTargetView(child: HTMLElement): { readonly sessionId: string; readonly gridSlotId?: string; readonly chatResource?: URI; readonly element: HTMLElement } | undefined;
+	findTargetView(child: HTMLElement): { readonly sessionId: string | undefined; readonly gridSlotId?: string; readonly chatResource?: URI; readonly element: HTMLElement } | undefined;
 }
 
 class SessionDropOverlay extends Themable {
@@ -55,7 +55,7 @@ class SessionDropOverlay extends Themable {
 	private readonly _sessionTransfer = LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>();
 
 	constructor(
-		readonly targetSessionId: string,
+		readonly targetSessionId: string | undefined,
 		private readonly _targetElement: HTMLElement,
 		private readonly _targetGridSlotId: string,
 		private readonly _targetIsChat: boolean,
@@ -156,11 +156,25 @@ class SessionDropOverlay extends Themable {
 			return;
 		}
 
+		if (data.length === 1 && !data[0].resource) {
+			this._sessionsService.insertAt(undefined, this.targetSessionId, side, true, this._targetGridSlotId);
+			return;
+		}
+
+		if (data.length === 1) {
+			const draft = this._sessionsService.visibleSessions.get().find(session => session?.sessionId === data[0].sessionId);
+			// Provider drafts can be visible before they appear in the session list.
+			if (draft && !draft.isCreated.get()) {
+				this._sessionsService.insertAt(draft, this.targetSessionId, side, true, this._targetGridSlotId);
+				return;
+			}
+		}
+
 		// Resolve all dragged sessions (preserving drag order), skipping the
 		// target itself so dropping a session next to itself is a no-op.
 		const sessions: ISession[] = [];
 		for (const dragged of data) {
-			if (dragged.sessionId === this.targetSessionId && !this._targetIsChat) {
+			if (!dragged.resource || dragged.sessionId === this.targetSessionId && !this._targetIsChat) {
 				continue;
 			}
 			const session = this._sessionsManagementService.getSession(dragged.resource);
@@ -290,7 +304,7 @@ export class SessionDropTarget extends Themable {
 			return;
 		}
 		const targetView = this._delegate.findTargetView(target);
-		if (targetView && !targetView.chatResource && isSessionChatDrag(event, targetView.sessionId)) {
+		if (targetView && targetView.sessionId !== undefined && !targetView.chatResource && isSessionChatDrag(event, targetView.sessionId)) {
 			return;
 		}
 		if (targetView && !targetView.chatResource && this._sessionTransfer.getData(DraggedSessionIdentifier.prototype)?.every(dragged => dragged.sessionId === targetView.sessionId)) {
@@ -316,7 +330,7 @@ export class SessionDropTarget extends Themable {
 			SessionDropOverlay,
 			targetView.sessionId,
 			targetView.element,
-			targetView.gridSlotId ?? targetView.sessionId,
+			assertReturnsDefined(targetView.gridSlotId ?? targetView.sessionId),
 			!!targetView.chatResource,
 			event,
 		);

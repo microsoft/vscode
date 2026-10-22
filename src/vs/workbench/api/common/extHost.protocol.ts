@@ -32,6 +32,7 @@ import { EditSuggestionId } from '../../../editor/common/textModelEditSource.js'
 import { ISerializedModelContentChangedEvent } from '../../../editor/common/textModelEvents.js';
 import { IAccessibilityInformation } from '../../../platform/accessibility/common/accessibility.js';
 import { ILocalizedString } from '../../../platform/action/common/action.js';
+import { ArtifactActionDescriptor, ArtifactAutomationConfiguration, ArtifactAutomationOption, ArtifactAutomationRequest, ArtifactCodeResult, ArtifactContributionView, ArtifactDetails, ArtifactPartPresentation, ArtifactPreparation, ArtifactPrompt, ArtifactReconciliation, ArtifactRun } from '../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { ConfigurationTarget, IConfigurationChange, IConfigurationData, IConfigurationOverrides } from '../../../platform/configuration/common/configuration.js';
 import { LinkPresentationKind } from '../../../platform/dataChannel/common/dataChannel.js';
 import { ConfigurationScope } from '../../../platform/configuration/common/configurationRegistry.js';
@@ -250,8 +251,10 @@ export interface MainThreadConfigurationShape extends IDisposable {
 	$removeConfigurationOption(target: ConfigurationTarget | null, key: string, overrides: IConfigurationOverrides | undefined, scopeToLanguage: boolean | undefined): Promise<void>;
 }
 
+export type IMarkerChange = [uri: UriComponents, markers: IMarkerData[] | undefined, isTruncated?: boolean];
+
 export interface MainThreadDiagnosticsShape extends IDisposable {
-	$changeMany(owner: string, entries: [UriComponents, IMarkerData[] | undefined][]): void;
+	$changeMany(owner: string, entries: IMarkerChange[]): void;
 	$clear(owner: string): void;
 }
 
@@ -1272,11 +1275,12 @@ export interface ExtHostManagedSocketsShape {
 }
 
 export interface MainThreadBrowserTunnelProxyShape extends IDisposable {
-	$updateProxyInfo(info: ITunnelProxyInfo | undefined): void;
 }
 
 export interface ExtHostBrowserTunnelProxyShape {
-	$setEnabled(enabled: boolean): void;
+	/** Starts (or returns the running) proxy whose connections use the remote network with this authority. */
+	$acquireNetworkProxy(authority: string): Promise<ITunnelProxyInfo>;
+	$releaseNetworkProxy(authority: string): void;
 }
 
 export enum CellOutputKind {
@@ -2362,6 +2366,73 @@ export interface MainThreadTimelineShape extends IDisposable {
 	$emitWorkspaceTimelineChangeEvent(source: string): void;
 }
 
+export interface ChatArtifactIntegrationStateDto {
+	readonly revision: number;
+	readonly view: ArtifactContributionView;
+}
+
+export interface ChatArtifactActionDto extends ArtifactActionDescriptor {
+	readonly canReconcile: boolean;
+	readonly executionScope?: 'resource' | 'resourceAndWorkspace';
+}
+
+export type ChatArtifactResourceMatchDto =
+	| { readonly kind: 'matched'; readonly resource: UriComponents; readonly key: string; readonly credentialScope: string }
+	| { readonly kind: 'authenticationRequired'; readonly reason: string; readonly main: ArtifactPartPresentation };
+
+export interface ChatArtifactActionContextDto {
+	readonly runId: string;
+	readonly source: 'manual' | 'automation';
+	/** Who started the run: a person, an agent through its tools, or an automation rule. */
+	readonly initiator: 'user' | 'agent' | 'automation';
+	readonly optionId?: string;
+	readonly input?: string;
+}
+
+export type ChatArtifactAutomationRequestDto = Omit<ArtifactAutomationRequest, 'input'> & { readonly input?: string };
+
+export type ChatArtifactRunDto = Pick<ArtifactRun, 'id' | 'actionId' | 'source' | 'state' | 'reason' | 'createdAt' | 'updatedAt' | 'optionId' | 'generation' | 'occurrenceKey' | 'dispatched' | 'indeterminate'>;
+
+export interface ChatArtifactAutomationSnapshotDto {
+	readonly revision: number;
+	readonly configuration: Omit<ArtifactAutomationConfiguration, 'enabledAt' | 'grants'> & { readonly enabledAt: Readonly<Record<string, number>> };
+	readonly state: { readonly revision: number; readonly value?: string };
+	readonly runs: readonly ChatArtifactRunDto[];
+}
+
+export type ChatArtifactActionResultDto =
+	| Omit<Extract<ArtifactCodeResult, { readonly kind: 'completed' }>, 'result'>
+	| Extract<ArtifactCodeResult, { readonly kind: 'skipped' }>;
+
+export interface MainThreadChatArtifactIntegrationsShape extends IDisposable {
+	$registerProvider(handle: number, id: string, label: string, options: readonly ArtifactAutomationOption[], canSignIn: boolean, description?: string): void;
+	$unregisterProvider(handle: number): void;
+	$onDidChangeProvider(handle: number): void;
+	$onDidChangeIntegration(handle: number, state: ChatArtifactIntegrationStateDto): void;
+	$onDidChangeDetails(handle: number, details: ArtifactDetails): void;
+	$runAutomation(handle: number, request: ChatArtifactAutomationRequestDto): Promise<ChatArtifactRunDto>;
+	$writeAutomationState(handle: number, expectedRevision: number, value: string): Promise<ChatArtifactAutomationSnapshotDto>;
+	$reconcileAutomationRun(handle: number, runId: string): Promise<void>;
+	$disableAutomation(handle: number, optionId: string, expectedRevision: number, reason: string): Promise<void>;
+}
+
+export interface ExtHostChatArtifactIntegrationsShape {
+	$match(handle: number, resource: UriComponents, token: CancellationToken): Promise<ChatArtifactResourceMatchDto | undefined>;
+	$signIn(handle: number, resource: UriComponents, token: CancellationToken): Promise<void>;
+	$createIntegration(providerHandle: number, handle: number, resource: UriComponents, token: CancellationToken): Promise<{ readonly state: ChatArtifactIntegrationStateDto; readonly actions: readonly ChatArtifactActionDto[]; readonly initialDetails: Readonly<Record<string, { readonly details: ArtifactDetails; readonly canLoadMore: boolean }>> }>;
+	$disposeIntegration(handle: number): void;
+	$acquireDetails(resourceHandle: number, detailsHandle: number, detailsId: string): Promise<{ readonly details: ArtifactDetails; readonly canLoadMore: boolean }>;
+	$loadMoreDetails(detailsHandle: number, token: CancellationToken): Promise<void>;
+	$disposeDetails(detailsHandle: number): void;
+	$prepareAction(handle: number, actionId: string, context: ChatArtifactActionContextDto, token: CancellationToken): Promise<{ readonly kind: 'ready' } | { readonly kind: 'skip'; readonly reason: string }>;
+	$runAction(handle: number, actionId: string, context: ChatArtifactActionContextDto, token: CancellationToken): Promise<ChatArtifactActionResultDto | undefined>;
+	$providePrompt(handle: number, actionId: string, context: ChatArtifactActionContextDto, token: CancellationToken): Promise<ArtifactPreparation<ArtifactPrompt>>;
+	$reconcileAction(handle: number, actionId: string, runId: string, token: CancellationToken): Promise<ArtifactReconciliation>;
+	$activateAutomation(resourceHandle: number, handle: number, snapshot: ChatArtifactAutomationSnapshotDto, token: CancellationToken): Promise<void>;
+	$onDidChangeAutomation(handle: number, snapshot: ChatArtifactAutomationSnapshotDto): void;
+	$disposeAutomation(handle: number): void;
+}
+
 export interface HoverWithId extends languages.Hover {
 	/**
 	 * Id of the hover
@@ -2579,7 +2650,7 @@ export interface ExtHostAuthenticationShape {
 	$removeSession(id: string, sessionId: string): Promise<void>;
 	$onDidChangeAuthenticationSessions(id: string, label: string, extensionIdFilter?: string[]): Promise<void>;
 	$onDidUnregisterAuthenticationProvider(id: string): Promise<void>;
-	$registerDynamicAuthProvider(authorizationServer: UriComponents, serverMetadata: IAuthorizationServerMetadata, resource?: IAuthorizationProtectedResourceMetadata, clientId?: string, clientSecret?: string, initialTokens?: (IAuthorizationTokenResponse & { created_at: number })[]): Promise<string>;
+	$registerDynamicAuthProvider(authorizationServer: UriComponents, serverMetadata: IAuthorizationServerMetadata, resource?: IAuthorizationProtectedResourceMetadata, clientId?: string, clientSecret?: string, initialTokens?: (IAuthorizationTokenResponse & { created_at: number })[], providerId?: string): Promise<string>;
 	$registerXaaAuthProvider(issuer: UriComponents, serverMetadata: IAuthorizationServerMetadata, clientId?: string, clientSecret?: string, initialTokens?: (IAuthorizationTokenResponse & { created_at: number })[]): Promise<string>;
 	$onDidChangeDynamicAuthProviderTokens(authProviderId: string, clientId: string, tokens?: (IAuthorizationTokenResponse & { created_at: number })[]): Promise<void>;
 }
@@ -4030,6 +4101,11 @@ export interface GitDiffChangeDto extends GitChangeDto {
 	readonly deletions: number;
 }
 
+export interface GitCommitOptionsDto {
+	readonly noVerify?: boolean;
+	readonly signCommit?: boolean;
+}
+
 export interface GitRemoteDto {
 	readonly name: string;
 	readonly fetchUrl?: string;
@@ -4074,6 +4150,7 @@ export interface ExtHostGitExtensionShape {
 	$getRepositoryState(handle: number): Promise<GitRepositoryStateDto | undefined>;
 	$diffBetweenWithStats(handle: number, ref1: string, ref2: string, path?: string): Promise<GitDiffChangeDto[]>;
 	$diffBetweenWithStats2(handle: number, ref: string, path?: string): Promise<GitDiffChangeDto[]>;
+	$commitFiles(handle: number, files: UriComponents[], message: string, options?: GitCommitOptionsDto): Promise<void>;
 }
 
 // --- proxy identifiers
@@ -4151,6 +4228,7 @@ export const MainContext = {
 	MainThreadManagedSockets: createProxyIdentifier<MainThreadManagedSocketsShape>('MainThreadManagedSockets'),
 	MainThreadBrowserTunnelProxy: createProxyIdentifier<MainThreadBrowserTunnelProxyShape>('MainThreadBrowserTunnelProxy'),
 	MainThreadTimeline: createProxyIdentifier<MainThreadTimelineShape>('MainThreadTimeline'),
+	MainThreadChatArtifactIntegrations: createProxyIdentifier<MainThreadChatArtifactIntegrationsShape>('MainThreadChatArtifactIntegrations'),
 	MainThreadTesting: createProxyIdentifier<MainThreadTestingShape>('MainThreadTesting'),
 	MainThreadLocalization: createProxyIdentifier<MainThreadLocalizationShape>('MainThreadLocalizationShape'),
 	MainThreadMcp: createProxyIdentifier<MainThreadMcpShape>('MainThreadMcpShape'),
@@ -4240,6 +4318,7 @@ export const ExtHostContext = {
 	ExtHostBrowserTunnelProxy: createProxyIdentifier<ExtHostBrowserTunnelProxyShape>('ExtHostBrowserTunnelProxy'),
 	ExtHostAuthentication: createProxyIdentifier<ExtHostAuthenticationShape>('ExtHostAuthentication'),
 	ExtHostTimeline: createProxyIdentifier<ExtHostTimelineShape>('ExtHostTimeline'),
+	ExtHostChatArtifactIntegrations: createProxyIdentifier<ExtHostChatArtifactIntegrationsShape>('ExtHostChatArtifactIntegrations'),
 	ExtHostTesting: createProxyIdentifier<ExtHostTestingShape>('ExtHostTesting'),
 	ExtHostTelemetry: createProxyIdentifier<ExtHostTelemetryShape>('ExtHostTelemetry'),
 	ExtHostMeteredConnection: createProxyIdentifier<ExtHostMeteredConnectionShape>('ExtHostMeteredConnection'),

@@ -43,11 +43,12 @@ The runner exits non-zero if any test fails, so a `0` exit code means every sele
 
 ### Sharding in PR CI
 
-The GitHub PR workflows split the Electron smoke tests with a matrix (`shard: [1, 2]`) on the `<os>-electron-smoke-test-shards` jobs in `.github/workflows/pr.yml`, which pass `--shard` to the runner. They report as `<OS> (shard 1/2) / Electron-Smoke` and `<OS> (shard 2/2) / Electron-Smoke`. A matrix gate job, `electron-smoke-checks`, reports the required `<OS> / Electron-Smoke` checks and fails a platform's check if any of its shards did not succeed. To change the shard count, edit the matrix list. Near the top of each shard's `smoke-test-runner.log`, a `Running smoke test shard <index>/<total>` line lists the suites that shard ran.
+The GitHub PR workflows split the Electron smoke tests with a matrix (`shard: [1, 2]`) on the `<os>-electron-smoke-test-shards` jobs in `.github/workflows/pr.yml`, which pass `--shard` to the runner. They report as `<OS> (shard 1/2) / Electron-Smoke` and `<OS> (shard 2/2) / Electron-Smoke`. A gate job, `required-checks`, reports the required `<OS> / Electron-Smoke` checks and fails a platform's check if any of its shards did not succeed. The shards are skipped, and the check passes, when the pull request only changes paths the smoke tests cannot read (see `.github/actions/detect-changes/detect.ts`). To change the shard count, edit the matrix list. Near the top of each shard's `smoke-test-runner.log`, a `Running smoke test shard <index>/<total>` line lists the suites that shard ran.
 
 Some placement is coupled to the workflows, and `test/smoke/src/shard.ts` encodes it:
 
 - **WSL:** The WSL Dev Container suite is pinned to shard 1, and `pr-win32-test.yml` provisions WSL only in shard 1. Keep `VSCODE_SMOKE_TEST_WSL_REQUIRED` set in every shard, so that all shards register the same suites and compute the same split.
+- **WSL version:** the agents' Windows Server 2022 image only has the inbox WSL, so provisioning installs the WSL release pinned in `build/checksums/wsl.txt` (see `build/azure-pipelines/common/wsl.psm1`). To update it, put the SHA256 and file name of a newer `wsl.<version>.x64.msi` from the [microsoft/WSL releases](https://github.com/microsoft/WSL/releases) there. The installer caches key on that file; `pr-node-modules.yml` fills the GitHub cache on `main`.
 - **macOS proxy runs:** On macOS, the PAC proxy Agents Window runs happen only in the last shard, so the balancer reserves their time there.
 
 Every shard must register the same suites; otherwise suites can be skipped or run twice. Don't make suite registration depend on anything that differs between shards.

@@ -45,7 +45,11 @@ suite('Workbench GitHub credential broker', () => {
 				authorization: { ...authorization, accountId: 'account', authorizationServer: undefined },
 				apiBaseUri: 'https://api.github.com', graphQlUri: 'https://api.github.com/graphql',
 				missionControl: {
-					endpoint: { apiBaseUri: 'https://api.githubcopilot.com/agents', integrationId: COPILOT_INTEGRATION_ID },
+					endpoint: {
+						apiBaseUri: 'https://api.githubcopilot.com/agents',
+						feedApiBaseUri: 'https://api.github.com/cmc_internal/api/agents',
+						integrationId: COPILOT_INTEGRATION_ID,
+					},
 				},
 			},
 			token: 'selected-token',

@@ -7,6 +7,7 @@ import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Limiter, raceCancellationError, raceTimeout, RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -22,6 +23,7 @@ import { ISession, SessionStatus } from '../../../services/sessions/common/sessi
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 
 export const CLEANUP_THRESHOLD_BYTES = 5 * ByteSize.GB;
+export const LOW_DISK_SPACE_BYTES = 5 * ByteSize.GB;
 export const CLEANUP_THRESHOLD_WORKTREES = 20;
 const DEFAULT_MINIMUM_SESSION_AGE_DAYS = 15;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -69,6 +71,7 @@ export interface ISessionWorktreeCleanupService {
 	activate(): Promise<void>;
 	refresh(): Promise<void>;
 	suppressForWindow(): void;
+	setAvailableDiskSpace(availableBytes: number | undefined): void;
 	getWorktrees(minimumAgeDays: number): Promise<readonly ISessionWorktree[]>;
 	cleanupWorktrees(candidates: readonly ISessionWorktreeCleanupCandidate[]): Promise<boolean>;
 }
@@ -90,6 +93,7 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 	private _refreshPromise: Promise<void> | undefined;
 	private _activated = false;
 	private _dismissed = false;
+	private _availableDiskSpace: number | undefined;
 	private readonly _suggestion = observableValue<ISessionWorktreeCleanupSuggestion | undefined>(this, undefined);
 	readonly suggestion: IObservable<ISessionWorktreeCleanupSuggestion | undefined> = this._suggestion;
 
@@ -109,6 +113,7 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 				return;
 			}
 			this._lastScanAt = 0;
+			this._updateSuggestion();
 			if (!this._isEnabled()) {
 				this._suggestion.set(undefined, undefined);
 				return;
@@ -127,6 +132,7 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 		}, 10_000));
 		this._register(this.sessionsManagementService.onDidChangeSessions(() => {
 			this._lastScanAt = 0;
+			this._updateSuggestion();
 			refreshScheduler.schedule();
 		}));
 	}
@@ -164,17 +170,44 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 
 	private async _refresh(): Promise<void> {
 		this._lastScanAt = Date.now();
-		const worktrees = await this._getMeasuredWorktrees(DEFAULT_MINIMUM_SESSION_AGE_DAYS);
+		await this._getMeasuredWorktrees(DEFAULT_MINIMUM_SESSION_AGE_DAYS);
 		if (this._store.isDisposed || !this._isEnabled()) {
 			return;
 		}
+		this._updateSuggestion();
+	}
 
+	setAvailableDiskSpace(availableBytes: number | undefined): void {
+		this._availableDiskSpace = availableBytes;
+		this._updateSuggestion();
+	}
+
+	private _updateSuggestion(): void {
+		if (this._store.isDisposed || !this._isEnabled() || this._dismissed) {
+			this._suggestion.set(undefined, undefined);
+			return;
+		}
+		const hasLocalWorktree = this.sessionsManagementService.getSessions().some(session =>
+			session.workspace.get()?.folders.some(folder => folder.gitRepository?.workTreeUri?.scheme === Schemas.file)
+		);
+		if (hasLocalWorktree && this._availableDiskSpace !== undefined && this._availableDiskSpace < LOW_DISK_SPACE_BYTES) {
+			this._suggestion.set(this._createSuggestion({
+				description: localize('worktreeCleanup.nudge.lowDiskSpace', "Your disk is almost full ({0} available). Clean up agent session worktrees to free up space.", ByteSize.formatSize(this._availableDiskSpace)),
+				includeRecent: true,
+			}), undefined);
+			return;
+		}
+		const measuredWorktrees = this._lastMeasuredSessionSignature === this._getWorktreeSessionSignature() ? this._lastMeasuredWorktrees : undefined;
+		const worktrees = this._withCleanupState(measuredWorktrees ?? [], DEFAULT_MINIMUM_SESSION_AGE_DAYS);
 		const candidates = this._getCleanupCandidates(worktrees);
 		const totalBytes = candidates.reduce((total, candidate) => total + candidate.sizeBytes, 0);
 		const totalWorktrees = candidates.reduce((total, candidate) => total + candidate.worktreeCount, 0);
 		const thresholdReached = totalWorktrees >= CLEANUP_THRESHOLD_WORKTREES || totalBytes >= CLEANUP_THRESHOLD_BYTES;
-		if (thresholdReached && !this._dismissed) {
-			this._suggestion.set(this._createSuggestion(totalWorktrees, totalBytes), undefined);
+		if (thresholdReached) {
+			const description = totalWorktrees === 1
+				? localize('worktreeCleanup.nudge.descriptionOne', "1 agent session worktree has been inactive for at least 15 days and can be cleaned up, reclaiming about {0}.", ByteSize.formatSize(totalBytes))
+				: localize('worktreeCleanup.nudge.descriptionMany', "{0} agent session worktrees have been inactive for at least 15 days and can be cleaned up, reclaiming about {1}.", totalWorktrees, ByteSize.formatSize(totalBytes));
+			this._suggestion.set(this._createSuggestion({ description }), undefined);
 		} else {
 			this._suggestion.set(undefined, undefined);
 		}
@@ -355,15 +388,16 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 			.sort((a, b) => a.session.updatedAt.get().getTime() - b.session.updatedAt.get().getTime());
 	}
 
-	private _createSuggestion(worktreeCount: number, reclaimableBytes: number): ISessionWorktreeCleanupSuggestion {
-		const description = worktreeCount === 1
-			? localize('worktreeCleanup.nudge.descriptionOne', "1 agent session worktree has been inactive for at least 15 days and can be cleaned up, reclaiming about {0}.", ByteSize.formatSize(reclaimableBytes))
-			: localize('worktreeCleanup.nudge.descriptionMany', "{0} agent session worktrees have been inactive for at least 15 days and can be cleaned up, reclaiming about {1}.", worktreeCount, ByteSize.formatSize(reclaimableBytes));
+	private _createSuggestion(options: { readonly description: string; readonly includeRecent?: boolean }): ISessionWorktreeCleanupSuggestion {
 		return {
-			description,
+			description: options.description,
 			manage: async () => {
 				this.suppressForWindow();
-				await this.commandService.executeCommand(MANAGE_AGENT_SESSION_WORKTREES_COMMAND_ID);
+				if (options.includeRecent) {
+					await this.commandService.executeCommand(MANAGE_AGENT_SESSION_WORKTREES_COMMAND_ID, 'all');
+				} else {
+					await this.commandService.executeCommand(MANAGE_AGENT_SESSION_WORKTREES_COMMAND_ID);
+				}
 			},
 			disable: async () => {
 				this.suppressForWindow();

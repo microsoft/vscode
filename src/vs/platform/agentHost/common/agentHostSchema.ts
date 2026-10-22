@@ -553,7 +553,7 @@ export const AgentHostAutoReplyAnswer = 'The user is not available to answer you
 
 export const AgentHostWorkspaceTrustConfigKey = 'workspaceTrust';
 
-interface IAgentHostWorkspaceTrust {
+export interface IAgentHostWorkspaceTrust {
 	readonly enabled: boolean;
 	readonly trustedUris: readonly string[];
 }
@@ -563,6 +563,9 @@ export const AgentHostSystemProxyEnabledConfigKey = 'systemProxyEnabled';
 
 /** Root config key forwarded from the renderer for the GitHub MCP server. */
 export const AgentHostGitHubMcpServerEnabledConfigKey = 'githubMcpServerEnabled';
+
+/** Root config key forwarded from the renderer for GitHub's Computer Use plugin. */
+export const AgentHostComputerUseEnabledConfigKey = 'computerUseEnabled';
 
 /** Root config key forwarded from the renderer for cached MCP tool routing. */
 export const AgentHostMcpToolRoutingEnabledConfigKey = 'mcpToolRoutingEnabled';
@@ -636,6 +639,8 @@ export type AgentHostAgentOrchestrationLimits = 'on' | 'off';
 
 /** Root config key forwarded from the renderer for the artifact tools and their instruction. */
 export const AgentHostArtifactToolsConfigKey = 'artifactTools';
+export const AgentHostArtifactIntegrationsConfigKey = 'artifactIntegrations';
+export const AgentHostGitHubArtifactIgnoredChecksConfigKey = 'githubArtifactMarkReadyIgnoredChecks';
 
 /** Root config key controlling Canvas extensions in Copilot sessions. */
 export const AgentHostCanvasesEnabledConfigKey = 'canvasesEnabled';
@@ -972,6 +977,12 @@ export const platformRootSchema = createSchema({
 		description: localize('agentHost.config.githubMcpServerEnabled.description', "Whether agent sessions include a GitHub MCP server by default."),
 		default: true,
 	}),
+	[AgentHostComputerUseEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.computerUseEnabled.title', "Computer Use"),
+		description: localize('agentHost.config.computerUseEnabled.description', "Whether local Copilot agent sessions on macOS and Windows offer GitHub's Computer Use plugin."),
+		default: false,
+	}),
 	[AgentHostMcpToolRoutingEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.mcpToolRoutingEnabled.title', "MCP Tool Routing"),
@@ -1043,6 +1054,19 @@ export const platformRootSchema = createSchema({
 		title: localize('agentHost.config.artifactTools.title', "Artifact Tools"),
 		description: localize('agentHost.config.artifactTools.description', "Whether agents can record artifacts — pull requests, issues, commits, websites, files and other resources — with the artifact tools."),
 		default: false,
+	}),
+	[AgentHostArtifactIntegrationsConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.artifactIntegrations.title', "Artifact Integrations"),
+		description: localize('agentHost.config.artifactIntegrations.description', "Enables live artifact state, actions, and opt-in automation instead of Agent Merge. Saved automation choices are preserved when switching."),
+		default: false,
+	}),
+	[AgentHostGitHubArtifactIgnoredChecksConfigKey]: schemaProperty<readonly string[]>({
+		type: 'array',
+		title: localize('agentHost.config.githubArtifactIgnoredChecks.title', "Checks Excluded from Automatic Mark Ready"),
+		description: localize('agentHost.config.githubArtifactIgnoredChecks.description', "Check-name patterns that do not need to pass before a pull request artifact is automatically marked ready."),
+		items: { type: 'string', title: localize('agentHost.config.githubArtifactIgnoredChecks.item', "Check Name Pattern") },
+		default: [],
 	}),
 	[AgentHostCanvasesEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',

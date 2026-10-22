@@ -1,0 +1,61 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"title": "VS Code Linux Copilot shim package lifecycle fixtures",
+	"type": "object",
+	"required": ["schemaVersion", "fixtureSetId", "generatedAt", "helper", "fixtures"],
+	"properties": {
+		"schemaVersion": { "const": 1 },
+		"fixtureSetId": { "type": "string", "minLength": 1 },
+		"generatedAt": { "type": "string", "format": "date-time" },
+		"helper": {
+			"type": "object",
+			"required": ["sourcePath", "sha256", "functionName", "templateMarker"],
+			"properties": {
+				"sourcePath": { "type": "string", "minLength": 1 },
+				"sha256": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" },
+				"functionName": { "const": "vscode_copilot_link" },
+				"templateMarker": { "const": "@@COPILOT_LINK_HELPER@@" }
+			}
+		},
+		"fixtures": {
+			"type": "array",
+			"minItems": 1,
+			"items": {
+				"type": "object",
+				"required": ["id", "format", "architecture", "identity", "role", "packageName", "packageVersion", "revisionOrdinal", "packagePath", "payload", "provenance"],
+				"properties": {
+					"id": { "type": "string", "minLength": 1 },
+					"format": { "enum": ["deb", "rpm"] },
+					"architecture": { "type": "string", "minLength": 1 },
+					"identity": { "enum": ["code", "code-insiders", "code-oss", "foreign-copilot-owner"] },
+					"role": { "enum": ["initial", "upgrade", "legacy-no-shim", "oss-initial", "oss-upgrade", "foreign-owner"] },
+					"packageName": { "type": "string", "minLength": 1 },
+					"packageVersion": { "type": "string", "minLength": 1 },
+					"revisionOrdinal": { "type": "integer", "minimum": 1 },
+					"packagePath": { "type": "string", "minLength": 1 },
+					"payload": {
+						"type": "object",
+						"required": ["kind", "hasCopilotShim"],
+						"properties": {
+							"kind": { "enum": ["complete", "minimal-lifecycle"] },
+							"hasCopilotShim": { "type": "boolean" },
+							"launcherPath": { "type": "string" },
+							"shimPath": { "type": "string" }
+						}
+					},
+					"provenance": {
+						"type": "object",
+						"required": ["kind", "sourceRevision", "generationCommand", "templatePaths", "fixtureAdjustments"],
+						"properties": {
+							"kind": { "enum": ["source-build", "prepared-payload", "test-owned-foreign-package"] },
+							"sourceRevision": { "type": "string", "minLength": 1 },
+							"generationCommand": { "type": "string", "minLength": 1 },
+							"templatePaths": { "type": "array", "items": { "type": "string" } },
+							"fixtureAdjustments": { "type": "array", "items": { "type": "string" } }
+						}
+					}
+				}
+			}
+		}
+	}
+}

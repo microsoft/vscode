@@ -46,7 +46,7 @@ import { resolveChatAttachment } from '../common/state/chatAttachmentContext.js'
 import { buildOpenSessionLinkForChat } from '../common/openSessionLink.js';
 import { McpServerStatus, ToolCallContributorKind, type AgentInfo, type SessionActiveClient } from '../common/state/protocol/state.js';
 import type { CustomizationEnablement } from '../common/state/protocol/channels-session/state.js';
-import { ActionType, isChatAction, StateAction, type ChatDeltaAction, type ChatReasoningAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallStartAction, type ChatTurnStartedAction } from '../common/state/sessionActions.js';
+import { ActionType, isChatAction, StateAction, type ChatDeltaAction, type ChatReasoningAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallResultConfirmedAction, type ChatToolCallStartAction, type ChatTurnStartedAction } from '../common/state/sessionActions.js';
 import {
 	createErrorResponsePart,
 	getErrorResponsePart,
@@ -62,6 +62,7 @@ import {
 	SessionLifecycle,
 	CustomizationType,
 	ToolCallStatus,
+	ToolCallCancellationReason,
 	ToolCallConfirmationReason,
 	ToolResultContentType,
 	type ErrorInfo,
@@ -102,6 +103,7 @@ import { targetForMcpServer, targetForPlugin } from './shared/customizationEnabl
 import { IAgentHostWorktreeIsolation } from './shared/worktreeIsolation.js';
 import { IAgentHostWorktreeCleanupService } from './agentHostWorktreeCleanupService.js';
 import { IAgentHostChatOwnershipService, mintSubagentChatUri } from './agentHostChatOwnershipService.js';
+import { isServerToolConfirmation } from './shared/serverToolConfirmation.js';
 
 /**
  * Options for constructing an {@link AgentSideEffects} instance.
@@ -474,7 +476,7 @@ export class AgentSideEffects extends Disposable {
 					}
 				}
 			}
-			if (!envelope.origin && envelope.action.type === ActionType.ChatToolCallComplete && !isPresentationOnlyToolCall(envelope.action)) {
+			if (!envelope.origin && (envelope.action.type === ActionType.ChatToolCallComplete || envelope.action.type === ActionType.ChatToolCallResultConfirmed) && !isPresentationOnlyToolCall(envelope.action)) {
 				const action = envelope.action;
 				// Chat-action envelopes are emitted on the chat channel URI;
 				// agents are keyed by session URI, so resolve back to the
@@ -482,7 +484,7 @@ export class AgentSideEffects extends Disposable {
 				// alongside so agents that track peer chats can route correctly.
 				const sessionChannel = isAhpChatChannel(envelope.channel) ? this._chatOwnership.getChatOwner(envelope.channel) : undefined;
 				if (sessionChannel !== undefined) {
-					this._notifyClientToolCallComplete(sessionChannel, envelope.channel, action.toolCallId, action.result, 'server-envelope');
+					this._notifyClientToolCallComplete(sessionChannel, envelope.channel, action, 'server-envelope');
 				}
 			}
 			if (!envelope.origin && envelope.action.type === ActionType.SessionActiveClientRemoved) {
@@ -1604,7 +1606,40 @@ export class AgentSideEffects extends Disposable {
 	 * via `resolveSubagentChatParent(context)` instead of walking host state.
 	 * The two differ only when the addressed chat is a subagent.
 	 */
-	private _notifyClientToolCallComplete(sessionChannel: ProtocolURI, chatChannel: ProtocolURI, toolCallId: string, result: ToolCallResult, source: 'client-dispatch' | 'server-envelope'): void {
+	private _notifyClientToolCallComplete(sessionChannel: ProtocolURI, chatChannel: ProtocolURI, action: ChatToolCallCompleteAction | ChatToolCallResultConfirmedAction, source: 'client-dispatch' | 'server-envelope'): void {
+		const { toolCallId } = action;
+		const turn = this._stateManager.getChatState(chatChannel)?.activeTurn;
+		const part = turn?.id === action.turnId
+			? turn.responseParts.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === toolCallId)
+			: undefined;
+		const toolCall = part?.kind === ResponsePartKind.ToolCall ? part.toolCall : undefined;
+		if (toolCall?.status === ToolCallStatus.PendingResultConfirmation) {
+			this._logService.trace(`[AgentSideEffects] Waiting for tool result confirmation: chat=${chatChannel}, toolCallId=${toolCallId}`);
+			return;
+		}
+		let result: ToolCallResult;
+		if (action.type === ActionType.ChatToolCallComplete && !action.requiresResultConfirmation) {
+			result = action.result;
+		} else {
+			if (toolCall?.status === ToolCallStatus.Completed && (action.type === ActionType.ChatToolCallComplete || action.approved)) {
+				result = {
+					success: toolCall.success,
+					pastTenseMessage: toolCall.pastTenseMessage,
+					content: toolCall.content,
+					structuredContent: toolCall.structuredContent,
+					error: toolCall.error,
+				};
+			} else if (action.type === ActionType.ChatToolCallResultConfirmed && !action.approved && toolCall?.status === ToolCallStatus.Cancelled && toolCall.reason === ToolCallCancellationReason.ResultDenied) {
+				result = {
+					success: false,
+					pastTenseMessage: localize('agentHost.toolResultDenied', "Tool result denied"),
+					error: { message: localize('agentHost.toolResultDeniedMessage', "The user denied the tool result."), code: 'tool-result-denied' },
+				};
+			} else {
+				this._logService.trace(`[AgentSideEffects] Not forwarding unconfirmed tool result: chat=${chatChannel}, toolCallId=${toolCallId}, status=${toolCall?.status}`);
+				return;
+			}
+		}
 		const completionChat = this._toolCallCompletionChat(chatChannel);
 		const agent = this._options.getAgent(sessionChannel);
 		if (!agent) {
@@ -1852,6 +1887,10 @@ export class AgentSideEffects extends Disposable {
 				if (!chatChannel) {
 					throw new Error(`ChatInputCompleted must be handled on an AHP chat channel: ${channel}`);
 				}
+				// A server tool's own confirmation is answered to the host, not to the provider.
+				if (isServerToolConfirmation(this._stateManager.getChatState(channel), action.requestId)) {
+					break;
+				}
 				const agent = this._options.getAgent(sessionChannel);
 				agent?.respondToUserInputRequest(action.requestId, action.response, action.answers);
 				break;
@@ -1918,9 +1957,14 @@ export class AgentSideEffects extends Disposable {
 					: action.turnId;
 				// Route to the chat being truncated: the default chat (addressed
 				// by the session) or a peer chat with its own backing.
-				agent?.truncateChat?.(URI.parse(chatChannel), sdkTurnId, this._chatContext(sessionChannel, chatChannel)).catch(err => {
-					this._logService.error('[AgentSideEffects] truncateChat failed', err);
-				});
+				const truncation = agent?.truncateChat?.(URI.parse(chatChannel), sdkTurnId, this._chatContext(sessionChannel, chatChannel));
+				if (truncation) {
+					void truncation.catch(err => {
+						this._logService.error('[AgentSideEffects] truncateChat failed', err);
+					}).finally(() => this._changesets.onSessionTruncated(sessionChannel));
+				} else {
+					this._changesets.onSessionTruncated(sessionChannel);
+				}
 				// Drop persisted local turns that no longer survive in the
 				// (already-truncated) chat state.
 				const survivingIds = new Set((this._stateManager.getChatState(chatChannel)?.turns ?? []).map(t => t.id));
@@ -1936,7 +1980,6 @@ export class AgentSideEffects extends Disposable {
 					trackedTurnIds.add(activeTurnId);
 				}
 				this._turnTracker.clearTurnsExcept(chatChannel, trackedTurnIds);
-				this._changesets.onSessionTruncated(sessionChannel);
 				break;
 			}
 			case ActionType.SessionActiveClientSet: {
@@ -2036,11 +2079,12 @@ export class AgentSideEffects extends Disposable {
 				}
 				break;
 			}
-			case ActionType.ChatToolCallComplete: {
+			case ActionType.ChatToolCallComplete:
+			case ActionType.ChatToolCallResultConfirmed: {
 				if (!chatChannel) {
 					break; // Not a chat channel; ignore.
 				}
-				this._notifyClientToolCallComplete(sessionChannel, chatChannel, action.toolCallId, action.result, 'client-dispatch');
+				this._notifyClientToolCallComplete(sessionChannel, chatChannel, action, 'client-dispatch');
 				break;
 			}
 		}
@@ -2067,8 +2111,8 @@ export class AgentSideEffects extends Disposable {
 	 * (`chatChannel` undefined) or peer chat from its inherited chat
 	 * turns, replacing the placeholder `Forked: …` title once ready.
 	 */
-	generateForkedTitle(channel: ProtocolURI, chatChannel: ProtocolURI | undefined, turns: readonly Turn[], fallbackTitle: string, sourceTitle?: string): void {
-		this._titleController.generateForkedTitle(channel, chatChannel, turns, fallbackTitle, sourceTitle);
+	generateForkedTitle(channel: ProtocolURI, chatChannel: ProtocolURI | undefined, turns: readonly Turn[], fallbackTitle: string, sourceTitle?: string, initialPrompt?: string): void {
+		this._titleController.generateForkedTitle(channel, chatChannel, turns, fallbackTitle, sourceTitle, initialPrompt);
 	}
 
 	markTitleAuto(channel: ProtocolURI, chatChannel: ProtocolURI | undefined, title: string): void {

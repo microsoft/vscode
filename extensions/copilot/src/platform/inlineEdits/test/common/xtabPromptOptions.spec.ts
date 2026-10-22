@@ -149,6 +149,38 @@ describe('applyStrategyConfig', () => {
 
 describe('MODEL_CONFIGURATION_VALIDATOR', () => {
 
+	it.each(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const)('accepts reasoningEffort=%s', reasoningEffort => {
+		const result = MODEL_CONFIGURATION_VALIDATOR.validate(baseConfig({ reasoningEffort, maxCompletionTokens: 8192 }));
+		expect({
+			error: result.error,
+			reasoningEffort: result.content?.reasoningEffort,
+			maxCompletionTokens: result.content?.maxCompletionTokens,
+		}).toEqual({ error: undefined, reasoningEffort, maxCompletionTokens: 8192 });
+	});
+
+	it('leaves request arguments unset by default', () => {
+		const result = MODEL_CONFIGURATION_VALIDATOR.validate(baseConfig());
+		expect({
+			error: result.error,
+			reasoningEffort: result.content?.reasoningEffort,
+			maxCompletionTokens: result.content?.maxCompletionTokens,
+		}).toEqual({ error: undefined, reasoningEffort: undefined, maxCompletionTokens: undefined });
+	});
+
+	it.each(['', 'invalid', 'HIGH', null, 1])('rejects reasoningEffort=%s', reasoningEffort => {
+		const result = MODEL_CONFIGURATION_VALIDATOR.validate({ ...baseConfig(), reasoningEffort });
+		expect(result.error).toBeDefined();
+	});
+
+	it.each([0, -1, 1.5, NaN, Infinity, -Infinity, '8192', null])('rejects maxCompletionTokens=%s', maxCompletionTokens => {
+		const result = MODEL_CONFIGURATION_VALIDATOR.validate({ ...baseConfig(), maxCompletionTokens });
+		expect(result.error).toBeDefined();
+	});
+
+	it('accepts the minimum completion token budget', () => {
+		expect(MODEL_CONFIGURATION_VALIDATOR.validate(baseConfig({ maxCompletionTokens: 1 })).content?.maxCompletionTokens).toBe(1);
+	});
+
 	it.each(['aggressionHighLow', 'aggressionLowMedium'] as const)('accepts a config with eagernessPrompt=%s', eagernessPrompt => {
 		const result = MODEL_CONFIGURATION_VALIDATOR.validate(baseConfig({ eagernessPrompt }));
 		expect(result.error).toBeUndefined();

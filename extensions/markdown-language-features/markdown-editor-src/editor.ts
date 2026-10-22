@@ -24,6 +24,7 @@ import { DiagnosticsController } from './diagnosticsController';
 import { ImagePasteController } from './imagePasteController';
 import { createTaskProgressProvider, isTaskProgressLabels } from './taskProgress/taskProgressProvider';
 import { codeBlockEditorTheme } from './codeBlockEditorTheme';
+import { mermaidProvider } from './mermaid/mermaidProvider';
 import type { MarkdownEditorInitialState } from '../src/preview/webviewInitialState';
 
 interface VsCodeApi {
@@ -115,7 +116,6 @@ class Editor extends Disposable {
 	readonly #taskProgressProvider: IframeEmbeddedEditorProvider;
 	isUpdatingFromExtension = false;
 	#isUpdatingComments = false;
-	#mermaidCounter = 0;
 	#codeBlockEditorProviders: readonly CodeBlockEditorProviderDefinition[] = [];
 	#nextCodeBlockEditorRuntimeId = 1;
 	readonly #codeBlockEditorHostTransports = new Map<string, CodeBlockEditorHostTransport>();
@@ -417,30 +417,6 @@ class Editor extends Disposable {
 			onToggleCheckbox: (item, newChecked) => {
 				model.setTaskCheckboxChecked(item, newChecked);
 			},
-			renderCustomCodeBlock: (language, content) => {
-				if (language !== 'mermaid') {
-					return undefined;
-				}
-				const div = document.createElement('div');
-				div.className = 'md-mermaid';
-				div.textContent = content;
-				div.setAttribute('aria-busy', 'true');
-				const id = `mermaid-${this.#mermaidCounter++}`;
-				loadMermaid()
-					.then(mermaid => mermaid.render(id, content))
-					.then(({ svg }) => {
-						div.innerHTML = svg;
-						div.setAttribute('aria-busy', 'false');
-					})
-					.catch(error => {
-						div.textContent = content;
-						div.setAttribute('aria-busy', 'false');
-						this.#send('codeBlockEditorDiagnostic', this.#host.codeBlockEditorDiagnostic({
-							message: `Failed to render Mermaid diagram: ${error instanceof Error ? error.message : String(error)}`,
-						}));
-					});
-				return div;
-			},
 		}));
 		this.#view = view;
 		this.#rename = this._register(new RenameController(model, view, this.#host, () => this.#editEpoch));
@@ -606,6 +582,9 @@ class Editor extends Disposable {
 	}
 
 	#createIframeProviders(definitions: readonly CodeBlockEditorProviderDefinition[]): readonly IframeEmbeddedEditorProvider[] {
+		const hasMermaidProvider = definitions.some(definition =>
+			Object.entries(definition.selector).some(([key, language]) =>
+				key === 'language' ? language === 'mermaid' : key === 'languagePrefix' && 'mermaid'.startsWith(language)));
 		return [...definitions.map<IframeEmbeddedEditorProvider>(definition => ({
 			id: definition.id,
 			selector: definition.selector,
@@ -613,7 +592,7 @@ class Editor extends Disposable {
 			resolve: definition.source.kind === 'static'
 				? async () => definition.source.kind === 'static' ? definition.source.descriptor : undefined
 				: language => this.#resolveCodeBlockEditor(definition.id, language),
-		})), this.#taskProgressProvider];
+		})), this.#taskProgressProvider, ...(hasMermaidProvider ? [] : [mermaidProvider])];
 	}
 
 	#createCodeBlockEditorHostTransport(providerId: string, runtimeKey: string): CodeBlockEditorHostTransport {
@@ -673,18 +652,6 @@ class Editor extends Disposable {
 		};
 		requestAnimationFrame(apply);
 	}
-}
-
-let mermaidPromise: Promise<(typeof import('mermaid'))['default']> | undefined;
-
-function loadMermaid(): Promise<(typeof import('mermaid'))['default']> {
-	if (!mermaidPromise) {
-		mermaidPromise = import('mermaid').then(module => {
-			module.default.initialize({ startOnLoad: false, theme: 'default' });
-			return module.default;
-		});
-	}
-	return mermaidPromise;
 }
 
 function readInitialState(): InitialState {

@@ -16,11 +16,13 @@ import './chatImageReveal.css';
 
 export interface IChatImageRevealOrigin {
 	readonly container: HTMLElement;
+	/** Side of the loading square that the image grows from, in CSS pixels, when it is known. */
+	readonly size?: number;
 }
 
-const revealProperties = ['frame', 'frame-width', 'image'];
+const revealProperties = ['frame', 'frame-width', 'image', 'pending-size'];
 
-/** Expands the loading glyph band into the generated image as soon as its bytes are ready. */
+/** Expands the loading glyph square into the generated image as soon as its bytes are ready. */
 export class ChatImageReveal extends Disposable {
 	private readonly effects = this._register(new DisposableStore());
 	private readonly surface: GlyphSurface;
@@ -36,6 +38,9 @@ export class ChatImageReveal extends Disposable {
 	) {
 		super();
 		container.classList.add('chat-image-reveal', 'pending', 'chat-image-generation-line');
+		if (origin?.size) {
+			container.style.setProperty('--chat-image-reveal-pending-size', `${origin.size}px`);
+		}
 		origin?.container.classList.add('chat-image-reveal-pending');
 		this.effects.add(toDisposable(() => {
 			container.classList.remove('pending', 'revealing', 'chat-image-generation-line');

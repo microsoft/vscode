@@ -18,6 +18,12 @@ export const IEditorWorkerService = createDecorator<IEditorWorkerService>('edito
 
 export type DiffAlgorithmName = 'legacy' | 'advanced' | 'advanced-external' | 'advanced-wasm';
 
+export interface IStringEditFromDiff {
+	readonly edit: StringEdit;
+	/** The diff timed out or used a replacement fallback after an error. */
+	readonly isCoarse: boolean;
+}
+
 export interface IEditorWorkerService {
 	readonly _serviceBrand: undefined;
 
@@ -34,6 +40,7 @@ export interface IEditorWorkerService {
 	computeHumanReadableDiff(resource: URI, edits: TextEdit[] | null | undefined): Promise<TextEdit[] | undefined>;
 
 	computeStringEditFromDiff(original: string, modified: string, options: { maxComputationTimeMs: number }, algorithm: DiffAlgorithmName): Promise<StringEdit>;
+	computeStringEditFromDiffWithMetadata(original: string, modified: string, options: { maxComputationTimeMs: number }, algorithm: DiffAlgorithmName): Promise<IStringEditFromDiff>;
 
 	canComputeWordRanges(resource: URI): boolean;
 	computeWordRanges(resource: URI, range: IRange): Promise<{ [word: string]: IRange[] } | null>;

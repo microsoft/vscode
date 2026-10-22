@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { numberSegment, pathSegment, pathSegments, withQuery } from '../../common/client/routing.js';
+import { numberSegment, pathSegment, pathSegments, repositoryPath, withQuery } from '../../common/client/routing.js';
 import { GitHubRequestError } from '../../common/githubTypes.js';
 
 suite('GitHub client routing', () => {
@@ -33,6 +33,17 @@ suite('GitHub client routing', () => {
 		for (const value of ['', ' \t ', '.', '..']) {
 			assert.throws(() => pathSegment(value), isValidationError);
 		}
+	});
+
+	test('repository paths accept owner and repo objects without changing path encoding', () => {
+		const ref = { owner: 'space owner', repo: 'repo/#?' };
+		assert.deepStrictEqual([
+			repositoryPath(ref),
+			repositoryPath(ref.owner, ref.repo),
+		], [
+			'/repos/space%20owner/repo%2F%23%3F',
+			'/repos/space%20owner/repo%2F%23%3F',
+		]);
 	});
 
 	test('numeric path segments encode positive safe integers', () => {
