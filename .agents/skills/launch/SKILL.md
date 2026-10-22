@@ -32,7 +32,7 @@ The clone is **slim**: workspace storage, browser caches, file history, cached V
 - `@playwright/cli` available (it's a devDependency in the vscode repo - `npm install` then use `npx @playwright/cli`).
 - For debugger work: `dap-cli` on `PATH`. If debugger support would be useful but the `dap-cli` skill is not present, prompt the user to install it from https://github.com/roblourens/dap-cli.
 - CSS selectors are internal implementation details. If a selector-based `eval` stops working, take a fresh `snapshot`, inspect the current DOM, and update the selector rather than assuming an old one still applies.
-- When running from an agent session with a sandboxed terminal, run the launcher and `@playwright/cli` outside the sandbox. The sandbox blocks starting Code OSS (`[launch.ps1] Access is denied` on Windows) and connecting to its local debug ports.
+- When running from an agent session with a sandboxed terminal, the sandbox blocks starting Code OSS (`[launch.ps1] Access is denied` on Windows) and connecting to its local debug ports. Run the launcher, `@playwright/cli`, and the cleanup script outside the sandbox: request unsandboxed execution for those commands rather than asking the user to change sandbox settings.
 
 > The launcher **copies** the source profile to a temp dir and never mutates the original. Each launch gets its own isolated `--user-data-dir` and `--extensions-dir`.
 
