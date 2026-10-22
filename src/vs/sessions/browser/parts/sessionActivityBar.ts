@@ -72,7 +72,8 @@ export class SessionActivityBar extends Disposable {
 
 		this.element = append(container, $('.session-activity-bar'));
 
-		const hoverDelegate = this._register(instantiationService.createInstance(WorkbenchHoverDelegate, 'element', undefined, { position: { hoverPosition: HoverPosition.LEFT } }));
+		// Like the workbench activity bar, once an entry's hover has shown, moving to another entry shows its hover instantly.
+		const hoverDelegate = this._register(instantiationService.createInstance(WorkbenchHoverDelegate, 'element', { instantHover: true }, { position: { hoverPosition: HoverPosition.LEFT } }));
 		const toolbar = this._register(instantiationService.createInstance(MenuWorkbenchToolBar, this.element, Menus.SessionActivityBar, {
 			orientation: ActionsOrientation.VERTICAL,
 			ariaLabel: localize('sessionActivityBar', "Session Activity Bar"),

@@ -13,6 +13,8 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { AnchorAlignment } from '../../../base/common/layout.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
+import { IHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegate.js';
+import { getBaseLayerHoverDelegate, setBaseLayerHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegate2.js';
 import { mock, upcastPartial } from '../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
@@ -654,6 +656,20 @@ suite('Sessions - Session Activity Bar', () => {
 			strip: true,
 			menus: ['SessionActivityBarContext', 'SessionActivityBarContext', 'SessionActivityBarContext'],
 		});
+	});
+
+	test('shows the hover of the next entry instantly once one has shown, like the workbench activity bar', () => {
+		const previous = getBaseLayerHoverDelegate();
+		const delegates = new Set<IHoverDelegate>();
+		setBaseLayerHoverDelegate({ ...previous, setupManagedHover: (delegate, ...args) => { delegates.add(delegate); return previous.setupManagedHover(delegate, ...args); } });
+		store.add(toDisposable(() => setBaseLayerHoverDelegate(previous)));
+		createActivityBar(store, [changes, browser]);
+
+		const [delegate] = delegates;
+		const firstDelay = delegate.delay;
+		delegate.onDidHideHover?.();
+
+		assert.deepStrictEqual({ delegates: delegates.size, firstDelayed: firstDelay !== 0, nextDelay: delegate.delay }, { delegates: 1, firstDelayed: true, nextDelay: 0 });
 	});
 
 	test('runs an entry when clicked', async () => {
