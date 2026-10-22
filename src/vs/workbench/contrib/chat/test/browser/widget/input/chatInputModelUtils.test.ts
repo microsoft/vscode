@@ -242,6 +242,33 @@ suite('ChatInputModelUtils', () => {
 			assert.deepStrictEqual(result.map(m => m.metadata.id), ['gpt-4o', 'claude']);
 		});
 
+		test('local session type is not scoped by models targeting local', () => {
+			const localModel = createSessionModel('local-gpt', 'Local GPT', 'local');
+			const byok = createVendorModel('openai-compatible', 'my-endpoint', 'My Endpoint');
+			const models = [localModel, gpt4o, byok];
+
+			const result = filterModelsForSession(models, 'local', ChatModeKind.Ask, ChatAgentLocation.Chat);
+
+			// 'local' is the general-purpose pool: models targeting it are ignored, and both
+			// unscoped BYOK and unscoped general models are offered.
+			assert.deepStrictEqual(result.map(m => m.metadata.id), ['gpt-4o', 'my-endpoint']);
+			// The picker and the session-validity check must agree on that pool.
+			assert.deepStrictEqual(result.filter(m => !isModelValidForSession(m, models, 'local')).map(m => m.metadata.id), []);
+			assert.strictEqual(isModelValidForSession(localModel, models, 'local'), false);
+		});
+
+		test('skips entries without metadata instead of throwing', () => {
+			// Cached model entries are read back from storage unvalidated.
+			const withoutMetadata = { identifier: 'broken/model' } as unknown as ILanguageModelChatMetadataAndIdentifier;
+			const result = filterModelsForSession(
+				[cloudModel, withoutMetadata],
+				'cloud',
+				ChatModeKind.Ask,
+				ChatAgentLocation.Chat,
+			);
+			assert.deepStrictEqual(result.map(m => m.metadata.id), ['cloud-gpt']);
+		});
+
 		test('excludes models targeting a specific session type when in general session', () => {
 			const result = filterModelsForSession(
 				[gpt4o, claude, cloudModel],
@@ -456,6 +483,22 @@ suite('ChatInputModelUtils', () => {
 			const sessionModel = createSessionModel('cloud-gpt', 'Cloud GPT', 'cloud');
 			const allModels = [byok, sessionModel];
 			assert.strictEqual(isModelValidForSession(byok, allModels, 'cloud'), true);
+		});
+
+		test('local session pool is not scoped by models targeting local', () => {
+			const localModel = createSessionModel('local-gpt', 'Local GPT', 'local');
+			const generalModel = createModel('gpt', 'GPT');
+			const byok = createVendorModel('openai-compatible', 'my-endpoint', 'My Endpoint');
+			const allModels = [localModel, generalModel, byok];
+			assert.deepStrictEqual({
+				localModel: isModelValidForSession(localModel, allModels, 'local'),
+				generalModel: isModelValidForSession(generalModel, allModels, 'local'),
+				byok: isModelValidForSession(byok, allModels, 'local'),
+			}, {
+				localModel: false,
+				generalModel: true,
+				byok: true,
+			});
 		});
 
 		test('model targeting wrong session is NOT valid', () => {
