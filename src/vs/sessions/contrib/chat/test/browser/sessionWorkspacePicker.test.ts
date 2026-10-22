@@ -1219,6 +1219,9 @@ suite('WorkspacePicker - Connection Status', () => {
 					hosts: consolidated
 						? items.find(item => item.label === 'Remote')?.filterItems?.map(item => item.label) ?? []
 						: items.filter(item => item.label?.startsWith('Provider ')).map(item => item.label),
+					hostIcons: consolidated
+						? items.find(item => item.label === 'Remote')?.filterItems?.map(item => item.group?.icon) ?? []
+						: items.filter(item => item.label?.startsWith('Provider ')).map(item => item.group?.icon),
 				};
 			};
 			const states = [snapshot()];
@@ -1229,6 +1232,7 @@ suite('WorkspacePicker - Connection Status', () => {
 			const offline = {
 				workspaces: [tunnel.id], browse: ['Browse Tunnel'],
 				hosts: [consolidated ? `Manage ${tunnel.label}` : tunnel.label],
+				hostIcons: [Codicon.remote],
 			};
 			assert.deepStrictEqual({
 				states, retainedSessions: environment.getSessions().length,
@@ -1237,6 +1241,7 @@ suite('WorkspacePicker - Connection Status', () => {
 				states: [offline, {
 					workspaces: [environment.id, tunnel.id], browse: ['Browse Environment', 'Browse Tunnel'],
 					hosts: [environment, tunnel].map(provider => consolidated ? `Manage ${provider.label}` : provider.label),
+					hostIcons: [Codicon.remote, Codicon.remote],
 				}, offline],
 				retainedSessions: 1, recentsUnchanged: true,
 			});

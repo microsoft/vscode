@@ -1154,7 +1154,7 @@ registerAction2(class extends Action2 {
 			shortTitle: localize2('connectViaTunnelShort', "Tunnels"),
 			category: SessionsCategories.Sessions,
 			f1: true,
-			icon: Codicon.cloud,
+			icon: Codicon.remote,
 			precondition: ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true),
 			menu: {
 				id: Menus.SessionWorkspaceManage,
