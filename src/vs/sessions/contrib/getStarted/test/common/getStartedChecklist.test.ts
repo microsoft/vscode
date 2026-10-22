@@ -94,15 +94,37 @@ suite('GetStartedChecklist', () => {
 		]);
 	});
 
-	test('ineligible users are not tracked', () => {
-		const { model, update, done } = createModel();
+	test('nothing is tracked or stored before eligibility is decided, or for ineligible users', () => {
+		const { model, storage, update, done } = createModel();
+		update({ createdSessionCount: 5, runningSessionCount: 2, automationCount: 1 });
+		const undecided = { done: done(), stored: storage.get(GET_STARTED_STATE_STORAGE_KEY, StorageScope.APPLICATION) };
 		model.decideEligibility(5);
-		update({ createdSessionCount: 6, runningSessionCount: 2, automationCount: 1 });
-		assert.deepStrictEqual(done(), []);
+		update({ createdSessionCount: 6, projectCount: 2 });
+		assert.deepStrictEqual({ undecided, ineligible: done(), stored: readGetStartedState(storage) }, {
+			undecided: { done: [], stored: undefined },
+			ineligible: [],
+			stored: { eligible: false, completed: [], collapsed: undefined, dismissed: undefined },
+		});
+	});
+
+	test('what an eligible user did before seeing the checklist counts as done, and only later progress is reported', () => {
+		const { model, update, done } = createModel();
+		const reported: (readonly GetStartedItemId[])[] = [];
+		disposables.add(model.onDidCompleteItems(items => reported.push(items)));
+		update({ createdSessionCount: 1, runningSessionCount: 2 });
+		model.decideEligibility(1);
+		const atDecision = done();
+		update({ projectCount: 2 });
+		assert.deepStrictEqual({ atDecision, afterwards: done(), reported }, {
+			atDecision: [GetStartedItemId.StartSession, GetStartedItemId.RunInParallel],
+			afterwards: [GetStartedItemId.StartSession, GetStartedItemId.RunInParallel, GetStartedItemId.SecondProject],
+			reported: [[GetStartedItemId.SecondProject]],
+		});
 	});
 
 	test('the automation item only shows when automations are available, unless it is already done', () => {
 		const { model, update, automations } = createModel(undefined, false);
+		model.decideEligibility(0);
 		const ids = () => model.items.get().map(item => item.id);
 		const unavailable = ids();
 		automations.set(true, undefined);

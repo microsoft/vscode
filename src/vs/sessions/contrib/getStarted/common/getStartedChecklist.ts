@@ -141,7 +141,7 @@ export class GetStartedChecklistModel extends Disposable {
 	readonly onDidCompleteItems: Event<readonly GetStartedItemId[]> = this._onDidCompleteItems.event;
 
 	constructor(
-		signals: IObservable<IGetStartedSignals>,
+		private readonly _signals: IObservable<IGetStartedSignals>,
 		automationsAvailable: IObservable<boolean>,
 		private readonly _storageService: IStorageService,
 		/** Developer-mode previews track progress even for users who are not eligible. */
@@ -168,13 +168,14 @@ export class GetStartedChecklistModel extends Disposable {
 		});
 		this.allDone = derived(this, reader => this.items.read(reader).every(item => item.done));
 
-		// Completed items stay completed, even when the signal that completed them goes away.
+		// Tracks eligible users only, so nothing is stored for others. Completed items stay
+		// completed, even when the signal that completed them goes away.
 		this._register(autorun(reader => {
 			const state = this._state.read(reader);
-			if (state.eligible === false && !forceEligible.read(reader)) {
+			if (state.eligible !== true && !forceEligible.read(reader)) {
 				return;
 			}
-			const newlyCompleted = getCompletedGetStartedItems(signals.read(reader)).filter(id => !state.completed.includes(id));
+			const newlyCompleted = getCompletedGetStartedItems(_signals.read(reader)).filter(id => !state.completed.includes(id));
 			if (newlyCompleted.length > 0) {
 				this._update({ completed: GET_STARTED_ITEM_IDS.filter(id => state.completed.includes(id) || newlyCompleted.includes(id)) });
 				this._onDidCompleteItems.fire(newlyCompleted);
@@ -184,6 +185,8 @@ export class GetStartedChecklistModel extends Disposable {
 
 	/**
 	 * Decides eligibility the first time the user can see the checklist's place, and keeps it.
+	 * What an eligible user already did counts as done, without being reported as completed,
+	 * because they did it before seeing the checklist.
 	 * @returns whether the user is eligible.
 	 */
 	decideEligibility(createdSessionCount: number): boolean {
@@ -192,7 +195,12 @@ export class GetStartedChecklistModel extends Disposable {
 			return state.eligible;
 		}
 		const eligible = createdSessionCount < GET_STARTED_MAX_SESSIONS_FOR_ELIGIBILITY;
-		this._update({ eligible });
+		if (eligible) {
+			const alreadyDone = getCompletedGetStartedItems(this._signals.get());
+			this._update({ eligible, completed: GET_STARTED_ITEM_IDS.filter(id => state.completed.includes(id) || alreadyDone.includes(id)) });
+		} else {
+			this._update({ eligible });
+		}
 		return eligible;
 	}
 

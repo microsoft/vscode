@@ -234,11 +234,15 @@ suite('GetStartedChecklistService', () => {
 	}));
 
 	test('counts projects like the sessions list groups them, so the worktrees of one repository are one project', () => runWithFakedTimers({}, async () => {
-		const done = (...sessions: ISession[]) => createService({ mode: GetStartedChecklistMode.AboveSessions, sessions }).service.items.get().filter(item => item.done).map(item => item.id);
+		const done = async (...sessions: ISession[]) => {
+			const { service } = createService({ mode: GetStartedChecklistMode.AboveSessions, sessions });
+			await timeout(2_000);
+			return service.items.get().filter(item => item.done).map(item => item.id);
+		};
 		assert.deepStrictEqual({
-			worktreesOfOneRepository: done(createTestSession('Add tests', { workspaceLabel: 'todo-app' }).session, createTestSession('Fix lint', { workspaceLabel: 'todo-app' }).session),
-			twoProjects: done(createTestSession('Add tests', { workspaceLabel: 'todo-app' }).session, createTestSession('Add docs', { workspaceLabel: 'docs-site' }).session),
-			unsentSessionInAnotherProject: done(createTestSession('Add tests', { workspaceLabel: 'todo-app' }).session, createTestSession('New', { workspaceLabel: 'docs-site', status: SessionStatus.Untitled }).session),
+			worktreesOfOneRepository: await done(createTestSession('Add tests', { workspaceLabel: 'todo-app' }).session, createTestSession('Fix lint', { workspaceLabel: 'todo-app' }).session),
+			twoProjects: await done(createTestSession('Add tests', { workspaceLabel: 'todo-app' }).session, createTestSession('Add docs', { workspaceLabel: 'docs-site' }).session),
+			unsentSessionInAnotherProject: await done(createTestSession('Add tests', { workspaceLabel: 'todo-app' }).session, createTestSession('New', { workspaceLabel: 'docs-site', status: SessionStatus.Untitled }).session),
 		}, {
 			worktreesOfOneRepository: [],
 			twoProjects: [GetStartedItemId.SecondProject],

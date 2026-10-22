@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
@@ -15,15 +17,15 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { MockContextKeyService, MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { GET_STARTED_ITEM_IDS, GetStartedItemId, IGetStartedItemState } from '../../common/getStartedChecklist.js';
-import { GetStartedChecklistWidget } from '../../browser/getStartedChecklistWidget.js';
+import { GetStartedChecklistWidget, SessionsGetStartedFocused } from '../../browser/getStartedChecklistWidget.js';
 
 suite('GetStartedChecklistWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createChecklist(done: readonly GetStartedItemId[]) {
+	function createChecklist(done: readonly GetStartedItemId[], contextKeyService: IContextKeyService = new MockContextKeyService()) {
 		const items = observableValue<readonly IGetStartedItemState[]>('items', GET_STARTED_ITEM_IDS.map(id => ({ id, done: done.includes(id) })));
 		const instantiationService = disposables.add(new TestInstantiationService());
-		instantiationService.stub(IContextKeyService, new MockContextKeyService());
+		instantiationService.stub(IContextKeyService, contextKeyService);
 		instantiationService.stub(IHoverService, NullHoverService);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IKeybindingService, new MockKeybindingService());
@@ -38,6 +40,7 @@ suite('GetStartedChecklistWidget', () => {
 		}, { focusSessionsList: () => { }, animate: false }));
 		const headers = () => [...widget.domNode.querySelectorAll<HTMLElement>('.get-started-item-header')];
 		return {
+			headers,
 			/** The item that shows its explanation and Show Me action, or `none`. */
 			expanded: () => {
 				const index = headers().findIndex(header => header.getAttribute('aria-expanded') === 'true');
@@ -73,5 +76,13 @@ suite('GetStartedChecklistWidget', () => {
 			// Completing the expanded item moves on to the next open one.
 			GetStartedItemId.KeepChanges,
 		]);
+	});
+
+	test('the accessibility help of the checklist applies only while focus is inside it', () => {
+		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		const checklist = createChecklist([], contextKeyService);
+		// The accessibility help evaluates each help's `when` in the context of the focused element.
+		const helpApplies = (focused: HTMLElement) => SessionsGetStartedFocused.evaluate(contextKeyService.getContext(focused));
+		assert.deepStrictEqual({ inside: helpApplies(checklist.headers()[0]), outside: helpApplies(mainWindow.document.createElement('div')) }, { inside: true, outside: false });
 	});
 });
