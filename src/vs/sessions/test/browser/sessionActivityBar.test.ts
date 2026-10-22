@@ -17,7 +17,7 @@ import { mock, upcastPartial } from '../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
-import { IMenu, IMenuActionOptions, IMenuChangeEvent, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from '../../../platform/actions/common/actions.js';
+import { IMenu, IMenuActionOptions, IMenuChangeEvent, IMenuService, MenuId, MenuItemAction, MenuRegistry, SubmenuItemAction } from '../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../platform/configuration/common/configuration.js';
@@ -25,7 +25,8 @@ import { TestConfigurationService } from '../../../platform/configuration/test/c
 import { IContextMenuMenuDelegate, IContextMenuService, IContextViewService } from '../../../platform/contextview/browser/contextView.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { ChatViewSessionActivityBar, SessionActivityBar } from '../../browser/parts/sessionActivityBar.js';
-import { SessionActivityBarGroup } from '../../browser/menus.js';
+import { Menus, SessionActivityBarGroup } from '../../browser/menus.js';
+import { TogglePanelAction } from '../../../workbench/browser/parts/panel/panelActions.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../browser/workbench.js';
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../common/sessionConfig.js';
 import { TOGGLE_SIDE_PANEL_COMMAND_ID } from '../../common/sessionCommands.js';
@@ -664,24 +665,30 @@ suite('Sessions - Session Activity Bar', () => {
 		assert.deepStrictEqual(ran, ['test.browser']);
 	});
 
-	test('shows a checked entry as pressed and hides the side pane when it is clicked or activated by keyboard', async () => {
-		const { label, ran } = createActivityBar(store, [{ ...changes, checked: true }, browser]);
+	test('shows a checked entry as pressed and hides what it shows when it is clicked or activated by keyboard', async () => {
+		const files: ITestEntry = { id: 'test.files', title: 'Files', icon: Codicon.files, group: SessionActivityBarGroup.SidePanel, checked: true };
+		const terminal: ITestEntry = { id: 'test.terminal', title: 'Terminal', icon: Codicon.terminal, group: SessionActivityBarGroup.Panel, checked: true };
+		// The entries' groups determine what they hide, as registered in the menu.
+		for (const entry of [files, terminal]) {
+			store.add(MenuRegistry.appendMenuItem(Menus.SessionActivityBar, { command: { id: entry.id, title: entry.title }, group: entry.group }));
+		}
+		const { label, ran } = createActivityBar(store, [files, { ...browser, group: SessionActivityBarGroup.SidePanel }, terminal]);
 
 		const state = (title: string) => ({ checked: label(title).classList.contains('checked'), pressed: label(title).getAttribute('aria-pressed') });
-		const before = { changes: state('Changes'), browser: state('Browser') };
-		label('Changes').click();
-		await timeout(0);
-		label('Browser').click();
-		await timeout(0);
-		key(label('Changes'), 36, 'Home');
-		key(label('Changes'), 13, 'Enter');
+		const before = { files: state('Files'), browser: state('Browser'), terminal: state('Terminal') };
+		for (const title of ['Files', 'Browser', 'Terminal']) {
+			label(title).click();
+			await timeout(0);
+		}
+		key(label('Files'), 36, 'Home');
+		key(label('Files'), 13, 'Enter');
 		// The action bar runs the focused entry when Enter is released.
-		label('Changes').dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+		label('Files').dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
 		await timeout(0);
 
 		assert.deepStrictEqual({ before, ran }, {
-			before: { changes: { checked: true, pressed: 'true' }, browser: { checked: false, pressed: null } },
-			ran: [TOGGLE_SIDE_PANEL_COMMAND_ID, 'test.browser', TOGGLE_SIDE_PANEL_COMMAND_ID],
+			before: { files: { checked: true, pressed: 'true' }, browser: { checked: false, pressed: null }, terminal: { checked: true, pressed: 'true' } },
+			ran: [TOGGLE_SIDE_PANEL_COMMAND_ID, 'test.browser', TogglePanelAction.ID, TOGGLE_SIDE_PANEL_COMMAND_ID],
 		});
 	});
 

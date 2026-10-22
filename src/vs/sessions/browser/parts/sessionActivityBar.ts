@@ -21,11 +21,12 @@ import { IAction, toAction } from '../../../base/common/actions.js';
 import { localize } from '../../../nls.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
 import { IMenuEntryActionViewItemOptions, MenuEntryActionViewItem } from '../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { MenuItemAction, SubmenuItemAction } from '../../../platform/actions/common/actions.js';
+import { isIMenuItem, MenuItemAction, MenuRegistry, SubmenuItemAction } from '../../../platform/actions/common/actions.js';
 import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { IBadge, NumberBadge } from '../../../workbench/services/activity/common/activity.js';
+import { TogglePanelAction } from '../../../workbench/browser/parts/panel/panelActions.js';
 import { ISessionActivityBarActivityService } from '../../services/activity/common/sessionActivityBarActivityService.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
@@ -34,7 +35,7 @@ import { IContextMenuService } from '../../../platform/contextview/browser/conte
 import { IHoverService, WorkbenchHoverDelegate } from '../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
-import { Menus } from '../menus.js';
+import { Menus, SessionActivityBarGroup } from '../menus.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../workbench.js';
 import { AGENTS_CONTENT_HORIZONTAL_PADDING } from '../../common/layoutConstants.js';
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../common/sessionConfig.js';
@@ -421,20 +422,29 @@ export class SessionActivityBarActionViewItem extends MenuEntryActionViewItem {
 		return this.activityService.getActivity(this._menuItemAction.id).at(-1)?.badge;
 	}
 
-	/** Whether the entry is checked because the side pane shows its content, so running it hides the side pane like the workbench activity bar. */
-	private get hidesSidePane(): boolean {
-		return this._menuItemAction.enabled && !!this._menuItemAction.checked && this._menuItemAction.id !== TOGGLE_SIDE_PANEL_COMMAND_ID;
+	/**
+	 * The command that hides what a checked entry shows, like the workbench activity bar: the side pane for the
+	 * entries that open its tabs, and the panel for the terminal. `undefined` for unchecked entries and the toggles.
+	 */
+	private getHideCommand(): string | undefined {
+		if (!this._menuItemAction.enabled || !this._menuItemAction.checked) {
+			return undefined;
+		}
+		const group = MenuRegistry.getMenuItems(Menus.SessionActivityBar).find(item => isIMenuItem(item) && item.command.id === this._menuItemAction.id)?.group;
+		const command = group === SessionActivityBarGroup.SidePanel ? TOGGLE_SIDE_PANEL_COMMAND_ID : group === SessionActivityBarGroup.Panel ? TogglePanelAction.ID : undefined;
+		return command !== this._menuItemAction.id ? command : undefined;
 	}
 
 	override getActionToRun(event: EventLike & { readonly altKey?: boolean; readonly shiftKey?: boolean }): IAction {
-		if (this.hidesSidePane) {
-			return toAction({ id: TOGGLE_SIDE_PANEL_COMMAND_ID, label: this._menuItemAction.label, run: () => this.commandService.executeCommand(TOGGLE_SIDE_PANEL_COMMAND_ID) });
+		const command = this.getHideCommand();
+		if (command) {
+			return toAction({ id: command, label: this._menuItemAction.label, run: () => this.commandService.executeCommand(command) });
 		}
 		return super.getActionToRun(event);
 	}
 
 	override async onClick(event: MouseEvent): Promise<void> {
-		if (!this.hidesSidePane) {
+		if (!this.getHideCommand()) {
 			return super.onClick(event);
 		}
 		EventHelper.stop(event, true);
