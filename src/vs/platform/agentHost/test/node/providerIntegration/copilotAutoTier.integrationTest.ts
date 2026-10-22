@@ -11,10 +11,12 @@ import { tmpdir } from 'os';
 import { join } from '../../../../../base/common/path.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { parseManagedAutoTierDefault } from '../../../common/autoModeTiers.js';
+import { NullLogService } from '../../../../log/common/log.js';
+import type { IAgentModelInfo } from '../../../common/agent.js';
+import { autoModeTiers, parseManagedAutoTierDefault } from '../../../common/autoModeTiers.js';
 import type { ModelSelection } from '../../../common/state/sessionState.js';
 import { getCopilotAutoTier, getCopilotContextTier, getCopilotReasoningEffort } from '../../../node/copilot/copilotSessionLauncher.js';
-import { omitCopilotManagedModelDefaults } from '../../../node/copilot/copilotManagedModelConfiguration.js';
+import { omitCopilotManagedModelDefaults, projectCopilotManagedModelConfiguration } from '../../../node/copilot/copilotManagedModelConfiguration.js';
 import { modelConfigurationSourceKey } from '../../../common/agentModelConfiguration.js';
 import { resolveCopilotManagedSettings } from '../../../node/copilot/copilotManagedSettings.js';
 import { getAncillaryStub } from '../e2e/harness/capiStubs.js';
@@ -30,6 +32,7 @@ suite('Copilot SDK managed model configuration', function () {
 	let policy: {
 		model?: string;
 		autoTier?: string;
+		fusionTier?: string;
 		effortLevel?: string;
 		contextTier?: 'default' | 'long_context';
 	};
@@ -120,7 +123,7 @@ suite('Copilot SDK managed model configuration', function () {
 		const resolved = await resolveCopilotManagedSettings(client.rpc.managedSettings, 'test-only-no-real-credential', 30_000, home);
 		const deviceSettings = resolved.layers.find(layer => layer.source === 'device')?.settings;
 		const conflictingKeys = deviceSettings && typeof deviceSettings === 'object'
-			? Object.keys(deviceSettings).filter(key => ['model', 'autoTier', 'fusion', 'effortLevel', 'contextTier', 'permissions'].includes(key))
+			? Object.keys(deviceSettings).filter(key => ['model', 'autoTier', 'fusion', 'fusionTier', 'effortLevel', 'contextTier', 'permissions'].includes(key))
 			: [];
 		assert.deepStrictEqual(conflictingKeys, [],
 			'Managed-model integration tests require no native model or permission policy. An isolated HOME does not isolate MDM, registry, or machine-wide managed-settings files.');
@@ -359,6 +362,43 @@ suite('Copilot SDK managed model configuration', function () {
 				const current = await session.rpc.model.getCurrent();
 				assert.deepStrictEqual({ routedTiers, tier: current.autoTier, unexpectedRequests }, {
 					routedTiers: [explicit ? 'efficiency' : 'intelligence', 'balance'], tier: 'balance', unexpectedRequests: [],
+				});
+			} finally {
+				await session.disconnect();
+			}
+		});
+	}
+
+	for (const testCase of [
+		{ name: 'Fusion High runs Intelligence without HydraFusion', policy: { fusionTier: 'high' }, expected: 'intelligence' },
+		{ name: 'Fusion Standard supersedes legacy Intelligence', policy: { fusionTier: 'standard', autoTier: 'intelligence' }, expected: 'balance' },
+		{ name: 'unmanaged Fusion withdraws legacy Intelligence', policy: { fusionTier: 'unmanaged', autoTier: 'intelligence' }, expected: 'balance' },
+		{ name: 'legacy Efficiency keeps its legacy execution', policy: { autoTier: 'efficiency' }, expected: 'efficiency' },
+	] as const) {
+		test(`${testCase.name} in the picker and the first Auto request`, async () => {
+			policy = testCase.policy;
+			const resolved = await resolveCopilotManagedSettings(client.rpc.managedSettings, 'test-only-no-real-credential', 30_000, home);
+			const auto: IAgentModelInfo = {
+				provider: 'copilotcli', id: 'auto', name: 'Auto', supportsVision: false,
+				configSchema: { type: 'object', properties: { tier: { type: 'string', title: 'Optimize for', enum: [...autoModeTiers], default: 'balance' } } },
+			};
+			const requested = omitCopilotManagedModelDefaults({
+				id: 'auto', config: { tier: 'balance', [modelConfigurationSourceKey('tier')]: 'default' },
+			}, resolved);
+			const session = await client.createSession({
+				model: 'auto', capi: { autoTier: getCopilotAutoTier(requested) },
+				workingDirectory: home, enableManagedSettings: true, enableConfigDiscovery: false,
+				availableTools: [],
+				onPermissionRequest: async () => ({ kind: 'denied-interactively-by-user' }),
+			});
+			try {
+				await session.sendAndWait({ prompt: 'Reply only OK' }, 20_000);
+				const current = await session.rpc.model.getCurrent();
+				assert.deepStrictEqual({
+					picker: projectCopilotManagedModelConfiguration(auto, resolved, new NullLogService()).configSchema?.properties.tier.default,
+					routedTiers, tier: current.autoTier, unexpectedRequests,
+				}, {
+					picker: testCase.expected, routedTiers: [testCase.expected], tier: testCase.expected, unexpectedRequests: [],
 				});
 			} finally {
 				await session.disconnect();

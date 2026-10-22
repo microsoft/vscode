@@ -128,6 +128,7 @@ import { AICustomizationWelcomePage, type ICustomizationMarketplaceOrigin, type 
 import { ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
 import { createCustomizationMigrationAgentPrompt, getCustomizationMigrationConflictTarget, type CustomizationMigrationTargetFolders, type ICustomizationMigrationFailure, type ICustomizationMigrationNameConflict, type IMigratedCustomizationsWithFailureReasonsResult, migrateCustomizations, resolveWorkspaceMigrationTargetFolder } from './customizationMigration.js';
 import { CUSTOMIZATION_MIGRATION_CATEGORIES, CustomizationMigrationCategoryId, getCustomizationMigrationCategory, homepageMigrationCategories, type ICustomizationMigrationCategory } from './customizationMigrationCategories.js';
+import { getCustomizationMigrationGroupIgnoreKey, getIgnoredCustomizationMigrationGroupKeys, storeIgnoredCustomizationMigrationGroupKeys } from './customizationMigrationIgnoredGroups.js';
 import { createCustomizationMigrationRecoveryPlan, ICustomizationMigrationRecoveryManifest, listCustomizationMigrationRecoveries, prepareCustomizationMigrationRecovery, restoreCustomizationMigrationSources, updateCustomizationMigrationRecovery } from './customizationMigrationRecovery.js';
 import { CustomizationMigrationResultToolId } from './customizationMigrationResultTool.js';
 import {
@@ -144,13 +145,6 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { showNoFoldersDialog } from '../promptSyntax/pickers/askForPromptSourceFolder.js';
 
 const $ = DOM.$;
-const CUSTOMIZATION_MIGRATION_IGNORED_GROUPS_STORAGE_KEY = 'chat.customizationMigration.ignoredGroups';
-
-interface IIgnoredMigrationGroupsState {
-	readonly groupKeys: readonly string[];
-}
-
-
 //#region Telemetry
 
 type CustomizationEditorOpenedEvent = {
@@ -1858,7 +1852,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			.filter(candidate => !this.isMigrationCategoryIgnored(id, candidate.storage)));
 		const count = candidates.length;
 		const hasPendingMigrations = this.pluginMarketplaceMigrationDiscoveryError !== undefined
-			|| homepageMigrationCategories.some(id => this.getMigrationCandidates(getCustomizationMigrationCategory(id)).length > 0);
+			|| count > 0;
 		const enabled = isAgentHostTarget(this.harnessService.activeHarness.get())
 			&& homepageMigrationCategories.some(id => this.isMigrationCategoryEnabled(getCustomizationMigrationCategory(id)))
 			&& hasPendingMigrations;
@@ -2834,20 +2828,16 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private getMigrationGroupIgnoreKey(id: CustomizationMigrationCategoryId, storage: PromptsStorage): string {
-		const harness = this.harnessService.activeHarness.get();
-		if (storage === PromptsStorage.user) {
-			return `${harness}:${storage}:${id}`;
-		}
-		const project = this.workspaceService.activeProjectRoot.get();
-		return `${harness}:${storage}:${project ? getComparisonKey(project) : ''}:${id}`;
+		return getCustomizationMigrationGroupIgnoreKey(
+			this.harnessService.activeHarness.get(),
+			id,
+			storage,
+			this.workspaceService.activeProjectRoot.get(),
+		);
 	}
 
 	private getIgnoredMigrationGroupKeys(): Set<string> {
-		return new Set(this.storageService.getObject<IIgnoredMigrationGroupsState>(
-			CUSTOMIZATION_MIGRATION_IGNORED_GROUPS_STORAGE_KEY,
-			StorageScope.PROFILE,
-			{ groupKeys: [] },
-		).groupKeys);
+		return getIgnoredCustomizationMigrationGroupKeys(this.storageService);
 	}
 
 	private isMigrationCategoryIgnored(id: CustomizationMigrationCategoryId, storage: PromptsStorage): boolean {
@@ -2888,12 +2878,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private storeIgnoredMigrationGroupKeys(groupKeys: Set<string>): void {
-		this.storageService.store(
-			CUSTOMIZATION_MIGRATION_IGNORED_GROUPS_STORAGE_KEY,
-			{ groupKeys: [...groupKeys] },
-			StorageScope.PROFILE,
-			StorageTarget.MACHINE,
-		);
+		storeIgnoredCustomizationMigrationGroupKeys(this.storageService, groupKeys);
 	}
 
 	private getCustomizationMigrationDashboardDestinations(customizations: readonly MigratableConfiguration[]): readonly ICustomizationMigrationDashboardDestination[] {
@@ -4210,7 +4195,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private async openCustomizationItem(item: IAICustomizationListItem, origin: CustomizationDetailOrigin = this.getCurrentDetailBaseOrigin()): Promise<void> {
-		if (item.promptType === PromptsType.skill && item.pluginUri) {
+		if (origin.kind !== 'pluginDetail' && item.promptType === PromptsType.skill && item.pluginUri) {
 			const plugin = this.agentPluginService.plugins.get().find(plugin => isEqual(plugin.uri, item.pluginUri));
 			if (plugin) {
 				await this.showEmbeddedPluginDetail({
@@ -4219,7 +4204,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 					description: plugin.fromMarketplace?.description ?? '',
 					marketplace: plugin.fromMarketplace?.marketplace,
 					plugin,
-				}, origin.kind === 'pluginDetail' ? origin.origin : origin);
+				}, origin);
 			}
 			return;
 		}

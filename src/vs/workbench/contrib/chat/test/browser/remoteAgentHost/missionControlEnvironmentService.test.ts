@@ -375,12 +375,13 @@ suite('Mission Control inventory', () => {
 		});
 	});
 
-	test('offline hosts never mint credentials, wake compute or create sessions', async () => {
+	test('offline hosts never mint credentials, wake compute or create sessions, and stop being listed as online', async () => {
 		const { service, calls, setEnvironment } = fixture();
 		await service.refresh(CancellationToken.None);
 		setEnvironment(Promise.resolve({ id: 'remote', status: 'offline' }));
 		await assert.rejects(service.connect('remote', CancellationToken.None), /Start its owning application/);
-		assert.deepStrictEqual({ lookups: calls.lookups, connects: calls.connects }, { lookups: ['remote'], connects: [] });
+		assert.deepStrictEqual({ lookups: calls.lookups, connects: calls.connects, statuses: service.hosts.get().map(host => host.status) },
+			{ lookups: ['remote'], connects: [], statuses: ['offline'] });
 	});
 
 	test('local display names never replace the remote default name on connection', async () => {

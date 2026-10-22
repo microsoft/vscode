@@ -426,7 +426,24 @@ suite('aiCustomizationManagementEditor', () => {
 		openCurrentCustomizationFile(): Promise<void>;
 		renderEditorPreview(parsedPromptFile: ReturnType<PromptFileParser['parse']>, promptType: PromptsType): void;
 		handleEditorActionButton(): Promise<void>;
-		openCustomizationItem(item: IAICustomizationListItem): Promise<void>;
+		openCustomizationItem(item: IAICustomizationListItem, origin?: {
+			readonly kind: 'pluginDetail';
+			readonly item: IAgentPluginItem;
+			readonly origin: { readonly kind: 'section'; readonly section: AICustomizationManagementSection };
+		}): Promise<void>;
+		showCustomizationDetail(
+			uri: URI,
+			displayName: string,
+			promptType: PromptsType,
+			source: AICustomizationSource,
+			isWorkspaceFile: boolean,
+			isReadOnly: boolean,
+			origin: {
+				readonly kind: 'pluginDetail';
+				readonly item: IAgentPluginItem;
+				readonly origin: { readonly kind: 'section'; readonly section: AICustomizationManagementSection };
+			},
+		): Promise<void>;
 		showEmbeddedPluginDetail(item: IAgentPluginItem): Promise<void>;
 		goBackToList(): void;
 		onDidChangeSidebarSelection(e: IListEvent<{ readonly id: AICustomizationManagementSection }>): void;
@@ -1581,6 +1598,54 @@ suite('aiCustomizationManagementEditor', () => {
 			kind: AgentPluginItemKind.Installed,
 			name: 'Example Plugin',
 			pluginUri: pluginUri.toString(),
+		});
+		editor.editorPreviewDisposables.dispose();
+	});
+
+	test('opens plugin-provided skill content from the owning plugin detail', async () => {
+		const editor = createTestEditor();
+		const pluginUri = URI.file('/plugins/example');
+		const skillUri = URI.joinPath(pluginUri, 'skills', 'review', 'SKILL.md');
+		const plugin = new class extends mock<IAgentPlugin>() {
+			override readonly uri = pluginUri;
+			override readonly label = 'Example Plugin';
+		};
+		const pluginItem: IAgentPluginItem = {
+			kind: AgentPluginItemKind.Installed,
+			name: plugin.label,
+			description: '',
+			plugin,
+		};
+		let opened: {
+			readonly uri: string;
+			readonly source: AICustomizationSource;
+			readonly isReadOnly: boolean;
+			readonly origin: string;
+		} | undefined;
+		editor.showCustomizationDetail = async (uri, _displayName, _promptType, source, _isWorkspaceFile, isReadOnly, origin) => {
+			opened = { uri: uri.toString(), source, isReadOnly, origin: origin.kind };
+		};
+
+		await editor.openCustomizationItem({
+			id: skillUri.toString(),
+			uri: skillUri,
+			name: 'Review',
+			filename: 'SKILL.md',
+			source: AICustomizationSources.plugin,
+			promptType: PromptsType.skill,
+			disabled: false,
+			pluginUri,
+		}, {
+			kind: 'pluginDetail',
+			item: pluginItem,
+			origin: { kind: 'section', section: AICustomizationManagementSection.Plugins },
+		});
+
+		assert.deepStrictEqual(opened, {
+			uri: skillUri.toString(),
+			source: AICustomizationSources.plugin,
+			isReadOnly: true,
+			origin: 'pluginDetail',
 		});
 		editor.editorPreviewDisposables.dispose();
 	});
@@ -3329,10 +3394,11 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.editorPreviewDisposables.dispose();
 	});
 
-	test('shows the migrations sidebar entry only while migrations are pending', () => {
+	test('shows the migrations sidebar entry only while migrations are pending', async () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
 			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
 		}));
+		editor.dialogService = { confirm: async () => ({ confirmed: true }) };
 		editor.migrationShortcutContainer = document.createElement('div');
 		editor.migrationShortcutButton = document.createElement('button');
 		editor.migrationShortcutCount = document.createElement('span');
@@ -3348,13 +3414,15 @@ suite('aiCustomizationManagementEditor', () => {
 		}]);
 		editor.updateSidebarMigrationShortcut();
 		states.push([editor.migrationShortcutContainer.style.display, editor.migrationShortcutCount.textContent]);
+		await editor.ignoreMigrationCategory(CustomizationMigrationCategoryId.McpServers, PromptsStorage.local);
+		states.push([editor.migrationShortcutContainer.style.display, editor.migrationShortcutCount.textContent]);
 		editor.customizationsByMigrationCategory.clear();
 		editor.updateSidebarMigrationShortcut();
 		states.push([editor.migrationShortcutContainer.style.display, editor.migrationShortcutCount.textContent]);
 		editor.harnessService.activeHarness.set('local', undefined);
 		editor.updateSidebarMigrationShortcut();
 		states.push([editor.migrationShortcutContainer.style.display, editor.migrationShortcutCount.textContent]);
-		assert.deepStrictEqual(states, [['none', ''], ['', '1'], ['none', ''], ['none', '']]);
+		assert.deepStrictEqual(states, [['none', ''], ['', '1'], ['none', ''], ['none', ''], ['none', '']]);
 		editor.editorPreviewDisposables.dispose();
 	});
 

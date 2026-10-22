@@ -51,6 +51,7 @@ Archived
   nor an explicit ungrouped preference, it inherits the creator's custom group
   when one becomes available. Subsequent user grouping, ungrouping, and
   reordering are ordinary persisted list state.
+- A session a nested chat was promoted to joins the custom group of the session it was promoted from, whatever started the promotion, unless it already has a placement of its own. It keeps ordinary placement when that session has no group.
 
 The active session remains visible even when a filter would otherwise exclude it.
 

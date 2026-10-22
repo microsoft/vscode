@@ -7,19 +7,15 @@ import './media/voiceGlow.css';
 import { $ } from '../../../../../base/browser/dom.js';
 import { Color } from '../../../../../base/common/color.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { DEFAULT_VOICE_GLOW_COLORS, GlowThemeKind, IVoiceGlowColors, resolveVoiceRimAccent, voiceGlowStateColor, VoiceGlowState, VoiceRimMood } from './voiceGlow.js';
+import { DEFAULT_VOICE_GLOW_COLORS, GlowThemeKind, IVoiceGlowColors, resolveVoiceRimAccent, VoiceRimMood } from './voiceGlow.js';
 
 export type { GlowThemeKind };
 
 /**
  * The DOM applier for the Voice Mode ambient glow.
  *
- * `listening` and `speaking` render an audio-reactive interior rim. Every other
- * state renders nothing.
- *
- * Every state change is a true cross-fade between two buffered slots, so
- * `listening -> speaking` dissolves cool -> warm rather than snapping. Colors are
- * derived from the theme accent (see `resolveVoiceGlowColors`).
+ * A single audio-reactive listening rim indicates that Voice Mode is connected.
+ * Buffered slots cross-fade theme changes without interrupting the glow.
  *
  * The rim design is inspired by the work of Jakub Antalik (@Jakubantalik).
  */
@@ -61,8 +57,8 @@ interface IMountedLayer extends IDisposable {
 }
 
 export interface IVoiceGlowController extends IDisposable {
-	/** Show/keep the glow for `state`, driving intensity from `level` ([0,1]). */
-	render(state: VoiceGlowState, level: number, reducedMotion: boolean): void;
+	/** Show/keep the connected glow, driving intensity from `level` ([0,1]). */
+	render(level: number, reducedMotion: boolean): void;
 	/** Fade the glow out (not-owner / disconnected). */
 	clear(): void;
 	/** Re-apply the current state after a color-theme change. */
@@ -335,8 +331,7 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 	private readonly _mounts = new Map<HTMLElement, MutableDisposable<IMountedLayer>>();
 
 	private _front: IMountedLayer | undefined;
-	private _currentState: VoiceGlowState | 'none' = 'none';
-	private _currentMood: RimMood | undefined;
+	private _active = false;
 	private _clearTimer: ReturnType<typeof setTimeout> | undefined;
 	private _colors: IVoiceGlowColors;
 	private _reducedMotion = false;
@@ -388,37 +383,20 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 		super.dispose();
 	}
 
-	render(state: VoiceGlowState, level: number, reducedMotion: boolean): void {
+	render(level: number, reducedMotion: boolean): void {
 		if (this._disposed) {
 			return;
 		}
-		const mood = resolveMood(state);
 		this._reducedMotion = reducedMotion;
-		if (!mood) {
-			this.clear();
-			return;
-		}
-
-		// Keyed on the mood, not the state, so states that share a look never
-		// re-mount or cross-fade between each other.
-		if (mood !== this._currentMood) {
-			this._currentMood = mood;
+		if (!this._active) {
+			this._active = true;
 			if (this._clearTimer !== undefined) {
 				clearTimeout(this._clearTimer);
 				this._clearTimer = undefined;
 			}
-			this._showLayer(mood, reducedMotion);
-		}
-
-		// State classes still track the real state, so surface CSS that tints the
-		// mic glyph can tell the states apart even when they share a rim.
-		if (state !== this._currentState) {
-			this._currentState = state;
-			this._target.classList.add('voice-active');
-			this._target.classList.toggle('voice-listening', state === 'listening');
-			this._target.classList.toggle('voice-processing', state === 'processing');
-			this._target.classList.toggle('voice-speaking', state === 'speaking');
-			const accent = resolveVoiceRimAccent(voiceGlowStateColor(state, this._colors), mood, this._themeKind(), this._colors.background);
+			this._showLayer(reducedMotion);
+			this._target.classList.add('voice-active', 'voice-listening');
+			const accent = resolveVoiceRimAccent(this._colors.listening, 'cool', this._themeKind(), this._colors.background);
 			this._target.style.setProperty('--voice-accent', `hsl(${accent.hue} ${accent.saturation}% ${accent.lightness}%)`);
 		}
 
@@ -428,13 +406,15 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 	}
 
 	clear(): void {
-		if (this._disposed || this._currentState === 'none') {
+		if (this._disposed) {
 			return;
 		}
-		this._currentState = 'none';
-		this._currentMood = undefined;
 		this._target.classList.remove('voice-active', 'voice-listening', 'voice-processing', 'voice-speaking');
 		this._target.style.removeProperty('--voice-accent');
+		if (!this._active) {
+			return;
+		}
+		this._active = false;
 		const previous = this._front;
 		this._front = undefined;
 		if (previous) {
@@ -465,23 +445,21 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 			return;
 		}
 		this._colors = this._colorsProvider();
-		const state = this._currentState;
-		if (this._front && state !== 'none') {
+		if (this._front && this._active) {
 			// Re-mount the current layer so it picks up the new accent / theme.
-			this._currentState = 'none';
-			this._currentMood = undefined;
-			this.render(state, 0.3, this._reducedMotion);
+			this._active = false;
+			this.render(0.3, this._reducedMotion);
 		}
 	}
 
-	private _showLayer(mood: RimMood, reducedMotion: boolean): void {
+	private _showLayer(reducedMotion: boolean): void {
 		const host = this._slots.find(slot => slot !== this._front?.host) ?? this._slots[0];
 
 		// Dispose any prior mount on this slot FIRST: mounts own the slot's classes
 		// and custom properties, so disposing after mounting the new layer would
 		// strip the fresh ones.
 		this._mounts.get(host)!.clear();
-		const mounted = this._mount(host, mood);
+		const mounted = this._mount(host);
 		this._mounts.get(host)!.value = mounted;
 		if (reducedMotion) {
 			mounted.driveStatic(0.4);
@@ -509,13 +487,12 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 		host.style.opacity = '0';
 	}
 
-	private _mount(host: HTMLElement, mood: RimMood): IMountedLayer {
+	private _mount(host: HTMLElement): IMountedLayer {
 		const theme = this._themeKind();
-		const accentColor = mood === 'warm' ? this._colors.speaking : this._colors.listening;
-		const accent = resolveVoiceRimAccent(accentColor, mood, theme, this._colors.background);
+		const accent = resolveVoiceRimAccent(this._colors.listening, 'cool', theme, this._colors.background);
 		return mountRimLayers(host, {
 			theme,
-			mood,
+			mood: 'cool',
 			hue: accent.hue,
 			saturation: accent.saturation,
 			lightness: accent.lightness,
@@ -527,17 +504,5 @@ class VoiceGlowController extends Disposable implements IVoiceGlowController {
 			peakGain: 0.95,
 			speedGain: 0.9,
 		});
-	}
-}
-
-/**
- * Map a voice state to the rim mood that renders it, or `undefined` for no glow.
- * Thinking and connected-idle render nothing.
- */
-function resolveMood(state: VoiceGlowState): RimMood | undefined {
-	switch (state) {
-		case 'listening': return 'cool';
-		case 'speaking': return 'warm';
-		default: return undefined;
 	}
 }

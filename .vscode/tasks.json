@@ -536,15 +536,6 @@
 			}
 		},
 		{
-			"label": "Launch MCP Server",
-			"type": "shell",
-			"command": "cd test/mcp && npm run compile && npm run start-http",
-			"isBackground": true,
-			"problemMatcher": [
-				"$tsc"
-			]
-		},
-		{
 			"label": "Run Code",
 			"type": "shell",
 			"command": "./scripts/code.sh",

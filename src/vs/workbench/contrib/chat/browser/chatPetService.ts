@@ -19,6 +19,13 @@ import { ChatPetColor, ChatPetVariant, chatPetColorPresets, isDefaultChatPetColo
 
 export type { ChatPetVariant } from './chatPetColors.js';
 
+export interface ChatPetHorizontalAnchor {
+	readonly edge: 'left' | 'right';
+	readonly inset: number;
+}
+
+export type ChatPetHorizontalPosition = number | ChatPetHorizontalAnchor;
+
 const CHAT_PET_ENABLED_STORAGE_KEY = 'chat.vscodePet.enabled';
 const CHAT_PET_VARIANT_STORAGE_KEY = 'chat.vscodePet.variant';
 const CHAT_PET_COLOR_STORAGE_KEY = 'chat.vscodePet.color';
@@ -61,7 +68,12 @@ function getChatPetScale(storedScale: string | undefined): number {
 	return Number.isFinite(scale) && scale > 0 ? scale : CHAT_PET_DEFAULT_SCALE;
 }
 
-function getChatPetHorizontalPosition(storedPosition: string | undefined): number | undefined {
+function getChatPetHorizontalPosition(storedPosition: string | undefined): ChatPetHorizontalPosition | undefined {
+	const anchorMatch = /^(?<edge>left|right):(?<inset>\d+(?:\.\d+)?)$/.exec(storedPosition ?? '');
+	const inset = Number.parseFloat(anchorMatch?.groups?.inset ?? '');
+	if ((anchorMatch?.groups?.edge === 'left' || anchorMatch?.groups?.edge === 'right') && Number.isFinite(inset)) {
+		return { edge: anchorMatch.groups.edge, inset };
+	}
 	const position = storedPosition === undefined ? Number.NaN : Number.parseFloat(storedPosition);
 	return Number.isFinite(position) ? Math.max(0, Math.min(1, position)) : undefined;
 }
@@ -78,7 +90,7 @@ export interface IChatPetService {
 	readonly unseenAchievements: IObservable<readonly ChatPetAchievementId[]>;
 	readonly selectedAccessory: IObservable<ChatPetAccessoryId | undefined>;
 	readonly onDidUnlockAchievement: Event<ChatPetAchievementId>;
-	readonly horizontalPosition: IObservable<number | undefined>;
+	readonly horizontalPosition: IObservable<ChatPetHorizontalPosition | undefined>;
 	toggle(): boolean;
 	setColor(color: ChatPetColor): void;
 	setOnTheRun(onTheRun: boolean): void;
@@ -88,7 +100,7 @@ export interface IChatPetService {
 	markAchievementSeen(id: ChatPetAchievementId): boolean;
 	setAccessory(id: ChatPetAccessoryId | undefined): void;
 	resetAchievements(): void;
-	setHorizontalPosition(position: number): void;
+	setHorizontalPosition(position: ChatPetHorizontalPosition): void;
 }
 
 export class ChatPetService extends Disposable implements IChatPetService {
@@ -115,7 +127,7 @@ export class ChatPetService extends Disposable implements IChatPetService {
 	private lastInvalidStoredColor: string | undefined;
 	private locallyUnlockingAchievement = false;
 	private readonly _horizontalPosition;
-	readonly horizontalPosition: IObservable<number | undefined>;
+	readonly horizontalPosition: IObservable<ChatPetHorizontalPosition | undefined>;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -246,10 +258,17 @@ export class ChatPetService extends Disposable implements IChatPetService {
 		this.storageService.remove(CHAT_PET_SCALE_STORAGE_KEY, StorageScope.APPLICATION);
 	}
 
-	setHorizontalPosition(position: number): void {
-		const normalizedPosition = Math.max(0, Math.min(1, position));
+	setHorizontalPosition(position: ChatPetHorizontalPosition): void {
+		const normalizedPosition = typeof position === 'number'
+			? Math.max(0, Math.min(1, position))
+			: { edge: position.edge, inset: Math.max(0, position.inset) } satisfies ChatPetHorizontalAnchor;
 		this._horizontalPosition.set(normalizedPosition, undefined);
-		this.storageService.store(CHAT_PET_HORIZONTAL_POSITION_STORAGE_KEY, normalizedPosition, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		this.storageService.store(
+			CHAT_PET_HORIZONTAL_POSITION_STORAGE_KEY,
+			typeof normalizedPosition === 'number' ? normalizedPosition : `${normalizedPosition.edge}:${normalizedPosition.inset}`,
+			StorageScope.APPLICATION,
+			StorageTarget.MACHINE
+		);
 	}
 
 	unlockAchievement(id: ChatPetAchievementId): boolean {

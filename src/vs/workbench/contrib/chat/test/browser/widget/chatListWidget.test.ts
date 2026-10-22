@@ -53,6 +53,7 @@ import { MockChatService } from '../../common/chatService/mockChatService.js';
 import { MockChatSessionsService } from '../../common/mockChatSessionsService.js';
 import { MockLanguageModelToolsService } from '../../common/tools/mockLanguageModelToolsService.js';
 import { IChatModelFeedbackSurveyService } from '../../../browser/feedbackSurvey/chatModelFeedbackSurveyService.js';
+import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { MockChatModelFeedbackSurveyService } from '../feedbackSurvey/mockChatModelFeedbackSurveyService.js';
 import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../../common/promptTimeline.js';
@@ -160,7 +161,8 @@ suite('ChatListWidget', () => {
 				},
 			}],
 		});
-		const { model, container, widget } = createWidget({}, undefined, false, contextMenuService, editorResolverService);
+		const { model, container, widget, contextKeyService } = createWidget({}, undefined, false, contextMenuService, editorResolverService);
+		const createOverlay = sinon.spy(contextKeyService, 'createOverlay');
 		const requestText = 'Show documentation';
 		const request = model.addRequest({
 			text: requestText,
@@ -180,6 +182,7 @@ suite('ChatListWidget', () => {
 		link.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
 
 		const menuDelegate = contextMenuDelegate as IContextMenuMenuDelegate | undefined;
+		const withoutSelection = new Map(createOverlay.lastCall.args[0]).get(ChatContextKeys.contextMenuHasResponseSelection.key);
 		const actionContext = menuDelegate?.getActionsContext?.();
 		if (!isChatContextMenuActionContext(actionContext)) {
 			assert.fail('Expected a chat context menu action context.');
@@ -191,6 +194,27 @@ suite('ChatListWidget', () => {
 			linkTarget: 'file:///workspace/README.md',
 			itemKind: 'response',
 		});
+
+		const selection = mainWindow.getSelection();
+		assert.ok(selection);
+		store.add(toDisposable(() => selection.removeAllRanges()));
+		const range = mainWindow.document.createRange();
+		range.selectNodeContents(link);
+		selection.removeAllRanges();
+		selection.addRange(range);
+		link.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
+		const selectionDelegate = contextMenuDelegate as IContextMenuMenuDelegate | undefined;
+		const selectionContext = selectionDelegate?.getActionsContext?.();
+		if (!isChatContextMenuActionContext(selectionContext)) {
+			assert.fail('Expected a chat context menu action context.');
+		}
+		selection.removeAllRanges();
+		assert.deepStrictEqual({
+			text: selectionContext.responseSelection?.text,
+			response: selectionContext.responseSelection?.response === selectionContext.item,
+			hasSelection: new Map(createOverlay.lastCall.args[0]).get(ChatContextKeys.contextMenuHasResponseSelection.key),
+			withoutSelection,
+		}, { text: 'Documentation', response: true, hasSelection: true, withoutSelection: false });
 	});
 
 	test('shows Open With only for resources backed by a file system provider', () => {
@@ -1703,7 +1727,7 @@ suite('ChatListWidget', () => {
 
 		const requestValue = container.querySelector<HTMLElement>('.monaco-list-rows > .monaco-list-row.request .interactive-item-container > .value');
 		assert.ok(requestValue);
-		const children = Array.from(requestValue.children);
+		const children = Array.from(requestValue.children).filter(child => child.checkVisibility());
 		assert.deepStrictEqual({
 			attachmentIndex: children.findIndex(child => child.classList.contains('chat-attached-context')),
 			messageIndex: children.findIndex(child => child.classList.contains('rendered-markdown')),

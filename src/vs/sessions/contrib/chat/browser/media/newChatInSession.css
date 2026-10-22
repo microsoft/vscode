@@ -3,77 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Overrides for the new-chat-in-session view to match VS Code chat input styling */
-
-/* Keep the composer vertically centered like the new-session view. */
-.new-chat-in-session .new-chat-widget-container,
-.new-chat-in-session .new-chat-widget-container.revealed {
-	padding: 0;
-}
-
-/* Match VS Code interactive-input-part layout */
-.new-chat-in-session .new-chat-widget-content {
-	width: 100%;
-	max-width: 950px;
-	position: relative;
-	/* Left-align (rather than centering with `margin: 0 auto`) so the input's
-	 * left edge — and therefore the attach (+) button — stays anchored as the
-	 * viewport narrows past max-width. */
-	margin: 0 !important;
-	padding: 4px 10px !important;
-	box-sizing: border-box;
-}
-.new-chat-in-session .new-chat-input-container,
-.new-chat-in-session .new-chat-bottom-container {
-	max-width: 950px;
-}
-/* Match VS Code interactive-input-part margin and padding */
-.new-chat-in-session .new-chat-input-container {
-	margin-top: 0;
-}
-
-/* Bottom container: match VS Code secondary toolbar */
-.new-chat-in-session .new-chat-bottom-container {
-	padding: 0 4px 0 5px;
-	margin-top: 4px;
-	min-height: auto;
-	gap: 6px;
-}
-
-/* Config toolbar items spacing */
-.new-chat-in-session .sessions-chat-config-toolbar .monaco-action-bar .actions-container {
-	gap: 10px;
-}
-
-/* Picker labels: match VS Code chat-secondary-toolbar sizing for all pickers */
-.new-chat-in-session .new-chat-bottom-container .action-label:not(.separator) {
-	height: var(--chat-input-control-height);
-	padding: 0 var(--vscode-spacing-size60);
-	font-size: var(--vscode-fontSize-label2, 11px);
-	color: var(--vscode-icon-foreground);
-}
-
-.new-chat-in-session .new-chat-bottom-container .action-label .codicon {
-	font-size: var(--vscode-codiconFontSize-compact, 12px);
-}
-
-.new-chat-in-session .sessions-chat-dropdown-label {
-	margin-left: 6px;
-}
-
-/* Disable fade-in animations — show content immediately */
-.new-chat-in-session .new-chat-widget-container.revealed .new-chat-input-container,
-.new-chat-in-session .new-chat-widget-container.revealed .new-chat-bottom-container,
-.new-chat-in-session .new-chat-widget-container.revealed .new-session-workspace-picker-container {
-	animation: none;
-}
+/* The New Nested Session composer is styled by the New Session composer (chatWidget.css); only its own parts are here. */
 
 /* --- Sub-session tip banner --- */
-
-.new-chat-in-session .sub-session-tip-container {
-	width: 100%;
-	max-width: 950px;
-}
 
 /*
  * The frame, the row layout and the dismiss button all come from
@@ -91,24 +23,42 @@
 	line-height: 1.4;
 }
 
-/* New Nested Session: folder, isolation and branch pickers above the input, like New Session. */
-.new-chat-in-session .new-chat-in-session-workspace {
-	width: 100%;
-	max-width: 950px;
-	padding: 0 var(--vscode-spacing-size120) var(--vscode-spacing-size40);
-	box-sizing: border-box;
-}
-.new-chat-in-session .nested-chat-workspace-controls {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	gap: var(--vscode-spacing-size60);
-}
-.new-chat-in-session .new-chat-in-session-workspace.hidden,
-.new-chat-in-session .nested-chat-workspace-controls.hidden,
-.new-chat-in-session .nested-chat-branch-picker.hidden {
+/* --- Folder, isolation and branch pickers --- */
+
+/* A host that can't give a nested chat its own workspace shows no options row. */
+.new-chat-in-session .new-chat-widget-container .new-session-workspace-picker-container[hidden] {
 	display: none;
 }
+
+/* The only folder the agent allows is shown as text rather than as a picker. */
 .new-chat-in-session .nested-chat-folder-picker.disabled .action-label {
 	cursor: default;
+}
+
+.new-chat-in-session .nested-chat-repository-controls {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size20);
+	min-width: 0;
+}
+
+/* Like the separator between New Session's isolation and branch pickers. */
+.new-chat-in-session .nested-chat-repository-separator {
+	flex-shrink: 0;
+	width: var(--vscode-strokeThickness);
+	height: var(--vscode-spacing-size120);
+	background-color: var(--vscode-widget-border, var(--vscode-editorWidget-border, transparent));
+}
+
+/* In the options tray, New Session spaces its repository controls apart without a separator. */
+.new-chat-in-session .new-chat-session-options .nested-chat-repository-controls {
+	gap: var(--vscode-spacing-size80);
+}
+
+.new-chat-in-session .new-chat-session-options .nested-chat-repository-separator {
+	display: none;
+}
+
+.new-chat-in-session :is(.nested-chat-repository-controls, .nested-chat-repository-separator, .nested-chat-branch-picker)[hidden] {
+	display: none;
 }

@@ -33,7 +33,7 @@ import { IAgentSession, IAgentSessionsModel } from '../../../../../../workbench/
 import { IAgentSessionsService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { AgentSessionProviders } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { IChatService, ChatSendResult, IChatSendRequestData, IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { ChatSessionStatus, IChatSessionContentProvider, IChatSessionProviderOptionGroup, IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { ChatSessionStatus, IChatSessionContentProvider, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isUserProvidedModel } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
@@ -231,6 +231,7 @@ interface ICreateProviderOptions {
 	readonly pathService?: IPathService;
 	readonly storageService?: IStorageService;
 	readonly logService?: ILogService;
+	readonly chatSessionsService?: Partial<IChatSessionsService>;
 }
 
 function createGitConfigFileService(repositoryRoot: URI, config: string | (() => string), onRead?: () => void): IFileService {
@@ -377,6 +378,7 @@ function createProviderWithConfig(
 		getSessionOption: () => undefined,
 		getOptionGroupsForSessionType: () => opts?.getOptionGroups?.(),
 		onDidChangeOptionGroups: Event.None,
+		...opts?.chatSessionsService,
 	});
 	instantiationService.stub(IChatService, {
 		chatModels: opts?.chatModels ?? constObservable([]),
@@ -1667,6 +1669,35 @@ suite('CopilotChatSessionsProvider', () => {
 			isolation: config?.isolation,
 			missing: await provider.getNewSessionConfig('missing'),
 		}, { selected: 'selected', current: 'changed', isolation: undefined, missing: undefined });
+	});
+
+	test('applies the draft repository to its chat whenever the chat loads with a provider placeholder', () => {
+		const chatOptions = new Map<string, string | IChatSessionProviderOptionItem>();
+		const chatModels = observableValue<Iterable<IChatModel>>('models', []);
+		const provider = createProvider(disposables, model, {
+			chatModels,
+			chatSessionsService: {
+				updateSessionOptions: (_sessionResource, updates) => {
+					updates.forEach((value, optionId) => chatOptions.set(optionId, value));
+					return true;
+				},
+			},
+		});
+		const draft = provider.createNewSession(URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/owner/repository/HEAD' }), CopilotCloudSessionType.id);
+		// Loading the chat seeds its content provider's options, then publishes its model.
+		const loadChat = () => {
+			chatOptions.set('repositories', '___vscode_repository_default___');
+			chatOptions.set('customAgents', '___vscode_default___');
+			chatModels.set([upcastPartial<IChatModel>({ sessionResource: draft.resource, requestInProgress: observableValue('request', false) })], undefined);
+			return Object.fromEntries(chatOptions);
+		};
+
+		const loaded = loadChat();
+		chatModels.set([], undefined);
+		const reloaded = loadChat();
+
+		const expected = { repositories: { id: 'owner/repository', name: 'owner/repository' }, customAgents: '___vscode_default___' };
+		assert.deepStrictEqual({ loaded, reloaded }, { loaded: expected, reloaded: expected });
 	});
 
 	// ---- Session actions -------

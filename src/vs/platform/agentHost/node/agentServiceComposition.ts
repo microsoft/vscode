@@ -3,10 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Event } from '../../../base/common/event.js';
-import { DisposableStore, type IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { Event } from '../../../base/common/event.js';
+import { DisposableMap, DisposableStore, type IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { TimeoutTimer } from '../../../base/common/async.js';
 import type { IObservable } from '../../../base/common/observable.js';
 import { localize } from '../../../nls.js';
+import { dirname, joinPath } from '../../../base/common/resources.js';
 import { IInstantiationService, ServicesAccessor } from '../../instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../log/common/log.js';
@@ -16,10 +18,11 @@ import { IAgentHostCheckpointService } from '../common/agentHostCheckpointServic
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { IAgentHostReviewService } from '../common/agentHostReviewService.js';
 import { AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
-import { AgentHostAgentOrchestrationLimitsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
-import { AH_META_AUTO_ARCHIVED_AT_DB_KEY } from '../common/state/sessionState.js';
+import { AgentHostAgentOrchestrationLimitsConfigKey, platformRootSchema, AgentHostArtifactIntegrationsConfigKey } from '../common/agentHostSchema.js';
+import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, ResponsePartKind } from '../common/state/sessionState.js';
 import { CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, type AgentProvider, type IAgent } from '../common/agent.js';
 import { IAgentHostSessionStateStore } from '../common/agentHostSessionStateStore.js';
+import { toAgentSystemNotificationMeta } from '../common/meta/agentSystemNotificationMeta.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
@@ -58,8 +61,15 @@ import { persistSessionMetadataValues } from './shared/persistSessionMetadata.js
 import { IAgentHostPullRequestStatusService } from './agentHostPullRequestStatusService.js';
 import { AgentHostPeerChatStore, IAgentHostPeerChatPersistenceService } from './agentHostPeerChatStore.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
+import { IArtifactIntegrationRegistry } from '../../artifactIntegrations/common/artifactIntegrationRegistry.js';
+import type { IArtifactIntegrationAccess } from '../../artifactIntegrations/common/artifactIntegration.js';
+import { AgentHostArtifactRuntime, IAgentHostArtifactEventService } from './artifactIntegrations/agentHostArtifactRuntime.js';
+import { acquireComposedArtifact, IAgentHostArtifactIntegrationDirectory } from './artifactIntegrations/agentHostArtifactIntegrationDirectory.js';
+import { getEnabledArtifactAutomation } from './shared/artifactIntegrationServerTools.js';
+import { getArtifactTurnSource } from './shared/artifactTurnProvenance.js';
 
 export interface IAgentServiceComposition {
+	readonly artifactRuntime: AgentHostArtifactRuntime;
 	readonly agentService: AgentService;
 	readonly authenticationService: IAgentHostAuthenticationService;
 	readonly configurationService: IAgentConfigurationService;
@@ -163,7 +173,7 @@ export function createAgentServiceComposition(
 		const agentMergeController = owned.add(instantiationService.createInstance(AgentMergeController, {
 			startTurn: (session, turnId, prompt, credentials) => callbackAdapter.value.startAgentMergeTurn(session, turnId, prompt, credentials),
 			cancelTurn: (session, turnId) => callbackAdapter.value.cancelAgentMergeTurn(session, turnId),
-			postNotice: (session, kind, content) => callbackAdapter.value.postAgentMergeNotice(session, kind, content),
+			postNotice: (chat, kind, content) => callbackAdapter.value.postChatNotice(chat, { kind: ResponsePartKind.SystemNotification, content, _meta: toAgentSystemNotificationMeta({ kind }) }),
 		}));
 		// Resolve this even before first use so its session-data deletion listener
 		// always removes checkpoint refs before the database disappears.
@@ -200,6 +210,20 @@ export function createAgentServiceComposition(
 			(chat, enabled, overrides) => agentMergeController.setEnabled(chat, enabled, overrides, callbackAdapter.sessionServerToolAccessor.getCredentialSource(URI.parse(chat))),
 		));
 		const turnTracker = accessor.get(IAgentHostTurnTracker);
+		const artifactIntegrationDirectory = accessor.get(IAgentHostArtifactIntegrationDirectory);
+		// The artifact runtime is created after the server-tool host, so its tools bind it late.
+		const hostArtifactIntegrations: { value: IArtifactIntegrationAccess | undefined } = { value: undefined };
+		const isArtifactIntegrationsEnabled = () => configurationService.getRootValue(platformRootSchema, AgentHostArtifactIntegrationsConfigKey) === true;
+		const acquireIntegratedArtifact = (session: string, artifactId: string, chat: string, _turnId: string | undefined) => {
+			if (!hostArtifactIntegrations.value || !isArtifactIntegrationsEnabled()) {
+				throw new Error('Artifact integrations are unavailable in this host.');
+			}
+			// Follow delegation to the turn the work acts for, so a delegated turn uses the window that started it.
+			const source = getArtifactTurnSource(stateManager, chat);
+			const initiator = source.chat && source.turnId ? turnTracker.getInitiatorClientId(source.chat, source.turnId) : undefined;
+			const client = artifactIntegrationDirectory.getClient(initiator);
+			return acquireComposedArtifact(hostArtifactIntegrations.value, client && { access: client.integrations.access, startedTurn: client.startedTurn }, session, artifactId, logService);
+		};
 		const workspaceConversionService: { value: ISessionWorkspaceConversionService | undefined } = { value: undefined };
 		const scheduledChatMoves = owned.add(instantiationService.createInstance(AgentHostScheduledChatMoves, {
 			applyChatMove: move => callbackAdapter.sessionServerToolAccessor.applyChatMove(move),
@@ -223,7 +247,20 @@ export function createAgentServiceComposition(
 			buildServerToolGroups(
 				sessionServerToolAccessor,
 				agentMergeTools,
-				callbackAdapter.artifactServerToolAccessor,
+				{
+					...callbackAdapter.artifactServerToolAccessor,
+					getEnabledAutomation: async (session, artifactId, chat, turnId) => {
+						if (!isArtifactIntegrationsEnabled()) {
+							return [];
+						}
+						const reference = await acquireIntegratedArtifact(session, artifactId, chat, turnId);
+						try {
+							return getEnabledArtifactAutomation(reference.object.model);
+						} finally {
+							reference.dispose();
+						}
+					},
+				},
 				() => configurationService.getRootValue(platformRootSchema, AgentHostAgentOrchestrationLimitsConfigKey) !== 'off',
 				{
 					supportsChatIsolation: session => workspaceConversionService.value?.supportsChatIsolation(session) === true,
@@ -235,15 +272,22 @@ export function createAgentServiceComposition(
 						workspaceConversionService.value.requestChatIsolation(chat, turnId, initiatingClientId);
 					},
 				},
+				{
+					isEnabled: () => isArtifactIntegrationsEnabled() && !!hostArtifactIntegrations.value,
+					getIntegrations: () => artifactIntegrationDirectory.integrations.get(),
+					acquireArtifact: acquireIntegratedArtifact,
+				},
 			),
 		);
 		services.set(IAgentHostServerToolService, serverToolHost);
-		// `move_session` is offered only while moving chats is enabled: sessions advertise it again when that changes.
 		let chatMovesEnabled = configurationService.getRootValue(chatMoveRootConfigSchema, ChatMoveConfigKey.Enabled) === true;
+		let artifactIntegrationsEnabled = isArtifactIntegrationsEnabled();
 		owned.add(configurationService.onDidRootConfigChange(() => {
 			const enabled = configurationService.getRootValue(chatMoveRootConfigSchema, ChatMoveConfigKey.Enabled) === true;
-			if (enabled !== chatMovesEnabled) {
+			const integrationsEnabled = isArtifactIntegrationsEnabled();
+			if (enabled !== chatMovesEnabled || integrationsEnabled !== artifactIntegrationsEnabled) {
 				chatMovesEnabled = enabled;
+				artifactIntegrationsEnabled = integrationsEnabled;
 				for (const session of stateManager.getSessionUris()) {
 					serverToolHost.advertise(session);
 				}
@@ -260,7 +304,48 @@ export function createAgentServiceComposition(
 			setChatWorkspaceAttached: (session, chat, attached) => agentService!.setArchivedChatWorkspaceAttached(session, chat, attached),
 		});
 
+		let artifactSequence = 0;
+		const artifactDispatches = owned.add(new DisposableMap<number, DisposableStore>());
+		const artifactRuntime = owned.add(new AgentHostArtifactRuntime(
+			options.rootConfigResource ? joinPath(dirname(options.rootConfigResource), 'artifact-integrations.json') : undefined,
+			{
+				postNotice: (chat, part) => callbackAdapter.value.postChatNotice(chat, part),
+				// Unloading a session is not deletion; only deleting its data removes its artifact bindings.
+				onDidDeleteSession: Event.map(sessionDataService.onWillDeleteSessionData, event => event.session.toString()),
+				acquire: async (resource, owner) => {
+					await agentService!.subscribe(resource, owner);
+					return toDisposable(() => agentService!.unsubscribe(resource, owner));
+				},
+				dispatch: async (chat, action) => {
+					const sequence = ++artifactSequence;
+					const lifetime = new DisposableStore();
+					artifactDispatches.set(sequence, lifetime);
+					try {
+						await new Promise<void>((resolve, reject) => {
+							lifetime.add(toDisposable(() => reject(new Error('Artifact dispatch was closed before acknowledgement'))));
+							lifetime.add(new TimeoutTimer(() => reject(new Error('Artifact dispatch acknowledgement timed out')), 30_000));
+							lifetime.add(stateManager.onDidEmitEnvelope(envelope => {
+								if (envelope.origin?.clientId === 'artifact-integrations' && envelope.origin.clientSeq === sequence) {
+									if (envelope.rejectionReason) {
+										reject(new Error(envelope.rejectionReason));
+									} else {
+										resolve();
+									}
+								}
+							}));
+							agentService!.dispatchAction(chat, action, 'artifact-integrations', sequence);
+						});
+					} finally {
+						artifactDispatches.deleteAndDispose(sequence);
+					}
+				},
+			},
+			accessor.get(IArtifactIntegrationRegistry), accessor.get(IAgentHostArtifactEventService), stateManager, configurationService, logService,
+		));
+		hostArtifactIntegrations.value = artifactRuntime.integrations;
 		const collaborators: IAgentServiceCollaborators = {
+			artifactIntegrations: artifactRuntime.integrations,
+			artifactIntegrationClients: artifactIntegrationDirectory,
 			gitHubEndpointService,
 			gitStateService,
 			agentMergeController,
@@ -288,6 +373,7 @@ export function createAgentServiceComposition(
 			owned.add(disposable);
 		}
 		return {
+			artifactRuntime,
 			agentService,
 			authenticationService: core.authenticationService,
 			configurationService,

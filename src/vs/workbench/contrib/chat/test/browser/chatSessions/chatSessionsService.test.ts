@@ -9,7 +9,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../../ba
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { constObservable } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
@@ -20,6 +20,7 @@ import { Registry } from '../../../../../../platform/registry/common/platform.js
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { applyCodexAgentHostPreference, ChatSessionsService } from '../../../browser/chatSessions/chatSessions.contribution.js';
 import { ChatSessionOptionsMap, ChatSessionStatus, ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSession, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionsExtensionPoint, ReadonlyChatSessionOptionsMap, SessionType } from '../../../common/chatSessionsService.js';
+import { IChatSideChatOrigin } from '../../../common/chatSideChatService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { AGENT_HOST_ENABLED_CONTEXT_KEY, IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentEnabledSettingId, CodexPreferAgentHostEditorSettingId, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, IAgentHostService, protectedResourcesRequireGitHubCopilotSignIn } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -827,6 +828,78 @@ suite('ChatSessionsService - deletion lifecycle', () => {
 			counters: { provided: 2, disposed: 1 },
 			recreatedAfterRemoval: true,
 		});
+	});
+});
+
+suite('ChatSessionsService - side chats', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const type = 'side-chat-origins';
+	const resource = URI.from({ scheme: type, path: '/session', fragment: 'side' });
+	const origin: IChatSideChatOrigin = {
+		sourceSessionResource: resource.with({ fragment: '' }),
+		sourceTurnId: 'source-turn',
+		sourceTitle: 'Source',
+		selection: { text: 'Selected transcript' },
+	};
+	let service: ChatSessionsService;
+
+	setup(() => {
+		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
+		service = store.add(instantiationService.createInstance(ChatSessionsService));
+		store.add(service.registerChatSessionContribution({ type, name: type, displayName: type, description: '' }));
+	});
+
+	test('reports unsupported side chats without exposing the session resource', async () => {
+		await assert.rejects(service.createSideChat(resource, origin.sourceTurnId, CancellationToken.None), {
+			message: 'This conversation does not support side chats.',
+		});
+	});
+
+	test('observes late loading, title hydration, disposal, reloading and provider removal', async () => {
+		const metadata = observableValue<IChatSideChatOrigin | undefined>('origin', { ...origin, sourceTitle: undefined });
+		const provider = store.add(service.registerChatSessionContentProvider(type, {
+			provideChatSessionContent: async sessionResource => {
+				const onWillDispose = store.add(new Emitter<void>());
+				const disposable = store.add(toDisposable(() => onWillDispose.fire()));
+				return { sessionResource, history: [], sideChatOrigin: metadata, onWillDispose: onWillDispose.event, dispose: () => disposable.dispose() };
+			},
+		}));
+		const observed = service.observeSideChatOrigin(resource);
+		const origins: (IChatSideChatOrigin | undefined)[] = [];
+		store.add(autorun(reader => origins.push(observed.read(reader))));
+		const session = await service.getOrCreateChatSession(resource, CancellationToken.None);
+		metadata.set(origin, undefined);
+		session.dispose();
+		await service.getOrCreateChatSession(resource, CancellationToken.None);
+		provider.dispose();
+		metadata.set({ ...origin, sourceTitle: 'After removal' }, undefined);
+
+		assert.deepStrictEqual(origins, [undefined, { ...origin, sourceTitle: undefined }, origin, undefined, origin, undefined]);
+	});
+
+	test('resolves a late materialized-resource alias without loading another session', async () => {
+		store.add(service.registerChatSessionContentProvider(type, {
+			provideChatSessionContent: async sessionResource => ({
+				sessionResource, history: [], sideChatOrigin: constObservable(origin), onWillDispose: Event.None, dispose: () => { },
+			}),
+		}));
+		const alias = resource.with({ path: '/materialized' });
+		const observed = service.observeSideChatOrigin(alias);
+		const origins: (IChatSideChatOrigin | undefined)[] = [];
+		store.add(autorun(reader => origins.push(observed.read(reader))));
+		await service.getOrCreateChatSession(resource, CancellationToken.None);
+		service.registerSessionResourceAlias(resource, alias);
+		assert.deepStrictEqual(origins, [undefined, origin]);
+	});
+
+	test('does not invent an origin for a loaded provider without side-chat metadata', async () => {
+		store.add(service.registerChatSessionContentProvider(type, {
+			provideChatSessionContent: async sessionResource => ({
+				sessionResource, history: [], onWillDispose: Event.None, dispose: () => { },
+			}),
+		}));
+		await service.getOrCreateChatSession(resource, CancellationToken.None);
+		assert.strictEqual(service.observeSideChatOrigin(resource).get(), undefined);
 	});
 });
 
