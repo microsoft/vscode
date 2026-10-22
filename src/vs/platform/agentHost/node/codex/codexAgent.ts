@@ -7019,7 +7019,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		session.mcpController?.dispose();
 		this._sessionMcpDiscoveries.get(sessionId)?.dispose();
 		this._sessionMcpDiscoveries.delete(sessionId);
-		// Idle release preserves owned scratch; only chat disposal removes it.
+		// Preserve scratch for resumable chats; age-based cleanup would delete their working data.
 		if (deleteManagedWorkingDirectory && session.managedWorkingDirectory) {
 			await this._removeManagedWorkingDirectory(session.managedWorkingDirectory);
 		}
