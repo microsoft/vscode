@@ -171,9 +171,7 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 			registerChatFixtureServices(reg, { artifactGroups: artifactsObs, todos, notification, agentHostSessionConfig });
 			reg.define(IActionWidgetService, ActionWidgetService);
 			reg.define(IContextViewService, ContextViewService);
-			if (fixtureOptions.sessionWorkingSet) {
-				reg.define(IContextMenuService, ContextMenuService);
-			}
+			reg.define(IContextMenuService, ContextMenuService);
 			reg.defineInstance(ILayoutService, new class extends mock<ILayoutService>() {
 				override readonly mainContainer = container;
 				override readonly activeContainer = container;
