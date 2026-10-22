@@ -104,6 +104,7 @@ suite('Customizations toolbar', () => {
 		};
 		const customizationsChanged = disposables.add(new Emitter<void>());
 		const refreshedHint = new DeferredPromise<ICustomizationMigrationHint | undefined>();
+		const removedHint = new DeferredPromise<ICustomizationMigrationHint | undefined>();
 		const migrationHint: ICustomizationMigrationHint = { migrationFlowId: 'flow', message: 'Migrations available', counts: [] };
 		const ignoredGroupsSeen: ICustomizationMigrationIgnoredGroup[][] = [];
 		let migrationCheckCount = 0;
@@ -116,6 +117,9 @@ suite('Customizations toolbar', () => {
 				}
 				if (migrationCheckCount === 2) {
 					return refreshedHint.p;
+				}
+				if (migrationCheckCount === 3) {
+					return removedHint.p;
 				}
 				return ignoredGroups.length > 0 ? undefined : migrationHint;
 			}
@@ -150,10 +154,16 @@ suite('Customizations toolbar', () => {
 		};
 		customizationsChanged.fire();
 		const refreshingState = state.migrationAvailable.get();
-		await refreshedHint.complete(undefined);
+		await refreshedHint.complete(migrationHint);
 		await refreshedHint.p;
 		await Promise.resolve();
 		const refreshedState = state.migrationAvailable.get();
+		customizationsChanged.fire();
+		const removingState = state.migrationAvailable.get();
+		await removedHint.complete(undefined);
+		await removedHint.p;
+		await Promise.resolve();
+		const removedState = state.migrationAvailable.get();
 		storeIgnoredCustomizationMigrationGroupKeys(storageService, new Set([
 			getCustomizationMigrationGroupIgnoreKey(
 				'agent-host-test',
@@ -173,6 +183,8 @@ suite('Customizations toolbar', () => {
 			enabledState,
 			refreshingState,
 			refreshedState,
+			removingState,
+			removedState,
 			ignoredState,
 			restoredState,
 			ignoredGroupsSeen,
@@ -185,11 +197,14 @@ suite('Customizations toolbar', () => {
 				totalCount: 9,
 				migrationAvailable: true,
 			},
-			refreshingState: false,
-			refreshedState: false,
+			refreshingState: true,
+			refreshedState: true,
+			removingState: true,
+			removedState: false,
 			ignoredState: false,
 			restoredState: true,
 			ignoredGroupsSeen: [
+				[],
 				[],
 				[],
 				[{ type: CustomizationMigrationType.PromptFiles, storage: PromptsStorage.local }],
