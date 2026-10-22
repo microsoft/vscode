@@ -56,7 +56,7 @@ class FixtureGitHubPullRequestModel extends GitHubPullRequestModel {
 	override readonly pullRequest: IObservable<IGitHubPullRequest | undefined>;
 
 	constructor(owner: string, repo: string, prNumber: number, pullRequest: IGitHubPullRequest | undefined) {
-		super(owner, repo, prNumber, new FixtureGitHubPRFetcher(), new NullLogService());
+		super(owner, repo, prNumber, new FixtureGitHubPRFetcher(), new NullLogService(), createFixturePullRequestIconCache());
 		this.pullRequest = constObservable(pullRequest);
 	}
 
@@ -177,6 +177,8 @@ export function createFixturePullRequestIconCache(): IPullRequestIconCache {
 		_serviceBrand: undefined,
 		get: link => icons.get(link),
 		set: (link, icon) => { icons.set(link, icon); },
+		getState: () => undefined,
+		setState: () => { },
 	};
 }
 

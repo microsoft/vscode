@@ -262,6 +262,12 @@ class TestPullRequestIconCache implements IPullRequestIconCache {
 		return this._icons.get(prLink);
 	}
 
+	getState(): undefined {
+		return undefined;
+	}
+
+	setState(): void { }
+
 	set(prLink: string, icon: ReturnType<typeof computePullRequestIcon>): void {
 		this._icons.set(prLink, icon);
 	}
