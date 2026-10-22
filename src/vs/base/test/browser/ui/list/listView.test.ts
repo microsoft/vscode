@@ -501,15 +501,24 @@ suite('ListView', function () {
 		};
 
 		const elements: TestElement[] = range(4).map(index => ({ id: String(index), height: 100 }));
-		const listView = listViewRef.value = new ListView<TestElement>(element, delegate, [renderer], { supportDynamicHeights: true });
+		const listView = listViewRef.value = new class extends ListView<TestElement> {
+			includeAll = false;
+
+			protected override getRenderRange(renderTop: number, renderHeight: number): IRange {
+				const renderRange = super.getRenderRange(renderTop, renderHeight);
+				if (this.includeAll) {
+					renderRange.end = this.length;
+				}
+				return renderRange;
+			}
+		}(element, delegate, [renderer], { supportDynamicHeights: true });
 		try {
 			listView.layout(100, 200);
 			listView.splice(0, 0, elements);
-			// Shrink the first two rows so the render range includes indices 2, 3, leaving index 2 pending when the shrink fires at index 1.
+			// Keep later indices in the probe range before row 1's new height is measured.
+			listView.includeAll = true;
 			elements[0].height = 20;
-			elements[1].height = 20;
 			listView.domElement(0)!.dataset.testHeight = String(elements[0].height);
-			listView.domElement(1)!.dataset.testHeight = String(elements[1].height);
 			shrinkOnRender = elements[1];
 
 			listView.layout(100, 201);
