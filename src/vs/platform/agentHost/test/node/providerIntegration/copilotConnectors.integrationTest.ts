@@ -108,11 +108,14 @@ suite('Copilot SDK Connector reconciliation', function () {
 				json({ login: 'connector-test', id: 1 });
 			} else if (path === '/copilot-connectors/api/v1/plugins') {
 				json({
-					plugins: ['mail', 'calendar', 'drive', 'files'].map(name => ({
-						name, metadata: { displayName: `Test ${name}`, tier: 'standard', releaseTag: 'preview' },
-						connection: { status: name === 'mail' && !mailConnected || (name === 'drive' || name === 'files') && !newConnectorsConnected ? 'available' : 'connected' },
-						mcpServers: { mcpServers: { [name]: { type: 'http', url: `${mcpUrl}/mcp/${name === 'mail' ? mailEndpoint : name}` } } },
-					})),
+					plugins: ['mail', 'calendar', 'drive', 'files'].map(name => {
+						const connected = name === 'mail' ? mailConnected : name === 'drive' || name === 'files' ? newConnectorsConnected : true;
+						return {
+							name, metadata: { displayName: `Test ${name}`, tier: 'standard', releaseTag: 'preview' },
+							connection: { status: connected ? 'connected' : 'available' },
+							mcpServers: { mcpServers: { [name]: { type: 'http', url: `${mcpUrl}/mcp/${name === 'mail' ? mailEndpoint : name}` } } },
+						};
+					}),
 				});
 			} else {
 				const stub = getAncillaryStub(request.method ?? 'GET', path);
@@ -232,11 +235,12 @@ suite('Copilot SDK Connector reconciliation', function () {
 		const added = await reconcileCopilotConnectors(session, log, { preserveStoppedServers: true, addNewlyConnected: true });
 		const afterAdd = (await session.rpc.connectors.getStatus()).runtimeServers;
 		assert.deepStrictEqual({
+			calendarConfigured: (await session.rpc.mcp.listConfigured()).servers.find(server => server.name === calendar.runtimeServerId)?.live?.status,
 			reconciled: added.reconciled, newlyConnectedChecked: added.newlyConnectedChecked,
 			servers: afterAdd.map(({ connectorName, status }) => ({ connectorName, status })).sort((a, b) => a.connectorName.localeCompare(b.connectorName)),
 			calendarStarts: initializations.calendar, driveStarts: initializations.drive, filesStarts: initializations.files, unexpectedRequests,
 		}, {
-			reconciled: false, newlyConnectedChecked: true,
+			calendarConfigured: 'stopped', reconciled: false, newlyConnectedChecked: true,
 			servers: [{ connectorName: 'calendar', status: 'stopped' }, { connectorName: 'drive', status: 'connected' }, { connectorName: 'files', status: 'connected' }, { connectorName: 'mail', status: 'connected' }],
 			calendarStarts: beforeDeferred.calendar, driveStarts: 1, filesStarts: 1, unexpectedRequests: [],
 		});
