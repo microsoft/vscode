@@ -439,7 +439,8 @@ suite('NativeRecordingService', () => {
 	});
 
 	for (const mimeType of ['video/mp4', 'video/webm']) {
-		test(`only advertises and round-trips playable ${mimeType} without OS capture`, async () => {
+		// The video/webm case: WebM can't be opened on the shipped (feed) Electron that product builds test with (`PipelineStatus::DEMUXER_ERROR_COULD_NOT_OPEN: FFmpegDemuxer: open context failed`), so this is skipped until https://github.com/microsoft/vscode/issues/343345 is fixed.
+		(mimeType === 'video/webm' ? test.skip : test)(`only advertises and round-trips playable ${mimeType} without OS capture`, async () => {
 			const canvas = mainWindow.document.createElement('canvas');
 			const video = mainWindow.document.createElement('video');
 			canvas.width = 32;
@@ -503,6 +504,6 @@ suite('NativeRecordingService', () => {
 			assert.deepStrictEqual({
 				state: service.state, width: video.videoWidth, height: video.videoHeight, mimeType: data.mimeType.split(';')[0],
 			}, { state: RecordingState.Idle, width: 32, height: 24, mimeType });
-		}).timeout(10000);
+		})?.timeout(10000); // `test.skip` returns nothing in this runner
 	}
 });

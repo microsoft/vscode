@@ -85,6 +85,36 @@ suite('ChatInputPart', () => {
 		assert.deepStrictEqual(states, [false, true, false, false]);
 	});
 
+	test('lets a host that submits for itself decide whether its session options are valid', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const contextKeyService = store.add(instantiationService.createInstance(ContextKeyService));
+		const optionsValid = ChatContextKeys.chatSessionOptionsValid.bindTo(contextKeyService);
+		const isValid = (options: object) => {
+			const inputPart = Object.assign(Object.create(ChatInputPart.prototype), {
+				options,
+				chatSessionHasTargetedModels: ChatContextKeys.chatSessionHasTargetedModels.bindTo(contextKeyService),
+				chatSessionHasCustomAgentTarget: ChatContextKeys.chatSessionHasCustomAgentTarget.bindTo(contextKeyService),
+				chatSessionHasOptions: ChatContextKeys.chatSessionHasModels.bindTo(contextKeyService),
+				chatSessionOptionsValid: optionsValid,
+				_updateInputContentContextKeys: () => { },
+				chatSessionsService: upcastPartial<IChatSessionsService>({
+					requiresCustomModelsForSessionType: () => false,
+					getCustomAgentTargetForSessionType: () => Target.Undefined,
+					getOptionGroupsForSessionType: () => [{ id: 'repositories', name: 'Repository', items: [{ id: 'owner/repository', name: 'owner/repository' }] }],
+					// The session's content provider seeded a placeholder that is not one of the items.
+					getSessionOption: () => '___vscode_repository_default___',
+				}),
+			});
+			Reflect.get(ChatInputPart.prototype, 'getVisibleOptionGroupsModeAndUpdateContextKeys').call(inputPart, URI.parse('copilot-cloud-agent:/untitled-draft'));
+			return optionsValid.get();
+		};
+
+		assert.deepStrictEqual({
+			input: isValid({}),
+			hostSubmit: isValid({ hostSubmit: { canSubmit: constObservable(true) } }),
+		}, { input: false, hostSubmit: true });
+	});
+
 	function createWorkingSetInput(isSessionsWindow = false, sessionResource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/session' }), inAgentsWindow = isSessionsWindow) {
 		const configurationService = new TestConfigurationService();
 		store.add(configurationService.onDidChangeConfigurationEmitter);

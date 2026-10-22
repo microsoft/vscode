@@ -22,7 +22,7 @@ import { Range } from '../../../../../editor/common/core/range.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
-import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceBrowseSection, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceMediaType, CustomizationMarketplaceQueryProgressCallback, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceBrowseSection, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IConfirmation, IConfirmationResult, IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
@@ -1159,7 +1159,7 @@ interface IRenderEditorOptions {
 	readonly curatedFeedsEnabled?: boolean;
 	readonly otherSourceEnabled?: boolean;
 	readonly toggleMarketplaceVisibility?: boolean;
-	readonly customizationMarketplaceState?: 'ready' | 'empty' | 'error' | 'loading' | 'loadingMore';
+	readonly customizationMarketplaceState?: 'ready' | 'empty' | 'error' | 'loading' | 'loadingMore' | 'partialLoading' | 'cachedRefresh';
 	readonly customizationMarketplaceInstallationState?: 'mixed' | 'missing' | 'error';
 	readonly customizationMarketplaceDetailState?: 'missing' | 'error' | 'unavailable';
 	readonly useRealConnectorInstallService?: boolean;
@@ -1410,13 +1410,23 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 						sections: curatedMarketplaceSections,
 					};
 				}
-				override async query(query: ICustomizationMarketplaceQuery): Promise<ICustomizationMarketplacePage> {
+				override async query(query: ICustomizationMarketplaceQuery, _token: CancellationToken, onProgress?: CustomizationMarketplaceQueryProgressCallback): Promise<ICustomizationMarketplacePage> {
 					customizationMarketplaceQueryCount++;
 					assert(sourceEnabled(), 'A fixture with no enabled sources must not query the catalog.');
 					const pageSize = query.pageSize ?? 24;
 					const createCursor = (offset: number) => ({ token: String(offset) });
 					switch (options.customizationMarketplaceState) {
 						case 'loading': return new DeferredPromise<ICustomizationMarketplacePage>().p;
+						case 'partialLoading':
+						case 'cachedRefresh': {
+							onProgress?.({
+								page: { items: marketplaceResources.slice(0, 6) },
+								completedSourceIds: ['testSource'],
+								cachedSourceIds: options.customizationMarketplaceState === 'cachedRefresh' ? ['testSource'] : [],
+								totalSourceCount: 4,
+							});
+							return new DeferredPromise<ICustomizationMarketplacePage>().p;
+						}
 						case 'loadingMore': {
 							const resources = options.discoveryQuery?.includes('@type:plugin')
 								? marketplaceResources.filter(resource => resource.mediaType === CustomizationMarketplaceMediaType.CopilotPlugin || resource.mediaType === CustomizationMarketplaceMediaType.ClaudePlugin)
@@ -2308,7 +2318,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	if (options.customizationMarketplaceState === 'loading' || options.customizationMarketplaceState === 'loadingMore') {
 		const progress = ctx.container.querySelector<HTMLElement>('.customization-discovery-progress');
 		assert(progress !== null && progress.offsetHeight > 0, 'Discover must always reserve space for its progress bar.');
-		assert([...ctx.container.querySelectorAll('.customization-discovery-state')].every(state => state.textContent === ''), 'Loading must not insert status text above Discover content.');
+		assert([...ctx.container.querySelectorAll('.customization-discovery-state')].every(state => state.closest('[hidden]') || state.textContent === ''), 'Loading must not insert status text above visible Discover content.');
 		if (options.customizationMarketplaceState === 'loading') {
 			assert(progress.querySelector('.monaco-progress-container.active') !== null, 'Initial loading must show the shared progress bar.');
 			const track = progress.querySelector<HTMLElement>('.monaco-progress-container');
@@ -4184,6 +4194,26 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			sessionResource: localSessionResource,
 			marketplaceVisibilityEnabled: true,
 			customizationMarketplaceState: 'loading',
+		}),
+	}),
+
+	DiscoverPartialLoading: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['Browse renders available customization cards immediately while a quiet status reports that one of four sources has loaded and the shared progress bar remains active.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			marketplaceVisibilityEnabled: true,
+			customizationMarketplaceState: 'partialLoading',
+		}),
+	}),
+
+	DiscoverCachedRefresh: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['Browse reuses cached customization cards immediately while a quiet status reports background source refresh progress and the shared progress bar remains active.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			marketplaceVisibilityEnabled: true,
+			customizationMarketplaceState: 'cachedRefresh',
 		}),
 	}),
 
