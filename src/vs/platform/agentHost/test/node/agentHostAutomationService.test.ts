@@ -527,6 +527,35 @@ suite('AgentHostAutomationService', () => {
 		}, { deleted: 102, entries: [], runs: [], acknowledged: ['ahp-session:/0'], missingOwner: [] });
 	});
 
+	test('coalesces repeated recovery signals while history deletion is in flight', async () => {
+		const automation = createAction().resource;
+		const firstAttempt = new DeferredPromise<void>();
+		const release = new DeferredPromise<void>();
+		let attempts = 0;
+		storageService.set('automations', {
+			catalog: { automations: [{ resource: automation, definition: definition(), runs: [], operations: [], createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString() }] },
+			historyDeletions: [{ automation, sessions: [{ session: 'ahp-session:/retained', provider: 'codex' }] }],
+		});
+		await storageService.whenIdle();
+		const service = createService({
+			deleteSession: async () => {
+				attempts++;
+				firstAttempt.complete();
+				await release.p;
+				throw new Error('provider unavailable');
+			},
+		});
+		await firstAttempt.p;
+
+		service.handleAgentsChanged();
+		service.handleAgentsChanged();
+		service.handleAgentsChanged();
+		release.complete();
+		await (service as unknown as { _mutationTail: Promise<void> })._mutationTail;
+
+		assert.strictEqual(attempts, 1);
+	});
+
 	for (const existingOwner of [false, true]) {
 		test(`migrates retained provider identity with ${existingOwner ? 'an existing' : 'a missing'} owner`, async () => {
 			const automation = createAction().resource;

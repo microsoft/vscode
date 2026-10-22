@@ -132,6 +132,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 	private _historyDeletions = new Map<string, IStoredHistoryDeletion>();
 	private readonly _runsToRecover = new Set<string>();
 	private readonly _recoveringRuns = new Set<string>();
+	private readonly _recoveringHistoryDeletions = new Set<string>();
 	private _mutationTail: Promise<void> = Promise.resolve();
 	private readonly _executionAvailabilityWatcher = this._register(new MutableDisposable());
 	private readonly _scheduleTimer = this._register(new MutableDisposable());
@@ -817,9 +818,13 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			}).finally(() => this._recoveringRuns.delete(resource));
 		}
 		for (const resource of this._historyDeletions.keys()) {
+			if (this._recoveringHistoryDeletions.has(resource)) {
+				continue;
+			}
+			this._recoveringHistoryDeletions.add(resource);
 			void this._enqueueMutation(() => this._collectingCustomizations(() => this._deleteHistory(resource))).catch(error => {
 				this._logService.error(`[AgentHostAutomationService] Failed to recover Automation history deletion: ${resource}`, error);
-			});
+			}).finally(() => this._recoveringHistoryDeletions.delete(resource));
 		}
 	}
 
