@@ -12,7 +12,7 @@ import { isErrorWithActions, toErrorMessage } from '../../../../base/common/erro
 import { isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, derivedObservableWithCache, disposableObservableValue, IObservable, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, waitForState } from '../../../../base/common/observable.js';
+import { autorun, derived, derivedObservableWithCache, disposableObservableValue, IObservable, IReader, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -497,16 +497,7 @@ export class NewChatWidget extends Disposable {
 					|| provider.connectionStatus && !RemoteAgentHostConnectionStatus.isConnected(provider.connectionStatus.read(reader)))) {
 					return false;
 				}
-				const folderUri = this._workspacePicker.selectedFolderUri;
-				if (folderUri) {
-					if (!session.workspace.read(reader)?.folders.some(folder => isEqual(folder.root, folderUri))
-						|| !getEnvironmentWorkspaceProvider(environment, this.sessionsProvidersService.getProviders(), folderUri)) {
-						return false;
-					}
-					if (environment.kind === 'container' && this._workspacePicker.getDevContainerWorkspaceAvailability(folderUri, session.providerId) !== true) {
-						return false;
-					}
-				} else if (environment.kind === 'cloud' || environment.kind === 'container' || !session.isQuickChat?.read(reader)) {
+				if (!this._isSessionWorkspaceReady(session, environment, reader)) {
 					return false;
 				}
 			}
@@ -742,6 +733,23 @@ export class NewChatWidget extends Disposable {
 			previousFolderUri = folderUri;
 			this._syncWorkspacePickerFromSessionWorkspace(workspace);
 		}));
+	}
+
+	private _isSessionWorkspaceReady(session: ISession, environment: ISessionCreationEnvironment, reader: IReader): boolean {
+		const folderUri = this._workspacePicker.selectedFolderUri;
+		if (!folderUri) {
+			return environment.kind !== 'cloud' && environment.kind !== 'container' && session.isQuickChat?.read(reader) === true;
+		}
+		const workspace = session.workspace.read(reader);
+		if (environment.kind === 'cloud') {
+			return !!workspace && this._workspacePicker.matchesSelectedWorkspace(workspace)
+				&& !!this._workspacePicker.getEnvironmentWorkspace(environment, reader);
+		}
+		if (!workspace?.folders.some(folder => isEqual(folder.root, folderUri))
+			|| !getEnvironmentWorkspaceProvider(environment, this.sessionsProvidersService.getProviders(), folderUri)) {
+			return false;
+		}
+		return environment.kind !== 'container' || this._workspacePicker.getDevContainerWorkspaceAvailability(folderUri, session.providerId) === true;
 	}
 
 	private _trackSessionPreparation(): IDisposable {

@@ -16,7 +16,7 @@ import { createErrorWithActions, isErrorWithActions } from '../../../../../base/
 import { toAction } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, IReader, observableValue } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -235,6 +235,18 @@ interface ISyncWorkspacePickerHarness {
 		setSelectedWorkspace(folderUri: URI, options: { fireEvent: false; origin: WorkspaceSelectionOrigin }): void;
 	};
 }
+
+interface IWorkspaceReadinessHarness {
+	readonly _workspacePicker: Pick<WorkspacePicker, 'selectedFolderUri' | 'matchesSelectedWorkspace' | 'getEnvironmentWorkspace' | 'getDevContainerWorkspaceAvailability'>;
+	readonly sessionsProvidersService: Pick<ISessionsProvidersService, 'getProviders'>;
+}
+
+const isSessionWorkspaceReady = Reflect.get(NewChatWidget.prototype, '_isSessionWorkspaceReady') as (
+	this: IWorkspaceReadinessHarness,
+	session: ISession,
+	environment: ISessionCreationEnvironment,
+	reader: IReader,
+) => boolean;
 
 interface ISessionCountHarness {
 	readonly _usage: { readonly createdSessionCount: number };
@@ -567,6 +579,110 @@ suite('NewChatWidget', () => {
 		const cloud: ISessionCreationEnvironment = { id: 'cloud', kind: 'cloud', label: 'Cloud', icon: Codicon.cloud, providerIds: ['cloud'] };
 		const container: ISessionCreationEnvironment = { ...local, id: 'container:local', kind: 'container' };
 		const folder = URI.file('/project');
+
+		test('Cloud submission accepts the selected local checkout for the same repository', () => {
+			const cloudFolder = URI.parse('github-remote-file://github/owner/project/HEAD');
+			const workspace = (root: URI) => upcastPartial<ISessionWorkspace>({
+				folders: [{ root, workingDirectory: root, name: 'project', description: undefined }],
+			});
+			const cloudWorkspace = workspace(cloudFolder);
+			const currentWorkspace = observableValue<ISessionWorkspace | undefined>('workspace', cloudWorkspace);
+			const supported = observableValue('supported', true);
+			const provider = upcastPartial<ISessionsProvider>({
+				id: 'cloud',
+				resolveWorkspace: () => undefined,
+			});
+			const harness: IWorkspaceReadinessHarness = {
+				_workspacePicker: {
+					selectedFolderUri: folder,
+					matchesSelectedWorkspace: candidate => candidate === cloudWorkspace,
+					getEnvironmentWorkspace: (_environment, reader) => supported.read(reader) ? { providerId: provider.id, workspace: cloudWorkspace } : undefined,
+					getDevContainerWorkspaceAvailability: () => undefined,
+				},
+				sessionsProvidersService: { getProviders: () => [provider] },
+			};
+			const session = upcastPartial<ISession>({ providerId: provider.id, workspace: currentWorkspace });
+			const ready = derived(reader => isSessionWorkspaceReady.call(harness, session, cloud, reader));
+			const states: boolean[] = [];
+			disposables.add(autorun(reader => states.push(ready.read(reader))));
+			currentWorkspace.set(workspace(URI.parse('github-remote-file://github/owner/other/HEAD')), undefined);
+			currentWorkspace.set(cloudWorkspace, undefined);
+			supported.set(false, undefined);
+			supported.set(true, undefined);
+			currentWorkspace.set(undefined, undefined);
+
+			assert.deepStrictEqual(states, [true, false, true, false, true, false]);
+		});
+
+		test('local and remote submission still requires the exact selected folder', () => {
+			const workspace = upcastPartial<ISessionWorkspace>({ folders: [{ root: folder, workingDirectory: folder, name: 'project', description: undefined }] });
+			const currentWorkspace = observableValue('workspace', workspace);
+			const session = upcastPartial<ISession>({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, workspace: currentWorkspace });
+			const provider = upcastPartial<ISessionsProvider>({
+				id: session.providerId,
+				resolveWorkspace: () => workspace,
+				getSessionTypes: () => [],
+			});
+			const harness: IWorkspaceReadinessHarness = {
+				_workspacePicker: {
+					selectedFolderUri: folder,
+					matchesSelectedWorkspace: () => true,
+					getEnvironmentWorkspace: () => ({ providerId: provider.id, workspace }),
+					getDevContainerWorkspaceAvailability: () => true,
+				},
+				sessionsProvidersService: { getProviders: () => [provider] },
+			};
+			const remote: ISessionCreationEnvironment = { ...local, id: 'remote', kind: 'remote' };
+			const ready = derived(reader => [local, remote].map(environment => isSessionWorkspaceReady.call(harness, session, environment, reader)));
+			const sameFolder = ready.get();
+			currentWorkspace.set(upcastPartial<ISessionWorkspace>({
+				folders: [{ root: URI.file('/other-checkout'), workingDirectory: folder, name: 'project', description: undefined }],
+			}), undefined);
+
+			assert.deepStrictEqual({ sameFolder, otherCheckout: ready.get() }, {
+				sameFolder: [true, true],
+				otherCheckout: [false, false],
+			});
+		});
+
+		test('container submission waits for confirmed workspace availability', () => {
+			const workspace = upcastPartial<ISessionWorkspace>({ folders: [{ root: folder, workingDirectory: folder, name: 'project', description: undefined }] });
+			const session = upcastPartial<ISession>({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, workspace: constObservable(workspace) });
+			const provider = upcastPartial<ISessionsProvider>({ id: session.providerId, resolveWorkspace: () => workspace });
+			const states = [true, false, undefined].map(available => {
+				const harness: IWorkspaceReadinessHarness = {
+					_workspacePicker: {
+						selectedFolderUri: folder,
+						matchesSelectedWorkspace: () => true,
+						getEnvironmentWorkspace: () => ({ providerId: provider.id, workspace }),
+						getDevContainerWorkspaceAvailability: () => available,
+					},
+					sessionsProvidersService: { getProviders: () => [provider] },
+				};
+				return derived(reader => isSessionWorkspaceReady.call(harness, session, container, reader)).get();
+			});
+
+			assert.deepStrictEqual(states, [true, false, false]);
+		});
+
+		test('folderless submission is limited to local and remote quick chats', () => {
+			const harness: IWorkspaceReadinessHarness = {
+				_workspacePicker: {
+					selectedFolderUri: undefined,
+					matchesSelectedWorkspace: () => false,
+					getEnvironmentWorkspace: () => undefined,
+					getDevContainerWorkspaceAvailability: () => undefined,
+				},
+				sessionsProvidersService: { getProviders: () => [] },
+			};
+			const remote: ISessionCreationEnvironment = { ...local, id: 'remote', kind: 'remote' };
+			const states = [true, false].map(quickChat => {
+				const session = upcastPartial<ISession>({ isQuickChat: constObservable(quickChat) });
+				return derived(reader => [local, remote, cloud, container].map(environment => isSessionWorkspaceReady.call(harness, session, environment, reader))).get();
+			});
+
+			assert.deepStrictEqual(states, [[true, true, false, false], [false, false, false, false]]);
+		});
 
 		test('automatic workspace restoration does not pin Cloud before This Computer registers', async () => {
 			const environments = observableValue<readonly ISessionCreationEnvironment[]>('environments', [cloud]);
