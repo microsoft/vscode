@@ -66,6 +66,7 @@ suite('Arrays', () => {
 		assertMedian(13, [13, 4, 8], 2);
 
 		const compare = (a: number, b: number) => a - b;
+		assert.strictEqual(arrays.quickSelect(0.9, [2, 1, 3], compare), 1);
 		assert.throws(() => arrays.quickSelect(-1, [1, 2, 3], compare), TypeError);
 		assert.throws(() => arrays.quickSelect(-0.5, [1, 2, 3], compare), TypeError);
 		assert.throws(() => arrays.quickSelect(-10, [1, 2, 3], compare), TypeError);
