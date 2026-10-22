@@ -13,11 +13,11 @@ import { AnchorAlignment } from '../../../base/browser/ui/contextview/contextvie
 import { HoverPosition } from '../../../base/browser/ui/hover/hoverWidget.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { KeyCode } from '../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { clamp } from '../../../base/common/numbers.js';
 import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue, transaction } from '../../../base/common/observable.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
-import { IAction, toAction } from '../../../base/common/actions.js';
+import { Action, IAction, toAction } from '../../../base/common/actions.js';
 import { localize } from '../../../nls.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
 import { IMenuEntryActionViewItemOptions, MenuEntryActionViewItem } from '../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -30,16 +30,18 @@ import { TogglePanelAction } from '../../../workbench/browser/parts/panel/panelA
 import { ISessionActivityBarActivityService } from '../../services/activity/common/sessionActivityBarActivityService.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
-import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
+import { IContextKey, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
 import { IHoverService, WorkbenchHoverDelegate } from '../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../platform/instantiation/common/serviceCollection.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
 import { Menus, SessionActivityBarGroup } from '../menus.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../workbench.js';
 import { AGENTS_CONTENT_HORIZONTAL_PADDING } from '../../common/layoutConstants.js';
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../common/sessionConfig.js';
 import { TOGGLE_SIDE_PANEL_COMMAND_ID } from '../../common/sessionCommands.js';
+import { sessionActivityBarChatActionContext } from '../../common/contextkeys.js';
 import { isPhoneLayout } from './mobile/mobileLayout.js';
 import { SubmenuFlyout } from './submenuFlyout.js';
 
@@ -61,6 +63,8 @@ export class SessionActivityBar extends Disposable {
 	/** The number of entries, which determines the strip's height. */
 	readonly itemCount: IObservable<number> = this._itemCount;
 
+	private readonly chatActions = observableValue<IObservable<readonly IAction[]> | undefined>(this, undefined);
+
 	constructor(
 		container: HTMLElement,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -71,10 +75,14 @@ export class SessionActivityBar extends Disposable {
 		super();
 
 		this.element = append(container, $('.session-activity-bar'));
+		const scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));
+		const scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])));
+		let actionsById = new Map<string, IAction>();
+		const renderedChatActions = this._register(new DisposableMap<string, Action>());
 
 		// Like the workbench activity bar, once an entry's hover has shown, moving to another entry shows its hover instantly.
 		const hoverDelegate = this._register(instantiationService.createInstance(WorkbenchHoverDelegate, 'element', { instantHover: true }, { position: { hoverPosition: HoverPosition.LEFT } }));
-		const toolbar = this._register(instantiationService.createInstance(MenuWorkbenchToolBar, this.element, Menus.SessionActivityBar, {
+		const toolbar = this._register(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, this.element, Menus.SessionActivityBar, {
 			orientation: ActionsOrientation.VERTICAL,
 			ariaLabel: localize('sessionActivityBar', "Session Activity Bar"),
 			telemetrySource: 'sessionActivityBar',
@@ -86,8 +94,12 @@ export class SessionActivityBar extends Disposable {
 			// Every group shows in the strip: the side panel toggle and tab entries, then the terminal and panel toggle.
 			toolbarOptions: { primaryGroup: () => true, useSeparatorsInPrimaryActions: true },
 			actionViewItemProvider: (action, options) => {
+				const chatAction = renderedChatActions.get(action.id);
+				if (chatAction) {
+					return new ActionViewItem(undefined, chatAction, { ...options, icon: true, label: false });
+				}
 				if (action instanceof SubmenuItemAction) {
-					return instantiationService.createInstance(SessionActivityBarSubmenuViewItem, action, { ...options, icon: true, label: false });
+					return scopedInstantiationService.createInstance(SessionActivityBarSubmenuViewItem, action, { ...options, icon: true, label: false });
 				}
 				if (action instanceof MenuItemAction) {
 					return instantiationService.createInstance(SessionActivityBarActionViewItem, action, options);
@@ -107,6 +119,50 @@ export class SessionActivityBar extends Disposable {
 		};
 		update();
 		this._register(toolbar.onDidChangeMenuItems(update));
+		const keys = new Map<string, IContextKey<boolean>>();
+		const enabled = observableFromEvent(this, this.configurationService.onDidChangeConfiguration, () => !!this.configurationService.getValue<boolean>(SESSION_ACTIVITY_BAR_SETTING));
+		this._register(autorun(reader => {
+			const actions = enabled.read(reader) ? this.chatActions.read(reader)?.read(reader) ?? [] : [];
+			actionsById = new Map(actions.map(action => [action.id, action]));
+			const changed = actions.length !== renderedChatActions.size || actions.some(action => !renderedChatActions.has(action.id));
+			for (const [id] of renderedChatActions) {
+				if (!actionsById.has(id)) {
+					renderedChatActions.deleteAndDispose(id);
+				}
+			}
+			for (const action of actions) {
+				let rendered = renderedChatActions.get(action.id);
+				if (!rendered) {
+					const id = action.id;
+					rendered = new Action(id, action.label, action.class, action.enabled, context => actionsById.get(id)?.run(context));
+					renderedChatActions.set(action.id, rendered);
+				}
+				rendered.label = action.label;
+				rendered.class = action.class ?? '';
+				rendered.enabled = action.enabled;
+				rendered.tooltip = action.tooltip;
+			}
+			scopedContextKeyService.bufferChangeEvents(() => {
+				for (const [id, key] of keys) {
+					if (!actionsById.has(id)) {
+						key.reset();
+						keys.delete(id);
+					}
+				}
+				for (const action of actions) {
+					if (!keys.has(action.id)) {
+						keys.set(action.id, sessionActivityBarChatActionContext(action.id).bindTo(scopedContextKeyService));
+					}
+				}
+				for (const [id, key] of keys) {
+					key.set(actionsById.has(id));
+				}
+			});
+			if (changed) {
+				toolbar.refresh();
+			}
+			update();
+		}));
 		// Entries show the toolbar's own context menu, which appends these actions; this covers the rest of the strip.
 		this._register(addDisposableListener(this.element, EventType.CONTEXT_MENU, (e: MouseEvent) => {
 			EventHelper.stop(e, true);
@@ -121,6 +177,10 @@ export class SessionActivityBar extends Disposable {
 				update();
 			}
 		}));
+	}
+
+	setChatActions(actions: IObservable<readonly IAction[]> | undefined): void {
+		this.chatActions.set(actions, undefined);
 	}
 }
 
@@ -263,6 +323,10 @@ export class ChatViewSessionActivityBar extends Disposable {
 		this.active = active;
 		this.element?.classList.toggle('inactive', !active);
 		this.applyPosition();
+	}
+
+	setChatActions(actions: IObservable<readonly IAction[]> | undefined): void {
+		this.activityBar?.setChatActions(actions);
 	}
 
 	/** Positions the strip within the chat area at `top` with the given `height` in the host. */

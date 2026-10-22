@@ -33,9 +33,14 @@ import { SessionView } from '../../../../../browser/parts/sessionView.js';
 import { ISessionWorkspace } from '../../../../../services/sessions/common/session.js';
 import { ConnectMissionControlEnvironmentCommand } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/missionControlEnvironmentActions.js';
 import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
+import { MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
 
 suite('Remote Agent Host actions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('Tunnels uses the standard remote icon', () => {
+		assert.deepStrictEqual(MenuRegistry.getCommand(RemoteAgentHostCommandIds.connectViaTunnel)?.icon, Codicon.remote);
+	});
 
 	for (const outcome of ['selected', 'cancelled-connection', 'cancelled-folder', 'missing-provider'] as const) {
 		test(`Mission Control environment selection opens its folder picker: ${outcome}`, async () => {

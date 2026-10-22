@@ -18,6 +18,7 @@ import { localize } from '../../../../../nls.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
+import { Link } from '../../../../../platform/opener/browser/link.js';
 import { defaultButtonStyles, defaultCheckboxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
@@ -317,12 +318,12 @@ export class CustomizationMigrationDashboard extends Disposable {
 		this.prepareRender();
 		const supportsAgentMigration = migrationGroups.length > 0 && overview.supportsAgentMigration !== false;
 		const page = this.renderHeader(
-			localize('migrationsTitle', "Migrations"),
 			this.allMigrationsComplete
-				? localize('migrationsCompletedDescription', "Your customizations use supported formats and locations.")
-				: supportsAgentMigration
-					? localize('migrationsDescriptionWithAgent', "Some of your agent customizations need an update to keep working. Use Migrate to have VS Code update selected customizations, or Migrate with Agent for a guided migration in chat. Agent migration uses credits.")
-					: localize('migrationsDescription', "Some of your agent customizations need an update to keep working. Review and migrate them to the new formats and locations."),
+				? localize('migrationsTitle', "Migrations")
+				: localize('migrationsWelcomeTitle', "Keep your customizations working"),
+			this.allMigrationsComplete
+				? localize('migrationsCompletedDescription', "Your customizations are ready.")
+				: localize('migrationsDescription', "Copilot's new agent runtime uses different formats and locations for some customizations. Review and migrate the affected items below."),
 			overview.hasIgnoredGroups === true,
 			supportsAgentMigration ? () => {
 				this.callbacks.actionClicked('agentMigrationClicked');
@@ -346,6 +347,9 @@ export class CustomizationMigrationDashboard extends Disposable {
 		this.layoutTree?.();
 		this.callbacks.onDidChangeContent?.();
 		if (this.allMigrationsComplete) {
+			if (focusedKey === 'learnMore') {
+				this.focusTargets.get('learnMore')?.focus();
+			}
 			return;
 		}
 		if (focusedKey === focusPreferredTarget) {
@@ -458,16 +462,30 @@ export class CustomizationMigrationDashboard extends Disposable {
 			);
 		}
 		if (migrateWithAgent) {
-			this.button(
+			const description = localize('migrateWithAgentDescription', "Open a new chat with an agent to review and migrate your customizations. This uses Copilot credits.");
+			const button = this.button(
 				actions,
 				'migrateWithAgent',
 				localize('migrateWithAgent', "Migrate with Agent"),
 				localize('migrateWithAgentAriaLabel', "Start a guided migration of all customization files that need migration"),
 				migrateWithAgent,
 				'secondary',
+				undefined,
+				this.renderDisposables,
+				description,
 			);
+			button.element.setAttribute('aria-description', description);
 		}
 		DOM.append(header, $('p.migration-intro', {}, description));
+		this.renderDisposables.add(this.instantiationService.createInstance(Link, header, {
+			label: localize('learnAboutMigrations', "Learn About Migrations"),
+			href: 'https://aka.ms/vscode-migrate-customizations',
+		}, {}));
+		const learnMore = header.lastElementChild;
+		if (DOM.isHTMLElement(learnMore)) {
+			learnMore.setAttribute('role', 'link');
+			this.focusTargets.set('learnMore', learnMore);
+		}
 		return page;
 	}
 
@@ -609,7 +627,7 @@ export class CustomizationMigrationDashboard extends Disposable {
 					icon: Codicon.warning,
 					count: items.length,
 					isFirst: index === 0,
-					description: localize('migrationManualReviewGroupDescription', "These customizations cannot be migrated automatically. Open their details or use the item menu to resolve them."),
+					description: localize('migrationManualReviewGroupDescription', "These customizations cannot be migrated automatically. Select Review to see what needs to change."),
 					collapsed: this.collapsedMigrationGroups.has(groupKey),
 					hasConfigurableDestination: false,
 					manualReview: true,

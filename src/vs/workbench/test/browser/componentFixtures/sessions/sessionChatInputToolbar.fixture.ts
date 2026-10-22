@@ -19,7 +19,9 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { IFileContent, IFileService } from '../../../../../platform/files/common/files.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IExternalUriOpenerService } from '../../../../contrib/externalUriOpener/common/externalUriOpenerService.js';
 import { chatPersistentContentVisibleClass } from '../../../../contrib/chat/browser/widget/chatWidget.js';
 import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS } from '../../../../contrib/chat/common/sessionChatPills.js';
 import { BrowserEditorInput } from '../../../../contrib/browserView/common/browserEditorInput.js';
@@ -191,6 +193,10 @@ function createBrowserViewService(inputs: readonly BrowserEditorInput[]): IBrows
 }
 
 function registerSessionChatPillFixtureServices(registration: ServiceRegistration, sessionMock: IMockSessionAndChat): void {
+	registration.defineInstance(IQuickInputService, new class extends mock<IQuickInputService>() { }());
+	registration.defineInstance(IExternalUriOpenerService, new class extends mock<IExternalUriOpenerService>() {
+		override async getOpener() { return undefined; }
+	}());
 	registration.defineInstance(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
 		override getProvider() { return undefined; }
 	}());

@@ -11749,7 +11749,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		});
 
-		test('tells session lists when a subscribed session reorders its chats, also when its root summary stays the same (Block 5)', async () => {
+		test('a subscribed session reorders its chats through its chats observable, also when its root summary stays the same (Block 5)', async () => {
 			const provider = createProvider(disposables, agentHost);
 			const session = setupMultiChatSession(provider, 'reorder-notify');
 			const sessionUri = AgentSession.uri('copilotcli', 'reorder-notify').toString();
@@ -11758,15 +11758,44 @@ suite('LocalAgentHostSessionsProvider', () => {
 			const [first, second] = ['first', 'second'].map(id => buildDefaultChatUri(AgentSession.uri('copilotcli', id).toString()));
 			const peer = (resource: string, title: string): ChatSummary => ({ ...makeChatSummary(resource, title), origin: { kind: ProtocolChatOriginKind.User }, movable: true });
 			agentHost.setSessionState('reorder-notify', 'copilotcli', makeState([makeChatSummary(defaultChat, ''), peer(first, 'First'), peer(second, 'Second')], { defaultChat }));
-			const changed: string[][] = [];
-			disposables.add(provider.onDidChangeSessions(e => changed.push(e.changed.filter(candidate => candidate.sessionId === session.sessionId).map(candidate => candidate.chats.get().map(chat => chat.title.get()).join(',')))));
+			// Session lists read `chats` reactively, so a reorder reaches them without a session change event.
+			const observed: string[] = [];
+			disposables.add(autorun(reader => observed.push(session.chats.read(reader).map(chat => chat.title.read(reader)).join(','))));
 
 			agentHost.setSessionState('reorder-notify', 'copilotcli', makeState([makeChatSummary(defaultChat, ''), peer(second, 'Second'), peer(first, 'First')], { defaultChat }));
-			// An added chat reaches session lists with the root summary change, not again from the catalog.
 			const third = buildDefaultChatUri(AgentSession.uri('copilotcli', 'third').toString());
 			agentHost.setSessionState('reorder-notify', 'copilotcli', makeState([makeChatSummary(defaultChat, ''), peer(second, 'Second'), peer(first, 'First'), peer(third, 'Third')], { defaultChat }));
 
-			assert.deepStrictEqual(changed.filter(entry => entry.length > 0), [['Session,Second,First']]);
+			assert.deepStrictEqual(observed, ['Session,First,Second', 'Session,Second,First', 'Session,Second,First,Third']);
+		});
+
+		test('observing chat details applies a cached chat reorder without telling session lists while they observe', async () => {
+			const rawId = 'observe-cached-reorder';
+			const sessionUri = AgentSession.uri('copilotcli', rawId).toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const [first, second] = ['first', 'second'].map(id => buildChatUri(sessionUri, id));
+			agentHost.addSession(createSession(rawId, {
+				summary: 'Session',
+				chats: [
+					{ chat: URI.parse(defaultChat), kind: 'default', summary: 'Default' },
+					{ chat: URI.parse(first), kind: 'peer', summary: 'First' },
+					{ chat: URI.parse(second), kind: 'peer', summary: 'Second' },
+				],
+			}));
+			const provider = createProvider(disposables, agentHost);
+			provider.getSessions();
+			await timeout(0);
+			const session = provider.getSessions().find(candidate => AgentSession.id(candidate.resource.toString()) === rawId);
+			assert.ok(session);
+			// Another client already holds the session's state, which orders its chats differently.
+			agentHost.setSessionState(rawId, 'copilotcli', makeState([makeChatSummary(defaultChat, 'Default'), makeChatSummary(second, 'Second'), makeChatSummary(first, 'First')], { defaultChat }));
+			const notified: string[] = [];
+			disposables.add(provider.onDidChangeSessions(e => notified.push(...e.changed.filter(candidate => candidate.sessionId === session.sessionId).map(candidate => candidate.sessionId))));
+
+			// Session list rows observe chat details while the list renders them, and must not be re-entered.
+			disposables.add(autorun(reader => session.chats.read(reader).at(-1)?.title.read(reader)));
+
+			assert.deepStrictEqual({ notified, chats: session.chats.get().map(chat => chat.title.get()) }, { notified: [], chats: ['Default', 'Second', 'First'] });
 		});
 
 		test('explains a workspace-less refusal by whether the chat shares its scratch folder with another chat (Block 9)', async () => {

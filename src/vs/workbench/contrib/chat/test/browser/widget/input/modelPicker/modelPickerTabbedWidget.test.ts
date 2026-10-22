@@ -166,6 +166,7 @@ suite('TabbedModelPicker', () => {
 		entitlement?: ChatEntitlement;
 		showUnavailable?: boolean;
 		showManageModels?: boolean;
+		manageModelsDisabledReason?: string;
 		comparisonKeybinding?: number;
 		providerPlaceholders?: ITabbedModelPickerContext['providerPlaceholders'];
 		beforeSave?: (values: IStringDictionary<unknown>) => Promise<void>;
@@ -284,7 +285,7 @@ suite('TabbedModelPicker', () => {
 			comparisonModels: options.comparisonModels,
 			recentModelIds: [], pinnedModelIds: options.pinnedModelIds ?? [],
 			controlModels: options.controlModels ?? Object.fromEntries(availableModels.map(model => [model.metadata.id, { exists: true, featured: true, label: model.metadata.name }])),
-			configurationAccess: access, isUBB: false, showManageModels: options.showManageModels ?? false, providerPlaceholders: options.providerPlaceholders ?? [],
+			configurationAccess: access, isUBB: false, showManageModels: options.showManageModels ?? false, manageModelsDisabledReason: options.manageModelsDisabledReason, providerPlaceholders: options.providerPlaceholders ?? [],
 			unavailableContext: { show: !!options.showUnavailable, currentVSCodeVersion: '1.140.0', manageSettingsUrl: undefined, updateStateType: StateType.Idle },
 			onUnavailableLinkClick: () => { },
 			onSelect: model => selections.push(model.identifier),
@@ -553,6 +554,17 @@ suite('TabbedModelPicker', () => {
 			addIcon: !!action.querySelector('.codicon-add'),
 			comparisonFooter: !!popup.querySelector('.tabbed-action-list-footer'),
 		}, { label: 'Add Models...', addIcon: true, comparisonFooter: false });
+	});
+
+	test('model management is disabled with its reason when models cannot be added', () => {
+		const { popup, picker } = createPicker({ showManageModels: true, manageModelsDisabledReason: 'Not supported here' });
+		const action = element(popup, '[data-id="addProvider"]');
+		action.click();
+		assert.deepStrictEqual({
+			disabled: action.getAttribute('aria-disabled'),
+			title: action.title,
+			stillOpen: picker.isVisible,
+		}, { disabled: 'true', title: 'Not supported here', stillOpen: true });
 	});
 
 	test('comparison footer shows the configured shortcut and the shortcut opens Attempts without selecting a model', () => {
