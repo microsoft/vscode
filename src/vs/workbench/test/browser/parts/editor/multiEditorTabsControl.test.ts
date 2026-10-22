@@ -172,7 +172,9 @@ suite('MultiEditorTabsControl', () => {
 		instantiationService.stub(IContextMenuService, {
 			onDidShowContextMenu: Event.None,
 			onDidHideContextMenu: Event.None,
-			showContextMenu: delegate => contextMenus.push(delegate)
+			showContextMenu: delegate => {
+				contextMenus.push(delegate);
+			}
 		});
 
 		control.dispose();
