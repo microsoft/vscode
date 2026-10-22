@@ -72,11 +72,11 @@ export function filterModelsForSession(
 			if (!isModelEligible(entry, currentModeKind, location)) {
 				continue;
 			}
-			// `isModelEligible` guarantees the metadata is present.
-			const { metadata } = entry;
-			if (metadata.targetChatSessionType === sessionType) {
+			// `isModelEligible` is not a type guard, so keep the metadata access optional.
+			const targetSessionType = entry.metadata?.targetChatSessionType;
+			if (targetSessionType === sessionType) {
 				sessionScoped.push(entry);
-			} else if (!metadata.targetChatSessionType && isByokModel(metadata)) {
+			} else if (!targetSessionType && entry.metadata && isByokModel(entry.metadata)) {
 				byokScoped.push(entry);
 			}
 		}
@@ -84,7 +84,7 @@ export function filterModelsForSession(
 	}
 
 	return models.filter(entry =>
-		isModelEligible(entry, currentModeKind, location) && !entry.metadata.targetChatSessionType
+		isModelEligible(entry, currentModeKind, location) && !entry.metadata?.targetChatSessionType
 	);
 }
 
