@@ -210,6 +210,7 @@ export class ModelPickerWidget extends Disposable {
 		if (this._delegate.comparison) {
 			this._register(autorun(reader => {
 				this._delegate.comparison?.summary.read(reader);
+				this._delegate.comparisonBusy?.read(reader);
 				if (!this._delegate.comparison?.available.read(reader)) {
 					this._tabbedPicker.value?.hide();
 				}
@@ -861,6 +862,7 @@ export class ModelPickerWidget extends Disposable {
 
 		models ??= this._delegate.getModels();
 		const comparisonSummary = this._delegate.comparison?.summary.get();
+		const comparisonBusy = !!comparisonSummary && (this._delegate.comparisonBusy?.get() ?? false);
 		const routingTier = !comparisonSummary && this._selectedModel ? this._getRoutingTier(this._selectedModel, models) : undefined;
 		const shownModel = routingTier?.shownModel ?? this._selectedModel;
 		const displayName = shownModel ? getLanguageModelDisplayNameWithSubscriptionSource(shownModel) : undefined;
@@ -881,7 +883,7 @@ export class ModelPickerWidget extends Disposable {
 		const nameChildren: (HTMLElement | string)[] = [];
 		const compact = this._compact?.get() ?? false;
 		const minimal = this._minimal?.get() ?? false;
-		const modelIcon = comparisonSummary ? Codicon.compare : shownModel
+		const modelIcon = comparisonBusy ? Codicon.loadingCompact : comparisonSummary ? Codicon.compare : shownModel
 			? (this._delegate.getPresentationOptions().showModelIcon
 				? getCompactModelPickerIcon(shownModel)
 				: shownModel.metadata.statusIcon ? getCompactCodicon(shownModel.metadata.statusIcon) : undefined)
@@ -923,6 +925,7 @@ export class ModelPickerWidget extends Disposable {
 		// icon to collapse to, the name keeps its label and stays a regular chip.
 		this._domNode.classList.toggle('compact', compact && !showModelLabel);
 		this._domNode.classList.toggle('icon-only', !showModelLabel && !configVisible);
+		this._domNode.classList.toggle('comparison-busy', comparisonBusy);
 
 		// Aria — name the control "Models" to match the visible label; the comma
 		// separates the control name from its current value / state.

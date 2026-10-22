@@ -361,16 +361,16 @@ export class CustomizationMigrationDashboard extends Disposable {
 
 	private renderCategoryErrors(parent: HTMLElement, errors: readonly ICustomizationMigrationDashboardCategoryError[]): void {
 		for (const error of errors) {
-			const card = DOM.append(parent, $('section.mcp-detail-diagnostic-card.migration.error.migration-category-error'));
-			const header = DOM.append(card, $('.mcp-detail-diagnostic-header'));
-			const icon = DOM.append(header, $('.mcp-detail-diagnostic-icon'));
+			const card = DOM.append(parent, $('section.migration-category-error'));
+			const icon = DOM.append(card, $('.migration-category-error-icon'));
 			icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.error));
 			icon.setAttribute('aria-hidden', 'true');
-			DOM.append(header, $('.mcp-detail-diagnostic-summary', {}, error.label));
-			const details = DOM.append(card, $('.mcp-detail-diagnostic-details'));
-			DOM.append(details, $('p.mcp-detail-diagnostic-message', {}, error.description));
+			const content = DOM.append(card, $('.migration-category-error-content'));
+			DOM.append(content, $('h2.migration-category-error-title', {}, error.label));
+			DOM.append(content, $('p.migration-category-error-description', {}, error.description));
+			const actions = DOM.append(card, $('.migration-category-error-actions'));
 			this.button(
-				details,
+				actions,
 				`retryCategory:${error.id}`,
 				localize('retry', "Retry"),
 				localize('retryMigrationCategory', "Retry loading {0}", error.label),

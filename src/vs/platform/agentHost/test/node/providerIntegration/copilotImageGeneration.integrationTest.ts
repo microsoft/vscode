@@ -240,7 +240,7 @@ suite('Agent Host Provider Integration — Copilot image generation', function (
 
 		assert.deepStrictEqual({
 			response: completed.responseText.trim(),
-			toolResult: resultText.replace(/sha256:[0-9a-f]{64}/, 'sha256:<id>').replace(path ?? '<no path>', '<path>'),
+			toolResult: resultText.replace(/sha256:[0-9a-f]{64}/, 'sha256:<id>').replaceAll(path ?? '<no path>', '<path>'),
 			missingPresentationGuidance: [
 				'already displayed in the chat',
 				'listed as artifacts',
@@ -253,7 +253,7 @@ suite('Agent Host Provider Integration — Copilot image generation', function (
 			unexpectedRequests,
 		}, {
 			response: 'IMAGE_SAVED',
-			toolResult: 'Image generated successfully.\nimage_id: sha256:<id>\npath: <path>',
+			toolResult: 'Image generated successfully.\nimage_id: sha256:<id>\npath: <path>\nsaved_to: <path>',
 			missingPresentationGuidance: [],
 			location: { insideHome: true, folder: ['session-state', 'images'], fileName: 'image-dc2f9147f39d1c93.png' },
 			savedImage: true,
