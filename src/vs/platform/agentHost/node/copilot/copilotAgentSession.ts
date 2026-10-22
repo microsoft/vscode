@@ -4045,6 +4045,11 @@ export class CopilotAgentSession extends Disposable {
 		};
 	}
 
+	/** The folder a workspace-less chat was launched in: the scratch folder the host allocated for it. */
+	get workspacelessFolder(): URI | undefined {
+		return this._launchPlan.workspaceless ? this._launchPlan.workingDirectory : undefined;
+	}
+
 	get customizationDirectory(): URI | undefined {
 		return this._customizationDirectory;
 	}
