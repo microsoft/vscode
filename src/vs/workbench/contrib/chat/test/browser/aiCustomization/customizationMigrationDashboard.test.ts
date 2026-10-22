@@ -411,13 +411,18 @@ suite('CustomizationMigrationDashboard', () => {
 
 		button(parent, 'Retry loading Plugin marketplaces could not be checked').click();
 
+		const error = parent.querySelector('.migration-category-error');
 		assert.deepStrictEqual({
-			error: parent.querySelector('.migration-category-error')?.textContent,
+			title: error?.querySelector('h2')?.textContent,
+			description: error?.querySelector('p')?.textContent,
+			retryParent: error?.querySelector('[aria-label="Retry loading Plugin marketplaces could not be checked"]')?.parentElement?.className,
 			hasPromptMigration: parent.textContent?.includes('Convert Prompt to Skills (Workspace)'),
 			retried,
 			telemetryActions,
 		}, {
-			error: 'Plugin marketplaces could not be checkedCheck the active agent connection, then try again.Retry',
+			title: 'Plugin marketplaces could not be checked',
+			description: 'Check the active agent connection, then try again.',
+			retryParent: 'migration-category-error-actions',
 			hasPromptMigration: true,
 			retried: [CustomizationMigrationCategoryId.PluginMarketplaces],
 			telemetryActions: ['retryClicked:pluginMarketplaces'],

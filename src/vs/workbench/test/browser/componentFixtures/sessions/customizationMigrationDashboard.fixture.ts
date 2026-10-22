@@ -119,8 +119,13 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	MigrationsMarketplaceError: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['A marketplace-specific error card appears above otherwise usable migration groups with an error icon, localized guidance, and a Retry button.'],
+		expectedVisualDescriptions: ['A compact marketplace-specific error card appears above otherwise usable migration groups. Its error icon stays beside the title and description, and its Retry button is content-sized at the trailing edge.'],
 		render: ctx => renderDashboard(ctx, 860, 'marketplaceError'),
+	}),
+	MigrationsMarketplaceErrorNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['In a narrow dashboard, the marketplace error icon stays beside its wrapped title and description while the content-sized Retry button moves below the text.'],
+		render: ctx => renderDashboard(ctx, 360, 'marketplaceError'),
 	}),
 	MigrationsMcpWarnings: defineComponentFixture({
 		labels: { kind: 'screenshot' },
