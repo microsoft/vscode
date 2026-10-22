@@ -676,7 +676,9 @@ export class SessionChatInputToolbar extends Disposable {
 								getChatPillEntries(sections.read(undefined)).find(entry => entry.id === selected.entry.id && activityBarOpeners.read(undefined).read(undefined).has(entry.id))?.open();
 							}
 						} catch (error) {
-							notificationService.error(error);
+							if (!cancellation.token.isCancellationRequested) {
+								notificationService.error(error);
+							}
 						} finally {
 							if (this._activityBarPicker.value === store) {
 								this._activityBarPicker.clear();

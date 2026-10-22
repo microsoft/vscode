@@ -285,17 +285,24 @@ suite('SessionChatInputToolbar', () => {
 		assert.deepStrictEqual({ all, filtered, restored, independentlyVisible }, { all: 1, filtered: 0, restored: 1, independentlyVisible: 1 });
 	});
 
-	test('activity bar reports picker failures without opening a reference', async () => {
-		const { instantiationService, toolbar, artifacts, artifact, main, opened } = await createGitHubActivityBar(SessionArtifactKind.Issue, LOCAL_AGENT_HOST_PROVIDER_ID);
-		artifacts.set([...artifacts.get(), artifact(4, main)], undefined);
-		await timeout(0);
-		const error = new Error('picker unavailable');
-		const errors: Error[] = [];
-		instantiationService.stub(IQuickInputService, 'pick', async () => { throw error; });
-		instantiationService.stub(INotificationService, 'error', (reported: Error) => errors.push(reported));
-		await toolbar.activityBarActions.get()[0].run();
-		assert.deepStrictEqual({ errors, opened }, { errors: [error], opened: [] });
-	});
+	for (const cancelled of [false, true]) {
+		test(`activity bar reports picker failures only without cancellation (${cancelled})`, async () => {
+			const { instantiationService, toolbar, artifacts, artifact, main, opened } = await createGitHubActivityBar(SessionArtifactKind.Issue, LOCAL_AGENT_HOST_PROVIDER_ID);
+			artifacts.set([...artifacts.get(), artifact(4, main)], undefined);
+			await timeout(0);
+			const error = new Error('picker unavailable');
+			const errors: Error[] = [];
+			instantiationService.stub(IQuickInputService, 'pick', async () => {
+				if (cancelled) {
+					toolbar.dispose();
+				}
+				throw error;
+			});
+			instantiationService.stub(INotificationService, 'error', (reported: Error) => errors.push(reported));
+			await toolbar.activityBarActions.get()[0].run();
+			assert.deepStrictEqual({ errors, opened }, { errors: cancelled ? [] : [error], opened: [] });
+		});
+	}
 
 	test('activity bar removes AI-hidden actions and rejects stale invocations after hiding or disposal', async () => {
 		const { toolbar, sentiment, opened } = await createGitHubActivityBar(SessionArtifactKind.Issue, LOCAL_AGENT_HOST_PROVIDER_ID);

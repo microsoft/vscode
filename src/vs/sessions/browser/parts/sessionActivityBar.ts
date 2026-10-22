@@ -99,7 +99,7 @@ export class SessionActivityBar extends Disposable {
 					return new ActionViewItem(undefined, chatAction, { ...options, icon: true, label: false });
 				}
 				if (action instanceof SubmenuItemAction) {
-					return instantiationService.createInstance(SessionActivityBarSubmenuViewItem, action, { ...options, icon: true, label: false });
+					return scopedInstantiationService.createInstance(SessionActivityBarSubmenuViewItem, action, { ...options, icon: true, label: false });
 				}
 				if (action instanceof MenuItemAction) {
 					return instantiationService.createInstance(SessionActivityBarActionViewItem, action, options);
@@ -143,6 +143,12 @@ export class SessionActivityBar extends Disposable {
 				rendered.tooltip = action.tooltip;
 			}
 			scopedContextKeyService.bufferChangeEvents(() => {
+				for (const [id, key] of keys) {
+					if (!actionsById.has(id)) {
+						key.reset();
+						keys.delete(id);
+					}
+				}
 				for (const action of actions) {
 					if (!keys.has(action.id)) {
 						keys.set(action.id, sessionActivityBarChatActionContext(action.id).bindTo(scopedContextKeyService));

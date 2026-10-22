@@ -228,7 +228,7 @@ suite('Sessions - Session Activity Bar', () => {
 		key(first.label('Open Pull Request'), 32, ' ');
 		first.label('Open Pull Request').dispatchEvent(new KeyboardEvent('keyup', { key: ' ', keyCode: 32, bubbles: true, cancelable: true }));
 		const updated = first.label('Open Pull Request').getAttribute('aria-label');
-		const otherBar = !!second.label('Open Pull Request');
+		const otherBar = !!second.activityBar.element.querySelector('.action-label[aria-label^="Open Pull Request"]');
 		first.setEnabled(false);
 		first.setEnabled(true);
 		const restored = !!first.label('Open Pull Request');
