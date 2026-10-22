@@ -154,7 +154,7 @@ export function buildSessionPullRequestSections(pullRequests: readonly IResolved
 				run: () => artifactActions.remove?.([recordedReferenceId], resourceLabel),
 			}), chatPillRemoveArtifactHoverLabel) : undefined,
 			toolbarActions: [withChatPillHoverLabel(toAction({
-				id: `sessionChatPills.openPullRequestChanges.${ref.owner}.${ref.repo}.${ref.number}`,
+				id: `sessionChatPills.openPullRequestChanges.${ref.owner.toLowerCase()}.${ref.repo.toLowerCase()}.${ref.number}`,
 				label: localize('sessionChatPills.openPullRequestChanges', "Open Pull Request Changes"),
 				class: ThemeIcon.asClassName(Codicon.diffMultiple),
 				run: () => {
