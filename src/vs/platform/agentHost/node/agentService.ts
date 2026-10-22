@@ -6454,16 +6454,25 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/**
+	 * The agent backing `chat` of `session`: the one `createChat` requests for it, else the chat's own agent
+	 * (a chat whose agent differs from its session's), else the session's.
+	 */
+	private _getChatWorkspaceAgent(session: URI, chat: URI, options: IAgentCreateChatRequestOptions | undefined): IAgent | undefined {
+		return options?.provider !== undefined ? this._providerService.getProvider(options.provider) : this._providerService.getProviderForChat(session, chat);
+	}
+
+	/**
 	 * Refuses a requested chat workspace the session cannot honor: combined with folders, a fork or a side chat,
-	 * for the default chat, or with a provider without chats or per-chat folders. Returns the session's provider.
+	 * for the default chat, or with an agent without chats or per-chat folders. The agent is the chat's own, which
+	 * differs from the session's for a chat using another agent. Returns that agent.
 	 */
 	private _requireChatWorkspaceSupport(session: URI, chat: URI, options: IAgentCreateChatRequestOptions | undefined, operation: 'createChat' | 'setChatWorkspace' = 'createChat'): IAgent {
 		if (options?.workingDirectories !== undefined || options?.fork !== undefined || options?.sideChat !== undefined) {
 			throw new Error(`[AgentService] ${operation}: a chat workspace cannot be combined with working directories, a fork or a side chat`);
 		}
-		const provider = this._providerService.getProviderForSession(session);
+		const provider = this._getChatWorkspaceAgent(session, chat, options);
 		if (!provider) {
-			throw new Error(`[AgentService] ${operation}: no provider for session ${session.toString()}`);
+			throw new Error(`[AgentService] ${operation}: no provider for chat ${chat.toString()} of session ${session.toString()}`);
 		}
 		if (!provider.getDescriptor().capabilities?.multipleWorkingDirectories) {
 			throw new Error(`[AgentService] ${operation}: provider ${provider.id} does not support a workspace per chat`);
@@ -6880,7 +6889,7 @@ export class AgentService extends Disposable implements IAgentService {
 			if (options?.workingDirectories !== undefined || options?.fork !== undefined || options?.sideChat !== undefined) {
 				return undefined;
 			}
-			provider = this._providerService.getProviderForSession(session);
+			provider = this._getChatWorkspaceAgent(session, chat, options);
 			if (!provider?.getDescriptor().capabilities?.multipleWorkingDirectories || !this._supportsChats(provider)
 				|| !readSessionWorkspaceless(this._stateManager.getSessionState(sessionKey)?._meta) || chat.toString() === this._requireDefaultChat(session)) {
 				return undefined;
