@@ -692,24 +692,24 @@ suite('AgentHostSessionInputPills', () => {
 		}, { resources: [name], collections: 0 });
 	});
 
-	test('opens file artifacts through the connection that owns them', async () => {
+	test('opens file artifacts through the connection that owns them', () => {
 		const artifact = URI.file('/home/user/videos/walkthrough.mp4');
-		const openArtifact = async (connectionAuthority: string, resourceUris: IAgentHostResourceUriMapper) => {
+		const openArtifact = (connectionAuthority: string, resourceUris: IAgentHostResourceUriMapper) => {
 			const openerService = new TestOpenerService();
 			const harness = createActivityPills(upcastPartial<SessionState>({
 				defaultChat: 'vendor-chat:/main', chats: [],
 				_meta: withSessionArtifacts(undefined, [{ id: 'video', label: 'Walkthrough', uri: artifact.toString(), type: SessionArtifactType.File, isArtifact: true }]),
 			}), undefined, undefined, connectionAuthority, undefined, undefined, { openerService, resourceUris });
+			// A single artifact pill opens its resource synchronously when clicked
 			harness.persistentContent.querySelector<HTMLElement>('.chat-resource-pill-button')?.click();
-			await timeout(0);
 			return openerService.opened.map(({ resource }) => resource.toString());
 		};
 
 		assert.deepStrictEqual({
-			localWindow: await openArtifact('local', identityAgentHostResourceUriMapper),
+			localWindow: openArtifact('local', identityAgentHostResourceUriMapper),
 			// The ambient host of a remote window resolves as `local` but runs on the remote
-			remoteWindow: await openArtifact('local', createAgentHostResourceUriMapper('ambient-remote')),
-			remoteHost: await openArtifact('remote', createAgentHostResourceUriMapper('remote')),
+			remoteWindow: openArtifact('local', createAgentHostResourceUriMapper('ambient-remote')),
+			remoteHost: openArtifact('remote', createAgentHostResourceUriMapper('remote')),
 		}, {
 			localWindow: [artifact.toString()],
 			remoteWindow: [toAgentHostUri(artifact, 'ambient-remote').toString()],
