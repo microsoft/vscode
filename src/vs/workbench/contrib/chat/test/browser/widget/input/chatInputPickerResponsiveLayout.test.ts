@@ -372,6 +372,20 @@ suite('ChatInputPickerResponsiveLayout', () => {
 		});
 	});
 
+	test('lays out again when the lane itself changes without changing its width', async () => {
+		const { lane, items } = createPickerLane(180, [80, 80]);
+		await waitForAnimationFrames(lane, 3);
+		const beforeGap = items.map(item => item.isCompact());
+
+		lane.style.gap = '30px';
+		await waitForAnimationFrames(lane, 2);
+
+		assert.deepStrictEqual({ beforeGap, afterGap: items.map(item => item.isCompact()) }, {
+			beforeGap: [false, false],
+			afterGap: [false, true],
+		});
+	});
+
 	test('restores overflowed actions in compact form before considering expanded labels', () => {
 		const lane = dom.append(host, dom.$('.picker-lane'));
 		lane.style.display = 'flex';

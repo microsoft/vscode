@@ -148,11 +148,11 @@ export class ChatInputPickerResponsiveLayout extends Disposable {
 	/**
 	 * Describes everything a pass depends on: the width it lays out against,
 	 * the lane's computed font (which stands in for inherited styles that resize
-	 * its contents), the lane's markup, and each item's state (including items
-	 * rendered outside the lane, such as overflowed actions). A pass expands
-	 * every item before compacting, so starting a new pass from the state a
-	 * previous pass ended in, against the same width, produces that same state
-	 * again.
+	 * its contents), the lane's markup including its own attributes (such as an
+	 * inline gap), and each item's state (including items rendered outside the
+	 * lane, such as overflowed actions). A pass expands every item before
+	 * compacting, so starting a new pass from the state a previous pass ended
+	 * in, against the same width, produces that same state again.
 	 */
 	private _getLayoutKey(availableWidth: number): string {
 		const items = this._delegate.getItems().map(item => [
@@ -165,7 +165,7 @@ export class ChatInputPickerResponsiveLayout extends Disposable {
 			dom.getWindow(this._element).getComputedStyle(this._element).font,
 			this._delegate.hasOverflow?.() ?? false,
 			this._delegate.isCompactionEnabled?.() ?? true,
-			this._element.innerHTML,
+			this._element.outerHTML,
 			items,
 		]);
 	}
