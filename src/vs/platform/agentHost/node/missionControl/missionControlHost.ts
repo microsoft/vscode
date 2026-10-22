@@ -332,6 +332,8 @@ export class MissionControlHost extends Disposable {
 				this._publishTelemetry.record(event);
 				if (event.phase === 'relayPublish' && event.outcome === 'succeeded') {
 					this._logService.trace(`[AgentHost] Mission Control publish ${event.detail}; durationMs=${event.durationMs}`);
+				} else if (event.phase === 'relayPublish' && event.outcome === 'failed' && event.failure !== 'mirrorBackpressure') {
+					this._logService.warn(`[AgentHost] Mission Control publish failed; reason=${event.failure}${event.detail ? `; ${event.detail}` : ''}`);
 				}
 			},
 			getSessionCount: () => this._agentService.getSessionCount(),
@@ -352,6 +354,13 @@ export class MissionControlHost extends Disposable {
 	}
 
 	private _reportOperation(event: IConnectionDiagnosticEvent): void {
+		if (event.phase === 'heartbeat' && event.outcome === 'started') {
+			this._logService.debug('[AgentHost] Mission Control heartbeat started');
+		}
+		if (event.phase === 'heartbeatResponse') {
+			this._logService.info(`[AgentHost] Mission Control heartbeat response; ${event.detail ?? ''}`);
+			return;
+		}
 		if (event.phase === 'relayDisconnected') {
 			this._publishTelemetry.flush();
 		}
