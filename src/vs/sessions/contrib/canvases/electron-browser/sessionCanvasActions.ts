@@ -13,7 +13,7 @@ import { ContextKeyExpr, ContextKeyExpression } from '../../../../platform/conte
 import { IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
-import { getCanvasInstanceLabels, getCanvasReferenceKey, ICanvasContextService, ICanvasService, REVEAL_CANVAS_COMMAND_ID } from '../../../../workbench/contrib/canvases/common/canvas.js';
+import { getCanvasInstanceLabels, getCanvasReferenceKey, ICanvasContextService, ICanvasService } from '../../../../workbench/contrib/canvases/common/canvas.js';
 import { getSessionCanvasDefinitionInstanceId, getSessionCanvasDefinitionLabels, ISessionCanvasRegistryService } from '../common/sessionCanvas.js';
 
 export const OPEN_SESSION_CANVAS_COMMAND_ID = 'workbench.action.agentSessions.openCanvas';
@@ -70,7 +70,7 @@ class CanvasMenuActionRegistration extends Disposable {
 function appendCanvasSubmenu(menu: MenuId, when: ContextKeyExpression | undefined, group = 'navigation', submenu = Menus.SessionsEditorTabsBarAddTabCanvas): IDisposable {
 	return MenuRegistry.appendMenuItem(menu, {
 		submenu,
-		title: localize('sessionCanvases.addTab', "Canvas"),
+		title: localize('sessionCanvases.canvasSubmenu', "Canvas"),
 		icon: Codicon.preview,
 		group,
 		order: 4,
@@ -148,6 +148,7 @@ function registerSessionCanvasActivityBarActions(canvasService: ICanvasService, 
 			canvas,
 		})))
 		: []);
+	// Match the submenu ID so persisted toolbar hiding survives single/multiple canvas transitions.
 	store.add(CommandsRegistry.registerCommand(Menus.SessionActivityBarCanvas.id, async () => {
 		const targets = activeCanvases.get();
 		if (targets.length === 1) {
@@ -165,7 +166,7 @@ function registerSessionCanvasActivityBarActions(canvasService: ICanvasService, 
 			let registration = registrations.get(key);
 			if (!registration) {
 				registration = new CanvasMenuActionRegistration(
-					`${REVEAL_CANVAS_COMMAND_ID}.${++commandSequence}`,
+					`${OPEN_SESSION_CANVAS_COMMAND_ID}.reveal.${++commandSequence}`,
 					() => canvasService.revealCanvas(target.reference),
 					Menus.SessionActivityBarCanvas,
 				);
