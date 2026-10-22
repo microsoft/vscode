@@ -80,7 +80,7 @@ export function createCopilotCliEnvironment(environment: NodeJS.ProcessEnv = pro
 	return env;
 }
 
-/** Temporary host-tool lookup workaround for https://github.com/microsoft/mxc/issues/1545.
+/** Temporary host-tool lookup workaround pending the planned upstream fix in https://github.com/microsoft/mxc/issues/1545; remove once the bundled runtime includes it.
  * Applies to the CLI subprocess and its children, not the agent host's environment.
  */
 export function addCopilotSandboxPath(env: Record<string, string | undefined>, platform: NodeJS.Platform = process.platform): void {
