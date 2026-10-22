@@ -106,7 +106,8 @@ suite('Agent Host Provider Integration - Copilot managed permissions', function 
 					COPILOT_TELEMETRY_ENABLED: 'false',
 				})),
 			});
-			const matchingCommand = isWindows ? 'Write-Output' : 'echo';
+			// Read-only commands need no ordinary approval, so probe with workspace mutations.
+			const matchingCommand = isWindows ? 'Copy-Item' : 'cp';
 			const configuration = new class extends TestConfigurationService {
 				override inspect<T>(key: string): IConfigurationValue<T> {
 					const inspected = super.inspect<T>(key);
@@ -169,7 +170,7 @@ suite('Agent Host Provider Integration - Copilot managed permissions', function 
 					await session.rpc.tools.initializeAndValidate();
 					assert.strictEqual((await session.rpc.permissions.setMode({ mode: 'manual' })).success, true);
 					requests.length = 0;
-					const shellResult = await session.rpc.tools.execute({ name: shell, arguments: { command: isWindows ? 'Get-Location' : 'pwd', description: 'Read working directory' } });
+					const shellResult = await session.rpc.tools.execute({ name: shell, arguments: { command: `mkdir ${phase}-manual`, description: 'Create workspace directory' } });
 					const readResult = await session.rpc.tools.execute({ name: 'view', arguments: { path: join(directory, 'input.txt') } });
 					const outputPath = join(directory, `${phase}.txt`);
 					const writeResult = await session.rpc.tools.execute({ name: 'create', arguments: { path: outputPath, file_text: phase } });
@@ -187,7 +188,7 @@ suite('Agent Host Provider Integration - Copilot managed permissions', function 
 					requests.length = 0;
 					const matching: RuntimeToolResult = restriction === 'denied domain'
 						? await session.rpc.tools.execute({ name: 'web_fetch', arguments: { url: 'https://blocked.example' } })
-						: await session.rpc.tools.execute({ name: shell, arguments: { command: `${matchingCommand} managed-probe`, description: 'Print managed probe' } });
+						: await session.rpc.tools.execute({ name: shell, arguments: { command: `${matchingCommand} input.txt ${phase}-probe.txt`, description: 'Copy workspace file' } });
 					assert.deepStrictEqual({ result: resultType(matching), requests }, restriction === 'denied domain' ? {
 						result: phase === 'removed' ? 'rejected' : 'denied',
 						requests: phase === 'removed' ? [{ kind: 'url', managedApprovalRequired: false }] : [],
@@ -195,12 +196,17 @@ suite('Agent Host Provider Integration - Copilot managed permissions', function 
 						result: 'success',
 						requests: [{ kind: 'shell', managedApprovalRequired: managedShellApprovalRequired }],
 					}, phase);
+					if (restriction !== 'denied domain') {
+						assert.strictEqual(await readFile(join(directory, `${phase}-probe.txt`), 'utf8'), 'input');
+					}
 
 					if (managedShellApprovalRequired) {
 						for (const mode of ['allow-all', 'assisted'] as const) {
 							assert.strictEqual((await session.rpc.permissions.setMode({ mode })).success, true);
 							requests.length = 0;
-							await session.rpc.tools.execute({ name: shell, arguments: { command: `${matchingCommand} managed-${mode}`, description: 'Print managed probe' } });
+							const result = await session.rpc.tools.execute({ name: shell, arguments: { command: `${matchingCommand} input.txt ${phase}-probe-${mode}.txt`, description: 'Copy workspace file' } });
+							assert.strictEqual(resultType(result), 'success');
+							assert.strictEqual(await readFile(join(directory, `${phase}-probe-${mode}.txt`), 'utf8'), 'input');
 							assert.deepStrictEqual(requests, [{ kind: 'shell', managedApprovalRequired: true }], `${phase}: ${mode}`);
 						}
 					}
@@ -208,7 +214,7 @@ suite('Agent Host Provider Integration - Copilot managed permissions', function 
 					assert.strictEqual((await session.rpc.permissions.setMode({ mode: 'allow-all' })).success, true);
 					requests.length = 0;
 					const unrestricted: RuntimeToolResult[] = [
-						await session.rpc.tools.execute({ name: shell, arguments: { command: isWindows ? 'Get-Location' : 'pwd', description: 'Read working directory' } }),
+						await session.rpc.tools.execute({ name: shell, arguments: { command: `mkdir ${phase}-allow-all`, description: 'Create workspace directory' } }),
 						await session.rpc.tools.execute({ name: 'view', arguments: { path: join(directory, 'input.txt') } }),
 						await session.rpc.tools.execute({ name: 'create', arguments: { path: join(directory, `${phase}-allow-all.txt`), file_text: phase } }),
 					];
