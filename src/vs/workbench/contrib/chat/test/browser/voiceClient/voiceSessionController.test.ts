@@ -5192,6 +5192,18 @@ suite('VoiceSessionController', () => {
 			'What should candyFactory do? Function behavior Options: 1, Accept a name and return { name }, like createTurtle. 2, Leave the function empty for now. You can also give your own answer.');
 	});
 
+	test('narrates only the first numbered field when the carousel asks multiple questions', () => {
+		const controller = createController(new TestVoiceClientService());
+		const questionNarratable = Reflect.get(controller, '_questionNarratable') as (model: IChatModel) => { text: string } | undefined;
+		const carousel = new ChatQuestionCarouselData([
+			{ id: 'filename', type: 'text', title: 'File name' },
+			{ id: 'contents', type: 'text', title: 'File contents' },
+		], false, undefined, undefined, undefined, new MarkdownString('What should the new file be named, and what should it contain?'));
+
+		assert.strictEqual(questionNarratable.call(controller, pendingPartsModel(carousel))?.text,
+			'Please answer one question at a time. Question 1 of 2: File name');
+	});
+
 	test('selects the oldest still-open pending part, not the newest', () => {
 		// Voice is a serial channel: a second form arriving must not take the turn
 		// from the one the user was just read out and is part-way through

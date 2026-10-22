@@ -29,21 +29,40 @@ suite('VoiceLiveInputRouter', () => {
 		};
 	}
 
-	test('reads form context with the first question and retry, but not with later questions', () => {
+	test('reads form context with a single question and its retry', () => {
 		const router = new VoiceLiveInputRouter();
 		router.updateContext(context('chat-session:/a', {
 			...questions,
 			message: 'What should candyFactory do?',
-			questions: [{ ...questions.questions![0], title: 'Function behavior' }, questions.questions![1]],
+			questions: [{ ...questions.questions![0], title: 'Function behavior' }],
 		}));
 		const initial = router.getQuestionPrompt('chat-session:/a', 'questions');
 		const retry = router.resolve('retry', 'not a choice', router.captureTarget()).clarification;
-		const next = router.resolve('first', '1', router.captureTarget()).clarification;
-		assert.deepStrictEqual({ initial, retry, next, current: router.getQuestionPrompt('chat-session:/a', 'questions') }, {
+		assert.deepStrictEqual({ initial, retry }, {
 			initial: 'What should candyFactory do? Function behavior 1. West 2. East',
 			retry: 'Please say an exact choice or its number. What should candyFactory do? Function behavior 1. West 2. East',
-			next: 'What name?',
-			current: 'What name?',
+		});
+	});
+
+	test('asks one numbered field at a time instead of a compound form question', () => {
+		const router = new VoiceLiveInputRouter();
+		router.updateContext(context('chat-session:/a', {
+			...questions,
+			message: 'What should the new file be named, and what should it contain?',
+			questions: [
+				{ id: 'filename', type: 'text', title: 'File name', allow_freeform: true, options: [] },
+				{ id: 'contents', type: 'text', title: 'File contents', allow_freeform: true, options: [] },
+			],
+		}));
+		const initial = router.getQuestionPrompt('chat-session:/a', 'questions');
+		const first = router.resolve('filename', 'chocolate.ts', router.captureTarget());
+		const current = router.getQuestionPrompt('chat-session:/a', 'questions');
+		const final = router.resolve('contents', 'A function called chocolate', router.captureTarget());
+		assert.deepStrictEqual({ initial, first, current, response: final.toolCall?.args.response }, {
+			initial: 'Please answer one question at a time. Question 1 of 2: File name',
+			first: { clarification: 'Question 2 of 2: File contents' },
+			current: 'Question 2 of 2: File contents',
+			response: { type: 'answer', answers: [{ question_id: 'filename', freeform: 'chocolate.ts' }, { question_id: 'contents', freeform: 'A function called chocolate' }] },
 		});
 	});
 
@@ -137,7 +156,7 @@ suite('VoiceLiveInputRouter', () => {
 		const first = router.resolve('first', 'option two', router.captureTarget());
 		const final = router.resolve('final', 'My deployment', router.captureTarget());
 		assert.deepStrictEqual({ first, final }, {
-			first: { clarification: 'What name?' },
+			first: { clarification: 'Question 2 of 2: What name?' },
 			final: {
 				toolCall: {
 					callId: 'final', name: 'respond_to_session', args: {
@@ -178,7 +197,7 @@ suite('VoiceLiveInputRouter', () => {
 		router.resolve('new-first', 'first', router.captureTarget());
 		const final = router.resolve('new-second', 'New deployment', router.captureTarget());
 		assert.deepStrictEqual({ resetIndex, nextPrompt, stale: stale.clarification !== undefined, response: final.toolCall?.args.response }, {
-			resetIndex: 0, nextPrompt: 'Which region? 1. West 2. East', stale: true,
+			resetIndex: 0, nextPrompt: 'Please answer one question at a time. Question 1 of 2: Which region? 1. West 2. East', stale: true,
 			response: { type: 'answer', answers: [{ question_id: 'region', value: 'new-westus' }, { question_id: 'name', freeform: 'New deployment' }] },
 		});
 	});
@@ -197,7 +216,7 @@ suite('VoiceLiveInputRouter', () => {
 			firstB, staleA: staleA.clarification !== undefined,
 			answers: finalA.toolCall?.args.response,
 		}, {
-			firstB: { clarification: 'What name?' }, staleA: true,
+			firstB: { clarification: 'Question 2 of 2: What name?' }, staleA: true,
 			answers: { type: 'answer', answers: [{ question_id: 'region', value: 'westus' }, { question_id: 'name', freeform: 'A deployment' }] },
 		});
 	});
@@ -429,9 +448,9 @@ suite('VoiceLiveInputRouter', () => {
 		const next = router.resolve('first', 'second', router.captureTarget());
 		const final = router.resolve('final', 'My deployment', router.captureTarget());
 		assert.deepStrictEqual({ initial, invalid, next, response: final.toolCall?.args.response }, {
-			initial: 'Which region? 1. West 2. East Please answer by voice, or use the controls in chat.',
-			invalid: { clarification: 'Please say an exact choice or its number. Which region? 1. West 2. East Please answer by voice, or use the controls in chat.' },
-			next: { clarification: 'What name? Please answer by voice, or use the controls in chat.' },
+			initial: 'Please answer one question at a time. Question 1 of 2: Which region? 1. West 2. East Please answer by voice, or use the controls in chat.',
+			invalid: { clarification: 'Please say an exact choice or its number. Please answer one question at a time. Question 1 of 2: Which region? 1. West 2. East Please answer by voice, or use the controls in chat.' },
+			next: { clarification: 'Question 2 of 2: What name? Please answer by voice, or use the controls in chat.' },
 			response: { type: 'answer', answers: [{ question_id: 'region', value: 'eastus' }, { question_id: 'name', freeform: 'My deployment' }] },
 		});
 	});
@@ -452,8 +471,8 @@ suite('VoiceLiveInputRouter', () => {
 		const first = router.resolve('first', 'Osten', router.captureTarget());
 		const final = router.resolve('final', 'Meine Bereitstellung', router.captureTarget());
 		assert.deepStrictEqual({ prompt, first, response: final.toolCall?.args.response }, {
-			prompt: 'Welche Region? 1. Westen 2. Osten Please answer by voice, or use the controls in chat.',
-			first: { clarification: 'Welcher Name? Please answer by voice, or use the controls in chat.' },
+			prompt: 'Please answer one question at a time. Question 1 of 2: Welche Region? 1. Westen 2. Osten Please answer by voice, or use the controls in chat.',
+			first: { clarification: 'Question 2 of 2: Welcher Name? Please answer by voice, or use the controls in chat.' },
 			response: { type: 'answer', answers: [{ question_id: 'region', value: 'eastus' }, { question_id: 'name', freeform: 'Meine Bereitstellung' }] },
 		});
 	});
@@ -495,7 +514,7 @@ suite('VoiceLiveInputRouter', () => {
 		const prompt = router.getQuestionPrompt('chat-session:/a', 'questions');
 		const skipped = router.resolve('skip', 'skip', router.captureTarget());
 		assert.deepStrictEqual({ prompt, response: skipped.toolCall?.args.response }, {
-			prompt: 'What name?', response: { type: 'skip', answers: [{ question_id: 'region', value: 'westus' }] },
+			prompt: 'Question 2 of 2: What name?', response: { type: 'skip', answers: [{ question_id: 'region', value: 'westus' }] },
 		});
 	});
 

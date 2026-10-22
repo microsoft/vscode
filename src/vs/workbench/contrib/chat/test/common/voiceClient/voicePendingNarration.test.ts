@@ -66,6 +66,13 @@ suite('formatQuestionPrompt', () => {
 		assert.strictEqual(formatQuestionPrompt(single, false, ' Which region? '), 'Which region? Options: 1, West US. 2, East US.');
 	});
 
+	test('asks only the first numbered field of a multi-question form', () => {
+		assert.strictEqual(
+			formatQuestionPrompt({ ...text, title: 'File name' }, false, 'What should the new file be named, and what should it contain?', 2),
+			'Please answer one question at a time. Question 1 of 2: File name',
+		);
+	});
+
 	test('appends the skip hint when the form allows skipping', () => {
 		assert.strictEqual(
 			formatQuestionPrompt(single, true),
