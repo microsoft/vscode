@@ -864,61 +864,6 @@ suite('ListView', function () {
 		}
 	});
 
-	for (const roundUp of [false, true]) {
-		test(`measures fractional dynamic heights consistently (round up: ${roundUp})`, () => {
-			const container = document.createElement('div');
-			document.body.appendChild(container);
-			type TestElement = { height: number };
-			const delegate = new class extends CachedListVirtualDelegate<TestElement> {
-				protected estimateHeight() { return 100; }
-				getTemplateId() { return 'template'; }
-				hasDynamicHeight() { return true; }
-				getMeasuredHeight(element: TestElement) { return this.getCachedHeight(element); }
-			};
-			const renderer: IListRenderer<TestElement, HTMLElement> = {
-				templateId: 'template',
-				renderTemplate(row) {
-					const content = document.createElement('div');
-					row.appendChild(content);
-					return content;
-				},
-				renderElement(element, _index, content) { content.style.height = `${element.height}px`; },
-				disposeTemplate() { }
-			};
-			const listView = store.add(new ListView<TestElement>(container, delegate, [renderer], {
-				supportDynamicHeights: true,
-				measureDynamicHeight: roundUp ? row => Math.ceil(row.getBoundingClientRect().height) : undefined,
-			}));
-			try {
-				const elements = [{ height: 40.25 }, { height: 200.75 }, { height: 160.25 }];
-				const heights = () => elements.map((element, index) => [listView.elementHeight(index), delegate.getMeasuredHeight(element)]);
-				listView.layout(200, 200);
-				listView.splice(0, 0, elements);
-				const inserted = heights();
-				assert.strictEqual(listView.domElement(2), null);
-
-				elements[0].height = 60.25;
-				listView.domElement(0)!.firstElementChild!.setAttribute('style', 'height: 60.25px');
-				listView.updateElementHeight(0, undefined, null);
-				elements[2].height = 180.25;
-				listView.updateElementHeight(2, undefined, null);
-				const updated = heights();
-				listView.layout(200, 201);
-
-				const round = roundUp ? Math.ceil : Math.round;
-				const expectedUpdated = [60.25, 200.75, 180.25].map(height => [round(height), round(height)]);
-				assert.deepStrictEqual({ inserted, updated, resized: heights() }, {
-					inserted: [[round(40.25), round(40.25)], [round(200.75), round(200.75)], [100, undefined]],
-					updated: expectedUpdated,
-					resized: expectedUpdated,
-				});
-			} finally {
-				listView.dispose();
-				container.remove();
-			}
-		});
-	}
-
 	test('preserves offscreen rows when extending user selection with shift click', function () {
 		const element = document.createElement('div');
 		document.body.appendChild(element);

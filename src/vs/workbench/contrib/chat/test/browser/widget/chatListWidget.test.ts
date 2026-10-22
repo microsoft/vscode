@@ -376,6 +376,45 @@ suite('ChatListWidget', () => {
 		}, { messages: ['say bar', 'say baz'], responseCount: 1, compact: true }, `Bubble gap: pending=${pendingGap}, timestamp=${timestampHeight}, consumed=${gap()}`);
 	});
 
+	for (const { kind, isSystemInitiated } of [
+		{ kind: ChatRequestQueueKind.Queued, isSystemInitiated: false },
+		{ kind: ChatRequestQueueKind.Steering, isSystemInitiated: false },
+		{ kind: ChatRequestQueueKind.Steering, isSystemInitiated: true },
+	]) {
+		test(`pending messages retain their existing fractional row measurements (${kind}, system=${isSystemInitiated})`, async () => {
+			const { model, container, widget } = createWidget({}, undefined, true);
+			const message = (text: string) => ({
+				text,
+				parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+			});
+			const request = model.addRequest(message('Review the changes'), { variables: [] }, 0);
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Reviewing the changes.') });
+			model.addPendingRequest(new ChatRequestModel({
+				session: model,
+				message: message('Summarize the findings'),
+				variableData: { variables: [] },
+				isSystemInitiated,
+			}), kind, { isSystemInitiated });
+			widget.refresh();
+			widget.layout(600, 500);
+			await waitForStableLayout(widget);
+			const rows = [...container.querySelectorAll<HTMLElement>('.monaco-list-row')];
+			assert.strictEqual(rows.length, 4);
+			const content = rows.map(row => row.querySelector<HTMLElement>('.interactive-item-container')!);
+			for (const element of content) {
+				element.style.height = `${Math.ceil(element.getBoundingClientRect().height) + 0.25}px`;
+			}
+			widget.layout(600, 501);
+			assert.deepStrictEqual({
+				fractions: content.map(element => element.getBoundingClientRect().height % 1),
+				allocatedHeights: rows.map(row => row.getBoundingClientRect().height),
+			}, {
+				fractions: content.map(() => 0.25),
+				allocatedHeights: content.map(element => element.offsetHeight),
+			});
+		});
+	}
+
 	test('empty intermediate responses retain errors, cancellation, and streaming state', () => {
 		const { model, viewModel } = createWidget();
 		const addRequest = () => model.addRequest({

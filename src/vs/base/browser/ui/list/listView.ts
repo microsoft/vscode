@@ -92,8 +92,6 @@ export interface IListViewOptions<T> extends IListViewOptionsUpdate {
 	readonly setRowLineHeight?: boolean;
 	readonly setRowHeight?: boolean;
 	readonly supportDynamicHeights?: boolean;
-	/** Measures a rendered dynamic-height row; defaults to its integer `offsetHeight`. */
-	readonly measureDynamicHeight?: (row: HTMLElement) => number;
 	readonly mouseSupport?: boolean;
 	readonly userSelection?: boolean;
 	readonly accessibilityProvider?: IListViewAccessibilityProvider<T>;
@@ -325,7 +323,6 @@ export class ListView<T> implements IListView<T> {
 	private setRowLineHeight: boolean;
 	private setRowHeight: boolean;
 	private supportDynamicHeights: boolean;
-	private readonly measureDynamicHeight: (row: HTMLElement) => number;
 	private paddingBottom: number;
 	private accessibilityProvider: ListViewAccessibilityProvider<T>;
 	private scrollWidth: number | undefined;
@@ -478,7 +475,6 @@ export class ListView<T> implements IListView<T> {
 		this.setRowLineHeight = options.setRowLineHeight ?? DefaultOptions.setRowLineHeight;
 		this.setRowHeight = options.setRowHeight ?? DefaultOptions.setRowHeight;
 		this.supportDynamicHeights = options.supportDynamicHeights ?? DefaultOptions.supportDynamicHeights;
-		this.measureDynamicHeight = options.measureDynamicHeight ?? (row => row.offsetHeight);
 		this.dnd = options.dnd ?? this.disposables.add(DefaultOptions.dnd);
 
 		this.layout(options.initialSize?.height, options.initialSize?.width);
@@ -1753,7 +1749,7 @@ export class ListView<T> implements IListView<T> {
 
 		if (item.row) {
 			item.row.domNode.style.height = '';
-			item.size = this.measureDynamicHeight(item.row.domNode);
+			item.size = item.row.domNode.offsetHeight;
 			if (item.size === 0) {
 				if (!isAncestor(item.row.domNode, getWindow(item.row.domNode).document.body)) {
 					console.warn('Measuring item node that is not in DOM! Add ListView to the DOM before measuring row height!', new Error().stack);
@@ -1778,7 +1774,7 @@ export class ListView<T> implements IListView<T> {
 		}
 
 		renderer.renderElement(item.element, index, row.templateData);
-		item.size = this.measureDynamicHeight(row.domNode);
+		item.size = row.domNode.offsetHeight;
 		renderer.disposeElement?.(item.element, index, row.templateData);
 
 		item.lastDynamicHeightWidth = this.renderWidth;
@@ -1830,7 +1826,7 @@ export class ListView<T> implements IListView<T> {
 		}
 
 		for (const measurement of measurements) {
-			measurement.item.size = this.measureDynamicHeight(measurement.row.domNode);
+			measurement.item.size = measurement.row.domNode.offsetHeight;
 		}
 
 		for (const measurement of measurements) {

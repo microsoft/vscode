@@ -1089,7 +1089,6 @@ export interface IListOptions<T> extends IListOptionsUpdate {
 	readonly setRowLineHeight?: boolean;
 	readonly setRowHeight?: boolean;
 	readonly supportDynamicHeights?: boolean;
-	readonly measureDynamicHeight?: (row: HTMLElement) => number;
 	readonly mouseSupport?: boolean;
 	readonly userSelection?: boolean;
 	readonly horizontalScrolling?: boolean;
