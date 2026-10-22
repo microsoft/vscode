@@ -534,6 +534,25 @@ suite('ChatInputModelUtils', () => {
 			assert.strictEqual(isModelValidForSession(generalModel, [withoutMetadata, generalModel], 'cloud'), true);
 		});
 
+		test('non-selectable models are NOT valid', () => {
+			const hiddenBYOK = createVendorModel('openai-compatible', 'hidden-endpoint', 'Hidden Endpoint', { isUserSelectable: false });
+			const hiddenTargeted = createSessionModel('hidden-gpt', 'Hidden GPT', 'cloud', { isUserSelectable: false });
+			const hiddenGeneral = createModel('hidden-general', 'Hidden General', { isUserSelectable: false });
+			const allModels = [createModel('gpt', 'GPT'), hiddenBYOK, hiddenTargeted, hiddenGeneral];
+			// The picker hides these, so a restored selection must not be treated as usable.
+			assert.deepStrictEqual({
+				byokInScopedPool: isModelValidForSession(hiddenBYOK, allModels, 'cloud'),
+				byokInGeneralPool: isModelValidForSession(hiddenBYOK, allModels, undefined),
+				targetedInScopedPool: isModelValidForSession(hiddenTargeted, allModels, 'cloud'),
+				generalInGeneralPool: isModelValidForSession(hiddenGeneral, allModels, undefined),
+			}, {
+				byokInScopedPool: false,
+				byokInGeneralPool: false,
+				targetedInScopedPool: false,
+				generalInGeneralPool: false,
+			});
+		});
+
 		test('general model is valid when session type is undefined', () => {
 			const generalModel = createModel('gpt', 'GPT');
 			assert.strictEqual(isModelValidForSession(generalModel, [generalModel], undefined), true);

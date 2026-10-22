@@ -151,6 +151,9 @@ export function hasModelsTargetingSession(
  * that session type, or be an unscoped BYOK (custom endpoint) model, which is offered alongside
  * them. If the pool is not scoped, the model must not be session-specific — so the local session
  * type always accepts general-purpose models, matching {@link filterModelsForSession}.
+ *
+ * A non-selectable model (an explicit `isUserSelectable: false`) is never valid: it is hidden
+ * from the picker, so a restored selection must not be treated as usable either.
  */
 export function isModelValidForSession(
 	model: ILanguageModelChatMetadataAndIdentifier,
@@ -160,6 +163,10 @@ export function isModelValidForSession(
 	// Cached entries are read back from storage unvalidated; a model without metadata cannot run.
 	const metadata = model.metadata;
 	if (!metadata) {
+		return false;
+	}
+
+	if (metadata.isUserSelectable === false) {
 		return false;
 	}
 
