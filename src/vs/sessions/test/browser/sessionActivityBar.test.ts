@@ -665,11 +665,13 @@ suite('Sessions - Session Activity Bar', () => {
 		store.add(toDisposable(() => setBaseLayerHoverDelegate(previous)));
 		createActivityBar(store, [changes, browser]);
 
+		// All entries share one delegate.
+		assert.strictEqual(delegates.size, 1);
 		const [delegate] = delegates;
 		const firstDelay = delegate.delay;
 		delegate.onDidHideHover?.();
 
-		assert.deepStrictEqual({ delegates: delegates.size, firstDelayed: firstDelay !== 0, nextDelay: delegate.delay }, { delegates: 1, firstDelayed: true, nextDelay: 0 });
+		assert.deepStrictEqual({ firstDelayed: firstDelay !== 0, nextDelay: delegate.delay }, { firstDelayed: true, nextDelay: 0 });
 	});
 
 	test('runs an entry when clicked', async () => {

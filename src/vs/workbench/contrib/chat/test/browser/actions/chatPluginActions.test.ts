@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -16,16 +16,196 @@ import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources 
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { INotification, INotificationHandle, INotificationService } from '../../../../../../platform/notification/common/notification.js';
-import { IInputOptions, IPickOptions, IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../../../platform/quickinput/common/quickInput.js';
+import { IInputBox, IInputOptions, IPickOptions, IQuickInputHideEvent, IQuickInputService, IQuickPickItem, QuickInputHideReason, QuickPickInput } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { ManagePluginMarketplacesAction } from '../../../browser/actions/chatPluginActions.js';
+import { InstallFromSourceAction, ManagePluginMarketplacesAction } from '../../../browser/actions/chatPluginActions.js';
 import { getPluginCustomizationMarketplaceSourceId } from '../../../browser/aiCustomization/pluginCustomizationMarketplaceProvider.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
-import { ICustomizationHarnessService, ICustomizationMarketplaceManagementProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, ICustomizationMarketplaceManagementProvider, ICustomizationPluginInstallProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { IAgentPluginRepositoryService } from '../../../common/plugins/agentPluginRepositoryService.js';
+import { IPluginInstallService } from '../../../common/plugins/pluginInstallService.js';
 import { IPluginMarketplaceService, parseMarketplaceReference } from '../../../common/plugins/pluginMarketplaceService.js';
 import { isMarketplaceReferenceAllowed, StrictKnownMarketplaces } from '../../../common/plugins/strictKnownMarketplaces.js';
+
+suite('InstallFromSourceAction', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createFixture(pluginInstallProvider?: ICustomizationPluginInstallProvider) {
+		const instantiationService = workbenchInstantiationService({}, store);
+		const acceptEmitter = store.add(new Emitter<void>());
+		const hideEmitter = store.add(new Emitter<IQuickInputHideEvent>());
+		const showEmitter = store.add(new Emitter<void>());
+		const inputBox = new class extends mock<IInputBox>() {
+			override value = '';
+			override title: string | undefined;
+			override validationMessage: string | undefined;
+			override busy = false;
+			override enabled = true;
+			override readonly onDidAccept = acceptEmitter.event;
+			override readonly onDidHide = hideEmitter.event;
+			override readonly onDidChangeValue = Event.None;
+			override readonly onDidTriggerButton = Event.None;
+			override show() { showEmitter.fire(); }
+			override hide() { hideEmitter.fire({ reason: QuickInputHideReason.Other }); }
+			override dispose() { }
+		}();
+		const session = URI.parse('agent-host-copilotcli:/session');
+		const activeSessionResource = observableValue('activeSession', session);
+		const harnesses = new Map<string, IHarnessDescriptor>([
+			[session.scheme, { id: 'test', label: 'Test', icon: { id: 'vm' }, pluginInstallProvider }],
+		]);
+		const localInstalls: string[] = [];
+		const validations: string[] = [];
+		instantiationService.stub(IQuickInputService, new class extends mock<IQuickInputService>() {
+			override createInputBox() { return inputBox; }
+		}());
+		instantiationService.stub(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
+			override readonly activeSessionResource = activeSessionResource;
+			override getDescriptorForSession(sessionResource: URI) {
+				return harnesses.get(sessionResource.scheme);
+			}
+		}());
+		instantiationService.stub(IPluginInstallService, new class extends mock<IPluginInstallService>() {
+			override validatePluginSource(source: string) {
+				validations.push(source);
+				return undefined;
+			}
+			override async installPluginFromSource(source: string) {
+				localInstalls.push(source);
+				return { success: true };
+			}
+		}());
+		instantiationService.stub(IConfigurationService, new class extends mock<IConfigurationService>() {
+			override async updateValue() {
+				assert.fail('Source installation must not update VS Code configuration');
+			}
+		}());
+		const result = instantiationService.invokeFunction(accessor => new InstallFromSourceAction().run(accessor, { skipReveal: true }));
+		return { inputBox, acceptEmitter, showEmitter, result, localInstalls, validations, session, activeSessionResource, harnesses };
+	}
+
+	test('uses the harness installer for repository, folder, and marketplace sources without changing VS Code plugin locations', async () => {
+		const sources = ['owner/repo', 'https://github.com/owner/repo.git', '/plugins/example', '~/plugins/example', 'file:///plugins/example', 'plugin@marketplace'];
+		const results = [];
+		for (const source of sources) {
+			const installs: { session: URI; source: string }[] = [];
+			const fixture = createFixture({
+				installFromSource: async (session, source) => { installs.push({ session, source }); },
+			});
+			fixture.inputBox.value = ` ${source} `;
+			fixture.acceptEmitter.fire();
+
+			results.push({
+				installed: await fixture.result,
+				installs,
+				localInstalls: fixture.localInstalls,
+				validations: fixture.validations,
+			});
+		}
+		assert.deepStrictEqual(results, sources.map(source => ({
+			installed: true,
+			installs: [{ session: URI.parse('agent-host-copilotcli:/session'), source }],
+			localInstalls: [],
+			validations: [],
+		})));
+	});
+
+	test('uses the selected harness at submission and updates the title when switching harnesses', async () => {
+		const installs: { harness: string; session: URI; source: string }[] = [];
+		const fixture = createFixture({
+			installFromSource: async (session, source) => { installs.push({ harness: 'original', session, source }); },
+		});
+		const initialTitle = fixture.inputBox.title;
+		fixture.harnesses.set('other', {
+			id: 'other', label: 'Other', icon: { id: 'vm' },
+			pluginInstallProvider: {
+				installFromSource: async (session, source) => { installs.push({ harness: 'other', session, source }); },
+			},
+		});
+		const session = URI.parse('other:/session');
+		fixture.activeSessionResource.set(session, undefined);
+		fixture.inputBox.value = 'owner/repo';
+		fixture.acceptEmitter.fire();
+
+		assert.deepStrictEqual({
+			installed: await fixture.result,
+			initialTitle,
+			title: fixture.inputBox.title,
+			installs,
+			localInstalls: fixture.localInstalls,
+		}, {
+			installed: true,
+			initialTitle: 'Install Plugin from Source (Test)',
+			title: 'Install Plugin from Source (Other)',
+			installs: [{ harness: 'other', session, source: 'owner/repo' }],
+			localInstalls: [],
+		});
+	});
+
+	test('switches to the existing installer when the selected harness has no native installer', async () => {
+		const fixture = createFixture({
+			installFromSource: async () => { assert.fail('The original harness must not install the plugin'); },
+		});
+		fixture.harnesses.set('local', { id: 'local', label: 'Local', icon: { id: 'vm' } });
+		fixture.activeSessionResource.set(URI.parse('local:/session'), undefined);
+		fixture.inputBox.value = 'owner/repo';
+		fixture.acceptEmitter.fire();
+
+		assert.deepStrictEqual({
+			installed: await fixture.result,
+			title: fixture.inputBox.title,
+			localInstalls: fixture.localInstalls,
+			validations: fixture.validations,
+		}, {
+			installed: true,
+			title: 'Install Plugin from Source (Local)',
+			localInstalls: ['owner/repo'],
+			validations: ['owner/repo'],
+		});
+	});
+
+	test('preserves the existing installer for harnesses without a source installer', async () => {
+		const fixture = createFixture();
+		fixture.inputBox.value = 'owner/repo';
+		fixture.acceptEmitter.fire();
+
+		assert.deepStrictEqual({
+			installed: await fixture.result,
+			localInstalls: fixture.localInstalls,
+			validations: fixture.validations,
+		}, {
+			installed: true,
+			localInstalls: ['owner/repo'],
+			validations: ['owner/repo'],
+		});
+	});
+
+	test('shows harness installation errors without falling back to VS Code installation', async () => {
+		const fixture = createFixture({
+			installFromSource: async () => { throw new Error('SDK rejected source'); },
+		});
+		const shown = Event.toPromise(fixture.showEmitter.event);
+		fixture.inputBox.value = 'owner/repo';
+		fixture.acceptEmitter.fire();
+		await shown;
+		const state = {
+			message: fixture.inputBox.validationMessage,
+			busy: fixture.inputBox.busy,
+			enabled: fixture.inputBox.enabled,
+			localInstalls: fixture.localInstalls,
+		};
+		fixture.inputBox.hide();
+
+		assert.deepStrictEqual({ ...state, installed: await fixture.result }, {
+			message: 'Failed to install plugin: SDK rejected source',
+			busy: false,
+			enabled: true,
+			localInstalls: [],
+			installed: false,
+		});
+	});
+});
 
 suite('ManagePluginMarketplacesAction', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

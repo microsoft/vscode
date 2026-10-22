@@ -17,7 +17,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../platform/agentHost/common/agentHostFileSystemService.js';
-import { createAgentHostResourceUriMapper, identityAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { createAgentHostResourceUriMapper, IAgentHostResourceUriMapper, identityAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { CanvasesEnabledSettingId, IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IActionListDelegate, IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
@@ -273,13 +273,16 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	};
 
-	function createActivityPills(initialSession: SessionState, initialChat?: ChatState, gitHubService?: IGitHubService, connectionAuthority = 'local', workbenchGitHubService?: IWorkbenchGitHubService, transcript?: { service: IChatArtifactsService; local?: boolean }, options?: { sessionResource?: URI; configurationService?: IConfigurationService; defaultChangesetKind?: DefaultChangesetKind; dialogService?: IDialogService; notificationService?: INotificationService; supportsSessionWorkingSet?: boolean; getUriLabel?: ILabelService['getUriLabel']; workingSetUndo?: boolean }) {
+	function createActivityPills(initialSession: SessionState, initialChat?: ChatState, gitHubService?: IGitHubService, connectionAuthority = 'local', workbenchGitHubService?: IWorkbenchGitHubService, transcript?: { service: IChatArtifactsService; local?: boolean }, options?: { sessionResource?: URI; configurationService?: IConfigurationService; defaultChangesetKind?: DefaultChangesetKind; dialogService?: IDialogService; notificationService?: INotificationService; supportsSessionWorkingSet?: boolean; getUriLabel?: ILabelService['getUriLabel']; workingSetUndo?: boolean; openerService?: IOpenerService; resourceUris?: IAgentHostResourceUriMapper }) {
 		const instantiationService = createInstantiationService();
 		if (options?.configurationService) {
 			instantiationService.stub(IConfigurationService, options.configurationService);
 		}
 		if (options?.dialogService) {
 			instantiationService.stub(IDialogService, options.dialogService);
+		}
+		if (options?.openerService) {
+			instantiationService.stub(IOpenerService, options.openerService);
 		}
 		if (options?.getUriLabel) {
 			instantiationService.stub(ILabelService, 'getUriLabel', options.getUriLabel);
@@ -298,7 +301,7 @@ suite('AgentHostSessionInputPills', () => {
 			states.set(StateComponents.Chat, initialChat);
 		}
 		const connection = new StaticAgentConnection(states);
-		connection.resourceUris = createAgentHostResourceUriMapper(connectionAuthority);
+		connection.resourceUris = options?.resourceUris ?? createAgentHostResourceUriMapper(connectionAuthority);
 		const sessionResource = options?.sessionResource ?? URI.parse('agent-host-test:/session');
 		const persistentContent = document.createElement('div');
 		document.body.appendChild(persistentContent);
@@ -687,6 +690,31 @@ suite('AgentHostSessionInputPills', () => {
 			resources: [...harness.persistentContent.querySelectorAll('.chat-resource-pill-button')].map(button => button.textContent),
 			collections: harness.persistentContent.querySelectorAll('.chat-dropdown-pill-button').length,
 		}, { resources: [name], collections: 0 });
+	});
+
+	test('opens file artifacts through the connection that owns them', () => {
+		const artifact = URI.file('/home/user/videos/walkthrough.mp4');
+		const openArtifact = (connectionAuthority: string, resourceUris: IAgentHostResourceUriMapper) => {
+			const openerService = new TestOpenerService();
+			const harness = createActivityPills(upcastPartial<SessionState>({
+				defaultChat: 'vendor-chat:/main', chats: [],
+				_meta: withSessionArtifacts(undefined, [{ id: 'video', label: 'Walkthrough', uri: artifact.toString(), type: SessionArtifactType.File, isArtifact: true }]),
+			}), undefined, undefined, connectionAuthority, undefined, undefined, { openerService, resourceUris });
+			// A single artifact pill opens its resource synchronously when clicked
+			harness.persistentContent.querySelector<HTMLElement>('.chat-resource-pill-button')?.click();
+			return openerService.opened.map(({ resource }) => resource.toString());
+		};
+
+		assert.deepStrictEqual({
+			localWindow: openArtifact('local', identityAgentHostResourceUriMapper),
+			// The ambient host of a remote window resolves as `local` but runs on the remote
+			remoteWindow: openArtifact('local', createAgentHostResourceUriMapper('ambient-remote')),
+			remoteHost: openArtifact('remote', createAgentHostResourceUriMapper('remote')),
+		}, {
+			localWindow: [artifact.toString()],
+			remoteWindow: [toAgentHostUri(artifact, 'ambient-remote').toString()],
+			remoteHost: [toAgentHostUri(artifact, 'remote').toString()],
+		});
 	});
 
 	test('opens single subagent input pills and every dropdown entry to the side', async () => {

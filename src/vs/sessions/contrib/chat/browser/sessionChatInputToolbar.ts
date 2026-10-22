@@ -32,7 +32,7 @@ import { SessionArtifacts, sessionArtifactLocation } from './sessionArtifacts.js
 import { SessionCustomizations } from '../../../../workbench/contrib/chat/browser/sessionCustomizations.js';
 import { localize } from '../../../../nls.js';
 import { CHAT_INPUT_PILLS_ROW_HEIGHT, chatPillCopyUrlHoverLabel, chatPillRemoveArtifactHoverLabel, getChatPillResourceLocation, getChatReferencePillPresentation, type ChatPillsCompactMode, type IChatPillEntry, type IChatPillSection, withChatPillHoverLabel } from '../../../../workbench/browser/chatPills.js';
-import { computeAggregateIssueIcon, computeIssueIcon, getPullRequestStatusFromIcon, GitHubCIOverallStatus, GitHubIssueState, OPEN_ISSUE_ACTION_ID, OPEN_PULL_REQUEST_ACTION_ID, type IGitHubIssue } from '../../github/common/types.js';
+import { computeAggregateIssueIcon, computeIssueIcon, getPullRequestStatusFromIcon, GitHubCIOverallStatus, GitHubIssueState, OPEN_ISSUE_ACTION_ID, OPEN_PULL_REQUEST_ACTION_ID, OPEN_PULL_REQUEST_CHANGES_ACTION_ID, type IGitHubIssue } from '../../github/common/types.js';
 import { getSessionGitHubReferences } from '../../github/common/sessionGitHubReferences.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { IResolvedSessionPullRequest, SessionPullRequestPresentationModel } from '../../github/browser/pullRequestIconStatus.js';
@@ -61,6 +61,7 @@ import { ChatPillHoverCache, createChatPillHover } from '../../../../workbench/b
 
 const copiedLabel = localize('sessionChatPills.copied', "Copied");
 const copiedToClipboardStatus = localize('sessionChatPills.copiedToClipboard', "Copied to clipboard");
+const openChangesHoverLabel = localize('sessionChatPills.openChanges', "Open Changes");
 const copyFeedbackDuration = 1200;
 
 /** Fake artifacts for the pill debug overlay. */
@@ -152,7 +153,17 @@ export function buildSessionPullRequestSections(pullRequests: readonly IResolved
 				class: ThemeIcon.asClassName(Codicon.close),
 				run: () => artifactActions.remove?.([recordedReferenceId], resourceLabel),
 			}), chatPillRemoveArtifactHoverLabel) : undefined,
-			toolbarActions: [withChatPillHoverLabel(createCopyAction?.(
+			toolbarActions: [withChatPillHoverLabel(toAction({
+				id: `sessionChatPills.openPullRequestChanges.${ref.owner.toLowerCase()}.${ref.repo.toLowerCase()}.${ref.number}`,
+				label: localize('sessionChatPills.openPullRequestChanges', "Open Pull Request Changes"),
+				class: ThemeIcon.asClassName(Codicon.diffMultiple),
+				run: () => {
+					if (session) {
+						sessionsService.setActive(session);
+					}
+					return commandService.executeCommand(OPEN_PULL_REQUEST_CHANGES_ACTION_ID, { pullRequest: ref });
+				},
+			}), openChangesHoverLabel), withChatPillHoverLabel(createCopyAction?.(
 				`${ref.owner.toLowerCase()}/${ref.repo.toLowerCase()}/${ref.number}`,
 				localize('sessionChatPills.copyPullRequest', "Copy pull request URL"),
 				() => clipboardService.writeText(ref.uri.toString(true)),
