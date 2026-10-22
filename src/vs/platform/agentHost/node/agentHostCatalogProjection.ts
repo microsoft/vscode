@@ -17,7 +17,9 @@ import { ChatInteractivity, ChatOriginKind } from '../common/state/protocol/chan
 import { SessionOriginKind } from '../common/state/protocol/channels-session/state.js';
 import { SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_DATA_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_DATA_KEY, SESSION_META_GITHUB_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY } from '../common/state/sessionState.js';
 
-export const AGENT_HOST_CATALOG_PAYLOAD_VERSION = 2;
+/** Current catalog write format. The immediately previous format remains readable during rolling upgrades. */
+export const AGENT_HOST_CATALOG_PAYLOAD_VERSION = 3;
+export const AGENT_HOST_CATALOG_PREVIOUS_PAYLOAD_VERSION = 2;
 export const AGENT_HOST_CATALOG_GITHUB_REFERENCE_LIMIT = 10;
 export const AGENT_HOST_CATALOG_ARTIFACT_LIMIT = 100;
 export const AGENT_HOST_CATALOG_CHILD_LIMIT = 1000;
@@ -517,7 +519,7 @@ export function encodeAgentHostCatalogPayload(data: AgentHostCatalogData): Agent
 }
 
 /** Validates a stored payload without building an unused canonical serialization. */
-export function decodeAgentHostCatalogPayloadData(payload: string): AgentHostCatalogPayloadResult<AgentHostCatalogData> {
+export function decodeAgentHostCatalogPayloadData(payload: string, expectedVersion = AGENT_HOST_CATALOG_PAYLOAD_VERSION): AgentHostCatalogPayloadResult<AgentHostCatalogData> {
 	if (Buffer.byteLength(payload, 'utf8') > AGENT_HOST_CATALOG_PAYLOAD_BYTE_LIMIT) {
 		return invalidPayload(`Payload exceeds ${AGENT_HOST_CATALOG_PAYLOAD_BYTE_LIMIT} bytes.`);
 	}
@@ -534,8 +536,8 @@ export function decodeAgentHostCatalogPayloadData(payload: string): AgentHostCat
 	if (typeof payloadVersion !== 'number' || !Number.isSafeInteger(payloadVersion) || payloadVersion < 0) {
 		return invalidPayload('Expected a non-negative safe integer payloadVersion.');
 	}
-	if (payloadVersion !== AGENT_HOST_CATALOG_PAYLOAD_VERSION) {
-		return { ok: false, reason: 'outdated', error: `Expected payload version ${AGENT_HOST_CATALOG_PAYLOAD_VERSION}, but got ${payloadVersion}.` };
+	if (payloadVersion !== expectedVersion) {
+		return { ok: false, reason: 'outdated', error: `Expected payload version ${expectedVersion}, but got ${payloadVersion}.` };
 	}
 	const result = payloadValidator.validate(parsed);
 	if (result.error) {
@@ -548,11 +550,11 @@ export function decodeAgentHostCatalogPayloadData(payload: string): AgentHostCat
 }
 
 /** Validates a stored payload and returns its canonical form without hashing it. */
-export function decodeAgentHostCatalogPayload(payload: string): AgentHostCatalogPayloadResult<IAgentHostCatalogDecodedPayload> {
-	const result = decodeAgentHostCatalogPayloadData(payload);
+export function decodeAgentHostCatalogPayload(payload: string, expectedVersion = AGENT_HOST_CATALOG_PAYLOAD_VERSION): AgentHostCatalogPayloadResult<IAgentHostCatalogDecodedPayload> {
+	const result = decodeAgentHostCatalogPayloadData(payload, expectedVersion);
 	return result.ok ? {
 		ok: true,
-		value: { data: result.value, payload: stableStringify({ payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION, data: result.value }) },
+		value: { data: result.value, payload: stableStringify({ payloadVersion: expectedVersion, data: result.value }) },
 	} : result;
 }
 

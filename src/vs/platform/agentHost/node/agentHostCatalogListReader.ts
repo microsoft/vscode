@@ -8,7 +8,7 @@ import { type IAgentSessionMetadata } from '../common/agent.js';
 import { readCodexSessionModel } from '../common/meta/codexSessionModel.js';
 import { ChatOriginKind } from '../common/state/protocol/state.js';
 import { SessionStatus, withMigratedSessionGitHubState, withSessionExternal, withSessionStatusFlag } from '../common/state/sessionState.js';
-import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, decodeAgentHostCatalogPayloadData, reviveAgentHostCatalogData, type AgentHostCatalogRevivedData } from './agentHostCatalogProjection.js';
+import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, AGENT_HOST_CATALOG_PREVIOUS_PAYLOAD_VERSION, decodeAgentHostCatalogPayloadData, reviveAgentHostCatalogData, type AgentHostCatalogRevivedData } from './agentHostCatalogProjection.js';
 import { chatCatalogV2ToCatalogChats, fromCatalogChatOrigin, isAgentHostChatBacking } from './agentHostCatalogSourceResolver.js';
 import { AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT, type IAgentHostDatabase, type IAgentHostDatabaseCatalogSnapshotEntry, type IAgentHostDatabaseSessionListCatalog } from './agentHostDatabase.js';
 import type { IRegisteredSession } from './agentSessionRegistry.js';
@@ -107,13 +107,13 @@ export class AgentHostCatalogListReader {
 		if (catalog.provider !== registered.provider) {
 			return ineligible(`central row provider ${catalog.provider} does not match ${registered.provider}`);
 		}
-		if (catalog.payloadVersion !== AGENT_HOST_CATALOG_PAYLOAD_VERSION) {
+		if (catalog.payloadVersion !== AGENT_HOST_CATALOG_PAYLOAD_VERSION && catalog.payloadVersion !== AGENT_HOST_CATALOG_PREVIOUS_PAYLOAD_VERSION) {
 			return ineligible(`central row payload version ${catalog.payloadVersion} is outdated`);
 		}
 		if (catalog.chatCatalog?.header.sessionGeneration !== undefined && catalog.chatCatalog.header.sessionGeneration !== catalog.sessionGeneration) {
 			throw new Error(`Normalized chat catalog identity does not match session ${session}`);
 		}
-		const decoded = decodeAgentHostCatalogPayloadData(catalog.payload);
+		const decoded = decodeAgentHostCatalogPayloadData(catalog.payload, catalog.payloadVersion);
 		if (!decoded.ok) {
 			return ineligible(`central payload is ${decoded.reason}: ${decoded.error}`);
 		}

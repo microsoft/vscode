@@ -15,6 +15,7 @@ import {
 	AGENT_HOST_CATALOG_ARTIFACT_LIMIT,
 	AGENT_HOST_CATALOG_CHILD_LIMIT,
 	AGENT_HOST_CATALOG_PAYLOAD_VERSION,
+	AGENT_HOST_CATALOG_PREVIOUS_PAYLOAD_VERSION,
 	AgentHostCatalogData,
 	decodeAgentHostCatalogPayload,
 	encodeAgentHostCatalogPayload,
@@ -105,19 +106,26 @@ function encode(data: AgentHostCatalogData = createData()) {
 }
 
 suite('AgentHostCatalogProjection', () => {
-	test('optional automation provenance round trips without invalidating existing v2 payloads', () => {
+	test('optional automation provenance round trips across current and previous payload versions', () => {
 		const origin = { kind: SessionOriginKind.Automation, automation: 'ahp-automation:/a', run: 'ahp-automation-run:/r' } as const;
 		const data = createData();
 		const withOrigin = decodeAgentHostCatalogPayload(encode({ ...data, origin }).payload);
 		const withoutOrigin = decodeAgentHostCatalogPayload(encode(data).payload);
+		const previousPayload = encode(data).payload.replace(`"payloadVersion":${AGENT_HOST_CATALOG_PAYLOAD_VERSION}`, `"payloadVersion":${AGENT_HOST_CATALOG_PREVIOUS_PAYLOAD_VERSION}`);
+		const previous = decodeAgentHostCatalogPayload(previousPayload, AGENT_HOST_CATALOG_PREVIOUS_PAYLOAD_VERSION);
+		const previousAsCurrent = decodeAgentHostCatalogPayload(previousPayload);
 		assert.deepStrictEqual({
 			version: AGENT_HOST_CATALOG_PAYLOAD_VERSION,
 			current: withOrigin.ok && withOrigin.value.data.origin,
-			legacy: withoutOrigin.ok && withoutOrigin.value.data.origin,
+			ordinary: withoutOrigin.ok && withoutOrigin.value.data.origin,
+			previous: previous.ok && previous.value.data.origin,
+			previousAsCurrent: previousAsCurrent.ok ? 'current' : previousAsCurrent.reason,
 		}, {
-			version: 2,
+			version: 3,
 			current: origin,
-			legacy: undefined,
+			ordinary: undefined,
+			previous: undefined,
+			previousAsCurrent: 'outdated',
 		});
 	});
 
@@ -163,7 +171,7 @@ suite('AgentHostCatalogProjection', () => {
 				ok: true,
 				value: { data: typedData, payload: encoded.payload },
 			},
-			payload: '{"data":{"_meta":{"agentHost/createdBySession":{"chat":"agent-chat://test/parent/default","session":"agent-session://test/parent","turnId":"turn-1"},"agentHost/sessionArtifacts":[{"id":"artifact-1","isArtifact":true,"label":"Catalog payload","link":"https://github.com/microsoft/vscode/pull/1","type":"pullRequest"}],"ehcliAdoptable":true,"ehcliAdopted":true,"git":{"branchName":"feature/catalog","hasGitHubRemote":true,"incomingChanges":2},"github":{"issueUrls":["https://github.com/microsoft/vscode/issues/2"],"owner":"microsoft","pullRequestUrls":["https://github.com/microsoft/vscode/pull/1"],"repo":"vscode"},"multiRoot":{"workspaceFile":"file:///workspace/project.code-workspace"},"vscode.folderPicker":{"hidden":true,"primary":"file:///workspace"},"vscode.sourceControl":{"latestOutcome":"merge","merge":{"commit":"0123456789abcdef"}},"workspaceless":true},"changes":{"additions":12,"deletions":4,"files":2},"chats":[{"kind":"default","order":0,"origin":{"kind":"default","metadata":{"a":1,"b":2}},"summary":"Main","titleSource":"auto","uri":"agent-chat://test/session/default"},{"archived":true,"kind":"peer","order":1,"origin":{"kind":"subagent"},"summary":"Peer","titleSource":"agent","uri":"agent-chat://test/session/peer"}],"isArchived":false,"isChatBacking":false,"isRead":true,"modifiedTime":1720000000000,"project":{"displayName":"workspace","uri":"file:///workspace"},"summary":"Implement opaque catalog payload","titleSource":"user","workingDirectories":["file:///workspace","file:///workspace/secondary"]},"payloadVersion":2}',
+			payload: '{"data":{"_meta":{"agentHost/createdBySession":{"chat":"agent-chat://test/parent/default","session":"agent-session://test/parent","turnId":"turn-1"},"agentHost/sessionArtifacts":[{"id":"artifact-1","isArtifact":true,"label":"Catalog payload","link":"https://github.com/microsoft/vscode/pull/1","type":"pullRequest"}],"ehcliAdoptable":true,"ehcliAdopted":true,"git":{"branchName":"feature/catalog","hasGitHubRemote":true,"incomingChanges":2},"github":{"issueUrls":["https://github.com/microsoft/vscode/issues/2"],"owner":"microsoft","pullRequestUrls":["https://github.com/microsoft/vscode/pull/1"],"repo":"vscode"},"multiRoot":{"workspaceFile":"file:///workspace/project.code-workspace"},"vscode.folderPicker":{"hidden":true,"primary":"file:///workspace"},"vscode.sourceControl":{"latestOutcome":"merge","merge":{"commit":"0123456789abcdef"}},"workspaceless":true},"changes":{"additions":12,"deletions":4,"files":2},"chats":[{"kind":"default","order":0,"origin":{"kind":"default","metadata":{"a":1,"b":2}},"summary":"Main","titleSource":"auto","uri":"agent-chat://test/session/default"},{"archived":true,"kind":"peer","order":1,"origin":{"kind":"subagent"},"summary":"Peer","titleSource":"agent","uri":"agent-chat://test/session/peer"}],"isArchived":false,"isChatBacking":false,"isRead":true,"modifiedTime":1720000000000,"project":{"displayName":"workspace","uri":"file:///workspace"},"summary":"Implement opaque catalog payload","titleSource":"user","workingDirectories":["file:///workspace","file:///workspace/secondary"]},"payloadVersion":3}',
 			hash: hashAgentHostCatalogPayload(encoded.payload),
 		});
 	});

@@ -11,7 +11,7 @@ import { readSessionArtifacts, SESSION_META_ARTIFACTS_KEY } from '../../common/s
 import { ChatInteractivity } from '../../common/state/protocol/state.js';
 import { buildChatUri, buildSubagentChatUri, isSessionStatusArchived, isSessionStatusRead, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionFolderPickerDecision, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY } from '../../common/state/sessionState.js';
 import { AgentHostCatalogListReader } from '../../node/agentHostCatalogListReader.js';
-import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, encodeAgentHostCatalogPayload, type AgentHostCatalogData } from '../../node/agentHostCatalogProjection.js';
+import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, AGENT_HOST_CATALOG_PREVIOUS_PAYLOAD_VERSION, encodeAgentHostCatalogPayload, hashAgentHostCatalogPayload, type AgentHostCatalogData } from '../../node/agentHostCatalogProjection.js';
 import { AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT, AgentHostDatabase, type IAgentHostDatabaseCatalogSnapshotEntry, type IAgentHostDatabaseSessionV2 } from '../../node/agentHostDatabase.js';
 import type { IRegisteredSession } from '../../node/agentSessionRegistry.js';
 import { readTestSessionListCatalogs } from './chatMetadataTestHelpers.js';
@@ -212,6 +212,27 @@ suite('AgentHostCatalogListReader', () => {
 			})),
 			catalogChats: data.chats,
 		});
+	});
+
+	test('serves the previous payload version while reconciliation upgrades it', async () => {
+		const database = createDatabase();
+		const payload = database.catalog!.payload.replace(
+			`"payloadVersion":${AGENT_HOST_CATALOG_PAYLOAD_VERSION}`,
+			`"payloadVersion":${AGENT_HOST_CATALOG_PREVIOUS_PAYLOAD_VERSION}`
+		);
+		database.catalog = {
+			...database.catalog!,
+			payloadVersion: AGENT_HOST_CATALOG_PREVIOUS_PAYLOAD_VERSION,
+			payload,
+			payloadHash: hashAgentHostCatalogPayload(payload),
+		};
+
+		const result = await new AgentHostCatalogListReader(database).read(registered);
+
+		assert.deepStrictEqual({
+			eligible: result.eligible,
+			summary: result.eligible ? result.metadata.summary : undefined,
+		}, { eligible: true, summary: data.summary });
 	});
 
 	test('reads activated chat summaries in bulk without consulting stale payload chats or provider detail', async () => {

@@ -33,7 +33,7 @@ export const AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY = 'agentHost.ca
 const VERIFICATION_VERSION_STORAGE_KEY = AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY;
 const LAST_VERIFICATION_STORAGE_KEY = 'agentHost.catalogReconciliation.lastVerification';
 /** Re-verify cached catalogs when legacy ownership and archive projection changes. */
-export const CATALOG_VERIFICATION_VERSION = 3;
+export const CATALOG_VERIFICATION_VERSION = 4;
 type AgentHostCatalogSyncPendingReason = Extract<AgentHostCatalogSyncResult, { status: 'pending' }>['reason'];
 type ScheduledPassKind = 'background' | 'periodic';
 
