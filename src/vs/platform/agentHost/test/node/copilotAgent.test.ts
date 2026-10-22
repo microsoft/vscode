@@ -1699,8 +1699,8 @@ async function writeExtensionHostMarker(userHome: URI, sessionId: string, metada
 /**
  * Copilot CLI session provenance vectors: `off` and `on` are whether VS Code created
  * the session with `chat.agentSessions.recoverCopilotCliSessions` off (marker only)
- * and on (any evidence). Keep identical to the extension's copy in
- * `extensions/copilot/src/extension/chatSessions/copilotcli/vscode-node/test/chatSessionMetadataStoreImpl.spec.ts`.
+ * and on (any evidence). Keep identical to the Copilot extension's copy in its
+ * `chatSessionMetadataStoreImpl.spec.ts`.
  */
 const copilotCliProvenanceVectors: readonly { readonly name: string; readonly marker: { readonly origin?: 'vscode' | 'other'; readonly customTitle?: string; readonly workspaceFolder?: { readonly folderPath: string; readonly timestamp: number } } | undefined; readonly clientName: string | undefined; readonly requestsFile: boolean; readonly off: boolean; readonly on: boolean }[] = [
 	{ name: 'origin vscode', marker: { origin: 'vscode' }, clientName: undefined, requestsFile: false, off: true, on: true },
