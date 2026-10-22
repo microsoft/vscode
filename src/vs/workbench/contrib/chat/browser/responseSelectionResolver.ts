@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
-import { IChatWidget } from '../../../../workbench/contrib/chat/browser/chat.js';
-import { IChatResponseViewModel, isResponseVM } from '../../../../workbench/contrib/chat/common/model/chatViewModel.js';
+import type { IChatWidget } from './chat.js';
+import { IChatResponseViewModel, isResponseVM } from '../common/model/chatViewModel.js';
 
 export interface IResolvedResponseSelection extends IResolvedResponseSelectionFocus {
 	readonly response: IChatResponseViewModel;
@@ -181,7 +181,7 @@ export function resolveResponseSelectionFocus(range: Range, direction: IResolved
  * empty/collapsed selection, a selection spanning more than one response, or
  * one that touches non-markdown content.
  */
-export function resolveResponseSelection(widget: IChatWidget): IResolvedResponseSelection | undefined {
+export function resolveResponseSelection(widget: Pick<IChatWidget, 'domNode' | 'getElementFromNode'>): IResolvedResponseSelection | undefined {
 	const nativeSelection = dom.getWindow(widget.domNode).getSelection();
 	if (!nativeSelection || nativeSelection.isCollapsed || !nativeSelection.rangeCount || !nativeSelection.toString().trim()) {
 		return undefined;

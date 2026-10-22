@@ -25,7 +25,7 @@ import { AgentHostClientState, AgentHostProtocolClient, type IAgentHostProtocolC
 import { WebPubSubRelayTransport, type IWebSocketLike } from '../../browser/webPubSubRelayTransport.js';
 import { AgentHostSessionMoveUnsupportedError, DevContainerConnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, getAgentHostExtensionInitializeResultMeta, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, type IAgentHostMcpAuthenticationRequest, ArtifactIntegrationUpdateNotification, ClientArtifactIntegrationExtensionMethod, ClientArtifactIntegrationUpdateExtensionMethod, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
 import { McpAuthRequiredReason } from '../../common/state/protocol/channels-session/state.js';
-import { AgentPolicyError, AuthenticateParams } from '../../common/agent.js';
+import { AgentPolicyError, AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { authenticationAccountMeta } from '../../common/meta/agentAuthenticationAccount.js';
 import { readAgentSandboxCertificate, withAgentSandboxCertificate, type IAgentSandboxCertificateStatus } from '../../common/meta/agentSandboxCertificate.js';
 import { getAgentHostArtifactIntegrationsCapability } from '../../common/meta/agentHostArtifactIntegrationMeta.js';
@@ -46,7 +46,7 @@ import { chatReducer } from '../../common/state/sessionReducers.js';
 import { AuthenticateTargetKind, ProtocolError, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, createChatState, createSessionState, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, TurnState, customizationId, withSessionExternal, withSessionWorkspaceless, type ChatState, type Message, type SessionState } from '../../common/state/sessionState.js';
+import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, createChatState, createSessionState, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, TurnState, customizationId, withSessionExternal, withSessionWorkspaceless, type AgentInfo, type ChatState, type Message, type SessionState } from '../../common/state/sessionState.js';
 import { AgentHostTransportFailureReason, NonReconnectableTransportError, type IClientTransport, type IProtocolTransport, type ITransportCloseDetails } from '../../common/state/sessionTransport.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { IDefaultAccountService } from '../../../defaultAccount/common/defaultAccount.js';
@@ -63,6 +63,7 @@ import { artifactToolsConfigurationProperties } from '../../common/artifactTools
 import type { IConnectionDiagnosticEvent } from '../../common/connectionDiagnostics.js';
 import type { IAgentHostFirstResponseDiagnostic } from '../../common/otel/agentHostTiming.js';
 import { AgentHostAuthenticationPendingError } from '../../common/agentHostAdvertisedAuthentication.js';
+import type { IMissionControlCredentialSealingRequest } from '../../common/agentService.js';
 
 // Settings used to exercise declarative agent-host mirroring. Registered by this
 // suite rather than pulling in a product configuration contribution: the
@@ -1277,6 +1278,207 @@ suite('AgentHostProtocolClient', () => {
 		]);
 	});
 
+	suite('authentication encryption', () => {
+		const resource = 'https://identity.example.test';
+		const challenge = '0123456789abcdef0123456789abcdef';
+		const keys = ['auth-token', 'mcp-auth-token'].map(use => ({ keyId: use, publicKey: `${use}-public-key`, use, algorithm: 'x25519-sealedbox' }));
+		const rootMeta = { 'copilot.encryptionKeys': keys };
+		const handshakeMeta = { 'copilot.encryptionRequired': ['auth-token', 'mcp-auth-token'], 'copilot.authChallenge': { challenge, required: true } };
+
+		async function initialize(client: AgentHostProtocolClient, transport: TestProtocolTransport, root = rootMeta, meta: Record<string, unknown> = handshakeMeta): Promise<void> {
+			const connecting = client.connect();
+			if (transport instanceof TestClientProtocolTransport) {
+				transport.connectDeferred.complete();
+			}
+			await flushMicrotasks();
+			const request = transport.sentMessages.find((message): message is JsonRpcRequest => hasKey(message, { id: true, method: true }) && message.method === 'initialize');
+			assert.ok(request);
+			transport.fireMessage({
+				jsonrpc: '2.0', id: request.id,
+				result: {
+					protocolVersion: PROTOCOL_VERSION, serverSeq: 0, _meta: meta,
+					snapshots: [{
+						resource: ROOT_STATE_URI, fromSeq: 0,
+						state: { agents: [{ provider: 'other-provider', displayName: 'Other', description: '', models: [], protectedResources: [{ resource }] }], activeSessions: 0, _meta: root },
+					}],
+				},
+			});
+			await connecting;
+		}
+
+		async function acknowledgeAuthentication(transport: TestProtocolTransport, work: Promise<AuthenticateResult>): Promise<AuthenticateParams> {
+			await flushMicrotasks();
+			const request = transport.sentMessages.findLast((message): message is JsonRpcRequest => hasKey(message, { id: true, method: true }) && message.method === 'authenticate');
+			assert.ok(request);
+			transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: {} });
+			await work;
+			return request.params as AuthenticateParams;
+		}
+
+		test('seals provider and targeted MCP credentials with separate keys without changing scopes or addressing', async () => {
+			const { client, transport } = createClient();
+			const sealed: IMissionControlCredentialSealingRequest[] = [];
+			disposables.add(client.registerAuthenticationTokenSealer(async request => {
+				sealed.push(request);
+				return `copilot-sealed.v1.${request.key.key_id}.ciphertext`;
+			}));
+			await initialize(client, transport);
+			const target = { kind: AuthenticateTargetKind.McpServer, session: 'opaque-session://tenant/id', customizationId: 'server/one' };
+			const provider = await acknowledgeAuthentication(transport, client.authenticate({ resource, token: 'provider-token', scopes: ['write', 'read'], expiresIn: 300 }));
+			const mcp = await acknowledgeAuthentication(transport, client.authenticate({ resource, token: 'mcp-token', scopes: ['read'], target }));
+			assert.deepStrictEqual({
+				sealed: sealed.map(request => [request.token, request.resource, request.key.use, request.challenge]),
+				provider, mcp,
+			}, {
+				sealed: [['provider-token', resource, 'auth-token', challenge], ['mcp-token', resource, 'mcp-auth-token', challenge]],
+				provider: { channel: ROOT_STATE_URI, resource, token: 'copilot-sealed.v1.auth-token.ciphertext', scopes: ['read', 'write'], expiresIn: 300 },
+				mcp: { channel: ROOT_STATE_URI, resource, token: 'copilot-sealed.v1.mcp-auth-token.ciphertext', scopes: ['read'], target },
+			});
+		});
+
+		test('preserves already sealed credentials and the empty revocation sentinel', async () => {
+			const { client, transport } = createClient();
+			disposables.add(client.registerAuthenticationTokenSealer(async () => { throw new Error('Must not encrypt twice'); }));
+			await initialize(client, transport);
+			const encrypted = 'copilot-sealed.v1.external.ciphertext';
+			const authenticate = await acknowledgeAuthentication(transport, client.authenticate({ resource, token: encrypted }));
+			const revoke = await acknowledgeAuthentication(transport, client.authenticate({ resource, token: '' }));
+			assert.deepStrictEqual([authenticate.token, revoke.token], [encrypted, '']);
+		});
+
+		test('waits for initialization before encrypting an early authentication request', async () => {
+			const transport = disposables.add(new TestClientProtocolTransport());
+			const { client } = createClient(transport);
+			const sealed: IMissionControlCredentialSealingRequest[] = [];
+			disposables.add(client.registerAuthenticationTokenSealer(async request => {
+				sealed.push(request);
+				return 'copilot-sealed.v1.key.ciphertext';
+			}));
+			const connecting = initialize(client, transport);
+			const authenticating = client.authenticate({ resource, token: 'early-token' });
+			await connecting;
+			const request = await acknowledgeAuthentication(transport, authenticating);
+			assert.deepStrictEqual({ token: request.token, challenge: sealed[0]?.challenge }, { token: 'copilot-sealed.v1.key.ciphertext', challenge });
+		});
+
+		test('does not send credentials if the connection is disposed while encryption is pending', async () => {
+			const { client, transport } = createClient();
+			const encryption = new DeferredPromise<string>();
+			disposables.add(client.registerAuthenticationTokenSealer(() => encryption.p));
+			await initialize(client, transport);
+			const rejected = assert.rejects(client.authenticate({ resource, token: 'must-not-leak' }), /disposed/i);
+			client.dispose();
+			await rejected;
+			encryption.complete('copilot-sealed.v1.key.ciphertext');
+			await flushMicrotasks();
+			assert.strictEqual(transport.sentMessages.some(message => hasKey(message, { method: true }) && message.method === 'authenticate'), false);
+		});
+
+		test('revocation cancels pending sealing without restoring the credential or cache', async () => {
+			const { client, transport } = createClient();
+			const encryption = new DeferredPromise<string>();
+			disposables.add(client.registerAuthenticationTokenSealer(() => encryption.p));
+			await initialize(client, transport);
+			const canceled = assert.rejects(client.authenticate({ resource, token: 'old-token', scopes: ['write', 'read', 'read'] }), CancellationError);
+			const revoking = client.authenticate({ resource, token: '', scopes: ['read', 'write'] });
+			await acknowledgeAuthentication(transport, revoking);
+			await canceled;
+			encryption.complete('copilot-sealed.v1.key.ciphertext');
+			await flushMicrotasks();
+			assert.deepStrictEqual({
+				tokens: transport.sentMessages.filter((message): message is JsonRpcRequest => hasKey(message, { id: true, method: true }) && message.method === 'authenticate')
+					.map(message => (message.params as AuthenticateParams).token),
+				cached: [...client['_authentication'].values()],
+			}, { tokens: [''], cached: [] });
+		});
+
+		test('revocation remains last on the wire across sealing-completion microtasks', async () => {
+			const results: { turns: number; lastToken: string | undefined; cached: number }[] = [];
+			for (let turns = 0; turns <= 8; turns++) {
+				const { client, transport } = createClient();
+				const encryption = new DeferredPromise<string>();
+				disposables.add(client.registerAuthenticationTokenSealer(() => encryption.p));
+				await initialize(client, transport);
+				const tokens: string[] = [];
+				disposables.add(transport.onDidSend(() => {
+					const request = transport.sentMessages.at(-1);
+					if (request && hasKey(request, { method: true, id: true }) && request.method === 'authenticate') {
+						tokens.push((request.params as AuthenticateParams).token);
+						queueMicrotask(() => transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: {} }));
+					}
+				}));
+				const authenticating = client.authenticate({ resource, token: 'old-token' }).catch(error => {
+					assert.ok(error instanceof CancellationError);
+				});
+				encryption.complete('copilot-sealed.v1.key.ciphertext');
+				for (let turn = 0; turn < turns; turn++) {
+					await Promise.resolve();
+				}
+				await Promise.all([authenticating, client.authenticate({ resource, token: '' })]);
+				results.push({ turns, lastToken: tokens.at(-1), cached: client['_authentication'].size });
+			}
+			assert.deepStrictEqual(results, Array.from({ length: 9 }, (_, turns) => ({ turns, lastToken: '', cached: 0 })));
+		});
+
+		test('a late revocation acknowledgement cannot remove a newer credential', async () => {
+			const { client, transport } = createClient();
+			disposables.add(client.registerAuthenticationTokenSealer(async () => 'copilot-sealed.v1.key.ciphertext'));
+			await initialize(client, transport);
+			const revoked = client.authenticate({ resource, token: '' });
+			const canceled = assert.rejects(revoked, CancellationError);
+			const revokeRequest = transport.sentMessages.findLast((message): message is JsonRpcRequest => hasKey(message, { id: true, method: true }) && message.method === 'authenticate');
+			assert.ok(revokeRequest);
+			await acknowledgeAuthentication(transport, client.authenticate({ resource, token: 'new-token' }));
+			transport.fireMessage({ jsonrpc: '2.0', id: revokeRequest.id, result: {} });
+			await canceled;
+			assert.deepStrictEqual([...client['_authentication'].values()].map(value => value.params.token), ['new-token']);
+		});
+
+		test('a late authentication acknowledgement cannot repopulate a revoked cache', async () => {
+			const { client, transport } = createClient();
+			disposables.add(client.registerAuthenticationTokenSealer(async () => 'copilot-sealed.v1.key.ciphertext'));
+			await initialize(client, transport);
+			const authenticating = client.authenticate({ resource, token: 'old-token' });
+			const canceled = assert.rejects(authenticating, CancellationError);
+			await flushMicrotasks();
+			const request = transport.sentMessages.findLast((message): message is JsonRpcRequest => hasKey(message, { id: true, method: true }) && message.method === 'authenticate');
+			assert.ok(request);
+			await acknowledgeAuthentication(transport, client.authenticate({ resource, token: '' }));
+			transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: {} });
+			await canceled;
+			assert.deepStrictEqual([...client['_authentication'].values()], []);
+		});
+
+		for (const failure of ['missing-key', 'invalid-recipient', 'invalid-challenge', 'encryption-failed', 'invalid-envelope']) {
+			test(`fails closed without sending a plaintext request: ${failure}`, async () => {
+				const { client, transport } = createClient();
+				if (failure !== 'invalid-recipient') {
+					disposables.add(client.registerAuthenticationTokenSealer(async () => {
+						if (failure === 'encryption-failed') {
+							throw new Error('Encryption failed');
+						}
+						return 'plaintext-result';
+					}));
+				}
+				await initialize(client, transport,
+					{ 'copilot.encryptionKeys': failure === 'missing-key' ? [] : keys },
+					failure === 'invalid-challenge' ? { ...handshakeMeta, 'copilot.authChallenge': { required: true } } : handshakeMeta,
+				);
+				await assert.rejects(client.authenticate({ resource, token: 'must-not-leak' }), /encryption|challenge|sealed token|recipient key/i);
+				assert.strictEqual(transport.sentMessages.some(message => hasKey(message, { method: true }) && message.method === 'authenticate'), false);
+			});
+		}
+
+		test('does not trust relay-advertised keys instead of independently authenticated recipient keys', async () => {
+			const transport = disposables.add(new TestProtocolTransport(AgentHostClientConnectionKind.MissionControl));
+			const { client } = createClient(transport);
+			disposables.add(client.registerAuthenticationTokenSealer(async () => { throw new Error('Must not seal to an untrusted relay key'); }));
+			await initialize(client, transport);
+			await assert.rejects(client.authenticate({ resource, token: 'must-not-leak' }), /independently trusted recipient key/);
+			assert.strictEqual(transport.sentMessages.some(message => hasKey(message, { method: true }) && message.method === 'authenticate'), false);
+		});
+	});
+
 	test('listSessions carries the workspace-less marker and compatible working directories', async () => {
 		// Regression: the sessions provider resolves a session's kind (quick
 		// chat vs. workspace) from `_meta.workspaceless`, and after a window
@@ -1863,12 +2065,125 @@ suite('AgentHostProtocolClient', () => {
 	test('rejects an imported conversation it cannot carry instead of creating an empty session', async () => {
 		const { client, transport } = createClient();
 		await connectClient(client, transport);
+		assert.strictEqual(client.supportsConversationImport, false);
 		assert.throws(() => client.createSession({
 			provider: 'copilot',
 			session: URI.parse('ahp-session:/imported'),
 			importConversation: { turns: [] },
 		}), /Cannot import a conversation/);
 		assert.strictEqual(transport.sentMessages.some(message => hasKey(message, { method: true }) && message.method === 'createSession'), false);
+	});
+
+	test('maps an imported conversation into createSession metadata when the host advertises support', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta());
+		assert.strictEqual(client.supportsConversationImport, true);
+		const session = URI.parse('ahp-session:/imported');
+		const importConversation = {
+			title: 'Imported title',
+			model: { id: 'gpt-5' },
+			turns: [{
+				id: '11111111-1111-4111-8111-111111111111',
+				message: { text: 'Hello', origin: { kind: MessageKind.User } },
+				responseParts: [{ kind: ResponsePartKind.Markdown as const, id: 'm-1', content: 'Hi' }],
+				usage: undefined,
+				state: TurnState.Complete,
+			}],
+		};
+		const creation = client.createSession({
+			provider: 'copilot',
+			session,
+			_meta: { existing: true },
+			importConversation,
+		});
+
+		const request = transport.sentMessages.find((message): message is JsonRpcRequest =>
+			hasKey(message, { method: true }) && message.method === 'createSession');
+		assert.deepStrictEqual(request?.params, {
+			channel: session.toString(),
+			_meta: {
+				existing: true,
+				'vscode.importConversation': {
+					title: 'Imported title',
+					model: { id: 'gpt-5' },
+					turns: [{
+						id: '11111111-1111-4111-8111-111111111111',
+						message: { text: 'Hello', origin: { kind: MessageKind.User } },
+						responseParts: [{ kind: ResponsePartKind.Markdown, id: 'm-1', content: 'Hi' }],
+						state: TurnState.Complete,
+					}],
+				},
+			},
+			provider: 'copilot',
+			workingDirectories: undefined,
+			config: undefined,
+			activeClient: undefined,
+			progressToken: undefined,
+		});
+		assert.ok(request);
+		transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: null });
+		assert.strictEqual(await creation, session);
+	});
+
+	test('stages large imported conversations in bounded chunks before sending createSession', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta());
+		transport.sentMessages.length = 0;
+
+		const largeContent = 'x'.repeat(1_200_000);
+		const session = URI.parse('ahp-session:/large-imported');
+		const creation = client.createSession({
+			provider: 'copilot',
+			session,
+			_meta: { existing: true },
+			importConversation: {
+				title: 'Large imported title',
+				turns: [{
+					id: '11111111-1111-4111-8111-111111111111',
+					message: { text: 'Hello', origin: { kind: MessageKind.User } },
+					responseParts: [{ kind: ResponsePartKind.Markdown as const, id: 'm-1', content: largeContent }],
+					usage: undefined,
+					state: TurnState.Complete,
+				}],
+			},
+		});
+		assert.strictEqual(client.getInflightSessionCreate(session), creation);
+
+		const stagedChunks: string[] = [];
+		let transferId: string | undefined;
+		while (true) {
+			const lastMsg = transport.sentMessages.at(-1) as JsonRpcRequest | undefined;
+			assert.ok(lastMsg && hasKey(lastMsg, { method: true }));
+			if (lastMsg.method === 'vscode/stageCreateSessionImportChunk') {
+				const params = lastMsg.params as { transferId: string; chunk: string };
+				transferId ??= params.transferId;
+				assert.strictEqual(params.transferId, transferId);
+				assert.ok(params.chunk.length <= 1024 * 1024);
+				stagedChunks.push(params.chunk);
+				transport.fireMessage({ jsonrpc: '2.0', id: lastMsg.id, result: null });
+				await new Promise(resolve => setTimeout(resolve, 0));
+				continue;
+			}
+			assert.strictEqual(lastMsg.method, 'createSession');
+			assert.deepStrictEqual(lastMsg.params, {
+				channel: session.toString(),
+				_meta: {
+					existing: true,
+					'vscode.importConversation': { transferId },
+				},
+				provider: 'copilot',
+				workingDirectories: undefined,
+				config: undefined,
+				activeClient: undefined,
+				progressToken: undefined,
+			});
+			transport.fireMessage({ jsonrpc: '2.0', id: lastMsg.id, result: null });
+			break;
+		}
+
+		assert.strictEqual(await creation, session);
+		assert.strictEqual(stagedChunks.length, 2);
+		assert.strictEqual(JSON.parse(stagedChunks.join('')).turns[0].responseParts[0].content.length, largeContent.length);
 	});
 
 	suite('createChat', () => {
@@ -4492,17 +4807,247 @@ suite('AgentHostProtocolClient', () => {
 			],
 		};
 
-		async function initializeAdvertised(transport: TestClientProtocolTransport): Promise<void> {
+		async function initializeAdvertised(transport: TestClientProtocolTransport, rootMeta?: Record<string, unknown>, handshakeMeta?: Record<string, unknown>, agents: readonly AgentInfo[] = [advertisedAgent]): Promise<void> {
 			transport.connectDeferred.complete();
 			const initialize = await waitForRequestAtWithin(transport, 'initialize', 0);
 			transport.fireMessage({
 				jsonrpc: '2.0', id: initialize.id,
 				result: {
 					protocolVersion: PROTOCOL_VERSION, serverSeq: 0,
-					snapshots: [{ resource: ROOT_STATE_URI, fromSeq: 0, state: { agents: [advertisedAgent], activeSessions: 1 } }],
+					_meta: handshakeMeta,
+					snapshots: [{ resource: ROOT_STATE_URI, fromSeq: 0, state: { agents, activeSessions: 1, _meta: rootMeta } }],
 				},
 			});
 		}
+
+		test('initial encryption failures do not publish a ready connection or release protected requests', async () => {
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, undefined, undefined, undefined, {
+				resolveAdvertisedAuthentication: async () => [{ resource: advertisedAgent.protectedResources[0].resource, token: 'must-not-leak' }],
+			});
+			const connecting = assert.rejects(client.connect(), /requires authentication encryption/);
+			const subscription = client.subscribe(URI.parse('opaque-session://tenant/private'));
+			const rejectedSubscription = assert.rejects(subscription, /requires authentication encryption/);
+			await initializeAdvertised(transports[0], undefined, { 'copilot.encryptionRequired': ['auth-token'] });
+			await Promise.all([connecting, rejectedSubscription]);
+			assert.deepStrictEqual({
+				state: client.connectionState,
+				requests: transports[0].sentMessages.filter(message => hasKey(message, { method: true, id: true })).map(message => message.method),
+			}, { state: AgentHostClientState.Incompatible, requests: ['initialize'] });
+		});
+
+		test('reconnect encrypts cached credentials again with the replacement host key and challenge', async function () {
+			this.timeout(20_000);
+			const resource = advertisedAgent.protectedResources[0].resource;
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, immediateReconnectPolicy, undefined, undefined, {
+				resolveAdvertisedAuthentication: async () => [{ resource, token: 'raw-provider-token' }],
+			});
+			const sealed: IMissionControlCredentialSealingRequest[] = [];
+			disposables.add(client.registerAuthenticationTokenSealer(async request => {
+				sealed.push(request);
+				return `copilot-sealed.v1.${request.key.key_id}.ciphertext`;
+			}));
+			const rootMeta = (keyId: string) => ({ 'copilot.encryptionKeys': [{ keyId, publicKey: 'public-key', use: 'auth-token', algorithm: 'x25519-sealedbox' }] });
+			const handshakeMeta = (challenge: string) => ({ 'copilot.encryptionRequired': ['auth-token'], 'copilot.authChallenge': { challenge, required: true } });
+			const firstChallenge = '0123456789abcdef0123456789abcdef';
+			const nextChallenge = 'abcdef0123456789abcdef0123456789';
+			const connecting = client.connect();
+			await initializeAdvertised(transports[0], rootMeta('first-key'), handshakeMeta(firstChallenge));
+			const authenticate = await waitForRequestAtWithin(transports[0], 'authenticate', 0);
+			transports[0].fireMessage({ jsonrpc: '2.0', id: authenticate.id, result: {} });
+			await connecting;
+			transports[0].fireClose();
+			const replacement = await waitForTransport(transports, 1);
+			replacement.connectDeferred.complete();
+			const reconnect = await waitForRequestAtWithin(replacement, 'reconnect', 0);
+			replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, error: { code: AhpErrorCodes.NotFound, message: 'Host restarted' } });
+			const initialize = await waitForRequestAtWithin(replacement, 'initialize', 0);
+			replacement.fireMessage({
+				jsonrpc: '2.0', id: initialize.id,
+				result: {
+					protocolVersion: PROTOCOL_VERSION, serverSeq: 0, _meta: handshakeMeta(nextChallenge),
+					snapshots: [{ resource: ROOT_STATE_URI, fromSeq: 0, state: { agents: [advertisedAgent], activeSessions: 0, _meta: rootMeta('replacement-key') } }],
+				},
+			});
+			const restored = await waitForRequestAtWithin(replacement, 'authenticate', 0);
+			replacement.fireMessage({ jsonrpc: '2.0', id: restored.id, result: {} });
+			await waitForConnectedWithin(client);
+			assert.deepStrictEqual({
+				sealed: sealed.map(request => [request.token, request.key.key_id, request.challenge]),
+				tokens: [authenticate, restored].map(request => (request.params as AuthenticateParams).token),
+			}, {
+				sealed: [['raw-provider-token', 'first-key', firstChallenge], ['raw-provider-token', 'replacement-key', nextChallenge]],
+				tokens: ['copilot-sealed.v1.first-key.ciphertext', 'copilot-sealed.v1.replacement-key.ciphertext'],
+			});
+		});
+
+		for (const resultType of [ReconnectResultType.Replay, ReconnectResultType.Snapshot]) {
+			test(`${resultType} recovery seals cached credentials with the new connection challenge`, async function () {
+				this.timeout(20_000);
+				const resource = advertisedAgent.protectedResources[0].resource;
+				const { client, transports } = createFactoryClient(undefined, undefined, undefined, immediateReconnectPolicy, undefined, undefined, {
+					resolveAdvertisedAuthentication: async () => [{ resource, token: 'cached-raw-token' }],
+				});
+				const challenges: (string | undefined)[] = [];
+				disposables.add(client.registerAuthenticationTokenSealer(async request => {
+					challenges.push(request.challenge);
+					return 'copilot-sealed.v1.key.ciphertext';
+				}));
+				const firstChallenge = '0123456789abcdef0123456789abcdef';
+				const nextChallenge = 'abcdef0123456789abcdef0123456789';
+				const metadata = (challenge: string) => ({ 'copilot.encryptionRequired': ['auth-token'], 'copilot.authChallenge': { challenge, required: true } });
+				const rootMeta = { 'copilot.encryptionKeys': [{ keyId: 'key', publicKey: 'public-key', use: 'auth-token', algorithm: 'x25519-sealedbox' }] };
+				const connecting = client.connect();
+				await initializeAdvertised(transports[0], rootMeta, metadata(firstChallenge));
+				const authenticate = await waitForRequestAtWithin(transports[0], 'authenticate', 0);
+				transports[0].fireMessage({ jsonrpc: '2.0', id: authenticate.id, result: {} });
+				await connecting;
+				transports[0].fireClose();
+				const replacement = await waitForTransport(transports, 1);
+				replacement.connectDeferred.complete();
+				const reconnect = await waitForRequestAtWithin(replacement, 'reconnect', 0);
+				replacement.fireMessage({
+					jsonrpc: '2.0', id: reconnect.id,
+					result: resultType === ReconnectResultType.Replay
+						? { type: resultType, actions: [], missing: [], _meta: metadata(nextChallenge) }
+						: { type: resultType, snapshots: [{ resource: ROOT_STATE_URI, fromSeq: 0, state: { agents: [advertisedAgent], activeSessions: 0, _meta: rootMeta } }], _meta: metadata(nextChallenge) },
+				});
+				const restored = await waitForRequestAtWithin(replacement, 'authenticate', 0);
+				replacement.fireMessage({ jsonrpc: '2.0', id: restored.id, result: {} });
+				await waitForConnectedWithin(client);
+				assert.deepStrictEqual(challenges, [firstChallenge, nextChallenge]);
+			});
+		}
+
+		test('transport closure during reconnect sealing retries without waiting for encryption', async function () {
+			this.timeout(20_000);
+			const resource = advertisedAgent.protectedResources[0].resource;
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, immediateReconnectPolicy, undefined, undefined, {
+				resolveAdvertisedAuthentication: async () => [{ resource, token: 'raw-token' }],
+			});
+			const blocked = new DeferredPromise<string>();
+			const sealing = new DeferredPromise<void>();
+			let calls = 0;
+			disposables.add(client.registerAuthenticationTokenSealer(() => {
+				if (++calls === 2) {
+					sealing.complete();
+					return blocked.p;
+				}
+				return Promise.resolve('copilot-sealed.v1.key.ciphertext');
+			}));
+			const rootMeta = { 'copilot.encryptionKeys': [{ keyId: 'key', publicKey: 'public-key', use: 'auth-token', algorithm: 'x25519-sealedbox' }] };
+			const metadata = { 'copilot.encryptionRequired': ['auth-token'], 'copilot.authChallenge': { challenge: '0123456789abcdef0123456789abcdef', required: true } };
+			const connecting = client.connect();
+			await initializeAdvertised(transports[0], rootMeta, metadata);
+			const first = await waitForRequestAtWithin(transports[0], 'authenticate', 0);
+			transports[0].fireMessage({ jsonrpc: '2.0', id: first.id, result: {} });
+			await connecting;
+			transports[0].fireClose();
+			const replacement = await waitForTransport(transports, 1);
+			replacement.connectDeferred.complete();
+			const reconnect = await waitForRequestAtWithin(replacement, 'reconnect', 0);
+			replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [], _meta: metadata } });
+			await sealing.p;
+			replacement.fireClose();
+			const retry = await waitForTransport(transports, 2);
+			retry.connectDeferred.complete();
+			const retried = await waitForRequestAtWithin(retry, 'reconnect', 0);
+			retry.fireMessage({ jsonrpc: '2.0', id: retried.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [], _meta: metadata } });
+			const authentication = await waitForRequestAtWithin(retry, 'authenticate', 0);
+			retry.fireMessage({ jsonrpc: '2.0', id: authentication.id, result: {} });
+			await waitForConnectedWithin(client);
+			blocked.complete('copilot-sealed.v1.key.stale');
+			await flushMicrotasks();
+			assert.deepStrictEqual({
+				closedTransportAuthentications: replacement.sentMessages.filter(message => hasKey(message, { method: true }) && message.method === 'authenticate').length,
+				state: client.connectionState,
+			}, { closedTransportAuthentications: 0, state: AgentHostClientState.Connected });
+		});
+
+		test('an optional cached credential encryption failure does not abort reconnect', async function () {
+			this.timeout(20_000);
+			const resource = advertisedAgent.protectedResources[0].resource;
+			const optionalResource = 'https://optional.example.test';
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, immediateReconnectPolicy, undefined, undefined, {
+				resolveAdvertisedAuthentication: async () => [{ resource, token: 'required-token' }],
+			});
+			let failOptional = false;
+			disposables.add(client.registerAuthenticationTokenSealer(async request => {
+				if (failOptional && request.resource === optionalResource) {
+					throw new Error('Optional encryption failed');
+				}
+				return 'copilot-sealed.v1.key.ciphertext';
+			}));
+			const rootMeta = { 'copilot.encryptionKeys': ['auth-token', 'mcp-auth-token'].map(use => ({ keyId: 'key', publicKey: 'public-key', use, algorithm: 'x25519-sealedbox' })) };
+			const metadata = { 'copilot.encryptionRequired': ['auth-token', 'mcp-auth-token'] };
+			const connecting = client.connect();
+			await initializeAdvertised(transports[0], rootMeta, metadata, [{
+				...advertisedAgent,
+				protectedResources: [...advertisedAgent.protectedResources, { resource: optionalResource, required: false }],
+			}]);
+			const first = await waitForRequestAtWithin(transports[0], 'authenticate', 0);
+			transports[0].fireMessage({ jsonrpc: '2.0', id: first.id, result: {} });
+			await connecting;
+			const optional = client.authenticate({ resource: optionalResource, token: 'optional-token' });
+			const optionalRequest = await waitForRequestAtWithin(transports[0], 'authenticate', 1);
+			transports[0].fireMessage({ jsonrpc: '2.0', id: optionalRequest.id, result: {} });
+			await optional;
+			failOptional = true;
+			transports[0].fireClose();
+			const replacement = await waitForTransport(transports, 1);
+			replacement.connectDeferred.complete();
+			const reconnect = await waitForRequestAtWithin(replacement, 'reconnect', 0);
+			replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [], _meta: metadata } });
+			const required = await waitForRequestAtWithin(replacement, 'authenticate', 0);
+			replacement.fireMessage({ jsonrpc: '2.0', id: required.id, result: {} });
+			await waitForConnectedWithin(client);
+			assert.deepStrictEqual({
+				state: client.connectionState,
+				cached: [...client['_authentication'].values()].map(value => value.params.resource),
+			}, { state: AgentHostClientState.Connected, cached: [resource] });
+		});
+
+		test('revocation during reconnect sealing cancels restore before the old credential is sent', async function () {
+			this.timeout(20_000);
+			const resource = advertisedAgent.protectedResources[0].resource;
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, immediateReconnectPolicy, undefined, undefined, {
+				resolveAdvertisedAuthentication: async () => [{ resource, token: 'old-token' }],
+			});
+			const blocked = new DeferredPromise<string>();
+			const sealing = new DeferredPromise<void>();
+			let calls = 0;
+			disposables.add(client.registerAuthenticationTokenSealer(() => {
+				if (++calls > 1) {
+					sealing.complete();
+					return blocked.p;
+				}
+				return Promise.resolve('copilot-sealed.v1.key.ciphertext');
+			}));
+			const rootMeta = { 'copilot.encryptionKeys': [{ keyId: 'key', publicKey: 'public-key', use: 'auth-token', algorithm: 'x25519-sealedbox' }] };
+			const metadata = { 'copilot.encryptionRequired': ['auth-token'] };
+			const connecting = client.connect();
+			await initializeAdvertised(transports[0], rootMeta, metadata);
+			const first = await waitForRequestAtWithin(transports[0], 'authenticate', 0);
+			transports[0].fireMessage({ jsonrpc: '2.0', id: first.id, result: {} });
+			await connecting;
+			transports[0].fireClose();
+			const replacement = await waitForTransport(transports, 1);
+			replacement.connectDeferred.complete();
+			const reconnect = await waitForRequestAtWithin(replacement, 'reconnect', 0);
+			replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [], _meta: metadata } });
+			await sealing.p;
+			const revoking = client.authenticate({ resource, token: '' });
+			const request = await waitForRequestAtWithin(replacement, 'authenticate', 0);
+			replacement.fireMessage({ jsonrpc: '2.0', id: request.id, result: {} });
+			await revoking;
+			blocked.complete('copilot-sealed.v1.key.stale');
+			await flushMicrotasks();
+			assert.deepStrictEqual({
+				tokens: replacement.sentMessages.filter((message): message is JsonRpcRequest => hasKey(message, { id: true, method: true }) && message.method === 'authenticate')
+					.map(message => (message.params as AuthenticateParams).token),
+				cached: [...client['_authentication'].values()],
+				state: client.connectionState,
+			}, { tokens: [''], cached: [], state: AgentHostClientState.Connected });
+		});
 
 		test('advertised authentication gates all protected requests until every credential is acknowledged', async () => {
 			const credentials = new DeferredPromise<readonly AuthenticateParams[]>();

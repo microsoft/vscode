@@ -19,6 +19,7 @@ import type { IChat } from '../../../services/sessions/common/session.js';
 import { NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
 import type { NewChatUserInteraction } from './newChatUserInteraction.js';
 import type { ISessionTypePickerOptions } from './sessionTypePicker.js';
+import type { IChatPetPlatformOccupation } from '../../../../workbench/contrib/chat/browser/widget/chatPetWidget.js';
 
 /**
  * The attachments with the input's GitHub issue and pull request links kept as
@@ -139,7 +140,9 @@ export interface INewChatComposerInputOptions {
 	readonly deferredNotificationsEnabled?: IObservable<boolean>;
 	readonly petHostPreferred?: IObservable<boolean>;
 	readonly getChatPetPlatformElements?: () => readonly HTMLElement[];
+	readonly getChatPetBasePlatformElement?: () => HTMLElement | undefined;
 	readonly onDidChangeChatPetPlatform?: Event<void>;
+	readonly setChatPetPlatformOccupation?: (occupation: IChatPetPlatformOccupation | undefined) => void;
 	/**
 	 * Keep this composer a valid voice target even while a created session
 	 * is active. Used by the in-session "new chat" composer so dictation

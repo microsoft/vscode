@@ -80,7 +80,6 @@ import { getSessionGroupIdOfSection, getSessionGroupSectionId, ISessionGroup, IS
 import { ISessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
 import { InputBox, MessageType } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { IWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/common/assignmentService.js';
-import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
 import { IOnboardingFocusTarget, markOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../../sessionComparison/common/sessionComparison.js';
 // =============================================================================
@@ -326,7 +325,6 @@ export function getSessionListChats(session: ISession, reader?: IReader, showArc
 	return session.chats.read(reader).filter(chat =>
 		!isEqual(chat.resource, mainChat.resource) &&
 		chat.origin?.kind !== ChatOriginKind.Tool &&
-		chat.origin?.kind !== ChatOriginKind.SideChat &&
 		(!chat.isArchived.read(reader) || showArchived) &&
 		chat.interactivity.read(reader) !== ChatInteractivity.Hidden
 	);
@@ -362,34 +360,13 @@ function getChatListDiffStats(chat: IChat, reader: IReader): ISessionChangesStat
 		: undefined;
 }
 
-/** Uses the session aggregate when collapsed and main/side-chat activity when expanded. */
+/** Uses the session aggregate when collapsed and the main chat's status when expanded. */
 function getSessionRowStatus(session: ISession, reader: IReader | undefined, deriveFromMainChat: boolean, collapsed = true): SessionStatus {
 	const sessionStatus = session.status.read(reader);
 	if (!deriveFromMainChat || collapsed) {
 		return sessionStatus;
 	}
-	let rowStatus = session.mainChat.read(reader).status.read(reader);
-	if (rowStatus === SessionStatus.NeedsInput) {
-		return rowStatus;
-	}
-	const chats = session.chats.read(reader);
-	// Side chats have no list rows of their own, even when peer chats are expanded.
-	for (const chat of chats) {
-		if (chat.origin?.kind !== ChatOriginKind.SideChat) {
-			continue;
-		}
-		if (chat.isArchived.read(reader) || chat.interactivity.read(reader) === ChatInteractivity.Hidden) {
-			continue;
-		}
-		const status = chat.status.read(reader);
-		if (status === SessionStatus.NeedsInput) {
-			return status;
-		}
-		if (status === SessionStatus.InProgress) {
-			rowStatus = status;
-		}
-	}
-	return rowStatus;
+	return session.mainChat.read(reader).status.read(reader);
 }
 
 function getSessionRowIsRead(session: ISession, reader: IReader | undefined, deriveFromMainChat: boolean): boolean {
@@ -1450,7 +1427,6 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore |
 		private readonly agentHostConnectionsService: IAgentHostConnectionsService,
 		private readonly openerService: IOpenerService,
 		private readonly labelService: ILabelService,
-		private readonly preferencesService: IPreferencesService,
 		// TEMPORARY — see the note on the `IAgentSessionsService` import above (#320480).
 		private readonly agentSessionsService: IAgentSessionsService,
 		private readonly _voicePlaybackService: IVoicePlaybackService,
@@ -1638,8 +1614,8 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore |
 				withSessionsListHoverPresentation(createSessionSummaryHover(
 					element,
 					// Observed Branch Changes are read from memory; reading unobserved ones would load the chat from its backend.
-					getSessionSummaryHoverData(element, this.sessionsProvidersService, this.openerService, this.labelService, this.preferencesService, getCreatorHoverData(element, this.sessionsManagementService, this.agentHostConnectionsService, this.openerService), this.options.compact(), rowObservesMainChatBranchChanges),
-					this.preferencesService,
+					getSessionSummaryHoverData(element, this.sessionsProvidersService, this.openerService, this.labelService, getCreatorHoverData(element, this.sessionsManagementService, this.agentHostConnectionsService, this.openerService), this.options.compact(), rowObservesMainChatBranchChanges),
+					this.openerService,
 				)), { groupId: 'sessions-list' }));
 		}
 
@@ -4151,7 +4127,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IEditorService editorService: IEditorService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
@@ -4276,7 +4251,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.agentHostConnectionsService,
 			this.openerService,
 			this.labelService,
-			this.preferencesService,
 			agentSessionsService,
 			voicePlaybackService,
 		);
@@ -4298,8 +4272,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 			() => this.tree.domFocus(),
 			item => withSessionsListHoverPresentation(createSessionSummaryHover(
 				item.session,
-				getChatSummaryHoverData(item.session, item.chat, sessionsProvidersService, this.openerService, this.labelService, this.preferencesService, getCreatorHoverData(item.session, this._sessionsManagementService, this.agentHostConnectionsService, this.openerService), this.isCompact()),
-				this.preferencesService,
+				getChatSummaryHoverData(item.session, item.chat, sessionsProvidersService, this.openerService, this.labelService, getCreatorHoverData(item.session, this._sessionsManagementService, this.agentHostConnectionsService, this.openerService), this.isCompact()),
+				this.openerService,
 			)),
 			() => this.isCompact(),
 			() => {
@@ -7253,7 +7227,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	/** Reports the Done-default experiment trigger when a Done option is shown whose state still follows that default. */
-	reportArchivedFilterShown(): void {
+	reportFilterMenuShown(): void {
 		if (this._excludeArchivedIsDefault) {
 			logSettingExperimentTrigger(this.telemetryService, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING);
 		}
@@ -8107,7 +8081,6 @@ export class SessionsFlatList extends Disposable {
 		@IAgentHostConnectionsService agentHostConnectionsService: IAgentHostConnectionsService,
 		@IOpenerService openerService: IOpenerService,
 		@ILabelService labelService: ILabelService,
-		@IPreferencesService preferencesService: IPreferencesService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super();
@@ -8165,7 +8138,6 @@ export class SessionsFlatList extends Disposable {
 			agentHostConnectionsService,
 			openerService,
 			labelService,
-			preferencesService,
 			agentSessionsService,
 			voicePlaybackService,
 		);

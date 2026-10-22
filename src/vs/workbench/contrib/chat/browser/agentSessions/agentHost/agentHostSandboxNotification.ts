@@ -229,7 +229,7 @@ export class AgentHostSandboxNotification extends Disposable {
 			return;
 		}
 		const description = new MarkdownString();
-		description.appendText(this._certificateOperation === 'remove'
+		description.appendMarkdown(this._certificateOperation === 'remove'
 			? localize('agentHost.sandboxCertificateRemovingDetail', "Removing trust from the agent host's operating system trust store. The stored certificate authority is kept.")
 			: this._certificateOperation === 'rotate'
 				? localize('agentHost.sandboxCertificateRotatingDetail', "Replacing the certificate authority and establishing operating system trust. Running sandboxed tools may need to restart.")

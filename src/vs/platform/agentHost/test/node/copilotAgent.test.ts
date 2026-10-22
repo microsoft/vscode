@@ -65,7 +65,7 @@ import { isAgentModelFusion, readAgentModelAutoTierPromotionsMeta, readAgentMode
 import { TestExperimentTriggerTelemetryService } from '../../../telemetry/test/common/experimentTriggerTestUtils.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { buildAgentHostOTelEnv } from '../../common/agentService.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostTelemetryLevelConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceTrustConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
@@ -1370,6 +1370,10 @@ class TestProxyResolver implements IAgentHostProxyResolver {
 	}
 
 	readonly fetch: typeof globalThis.fetch = (input, init) => globalThis.fetch(input, init);
+
+	createWebSocket(): never {
+		throw new Error('not used');
+	}
 }
 
 class TestDiskFileSystemProvider extends DiskFileSystemProvider {
@@ -6016,6 +6020,192 @@ suite('CopilotAgent', () => {
 			return { agent, clients, options, launches, configurationService };
 		}
 
+		test('discovers and caches models without a host token using only the caller credential', async () => {
+			const { agent, clients, options } = setup();
+			const credentials = { getCredential: () => ({ resource: 'https://api.github.com', token: 'caller-token', expiresAt: undefined, revision: 1 }) };
+			try {
+				const first = await agent.getModelsForCredentials(credentials);
+				const second = await agent.getModelsForCredentials(credentials);
+				assert.deepStrictEqual({
+					models: first.map(model => model.id),
+					cached: first === second,
+					sharedModels: agent.models.get(),
+					tokens: options.map(option => option.gitHubToken),
+					modelRequests: clients.flatMap(client => client.modelListRequests),
+					policyTokens: clients.flatMap(client => client.managedSettingsRequests.map(request => request.gitHubToken)),
+					stops: clients.map(client => client.stopCallCount),
+				}, {
+					models: ['gpt-4o'],
+					cached: true,
+					sharedModels: [],
+					tokens: ['caller-token'],
+					modelRequests: [{ gitHubToken: 'caller-token' }],
+					policyTokens: ['caller-token'],
+					stops: [1],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('scoped model catalogs isolate grants and refresh after rotation without changing host models', async () => {
+			const { agent, clients } = setup(undefined, [], [], undefined, {
+				onClientCreated: (client, options) => {
+					const token = options.gitHubToken;
+					assert.ok(token);
+					client.modelListResponses.push([{ id: token, name: token }]);
+				},
+			});
+			let token = 'first-token';
+			const first = { getCredential: () => ({ resource: 'https://api.github.com', token, expiresAt: undefined, revision: 1 }) };
+			const second = { getCredential: () => ({ resource: 'https://api.github.com', token: 'second-token', expiresAt: undefined, revision: 1 }) };
+			try {
+				const initial = await agent.getModelsForCredentials(first);
+				const independent = await agent.getModelsForCredentials(second);
+				token = 'rotated-token';
+				const rotated = await agent.getModelsForCredentials(first);
+				assert.deepStrictEqual({
+					catalogs: [initial, independent, rotated].map(models => models.map(model => model.id)),
+					shared: agent.models.get(),
+					stops: clients.map(client => client.stopCallCount),
+				}, {
+					catalogs: [['first-token'], ['second-token'], ['rotated-token']],
+					shared: [],
+					stops: [1, 1, 1],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('scoped model discovery never borrows a host credential when its grant is missing or expired', async () => {
+			const { agent, options } = setup();
+			try {
+				await agent.authenticate('https://api.github.com', 'host-token');
+				await agent.refreshModels();
+				const before = options.length;
+				const missing = await agent.getModelsForCredentials({ getCredential: () => undefined });
+				const expired = await agent.getModelsForCredentials({
+					getCredential: () => ({ resource: 'https://api.github.com', token: 'expired-token', expiresAt: 1, revision: 1 }),
+				});
+				assert.deepStrictEqual({ missing, expired, additionalClients: options.length - before }, {
+					missing: [], expired: [], additionalClients: 0,
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('scoped model discovery applies the caller managed defaults without publishing them globally', async () => {
+			const { agent } = setup(undefined, [], [], undefined, {
+				onClientCreated: client => {
+					client.modelListResponses.push([{ id: 'gpt-4o', name: 'GPT-4o', supportedReasoningEfforts: ['low', 'high'] }]);
+					client.managedSettingsResolution = {
+						...client.managedSettingsResolution,
+						values: { model: 'gpt-4o', effortLevel: 'high' },
+					};
+				},
+			});
+			const credentials = { getCredential: () => ({ resource: 'https://api.github.com', token: 'caller-token', expiresAt: undefined, revision: 1 }) };
+			try {
+				const models = await agent.getModelsForCredentials(credentials);
+				assert.deepStrictEqual({
+					defaultEffort: models[0].configSchema?.properties.thinkingLevel?.default,
+					aliasChoices: models[0].configSchema?.properties.reasoningEffort?.enum,
+					shared: agent.models.get(),
+				}, { defaultEffort: 'high', aliasChoices: ['low', 'high'], shared: [] });
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('scoped model discovery offers Auto when the runtime returns an empty catalog', async () => {
+			const { agent } = setup(undefined, [], [], undefined, {
+				onClientCreated: client => client.modelListResponses.push([]),
+			});
+			const credentials = { getCredential: () => ({ resource: 'https://api.github.com', token: 'caller-token', expiresAt: undefined, revision: 1 }) };
+			try {
+				const models = await agent.getModelsForCredentials(credentials);
+				assert.deepStrictEqual({ models: models.map(model => model.id), shared: agent.models.get() }, {
+					models: ['auto'], shared: [],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('scoped model discovery failures propagate and can be retried with the same credential', async () => {
+			const { agent, clients } = setup(undefined, [], [], undefined, {
+				onClientCreated: client => {
+					if (clients.length === 1) {
+						client.modelListErrors.push(new Error('model discovery unavailable'));
+					}
+				},
+			});
+			const credentials = { getCredential: () => ({ resource: 'https://api.github.com', token: 'caller-token', expiresAt: undefined, revision: 1 }) };
+			try {
+				await assert.rejects(agent.getModelsForCredentials(credentials), /model discovery unavailable/);
+				const models = await agent.getModelsForCredentials(credentials);
+				assert.deepStrictEqual({ models: models.map(model => model.id), stops: clients.map(client => client.stopCallCount) }, {
+					models: ['gpt-4o'], stops: [1, 1],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('cancelling scoped model discovery stops its runtime and does not populate the catalog', async () => {
+			const gate = new DeferredPromise<void>();
+			const started = new DeferredPromise<void>();
+			const cancellation = disposables.add(new CancellationTokenSource());
+			const { agent, clients } = setup(undefined, [], [], undefined, {
+				onClientCreated: client => {
+					client.modelListGate = gate.p;
+					started.complete();
+				},
+			});
+			const credentials = { getCredential: () => ({ resource: 'https://api.github.com', token: 'caller-token', expiresAt: undefined, revision: 1 }) };
+			try {
+				const discovery = agent.getModelsForCredentials(credentials, cancellation.token);
+				const cancelled = assert.rejects(discovery, isCancellationError);
+				await started.p;
+				await clients[0].waitForCalls(() => clients[0].modelListRequests.length > 0);
+				cancellation.cancel();
+				await cancelled;
+				assert.deepStrictEqual({ stops: clients.map(client => client.stopCallCount), shared: agent.models.get() }, {
+					stops: [1], shared: [],
+				});
+			} finally {
+				gate.complete();
+				await disposeAgent(agent);
+			}
+		});
+
+		test('scoped model selection is validated against the caller catalog rather than the host catalog', async () => {
+			const { agent } = setup(undefined, [], [], undefined, {
+				onClientCreated: (client, options) => {
+					if (options.gitHubToken) {
+						client.modelListResponses.push([{ id: 'caller-model', name: 'Caller Model' }]);
+					}
+				},
+			});
+			const session = AgentSession.uri('copilotcli', 'scoped-catalog-selection');
+			const chat = defaultChatUri(session);
+			const credentials = { getCredential: () => ({ resource: 'https://api.github.com', token: 'caller-token', expiresAt: undefined, revision: 1 }) };
+			const context = { ...exactChatContext(session, chat, session), credentials };
+			try {
+				await agent.authenticate('https://api.github.com', 'host-token');
+				await agent.refreshModels();
+				await agent.getModelsForCredentials(credentials);
+				await provisionSession(agent, { session, credentials, model: { id: 'caller-model' }, workingDirectories: [URI.file(process.cwd())] });
+				await agent.chats.changeModel(chat, { id: 'caller-model' }, context);
+				await assert.rejects(agent.chats.changeModel(chat, { id: 'gpt-4o' }, context), /not available/);
+				assert.deepStrictEqual(agent.models.get().map(model => model.id), ['gpt-4o']);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		for (const rotate of [false, true]) {
 			test(`prewarming uses the caller credential and ${rotate ? 'replaces a rotated sponsor' : 'keeps the runtime'} on first send`, async () => {
 				const { agent, clients, options, launches } = setup();
@@ -6606,6 +6796,76 @@ suite('CopilotAgent', () => {
 					await assert.rejects(agent.chats.createChat(chat, context, { deferBacking: true, workingDirectories: [URI.file(process.cwd())] }), { code: AhpErrorCodes.AuthRequired });
 				}
 				assert.deepStrictEqual({ options, backing: chatBackings(agent).get(chat.toString()) }, { options: [], backing: undefined });
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		for (const read of ['metadata', 'materialization', 'history'] as const) {
+			test(`${read} observation does not leave an unavailable sponsor on a released local chat`, async () => {
+				const directory = URI.file(process.cwd());
+				const sdkId = `observed-local-${read}`;
+				const { agent, launches, options } = setup(undefined, [sdkSession(sdkId, directory.fsPath)]);
+				const session = AgentSession.uri('copilotcli', sdkId);
+				const chat = defaultChatUri(session);
+				const context = exactChatContext(session, chat, session);
+				const providerData = JSON.stringify({ sdkSessionId: sdkId });
+				const unavailable = { getCredential: () => { throw new ProtocolError(AhpErrorCodes.AuthRequired, 'An isolated session requires an authenticated sponsor'); } };
+				const observing = { ...context, credentials: unavailable };
+				try {
+					if (read !== 'materialization') {
+						await agent.getChatMetadata(chat, observing, providerData);
+					}
+					if (read !== 'metadata') {
+						await agent.materializeChat(chat, observing, providerData);
+					}
+					if (read === 'history') {
+						await agent.chats.getMessages(chat, observing);
+					}
+					const beforeExecution = {
+						modes: options.map(option => option.mode),
+						launches: launches.length,
+					};
+					await agent.chats.releaseChat(chat, observing);
+					await agent.materializeChat(chat, context, providerData);
+					await Promise.all([
+						agent.chats.changeModel(chat, { id: 'gpt-4o' }, context),
+						agent.chats.changeAgent(chat, undefined, context),
+					]);
+					await agent.chats.sendMessage(chat, 'Continue locally', [directory], undefined, 'local-turn', undefined, context);
+
+					assert.deepStrictEqual({
+						beforeExecution,
+						launches: launches.map(launch => ({ kind: launch.kind, id: launch.sessionId, token: launch.config.gitHubToken, sends: launch.runtime.sendCalls })),
+					}, {
+						beforeExecution: { modes: Array(read === 'materialization' ? 0 : read === 'history' ? 2 : 1).fill('empty'), launches: 0 },
+						launches: [{ kind: 'resume', id: sdkId, token: undefined, sends: 1 }],
+					});
+				} finally {
+					await disposeAgent(agent);
+				}
+			});
+		}
+
+		test('metadata observation does not replace a live execution sponsor', async () => {
+			const directory = URI.file(process.cwd());
+			const { agent, launches, options } = setup();
+			const session = AgentSession.uri('copilotcli', 'scoped-observation');
+			const chat = defaultChatUri(session);
+			const credentials = { getCredential: () => ({ resource: 'https://api.github.com', token: 'execution-sponsor', expiresAt: undefined, revision: 1 }) };
+			const context = { ...exactChatContext(session, chat, session), credentials };
+			const unavailable = { getCredential: () => { throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Observation cannot sponsor execution'); } };
+			try {
+				const created = await provisionSession(agent, { session, credentials, model: { id: 'gpt-4o' }, workingDirectories: [directory] });
+				await agent.chats.sendMessage(chat, 'First', [directory], undefined, 'first', undefined, context);
+				chatEntriesBySdkId(agent).get(launches[0].sessionId)!.chatSession.discardActiveTurn();
+				await agent.getChatMetadata(chat, { ...context, credentials: unavailable }, created.providerData);
+				await agent.chats.sendMessage(chat, 'Continue', [directory], undefined, 'second');
+
+				assert.deepStrictEqual({
+					tokens: options.filter(option => option.gitHubToken !== undefined).map(option => option.gitHubToken),
+					sends: launches.map(launch => launch.runtime.sendCalls),
+				}, { tokens: ['execution-sponsor'], sends: [2] });
 			} finally {
 				await disposeAgent(agent);
 			}
@@ -19998,6 +20258,51 @@ suite('CopilotAgent', () => {
 				assert.deepStrictEqual({ ...h.state(), materializedIn: h.materialized[0]?.workingDirectories?.map(d => d.toString()) }, {
 					creates: 2, mcpLists: 1, materialized: 1, prewarm: ['workingDirectoryChanged'], deleted: 1, live: true, materializedIn: [worktree.toString()],
 				});
+			} finally {
+				await disposeAgent(h.agent);
+			}
+		});
+
+		test('revoking trust before the first send discards the warm session that was granted it', async () => {
+			const h = await createWarmableAgent('warm-trust-revoked', undefined, { rootConfig: { [AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [workingDirectory.toString()] } } });
+			try {
+				await h.agent.chats.warmChat!(h.chat, h.context);
+				h.agent['_configurationService'].updateRootConfig({ [AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [] } });
+				await h.agent.chats.sendMessage(h.chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, h.sendContext);
+
+				assert.deepStrictEqual({ prewarm: h.state().prewarm, trust: h.launchConfigs.map(config => config.trustWorkingDirectory ?? 'absent') }, {
+					prewarm: ['workspaceTrustChanged'],
+					trust: ['session', 'absent'],
+				});
+			} finally {
+				await disposeAgent(h.agent);
+			}
+		});
+
+		test('a warm session claimed under unchanged trust keeps its grant', async () => {
+			const h = await createWarmableAgent('warm-trust-unchanged', undefined, { rootConfig: { [AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [workingDirectory.toString()] } } });
+			try {
+				await h.agent.chats.warmChat!(h.chat, h.context);
+				await h.agent.chats.sendMessage(h.chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, h.sendContext);
+
+				assert.deepStrictEqual({ prewarm: h.state().prewarm, trust: h.launchConfigs.map(config => config.trustWorkingDirectory ?? 'absent') }, {
+					prewarm: ['used'],
+					trust: ['session'],
+				});
+			} finally {
+				await disposeAgent(h.agent);
+			}
+		});
+
+		test('a worktree created on the first send inherits its trusted repository\'s grant', async () => {
+			const h = await createWarmableAgent('warm-worktree-trust', undefined, { rootConfig: { [AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [workingDirectory.toString()] } } });
+			try {
+				const worktree = URI.file('/workspace.worktrees/agents-test');
+				await h.agent.chats.sendMessage(h.chat, 'hello', [worktree], undefined, 'turn-1', undefined, h.sendContext);
+
+				assert.deepStrictEqual(h.launchConfigs.map(config => ({ workingDirectory: config.workingDirectory, trust: config.trustWorkingDirectory ?? 'absent' })), [
+					{ workingDirectory: worktree.fsPath, trust: 'session' },
+				]);
 			} finally {
 				await disposeAgent(h.agent);
 			}

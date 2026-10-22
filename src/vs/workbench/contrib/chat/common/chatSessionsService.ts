@@ -19,6 +19,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from './participants/chatAgents.js';
 import { IChatRequestVariableEntry } from './attachments/chatVariableEntries.js';
+import { IChatSideChatOrigin, IChatSideChatSelection } from './chatSideChatService.js';
 import { IChatEditingSession } from './editing/chatEditingService.js';
 import { ChatRequestSource, IChatRequestModeInstructions, IChatRequestModel, IChatRequestVariableData, ISerializableChatModelInputState } from './model/chatModel.js';
 import { IChatRequestOrigin } from './chatRequestOrigin.js';
@@ -594,6 +595,8 @@ export interface IChatSession extends IDisposable {
 	readonly historyStatus?: IObservable<IChatSessionHistoryStatus | undefined>;
 	readonly modelConfigurationState?: IObservable<IAgentModelConfigurationReport | undefined>;
 	readonly canvasContext?: IObservable<ICanvasContext | undefined>;
+	/** Persisted source metadata for a side chat, including live source title updates. */
+	readonly sideChatOrigin?: IObservable<IChatSideChatOrigin | undefined>;
 	/** Recheck a temporary input restriction without sending a message. */
 	readonly retryInput?: () => Promise<void>;
 	readonly interruptActiveResponseCallback?: () => Promise<boolean>;
@@ -631,6 +634,8 @@ export interface IChatSession extends IDisposable {
 	 * @returns The forked session item. The promise is rejected if forking fails.
 	 */
 	forkSession?: (request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken, options?: IChatSessionForkOptions) => Promise<IChatSessionItem>;
+	/** Creates a side chat anchored to the given source turn, without adding to the source conversation. */
+	createSideChat?: (turnId: string, token: CancellationToken, selection?: IChatSideChatSelection) => Promise<IChatSessionItem>;
 	/**
 	 * Renames the session.
 	 * @param title The new title for the session.
@@ -1133,6 +1138,15 @@ export interface IChatSessionsService {
 	 * Returns whether the loaded session supports forking conversations.
 	 */
 	sessionSupportsFork(sessionResource: URI): boolean;
+
+	/** Returns whether the loaded session supports side chats. */
+	sessionSupportsSideChat(sessionResource: URI): boolean;
+
+	/** Observes a loaded session's origin, including subsequent loading and disposal. */
+	observeSideChatOrigin(sessionResource: URI): IObservable<IChatSideChatOrigin | undefined>;
+
+	/** Creates a side chat anchored to a turn in the source conversation. */
+	createSideChat(sessionResource: URI, turnId: string, token: CancellationToken, selection?: IChatSideChatSelection): Promise<IChatSessionItem>;
 
 	/**
 	 * Forks a contributed chat session from the given request point.
