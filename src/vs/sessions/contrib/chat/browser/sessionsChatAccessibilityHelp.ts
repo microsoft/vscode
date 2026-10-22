@@ -44,6 +44,7 @@ import { RemoteAgentHostAutoConnectSettingId, RemoteAgentHostsEnabledSettingId }
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { areDevContainerSamplesEnabled } from '../../../common/devContainerAgentHostService.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { isEnvironmentPickerLocalIsolationEnabled } from './sessionEnvironmentPicker.js';
 export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly priority = 120;
 	readonly name = 'sessionsChat';
@@ -103,6 +104,9 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		const useExperimentalComposerLayout = configurationService.getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING)
 			&& configurationService.getValue<boolean>(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING);
 		if (useExperimentalComposerLayout && !isWeb && configurationService.getValue<boolean>(ENVIRONMENT_PICKER_SETTING)) {
+			if (isEnvironmentPickerLocalIsolationEnabled(configurationService)) {
+				content.push(localize('sessionsChat.environmentPicker.localIsolation', "Environment offers Local Folder to work in the existing folder, or Local Worktree to create an isolated copy for the session. These choices replace This Computer and the separate Branch or New Worktree isolation control for new local sessions. Branch selection remains available. Local Worktree requires a workspace and a harness that supports worktrees. Use Enter or Space to open Environment, arrow keys and Enter to select, and Escape to dismiss."));
+			}
 			content.push(configurationService.getValue<boolean>(ENVIRONMENT_PICKER_BEFORE_WORKSPACE_SETTING)
 				? localize('sessionsChat.environmentPicker.beforeWorkspace', "Above the new-session input, Environment is before Workspace and remains visible when session options are collapsed.")
 				: localize('sessionsChat.environmentPicker.afterWorkspace', "Above the new-session input, Environment is after Workspace. Choose from all recent workspaces, then choose an environment where that workspace or a known checkout of its repository is available. Collapsing session options hides Environment unless the collapsed icon rail is enabled."));
