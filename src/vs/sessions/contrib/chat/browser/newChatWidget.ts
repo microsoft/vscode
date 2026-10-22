@@ -10,7 +10,7 @@ import { Action, toAction } from '../../../../base/common/actions.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { isErrorWithActions, toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
-import { Event } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, derivedObservableWithCache, disposableObservableValue, IObservable, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { isWeb } from '../../../../base/common/platform.js';
@@ -43,6 +43,7 @@ import { IAquariumService, IMountedToggleHandle } from '../../aquarium/browser/a
 import { IWorkspacePickerNoWorkspaceOption, IWorkspacePickerTrigger, WorkspacePicker } from './sessionWorkspacePicker.js';
 import { WebWorkspacePicker } from './webWorkspacePicker.js';
 import { getStoredSessionOptionsExpanded, SessionOptionsRow, storeSessionOptionsExpanded } from './sessionOptionsRow.js';
+import { ENVIRONMENT_PICKER_ID, IconOnlySessionPickers } from './iconOnlySessionPickers.js';
 import { IPickedSessionType, IPreferredSessionType } from './sessionTypePicker.js';
 import { NEW_SESSION_PROMPT_PLACEHOLDER } from './newChatComposerInput.js';
 import { SharedChatInputComposer } from './sharedChatInputComposer.js';
@@ -61,6 +62,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { ChatInputTipPresenter } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputTipPresenter.js';
 import { chatInputStackClass, chatInputStackSlotClass, chatInputSurfaceStackClass, ChatInputStackSlot, setChatInputStackSlot } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
 import { IChatPetService } from '../../../../workbench/contrib/chat/browser/chatPetService.js';
+import type { IChatPetPlatformOccupation } from '../../../../workbench/contrib/chat/browser/widget/chatPetWidget.js';
 import { IChatTipService } from '../../../../workbench/contrib/chat/browser/chatTipService.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
@@ -73,7 +75,7 @@ import { AgentsWindowUsage } from '../../../../workbench/contrib/chat/common/age
 import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
 import { Menus } from '../../../browser/menus.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../common/newChatContextIds.js';
-import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING, ENVIRONMENT_PICKER_BEFORE_WORKSPACE_SETTING, ENVIRONMENT_PICKER_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_WELCOME_MESSAGES_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../common/constants.js';
+import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING, ENVIRONMENT_PICKER_BEFORE_WORKSPACE_SETTING, ENVIRONMENT_PICKER_ICON_ONLY_SETTING, ENVIRONMENT_PICKER_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_WELCOME_MESSAGES_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../common/constants.js';
 import { getNewSessionWelcomePhrases, INewSessionWelcomeMessagesConfiguration } from '../common/welcomePhrases.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { getSessionComparisonWorkspaceError, ISessionComparisonHarness, ISessionComparisonService } from '../../../services/sessions/common/sessionComparison.js';
@@ -175,7 +177,11 @@ export class NewChatWidget extends Disposable {
 	private _workspaceRepositoryControlsHost: HTMLElement | undefined;
 	private _workspaceSessionOptionsHost: HTMLElement | undefined;
 	private readonly _sessionOptionsExpanded = observableValue(this, true);
+	private readonly _iconOnlyPickers: IconOnlySessionPickers;
 	private _quickChatHeaderPickerHost: HTMLElement | undefined;
+	private _welcomeMessageTitle: HTMLElement | undefined;
+	private _welcomePetPlatform: HTMLElement | undefined;
+	private readonly _onDidChangeChatPetPlatform = this._register(new Emitter<void>());
 
 	private readonly _session: IObservable<IActiveSession | undefined>;
 
@@ -318,6 +324,7 @@ export class NewChatWidget extends Disposable {
 			Event.filter(this.configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING)),
 			() => this.configurationService.getValue<boolean>(COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING),
 		);
+		this._iconOnlyPickers = this._register(this.instantiationService.createInstance(IconOnlySessionPickers, element => this._newChatInput.getRepositoryControlId(element)));
 		this._showWelcomePhrases = observableFromEvent(
 			this,
 			Event.filter(this.configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(NEW_SESSION_WELCOME_PHRASES_SETTING)),
@@ -554,8 +561,13 @@ export class NewChatWidget extends Disposable {
 			supportsBackground: true,
 			deferredNotificationsEnabled,
 			petHostPreferred: this.options.petHostPreferred,
-			getChatPetPlatformElements: () => this._workspacePicker.getChatPetPlatformElements(),
-			onDidChangeChatPetPlatform: this._workspacePicker.onDidChangeChatPetPlatform,
+			getChatPetPlatformElements: () => [
+				...(this._welcomeMessageTitle ? [this._welcomeMessageTitle] : []),
+				...this._workspacePicker.getChatPetPlatformElements(),
+			],
+			getChatPetBasePlatformElement: () => this._workspacePickerRow?.classList.contains('new-chat-session-options') ? this._workspacePickerRow : undefined,
+			onDidChangeChatPetPlatform: Event.any(this._workspacePicker.onDidChangeChatPetPlatform, this._onDidChangeChatPetPlatform.event),
+			setChatPetPlatformOccupation: occupation => this._setChatPetPlatformOccupation(occupation),
 			sessionTypePickerOptions: {
 				providerId: creationProviderId,
 				allowedProviders: derived(this, reader => {
@@ -773,6 +785,8 @@ export class NewChatWidget extends Disposable {
 		const chatWidgetContent = dom.append(chatWidgetContainer, dom.$(`.new-chat-widget-content.${chatInputStackClass}`));
 		const welcomeMessage = dom.append(chatWidgetContent, dom.$('.new-session-welcome-message'));
 		const welcomeMessageTitle = dom.append(welcomeMessage, dom.$('h2.new-session-welcome-message-title'));
+		this._welcomeMessageTitle = welcomeMessageTitle;
+		this._welcomePetPlatform = dom.append(welcomeMessage, dom.$('span.new-session-welcome-pet-platform', { 'aria-hidden': 'true' }));
 		const welcomeMessageActions = dom.append(welcomeMessage, dom.$('.new-session-welcome-message-actions'));
 		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, welcomeMessageActions, Menus.NewSessionWelcome, {
 			ariaLabel: localize('newSession.welcome.actions', "Welcome message actions"),
@@ -822,6 +836,7 @@ export class NewChatWidget extends Disposable {
 				this._welcomePhraseIndex,
 			);
 			chatWidgetContent.classList.toggle('welcome-phrases-visible', !!phrase);
+			this._onDidChangeChatPetPlatform.fire();
 			this._announceWelcomeMessage(phrase, inputVisible);
 		}));
 		this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => void this._refreshGitHubProfileName()));
@@ -1147,6 +1162,31 @@ export class NewChatWidget extends Disposable {
 		const phrase = phrases[phraseIndex % phrases.length];
 		title.textContent = phrase;
 		return phrase;
+	}
+
+	private _setChatPetPlatformOccupation(occupation: IChatPetPlatformOccupation | undefined): void {
+		const title = this._welcomeMessageTitle;
+		if (!title) {
+			return;
+		}
+		const bounds = title.getBoundingClientRect();
+		const platform = this._welcomePetPlatform;
+		const occupied = !!occupation
+			&& !!platform
+			&& bounds.width > 0
+			&& bounds.height > 0
+			&& occupation.centerX >= bounds.left
+			&& occupation.centerX <= bounds.right
+			&& Math.abs(occupation.top - bounds.top) < 1;
+		title.classList.toggle('chat-pet-platform-occupied', occupied);
+		if (occupied && platform) {
+			const platformParentBounds = platform.parentElement?.getBoundingClientRect() ?? bounds;
+			platform.style.left = `${occupation.centerX - platformParentBounds.left}px`;
+			platform.style.width = `${occupation.width}px`;
+		} else {
+			platform?.style.removeProperty('left');
+			platform?.style.removeProperty('width');
+		}
 	}
 
 	private _announceWelcomeMessage(phrase: string | undefined, inputVisible: boolean): void {
@@ -1551,7 +1591,7 @@ export class NewChatWidget extends Disposable {
 		return {
 			description: localize('newSessionWorkspacePicker.noWorkspaceDescription', "Start without a backing workspace"),
 			isSelected: isWorkspacePickerQuickChat,
-			selectedLabel: activeProvider && activeProvider.id !== LOCAL_AGENT_HOST_PROVIDER_ID
+			selectedLabel: activeProvider && activeProvider.id !== LOCAL_AGENT_HOST_PROVIDER_ID && !environment?.providerIds.includes(activeProvider.id)
 				? localize('newSessionWorkspacePicker.remoteQuickChat', "Chat [{0}]", activeProvider.label)
 				: undefined,
 			select: () => {
@@ -1610,6 +1650,8 @@ export class NewChatWidget extends Disposable {
 			// experiment trigger when the composer actually reaches that collapsed state — before
 			// the setting is read, so both arms count and users who never collapse don't dilute it.
 			onDidCollapse: () => logSettingExperimentTrigger(this.telemetryService, COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING),
+			onDidChangeLayout: () => this._onDidChangeChatPetPlatform.fire(),
+			iconOnlyPickers: this._iconOnlyPickers,
 		}));
 		const sessionOptions = sessionOptionsRow.details;
 		const toggle = sessionOptionsRow.toggle;
@@ -1654,6 +1696,16 @@ export class NewChatWidget extends Disposable {
 		store.add(autorun(reader => {
 			const isVisible = this._environmentPicker.isVisible.read(reader);
 			this._newChatInput.pickerVisibility.setVisible('environment', isVisible);
+		}));
+		// The icon-only setting is a default: log its experiment trigger where the environment picker's
+		// label would otherwise show and the user hasn't chosen its presentation, before reading the setting.
+		store.add(autorun(reader => {
+			if (!this._environment.read(reader) || this._iconOnlyPickers.hasChoice(ENVIRONMENT_PICKER_ID, reader)) {
+				return;
+			}
+			if (this._environmentPickerBeforeWorkspace.read(reader) || this._sessionOptionsExpanded.read(reader) || this._screenReaderOptimized.read(reader)) {
+				logSettingExperimentTrigger(this.telemetryService, ENVIRONMENT_PICKER_ICON_ONLY_SETTING);
+			}
 		}));
 		sessionOptionsRow.layout();
 		this._newChatInput.pickerVisibility.setVisible('workspace', true);
@@ -2203,7 +2255,10 @@ export class NewChatWidget extends Disposable {
 			if (!workspace || !this.uriIdentityService.extUri.isEqual(workspace.workspace.folders[0]?.root, folderUri)
 				|| (environment.kind === 'container') !== preferDevContainer) {
 				const selected = getDefaultSessionCreationEnvironment(this._environments.get(), folderUri, this._workspacePicker.selectedResolved?.providerId, preferDevContainer);
-				this._pickedEnvironment.set(selected, undefined);
+				// Keep automatic defaults reactive while refreshing explicit selections.
+				if (this._pickedEnvironment.get() || selected?.id !== environment.id) {
+					this._pickedEnvironment.set(selected, undefined);
+				}
 			}
 		}
 		if (!this._isCurrentWorkspaceSelection(folderUri)) {

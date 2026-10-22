@@ -74,12 +74,13 @@ import { ChatService } from '../common/chatService/chatServiceImpl.js';
 import { chatNetworkDomainConfigurationMigrations, chatNetworkDomainConfigurationProperties } from './chatNetworkConfiguration.js';
 import { IChatSessionsService } from '../common/chatSessionsService.js';
 import { ChatSideChatService, IChatSideChatService } from '../common/chatSideChatService.js';
-import { AgentsWindowGraphicVariant, AgentsWindowSectionStyle, BYOKUtilityModelDefault, ChatAIDisabledSettingId, ChatAgentLocation, ChatConfiguration, ChatClosedPromoNotification, ChatDefaultPermissionLevel, ChatNotificationMode, ChatPermissionLevel } from '../common/constants.js';
+import { AgentsWindowGraphicVariant, AgentsWindowSectionStyle, BYOKUtilityModelDefault, ChatAIDisabledSettingId, ChatAgentLocation, ChatConfiguration, ChatClosedPromoNotification, ChatDefaultPermissionLevel, ChatNotificationMode, ChatPermissionLevel, OpenInAgentsTitleBarHoverVariant } from '../common/constants.js';
 import { agentsWindowHandoffConfigurationProperties } from './agentSessionsConfiguration.js';
 import { chatProgressConfigurationProperties } from './chatProgressConfiguration.js';
 import { customizationMarketplaceConfigurationProperties } from './aiCustomization/customizationMarketplaceConfiguration.js';
 import { CodeMapperService, ICodeMapperService } from '../common/editing/chatCodeMapperService.js';
 import { IChatEditingService } from '../common/editing/chatEditingService.js';
+import { ChatSessionReviewPreferencesService, IChatSessionReviewPreferencesService } from '../common/editing/chatSessionReviewPreferences.js';
 import { ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService } from '../common/ignoredFiles.js';
 import { ILanguageModelsService, LanguageModelsService } from '../common/languageModels.js';
 import { ILanguageModelStatsService, LanguageModelStatsService } from '../common/languageModelStats.js';
@@ -239,6 +240,9 @@ import { ChatRepoInfoContribution } from './chatRepoInfo.js';
 import { ChatSetupContribution, ChatTeardownContribution } from './chatSetup/chatSetupContributions.js';
 import { ChatMicrosoftSignInProbeContribution, ChatMicrosoftSignInProbeService, IChatMicrosoftSignInProbeService } from './chatSetup/chatSetupMicrosoftProbe.js';
 import { ChatSessionOptionSlashCommandsContribution, ChatSlashCommandsContribution } from './chatSlashCommands.js';
+import { BtwSlashCommandContribution } from './btwSlashCommand.js';
+import { EditorSideChatProviderContribution } from './chatSideChatProvider.js';
+import { AskSelectionInSideChatAction, EditorResponseSelectionSideChatContribution } from './responseSelectionSideChatController.js';
 import { ChatStatusBarEntry } from './chatStatus/chatStatusEntry.js';
 import { CodexStatusBarEntry } from './chatStatus/codexStatusEntry.js';
 import { ChatTipService, IChatTipService } from './chatTipService.js';
@@ -604,15 +608,8 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.EditorWorkingSetEnabled]: {
 			type: 'boolean',
-			description: nls.localize('chat.editor.workingSet.enabled', "Show Copilot Agent Host session changes as a working set above the chat input instead of the Changes pill in the editor window. Select a file to open its diff, or keep its changes to remove it from the working set. The Keep and View All Edits buttons in its heading act on every file. Hosts without a session changeset keep the Changes pill. Local and other chat harnesses are unaffected."),
+			description: nls.localize('chat.editor.workingSet.enabled', "Show Agent Host session changes as a working set above the chat input instead of the Changes pill in the editor window. Use its context menu to enable or disable Keep and Undo in both the working set and the editor, or choose Show Pill to turn this setting off. View All Edits opens all changed files in a diff editor. Hosts without a session changeset keep the Changes pill. Local and other chat harnesses are unaffected."),
 			default: true,
-			tags: ['experimental'],
-			agentsWindow: { default: false, readOnly: true },
-		},
-		[ChatConfiguration.EditorKeepUndoEnabled]: {
-			type: 'boolean',
-			markdownDescription: nls.localize('chat.editor.keepUndo.enabled', "Review the file edits of Agent Host chat sessions in the editor window with **Keep** and **Undo**, like local chat edits. The editor shows the session's Working Set, which the working set above the chat input lists too. Keeping or undoing a change or a file asks the agent host to accept or discard it, so the session's changes reflect it. Takes effect for chats opened after the setting changes."),
-			default: false,
 			tags: ['experimental'],
 			agentsWindow: { default: false, readOnly: true },
 		},
@@ -2493,6 +2490,19 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.titleBar.openInAgentsWindow.enabled', "Controls whether the Open in Agents Window button is shown in the title bar."),
 			default: true,
 		},
+		[ChatConfiguration.TitleBarOpenInAgentsWindowRichHover]: {
+			type: 'string',
+			enum: [OpenInAgentsTitleBarHoverVariant.None, OpenInAgentsTitleBarHoverVariant.ManyWindowsToOne, OpenInAgentsTitleBarHoverVariant.WindowComparison],
+			enumDescriptions: [
+				nls.localize('chat.titleBar.openInAgentsWindow.richHover.none', "Show a simple tooltip, and grow the button to show its label."),
+				nls.localize('chat.titleBar.openInAgentsWindow.richHover.manyWindowsToOne', "Show a hover card with a graphic of editor windows for several projects becoming one Agents window, and keep the button an icon."),
+				nls.localize('chat.titleBar.openInAgentsWindow.richHover.windowComparison', "Show a hover card with a graphic of the editor window and the Agents window side by side, and keep the button an icon."),
+			],
+			description: nls.localize('chat.titleBar.openInAgentsWindow.richHover', "Controls whether hovering or focusing the Open in Agents Window button in the title bar shows a hover card that explains the Agents window, and which graphic the card shows. Applies to users who have created fewer than two sessions in the Agents window; other users always see a simple tooltip."),
+			default: OpenInAgentsTitleBarHoverVariant.None,
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+		},
 		...agentsWindowHandoffConfigurationProperties,
 		'chat.approvedAccountOrganizations': {
 			type: 'array',
@@ -3351,6 +3361,8 @@ registerWorkbenchContribution2(PromptsDebugContribution.ID, PromptsDebugContribu
 registerWorkbenchContribution2(AgentHostChatDebugContribution.ID, AgentHostChatDebugContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatLanguageModelsDataContribution.ID, ChatLanguageModelsDataContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatSlashCommandsContribution.ID, ChatSlashCommandsContribution, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(BtwSlashCommandContribution.ID, BtwSlashCommandContribution, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(EditorSideChatProviderContribution.ID, EditorSideChatProviderContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatSessionOptionSlashCommandsContribution.ID, ChatSessionOptionSlashCommandsContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatOutlineCreator.ID, ChatOutlineCreator, WorkbenchPhase.AfterRestored);
 
@@ -3455,6 +3467,7 @@ registerSingleton(IChatTransferService, ChatTransferService, InstantiationType.D
 registerSingleton(IChatService, ChatService, InstantiationType.Delayed);
 registerSingleton(IChatWidgetService, ChatWidgetService, InstantiationType.Delayed);
 registerSingleton(ISessionChatPillVisibilityService, SessionChatPillVisibility, InstantiationType.Delayed);
+registerSingleton(IChatSessionReviewPreferencesService, ChatSessionReviewPreferencesService, InstantiationType.Delayed);
 registerSingleton(IChatPasteTargetService, ChatPasteTargetService, InstantiationType.Delayed);
 registerSingleton(IChatSideChatService, ChatSideChatService, InstantiationType.Delayed);
 registerSingleton(IChatRequestOriginService, ChatRequestOriginService, InstantiationType.Delayed);
@@ -3516,3 +3529,5 @@ registerSingleton(ISessionSummaryHoverService, SessionSummaryHoverService, Insta
 registerSingleton(IChatMicrosoftSignInProbeService, ChatMicrosoftSignInProbeService, InstantiationType.Delayed);
 
 ChatWidget.CONTRIBS.push(ChatDynamicVariableModel);
+ChatWidget.CONTRIBS.push(EditorResponseSelectionSideChatContribution);
+registerAction2(AskSelectionInSideChatAction);

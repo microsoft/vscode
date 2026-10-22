@@ -28,10 +28,9 @@ import { ISessionsPartService } from '../../../../services/sessions/browser/sess
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
-import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COMPARE_AGENTS_ENABLED_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../common/constants.js';
+import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING, AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COMPARE_AGENTS_ENABLED_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../common/constants.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
-import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING } from '../../browser/responseSelectionSideChatController.js';
 import { SESSION_ARCHIVE_NUDGE_SETTING } from '../../browser/sessionArchiveNudge.js';
 import { SessionComparisonAccessibleView, SessionsChatAccessibilityHelp } from '../../browser/sessionsChatAccessibilityHelp.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
@@ -70,7 +69,8 @@ suite('SessionsChatAccessibilityHelp', () => {
 			markUnread: content.includes('or unread<keybinding:agentSession.markUnread> without opening them'),
 			nestedReadState: content.includes('change only the targeted nested sessions, not their parent'),
 			earlyPreparation: content.includes(getCloudSandboxPreparationAccessibilityHelp()),
-		}, { back: true, forward: true, singletonViews: true, parentContext: true, independentDrag: true, newSessionDrag: true, independentVisibility: true, positionalPaneFocus: true, keyboardDetach: true, keyboardMove: true, markRead: true, markUnread: true, nestedReadState: true, earlyPreparation: true });
+			applicationFilter: content.includes('Enter or Space to open Filter Sessions with Created In focused.'),
+		}, { back: true, forward: true, singletonViews: true, parentContext: true, independentDrag: true, newSessionDrag: true, independentVisibility: true, positionalPaneFocus: true, keyboardDetach: true, keyboardMove: true, markRead: true, markUnread: true, nestedReadState: true, earlyPreparation: true, applicationFilter: true });
 	});
 
 	test('documents connector recommendations when the marketplace is available', () => {
@@ -324,7 +324,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 
 		assert.strictEqual(
 			content.split('\n').find(line => line.startsWith('Once you send a message to an external session')),
-			'Once you send a message to an external session\'s agent, it becomes a regular session. Its banner and External hover label disappear, and it is no longer grouped or filtered as external.',
+			'Once you send a message to an external session\'s agent, it becomes a regular session. Its banner disappears, and it is no longer grouped or filtered as external.',
 		);
 	});
 
@@ -688,6 +688,32 @@ suite('SessionsChatAccessibilityHelp', () => {
 			provider.provideContent().split('\n').find(line => line.startsWith('When you select assistant response text')),
 			'When you select assistant response text, an action menu appears. Press Tab to focus the menu, use the Up Arrow and Down Arrow keys to move between actions, and press Enter to activate one. Press Escape to dismiss the menu. Ask in a Side Chat opens a question input anchored to the selected text. Quote appends the selection as a blockquote in the chat input when the conversation is interactive. Copy copies the selected text.',
 		);
+	});
+
+	test('describes artifact details, run-once actions, standing automation, and list navigation', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configuration);
+		stubContextKeyService(instantiationService, configuration);
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent()
+			.split('\n').find(line => line.startsWith('Artifacts and references with an integration'));
+
+		assert.deepStrictEqual({
+			mainDetails: content?.includes('Enter or Space on a main pill opens an input-width details panel'),
+			runOnce: content?.includes('Actions below the lists run once'),
+			standingPermission: content?.includes('standing permission'),
+			turningOff: content?.includes('does not cancel work already started'),
+			sharedAutomation: content?.includes('Autopilot groups automatic rules'),
+			enabledAutomation: content?.includes('Saved rules remain revocable while unavailable'),
+			switchKeyboard: content?.includes('Space to change a switch'),
+			listKeyboard: content?.includes('arrow keys navigate list rows'),
+			oldActionsSegment: content?.includes('Actions button'),
+		}, { mainDetails: true, runOnce: true, standingPermission: true, turningOff: true, sharedAutomation: true, enabledAutomation: true, switchKeyboard: true, listKeyboard: true, oldActionsSegment: false });
 	});
 
 	test('omits response-selection help when the widget is unsupported', () => {

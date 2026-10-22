@@ -92,6 +92,28 @@ suite('ToolSetsContribution', () => {
 		});
 	});
 
+	test('ClientToolSetsContribution exposes Sessions List tools only in the Sessions window', () => {
+		const createContribution = (isSessionsWindow: boolean) => {
+			const toolsService = createToolsService();
+			for (const name of ['readSessionsList', 'organizeSessionsList']) {
+				store.add(toolsService.registerToolData({ id: name, modelDescription: name, displayName: name, toolReferenceName: name, source: ToolDataSource.Internal }));
+			}
+			const workspaceService = new class extends mock<IAICustomizationWorkspaceService>() {
+				override readonly isSessionsWindow = isSessionsWindow;
+			}();
+			store.add(new ClientToolSetsContribution(toolsService, workspaceService));
+			return toolsService;
+		};
+
+		assert.deepStrictEqual({
+			sessionsMembers: Array.from(createContribution(true).getToolSet('vscode-sessions-list')?.getTools() ?? [], tool => tool.toolReferenceName),
+			coreHasSet: !!createContribution(false).getToolSet('vscode-sessions-list'),
+		}, {
+			sessionsMembers: ['readSessionsList', 'organizeSessionsList'],
+			coreHasSet: false,
+		});
+	});
+
 	test('getEnabledSelectionReferences keeps enabled tool set references and drops covered tools', () => {
 		const toolsService = createToolsService();
 

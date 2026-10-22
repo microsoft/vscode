@@ -240,7 +240,7 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 
 	private serverProcess: cp.ChildProcess | undefined;
 
-	constructor(private adapterExecutable: IDebugAdapterExecutable, private debugType: string) {
+	constructor(private adapterExecutable: IDebugAdapterExecutable, private debugType: string, private readonly log: (message: string) => void) {
 		super();
 	}
 
@@ -352,7 +352,7 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 		// processes. Therefore we use TASKKILL.EXE
 		await this.cancelPendingRequests();
 		if (platform.isWindows) {
-			return killTree(this.serverProcess!.pid!, true).catch(() => {
+			return killTree(this.serverProcess!.pid!, true, this.log).catch(() => {
 				this.serverProcess?.kill();
 			});
 		} else {

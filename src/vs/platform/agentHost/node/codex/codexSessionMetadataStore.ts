@@ -26,7 +26,7 @@ import { AH_META_WORKSPACELESS_DB_KEY } from '../../common/state/sessionState.js
  *                      Multi-root sessions store a JSON object in this same
  *                      field so single-root reads retain their original shape.
  *                      This is the session's *current* working directory —
- *                      it may be a managed temp folder or a host/user-picked
+ *                      it may be a managed scratch directory or a host/user-picked
  *                      one, and can change over the session's lifetime (see
  *                      `_adoptWorkingDirectoryBeforeSend`) — so it must never
  *                      be used to *locate* a managed folder for cleanup.
@@ -34,7 +34,7 @@ import { AH_META_WORKSPACELESS_DB_KEY } from '../../common/state/sessionState.js
  *                      remembered for restore so resumed sessions reuse
  *                      the model picked during the prior process.
  *   `codex.managedWorkingDirectory` — the absolute path (URI string) of the
- *                      managed temp folder this agent itself created for the
+ *                      managed scratch directory this agent itself created for the
  *                      session, when it currently owns one; the *only* value
  *                      a destructive teardown may delete. Deliberately
  *                      separate from `codex.cwd`, which the session's own
@@ -68,7 +68,7 @@ export interface ICodexSessionOverlayUpdate {
 	readonly ownsManagedWorkingDirectory?: boolean;
 	/**
 	 * `undefined` leaves the persisted value untouched, a {@link URI} records
-	 * this agent's own managed temp folder, and `null` explicitly clears it
+	 * this agent's own managed scratch directory, and `null` explicitly clears it
 	 * (the session has abandoned or never had one) — the same
 	 * present/absent/clear tri-state {@link agent} uses.
 	 */

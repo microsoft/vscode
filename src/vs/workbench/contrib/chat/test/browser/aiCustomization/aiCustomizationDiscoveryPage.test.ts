@@ -20,7 +20,7 @@ import { ICommandService } from '../../../../../../platform/commands/common/comm
 import { IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
-import { CustomizationMarketplaceMediaType, CustomizationMarketplaceRecoveryGroup, CustomizationMarketplaceService, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceBrowseSections, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceRecoveryAction } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceMediaType, CustomizationMarketplaceQueryProgressCallback, CustomizationMarketplaceRecoveryGroup, CustomizationMarketplaceService, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceBrowseSections, ICustomizationMarketplaceBrowseSectionsProgress, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceRecoveryAction } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IListService, ListService, WorkbenchList } from '../../../../../../platform/list/browser/listService.js';
 import { INotificationService, NoOpNotification, Severity } from '../../../../../../platform/notification/common/notification.js';
@@ -122,7 +122,8 @@ suite('AICustomizationDiscoveryPage', () => {
 				sourceMenu = delegate;
 			}
 		}());
-		const requests: { options: ICustomizationMarketplaceQuery; token: CancellationToken; result: DeferredPromise<ICustomizationMarketplacePage> }[] = [];
+		const requests: { options: ICustomizationMarketplaceQuery; token: CancellationToken; onProgress: CustomizationMarketplaceQueryProgressCallback | undefined; result: DeferredPromise<ICustomizationMarketplacePage> }[] = [];
+		let browseSectionsProgress: Parameters<NonNullable<ICustomizationMarketplaceService['getBrowseSections']>>[2];
 		const installs: { identifier: string; origin: CustomizationMarketplaceInstallOrigin | undefined; result: DeferredPromise<void> }[] = [];
 		const marketplaceChanges = store.add(new Emitter<void>());
 		const recoveryActions = new Map<string, ICustomizationMarketplaceSourceRecoveryAction>();
@@ -156,10 +157,13 @@ suite('AICustomizationDiscoveryPage', () => {
 			override readonly allSources = sources;
 			override readonly onDidChangeSources = marketplaceChanges.event;
 			override getSourceRecoveryAction(sourceId: string) { return recoveryActions.get(sourceId); }
-			override async getBrowseSections() { return await browseSections; }
-			override query(options: ICustomizationMarketplaceQuery, token: CancellationToken) {
+			override async getBrowseSections(_options: Pick<ICustomizationMarketplaceQuery, 'sourceIds'>, _token: CancellationToken, onProgress?: (progress: ICustomizationMarketplaceBrowseSectionsProgress) => void) {
+				browseSectionsProgress = onProgress;
+				return await browseSections;
+			}
+			override query(options: ICustomizationMarketplaceQuery, token: CancellationToken, onProgress?: CustomizationMarketplaceQueryProgressCallback) {
 				const result = new DeferredPromise<ICustomizationMarketplacePage>();
-				requests.push({ options, token, result });
+				requests.push({ options, token, onProgress, result });
 				return result.p;
 			}
 		}());
@@ -265,6 +269,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		}
 		return {
 			page, container, configuration, requests, marketplaceChanges, entitlement, sentimentChanged, recoveryActions, notifications, prompts, promptHandles, getSourceActions, listService, creationEvents, opened, openedDetails, openedInstalled, deletions, installs, repairs, cancellations, uninstalls, commands, telemetry,
+			reportBrowseSectionsProgress: (progress: Parameters<NonNullable<typeof browseSectionsProgress>>[0]) => browseSectionsProgress?.(progress),
 			setInstallState: (resource: ICustomizationMarketplaceResource, state: CustomizationMarketplaceInstallState) => {
 				const key = getCustomizationMarketplaceResourceKey(resource);
 				installStates.set(key, state);
@@ -515,6 +520,97 @@ suite('AICustomizationDiscoveryPage', () => {
 		}, {
 			pageSize: 100,
 			featured: ['azure-mcp', 'github-plugin', 'fabric-mcp', 'microsoft-skill'],
+		});
+	});
+
+	test('marks only Copilot Connector search results as verified by GitHub', async () => {
+		const fixture = createPage(['agentFinder', 'copilotConnectors']);
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({
+			items: [
+				resource('copilot-connector', {
+					sourceId: 'copilotConnectors',
+					installation: { kind: 'copilotConnector', name: 'copilot-connector' },
+				}),
+				resource('public-alternative', {
+					installation: { kind: 'mcp', name: 'public/alternative', version: '1.0.0' },
+				}),
+			],
+		});
+		await timeout(0);
+
+		const getVerification = (name: string) => {
+			const card = [...fixture.container.querySelectorAll<HTMLElement>('.customization-discovery-card')]
+				.find(card => card.querySelector('.customization-discovery-card-name')?.textContent === name);
+			const verified = card?.querySelector<HTMLElement>('.customization-discovery-verified');
+			const visible = verified?.style.display === '';
+			return {
+				visible,
+				label: verified?.getAttribute('aria-label') ?? null,
+				icon: !!verified?.querySelector('.codicon-extensions-verified-publisher'),
+				afterMetadata: visible && verified.previousElementSibling?.classList.contains('customization-discovery-card-metadata') === true,
+			};
+		};
+
+		assert.deepStrictEqual({
+			connector: getVerification('copilot-connector'),
+			alternative: getVerification('public-alternative'),
+			accessibility: fixture.page.getAccessibilityContent().includes('Verified by GitHub'),
+		}, {
+			connector: { visible: false, label: null, icon: false, afterMetadata: false },
+			alternative: { visible: false, label: null, icon: false, afterMetadata: false },
+			accessibility: false,
+		});
+
+		fixture.page.setSearchQuery('connector');
+		await waitForRequestCount(fixture.requests, 2);
+		await fixture.requests[1].result.complete({
+			items: [
+				resource('copilot-connector', {
+					sourceId: 'copilotConnectors',
+					installation: { kind: 'copilotConnector', name: 'copilot-connector' },
+				}),
+			],
+		});
+		await timeout(0);
+
+		const getResultVerification = (name: string) => {
+			const row = [...fixture.container.querySelectorAll<HTMLElement>('.customization-discovery-result-content')]
+				.find(row => row.querySelector('.customization-discovery-result-name')?.textContent === name);
+			const verified = row?.querySelector<HTMLElement>('.customization-discovery-verified');
+			const visible = verified?.style.display === '';
+			return {
+				visible,
+				label: verified?.getAttribute('aria-label') ?? null,
+				hidden: verified?.getAttribute('aria-hidden') ?? null,
+				afterDetail: visible && verified.previousElementSibling?.classList.contains('customization-discovery-result-detail') === true,
+			};
+		};
+		assert.deepStrictEqual({
+			connector: getResultVerification('copilot-connector'),
+			accessibility: fixture.page.getAccessibilityContent().includes('copilot-connector\nMCP server · Copilot Connectors · Verified by GitHub'),
+		}, {
+			connector: { visible: true, label: 'Verified by GitHub', hidden: null, afterDetail: true },
+			accessibility: true,
+		});
+
+		fixture.page.setSearchQuery('public');
+		await waitForRequestCount(fixture.requests, 3);
+		await fixture.requests[2].result.complete({
+			items: [
+				resource('public-alternative', {
+					installation: { kind: 'mcp', name: 'public/alternative', version: '1.0.0' },
+				}),
+			],
+		});
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			alternative: getResultVerification('public-alternative'),
+			accessibility: fixture.page.getAccessibilityContent().includes('Verified by GitHub'),
+		}, {
+			alternative: { visible: false, label: null, hidden: 'true', afterDetail: false },
+			accessibility: false,
 		});
 	});
 
@@ -2341,6 +2437,112 @@ suite('AICustomizationDiscoveryPage', () => {
 		}]);
 	});
 
+	test('renders available Browse content while remaining sources load', async () => {
+		const fixture = createPage(['agentFinder', 'copilotConnectors']);
+		fixture.page.setVisible(true);
+		fixture.requests[0].onProgress?.({
+			page: { items: [resource('fast-source')] },
+			completedSourceIds: ['agentFinder'],
+			cachedSourceIds: [],
+			totalSourceCount: 2,
+		});
+
+		assert.deepStrictEqual({
+			item: fixture.container.querySelector('.customization-discovery-card-name')?.textContent,
+			status: fixture.container.querySelector('.customization-discovery-browse .customization-discovery-state')?.textContent,
+			busy: fixture.container.querySelector('.customization-discovery-browse')?.getAttribute('aria-busy'),
+			accessible: fixture.page.getAccessibilityContent().includes('Loading customizations... 1 of 2 sources loaded.'),
+		}, {
+			item: 'fast-source',
+			status: 'Loading customizations... 1 of 2 sources loaded.',
+			busy: 'true',
+			accessible: true,
+		});
+
+		await fixture.requests[0].result.complete({ items: [resource('fast-source'), resource('slow-source')] });
+	});
+
+	test('rate limits Browse loading announcements', async () => {
+		const ariaHost = DOM.append(mainWindow.document.body, DOM.$('div'));
+		store.add(toDisposable(() => ariaHost.remove()));
+		setARIAContainer(ariaHost);
+		const fixture = createPage(['agentFinder', 'copilotConnectors', 'other']);
+		fixture.page.setVisible(true);
+		fixture.requests[0].onProgress?.({
+			page: { items: [resource('fast-source')] },
+			completedSourceIds: ['agentFinder'],
+			cachedSourceIds: [],
+			totalSourceCount: 3,
+		});
+		fixture.requests[0].onProgress?.({
+			page: { items: [resource('fast-source'), resource('second-source')] },
+			completedSourceIds: ['agentFinder', 'copilotConnectors'],
+			cachedSourceIds: [],
+			totalSourceCount: 3,
+		});
+		const immediate = [...ariaHost.querySelectorAll('.monaco-status')].map(element => element.textContent).filter(Boolean);
+
+		await timeout(1_050);
+		const settled = [...ariaHost.querySelectorAll('.monaco-status')].map(element => element.textContent).filter(Boolean);
+		await fixture.requests[0].result.complete({ items: [resource('fast-source'), resource('second-source')] });
+
+		assert.deepStrictEqual({ immediate, settled }, {
+			immediate: ['Loading customizations... 1 of 3 sources loaded.'],
+			settled: ['Loading customizations... 2 of 3 sources loaded.'],
+		});
+	});
+
+	test('reports settled Browse telemetry once when no content loads', async () => {
+		const browseSections = new DeferredPromise<ICustomizationMarketplaceBrowseSections>();
+		const fixture = createPage(
+			['agentFinder', 'copilotConnectors'],
+			[AICustomizationManagementSection.Skills, AICustomizationManagementSection.McpServers],
+			[],
+			undefined,
+			[],
+			browseSections.p,
+		);
+		fixture.page.setVisible(true);
+		fixture.requests[0].onProgress?.({
+			page: { items: [] },
+			completedSourceIds: ['agentFinder'],
+			cachedSourceIds: ['agentFinder'],
+			totalSourceCount: 2,
+		});
+		fixture.reportBrowseSectionsProgress({
+			result: {
+				sourceId: CustomizationMarketplaceSources.AgentFinderPublicFeed.id,
+				sections: [],
+			},
+			completedSectionCount: 1,
+			cachedSectionCount: 2,
+			totalSectionCount: 3,
+		});
+		await fixture.requests[0].result.complete({ items: [] });
+		await browseSections.complete({
+			sourceId: CustomizationMarketplaceSources.AgentFinderPublicFeed.id,
+			sections: [],
+		});
+		await timeout(0);
+
+		assert.deepStrictEqual(
+			fixture.telemetry
+				.filter(event => event.name === 'chatCustomizationMarketplace.browseLoaded')
+				.map(event => ({
+					timeToFirstContentMs: event.data.timeToFirstContentMs,
+					hasSettledTime: typeof event.data.timeToSettledMs === 'number' && event.data.timeToSettledMs >= 0,
+					sourceCount: event.data.sourceCount,
+					cachedSourceCount: event.data.cachedSourceCount,
+				})),
+			[{
+				timeToFirstContentMs: -1,
+				hasSettledTime: true,
+				sourceCount: 5,
+				cachedSourceCount: 3,
+			}],
+		);
+	});
+
 	test('renders curated Browse sections in feed order using existing cards', async () => {
 		const editorsPicks = [
 			resource('impeccable', { displayName: 'Impeccable', mediaType: CustomizationMarketplaceMediaType.Skill, description: 'Improve interface design.' }),
@@ -2481,7 +2683,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			catalogVisibleBeforeFeeds,
 			restoredBeforeFeeds,
 			visible: fixture.page.getAccessibilityContent().match(/^(?:catalog-featured|search-result|fresh-featured|curated-featured)$/gm),
-			telemetry: fixture.telemetry.map(event => ({ name: event.name, ...event.data })),
+			telemetry: fixture.telemetry.filter(event => event.name === 'chatCustomizationMarketplace.browseRendered').map(event => ({ name: event.name, ...event.data })),
 		}, {
 			queries: [undefined, 'mail', undefined],
 			catalogVisibleBeforeFeeds: true,
