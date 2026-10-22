@@ -96,14 +96,14 @@ export const sessionsConfiguration = {
 				localize('sessions.list.externalApplicationBadge.title', "Show the creating application next to the session title."),
 				localize('sessions.list.externalApplicationBadge.details', "Show the creating application first in the session details."),
 			],
-			description: localize('sessions.list.externalApplicationBadge', "Controls where external sessions created in another application show the creating application."),
+			description: localize('sessions.list.externalApplicationBadge', "Controls where sessions created in an application other than VS Code show the creating application."),
 			default: ExternalSessionApplicationBadgeMode.Title,
 			experiment: { mode: 'auto' }
 		},
 		[SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING]: {
 			type: 'boolean',
 			tags: ['experimental', 'advanced'],
-			description: localize('sessions.list.externalApplicationBadge.showFrom', "Controls whether external session application badges include the word 'From'."),
+			description: localize('sessions.list.externalApplicationBadge.showFrom', "Controls whether session application badges include the word 'From'."),
 			default: true,
 			experiment: { mode: 'auto' }
 		},

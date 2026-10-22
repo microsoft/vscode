@@ -562,6 +562,8 @@ function isFailingCheck(check: PullRequestCheck): boolean {
 /** Adds Agent Host session metadata pills to a workbench chat input. */
 export class AgentHostSessionInputPills extends Disposable {
 
+	/** Binds operations to the displayed diff, not a newer changeset publication. */
+	private readonly _fileChangeNonces = new WeakMap<IEditSessionEntryDiff, string>();
 	private readonly _browserChanged = observableSignal(this);
 	private readonly _browserListeners = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _pullRequestHoverCache = this._register(new ChatPillHoverCache());
@@ -667,10 +669,10 @@ export class AgentHostSessionInputPills extends Disposable {
 		const sessionWorkingSetChangeset = derived(this, reader => sessionState.read(reader)?.changesets
 			?.find(changeset => changeset.changeKind === ChangesetKind.WorkingSet && !changeset.uriTemplate.includes('{')));
 		// Only inputs that can show the working set swap the Changes pill for it, so the Agents window keeps its pill.
-		const workingSetSupported = derived(this, reader => this._widget.inputPart.supportsSessionWorkingSet
-			&& workingSetConfigured.read(reader)
+		const workingSetAvailable = derived(this, reader => this._widget.inputPart.supportsSessionWorkingSet
 			&& isCopilotAgentHostProvider(sessionState.read(reader)?.provider)
 			&& !subagentChat.read(reader));
+		const workingSetSupported = derived(this, reader => workingSetAvailable.read(reader) && workingSetConfigured.read(reader));
 		const workingSetEnabled = derived(this, reader => workingSetSupported.read(reader)
 			&& (sessionWorkingSetChangeset.read(reader) !== undefined
 				|| selectableChangesets.read(reader)?.some(({ changeset }) => changeset.changeKind === ChangesetKind.Session) === true));
@@ -773,7 +775,13 @@ export class AgentHostSessionInputPills extends Disposable {
 				return [];
 			}
 			return files
-				.map(file => agentHostChangesetFileToEntryDiff(file, currentResolution.connectionAuthority))
+				.map(file => {
+					const diff = agentHostChangesetFileToEntryDiff(file, currentResolution.connectionAuthority);
+					if (diff && file.nonce !== undefined) {
+						this._fileChangeNonces.set(diff, file.nonce);
+					}
+					return diff;
+				})
 				.filter(isDefined);
 		});
 		const workingSetChanges = derived(this, reader => {
@@ -1005,6 +1013,11 @@ export class AgentHostSessionInputPills extends Disposable {
 				stats: changeStats,
 				label: derived(this, reader => changesetTarget.read(reader)?.changeset.label ?? localize('agentHostSessionPills.changes', "Changes")),
 				open: () => this._openChanges(changesetTarget.get()?.changeset, changes.get()),
+				getContextMenuPrimaryActions: () => workingSetAvailable.get() ? [toAction({
+					id: 'chat.sessionWorkingSet.showWorkingSet',
+					label: localize('agentHostSessionPills.showWorkingSet', "Show Working Set"),
+					run: () => this._configurationService.updateValue(ChatConfiguration.EditorWorkingSetEnabled, true),
+				})] : [],
 			},
 			pullRequests: createSessionPullRequestPillData(pullRequestSections, visibility.pullRequests, pullRequestIcon),
 			issues: { sections: issueSections, icon: issueIcon },
@@ -1470,22 +1483,30 @@ export class AgentHostSessionInputPills extends Disposable {
 					failures.push(...diffs.slice(i).map(remaining => ({ fileName: basename(remaining.modifiedURI), message: messages.unverified })));
 					break;
 				}
-				const current = state.files
-					.map(file => agentHostChangesetFileToEntryDiff(file, connectionAuthority))
-					.find(candidate => candidate && isEqual(candidate.modifiedURI, diff.modifiedURI));
+				const currentFile = state.files.find(file => {
+					const candidate = agentHostChangesetFileToEntryDiff(file, connectionAuthority);
+					return candidate && isEqual(candidate.modifiedURI, diff.modifiedURI);
+				});
+				const current = currentFile && agentHostChangesetFileToEntryDiff(currentFile, connectionAuthority);
 				if (!current) {
 					// The file's changes are already gone.
 					continue;
 				}
-				if (!isSameSessionFileChange(current, diff)) {
+				const nonce = this._fileChangeNonces.get(diff);
+				if (!isSameSessionFileChange(current, diff) || (nonce !== undefined && nonce !== currentFile?.nonce)) {
 					failures.push({ fileName, message: messages.changed(fileName) });
 					continue;
 				}
+				// The agent may change the file while it works, so a Working Set operation names the changes that were shown.
 				try {
 					await connection.invokeChangesetOperation({
 						channel: channelKey,
 						operationId: operation.id,
-						target: { kind: ChangesetOperationTargetKind.Resource, resource: connection.resourceUris.toAgentHost(diff.modifiedURI).toString() },
+						target: {
+							kind: ChangesetOperationTargetKind.Resource,
+							resource: connection.resourceUris.toAgentHost(diff.modifiedURI).toString(),
+							...(nonce !== undefined ? { nonce } : {}),
+						},
 					});
 					succeeded++;
 				} catch (error) {

@@ -1,0 +1,183 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.computer-use-setup-dialog .computer-use-setup-app-icon {
+	width: 64px;
+	height: 64px;
+	font-size: 64px;
+	line-height: 64px;
+	color: var(--vscode-icon-foreground);
+}
+
+.computer-use-setup-dialog .computer-use-setup-app-icon > img {
+	display: none;
+}
+
+.computer-use-setup-dialog .computer-use-setup-app-icon.has-image::before {
+	content: none;
+}
+
+.computer-use-setup-dialog .computer-use-setup-app-icon.has-image > img {
+	display: block;
+	width: 64px;
+	height: 64px;
+}
+
+.computer-use-setup-dialog .computer-use-setup {
+	/* The dialog's surface is translucent, so strokes and fills tint the foreground rather than use opaque colors. */
+	--computer-use-setup-stroke: var(--vscode-contrastBorder, color-mix(in srgb, var(--vscode-foreground) 14%, transparent));
+	display: flex;
+	flex-direction: column;
+	align-self: stretch;
+	gap: var(--vscode-spacing-size160);
+	width: 400px;
+	max-width: 100%;
+	margin-top: var(--vscode-spacing-size40);
+	text-align: start;
+}
+
+.computer-use-setup-dialog .computer-use-setup-description {
+	margin: 0;
+	text-align: center;
+	text-wrap: balance;
+	color: var(--vscode-descriptionForeground);
+}
+
+.computer-use-setup-dialog .computer-use-setup-permissions {
+	display: flex;
+	flex-direction: column;
+	border: var(--vscode-strokeThickness) solid var(--computer-use-setup-stroke);
+	border-radius: var(--vscode-cornerRadius-medium);
+}
+
+.computer-use-setup-dialog .computer-use-setup-permission {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size120);
+	min-height: 32px;
+	padding: var(--vscode-spacing-size100) var(--vscode-spacing-size120);
+}
+
+.computer-use-setup-dialog .computer-use-setup-permission + .computer-use-setup-permission {
+	border-top: var(--vscode-strokeThickness) solid var(--computer-use-setup-stroke);
+}
+
+.computer-use-setup-dialog .computer-use-setup-permission-icon {
+	flex-shrink: 0;
+	color: var(--vscode-icon-foreground);
+}
+
+.computer-use-setup-dialog .computer-use-setup-permission-text {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	min-width: 0;
+}
+
+.computer-use-setup-dialog .computer-use-setup-permission-name {
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.computer-use-setup-dialog .computer-use-setup-permission-description {
+	font-size: var(--vscode-fontSize-body2);
+	color: var(--vscode-descriptionForeground);
+}
+
+.computer-use-setup-dialog .computer-use-setup-permission-status {
+	flex-shrink: 0;
+	color: var(--vscode-descriptionForeground);
+}
+
+.computer-use-setup-dialog .computer-use-setup-permission-status.granted {
+	color: var(--vscode-testing-iconPassed);
+}
+
+.computer-use-setup-dialog .computer-use-setup-permission-action,
+.computer-use-setup-dialog .computer-use-setup-helper-app-action {
+	display: flex;
+	flex-shrink: 0;
+}
+
+.computer-use-setup-dialog .computer-use-setup-permission-action > .monaco-button,
+.computer-use-setup-dialog .computer-use-setup-helper-app-action > .monaco-button {
+	width: fit-content;
+	white-space: nowrap;
+}
+
+.computer-use-setup-dialog .computer-use-setup-settings-step {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size100);
+	padding: var(--vscode-spacing-size120);
+	border: var(--vscode-strokeThickness) dashed var(--computer-use-setup-stroke);
+	border-radius: var(--vscode-cornerRadius-medium);
+	text-wrap: balance;
+}
+
+.computer-use-setup-dialog .computer-use-setup-helper-app {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--vscode-spacing-size80);
+}
+
+.computer-use-setup-dialog .computer-use-setup-helper-app-chip {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	min-width: 0;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size100) var(--vscode-spacing-size40) var(--vscode-spacing-size40);
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);
+	border-radius: var(--vscode-cornerRadius-small);
+	background-color: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
+	cursor: grab;
+	user-select: none;
+}
+
+.computer-use-setup-dialog .computer-use-setup-helper-app-chip:active {
+	cursor: grabbing;
+}
+
+.computer-use-setup-dialog .computer-use-setup-helper-app-grip {
+	color: var(--vscode-descriptionForeground);
+}
+
+.computer-use-setup-dialog .computer-use-setup-helper-app-icon {
+	width: 24px;
+	height: 24px;
+	flex-shrink: 0;
+}
+
+.computer-use-setup-dialog .computer-use-setup-helper-app-icon.missing {
+	display: none;
+}
+
+.computer-use-setup-dialog .computer-use-setup-helper-app-name {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.computer-use-setup-dialog .computer-use-setup-message {
+	text-align: center;
+	text-wrap: balance;
+	color: var(--vscode-descriptionForeground);
+}
+
+.computer-use-setup-dialog .computer-use-setup-message.error {
+	color: var(--vscode-errorForeground);
+}
+
+.computer-use-setup-dialog .computer-use-setup-message.success {
+	color: var(--vscode-foreground);
+}
+
+.computer-use-setup-dialog .computer-use-setup-actions:empty {
+	display: none;
+}
+
+.computer-use-setup-dialog .computer-use-setup-actions > .monaco-button {
+	width: 100%;
+}

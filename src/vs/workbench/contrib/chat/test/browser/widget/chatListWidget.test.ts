@@ -53,6 +53,7 @@ import { MockChatService } from '../../common/chatService/mockChatService.js';
 import { MockChatSessionsService } from '../../common/mockChatSessionsService.js';
 import { MockLanguageModelToolsService } from '../../common/tools/mockLanguageModelToolsService.js';
 import { IChatModelFeedbackSurveyService } from '../../../browser/feedbackSurvey/chatModelFeedbackSurveyService.js';
+import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { MockChatModelFeedbackSurveyService } from '../feedbackSurvey/mockChatModelFeedbackSurveyService.js';
 import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../../common/promptTimeline.js';
@@ -160,7 +161,8 @@ suite('ChatListWidget', () => {
 				},
 			}],
 		});
-		const { model, container, widget } = createWidget({}, undefined, false, contextMenuService, editorResolverService);
+		const { model, container, widget, contextKeyService } = createWidget({}, undefined, false, contextMenuService, editorResolverService);
+		const createOverlay = sinon.spy(contextKeyService, 'createOverlay');
 		const requestText = 'Show documentation';
 		const request = model.addRequest({
 			text: requestText,
@@ -180,6 +182,7 @@ suite('ChatListWidget', () => {
 		link.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
 
 		const menuDelegate = contextMenuDelegate as IContextMenuMenuDelegate | undefined;
+		const withoutSelection = new Map(createOverlay.lastCall.args[0]).get(ChatContextKeys.contextMenuHasResponseSelection.key);
 		const actionContext = menuDelegate?.getActionsContext?.();
 		if (!isChatContextMenuActionContext(actionContext)) {
 			assert.fail('Expected a chat context menu action context.');
@@ -191,6 +194,27 @@ suite('ChatListWidget', () => {
 			linkTarget: 'file:///workspace/README.md',
 			itemKind: 'response',
 		});
+
+		const selection = mainWindow.getSelection();
+		assert.ok(selection);
+		store.add(toDisposable(() => selection.removeAllRanges()));
+		const range = mainWindow.document.createRange();
+		range.selectNodeContents(link);
+		selection.removeAllRanges();
+		selection.addRange(range);
+		link.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
+		const selectionDelegate = contextMenuDelegate as IContextMenuMenuDelegate | undefined;
+		const selectionContext = selectionDelegate?.getActionsContext?.();
+		if (!isChatContextMenuActionContext(selectionContext)) {
+			assert.fail('Expected a chat context menu action context.');
+		}
+		selection.removeAllRanges();
+		assert.deepStrictEqual({
+			text: selectionContext.responseSelection?.text,
+			response: selectionContext.responseSelection?.response === selectionContext.item,
+			hasSelection: new Map(createOverlay.lastCall.args[0]).get(ChatContextKeys.contextMenuHasResponseSelection.key),
+			withoutSelection,
+		}, { text: 'Documentation', response: true, hasSelection: true, withoutSelection: false });
 	});
 
 	test('shows Open With only for resources backed by a file system provider', () => {
@@ -798,6 +822,88 @@ suite('ChatListWidget', () => {
 			{ showButton: true, atBottom: false },
 		]);
 	});
+
+	for (const isSessionsWindow of [false, true]) {
+		for (const activation of ['click', 'Enter', ' '] as const) {
+			test(`scroll arrow returns to the bottom with ${activation === ' ' ? 'Space' : activation} in ${isSessionsWindow ? 'sessions' : 'workbench'} chat`, async () => {
+				const { model, container, widget } = createWidget({}, undefined, isSessionsWindow);
+				container.classList.add('interactive-session');
+				container.style.setProperty('--vscode-editorWidget-border', 'rgb(40, 50, 60)');
+				container.style.setProperty('--vscode-editorWidget-background', 'rgb(10, 20, 30)');
+				container.style.setProperty('--vscode-icon-foreground', 'rgb(70, 80, 90)');
+				const button = container.querySelector<HTMLElement>('.chat-scroll-down');
+				assert.ok(button);
+				const buttonStyle = mainWindow.getComputedStyle(button);
+				assert.deepStrictEqual({
+					label: button.textContent?.trim(),
+					ariaLabel: button.getAttribute('aria-label'),
+					role: button.getAttribute('role'),
+					tabIndex: button.tabIndex,
+					iconHidden: button.querySelector('.codicon')?.getAttribute('aria-hidden'),
+					display: button.style.display,
+					borderColor: buttonStyle.borderColor,
+					borderWidth: buttonStyle.borderWidth,
+					borderStyle: buttonStyle.borderStyle,
+					background: buttonStyle.backgroundColor,
+					foreground: buttonStyle.color,
+				}, {
+					label: '',
+					ariaLabel: 'Scroll to Latest',
+					role: 'button',
+					tabIndex: 0,
+					iconHidden: 'true',
+					display: 'none',
+					borderColor: 'rgb(40, 50, 60)',
+					borderWidth: '1px',
+					borderStyle: 'solid',
+					background: 'rgb(10, 20, 30)',
+					foreground: 'rgb(70, 80, 90)',
+				});
+
+				for (let i = 0; i < 10; i++) {
+					const text = `question ${i}`;
+					const request = model.addRequest({
+						text,
+						parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+					}, { variables: [] }, 0);
+					model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(`response ${i}`) });
+				}
+				widget.refresh();
+				widget.layout(300, 500);
+				await waitForStableLayout(widget);
+				widget.setScrollLock(false);
+				widget.scrollTop = 0;
+				await waitForStableLayout(widget);
+
+				assert.deepStrictEqual({
+					overflows: widget.scrollHeight > widget.renderHeight,
+					atBottom: widget.isScrolledToBottom,
+					display: button.style.display,
+				}, { overflows: true, atBottom: false, display: 'flex' });
+
+				if (activation === 'click') {
+					button.click();
+				} else {
+					button.focus();
+					const event = new KeyboardEvent('keydown', {
+						key: activation,
+						code: activation === 'Enter' ? 'Enter' : 'Space',
+						bubbles: true,
+					});
+					// StandardKeyboardEvent reads keyCode; mirror its tests without relying on KeyboardEventInit support.
+					Object.defineProperty(event, 'keyCode', { get: () => activation === 'Enter' ? 13 : 32 });
+					button.dispatchEvent(event);
+				}
+				await waitForStableLayout(widget);
+
+				assert.deepStrictEqual({
+					atBottom: widget.isScrolledToBottom,
+					scrollLock: widget.scrollLock,
+					display: button.style.display,
+				}, { atBottom: true, scrollLock: true, display: 'none' });
+			});
+		}
+	}
 
 	// The bottom padding counts towards the scroll height, so `scrollToEnd` has to
 	// scroll through it or the list never reports being at the bottom - which both
@@ -1621,7 +1727,7 @@ suite('ChatListWidget', () => {
 
 		const requestValue = container.querySelector<HTMLElement>('.monaco-list-rows > .monaco-list-row.request .interactive-item-container > .value');
 		assert.ok(requestValue);
-		const children = Array.from(requestValue.children);
+		const children = Array.from(requestValue.children).filter(child => child.checkVisibility());
 		assert.deepStrictEqual({
 			attachmentIndex: children.findIndex(child => child.classList.contains('chat-attached-context')),
 			messageIndex: children.findIndex(child => child.classList.contains('rendered-markdown')),

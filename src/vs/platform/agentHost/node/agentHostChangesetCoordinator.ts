@@ -19,6 +19,7 @@ import { getWorkingDirectoryKey } from '../common/agentHostWorkingDirectories.js
 import { ChatOriginKind, isAhpChatChannel, parseSubagentSessionUri, type SessionConfigState } from '../common/state/sessionState.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { getSummaryChangesetKind } from './agentHostChangesetSummary.js';
+import { getSessionSummarySources } from './agentHostChatsInUse.js';
 import { resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSource } from './agentHostBranchChangesetScope.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 
@@ -73,6 +74,8 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
 			if (envelope.action.type === ActionType.SessionChatRemoved) {
 				this._onChatRemoved(envelope.channel, envelope.action.chat);
+			} else if (envelope.action.type === ActionType.ChatIsArchivedChanged) {
+				this._onChatArchivedChanged(envelope.channel);
 			}
 		}));
 	}
@@ -342,13 +345,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	}
 
 	private _reconcileBranchSummaryResources(session: string): void {
-		const defaultChat = this._chatOwnership.getDefaultChat(session);
-		const desiredSources = new Set([
-			...(defaultChat !== undefined ? [defaultChat] : []),
-			...this._stateManager.getSessionState(session)?.chats
-				.map(chat => chat.resource)
-				.filter(candidate => candidate !== defaultChat) ?? [],
-		]);
+		const desiredSources = new Set(getSessionSummarySources(this._stateManager, session, this._chatOwnership.getDefaultChat(session)));
 		for (const source of desiredSources) {
 			this._ensureBranchSummarySubscription(source);
 		}
@@ -394,7 +391,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	private _onChatRemoved(session: string, chat: string): void {
 		// A moved chat keeps its own changesets.
 		if (this._stateManager.chatRemovalReason(session, chat) === ChatRemovalReason.Moved) {
-			this._reconcileRemovedChatBranchSummary(session);
+			this._reconcileObservedBranchSummary(session);
 			return;
 		}
 		for (const resource of this._pendingChangesetSubscriptions.keys()) {
@@ -405,10 +402,17 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		this._changesetFileMonitor.onSessionDisposed(chat);
 		this._changesetSubscriptions.clearSessionSubscriptions(chat);
 		this._changesets.onChangesetOwnerRemoved?.(chat);
-		this._reconcileRemovedChatBranchSummary(session);
+		this._reconcileObservedBranchSummary(session);
 	}
 
-	private _reconcileRemovedChatBranchSummary(session: string): void {
+	private _onChatArchivedChanged(chat: string): void {
+		const session = this._chatOwnership.getChatOwner(chat);
+		if (session) {
+			this._reconcileObservedBranchSummary(session);
+		}
+	}
+
+	private _reconcileObservedBranchSummary(session: string): void {
 		if (this._changesetSubscriptions.getSessionSubscriptions(session).has(session)
 			&& getSummaryChangesetKind(this._stateManager.getSessionState(session)?.config?.values) === ChangesetKind.Branch) {
 			this._reconcileBranchSummaryResources(session);

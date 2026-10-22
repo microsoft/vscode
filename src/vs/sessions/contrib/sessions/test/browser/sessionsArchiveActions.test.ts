@@ -71,6 +71,7 @@ suite('Sessions - Bulk archive undo', () => {
 			override readonly onDidReplaceNewDraftSession = Event.None;
 			override readonly onDidStartSession = Event.None;
 			override readonly onDidDiscardNewSession = Event.None;
+			override readonly onDidMoveChat = Event.None;
 			override getSessions() { return sessions.map(entry => entry.session); }
 			override getInFlightNewSessionRequests() { return []; }
 			override getSession(resource: URI) {
@@ -127,7 +128,7 @@ suite('Sessions - Bulk archive undo', () => {
 		const notification = new class extends mock<SessionsListNotification>() {
 			override show(notice: ISessionsListNotice) {
 				state.message = notice.message;
-				state.undo = () => notice.undo();
+				state.undo = () => notice.undo!();
 				state.notices++;
 			}
 		};
@@ -447,6 +448,7 @@ suite('Sessions - Delete group undo', () => {
 			override readonly onDidReplaceNewDraftSession = Event.None;
 			override readonly onDidStartSession = Event.None;
 			override readonly onDidDiscardNewSession = Event.None;
+			override readonly onDidMoveChat = Event.None;
 			override getSessions() { return sessions; }
 			override getInFlightNewSessionRequests() { return []; }
 		});
@@ -487,7 +489,7 @@ suite('Sessions - Delete group undo', () => {
 		// The sessions list drops the positions of deleted groups.
 		orderService.retain(topLevelIds());
 		const afterDelete = describe();
-		await notices[0].undo();
+		await notices[0].undo!();
 
 		assert.deepStrictEqual({ noticesForSingleGroup, message: notices[0].message, afterDelete, restored: describe() }, {
 			noticesForSingleGroup: 0,

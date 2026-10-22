@@ -259,6 +259,25 @@ suite('Workbench GitHub service', () => {
 		await assert.rejects(service.acquireDefaultAccountClient(signal()), { kind: 'authentication' });
 	});
 
+	test('acquires a client when the default account is first restored during startup', async () => {
+		const { service, state, defaultChanged } = setup();
+		const account = state.account;
+		const restored = new DeferredPromise<IDefaultAccount | null>();
+		state.account = null;
+		defaultChanged.fire(null);
+		state.pendingDefaultAccount = restored.p;
+
+		const pending = service.acquireDefaultAccountApiClient(signal());
+		state.account = account;
+		defaultChanged.fire(account);
+		await restored.complete(account);
+		const client = store.add(await pending);
+
+		assert.deepStrictEqual(client.authorization, {
+			providerId: 'github', sessionId: 'session', accountId: 'account', scopes: ['repo'],
+		});
+	});
+
 	for (const change of ['scopes', 'issuer', 'removed'] as const) {
 		test(`rejects a stale default selection after ${change} changes and permits a fresh lookup`, async () => {
 			const staleSession = session();

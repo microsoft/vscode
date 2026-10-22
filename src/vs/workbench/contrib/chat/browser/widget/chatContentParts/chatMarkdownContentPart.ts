@@ -1016,7 +1016,7 @@ export class CollapsedCodeBlock extends ChatEditPillElement {
 		const isStreaming = derived(r => {
 			const entry = editSession.readEntry(uri, r);
 			const currentlyModified = entry?.isCurrentlyBeingModifiedBy.read(r);
-			return !!currentlyModified && currentlyModified.responseModel.requestId === this.requestId && currentlyModified.undoStopId === this.inUndoStop;
+			return !!currentlyModified && currentlyModified.responseModel?.requestId === this.requestId && currentlyModified.undoStopId === this.inUndoStop;
 		});
 
 		// Set the icon/classes while edits are streaming

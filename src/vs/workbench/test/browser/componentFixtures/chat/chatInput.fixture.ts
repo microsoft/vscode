@@ -56,7 +56,7 @@ function createMockEditingSession(files: { uri: string; added: number; removed: 
 	});
 
 	return new class extends mock<IChatEditingSession>() {
-		override readonly isGlobalEditingSession = false;
+		override readonly isGlobalEditingSession = constObservable(false);
 		override readonly chatSessionResource = URI.parse('chat-session:test-session');
 		override readonly onDidDispose = Event.None;
 		override readonly state = observableValue('state', ChatEditingSessionState.Idle);
@@ -299,6 +299,38 @@ export default defineThemedFixtureGroup({ path: 'chat/input/' }, {
 				{ uri: 'file:///workspace/src/components/long-component-name.test.ts', added: 35, removed: 2 },
 			]),
 		})
+	}),
+	WithNotificationAndSessionWorkingSet: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderChatInput(context, {
+			notification: sampleNotification,
+			sessionWorkingSet: true,
+			editingSession: createMockEditingSession([{ uri: 'file:///workspace/src/math.ts', added: 8, removed: 0 }]),
+		}),
+	}),
+	FocusedWithNotificationAndSessionWorkingSet: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderChatInput(context, {
+			notification: sampleNotification,
+			sessionWorkingSet: true,
+			focusInput: true,
+			editingSession: createMockEditingSession([{ uri: 'file:///workspace/src/math.ts', added: 8, removed: 0 }]),
+		}),
+	}),
+	FocusedWithSessionWorkingSet: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderChatInput(context, {
+			sessionWorkingSet: true,
+			focusInput: true,
+			editingSession: createMockEditingSession([{ uri: 'file:///workspace/src/math.ts', added: 8, removed: 0 }]),
+		}),
+	}),
+	WithSessionWorkingSetReviewDisabled: defineComponentFixture({
+		render: context => renderChatInput(context, {
+			sessionWorkingSet: true,
+			sessionWorkingSetReviewEnabled: false,
+			editingSession: createMockEditingSession([{ uri: 'file:///workspace/src/math.ts', added: 8, removed: 0 }]),
+		}),
 	}),
 	WithSessionWorkingSetOverflow: defineComponentFixture({
 		render: context => renderChatInput(context, {

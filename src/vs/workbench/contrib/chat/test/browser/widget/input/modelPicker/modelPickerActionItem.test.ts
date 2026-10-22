@@ -438,7 +438,7 @@ suite('ModelPickerActionItem', () => {
 		const fusion: ILanguageModelChatMetadataAndIdentifier = {
 			...auto,
 			metadata: {
-				...auto.metadata, name: 'Copilot Fusion', autoModelFusion: { balanceUsesHydraFusion: false }, autoModelProviderTiers: true,
+				...auto.metadata, name: 'Copilot Fusion', autoModelFusion: true, autoModelProviderTiers: true,
 				configurationSchema: { properties: { tier: { type: 'string', group: 'navigation', title: 'Effort Level', enum: ['balance', 'hydrafusion', 'hydrafusion-max'], enumItemLabels: ['Standard', 'High', 'Max'], default: 'balance' } } },
 			},
 		};

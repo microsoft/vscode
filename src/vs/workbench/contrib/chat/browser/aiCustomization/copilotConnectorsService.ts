@@ -18,8 +18,10 @@ import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import { gitHubCopilotResource } from '../../../../../platform/agentHost/common/githubEndpoints.js';
 import { IGitHubAccountClient } from '../../../../../platform/github/common/account/account.js';
 import { ConnectorCatalog, ConnectorPlugin, copilotConnectorsScope } from '../../../../../platform/github/common/connectors/connectors.js';
+import { deriveGitHubEndpoints } from '../../../../../platform/github/common/githubEndpoints.js';
 import { GitHubAuthorizationContext, GitHubRequestError, isEqualAuthorization } from '../../../../../platform/github/common/githubTypes.js';
 import { SchemaError } from '../../../../../platform/github/common/client/schema.js';
 import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceEntry, ICustomizationMarketplaceProvider, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
@@ -45,6 +47,8 @@ const refreshInterval = 60_000;
 const connectionPollInterval = 2_000;
 const connectionTimeout = 5 * 60_000;
 const requestTimeout = 30_000;
+/** Scopes of the Copilot credential forwarded to the Agent Host; Connectors are only available on GitHub.com. */
+const copilotCredentialScopes = gitHubCopilotResource(deriveGitHubEndpoints(undefined)).scopes_supported ?? [];
 
 export class CopilotConnectorsError extends Error {
 	constructor(message: string, readonly statusCode?: number) {
@@ -311,9 +315,11 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 		if (!authentication) {
 			throw connectorSignInRequired();
 		}
-		// Connector-owned Agent Host servers use the Copilot session credential, so only a session that also keeps
-		// the default session's scopes authorizes them; a narrow Connector-only session is not enough.
-		const authorized = authentication.sessions.find(session => hasConnectorScope(session, false) && authentication.session.scopes.every(scope => session.scopes.includes(scope)));
+		// Connector-owned Agent Host servers use the Copilot credential the Agent Host is given, which is resolved for
+		// the Copilot resource's scopes. Only a session that keeps those and the default session's scopes can become
+		// that credential; a narrower Connector session is never forwarded, even when it covers a narrow default session.
+		const requiredScopes = distinct([...authentication.session.scopes, ...copilotCredentialScopes]);
+		const authorized = authentication.sessions.find(session => hasConnectorScope(session, false) && requiredScopes.every(scope => session.scopes.includes(scope)));
 		if (authorized) {
 			this._authorizationRequired = false;
 			return authorized;
@@ -327,7 +333,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 		try {
 			const session = await raceCancellationError(this.authenticationService.createSession(
 				authentication.account.authenticationProvider.id,
-				distinct([...authentication.session.scopes, copilotConnectorsScope]),
+				distinct([...requiredScopes, copilotConnectorsScope]),
 				{ account: authentication.session.account },
 			), cancellation.token);
 			const account = this.defaultAccountService.currentDefaultAccount;
