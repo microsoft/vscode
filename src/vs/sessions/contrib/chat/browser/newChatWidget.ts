@@ -1523,7 +1523,7 @@ export class NewChatWidget extends Disposable {
 		return {
 			description: localize('newSessionWorkspacePicker.noWorkspaceDescription', "Start without a backing workspace"),
 			isSelected: isWorkspacePickerQuickChat,
-			selectedLabel: activeProvider && activeProvider.id !== LOCAL_AGENT_HOST_PROVIDER_ID
+			selectedLabel: activeProvider && activeProvider.id !== LOCAL_AGENT_HOST_PROVIDER_ID && !environment?.providerIds.includes(activeProvider.id)
 				? localize('newSessionWorkspacePicker.remoteQuickChat', "Chat [{0}]", activeProvider.label)
 				: undefined,
 			select: () => {
