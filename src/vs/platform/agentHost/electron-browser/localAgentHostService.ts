@@ -832,6 +832,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._getManagementService().getMissionControlEnvironmentId();
 	}
 
+	getMissionControlEnvironmentName(): Promise<string | undefined> {
+		return this._getManagementService().getMissionControlEnvironmentName();
+	}
+
 }
 
 function hasSessionExtensions(config: IAgentCreateSessionConfig): boolean {

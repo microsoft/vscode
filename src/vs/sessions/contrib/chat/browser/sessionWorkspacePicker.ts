@@ -454,14 +454,14 @@ export class WorkspacePicker extends Disposable {
 		};
 	}
 
-	matchesSelectedWorkspace(workspace: ISessionWorkspace): boolean {
+	matchesSelectedWorkspace(workspace: ISessionWorkspace, reader?: IReader): boolean {
 		const folderUri = workspace.folders[0]?.root;
 		if (folderUri && this._selectedFolderUri && this.uriIdentityService.extUri.isEqual(folderUri, this._selectedFolderUri)) {
 			return true;
 		}
 
-		const selectedRepositoryId = this._getCurrentRepositoryId();
-		return selectedRepositoryId !== undefined && selectedRepositoryId === this._getRepositoryId(workspace);
+		const selectedRepositoryId = this._getCurrentRepositoryId(reader);
+		return selectedRepositoryId !== undefined && selectedRepositoryId === this._getRepositoryId(workspace, reader);
 	}
 
 	constructor(

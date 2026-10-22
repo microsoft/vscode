@@ -25,6 +25,9 @@ export const IMissionControlSharingService = createDecorator<IMissionControlShar
 export interface IMissionControlSharingService {
 	readonly _serviceBrand: undefined;
 	readonly state: IObservable<'disabled' | 'connecting' | 'enabled'>;
+	/** Machine-local name override used when registering this environment. */
+	readonly environmentName: IObservable<string | undefined>;
+	setEnvironmentName(name: string): Promise<void>;
 	setEnabled(enabled: boolean): Promise<void>;
 	/** Supplies the local folder catalogue from the window's workspace-selection surface. */
 	setProjectFolders(folders: readonly URI[]): void;

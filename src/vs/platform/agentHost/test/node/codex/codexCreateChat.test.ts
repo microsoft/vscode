@@ -36,6 +36,7 @@ import { ActionType } from '../../../common/state/sessionActions.js';
 import { CustomizationType, McpServerStatus } from '../../../common/state/protocol/channels-session/state.js';
 import type { IAgentServerToolDefinition, IAgentServerToolHost } from '../../../common/agentServerTools.js';
 import { CodexSessionConfigKey, type CodexPermissionsPreset } from '../../../common/codexSessionConfigKeys.js';
+import { CODEX_COPILOT_MODEL_PROVIDER } from '../../../common/codexModelSelection.js';
 import { IAgentPluginManager } from '../../../common/agentPluginManager.js';
 import { ISessionDataService, type ISessionDatabase } from '../../../common/sessionDataService.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../../common/agentHostCheckpointService.js';
@@ -76,7 +77,7 @@ function hostChatContext(session: URI, chat: URI): IAgentChatContext {
 	return { sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: false, owner: fixedChatOwnerRef(session), resource: URI.parse(creationTimeChatStorageResource(session.toString(), chat.toString(), buildDefaultChatUri(session.toString()))) };
 }
 
-const COPILOT_TEST_MODEL = toCodexModelSelectionId('vscode-proxy', 'gpt-test');
+const COPILOT_TEST_MODEL = toCodexModelSelectionId(CODEX_COPILOT_MODEL_PROVIDER, 'gpt-test');
 
 interface ITestWireRequest {
 	readonly id: number;
@@ -87,6 +88,7 @@ interface ITestWireRequest {
 		readonly threadId?: string;
 		readonly model?: string;
 		readonly modelProvider?: string;
+		readonly serviceTier?: string | null;
 		readonly config?: Readonly<Record<string, JsonValue>>;
 		readonly includeTurns?: boolean;
 		readonly numTurns?: number;
@@ -1682,6 +1684,7 @@ suite('CodexAgent createChat', () => {
 			});
 			const sourceEntry = agent['_sessions'].get('session-source')!;
 			const start = await readNextRequest(peer.outbound);
+			assert.strictEqual(start.params.serviceTier, null);
 			peer.push({ id: start.id, result: { thread: { id: 'source-thread', cwd: folder.fsPath } } });
 			await sourceEntry.materializePromise;
 
@@ -1709,6 +1712,7 @@ suite('CodexAgent createChat', () => {
 			const fork = await readNextRequest(peer.outbound);
 			assert.strictEqual(fork.method, 'thread/fork');
 			assert.strictEqual(fork.params.threadId, 'source-thread');
+			assert.strictEqual(fork.params.serviceTier, null);
 			peer.push({
 				id: fork.id,
 				result: { thread: { id: 'forked-thread', cwd: folder.fsPath }, cwd: folder.fsPath },
@@ -1753,6 +1757,7 @@ suite('CodexAgent createChat', () => {
 			const resume = await readNextRequest(peer.outbound);
 			assert.strictEqual(resume.method, 'thread/resume');
 			assert.strictEqual(resume.params.threadId, newThreadId);
+			assert.strictEqual(resume.params.serviceTier, null);
 			peer.push({ id: resume.id, result: { thread: { id: newThreadId, cwd: folder.fsPath }, cwd: folder.fsPath } });
 			const resumeInventory = await readNextRequest(peer.outbound);
 			assert.strictEqual(resumeInventory.method, 'mcpServerStatus/list');
