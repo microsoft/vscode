@@ -744,28 +744,63 @@ suite('GitHubPRFetcher', () => {
 	}
 
 	test('getChanges diffs the changed files from the merge base to the head commit', async () => {
+		const pullRequest = { title: 'Open changes', base: { ref: 'main', sha: 'base-tip' }, head: { sha: 'head-sha' }, changed_files: 1 };
 		mockApi.setResponses(
-			{ title: 'Open changes', base: { sha: 'base-tip' }, head: { sha: 'head-sha' } },
+			pullRequest,
 			{ merge_base_commit: { sha: 'merge-base' } },
 			[{ filename: 'src/new.ts', previous_filename: 'src/old.ts', status: 'renamed', additions: 1, deletions: 2 }],
+			pullRequest,
 		);
 
 		const changes = await fetcher.getChanges('owner', 'repo', 7);
 
-		assert.deepStrictEqual({ changes, calls: mockApi.calls.map(call => call.method === 'repositories.compare' ? call : { method: call.method }) }, {
+		assert.deepStrictEqual({
+			changes,
+			calls: mockApi.calls.map(call => call.method === 'repositories.compare' ? call : { method: call.method }),
+			mutableRequestOptions: mockApi.calls.filter(call => call.method !== 'repositories.compare').map(call => call.args.at(-1)),
+		}, {
 			changes: {
 				title: 'Open changes',
+				baseRef: 'main',
 				baseSha: 'merge-base',
 				headSha: 'head-sha',
+				totalFileCount: 1,
 				files: [{ filename: 'src/new.ts', previous_filename: 'src/old.ts', status: 'renamed', additions: 1, deletions: 2, patch: undefined }],
 			},
 			calls: [
 				{ method: 'pullRequests.get' },
 				{ method: 'repositories.compare', args: [{ owner: 'owner', repo: 'repo' }, 'base-tip', 'head-sha', { query: { per_page: 1 } }] },
 				{ method: 'pullRequests.listFiles' },
+				{ method: 'pullRequests.get' },
+			],
+			mutableRequestOptions: [
+				{ noCache: true },
+				{ noCache: true, query: { page: 1, per_page: 100 }, maxPages: 100 },
+				{ noCache: true },
 			],
 		});
 	});
+
+	for (const change of ['head', 'base', 'baseRef'] as const) {
+		test(`getChanges rejects a file list loaded while the pull request's ${change} changes`, async () => {
+			const pullRequest = { title: 'Open changes', base: { ref: 'main', sha: 'base-tip' }, head: { sha: 'head-1' }, changed_files: 1 };
+			mockApi.setResponses(
+				pullRequest,
+				{ merge_base_commit: { sha: 'merge-base' } },
+				[{ filename: 'new-head-file.ts', status: 'added', additions: 1, deletions: 0 }],
+				{
+					...pullRequest,
+					head: { sha: change === 'head' ? 'head-2' : pullRequest.head.sha },
+					base: {
+						ref: change === 'baseRef' ? 'release' : pullRequest.base.ref,
+						sha: change === 'base' ? 'new-base-tip' : pullRequest.base.sha,
+					},
+				},
+			);
+
+			await assert.rejects(fetcher.getChanges('owner', 'repo', 7), /Pull request #7 changed while loading its files/);
+		});
+	}
 
 	test('computeMergeability detects draft blocker', () => {
 		const pr = makePR({ state: GitHubPullRequestState.Open, isDraft: true, mergeable: true, mergeableState: 'clean' });

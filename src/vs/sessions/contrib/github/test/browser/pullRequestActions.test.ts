@@ -15,7 +15,6 @@ import { isIMenuItem, MenuRegistry } from '../../../../../platform/actions/commo
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { INotificationService, NotificationMessage } from '../../../../../platform/notification/common/notification.js';
 import { IResourceMultiDiffEditorInput, isResourceMultiDiffEditorInput } from '../../../../../workbench/common/editor.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { Menus } from '../../../../browser/menus.js';
@@ -24,10 +23,10 @@ import { SessionHasPullRequestContext } from '../../../../common/contextkeys.js'
 import { IGitHubPullRequestRef, ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import '../../browser/pullRequestActions.js';
+import { createPullRequestChangesEditorInput } from '../../browser/pullRequestChangesMultiDiffSourceResolver.js';
 import { SessionPullRequestPresentationModel } from '../../browser/pullRequestIconStatus.js';
 import { IGitHubService } from '../../browser/githubService.js';
-import { GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPullRequest, IGitHubPullRequestChanges, OPEN_PULL_REQUEST_CHANGES_ACTION_ID } from '../../common/types.js';
-import { parsePRContentUri } from '../../common/utils.js';
+import { GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPullRequest, OPEN_PULL_REQUEST_CHANGES_ACTION_ID } from '../../common/types.js';
 import { GitHubPullRequestModel } from '../../browser/models/githubPullRequestModel.js';
 import { GitHubPullRequestCIModel } from '../../browser/models/githubPullRequestCIModel.js';
 import { GitHubPullRequestReviewThreadsModel } from '../../browser/models/githubPullRequestReviewThreadsModel.js';
@@ -323,31 +322,14 @@ suite('Pull Request Actions', () => {
 		assert.deepStrictEqual(clipboardService.writes, [secondPullRequestUri.toString(true)]);
 	});
 
-	test('Open Pull Request Changes opens the pull request diff in a multi-file diff editor', async () => {
+	test('Open Pull Request Changes opens the pull request changes editor input', async () => {
 		const pullRequest = { owner: 'upstream', repo: 'project', number: 7, uri: URI.parse('https://github.com/upstream/project/pull/7') };
-		const titles = ['Open pull request changes in a multi diff editor', 'Fix typo'];
-		const changes: Omit<IGitHubPullRequestChanges, 'title'> = {
-			baseSha: 'merge-base',
-			headSha: 'head',
-			files: [
-				{ filename: 'added.ts', previous_filename: undefined, status: 'added', additions: 1, deletions: 0 },
-				{ filename: 'new-name.ts', previous_filename: 'old-name.ts', status: 'renamed', additions: 1, deletions: 1 },
-				{ filename: 'removed.ts', previous_filename: undefined, status: 'removed', additions: 0, deletions: 1 },
-			],
-		};
-		const requested: unknown[][] = [];
 		const opened: IResourceMultiDiffEditorInput[] = [];
 		let revealed = 0;
 
 		const instantiationService = new TestInstantiationService();
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			override readonly activeSession = constObservable(undefined);
-		});
-		instantiationService.stub(IGitHubService, new class extends mock<IGitHubService>() {
-			override async getPullRequestChanges(...args: unknown[]): Promise<IGitHubPullRequestChanges> {
-				requested.push(args);
-				return { ...changes, title: titles[requested.length - 1] };
-			}
 		});
 		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
 			override async openEditor(...args: unknown[]): Promise<undefined> {
@@ -362,69 +344,16 @@ suite('Pull Request Actions', () => {
 				revealed++;
 			}
 		});
-		instantiationService.stub(INotificationService, new class extends mock<INotificationService>() { });
-
-		for (let run = 0; run < titles.length; run++) {
-			await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(OPEN_PULL_REQUEST_CHANGES_ACTION_ID)!.handler(accessor, { pullRequest }));
-		}
-
-		const side = (resource: URI | undefined) => {
-			const content = resource && parsePRContentUri(resource);
-			return content && `${content.fileName}@${content.commitSha}`;
-		};
-		assert.deepStrictEqual({
-			requested,
-			revealed,
-			labels: opened.map(editor => editor.label),
-			pinned: opened.map(editor => editor.options?.pinned),
-			multiDiffSource: opened[0]?.multiDiffSource?.toString(true),
-			resources: opened[0]?.resources?.map(resource => [side(resource.original.resource), side(resource.modified.resource)]),
-		}, {
-			requested: [['upstream', 'project', 7], ['upstream', 'project', 7]],
-			revealed: 2,
-			labels: ['#7 Open pull request...', '#7 Fix typo'],
-			pinned: [true, true],
-			multiDiffSource: 'multi-diff-editor:/upstream/project/pull/7/merge-base...head',
-			resources: [
-				[undefined, 'added.ts@head'],
-				['old-name.ts@merge-base', 'new-name.ts@head'],
-				['removed.ts@merge-base', undefined],
-			],
-		});
-	});
-
-	test('Open Pull Request Changes reports a failure to load the pull request changes', async () => {
-		const pullRequest = { owner: 'upstream', repo: 'project', number: 7, uri: URI.parse('https://github.com/upstream/project/pull/7') };
-		const errors: string[] = [];
-		let opened = 0;
-
-		const instantiationService = new TestInstantiationService();
-		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable(undefined);
-		});
-		instantiationService.stub(IGitHubService, new class extends mock<IGitHubService>() {
-			override async getPullRequestChanges(): Promise<IGitHubPullRequestChanges> {
-				throw new Error('Not found');
-			}
-		});
-		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
-			override async openEditor(): Promise<undefined> {
-				opened++;
-				return undefined;
-			}
-		});
-		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() { });
-		instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
-			override error(message: NotificationMessage): void {
-				errors.push(String(message));
-			}
-		});
 
 		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(OPEN_PULL_REQUEST_CHANGES_ACTION_ID)!.handler(accessor, { pullRequest }));
 
-		assert.deepStrictEqual({ errors, opened }, {
-			errors: ['Could not load the changes of pull request #7: Not found'],
-			opened: 0,
+		const expected = createPullRequestChangesEditorInput(pullRequest);
+		assert.deepStrictEqual({
+			revealed,
+			opened: opened.map(editor => ({ multiDiffSource: editor.multiDiffSource?.toString(true), label: editor.label, pinned: editor.options?.pinned, resources: editor.resources })),
+		}, {
+			revealed: 1,
+			opened: [{ multiDiffSource: expected.multiDiffSource?.toString(true), label: '#7', pinned: true, resources: undefined }],
 		});
 	});
 

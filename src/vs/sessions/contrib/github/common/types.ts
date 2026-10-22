@@ -58,10 +58,12 @@ export interface IGitHubChangedFile {
  */
 export interface IGitHubPullRequestChanges {
 	readonly title: string;
+	readonly baseRef: string;
 	/** The merge base of the pull request's base and head commits (the original side of the diff). */
 	readonly baseSha: string;
 	/** The pull request's head commit (the modified side of the diff). */
 	readonly headSha: string;
+	readonly totalFileCount: number;
 	readonly files: readonly IGitHubChangedFile[];
 }
 
