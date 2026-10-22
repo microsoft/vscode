@@ -180,6 +180,8 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	private _gptLivePassiveSpeechStarted = false;
 	private _gptLiveDelegationId: string | undefined;
 	private _gptLiveInputTranscript = '';
+	private _gptLiveInputContext: string | undefined;
+	private _gptLiveInputContextAllowed: boolean | undefined;
 	private readonly _gptLiveDelegations = new Set<string>();
 	private _gptLiveOutputTranscript = '';
 	private _gptLiveOutputStarted = false;
@@ -194,7 +196,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	private _gptLiveInputStartMs: number | undefined;
 	private _gptLiveInputLastStartMs: number | undefined;
 	private _gptLiveInputEndMs: number | undefined;
-	private readonly _gptLiveInputs: { text: string; target: IVoiceLiveInputTarget; turnId?: string; startMs?: number; lastStartMs?: number; endMs?: number; delegated: boolean; answeredByVoice: boolean }[] = [];
+	private readonly _gptLiveInputs: { text: string; context?: string; voiceResponse: string | undefined; target: IVoiceLiveInputTarget; turnId?: string; startMs?: number; lastStartMs?: number; endMs?: number; delegated: boolean; answeredByVoice: boolean }[] = [];
 	private _gptLiveContext: IVoiceSessionContext | undefined;
 	private _gptLiveInstructionsSent = false;
 	private readonly _gptLiveRequest = this._register(new MutableDisposable<CancellationTokenSource>());
@@ -741,10 +743,17 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 					for (const input of this._gptLiveInputs) {
 						if (input.answeredByVoice) {
 							input.delegated = true;
+							if (input.voiceResponse === undefined) {
+								input.text = '';
+							}
 						}
 					}
 				}
 				this._gptLiveInputTarget ??= this._gptLiveInputRouter.captureTarget();
+				this._gptLiveInputContextAllowed ??= this._canRetainGptLiveVoiceContext(this._gptLiveInputTarget);
+				if (!this._gptLiveInputTranscript) {
+					this._gptLiveInputContext = this._gptLiveInputContextAllowed ? this._captureGptLiveVoiceContext(this._gptLiveInputTarget) : undefined;
+				}
 				const delta = asOptionalString(event.delta) ?? '';
 				if (typeof event.start_ms === 'number' && Number.isFinite(event.start_ms)) {
 					this._gptLiveInputStartMs ??= event.start_ms;
@@ -780,11 +789,14 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 				if (!this._gptLiveOutputStarted && !this._gptLiveInputTarget?.session?.pending) {
 					this._finalizeGptLiveInput();
 				}
-				const input = this._gptLiveInputs.findLast(candidate => !candidate.delegated && !candidate.target.session?.pending);
-				if (input) {
-					input.answeredByVoice = true;
-				}
+				const input = this._gptLiveInputs.at(-1);
 				const delta = asOptionalString(event.delta) ?? '';
+				if (input && !input.target.session?.pending && !this._gptLiveOutputSuppressedUntilInput) {
+					input.answeredByVoice = true;
+					if (input.voiceResponse !== undefined) {
+						input.voiceResponse += delta;
+					}
+				}
 				this._gptLiveOutputTranscript += delta;
 				if (!this._gptLiveOutputStarted) {
 					if (!this._gptLiveOutputInterrupted && !this._gptLiveOutputSuppressedUntilInput) {
@@ -842,9 +854,18 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 						break;
 					}
 					input.delegated = true;
+					input.answeredByVoice = false;
+					input.voiceResponse = input.voiceResponse === undefined ? undefined : '';
 					const result = this._gptLiveInputRouter.resolve(delegationId, input.text, input.target);
 					if (result.toolCall) {
-						this._onToolCall.fire({ ...result.toolCall, ...(input.turnId ? { turnId: input.turnId } : {}) });
+						const toolCall = result.toolCall;
+						this._onToolCall.fire({
+							...toolCall,
+							args: toolCall.name === 'send_to_chat' && input.context
+								? { ...toolCall.args, text: localize('voice.live.conversationContext', "Voice conversation context:\n{0}\n\nUser: {1}", input.context, input.text) }
+								: toolCall.args,
+							...(input.turnId ? { turnId: input.turnId } : {}),
+						});
 					} else {
 						this._sendGptLiveAppend('session.commentary.append', result.clarification, delegationId);
 					}
@@ -858,6 +879,30 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 				this._onError.fire(asOptionalString(event.message) ?? asOptionalString(event.error?.message) ?? localize('voice.gptLive.error', "OpenAI GPT-Live reported an error."));
 				break;
 		}
+	}
+
+	private _canRetainGptLiveVoiceContext(target: IVoiceLiveInputTarget): boolean {
+		if (!target.hasContext || target.session?.pending || (target.session && target.session.agent_state !== 'idle')) {
+			return false;
+		}
+		const current = this._gptLiveContext?.sessions.find(session => session.id === target.session?.id);
+		return !target.session || (current?.agent_state === 'idle' && !current.pending);
+	}
+
+	private _captureGptLiveVoiceContext(target: IVoiceLiveInputTarget): string | undefined {
+		if (!this._canRetainGptLiveVoiceContext(target)) {
+			return undefined;
+		}
+		const turns: string[] = [];
+		for (let index = this._gptLiveInputs.length - 1; index >= 0; index--) {
+			const input = this._gptLiveInputs[index];
+			if (!input.answeredByVoice || !input.voiceResponse || input.target.session?.pending
+				|| input.target.hasContext !== target.hasContext || input.target.session?.id !== target.session?.id) {
+				break;
+			}
+			turns.push(localize('voice.live.conversationTurn', "User: {0}\nVoice assistant: {1}", input.text, input.voiceResponse));
+		}
+		return turns.length ? turns.reverse().join('\n\n') : undefined;
 	}
 
 	private _finalizeGptLiveInput(): void {
@@ -874,6 +919,8 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		}
 		this._gptLiveInputs.push({
 			text,
+			context: this._gptLiveInputContext,
+			voiceResponse: this._gptLiveInputContextAllowed ? '' : undefined,
 			target: this._gptLiveInputTarget ?? this._gptLiveInputRouter.captureTarget(),
 			turnId: this._gptLiveTurnId,
 			startMs: this._gptLiveInputStartMs,
@@ -886,6 +933,8 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			this._gptLiveInputs.shift();
 		}
 		this._gptLiveInputTranscript = '';
+		this._gptLiveInputContext = undefined;
+		this._gptLiveInputContextAllowed = undefined;
 		this._gptLiveInputTarget = undefined;
 		this._gptLiveInputStartMs = undefined;
 		this._gptLiveInputLastStartMs = undefined;
@@ -1235,6 +1284,8 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		this._usingGptLive = false;
 		this._gptLiveSessionInitSent = false;
 		this._gptLiveTurnId = undefined;
+		this._gptLiveInputContext = undefined;
+		this._gptLiveInputContextAllowed = undefined;
 		this._gptLivePassiveTurn = false;
 		this._gptLivePassiveSpeechStarted = false;
 		this._gptLiveDelegationId = undefined;
@@ -1312,6 +1363,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			this._gptLiveTurnId = turnId;
 			this._gptLiveInputTranscript = '';
 			this._gptLiveInputTarget = options.passive ? undefined : this._gptLiveInputRouter.captureTarget();
+			this._gptLiveInputContextAllowed = this._gptLiveInputTarget ? this._canRetainGptLiveVoiceContext(this._gptLiveInputTarget) : undefined;
 			this._gptLiveInputStartMs = undefined;
 			this._gptLiveInputLastStartMs = undefined;
 			this._gptLiveInputEndMs = undefined;
@@ -1373,6 +1425,16 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			const previousContext = this._gptLiveContext;
 			const previous = previousContext?.sessions.find(session => session.is_active);
 			this._gptLiveContext = sessionContext;
+			for (const input of this._gptLiveInputs) {
+				if (!this._canRetainGptLiveVoiceContext(input.target)) {
+					input.context = undefined;
+					input.voiceResponse = undefined;
+				}
+			}
+			if (this._gptLiveInputTarget && !this._canRetainGptLiveVoiceContext(this._gptLiveInputTarget)) {
+				this._gptLiveInputContext = undefined;
+				this._gptLiveInputContextAllowed = false;
+			}
 			const grounding = (session: typeof active) => session ? { id: session.id, label: session.label, state: session.agent_state, pending_type: session.pending?.type } : null;
 			if (!previousContext || previousContext.display_locale !== sessionContext.display_locale) {
 				this._sendGptLiveAppend('session.instructions.append', `Voice language: ${JSON.stringify(sessionContext.display_locale)}. Speak in this language and interpret the user's speech in it when possible.`, null);
@@ -1650,6 +1712,9 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 
 	prepareForInputTargetChange(): void {
 		if (this._usingGptLive) {
+			for (const input of this._gptLiveInputs) {
+				input.voiceResponse = undefined;
+			}
 			this._gptLiveOutputSuppressedUntilInput = true;
 			this._updateGptLiveAudioMuted();
 		}
