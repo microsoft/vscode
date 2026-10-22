@@ -1647,6 +1647,16 @@ suite('TabbedModelPicker', () => {
 		});
 	});
 
+	test('the Copilot Fusion row describes Fusion in its tooltip', () => {
+		const rowTitle = (popup: HTMLElement, label: string) => Array.from(popup.querySelectorAll<HTMLElement>('.chat-model-picker-model')).find(row => row.querySelector('.title')?.textContent === label)?.title;
+		const fusion = createPicker({ models: [...models, createFusionModel()], selectedModelId: models[0].identifier });
+		const auto = createPicker({ models: [...models, createAutoModel()], selectedModelId: models[0].identifier });
+		assert.deepStrictEqual({ fusion: rowTitle(fusion.popup, copilotFusionName), auto: rowTitle(auto.popup, 'Auto') }, {
+			fusion: 'Copilot Fusion selects a single model or orchestrates multiple models to complete your task.',
+			auto: 'Auto \u00b7 Balance',
+		});
+	});
+
 	test('Fusion does not offer HydraFusion Max beside provider tiers that hide it', () => {
 		const fusion = createFusionModel();
 		const providerFusion: ILanguageModelChatMetadataAndIdentifier = {
