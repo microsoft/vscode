@@ -175,7 +175,7 @@ async function renderReferences(ctx: ComponentFixtureContext, scenario: Scenario
 	let finishHoverConstruction: (() => void) | undefined;
 	try {
 		renderPills(ctx, session, {
-			height: referenceList ? '420px' : resourcePreview ? '600px' : dedicatedCollection ? '280px' : '420px',
+			height: referenceList ? '420px' : resourcePreview ? '600px' : dedicatedCollection ? '320px' : '420px',
 			width: referenceList ? '700px' : scenario === 'single' ? '660px' : '1200px',
 			popupPlacement: 'above',
 			prepareServices: services => {
@@ -260,7 +260,7 @@ async function renderReferences(ctx: ComponentFixtureContext, scenario: Scenario
 			? scenario === 'cold' ? 'Cold cache: IDs stay in front while titles are pending.' : 'Resolved titles: IDs stay in the same leading position.'
 			: 'Click a collection, then hover or focus a row for details. Escape returns to the pills.';
 	const toolbar = container.querySelector<HTMLElement>('.session-chat-input-toolbar')!;
-	toolbar.style.top = referenceList ? '330px' : scenario === 'single' ? '52px' : resourcePreview ? '450px' : `${toolbar.offsetTop}px`;
+	toolbar.style.top = referenceList ? '330px' : scenario === 'single' ? '52px' : resourcePreview ? '450px' : dedicatedCollection ? '200px' : `${toolbar.offsetTop}px`;
 	toolbar.style.bottom = 'auto';
 
 	// Icon fonts must be ready before the dropdown measures row widths.
