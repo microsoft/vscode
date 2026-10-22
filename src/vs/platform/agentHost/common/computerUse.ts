@@ -78,9 +78,10 @@ export const computerUseSetupStates = ['needsPermissions', 'working', 'ready', '
 export type ComputerUseSetupState = typeof computerUseSetupStates[number];
 
 /**
- * - `allow`: get a permission turned on. The host shows the native macOS prompt the first time it asks for the
- *   permission in this Agent Host process, because macOS shows it only once per app, and opens the permission's pane
- *   in System Settings after that.
+ * - `allow`: get a permission turned on. The first time the host asks for the permission in this Agent Host process, it
+ *   shows the native macOS prompt, which macOS shows only once per app. After that it opens the permission's pane in
+ *   System Settings. The plugin offers the pane only after a native request in its current loop, so in a new loop the
+ *   host first sends a native request that macOS keeps silent, and opens the pane on the plugin's next prompt.
  * - `recheck`: restart Copilot Computer Use's helper, which some grants need to take effect, and verify again.
  */
 export const computerUseActions = ['allow', 'recheck'] as const;

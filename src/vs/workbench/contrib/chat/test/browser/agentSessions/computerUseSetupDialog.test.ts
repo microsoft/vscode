@@ -14,6 +14,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import type { ComputerUsePermission, ComputerUsePermissionState, IComputerUseSetupActionV1, IComputerUseSetupV1, IComputerUseStatusV1 } from '../../../../../../platform/agentHost/common/computerUse.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
+import { MockKeybindingService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILayoutService } from '../../../../../../platform/layout/browser/layoutService.js';
 import { IHostService } from '../../../../../services/host/browser/host.js';
 import { ComputerUseSetupDialog, ComputerUseSetupPanel, getComputerUseSetupView, type IComputerUseHelperAppSupport, type IComputerUseSetupModel } from '../../../browser/agentSessions/agentHost/computerUseSetupDialog.js';
@@ -302,17 +303,22 @@ suite('Computer Use setup modal', () => {
 		}));
 	});
 
-	test('opens as a modal without buttons of its own, focused on the current step, and closes itself once its setup stops waiting', async () => {
+	function createDialog(model: TestSetupModel) {
 		const disposables = store.add(new DisposableStore());
 		const container = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
 		disposables.add(toDisposable(() => container.remove()));
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ILayoutService, { activeContainer: container });
-		instantiationService.stub(IKeybindingService, {});
+		instantiationService.stub(IKeybindingService, new MockKeybindingService());
 		instantiationService.stub(IHostService, { onDidChangeFocus: Event.None, setWindowDimmed: async () => { } });
+		const dialog = disposables.add(instantiationService.createInstance(ComputerUseSetupDialog, model, 'setup-1'));
+		return { container, dialog };
+	}
+
+	test('opens as a modal without buttons of its own, focused on the current step, and closes itself once its setup stops waiting', async () => {
 		const model = new TestSetupModel();
 		model.status.set(needsBoth, undefined);
-		const dialog = disposables.add(instantiationService.createInstance(ComputerUseSetupDialog, model, 'setup-1'));
+		const { container, dialog } = createDialog(model);
 		let closed = false;
 		const shown = dialog.show().then(() => { closed = true; });
 		const open = {
@@ -327,6 +333,22 @@ suite('Computer Use setup modal', () => {
 			open: { buttons: 0, title: 'Set Up Computer Use', focused: 'Allow Accessibility in System Settings', refreshDecoration: '' },
 			closed: true,
 			modal: false,
+		});
+	});
+
+	test('closes on Escape without buttons of its own, leaving the setup waiting', async () => {
+		const model = new TestSetupModel();
+		model.status.set(needsBoth, undefined);
+		const { container, dialog } = createDialog(model);
+		const shown = dialog.show();
+		const focused = mainWindow.document.activeElement;
+		for (const type of ['keydown', 'keyup']) {
+			focused?.dispatchEvent(new KeyboardEvent(type, { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+		}
+		await shown;
+		assert.deepStrictEqual({ focusedInModal: !!focused && container.contains(focused), requests: model.requests }, {
+			focusedInModal: true,
+			requests: [],
 		});
 	});
 });
