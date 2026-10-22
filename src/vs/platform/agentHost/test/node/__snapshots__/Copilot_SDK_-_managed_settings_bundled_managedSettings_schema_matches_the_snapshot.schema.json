@@ -76,6 +76,14 @@
 				"type": "boolean"
 			}
 		},
+		"requireBase64ImageAttachments": {
+			"description": "When true, requires base64-encoded image attachments instead of attachment URLs. False or unset preserves existing behavior.",
+			"type": "boolean",
+			"default": false,
+			"x-composition": {
+				"strategy": "highest-layer-wins"
+			}
+		},
 		"vscode": {
 			"description": "VS Code-specific managed preferences. Preserved by the shared runtime for VS Code to consume; the runtime and other clients do not interpret these preferences. Delivered through server-managed or file-based settings, not native MDM.",
 			"type": "object",
@@ -193,10 +201,10 @@
 				"description": "Shared settings-engine annotations are descriptive, not a complete specification of this runtime's composition rules. Use managedSettings.compose for the runtime's effective result."
 			}
 		},
-		"ensembleTier": {
-			"description": "Managed Ensemble tier, used with the virtual auto model. A bare tier locks the preference; an overridable wrapper supplies a default. Presence in any managed source suppresses autoTier across all sources. Explicit unmanaged means no managed tier and no legacy fallback. When no source supplies ensembleTier, responses expose legacy efficiency and balance as balance and intelligence as high; these compatibility aliases do not change the legacy runtime preference. Never synthesize autoTier from ensembleTier.",
+		"fusionTier": {
+			"description": "Managed Fusion tier for the virtual auto model. Standard uses Auto Balance; High uses HydraFusion with Auto Intelligence as fallback; Max uses HydraFusion Max. A bare tier locks the preference; an overridable wrapper supplies a default. Presence in any managed source suppresses autoTier across all sources. Explicit unmanaged means no managed tier and no legacy fallback. When no source supplies fusionTier, responses expose legacy efficiency and balance as standard and intelligence as high without changing legacy execution. Never synthesize autoTier from fusionTier.",
 			"examples": [
-				"balance",
+				"standard",
 				"high",
 				"max",
 				"unmanaged",
@@ -208,7 +216,7 @@
 				{
 					"type": "string",
 					"enum": [
-						"balance",
+						"standard",
 						"high",
 						"max",
 						"unmanaged"
@@ -220,7 +228,7 @@
 						"overridable": {
 							"type": "string",
 							"enum": [
-								"balance",
+								"standard",
 								"high",
 								"max",
 								"unmanaged"
@@ -237,7 +245,7 @@
 				"allowOverridable": true,
 				"strategy": "enum-order-wins",
 				"collapseStrategy": "enum-order-permissive-wins",
-				"description": "Uses the existing Auto channel precedence among explicit Ensemble settings; legacy Auto settings do not compete."
+				"description": "Uses the existing Auto channel precedence among explicit Fusion settings; legacy Auto settings do not compete."
 			}
 		},
 		"permissions": {
@@ -263,7 +271,7 @@
 					}
 				},
 				"disableAssistedPermissionsMode": {
-					"description": "When true, prevents Assisted Permissions from being activated; an active or requested Assisted mode falls back to Manual Approval. Assisted Permissions uses probabilistic LLM review to reduce prompts and is not a security boundary. Managed permission rules, sandboxing, least-privilege credentials, and egress controls remain the hard boundaries. Unset or false imposes no restriction.",
+					"description": "When true, prevents Assisted Permissions from being activated; an active or requested Assisted mode falls back to Manual Approval. Assisted Permissions uses probabilistic LLM review to reduce confirmation dialogs and is not a security boundary. Managed permission rules, sandboxing, least-privilege credentials, and egress controls remain the hard boundaries. Unset or false imposes no restriction.",
 					"type": "boolean",
 					"x-composition": {
 						"strategy": "most-restrictive-wins",

@@ -13,7 +13,8 @@ import { AgentNetworkFilterService } from '../../../../../../platform/networkFil
 import { AgentNetworkDomainSettingId } from '../../../../../../platform/networkFilter/common/settings.js';
 import { IRemoteExplorerService } from '../../../../../services/remote/common/remoteExplorerService.js';
 import { Tunnel, TunnelModel } from '../../../../../services/remote/common/tunnelModel.js';
-import { IBrowserViewWorkbenchService } from '../../../common/browserView.js';
+import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../../common/browserView.js';
+import { BrowserEditorInput } from '../../../common/browserEditorInput.js';
 import { NavigateBrowserTool } from '../../../electron-browser/tools/navigateBrowserTool.js';
 import { IToolInvocation, ToolProgress } from '../../../../chat/common/tools/languageModelToolsService.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -77,7 +78,7 @@ suite('NavigateBrowserTool', () => {
 		const navigationUrls: (string | undefined)[] = [];
 		const browserViewService = upcastPartial<IBrowserViewWorkbenchService>({
 			getKnownBrowserViews: () => new Map(),
-			willUseRemoteProxy: () => true,
+			resolveNetwork: () => ({ authority: 'remote' }),
 		});
 		const tool = new NavigateBrowserTool(
 			upcastPartial<IPlaywrightService>({
@@ -137,7 +138,7 @@ suite('NavigateBrowserTool', () => {
 		let invocationCount = 0;
 		const browserViewService = upcastPartial<IBrowserViewWorkbenchService>({
 			getKnownBrowserViews: () => new Map(),
-			willUseRemoteProxy: () => false,
+			resolveNetwork: () => undefined,
 		});
 		const tool = new NavigateBrowserTool(
 			upcastPartial<IPlaywrightService>({
@@ -179,9 +180,11 @@ suite('NavigateBrowserTool', () => {
 		configService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['localhost']);
 		const networkFilterService = disposables.add(new AgentNetworkFilterService(configService));
 		const navigationUrls: (string | undefined)[] = [];
+		// A page created on a remote network keeps it, even when new pages would not use one.
+		const remotePage = upcastPartial<BrowserEditorInput>({ model: upcastPartial<IBrowserViewModel>({ network: { authority: 'remote' } }) });
 		const browserViewService = upcastPartial<IBrowserViewWorkbenchService>({
-			getKnownBrowserViews: () => new Map(),
-			willUseRemoteProxy: () => false,
+			getKnownBrowserViews: () => new Map([['remote-page', remotePage]]),
+			resolveNetwork: () => undefined,
 		});
 		const tool = new NavigateBrowserTool(
 			upcastPartial<IPlaywrightService>({
@@ -194,21 +197,23 @@ suite('NavigateBrowserTool', () => {
 			browserViewService,
 			createRemoteExplorerService('http://127.0.0.1:4000'),
 		);
-		const parameters = { pageId: 'test-page', type: 'url', url: 'http://localhost:3000/private' };
 
-		await tool.prepareToolInvocation({
-			parameters,
-			toolCallId: 'test-tool-call',
-			chatSessionResource: undefined,
-		}, CancellationToken.None);
-		await tool.invoke(
-			upcastPartial<IToolInvocation>({ parameters }),
-			async () => 0,
-			upcastPartial<ToolProgress>({ report: () => { } }),
-			CancellationToken.None,
-		);
+		for (const pageId of ['test-page', 'remote-page']) {
+			const parameters = { pageId, type: 'url', url: 'http://localhost:3000/private' };
+			await tool.prepareToolInvocation({
+				parameters,
+				toolCallId: 'test-tool-call',
+				chatSessionResource: undefined,
+			}, CancellationToken.None);
+			await tool.invoke(
+				upcastPartial<IToolInvocation>({ parameters }),
+				async () => 0,
+				upcastPartial<ToolProgress>({ report: () => { } }),
+				CancellationToken.None,
+			);
+		}
 
-		assert.deepStrictEqual(navigationUrls, ['http://127.0.0.1:4000/private']);
+		assert.deepStrictEqual(navigationUrls, ['http://127.0.0.1:4000/private', 'http://localhost:3000/private']);
 	});
 
 	test('rechecks network policy immediately before navigation', async () => {
@@ -228,7 +233,7 @@ suite('NavigateBrowserTool', () => {
 			networkFilterService,
 			upcastPartial<IBrowserViewWorkbenchService>({
 				getKnownBrowserViews: () => new Map(),
-				willUseRemoteProxy: () => true,
+				resolveNetwork: () => ({ authority: 'remote' }),
 			}),
 			upcastPartial<IRemoteExplorerService>({}),
 		);

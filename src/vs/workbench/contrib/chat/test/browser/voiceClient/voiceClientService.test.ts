@@ -814,6 +814,44 @@ suite('VoiceClientService', () => {
 		});
 	});
 
+	test('preserves the provider error when GPT-Live session creation fails', async () => {
+		const peer = new TestRtcPeerConnection();
+		const mic = new TestMicCaptureService(new TestMediaStream(new TestMediaStreamTrack()));
+		const reason = 'OpenAI GPT-Live session creation failed with status 429: You exceeded your current quota, please check your plan and billing details.';
+		const service = store.add(new class extends TestGptLiveVoiceClientService {
+			protected override async _executeGptLiveSessionCommand(sdp?: string): Promise<GptLiveSessionCommandResult> {
+				if (sdp === undefined) {
+					return { available: true };
+				}
+				throw new Error(reason);
+			}
+		}(peer, mic, productService));
+		const errors: string[] = [];
+		const fatal: IVoiceFatalDisconnect[] = [];
+		store.add(service.onError(error => errors.push(error)));
+		store.add(service.onFatalDisconnect(event => fatal.push(event)));
+
+		await service.connect(createTestWindow());
+
+		assert.deepStrictEqual({
+			errors, fatal, connected: service.isConnected, hosted: !!TestWebSocket.instance, peerCloseCalls: peer.closeCalls, stopCaptureCalls: mic.stopCaptureCalls,
+		}, {
+			errors: [reason], fatal: [{ code: 0, reason, kind: 'fatal' }], connected: false, hosted: false, peerCloseCalls: 1, stopCaptureCalls: 1,
+		});
+	});
+
+	test('preserves the connection error when a GPT-Live peer fails', async () => {
+		const peer = new TestRtcPeerConnection();
+		const service = store.add(new TestGptLiveVoiceClientService(peer, new TestMicCaptureService(new TestMediaStream(new TestMediaStreamTrack())), productService));
+		const fatal: IVoiceFatalDisconnect[] = [];
+		store.add(service.onFatalDisconnect(event => fatal.push(event)));
+		await service.connect(createTestWindow());
+
+		peer.fireConnectionState('failed');
+
+		assert.deepStrictEqual(fatal, [{ code: 0, reason: 'The OpenAI GPT-Live connection was lost.', kind: 'fatal' }]);
+	});
+
 	test('falls back before BYOK selection but not after session creation fails', async () => {
 		const outcomes = [];
 		for (const selected of [false, true]) {

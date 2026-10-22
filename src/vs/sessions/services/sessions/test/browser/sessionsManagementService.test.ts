@@ -9,6 +9,8 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
+import { createErrorWithActions } from '../../../../../base/common/errorMessage.js';
+import { toAction } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, observableValue, waitForState } from '../../../../../base/common/observable.js';
@@ -48,7 +50,7 @@ import { TestPathService } from '../../../../../workbench/test/browser/workbench
 import { SessionTypeAuthRequirement, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionType, ISessionWorkspace, ISideChatSelection, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../common/session.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { IChatMovedEvent, type ICreateNewChatOptions, ISessionChatMoveDestination, type IForkChatOptions, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../common/sessionsProvider.js';
+import { IChatMovedEvent, ISessionChatMoveDestination, type IForkChatOptions, type INestedChatWorkspace, NestedChatWorkspaceError, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration, type ICreateNewChatOptions } from '../../common/sessionsProvider.js';
 import { SessionsManagementService } from '../../browser/sessionsManagementService.js';
 import { VisibleSessions } from '../../browser/visibleSessions.js';
 import { ISessionsManagementService, IActiveSession, IChatDeletedEvent, ICreateNewSessionOptions, inheritableSessionTarget, ISendRequestSentEvent, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
@@ -151,6 +153,11 @@ class TestChatService extends mock<IChatService>() {
 	disposedModelRefs = 0;
 	cancelError: Error | undefined;
 	modelRefAvailable = true;
+	readonly resourcesWithRequests: URI[] = [];
+
+	override getSession(sessionResource: URI): IChatModel | undefined {
+		return this.resourcesWithRequests.some(resource => resource.toString() === sessionResource.toString()) ? { hasRequests: true } as IChatModel : undefined;
+	}
 
 	override async acquireOrLoadSession(sessionResource: URI): Promise<IChatModelReference | undefined> {
 		this.loadedResources.push(sessionResource);
@@ -241,7 +248,7 @@ class TestSessionsProvider extends mock<ISessionsProvider>() {
 	override async setSessionReadState(_sessionId: string, _isRead: boolean): Promise<void> { }
 	override async deleteSession(): Promise<void> { }
 	override async deleteSessions(_sessionIds: readonly string[]): Promise<void> { }
-	override async deleteChat(): Promise<boolean> { return true; }
+	override async deleteChat(_sessionId: string, _chatUri: URI): Promise<boolean> { return true; }
 	override deleteNewSession(_sessionId: string): void { }
 	override async sendRequest(_sessionId: string, _chatResource: URI, _options: ISendRequestOptions): Promise<ISession> { return this._session; }
 	override async createNewChat(): Promise<IChat> { return this._session.mainChat.get(); }
@@ -5405,8 +5412,12 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	const actionableStartupError = createErrorWithActions('Could not start the session', [
+		toAction({ id: 'test.details', label: 'Show Details', run: () => { } }),
+	]);
 	for (const { error, expectedNotifications } of [
 		{ error: new Error('Container setup failed'), expectedNotifications: ['Failed to start session: Container setup failed'] },
+		{ error: actionableStartupError, expectedNotifications: [actionableStartupError] },
 		{ error: new CancellationError(), expectedNotifications: [] },
 		{ error: new WorkspaceNotTrustedError(), expectedNotifications: [] },
 	]) {
@@ -7450,6 +7461,34 @@ suite('SessionsManagementService', () => {
 				});
 			});
 		}
+
+		test('deletes without confirmation only an untitled chat without requests', async () => {
+			const untitled: IChat = { ...stubChat, resource: URI.parse('test:///untitled'), status: constObservable(SessionStatus.Untitled) };
+			const sentUntitled: IChat = { ...stubChat, resource: URI.parse('test:///sent-untitled'), status: constObservable(SessionStatus.Untitled) };
+			const committed: IChat = { ...stubChat, resource: URI.parse('test:///committed'), status: constObservable(SessionStatus.Completed) };
+			const session = stubSession({ sessionId: 'session', providerId: 'test', chats: constObservable([untitled, sentUntitled, committed]) });
+			const providerDeletes: string[] = [];
+			const provider = new class extends TestSessionsProvider {
+				override async deleteChat(_sessionId: string, chatUri: URI): Promise<boolean> {
+					providerDeletes.push(chatUri.toString());
+					return true;
+				}
+			}(session);
+			const { service, chatService } = createSessionsManagementService(session, disposables, provider);
+			chatService.resourcesWithRequests.push(sentUntitled.resource);
+
+			const results = {
+				untitled: await service.deleteChat(session, untitled.resource, { skipConfirmation: true }),
+				sentUntitled: await service.deleteChat(session, sentUntitled.resource, { skipConfirmation: true }),
+				committed: await service.deleteChat(session, committed.resource, { skipConfirmation: true }),
+				committedConfirmed: await service.deleteChat(session, committed.resource),
+			};
+
+			assert.deepStrictEqual({ results, providerDeletes }, {
+				results: { untitled: true, sentUntitled: false, committed: false, committedConfirmed: true },
+				providerDeletes: [untitled.resource.toString(), committed.resource.toString()],
+			});
+		});
 	});
 
 	suite('createNewChatInSession', () => {
@@ -7593,6 +7632,48 @@ suite('SessionsManagementService', () => {
 			const result = await service.createNewChatInSession(session);
 
 			assert.strictEqual(result, undefined);
+		});
+	});
+
+	suite('applyNestedChatWorkspace', () => {
+
+		test('delegates to the provider and propagates its refusal', async () => {
+			const chat: IChat = { ...stubChat, resource: URI.parse('test:///untitled'), status: constObservable(SessionStatus.Untitled) };
+			const session = stubSession({ sessionId: 'workspace', providerId: 'test', chats: constObservable([chat]) });
+			const calls: string[] = [];
+			let refuse = false;
+			const provider = new class extends TestSessionsProvider {
+				constructor() { super(session); }
+				override async applyNestedChatWorkspace(sessionId: string, chatResource: URI, workspace: INestedChatWorkspace, prompt: string): Promise<void> {
+					calls.push(`${sessionId} ${chatResource.toString()} ${workspace.kind} ${prompt}`);
+					if (refuse) {
+						throw new NestedChatWorkspaceError('refused', 'refused by host');
+					}
+				}
+			};
+			const { service } = createSessionsManagementService(session, disposables, provider);
+
+			await service.applyNestedChatWorkspace(session, chat, { kind: 'scratch' }, 'Fix the bug');
+			refuse = true;
+			const error = await service.applyNestedChatWorkspace(session, chat, { kind: 'folder', folder: URI.file('/repo'), isolation: 'folder' }, '').then(() => undefined, e => e);
+
+			assert.deepStrictEqual({
+				calls,
+				error: error instanceof NestedChatWorkspaceError ? error.kind : undefined,
+			}, {
+				calls: [`workspace ${chat.resource.toString()} scratch Fix the bug`, `workspace ${chat.resource.toString()} folder `],
+				error: 'refused',
+			});
+		});
+
+		test('is not supported when the provider is not found', async () => {
+			const session = stubSession({ sessionId: 'orphan', providerId: 'missing-provider' });
+			const provider = new TestSessionsProvider(stubSession({ sessionId: 'other', providerId: 'test' }));
+			const { service } = createSessionsManagementService(session, disposables, provider);
+
+			const error = await service.applyNestedChatWorkspace(session, stubChat, { kind: 'scratch' }, '').then(() => undefined, e => e);
+
+			assert.strictEqual(error instanceof NestedChatWorkspaceError ? error.kind : undefined, 'notSupported');
 		});
 	});
 

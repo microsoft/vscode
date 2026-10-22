@@ -108,11 +108,11 @@ suite('Copilot SDK - managed settings', function () {
 			{
 				name: 'drops concrete-model options for Auto while retaining the routing default',
 				layers: [{ source: 'server', settings: { model: 'auto', effortLevel: 'high', contextTier: 'long_context', autoTier: { overridable: 'intelligence' } } }],
-				values: { model: 'auto', autoTier: 'intelligence', ensembleTier: 'high' },
+				values: { model: 'auto', autoTier: 'intelligence', fusionTier: 'high' },
 				meta: {
 					model: { overridable: true, source: 'server' },
 					autoTier: { overridable: true, source: 'server' },
-					ensembleTier: { overridable: true, source: 'server' },
+					fusionTier: { overridable: true, source: 'server' },
 				},
 				warnings: ['server.contextTier', 'server.effortLevel'],
 			},

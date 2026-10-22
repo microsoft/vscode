@@ -68,23 +68,24 @@ export class AgentHostDiscardChangesOperationContribution extends Disposable imp
 				if (isMultiRootSession(workingDirectories)) {
 					return [];
 				}
-				// Like undoing a file in the editing session's working set, discarding a Working Set file needs no confirmation.
-				return [this._createOperation(changesetKind === ChangesetKind.WorkingSet
-					? undefined
-					: localize('agentHost.changeset.discardSessionChanges.confirmation', "Are you sure you want to discard the session's changes to \'{0}\'? Changes made outside of the session will be kept, except in a file the session created, which is deleted along with any later changes to it. This action cannot be undone."))];
+				// Like undoing a file in the editing session's working set, discarding a Working Set file needs no confirmation,
+				// and it can discard just the hunks of a range.
+				return [changesetKind === ChangesetKind.WorkingSet
+					? this._createOperation(undefined, [ChangesetOperationScope.Resource, ChangesetOperationScope.Range])
+					: this._createOperation(localize('agentHost.changeset.discardSessionChanges.confirmation', "Are you sure you want to discard the session's changes to \'{0}\'? Changes made outside of the session will be kept, except in a file the session created, which is deleted along with any later changes to it. This action cannot be undone."))];
 			}
 			default:
 				return [];
 		}
 	}
 
-	private _createOperation(confirmation: string | undefined): ChangesetOperation {
+	private _createOperation(confirmation: string | undefined, scopes = [ChangesetOperationScope.Resource]): ChangesetOperation {
 		return {
 			id: AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_CHANGES,
 			label: localize('agentHost.changeset.discardChanges', "Discard Changes"),
 			...(confirmation ? { confirmation } : {}),
 			icon: 'discard',
-			scopes: [ChangesetOperationScope.Resource],
+			scopes,
 			status: ChangesetOperationStatus.Idle,
 		} satisfies ChangesetOperation;
 	}

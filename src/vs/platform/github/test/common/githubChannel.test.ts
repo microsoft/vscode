@@ -142,7 +142,7 @@ suite('GitHub anonymous IPC clients', () => {
 		const acquisition = new AbortController();
 		const client = store.add(await remote.acquireAnonymousClient(acquisition.signal));
 		acquisition.abort();
-		const content = await client.content.resolveRef('o', 'r', 'main', signal());
+		const content = await client.content.resolveRef({ owner: 'o', repo: 'r' }, 'main', signal());
 		const result = await client.gist.get('gist-id', signal());
 		const search = await client.search.issues('repo:o/r', signal());
 		assert.deepStrictEqual({
@@ -235,8 +235,8 @@ suite('GitHub anonymous IPC clients', () => {
 			return new Response(requests.length === 1 ? expectedSha : 'content');
 		});
 		const client = store.add(await connect().remote.acquireAnonymousClient(signal()));
-		const sha = await client.content.resolveRef('o', 'r', 'main', signal());
-		const content = await client.content.getRawFile('o', 'r', sha, 'file.txt', signal());
+		const sha = await client.content.resolveRef({ owner: 'o', repo: 'r' }, 'main', signal());
+		const content = await client.content.getRawFile({ owner: 'o', repo: 'r' }, sha, 'file.txt', signal());
 		assert.deepStrictEqual({ sha, content, requests }, {
 			sha: expectedSha, content: 'content',
 			requests: ['https://api.github.com/repos/o/r/commits/main', `https://raw.githubusercontent.com/o/r/${expectedSha}/file.txt`],
@@ -251,8 +251,8 @@ suite('GitHub anonymous IPC clients', () => {
 			return new Response(requests.length === 1 ? commitSha : content);
 		});
 		const client = store.add(await connect().remote.acquireAnonymousClient(signal()));
-		const sha = await client.content.resolveRef('o', 'r', 'main', signal());
-		const result = await client.content.getRawFile('o', 'r', sha, 'folder/file %.json', signal());
+		const sha = await client.content.resolveRef({ owner: 'o', repo: 'r' }, 'main', signal());
+		const result = await client.content.getRawFile({ owner: 'o', repo: 'r' }, sha, 'folder/file %.json', signal());
 		assert.deepStrictEqual({
 			sha, result, urls: requests.map(request => request.url),
 			credentials: requests.map(request => request.credentials),
@@ -270,7 +270,7 @@ suite('GitHub anonymous IPC clients', () => {
 			const content = '\u00e9'.repeat(size / 2);
 			const { connect } = setup(async () => new Response(content));
 			const client = store.add(await connect().remote.acquireAnonymousClient(signal()));
-			assert.strictEqual(await client.content.getRawFile('o', 'r', commitSha, 'file', signal()), content);
+			assert.strictEqual(await client.content.getRawFile({ owner: 'o', repo: 'r' }, commitSha, 'file', signal()), content);
 		});
 	}
 
@@ -281,7 +281,7 @@ suite('GitHub anonymous IPC clients', () => {
 			cancel: () => { void cancelled.complete(); },
 		})));
 		const client = store.add(await connect().remote.acquireAnonymousClient(signal()));
-		await assert.rejects(client.content.getRawFile('o', 'r', commitSha, 'file', signal()), { kind: 'responseTooLarge' });
+		await assert.rejects(client.content.getRawFile({ owner: 'o', repo: 'r' }, commitSha, 'file', signal()), { kind: 'responseTooLarge' });
 		await cancelled.p;
 	});
 
@@ -289,7 +289,7 @@ suite('GitHub anonymous IPC clients', () => {
 		test(`preserves raw HTTP status ${status} across IPC`, async () => {
 			const { connect } = setup(async () => new Response('raw body', { status }));
 			const client = store.add(await connect().remote.acquireAnonymousClient(signal()));
-			await assert.rejects(client.content.getRawFile('o', 'r', commitSha, 'file', signal()), {
+			await assert.rejects(client.content.getRawFile({ owner: 'o', repo: 'r' }, commitSha, 'file', signal()), {
 				kind: status === 202 ? 'malformedResponse' : 'notFound', statusCode: status,
 			});
 		});
@@ -333,7 +333,7 @@ suite('GitHub anonymous IPC clients', () => {
 				return new Response(null, { status: 302, headers: { location } });
 			});
 			const client = store.add(await connect().remote.acquireAnonymousClient(signal()));
-			await assert.rejects(client.content.getRawFile('o', 'r', commitSha, 'file', signal()), { kind: 'authorization', statusCode: 302 });
+			await assert.rejects(client.content.getRawFile({ owner: 'o', repo: 'r' }, commitSha, 'file', signal()), { kind: 'authorization', statusCode: 302 });
 			assert.strictEqual(calls, 1);
 		});
 	}
@@ -560,7 +560,7 @@ suite('GitHub anonymous IPC clients', () => {
 			const client = await remote.acquireAnonymousClient(signal());
 			client.dispose();
 			client.dispose();
-			await assert.rejects(client.content.resolveRef('o', 'r', 'main', signal()), isCancellationError);
+			await assert.rejects(client.content.resolveRef({ owner: 'o', repo: 'r' }, 'main', signal()), isCancellationError);
 		}
 		await connection.flush();
 		assert.deepStrictEqual({ calls, acquisitions: service.acquisitions, releases: service.releases }, {
@@ -581,8 +581,8 @@ suite('GitHub anonymous IPC clients', () => {
 				const { remote, connection } = connect();
 				const client = store.add(await remote.acquireAnonymousClient(signal()));
 				const pending = target === 'rest'
-					? client.content.resolveRef('o', 'r', 'main', signal())
-					: client.content.getRawFile('o', 'r', commitSha, 'file', signal());
+					? client.content.resolveRef({ owner: 'o', repo: 'r' }, 'main', signal())
+					: client.content.getRawFile({ owner: 'o', repo: 'r' }, commitSha, 'file', signal());
 				const rejected = assert.rejects(pending, isCancellationError);
 				const fetchSignal = await started.p;
 				if (release === 'dispose') {
@@ -615,14 +615,14 @@ suite('GitHub anonymous IPC clients', () => {
 		const { remote, connection } = connect();
 		const client = store.add(await remote.acquireAnonymousClient(signal()));
 		const controller = new AbortController();
-		const pending = client.content.resolveRef('o', 'r', 'main', controller.signal);
+		const pending = client.content.resolveRef({ owner: 'o', repo: 'r' }, 'main', controller.signal);
 		const rejected = assert.rejects(pending, isCancellationError);
 		const fetchSignal = await started.p;
 		controller.abort(new CancellationError());
 		await rejected;
 		await connection.flush();
 		await response.complete(new Response('cancelled'));
-		const next = await client.content.resolveRef('o', 'r', 'next', signal());
+		const next = await client.content.resolveRef({ owner: 'o', repo: 'r' }, 'next', signal());
 		assert.deepStrictEqual({ next, aborted: fetchSignal.aborted, releases: service.releases }, { next: commitSha, aborted: true, releases: 0 });
 	});
 
@@ -640,9 +640,9 @@ suite('GitHub anonymous IPC clients', () => {
 		const second = connect('window:2');
 		const firstClient = store.add(await first.remote.acquireAnonymousClient(signal()));
 		const secondClient = store.add(await second.remote.acquireAnonymousClient(signal()));
-		const pending = firstClient.content.resolveRef('o', 'r', 'main', signal());
+		const pending = firstClient.content.resolveRef({ owner: 'o', repo: 'r' }, 'main', signal());
 		const rejected = assert.rejects(pending, isCancellationError);
-		const remaining = secondClient.content.resolveRef('o', 'r', 'main', signal());
+		const remaining = secondClient.content.resolveRef({ owner: 'o', repo: 'r' }, 'main', signal());
 		const fetchSignal = await started.p;
 		await second.connection.flush();
 		firstClient.dispose();
@@ -748,12 +748,12 @@ suite('GitHub authenticated IPC clients', () => {
 			});
 			const { remote } = connect();
 			const client = store.add(await remote.acquireClient(authorization, signal()));
-			const repository = { owner: 'o', name: 'r' };
+			const repository = { owner: 'o', repo: 'r' };
 			for (const operation of [
 				() => client.pullRequests.listForCommit(repository, 'head', signal()),
 				() => client.repositories.getCommit(repository, 'head', signal()),
 				() => client.checks.listRuns(repository, 'head', signal()),
-				() => client.content.resolveRef('o', 'r', 'head', signal()),
+				() => client.content.resolveRef(repository, 'head', signal()),
 			]) {
 				await assert.rejects(operation(), error => {
 					assert.ok(error instanceof GitHubRequestError);
@@ -862,7 +862,7 @@ suite('GitHub authenticated IPC clients', () => {
 		await client.notifications.list(signal(), { priority: 'background' });
 		await client.reviews.listThreadSummaries('PR_1', signal(), { priority: 'visible' });
 		await client.tasks.list(signal(), { priority: 'enrichment' });
-		await client.content.getRawFile('o', 'r', 'a'.repeat(40), 'README.md', signal(), { priority: 'mergeGate' });
+		await client.content.getRawFile({ owner: 'o', repo: 'r' }, 'a'.repeat(40), 'README.md', signal(), { priority: 'mergeGate' });
 		await client.tasks.list(signal());
 		await client.notifications.markRead('42', signal());
 		const released = Event.toPromise(service.onDidReleaseClient.event);
@@ -905,7 +905,7 @@ suite('GitHub authenticated IPC clients', () => {
 			const client = store.add(await (authenticated ? remote.acquireClient(authorization, signal()) : remote.acquireAnonymousClient(signal())));
 			const nodes: string[] = [];
 			for (const noCache of [true, undefined, false, true, undefined]) {
-				nodes.push((await client.content.getBlob('o', 'r', sha, signal(), { noCache })).node_id);
+				nodes.push((await client.content.getBlob({ owner: 'o', repo: 'r' }, sha, signal(), { noCache })).node_id);
 			}
 			assert.deepStrictEqual({ nodes, validators }, {
 				nodes: ['blob-1', 'blob-2', 'blob-2', 'blob-3', 'blob-2'], validators: [null, null, '"2"', null, '"2"'],
@@ -1129,7 +1129,7 @@ suite('GitHub authenticated IPC clients', () => {
 		const abortedForUnrelatedSession = fetchSignal.aborted;
 		first.broker.grants.fire(grantChange);
 		await rejected;
-		await assert.rejects(one.content.getRawFile('o', 'r', 'a'.repeat(40), 'file', signal()), { kind: 'authentication' });
+		await assert.rejects(one.content.getRawFile({ owner: 'o', repo: 'r' }, 'a'.repeat(40), 'file', signal()), { kind: 'authentication' });
 		await response.complete(Response.json([]));
 		assert.deepStrictEqual({ abortedForUnrelatedSession, aborted: fetchSignal.aborted, other: await two.notifications.list(signal()) }, {
 			abortedForUnrelatedSession: false, aborted: true, other: [],
@@ -1180,7 +1180,7 @@ suite('GitHub authenticated IPC clients', () => {
 			const { connect } = setup(async input => new URL(String(input)).pathname === '/user'
 				? Response.json({ id: 101 }) : Response.json(reaction, { status }));
 			const client = store.add(await connect().remote.acquireClient(authorization, signal()));
-			assert.deepStrictEqual(await client.issues.createReaction({ owner: 'o', name: 'r' }, { kind: 'issue', number: 1 }, '+1', signal()), reaction);
+			assert.deepStrictEqual(await client.issues.createReaction({ owner: 'o', repo: 'r' }, { kind: 'issue', number: 1 }, '+1', signal()), reaction);
 		});
 	}
 
@@ -1195,9 +1195,9 @@ suite('GitHub authenticated IPC clients', () => {
 		});
 		const { remote, broker } = connect();
 		const client = store.add(await remote.acquireClient(authorization, signal()));
-		const file = await client.content.getRawFile('o', 'r', 'a'.repeat(40), 'file', signal());
+		const file = await client.content.getRawFile({ owner: 'o', repo: 'r' }, 'a'.repeat(40), 'file', signal());
 		const rawTokenRequests = broker.tokenRequests.length;
-		const redirect = await client.actions.getJobLogRedirect({ owner: 'o', name: 'r' }, 42, signal());
+		const redirect = await client.actions.getJobLogRedirect({ owner: 'o', repo: 'r' }, 42, signal());
 		assert.deepStrictEqual({ file, rawTokenRequests, redirect, requests }, {
 			file: 'file', rawTokenRequests: 0, redirect: { url: 'https://objects.example.test/log?signature=opaque' },
 			requests: [
@@ -1577,7 +1577,7 @@ suite('GitHub authenticated IPC clients', () => {
 			return Response.json({ data: { repository: { pullRequests: queries.length === 1 ? firstPage : secondPage } } });
 		});
 		const client = store.add(await connect().remote.acquireClient(authorization, signal()));
-		const repository = { owner: 'o', name: 'r' };
+		const repository = { owner: 'o', repo: 'r' };
 		const first = await client.pullRequests.listConnection(repository, signal());
 		const second = await client.pullRequests.listConnection(repository, signal(), {
 			caller: 'test.pullRequests', deadline: Date.now() + 10_000,
@@ -1628,7 +1628,7 @@ suite('GitHub authenticated IPC clients', () => {
 			return Response.json({ data });
 		});
 		const client = store.add(await connect().remote.acquireClient(authorization, signal()));
-		const repository = { owner: 'o', name: 'r' };
+		const repository = { owner: 'o', repo: 'r' };
 		assert.deepStrictEqual([
 			await client.pullRequests.listConnection(repository, signal()),
 			await client.pullRequests.listConnection(repository, signal()),
@@ -1640,18 +1640,19 @@ suite('GitHub authenticated IPC clients', () => {
 
 	test('batches closing PR linkage counts and includes closed PRs', async () => {
 		const numbers = [...Array.from({ length: 50 }, (_, index) => index + 1), 2_147_483_647];
-		const batches: { numbers: number[]; variables: { owner: string; name: string }; selections: string[] }[] = [];
+		const batches: { numbers: number[]; variables: { owner: string; repo: string }; selections: string[] }[] = [];
 		const { connect } = setup(async (input, init) => {
 			if (new URL(String(input)).pathname === '/user') {
 				return Response.json({ id: 101 });
 			}
 			const { query, variables } = parseGraphQLRequest(JSON.parse(String(init?.body)));
 			assert.ok(variables);
+			assert.match(query, /query IssueClosingPullRequestCounts\(\$owner: String!, \$repo: String!\) \{\s*repository\(owner: \$owner, name: \$repo\)/);
 			const selections = [...query.matchAll(/issue(?<number>\d+): issue\(number: \d+\) \{\s*closedByPullRequestsReferences\(first: 1, includeClosedPrs: true\) \{ totalCount \}\s*\}/g)];
 			const numbers = selections.map(match => Number(match.groups!.number));
 			batches.push({
 				numbers,
-				variables: parse.object({ owner: parse.string, name: parse.string })(variables),
+				variables: parse.object({ owner: parse.string, repo: parse.string })(variables),
 				selections: selections.map(match => match[0].replace(/\s+/g, ' ')),
 			});
 			return Response.json({
@@ -1663,12 +1664,12 @@ suite('GitHub authenticated IPC clients', () => {
 			});
 		});
 		const client = store.add(await connect().remote.acquireClient(authorization, signal()));
-		const counts = await client.issues.getClosingPullRequestCounts({ owner: 'o', name: 'r' }, [...numbers, 1], signal());
+		const counts = await client.issues.getClosingPullRequestCounts({ owner: 'o', repo: 'r' }, [...numbers, 1], signal());
 		assert.deepStrictEqual({ counts, batches }, {
 			counts: Object.fromEntries(numbers.map(number => [number, number === 3 || number === 4 ? null : number % 3])),
 			batches: [numbers.slice(0, 50), numbers.slice(50)].map(numbers => ({
 				numbers,
-				variables: { owner: 'o', name: 'r' },
+				variables: { owner: 'o', repo: 'r' },
 				selections: numbers.map(number => `issue${number}: issue(number: ${number}) { closedByPullRequestsReferences(first: 1, includeClosedPrs: true) { totalCount } }`),
 			})),
 		});
@@ -1677,7 +1678,7 @@ suite('GitHub authenticated IPC clients', () => {
 	test('skips empty closing PR linkage reads and validates all numbers before dispatch', async () => {
 		const { connect } = setup(async () => assert.fail('No fetch expected'));
 		const client = store.add(await connect().remote.acquireClient(authorization, signal()));
-		const repository = { owner: 'o', name: 'r' };
+		const repository = { owner: 'o', repo: 'r' };
 		assert.deepStrictEqual(await client.issues.getClosingPullRequestCounts(repository, [], signal()), {});
 		for (const invalid of [0, -1, 1.5, NaN, Infinity, 2_147_483_648]) {
 			await assert.rejects(client.issues.getClosingPullRequestCounts(repository, [
@@ -1708,7 +1709,7 @@ suite('GitHub authenticated IPC clients', () => {
 			return Response.json({ data });
 		});
 		const client = store.add(await connect().remote.acquireClient(authorization, signal()));
-		const repository = { owner: 'o', name: 'r' };
+		const repository = { owner: 'o', repo: 'r' };
 		assert.deepStrictEqual([
 			await client.issues.getClosingPullRequestCounts(repository, [1], signal()),
 			await client.issues.getClosingPullRequestCounts(repository, [1], signal()),
@@ -1737,7 +1738,7 @@ suite('GitHub authenticated IPC clients', () => {
 			});
 		});
 		const client = store.add(await connect().remote.acquireClient(authorization, signal()));
-		await assert.rejects(client.issues.getClosingPullRequestCounts({ owner: 'o', name: 'r' },
+		await assert.rejects(client.issues.getClosingPullRequestCounts({ owner: 'o', repo: 'r' },
 			Array.from({ length: 51 }, (_, index) => index + 1), signal()), { kind: 'authorization', graphQLErrors: errors });
 		assert.strictEqual(calls, 2);
 	});
@@ -1864,7 +1865,7 @@ suite('GitHub authenticated IPC clients', () => {
 	test('validates PR listing, search, and review summary page sizes and deadlines before dispatch', async () => {
 		const { connect } = setup(async () => assert.fail('No fetch expected'));
 		const client = store.add(await connect().remote.acquireClient(authorization, signal()));
-		const repository = { owner: 'o', name: 'r' };
+		const repository = { owner: 'o', repo: 'r' };
 		for (const first of [0, 101, 1.5]) {
 			await assert.rejects(client.pullRequests.listConnection(repository, signal(), { query: { first } }), { kind: 'validation' });
 			await assert.rejects(client.search.pullRequests('repo:o/r', signal(), { query: { first } }), { kind: 'validation' });
@@ -2242,7 +2243,7 @@ suite('GitHub authenticated IPC clients', () => {
 	}
 
 	suite('Mission Control', () => {
-		const repository = { owner: 'o', name: 'r' };
+		const repository = { owner: 'o', repo: 'r' };
 		const date = '2026-01-01T00:00:00Z';
 		const definition = { id: 'automation-1', name: 'Test', description: '', prompt: 'Do work', created_by: { id: 101 }, created_at: date, updated_at: date };
 		const task = { id: 'task-1', automation_id: definition.id, state: 'queued', created_at: date, remote_steerable: true };

@@ -138,7 +138,7 @@ suite('Combined mode and permissions picker', () => {
 		row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
 	}
 
-	test('renders a compact neutral right-aligned Experimental badge and announces it', () => {
+	test('renders a compact neutral right-aligned New badge and announces it', () => {
 		const { popup } = setup(true);
 		popup.style.setProperty('--vscode-fontSize-label3', '10px');
 		popup.style.setProperty('--vscode-spacing-size160', '16px');
@@ -174,7 +174,7 @@ suite('Combined mode and permissions picker', () => {
 			alignedWithTitle: Math.abs(titleBounds.top + titleBounds.height / 2 - badgeBounds.top - badgeBounds.height / 2) < 0.5,
 			ariaLabel: row.ariaLabel,
 		}, {
-			badge: 'Experimental',
+			badge: 'New',
 			afterTitle: true,
 			titleFlexGrow: '0',
 			fontSize: '10px',
@@ -187,11 +187,11 @@ suite('Combined mode and permissions picker', () => {
 			textCenteredHorizontally: true,
 			textCenteredVertically: true,
 			alignedWithTitle: true,
-			ariaLabel: 'Assisted permissions, Experimental, Assisted permissions description, Assisted permissions details',
+			ariaLabel: 'Assisted permissions, New, Assisted permissions description, Assisted permissions details',
 		});
 	});
 
-	test('the Experimental badge respects focus and high-contrast colors with a neutral fill', () => {
+	test('the New badge respects focus and high-contrast colors with a neutral fill', () => {
 		const { service, popup } = setup(true);
 		popup.style.setProperty('--vscode-strokeThickness', '1px');
 		popup.style.setProperty('--vscode-foreground', '#cccccc');

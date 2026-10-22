@@ -437,6 +437,9 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 */
 	getBackendChatResource(chatResource: URI): URI | undefined;
 
+	/** Returns the host-advertised session URI owning this session's customizations. */
+	getBackendSessionResource(sessionId: string): URI | undefined;
+
 }
 
 export const LOCAL_AGENT_HOST_PROVIDER_ID = 'local-agent-host';
