@@ -13,7 +13,7 @@ import { CustomizationMarketplaceConfiguration } from '../../../../../platform/c
 import { dirname as dirnamePath } from '../../../../../base/common/path.js';
 
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
-import { Delayer, RunOnceScheduler, timeout } from '../../../../../base/common/async.js';
+import { Delayer, RunOnceScheduler, Sequencer, timeout } from '../../../../../base/common/async.js';
 import { cancelOnDispose, CancellationToken } from '../../../../../base/common/cancellation.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { getErrorMessage, isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
@@ -22,7 +22,7 @@ import { DisposableStore, IDisposable, IReference, MutableDisposable, toDisposab
 import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
-import { autorun } from '../../../../../base/common/observable.js';
+import { autorun, derived } from '../../../../../base/common/observable.js';
 import { Orientation, Sizing, SplitView } from '../../../../../base/browser/ui/splitview/splitview.js';
 import { Color } from '../../../../../base/common/color.js';
 import { localize } from '../../../../../nls.js';
@@ -36,7 +36,7 @@ import { IEditorOptions } from '../../../../../platform/editor/common/editor.js'
 import { IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { EditorPane } from '../../../../browser/parts/editor/editorPane.js';
-import { IEditorOpenContext } from '../../../../common/editor.js';
+import { IEditorOpenContext, SaveReason } from '../../../../common/editor.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -75,7 +75,9 @@ import {
 import { skillIcon } from './aiCustomizationIcons.js';
 import { ChatModelsWidget } from '../chatManagement/chatModelsWidget.js';
 import { IChatWidgetService } from '../chat.js';
+import { IChatService } from '../../common/chatService/chatService.js';
 import { AgentSessionProviders } from '../agentSessions/agentSessions.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { PromptsType, Target } from '../../common/promptSyntax/promptTypes.js';
 import { CustomizationMigration, CustomizationMigrationCandidate, CustomizationMigrationType, FileCustomizationMigrationFailureReason, getCustomizationMigrationTargetType, getMcpServerCustomizationMigrationCandidateKey, ICustomizationMigrationService, IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationExclusion, IMcpServerCustomizationMigrationResult, IPluginMarketplaceCustomizationMigrationCandidate, IPluginMarketplaceCustomizationMigrationResult, isFileCustomizationMigrationCandidate, isMcpServerCustomizationMigrationCandidate, isPluginMarketplaceCustomizationMigrationCandidate, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
 import { ICustomizationMigrationTelemetryService } from '../../common/promptSyntax/service/customizationMigrationTelemetryService.js';
@@ -111,25 +113,31 @@ import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/ho
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { AgentPluginItemKind, IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
-import { createWorkbenchMcpServerDetailInput, EmbeddedMcpServerDetail, IMcpServerDetailInput, isMcpServerDetailMigratable } from './embeddedMcpServerDetail.js';
+import { createWorkbenchMcpServerDetailInput, EmbeddedMcpServerDetail, findMcpServerDetailMigrationEntry, IMcpServerDetailInput, isMcpServerDetailMigratable } from './embeddedMcpServerDetail.js';
 import { EmbeddedAgentPluginDetail } from './embeddedAgentPluginDetail.js';
 import { EmbeddedConnectorDetail } from './embeddedConnectorDetail.js';
 import { ICopilotConnector, ICopilotConnectorsService } from './copilotConnectorsService.js';
 import { EmbeddedMarketplaceDetail } from './embeddedMarketplaceDetail.js';
-import { IMcpService, IMcpWorkbenchService, type IWorkbenchMcpServer, McpServerInstallState } from '../../../mcp/common/mcpTypes.js';
+import { IMcpService, IMcpWorkbenchService, isMcpOAuthClientSecretStorageKey, type IWorkbenchMcpServer, McpServerInstallState } from '../../../mcp/common/mcpTypes.js';
+import { ISecretStorageService } from '../../../../../platform/secrets/common/secrets.js';
 import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
+import { IAgentHostActiveClientService } from '../agentSessions/agentHost/agentHostActiveClientService.js';
 import { ICustomizationHarnessService, type ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { AICustomizationWelcomePage, type ICustomizationMarketplaceOrigin, type ICustomizationMigrationCategorySummary, type IInstalledCustomizationTarget } from './aiCustomizationWelcomePage.js';
 import { ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
 import { createCustomizationMigrationAgentPrompt, getCustomizationMigrationConflictTarget, type CustomizationMigrationTargetFolders, type ICustomizationMigrationFailure, type ICustomizationMigrationNameConflict, type IMigratedCustomizationsWithFailureReasonsResult, migrateCustomizations, resolveWorkspaceMigrationTargetFolder } from './customizationMigration.js';
 import { CUSTOMIZATION_MIGRATION_CATEGORIES, CustomizationMigrationCategoryId, getCustomizationMigrationCategory, homepageMigrationCategories, type ICustomizationMigrationCategory } from './customizationMigrationCategories.js';
+import { getCustomizationMigrationGroupIgnoreKey, getIgnoredCustomizationMigrationGroupKeys, storeIgnoredCustomizationMigrationGroupKeys } from './customizationMigrationIgnoredGroups.js';
+import { createCustomizationMigrationRecoveryPlan, ICustomizationMigrationRecoveryManifest, listCustomizationMigrationRecoveries, prepareCustomizationMigrationRecovery, restoreCustomizationMigrationSources, updateCustomizationMigrationRecovery } from './customizationMigrationRecovery.js';
+import { CustomizationMigrationResultToolId } from './customizationMigrationResultTool.js';
 import {
 	CustomizationMigrationDashboard,
 	type ICustomizationMigrationDashboardDestination,
 	type ICustomizationMigrationDashboardOverview,
 	type ICustomizationMigrationDashboardCategory,
 	type ICustomizationMigrationDashboardItem,
+	type ICustomizationMigrationDashboardRecovery,
 } from './customizationMigrationDashboard.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -137,13 +145,6 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { showNoFoldersDialog } from '../promptSyntax/pickers/askForPromptSourceFolder.js';
 
 const $ = DOM.$;
-const CUSTOMIZATION_MIGRATION_IGNORED_GROUPS_STORAGE_KEY = 'chat.customizationMigration.ignoredGroups';
-
-interface IIgnoredMigrationGroupsState {
-	readonly groupKeys: readonly string[];
-}
-
-
 //#region Telemetry
 
 type CustomizationEditorOpenedEvent = {
@@ -244,6 +245,8 @@ interface ISectionItem {
 	readonly label: string;
 	readonly description: string;
 	count: number;
+	/** Describes why the entry shows a badge, if it does. */
+	badge?: string;
 }
 
 interface ISaveTargetQuickPickItem extends IQuickPickItem {
@@ -288,6 +291,7 @@ class SectionItemDelegate implements IListVirtualDelegate<ISectionItem> {
 interface ISectionItemTemplateData {
 	readonly container: HTMLElement;
 	readonly label: HTMLElement;
+	readonly badge: HTMLElement;
 	readonly count: HTMLElement;
 	readonly templateDisposables: DisposableStore;
 }
@@ -300,14 +304,17 @@ class SectionItemRenderer implements IListRenderer<ISectionItem, ISectionItemTem
 	renderTemplate(container: HTMLElement): ISectionItemTemplateData {
 		container.classList.add('section-list-item');
 		const label = DOM.append(container, $('.section-label'));
+		// The row's accessible name includes the badge description.
+		const badge = DOM.append(container, $('.section-badge', { 'aria-hidden': 'true' }));
 		const count = DOM.append(container, $('.section-count'));
 		const templateDisposables = new DisposableStore();
-		return { container, label, count, templateDisposables };
+		return { container, label, badge, count, templateDisposables };
 	}
 
 	renderElement(element: ISectionItem, index: number, templateData: ISectionItemTemplateData): void {
 		templateData.templateDisposables.clear();
 		templateData.label.textContent = element.label;
+		templateData.badge.style.display = element.badge ? '' : 'none';
 		if (element.count > 0) {
 			templateData.count.textContent = String(element.count);
 			templateData.count.style.display = '';
@@ -315,7 +322,7 @@ class SectionItemRenderer implements IListRenderer<ISectionItem, ISectionItemTem
 			templateData.count.textContent = '';
 			templateData.count.style.display = 'none';
 		}
-		templateData.templateDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), templateData.container, element.description));
+		templateData.templateDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), templateData.container, element.badge ?? element.description));
 	}
 
 	disposeTemplate(templateData: ISectionItemTemplateData): void {
@@ -433,6 +440,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private selectedPluginMarketplaceMigrationItems = new Set<string>();
 	private knownPluginMarketplaceMigrationItems = new Set<string>();
 	private readonly recentlyMigratedCustomizationItems = new Set<string>();
+	private agentMigrationRecoveries: readonly { readonly manifestResource: URI; readonly manifest: ICustomizationMigrationRecoveryManifest }[] = [];
 	private selectedCustomizationMigrationTargets = new Map<string, ICustomizationSourceFolder>();
 	private readonly explicitlySelectedCustomizationMigrationTargets = new Set<string>();
 
@@ -474,6 +482,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	private dimension: DOM.Dimension | undefined;
 	private readonly sections: ISectionItem[] = [];
+	private readonly sectionBadges = new Map<AICustomizationManagementSection, string>();
 	private readonly allSections: ISectionItem[] = [];
 	private selectedSection: AICustomizationManagementSection | undefined;
 	private contentNavigationGeneration = 0;
@@ -495,6 +504,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	private readonly editorDisposables = this._register(new DisposableStore());
 	private _editorContentChanged = false;
+	/**
+	 * Tracks a save that has not been committed to git yet. Auto save clears the dirty state, so
+	 * this is tracked separately from {@link _editorContentChanged} to still commit when leaving the editor.
+	 */
+	private _editorHasUncommittedSave = false;
+	private readonly customizationCommitSequencer = new Sequencer();
 	private _previousActiveHarnessId: string | undefined;
 
 	private sidebarHeaderContainer: HTMLElement | undefined;
@@ -550,6 +565,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
+		@IChatService private readonly chatService: IChatService,
+		@IAgentHostActiveClientService private readonly agentHostActiveClientService: IAgentHostActiveClientService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@ISecretStorageService private readonly secretStorageService: ISecretStorageService,
 	) {
 		super(AICustomizationManagementEditor.ID, group, telemetryService, themeService, storageService);
 
@@ -738,7 +757,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			const contribution = aiCustomizationManagementSectionRegistry.get(s.id, activeId);
 			const contributed = aiCustomizationManagementSectionRegistry.has(s.id);
 			if (!hidden.has(s.id) && (!contributed || !!contribution) && this.isContributedSectionEnabled(s.id)) {
-				this.sections.push(contribution ? { ...s, label: contribution.label, description: contribution.description } : s);
+				this.sections.push(contribution ? { ...s, label: contribution.label, description: contribution.description, badge: this.sectionBadges.get(s.id) } : s);
 			}
 		}
 
@@ -794,9 +813,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 				setRowLineHeight: false,
 				horizontalScrolling: false,
 				accessibilityProvider: {
-					getAriaLabel: (item: ISectionItem) => item.count > 0
-						? localize('sectionAriaLabelWithCount', "{0}, {1} items", item.label, item.count)
-						: item.label,
+					getAriaLabel: (item: ISectionItem) => {
+						const label = item.count > 0
+							? localize('sectionAriaLabelWithCount', "{0}, {1} items", item.label, item.count)
+							: item.label;
+						return item.badge ? localize('sectionAriaLabelWithBadge', "{0}, {1}", label, item.badge) : label;
+					},
 					getWidgetAriaLabel: () => localize('sectionsAriaLabel', "Agent Customization Sections"),
 				},
 				openOnSingleClick: true,
@@ -836,6 +858,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			}
 			this._previousActiveHarnessId = activeId;
 		}));
+		this.registerContributedSectionBadges();
 
 		this.editorDisposables.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (this.welcomePage?.isMarketplaceConfigurationChange(e)) {
@@ -1113,6 +1136,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 				showItemActions: (item, storage, anchor) => this.showMigrationItemActions(item, storage, anchor),
 				ignoreCategory: (id, storage) => void this.ignoreMigrationCategory(id, storage),
 				restoreIgnoredCategories: () => void this.restoreIgnoredMigrationCategories(),
+				restoreAgentMigration: recovery => void this.restoreAgentMigration(recovery).catch(error => {
+					this.notificationService.error(localize('restoreAgentMigrationFailed', "Could not restore the original customization sources: {0}", getErrorMessage(error)));
+				}),
+				deleteAgentMigrationRecovery: recovery => void this.deleteAgentMigrationRecovery(recovery).catch(error => {
+					this.notificationService.error(localize('deleteAgentMigrationRecoveryFailed', "Could not delete the agent migration backup: {0}", getErrorMessage(error)));
+				}),
 				retryCategory: () => void this.refreshCustomizationMigrationInfo(),
 				openCustomization: (item, storage) => {
 					void this.openMigrationCustomization(item, storage);
@@ -1145,6 +1174,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.refreshCustomizationMigrationInfoFromMcpChange();
 		}));
 		this.registerCustomizationMigrationSessionRefresh();
+		this.registerCustomizationMigrationSecretRefresh();
 
 		// Container for prompts-based content (Agents, Skills, Instructions, Prompts)
 		this.promptsContentContainer = DOM.append(contentInner, $('.prompts-content-container'));
@@ -1342,6 +1372,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}));
 	}
 
+	/** Whether a stored OAuth client secret blocks an MCP server's migration, so refresh when one is set or deleted. */
+	private registerCustomizationMigrationSecretRefresh(): void {
+		this.editorDisposables.add(this.secretStorageService.onDidChangeSecret(key => {
+			if (isMcpOAuthClientSecretStorageKey(key)) {
+				this.refreshCustomizationMigrationInfoFromMcpChange();
+			}
+		}));
+	}
+
 	private refreshCustomizationMigrationInfoFromPromptChange(): void {
 		if (!this.customizationMigrationWritesInProgress) {
 			void this.refreshCustomizationMigrationInfo();
@@ -1412,12 +1451,14 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 
 		if (!isAgentHostTarget(activeHarnessId)) {
+			await this.refreshAgentMigrationRecoveries();
 			this.customizationMigrationLoading = false;
 			this.setCustomizationsToMigrate(new Map(), new Map(), []);
 			return;
 		}
 
 		try {
+			await this.refreshAgentMigrationRecoveries();
 			const enabledCategories = this.getEnabledMigrationCategories();
 			if (enabledCategories.length === 0) {
 				this.customizationMigrationLoading = false;
@@ -1668,6 +1709,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 		return storage === undefined ? this.mcpServerMigrationExclusions : this.mcpServerMigrationExclusions.filter(exclusion => exclusion.storage === storage);
 	}
 
+	private getMcpMigrationExclusionReason(exclusion: IMcpServerCustomizationMigrationExclusion): string {
+		return getCustomizationMigrationCategory(CustomizationMigrationCategoryId.McpServers).getMcpServerExclusionReason?.(exclusion)
+			|| localize('migrationNeedsManualReviewReason', "This server cannot be migrated automatically. Update it by hand in its configuration file.");
+	}
+
 	private getAllMigrationCandidates(): readonly CustomizationMigrationCandidate[] {
 		return [...this.customizationsByMigrationCategory.values()].flat();
 	}
@@ -1714,31 +1760,57 @@ export class AICustomizationManagementEditor extends EditorPane {
 				return;
 			}
 
-			const recoveryBundleFolder = URI.joinPath(this.environmentService.workspaceStorageHome, 'customizationMigrations', migrationFlowId);
-			await this.fileService.createFolder(recoveryBundleFolder);
+			const recoveryBundleFolder = URI.joinPath(this.getCustomizationMigrationRecoveryRoot(), migrationFlowId);
+			const recovery = await prepareCustomizationMigrationRecovery(
+				this.fileService,
+				recoveryBundleFolder,
+				migrationFlowId,
+				harness,
+				customizations.map(({ customization }) => isMcpServerCustomizationMigrationCandidate(customization)
+					? { uri: customization.sourceUri, storage: customization.storage, type: 'mcpServer' as const }
+					: {
+						uri: customization.type === PromptsType.skill ? dirname(customization.uri) : customization.uri,
+						storage: customization.storage,
+						type: customization.type,
+					}),
+			);
 
-			const prompt = createCustomizationMigrationAgentPrompt(harness, migrationFlowId, recoveryBundleFolder, customizations, new Map(targetFolderEntries));
+			const prompt = createCustomizationMigrationAgentPrompt(harness, migrationFlowId, customizations, new Map(targetFolderEntries));
 			if (!await this.closeCustomizationEditor()) {
 				return;
 			}
-			const migrationSessionResource = await this.commandService.executeCommand<URI | undefined>(`workbench.action.chat.openNewSessionSidebar.${harness.id}`, { prompt });
-			if (migrationSessionResource) {
-				this.customizationMigrationTelemetryService.watchAgentMigrationResult(
-					URI.joinPath(recoveryBundleFolder, 'migration-results.json'),
-					migrationFlowId,
-					inventoryCounts,
-					migrationSessionResource,
-					{
-						onDidBackground: Event.map(
-							Event.filter(this.chatWidgetService.onDidBackgroundSession, resource => isEqual(resource, migrationSessionResource)),
-							() => undefined,
-						),
-						onDidForeground: Event.filter(
-							this.chatWidgetService.onDidChangeFocusedSession,
-							() => isEqual(this.chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource, migrationSessionResource),
-						),
+			await updateCustomizationMigrationRecovery(this.fileService, recovery.manifestResource, { status: 'running' });
+			let migrationSessionResource: URI | undefined;
+			const resultRegistration = this.customizationMigrationTelemetryService.prepareAgentMigrationResult(
+				migrationFlowId,
+				inventoryCounts,
+				{
+					onDidFinish: async status => {
+						await updateCustomizationMigrationRecovery(this.fileService, recovery.manifestResource, { status });
+						if (migrationSessionResource) {
+							this.agentHostActiveClientService.clearSessionTools(migrationSessionResource);
+						}
 					},
-				);
+				},
+			);
+			try {
+				migrationSessionResource = await this.commandService.executeCommand<URI | undefined>(`workbench.action.chat.openNewSessionSidebar.${harness.id}`, {
+					prompt,
+					sessionToolIds: [CustomizationMigrationResultToolId],
+				});
+			} catch (error) {
+				resultRegistration.dispose();
+				await updateCustomizationMigrationRecovery(this.fileService, recovery.manifestResource, { status: 'unknown' });
+				throw error;
+			}
+			if (migrationSessionResource) {
+				await updateCustomizationMigrationRecovery(this.fileService, recovery.manifestResource, {
+					sessionResource: migrationSessionResource,
+				});
+				this.customizationMigrationTelemetryService.bindAgentMigrationSession(migrationFlowId, migrationSessionResource);
+			} else {
+				resultRegistration.dispose();
+				await updateCustomizationMigrationRecovery(this.fileService, recovery.manifestResource, { status: 'unknown' });
 			}
 		} catch (error) {
 			onUnexpectedError(error);
@@ -1791,7 +1863,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			.filter(candidate => !this.isMigrationCategoryIgnored(id, candidate.storage)));
 		const count = candidates.length;
 		const hasPendingMigrations = this.pluginMarketplaceMigrationDiscoveryError !== undefined
-			|| homepageMigrationCategories.some(id => this.getMigrationCandidates(getCustomizationMigrationCategory(id)).length > 0);
+			|| count > 0;
 		const enabled = isAgentHostTarget(this.harnessService.activeHarness.get())
 			&& homepageMigrationCategories.some(id => this.isMigrationCategoryEnabled(getCustomizationMigrationCategory(id)))
 			&& hasPendingMigrations;
@@ -2440,6 +2512,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 				localize('migrationAccessibleManualReview', "Needs manual review"),
 				...overview.manualReviewItems.map(item => localize('migrationAccessibleItemWithStatus', "{0}, needs manual review: {1}, source {2}", item.label, item.manualReviewReason ?? '', item.sourceLabel)),
 			].join('\n')] : []),
+			...(overview.recoveries?.length ? [[
+				localize('migrationAccessibleRecovery', "Agent migration recovery"),
+				...overview.recoveries.map(recovery => localize('migrationAccessibleRecoveryItem', "{0}. {1}", recovery.label, recovery.description)),
+			].join('\n')] : []),
 			...(overview.categoryErrors ?? []).map(error => localize(
 				'migrationAccessibleCategoryError',
 				"{0}. {1} Use Retry to check again.",
@@ -2475,12 +2551,13 @@ export class AICustomizationManagementEditor extends EditorPane {
 		});
 		return {
 			scopes,
+			recoveries: this.agentMigrationRecoveries.map(({ manifest }) => this.getAgentMigrationRecoveryDashboardItem(manifest)),
 			supportsAgentMigration: !isRemoteAgentHostTarget(this.harnessService.activeHarness.get())
 				&& this.getAllMigrationCandidates().some(candidate => !isPluginMarketplaceCustomizationMigrationCandidate(candidate)),
 			categoryErrors: this.pluginMarketplaceMigrationDiscoveryError ? [{
 				id: CustomizationMigrationCategoryId.PluginMarketplaces,
-				label: localize('pluginMarketplaceMigrationLoadError', "Plugin marketplaces could not be checked"),
-				description: localize('pluginMarketplaceMigrationLoadErrorDescription', "Check the active agent connection, then try again."),
+				label: localize('pluginMarketplaceMigrationLoadError', "Couldn't load Copilot's plugin marketplaces"),
+				description: localize('pluginMarketplaceMigrationLoadErrorDescription', "Check the Copilot connection, then try again."),
 			}] : undefined,
 			manualReviewItems: storages.flatMap(storage => this.getMcpMigrationExclusions(storage).map(exclusion => ({
 				id: `${CustomizationMigrationCategoryId.McpServers}:${storage}:exclusion:${exclusion.id}`,
@@ -2490,11 +2567,110 @@ export class AICustomizationManagementEditor extends EditorPane {
 				resource: exclusion.sourceUri,
 				mcpServerId: exclusion.id,
 				storage,
-				manualReviewReason: getCustomizationMigrationCategory(CustomizationMigrationCategoryId.McpServers).getMcpServerExclusionReason?.(exclusion)
-					?? localize('migrationNeedsManualReviewReason', "This server cannot be migrated automatically. Update it by hand in its configuration file."),
+				manualReviewReason: this.getMcpMigrationExclusionReason(exclusion),
 			}))),
 			hasIgnoredGroups: this.getIgnoredMigrationGroups().length > 0,
 		};
+	}
+
+	private getCustomizationMigrationRecoveryRoot(): URI {
+		return URI.joinPath(this.environmentService.workspaceStorageHome, this.workspaceContextService.getWorkspace().id, 'customizationMigrations');
+	}
+
+	private async refreshAgentMigrationRecoveries(): Promise<void> {
+		const result = await listCustomizationMigrationRecoveries(this.fileService, this.getCustomizationMigrationRecoveryRoot());
+		this.agentMigrationRecoveries = await Promise.all(result.recoveries.map(async recovery => {
+			if (recovery.manifest.status !== 'running') {
+				return recovery;
+			}
+			const session = recovery.manifest.sessionResource ? this.chatService.getSession(URI.parse(recovery.manifest.sessionResource)) : undefined;
+			if (session?.hasActiveRequest.get()) {
+				return recovery;
+			}
+			return {
+				manifestResource: recovery.manifestResource,
+				manifest: await updateCustomizationMigrationRecovery(this.fileService, recovery.manifestResource, { status: 'unknown' }),
+			};
+		}));
+		for (const error of result.errors) {
+			onUnexpectedError(error);
+		}
+	}
+
+	private getAgentMigrationRecoveryDashboardItem(manifest: ICustomizationMigrationRecoveryManifest): ICustomizationMigrationDashboardRecovery {
+		const statusLabel = manifest.restoredAt
+			? localize('agentMigrationRecoveryRestored', "restored")
+			: manifest.status === 'prepared'
+				? localize('agentMigrationRecoveryPrepared', "prepared")
+				: manifest.status === 'running'
+					? localize('agentMigrationRecoveryRunning', "in progress")
+					: manifest.status === 'completed'
+						? localize('agentMigrationRecoveryCompleted', "completed")
+						: manifest.status === 'cancelled'
+							? localize('agentMigrationRecoveryCancelled', "cancelled")
+							: localize('agentMigrationRecoveryUnknown', "outcome unknown");
+		return {
+			id: manifest.migrationFlowId,
+			label: localize('agentMigrationRecoveryLabel', "{0} migration from {1}", manifest.harnessLabel, new Date(manifest.createdAt).toLocaleString()),
+			description: localize('agentMigrationRecoveryDescription', "{0} original sources backed up. Status: {1}.", manifest.sources.length, statusLabel),
+			canModify: manifest.status !== 'running',
+		};
+	}
+
+	private async restoreAgentMigration(recovery: ICustomizationMigrationDashboardRecovery): Promise<void> {
+		const record = this.agentMigrationRecoveries.find(candidate => candidate.manifest.migrationFlowId === recovery.id);
+		if (!record || record.manifest.status === 'running') {
+			return;
+		}
+		const plan = await createCustomizationMigrationRecoveryPlan(this.fileService, record.manifestResource);
+		const changedSources = plan.entries.filter(entry => entry.state === 'changed');
+		const sourcesToRestore = plan.entries.filter(entry => entry.state !== 'unchanged');
+		if (sourcesToRestore.length === 0) {
+			this.notificationService.info(localize('agentMigrationSourcesAlreadyRestored', "The original customization sources are already restored."));
+			return;
+		}
+		const confirmation = await this.dialogService.confirm({
+			message: changedSources.length
+				? localize('restoreChangedAgentMigrationSources', "Restore original sources and overwrite {0} changed sources?", changedSources.length)
+				: localize('restoreMissingAgentMigrationSources', "Restore {0} missing original sources?", sourcesToRestore.length),
+			detail: localize(
+				'restoreAgentMigrationSourcesDetail',
+				"The following original sources will be restored:\n{0}\n\nDestination files created or changed by the agent are not removed.",
+				sourcesToRestore.map(entry => this.labelService.getUriLabel(URI.parse(entry.source.source))).join('\n'),
+			),
+			primaryButton: localize('restoreSources', "Restore Sources"),
+			type: changedSources.length ? 'warning' : 'question',
+		});
+		if (!confirmation.confirmed) {
+			return;
+		}
+		const result = await restoreCustomizationMigrationSources(this.fileService, plan, true);
+		await updateCustomizationMigrationRecovery(this.fileService, record.manifestResource, {
+			status: record.manifest.status,
+			restoredAt: new Date().toISOString(),
+		});
+		await this.refreshAgentMigrationRecoveries();
+		await this.refreshCustomizationMigrationInfo();
+		this.notificationService.info(localize('agentMigrationSourcesRestored', "Restored {0} original customization sources.", result.restored));
+	}
+
+	private async deleteAgentMigrationRecovery(recovery: ICustomizationMigrationDashboardRecovery): Promise<void> {
+		const record = this.agentMigrationRecoveries.find(candidate => candidate.manifest.migrationFlowId === recovery.id);
+		if (!record || record.manifest.status === 'running') {
+			return;
+		}
+		const confirmation = await this.dialogService.confirm({
+			message: localize('deleteAgentMigrationRecoveryConfirmation', "Delete this agent migration backup?"),
+			detail: localize('deleteAgentMigrationRecoveryDetail', "The original customization sources in this backup can no longer be restored."),
+			primaryButton: localize('deleteBackup', "Delete Backup"),
+			type: 'warning',
+		});
+		if (!confirmation.confirmed) {
+			return;
+		}
+		await this.fileService.del(dirname(record.manifestResource), { recursive: true });
+		await this.refreshAgentMigrationRecoveries();
+		this.renderCustomizationMigrationDashboard();
 	}
 
 	private getHomepageMigrationCategory(id: CustomizationMigrationCategoryId, candidates: readonly CustomizationMigrationCandidate[], storage: PromptsStorage): ICustomizationMigrationDashboardCategory {
@@ -2663,20 +2839,16 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private getMigrationGroupIgnoreKey(id: CustomizationMigrationCategoryId, storage: PromptsStorage): string {
-		const harness = this.harnessService.activeHarness.get();
-		if (storage === PromptsStorage.user) {
-			return `${harness}:${storage}:${id}`;
-		}
-		const project = this.workspaceService.activeProjectRoot.get();
-		return `${harness}:${storage}:${project ? getComparisonKey(project) : ''}:${id}`;
+		return getCustomizationMigrationGroupIgnoreKey(
+			this.harnessService.activeHarness.get(),
+			id,
+			storage,
+			this.workspaceService.activeProjectRoot.get(),
+		);
 	}
 
 	private getIgnoredMigrationGroupKeys(): Set<string> {
-		return new Set(this.storageService.getObject<IIgnoredMigrationGroupsState>(
-			CUSTOMIZATION_MIGRATION_IGNORED_GROUPS_STORAGE_KEY,
-			StorageScope.PROFILE,
-			{ groupKeys: [] },
-		).groupKeys);
+		return getIgnoredCustomizationMigrationGroupKeys(this.storageService);
 	}
 
 	private isMigrationCategoryIgnored(id: CustomizationMigrationCategoryId, storage: PromptsStorage): boolean {
@@ -2717,12 +2889,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private storeIgnoredMigrationGroupKeys(groupKeys: Set<string>): void {
-		this.storageService.store(
-			CUSTOMIZATION_MIGRATION_IGNORED_GROUPS_STORAGE_KEY,
-			{ groupKeys: [...groupKeys] },
-			StorageScope.PROFILE,
-			StorageTarget.MACHINE,
-		);
+		storeIgnoredCustomizationMigrationGroupKeys(this.storageService, groupKeys);
 	}
 
 	private getCustomizationMigrationDashboardDestinations(customizations: readonly MigratableConfiguration[]): readonly ICustomizationMigrationDashboardDestination[] {
@@ -3168,6 +3335,45 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.ensureSectionsListReflectsActiveSection();
 	}
 
+	/**
+	 * Shows the badges that contributed sections describe on their navigation entries.
+	 */
+	private registerContributedSectionBadges(): void {
+		// Resolve the badge observables once per harness so that badge changes only re-read them.
+		const sectionBadges = derived(this, reader => {
+			const activeHarness = this.harnessService.activeHarness.read(reader);
+			return this.workspaceService.managementSections.map(section => {
+				const getBadge = aiCustomizationManagementSectionRegistry.get(section, activeHarness)?.getBadge;
+				return { section, badge: getBadge ? this.instantiationService.invokeFunction(getBadge) : undefined };
+			});
+		});
+		this.editorDisposables.add(autorun(reader => {
+			for (const { section, badge } of sectionBadges.read(reader)) {
+				this.updateSectionBadge(section, badge?.read(reader));
+			}
+		}));
+	}
+
+	/**
+	 * Updates the badge of a section, which also applies when the visible sections are rebuilt, and re-renders the sidebar.
+	 */
+	private updateSectionBadge(sectionId: AICustomizationManagementSection, badge: string | undefined): void {
+		if (badge === undefined) {
+			this.sectionBadges.delete(sectionId);
+		} else {
+			this.sectionBadges.set(sectionId, badge);
+		}
+		const section = this.sections.find(s => s.id === sectionId);
+		if (!section || section.badge === badge) {
+			return;
+		}
+		section.badge = badge;
+		if (this.sectionsList) {
+			this.sectionsList.splice(0, this.sectionsList.length, this.sections);
+			this.ensureSectionsListReflectsActiveSection();
+		}
+	}
+
 	//#endregion
 
 	/**
@@ -3582,7 +3788,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.inEditorContextKey.set(true);
 		this.sectionContextKey.set(this.selectedSection ?? '');
 
-		input.setSaveHandler(() => this.handleBuiltinSave());
+		input.setSaveHandler(() => this.handleSave());
 
 		if (isCustomizationMarketplaceValueFromDefault(this.configurationService)) {
 			logSettingExperimentTrigger(this.telemetryService, CustomizationMarketplaceConfiguration.MarketplaceEnabled);
@@ -3902,14 +4108,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 	}
 
-	public async showCopilotConnectorDetail(connectorName: string): Promise<CopilotConnectorDetailOpenResult> {
+	public async showCopilotConnectorDetail(connectorName: string, connectorDisplayName?: string): Promise<CopilotConnectorDetailOpenResult> {
 		const navigationGeneration = this.contentNavigationGeneration;
 		const input = this.input;
 		const connectors = await this.copilotConnectorsService.getConnectors(CancellationToken.None);
 		if (!isCurrentConnectorDetailNavigation(navigationGeneration, this.contentNavigationGeneration, input, this.input)) {
 			return CopilotConnectorDetailOpenResult.Superseded;
 		}
-		const connector = connectors.find(candidate => candidate.name === connectorName);
+		const connector = connectors.find(candidate => candidate.name === connectorName)
+			?? (connectorDisplayName ? connectors.find(candidate => candidate.displayName === connectorDisplayName) : undefined);
 		if (!connector) {
 			return CopilotConnectorDetailOpenResult.NotFound;
 		}
@@ -4038,7 +4245,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private async openCustomizationItem(item: IAICustomizationListItem, origin: CustomizationDetailOrigin = this.getCurrentDetailBaseOrigin()): Promise<void> {
-		if (item.promptType === PromptsType.skill && item.pluginUri) {
+		if (origin.kind !== 'pluginDetail' && item.promptType === PromptsType.skill && item.pluginUri) {
 			const plugin = this.agentPluginService.plugins.get().find(plugin => isEqual(plugin.uri, item.pluginUri));
 			if (plugin) {
 				await this.showEmbeddedPluginDetail({
@@ -4047,7 +4254,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 					description: plugin.fromMarketplace?.description ?? '',
 					marketplace: plugin.fromMarketplace?.marketplace,
 					plugin,
-				}, origin.kind === 'pluginDetail' ? origin.origin : origin);
+				}, origin);
 			}
 			return;
 		}
@@ -4188,6 +4395,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.editorItemPathElement.removeAttribute('aria-label');
 		}
 		this._editorContentChanged = false;
+		this._editorHasUncommittedSave = false;
 		this.resetEditorSaveIndicator();
 		this.updateEditorActionButton();
 		this.updateEditorDisplayMode();
@@ -4239,6 +4447,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.editorContentContainer?.classList.remove('customization-detail-mode');
 		this.editorDisplayMode = 'preview';
 		this._editorContentChanged = false;
+		this._editorHasUncommittedSave = false;
 		this.editorModelChangeDisposables.clear();
 		this.editorPreviewRenderScheduler.cancel();
 		this.clearEditorPreview();
@@ -4341,7 +4550,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private createExistingCustomizationSaveRequest(): IExistingCustomizationSaveRequest | undefined {
-		if (!this._editorContentChanged || this.currentEditingSource === AICustomizationSources.builtin || !this.currentEditingUri) {
+		if ((!this._editorContentChanged && !this._editorHasUncommittedSave) || this.currentEditingSource === AICustomizationSources.builtin || !this.currentEditingUri) {
 			return undefined;
 		}
 
@@ -4375,9 +4584,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	private async saveExistingCustomization(request: IExistingCustomizationSaveRequest): Promise<void> {
 		await this.fileService.writeFile(request.fileUri, VSBuffer.fromString(request.content));
-		if (request.projectRoot) {
-			await this.workspaceService.commitFiles(request.projectRoot, [request.fileUri]);
+		await this.commitCustomization(request.projectRoot, request.fileUri);
+	}
+
+	/** Serializes commits so an explicit save and leaving the editor cannot commit concurrently. Resolves to `false` when the commit failed. */
+	private async commitCustomization(projectRoot: URI | undefined, fileUri: URI): Promise<boolean> {
+		if (!projectRoot) {
+			return true;
 		}
+		return this.customizationCommitSequencer.queue(() => this.workspaceService.commitFiles(projectRoot, [fileUri]));
 	}
 
 	private async pickBuiltinPromptSaveTarget(): Promise<ISaveTargetQuickPickItem | undefined> {
@@ -4500,6 +4715,47 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const input = this.input;
 		if (input instanceof AICustomizationManagementEditorInput) {
 			input.setDirty(this.shouldShowBuiltinSaveAction());
+		}
+	}
+
+	private async handleSave(): Promise<boolean> {
+		return this.shouldShowBuiltinSaveAction() ? this.handleBuiltinSave() : this.saveCurrentCustomization();
+	}
+
+	/**
+	 * Explicit save of the customization open in the embedded editor. The embedded editor is not
+	 * handled by the generic save command, so the file is saved and committed here.
+	 */
+	private async saveCurrentCustomization(): Promise<boolean> {
+		const fileUri = this.currentEditingUri;
+		if (this.viewMode !== 'editor' || !fileUri || this.currentEditingReadOnly || this.currentEditingSource === AICustomizationSources.builtin) {
+			return false;
+		}
+
+		try {
+			for (const workingCopy of this.workingCopyService.getAll(fileUri) ?? []) {
+				if (workingCopy.isDirty() && !await workingCopy.save({ reason: SaveReason.EXPLICIT })) {
+					// The edit was not written (error, conflict or cancellation), so committing would only commit the previous content
+					return false;
+				}
+			}
+			if (this.currentEditingProjectRoot) {
+				this._editorHasUncommittedSave = false;
+				let committed = false;
+				try {
+					committed = await this.commitCustomization(this.currentEditingProjectRoot, fileUri);
+				} finally {
+					// The file is saved but not committed, so leaving the editor must retry the commit
+					if (!committed) {
+						this._editorHasUncommittedSave = true;
+					}
+				}
+			}
+			return true;
+		} catch (error) {
+			onUnexpectedError(error);
+			this.notificationService.warn(localize('saveCustomizationFailed', "Could not save changes to {0}.", basename(fileUri)));
+			return false;
 		}
 	}
 
@@ -4689,6 +4945,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 				this.editorSaveIndicator.title = localize('saved', "Saved");
 				this.editorSaveIndicator.setAttribute('aria-label', localize('saved', "Saved"));
 				status(localize('saved', "Saved"));
+
+				// Auto save clears the dirty state, so remember that this save still has to be committed
+				this._editorHasUncommittedSave = true;
 			}
 		}));
 	}
@@ -5158,6 +5417,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return;
 		}
 		this.embeddedMcpDetail.setMigratable(isMcpServerDetailMigratable(this.mcpDetailInput, this.getMcpServerMigrationCandidates()));
+		const exclusion = findMcpServerDetailMigrationEntry(this.mcpDetailInput, this.getMcpMigrationExclusions());
+		this.embeddedMcpDetail.setManualReviewReason(exclusion ? this.getMcpMigrationExclusionReason(exclusion) : undefined);
 	}
 
 	private getMcpServerMigrationCandidates(): readonly IMcpServerCustomizationMigrationCandidate[] {
@@ -5237,6 +5498,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (saveRequest) {
 			await this.saveExistingCustomization(saveRequest);
 			this._editorContentChanged = false;
+			this._editorHasUncommittedSave = false;
 			this.resetEditorSaveIndicator();
 		}
 		await this.migrateMigrationItem(detail.item);
@@ -5248,6 +5510,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return;
 		}
 		this._editorContentChanged = false;
+		this._editorHasUncommittedSave = false;
 		this.showCustomizationMigrationDashboard();
 	}
 

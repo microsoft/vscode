@@ -15,12 +15,14 @@ import { joinPath } from '../../../../../../base/common/resources.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostService, IMissionControlOptions } from '../../../../../../platform/agentHost/common/agentService.js';
+import { CloudSandboxEarlyPreparationSettingId, ICloudSandboxDraftPreparationService } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { AgentHostRemoteConnectionsBackend, AgentHostRemoteConnectionsSettingId } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IConfigurationChangeEvent, IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../../platform/configuration/common/configurationRegistry.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { getSingletonServiceDescriptors } from '../../../../../../platform/instantiation/common/extensions.js';
 import { FileOperationError, FileOperationResult, IFileService, IFileStatWithMetadata, IFileStatWithPartialMetadata } from '../../../../../../platform/files/common/files.js';
 import { IPathService } from '../../../../../../platform/path/common/pathService.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -34,6 +36,7 @@ import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticati
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import '../../../browser/remoteAgentHost/remoteAgentHost.contribution.js';
 import { MissionControlSharingService } from '../../../browser/remoteAgentHost/missionControlSharingService.js';
+import { CloudSandboxDraftPreparationService } from '../../../browser/remoteAgentHost/cloudSandboxDraftPreparationService.js';
 
 const remoteControlPolicyOverrideSetting = 'chat.agentHost.experimentalMissionControl.ignoreRemoteControlPolicy';
 const localCredentialSetting = 'chat.agentHost.experimentalMissionControl.useLocalCredentials';
@@ -61,6 +64,27 @@ const expectedOptions: IMissionControlOptions = {
 	defaultDirectory: home.fsPath,
 	live: true,
 };
+
+suite('Cloud sandbox preparation configuration', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('registers one shared service and a default-off application experiment setting', () => {
+		const setting = configurationProperties[CloudSandboxEarlyPreparationSettingId];
+		const services = new Map(getSingletonServiceDescriptors());
+
+		assert.deepStrictEqual({
+			type: setting.type,
+			default: setting.default,
+			scope: setting.scope,
+			restricted: setting.restricted,
+			experiment: setting.experiment,
+			service: services.get(ICloudSandboxDraftPreparationService)?.ctor,
+		}, {
+			type: 'boolean', default: false, scope: ConfigurationScope.APPLICATION,
+			restricted: true, experiment: { mode: 'auto' }, service: CloudSandboxDraftPreparationService,
+		});
+	});
+});
 
 suite('Mission Control sharing service', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -174,6 +198,59 @@ suite('Mission Control sharing service', () => {
 			override affectsConfiguration(section: string) { return section === AgentHostRemoteConnectionsSettingId; }
 		});
 	}
+
+	test('renaming while off persists the actual registration name without enabling sharing', () => runWithFakedTimers({}, async () => {
+		const first = fixture();
+		await first.sharing.setEnvironmentName('  My workstation  ');
+		await timeout(0);
+		const disabledCalls = [...first.calls];
+		const restored = fixture({ storage: first.storage });
+		await timeout(0);
+		await restored.sharing.setEnabled(true);
+		assert.deepStrictEqual({
+			disabledCalls,
+			name: restored.sharing.environmentName.get(),
+			options: restored.calls.map(call => call.options),
+		}, { disabledCalls: [], name: 'My workstation', options: [{ ...expectedOptions, name: 'My workstation' }] });
+	}));
+
+	test('renaming an enabled environment withdraws and registers the new name while preserving sharing', () => runWithFakedTimers({}, async () => {
+		const { sharing, calls } = fixture();
+		await sharing.setEnabled(true);
+		await sharing.setEnvironmentName('New shared name');
+		await timeout(0);
+		assert.deepStrictEqual({ calls, state: sharing.state.get() }, {
+			calls: [
+				{ options: expectedOptions, withdrawingAccountId: undefined },
+				{ options: undefined, withdrawingAccountId: 'account' },
+				{ options: { ...expectedOptions, name: 'New shared name' }, withdrawingAccountId: undefined },
+			],
+			state: 'enabled',
+		});
+	}));
+
+	test('rejects blank and control-character names before changing persistence or registration', () => runWithFakedTimers({}, async () => {
+		const { sharing, calls } = fixture();
+		for (const name of ['', '  ', 'bad\nname', 'bad\u0000name']) {
+			await assert.rejects(sharing.setEnvironmentName(name), /without control characters/);
+		}
+		assert.deepStrictEqual({ calls, name: sharing.environmentName.get(), state: sharing.state.get() }, {
+			calls: [], name: undefined, state: 'disabled',
+		});
+	}));
+
+	test('a rename registration failure is reported and leaves sharing visibly disabled', () => runWithFakedTimers({}, async () => {
+		const { sharing } = fixture({
+			configure: async options => {
+				if (options?.name === 'Failing name') {
+					throw new Error('Rename registration failed');
+				}
+			},
+		});
+		await sharing.setEnabled(true);
+		await assert.rejects(sharing.setEnvironmentName('Failing name'), /Rename registration failed/);
+		assert.strictEqual(sharing.state.get(), 'disabled');
+	}));
 
 	test('registers a preview backend and default-off local credential setting without removed enablement settings', () => {
 		assert.deepStrictEqual({

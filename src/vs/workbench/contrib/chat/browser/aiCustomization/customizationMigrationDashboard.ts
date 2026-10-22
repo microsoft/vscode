@@ -18,6 +18,7 @@ import { localize } from '../../../../../nls.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
+import { Link } from '../../../../../platform/opener/browser/link.js';
 import { defaultButtonStyles, defaultCheckboxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
@@ -80,9 +81,17 @@ export interface ICustomizationMigrationDashboardScope {
 export interface ICustomizationMigrationDashboardOverview {
 	readonly scopes: readonly ICustomizationMigrationDashboardScope[];
 	readonly manualReviewItems?: readonly (ICustomizationMigrationDashboardItem & { readonly storage: PromptsStorage })[];
+	readonly recoveries?: readonly ICustomizationMigrationDashboardRecovery[];
 	readonly categoryErrors?: readonly ICustomizationMigrationDashboardCategoryError[];
 	readonly hasIgnoredGroups?: boolean;
 	readonly supportsAgentMigration?: boolean;
+}
+
+export interface ICustomizationMigrationDashboardRecovery {
+	readonly id: string;
+	readonly label: string;
+	readonly description: string;
+	readonly canModify: boolean;
 }
 
 export interface ICustomizationMigrationDashboardCategoryError {
@@ -100,6 +109,8 @@ export interface ICustomizationMigrationDashboardCallbacks {
 	readonly showItemActions: (item: ICustomizationMigrationDashboardItem, storage: PromptsStorage, anchor: HTMLElement) => void;
 	readonly ignoreCategory: (id: CustomizationMigrationCategoryId, storage: PromptsStorage) => void;
 	readonly restoreIgnoredCategories: () => void;
+	readonly restoreAgentMigration: (recovery: ICustomizationMigrationDashboardRecovery) => void;
+	readonly deleteAgentMigrationRecovery: (recovery: ICustomizationMigrationDashboardRecovery) => void;
 	readonly retryCategory: (id: CustomizationMigrationCategoryId) => void;
 	readonly openCustomization: (item: ICustomizationMigrationDashboardItem, storage: PromptsStorage) => void;
 	readonly onDidChangeContent?: () => void;
@@ -303,16 +314,16 @@ export class CustomizationMigrationDashboard extends Disposable {
 		this.pendingFocus = undefined;
 		const migrationGroups = this.getMigrationGroups(overview);
 		const categoryErrors = overview.categoryErrors ?? [];
-		this.allMigrationsComplete = migrationGroups.length === 0 && categoryErrors.length === 0 && !overview.hasIgnoredGroups;
+		this.allMigrationsComplete = migrationGroups.length === 0 && categoryErrors.length === 0 && !overview.hasIgnoredGroups && !overview.recoveries?.length;
 		this.prepareRender();
 		const supportsAgentMigration = migrationGroups.length > 0 && overview.supportsAgentMigration !== false;
 		const page = this.renderHeader(
-			localize('migrationsTitle', "Migrations"),
 			this.allMigrationsComplete
-				? localize('migrationsCompletedDescription', "Your customizations use supported formats and locations.")
-				: supportsAgentMigration
-					? localize('migrationsDescriptionWithAgent', "Some of your agent customizations need an update to keep working. Use Migrate to have VS Code update selected customizations, or Migrate with Agent for a guided migration in chat. Agent migration uses credits.")
-					: localize('migrationsDescription', "Some of your agent customizations need an update to keep working. Review and migrate them to the new formats and locations."),
+				? localize('migrationsTitle', "Migrations")
+				: localize('migrationsWelcomeTitle', "Keep your customizations working"),
+			this.allMigrationsComplete
+				? localize('migrationsCompletedDescription', "Your customizations are ready.")
+				: localize('migrationsDescription', "Copilot's new agent runtime uses different formats and locations for some customizations. Review and migrate the affected items below."),
 			overview.hasIgnoredGroups === true,
 			supportsAgentMigration ? () => {
 				this.callbacks.actionClicked('agentMigrationClicked');
@@ -329,10 +340,16 @@ export class CustomizationMigrationDashboard extends Disposable {
 				? localize('noActiveMigrations', "No active migrations. Restore ignored migrations to review them.")
 				: localize('noMigrations', "No migrations are needed.")));
 		}
+		if (overview.recoveries?.length) {
+			this.renderRecoveries(page, overview.recoveries);
+		}
 
 		this.layoutTree?.();
 		this.callbacks.onDidChangeContent?.();
 		if (this.allMigrationsComplete) {
+			if (focusedKey === 'learnMore') {
+				this.focusTargets.get('learnMore')?.focus();
+			}
 			return;
 		}
 		if (focusedKey === focusPreferredTarget) {
@@ -344,16 +361,16 @@ export class CustomizationMigrationDashboard extends Disposable {
 
 	private renderCategoryErrors(parent: HTMLElement, errors: readonly ICustomizationMigrationDashboardCategoryError[]): void {
 		for (const error of errors) {
-			const card = DOM.append(parent, $('section.mcp-detail-diagnostic-card.migration.error.migration-category-error'));
-			const header = DOM.append(card, $('.mcp-detail-diagnostic-header'));
-			const icon = DOM.append(header, $('.mcp-detail-diagnostic-icon'));
+			const card = DOM.append(parent, $('section.migration-category-error'));
+			const icon = DOM.append(card, $('.migration-category-error-icon'));
 			icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.error));
 			icon.setAttribute('aria-hidden', 'true');
-			DOM.append(header, $('.mcp-detail-diagnostic-summary', {}, error.label));
-			const details = DOM.append(card, $('.mcp-detail-diagnostic-details'));
-			DOM.append(details, $('p.mcp-detail-diagnostic-message', {}, error.description));
+			const content = DOM.append(card, $('.migration-category-error-content'));
+			DOM.append(content, $('h2.migration-category-error-title', {}, error.label));
+			DOM.append(content, $('p.migration-category-error-description', {}, error.description));
+			const actions = DOM.append(card, $('.migration-category-error-actions'));
 			this.button(
-				details,
+				actions,
 				`retryCategory:${error.id}`,
 				localize('retry', "Retry"),
 				localize('retryMigrationCategory', "Retry loading {0}", error.label),
@@ -445,17 +462,64 @@ export class CustomizationMigrationDashboard extends Disposable {
 			);
 		}
 		if (migrateWithAgent) {
-			this.button(
+			const description = localize('migrateWithAgentDescription', "Open a new chat with an agent to review and migrate your customizations. This uses Copilot credits.");
+			const button = this.button(
 				actions,
 				'migrateWithAgent',
 				localize('migrateWithAgent', "Migrate with Agent"),
-				localize('migrateWithAgentAriaLabel', "Start an agent-guided customization migration"),
+				localize('migrateWithAgentAriaLabel', "Start a guided migration of all customization files that need migration"),
 				migrateWithAgent,
 				'secondary',
+				undefined,
+				this.renderDisposables,
+				description,
 			);
+			button.element.setAttribute('aria-description', description);
 		}
 		DOM.append(header, $('p.migration-intro', {}, description));
+		this.renderDisposables.add(this.instantiationService.createInstance(Link, header, {
+			label: localize('learnAboutMigrations', "Learn About Migrations"),
+			href: 'https://aka.ms/vscode-migrate-customizations',
+		}, {}));
+		const learnMore = header.lastElementChild;
+		if (DOM.isHTMLElement(learnMore)) {
+			learnMore.setAttribute('role', 'link');
+			this.focusTargets.set('learnMore', learnMore);
+		}
 		return page;
+	}
+
+	private renderRecoveries(parent: HTMLElement, recoveries: readonly ICustomizationMigrationDashboardRecovery[]): void {
+		const section = DOM.append(parent, $('section.migration-recoveries'));
+		DOM.append(section, $('h2', {}, localize('agentMigrationRecoveries', "Agent Migration Recovery")));
+		DOM.append(section, $('p', {}, localize('agentMigrationRecoveriesDescription', "Restore original customization sources from before an agent migration. Destination files created or changed by the agent are not removed.")));
+		for (const recovery of recoveries) {
+			const item = DOM.append(section, $('.migration-recovery-item'));
+			const content = DOM.append(item, $('.migration-recovery-content'));
+			const label = DOM.append(content, $('h3', {}, recovery.label));
+			const description = DOM.append(content, $('p', {}, recovery.description));
+			this.hover(label, recovery.label);
+			this.hover(description, recovery.description);
+			const actions = DOM.append(item, $('.migration-recovery-actions'));
+			const restore = this.button(
+				actions,
+				`restoreAgentMigration:${recovery.id}`,
+				localize('restoreAgentMigrationSources', "Restore Sources"),
+				localize('restoreAgentMigrationSourcesAriaLabel', "Restore original sources for {0}", recovery.label),
+				() => this.callbacks.restoreAgentMigration(recovery),
+				'secondary',
+			);
+			restore.enabled = recovery.canModify;
+			const remove = this.button(
+				actions,
+				`deleteAgentMigrationRecovery:${recovery.id}`,
+				localize('deleteAgentMigrationRecovery', "Delete Backup"),
+				localize('deleteAgentMigrationRecoveryAriaLabel', "Delete backup for {0}", recovery.label),
+				() => this.callbacks.deleteAgentMigrationRecovery(recovery),
+				'secondary',
+			);
+			remove.enabled = recovery.canModify;
+		}
 	}
 
 	private getMigrationGroups(overview: ICustomizationMigrationDashboardOverview): readonly (
@@ -563,7 +627,7 @@ export class CustomizationMigrationDashboard extends Disposable {
 					icon: Codicon.warning,
 					count: items.length,
 					isFirst: index === 0,
-					description: localize('migrationManualReviewGroupDescription', "These customizations cannot be migrated automatically. Open their details or use the item menu to resolve them."),
+					description: localize('migrationManualReviewGroupDescription', "These customizations cannot be migrated automatically. Select Review to see what needs to change."),
 					collapsed: this.collapsedMigrationGroups.has(groupKey),
 					hasConfigurableDestination: false,
 					manualReview: true,

@@ -245,6 +245,9 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 			}
 			if (environment.status !== 'online') {
 				failure = { errorCategory: 'offline' };
+				// Hosts are listed from a cached inventory; record the status so the host stops being offered as online.
+				this._replaceHosts(this.hosts.get().map(candidate => candidate.id === id ? { ...candidate, status: environment.status } : candidate));
+				this._persist();
 				throw new Error(localize('missionControl.hostOffline', "{0} is not online. Start its owning application before connecting. Connecting will not start or replace this machine.", host.displayName ?? host.name));
 			}
 			if (await reuseConnection()) {
@@ -256,7 +259,10 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 				this._requireHost(id);
 			}
 			connecting = true;
-			await raceCancellationError(this._connections.connect({ environmentId: id, name: host.name, environmentKind: 'user-local' }, source.token), source.token);
+			await raceCancellationError(this._connections.connect({
+				environmentId: id, name: host.name, environmentKind: 'user-local',
+				...(environment.encryption_keys ? { trustedEncryptionKeys: environment.encryption_keys } : {}),
+			}, source.token), source.token);
 			this._checkGeneration(generation, source.token);
 			this._requireHost(id);
 		} catch (error) {

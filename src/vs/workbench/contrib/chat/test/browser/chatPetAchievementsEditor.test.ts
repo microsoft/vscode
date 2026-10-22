@@ -352,18 +352,38 @@ suite('Chat Pet Achievements Editor', () => {
 		assert.ok(colorTab);
 		editor.focus();
 		const page = parent.querySelector<HTMLElement>('.chat-pet-achievements-editor');
+		const tabList = parent.querySelector<HTMLElement>('[role="tablist"]');
+		const tabParts = [
+			{ classes: 'chat-pet-customization-tab-fill modern-ui-editor-tab-fill', hidden: 'true' },
+			{ classes: 'tab-connected-edge', hidden: 'true' },
+			{ classes: 'chat-pet-customization-tab-label modern-ui-editor-tab-label', hidden: null },
+		];
 		assert.deepStrictEqual({
 			pageFocused: mainWindow.document.activeElement === page,
 			tabFocused: colorTab === mainWindow.document.activeElement,
 			role: page?.getAttribute('role'),
 			label: page?.getAttribute('aria-label'),
-			selectedTabReachable: colorTab.tabIndex,
+			pageClasses: page?.className,
+			tabListClasses: tabList?.className,
+			tabs: Array.from(parent.querySelectorAll<HTMLElement>('[role="tab"]')).map(tab => ({
+				classes: tab.className,
+				label: tab.textContent,
+				selected: tab.getAttribute('aria-selected'),
+				reachable: tab.tabIndex,
+				controlsLabelledPanel: tab.getAttribute('aria-controls') === parent.querySelector(`[role="tabpanel"][aria-labelledby="${tab.id}"]`)?.id,
+				parts: Array.from(tab.children).map(child => ({ classes: child.className, hidden: child.getAttribute('aria-hidden') })),
+			})),
 		}, {
 			pageFocused: true,
 			tabFocused: false,
 			role: 'group',
 			label: 'Customize Blobby',
-			selectedTabReachable: 0,
+			pageClasses: 'chat-pet-achievements-editor modern-ui-editor-tab-group modern-ui-editor-tab-group-active',
+			tabListClasses: 'chat-pet-customization-tabs modern-ui-editor-tab-strip modern-ui-editor-tab-list',
+			tabs: [
+				{ classes: 'chat-pet-customization-tab modern-ui-editor-tab', label: 'Achievements', selected: 'false', reachable: -1, controlsLabelledPanel: true, parts: tabParts },
+				{ classes: 'chat-pet-customization-tab modern-ui-editor-tab active', label: 'Color', selected: 'true', reachable: 0, controlsLabelledPanel: true, parts: tabParts },
+			],
 		});
 		const initialTab = colorTab.textContent;
 		colorTab.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', keyCode: 37, bubbles: true }));
@@ -373,17 +393,24 @@ suite('Chat Pet Achievements Editor', () => {
 		const afterEnd = parent.querySelector('[role="tab"][aria-selected="true"]')?.textContent;
 		colorTab.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', keyCode: 35, bubbles: true }));
 		const repeatedEnd = parent.querySelector('[role="tab"][aria-selected="true"]')?.textContent;
+		activeTab?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+		const afterEnter = parent.querySelector('[role="tab"][aria-selected="true"]')?.textContent;
+		editor.setOptions({ tab: 'color' });
 		editor.setOptions({ tab: 'achievements' });
+		activeTab?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
 		assert.deepStrictEqual({
 			initialTab,
 			afterLeft,
 			afterEnd,
 			repeatedEnd,
+			afterEnter,
 			afterOptions: parent.querySelector('[role="tab"][aria-selected="true"]')?.textContent,
+			activeTabs: Array.from(parent.querySelectorAll('[role="tab"].active')).map(tab => tab.textContent),
 			tabStops: Array.from(parent.querySelectorAll<HTMLElement>('[role="tab"]')).map(tab => tab.tabIndex),
 			visiblePanels: parent.querySelectorAll('[role="tabpanel"]:not([hidden])').length,
 			colorsDisposed: parent.querySelector('.chat-pet-colors-widget') === null,
-		}, { initialTab: 'Color', afterLeft: 'Achievements', afterEnd: 'Color', repeatedEnd: 'Color', afterOptions: 'Achievements', tabStops: [0, -1], visiblePanels: 1, colorsDisposed: true });
+			closedOnEscape: closeCount,
+		}, { initialTab: 'Color', afterLeft: 'Achievements', afterEnd: 'Color', repeatedEnd: 'Color', afterEnter: 'Achievements', afterOptions: 'Achievements', activeTabs: ['Achievements'], tabStops: [0, -1], visiblePanels: 1, colorsDisposed: true, closedOnEscape: 1 });
 
 		service.unlockAchievement(ChatPetAchievementIds.Blobby);
 		editor.setOptions({ tab: 'color' });
@@ -395,6 +422,6 @@ suite('Chat Pet Achievements Editor', () => {
 		await editor.setInput(ChatPetAchievementsEditorInput.getOrCreate(), { tab: 'color' }, {}, CancellationToken.None);
 		assert.strictEqual(parent.querySelector<HTMLInputElement>('input[aria-label="Custom hex color"]')?.value, getChatPetBodyColor(service.color.get()));
 		entitlement.sentimentObs.set({ hidden: true }, undefined);
-		assert.strictEqual(closeCount, 1, 'The open customization editor closes when AI features are hidden');
+		assert.strictEqual(closeCount, 2, 'The open customization editor closes when AI features are hidden');
 	});
 });

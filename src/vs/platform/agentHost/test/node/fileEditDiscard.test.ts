@@ -263,8 +263,15 @@ suite('fileEditDiscard', () => {
 		await db.storeFileEdits([row('t2', FILE), row('t1', FILE)]);
 		const rejected = await db.storeFileEdits([row('t1', FILE), row('t1', '/repo/other.ts')]).then(() => false, () => true);
 		let insertedBeforeCommit = 0;
-		const guardRejected = await db.storeFileEdits([row('t3', FILE)], async () => {
+		let contentBeforeCommit: { before: string; after: string } | undefined;
+		const guardedRow = row('t3', FILE);
+		const guardRejected = await db.storeFileEdits([guardedRow], async readContent => {
 			insertedBeforeCommit = (await db.getAllFileEdits()).length;
+			const content = await readContent(guardedRow.toolCallId, FILE);
+			contentBeforeCommit = {
+				before: new TextDecoder().decode(content?.beforeContent),
+				after: new TextDecoder().decode(content?.afterContent),
+			};
 			throw new Error('state changed');
 		}).then(() => false, () => true);
 
@@ -272,11 +279,13 @@ suite('fileEditDiscard', () => {
 			turnIds: (await db.getAllFileEdits()).map(edit => edit.turnId),
 			rejected,
 			insertedBeforeCommit,
+			contentBeforeCommit,
 			guardRejected,
 		}, {
 			turnIds: ['t2', 't1'],
 			rejected: true,
 			insertedBeforeCommit: 3,
+			contentBeforeCommit: { before: 'b', after: 'a' },
 			guardRejected: true,
 		});
 	});

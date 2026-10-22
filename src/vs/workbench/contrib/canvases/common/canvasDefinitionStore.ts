@@ -10,12 +10,13 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, derivedOpts, IObservable, IReaderWithStore, observableValue } from '../../../../base/common/observable.js';
 import { MicrotaskDelay } from '../../../../base/common/symbols.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { canvasOwnerKey, compareCanvasDefinitions, ICanvasDefinition, ICanvasOwner, isOpenableExtensionCanvasDefinition } from './canvas.js';
+import { canvasOwnerKey, compareCanvasDefinitions, type CanvasDefinitionSnapshot, ICanvasDefinition, ICanvasOwner, isOpenableExtensionCanvasDefinition } from './canvas.js';
 
 /** The chat whose registered canvas types a {@link CanvasDefinitionStore} lists. */
 export interface ICanvasDefinitionSource {
 	readonly owner: ICanvasOwner;
-	listCanvases(): Promise<readonly ICanvasDefinition[]>;
+	/** Returns `undefined` while unsettled; `source` must re-evaluate when an authoritative snapshot is available. */
+	listCanvases(): Promise<CanvasDefinitionSnapshot>;
 }
 
 interface ICanvasDefinitionRequest {
@@ -30,7 +31,7 @@ interface ILoadedCanvasDefinitions {
 
 /**
  * Lists the openable canvas types registered for one chat at a time, refreshing whenever `source` re-evaluates.
- * Refreshes keep the current list so commands built from it stay registered; only an owner change or an unavailable source clears it.
+ * Pending, failed, and non-authoritative refreshes retain the current list; authoritative results replace it, including with an empty list.
  */
 export class CanvasDefinitionStore extends Disposable {
 
@@ -81,7 +82,8 @@ export class CanvasDefinitionStore extends Disposable {
 		}
 		try {
 			const definitions = await request.source.listCanvases();
-			if (this.isCurrent(request)) {
+			// Ignore unsettled and stale snapshots so the last authoritative definitions remain visible.
+			if (definitions !== undefined && this.isCurrent(request)) {
 				this.loaded.set({ ownerKey: request.ownerKey, definitions: definitions.filter(isOpenableExtensionCanvasDefinition).sort(compareCanvasDefinitions) }, undefined);
 			}
 		} catch (error) {

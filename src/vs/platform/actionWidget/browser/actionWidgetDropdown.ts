@@ -47,6 +47,8 @@ export function withActionWidgetDropdownMotion(listOptions: IActionListOptions |
 export interface IActionWidgetDropdownAction extends IAction {
 	category?: { label: string; order: number; showHeader?: boolean };
 	icon?: ThemeIcon;
+	/** Icon beside the label, separate from the selection indicator. */
+	labelIcon?: ThemeIcon;
 	description?: string | IMarkdownString;
 	/**
 	 * Optional detail text displayed as a second line below the label.
@@ -215,6 +217,7 @@ export class ActionWidgetDropdown extends BaseDropdown {
 					disabled: !action.enabled,
 					hideIcon: !isCheckable && !action.icon,
 					label: action.label,
+					labelIcon: action.labelIcon,
 					keybinding: this._options.showItemKeybindings ?
 						(action.keybinding ?? this.keybindingService.lookupKeybinding(action.id)) :
 						undefined,

@@ -14,9 +14,10 @@ import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../platform/agentHost/common/agentHostFileSystemService.js';
-import { createAgentHostResourceUriMapper, identityAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { createAgentHostResourceUriMapper, IAgentHostResourceUriMapper, identityAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { CanvasesEnabledSettingId, IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IActionListDelegate, IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
@@ -62,7 +63,7 @@ import { AICustomizationManagementCommands, AICustomizationManagementSection } f
 import { createSessionPullRequestPillData } from '../../../browser/sessionPullRequestPill.js';
 import { chatPersistentContentVisibleClass, ChatWidget } from '../../../browser/widget/chatWidget.js';
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
-import type { IChatSessionWorkingSetUndo } from '../../../browser/widget/input/chatSessionWorkingSet.js';
+import type { IChatSessionWorkingSetKeep, IChatSessionWorkingSetUndo } from '../../../browser/widget/input/chatSessionWorkingSet.js';
 import { IChatModel } from '../../../common/model/chatModel.js';
 import { ChatViewModel } from '../../../common/model/chatViewModel.js';
 import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
@@ -272,13 +273,16 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	};
 
-	function createActivityPills(initialSession: SessionState, initialChat?: ChatState, gitHubService?: IGitHubService, connectionAuthority = 'local', workbenchGitHubService?: IWorkbenchGitHubService, transcript?: { service: IChatArtifactsService; local?: boolean }, options?: { sessionResource?: URI; configurationService?: IConfigurationService; defaultChangesetKind?: DefaultChangesetKind; dialogService?: IDialogService; notificationService?: INotificationService; supportsSessionWorkingSet?: boolean; getUriLabel?: ILabelService['getUriLabel']; workingSetUndo?: boolean }) {
+	function createActivityPills(initialSession: SessionState, initialChat?: ChatState, gitHubService?: IGitHubService, connectionAuthority = 'local', workbenchGitHubService?: IWorkbenchGitHubService, transcript?: { service: IChatArtifactsService; local?: boolean }, options?: { sessionResource?: URI; configurationService?: IConfigurationService; defaultChangesetKind?: DefaultChangesetKind; dialogService?: IDialogService; notificationService?: INotificationService; supportsSessionWorkingSet?: boolean; getUriLabel?: ILabelService['getUriLabel']; workingSetUndo?: boolean; openerService?: IOpenerService; resourceUris?: IAgentHostResourceUriMapper }) {
 		const instantiationService = createInstantiationService();
 		if (options?.configurationService) {
 			instantiationService.stub(IConfigurationService, options.configurationService);
 		}
 		if (options?.dialogService) {
 			instantiationService.stub(IDialogService, options.dialogService);
+		}
+		if (options?.openerService) {
+			instantiationService.stub(IOpenerService, options.openerService);
 		}
 		if (options?.getUriLabel) {
 			instantiationService.stub(ILabelService, 'getUriLabel', options.getUriLabel);
@@ -297,7 +301,7 @@ suite('AgentHostSessionInputPills', () => {
 			states.set(StateComponents.Chat, initialChat);
 		}
 		const connection = new StaticAgentConnection(states);
-		connection.resourceUris = createAgentHostResourceUriMapper(connectionAuthority);
+		connection.resourceUris = options?.resourceUris ?? createAgentHostResourceUriMapper(connectionAuthority);
 		const sessionResource = options?.sessionResource ?? URI.parse('agent-host-test:/session');
 		const persistentContent = document.createElement('div');
 		document.body.appendChild(persistentContent);
@@ -307,22 +311,25 @@ suite('AgentHostSessionInputPills', () => {
 		let inputFocused = false;
 		let workingSetChanges: readonly IEditSessionEntryDiff[] | undefined;
 		let workingSetUndo: IChatSessionWorkingSetUndo | undefined;
+		let workingSetKeep: IChatSessionWorkingSetKeep | undefined;
 		let workingSetRegistrations = 0;
 		const widget = upcastPartial<ChatWidget>({
 			inputPart: upcastPartial<ChatInputPart>({
 				persistentContentContainerElement: persistentContent,
 				registerChatPetHorizontalPlatformProvider: () => Disposable.None,
 				supportsSessionWorkingSet: options?.supportsSessionWorkingSet ?? true,
-				registerSessionFileChanges: (changes, undo) => {
+				registerSessionFileChanges: (changes, undo, keep) => {
 					workingSetRegistrations++;
 					return combinedDisposable(
 						autorun(reader => {
 							workingSetChanges = changes.read(reader);
 							workingSetUndo = undo?.read(reader);
+							workingSetKeep = keep?.read(reader);
 						}),
 						toDisposable(() => {
 							workingSetChanges = undefined;
 							workingSetUndo = undefined;
+							workingSetKeep = undefined;
 						}),
 					);
 				},
@@ -414,6 +421,7 @@ suite('AgentHostSessionInputPills', () => {
 			instantiationService, connection, sessionResource, persistentContent, customizationScheduler, visibility, commands, pills, openedImages,
 			workingSetChanges: () => workingSetChanges,
 			workingSetUndo: () => workingSetUndo,
+			workingSetKeep: () => workingSetKeep,
 			workingSetRegistrations: () => workingSetRegistrations,
 			setWorkingSetEnabled: async (enabled: boolean) => {
 				const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
@@ -684,6 +692,31 @@ suite('AgentHostSessionInputPills', () => {
 		}, { resources: [name], collections: 0 });
 	});
 
+	test('opens file artifacts through the connection that owns them', () => {
+		const artifact = URI.file('/home/user/videos/walkthrough.mp4');
+		const openArtifact = (connectionAuthority: string, resourceUris: IAgentHostResourceUriMapper) => {
+			const openerService = new TestOpenerService();
+			const harness = createActivityPills(upcastPartial<SessionState>({
+				defaultChat: 'vendor-chat:/main', chats: [],
+				_meta: withSessionArtifacts(undefined, [{ id: 'video', label: 'Walkthrough', uri: artifact.toString(), type: SessionArtifactType.File, isArtifact: true }]),
+			}), undefined, undefined, connectionAuthority, undefined, undefined, { openerService, resourceUris });
+			// A single artifact pill opens its resource synchronously when clicked
+			harness.persistentContent.querySelector<HTMLElement>('.chat-resource-pill-button')?.click();
+			return openerService.opened.map(({ resource }) => resource.toString());
+		};
+
+		assert.deepStrictEqual({
+			localWindow: openArtifact('local', identityAgentHostResourceUriMapper),
+			// The ambient host of a remote window resolves as `local` but runs on the remote
+			remoteWindow: openArtifact('local', createAgentHostResourceUriMapper('ambient-remote')),
+			remoteHost: openArtifact('remote', createAgentHostResourceUriMapper('remote')),
+		}, {
+			localWindow: [artifact.toString()],
+			remoteWindow: [toAgentHostUri(artifact, 'ambient-remote').toString()],
+			remoteHost: [toAgentHostUri(artifact, 'remote').toString()],
+		});
+	});
+
 	test('opens single subagent input pills and every dropdown entry to the side', async () => {
 		const mainChat = 'vendor-chat:/conversations/main';
 		const children: ChatSummary[] = [
@@ -857,7 +890,7 @@ suite('AgentHostSessionInputPills', () => {
 		const summarizedClose = harness.persistentContent.querySelector('.chat-pill-promoted-action');
 		const dropdown = harness.dropdown('2 Canvases');
 		dropdown.find(item => item.label === dashboard.title)?.select();
-		await dropdown.find(item => item.label === dashboard.title)?.toolbarActions[0]?.run();
+		await dropdown.find(item => item.label === dashboard.title)?.toolbarActions.find(action => action.label === 'Close Canvas Dashboard')?.run();
 		harness.showModel(upcastPartial<IChatModel>({}));
 
 		assert.deepStrictEqual({
@@ -876,7 +909,7 @@ suite('AgentHostSessionInputPills', () => {
 			offersToggle: true,
 			summarizedClose: null,
 			dropdown: ['Canvases', 'Preview', 'Dashboard'],
-			closeActions: ['Close Canvas Preview', 'Close Canvas Dashboard'],
+			closeActions: ['Pin Preview', 'Close Canvas Preview', 'Pin Dashboard', 'Close Canvas Dashboard'],
 			commands: [{ id: REVEAL_CANVAS_COMMAND_ID, args: [{ ...owner, canvas: dashboard.resource }] }],
 			closed: [preview.resource.toString(), dashboard.resource.toString()],
 			withoutCanvasContext: [],
@@ -1965,8 +1998,10 @@ suite('AgentHostSessionInputPills', () => {
 				hoverText: 'microsoft/vscodeon Sep 1Live pull request 332982 #332982OpenLive pull request bodymain←feature@pr-author opened this pull request',
 				actionLabels: [
 					'Copy Pull Request URL',
+					'Pin Live pull request 332982',
 					'Remove Artifact Chat: unify Agent Host status pills across chat surfaces from Session',
 					'Copy Pull Request URL',
+					'Pin Live pull request 335387',
 					'Remove Artifact sessions: preserve recorded issue titles in pills from Session',
 				],
 			},
@@ -2248,7 +2283,14 @@ suite('AgentHostSessionInputPills', () => {
 		});
 		setFiles([first]);
 		const states = [readState()];
-		await setEnabled(true);
+		harness.instantiationService.stub(IConfigurationService, 'updateValue', async (key: string, value: boolean) => {
+			assert.strictEqual(key, ChatConfiguration.EditorWorkingSetEnabled);
+			assert.strictEqual(typeof value, 'boolean');
+			await setEnabled(value === true);
+		});
+		const showWorkingSet = harness.menu(harness.persistentContent.querySelector('.chat-changes-pill-button')).find(action => action.label === 'Show Working Set');
+		assert.ok(showWorkingSet);
+		await showWorkingSet.run();
 		states.push(readState());
 		setFiles([first, second]);
 		states.push(readState());
@@ -2382,6 +2424,76 @@ suite('AgentHostSessionInputPills', () => {
 		]);
 	});
 
+	function createNewSessionPills() {
+		const creating = upcastPartial<SessionState>({ provider: 'copilotcli', lifecycle: SessionLifecycle.Creating, defaultChat: 'vendor-chat:/main', chats: [], changesets: [] });
+		const harness = createActivityPills(creating, upcastPartial<ChatState>({
+			changesets: [{ label: 'Uncommitted Changes', uriTemplate: 'vendor-diff:/uncommitted', changeKind: ChangesetKind.Uncommitted }],
+			turns: [],
+		}));
+		harness.connection.setState(StateComponents.Changeset, upcastPartial<ChangesetState>({
+			status: ChangesetStatus.Ready,
+			files: [{ id: 'file', edit: { after: { uri: 'file:///repo/file.ts', content: { uri: 'snapshot:/file.ts' } }, diff: { added: 1, removed: 0 } } }],
+		}));
+		const readState = () => {
+			const changesets = harness.connection.requested.filter(request => request.kind === StateComponents.Changeset).map(request => request.resource.toString());
+			for (const released of harness.connection.released) {
+				const index = changesets.indexOf(released.toString());
+				if (index !== -1) {
+					changesets.splice(index, 1);
+				}
+			}
+			return {
+				pill: !!harness.persistentContent.querySelector('.chat-changes-pill-button'),
+				workingSet: harness.workingSetChanges()?.length,
+				changesets,
+			};
+		};
+		// Hosts mark the session ready before they replace the catalogue it had while being created.
+		const ready: SessionState = { ...creating, lifecycle: SessionLifecycle.Ready };
+		return { harness, readState, ready };
+	}
+
+	test('leaves out the Changes pill while a new session is created and becomes ready, until its working set takes over', () => runWithFakedTimers({}, async () => {
+		const { harness, readState, ready } = createNewSessionPills();
+		const states = [readState()];
+		await harness.setWorkingSetEnabled(true);
+		states.push(readState());
+		harness.connection.setState(StateComponents.Session, ready);
+		states.push(readState());
+		harness.connection.setState(StateComponents.Session, {
+			...ready,
+			changesets: [
+				{ label: 'Session Changes', uriTemplate: 'vendor-diff:/session', changeKind: ChangesetKind.Session },
+				{ label: 'Working Set', uriTemplate: 'vendor-diff:/working-set', changeKind: ChangesetKind.WorkingSet },
+			],
+		});
+		states.push(readState());
+		await timeout(10_000);
+		states.push(readState());
+		assert.deepStrictEqual(states, [
+			{ pill: true, workingSet: undefined, changesets: ['vendor-diff:/uncommitted'] },
+			{ pill: false, workingSet: undefined, changesets: [] },
+			{ pill: false, workingSet: undefined, changesets: [] },
+			{ pill: false, workingSet: 1, changesets: ['vendor-diff:/working-set'] },
+			{ pill: false, workingSet: 1, changesets: ['vendor-diff:/working-set'] },
+		]);
+	}));
+
+	for (const replacesCatalogue of [false, true]) {
+		test(`shows the Changes pill of a new session once it's ready on hosts without a working set (replaces catalogue: ${replacesCatalogue})`, () => runWithFakedTimers({}, async () => {
+			const { harness, readState, ready } = createNewSessionPills();
+			await harness.setWorkingSetEnabled(true);
+			const states = [readState()];
+			harness.connection.setState(StateComponents.Session, replacesCatalogue ? { ...ready, changesets: [] } : ready);
+			states.push(readState());
+			await timeout(10_000);
+			states.push(readState());
+			const pending = { pill: false, workingSet: undefined, changesets: [] };
+			const shown = { pill: true, workingSet: undefined, changesets: ['vendor-diff:/uncommitted'] };
+			assert.deepStrictEqual(states, [pending, replacesCatalogue ? shown : pending, shown]);
+		}));
+	}
+
 	function createWorkingSetUndoPills(options?: { dialogService?: IDialogService; notificationService?: INotificationService; workingSetUndo?: boolean }) {
 		const harness = createActivityPills(upcastPartial<SessionState>({
 			provider: 'copilotcli',
@@ -2483,11 +2595,11 @@ suite('AgentHostSessionInputPills', () => {
 		const undo = harness.workingSetUndo();
 		const [diff] = harness.workingSetChanges() ?? [];
 		assert.ok(undo && diff);
-		const results = [await undo.undo([diff])];
+		const results = [await undo.undo([diff], false)];
 		confirmed = true;
-		results.push(await undo.undo([diff]));
+		results.push(await undo.undo([diff], false));
 		harness.connection.invokeChangesetOperationError = () => new Error('The file changed.');
-		results.push(await undo.undo([diff]));
+		results.push(await undo.undo([diff], false));
 
 		const invoked = { channel: 'vendor-diff:/opaque/session-changes', operationId: 'discard-changes', target: { kind: ChangesetOperationTargetKind.Resource, resource: 'file:///repo/file.ts' } };
 		assert.deepStrictEqual({ results, confirmations, invoked: harness.connection.invokedChangesetOperations, errors }, {
@@ -2516,9 +2628,9 @@ suite('AgentHostSessionInputPills', () => {
 		const diffs = harness.workingSetChanges() ?? [];
 		assert.ok(undo);
 		harness.connection.invokeChangesetOperationError = params => params.target?.resource === 'file:///repo/a.ts' ? undefined : new Error(`${basename(URI.parse(params.target!.resource))} changed.`);
-		const someUndone = await undo.undo(diffs);
+		const someUndone = await undo.undo(diffs, true);
 		harness.connection.invokeChangesetOperationError = () => new Error('The turn is running.');
-		const noneUndone = await undo.undo(diffs);
+		const noneUndone = await undo.undo(diffs, true);
 
 		assert.deepStrictEqual({
 			results: [someUndone, noneUndone],
@@ -2555,7 +2667,7 @@ suite('AgentHostSessionInputPills', () => {
 			}
 			return undefined;
 		};
-		const result = await undo.undo(diffs);
+		const result = await undo.undo(diffs, true);
 
 		assert.deepStrictEqual({
 			result,
@@ -2594,7 +2706,7 @@ suite('AgentHostSessionInputPills', () => {
 			}
 			return undefined;
 		};
-		const undoing = undo.undo(diffs);
+		const undoing = undo.undo(diffs, true);
 		await timeout(0);
 		const invokedWhileUpdating = [harness.connection.invokedChangesetOperations.length];
 		setFiles([['a.ts', 'after'], ['b.ts', 'edited'], ['c.ts', 'after']]);
@@ -2630,7 +2742,7 @@ suite('AgentHostSessionInputPills', () => {
 			await invocation.p;
 			return {};
 		};
-		const undoing = undo.undo([diff]);
+		const undoing = undo.undo([diff], false);
 		await timeout(0);
 		const states = [harness.workingSetUndo()?.enabled.get()];
 		// Another session's changes come from another channel.
@@ -2677,6 +2789,225 @@ suite('AgentHostSessionInputPills', () => {
 			files: ['file.ts'],
 			keptAcrossStatusChanges: true,
 			rebuiltForNewFiles: true,
+		});
+	});
+
+	function createSessionWorkingSetPills() {
+		const errors: string[] = [];
+		const confirmations: Pick<IConfirmation, 'title' | 'message' | 'primaryButton' | 'type'>[] = [];
+		let confirmed = false;
+		const session = upcastPartial<SessionState>({
+			provider: 'copilotcli',
+			defaultChat: 'vendor-chat:/opaque/main',
+			chats: [],
+			changesets: [
+				{ label: 'Session Changes', uriTemplate: 'vendor-diff:/opaque/session-changes', changeKind: ChangesetKind.Session },
+				{ label: 'Working Set', uriTemplate: 'vendor-diff:/opaque/working-set', changeKind: ChangesetKind.WorkingSet },
+			],
+		});
+		const harness = createActivityPills(session, upcastPartial<ChatState>({
+			changesets: [{ label: 'Branch Changes', uriTemplate: 'vendor-diff:/opaque/branch-changes', changeKind: ChangesetKind.Branch }],
+			turns: [],
+		}), undefined, 'remote-test', undefined, undefined, {
+			getUriLabel: labelService.getUriLabel,
+			dialogService: upcastPartial<IDialogService>({
+				confirm: async ({ title, message, primaryButton, type }) => {
+					confirmations.push({ title, message, primaryButton, type });
+					return { confirmed };
+				},
+			}),
+			notificationService: upcastPartial<INotificationService>({ error: message => { errors.push(String(message)); } }),
+		});
+		const setOperations = (operations: ChangesetOperation[], nonce?: string) => harness.connection.setState(StateComponents.Changeset, upcastPartial<ChangesetState>({
+			status: ChangesetStatus.Ready,
+			files: [{
+				id: 'file.ts',
+				...(nonce !== undefined ? { nonce } : {}),
+				edit: {
+					before: { uri: 'file:///repo/file.ts', content: { uri: 'snapshot:/before/file.ts' } },
+					after: { uri: 'file:///repo/file.ts', content: { uri: 'snapshot:/after/file.ts' } },
+					diff: { added: 2, removed: 1 },
+				},
+			}],
+			operations,
+		}));
+		const readState = () => ({
+			changeset: harness.connection.requested.filter(request => request.kind === StateComponents.Changeset).at(-1)?.resource.toString(),
+			files: harness.workingSetChanges()?.map(diff => basename(diff.modifiedURI)),
+			keep: harness.workingSetKeep()?.enabled.get(),
+			undo: harness.workingSetUndo()?.enabled.get(),
+		});
+		const readInvoked = () => harness.connection.invokedChangesetOperations.map(params => `${params.operationId} ${params.channel} ${params.target?.resource}`);
+		return { harness, session, errors, confirmations, setConfirmed: (value: boolean) => { confirmed = value; }, setOperations, readState, readInvoked };
+	}
+
+	const acceptChanges = (status: ChangesetOperationStatus, confirmation?: string): ChangesetOperation => ({ id: 'accept-changes', label: 'Accept Changes', scopes: [ChangesetOperationScope.Resource], status, ...(confirmation ? { confirmation } : {}) });
+	// Like undoing a file in the editing session's working set, the host doesn't ask to confirm discarding a Working Set file.
+	const discardWorkingSetChanges = (status: ChangesetOperationStatus): ChangesetOperation => ({ id: 'discard-changes', label: 'Discard Changes', scopes: [ChangesetOperationScope.Resource], status });
+
+	for (const nonce of [undefined, 'opaque-file-nonce']) {
+		test(`echoes an optional file nonce for working-set Keep and Undo (nonce=${nonce})`, async () => {
+			const { harness, setOperations, errors } = createSessionWorkingSetPills();
+			setOperations([acceptChanges(ChangesetOperationStatus.Idle), discardWorkingSetChanges(ChangesetOperationStatus.Idle)], nonce);
+			await harness.setWorkingSetEnabled(true);
+			const keep = harness.workingSetKeep();
+			const undo = harness.workingSetUndo();
+			const [diff] = harness.workingSetChanges() ?? [];
+			assert.ok(keep && undo && diff);
+			const results = [await keep.keep([diff], false), await undo.undo([diff], false)];
+
+			assert.deepStrictEqual({ results, requests: harness.connection.invokedChangesetOperations, errors }, {
+				results: [true, true],
+				requests: ['accept-changes', 'discard-changes'].map(operationId => ({
+					channel: 'vendor-diff:/opaque/working-set',
+					operationId,
+					target: { kind: ChangesetOperationTargetKind.Resource, resource: 'file:///repo/file.ts', ...(nonce !== undefined ? { nonce } : {}) },
+				})),
+				errors: [],
+			});
+		});
+	}
+
+	test('does not replace a displayed nonce with a newer one on unchanged content URIs', async () => {
+		const { harness, setOperations, errors } = createSessionWorkingSetPills();
+		setOperations([acceptChanges(ChangesetOperationStatus.Idle)], 'first');
+		await harness.setWorkingSetEnabled(true);
+		const keep = harness.workingSetKeep();
+		const [before] = harness.workingSetChanges() ?? [];
+		assert.ok(keep && before);
+		setOperations([acceptChanges(ChangesetOperationStatus.Idle)], 'second');
+		const [after] = harness.workingSetChanges() ?? [];
+		assert.ok(after);
+		const results = [await keep.keep([before], false), await keep.keep([after], false)];
+
+		assert.deepStrictEqual({ results, nonces: harness.connection.invokedChangesetOperations.map(params => params.target?.nonce), errors: errors.length }, {
+			results: [false, true], nonces: ['second'], errors: 1,
+		});
+	});
+
+	test('shows the session\'s Working Set instead of Session Changes, keeping and undoing its files with the host operations', async () => {
+		const { harness, session, errors, confirmations, setConfirmed, setOperations, readState, readInvoked } = createSessionWorkingSetPills();
+		setOperations([acceptChanges(ChangesetOperationStatus.Idle), discardWorkingSetChanges(ChangesetOperationStatus.Idle)]);
+		await harness.setWorkingSetEnabled(true);
+		const idle = readState();
+		const keep = harness.workingSetKeep();
+		const undo = harness.workingSetUndo();
+		const [diff] = harness.workingSetChanges() ?? [];
+		assert.ok(keep && undo && diff);
+		// Undoing a file isn't confirmed; undoing all files is, like Undo All Edits in the editing session's working set.
+		const results = [await keep.keep([diff], false), await undo.undo([diff], false), await undo.undo([diff], true)];
+		setConfirmed(true);
+		results.push(await undo.undo([diff], true));
+		setOperations([acceptChanges(ChangesetOperationStatus.Disabled), discardWorkingSetChanges(ChangesetOperationStatus.Disabled)]);
+		const whileTurnRuns = readState();
+		// Without Accept Changes, Keep is disabled rather than hiding files in the workbench, which the host wouldn't know about.
+		setOperations([discardWorkingSetChanges(ChangesetOperationStatus.Idle)]);
+		const withoutAcceptChanges = readState();
+		// Hosts without a Working Set show Session Changes, whose changes the workbench keeps.
+		harness.connection.setState(StateComponents.Session, { ...session, changesets: [session.changesets![0]] });
+
+		const undoAllConfirmation = { title: 'Undo all edits?', message: 'This will undo changes made in file.ts. Do you want to proceed?', primaryButton: 'Yes', type: 'info' as const };
+		assert.deepStrictEqual({
+			idle,
+			results,
+			confirmations,
+			invoked: readInvoked(),
+			whileTurnRuns,
+			withoutAcceptChanges,
+			withoutWorkingSet: readState(),
+			errors,
+		}, {
+			idle: { changeset: 'vendor-diff:/opaque/working-set', files: ['file.ts'], keep: true, undo: true },
+			results: [true, true, false, true],
+			confirmations: [undoAllConfirmation, undoAllConfirmation],
+			invoked: [
+				'accept-changes vendor-diff:/opaque/working-set file:///repo/file.ts',
+				'discard-changes vendor-diff:/opaque/working-set file:///repo/file.ts',
+				'discard-changes vendor-diff:/opaque/working-set file:///repo/file.ts',
+			],
+			whileTurnRuns: { changeset: 'vendor-diff:/opaque/working-set', files: ['file.ts'], keep: false, undo: false },
+			withoutAcceptChanges: { changeset: 'vendor-diff:/opaque/working-set', files: ['file.ts'], keep: false, undo: true },
+			withoutWorkingSet: { changeset: 'vendor-diff:/opaque/session-changes', files: ['file.ts'], keep: undefined, undo: undefined },
+			errors: [],
+		});
+	});
+
+	test('keeps Working Set files only after the host\'s confirmation, when it has one', async () => {
+		const { harness, errors, confirmations, setConfirmed, setOperations, readInvoked } = createSessionWorkingSetPills();
+		setOperations([acceptChanges(ChangesetOperationStatus.Idle, 'Accept the changes to \'{0}\'?'), discardWorkingSetChanges(ChangesetOperationStatus.Idle)]);
+		await harness.setWorkingSetEnabled(true);
+		const keep = harness.workingSetKeep();
+		const [diff] = harness.workingSetChanges() ?? [];
+		assert.ok(keep && diff);
+		const results = [await keep.keep([diff], false)];
+		setConfirmed(true);
+		results.push(await keep.keep([diff], false));
+		// Changes accepted outside of the working set, as by staging them with Git, aren't confirmed, so they're left alone.
+		results.push(await keep.keep([diff], true));
+
+		const acceptConfirmation = { title: undefined, message: 'Accept the changes to \'file.ts\'?', primaryButton: 'Accept Changes', type: 'warning' as const };
+		assert.deepStrictEqual({ results, confirmations, invoked: readInvoked(), errors }, {
+			results: [false, true, false],
+			confirmations: [acceptConfirmation, acceptConfirmation],
+			invoked: ['accept-changes vendor-diff:/opaque/working-set file:///repo/file.ts'],
+			errors: [],
+		});
+	});
+
+	test('keeps changes staged with Git after a Keep in progress, but not while the host can\'t accept them', async () => {
+		const { harness, errors, readInvoked } = createSessionWorkingSetPills();
+		const file = (name: string) => ({
+			id: name,
+			edit: {
+				before: { uri: `file:///repo/${name}`, content: { uri: `snapshot:/before/${name}` } },
+				after: { uri: `file:///repo/${name}`, content: { uri: `snapshot:/after/${name}` } },
+				diff: { added: 2, removed: 1 },
+			},
+		});
+		const setFiles = (status: ChangesetOperationStatus) => harness.connection.setState(StateComponents.Changeset, upcastPartial<ChangesetState>({
+			status: ChangesetStatus.Ready,
+			files: [file('a.ts'), file('b.ts')],
+			operations: [acceptChanges(status), discardWorkingSetChanges(status)],
+		}));
+		setFiles(ChangesetOperationStatus.Idle);
+		await harness.setWorkingSetEnabled(true);
+		const keep = harness.workingSetKeep();
+		const [a, b] = harness.workingSetChanges() ?? [];
+		assert.ok(keep && a && b);
+		const firstAccepted = new DeferredPromise<void>();
+		const invoke = harness.connection.invokeChangesetOperation.bind(harness.connection);
+		harness.connection.invokeChangesetOperation = async params => {
+			const result = await invoke(params);
+			if (params.target?.resource === 'file:///repo/a.ts') {
+				await firstAccepted.p;
+			}
+			return result;
+		};
+
+		const keepA = keep.keep([a], false);
+		await timeout(0);
+		const enabledWhileKeeping = keep.enabled.get();
+		// Staging `b` with Git while `a` is being kept waits for it, rather than being dropped like a disabled Keep.
+		const keepB = keep.keep([b], true);
+		await timeout(0);
+		const invokedWhileKeeping = readInvoked();
+		await firstAccepted.complete();
+		const results = [await keepA, await keepB];
+		const invokedAfterwards = readInvoked();
+		// While a turn runs, the host can't accept changes, so changes staged with Git are left alone.
+		setFiles(ChangesetOperationStatus.Disabled);
+		results.push(await keep.keep([a], true));
+
+		assert.deepStrictEqual({ enabledWhileKeeping, invokedWhileKeeping, invokedAfterwards, results, invoked: readInvoked(), errors }, {
+			enabledWhileKeeping: false,
+			invokedWhileKeeping: ['accept-changes vendor-diff:/opaque/working-set file:///repo/a.ts'],
+			invokedAfterwards: [
+				'accept-changes vendor-diff:/opaque/working-set file:///repo/a.ts',
+				'accept-changes vendor-diff:/opaque/working-set file:///repo/b.ts',
+			],
+			results: [true, true, false],
+			invoked: invokedAfterwards,
+			errors: [],
 		});
 	});
 
@@ -3367,12 +3698,16 @@ suite('AgentHostSessionInputPills', () => {
 			empty: false,
 			dropdownActionLabels: [
 				'Copy Commit URL',
+				'Pin Commit',
 				'Remove Reference Commit from Session',
 				'Copy Website URL',
+				'Pin Preview',
 				'Remove Reference Preview from Session',
 				'Copy Path',
+				'Pin README.md',
 				'Remove Reference README from Session',
 				'Copy URI',
+				'Pin Chat settings',
 				'Remove Reference Chat settings from Session',
 			],
 			dropdownFooterActionLabels: ['Copy Hash', 'Copy Relative Path'],

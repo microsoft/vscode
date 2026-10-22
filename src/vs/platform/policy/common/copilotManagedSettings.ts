@@ -8,6 +8,7 @@ import { IPolicyData } from '../../../base/common/defaultAccount.js';
 import { ExtraKnownMarketplacesConfigDict, IExtraKnownMarketplaceEntry, extraKnownMarketplacesToConfigDict } from '../../../base/common/managedSettings.js';
 import { IManagedSettingPolicyDefinition, IManagedSettingsPolicyDefinitions, ManagedSettingValue, ManagedSettingsData } from '../../../base/common/policy.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
+import { parse, ParseError } from '../../../base/common/json.js';
 import { isEmptyObject, isObject, isString } from '../../../base/common/types.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
@@ -43,6 +44,9 @@ export const GITHUB_COPILOT_MACOS_BUNDLE_ID = 'com.github.copilot';
 
 /** MDM key for the V0 managed setting. */
 export const COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY = 'permissions.disableBypassPermissionsMode';
+
+/** Managed setting that disables the Assisted permission mode. */
+export const COPILOT_DISABLE_ASSISTED_PERMISSIONS_MODE_KEY = 'permissions.disableAssistedPermissionsMode';
 
 /** Runtime-owned rule lists that the Local harness cannot enforce. */
 export const COPILOT_PERMISSION_RULES_KEYS = ['permissions.ask', 'permissions.allow', 'permissions.deny'] as const;
@@ -86,7 +90,7 @@ export const TemporaryDefaultToLocalHarnessSettingId = 'chat.temporaryDefaultToL
 /**
  * Enterprise-mandated sandbox floor (`sandbox.enabled` in the runtime's managed-settings schema).
  * The runtime owns composing and enforcing this floor — it is `force-on-wins`, so a managed `true`
- * cannot be loosened by the user. VS Code only *reads* it to display Copilot sandbox state,
+ * cannot be loosened by the user. VS Code only *reads* it to decide which chat harness to offer,
  * and deliberately declares no configuration policy for it: the control is runtime-owned, and
  * mirroring it as a VS Code policy would invert ownership.
  */
@@ -132,13 +136,19 @@ export const COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY = 'sandbox.allowDevToolAc
 export const COPILOT_AUTO_TIER_KEY = 'autoTier';
 
 /**
+ * Agent Host Copilot runtime's Fusion tier (`standard`, `high`, `max`, `unmanaged`). Its presence in any channel
+ * supersedes {@link COPILOT_AUTO_TIER_KEY} for that runtime, which owns the tier's routing.
+ */
+export const COPILOT_FUSION_TIER_KEY = 'fusionTier';
+
+/**
  * Managed-settings controls consumed by the delivery pipeline itself rather than by a
  * configuration policy. Native MDM must watch these even though no setting declares them.
  */
 export const MANAGED_SETTINGS_CONTROL_DEFINITIONS: IManagedSettingsPolicyDefinitions = {
 	...Object.fromEntries(COPILOT_PERMISSION_RULES_KEYS.map(key => [key, { type: 'string' as const }])),
 	'permissions.defaultMode': { type: 'string' },
-	'permissions.disableAssistedPermissionsMode': { type: 'boolean' },
+	[COPILOT_DISABLE_ASSISTED_PERMISSIONS_MODE_KEY]: { type: 'boolean' },
 	[COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: { type: 'string' },
 	'permissions.limitTo': { type: 'string' },
 	'permissions.model': { type: 'string' },
@@ -159,6 +169,7 @@ export const MANAGED_SETTINGS_CONTROL_DEFINITIONS: IManagedSettingsPolicyDefinit
 	[COPILOT_SANDBOX_DENIED_PATHS_KEY]: { type: 'string' },
 	[COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY]: { type: 'boolean' },
 	[COPILOT_AUTO_TIER_KEY]: { type: 'string' },
+	[COPILOT_FUSION_TIER_KEY]: { type: 'string' },
 	// Observe these only for whole-block source selection; Local does not implement their capture semantics.
 	'telemetry.capture.prompts': { type: 'boolean' },
 	'telemetry.capture.responses': { type: 'boolean' },
@@ -305,10 +316,18 @@ export class NullManagedSettingsService implements IManagedSettingsService {
 	}
 }
 
-/** Detects permission settings without interpreting their runtime-owned values. */
-export function hasManagedPermissions(service: IManagedSettingsService): boolean {
-	const settings = service.getManagedSettings();
-	return Object.keys(settings).some(key => (key === 'permissions' || key.startsWith('permissions.')) && settings[key] !== undefined);
+/** Non-empty or malformed managed deny lists require runtime enforcement; rule interpretation remains runtime-owned. */
+export function hasManagedPermissionDenials(service: IManagedSettingsService): boolean {
+	const value = service.getManagedSettingValue('permissions.deny');
+	if (value === undefined) {
+		return false;
+	}
+	if (typeof value !== 'string') {
+		return true;
+	}
+	const errors: ParseError[] = [];
+	const rules: unknown = parse(value, errors, { disallowComments: true, allowTrailingComma: false });
+	return errors.length > 0 || !Array.isArray(rules) || rules.length > 0;
 }
 
 /** Whether an administrator has enabled the temporary Local harness escape hatch. */
@@ -316,9 +335,17 @@ export function isTemporaryDefaultToLocalHarnessEnabled(configurationService: IC
 	return configurationService.inspect<boolean>(TemporaryDefaultToLocalHarnessSettingId).policyValue === true;
 }
 
-/** Only explicit Local disablement requires Agent Host, independently of runtime permission and sandbox settings. */
-export function requiresCopilotAgentHost(service: IManagedSettingsService): boolean {
-	return service.getManagedSettingValue(COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY) === false;
+/** Whether effective policy requires Agent Host; explicit Local disablement overrides the temporary Local escape hatch. */
+export function requiresCopilotAgentHost(service: IManagedSettingsService, configurationService: IConfigurationService): boolean {
+	if (service.getManagedSettingValue(COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY) === false) {
+		return true;
+	}
+	const temporaryDefaultToLocal = configurationService?.inspect<boolean>(TemporaryDefaultToLocalHarnessSettingId).policyValue
+		?? service.getManagedSettingValue(COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY);
+	if (temporaryDefaultToLocal === true) {
+		return false;
+	}
+	return service.getManagedSettingValue(COPILOT_SANDBOX_ENABLED_KEY) === true || hasManagedPermissionDenials(service);
 }
 
 let managedModelValueCallback: ((policyData: IPolicyData) => ManagedSettingValue | undefined) | undefined;
@@ -705,6 +732,10 @@ const STRUCTURED_MANAGED_SETTINGS: readonly IStructuredManagedSetting[] = [
 	},
 	{
 		key: COPILOT_AUTO_TIER_KEY,
+		encode: value => value,
+	},
+	{
+		key: COPILOT_FUSION_TIER_KEY,
 		encode: value => value,
 	},
 	{

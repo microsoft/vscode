@@ -808,7 +808,7 @@
             "localization": {
                 "description": {
                     "key": "chat.temporaryDefaultToLocalHarness.policy",
-                    "value": "Temporarily keeps Local available and prevents automatic selection of the Copilot harness, overriding rollout settings. Local does not enforce runtime-only sandbox and permission settings."
+                    "value": "Temporarily keeps Local available and prevents automatic selection of the Copilot harness, overriding rollout settings and managed sandbox and permission routing. Local does not enforce runtime-only sandbox and permission settings."
                 }
             },
             "type": "boolean",

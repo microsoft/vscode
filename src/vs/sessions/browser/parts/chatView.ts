@@ -8,6 +8,7 @@ import { ISerializableView, IViewSize } from '../../../base/browser/ui/grid/grid
 import { ProgressBar } from '../../../base/browser/ui/progressbar/progressbar.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { IAction } from '../../../base/common/actions.js';
 import { constObservable, IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
@@ -87,11 +88,40 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 
 	readonly pickerVisibility: IObservable<ISessionPickerVisibility> = constObservable(noSessionPickerVisibility);
 
+	get activityBarActions(): IObservable<readonly IAction[]> {
+		return constObservable([]);
+	}
+
+	get scrollDownButtonDomNode(): HTMLElement | undefined {
+		return undefined;
+	}
+
+	/** Retain the composer while it clears a draft as part of an in-place selection change. */
+	get preserveOnSessionClear(): boolean {
+		return false;
+	}
+
 	focusWorkspacePicker(): void {
 		// no-op by default
 	}
 
 	focusHarnessPicker(): void {
+		// no-op by default
+	}
+
+	focusEnvironmentPicker(): void {
+		// no-op by default
+	}
+
+	focusBranchPicker(): void {
+		// no-op by default
+	}
+
+	focusWorktreePicker(): void {
+		// no-op by default
+	}
+
+	focusSyncAction(): void {
 		// no-op by default
 	}
 
