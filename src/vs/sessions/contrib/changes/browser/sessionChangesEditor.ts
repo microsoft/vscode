@@ -61,6 +61,7 @@ import { getChangesEditorFileStats } from './changesEditorLabels.js';
 import { IDiffEditorOptionsService } from '../../editor/common/diffEditorOptionsService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { observableWorkbenchMultiDiffEditorVariant } from '../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
+import { ChangesEmptyState } from './changesEmptyState.js';
 
 const HEADER_HEIGHT = 35;
 
@@ -290,6 +291,14 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		this._register(autorun(reader => this.widget?.setVariant(variant.read(reader))));
 		this._register(this.widget.onDidChangeActiveControl(() => this._onDidChangeControl.fire()));
 		this.widget.setPaddingBottom(CHANGES_LIST_BOTTOM_PADDING_PX);
+		const emptyState = append(this.bodyContainer, $('.session-changes-editor-empty-state'));
+		this._register(scopedInstantiationService.createInstance(ChangesEmptyState, emptyState));
+		this._register(autorun(reader => {
+			const model = this.widget?.viewModel.read(reader);
+			const empty = !!model && !model.isLoading.read(reader) && model.items.read(reader).length === 0;
+			emptyState.hidden = !empty;
+			this.bodyContainer?.classList.toggle('has-empty-state', empty);
+		}));
 		this._register(autorun(reader => {
 			this.widget?.setDiffLayoutOptions(
 				this.diffEditorOptionsService.viewMode.read(reader),
