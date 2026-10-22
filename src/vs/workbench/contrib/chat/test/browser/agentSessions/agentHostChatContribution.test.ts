@@ -65,7 +65,7 @@ import { toAgentMessageDelegationMeta } from '../../../../../../platform/agentHo
 import { toRemoteSessionMessageMetadata } from '../../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { ActionType, AuthRequiredReason, isSessionAction, isChatAction, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction as AgentHostChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AhpErrorCodes, AHP_AUTH_REQUIRED, AHP_NOT_FOUND, JsonRpcErrorCodes, ProtocolError, type DispatchActionParams, type IStateSnapshot, type JsonRpcRequest, type ProtocolMessage } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { BackgroundWorkKind, ChatInteractivity, ConfirmationOptionKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type AgentCustomization, type ChatInputAnswer, type ChatInputRequest, type ClientPluginCustomization, type ProtectedResourceMetadata, type SessionActiveClient, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { BackgroundWorkKind, ChatInteractivity, ConfirmationOptionKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionOriginKind, type AgentCustomization, type ChatInputAnswer, type ChatInputRequest, type ClientPluginCustomization, type ProtectedResourceMetadata, type SessionActiveClient, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, createSessionState, createChatState, createDefaultChatSummary, createErrorResponsePart, buildChatUri, buildDefaultChatUri, parseChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, buildSubagentSessionUri, ToolResultContentType, MessageAttachmentKind, MessageKind, PendingMessageKind, withMessageRequestHiddenFromTranscript, withSessionMultiRootMetadata, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo, type MessageAttachment, type MessageChatAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, type CompletionsResult, type InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { sessionReducer, chatReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
@@ -4419,6 +4419,57 @@ suite('AgentHostChatContribution', () => {
 	// ---- Session list (IChatSessionItemController) ----------------------
 
 	suite('session list', () => {
+
+		test('projects durable automation origin into editor session metadata', async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+			const ordinary = AgentSession.uri('copilot', 'ordinary');
+			const automation = AgentSession.uri('copilot', 'automation');
+			const origin = { kind: SessionOriginKind.Automation, automation: 'ahp-automation:/definition', run: 'ahp-automation-run:/run' } as const;
+			agentHostService.addSession({
+				session: ordinary,
+				startTime: 1000,
+				modifiedTime: 2000,
+				summary: 'Ordinary',
+			});
+			agentHostService.addSession({
+				session: automation,
+				startTime: 1000,
+				modifiedTime: 2000,
+				summary: 'Automation',
+				origin,
+			});
+			const controller = createSessionListController(disposables, instantiationService, agentHostService);
+			await controller.refresh(CancellationToken.None);
+
+			agentHostService.fireNotification({
+				type: 'root/sessionSummaryChanged',
+				channel: ROOT_STATE_URI,
+				session: automation.toString(),
+				changes: { title: 'Updated Automation' },
+			});
+			agentHostService.fireNotification({
+				type: 'root/sessionAdded',
+				channel: ROOT_STATE_URI,
+				summary: {
+					resource: AgentSession.uri('copilot', 'live-automation').toString(),
+					provider: 'copilot',
+					title: 'Live Automation',
+					status: SessionStatus.Idle,
+					createdAt: new Date(3000).toISOString(),
+					modifiedAt: new Date(4000).toISOString(),
+					origin,
+				},
+			});
+
+			assert.deepStrictEqual(
+				controller.items.map(item => ({ label: item.label, isAutomation: item.metadata?.isAutomation })),
+				[
+					{ label: 'Ordinary', isAutomation: undefined },
+					{ label: 'Updated Automation', isAutomation: true },
+					{ label: 'Live Automation', isAutomation: true },
+				],
+			);
+		});
 
 		for (const variant of ['authority', 'query', 'selector-shaped query'] as const) {
 			test(`keeps pending creation and read state separate for same-path ${variant} resources`, async () => {

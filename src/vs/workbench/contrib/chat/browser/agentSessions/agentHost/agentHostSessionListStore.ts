@@ -439,6 +439,7 @@ export class AgentHostSessionListStore extends Disposable {
 					...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
 				})),
 				defaultChat: session.chats?.find(chat => chat.kind === 'default')?.chat.toString(),
+				origin: session.origin,
 				// The repository root a worktree-isolated session belongs to; the
 				// workspace filter matches on it because the worktree itself lives
 				// outside the repository folder.

@@ -111,6 +111,29 @@ suite('AgentSessions', () => {
 			});
 		});
 
+		test('hides automation sessions from discovery while preserving direct lookup', async () => {
+			return runWithFakedTimers({}, async () => {
+				const ordinary = makeSimpleSessionItem('ordinary', { label: 'Ordinary Session' });
+				const automation = makeSimpleSessionItem('automation', {
+					label: 'Automation Run',
+					metadata: { isAutomation: true },
+				});
+				const controller = new StaticChatSessionItemController([ordinary, automation]);
+
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = createViewModel();
+				await viewModel.resolve(undefined);
+
+				assert.deepStrictEqual({
+					visible: viewModel.sessions.map(session => session.label),
+					automationLookup: viewModel.getSession(automation.resource)?.label,
+				}, {
+					visible: ['Ordinary Session'],
+					automationLookup: 'Automation Run',
+				});
+			});
+		});
+
 		test('preserves a registered provider\'s sessions when a sibling provider refreshes with a partial list', async () => {
 			return runWithFakedTimers({}, async () => {
 				// Two providers registered only as item controllers (no static
