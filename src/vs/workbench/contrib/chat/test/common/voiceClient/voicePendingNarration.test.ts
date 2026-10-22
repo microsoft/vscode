@@ -55,6 +55,17 @@ suite('formatQuestionPrompt', () => {
 		);
 	});
 
+	test('reads the form-level question before its short field title and options', () => {
+		assert.strictEqual(
+			formatQuestionPrompt({ ...single, title: 'Function behavior' }, false, 'What should candyFactory do?'),
+			'What should candyFactory do? Function behavior Options: 1, West US. 2, East US.',
+		);
+	});
+
+	test('does not repeat form context that is also the question text', () => {
+		assert.strictEqual(formatQuestionPrompt(single, false, ' Which region? '), 'Which region? Options: 1, West US. 2, East US.');
+	});
+
 	test('appends the skip hint when the form allows skipping', () => {
 		assert.strictEqual(
 			formatQuestionPrompt(single, true),

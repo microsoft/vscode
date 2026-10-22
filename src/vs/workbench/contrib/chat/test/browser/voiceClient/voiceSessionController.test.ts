@@ -5146,6 +5146,23 @@ suite('VoiceSessionController', () => {
 		assert.strictEqual(buildPendingPayload.call(controller, pendingPartsModel({ kind: 'questionCarousel', questions: [] })), undefined);
 	});
 
+	test('narrates the carousel-level question as well as the field title and choices', () => {
+		const controller = createController(new TestVoiceClientService());
+		const questionNarratable = Reflect.get(controller, '_questionNarratable') as (model: IChatModel) => { text: string } | undefined;
+		const carousel = new ChatQuestionCarouselData([{
+			id: 'behavior',
+			type: 'singleSelect',
+			title: 'Function behavior',
+			options: [
+				{ id: 'name', label: 'Accept a name and return { name }, like createTurtle', value: 'name' },
+				{ id: 'empty', label: 'Leave the function empty for now', value: 'empty' },
+			],
+		}], false, undefined, undefined, undefined, new MarkdownString('What should candyFactory do?'));
+
+		assert.strictEqual(questionNarratable.call(controller, pendingPartsModel(carousel))?.text,
+			'What should candyFactory do? Function behavior Options: 1, Accept a name and return { name }, like createTurtle. 2, Leave the function empty for now. You can also give your own answer.');
+	});
+
 	test('selects the oldest still-open pending part, not the newest', () => {
 		// Voice is a serial channel: a second form arriving must not take the turn
 		// from the one the user was just read out and is part-way through

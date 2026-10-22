@@ -5,21 +5,14 @@
 
 import { IVoicePendingQuestion } from './voiceClientService.js';
 
-/**
- * Render the canonical spoken form of a pending question.
- *
- * Mirrors `format_question_prompt` in the voice backend's `session_pending.py`,
- * against the same fixtures. The client speaks the first question of a form and
- * the backend speaks the rest, so a divergence is audible mid-form.
- *
- * Renders the wire shape rather than the carousel, because that is where the
- * ordinals the user says back were assigned. Numbering from a second source
- * could read out a number that selects something else.
- */
-export function formatQuestionPrompt(question: IVoicePendingQuestion, allowSkip: boolean): string {
+/** Render the spoken question and choices, optionally preceded by form-level context. Choice ordinals follow the displayed order in the wire payload. */
+export function formatQuestionPrompt(question: IVoicePendingQuestion, allowSkip: boolean, context?: string): string {
 	const parts: string[] = [];
+	if (context?.trim()) {
+		parts.push(context.trim());
+	}
 	const title = question.title.trim();
-	if (title) {
+	if (title && title !== context?.trim()) {
 		parts.push(title);
 	}
 	if (question.options.length > 0) {

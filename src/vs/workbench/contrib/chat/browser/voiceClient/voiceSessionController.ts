@@ -5070,7 +5070,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 		return {
 			kind: 'question',
-			text: formatQuestionPrompt(question, pending.allow_skip === true),
+			text: formatQuestionPrompt(question, pending.allow_skip === true, pending.message),
 			pending: { pendingId: pending.pending_id },
 		};
 	}

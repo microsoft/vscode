@@ -29,6 +29,24 @@ suite('VoiceLiveInputRouter', () => {
 		};
 	}
 
+	test('reads form context with the first question and retry, but not with later questions', () => {
+		const router = new VoiceLiveInputRouter();
+		router.updateContext(context('chat-session:/a', {
+			...questions,
+			message: 'What should candyFactory do?',
+			questions: [{ ...questions.questions![0], title: 'Function behavior' }, questions.questions![1]],
+		}));
+		const initial = router.getQuestionPrompt('chat-session:/a', 'questions');
+		const retry = router.resolve('retry', 'not a choice', router.captureTarget()).clarification;
+		const next = router.resolve('first', '1', router.captureTarget()).clarification;
+		assert.deepStrictEqual({ initial, retry, next, current: router.getQuestionPrompt('chat-session:/a', 'questions') }, {
+			initial: 'What should candyFactory do? Function behavior 1. West 2. East',
+			retry: 'Please say an exact choice or its number. What should candyFactory do? Function behavior 1. West 2. East',
+			next: 'What name?',
+			current: 'What name?',
+		});
+	});
+
 	test('omits reply guidance until a voice locale is known', () => {
 		const router = new VoiceLiveInputRouter();
 		const guidance = () => [router.getQuestionReplyGuidance(), router.getApprovalReplyGuidance()];

@@ -221,9 +221,12 @@ function resolveAnswer(question: IVoicePendingQuestion, text: string, language: 
 		: undefined;
 }
 
-function questionPrompt(question: IVoicePendingQuestion, guidance: string): string {
+function questionPrompt(question: IVoicePendingQuestion, guidance: string, context?: string): string {
 	const options = question.options.map((option, index) => `${index + 1}. ${option.label}`).join(' ');
-	return [localize('voice.live.questionPrompt', "{0} {1}", question.title, options).trim(), guidance].filter(Boolean).join(' ');
+	const prompt = context?.trim() && context.trim() !== question.title.trim()
+		? localize('voice.live.questionWithContext', "{0} {1}", context.trim(), question.title)
+		: question.title;
+	return [localize('voice.live.questionPrompt', "{0} {1}", prompt, options).trim(), guidance].filter(Boolean).join(' ');
 }
 
 /** Routes only explicit, deterministic replies to captured, still-current pending occurrences, never model guesses. Ambiguous replies cannot authorize actions, and forms submit only when complete or explicitly skipped. */
@@ -286,8 +289,9 @@ export class VoiceLiveInputRouter {
 
 	getQuestionPrompt(sessionId: string, pendingId: string): string | undefined {
 		const session = this._context.sessions.find(candidate => candidate.id === sessionId && candidate.pending?.pending_id === pendingId);
-		const question = session?.pending?.questions?.[this._answers.get(this._key(session))?.answers.length ?? 0];
-		return question ? questionPrompt(question, this.getQuestionReplyGuidance()) : undefined;
+		const index = session ? this._answers.get(this._key(session))?.answers.length ?? 0 : 0;
+		const question = session?.pending?.questions?.[index];
+		return question ? questionPrompt(question, this.getQuestionReplyGuidance(), index === 0 ? session?.pending?.message : undefined) : undefined;
 	}
 
 	captureTarget(): IVoiceLiveInputTarget {
@@ -354,8 +358,8 @@ export class VoiceLiveInputRouter {
 			if (!answer) {
 				return {
 					clarification: question.allow_freeform
-						? localize('voice.live.chooseOrCustomAnswer', "Please say an exact choice or its number, or say other followed by a custom answer. {0}", questionPrompt(question, this.getQuestionReplyGuidance()))
-						: localize('voice.live.chooseAnswer', "Please say an exact choice or its number. {0}", questionPrompt(question, this.getQuestionReplyGuidance()))
+						? localize('voice.live.chooseOrCustomAnswer', "Please say an exact choice or its number, or say other followed by a custom answer. {0}", questionPrompt(question, this.getQuestionReplyGuidance(), answers.length === 0 ? pending.message : undefined))
+						: localize('voice.live.chooseAnswer', "Please say an exact choice or its number. {0}", questionPrompt(question, this.getQuestionReplyGuidance(), answers.length === 0 ? pending.message : undefined))
 				};
 			}
 			answers.push(answer);
