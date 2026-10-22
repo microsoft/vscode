@@ -5,7 +5,6 @@
 
 import { structuralEquals } from '../../../../../../base/common/equals.js';
 import { Event, Relay } from '../../../../../../base/common/event.js';
-import { escapeMarkdownSyntaxTokens } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IObservable, observableFromEventOpts } from '../../../../../../base/common/observable.js';
 import { isMacintosh, isNative } from '../../../../../../base/common/platform.js';
@@ -13,7 +12,7 @@ import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { COMPUTER_USE_REQUEST_KEY, type IComputerUseRequest, type IComputerUseSetupActionV1, type IComputerUseStatusV1 } from '../../../../../../platform/agentHost/common/computerUse.js';
-import { readComputerUseStatusFromRootState } from '../../../../../../platform/agentHost/common/meta/computerUse.js';
+import { getComputerUseActivationMessage, readComputerUseStatusFromRootState } from '../../../../../../platform/agentHost/common/meta/computerUse.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { ROOT_STATE_URI, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { createDecorator, IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -49,16 +48,11 @@ export function getComputerUseSetupCardText(): { readonly title: string; readonl
 	};
 }
 
-/**
- * The text of the chat card that asks to turn on Computer Use, live or restored. The message is Markdown source;
- * `reason` is the agent's own words, so it is escaped to stay literal.
- */
+/** The text of the chat card that asks to turn on Computer Use, live or restored. The message is Markdown source. */
 export function getComputerUseActivationCardText(reason: string | undefined): { readonly title: string; readonly message: string } {
 	return {
 		title: localize('computerUseActivation.card.title', "Turn on Computer Use?"),
-		message: reason
-			? localize('computerUseActivation.card.messageWithReason', "{0}\n\nComputer Use lets Copilot see and control apps on this computer. It stays on for Copilot, including the Copilot CLI, until you run `/computer off`.", escapeMarkdownSyntaxTokens(reason))
-			: localize('computerUseActivation.card.message', "Computer Use lets Copilot see and control apps on this computer. It stays on for Copilot, including the Copilot CLI, until you run `/computer off`."),
+		message: getComputerUseActivationMessage(reason),
 	};
 }
 

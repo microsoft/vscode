@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { COMPUTER_USE_ACTIVATION_META_KEY, COMPUTER_USE_SETUP_META_KEY, COMPUTER_USE_STATUS_KEY, isComputerUseRequest } from '../../common/computerUse.js';
+import { COMPUTER_USE_ACTIVATION_META_KEY, COMPUTER_USE_ACTIVATION_REASON_MAX_LENGTH, COMPUTER_USE_SETUP_META_KEY, COMPUTER_USE_STATUS_KEY, isComputerUseRequest } from '../../common/computerUse.js';
 import { ChatInputRequestPurpose, readChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { getComputerUseActivationAnswers, isComputerUseActivationAccepted, readComputerUseActivationCard, readComputerUseSetupCard, readComputerUseStatus, readComputerUseStatusFromRootState, withComputerUseActivationCard, withComputerUseSetupCard } from '../../common/meta/computerUse.js';
 import { ChatInputResponseKind, type ChatInputRequest, type RootState } from '../../common/state/sessionState.js';
@@ -122,7 +122,7 @@ suite('Computer Use setup contract', () => {
 			purpose: readChatInputRequestPurpose(wire),
 			withoutReason: readComputerUseActivationCard(withComputerUseActivationCard(request, {})),
 			plain: readComputerUseActivationCard(request),
-			malformedReason: readComputerUseActivationCard({ ...request, _meta: { [COMPUTER_USE_ACTIVATION_META_KEY]: { reason: 'x'.repeat(1001) } } } as ChatInputRequest),
+			malformedReason: readComputerUseActivationCard({ ...request, _meta: { [COMPUTER_USE_ACTIVATION_META_KEY]: { reason: 'x'.repeat(COMPUTER_USE_ACTIVATION_REASON_MAX_LENGTH + 1) } } } as ChatInputRequest),
 			accepted: {
 				turnOn: isComputerUseActivationAccepted(ChatInputResponseKind.Accept, turnOn),
 				notNow: isComputerUseActivationAccepted(ChatInputResponseKind.Accept, getComputerUseActivationAnswers('notNow')),

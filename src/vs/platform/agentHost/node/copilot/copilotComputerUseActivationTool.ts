@@ -5,20 +5,17 @@
 
 import type { Tool, ToolResultObject } from '@github/copilot-sdk';
 import { getErrorMessage } from '../../../../base/common/errors.js';
-import { escapeMarkdownSyntaxTokens } from '../../../../base/common/htmlContent.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import type { ILogService } from '../../../log/common/log.js';
-import { COMPUTER_USE_ACTIVATION_QUESTION_ID, type ComputerUseActivationChoice } from '../../common/computerUse.js';
+import { COMPUTER_USE_ACTIVATION_QUESTION_ID, COMPUTER_USE_ACTIVATION_REASON_MAX_LENGTH, type ComputerUseActivationChoice } from '../../common/computerUse.js';
 import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
-import { isComputerUseActivationAccepted, withComputerUseActivationCard } from '../../common/meta/computerUse.js';
+import { getComputerUseActivationMessage, isComputerUseActivationAccepted, withComputerUseActivationCard } from '../../common/meta/computerUse.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { ChatInputQuestionKind, ChatInputResponseKind, type ChatInputAnswer, type ChatInputRequest } from '../../common/state/sessionState.js';
 import { COMPUTER_USE_PLUGIN_NAME } from './copilotComputerUsePlugin.js';
 
 export const COMPUTER_USE_ACTIVATION_TOOL_NAME = 'enable_computer_use';
-
-const MAX_REASON_LENGTH = 300;
 
 const description = 'Ask the user to turn on Computer Use, which gives you tools to see and operate apps on the user\'s computer: list apps, read their windows, click, type, and scroll. Call this when the task needs a desktop app that your other tools can\'t reach. Don\'t call it for files, shell commands, or web pages that other tools can handle. Turning it on is saved for Copilot on this computer, not only for this chat. The user decides in a card. When they turn it on, the Computer Use tools are available as soon as this call returns. If they decline, don\'t call this again in this chat.';
 
@@ -202,7 +199,7 @@ export class CopilotComputerUseActivation {
 
 function readReason(args: unknown): string | undefined {
 	const reason = args && typeof args === 'object' ? (args as { readonly reason?: unknown }).reason : undefined;
-	return typeof reason === 'string' && reason.trim() ? reason.trim().slice(0, MAX_REASON_LENGTH) : undefined;
+	return typeof reason === 'string' && reason.trim() ? reason.trim().slice(0, COMPUTER_USE_ACTIVATION_REASON_MAX_LENGTH) : undefined;
 }
 
 /** A standard yes/no question that VS Code shows as a compact card; other clients answer the question itself. */
@@ -211,10 +208,7 @@ function createActivationRequest(requestId: string, reason: string | undefined):
 	const notNow: ComputerUseActivationChoice = 'notNow';
 	return withComputerUseActivationCard(withChatInputRequestPurpose({
 		id: requestId,
-		// Clients render the message as untrusted Markdown; the agent's words must stay literal.
-		message: reason
-			? localize('computerUseActivation.messageWithReason', "{0}\n\nComputer Use lets Copilot see and control apps on this computer. It stays on for Copilot, including the Copilot CLI, until you run `/computer off`.", escapeMarkdownSyntaxTokens(reason))
-			: localize('computerUseActivation.message', "Computer Use lets Copilot see and control apps on this computer. It stays on for Copilot, including the Copilot CLI, until you run `/computer off`."),
+		message: getComputerUseActivationMessage(reason),
 		questions: [{
 			kind: ChatInputQuestionKind.SingleSelect,
 			id: COMPUTER_USE_ACTIVATION_QUESTION_ID,

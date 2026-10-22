@@ -3,9 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { escapeMarkdownSyntaxTokens } from '../../../../../base/common/htmlContent.js';
+import { localize } from '../../../../../nls.js';
 import {
 	COMPUTER_USE_ACTIVATION_META_KEY,
 	COMPUTER_USE_ACTIVATION_QUESTION_ID,
+	COMPUTER_USE_ACTIVATION_REASON_MAX_LENGTH,
 	COMPUTER_USE_SETUP_META_KEY,
 	computerUseActions,
 	computerUsePermissionActions,
@@ -36,7 +39,6 @@ const MAX_ICON_LENGTH = 512 * 1024;
 const PNG_DATA_URL_PREFIX = 'data:image/png;base64,';
 const MAX_CODE_LENGTH = 100;
 const MAX_MESSAGE_LENGTH = 1000;
-const MAX_ACTIVATION_REASON_LENGTH = 1000;
 const MAX_SETUPS = 32;
 const MAX_ACTIONS = 8;
 
@@ -179,8 +181,18 @@ export function readComputerUseActivationCard(request: ChatInputRequest): ICompu
 	if (!card) {
 		return undefined;
 	}
-	const reason = boundedString(card.reason, MAX_ACTIVATION_REASON_LENGTH);
+	const reason = boundedString(card.reason, COMPUTER_USE_ACTIVATION_REASON_MAX_LENGTH);
 	return reason ? { reason } : {};
+}
+
+/**
+ * The Markdown text of a request to turn on Computer Use, for the request itself and for cards that show it. `reason`
+ * is the agent's own words, so it is escaped to stay literal.
+ */
+export function getComputerUseActivationMessage(reason: string | undefined): string {
+	return reason
+		? localize('computerUseActivation.messageWithReason', "{0}\n\nComputer Use lets Copilot see and control apps on this computer. It stays on for Copilot, including the Copilot CLI, until you run `/computer off`.", escapeMarkdownSyntaxTokens(reason))
+		: localize('computerUseActivation.message', "Computer Use lets Copilot see and control apps on this computer. It stays on for Copilot, including the Copilot CLI, until you run `/computer off`.");
 }
 
 /** Returns a copy of `request` marked as a request to turn on Computer Use, preserving other metadata. */

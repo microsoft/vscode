@@ -8,6 +8,7 @@ import type { Tool, ToolResultObject } from '@github/copilot-sdk';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { COMPUTER_USE_ACTIVATION_REASON_MAX_LENGTH } from '../../common/computerUse.js';
 import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { getComputerUseActivationAnswers, readComputerUseActivationCard } from '../../common/meta/computerUse.js';
 import { ChatInputResponseKind, type ChatInputAnswer, type ChatInputRequest } from '../../common/state/sessionState.js';
@@ -22,7 +23,7 @@ class TestActivationChat implements IComputerUseActivationChat {
 	enableIgnored = false;
 	listError: Error | undefined;
 	canAsk = true;
-	private readonly _requestWaiters: { readonly index: number; readonly deferred: DeferredPromise<ChatInputRequest> }[] = [];
+	private _requestWaiters: { readonly index: number; readonly deferred: DeferredPromise<ChatInputRequest> }[] = [];
 
 	async listPlugins(): Promise<readonly ICopilotRuntimePlugin[]> {
 		if (this.listError) {
@@ -47,7 +48,9 @@ class TestActivationChat implements IComputerUseActivationChat {
 
 	requestInput(request: ChatInputRequest): void {
 		this.requests.push(request);
-		for (const waiter of this._requestWaiters.filter(candidate => candidate.index < this.requests.length)) {
+		const ready = this._requestWaiters.filter(waiter => waiter.index < this.requests.length);
+		this._requestWaiters = this._requestWaiters.filter(waiter => !ready.includes(waiter));
+		for (const waiter of ready) {
 			waiter.deferred.complete(this.requests[waiter.index]);
 		}
 	}
@@ -113,7 +116,7 @@ suite('CopilotComputerUseActivation', () => {
 		await answer(0, ChatInputResponseKind.Decline);
 		await result;
 		const request = chat.requests[0];
-		const trimmed = reason.trim().slice(0, 300);
+		const trimmed = reason.trim().slice(0, COMPUTER_USE_ACTIVATION_REASON_MAX_LENGTH);
 		assert.deepStrictEqual({
 			card: readComputerUseActivationCard(request),
 			purpose: readChatInputRequestPurpose(request),

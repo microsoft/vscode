@@ -49,9 +49,12 @@ export type ComputerUseActivationChoice = typeof computerUseActivationChoices[nu
 
 /** What a request to turn on Computer Use shows besides its fixed text. */
 export interface IComputerUseActivationCard {
-	/** Why the agent asks, in the agent's own words. Untrusted: render it as plain text. */
+	/** Why the agent asks, in the agent's own words, at most {@link COMPUTER_USE_ACTIVATION_REASON_MAX_LENGTH} characters. Untrusted: render it as plain text. */
 	readonly reason?: string;
 }
+
+/** The longest {@link IComputerUseActivationCard.reason}. Hosts trim the agent's reason to it; readers drop longer ones. */
+export const COMPUTER_USE_ACTIVATION_REASON_MAX_LENGTH = 300;
 
 // #endregion
 
