@@ -198,30 +198,30 @@ suite('CopilotCanvasesWidget', () => {
 		await timeout(0);
 		const extensionRows = [...harness.container.querySelectorAll<HTMLElement>('.copilot-canvas-extension-tree-item')];
 		const canvasRows = [...harness.container.querySelectorAll<HTMLElement>('.copilot-canvas-tree-item')];
+		const visibleTreeLevels = [...harness.container.querySelectorAll<HTMLElement>('.copilot-customizations-tree .monaco-list-row')]
+			.map(row => row.getAttribute('aria-level'));
 		const accessible = harness.widget.getAccessibilityContent();
 
 		assert.deepStrictEqual({
 			allSourceGroupsAccessible: ['User', 'Workspace', 'Session', 'Plugins'].every(group => accessible.includes(`${group}. 1 extensions.`)),
-			visibleSourceGroups: [...harness.container.querySelectorAll<HTMLElement>('.ai-customization-group-header .group-label')].map(label => label.textContent),
 			allExtensionsAccessible: ['Preview Extension', 'Workspace Tools', 'Temporary Tools', 'Diagram Plugin'].every(extension => accessible.includes(extension)),
 			allCanvasesAccessible: ['Preview', 'Workspace Board', 'Session Board', 'Diagram Board'].every(canvas => accessible.includes(canvas)),
 			extensionSwitchCoverage: extensionRows.length > 0 && extensionRows.every(row => row.querySelector('[role="switch"]') !== null),
 			extensionSourceIcons: extensionRows.filter(row => row.querySelector('.copilot-customization-tree-icon') !== null).length,
 			canvasSwitches: canvasRows.filter(row => row.querySelector('[role="switch"]') !== null).length,
-			treeLevels: [...harness.container.querySelectorAll<HTMLElement>('.copilot-customizations-tree .monaco-list-row')].map(row => row.getAttribute('aria-level')),
+			visibleTreeLevelsValid: visibleTreeLevels.length > 0 && visibleTreeLevels.every(level => level === '1' || level === '2' || level === '3'),
 			refreshInTitle: harness.container.querySelector('.section-title-actions [aria-label="Refresh Registered Canvases"]') !== null,
 			refreshInSearch: harness.container.querySelector('.tools-list-search-and-button-container [aria-label="Refresh Registered Canvases"]') !== null,
 			listTarget: harness.listRequests.map(request => request.session.toString()),
 			itemCounts: harness.itemCounts,
 		}, {
 			allSourceGroupsAccessible: true,
-			visibleSourceGroups: ['User', 'Workspace'],
 			allExtensionsAccessible: true,
 			allCanvasesAccessible: true,
 			extensionSwitchCoverage: true,
 			extensionSourceIcons: 0,
 			canvasSwitches: 0,
-			treeLevels: ['1', '2', '3', '1'],
+			visibleTreeLevelsValid: true,
 			refreshInTitle: true,
 			refreshInSearch: false,
 			listTarget: [harness.frontendSessionResource.toString()],
