@@ -723,6 +723,27 @@ suite('Sessions - ChatGroupsView', () => {
 		});
 	});
 
+	test('expands a collapsed group when its chat becomes active without taking focus', async () => {
+		const { sessionsService, view } = createHarness(disposables);
+		const main = createChat('main');
+		const secondary = createChat('secondary');
+		const session = new TestActiveSession([main, secondary]);
+		sessionsService.activeSession.set(session, undefined);
+		view.setSession(session, options);
+		view.layout(800, 600, 0, 0, 4);
+		view.splitChatToSide(secondary.resource);
+		await timeout(0);
+
+		const grid = view['_grid']!;
+		const [mainGroup, secondaryGroup] = view['_groups'].map(group => group.view);
+		const widths = () => ({ main: grid.getViewSize(mainGroup).width, secondary: grid.getViewSize(secondaryGroup).width });
+		grid.resizeView(secondaryGroup, { width: 800, height: 600 });
+		const collapsed = widths().main <= mainGroup.minimumWidth + 8;
+		await sessionsService.openChat(session, main.resource);
+
+		assert.deepStrictEqual({ collapsed, mainExpanded: widths().main > mainGroup.minimumWidth + 8 }, { collapsed: true, mainExpanded: true });
+	});
+
 	test('uses split-chat gaps in both presentations and removes them at zero-gap density', async () => {
 		const { configurationService, view } = createHarness(disposables);
 		const main = createChat('main');
