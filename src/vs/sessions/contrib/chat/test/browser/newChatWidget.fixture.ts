@@ -1471,6 +1471,28 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	}
 }
 
+async function renderPetJumpGame(context: ComponentFixtureContext, charged: boolean): Promise<void> {
+	await renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, experimentalComposerLayout: true, welcomePhrases: true, petEnabled: true, petHorizontalPosition: 0.5, petLandingTarget: 'welcome' });
+	const pet = context.container.querySelector<HTMLElement>('.chat-pet-button');
+	assert(!!pet);
+	pet.click();
+	const overlay = pet.closest('.chat-pet-overlay');
+	await waitForFixtureCondition(() => !!overlay?.classList.contains('chat-pet-jump-game'), 'Blobby did not start the jump game from the welcome perch.');
+	const effects = overlay?.previousElementSibling;
+	assert(!!effects && effects.classList.contains('chat-pet-jump-effects'));
+	if (charged) {
+		const event = new (dom.getWindow(pet).KeyboardEvent)('keydown', { code: 'Space', key: ' ', bubbles: true, cancelable: true });
+		Object.defineProperty(event, 'keyCode', { value: 32 });
+		pet.dispatchEvent(event);
+		await waitForFixtureCondition(() => !!effects.querySelector('.chat-pet-jump-charge.full'), 'Blobby did not finish charging the jump.');
+	}
+	await waitForFixtureCondition(() => {
+		const image = pet.querySelector<HTMLImageElement>('.chat-pet-sprite:not(.hidden) img[src]');
+		return !!image?.complete && image.naturalWidth > 0 && !image.getAttribute('src')?.endsWith('.spritesheet.png');
+	}, 'Blobby did not finish drawing the stationary game pose.');
+	await waitForFixtureCondition(() => effects.isConnected && effects.getAnimations().every(animation => animation.playState === 'finished'), 'Blobby game platforms did not finish fading in.');
+}
+
 export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 	Migrations: defineComponentFixture({
 		labels: { kind: 'screenshot' },
@@ -1626,6 +1648,20 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		expectedVisualDescriptions: ['The VS Code pet rests above the centered “Let’s ship something” welcome heading on a short rounded platform directly beneath its feet.'],
 		render: context => renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, experimentalComposerLayout: true, welcomePhrases: true, petEnabled: true, petHorizontalPosition: 0.5, petLandingTarget: 'welcome' }),
+	}),
+	NewSessionPetJumpGame: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		virtualTime: { enabled: false },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['Blobby plays without a border on thin rounded gray platforms matching the welcome pet perch. A segmented pixel-art charge gauge sits above the pet. The welcome text, composer, and session controls are visually covered by a background overlay, leaving only the game visible without changing the underlying layout.'],
+		render: context => renderPetJumpGame(context, false),
+	}),
+	NewSessionPetJumpGameCharged: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		virtualTime: { enabled: false },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['Blobby remains borderless on the starting platform with all eight pixel-art charge cells filled. The new-session content has faded behind the game background overlay; its underlying layout and state are unchanged.'],
+		render: context => renderPetJumpGame(context, true),
 	}),
 	NewSessionExperimentalComposerBackground: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
