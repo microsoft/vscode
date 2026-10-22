@@ -690,11 +690,16 @@
 
 .experimental-new-session-composer .sessions-workspace-category-picker {
 	justify-content: flex-start;
-	gap: var(--vscode-spacing-size40);
+	gap: var(--vscode-spacing-size80) !important;
 }
 
 .experimental-new-session-composer .sessions-workspace-category-picker > .sessions-chat-session-type-picker {
 	margin-left: auto;
+}
+
+.experimental-new-session-composer .sessions-workspace-category-picker .new-chat-session-options-details,
+.experimental-new-session-composer .sessions-workspace-category-picker .new-chat-session-options-toggle {
+	margin-left: 0;
 }
 
 .new-chat-repository-controls-host {
