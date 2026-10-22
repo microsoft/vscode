@@ -404,15 +404,15 @@ suite('CustomizationMigrationDashboard', () => {
 			...overview(),
 			categoryErrors: [{
 				id: CustomizationMigrationCategoryId.PluginMarketplaces,
-				label: 'Plugin marketplaces could not be checked',
-				description: 'Check the active agent connection, then try again.',
+				label: 'Couldn\'t load Copilot\'s plugin marketplaces',
+				description: 'Check the Copilot connection, then try again.',
 			}],
 		});
 
-		button(parent, 'Retry loading Plugin marketplaces could not be checked').click();
+		button(parent, 'Retry loading Couldn\'t load Copilot\'s plugin marketplaces').click();
 
 		const error = parent.querySelector('.migration-category-error');
-		const retryParent = error?.querySelector('[aria-label="Retry loading Plugin marketplaces could not be checked"]')?.parentElement;
+		const retryParent = error?.querySelector('[aria-label="Retry loading Couldn\'t load Copilot\'s plugin marketplaces"]')?.parentElement;
 		assert.deepStrictEqual({
 			title: error?.querySelector('h2')?.textContent?.trim(),
 			description: error?.querySelector('p')?.textContent?.trim(),
@@ -421,8 +421,8 @@ suite('CustomizationMigrationDashboard', () => {
 			retried,
 			telemetryActions,
 		}, {
-			title: 'Plugin marketplaces could not be checked',
-			description: 'Check the active agent connection, then try again.',
+			title: 'Couldn\'t load Copilot\'s plugin marketplaces',
+			description: 'Check the Copilot connection, then try again.',
 			hasRetryActionsContainer: true,
 			hasPromptMigration: true,
 			retried: [CustomizationMigrationCategoryId.PluginMarketplaces],

@@ -215,8 +215,8 @@ async function renderDashboard(ctx: ComponentFixtureContext, width: number, stat
 			...model,
 			categoryErrors: [{
 				id: CustomizationMigrationCategoryId.PluginMarketplaces,
-				label: 'Plugin marketplaces could not be checked',
-				description: 'Check the active agent connection, then try again.',
+				label: 'Couldn\'t load Copilot\'s plugin marketplaces',
+				description: 'Check the Copilot connection, then try again.',
 			}],
 		};
 	} else if (state === 'mcpWarnings') {
