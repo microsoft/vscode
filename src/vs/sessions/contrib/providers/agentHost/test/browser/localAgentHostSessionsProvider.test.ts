@@ -13075,7 +13075,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 				const support = provider.getNestedChatWorkspaceSupport(sessionId, undefined);
 				return support && {
 					sessionFolder: support.sessionFolder?.toString(),
-					sessionFolders: support.sessionFolders.map(folder => folder.toString()),
 					multipleFolders: support.multipleFolders,
 					browseActions: support.browseActions === provider.browseActions,
 				};
@@ -13099,12 +13098,12 @@ suite('LocalAgentHostSessionsProvider', () => {
 				});
 			}));
 
-			test('re-evaluates the support when the host capability, the agent, or the session folders change', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			test('re-evaluates the support when the host capability, the agent, or the session folder change', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 				const provider = createProvider(disposables, agentHost);
 				const session = setupWorkspaceSession(provider, 'nested-reactive');
 				const support = derived(reader => {
 					const value = provider.getNestedChatWorkspaceSupport(session.sessionId, reader);
-					return value && { multipleFolders: value.multipleFolders, sessionFolders: value.sessionFolders.map(folder => folder.toString()) };
+					return value && { multipleFolders: value.multipleFolders, sessionFolder: value.sessionFolder?.toString() };
 				});
 				const observed: unknown[] = [];
 				disposables.add(autorun(reader => { observed.push(support.read(reader)); }));
@@ -13115,18 +13114,18 @@ suite('LocalAgentHostSessionsProvider', () => {
 				const sessionUri = AgentSession.uri('copilotcli', 'nested-reactive').toString();
 				const defaultChat = buildDefaultChatUri(sessionUri);
 				agentHost.setSessionState('nested-reactive', 'copilotcli', makeState([
-					makeChatSummary(defaultChat, '', ProtocolSessionStatus.Idle, [repo.toString()]),
-					makeChatSummary(buildChatUri(sessionUri, 'added'), 'Added', ProtocolSessionStatus.Idle, [added.toString()]),
+					makeChatSummary(defaultChat, '', ProtocolSessionStatus.Idle, [added.toString()]),
+					makeChatSummary(buildChatUri(sessionUri, 'other'), 'Other', ProtocolSessionStatus.Idle, [other.toString()]),
 				], { defaultChat }));
 
-				assert.deepStrictEqual({ first: observed[0], last: observed.at(-1), sawSingleFolder: observed.some(value => JSON.stringify(value) === JSON.stringify({ multipleFolders: false, sessionFolders: [repo.toString(), other.toString()] })) }, {
+				assert.deepStrictEqual({ first: observed[0], last: observed.at(-1), sawSingleFolder: observed.some(value => JSON.stringify(value) === JSON.stringify({ multipleFolders: false, sessionFolder: repo.toString() })) }, {
 					first: undefined,
-					last: { multipleFolders: true, sessionFolders: [repo.toString(), added.toString()] },
+					last: { multipleFolders: true, sessionFolder: added.toString() },
 					sawSingleFolder: true,
 				});
 			}));
 
-			test('reports the session folder and non-scratch folders of a workspace session and a workspace-less one', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			test('reports the session folder of a workspace session, never another chat\'s folder, and none for a workspace-less one', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 				enableCreateChatWorkspace(true);
 				const provider = createProvider(disposables, agentHost);
 				const workspaceSession = setupWorkspaceSession(provider, 'nested-ws');
@@ -13150,8 +13149,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 					workspace: describeSupport(provider, workspaceSession.sessionId),
 					workspaceless: describeSupport(provider, quickSession.sessionId),
 				}, {
-					workspace: { sessionFolder: repo.toString(), sessionFolders: [repo.toString(), other.toString()], multipleFolders: true, browseActions: true },
-					workspaceless: { sessionFolder: undefined, sessionFolders: [other.toString()], multipleFolders: true, browseActions: true },
+					workspace: { sessionFolder: repo.toString(), multipleFolders: true, browseActions: true },
+					workspaceless: { sessionFolder: undefined, multipleFolders: true, browseActions: true },
 				});
 			}));
 
@@ -13174,7 +13173,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				], { defaultChat: quickDefault, meta: quickMeta, workingDirectories: quickDirectories }));
 				fireSessionSummaryChanged(agentHost, 'nested-wl-primary', { workingDirectories: quickDirectories, _meta: quickMeta });
 
-				assert.deepStrictEqual(describeSupport(provider, quickSession.sessionId), { sessionFolder: undefined, sessionFolders: [other.toString()], multipleFolders: true, browseActions: true });
+				assert.deepStrictEqual(describeSupport(provider, quickSession.sessionId), { sessionFolder: undefined, multipleFolders: true, browseActions: true });
 			}));
 
 			test('a single-folder agent may only give a nested chat the session folder', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {

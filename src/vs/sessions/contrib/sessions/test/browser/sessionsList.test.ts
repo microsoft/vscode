@@ -1900,6 +1900,61 @@ suite('Sessions - SessionsList', () => {
 		});
 	});
 
+	suite('application badges', () => {
+		for (const mode of [ExternalSessionApplicationBadgeMode.Off, ExternalSessionApplicationBadgeMode.Title, ExternalSessionApplicationBadgeMode.Details]) {
+			test(`renders ${mode} application badges based on the creating application independently of the external flag`, () => {
+				const testSession = createTestSession('Session', { isExternal: true });
+				const application = observableValue('application', getSessionApplication('vscode'));
+				const session: ISession = { ...testSession.session, application };
+				const harness = createListHarness(disposables, [session], instantiationService => {
+					const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+					configurationService.setUserConfiguration(SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, mode);
+					configurationService.setUserConfiguration(SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, false);
+				});
+				const container = harness.createContainer();
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+					grouping: () => SessionsGrouping.Workspace,
+					sorting: () => SessionsSorting.Created,
+					onSessionOpen: () => { },
+				}));
+				list.layout(300, 400);
+
+				const snapshot = () => ({
+					titleBadge: container.querySelector('.session-external-application-badge-title.visible')?.textContent,
+					detailsBadge: container.querySelector('.session-external-application-badge-details')?.textContent,
+					ariaIncludesApplication: container.querySelector('.monaco-list-row[role="treeitem"][aria-level="2"]')?.getAttribute('aria-label')?.includes(`created in ${application.get().label}`) ?? false,
+				});
+				const vscode = snapshot();
+				application.set(getSessionApplication('github/cli'), undefined);
+				const external = snapshot();
+				testSession.isExternal.set(false, undefined);
+				const continued = snapshot();
+				application.set(getSessionApplication('vscode-agents-window'), undefined);
+				const vscodeAgentsWindow = snapshot();
+				application.set(getSessionApplication('slack'), undefined);
+				const otherApplication = snapshot();
+
+				const hidden = { titleBadge: undefined, detailsBadge: undefined, ariaIncludesApplication: false };
+				const cliBadge = {
+					titleBadge: mode === ExternalSessionApplicationBadgeMode.Title ? 'From Copilot CLI' : undefined,
+					detailsBadge: mode === ExternalSessionApplicationBadgeMode.Details ? 'From Copilot CLI' : undefined,
+					ariaIncludesApplication: mode !== ExternalSessionApplicationBadgeMode.Off,
+				};
+				assert.deepStrictEqual({ vscode, external, continued, vscodeAgentsWindow, otherApplication }, {
+					vscode: hidden,
+					external: cliBadge,
+					continued: cliBadge,
+					vscodeAgentsWindow: hidden,
+					otherApplication: {
+						titleBadge: mode === ExternalSessionApplicationBadgeMode.Title ? 'From Slack' : undefined,
+						detailsBadge: mode === ExternalSessionApplicationBadgeMode.Details ? 'From Slack' : undefined,
+						ariaIncludesApplication: mode !== ExternalSessionApplicationBadgeMode.Off,
+					},
+				});
+			});
+		}
+	});
+
 	suite('experiment triggers', () => {
 		function renderList(sessions: ISession[], configure: (instantiationService: TestInstantiationService) => void = () => { }) {
 			const telemetryService = new TestExperimentTriggerTelemetryService();
@@ -2757,6 +2812,44 @@ suite('Sessions - SessionsList', () => {
 		}
 
 		for (const mode of ['more', 'less'] as const) {
+			test(`shows the themed list hover background for sticky ${mode} and clears it on mouse out`, () => {
+				const grouped = sessions(20);
+				const fixture = createList(grouped, {
+					groups: [group],
+					memberships: new Map(grouped.map(session => [session.sessionId, group.id])),
+					cappedGroupIds: mode === 'more' ? [group.id] : undefined,
+				});
+				fixture.container.style.setProperty('--vscode-list-hoverBackground', 'rgba(10, 20, 30, 0.1)');
+				fixture.container.style.setProperty('--vscode-descriptionForeground', 'rgb(100, 110, 120)');
+				fixture.container.style.setProperty('--vscode-foreground', 'rgb(200, 210, 220)');
+				const appearance = () => {
+					const style = mainWindow.getComputedStyle(fixture.button);
+					return { background: style.backgroundColor, color: style.color };
+				};
+				const resting = appearance();
+				fixture.button.classList.add('hovered');
+				fixture.button.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+				const hovered = appearance();
+				fixture.container.style.setProperty('--vscode-list-hoverBackground', 'rgb(30, 40, 50)');
+				const changedTheme = appearance();
+				fixture.button.classList.remove('hovered');
+				fixture.button.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }));
+
+				assert.deepStrictEqual({
+					restingColor: resting.color,
+					hoverBackgroundsDifferFromResting: [hovered, changedTheme].every(style => style.background !== resting.background),
+					hovered,
+					changedTheme,
+					restored: appearance(),
+				}, {
+					restingColor: 'rgb(100, 110, 120)',
+					hoverBackgroundsDifferFromResting: true,
+					hovered: { background: 'rgba(10, 20, 30, 0.1)', color: 'rgb(200, 210, 220)' },
+					changedTheme: { background: 'rgb(30, 40, 50)', color: 'rgb(200, 210, 220)' },
+					restored: resting,
+				});
+			});
+
 			test(`uses the original row's markup, typography, separators and insets for ${mode}`, () => {
 				const grouped = sessions(20);
 				const fixture = createList(grouped, {
@@ -9824,8 +9917,8 @@ suite('Sessions - SessionsList', () => {
 		});
 
 		test('shows the details external application badge next to the title of compact quick-chat rows, which have no details row', () => {
-			const results = ([true, false] as const).map(useCompactQuickChatRows => {
-				const quickChat = createTestSession('External chat', { isQuickChat: true, isExternal: true, application: 'github/cli', environment: 'cloud' }).session;
+			const results = ([true, false] as const).flatMap(isExternal => ([true, false] as const).map(useCompactQuickChatRows => {
+				const quickChat = createTestSession('External chat', { isQuickChat: true, isExternal, application: 'github/cli', environment: 'cloud' }).session;
 				const harness = createListHarness(disposables, [quickChat], instantiationService => {
 					(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, ExternalSessionApplicationBadgeMode.Details);
 				});
@@ -9838,15 +9931,18 @@ suite('Sessions - SessionsList', () => {
 				list.setSessions([quickChat]);
 				list.layout(list.getContentHeight(), 400);
 				return {
+					isExternal,
 					useCompactQuickChatRows,
 					titleBadge: container.querySelector('.session-external-application-badge-title.visible')?.textContent ?? undefined,
 					detailsBadge: container.querySelector('.session-external-application-badge-details')?.textContent ?? undefined,
 				};
-			});
+			}));
 
 			assert.deepStrictEqual(results, [
-				{ useCompactQuickChatRows: true, titleBadge: 'From Copilot CLI', detailsBadge: undefined },
-				{ useCompactQuickChatRows: false, titleBadge: undefined, detailsBadge: 'From Copilot CLI' },
+				{ isExternal: true, useCompactQuickChatRows: true, titleBadge: 'From Copilot CLI', detailsBadge: undefined },
+				{ isExternal: true, useCompactQuickChatRows: false, titleBadge: undefined, detailsBadge: 'From Copilot CLI' },
+				{ isExternal: false, useCompactQuickChatRows: true, titleBadge: 'From Copilot CLI', detailsBadge: undefined },
+				{ isExternal: false, useCompactQuickChatRows: false, titleBadge: undefined, detailsBadge: 'From Copilot CLI' },
 			]);
 		});
 
