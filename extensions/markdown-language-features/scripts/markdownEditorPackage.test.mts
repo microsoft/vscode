@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'node:assert/strict';
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
+import { once } from 'node:events';
 import { copyFile, lstat, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 import { test } from 'node:test';
+import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 import esbuild from 'esbuild';
@@ -22,6 +24,7 @@ test('Markdown editor package selection without dependency links', async t => {
 			assert.deepEqual(await resolveMarkdownEditorPackage(), {
 				commandsUrl: import.meta.resolve('@vscode/markdown-editor/commands'),
 			});
+
 		});
 
 		const generatorDirectory = join(root, 'generator');
@@ -119,6 +122,56 @@ test('Markdown editor package selection without dependency links', async t => {
 		} else {
 			process.env.VSCODE_MARKDOWN_EDITOR_PATH = previous;
 		}
+		await rm(root, { recursive: true, force: true });
+	}
+});
+
+test('package watching includes exported assets but excludes nested dependencies and Git metadata', async () => {
+	const root = await mkdtemp(join(import.meta.dirname, 'markdown-package-watch-'));
+	const srcDir = join(root, 'src');
+	const directory = join(root, 'node_modules', 'editor');
+	await mkdir(srcDir);
+	await mkdir(join(directory, 'node_modules', 'dependency'), { recursive: true });
+	await mkdir(join(directory, '.git'));
+	await mkdir(join(directory, 'styles'));
+	const entry = join(srcDir, 'entry.js');
+	await writeFile(entry, 'export const value = 1;');
+	const runner = new URL('../../esbuild-common.mts', import.meta.url).href;
+	const child = spawn(process.execPath, ['--input-type=module', '-e',
+		`import { runBuild } from ${JSON.stringify(runner)};
+		await runBuild(${JSON.stringify({ srcDir, outdir: join(root, 'out'), entryPoints: [entry], additionalWatchPaths: [directory] })},
+			{}, ['--watch'], () => console.log('BUILT'));`,
+	], { stdio: ['ignore', 'pipe', 'pipe'] });
+	const exited = once(child, 'exit');
+	let stdout = '';
+	let stderr = '';
+	child.stdout.on('data', data => { stdout += data; });
+	child.stderr.on('data', data => { stderr += data; });
+	const builds = () => stdout.split('BUILT').length - 1;
+	async function waitForBuild(count: number) {
+		const deadline = Date.now() + 15_000;
+		while (builds() < count) {
+			assert.equal(child.exitCode, null, stderr);
+			assert.ok(Date.now() < deadline, stdout + stderr);
+			await delay(50);
+		}
+	}
+	try {
+		await waitForBuild(1);
+		await writeFile(join(directory, 'node_modules', 'dependency', 'index.js'), 'dependency changed');
+		await writeFile(join(directory, '.git', 'index'), 'metadata changed');
+		await delay(600);
+		assert.equal(builds(), 1);
+		await writeFile(join(directory, 'styles', 'theme.css'), 'body { color: red; }');
+		await waitForBuild(2);
+		await writeFile(join(directory, 'commands.js'), 'export const commands = [];');
+		await waitForBuild(3);
+		assert.equal(builds(), 3);
+	} finally {
+		if (child.exitCode === null && child.signalCode === null) {
+			child.kill();
+		}
+		await exited;
 		await rm(root, { recursive: true, force: true });
 	}
 });
