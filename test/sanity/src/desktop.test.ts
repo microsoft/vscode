@@ -301,6 +301,9 @@ export function setup(context: TestContext) {
 		try {
 			await context.closeElectronApp(app);
 		} catch (error) {
+			if (failure) {
+				context.warn(`Failed to close the application after the test failed: ${error instanceof Error ? error.message : String(error)}`);
+			}
 			failure ??= { error };
 		}
 
