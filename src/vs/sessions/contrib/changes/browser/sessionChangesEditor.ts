@@ -20,6 +20,7 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -229,6 +230,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		@IDiffEditorOptionsService private readonly diffEditorOptionsService: IDiffEditorOptionsService,
 		@ILogService logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IActionViewItemService private readonly actionViewItemService: IActionViewItemService,
 	) {
 		super(
 			SessionChangesEditor.ID,
@@ -311,6 +313,12 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 
 	override getControl(): IDiffEditor | undefined {
 		return this.widget?.getActiveControl();
+	}
+
+	override getActionViewItem(action: IAction, options: IActionViewItemOptions): IActionViewItem | undefined {
+		const provider = this.actionViewItemService.lookUp(Menus.SessionsEditorTitle, action.id);
+		return provider?.(action, options, this.scopedInstantiationService ?? this.instantiationService, this.window.vscodeWindowId)
+			?? super.getActionViewItem(action, options);
 	}
 
 	resetDiffEditorWidthBasedLayout(): void {

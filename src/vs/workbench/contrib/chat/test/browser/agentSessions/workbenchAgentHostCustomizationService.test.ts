@@ -14,7 +14,7 @@ import { IAgentHostConnectionsService } from '../../../../../../platform/agentHo
 import { AGENT_HOST_SCHEME, createAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { CustomizationType, SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationEnablementKind, CustomizationType, McpServerStatus, SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { buildChatUri, buildDefaultChatUri } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -124,6 +124,17 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 					contents: CustomizationType.Skill,
 					writable: true,
 					enabled: true,
+				}, {
+					type: CustomizationType.McpServer,
+					id: 'playwright',
+					uri: 'mcp-server:/playwright',
+					name: 'playwright',
+					enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }],
+					state: { kind: McpServerStatus.Stopped },
+				}],
+				activeClients: [{
+					clientId: 'vscode',
+					tools: [{ name: 'extensionTool', description: 'Provided by an extension', _meta: { 'vscode.chat.fullReferenceName': 'publisher.extension/extensionTool' } }],
 				}],
 			} as unknown as SessionState;
 			subscription.value = subscription.verifiedValue;
@@ -144,6 +155,7 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 				store.add(new MockPromptsService()),
 			));
 			const folders = await itemProvider.provideSourceFolders(session, PromptsType.skill, CancellationToken.None);
+			const toolInventory = service.getAgentFileToolInventory(session);
 			subscription.value = { workingDirectories: [snapshotRoot('/optimistic').toString(), snapshotRoot('/second workspace').toString()], customizations: [] } as unknown as SessionState;
 			subscriptionChanged.fire();
 			const optimistic = readRoots();
@@ -175,6 +187,7 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 				emptySnapshot,
 				omittedRoots,
 				replacement,
+				toolInventory,
 				folders: folders.map(folder => ({ source: folder.source, uri: folder.uri.toString() })),
 			}, {
 				provisional: { session: ['vscode-remote://dev-container%2Btest/provisional'], client: [{ scheme: 'vscode-remote', authority: 'dev-container+test', path: '/provisional' }] },
@@ -190,6 +203,10 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 				emptySnapshot: { session: [], client: [] },
 				omittedRoots: { session: [], client: [] },
 				replacement: { session: ['vscode-remote://dev-container%2Btest/replacement'], client: [{ scheme: 'vscode-remote', authority: 'dev-container+test', path: '/replacement' }] },
+				toolInventory: [
+					{ name: 'publisher.extension/extensionTool', description: 'Provided by an extension', availability: 'available' },
+					{ name: 'playwright/*', availability: 'disabled' },
+				],
 				folders: [{ source: 'local', uri: connection.resourceUris.fromAgentHost(snapshotRoot('/verified/.github/skills')).toString() }],
 			});
 		});

@@ -138,7 +138,8 @@ suite('Chat Accessibility Help', () => {
 			optional: help.includes('Installation is optional and chatting is not blocked.'),
 			priority: help.includes('Dependency warnings take priority over this notice.'),
 			dismissal: help.includes('Use Tab to reach Dismiss notification and Enter or Space to hide certificate notices for that host runtime in this window.'),
-			installation: help.includes('use Tab to reach the Install link and Enter to activate it.'),
+			guidance: help.includes('Use Tab to reach Learn more for certificate guidance.'),
+			installation: help.includes('use Tab to reach the Install button and Enter or Space to activate it.'),
 			manageCommand: help.includes('Sandbox: Manage Trusted CA for the last-focused chat.'),
 			keyboard: help.includes('Use Up and Down Arrow to choose Install, Rotate, or Remove, then Enter to continue or Escape to cancel.'),
 			installCommand: help.includes('choose Install in Manage Trusted CA after dismissing the notice.'),
@@ -147,7 +148,7 @@ suite('Chat Accessibility Help', () => {
 			noHost: help.includes('a dialog says No agent host detected.'),
 			restart: help.includes('running tools may need to restart.'),
 			retention: help.includes('The stored certificate authority is kept.'),
-		}, { optional: true, priority: true, dismissal: true, installation: true, manageCommand: true, keyboard: true, installCommand: true, removeCommand: true, rotateCommand: true, noHost: true, restart: true, retention: true });
+		}, { optional: true, priority: true, dismissal: true, guidance: true, installation: true, manageCommand: true, keyboard: true, installCommand: true, removeCommand: true, rotateCommand: true, noHost: true, restart: true, retention: true });
 	});
 
 	test('explains read-only model options separately from overridable defaults', () => {
@@ -758,6 +759,8 @@ suite('Chat Accessibility Help', () => {
 			panelChat: getAccessibilityHelpText('panelChat', keybindingService, true).includes('left and right arrow keys to move between pills'),
 			agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes('<keybinding:editor.action.showContextMenu>'),
 			pullRequestFilter: getAccessibilityHelpText('agentView', keybindingService, true).includes('Pull Requests Options'),
+			pullRequestChangesInSessions: getAccessibilityHelpText('agentView', keybindingService, true, true).includes('Open Pull Request Changes row action'),
+			pullRequestChangesInEditor: getAccessibilityHelpText('agentView', keybindingService, true).includes('Open Pull Request Changes row action'),
 			copyActions: getAccessibilityHelpText('agentView', keybindingService, true).includes('its context menu offers the item\'s copy actions'),
 			filterPersistence: getAccessibilityHelpText('agentView', keybindingService, true).includes('remembered across sessions'),
 			filterRecovery: getAccessibilityHelpText('agentView', keybindingService, true).includes('any other pill\'s context menu or the toolbar context menu'),
@@ -777,6 +780,8 @@ suite('Chat Accessibility Help', () => {
 			panelChat: true,
 			agentView: true,
 			pullRequestFilter: true,
+			pullRequestChangesInSessions: true,
+			pullRequestChangesInEditor: false,
 			copyActions: true,
 			filterPersistence: true,
 			filterRecovery: true,

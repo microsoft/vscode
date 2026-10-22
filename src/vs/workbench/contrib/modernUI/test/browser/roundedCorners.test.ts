@@ -14,10 +14,12 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import '../../../../../editor/contrib/suggest/browser/media/suggest.css';
 import '../../../../services/suggest/browser/media/suggest.css';
 import '../../browser/media/roundedCorners.css';
+import '../../browser/media/suggestWidget.css';
 
-suite('Modern UI suggestion menu corners', () => {
+suite('Suggestion menu corners', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const controlCorners = ['4px', '4px', '4px', '4px'];
+	const workbenchClasses = ['modern-ui', 'agent-sessions-workbench'] as const;
 
 	function corners(element: HTMLElement): string[] {
 		const style = getWindow(element).getComputedStyle(element);
@@ -27,18 +29,23 @@ suite('Modern UI suggestion menu corners', () => {
 	suiteSetup(async () => {
 		const root = append(document.body, $('.modern-ui'));
 		root.style.setProperty('--vscode-cornerRadius-small', '4px');
-		const row = append(append(root, $('.monaco-list')), $('.monaco-list-row'));
+		root.style.setProperty('--vscode-cornerRadius-large', '8px');
+		const widget = append(root, $('.editor-widget.suggest-widget'));
+		const row = append(append(widget, $('.monaco-list')), $('.monaco-list-row'));
+		row.dataset.index = '0';
 		try {
 			// Browser CSS imports can still be loading when the module resolves.
-			await retry(async () => assert.deepStrictEqual(corners(row), controlCorners), 10, 100);
+			await retry(async () => assert.deepStrictEqual(corners(row), ['8px', '8px', '4px', '4px']), 10, 100);
 		} finally {
 			root.remove();
 		}
 	});
 
-	for (const kind of ['editor', 'workbench']) {
+	for (const { workbenchClass, kind } of workbenchClasses.flatMap(workbenchClass =>
+		['editor', 'workbench'].map(kind => ({ workbenchClass, kind }))
+	)) {
 		function createList(count: number, withStatusBar = false, theme = 'vs') {
-			const root = append(document.body, $(`.monaco-workbench.modern-ui.${theme}`));
+			const root = append(document.body, $(`.monaco-workbench.${workbenchClass}.${theme}`));
 			store.add(toDisposable(() => root.remove()));
 			root.style.setProperty('--vscode-cornerRadius-small', '4px');
 			root.style.setProperty('--vscode-cornerRadius-large', '8px');
@@ -69,7 +76,7 @@ suite('Modern UI suggestion menu corners', () => {
 			return { root, widget, list, rows, listElement: list.getHTMLElement() };
 		}
 
-		test(`${kind} rounds only logical boundary rows after scrolling`, () => {
+		test(`${workbenchClass} ${kind} rounds only logical boundary rows after scrolling`, () => {
 			const { widget, list, rows } = createList(12);
 			const top = rows().map(corners);
 			list.scrollTop = 80;
@@ -92,7 +99,7 @@ suite('Modern UI suggestion menu corners', () => {
 			});
 		});
 
-		test(`${kind} rounds all corners when filtering to one item`, () => {
+		test(`${workbenchClass} ${kind} rounds all corners when filtering to one item`, () => {
 			const { list, rows } = createList(12);
 			list.scrollTop = list.scrollHeight;
 			list.splice(0, list.length, [0]);
@@ -101,7 +108,7 @@ suite('Modern UI suggestion menu corners', () => {
 		});
 
 		for (const withStatusBar of [false, true]) {
-			test(`${kind} clips partially scrolled rows to the viewport${withStatusBar ? ' above a footer' : ''}`, () => {
+			test(`${workbenchClass} ${kind} clips partially scrolled rows to the viewport${withStatusBar ? ' above a footer' : ''}`, () => {
 				const { widget, list, listElement } = createList(12, withStatusBar);
 				widget.style.position = 'fixed';
 				widget.style.left = '100px';
@@ -133,7 +140,7 @@ suite('Modern UI suggestion menu corners', () => {
 			});
 		}
 
-		test(`${kind} keeps the footer seam at the control tier`, () => {
+		test(`${workbenchClass} ${kind} keeps the footer seam at the control tier`, () => {
 			const { list, rows, listElement } = createList(1, true);
 			const single = rows().map(corners);
 			list.splice(0, 1, range(3));
@@ -148,7 +155,7 @@ suite('Modern UI suggestion menu corners', () => {
 			});
 		});
 
-		test(`${kind} preserves boundary focus indicators in every theme`, () => {
+		test(`${workbenchClass} ${kind} preserves boundary focus indicators in every theme`, () => {
 			for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
 				const { list, rows } = createList(1, false, theme);
 				list.setFocus([0]);
@@ -166,39 +173,41 @@ suite('Modern UI suggestion menu corners', () => {
 			}
 		});
 
-		test(`${kind} leaves classic suggestion rows unchanged`, () => {
+		test(`${workbenchClass} ${kind} leaves classic suggestion rows unchanged`, () => {
 			const { root, rows } = createList(1);
-			root.classList.remove('modern-ui');
+			root.classList.remove(workbenchClass);
 			assert.deepStrictEqual(rows().map(corners), [['0px', '0px', '0px', '0px']]);
 		});
 	}
 
-	test('workbench suggestion resize sashes remain reachable outside the widget', () => {
-		const root = append(document.body, $('.monaco-workbench.modern-ui'));
-		store.add(toDisposable(() => root.remove()));
-		root.style.setProperty('--vscode-cornerRadius-large', '8px');
-		const resizable = store.add(new ResizableHTMLElement());
-		const widget = append(root, resizable.domNode);
-		widget.classList.add('workbench-suggest-widget');
-		widget.style.left = '100px';
-		widget.style.top = '100px';
-		widget.style.zIndex = '1000';
-		resizable.layout(60, 200);
-		resizable.enableSashes(true, true, true, true);
-		const bounds = widget.getBoundingClientRect();
-		const isSash = (x: number, y: number) => document.elementFromPoint(x, y)?.classList.contains('monaco-sash') ?? false;
-		assert.deepStrictEqual({
-			overflow: getWindow(widget).getComputedStyle(widget).overflow,
-			top: isSash(bounds.left + 100, bounds.top - 1),
-			right: isSash(bounds.left + 201, bounds.top + 30),
-			bottom: isSash(bounds.left + 100, bounds.top + 61),
-			left: isSash(bounds.left - 1, bounds.top + 30),
-		}, {
-			overflow: 'visible',
-			top: true,
-			right: true,
-			bottom: true,
-			left: true,
+	for (const workbenchClass of workbenchClasses) {
+		test(`${workbenchClass} workbench suggestion resize sashes remain reachable outside the widget`, () => {
+			const root = append(document.body, $(`.monaco-workbench.${workbenchClass}`));
+			store.add(toDisposable(() => root.remove()));
+			root.style.setProperty('--vscode-cornerRadius-large', '8px');
+			const resizable = store.add(new ResizableHTMLElement());
+			const widget = append(root, resizable.domNode);
+			widget.classList.add('workbench-suggest-widget');
+			widget.style.left = '100px';
+			widget.style.top = '100px';
+			widget.style.zIndex = '1000';
+			resizable.layout(60, 200);
+			resizable.enableSashes(true, true, true, true);
+			const bounds = widget.getBoundingClientRect();
+			const isSash = (x: number, y: number) => document.elementFromPoint(x, y)?.classList.contains('monaco-sash') ?? false;
+			assert.deepStrictEqual({
+				overflow: getWindow(widget).getComputedStyle(widget).overflow,
+				top: isSash(bounds.left + 100, bounds.top - 1),
+				right: isSash(bounds.left + 201, bounds.top + 30),
+				bottom: isSash(bounds.left + 100, bounds.top + 61),
+				left: isSash(bounds.left - 1, bounds.top + 30),
+			}, {
+				overflow: 'visible',
+				top: true,
+				right: true,
+				bottom: true,
+				left: true,
+			});
 		});
-	});
+	}
 });
