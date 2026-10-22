@@ -472,8 +472,8 @@ export const DISABLE_REPO_INFO_TELEMETRY_SETTING_ID = 'chat.advanced.debug.disab
 
 /**
  * Root config key forwarded from the renderer when VS Code's
- * `chat.sessionSync.enabled` setting changes. Controls the `remote` flag
- * passed to the copilot-sdk `CopilotClientOptions`.
+ * `chat.sessionSync.enabled` setting changes. Controls history export through
+ * the Copilot SDK session's `remote.enable` RPC, without remote steering.
  */
 export const AgentHostSessionSyncEnabledConfigKey = 'sessionSyncEnabled';
 
