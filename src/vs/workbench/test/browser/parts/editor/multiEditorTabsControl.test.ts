@@ -9,12 +9,14 @@ import { $, Dimension, EventType, ModifierKeyEmitter, reset, scheduleAtNextAnima
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TreeViewsDnDService } from '../../../../../editor/common/services/treeViewsDnd.js';
 import { ITreeViewsDnDService } from '../../../../../editor/common/services/treeViewsDndService.js';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { ColorScheme } from '../../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { TestColorTheme, TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
@@ -164,6 +166,29 @@ suite('MultiEditorTabsControl', () => {
 	function alt(pressed: boolean): void {
 		mainWindow.dispatchEvent(new KeyboardEvent(pressed ? EventType.KEY_DOWN : EventType.KEY_UP, { key: 'Alt', altKey: pressed }));
 	}
+
+	test('sets resourceWebviewId for the tab context menu resource', () => {
+		const contextMenus: Parameters<IContextMenuService['showContextMenu']>[0][] = [];
+		instantiationService.stub(IContextMenuService, {
+			onDidShowContextMenu: Event.None,
+			onDidHideContextMenu: Event.None,
+			showContextMenu: delegate => contextMenus.push(delegate)
+		});
+
+		control.dispose();
+		reset(container);
+
+		const webviewEditor = disposables.add(new TestFileEditorInput(URI.from({ scheme: Schemas.webviewPanel, path: '/test' }), 'test.webview'));
+		model.openEditor(webviewEditor, { pinned: true });
+		control = createControl();
+
+		const tabs = container.querySelectorAll<HTMLElement>('.tabs-container > .tab');
+		tabs[model.indexOf(webviewEditor)].dispatchEvent(new MouseEvent(EventType.CONTEXT_MENU, { bubbles: true }));
+		assert.strictEqual(contextMenus.at(-1)?.contextKeyService?.getContextKeyValue('resourceWebviewId'), 'test.webview');
+
+		tabs[0].dispatchEvent(new MouseEvent(EventType.CONTEXT_MENU, { bubbles: true }));
+		assert.strictEqual(contextMenus.at(-1)?.contextKeyService?.getContextKeyValue('resourceWebviewId'), undefined);
+	});
 
 	function connectedGroup(): HTMLElement {
 		const root = $('.monaco-workbench.modern-ui.modern-ui-tabs.modern-ui-connected-editor-tabs.floating-panels');

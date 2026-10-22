@@ -204,6 +204,8 @@ export function getVisbileViewContextKey(viewId: string): string { return `view.
 
 //#region < --- Resources --- >
 
+export const ResourceWebviewIdContext = new RawContextKey<string | undefined>('resourceWebviewId', undefined, { type: 'string', description: localize('resourceWebviewId', "The view type of the webview resource") });
+
 abstract class AbstractResourceContextKey {
 
 	// NOTE: DO NOT CHANGE THE DEFAULT VALUE TO ANYTHING BUT
