@@ -9,7 +9,7 @@ inputs:
     description: The package-lock.json whose `playwright` package installs the browsers.
     default: package-lock.json
   save-cache:
-    description: When 'true', downloads and saves the browsers on a cache miss, without restoring them on a hit. Use on main, whose caches pull requests can read.
+    description: When 'true', also downloads and saves the browsers on a cache miss. Use on main, whose caches pull requests can read.
     default: 'false'
 
 outputs:
@@ -40,7 +40,6 @@ runs:
       with:
         path: .build/ms-playwright
         key: "playwright-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.prepare.outputs.version }}-${{ steps.prepare.outputs.browsers }}"
-        lookup-only: ${{ inputs.save-cache }}
 
     - name: Download Playwright browsers
       if: inputs.save-cache == 'true' && steps.restore.outputs.cache-hit != 'true' && runner.os != 'Windows'
