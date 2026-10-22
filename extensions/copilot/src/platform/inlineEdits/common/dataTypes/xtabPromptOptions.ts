@@ -144,6 +144,11 @@ export type PromptMemoryOptions = {
 	 * without `rejectedEdits` the whole request is always marked. Defaults to {@link RejectedEditsCacheScope.Request}.
 	 */
 	readonly rejectedEditsCacheScope?: RejectedEditsCacheScope;
+	/**
+	 * When true, a rejection is recorded only if the whole suggested edit was inside the visible editor area, so the user
+	 * could have seen all of it. Applies to every `rejectedEdits` mode. Defaults to false: every rejection is recorded.
+	 */
+	readonly rejectedEditsOnlyFullyVisible?: boolean;
 };
 
 export namespace PromptMemoryOptions {
@@ -154,6 +159,7 @@ export namespace PromptMemoryOptions {
 		'rejectedEditsRepetitions': vUnion(vNumber(), vUndefined()),
 		'rejectedEditsMaxCount': vUnion(vNumber(), vUndefined()),
 		'rejectedEditsCacheScope': vUnion(vEnum(RejectedEditsCacheScope.Request, RejectedEditsCacheScope.Edit, RejectedEditsCacheScope.None), vUndefined()),
+		'rejectedEditsOnlyFullyVisible': vUnion(vBoolean(), vUndefined()),
 	});
 }
 
