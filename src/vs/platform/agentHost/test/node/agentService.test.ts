@@ -75,7 +75,7 @@ import { buildSandboxConfigForSdk } from '../../node/copilot/sandboxConfigForSdk
 import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { SessionDatabase, sessionDatabaseMigrations } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope, NotificationType, type ChatAction, type ChatConfigChangedAction, type INotification, type SessionAction, type SessionSummaryChanges } from '../../common/state/sessionActions.js';
-import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isMessageRequestHiddenFromTranscript, getAgentHostChatId, isSessionStatusArchived, isSessionStatusRead, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubData, readSessionGitHubState, readSessionGitState, readWorkingDirectoryKeys, readWorkingDirectoryScopeIds, SESSION_META_GITHUB_DATA_KEY, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, readSessionWorkspaceless, withSessionEhcliAdoptable, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type SessionSummaryMeta, type ChatState, type ToolCallCompletedState, type ToolCallResponsePart, type Turn, readSessionScratchFolders, withSessionScratchFolders } from '../../common/state/sessionState.js';
+import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isMessageRequestHiddenFromTranscript, getAgentHostChatId, isSessionStatusArchived, isSessionStatusRead, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubData, readSessionGitHubState, readSessionGitState, readWorkingDirectoryKeys, readWorkingDirectoryScopeIds, SESSION_META_GITHUB_DATA_KEY, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, readSessionWorkspaceless, withSessionEhcliAdoptable, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionGitHubState, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type SessionSummaryMeta, type ChatState, type ToolCallCompletedState, type ToolCallResponsePart, type Turn, readSessionScratchFolders, withSessionScratchFolders } from '../../common/state/sessionState.js';
 import { BackgroundWorkKind, ChatInteractivity, McpServerStatus, PendingMessageKind, type BackgroundWork, type Message, type MessageAttachment, TerminalClaimKind, type TerminalClaim } from '../../common/state/protocol/state.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { readAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
@@ -122,6 +122,7 @@ import { OLDER_BUILD_WORKTREE_WITHHELD_KEY } from '../../node/agentHostSessionSt
 import { parseSessionWorktreeFolders, WORKTREE_FOLDERS_KEY } from '../../node/shared/sessionWorktreeFolders.js';
 import type { IAgentHostPullRequestResolver } from '../../node/shared/pullRequestResolver.js';
 import { ADDITIONAL_WORKTREES_METADATA_KEY, readSessionAdditionalWorktrees, writeSessionAdditionalWorktrees } from '../../node/shared/sessionAdditionalWorktrees.js';
+import { SessionArtifacts } from '../../node/shared/sessionArtifacts.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, AuthenticateTargetKind, ContentEncoding, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ArtifactIntegrationServerToolName, ArtifactServerToolName, SessionServerToolName } from '../../common/serverToolNames.js';
@@ -35380,6 +35381,27 @@ suite('AgentService (node dispatcher)', () => {
 				stateManager.dispatchServerAction(chat.toString(), { type: ActionType.ChatTurnComplete, turnId: 'first-turn', duration: 1 });
 			}
 
+			/** Records pull request `number` as an artifact of `chat`, as the artifact tools do. */
+			async function recordPullRequest(service: AgentService, session: URI, chat: string, number: number): Promise<void> {
+				const accessor = (service as unknown as { _createArtifactServerToolAccessor(): { persist: ConstructorParameters<typeof SessionArtifacts>[3] } })._createArtifactServerToolAccessor();
+				await new SessionArtifacts(getStateManager(service), session.toString(), chat, accessor.persist).mutate(collection => collection.addOrPromoteArtifact({
+					type: SessionArtifactType.PullRequest,
+					label: `PR #${number}`,
+					isArtifact: true,
+					link: `https://github.com/microsoft/vscode/pull/${number}`,
+				}, () => `pr-${number}`));
+			}
+
+			/** The pull request artifacts of `session`, in memory and as the database holds them, by the chat that recorded each. */
+			async function pullRequestsOf(service: AgentService, session: URI): Promise<{ readonly memory: readonly string[]; readonly persisted: readonly string[] }> {
+				const format = (artifacts: readonly { readonly chat?: string; readonly link?: string }[]) => artifacts.map(artifact => `${artifact.chat} ${artifact.link}`);
+				const persisted = (await getTestSessionStateStore(service).readWithoutImport(session, [SESSION_ARTIFACTS_KEY])).get(SESSION_ARTIFACTS_KEY);
+				return {
+					memory: format(readSessionArtifacts(getStateManager(service).getSessionState(session.toString())?._meta)),
+					persisted: format(parseSessionArtifacts(persisted).artifacts),
+				};
+			}
+
 			class MovingAgent extends MockAgent {
 				readonly materialized: { readonly chat: string; readonly providerData: string | undefined }[] = [];
 				readonly metadataStorage: string[] = [];
@@ -35495,6 +35517,39 @@ suite('AgentService (node dispatcher)', () => {
 					sourceCatalog: [],
 					targetCatalog: [peer.toString()],
 				});
+			});
+
+			test('a moved peer takes the pull requests it recorded along; those of the chats staying in the source stay', async () => {
+				const { service, source, target, peer } = await setupMove();
+				const sourceChat = buildDefaultChatUri(source);
+				const targetChat = buildDefaultChatUri(target);
+				await recordPullRequest(service, source, sourceChat, 1);
+				await recordPullRequest(service, source, peer.toString(), 2);
+				await recordPullRequest(service, target, targetChat, 3);
+
+				await service.moveChat(source, peer, { kind: 'session', session: target, after: undefined });
+
+				const pullRequest = (chat: string, number: number) => `${chat} https://github.com/microsoft/vscode/pull/${number}`;
+				assert.deepStrictEqual({ source: await pullRequestsOf(service, source), target: await pullRequestsOf(service, target) }, {
+					source: { memory: [pullRequest(sourceChat, 1)], persisted: [pullRequest(sourceChat, 1)] },
+					target: { memory: [pullRequest(targetChat, 3), pullRequest(peer.toString(), 2)], persisted: [pullRequest(targetChat, 3), pullRequest(peer.toString(), 2)] },
+				});
+			});
+
+			test('the GitHub state of a moved chat\'s folder shows in the destination right after the move, and in its own session when it is promoted', async () => {
+				const { service, source, target, peer, folder } = await setupMove(true, URI.file('/other'), true);
+				const stateManager = getStateManager(service);
+				const pullRequestUrl = 'https://github.com/microsoft/vscode/pull/1';
+				const gitHubState: ISessionGitHubState = { owner: 'microsoft', repo: 'vscode', pullRequestUrls: [pullRequestUrl], pullRequestState: 'merged', pullRequestStateUrl: pullRequestUrl };
+				stateManager.setSessionMeta(source.toString(), withSessionGitHubState(stateManager.getSessionState(source.toString())?._meta, folder.toString(), gitHubState));
+				const folderState = (session: URI) => readSessionGitHubData(stateManager.getSessionState(session.toString())?._meta).get(getWorkingDirectoryKey(folder.toString()));
+
+				await service.moveChat(source, peer, { kind: 'session', session: target, after: undefined });
+				const moved = folderState(target);
+				completeTurn(service, peer);
+				const promoted = await service.moveChat(target, peer, { kind: 'newSession' });
+
+				assert.deepStrictEqual({ moved, promoted: folderState(promoted) }, { moved: gitHubState, promoted: gitHubState });
 			});
 
 			suite('folders of a chat in transit (#341885)', () => {
@@ -37540,6 +37595,61 @@ suite('AgentService (node dispatcher)', () => {
 						draft: (await store.chatRows.getDraft(target, chat))?.text,
 						strayDirectory: await fileService.exists(sessionDataService.getSessionDataDir(chat)),
 					}, { draft: 'After the move', strayDirectory: false });
+				});
+
+				test('the session\'s recorded pull request moves with its chat, and comes back with it when the move is undone by promoting the chat, across a restart', async () => {
+					const { createService, orchestratorDatabase, service, source, target, chat } = await setupSessionMove();
+					const targetChat = getStateManager(service).getSessionState(target.toString())!.defaultChat!;
+					await recordPullRequest(service, source, chat.toString(), 1);
+					await recordPullRequest(service, target, targetChat, 2);
+
+					await service.moveSession(source, target, undefined);
+					const nested = await pullRequestsOf(service, target);
+					// The backing the provider reports when the chat materializes in the destination, as the host records it.
+					// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Write the stored row, as the host does.
+					const raw = await orchestratorDatabase['_ensureDatabase']();
+					await new Promise<void>((resolve, reject) => raw.run('UPDATE chats_v2 SET provider_data = ? WHERE chat_uri = ?', ['session-backing', chat.toString()], error => error ? reject(error) : resolve()));
+					completeTurn(service, chat);
+					const promoted = await service.moveChat(target, chat, { kind: 'newSession' });
+					const undone = { promoted: await pullRequestsOf(service, promoted), target: await pullRequestsOf(service, target) };
+					await service.whenCatalogReconciliationIdle();
+					await getTestSessionStateStore(service).whenIdle(undefined);
+					const restarted = createService();
+					const listed = new Map((await restarted.listSessions()).map(summary => [summary.session.toString(), readSessionArtifacts(summary._meta).map(artifact => `${artifact.chat} ${artifact.link}`)]));
+
+					const pullRequest = (owner: string, number: number) => `${owner} https://github.com/microsoft/vscode/pull/${number}`;
+					assert.deepStrictEqual({ nested, undone, restarted: { promoted: listed.get(promoted.toString()), target: listed.get(target.toString()) } }, {
+						nested: { memory: [pullRequest(targetChat, 2), pullRequest(chat.toString(), 1)], persisted: [pullRequest(targetChat, 2), pullRequest(chat.toString(), 1)] },
+						undone: {
+							promoted: { memory: [pullRequest(chat.toString(), 1)], persisted: [pullRequest(chat.toString(), 1)] },
+							target: { memory: [pullRequest(targetChat, 2)], persisted: [pullRequest(targetChat, 2)] },
+						},
+						restarted: { promoted: [pullRequest(chat.toString(), 1)], target: [pullRequest(targetChat, 2)] },
+					});
+				});
+
+				test('a moved session\'s pull requests are its chat\'s in the destination, including one recorded before artifacts named their chat, after a restart; its own database keeps no copy', async () => {
+					const { createService, service, source, target, chat } = await setupSessionMove();
+					const legacy = { id: 'legacy', type: SessionArtifactType.PullRequest, label: 'PR #1', isArtifact: true, link: 'https://github.com/microsoft/vscode/pull/1' };
+					const ofDeletedChat = { id: 'deleted', chat: buildChatUri(source, 'deleted'), type: SessionArtifactType.PullRequest, label: 'PR #2', isArtifact: true, link: 'https://github.com/microsoft/vscode/pull/2' };
+					const accessor = (service as unknown as { _createArtifactServerToolAccessor(): { persist: ConstructorParameters<typeof SessionArtifacts>[3] } })._createArtifactServerToolAccessor();
+					await accessor.persist(source.toString(), [legacy, ofDeletedChat]);
+					const stateManager = getStateManager(service);
+					stateManager.setSessionMeta(source.toString(), withSessionArtifacts(stateManager.getSessionState(source.toString())?._meta, [legacy, ofDeletedChat]));
+
+					await service.moveSession(source, target, undefined);
+					await service.whenCatalogReconciliationIdle();
+					await getTestSessionStateStore(service).whenIdle(undefined);
+					const sourceDatabase = (service as unknown as { _sessionDataService: ISessionDataService })._sessionDataService.openDatabase(source);
+					const sourceCopy = await sourceDatabase.object.getMetadata(SESSION_ARTIFACTS_KEY);
+					sourceDatabase.dispose();
+					const restarted = createService();
+					const listed = (await restarted.listSessions()).find(summary => summary.session.toString() === target.toString());
+
+					assert.deepStrictEqual({ target: readSessionArtifacts(listed?._meta), sourceCopy }, {
+						target: [{ ...legacy, chat: chat.toString() }, { ...ofDeletedChat, chat: chat.toString() }],
+						sourceCopy: undefined,
+					});
 				});
 
 				test('the session\'s chat joins the destination announced as the movable peer it is now, and moves on from there', async () => {
