@@ -116,6 +116,7 @@ export function isModelSupportedForInlineChat(
 
 /**
  * Check if any models in the pool target a specific session type.
+ * Entries without metadata (unvalidated cached entries) are ignored.
  */
 export function hasModelsTargetingSession(
 	allModels: ILanguageModelChatMetadataAndIdentifier[],
@@ -124,7 +125,7 @@ export function hasModelsTargetingSession(
 	if (!sessionType) {
 		return false;
 	}
-	return allModels.some(m => m.metadata.targetChatSessionType === sessionType);
+	return allModels.some(m => m.metadata?.targetChatSessionType === sessionType);
 }
 
 /**
@@ -139,11 +140,17 @@ export function isModelValidForSession(
 	allModels: ILanguageModelChatMetadataAndIdentifier[],
 	sessionType: string | undefined,
 ): boolean {
-	if (hasSessionScopedModels(allModels, sessionType)) {
-		return model.metadata.targetChatSessionType === sessionType
-			|| (!model.metadata.targetChatSessionType && isByokModel(model.metadata));
+	// Cached entries are read back from storage unvalidated; a model without metadata cannot run.
+	const metadata = model.metadata;
+	if (!metadata) {
+		return false;
 	}
-	return !model.metadata.targetChatSessionType;
+
+	if (hasSessionScopedModels(allModels, sessionType)) {
+		return metadata.targetChatSessionType === sessionType
+			|| (!metadata.targetChatSessionType && isByokModel(metadata));
+	}
+	return !metadata.targetChatSessionType;
 }
 
 /**

@@ -449,6 +449,15 @@ suite('ChatInputModelUtils', () => {
 			const models = [createSessionModel('cloud-gpt', 'Cloud GPT', 'cloud')];
 			assert.strictEqual(hasModelsTargetingSession(models, 'enterprise'), false);
 		});
+
+		test('ignores entries without metadata', () => {
+			const withoutMetadata = { identifier: 'broken/model' } as unknown as ILanguageModelChatMetadataAndIdentifier;
+			assert.strictEqual(hasModelsTargetingSession([withoutMetadata], 'cloud'), false);
+			assert.strictEqual(
+				hasModelsTargetingSession([withoutMetadata, createSessionModel('cloud-gpt', 'Cloud GPT', 'cloud')], 'cloud'),
+				true,
+			);
+		});
 	});
 
 	suite('isModelValidForSession', () => {
@@ -506,6 +515,15 @@ suite('ChatInputModelUtils', () => {
 			const cloudModel = createSessionModel('cloud-gpt', 'Cloud GPT', 'cloud');
 			const allModels = [wrongSessionModel, cloudModel];
 			assert.strictEqual(isModelValidForSession(wrongSessionModel, allModels, 'cloud'), false);
+		});
+
+		test('model without metadata is NOT valid', () => {
+			// Cached model entries are read back from storage unvalidated.
+			const withoutMetadata = { identifier: 'broken/model' } as unknown as ILanguageModelChatMetadataAndIdentifier;
+			const generalModel = createModel('gpt', 'GPT');
+			assert.strictEqual(isModelValidForSession(withoutMetadata, [withoutMetadata, generalModel], undefined), false);
+			// A broken entry in the pool must not throw when the pool is scanned.
+			assert.strictEqual(isModelValidForSession(generalModel, [withoutMetadata, generalModel], 'cloud'), true);
 		});
 
 		test('general model is valid when session type is undefined', () => {
