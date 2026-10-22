@@ -74,6 +74,21 @@ suite('CopilotFusionProgress', () => {
 		});
 	});
 
+	test('explains known degraded reasons and keeps the generic text for unknown ones', () => {
+		const reasons = ['model_unavailable', 'primary_call_failed', 'judge_call_failed', 'judge_invalid_output', 'critic_invalid', 'revision_failed', 'future_reason'];
+		const content = (degradedReason: string) => new CopilotFusionProgress().accept(event('session.fusion_completed', { ...data.completed, outcome: 'degraded', degradedReason }))?.part?.content;
+		const markdown = (text: string) => ({ markdown: text.replaceAll(' ', '&nbsp;') });
+		assert.deepStrictEqual(reasons.map(content), [
+			markdown('HydraFusion used a fallback model because a planned model was unavailable'),
+			markdown('HydraFusion fixed up the response because the main pass failed'),
+			markdown('HydraFusion fixed up the response because the review pass failed'),
+			markdown('HydraFusion fixed up the response because the review result could not be read'),
+			markdown('HydraFusion kept the first pass because the critique could not be read'),
+			markdown('HydraFusion kept the first pass because the revision pass failed'),
+			markdown('HydraFusion workflow completed with a fallback'),
+		]);
+	});
+
 	test('handles failures, cancellation, and interruption without success icons', () => {
 		const progress = new CopilotFusionProgress();
 		progress.accept(event('session.fusion_route_started', data.routeStarted));

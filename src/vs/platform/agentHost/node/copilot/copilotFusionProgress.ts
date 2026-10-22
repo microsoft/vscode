@@ -135,6 +135,19 @@ function phaseLabel(kind: FusionPhase['phaseKind'], pattern: FusionPhase['patter
 	}
 }
 
+/** Explains a degraded HydraFusion run from the runtime's `degradedReason`, without exposing raw reason codes. */
+function degradedSummary(reason: string | null | undefined): string {
+	switch (reason) {
+		case 'model_unavailable': return localize('copilot.fusion.degraded.modelUnavailable', "HydraFusion used a fallback model because a planned model was unavailable");
+		case 'primary_call_failed': return localize('copilot.fusion.degraded.primaryFailed', "HydraFusion fixed up the response because the main pass failed");
+		case 'judge_call_failed': return localize('copilot.fusion.degraded.judgeFailed', "HydraFusion fixed up the response because the review pass failed");
+		case 'judge_invalid_output': return localize('copilot.fusion.degraded.judgeInvalid', "HydraFusion fixed up the response because the review result could not be read");
+		case 'critic_invalid': return localize('copilot.fusion.degraded.criticInvalid', "HydraFusion kept the first pass because the critique could not be read");
+		case 'revision_failed': return localize('copilot.fusion.degraded.revisionFailed', "HydraFusion kept the first pass because the revision pass failed");
+		default: return localize('copilot.fusion.completedDegraded', "HydraFusion workflow completed with a fallback");
+	}
+}
+
 function milestone(summary: string, status: AgentFusionProgressStatus, fusionModel: string | undefined, details?: string): SystemNotificationResponsePart {
 	const content = new MarkdownString().appendText(summary);
 	if (details) {
@@ -312,7 +325,7 @@ export class CopilotFusionProgress {
 				// The phase pills already show a clean run; only a fallback or an abnormal ending needs a row.
 				const degraded = d.outcome === 'degraded' || (d.degradedReason !== null && d.degradedReason !== undefined);
 				if (degraded) {
-					part = milestone(localize('copilot.fusion.completedDegraded', "HydraFusion workflow completed with a fallback"), 'degraded', d.syntheticModel);
+					part = milestone(degradedSummary(d.degradedReason), 'degraded', d.syntheticModel);
 				} else if (d.outcome !== 'completed') {
 					part = milestone(localize('copilot.fusion.ended', "HydraFusion workflow ended: {0}", d.outcome), 'degraded', d.syntheticModel);
 				}
