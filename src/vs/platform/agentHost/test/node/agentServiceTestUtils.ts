@@ -188,6 +188,7 @@ export function createTestAgentHostProxyResolver(fetchFn: typeof globalThis.fetc
 		getConfigurationValue: () => undefined,
 		resolveProxy: async () => undefined,
 		fetch: fetchFn,
+		createWebSocket: (url, protocol) => new globalThis.WebSocket(url, protocol),
 	};
 }
 
