@@ -27,7 +27,7 @@ import { ExtensionIdentifier } from '../../../../../platform/extensions/common/e
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { AgentHostSubagentProgress } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostSubagentProgress.js';
-import { toAgentHostBackendSessionUri } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostSessionUri.js';
+import { getLocalAgentHostSessionProvider } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostSessionUri.js';
 import { ISessionSummaryHoverService, SessionSummaryHoverService } from '../../../../contrib/chat/browser/agentSessions/sessionSummaryHoverService.js';
 import { IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
 import { AcceptToolConfirmationActionId, registerChatToolActions, SkipToolConfirmationActionId } from '../../../../contrib/chat/browser/actions/chatToolActions.js';
@@ -258,7 +258,8 @@ async function renderLifecycle(context: ComponentFixtureContext, name: string, s
 	const publisher = disposableStore.add(new AgentHostSubagentProgress(parts => publish(root, parts)));
 	const launch = async (id: string, title: string, parent?: string): Promise<Child> => {
 		const lateClassification = scenario.phase === 'lateClassification';
-		const backendSession = toAgentHostBackendSessionUri(model.sessionResource);
+		const provider = getLocalAgentHostSessionProvider(model.sessionResource);
+		const backendSession = provider ? model.sessionResource.with({ scheme: provider, fragment: '' }) : undefined;
 		if (!backendSession) {
 			throw new Error('Agent lifecycle fixture requires an agent-host session');
 		}

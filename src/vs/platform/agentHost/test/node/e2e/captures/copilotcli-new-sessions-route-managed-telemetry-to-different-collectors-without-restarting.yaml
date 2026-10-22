@@ -1,0 +1,21 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "otel-collector-first".
+    response:
+      content: otel-collector-first
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "otel-collector-second".
+    response:
+      content: otel-collector-second
+      stopReason: end_turn

@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { describe, expect, test, vi } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 
 const { mockConfigStore } = vi.hoisted(() => ({
-	mockConfigStore: { user: {} as Record<string, unknown>, defaults: {} as Record<string, unknown> },
+	mockConfigStore: { user: {} as Record<string, unknown>, workspace: {} as Record<string, unknown>, defaults: {} as Record<string, unknown> },
 }));
 
 vi.mock('vscode', () => {
@@ -15,6 +15,9 @@ vi.mock('vscode', () => {
 		return {
 			get<T>(k: string): T | undefined {
 				const fk = fullKey(k);
+				if (fk in mockConfigStore.workspace) {
+					return mockConfigStore.workspace[fk] as T;
+				}
 				if (fk in mockConfigStore.user) {
 					return mockConfigStore.user[fk] as T;
 				}
@@ -29,6 +32,7 @@ vi.mock('vscode', () => {
 					key: fk,
 					defaultValue: mockConfigStore.defaults[fk] as T | undefined,
 					globalValue: (fk in mockConfigStore.user ? mockConfigStore.user[fk] : undefined) as T | undefined,
+					workspaceValue: (fk in mockConfigStore.workspace ? mockConfigStore.workspace[fk] : undefined) as T | undefined,
 				};
 			},
 		};
@@ -125,6 +129,18 @@ describe('ConfigurationServiceImpl - getExperimentBasedConfigIfSet', () => {
 		const expService = new StubExperimentationService({ [`copilotchat.config.${boolKey.id}`]: false });
 		expect(service.getExperimentBasedConfigIfSet(boolKey, expService)).toBe(false);
 	});
+
+	test('reads the max_tokens toggle from ExP and respects user overrides', () => {
+		const limitKey = ConfigKey.TeamInternal.InlineEditsXtabProviderUseMaxTokens;
+		mockConfigStore.defaults = {};
+		const service = new ConfigurationServiceImpl(fakeTokenStore);
+		const treatmentName = `copilotchat.config.${limitKey.id}`;
+		mockConfigStore.user = {};
+		expect(service.getExperimentBasedConfig(limitKey, new StubExperimentationService({}))).toBe(true);
+		expect(service.getExperimentBasedConfig(limitKey, new StubExperimentationService({ [treatmentName]: false }))).toBe(false);
+		mockConfigStore.user = { [limitKey.fullyQualifiedId]: true };
+		expect(service.getExperimentBasedConfig(limitKey, new StubExperimentationService({ [treatmentName]: false }))).toBe(true);
+	});
 });
 
 describe('ConfigurationServiceImpl - externally configurable advanced settings', () => {
@@ -193,5 +209,36 @@ describe('ConfigurationServiceImpl - externally configurable advanced settings',
 			nLinesAbove: 0,
 			nLinesBelow: 7,
 		});
+	});
+});
+
+describe('ConfigurationServiceImpl - user-scope-only settings', () => {
+	const omitBaseAgentInstructions = ConfigKey.Advanced.OmitBaseAgentInstructions;
+
+	afterEach(() => {
+		mockConfigStore.workspace = {};
+	});
+
+	function read() {
+		return new ConfigurationServiceImpl(fakeTokenStore).getConfig(omitBaseAgentInstructions);
+	}
+
+	test('ignores values set in workspace settings', () => {
+		mockConfigStore.user = {};
+		mockConfigStore.defaults = {};
+		mockConfigStore.workspace = {
+			[omitBaseAgentInstructions.fullyQualifiedId]: true,
+			[omitBaseAgentInstructions.fullyQualifiedOldId!]: true,
+		};
+
+		expect(read()).toBe(false);
+	});
+
+	test('reads values set in user settings', () => {
+		mockConfigStore.user = { [omitBaseAgentInstructions.fullyQualifiedId]: true };
+		mockConfigStore.defaults = {};
+		mockConfigStore.workspace = { [omitBaseAgentInstructions.fullyQualifiedId]: false };
+
+		expect(read()).toBe(true);
 	});
 });

@@ -8,8 +8,6 @@ import { createSchema, migrateLegacyAutopilotConfig, schemaProperty } from './ag
 import { KNOWN_MODE_VALUES, SessionConfigKey } from './sessionConfigKeys.js';
 
 export const AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY = 'automationsEnabled';
-export const AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY = 'automationRunTimeoutMinutes';
-export const DEFAULT_AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES = 30;
 
 export const automationRootConfigSchema = createSchema({
 	[AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY]: schemaProperty<boolean>({
@@ -17,12 +15,6 @@ export const automationRootConfigSchema = createSchema({
 		title: localize('agentHost.automationsEnabled', "Automations"),
 		description: localize('agentHost.automationsEnabled.description', "Whether this Agent Host may run automations."),
 		default: false,
-	}),
-	[AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY]: schemaProperty<number>({
-		type: 'number',
-		title: localize('agentHost.automationRunTimeout', "Automation Run Timeout"),
-		description: localize('agentHost.automationRunTimeout.description', "Maximum duration of an automation run, in minutes."),
-		default: DEFAULT_AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES,
 	}),
 });
 

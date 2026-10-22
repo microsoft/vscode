@@ -4847,11 +4847,12 @@ export class CommandCenter {
 	}
 
 	private async _resolveTimelineOpenCommitCommand(item: TimelineItem, uri: Uri | undefined, options?: TextDocumentShowOptions): Promise<Command | undefined> {
-		if (uri === undefined || uri === null || !GitTimelineItem.is(item)) {
+		if (!GitTimelineItem.is(item)) {
 			return undefined;
 		}
 
-		const repository = await this.model.getRepository(uri.fsPath);
+		// Items of the workspace timeline have no uri, so use the repository of the item
+		const repository = this.model.getRepository(item.rootUri);
 		if (!repository) {
 			return undefined;
 		}
@@ -4863,7 +4864,8 @@ export class CommandCenter {
 
 		const title = `${item.shortRef} - ${subject(commit.message)}`;
 		const multiDiffSourceUri = Uri.from({ scheme: 'scm-history-item', path: `${repository.root}/${commitParentId}..${commit.hash}` });
-		const reveal = { modifiedUri: toGitUri(uri, commit.hash) };
+		// Only the items of a file timeline know which file of the commit to reveal
+		const reveal = uri && item.contextValue?.startsWith('git:file') ? { modifiedUri: toGitUri(uri, commit.hash) } : undefined;
 
 		return {
 			command: '_workbench.openMultiDiffEditor',

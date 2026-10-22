@@ -127,6 +127,21 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 		let shown = false;
 		const skippedStepIndexes = new Set<number>();
 
+		// Closed before a step for another element shows, and before the overlay restores focus,
+		// so a control that refocuses its button on close cannot take focus from the tour.
+		let openedTarget: IOnboardingTarget | undefined;
+		const closeOpenedTarget = (next?: IOnboardingTarget) => {
+			const target = openedTarget;
+			if (target && target.element !== next?.element) {
+				openedTarget = undefined;
+				try {
+					target.close?.();
+				} catch (error) {
+					onUnexpectedError(error);
+				}
+			}
+		};
+
 		const store = new DisposableStore();
 		try {
 			let aborted = false;
@@ -180,6 +195,7 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 				if (aborted) {
 					break;
 				}
+				closeOpenedTarget(target);
 				if (!target) {
 					if (shouldAbortOnMissingTarget(step.missingTarget)) {
 						aborted = true;
@@ -197,6 +213,9 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 				const skippedBefore = Array.from(skippedStepIndexes).filter(skippedIndex => skippedIndex < index).length;
 				const displayStepIndex = index - skippedBefore;
 				const displayStepCount = stepCount - skippedStepIndexes.size;
+				if (step.openTarget) {
+					openedTarget = target;
+				}
 				const end = await this._runStep(overlay, context, step, target, displayStepIndex, displayStepCount);
 				overlay.hide();
 				switch (end.action) {
@@ -229,6 +248,7 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 			}
 			return { outcome: OnboardingOutcome.Completed, shown, dismissReason: OnboardingDismissReason.Completed, lastStepIndex, stepCount };
 		} finally {
+			closeOpenedTarget();
 			store.dispose();
 		}
 	}
@@ -320,7 +340,10 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 
 	private async _showStep(overlay: SpotlightOverlay, context: IOnboardingRunContext, step: ISpotlightStep, target: IOnboardingTarget, index: number, stepCount: number, canGoBack: boolean, isLastStep: boolean): Promise<StepEnd> {
 		const stepStore = new DisposableStore();
+		const cancellation = new CancellationTokenSource();
+		stepStore.add(toDisposable(() => cancellation.dispose(true)));
 		let ended = false;
+		let actionStarted = false;
 		let resolveStep: (end: StepEnd) => void;
 		const result = new Promise<StepEnd>(resolve => resolveStep = resolve);
 		const done = (end: StepEnd) => {
@@ -332,7 +355,25 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 			resolveStep(end);
 		};
 
-		stepStore.add(overlay.onDidClickNext(via => done({ action: 'next', via })));
+		stepStore.add(overlay.onDidClickNext(async via => {
+			if (!step.primaryAction || via !== 'button') {
+				done({ action: 'next', via });
+				return;
+			}
+			if (ended || actionStarted) {
+				return;
+			}
+			actionStarted = true;
+			overlay.setPrimaryActionEnabled(false);
+			try {
+				await step.primaryAction.run(cancellation.token);
+			} catch (error) {
+				if (!ended) {
+					onUnexpectedError(error);
+					done({ action: 'abort' });
+				}
+			}
+		}));
 		stepStore.add(overlay.onDidClickPrevious(() => done({ action: 'back' })));
 		stepStore.add(overlay.onDidSkip(reason => done({ action: 'skip', reason })));
 		stepStore.add(overlay.onDidLoseTarget(() => done({ action: 'missingTarget' })));
@@ -341,16 +382,17 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 		const content: ISpotlightContent = {
 			title: step.title,
 			description: step.description,
-			nextButtonLabel: step.nextButtonLabel,
+			nextButtonLabel: step.primaryAction?.label ?? step.nextButtonLabel,
 			stepIndex: index,
 			stepCount,
 			canGoBack,
 			isLastStep,
+			showEndTour: !!step.primaryAction,
 		};
 
 		const openTarget = step.openTarget === 'ifUnselected' ? !hasOnboardingTargetSelection(target.element) : step.openTarget;
 		if (step.advanceOnTargetSelection) {
-			stepStore.add(onDidSelectOnboardingTarget(target.element)(async accepted => {
+			stepStore.add((target.onDidSelect ?? onDidSelectOnboardingTarget(target.element))(async accepted => {
 				try {
 					if (await accepted) {
 						done({ action: 'next', via: 'condition' });
@@ -366,11 +408,15 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 			placement: step.placement,
 			allowTargetInteraction: step.allowTargetInteraction,
 			advanceOnTargetClick: step.advanceOnTargetClick,
-			hideNext: step.advanceWhen ? true : step.hideNext,
+			onDidActivateTarget: target.onDidActivate,
+			focusTarget: target.focusTarget,
+			hideNext: step.primaryAction ? false : step.advanceWhen ? true : step.hideNext,
 			targetOverlayVisible: openTarget,
+			additionalElements: target.additionalElements,
 			padding: step.padding,
 		});
 		context.onDidShow?.();
+		step.onDidShow?.();
 
 		if (step.advanceWhen) {
 			const keys = new Set(step.advanceWhen.keys());
@@ -389,7 +435,7 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 
 		if (openTarget && !ended) {
 			try {
-				await target.open?.();
+				await target.open?.(cancellation.token);
 			} catch (error) {
 				onUnexpectedError(error);
 			}

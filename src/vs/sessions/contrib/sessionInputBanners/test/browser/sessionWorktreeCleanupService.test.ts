@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../base/common/async.js';
+import { DeferredPromise, raceCancellationError } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
-import { constObservable } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -28,6 +29,108 @@ import { AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING, SessionWorktreeClean
 
 suite('SessionWorktreeCleanupService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('uses the existing cleanup suggestion for low disk space with a recent worktree', async () => {
+		const commands: { id: string; args: readonly unknown[] }[] = [];
+		const service = disposables.add(createService(
+			[createSession('recent', new Date())], true, () => undefined,
+			undefined, undefined, undefined, (id, args) => commands.push({ id, args }),
+		));
+		service.setAvailableDiskSpace(ByteSize.GB);
+		const description = service.suggestion.get()?.description;
+		await service.activate();
+		const descriptionAfterScan = service.suggestion.get()?.description;
+		await service.suggestion.get()?.manage();
+		service.setAvailableDiskSpace(0);
+
+		assert.deepStrictEqual({ description, descriptionAfterScan, commands, dismissed: service.suggestion.get() }, {
+			description: 'Your disk is almost full (1.00GB available). Clean up agent session worktrees to free up space.',
+			descriptionAfterScan: 'Your disk is almost full (1.00GB available). Clean up agent session worktrees to free up space.',
+			commands: [{ id: 'sessions.chat.manageAgentSessionWorktrees', args: ['all'] }],
+			dismissed: undefined,
+		});
+	});
+
+	test('low disk space takes priority and falls back to the ordinary cleanup suggestion on recovery', async () => {
+		const service = disposables.add(createService([createSession('eligible', oldDate())], true, () => 6 * ByteSize.GB));
+		await service.activate();
+		const ordinaryDescription = service.suggestion.get()?.description;
+		service.setAvailableDiskSpace(ByteSize.GB);
+		const lowDiskDescription = service.suggestion.get()?.description;
+		service.setAvailableDiskSpace(undefined);
+		assert.deepStrictEqual({
+			ordinaryDescription,
+			lowDiskDescription,
+			recoveredDescription: service.suggestion.get()?.description,
+		}, {
+			ordinaryDescription: '1 agent session worktree has been inactive for at least 15 days and can be cleaned up, reclaiming about 6.00GB.',
+			lowDiskDescription: 'Your disk is almost full (1.00GB available). Clean up agent session worktrees to free up space.',
+			recoveredDescription: ordinaryDescription,
+		});
+	});
+
+	test('low disk suggestion uses the same dismissal and disable actions as ordinary cleanup', async () => {
+		const configuration = new TrackingConfigurationService({ [AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING]: true });
+		const service = disposables.add(createService(
+			[createSession('recent', new Date())], true, () => 1,
+			undefined, undefined, undefined, undefined, undefined, configuration,
+		));
+		service.setAvailableDiskSpace(ByteSize.GB);
+		await service.suggestion.get()?.disable();
+		service.setAvailableDiskSpace(0);
+		assert.deepStrictEqual({ updates: configuration.updates, suggestion: service.suggestion.get() }, {
+			updates: [{ key: AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING, value: false }],
+			suggestion: undefined,
+		});
+	});
+
+	test('dismissing the cleanup widget also suppresses later low disk hints for this window', async () => {
+		const service = disposables.add(createService([createSession('recent', new Date())], true, () => 1));
+		service.setAvailableDiskSpace(ByteSize.GB);
+		service.suggestion.get()?.dismiss();
+		service.setAvailableDiskSpace(0);
+		await service.refresh();
+		assert.strictEqual(service.suggestion.get(), undefined);
+	});
+
+	for (const [enabled, hasWorktree] of [[false, true], [true, false]]) {
+		test(`does not suggest low disk cleanup when enabled=${enabled} and hasWorktree=${hasWorktree}`, () => {
+			const service = disposables.add(createService(
+				[createSession('recent', new Date(), SessionStatus.Completed, false, hasWorktree)], enabled, () => 1,
+			));
+			service.setAvailableDiskSpace(0);
+			assert.strictEqual(service.suggestion.get(), undefined);
+		});
+	}
+
+	test('any-time cleanup includes recent worktrees but preserves safety exclusions', async () => {
+		const now = new Date();
+		const active = createSession('active', now);
+		const pinned = createSession('pinned', now);
+		const service = disposables.add(createService([
+			createSession('recent', now),
+			active,
+			pinned,
+			createSession('running', now, SessionStatus.InProgress),
+			createSession('needsInput', now, SessionStatus.NeedsInput),
+			createSession('archived', now, SessionStatus.Completed, true),
+			createSession('untitled', now, SessionStatus.Untitled),
+			createSession('error', now, SessionStatus.Error),
+		], true, () => 1, undefined, undefined, upcastPartial<IActiveSession>(active), undefined, pinned));
+
+		assert.deepStrictEqual((await service.getWorktrees(0)).map(worktree => ({
+			id: worktree.session.sessionId,
+			state: worktree.cleanupState,
+		})), [
+			{ id: 'recent', state: 'eligible' },
+			{ id: 'active', state: 'active' },
+			{ id: 'pinned', state: 'pinned' },
+			{ id: 'running', state: 'running' },
+			{ id: 'needsInput', state: 'needsInput' },
+			{ id: 'untitled', state: 'untitled' },
+			{ id: 'error', state: 'error' },
+		]);
+	});
 
 	test('shows a storage suggestion above the reclaimable-size threshold', async () => {
 		const service = disposables.add(createService(
@@ -321,7 +424,7 @@ suite('SessionWorktreeCleanupService', () => {
 		});
 	});
 
-	test('coalesces concurrent measurements while giving each caller cancellable progress', async () => {
+	test('coalesces concurrent editor loads into one foreground measurement', async () => {
 		const diskUsage = new DeferredPromise<number | undefined>();
 		const progressService = new TestProgressService();
 		let scanCount = 0;
@@ -356,10 +459,6 @@ suite('SessionWorktreeCleanupService', () => {
 		}, {
 			scanCount: 1,
 			progress: [
-				{
-					title: 'Measuring agent session worktrees...',
-					cancellable: true,
-				},
 				{
 					title: 'Measuring agent session worktrees...',
 					cancellable: true,
@@ -452,6 +551,57 @@ suite('SessionWorktreeCleanupService', () => {
 		});
 	});
 
+	test('reuses measured remaining worktrees after cleanup', async () => {
+		const archived = observableValue<boolean>('archived', false);
+		const onDidArchiveSession = disposables.add(new Emitter<ISession>());
+		const selected = createSession('selected', oldDate(), SessionStatus.Completed, false, true, 1, archived);
+		const remaining = createSession('remaining', oldDate());
+		let scanCount = 0;
+		const progressService = new TestProgressService();
+		const service = disposables.add(createService(
+			[selected, remaining],
+			true,
+			() => {
+				scanCount++;
+				return ByteSize.GB;
+			},
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			Event.None,
+			{
+				progressService,
+				dialogService: upcastPartial<IDialogService>({ confirm: async () => ({ confirmed: true }) }),
+				onArchive: async session => {
+					archived.set(true, undefined);
+					onDidArchiveSession.fire(session);
+				},
+				onDidArchiveSession: onDidArchiveSession.event,
+			},
+		));
+
+		const worktrees = await service.getWorktrees(14);
+		await service.cleanupWorktrees([{
+			session: selected,
+			sizeBytes: worktrees[0].sizeBytes!,
+			worktreeCount: worktrees[0].worktreeCount,
+		}]);
+		const reloaded = await service.getWorktrees(14);
+
+		assert.deepStrictEqual({
+			scanCount,
+			measurementProgressCount: progressService.options.filter(option => option.title === 'Measuring agent session worktrees...').length,
+			sessionIds: reloaded.map(worktree => worktree.session.sessionId),
+		}, {
+			scanCount: 2,
+			measurementProgressCount: 1,
+			sessionIds: ['remaining'],
+		});
+	});
+
 	test('cancels a foreground wait while disk measurement remains unresolved', async () => {
 		const diskUsage = new DeferredPromise<number | undefined>();
 		const progressService = new TestProgressService();
@@ -527,6 +677,23 @@ suite('SessionWorktreeCleanupService', () => {
 		});
 	}));
 
+	test('cancels disk measurement when it times out', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		let canceled = false;
+		const stalledMeasurement = new DeferredPromise<number | undefined>();
+		const service = disposables.add(createService(
+			[createSession('eligible', oldDate())],
+			true,
+			(_session, token) => raceCancellationError(stalledMeasurement.p, token ?? CancellationToken.None).catch(error => {
+				canceled = isCancellationError(error);
+				throw error;
+			}),
+		));
+
+		await service.getWorktrees(14);
+
+		assert.strictEqual(canceled, true);
+	}));
+
 	test('retries when the worktree session set changes during measurement', async () => {
 		const firstMeasurement = new DeferredPromise<number | undefined>();
 		const firstMeasurementStarted = new DeferredPromise<void>();
@@ -567,7 +734,7 @@ suite('SessionWorktreeCleanupService', () => {
 function createService(
 	sessions: ISession[],
 	enabled: boolean,
-	sizeForSession: (session: ISession) => number | undefined | Promise<number | undefined>,
+	sizeForSession: (session: ISession, token?: CancellationToken) => number | undefined | Promise<number | undefined>,
 	_quickInputService: IQuickInputService = upcastPartial<IQuickInputService>({}),
 	onProgress?: (title: string | undefined) => void,
 	activeSession?: IActiveSession,
@@ -579,14 +746,15 @@ function createService(
 		readonly progressService?: IProgressService;
 		readonly dialogService?: IDialogService;
 		readonly onArchive?: (session: ISession) => Promise<void>;
+		readonly onDidArchiveSession?: Event<ISession>;
 	} = {},
 ): SessionWorktreeCleanupService {
 	return new SessionWorktreeCleanupService(
 		upcastPartial<ISessionsManagementService>({
 			getSessions: () => sessions,
-			getSessionWorktreeDiskUsage: async session => sizeForSession(session),
+			getSessionWorktreeDiskUsage: async (session, token) => sizeForSession(session, token),
 			archiveSession: async session => overrides.onArchive?.(session),
-			onDidArchiveSession: Event.None,
+			onDidArchiveSession: overrides.onDidArchiveSession ?? Event.None,
 			onDidChangeSessions,
 		}),
 		upcastPartial<ISessionsService>({ activeSession: constObservable(activeSession) }),
@@ -637,7 +805,7 @@ function oldDate(): Date {
 	return new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 }
 
-function createSession(id: string, updatedAt: Date, status = SessionStatus.Completed, archived = false, hasWorktree = true, worktreeCount = 1): ISession {
+function createSession(id: string, updatedAt: Date, status = SessionStatus.Completed, archived = false, hasWorktree = true, worktreeCount = 1, archivedState?: IObservable<boolean>): ISession {
 	const resource = URI.parse(`test:/${id}`);
 	const chat = upcastPartial<IChat>({
 		resource,
@@ -664,7 +832,7 @@ function createSession(id: string, updatedAt: Date, status = SessionStatus.Compl
 		updatedAt: constObservable(updatedAt),
 		title: constObservable(id),
 		status: constObservable(status),
-		isArchived: constObservable(archived),
+		isArchived: archivedState ?? constObservable(archived),
 		isRead: constObservable(true),
 		workspace: constObservable({
 			uri: URI.file(`/repo/${id}`),

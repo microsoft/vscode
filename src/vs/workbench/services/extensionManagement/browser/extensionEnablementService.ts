@@ -12,7 +12,7 @@ import { areSameExtensions, BetterMergeId, getExtensionDependencies, isMalicious
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
-import { ExtensionType, IExtension, IExtensionManifest, isAuthenticationProviderExtension, isLanguagePackExtension, isResolverExtension } from '../../../../platform/extensions/common/extensions.js';
+import { ExtensionType, EXTENSIONS_AGENTS_WINDOW_MANAGEMENT, IExtension, IExtensionManifest, isAuthenticationProviderExtension, isLanguagePackExtension, isResolverExtension } from '../../../../platform/extensions/common/extensions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -22,6 +22,7 @@ import { IUserDataSyncAccountService } from '../../../../platform/userDataSync/c
 import { IUserDataSyncEnablementService } from '../../../../platform/userDataSync/common/userDataSync.js';
 import { ILifecycleService, LifecyclePhase } from '../../lifecycle/common/lifecycle.js';
 import { INotificationService, NotificationPriority, Severity } from '../../../../platform/notification/common/notification.js';
+import { NotificationTelemetryId, NotificationActionTelemetryId } from '../../../../platform/notification/common/notificationTelemetry.js';
 import { IHostService } from '../../host/browser/host.js';
 import { IExtensionBisectService } from './extensionBisect.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
@@ -60,9 +61,6 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 	private readonly _completionsExtensionId: string | undefined;
 	private readonly _chatExtensionId: string | undefined;
 	private _extensionUnificationEnabled: boolean;
-
-	// Sessions window allow-list (lowercased extension ids)
-	private readonly _sessionsWindowAllowedExtensions: ReadonlySet<string>;
 
 	private _maliciousExtensionsCache: ReadonlyArray<MaliciousExtensionInfo> | undefined;
 
@@ -115,7 +113,6 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		// Extension unification
 		this._completionsExtensionId = productService.defaultChatAgent?.extensionId.toLowerCase();
 		this._chatExtensionId = productService.defaultChatAgent?.chatExtensionId.toLowerCase();
-		this._sessionsWindowAllowedExtensions = new Set<string>((productService.sessionsWindowAllowedExtensions ?? []).map(id => id.toLowerCase()));
 		const unificationExtensions = [this._completionsExtensionId, this._chatExtensionId].filter(id => !!id);
 
 		// Disabling extension unification should immediately disable the unified extension flow
@@ -134,15 +131,24 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 					this._onEnablementChanged.fire(this.extensionsManager.extensions.filter(ext => unificationExtensions.includes(ext.identifier.id.toLowerCase())));
 				}
 			}
+			if (this.environmentService.isSessionsWindow && e.affectsConfiguration(EXTENSIONS_AGENTS_WINDOW_MANAGEMENT)) {
+				// Start or stop the extensions whose state depends on Agents window management.
+				const affected = this.extensionsManager.extensions.filter(ext => !ext.isBuiltin && !this.extensionManifestPropertiesService.canExecuteOnSessionsWindow(ext.manifest, ext.isBuiltin));
+				if (affected.length) {
+					this._onEnablementChanged.fire(affected);
+				}
+			}
 		}));
 
 		// delay notification for extensions disabled until workbench restored
 		if (this.allUserExtensionsDisabled) {
 			this.lifecycleService.when(LifecyclePhase.Eventually).then(() => {
 				this.notificationService.prompt(Severity.Info, localize('extensionsDisabled', "All installed extensions are temporarily disabled."), [{
+					telemetryId: NotificationActionTelemetryId.Reload,
 					label: localize('Reload', "Reload and Enable Extensions"),
 					run: () => hostService.reload({ disableExtensions: false })
 				}], {
+					telemetry: NotificationTelemetryId.ExtensionsDisabled,
 					sticky: true,
 					priority: NotificationPriority.URGENT
 				});
@@ -493,8 +499,8 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 			enablementState = EnablementState.DisabledByExtensionKind;
 		}
 
-		else if (this._isDisabledBySessionsWindow(extension)) {
-			enablementState = EnablementState.DisabledByEnvironment;
+		else if (this._isDisabledBySessionsWindow(extension, enablementState)) {
+			enablementState = this._getSessionsWindowDisabledState(extension, enablementState);
 		}
 
 		else if (isEnabled && this._isDisabledByExtensionDependency(extension, extensions, workspaceType, computedEnablementStates)) {
@@ -664,31 +670,37 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		return this._extensionUnificationEnabled && identifier.id.toLowerCase() === this._completionsExtensionId;
 	}
 
-	private _isDisabledBySessionsWindow(extension: IExtension): boolean {
+	private _isDisabledBySessionsWindow(extension: IExtension, userEnablementState: EnablementState): boolean {
 		if (!this.environmentService.isSessionsWindow) {
 			return false;
 		}
 
-		// Allow-listed extensions are always enabled in the sessions window.
-		if (this._sessionsWindowAllowedExtensions.has(extension.identifier.id.toLowerCase())) {
+		if (extension.isBuiltin && extension.identifier.id.toLowerCase() === this._chatExtensionId) {
 			return false;
 		}
 
-		// Built-in extensions are enabled in sessions window except the chat extension and extensions that contribute not supported features.
-		if (extension.isBuiltin) {
-			if (extension.identifier.id.toLowerCase() === this._chatExtensionId) {
-				return false;
-			}
-
-			const contributes = extension.manifest.contributes;
-			if (contributes?.debuggers || contributes?.views || contributes?.viewsContainers || contributes?.walkthroughs) {
-				return true;
-			}
-
+		// The sessions window has a dedicated workspace, so enabling an extension for it opts that extension into the sessions window only.
+		if (!extension.isBuiltin && userEnablementState === EnablementState.EnabledWorkspace && this._isSessionsWindowManagementEnabled()) {
 			return false;
 		}
 
-		return !this.extensionManifestPropertiesService.canExecuteOnSessionsWindow(extension.manifest);
+		return !this.extensionManifestPropertiesService.canExecuteOnSessionsWindow(extension.manifest, extension.isBuiltin);
+	}
+
+	/**
+	 * Built-in extensions that do not support the sessions window are curated by the product and cannot be enabled there.
+	 * Other extensions are disabled for the sessions window workspace by default, which lets users enable them for it,
+	 * unless sessions window extension management is turned off.
+	 */
+	private _getSessionsWindowDisabledState(extension: IExtension, userEnablementState: EnablementState): EnablementState {
+		if (extension.isBuiltin || !this._isSessionsWindowManagementEnabled()) {
+			return EnablementState.DisabledByEnvironment;
+		}
+		return this.isEnabledEnablementState(userEnablementState) ? EnablementState.DisabledWorkspace : userEnablementState;
+	}
+
+	private _isSessionsWindowManagementEnabled(): boolean {
+		return this.configurationService.getValue<boolean>(EXTENSIONS_AGENTS_WINDOW_MANAGEMENT) === true;
 	}
 
 	private _enableExtension(identifier: IExtensionIdentifier): Promise<boolean> {

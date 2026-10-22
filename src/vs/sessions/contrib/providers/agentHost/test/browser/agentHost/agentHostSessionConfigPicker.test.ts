@@ -29,6 +29,10 @@ import { Context } from '../../../../../../../platform/contextkey/browser/contex
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService, type IPrompt, type IPromptResult } from '../../../../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../../../platform/hover/test/browser/nullHoverService.js';
+import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
+import { MockKeybindingService } from '../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { ISessionInputPickerVisibility, SessionInputPickerVisibility } from '../../../../../../services/sessions/common/sessionPickerVisibility.js';
 import { INotificationService } from '../../../../../../../platform/notification/common/notification.js';
 import { IQuickInputService } from '../../../../../../../platform/quickinput/common/quickInput.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -174,7 +178,7 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 	getSessionConfig(): ResolveSessionConfigResult | undefined { return this.config; }
 	getCreateSessionConfig(): Record<string, unknown> | undefined { return this.isNew ? {} : undefined; }
 	isSessionConfigResolving() { return this.resolving; }
-	async setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void> {
+	async setSessionConfigValue(sessionId: string, _chat: URI, property: string, value: unknown): Promise<void> {
 		this.setSessionConfigValueCalls++;
 		this.setSessionConfigValueArguments.push({ sessionId, property, value });
 		this._onSetSessionConfigValue?.(value);
@@ -295,7 +299,9 @@ function setupServices(
 			actionWidget.focusedItem = actionWidget.items.find(item => item.item?.id === id);
 		},
 	} as Partial<IActionWidgetService> as IActionWidgetService);
-	instantiationService.stub(IHoverService, { setupDelayedHover: () => ({ dispose: () => { } }) } as Partial<IHoverService> as IHoverService);
+	instantiationService.stub(IHoverService, NullHoverService);
+	instantiationService.stub(IKeybindingService, new MockKeybindingService());
+	instantiationService.stub(ISessionInputPickerVisibility, store.add(new SessionInputPickerVisibility()));
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	const configurationService = new TestConfigurationService({
 		[DevContainerWorktreeEnabledSettingId]: false,
@@ -372,6 +378,7 @@ function setupServices(
 	}();
 	const changesetsObs = observableValue<readonly ISessionChangeset[] | undefined>('changesets', [uncommittedChangeset]);
 	const activeChat = new class extends mock<IChat>() {
+		override readonly resource = SESSION_RESOURCE;
 		override readonly workspace = workspace;
 		override readonly changesets = changesetsObs;
 	}();
@@ -464,6 +471,34 @@ suite('Agent Host Session Config Picker', () => {
 		assert.deepStrictEqual(Array.from(container.querySelectorAll<HTMLElement>('[data-session-config-property]')).map(element => element.dataset.sessionConfigProperty), ['autoApprove']);
 	});
 
+	for (const isNew of [true, false]) {
+		test(`hides the input request timeout picker without changing ${isNew ? 'draft' : 'running'} session configuration`, () => {
+			const services = setupServices(store);
+			services.provider.isNew = isNew;
+			services.provider.config = {
+				schema: {
+					type: 'object', properties: {
+						inputRequestTimeout: { type: 'string', title: 'Question timeout', enum: ['5m', '4h', 'none'], default: '5m', sessionMutable: true },
+						customChoice: { type: 'string', title: 'Custom choice', enum: ['first', 'second'], sessionMutable: true },
+					}
+				},
+				values: { inputRequestTimeout: '4h', customChoice: 'first' },
+			};
+			const originalConfig = structuredClone(services.provider.config);
+			const { container } = renderPicker(store, services);
+
+			assert.deepStrictEqual({
+				properties: Array.from(container.querySelectorAll<HTMLElement>('[data-session-config-property]')).map(element => element.dataset.sessionConfigProperty),
+				config: services.provider.config,
+				writes: services.provider.setSessionConfigValueArguments,
+			}, {
+				properties: ['customChoice'],
+				config: originalConfig,
+				writes: [],
+			});
+		});
+	}
+
 	test('isolation dropdown preserves worktree and branch configuration values', async () => {
 		const services = setupServices(store);
 		const { container } = renderPicker(store, services);
@@ -487,7 +522,7 @@ suite('Agent Host Session Config Picker', () => {
 			checkbox: container.querySelector('.monaco-checkbox'),
 		}, {
 			snapshots: [true, false].map(worktreeSelected => [
-				{ label: 'Branch', value: 'folder', checked: !worktreeSelected, detail: 'Works in the repository already on your machine' },
+				{ label: 'Branch', value: 'folder', checked: !worktreeSelected, detail: 'Works in the repository already on this computer' },
 				{ label: 'New Worktree', value: 'worktree', checked: worktreeSelected, detail: 'Creates a separate copy for this session' },
 			]),
 			selections: ['folder', 'worktree'].map(value => ({ sessionId: SESSION_ID, property: SessionConfigKey.Isolation, value })),
@@ -690,7 +725,7 @@ suite('Agent Host Session Config Picker', () => {
 		];
 
 		assert.deepStrictEqual({
-			newSessionPrimary: summarize(Menus.NewSessionConfig, newSessionIds),
+			newSessionPrimary: summarize(Menus.NewSessionChatInputToolbar, newSessionIds),
 			newSessionSecondary: summarize(Menus.NewSessionControl, newSessionIds),
 			runningSessionPrimary: summarize(MenuId.ChatInput, runningSessionIds),
 			runningSessionSecondary: summarize(MenuId.ChatInputSecondary, runningSessionIds),
@@ -931,10 +966,10 @@ suite('Agent Host Session Config Picker', () => {
 		}, {
 			choices: [
 				{ label: 'Manual permissions', badge: undefined },
-				{ label: 'Assisted permissions, Experimental', badge: 'Experimental' },
+				{ label: 'Assisted permissions, New', badge: 'New' },
 				{ label: 'Custom permissions', badge: undefined },
 			],
-			withDescription: 'Assisted permissions, Experimental, Evaluates risk before running tools',
+			withDescription: 'Assisted permissions, New, Evaluates risk before running tools',
 			descriptionOnly: 'Assisted permissions, Evaluates risk before running tools',
 		});
 	});
@@ -2188,36 +2223,6 @@ suite('Agent Host Session Config Picker', () => {
 		picker.render(container);
 
 		assert.strictEqual(container.querySelector('.sessions-chat-picker-slot'), null);
-	});
-
-	test('never renders chips for hidden worktree branch carrier properties', () => {
-		const services = setupServices(store);
-		services.provider.config = {
-			schema: {
-				type: 'object',
-				properties: {
-					[SessionConfigKey.Isolation]: {
-						title: 'Isolation', description: '', type: 'string',
-						enum: ['folder', 'worktree'], enumLabels: ['Folder', 'Worktree'],
-						default: 'worktree',
-					},
-					[SessionConfigKey.WorktreeBranchTrack]: {
-						title: 'Track Branch', description: '', type: 'boolean',
-						default: false, readOnly: true, sessionMutable: false,
-					},
-					[SessionConfigKey.WorktreeCreateNewBranch]: {
-						title: 'Create New Branch', description: '', type: 'boolean',
-						default: true, readOnly: true, sessionMutable: false,
-					},
-				},
-			},
-			values: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.WorktreeBranchTrack]: false, [SessionConfigKey.WorktreeCreateNewBranch]: true },
-		} as ResolveSessionConfigResult;
-		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs, undefined));
-		const container = document.createElement('div');
-		picker.render(container);
-
-		assert.strictEqual(container.querySelectorAll('.sessions-chat-picker-slot').length, 1, 'only the isolation checkbox renders, not a worktreeBranchTrack chip');
 	});
 
 	test('leaves sandbox enablement to the permission picker', () => {

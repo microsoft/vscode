@@ -5,6 +5,9 @@
 
 import { generateUuid } from '../../../base/common/uuid.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
+import { parseGitHubRequestId } from '../../github/common/client/headers.js';
+
+export { parseGitHubRequestId as getGitHubRequestId } from '../../github/common/client/headers.js';
 
 export interface IConnectionDiagnosticEvent {
 	readonly operationId: string;
@@ -15,7 +18,11 @@ export interface IConnectionDiagnosticEvent {
 	readonly durationMs?: number;
 	readonly detail?: string;
 	readonly error?: IConnectionDiagnosticError;
+	readonly requestKind?: ConnectionDiagnosticRequestKind;
+	readonly connectionOperation?: 'connect' | 'recover';
 }
+
+export type ConnectionDiagnosticRequestKind = 'listSessions' | 'createSession' | 'subscribeRoot' | 'subscribeSession' | 'subscribeChat' | 'subscribeOther';
 
 export interface IConnectionDiagnosticError {
 	readonly name: string;
@@ -28,7 +35,7 @@ export interface IConnectionDiagnosticError {
 
 export type ConnectionDiagnosticObserver = (event: IConnectionDiagnosticEvent) => void;
 
-export function emitConnectionDiagnostic(observer: ConnectionDiagnosticObserver | undefined, event: IConnectionDiagnosticEvent): void {
+export function emitConnectionDiagnostic<T extends IConnectionDiagnosticEvent>(observer: ((event: T) => void) | undefined, event: T): void {
 	try {
 		observer?.(event);
 	} catch (error) {
@@ -106,7 +113,8 @@ export function getConnectionDiagnosticError(error: unknown, depth = 0): IConnec
 		message: typeof error.message === 'string' ? sanitizeConnectionDiagnosticText(error.message) : 'No error description available',
 		code: typeof error.code === 'number' || typeof error.code === 'string' ? sanitizeConnectionDiagnosticText(String(error.code), 80) : undefined,
 		status: typeof status === 'number' && Number.isInteger(status) && status >= 100 && status <= 599 ? status : undefined,
-		requestId: typeof requestId === 'string' && /^[a-zA-Z0-9_-]{1,128}$/.test(requestId) && sanitizeConnectionDiagnosticText(requestId) === requestId ? requestId : undefined,
+		requestId: parseGitHubRequestId(typeof requestId === 'string' ? requestId : undefined)
+			?? (typeof requestId === 'string' && /^[a-zA-Z0-9_-]{1,128}$/.test(requestId) && sanitizeConnectionDiagnosticText(requestId) === requestId ? requestId : undefined),
 		cause: depth < 2 && error.cause !== undefined && error.cause !== error ? getConnectionDiagnosticError(error.cause, depth + 1) : undefined,
 	};
 }

@@ -28,7 +28,9 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { asCssVariable, asCssVariableWithDefault, buttonSecondaryBackground, buttonSecondaryForeground } from '../../../../../platform/theme/common/colorRegistry.js';
+import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { asCssVariable, asCssVariableWithDefault, editorWidgetBackground, editorWidgetBorder, iconForeground } from '../../../../../platform/theme/common/colorRegistry.js';
+import { registerIcon } from '../../../../../platform/theme/common/iconRegistry.js';
 import { IEditorResolverService } from '../../../../services/editor/common/editorResolverService.js';
 import { katexContainerClassName } from '../../../markdown/common/markedKatexExtension.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
@@ -48,6 +50,7 @@ import { ChatPendingDragController } from './chatPendingDragAndDrop.js';
 
 const CHAT_STICKY_SCROLL_TOP_PADDING = 8;
 const CHAT_COLLAPSE_ANCHOR_PADDING = 16;
+const chatScrollToLatestIcon = registerIcon('chat-scroll-to-bottom', Codicon.arrowDown, localize('chat.scrollToBottomIcon', "Icon for scrolling to the latest chat content."));
 
 export interface IChatListWidgetStyles {
 	listForeground?: string;
@@ -407,6 +410,10 @@ export class ChatListWidget extends Disposable {
 		return this._container;
 	}
 
+	get scrollDownButtonDomNode(): HTMLElement {
+		return this._scrollDownButton.element;
+	}
+
 	get stickyScrollDomNode(): HTMLElement | undefined {
 		return this._tree.stickyScrollDomNode;
 	}
@@ -545,6 +552,7 @@ export class ChatListWidget extends Disposable {
 			container: this._container,
 			currentChatMode: options.currentChatMode ?? (() => ChatModeKind.Ask),
 			isStickyScrollEnabled: () => this.isTreeStickyScrollEnabled(),
+			isScrolledToBottom: () => this.isScrolledToBottom,
 			refreshStickyScroll: () => this._tree.refreshStickyScroll(),
 			stickyScrollTopPadding: CHAT_STICKY_SCROLL_TOP_PADDING,
 			getEditingValue: options.getEditingValue,
@@ -653,22 +661,25 @@ export class ChatListWidget extends Disposable {
 		}
 
 		// Create scroll-down button
-		const scrollToBottomLabel = localize('chat.scrollToBottom', "Scroll to Bottom");
-		const scrollToBottomBackground = asCssVariableWithDefault('chat.list.background', asCssVariable(buttonSecondaryBackground));
+		const scrollToBottomLabel = localize('chat.scrollToLatest', "Scroll to Latest");
+		const scrollToBottomBackground = asCssVariable(editorWidgetBackground);
 		this._scrollDownButton = this._register(new Button(this._container, {
+			...defaultButtonStyles,
 			title: scrollToBottomLabel,
 			ariaLabel: scrollToBottomLabel,
 			buttonBackground: scrollToBottomBackground,
-			buttonForeground: asCssVariable(buttonSecondaryForeground),
+			buttonForeground: asCssVariable(iconForeground),
 			buttonHoverBackground: scrollToBottomBackground,
-			buttonSecondaryBackground: undefined,
-			buttonSecondaryForeground: undefined,
-			buttonSecondaryHoverBackground: undefined,
-			buttonSeparator: undefined,
+			buttonBorder: asCssVariableWithDefault(editorWidgetBorder, 'transparent'),
 			supportIcons: true,
 		}));
 		this._scrollDownButton.element.classList.add('chat-scroll-down');
-		this._scrollDownButton.label = `$(${Codicon.chevronDown.id})`;
+		this._scrollDownButton.label = `$(${chatScrollToLatestIcon.id})`;
+		for (const child of this._scrollDownButton.element.children) {
+			if (child.classList.contains('codicon')) {
+				child.setAttribute('aria-hidden', 'true');
+			}
+		}
 		this._scrollDownButton.element.style.display = 'none'; // Hidden by default
 
 		this._register(this._scrollDownButton.onDidClick(() => {
@@ -846,12 +857,14 @@ export class ChatListWidget extends Disposable {
 	 * Update scroll-down button visibility based on scroll position and scroll lock.
 	 */
 	private updateScrollDownButtonVisibility(): void {
-		const { showButton, atBottom } = computeScrollDownState(this.isScrolledToBottom, this._scrollLock);
+		const isScrolledToBottom = this.isScrolledToBottom;
+		const { showButton, atBottom } = computeScrollDownState(isScrolledToBottom, this._scrollLock);
 		// Use an explicit `flex` (the `.monaco-button` default) rather than '' when showing: the
 		// stylesheet applies `display: none` to `.interactive-session .chat-scroll-down`, so clearing
 		// the inline style would let that rule win and keep the button hidden.
 		this._scrollDownButton.element.style.display = showButton ? 'flex' : 'none';
 		this._container.classList.toggle('chat-list-at-bottom', atBottom);
+		this._container.classList.toggle('chat-list-scrolled-to-bottom', isScrolledToBottom);
 	}
 
 	/**
@@ -917,6 +930,7 @@ export class ChatListWidget extends Disposable {
 		}
 
 		const items = this._viewModel.getItems();
+		const consecutiveRequestIds = new Set(items.flatMap((item, index) => isRequestVM(item) && isRequestVM(items[index - 1]) ? [item.id] : []));
 		this._lastItem = items.at(-1);
 		this._lastItemIdContextKey.set(this._lastItem ? [this._lastItem.id] : []);
 
@@ -951,6 +965,7 @@ export class ChatListWidget extends Disposable {
 							`_${isBlocked ? 'blocked' : ''}` +
 							// Re-render requests when editing starts/stops (for hover button visibility, click handlers)
 							(isRequestVM(element) ? `_${editing ? '1' : '0'}` : '') +
+							`_${consecutiveRequestIds.has(element.id) ? 'consecutive' : ''}` +
 							// Re-render the old and new tail rows when the list grows or shrinks.
 							`_${isLastItem ? 'last' : ''}` +
 							// Re-render all if invoked by setting change
@@ -1032,7 +1047,7 @@ export class ChatListWidget extends Disposable {
 		return items;
 	}
 
-	private createRequestTreeItems(items: ChatTreeItem[]): ITreeElement<ChatTreeItem>[] {
+	private createRequestTreeItems(items: readonly ChatTreeItem[]): ITreeElement<ChatTreeItem>[] {
 		const treeItems: ITreeElement<ChatTreeItem>[] = [];
 		for (let i = 0; i < items.length; i++) {
 			const item = items[i];
@@ -1082,6 +1097,10 @@ export class ChatListWidget extends Disposable {
 	 */
 	private _updateElementHeight(element: ChatTreeItem, height?: number): void {
 		if (this._tree.hasElement(element) && this._visible) {
+			// A refresh must reuse the resized height, not the measurement taken before image loading.
+			if (height !== undefined) {
+				this._delegate.setDynamicHeight(element, height);
+			}
 			const userToggleResizeTracker = this._userToggleResizeTrackers.get(element);
 			if (userToggleResizeTracker) {
 				const scrollTop = this._tree.scrollTop;

@@ -23,6 +23,7 @@ export interface ITestChatSpec {
 	readonly hasModifiedTime?: boolean;
 	readonly interactivity?: ChatInteractivity;
 	readonly isArchived?: boolean;
+	readonly isRead?: boolean;
 	/** Whether the chat can be archived on its own; defaults to `false`, like {@link DEFAULT_CHAT_CAPABILITIES}. */
 	readonly canArchive?: boolean;
 }
@@ -32,12 +33,16 @@ export interface ITestSessionSpec {
 	/** The session id, from which the session and chat resources derive. */
 	readonly id: string;
 	readonly title: string;
+	/** Defaults to `local`. */
+	readonly providerId?: string;
 	readonly harness?: string;
 	readonly environment?: string;
 	readonly application?: string;
 	/** Workspace label. Omit for a session without a workspace. */
 	readonly workspace?: string;
 	readonly workspaceFolders?: readonly [string, ...string[]];
+	/** A GitHub repository, as `owner/name`, that the workspace's first folder reports through its Git metadata. */
+	readonly repository?: string;
 	readonly isQuickChat?: boolean;
 	readonly status?: SessionStatus;
 	/** Status of the main chat when it differs from the session status. */
@@ -46,6 +51,8 @@ export interface ITestSessionSpec {
 	readonly mainChatMinutesAgo?: number;
 	/** Whether the main chat's modified time is resolved; defaults to `true`. */
 	readonly mainChatHasModifiedTime?: boolean;
+	/** Read state of the main chat when it differs from the session read state. */
+	readonly mainChatIsRead?: boolean;
 	/** Status description rendered as markdown. */
 	readonly description?: string;
 	/** Minutes since the session was last updated. */
@@ -69,6 +76,7 @@ export interface ITestChat {
 	readonly status: ISettableObservable<SessionStatus>;
 	readonly updatedAt: ISettableObservable<Date | undefined>;
 	readonly isArchived: ISettableObservable<boolean>;
+	readonly isRead: ISettableObservable<boolean>;
 }
 
 /** A session built from a {@link ITestSessionSpec}, with handles to change its state. */
@@ -92,10 +100,14 @@ export function getTestChatResource(sessionId: string, chatId: string): URI {
 	return URI.parse(`vscode-session://session/${sessionId}/chat/${chatId}`);
 }
 
-export function buildTestWorkspace(label: string, folderLabels: readonly [string, ...string[]] = [label]): ISessionWorkspace {
-	const folders = folderLabels.map(folderLabel => {
+export function buildTestWorkspace(label: string, folderLabels: readonly [string, ...string[]] = [label], repository?: string): ISessionWorkspace {
+	const [owner, repo] = repository?.split('/') ?? [];
+	const folders = folderLabels.map((folderLabel, index) => {
 		const root = URI.file(`/home/user/projects/${folderLabel}`);
-		return { root, workingDirectory: root, name: folderLabel, description: undefined };
+		const gitRepository = repository && index === 0
+			? { uri: root, workTreeUri: undefined, baseBranchName: undefined, gitHubInfo: constObservable({ owner, repo }) }
+			: undefined;
+		return { root, workingDirectory: root, name: folderLabel, description: undefined, gitRepository };
 	});
 	return {
 		uri: folders[0].root,
@@ -112,6 +124,7 @@ function buildTestChat(resource: URI, spec: Omit<ITestChatSpec, 'id'>, createdAt
 	const status = observableValue('testChatStatus', spec.status ?? SessionStatus.Completed);
 	const updatedAtObservable = observableValue<Date | undefined>('testChatUpdatedAt', updatedAt);
 	const isArchived = observableValue('testChatIsArchived', spec.isArchived ?? false);
+	const isRead = observableValue('testChatIsRead', spec.isRead ?? true);
 	const chat: IChat = {
 		resource,
 		createdAt,
@@ -126,13 +139,13 @@ function buildTestChat(resource: URI, spec: Omit<ITestChatSpec, 'id'>, createdAt
 		modelSource: constObservable(undefined),
 		mode: constObservable(undefined),
 		isArchived,
-		isRead: constObservable(true),
+		isRead,
 		interactivity: constObservable(spec.interactivity ?? ChatInteractivity.Full),
 		description: constObservable(undefined),
 		lastTurnEnd: constObservable(undefined),
 		capabilities: constObservable({ ...DEFAULT_CHAT_CAPABILITIES, canArchive: spec.canArchive ?? DEFAULT_CHAT_CAPABILITIES.canArchive }),
 	};
-	return { chat, title, status, updatedAt: updatedAtObservable, isArchived };
+	return { chat, title, status, updatedAt: updatedAtObservable, isArchived, isRead };
 }
 
 /** Builds a complete {@link ISession}, with times relative to `now`. */
@@ -141,7 +154,7 @@ export function buildTestSession(spec: ITestSessionSpec, now: number = Date.now(
 	const createdAt = new Date(now - (spec.createdMinutesAgo ?? spec.minutesAgo ?? 0) * 60_000);
 	const status = observableValue('testSessionStatus', spec.status ?? SessionStatus.Completed);
 	const mainChatUpdatedAt = spec.mainChatHasModifiedTime === false ? undefined : new Date(now - (spec.mainChatMinutesAgo ?? spec.minutesAgo ?? 0) * 60_000);
-	const mainChat = buildTestChat(getTestChatResource(spec.id, 'main'), { title: spec.title, status: spec.mainChatStatus ?? spec.status }, createdAt, mainChatUpdatedAt);
+	const mainChat = buildTestChat(getTestChatResource(spec.id, 'main'), { title: spec.title, status: spec.mainChatStatus ?? spec.status, isRead: spec.mainChatIsRead ?? spec.isRead }, createdAt, mainChatUpdatedAt);
 	const chats = new Map((spec.chats ?? []).map(chat => {
 		const chatUpdatedAt = chat.hasModifiedTime === false ? undefined : new Date(now - (chat.minutesAgo ?? spec.minutesAgo ?? 0) * 60_000);
 		return [chat.id, buildTestChat(getTestChatResource(spec.id, chat.id), chat, createdAt, chatUpdatedAt)] as const;
@@ -153,14 +166,14 @@ export function buildTestSession(spec: ITestSessionSpec, now: number = Date.now(
 	const session: ISession = {
 		sessionId: spec.id,
 		resource: getTestSessionResource(spec.id),
-		providerId: 'local',
+		providerId: spec.providerId ?? 'local',
 		sessionType: 'local',
 		harness: spec.harness ?? 'copilot',
 		environment: spec.environment ?? 'local',
 		application,
 		icon: Codicon.account,
 		createdAt,
-		workspace: constObservable(spec.workspace ? buildTestWorkspace(spec.workspace, spec.workspaceFolders) : undefined),
+		workspace: constObservable(spec.workspace ? buildTestWorkspace(spec.workspace, spec.workspaceFolders, spec.repository) : undefined),
 		isQuickChat: constObservable(spec.isQuickChat ?? false),
 		isExternal: constObservable(spec.isExternal ?? false),
 		title,

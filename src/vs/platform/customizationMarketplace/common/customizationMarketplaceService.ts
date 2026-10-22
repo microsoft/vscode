@@ -63,9 +63,11 @@ export function isCustomizationMarketplaceIconEqual(
 export type CustomizationMarketplaceInstallation =
 	| { readonly kind: 'skill'; readonly repository: string; readonly ref: string; readonly path: string }
 	| { readonly kind: 'plugin'; readonly repository: string; readonly ref: string; readonly path: string }
-	| { readonly kind: 'configuredPlugin' }
+	| { readonly kind: 'configuredPlugin'; readonly name?: string; readonly marketplace?: string; readonly marketplaceId?: string; readonly marketplaceSource?: string }
+	| { readonly kind: 'providerPlugin'; readonly name: string; readonly marketplace: string; readonly marketplaceSource?: string; readonly providerManaged?: boolean }
+	| { readonly kind: 'providerCatalog'; readonly resourceKind: 'skill' | 'mcp' | 'plugin'; readonly selectionId: string; readonly catalogIdentity?: string; readonly itemUrl?: string; readonly repository?: string; readonly path?: string; readonly installable?: boolean }
 	| { readonly kind: 'mcp'; readonly name: string; readonly version: string }
-	| { readonly kind: 'mcpGallery'; readonly name: string; readonly registry: 'custom' | 'default'; readonly registryUrl: string }
+	| { readonly kind: 'mcpGallery'; readonly name: string; readonly registry: 'custom' | 'default'; readonly registryUrl: string; readonly cardUrl?: string }
 	| { readonly kind: 'copilotConnector'; readonly name: string };
 
 export interface ICustomizationMarketplaceEntry {
@@ -76,6 +78,7 @@ export interface ICustomizationMarketplaceEntry {
 	readonly tags: readonly string[];
 	readonly capabilities: readonly string[];
 	readonly representativeQueries: readonly string[];
+	readonly connectorIds?: readonly string[];
 	readonly url?: URI;
 	/** Validated original URL for external opening, preserving escaped path separators. */
 	readonly externalUrl?: string;
@@ -130,6 +133,18 @@ export interface ICustomizationMarketplacePage {
 	readonly sourceErrors?: readonly ICustomizationMarketplaceSourceError[];
 }
 
+export interface ICustomizationMarketplaceBrowseSection {
+	readonly id: string;
+	readonly title: string;
+	readonly items: readonly ICustomizationMarketplaceResource[];
+}
+
+export interface ICustomizationMarketplaceBrowseSections {
+	readonly sourceId: string;
+	readonly sections: readonly ICustomizationMarketplaceBrowseSection[];
+	readonly error?: string;
+}
+
 export interface ICustomizationMarketplaceSourceError {
 	readonly sourceId: string;
 	readonly message: string;
@@ -180,7 +195,13 @@ export interface ICustomizationMarketplaceSourceInfo {
 export interface ICustomizationMarketplaceSourceRecoveryAction {
 	readonly label: string;
 	readonly kind?: 'signIn';
+	/** Equivalent recoveries with the same group are presented as one action. */
+	readonly groupId?: string;
 	run(token: CancellationToken): Promise<void>;
+}
+
+export const enum CustomizationMarketplaceRecoveryGroup {
+	GitHubDefaultAccount = 'githubDefaultAccount',
 }
 
 export function createLazyCustomizationMarketplaceProvider(id: string, createProvider: () => ICustomizationMarketplaceProvider, sourceId = id): ICustomizationMarketplaceProvider {
@@ -211,14 +232,11 @@ export interface ICustomizationMarketplaceService {
 	/** Fires when non-configuration inputs change source availability or query identity. */
 	readonly onDidChangeSources?: Event<void>;
 	query(options: ICustomizationMarketplaceQuery, token: CancellationToken): Promise<ICustomizationMarketplacePage>;
+	/** Optional ordered editorial sections for queryless Browse. */
+	getBrowseSections?(options: Pick<ICustomizationMarketplaceQuery, 'sourceIds'>, token: CancellationToken): Promise<ICustomizationMarketplaceBrowseSections | undefined>;
 	/** Optional renderer-owned recovery; not part of the catalog transport. */
 	getSourceRecoveryAction?(sourceId: string): ICustomizationMarketplaceSourceRecoveryAction | undefined;
 }
-
-export const IAgentFinderMarketplaceService = createDecorator<IAgentFinderMarketplaceService>('agentFinderMarketplaceService');
-
-/** AgentFinder marketplace transport, hosted in the shared process on desktop. */
-export interface IAgentFinderMarketplaceService extends ICustomizationMarketplaceService { }
 
 export interface ICustomizationMarketplaceQueryService {
 	query(options: ICustomizationMarketplaceRequest, token: CancellationToken): Promise<ICustomizationMarketplacePage>;

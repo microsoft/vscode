@@ -47,10 +47,19 @@ export const AICustomizationManagementSection = {
 	Plugins: 'plugins',
 	Models: 'models',
 	Tools: 'tools',
+	Extensions: 'extensions',
 	HarnessSettings: 'harnessSettings',
 } as const;
 
 export type AICustomizationManagementSection = typeof AICustomizationManagementSection[keyof typeof AICustomizationManagementSection];
+
+export interface IAICustomizationMarketplaceOpenTarget {
+	readonly section: AICustomizationManagementSection;
+	readonly sourceId?: string;
+	readonly searchQuery?: string;
+	readonly connectorName?: string;
+	readonly connectorDisplayName?: string;
+}
 
 /** Command IDs for the AI Customizations Management Editor. */
 export const AICustomizationManagementCommands = {
@@ -116,8 +125,12 @@ export interface IAICustomizationWorkspaceService {
 
 	/**
 	 * Commits files in the active project.
+	 *
+	 * @returns `false` when a commit failed (the failure has already been reported to
+	 * the user) so callers can keep the change pending, otherwise `true`, including
+	 * when there was nothing to commit.
 	 */
-	commitFiles(projectRoot: URI, fileUris: URI[]): Promise<void>;
+	commitFiles(projectRoot: URI, fileUris: URI[]): Promise<boolean>;
 
 	/**
 	 * Commits the deletion of resources that have already been removed from disk.
@@ -125,13 +138,17 @@ export interface IAICustomizationWorkspaceService {
 	 * deleting a skill, the entire customization folder is removed). Implementations
 	 * should ensure that directory deletions are handled recursively as needed.
 	 * In sessions this stages and commits the removal in the relevant repositories.
+	 *
+	 * @returns `false` when a commit failed (the failure has already been reported to
+	 * the user), otherwise `true`, including when there was nothing to commit.
 	 */
-	deleteFiles(projectRoot: URI, fileUris: URI[]): Promise<void>;
+	deleteFiles(projectRoot: URI, fileUris: URI[]): Promise<boolean>;
 
 	/**
-	 * Launches the AI-guided creation flow for the given customization type.
+	 * Launches the AI-guided creation flow for the given customization type,
+	 * optionally scoped to a workspace folder.
 	 */
-	generateCustomization(type: PromptsType): Promise<void>;
+	generateCustomization(type: PromptsType, workspaceFolder?: URI): Promise<void>;
 
 	/**
 	 * Whether a transient project root override is currently active.

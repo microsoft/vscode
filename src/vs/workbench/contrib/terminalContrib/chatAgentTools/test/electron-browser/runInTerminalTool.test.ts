@@ -670,6 +670,8 @@ suite('RunInTerminalTool', () => {
 
 		test('should automatically repair AppArmor, probe again, and execute', async () => {
 			runInTerminalTool.disableProcessIdAssociation();
+			// The mocked command finishes immediately; don't wait a real second per idle poll.
+			setConfig(TerminalChatAgentToolsSettingId.IdlePollInterval, 1);
 			let forceRefreshCalled = false;
 			terminalSandboxService.checkForSandboxingPrereqs = async forceRefresh => {
 				forceRefreshCalled ||= forceRefresh === true;
@@ -1410,7 +1412,7 @@ suite('RunInTerminalTool', () => {
 			if (!confirmationMessage || typeof confirmationMessage === 'string') {
 				throw new Error('Expected markdown confirmation message');
 			}
-			ok(confirmationMessage.value.includes('Reason for leaving the sandbox: This command accesses evil.com, which is blocked by chat.agent.deniedNetworkDomains.'));
+			ok(confirmationMessage.value.includes('Reason for leaving the sandbox: This command accesses evil.com, which is blocked by chat.agent.sandbox.network.deniedDomains.'));
 		});
 
 		test('should force confirmation for explicit sandboxed allow-network requests', async () => {
@@ -1472,7 +1474,7 @@ suite('RunInTerminalTool', () => {
 			if (!confirmationMessage || typeof confirmationMessage === 'string') {
 				throw new Error('Expected markdown confirmation message');
 			}
-			ok(confirmationMessage.value.includes('Reason for allowing unrestricted network access in the sandbox: This command accesses evil.com, which is blocked by chat.agent.deniedNetworkDomains.'));
+			ok(confirmationMessage.value.includes('Reason for allowing unrestricted network access in the sandbox: This command accesses evil.com, which is blocked by chat.agent.sandbox.network.deniedDomains.'));
 		});
 
 		test('should reject explicit allow-network requests when per-command network access is disabled', async () => {

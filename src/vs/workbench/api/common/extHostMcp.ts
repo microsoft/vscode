@@ -20,7 +20,7 @@ import { createDecorator } from '../../../platform/instantiation/common/instanti
 import { canLog, ILogService, LogLevel } from '../../../platform/log/common/log.js';
 import product from '../../../platform/product/common/product.js';
 import { StorageScope } from '../../../platform/storage/common/storage.js';
-import { extensionPrefixedIdentifier, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerStaticMetadata, McpServerStaticToolAvailability, McpServerTransportHTTP, McpServerTransportType, UserInteractionRequiredError } from '../../contrib/mcp/common/mcpTypes.js';
+import { extensionPrefixedIdentifier, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerEnvironmentVariableExpansion, McpServerLaunch, McpServerStaticMetadata, McpServerStaticToolAvailability, McpServerTransportHTTP, McpServerTransportType, UserInteractionRequiredError } from '../../contrib/mcp/common/mcpTypes.js';
 import { MCP } from '../../contrib/mcp/common/modelContextProtocol.js';
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { ExtHostMcpShape, IMcpAuthenticationDetails, IAuthMetadataSource, IStartMcpOptions, MainContext, MainThreadMcpShape, IAuthResourceMetadataSource, IAuthServerMetadataSource } from './extHost.protocol.js';
@@ -131,6 +131,14 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 			name: folder.name,
 			index: folder.index,
 		}, value) as T;
+	}
+
+	/**
+	 * Hosts without a process environment, such as the web worker extension host,
+	 * leave references verbatim, as the Copilot runtime does without an environment.
+	 */
+	async $expandEnvironmentVariables(launch: McpServerLaunch.Serialized, _expansion: McpServerEnvironmentVariableExpansion): Promise<McpServerLaunch.Serialized> {
+		return launch;
 	}
 
 	$stopMcp(id: number): void {

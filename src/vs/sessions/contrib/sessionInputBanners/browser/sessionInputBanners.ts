@@ -244,7 +244,7 @@ export class SessionInputBanners extends Disposable {
 			for (const pullRequest of getGitHubPullRequestRefs(gitHubInfo)) {
 				const prModelRef = reader.store.add(this.gitHubService.createPullRequestModelReference(pullRequest.owner, pullRequest.repo, pullRequest.number));
 				const prModel = prModelRef.object;
-				void prModel.refresh();
+				void prModel.refresh({ priority: 'visible' });
 				reader.store.add(prModel.startPolling());
 				const livePullRequest = prModel.pullRequest.read(reader);
 				if (!livePullRequest || livePullRequest.state !== GitHubPullRequestState.Open) {
@@ -254,7 +254,7 @@ export class SessionInputBanners extends Disposable {
 					continue;
 				}
 				const ciModelRef = reader.store.add(this.gitHubService.createPullRequestCIModelReference(pullRequest.owner, pullRequest.repo, pullRequest.number, livePullRequest.headSha));
-				void ciModelRef.object.refresh();
+				void ciModelRef.object.refresh(false, { priority: 'visible' });
 				reader.store.add(ciModelRef.object.startPolling());
 			}
 		}));
@@ -401,25 +401,28 @@ export class SessionInputBanners extends Disposable {
 			waitUntilReady: () => state.debug ? Promise.resolve(true) : this._waitForChatModel(state.chatResource),
 			run: () => state.debug ? undefined : this._addressComments(state, this._queryFor(state, '/act-on-feedback')),
 		};
-		const primary = hasCI && hasComments ? {
-			id: 'fixCIAndAddressComments',
-			label: localize('inputBanner.fixChecksAndAddressComments', "Fix Checks & Address Comments"),
-			primary: true,
-			dropdownActions: [fixCI, addressComments],
-			waitUntilReady: () => state.debug ? Promise.resolve(true) : this._waitForChatModel(state.chatResource),
-			run: () => state.debug ? undefined : this._fixCIAndAddressComments(state),
-		} satisfies ISessionInputBannerAction : hasCI ? fixCI : addressComments;
-
 		const revealCI: ISessionInputBannerAction = {
 			id: 'revealCI',
-			label: localize('inputBanner.revealChecks', "Reveal"),
+			label: hasCI && hasComments
+				? localize('inputBanner.revealChecksDropdown', "Reveal Checks")
+				: localize('inputBanner.revealChecks', "Reveal"),
 			run: () => { if (!state.debug) { void this._revealPullRequest(state.pullRequest); } },
 		};
 		const revealComments: ISessionInputBannerAction = {
 			id: 'revealComments',
-			label: localize('inputBanner.revealPRComments', "Reveal"),
+			label: hasCI && hasComments
+				? localize('inputBanner.revealPRCommentsDropdown', "Reveal Comments")
+				: localize('inputBanner.revealPRComments', "Reveal"),
 			run: () => { if (!state.debug && state.firstCommentId) { this._revealComment(state.sessionResource, state.firstCommentId); } },
 		};
+		const primary = hasCI && hasComments ? {
+			id: 'fixCIAndAddressComments',
+			label: localize('inputBanner.fixChecksAndAddressComments', "Fix Checks & Address Comments"),
+			primary: true,
+			dropdownActions: [fixCI, addressComments, revealCI, revealComments],
+			waitUntilReady: () => state.debug ? Promise.resolve(true) : this._waitForChatModel(state.chatResource),
+			run: () => state.debug ? undefined : this._fixCIAndAddressComments(state),
+		} satisfies ISessionInputBannerAction : hasCI ? fixCI : addressComments;
 		return hasCI && hasComments ? [primary] : [primary, hasCI ? revealCI : revealComments];
 	}
 

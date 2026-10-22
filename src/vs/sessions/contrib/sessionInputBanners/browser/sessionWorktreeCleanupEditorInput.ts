@@ -28,7 +28,7 @@ export class SessionWorktreeCleanupEditorInput extends EditorInput {
 	}
 
 	override getName(): string {
-		return localize('sessionWorktreeCleanupEditor.name', "Open worktree cleanup");
+		return localize('sessionWorktreeCleanupEditor.name', "Worktree Cleanup");
 	}
 
 	override getIcon(): ThemeIcon {
