@@ -422,6 +422,7 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 	private visible = false;
 	private needsRender = false;
 	private updatingTree = false;
+	private closeCustomizationEditor: () => Promise<boolean> = () => Promise.resolve(true);
 
 	constructor(
 		container: HTMLElement,
@@ -696,6 +697,10 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 
 	fireItemCount(): void {
 		this._onDidChangeItemCount.fire(Math.max(0, this.lastItemCount));
+	}
+
+	setCloseCustomizationEditor(closeCustomizationEditor: () => Promise<boolean>): void {
+		this.closeCustomizationEditor = closeCustomizationEditor;
 	}
 
 	private updateActiveOwners(activeOwnerKeys: Set<string>): void {
@@ -1174,6 +1179,9 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 			return;
 		}
 		try {
+			if (!await this.closeCustomizationEditor()) {
+				return;
+			}
 			const instanceId = getCanvasDefinitionInstanceId(currentItem.canvas);
 			const existing = currentItem.context.canvases.get()?.find(candidate => candidate.instanceId === instanceId);
 			if (existing) {

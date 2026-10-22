@@ -164,6 +164,11 @@ suite('CopilotCanvasesWidget', () => {
 			}
 		}());
 		const widget = store.add(instantiationService.createInstance(CopilotCanvasesWidget, container));
+		let closeCalls = 0;
+		widget.setCloseCustomizationEditor(async () => {
+			closeCalls++;
+			return true;
+		});
 		const itemCounts: number[] = [];
 		store.add(widget.onDidChangeItemCount(count => itemCounts.push(count)));
 		if (options?.visible !== false) {
@@ -183,6 +188,7 @@ suite('CopilotCanvasesWidget', () => {
 			setRequests,
 			get listCalls() { return listCalls; },
 			get openCalls() { return openCalls; },
+			get closeCalls() { return closeCalls; },
 			reveals,
 			itemCounts,
 			setContextAvailable(value: boolean) { contexts.set(value ? [context] : [], undefined); },
@@ -564,9 +570,11 @@ suite('CopilotCanvasesWidget', () => {
 		assert.deepStrictEqual({
 			reveals: harness.reveals,
 			openCalls: harness.openCalls,
+			closeCalls: harness.closeCalls,
 		}, {
 			reveals: [canvasResource.toString()],
 			openCalls: 0,
+			closeCalls: 1,
 		});
 	});
 

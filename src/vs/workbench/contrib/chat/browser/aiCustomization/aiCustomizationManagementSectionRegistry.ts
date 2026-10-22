@@ -17,6 +17,7 @@ export interface IAICustomizationManagementSectionWidget extends IDisposable {
 	fireItemCount?(): void;
 	setSearchQuery?(query: string): void;
 	setVisible?(visible: boolean): void;
+	setCloseCustomizationEditor?(closeCustomizationEditor: () => Promise<boolean>): void;
 	getAccessibilityContent?(): string;
 	readonly onDidChangeItemCount?: Event<number>;
 }
