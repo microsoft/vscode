@@ -471,6 +471,14 @@ suite('CodeReviewService', () => {
 		});
 	});
 
+	test('matches pull request content resources to session pull requests regardless of owner and repository casing', () => {
+		sessionsManagement.addSession(session);
+		sessionsManagement.setGitHubInfo(session, { ...makeGitHubInfo(), owner: 'Owner', repo: 'Repo' });
+		const resource = toPRContentUri('src/a.ts', { owner: 'owner', repo: 'repo', prNumber: 1, commitSha: 'abc123', isBase: false, status: 'modified' });
+
+		assert.deepStrictEqual(service.getPRReviewCommentPullRequests(session, resource).map(pullRequest => `${pullRequest.owner}/${pullRequest.repo}#${pullRequest.number}`), ['Owner/Repo#1']);
+	});
+
 	test('parses right-side commentable lines from a unified patch', () => {
 		assert.deepStrictEqual([...commentableRightLines([
 			'@@ -2,3 +4,4 @@',

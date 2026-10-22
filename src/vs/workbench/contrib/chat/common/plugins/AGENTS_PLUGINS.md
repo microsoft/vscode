@@ -205,9 +205,12 @@ In Copilot Agent Host sessions, the runtime reads `strictPluginOnlyCustomization
 | `chat.plugins.lastUpdateCheck.v1` | Timestamp of last periodic update check |
 
 ### Enablement Storage
+Stored in `StorageScope.APPLICATION`, so every window and profile (including the Agents Window's `agents` profile) shares the same switches. Values from non-default profiles are merged in once, "off wins" (`customizationEnablementStorage.ts`).
+
 | Key | Description |
 |-----|-------------|
 | `agentPlugins.enablement` | Per-plugin enable/disable state (shared `EnablementModel`) |
+| `agentPlugins.enablementIdentities` | Aliases from relocated install URIs to the URI their enablement is stored under |
 
 ## Reactivity Model
 

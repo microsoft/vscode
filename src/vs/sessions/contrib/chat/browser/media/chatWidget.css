@@ -702,6 +702,13 @@
 	margin-left: 0;
 }
 
+.experimental-new-session-composer .sessions-workspace-category-picker .action-label > .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+	width: var(--vscode-codiconFontSize-compact);
+	height: var(--vscode-codiconFontSize-compact);
+	line-height: var(--vscode-codiconFontSize-compact);
+}
+
 .new-chat-repository-controls-host {
 	display: contents;
 }

@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * VS Code extension contract for setting up the macOS permissions of GitHub's Computer Use plugin. The local macOS
- * Agent Host publishes {@link IComputerUseStatusV1} as the root transient value {@link COMPUTER_USE_STATUS_KEY};
- * clients send {@link IComputerUseRequest}s through {@link COMPUTER_USE_REQUEST_KEY}. Both ride namespaced root config
- * values, not AHP proper, so hosts without the feature publish nothing and clients keep the ordinary elicitation UI.
+ * VS Code extension contract for GitHub's Computer Use plugin. The local macOS Agent Host publishes
+ * {@link IComputerUseStatusV1} as the root transient value {@link COMPUTER_USE_STATUS_KEY} to set up the plugin's
+ * macOS permissions; clients send {@link IComputerUseRequest}s through {@link COMPUTER_USE_REQUEST_KEY}. Both ride
+ * namespaced root config values, not AHP proper, so hosts without the feature publish nothing and clients keep the
+ * ordinary elicitation UI. A host that offers the agent a way to turn Computer Use on asks through a chat input request
+ * marked with {@link COMPUTER_USE_ACTIVATION_META_KEY}.
  *
  * The host stays authoritative: a permission is `granted` only after Copilot Computer Use's helper verified it, and
  * every operation runs through the plugin's own MCP connection, which the Copilot runtime owns. Values read off the
@@ -30,6 +32,29 @@ export const COMPUTER_USE_REQUEST_KEY = 'vscode.computerUse.request';
  * show a setup entry point; others render the request's ordinary questions, which remain answerable.
  */
 export const COMPUTER_USE_SETUP_META_KEY = 'vscode.computerUse.setup';
+
+/**
+ * Namespaced `_meta` key on the chat input request that asks the user to turn on Computer Use, carrying
+ * {@link IComputerUseActivationCard}. Clients that understand it show a compact card; others render the request's
+ * ordinary question, which remains answerable.
+ */
+export const COMPUTER_USE_ACTIVATION_META_KEY = 'vscode.computerUse.activation';
+
+/** The single-select question of a request to turn on Computer Use. */
+export const COMPUTER_USE_ACTIVATION_QUESTION_ID = 'computerUse';
+
+/** The choices of {@link COMPUTER_USE_ACTIVATION_QUESTION_ID}; only `turnOn`, submitted with an accepted request, turns it on. */
+export const computerUseActivationChoices = ['turnOn', 'notNow'] as const;
+export type ComputerUseActivationChoice = typeof computerUseActivationChoices[number];
+
+/** What a request to turn on Computer Use shows besides its fixed text. */
+export interface IComputerUseActivationCard {
+	/** Why the agent asks, in the agent's own words, at most {@link COMPUTER_USE_ACTIVATION_REASON_MAX_LENGTH} characters. Untrusted: render it as plain text. */
+	readonly reason?: string;
+}
+
+/** The longest {@link IComputerUseActivationCard.reason}. Hosts trim the agent's reason to it; readers drop longer ones. */
+export const COMPUTER_USE_ACTIVATION_REASON_MAX_LENGTH = 300;
 
 // #endregion
 
