@@ -380,6 +380,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private toolsContentContainer: HTMLElement | undefined;
 	private readonly contributedSectionContainers = new Map<AICustomizationManagementSection, HTMLElement>();
 	private readonly contributedSectionWidgets = new Map<AICustomizationManagementSection, IAICustomizationManagementSectionWidget>();
+	private readonly contributedSectionWidgetDisposables = new Map<AICustomizationManagementSection, DisposableStore>();
 	private modelsFooterElement: HTMLElement | undefined;
 
 	// Embedded editor state
@@ -629,6 +630,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.editorDisposables.clear();
 		this.contributedSectionContainers.clear();
 		this.contributedSectionWidgets.clear();
+		this.contributedSectionWidgetDisposables.clear();
 		this.container = DOM.append(parent, $('.ai-customization-management-editor'));
 
 		this.createSplitView();
@@ -784,14 +786,13 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private updateContributedSectionEnablement(): void {
-		for (const [section, widget] of this.contributedSectionWidgets) {
+		for (const section of this.contributedSectionWidgets.keys()) {
 			if (!this.isContributedSectionEnabled(section)) {
-				this.editorDisposables.delete(widget);
-				this.contributedSectionWidgets.delete(section);
-				this.contributedSectionContainers.get(section)?.replaceChildren();
+				this.disposeContributedSectionWidget(section);
 			}
 		}
 		this.rebuildVisibleSections();
+		this.initializeContributedSectionWidgets();
 	}
 
 	private createSidebar(): void {
@@ -846,15 +847,14 @@ export class AICustomizationManagementEditor extends EditorPane {
 			// count refresh completes. Only reset when the active harness
 			// actually changed to avoid flicker on harness registration events.
 			if (this._previousActiveHarnessId !== undefined && this._previousActiveHarnessId !== activeId) {
-				for (const [section, widget] of this.contributedSectionWidgets) {
-					this.editorDisposables.delete(widget);
-					this.contributedSectionContainers.get(section)?.replaceChildren();
+				for (const section of [...this.contributedSectionWidgets.keys()]) {
+					this.disposeContributedSectionWidget(section);
 				}
-				this.contributedSectionWidgets.clear();
 				for (const section of this.sections) {
 					this.updateSectionCount(section.id, 0);
 				}
 				this.updateContentVisibility();
+				this.initializeContributedSectionWidgets();
 			}
 			this._previousActiveHarnessId = activeId;
 		}));
@@ -3625,9 +3625,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 		const widget = contribution.create(this.instantiationService, container);
 		this.contributedSectionWidgets.set(section, widget);
-		this.editorDisposables.add(widget);
+		const disposables = new DisposableStore();
+		disposables.add(widget);
+		this.contributedSectionWidgetDisposables.set(section, disposables);
+		this.editorDisposables.add(disposables);
 		if (widget.onDidChangeItemCount) {
-			this.editorDisposables.add(widget.onDidChangeItemCount(count => this.updateSectionCount(section, count)));
+			disposables.add(widget.onDidChangeItemCount(count => this.updateSectionCount(section, count)));
 		}
 		widget.fireItemCount?.();
 		widget.setVisible?.(this.isVisible() && this.viewMode === 'list' && this.selectedSection === section);
@@ -3635,6 +3638,16 @@ export class AICustomizationManagementEditor extends EditorPane {
 			widget.layout?.(this.dimension);
 		}
 		return widget;
+	}
+
+	private disposeContributedSectionWidget(section: AICustomizationManagementSection): void {
+		const disposables = this.contributedSectionWidgetDisposables.get(section);
+		if (disposables) {
+			this.editorDisposables.delete(disposables);
+			this.contributedSectionWidgetDisposables.delete(section);
+		}
+		this.contributedSectionWidgets.delete(section);
+		this.contributedSectionContainers.get(section)?.replaceChildren();
 	}
 
 	private initializeContributedSectionWidgets(): void {

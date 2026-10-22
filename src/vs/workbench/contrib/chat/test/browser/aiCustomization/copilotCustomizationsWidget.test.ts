@@ -70,6 +70,7 @@ suite('CopilotCanvasesWidget', () => {
 		readonly visible?: boolean;
 		readonly contextAvailable?: boolean;
 		readonly ownerSuffix?: string;
+		readonly mutationGate?: Promise<void>;
 	}) {
 		const container = DOM.append(mainWindow.document.body, DOM.$('.copilot-canvases-test'));
 		store.add({ dispose: () => container.remove() });
@@ -122,6 +123,7 @@ suite('CopilotCanvasesWidget', () => {
 				return extensionInventory;
 			}
 			override async setExtensionEnabled(session: URI, extensionId: string, value: boolean): Promise<void> {
+				await options?.mutationGate;
 				setRequests.push({ session, extensionId, enabled: value });
 				extensionInventory = {
 					...extensionInventory,
@@ -209,6 +211,7 @@ suite('CopilotCanvasesWidget', () => {
 		search.dispatchEvent(new InputEvent('input', { bubbles: true }));
 		await timeout(0);
 		const workspaceSwitchDisabled = harness.container.querySelector<HTMLElement>('[aria-label="Disable extension Workspace Tools"]')?.hasAttribute('disabled');
+		const workspaceDetail = harness.container.querySelector('.copilot-canvas-extension-tree-item .copilot-customization-tree-detail')?.textContent;
 
 		assert.deepStrictEqual({
 			allSourceGroupsAccessible: ['User', 'Workspace', 'Plugins'].every(group => accessible.includes(`${group}. 1 extensions.`)),
@@ -216,6 +219,7 @@ suite('CopilotCanvasesWidget', () => {
 			allCanvasesAccessible: ['Preview', 'Workspace Board', 'Diagram Board'].every(canvas => accessible.includes(canvas)),
 			extensionSwitchCoverage: extensionRows.length > 0 && extensionRows.every(row => row.querySelector('[role="switch"]') !== null),
 			workspaceSwitchDisabled,
+			workspaceDetail,
 			extensionSourceIcons: extensionRows.filter(row => row.querySelector('.copilot-customization-tree-icon') !== null).length,
 			canvasSwitches: canvasRows.filter(row => row.querySelector('[role="switch"]') !== null).length,
 			sharedMoreButtonStyles: [...harness.container.querySelectorAll<HTMLElement>('[data-customization-action="more"]')]
@@ -231,6 +235,7 @@ suite('CopilotCanvasesWidget', () => {
 			allCanvasesAccessible: true,
 			extensionSwitchCoverage: true,
 			workspaceSwitchDisabled: true,
+			workspaceDetail: 'Workspace Extension · Read-only',
 			extensionSourceIcons: 0,
 			canvasSwitches: 0,
 			sharedMoreButtonStyles: true,
@@ -338,13 +343,19 @@ suite('CopilotCanvasesWidget', () => {
 	test('loads its item count before the section becomes visible', async () => {
 		const harness = createHarness({ visible: false });
 		await timeout(20);
+		const rowsBeforeVisible = harness.container.querySelectorAll('.monaco-list-row').length;
+		harness.widget.setVisible(true);
+		harness.widget.layout(new DOM.Dimension(900, 900));
+		await timeout(20);
 
 		assert.deepStrictEqual({
 			listRequests: harness.listRequests.length,
 			itemCounts: harness.itemCounts,
+			rowsBeforeVisible,
 		}, {
 			listRequests: 1,
 			itemCounts: [1],
+			rowsBeforeVisible: 0,
 		});
 	});
 
@@ -366,6 +377,46 @@ suite('CopilotCanvasesWidget', () => {
 			id: 'revealFileInOS',
 			args: ['file:///extensions/Preview%20Extension'],
 		}]);
+	});
+
+	test('does not offer a local folder action for a remote extension resource', async () => {
+		const harness = createHarness({
+			extensionInventory: {
+				mode: 'load_and_augment',
+				extensions: [{
+					id: 'user:preview',
+					name: 'Preview Extension',
+					resource: URI.parse('vscode-agent-host:/extensions/preview/extension.mjs'),
+					source: 'user',
+					status: 'running',
+				}],
+			},
+		});
+		await timeout(0);
+		const more = harness.container.querySelector<HTMLElement>('[aria-label="More Actions for Extension Preview Extension"]');
+		assert.ok(more);
+		more.click();
+
+		assert.deepStrictEqual(harness.menuActions.map(action => action.label), ['Disable Extension']);
+		harness.hideMenu();
+	});
+
+	test('does not restore mutation focus after the user moves to search', async () => {
+		const gate = new DeferredPromise<void>();
+		const harness = createHarness({ mutationGate: gate.p });
+		await timeout(0);
+		const disable = harness.container.querySelector<HTMLElement>('[aria-label="Disable extension Preview Extension"]');
+		const search = harness.container.querySelector<HTMLInputElement>('input[aria-label="Search Canvases"]');
+		assert.ok(disable);
+		assert.ok(search);
+		disable.focus();
+		disable.click();
+		await timeout(0);
+		search.focus();
+		gate.complete();
+		await timeout(20);
+
+		assert.strictEqual(mainWindow.document.activeElement, search);
 	});
 
 	test('disables only at the extension parent and retains its Canvas children', async () => {
@@ -465,6 +516,32 @@ suite('CopilotCanvasesWidget', () => {
 		}, {
 			canvas: true,
 			lastKnown: true,
+		});
+	});
+
+	test('removes cached children after a running extension authoritatively reports none', async () => {
+		const storageService = store.add(new InMemoryStorageService());
+		const first = createHarness({ storageService });
+		await timeout(20);
+		first.widget.dispose();
+
+		const refreshed = createHarness({
+			definitions: [],
+			extensionInventory: inventory([definition()], 'running'),
+			storageService,
+		});
+		await timeout(20);
+		refreshed.widget.fireItemCount();
+		const accessible = refreshed.widget.getAccessibilityContent();
+
+		assert.deepStrictEqual({
+			canvas: accessible.includes('Preview. Last known:'),
+			lastKnown: accessible.includes('Last known:'),
+			itemCounts: refreshed.itemCounts,
+		}, {
+			canvas: false,
+			lastKnown: false,
+			itemCounts: [0],
 		});
 	});
 

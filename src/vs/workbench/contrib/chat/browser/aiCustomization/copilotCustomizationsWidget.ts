@@ -14,10 +14,11 @@ import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { Action, IAction, Separator } from '../../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { structuralEquals } from '../../../../../base/common/equals.js';
 import { getErrorMessage } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { autorun, derived, mapObservableArrayCached, observableSignal, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { dirname } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -418,6 +419,8 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 	private lastHeight = 0;
 	private lastWidth = 0;
 	private lastItemCount = -1;
+	private visible = false;
+	private needsRender = false;
 	private updatingTree = false;
 
 	constructor(
@@ -571,19 +574,6 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 				this.collapsedExtensions.delete(key);
 			}
 		}));
-		this._register(DOM.addStandardDisposableListener(this.tree.getHTMLElement(), DOM.EventType.KEY_DOWN, event => {
-			if (event.keyCode !== KeyCode.Space || event.target.closest('[data-customization-action]')) {
-				return;
-			}
-			const entry = this.tree.getFocus()[0];
-			if (entry?.type !== 'extension' || !this.canToggleExtension(entry.item)) {
-				return;
-			}
-			void this.setExtensionEnabled(entry.item, !this.isExtensionEnabled(entry.item));
-			event.preventDefault();
-			event.stopPropagation();
-		}));
-
 		this.emptyContainer = DOM.append(this.element, $('.list-empty-state'));
 		this.emptyText = DOM.append(this.emptyContainer, $('.empty-state-text'));
 		this.emptySubtext = DOM.append(this.emptyContainer, $('.empty-state-subtext'));
@@ -695,6 +685,10 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 	}
 
 	setVisible(visible: boolean): void {
+		this.visible = visible;
+		if (visible && this.needsRender) {
+			this.render();
+		}
 		if (visible && this.lastHeight > 0) {
 			this.layout(new DOM.Dimension(this.lastWidth, this.lastHeight));
 		}
@@ -817,6 +811,7 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 
 	private updateCachedDefinitions(context: ICanvasContext, inventory: IAgentExtensionInventory | undefined, definitions: readonly ICanvasDefinition[]): void {
 		const now = Date.now();
+		let changed = false;
 		const liveByExtension = new Map<string, ICanvasDefinition[]>();
 		for (const canvas of definitions) {
 			const extension = this.findCanvasExtension(inventory, canvas);
@@ -828,7 +823,10 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 			liveByExtension.set(key, values);
 		}
 		for (const [key, values] of liveByExtension) {
-			this.cachedDefinitions.set(key, { key, definitions: values, updatedAt: now });
+			if (!structuralEquals(this.cachedDefinitions.get(key)?.definitions, values)) {
+				this.cachedDefinitions.set(key, { key, definitions: values, updatedAt: now });
+				changed = true;
+			}
 		}
 		for (const extension of inventory?.extensions ?? []) {
 			if (extension.status !== 'running') {
@@ -836,22 +834,25 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 			}
 			const key = this.getCanvasCacheKey(context, extension.id, extension.source);
 			if (!liveByExtension.has(key)) {
-				this.cachedDefinitions.delete(key);
+				changed = this.cachedDefinitions.delete(key) || changed;
 			}
 		}
 		const entries = [...this.cachedDefinitions.values()]
 			.sort((left, right) => right.updatedAt - left.updatedAt)
 			.slice(0, MAX_CACHED_CANVAS_EXTENSIONS);
+		changed = entries.length !== this.cachedDefinitions.size || changed;
 		this.cachedDefinitions.clear();
 		for (const entry of entries) {
 			this.cachedDefinitions.set(entry.key, entry);
 		}
-		this.storageService.store(
-			COPILOT_CANVAS_DEFINITION_CACHE_KEY,
-			JSON.stringify({ entries } satisfies ICachedCanvasDefinitionsState),
-			StorageScope.PROFILE,
-			StorageTarget.MACHINE,
-		);
+		if (changed) {
+			this.storageService.store(
+				COPILOT_CANVAS_DEFINITION_CACHE_KEY,
+				JSON.stringify({ entries } satisfies ICachedCanvasDefinitionsState),
+				StorageScope.PROFILE,
+				StorageTarget.MACHINE,
+			);
+		}
 	}
 
 	private getCanvasCacheKey(context: ICanvasContext, extensionId: string, source: IAgentExtensionInfo['source'] | ICanvasDefinition['extensionSource']): string {
@@ -896,10 +897,12 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 			const [definitions, inventory] = await Promise.all([listCanvases(), inventoryPromise]);
 			if (isCurrent() && inventory) {
 				this.extensionInventories.set(ownerKey, inventory);
-				this.extensionInventoriesChanged.trigger(undefined);
 			}
 			if (isCurrent() && definitions !== undefined) {
 				this.updateCachedDefinitions(context, inventory, definitions);
+			}
+			if (isCurrent() && (inventory || definitions !== undefined)) {
+				this.extensionInventoriesChanged.trigger(undefined);
 			}
 			return definitions;
 		} catch (error) {
@@ -940,6 +943,11 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 		if (this._store.isDisposed) {
 			return;
 		}
+		if (!this.visible) {
+			this.needsRender = true;
+			return;
+		}
+		this.needsRender = false;
 		const focusedAction = this.captureFocusedAction();
 		const extensions = this.getFilteredExtensions();
 		const query = this.searchInput.value.trim();
@@ -1029,6 +1037,8 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 		const focusedAction = this.captureFocusedAction();
 		this.pendingExtensionMutations.add(mutationKey);
 		this.render();
+		this.restoreFocusedAction(focusedAction);
+		const focusedMutationAction = DOM.getActiveElement();
 		try {
 			await this.extensionsService.setExtensionEnabled(sessionResource, currentItem.extension.id, enabled);
 			this.updateExtensionState(currentItem, enabled);
@@ -1041,9 +1051,12 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 				? localize('copilotCanvases.extensionEnableFailed', "Could not enable extension {0}. {1}", currentItem.extensionName, getErrorMessage(error))
 				: localize('copilotCanvases.extensionDisableFailed', "Could not disable extension {0}. {1}", currentItem.extensionName, getErrorMessage(error)));
 		} finally {
+			const shouldRestoreFocus = DOM.getActiveElement() === focusedMutationAction;
 			this.pendingExtensionMutations.delete(mutationKey);
 			this.render();
-			this.restoreFocusedAction(focusedAction);
+			if (shouldRestoreFocus) {
+				this.restoreFocusedAction(focusedAction);
+			}
 		}
 	}
 
@@ -1097,7 +1110,7 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 
 	private hasExtensionActions(item: ICopilotCanvasExtensionItem): boolean {
 		return item.extensionSource === 'plugin'
-			|| !!item.extension?.resource
+			|| this.canRevealExtensionFolder(item)
 			|| this.canToggleExtension(item);
 	}
 
@@ -1109,7 +1122,7 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 		const groups: IAction[][] = [[], []];
 		if (item.extensionSource === 'plugin') {
 			groups[0].push(action('canvas.showPlugin', localize('copilotCanvases.showPlugin', "Show Plugin"), () => this.openExtensionProvider(item)));
-		} else if (item.extension?.resource) {
+		} else if (this.canRevealExtensionFolder(item)) {
 			groups[0].push(action(
 				'canvas.openExtensionFolder',
 				localize('copilotCanvases.openExtensionFolder', "Open Canvas Extension Folder"),
@@ -1129,6 +1142,11 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 			actions.push(...group);
 		}
 		return actions;
+	}
+
+	private canRevealExtensionFolder(item: ICopilotCanvasExtensionItem): boolean {
+		const scheme = item.extension?.resource?.scheme;
+		return scheme === Schemas.file || scheme === Schemas.vscodeUserData;
 	}
 
 	private showCanvasMenu(item: ICopilotCanvasItem, anchor: ReturnType<IContextMenuDelegate['getAnchor']>): void {
@@ -1437,6 +1455,9 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 	private getExtensionDetail(item: ICopilotCanvasExtensionItem): string {
 		if (item.canvases.length === 0) {
 			return localize('copilotCanvases.noCanvasesReported', "No Canvases Reported");
+		}
+		if (item.extensionSource === 'project') {
+			return localize('copilotCanvases.workspaceReadOnly', "Workspace Extension · Read-only");
 		}
 		if (item.extensionSource === 'plugin') {
 			return localize('copilotCanvases.pluginSource', "Plugin: {0}", item.extension?.pluginName ?? item.extensionName);

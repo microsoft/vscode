@@ -60,7 +60,7 @@ class CopilotCanvasesAccessibility implements IAccessibleViewImplementation {
 			() => this.type === AccessibleViewType.Help ? [
 				localize('copilotCanvases.help.overview', "Canvases are interactive panels that Copilot can open beside a chat."),
 				localize('copilotCanvases.help.navigation', "The tree groups extension parents under User, Workspace, Plugin, or Other sections, with each extension's Canvases as children. Use Tab and Shift+Tab to move between Refresh, search, the tree, and actions in the focused row. Use the Up Arrow, Down Arrow, Home, and End keys to navigate. Use the Left Arrow and Right Arrow keys to collapse or expand sections and extensions."),
-				localize('copilotCanvases.help.enablement', "User and Plugin extensions can be enabled or disabled with Space or their switch. Workspace extensions are read-only. When disabling stops an extension from reporting definitions, its children are labeled as last known and remain listed so the extension can be enabled again."),
+				localize('copilotCanvases.help.enablement', "For User and Plugin extensions, Tab to the switch and press Space to enable or disable it. Workspace extensions are read-only. When disabling stops an extension from reporting definitions, its children are labeled as last known and remain listed so the extension can be enabled again."),
 				localize('copilotCanvases.help.actions', "Open an enabled Canvas child to show it. Use More Actions on an extension to open its source or plugin and change enablement. Use More Actions on a Canvas child to show it."),
 			].join('\n\n') : content!,
 			() => DOM.isHTMLElement(focused) && focused.isConnected ? focused.focus() : editor.focus(),

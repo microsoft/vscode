@@ -414,6 +414,7 @@ suite('aiCustomizationManagementEditor', () => {
 		selectedSection: AICustomizationManagementSection | undefined;
 		contributedSectionContainers: Map<AICustomizationManagementSection, HTMLElement>;
 		contributedSectionWidgets: Map<AICustomizationManagementSection, IAICustomizationManagementSectionWidget>;
+		contributedSectionWidgetDisposables: Map<AICustomizationManagementSection, DisposableStore>;
 		getActiveSectionWidget(): IAICustomizationManagementSectionWidget | undefined;
 		initializeContributedSectionWidgets(): void;
 		selectSection(section: AICustomizationManagementSection): void;
@@ -662,6 +663,7 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.contributedSectionContainers = new Map();
 		editor.contributedSectionWidgets = new Map();
 		editor.sectionBadges = new Map();
+		editor.contributedSectionWidgetDisposables = new Map();
 		editor.editorPreviewRenderScheduler = {
 			cancel(): void { },
 			schedule(): void { },
@@ -942,6 +944,7 @@ suite('aiCustomizationManagementEditor', () => {
 		const configuration = createConfigurationServiceStub({ [CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: enabled });
 		editor.configurationService = configuration;
 		Object.assign(editor, { marketplaceService: { sources: [CustomizationMarketplaceSources.AgentFinderPublicFeed] } });
+		Object.assign(editor.workspaceService, { managementSections: [section] });
 		const sections: { id: AICustomizationManagementSection; badge?: string }[] = [];
 		let overview: readonly AICustomizationManagementSection[] = [];
 		Object.assign(editor, {
@@ -959,6 +962,16 @@ suite('aiCustomizationManagementEditor', () => {
 		});
 		return { ...context, configuration, sections, getOverview: () => overview };
 	}
+
+	test('reinitializes opted-in contributed sections when their setting is enabled', async () => {
+		const { editor, section, state, configuration } = createGatedSectionEditor(false, undefined, undefined, true);
+		Object.assign(editor.workspaceService, { managementSections: [section] });
+		editor.updateContributedSectionEnablement();
+		await configuration.updateValue(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, true);
+		editor.updateContributedSectionEnablement();
+
+		assert.deepStrictEqual(state, { created: 1, visible: false, promptsFocused: 0, disposed: 0 });
+	});
 
 	for (const enabled of [undefined, false]) {
 		test(`does not expose or instantiate a contributed section when its experiment is ${enabled === undefined ? 'unset' : 'disabled'}`, () => {
