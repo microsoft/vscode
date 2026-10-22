@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ChatContext, ChatCustomAgent, ChatParticipantToolToken, Uri } from 'vscode';
-import { CancellationToken } from 'vscode-languageserver-protocol';
+import { CancellationToken, CancellationTokenSource } from 'vscode-languageserver-protocol';
 import { IAuthenticationService } from '../../../../../platform/authentication/common/authentication';
 import { NullChatDebugFileLoggerService } from '../../../../../platform/chat/common/chatDebugFileLoggerService';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configurationService';
@@ -822,6 +822,25 @@ describe('CopilotCLISessionService', () => {
 				});
 			});
 		}
+
+		it('stops waiting for a client name lookup when cancelled, without remembering it', async () => {
+			await (configurationService as InMemoryConfigurationService).setNonExtensionConfig(RECOVER_COPILOT_CLI_SESSIONS_SETTING, true);
+			const recoveryService = disposables.add(createSessionService());
+			const recoveryManager = await recoveryService.getSessionManager() as unknown as MockCliSdkSessionManager;
+			await addSessionsMarkedExternal(recoveryManager);
+			// The first SDK metadata read never settles.
+			vi.spyOn(recoveryManager, 'getSessionMetadata').mockImplementationOnce(() => new Promise(() => { }));
+			const source = disposables.add(new CancellationTokenSource());
+
+			const lookup = recoveryService.getSessionItem('recovered-client', source.token);
+			await new Promise(resolve => setTimeout(resolve, 0));
+			source.cancel();
+
+			expect({
+				cancelled: (await lookup)?.id,
+				retried: (await recoveryService.getSessionItem('recovered-client', CancellationToken.None))?.id,
+			}).toEqual({ cancelled: undefined, retried: 'recovered-client' });
+		});
 
 		it('snapshots the session recovery setting for the extension host lifetime', async () => {
 			await addSessionsMarkedExternal(manager);

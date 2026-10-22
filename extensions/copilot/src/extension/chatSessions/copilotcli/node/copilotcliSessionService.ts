@@ -318,7 +318,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 
 	public async getSessionItemImpl(sessionId: string, source: 'inMemorySession' | 'disk', token: CancellationToken): Promise<ICopilotCLISessionItem | undefined> {
 		// Checked up front so that a loaded external session cannot slip in via the wrapper below.
-		if (await this.isExternalSession(sessionId)) {
+		if (await this.isExternalSession(sessionId, undefined, token)) {
 			return;
 		}
 
@@ -475,7 +475,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 					}
 					const workingDirectory = metadata.context?.cwd ? URI.file(metadata.context.cwd) : undefined;
 					this._sessionWorkingDirectories.set(metadata.sessionId, workingDirectory);
-					if (!await this.shouldShowSession(metadata.sessionId, metadata.context, metadata.clientName)) {
+					if (!await this.shouldShowSession(metadata.sessionId, metadata.context, metadata.clientName, token)) {
 						return;
 					}
 					// A legacy session stays in this list until it is opened: opening adopts it
@@ -514,7 +514,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 				.filter(session => !diskSessionIds.has(session.object.sessionId))
 				.filter(session => session.object.status === ChatSessionStatus.InProgress)
 				.map(async (session): Promise<ICopilotCLISessionItem | undefined> => {
-					if (await this.isExternalSession(session.object.sessionId)) {
+					if (await this.isExternalSession(session.object.sessionId, undefined, token)) {
 						return;
 					}
 					const label = session.object.title ?? await this.customSessionTitleService.getCustomSessionTitle(session.object.sessionId) ?? labelFromPrompt(session.object.pendingPrompt ?? '');
@@ -572,7 +572,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 	private async constructSessionItemImpl(metadata: LocalSessionMetadata, token: CancellationToken): Promise<ICopilotCLISessionItem | undefined> {
 		const workingDirectory = metadata.context?.cwd ? URI.file(metadata.context.cwd) : undefined;
 		this._sessionWorkingDirectories.set(metadata.sessionId, workingDirectory);
-		const shouldShowSession = await this.shouldShowSession(metadata.sessionId, metadata.context, metadata.clientName);
+		const shouldShowSession = await this.shouldShowSession(metadata.sessionId, metadata.context, metadata.clientName, token);
 		if (!shouldShowSession) {
 			return undefined;
 		}
@@ -705,13 +705,13 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 	 *
 	 * @param clientName The session's SDK client name; when omitted, the last observed one is used.
 	 */
-	private async isExternalSession(sessionId: string, clientName?: string): Promise<boolean> {
+	private async isExternalSession(sessionId: string, clientName: string | undefined, token: CancellationToken): Promise<boolean> {
 		if (isUntitledSessionId(sessionId) || this._vscodeOriginSessionIds.has(sessionId)) {
 			return false;
 		}
 		// The client name only counts with session recovery, so it is not read otherwise.
 		const useEvidence = this.isSessionRecoveryEnabled();
-		return await this._chatSessionMetadataStore.getSessionOrigin(sessionId, useEvidence, useEvidence ? clientName ?? await this.getSessionClientName(sessionId) : undefined) !== 'vscode';
+		return await this._chatSessionMetadataStore.getSessionOrigin(sessionId, useEvidence, useEvidence ? clientName ?? await this.getSessionClientName(sessionId, token) : undefined) !== 'vscode';
 	}
 
 	/**
@@ -723,14 +723,21 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		return this._sessionRecoveryEnabled ??= this.configurationService.getNonExtensionConfig<boolean>(RECOVER_COPILOT_CLI_SESSIONS_SETTING) === true;
 	}
 
-	/** The SDK client name last observed for a session, read from disk when it has not been listed yet. */
-	private async getSessionClientName(sessionId: string): Promise<string | undefined> {
+	/**
+	 * The SDK client name last observed for a session, read from disk when it has not been listed yet.
+	 * Stops waiting once `token` is cancelled, without caching the unknown result.
+	 */
+	private async getSessionClientName(sessionId: string, token: CancellationToken): Promise<string | undefined> {
 		if (this._sessionClientNames.has(sessionId)) {
 			return this._sessionClientNames.get(sessionId);
 		}
 		try {
-			const sessionManager = await this.getSessionManager();
-			const clientName = (await sessionManager.getSessionMetadata({ sessionId }))?.clientName;
+			const sessionManager = await raceCancellation(this.getSessionManager(), token);
+			const metadata = sessionManager ? await raceCancellation(sessionManager.getSessionMetadata({ sessionId }), token) : undefined;
+			if (token.isCancellationRequested) {
+				return undefined;
+			}
+			const clientName = metadata?.clientName;
 			this._sessionClientNames.set(sessionId, clientName);
 			return clientName;
 		} catch (error) {
@@ -739,12 +746,12 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		}
 	}
 
-	private async shouldShowSession(sessionId: string, context?: SessionContext, clientName?: string): Promise<boolean> {
+	private async shouldShowSession(sessionId: string, context: SessionContext | undefined, clientName: string | undefined, token: CancellationToken): Promise<boolean> {
 		if (isUntitledSessionId(sessionId)) {
 			return true;
 		}
 
-		if (await this.isExternalSession(sessionId, clientName)) {
+		if (await this.isExternalSession(sessionId, clientName, token)) {
 			return false;
 		}
 

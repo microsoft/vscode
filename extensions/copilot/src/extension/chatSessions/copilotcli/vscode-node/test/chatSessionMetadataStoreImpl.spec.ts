@@ -651,6 +651,33 @@ describe('ChatSessionMetadataStore', () => {
 			});
 		}
 
+		it('never probes the request sidecar for unsafe session ids', async () => {
+			mockFs.mockFile(BULK_METADATA_FILE, JSON.stringify({}));
+			const store = await createStore();
+			const statSpy = vi.spyOn(mockFs, 'stat');
+
+			const origins = [];
+			for (const sessionId of ['..', '../escape', 'nested/session']) {
+				origins.push(await store.getSessionOrigin(sessionId, true, undefined));
+			}
+
+			expect({
+				origins,
+				probedRequestFiles: statSpy.mock.calls.some(([uri]) => uri.toString().endsWith('vscode.requests.metadata.json')),
+			}).toEqual({ origins: ['other', 'other', 'other'], probedRequestFiles: false });
+			store.dispose();
+		});
+
+		it('treats an unreadable request sidecar as missing', async () => {
+			mockFs.mockFile(BULK_METADATA_FILE, JSON.stringify({}));
+			mockFs.mockFile(sessionMetadataFileUri('unreadable'), JSON.stringify({ origin: 'other' }));
+			const store = await createStore();
+			vi.spyOn(mockFs, 'stat').mockRejectedValue(Object.assign(new Error('permission denied'), { code: 'EACCES' }));
+
+			expect(await store.getSessionOrigin('unreadable', true, undefined)).toBe('other');
+			store.dispose();
+		});
+
 		it('treats folder information from the bulk cache as VS Code evidence for origin-less entries', async () => {
 			mockFs.mockFile(BULK_METADATA_FILE, JSON.stringify({
 				'bulk-legacy': { workspaceFolder: { folderPath: Uri.file('/workspace').fsPath, timestamp: 1 } },

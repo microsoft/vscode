@@ -5906,7 +5906,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		try {
 			return (await fs.stat(this._extensionHostCliSidecarPath(sessionId, EXTENSION_HOST_CLI_REQUESTS_FILE))).isFile();
-		} catch {
+		} catch (error) {
+			const code = getErrorCode(error);
+			if (code !== 'ENOENT' && code !== 'ENOTDIR') {
+				// Keep listing usable, but leave a trail: an unreadable sidecar leaves the session unrecovered.
+				this._logService.trace(`[Copilot] Failed to check the request sidecar of session ${sessionId}: ${code ?? error}`);
+			}
 			return false;
 		}
 	}

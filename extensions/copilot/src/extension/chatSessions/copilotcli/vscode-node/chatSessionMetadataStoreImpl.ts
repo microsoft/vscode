@@ -455,7 +455,7 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 	}
 
 	private async hasRequestDetailsFile(sessionId: string): Promise<boolean> {
-		if (isUntitledSessionId(sessionId)) {
+		if (!isSafeSessionId(sessionId)) {
 			return false;
 		}
 		if (this._requestDetailsCache.has(sessionId)) {
@@ -464,7 +464,10 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 		try {
 			const stat = await this.fileSystemService.stat(this.getRequestMappingFileUri(sessionId));
 			return (stat.type & FileType.File) !== 0;
-		} catch {
+		} catch (error) {
+			if (!isFileNotFoundError(error)) {
+				this.logService.trace(`[ChatSessionMetadataStore] Failed to check the request sidecar of session ${sessionId}: ${getErrorCode(error) ?? error}`);
+			}
 			return false;
 		}
 	}
@@ -1078,6 +1081,11 @@ function isFileNotFoundError(error: unknown): boolean {
 	return code === 'FileNotFound' || code === 'ENOENT' || (error instanceof Error && error.message.startsWith('ENOENT'));
 }
 
+/** Whether `sessionId` is a single safe path segment that names a real (not untitled) session. */
+function isSafeSessionId(sessionId: string): boolean {
+	return SAFE_SESSION_ID.test(sessionId) && sessionId !== '.' && sessionId !== '..' && !isUntitledSessionId(sessionId);
+}
+
 /**
  * Whether a bulk metadata entry describes a session created by VS Code and is
  * safe to backfill. Mirrors the marker evidence of `isVSCodeCopilotCLISession`
@@ -1086,7 +1094,7 @@ function isFileNotFoundError(error: unknown): boolean {
  * carry VS Code-specific workspace properties.
  */
 function isBackfillableSessionMetadata(sessionId: string, entry: ChatSessionMetadataFile | undefined): entry is ChatSessionMetadataFile {
-	if (!SAFE_SESSION_ID.test(sessionId) || sessionId === '.' || sessionId === '..' || isUntitledSessionId(sessionId)) {
+	if (!isSafeSessionId(sessionId)) {
 		return false;
 	}
 	if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
