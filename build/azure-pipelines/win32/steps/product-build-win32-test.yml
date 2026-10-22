@@ -19,6 +19,8 @@ steps:
     displayName: Compile test suites (non-OSS)
     condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
+  - template: ../../common/restore-playwright-browsers.yml@self
+
   - powershell: npm exec -- npm-run-all2 -lp "electron $(VSCODE_ARCH)" "playwright-install"
     env:
       GITHUB_TOKEN: "$(github-token-code-oss)"
