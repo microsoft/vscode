@@ -2241,8 +2241,8 @@ export class NewChatWidget extends Disposable {
 			if (!workspace || !this.uriIdentityService.extUri.isEqual(workspace.workspace.folders[0]?.root, folderUri)
 				|| (environment.kind === 'container') !== preferDevContainer) {
 				const selected = getDefaultSessionCreationEnvironment(this._environments.get(), folderUri, this._workspacePicker.selectedResolved?.providerId, preferDevContainer);
-				// Keep automatic defaults reactive while providers are still registering.
-				if (selected?.id !== environment.id) {
+				// Keep automatic defaults reactive while refreshing explicit selections.
+				if (this._pickedEnvironment.get() || selected?.id !== environment.id) {
 					this._pickedEnvironment.set(selected, undefined);
 				}
 			}

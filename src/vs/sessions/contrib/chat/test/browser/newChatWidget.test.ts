@@ -580,16 +580,40 @@ suite('NewChatWidget', () => {
 				_onWorkspaceSelected: async () => { },
 				_newChatInput: { focus: () => { } },
 			});
-			const selected: (string | undefined)[] = [];
-			disposables.add(autorun(reader => selected.push(environment.read(reader)?.id)));
+			const initialEnvironment = environment.get()?.id;
 
 			await handleWorkspaceSelection.call(widget, folder);
 			environments.set([cloud, local], undefined);
 
-			assert.deepStrictEqual({ selected, picked: picked.get()?.id }, {
-				selected: ['cloud', 'local'],
+			assert.deepStrictEqual({ initialEnvironment, selected: environment.get()?.id, picked: picked.get()?.id }, {
+				initialEnvironment: 'cloud',
+				selected: 'local',
 				picked: undefined,
 			});
+		});
+
+		test('refreshes an explicit environment selection when its metadata changes without changing its id', async () => {
+			const updatedCloud: ISessionCreationEnvironment = { ...cloud, label: 'Updated Cloud', providerIds: ['new-cloud-provider'] };
+			const picked = observableValue<ISessionCreationEnvironment | undefined>('pickedEnvironment', cloud);
+			const widget = Object.assign(Object.create(NewChatWidget.prototype), {
+				_environment: constObservable(cloud),
+				_environments: constObservable([updatedCloud]),
+				_pickedEnvironment: picked,
+				_environmentPickerBeforeWorkspace: constObservable(false),
+				_workspaceOptOutEnabled: constObservable(false),
+				uriIdentityService: { extUri },
+				_workspacePicker: {
+					selectedResolved: { providerId: 'new-cloud-provider' },
+					getEnvironmentWorkspace: () => undefined,
+				},
+				_isCurrentWorkspaceSelection: () => false,
+				_onWorkspaceSelected: async () => { },
+				_newChatInput: { focus: () => { } },
+			});
+
+			await handleWorkspaceSelection.call(widget, folder);
+
+			assert.strictEqual(picked.get(), updatedCloud);
 		});
 
 		function createHarness(compatible: boolean, onSelect: () => Promise<void> = async () => { }) {
