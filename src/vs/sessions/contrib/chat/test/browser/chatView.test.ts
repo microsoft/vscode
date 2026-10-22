@@ -1318,6 +1318,7 @@ suite('Sessions - Chat View', () => {
 			_updateWidgetLockState: () => { },
 			_setLoading: (value: boolean) => loading.push(value),
 			_layoutChatWidget: () => { },
+			_selectionSideChatController: { setChat: () => { } },
 			showProgressWhile: (promise: Promise<void>) => completions.push(promise),
 			_widget: {
 				getInput: () => inputState.inputText,
@@ -4390,6 +4391,7 @@ suite('Sessions - Chat View', () => {
 		const progressDelays: (number | undefined)[] = [];
 		const loadingStates: boolean[] = [];
 		const boundModels: (string | undefined)[] = [];
+		const selectionBindings: { resource: URI | undefined; readOnly: boolean }[] = [];
 		const onDidDisposeSession = disposables.add(new Emitter<{ readonly sessionResources: readonly URI[]; readonly reason: 'cleared' | 'disposed' }>());
 		const viewStore = disposables.add(new DisposableStore());
 		const view: {
@@ -4423,6 +4425,9 @@ suite('Sessions - Chat View', () => {
 			_saveCurrentViewState: () => { },
 			_updateWidgetLockState: () => { },
 			_layoutChatWidget: () => { },
+			_selectionSideChatController: {
+				setChat: (resource: URI | undefined, isReadOnly: IObservable<boolean>) => selectionBindings.push({ resource, readOnly: isReadOnly.get() }),
+			},
 			showProgressWhile: (_promise: Promise<void>, delay?: number) => progressDelays.push(delay),
 			_widget: {
 				getInput: () => '',
@@ -4446,7 +4451,7 @@ suite('Sessions - Chat View', () => {
 			view._reloadChatForReplacedProvider(['remote-agent']);
 		};
 		const release = (resource: URI) => onDidDisposeSession.fire({ sessionResources: [resource], reason: 'disposed' });
-		return { open, attach, reload, release, dispose: () => viewStore.dispose(), requests, progressDelays, loadingStates, boundModels };
+		return { open, attach, reload, release, dispose: () => viewStore.dispose(), requests, progressDelays, loadingStates, boundModels, selectionBindings };
 	}
 
 	test('shows loading progress within 100ms of opening a chat', () => {
@@ -4473,17 +4478,18 @@ suite('Sessions - Chat View', () => {
 
 	test('shows loading progress across a provider reload until the reloaded model attaches', async () => {
 		const resource = URI.parse('remote-agent:/session');
-		const { open, attach, reload, release, progressDelays, loadingStates, boundModels } = createLoadingFeedbackView();
+		const { open, attach, reload, release, progressDelays, loadingStates, boundModels, selectionBindings } = createLoadingFeedbackView();
 		open(resource);
 		await attach(0, resource);
 		reload();
 		release(resource);
 		await timeout(0);
 		await attach(1, resource);
-		assert.deepStrictEqual({ progressDelays, loadingStates, boundModels }, {
+		assert.deepStrictEqual({ progressDelays, loadingStates, boundModels, selectionBindings }, {
 			progressDelays: [100, 100, 100],
 			loadingStates: [true, false, true, true, false],
 			boundModels: ['/session', undefined, '/session'],
+			selectionBindings: [{ resource: undefined, readOnly: true }],
 		});
 	});
 

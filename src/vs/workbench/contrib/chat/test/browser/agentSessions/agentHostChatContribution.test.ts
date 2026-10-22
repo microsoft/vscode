@@ -93,6 +93,7 @@ import { ITextFileEditorModelManager, ITextFileService } from '../../../../../se
 import { IChatResponseFileChangesService } from '../../../browser/chatResponseFileChangesService.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ChatSessionForkError, IChatSessionsService, type IChatSession, type IChatSessionForkOptions, type IChatSessionHistoryItem, type IChatSessionContentProvider, type IChatSessionItemController, type IChatSessionRequestHistoryItem, type IChatSessionServerRequest, type IChatSessionsExtensionPoint } from '../../../common/chatSessionsService.js';
+import { IChatSideChatOrigin } from '../../../common/chatSideChatService.js';
 import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../common/languageModels.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
@@ -4526,7 +4527,7 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(listController.items[0].resource.path, '/aaa');
 		});
 
-		test('refresh projects visible peer chats as children of the default chat', async () => {
+		test('refresh projects visible peer and side chats as children of the default chat', async () => {
 			const { listController, agentHostService } = createContribution(disposables);
 			const session = AgentSession.uri('copilot', 'multi-chat');
 			const defaultChat = URI.parse(buildDefaultChatUri(session.toString()));
@@ -4564,8 +4565,40 @@ suite('AgentHostChatContribution', () => {
 				resource: 'agent-host-copilot:/multi-chat',
 				children: [
 					{ label: 'Peer chat', resource: 'agent-host-copilot:/multi-chat#peer-chat', status: undefined, isRead: undefined },
+					{ label: 'Side chat', resource: 'agent-host-copilot:/multi-chat#side-chat', status: undefined, isRead: undefined },
 				],
 			}]);
+		});
+
+		test('discovers a side chat added to the catalog with opaque advertised chat URIs and no VS Code metadata', async () => {
+			const { listController, agentHostService } = createContribution(disposables);
+			const session = AgentSession.uri('copilot', 'opaque-side-chat');
+			const main = 'host-chat:/conversation/main';
+			const side = 'host-chat:/conversation/side-question';
+			agentHostService.addSession({
+				session, startTime: 1000, modifiedTime: 2000,
+				chats: [{ chat: URI.parse(main), summary: 'Main chat', kind: 'default' }],
+			});
+			await listController.refresh(CancellationToken.None);
+			const before = listController.items[0].children;
+
+			agentHostService.fireNotification({
+				type: NotificationType.SessionSummaryChanged,
+				channel: ROOT_STATE_URI,
+				session: session.toString(),
+				changes: {
+					defaultChat: main,
+					chats: [
+						{ resource: main, title: 'Main chat' },
+						{ resource: side, title: 'Side question', origin: { kind: ChatOriginKind.SideChat, chat: main, turnId: 'source-turn' } },
+					],
+				},
+			});
+
+			assert.deepStrictEqual({
+				before,
+				after: listController.items[0].children?.map(child => ({ title: child.label, chatId: child.resource.fragment })),
+			}, { before: undefined, after: [{ title: 'Side question', chatId: side }] });
 		});
 
 		test('session title notifications do not inherit the advertised default chat title', async () => {
@@ -6639,6 +6672,157 @@ suite('AgentHostChatContribution', () => {
 
 			// No backend session should have been created yet
 			assert.strictEqual(agentHostService.createSessionCalls.length, 0);
+		});
+	});
+
+	suite('side chats', () => {
+		async function setupSideChat(options?: { peer?: boolean; opaque?: boolean; active?: boolean; noTurn?: boolean; readOnly?: boolean; restored?: boolean; missingSourceSummary?: boolean }) {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const backend = AgentSession.uri('copilot', 'side-source');
+			const defaultChat = options?.opaque ? 'ahp-chat:/host-selected/default' : buildDefaultChatUri(backend);
+			const sourceChat = options?.peer
+				? options?.opaque ? 'ahp-chat:/host-selected/peer' : buildChatUri(backend.toString(), 'peer')
+				: defaultChat;
+			const resource = URI.from({ scheme: 'agent-host-copilot', path: backend.path, fragment: options?.peer ? getAgentHostChatId(sourceChat) : undefined });
+			const summary: SessionSummary = {
+				resource: backend.toString(), provider: 'copilot', title: 'Source', status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+			};
+			agentHostService.setInitializeResult({ _meta: {} });
+			const setSupport = (sideChat: boolean) => agentHostService.setRootState({
+				agents: [{ provider: 'copilot', displayName: 'Copilot', description: 'test', models: [], capabilities: { multipleChats: { sideChat, fork: false } } }],
+				activeSessions: 1,
+			});
+			setSupport(true);
+			const sourceSummary = { ...createDefaultChatSummary(summary, sourceChat), ...(options?.readOnly ? { interactivity: ChatInteractivity.ReadOnly } : {}) };
+			const message = { text: 'Source request', origin: { kind: MessageKind.User }, model: { id: 'source-model', config: { thinking: 'high' } } };
+			const sourceState: ChatState = {
+				...createChatState(sourceSummary),
+				turns: options?.noTurn || options?.active ? [] : [{ id: 'source-turn', state: TurnState.Complete, message, responseParts: [], usage: undefined }],
+				...(options?.active ? { activeTurn: { id: 'source-turn', startedAt: new Date().toISOString(), message, responseParts: [], usage: undefined } } : {}),
+			};
+			const restoredChat = options?.opaque ? 'ahp-chat:/host-selected/restored-side' : buildChatUri(backend.toString(), 'restored-side');
+			const restoredSummary = {
+				...createDefaultChatSummary(summary, restoredChat),
+				origin: { kind: ChatOriginKind.SideChat, chat: sourceChat, turnId: 'source-turn', selection: { text: 'Selected transcript', responsePartId: 'source-part' } } as const,
+			};
+			agentHostService.sessionStates.set(backend.toString(), {
+				...createSessionState(summary), lifecycle: SessionLifecycle.Ready, defaultChat,
+				chats: [
+					...(options?.peer ? [createDefaultChatSummary(summary, defaultChat)] : []),
+					...(options?.missingSourceSummary ? [] : [sourceSummary]),
+					...(options?.restored ? [restoredSummary] : []),
+				],
+			});
+			agentHostService.chatStates.set(sourceChat, sourceState);
+			if (options?.restored) {
+				agentHostService.chatStates.set(restoredChat, createChatState(restoredSummary));
+			}
+			const sessionResource = options?.restored ? resource.with({ fragment: getAgentHostChatId(restoredChat) }) : resource;
+			const session = disposables.add(await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None));
+			return { session, agentHostService, resource: sessionResource, sourceResource: resource, backend, sourceChat, sourceSummary, setSupport };
+		}
+
+		for (const options of [{}, { peer: true }, { opaque: true }, { opaque: true, peer: true }]) {
+			test(`restores the persisted side-chat origin using the advertised source ${JSON.stringify(options)}`, async () => {
+				const fixture = await setupSideChat({ ...options, restored: true });
+				fixture.setSupport(false);
+				assert.deepStrictEqual({
+					origin: fixture.session.sideChatOrigin?.get(),
+					created: fixture.agentHostService.createChatCalls,
+				}, {
+					origin: {
+						sourceSessionResource: fixture.sourceResource,
+						sourceTurnId: 'source-turn',
+						sourceTitle: 'Source',
+						selection: { text: 'Selected transcript' },
+					},
+					created: [],
+				});
+			});
+		}
+
+		test('hydrates and updates the source title from the live catalog and clears the origin on disposal', async () => {
+			const fixture = await setupSideChat({ restored: true, peer: true, opaque: true, missingSourceSummary: true });
+			const origins: (IChatSideChatOrigin | undefined)[] = [];
+			assert.ok(fixture.session.sideChatOrigin);
+			disposables.add(autorun(reader => origins.push(fixture.session.sideChatOrigin!.read(reader))));
+			fixture.agentHostService.fireAction({
+				channel: fixture.backend.toString(), serverSeq: 1, origin: undefined,
+				action: { type: ActionType.SessionChatAdded, summary: fixture.sourceSummary },
+			});
+			fixture.agentHostService.fireAction({
+				channel: fixture.backend.toString(), serverSeq: 2, origin: undefined,
+				action: { type: ActionType.SessionChatUpdated, chat: fixture.sourceChat, changes: { title: 'Renamed source' } },
+			});
+			fixture.session.dispose();
+			const origin = {
+				sourceSessionResource: fixture.sourceResource,
+				sourceTurnId: 'source-turn',
+				selection: { text: 'Selected transcript' },
+			};
+			assert.deepStrictEqual(origins, [
+				{ ...origin, sourceTitle: undefined },
+				{ ...origin, sourceTitle: 'Source' },
+				{ ...origin, sourceTitle: 'Renamed source' },
+				undefined,
+			]);
+		});
+
+		test('does not report a side-chat origin for an ordinary source chat', async () => {
+			const fixture = await setupSideChat();
+			assert.strictEqual(fixture.session.sideChatOrigin?.get(), undefined);
+		});
+
+		for (const options of [{}, { peer: true }, { opaque: true }, { opaque: true, peer: true }, { active: true }]) {
+			test(`creates a native side chat using the advertised source ${JSON.stringify(options)}`, async () => {
+				const fixture = await setupSideChat(options);
+				assert.ok(fixture.session.createSideChat);
+				const selection = { text: 'Selected transcript' };
+				const target = await fixture.session.createSideChat('source-turn', CancellationToken.None, selection);
+				const call = fixture.agentHostService.createChatCalls[0];
+				assert.deepStrictEqual({
+					count: fixture.agentHostService.createChatCalls.length,
+					backend: call.session,
+					options: call.options,
+					target: target.resource,
+					fork: fixture.session.forkSession,
+				}, {
+					count: 1,
+					backend: fixture.backend,
+					options: {
+						model: { id: 'source-model', config: { thinking: 'high' } },
+						sideChat: { source: URI.parse(fixture.sourceChat), turnId: 'source-turn', selection },
+					},
+					target: fixture.resource.with({ fragment: getAgentHostChatId(call.chat.toString()) }),
+					fork: undefined,
+				});
+			});
+		}
+
+		test('does not create a chat when the source turn is missing', async () => {
+			const fixture = await setupSideChat({ noTurn: true });
+			assert.ok(fixture.session.createSideChat);
+			await assert.rejects(fixture.session.createSideChat('missing', CancellationToken.None), /turn missing not found/);
+			assert.deepStrictEqual(fixture.agentHostService.createChatCalls, []);
+		});
+
+		test('does not create a chat from a read-only source', async () => {
+			const fixture = await setupSideChat({ readOnly: true });
+			assert.ok(fixture.session.createSideChat);
+			assert.throws(() => fixture.session.createSideChat!('source-turn', CancellationToken.None), /read-only/);
+			assert.deepStrictEqual(fixture.agentHostService.createChatCalls, []);
+		});
+
+		test('follows the live side-chat capability and rechecks captured callbacks', async () => {
+			const fixture = await setupSideChat();
+			const create = fixture.session.createSideChat;
+			assert.ok(create);
+			fixture.setSupport(false);
+			const disabled = fixture.session.createSideChat;
+			await assert.rejects(create('source-turn', CancellationToken.None), /does not support side chats/);
+			fixture.setSupport(true);
+			assert.deepStrictEqual({ disabled, enabled: !!fixture.session.createSideChat, calls: fixture.agentHostService.createChatCalls }, { disabled: undefined, enabled: true, calls: [] });
 		});
 	});
 

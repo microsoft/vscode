@@ -87,6 +87,7 @@ import { IChatModeService } from '../../../../contrib/chat/common/chatModes.js';
 import { MockChatModeService } from '../../../../contrib/chat/test/common/mockChatModeService.js';
 import { IChatService } from '../../../../contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../contrib/chat/common/chatSessionsService.js';
+import { ChatSideChatService, IChatSideChatService } from '../../../../contrib/chat/common/chatSideChatService.js';
 import { ISessionChatPillVisibilityService, SessionChatPillVisibility } from '../../../../contrib/chat/common/sessionChatPills.js';
 import { Target } from '../../../../contrib/chat/common/promptSyntax/promptTypes.js';
 import { ILanguageModelsService } from '../../../../contrib/chat/common/languageModels.js';
@@ -260,6 +261,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override getAgentNameRestriction() { return true; }
 	}());
 	reg.define(IChatService, MockChatService);
+	reg.define(IChatSideChatService, ChatSideChatService);
 	// Further services a full chat widget reads, such as the one hosted by the Agents window composer.
 	reg.defineInstance(IChatDebugService, new class extends mock<IChatDebugService>() {
 		override readonly onDidAddEvent = Event.None;
@@ -371,6 +373,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override async getChatInputCompletionTriggerCharacters() { return []; }
 		override resolveChatResponseUri(_sessionResource: URI, href: string) { return href; }
 		override sessionSupportsFork() { return false; }
+		override sessionSupportsSideChat() { return false; }
 	}());
 	reg.defineInstance(IChatEntitlementService, new class extends mock<IChatEntitlementService>() {
 		override readonly quotas = {};

@@ -73,7 +73,7 @@ import { ChatModel, IChatModel, ISerializableChatData, ISerializableChatModelInp
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatSessionOperationLog } from '../../../common/model/chatSessionOperationLog.js';
 import { IChatSessionIndex } from '../../../common/model/chatSessionStore.js';
-import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
+import { getChatSessionType, LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { ChatViewModel, isPendingDividerVM, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatAgentService, IChatAgent, IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
@@ -3523,6 +3523,51 @@ suite('ChatService', () => {
 			{ name: 'chatEditHunk', isAgentHostSession: true },
 			{ name: 'chatEditHunk', isAgentHostSession: false },
 		]);
+	});
+
+	test('native peer side chats invoke their own participant rather than the default extension participant', async () => {
+		const sessionType = 'agent-host-copilot';
+		const sessionsService = new MockChatSessionsService();
+		sessionsService.setContributions([{ type: sessionType, name: 'Native', displayName: 'Native', description: 'Native' }]);
+		testDisposables.add(sessionsService.registerChatSessionContentProvider(sessionType, {
+			provideChatSessionContent: async sessionResource => ({
+				sessionResource, history: [], onWillDispose: Event.None, dispose: () => { },
+			}),
+		}));
+		instantiationService.stub(IChatSessionsService, sessionsService);
+		const invoked: { agentId: string; resource: string; message: string }[] = [];
+		testDisposables.add(chatAgentService.registerAgent('extension-default', { ...getAgentData('extension-default'), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation('extension-default', {
+			async invoke(request) {
+				invoked.push({ agentId: request.agentId, resource: request.sessionResource.toString(), message: request.message });
+				return {};
+			},
+		}));
+		testDisposables.add(chatAgentService.registerAgent(sessionType, getAgentData(sessionType)));
+		testDisposables.add(chatAgentService.registerAgentImplementation(sessionType, {
+			async invoke(request) {
+				invoked.push({ agentId: request.agentId, resource: request.sessionResource.toString(), message: request.message });
+				return {};
+			},
+		}));
+		const service = createChatService();
+		for (const fragment of ['first-side-chat', 'second-side-chat']) {
+			const resource = URI.from({ scheme: sessionType, path: '/source-session', fragment });
+			const reference = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(reference);
+			testDisposables.add(reference);
+			const result = await service.sendRequest(resource, 'Remember the source context', {
+				location: ChatAgentLocation.Chat,
+				agentIdSilent: getChatSessionType(resource),
+			});
+			ChatSendResult.assertSent(result);
+			await result.data.responseCompletePromise;
+		}
+		assert.deepStrictEqual(invoked, ['first-side-chat', 'second-side-chat'].map(fragment => ({
+			agentId: sessionType,
+			resource: `${sessionType}:/source-session#${fragment}`,
+			message: 'Remember the source context',
+		})));
 	});
 
 	test('sendRequest with agentIdSilent passes agent host session capabilities to the request parser', async () => {

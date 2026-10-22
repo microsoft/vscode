@@ -15,6 +15,17 @@ import { isResponseSelectionSupported } from '../../../browser/chat.js';
 suite('Chat Accessibility Help', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('documents side questions and concurrent responses in both windows but not inline or quick chat', () => {
+		assert.deepStrictEqual([
+			getAccessibilityHelpText('panelChat', new MockKeybindingService(), true),
+			getAccessibilityHelpText('agentView', new MockKeybindingService(), true),
+			getAccessibilityHelpText('editsView', new MockKeybindingService(), true),
+			getAccessibilityHelpText('agentView', new MockKeybindingService(), true, true),
+			getAccessibilityHelpText('inlineChat', new MockKeybindingService(), true),
+			getAccessibilityHelpText('quickChat', new MockKeybindingService(), true),
+		].map(help => help.includes('/btw followed by a question') && help.includes('while a response is in progress')), [true, true, true, true, false, false]);
+	});
+
 	test('documents private early preparation and the pending Send handoff', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), false);
 		const preparation = getCloudSandboxPreparationAccessibilityHelp();
@@ -590,7 +601,7 @@ suite('Chat Accessibility Help', () => {
 		});
 	});
 
-	test('only describes the selection side chat affordance in the sessions window', () => {
+	test('describes selection side chats in both windows', () => {
 		const keybindingService = new MockKeybindingService();
 
 		assert.deepStrictEqual({
@@ -598,8 +609,19 @@ suite('Chat Accessibility Help', () => {
 			regularWindow: getAccessibilityHelpText('agentView', keybindingService, true, false).includes('Ask Question'),
 		}, {
 			sessionsWindow: isResponseSelectionSupported(),
-			regularWindow: false,
+			regularWindow: isResponseSelectionSupported(),
 		});
+	});
+
+	test('documents the editor selection action and quote without describing transient chats', () => {
+		const help = (type: 'agentView' | 'quickChat' | 'inlineChat') => getAccessibilityHelpText(type, new MockKeybindingService(), true, false, false, true, false, ChatSessionArchiveActionWording.Archive, false, false, true);
+		assert.deepStrictEqual({
+			editor: help('agentView').includes('Choose Ask in Side Chat... to open a small Ask Question input'),
+			quote: help('agentView').includes('through the selected response and its quoted text'),
+			keyboard: help('agentView').includes('context menu with Shift+F10 or the context menu key'),
+			quick: help('quickChat').includes('Ask Question'),
+			inline: help('inlineChat').includes('Ask Question'),
+		}, { editor: true, quote: true, keyboard: true, quick: false, inline: false });
 	});
 
 	test('omits mobile-web selection pop-up help without hiding other sessions help', () => {
@@ -619,7 +641,7 @@ suite('Chat Accessibility Help', () => {
 	test('only describes session result pill activation in the sessions window', () => {
 		const keybindingService = new MockKeybindingService();
 		const describe = (help: string) => ({
-			focus: help.includes('Use Tab to focus it'),
+			focus: help.includes('target session or chat button in the response. Use Tab to focus it'),
 			open: help.includes('Enter or Space to open it normally'),
 			openToSide: help.includes('Alt+Enter (Option+Enter on macOS) to open it to the side'),
 		});

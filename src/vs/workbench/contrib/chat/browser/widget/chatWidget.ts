@@ -505,6 +505,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	/** The session resource the {@link _chatAgentHostFolderPickerVisibleContextKey} value currently reflects, so a transient `undefined` decision during provisional recreation retains the value instead of flashing the chip. */
 	private _folderPickerDecisionSessionResource: URI | undefined;
 	private readonly _chatSessionSupportsForkContextKey: IContextKey<boolean>;
+	private readonly _chatSessionSupportsSideChatContextKey: IContextKey<boolean>;
 	private readonly _chatSessionSupportsRenameContextKey: IContextKey<boolean>;
 	private readonly _agentSupportsAttachmentsContextKey: IContextKey<boolean>;
 	private readonly _sessionIsEmptyContextKey: IContextKey<boolean>;
@@ -670,6 +671,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._chatAgentHostHasImmutablePrimaryWorkingDirectoryContextKey = ChatContextKeys.chatAgentHostHasImmutablePrimaryWorkingDirectory.bindTo(this.contextKeyService);
 		this._chatAgentHostFolderPickerVisibleContextKey = ChatContextKeys.chatAgentHostFolderPickerVisible.bindTo(this.contextKeyService);
 		this._chatSessionSupportsForkContextKey = ChatContextKeys.chatSessionSupportsFork.bindTo(this.contextKeyService);
+		this._chatSessionSupportsSideChatContextKey = ChatContextKeys.chatSessionSupportsSideChat.bindTo(this.contextKeyService);
 		this._chatSessionSupportsRenameContextKey = ChatContextKeys.chatSessionSupportsRename.bindTo(this.contextKeyService);
 		this._agentSupportsAttachmentsContextKey = ChatContextKeys.agentSupportsAttachments.bindTo(this.contextKeyService);
 		this._sessionIsEmptyContextKey = ChatContextKeys.chatSessionIsEmpty.bindTo(this.contextKeyService);
@@ -3210,7 +3212,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private bindSessionCapabilities(model: IChatModel): IDisposable {
 		const sessionType = getChatSessionType(model.sessionResource);
-		return Event.runAndSubscribe(this.chatSessionsService.onDidChangeAvailability, () => {
+		const store = new DisposableStore();
+		store.add(Event.runAndSubscribe(this.chatSessionsService.onDidChangeAvailability, () => {
 			// Saved history can bind before its live session contribution registers.
 			if (sessionType !== localChatSessionType && !this._lockedAgent) {
 				const contribution = this.chatSessionsService.getChatSessionContribution(sessionType);
@@ -3220,11 +3223,19 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 			const supportsFork = this.chatSessionsService.sessionSupportsFork(model.sessionResource);
 			this._chatSessionSupportsForkContextKey.set(supportsFork);
+			if (!this.viewOptions.supportsSideChat) {
+				this._chatSessionSupportsSideChatContextKey.set(this.chatSessionsService.sessionSupportsSideChat(model.sessionResource));
+			}
 			const supportsRename = sessionType === localChatSessionType
 				|| this.chatSessionsService.sessionSupportsRename(model.sessionResource);
 			this._chatSessionSupportsRenameContextKey.set(supportsRename);
 			this.listWidget?.updateRendererOptions({ supportsFork });
-		});
+		}));
+		const supportsSideChat = this.viewOptions.supportsSideChat;
+		if (supportsSideChat) {
+			store.add(autorun(reader => this._chatSessionSupportsSideChatContextKey.set(supportsSideChat.read(reader))));
+		}
+		return store;
 	}
 
 	setLoading(isLoading: boolean): void {
@@ -3326,6 +3337,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._chatAgentHostFolderPickerVisibleContextKey.set(false);
 		this._folderPickerDecisionSessionResource = undefined;
 		this._chatSessionSupportsForkContextKey.set(false);
+		this._chatSessionSupportsSideChatContextKey.set(false);
 		this._chatSessionSupportsRenameContextKey.set(false);
 		this._updateAgentCapabilitiesContextKeys(undefined);
 
