@@ -135,6 +135,7 @@ export interface IChatRequestViewModel {
 	readonly isPendingRequestHandoff?: boolean;
 	readonly isSystemInitiated?: boolean;
 	readonly requestSource?: IChatRequestModel['requestSource'];
+	readonly artifactRequest?: IChatRequestModel['artifactRequest'];
 	readonly systemInitiatedLabel?: string;
 	readonly origin?: IChatRequestModel['origin'];
 }
@@ -598,6 +599,10 @@ class ChatRequestViewModel implements IChatRequestViewModel {
 
 	get requestSource() {
 		return this._model.requestSource;
+	}
+
+	get artifactRequest() {
+		return this._model.artifactRequest;
 	}
 
 	get systemInitiatedLabel() {

@@ -7,9 +7,11 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
+import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ReadonlyChatSessionOptionsMap, IChatNewSessionRequest, IChatSession, IChatSessionCommitEvent, IChatSessionContentProvider, IChatSessionCustomizationItemGroup, IChatSessionCustomizationsProvider, IChatSessionForkOptions, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionProviderOptionGroup, IChatSessionRequestHistoryItem, IChatSessionsExtensionPoint, IChatSessionsService, ResolvedChatSessionsExtensionPoint, ChatSessionOptionsMap, IChatInputCompletionsParams, IChatInputCompletionsResult } from '../../common/chatSessionsService.js';
+import { IChatSideChatOrigin, IChatSideChatSelection } from '../../common/chatSideChatService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IChatAgentAttachmentCapabilities } from '../../common/participants/chatAgents.js';
 import { Target } from '../../common/promptSyntax/promptTypes.js';
@@ -305,6 +307,18 @@ export class MockChatSessionsService implements IChatSessionsService {
 
 	sessionSupportsFork(_sessionResource: URI): boolean {
 		return false;
+	}
+
+	sessionSupportsSideChat(_sessionResource: URI): boolean {
+		return false;
+	}
+
+	observeSideChatOrigin(_sessionResource: URI): IObservable<IChatSideChatOrigin | undefined> {
+		return constObservable(undefined);
+	}
+
+	async createSideChat(_sessionResource: URI, _turnId: string, _token: CancellationToken, _selection?: IChatSideChatSelection): Promise<IChatSessionItem> {
+		throw new Error('Not implemented');
 	}
 
 	async forkChatSession(_sessionResource: URI, _request: IChatSessionRequestHistoryItem | undefined, _token: CancellationToken, _options?: IChatSessionForkOptions): Promise<IChatSessionItem> {

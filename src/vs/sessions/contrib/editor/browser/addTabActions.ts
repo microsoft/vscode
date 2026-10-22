@@ -97,8 +97,8 @@ export class NewFileTabAction extends Action2 {
 				when: filesAddTabWhen
 			}, {
 				id: Menus.SessionActivityBar,
-				group: SessionActivityBarGroup.Tabs,
-				order: 1,
+				group: SessionActivityBarGroup.SidePanel,
+				order: 2,
 				when: filesTabActionWhen
 			}]
 		});
@@ -171,8 +171,8 @@ export class OpenBrowserAction extends Action2 {
 			precondition: addTabActionWhen,
 			menu: {
 				id: Menus.SessionActivityBar,
-				group: SessionActivityBarGroup.Tabs,
-				order: 2,
+				group: SessionActivityBarGroup.SidePanel,
+				order: 3,
 				when: addTabActionWhen
 			}
 		});
@@ -256,8 +256,8 @@ export class NewChangesTabAction extends Action2 {
 				when: changesAddTabWhen
 			}, {
 				id: Menus.SessionActivityBar,
-				group: SessionActivityBarGroup.Tabs,
-				order: 0,
+				group: SessionActivityBarGroup.SidePanel,
+				order: 1,
 				// Offered whenever the tab is available; an open tab is activated in place.
 				when: changesTabActionWhen
 			}]

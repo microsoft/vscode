@@ -51,6 +51,7 @@ Archived
   nor an explicit ungrouped preference, it inherits the creator's custom group
   when one becomes available. Subsequent user grouping, ungrouping, and
   reordering are ordinary persisted list state.
+- A session a nested chat was promoted to joins the custom group of the session it was promoted from, whatever started the promotion, unless it already has a placement of its own. It keeps ordinary placement when that session has no group.
 
 The active session remains visible even when a filter would otherwise exclude it.
 
@@ -135,6 +136,8 @@ Rows derive title, status, workspace, changes, capabilities, and quick-chat iden
 Row renderers use tree-supported row classes and APIs rather than traversing tree-owned DOM structure.
 
 Session facades may expose catalog-backed peer-chat identities, titles, interactivity, and status before detailed chat state is loaded. Rendering a virtualized peer-chat row requests provider-neutral chat hydration through `ISessionsManagementService`; collapsed and offscreen sessions therefore do not require eager per-session state loading.
+
+A collapsed session row uses the provider's aggregate status without inspecting individual chat statuses. When expanded, the parent row represents the main chat and visible side chats, while peer rows represent their own chats.
 
 ## Persistence
 

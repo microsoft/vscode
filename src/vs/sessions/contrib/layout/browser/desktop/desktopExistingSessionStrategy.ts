@@ -14,10 +14,13 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
-import { GroupModelChangeKind } from '../../../../../workbench/common/editor.js';
+import { GroupModelChangeKind, isEditorCommandsContext } from '../../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
+import { ActiveMultiDiffEditorHasFileListContext, MultiDiffEditorFileListEnabledContext, toggleMultiDiffEditorFileList } from '../../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
 import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
@@ -37,6 +40,12 @@ import { SessionVisibilityProfile, DesktopVisibilityProfileStore } from './deskt
 /** Command that toggles the desktop detail panel (auxiliary bar) from the editor header. */
 export const TOGGLE_DETAILS_COMMAND_ID = 'workbench.action.agentSessions.toggleDetails';
 const desktopHeaderToggleDetailsOrder = 10;
+
+/**
+ * Whether Toggle Details toggles the changed files list of the multi diff editor shown in
+ * the editor area instead of the detail panel. Evaluated against an editor group's context.
+ */
+const toggleMultiDiffEditorFileListContext = ContextKeyExpr.and(MainEditorAreaVisibleContext, ActiveMultiDiffEditorHasFileListContext)!;
 
 /**
  * Behaviour for the **Existing Session** lifecycle stage — a created, workspace-backed
@@ -595,7 +604,9 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 					title: localize2('toggleDetails', "Toggle Details"),
 					icon: Codicon.listSelection,
 					f1: false,
-					toggled: AuxiliaryBarVisibleContext,
+					toggled: ContextKeyExpr.or(
+						ContextKeyExpr.and(toggleMultiDiffEditorFileListContext, MultiDiffEditorFileListEnabledContext),
+						ContextKeyExpr.and(toggleMultiDiffEditorFileListContext.negate(), AuxiliaryBarVisibleContext)),
 					keybinding: {
 						weight: KeybindingWeight.SessionsContrib,
 						primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyL,
@@ -609,19 +620,30 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 						group: 'navigation',
 						order: desktopHeaderToggleDetailsOrder,
 						// Not every tab type has a detail panel to show/hide (e.g. browser and
-						// search tabs), so only surface the toggle for tab types that do.
+						// search tabs), so only surface the toggle for tab types that do, or
+						// for a multi diff editor whose file list it toggles instead.
 						when: ContextKeyExpr.and(
 							IsSessionsWindowContext,
 							IsAuxiliaryWindowContext.toNegated(),
 							IsTopRightEditorGroupContext,
 							DesktopLayoutContext,
 							MainEditorAreaVisibleContext,
-							HasDockedDetailsContext)
+							ContextKeyExpr.or(HasDockedDetailsContext, toggleMultiDiffEditorFileListContext))
 					}
 				});
 			}
 
-			run(): void {
+			run(accessor: ServicesAccessor, ...args: unknown[]): void {
+				// The editor title toolbar passes the group it renders in; the keybinding targets the active editor.
+				const context = args.find(isEditorCommandsContext);
+				const group = context
+					? accessor.get(IEditorGroupsService).getGroup(context.groupId)
+					: accessor.get(IEditorService).activeEditorPane?.group;
+				if (group?.scopedContextKeyService.contextMatchesRules(toggleMultiDiffEditorFileListContext)) {
+					toggleMultiDiffEditorFileList(accessor.get(IStorageService));
+					return;
+				}
+
 				that.toggleDetails();
 			}
 		});

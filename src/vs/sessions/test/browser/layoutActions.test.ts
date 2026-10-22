@@ -210,7 +210,7 @@ suite('Sessions - Layout Actions', () => {
 		]]));
 
 		assert.deepStrictEqual({ activityBarItems: find(Menus.SessionActivityBar).map(item => ({ title: item.command.title, group: item.group, order: item.order })), placement }, {
-			activityBarItems: [{ title: 'Show Panel', group: '3_panel', order: 0 }, { title: 'Hide Panel', group: '3_panel', order: 0 }],
+			activityBarItems: [{ title: 'Show Panel', group: '2_panel', order: 1 }, { title: 'Hide Panel', group: '2_panel', order: 1 }],
 			placement: {
 				layoutActions: ['activityBar'],
 				layoutActionsOff: ['titleBar'],

@@ -224,7 +224,7 @@ suite('CloudSandboxSessionHandler', () => {
 		}, undefined, undefined, undefined, undefined, undefined, (_resource, title) => titles.push(title));
 		const session = await handler.provideChatSessionContent(resource, CancellationToken.None);
 		const refreshed = Event.toPromise(session.onDidChangeHistory!);
-		await fresh.complete(recordedHistory('Updated conversation title'));
+		await fresh.complete(recordedHistory('main', '', 'Updated conversation title'));
 		await refreshed;
 		assert.deepStrictEqual({ title: session.title, titles, shared: await sharesContent(handler, session) }, {
 			title: 'Updated conversation title', titles: ['Updated conversation title'], shared: true,
@@ -998,10 +998,10 @@ suite('CloudSandboxSessionHandler', () => {
 		assert.deepStrictEqual({ main: main.title, peer: peer.title }, { main: 'Recorded title', peer: undefined });
 	});
 
-	test('uses the default chat summary title before the parent title', async () => {
-		const handler = createHandler(async () => recordedHistory('Default conversation'));
+	test('uses the recorded session title instead of a stale default chat title', async () => {
+		const handler = createHandler(async () => recordedHistory('main'));
 		const session = await handler.provideChatSessionContent(resource, CancellationToken.None);
-		assert.strictEqual(session.title, 'Default conversation');
+		assert.strictEqual(session.title, 'Recorded title');
 	});
 
 	test('defers completion triggers until live capabilities exist and forwards URI resolution', async () => {

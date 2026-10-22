@@ -24,8 +24,11 @@ import { TestConfigurationService } from '../../../platform/configuration/test/c
 import { IContextMenuMenuDelegate, IContextMenuService, IContextViewService } from '../../../platform/contextview/browser/contextView.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { ChatViewSessionActivityBar, SessionActivityBar } from '../../browser/parts/sessionActivityBar.js';
+import { SessionActivityBarGroup } from '../../browser/menus.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../browser/workbench.js';
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../common/sessionConfig.js';
+import { ISessionActivityBarActivityService, SessionActivityBarActivityService } from '../../services/activity/common/sessionActivityBarActivityService.js';
+import { IconBadge, NumberBadge } from '../../../workbench/services/activity/common/activity.js';
 import { TestContextViewService } from './testContextViewService.js';
 import '../../../base/browser/ui/tree/media/tree.css';
 import '../../browser/parts/media/sessionView.css';
@@ -122,10 +125,14 @@ suite('Sessions - Session Activity Bar', () => {
 		const configurationService = new TestConfigurationService({ [SESSION_ACTIVITY_BAR_SETTING]: true });
 		instantiationService.stub(IConfigurationService, configurationService);
 
+		const activityService = testStore.add(new SessionActivityBarActivityService());
+		instantiationService.stub(ISessionActivityBarActivityService, activityService);
+
 		const activityBar = testStore.add(instantiationService.createInstance(SessionActivityBar, container));
 		return {
 			root,
 			activityBar,
+			activityService,
 			createDocked: () => {
 				const host = append(root, $('.host'));
 				host.style.cssText = 'width: 800px; height: 600px;';
@@ -189,6 +196,53 @@ suite('Sessions - Session Activity Bar', () => {
 			noEntries: false,
 			entriesAdded: true,
 			phoneLayout: false,
+		});
+	});
+
+	test('shows the activity reported for an entry as a badge and in its label', () => {
+		const { activityBar, activityService } = createActivityBar(store, [changes, browser]);
+		const state = () => [...activityBar.element.querySelectorAll<HTMLElement>('.action-item')].map(item => {
+			const badge = item.querySelector<HTMLElement>('.session-activity-bar-badge')!;
+			return {
+				ariaLabel: item.querySelector('.action-label')!.getAttribute('aria-label'),
+				badge: mainWindow.getComputedStyle(badge).display === 'none' ? undefined : badge.classList.contains('count') ? badge.textContent : 'dot',
+			};
+		});
+
+		const initial = state();
+		const dot = activityService.showActivity(changes.id, { badge: new IconBadge(Codicon.circleFilled, () => 'New changes') });
+		const withDot = state();
+		// Like the workbench activity bar, the badge overlaps the bottom-right corner of the 16px icon centered in the 24px entry.
+		for (const [token, value] of [['spacing-size20', '2px'], ['spacing-size80', '8px'], ['spacing-size120', '12px'], ['spacing-size240', '24px'], ['strokeThickness', '1px']]) {
+			activityBar.element.style.setProperty(`--vscode-${token}`, value);
+		}
+		const changesItem = activityBar.element.querySelector<HTMLElement>('.action-item')!;
+		const itemBounds = changesItem.getBoundingClientRect();
+		const badgeBounds = changesItem.querySelector('.session-activity-bar-badge')!.getBoundingClientRect();
+		const centerX = (badgeBounds.left + badgeBounds.right) / 2;
+		const centerY = (badgeBounds.top + badgeBounds.bottom) / 2;
+		const dotPlacement = {
+			insideEntry: badgeBounds.left >= itemBounds.left && badgeBounds.right <= itemBounds.right && badgeBounds.top >= itemBounds.top && badgeBounds.bottom <= itemBounds.bottom,
+			bottomRightQuadrant: centerX > (itemBounds.left + itemBounds.right) / 2 && centerY > (itemBounds.top + itemBounds.bottom) / 2,
+			smallerThanEntry: badgeBounds.width < itemBounds.width / 2 && badgeBounds.height < itemBounds.height / 2,
+		};
+		const count = activityService.showActivity(browser.id, { badge: new NumberBadge(120, n => `${n} pages`) });
+		const withCount = state();
+		// The most recent activity is shown, not an aggregate of every activity.
+		const moreRecentCount = activityService.showActivity(browser.id, { badge: new NumberBadge(3, n => `${n} tabs`) });
+		const withMoreRecentCount = state();
+		moreRecentCount.dispose();
+		dot.dispose();
+		count.dispose();
+		const cleared = state();
+
+		assert.deepStrictEqual({ initial, withDot, dotPlacement, withCount, withMoreRecentCount, cleared }, {
+			initial: [{ ariaLabel: 'Changes', badge: undefined }, { ariaLabel: 'Browser', badge: undefined }],
+			withDot: [{ ariaLabel: 'Changes - New changes', badge: 'dot' }, { ariaLabel: 'Browser', badge: undefined }],
+			dotPlacement: { insideEntry: true, bottomRightQuadrant: true, smallerThanEntry: true },
+			withCount: [{ ariaLabel: 'Changes - New changes', badge: 'dot' }, { ariaLabel: 'Browser - 120 pages', badge: '99+' }],
+			withMoreRecentCount: [{ ariaLabel: 'Changes - New changes', badge: 'dot' }, { ariaLabel: 'Browser - 3 tabs', badge: '3' }],
+			cleared: [{ ariaLabel: 'Changes', badge: undefined }, { ariaLabel: 'Browser', badge: undefined }],
 		});
 	});
 
@@ -456,16 +510,17 @@ suite('Sessions - Session Activity Bar', () => {
 		});
 	}
 
-	test('renders every menu group, separating the layout toggles above and below the tab entries', () => {
-		const sidePanel: ITestEntry = { id: 'test.sidePanel', title: 'Toggle Side Panel', icon: Codicon.layoutSidebarRight, group: '1_sidePanel' };
-		const panel: ITestEntry = { id: 'test.panel', title: 'Show Panel', icon: Codicon.layoutPanelOff, group: '3_panel' };
-		const { activityBar, ran, label } = createActivityBar(store, [sidePanel, changes, browser, panel]);
+	test('renders two groups: the side panel toggle with the tab entries, then the terminal with the panel toggle', () => {
+		const sidePanel: ITestEntry = { id: 'test.sidePanel', title: 'Toggle Side Panel', icon: Codicon.layoutSidebarRight, group: SessionActivityBarGroup.SidePanel };
+		const terminal: ITestEntry = { id: 'test.terminal', title: 'Terminal', icon: Codicon.terminal, group: SessionActivityBarGroup.Panel };
+		const panel: ITestEntry = { id: 'test.panel', title: 'Show Panel', icon: Codicon.layoutPanelOff, group: SessionActivityBarGroup.Panel };
+		const { activityBar, ran, label } = createActivityBar(store, [sidePanel, { ...changes, group: SessionActivityBarGroup.SidePanel }, { ...browser, group: SessionActivityBarGroup.SidePanel }, terminal, panel]);
 		const items = [...activityBar.element.querySelectorAll<HTMLElement>('.actions-container > .action-item')]
 			.map(item => item.querySelector('.action-label.separator') ? '---' : item.querySelector('.action-label')?.getAttribute('aria-label'));
 		label('Toggle Side Panel').click();
 
 		assert.deepStrictEqual({ items, ran }, {
-			items: ['Toggle Side Panel', '---', 'Changes', 'Browser', '---', 'Show Panel'],
+			items: ['Toggle Side Panel', 'Changes', 'Browser', '---', 'Terminal', 'Show Panel'],
 			ran: ['test.sidePanel'],
 		});
 	});
