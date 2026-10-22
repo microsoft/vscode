@@ -65,19 +65,26 @@ export function filterModelsForSession(
 	location: ChatAgentLocation,
 ): ILanguageModelChatMetadataAndIdentifier[] {
 	if (hasSessionScopedModels(models, sessionType)) {
-		const sessionScoped = models.filter(entry =>
-			entry.metadata?.targetChatSessionType === sessionType && isModelEligible(entry, currentModeKind, location)
-		);
-
-		const byokScoped = models.filter(entry =>
-			isUnscopedByokModel(entry) && isModelEligible(entry, currentModeKind, location)
-		);
-
+		// One pass: check eligibility once, then partition so session-targeted models come first.
+		const sessionScoped: ILanguageModelChatMetadataAndIdentifier[] = [];
+		const byokScoped: ILanguageModelChatMetadataAndIdentifier[] = [];
+		for (const entry of models) {
+			if (!isModelEligible(entry, currentModeKind, location)) {
+				continue;
+			}
+			// `isModelEligible` guarantees the metadata is present.
+			const { metadata } = entry;
+			if (metadata.targetChatSessionType === sessionType) {
+				sessionScoped.push(entry);
+			} else if (!metadata.targetChatSessionType && isByokModel(metadata)) {
+				byokScoped.push(entry);
+			}
+		}
 		return [...sessionScoped, ...byokScoped];
 	}
 
 	return models.filter(entry =>
-		!entry.metadata?.targetChatSessionType && isModelEligible(entry, currentModeKind, location)
+		isModelEligible(entry, currentModeKind, location) && !entry.metadata.targetChatSessionType
 	);
 }
 
@@ -123,12 +130,6 @@ function isModelEligible(
 	return metadata.isUserSelectable !== false
 		&& isModelSupportedForMode(entry, currentModeKind)
 		&& isModelSupportedForInlineChat(entry, location);
-}
-
-/** Whether the entry is a BYOK (custom endpoint) model that carries no session type. */
-function isUnscopedByokModel(entry: ILanguageModelChatMetadataAndIdentifier): boolean {
-	const metadata = entry.metadata;
-	return !!metadata && !metadata.targetChatSessionType && isByokModel(metadata);
 }
 
 /**
