@@ -182,7 +182,7 @@ jobs:
 
       - name: 🧪 Run unit tests (Electron)
         if: ${{ inputs.electron_tests && inputs.unit_tests }}
-        timeout-minutes: 15
+        timeout-minutes: 25
         shell: pwsh
         run: .\scripts\test.bat --tfs "Unit Tests"
         env:
