@@ -100,7 +100,9 @@ suite('NewSessionViewV2Tour', () => {
 	});
 
 	test('blocks all new-session tours until the welcome dialog closes', () => {
-		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		const configurationService = new TestConfigurationService();
+		disposables.add(configurationService.onDidChangeConfigurationEmitter);
+		const contextKeyService = disposables.add(new ContextKeyService(configurationService));
 		ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
 		IsNewChatSessionContext.bindTo(contextKeyService).set(true);
 		AgentHostSessionTypesAvailableContext.bindTo(contextKeyService).set(true);
@@ -112,7 +114,10 @@ suite('NewSessionViewV2Tour', () => {
 			createNewSessionViewV2Tour(trigger),
 			createNewSessionViewV3Tour(trigger, () => true),
 		];
-		const eligibility = () => scenarios.map(scenario => contextKeyService.contextMatchesRules(scenario.when));
+		const eligibility = () => Object.fromEntries(scenarios.map(scenario => [
+			scenario.id,
+			contextKeyService.contextMatchesRules(scenario.when),
+		]));
 
 		const beforeWelcome = eligibility();
 		welcomeVisible.set(true);
@@ -124,9 +129,24 @@ suite('NewSessionViewV2Tour', () => {
 			duringWelcome,
 			afterWelcome: eligibility(),
 		}, {
-			beforeWelcome: [true, true, true, true],
-			duringWelcome: [false, false, false, false],
-			afterWelcome: [true, true, true, true],
+			beforeWelcome: {
+				'sessions.onboarding.newSession': true,
+				'sessions.onboarding.newSessionView': true,
+				'sessions.onboarding.newSessionViewV2': true,
+				'sessions.onboarding.newSessionViewV3': true,
+			},
+			duringWelcome: {
+				'sessions.onboarding.newSession': false,
+				'sessions.onboarding.newSessionView': false,
+				'sessions.onboarding.newSessionViewV2': false,
+				'sessions.onboarding.newSessionViewV3': false,
+			},
+			afterWelcome: {
+				'sessions.onboarding.newSession': true,
+				'sessions.onboarding.newSessionView': true,
+				'sessions.onboarding.newSessionViewV2': true,
+				'sessions.onboarding.newSessionViewV3': true,
+			},
 		});
 	});
 
