@@ -693,6 +693,9 @@ type CopilotPlugins = CopilotClient['rpc']['plugins'];
 type CopilotPluginsInstall = CopilotPlugins['install'];
 type CopilotPluginsUninstall = CopilotClient['rpc']['plugins']['uninstall'];
 type CopilotPluginMarketplaces = CopilotPlugins['marketplaces'];
+type CopilotExtensionsDiscover = CopilotClient['rpc']['extensions']['discover'];
+type CopilotExtensionsEnable = CopilotClient['rpc']['extensions']['enable'];
+type CopilotExtensionsDisable = CopilotClient['rpc']['extensions']['disable'];
 type CopilotModelInfo = Awaited<ReturnType<CopilotModelsList>>['models'][number];
 type CopilotAgentDiscovery = Pick<CopilotClient['rpc']['agents'], 'discover' | 'getDiscoveryPaths'>;
 type CopilotInstructionDiscovery = Pick<CopilotClient['rpc']['instructions'], 'discover' | 'getDiscoveryPaths'>;
@@ -737,6 +740,11 @@ interface ITestCopilotClient extends Pick<CopilotClient, 'start' | 'stop' | 'lis
 		readonly managedSettings: Pick<CopilotClient['rpc']['managedSettings'], 'resolve'>;
 		readonly plugins: Pick<CopilotPlugins, 'install' | 'uninstall'> & {
 			readonly marketplaces: Pick<CopilotPluginMarketplaces, 'list' | 'add' | 'browse' | 'remove' | 'refresh'>;
+		};
+		readonly extensions: {
+			readonly discover: CopilotExtensionsDiscover;
+			readonly enable: CopilotExtensionsEnable;
+			readonly disable: CopilotExtensionsDisable;
 		};
 		readonly mcp: { readonly config: Pick<CopilotClient['rpc']['mcp']['config'], 'list'> };
 	};
@@ -796,6 +804,9 @@ class TestCopilotClient implements ITestCopilotClient {
 	readonly agentDiscoveryRequests: Parameters<CopilotAgentDiscovery['discover']>[0][] = [];
 	readonly instructionDiscoveryRequests: Parameters<CopilotInstructionDiscovery['discover']>[0][] = [];
 	readonly skillDiscoveryRequests: Parameters<CopilotSkillDiscovery['discover']>[0][] = [];
+	extensionInventory: Awaited<ReturnType<CopilotExtensionsDiscover>> = { mode: 'load_and_augment', extensions: [] };
+	readonly extensionEnableRequests: Parameters<CopilotExtensionsEnable>[0][] = [];
+	readonly extensionDisableRequests: Parameters<CopilotExtensionsDisable>[0][] = [];
 
 	readonly rpc: ITestCopilotClient['rpc'] = {
 		mcp: { config: { list: async () => this.mcpConfigListResult } },
@@ -899,6 +910,15 @@ class TestCopilotClient implements ITestCopilotClient {
 					this.pluginMarketplaceRefreshRequests.push(params);
 					return { results: this.pluginMarketplaceRefreshResults };
 				},
+			},
+		},
+		extensions: {
+			discover: async () => this.extensionInventory,
+			enable: async params => {
+				this.extensionEnableRequests.push(params);
+			},
+			disable: async params => {
+				this.extensionDisableRequests.push(params);
 			},
 		},
 	};
@@ -2060,6 +2080,344 @@ suite('CopilotAgent', () => {
 				{ name: 'direct', directSourceId: 'source-id' },
 			]);
 		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('discovers extensions, persists preferences, and reconciles the selected live chat', async () => {
+		const client = new TestCopilotClient([]);
+		client.extensionInventory = {
+			mode: 'load_and_augment',
+			extensions: [{
+				id: 'user:preview',
+				name: 'Preview',
+				path: '/home/test/.copilot/extensions/preview/extension.mjs',
+				source: 'user',
+				enabled: true,
+			}, {
+				id: 'plugin:dashboard',
+				name: 'Dashboard',
+				path: '/home/test/.copilot/plugins/dashboard/extensions/dashboard/extension.mjs',
+				source: 'plugin',
+				enabled: false,
+				plugin: { name: 'dashboard' },
+			}, {
+				id: 'plugin:microsoft-foundry:microsoft-foundry',
+				name: 'microsoft-foundry',
+				path: '/home/test/.copilot/plugins/microsoft-foundry/extensions/microsoft-foundry/extension.mjs',
+				source: 'plugin',
+				enabled: true,
+				plugin: { name: 'microsoft-foundry' },
+			}],
+		};
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		const session = AgentSession.uri('copilotcli', 'extension-session');
+		const chat = URI.parse(buildChatUri(session, 'peer'));
+		let reconcileCalls = 0;
+		setPeerChatStub(agent, chat, {
+			reconcileExtensions: async () => { reconcileCalls++; },
+			listExtensions: async () => [{
+				id: 'user:preview',
+				name: 'Preview',
+				source: 'user',
+				status: 'running',
+				enabled: true,
+			}, {
+				id: 'user:project-dashboard',
+				name: 'Project Dashboard',
+				source: 'project',
+				status: 'disabled',
+				enabled: false,
+			}],
+		}, 'sdk-extension-peer');
+		try {
+			const inventory = await agent.listAgentExtensions();
+			const scopedInventory = await agent.listAgentExtensions(session, chat);
+			await agent.setAgentExtensionEnabled('user:preview', false);
+			await agent.setAgentExtensionEnabled('user:preview', true, session);
+			await agent.setAgentExtensionEnabled('plugin:dashboard', true, session, chat);
+
+			assert.deepStrictEqual({
+				inventory: {
+					mode: inventory.mode,
+					extensions: inventory.extensions.map(extension => ({
+						id: extension.id,
+						name: extension.name,
+						resource: extension.resource?.toString(),
+						source: extension.source,
+						status: extension.status,
+						pluginName: extension.pluginName,
+					})),
+				},
+				scopedInventory: scopedInventory.extensions.map(extension => ({
+					id: extension.id,
+					resource: extension.resource?.toString(),
+					source: extension.source,
+					status: extension.status,
+				})),
+				enableRequests: client.extensionEnableRequests,
+				disableRequests: client.extensionDisableRequests,
+				reconcileCalls,
+			}, {
+				inventory: {
+					mode: 'load_and_augment',
+					extensions: [{
+						id: 'user:preview',
+						name: 'Preview',
+						resource: 'file:///home/test/.copilot/extensions/preview/extension.mjs',
+						source: 'user',
+						status: 'unknown',
+						pluginName: undefined,
+					}, {
+						id: 'plugin:dashboard',
+						name: 'Dashboard',
+						resource: 'file:///home/test/.copilot/plugins/dashboard/extensions/dashboard/extension.mjs',
+						source: 'plugin',
+						status: 'disabled',
+						pluginName: 'dashboard',
+					}, {
+						id: 'plugin:microsoft-foundry:microsoft-foundry',
+						name: 'microsoft-foundry',
+						resource: 'file:///home/test/.copilot/plugins/microsoft-foundry/extensions/microsoft-foundry/extension.mjs',
+						source: 'plugin',
+						status: 'unknown',
+						pluginName: 'microsoft-foundry',
+					}],
+				},
+				scopedInventory: [{
+					id: 'user:preview',
+					resource: 'file:///home/test/.copilot/extensions/preview/extension.mjs',
+					source: 'user',
+					status: 'running',
+				}, {
+					id: 'user:project-dashboard',
+					resource: undefined,
+					source: 'project',
+					status: 'disabled',
+				}, {
+					id: 'plugin:dashboard',
+					resource: 'file:///home/test/.copilot/plugins/dashboard/extensions/dashboard/extension.mjs',
+					source: 'plugin',
+					status: 'disabled',
+				}, {
+					id: 'plugin:microsoft-foundry:microsoft-foundry',
+					resource: 'file:///home/test/.copilot/plugins/microsoft-foundry/extensions/microsoft-foundry/extension.mjs',
+					source: 'plugin',
+					status: 'unknown',
+				}],
+				enableRequests: [{ ids: ['user:preview'] }, { ids: ['plugin:dashboard'] }],
+				disableRequests: [{ ids: ['user:preview'] }],
+				reconcileCalls: 1,
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('handles cold and forward-compatible extension inventory', async () => {
+		const client = new TestCopilotClient([]);
+		client.extensionInventory = {
+			mode: 'load_only',
+			extensions: [{
+				id: 'user:preview',
+				name: 'Preview',
+				path: '/home/test/.copilot/extensions/preview/extension.mjs',
+				source: 'user',
+				enabled: true,
+			}, {
+				id: 'plugin:dashboard',
+				name: 'Dashboard',
+				path: '/home/test/.copilot/plugins/dashboard/extensions/dashboard/extension.mjs',
+				source: 'plugin',
+				enabled: false,
+				plugin: { name: 'dashboard' },
+			}, {
+				id: 'project:unsupported',
+				name: 'Unsupported',
+				path: '/workspace/.github/extensions/unsupported/extension.mjs',
+				source: 'project' as never,
+				enabled: true,
+			}, {
+				id: 'user:malformed',
+				name: '',
+				path: '/home/test/.copilot/extensions/malformed/extension.mjs',
+				source: 'user',
+				enabled: true,
+			}],
+		};
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		const session = AgentSession.uri('copilotcli', 'forward-compatible-extensions');
+		const chat = URI.parse(buildChatUri(session, 'peer'));
+		setPeerChatStub(agent, chat, {
+			listExtensions: async () => [{
+				id: 'user:preview',
+				name: 'Preview',
+				source: 'user',
+				status: 'running',
+			}, {
+				id: 'user:project-preview',
+				name: 'Project Preview',
+				source: 'project',
+				status: 'unknown',
+			}],
+		}, 'sdk-forward-compatible-extensions');
+		try {
+			const persisted = await agent.listAgentExtensions();
+			client.extensionInventory = { ...client.extensionInventory, mode: 'disabled' };
+			const disabled = await agent.listAgentExtensions();
+			client.extensionInventory = { ...client.extensionInventory, mode: 'load_only' };
+			const cold = await agent.listAgentExtensions(AgentSession.uri('copilotcli', 'cold-extensions'), URI.parse('vendor-chat:/cold'));
+			const live = await agent.listAgentExtensions(session, chat);
+
+			const toInventorySnapshot = (inventory: Awaited<ReturnType<typeof agent.listAgentExtensions>>) => ({
+				mode: inventory.mode,
+				extensions: inventory.extensions.map(extension => ({
+					id: extension.id,
+					resource: extension.resource?.toString(),
+					source: extension.source,
+					status: extension.status,
+					pluginName: extension.pluginName,
+				})),
+			});
+			const expectedPersistedExtensions = [{
+				id: 'user:preview',
+				resource: 'file:///home/test/.copilot/extensions/preview/extension.mjs',
+				source: 'user',
+				status: 'unknown',
+				pluginName: undefined,
+			}, {
+				id: 'plugin:dashboard',
+				resource: 'file:///home/test/.copilot/plugins/dashboard/extensions/dashboard/extension.mjs',
+				source: 'plugin',
+				status: 'disabled',
+				pluginName: 'dashboard',
+			}];
+			assert.deepStrictEqual({
+				persisted: toInventorySnapshot(persisted),
+				disabled: toInventorySnapshot(disabled),
+				cold: toInventorySnapshot(cold),
+				live: toInventorySnapshot(live),
+			}, {
+				persisted: {
+					mode: 'load_only',
+					extensions: expectedPersistedExtensions,
+				},
+				disabled: {
+					mode: 'disabled',
+					extensions: expectedPersistedExtensions,
+				},
+				cold: {
+					mode: 'load_only',
+					extensions: expectedPersistedExtensions,
+				},
+				live: {
+					mode: 'load_only',
+					extensions: [{
+						id: 'user:preview',
+						resource: 'file:///home/test/.copilot/extensions/preview/extension.mjs',
+						source: 'user',
+						status: 'running',
+						pluginName: undefined,
+					}, {
+						id: 'user:project-preview',
+						resource: undefined,
+						source: 'project',
+						status: 'unknown',
+						pluginName: undefined,
+					}, {
+						id: 'plugin:dashboard',
+						resource: 'file:///home/test/.copilot/plugins/dashboard/extensions/dashboard/extension.mjs',
+						source: 'plugin',
+						status: 'disabled',
+						pluginName: 'dashboard',
+					}],
+				},
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('re-resolves session-only extension reconciliation after a queued replacement', async () => {
+		const client = new TestCopilotClient([]);
+		client.extensionInventory = {
+			mode: 'load_and_augment',
+			extensions: [{
+				id: 'user:preview',
+				name: 'Preview',
+				path: '/home/test/.copilot/extensions/preview/extension.mjs',
+				source: 'user',
+				enabled: true,
+			}],
+		};
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		const sessionId = 'extension-queue-session';
+		const session = AgentSession.uri('copilotcli', sessionId);
+		let originalReconcileCalls = 0;
+		let replacementReconcileCalls = 0;
+		setDefaultSessionStub(agent, sessionId, {
+			listExtensions: async () => [{
+				id: 'user:preview',
+				name: 'Preview',
+				source: 'user',
+				status: 'running',
+			}],
+			reconcileExtensions: async () => { originalReconcileCalls++; },
+		});
+		const reconcileQueued = new DeferredPromise<void>();
+		const releaseReconcile = new DeferredPromise<void>();
+		const internals = agent as unknown as {
+			_queueChat<T>(lifetimeId: string, chatKey: string, operation: string, task: (enterUnboundedPhase: () => void) => Promise<T>): Promise<T>;
+		};
+		internals._queueChat = async (_lifetimeId, _chatKey, operation, task) => {
+			if (operation === 'reconcileExtensions') {
+				reconcileQueued.complete();
+				await releaseReconcile.p;
+			}
+			return task(() => { });
+		};
+		try {
+			const mutation = agent.setAgentExtensionEnabled('user:preview', false, session);
+			await reconcileQueued.p;
+			(agent as unknown as { _chatEntriesBySdkId: { deleteAndDispose(key: string): void } })._chatEntriesBySdkId.deleteAndDispose(sessionId);
+			setLiveChatStub(agent, 'replacement-extension-session', {
+				sessionId: 'replacement-extension-session',
+				sessionUri: session,
+				ownerSessionUri: session,
+				ownerRef: fixedChatOwnerRef(session),
+				launchOwner: session,
+				resourceUri: session,
+				chatChannelUri: defaultChatUri(session),
+				usesStaticGitHubToken: true,
+				listExtensions: async () => [{
+					id: 'user:preview',
+					name: 'Preview',
+					source: 'user',
+					status: 'running',
+				}],
+				reconcileExtensions: async () => { replacementReconcileCalls++; },
+			}, defaultChatUri(session));
+			releaseReconcile.complete();
+
+			let errorMessage: string | undefined;
+			try {
+				await mutation;
+			} catch (error) {
+				errorMessage = error instanceof Error ? error.message : String(error);
+			}
+			assert.deepStrictEqual({
+				errorMessage,
+				disableRequests: client.extensionDisableRequests,
+				originalReconcileCalls,
+				replacementReconcileCalls,
+			}, {
+				errorMessage: 'The extension preference was saved, but the selected chat could not be updated: The selected chat stopped or was replaced before its extension state could be updated.',
+				disableRequests: [{ ids: ['user:preview'] }],
+				originalReconcileCalls: 0,
+				replacementReconcileCalls: 0,
+			});
+		} finally {
+			releaseReconcile.complete();
 			await disposeAgent(agent);
 		}
 	});
@@ -3985,6 +4343,12 @@ suite('CopilotAgent', () => {
 				modulePath: '/workspace/.github/extensions/preview/extension.mjs',
 				source: 'project',
 			});
+			const deniedSessionLaunch = await clientOptions?.extensionLaunchProvider?.resolve({
+				id: 'session:session-id:preview',
+				name: 'preview',
+				modulePath: '/home/test/.copilot/session-state/session-id/extensions/preview/extension.mjs',
+				source: 'session',
+			});
 			assert.deepStrictEqual({
 				kind: connection?.kind,
 				sdkRuntime: runtimePath?.includes('/node_modules/@github/copilot-sdk-'),
@@ -3993,6 +4357,7 @@ suite('CopilotAgent', () => {
 				extensionBootstrap: launch?.launch?.args[0].replaceAll('\\', '/').endsWith('/preloads/extension_bootstrap.mjs'),
 				extensionEnvironment: launch?.launch?.env,
 				projectLaunchDenied: deniedProjectLaunch?.launch === undefined,
+				sessionLaunchDenied: deniedSessionLaunch?.launch === undefined,
 			}, {
 				kind: 'stdio',
 				sdkRuntime: true,
@@ -4004,6 +4369,7 @@ suite('CopilotAgent', () => {
 					...(process.versions.electron ? { ELECTRON_RUN_AS_NODE: '1' } : {}),
 				},
 				projectLaunchDenied: true,
+				sessionLaunchDenied: true,
 			});
 		} finally {
 			await disposeAgent(agent);
