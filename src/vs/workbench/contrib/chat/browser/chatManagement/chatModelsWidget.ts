@@ -580,6 +580,9 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 	}
 
 	override renderVendorElement(entry: ILanguageModelProviderEntry, index: number, templateData: IModelNameColumnTemplateData): void {
+		templateData.statusIcon.style.display = 'none';
+		templateData.modelStatusIcon.className = 'model-status-icon';
+		templateData.modelStatusIcon.style.display = 'none';
 		templateData.nameLabel.set(entry.vendorEntry.group.name, undefined);
 		if (entry.sourcePresentation?.icon) {
 			templateData.providerIcon.classList.add(...ThemeIcon.asClassNameArray(entry.sourcePresentation.icon));
@@ -606,6 +609,9 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 	}
 
 	override renderGroupElement(entry: ILanguageModelGroupEntry, index: number, templateData: IModelNameColumnTemplateData): void {
+		templateData.statusIcon.style.display = 'none';
+		templateData.modelStatusIcon.className = 'model-status-icon';
+		templateData.modelStatusIcon.style.display = 'none';
 		templateData.nameLabel.set(entry.label, undefined);
 	}
 
