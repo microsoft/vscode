@@ -9,6 +9,7 @@ import { useFakeTimers } from 'sinon';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { isLinux } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -21,7 +22,7 @@ import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import type { TerminalSandboxEngine } from '../../../sandbox/common/terminalSandboxEngine.js';
 import { type ITelemetryService, TelemetryConfiguration, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostTelemetryLevelConfigKey, platformSessionSchema, type SchemaValues } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceTrustConfigKey, platformSessionSchema, type IAgentHostWorkspaceTrust, type SchemaValues } from '../../common/agentHostSchema.js';
 import type { IAgentHostManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
 import { toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { readSessionSandboxState } from '../../common/meta/agentSandboxStateMeta.js';
@@ -50,7 +51,7 @@ import type { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import type { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
 import { CopilotSessionSandbox } from '../../node/copilot/copilotSessionSandbox.js';
 import type { SandboxConfig, SandboxNetworkPolicy } from '../../node/copilot/sandboxConfigForSdk.js';
-import { composeByokSessionConfig, CopilotSessionLauncher, filterClientToolNames, findLocalModelDirectFamily, getCopilotAutoTier, getCopilotReasoningEffort, isCopilotReasoningEffort, mergeByokSessionConfig, synthesizeByokSessionConfig, withLocalModelSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
+import { composeByokSessionConfig, CopilotSessionLauncher, filterClientToolNames, findLocalModelDirectFamily, getCopilotAutoTier, getCopilotReasoningEffort, getCopilotWorkingDirectoryTrust, isCopilotReasoningEffort, mergeByokSessionConfig, synthesizeByokSessionConfig, withLocalModelSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import { createUnmanagedCopilotSettings } from './copilotTestEvents.js';
 import { buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
 import type { IAgentHostSessionOpenTelemetry } from '../../node/agentHostSessionOpenTelemetry.js';
@@ -3839,4 +3840,130 @@ suite('CopilotSessionLauncher auto tier', () => {
 			});
 		});
 	}
+});
+
+suite('CopilotSessionLauncher working directory trust', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const folder = URI.file('/repos/project');
+	const trusted = (...uris: URI[]): IAgentHostWorkspaceTrust => ({ enabled: true, trustedUris: uris.map(uri => uri.toString()) });
+
+	/**
+	 * Launches a session and returns, per SDK call, the `trustWorkingDirectory`
+	 * it was opened with (`'absent'` when the field is left out), plus the
+	 * grant the session wrapper recorded.
+	 */
+	async function trustFor(kind: 'create' | 'resume' | 'fallback', trust: IAgentHostWorkspaceTrust | undefined, plan?: Partial<Pick<CopilotSessionLaunchPlan, 'workingDirectory' | 'workspaceless' | 'worktreeRepository'>>): Promise<{ calls: string[]; recorded: string | undefined }> {
+		const calls: string[] = [];
+		const record = (config: object | undefined) => calls.push(config && Object.hasOwn(config, 'trustWorkingDirectory') ? String((config as SessionConfig).trustWorkingDirectory) : 'absent');
+		const session = {
+			sessionId: 'session-1',
+			on: () => () => { },
+			disconnect: async () => { },
+			rpc: {
+				agent: emptyAgentCatalog,
+				options: { update: async () => ({ success: true }) },
+			},
+		} as unknown as CopilotSession;
+		const client: CopilotSessionLaunchPlan['client'] = {
+			rpc: { managedSettings: createUnmanagedCopilotSettings(), account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() { }, getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
+			createSession: async config => {
+				record(config);
+				return session;
+			},
+			resumeSession: async (_sessionId, config) => {
+				record(config);
+				if (kind === 'fallback') {
+					throw Object.assign(new Error('Session has no events'), { code: -32603 });
+				}
+				return session;
+			},
+		};
+		const launcher = createTestLauncher(undefined, { [AgentHostWorkspaceTrustConfigKey]: trust });
+		const base = {
+			client,
+			extensionSdkPath: '/copilot-sdk',
+			sessionId: 'session-1',
+			workingDirectory: folder,
+			resolvedAgentName: undefined,
+			snapshot: { tools: [], plugins: [], mcpServers: {} },
+			activeClientToolSet: new ActiveClientToolSet(),
+			shellManager: undefined,
+			githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
+			...plan,
+		};
+		const launchPlan: CopilotSessionLaunchPlan = kind === 'create'
+			? { ...base, kind: 'create', model: undefined }
+			: { ...base, workingDirectory: base.workingDirectory ?? folder, kind: 'resume', fallback: { model: undefined } };
+
+		const sessions = new DisposableStore();
+		try {
+			const wrapper = sessions.add(await launcher.launch(launchPlan, testRuntime));
+			return { calls, recorded: wrapper.launchWorkingDirectoryTrust };
+		} finally {
+			sessions.dispose();
+			await launcher.disposeByokProxyHandle();
+		}
+	}
+
+	test('grants session trust on create only for a trusted working directory', async () => {
+		assert.deepStrictEqual({
+			trustedFolder: await trustFor('create', trusted(folder)),
+			trustedParent: await trustFor('create', trusted(URI.file('/repos'))),
+			trustDisabled: await trustFor('create', { enabled: false, trustedUris: [] }),
+			untrustedFolder: await trustFor('create', trusted(URI.file('/repos/other'))),
+			siblingWithSharedPrefix: await trustFor('create', trusted(URI.file('/repos/proj'))),
+			noTrustSnapshot: await trustFor('create', undefined),
+		}, {
+			trustedFolder: { calls: ['session'], recorded: 'session' },
+			trustedParent: { calls: ['session'], recorded: 'session' },
+			trustDisabled: { calls: ['session'], recorded: 'session' },
+			untrustedFolder: { calls: ['absent'], recorded: undefined },
+			siblingWithSharedPrefix: { calls: ['absent'], recorded: undefined },
+			noTrustSnapshot: { calls: ['absent'], recorded: undefined },
+		});
+	});
+
+	test('never grants trust on resume, but grants it when an empty session falls back to create', async () => {
+		assert.deepStrictEqual({
+			resume: await trustFor('resume', trusted(folder)),
+			fallback: await trustFor('fallback', trusted(folder)),
+		}, {
+			resume: { calls: ['absent'], recorded: undefined },
+			fallback: { calls: ['absent', 'session'], recorded: 'session' },
+		});
+	});
+
+	test('grants no trust to workspace-less, folderless, or non-file working directories, even with trust disabled', async () => {
+		const disabled: IAgentHostWorkspaceTrust = { enabled: false, trustedUris: [] };
+		assert.deepStrictEqual({
+			workspaceless: await trustFor('create', disabled, { workspaceless: true }),
+			noWorkingDirectory: await trustFor('create', disabled, { workingDirectory: undefined }),
+			virtual: await trustFor('create', disabled, { workingDirectory: URI.from({ scheme: 'vscode-vfs', path: '/repos/project' }) }),
+		}, {
+			workspaceless: { calls: ['absent'], recorded: undefined },
+			noWorkingDirectory: { calls: ['absent'], recorded: undefined },
+			virtual: { calls: ['absent'], recorded: undefined },
+		});
+	});
+
+	test('a created worktree inherits the trust of its repository', async () => {
+		const worktree = URI.file('/repos/project.worktrees/agents-task');
+		assert.deepStrictEqual({
+			trustedRepository: await trustFor('create', trusted(folder), { workingDirectory: worktree, worktreeRepository: folder }),
+			untrustedRepository: await trustFor('create', trusted(URI.file('/repos/other')), { workingDirectory: worktree, worktreeRepository: folder }),
+			notCreatedByVSCode: await trustFor('create', trusted(folder), { workingDirectory: worktree }),
+			notUnderRepositoryWorktrees: await trustFor('create', trusted(folder), { workingDirectory: URI.file('/elsewhere/agents-task'), worktreeRepository: folder }),
+		}, {
+			trustedRepository: { calls: ['session'], recorded: 'session' },
+			untrustedRepository: { calls: ['absent'], recorded: undefined },
+			notCreatedByVSCode: { calls: ['absent'], recorded: undefined },
+			notUnderRepositoryWorktrees: { calls: ['absent'], recorded: undefined },
+		});
+	});
+
+	test('matches trusted folders ignoring path case except on Linux', () => {
+		assert.strictEqual(getCopilotWorkingDirectoryTrust({ workingDirectory: URI.file('/Repos/Project') }, trusted(folder)), isLinux ? undefined : 'session');
+	});
 });

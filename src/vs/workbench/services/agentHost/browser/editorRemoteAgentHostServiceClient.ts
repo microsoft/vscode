@@ -216,6 +216,10 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		return this._protocolClient?.initializeResult ?? constObservable(undefined);
 	}
 
+	get supportsConversationImport(): boolean {
+		return this._protocolClient?.supportsConversationImport ?? false;
+	}
+
 	get sandboxCertificateInstallationSupported(): IObservable<boolean> {
 		return this._protocolClient?.sandboxCertificateInstallationSupported ?? constObservable(false);
 	}

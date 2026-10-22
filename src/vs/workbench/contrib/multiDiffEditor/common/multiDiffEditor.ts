@@ -7,12 +7,17 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { derived, IObservable, observableFromEvent } from '../../../../base/common/observable.js';
 import type { MultiDiffEditorVariant } from '../../../../editor/common/multiDiffEditor.js';
 import { localize } from '../../../../nls.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ConfigurationScope, Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
-import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ActiveEditorContext } from '../../../common/contextkeys.js';
+
+/** The editor pane identifier of the multi diff editor. */
+export const MULTI_DIFF_EDITOR_ID = 'multiDiffEditor';
 
 export const multiDiffEditorExperimentalVariantSetting = 'multiDiffEditor.experimental.variant';
 export const defaultMultiDiffEditorExperimentalVariant = 'noCards';
@@ -42,6 +47,16 @@ export const MultiDiffEditorFileListEnabledContext = new RawContextKey<boolean>(
 /** Whether the file list is currently rendered, including responsive hiding. */
 export const MultiDiffEditorFileListVisibleContext = new RawContextKey<boolean>('multiDiffEditorFileListVisible', false, localize('multiDiffEditorFileListVisible', "Whether the multi diff editor shows the list of changed files"));
 export const MultiDiffEditorFileListFocusedContext = new RawContextKey<boolean>('multiDiffEditorFileListFocus', true, localize('multiDiffEditorFileListFocus', "Whether focus is in the multi diff editor changed files list"));
+
+/** Whether the active editor is a multi diff editor that supports the changed files list. */
+export const ActiveMultiDiffEditorHasFileListContext = ContextKeyExpr.and(
+	ActiveEditorContext.isEqualTo(MULTI_DIFF_EDITOR_ID),
+	ContextKeyExpr.has(`config.${multiDiffEditorExperimentalFileListSetting}`),
+	MultiDiffEditorFileListAvailableContext,
+)!;
+
+/** The submenu that switches the changed files list between a list and a tree, and moves it to either side of the diffs. */
+export const MultiDiffEditorFilesViewAndPositionMenu = new MenuId('MultiDiffEditorFilesViewAndPosition');
 
 /**
  * Observes whether the file list should be shown. All multi diff editors share
