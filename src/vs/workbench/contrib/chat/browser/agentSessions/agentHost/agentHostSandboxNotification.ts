@@ -233,7 +233,15 @@ export class AgentHostSandboxNotification extends Disposable {
 			? localize('agentHost.sandboxCertificateRemovingDetail', "Removing trust from the agent host's operating system trust store. The stored certificate authority is kept.")
 			: this._certificateOperation === 'rotate'
 				? localize('agentHost.sandboxCertificateRotatingDetail', "Replacing the certificate authority and establishing operating system trust. Running sandboxed tools may need to restart.")
-				: localize('agentHost.sandboxCertificateMissingDetail', "Some tools in this session's sandbox might require the sandbox certificate authority (CA) to be trusted by the agent host's operating system. Install it in the OS trust store to enable those tools to connect securely."));
+				: localize('agentHost.sandboxCertificateMissingDetail', "Install the sandbox certificate authority (CA) so developer tools can connect securely through a proxy that adds credentials to outgoing requests without exposing them to agent tools."));
+		if (this._certificateOperation !== 'remove' && this._certificateOperation !== 'rotate') {
+			description.appendText(' ');
+			description.appendLink(
+				'https://code.visualstudio.com/docs/agents/run/agent-sandboxing#_why-certificate-trust-is-needed',
+				localize('agentHost.sandboxCertificateWhyTrust', "Learn more"),
+			);
+			description.appendText('.');
+		}
 		this._notificationService.setNotification({
 			id: this._certificateId,
 			inputUri,
@@ -244,7 +252,7 @@ export class AgentHostSandboxNotification extends Disposable {
 					? localize('agentHost.sandboxCertificateRotating', "Rotating sandbox certificate")
 					: this._certificateOperation === 'install'
 						? localize('agentHost.sandboxCertificateInstalling', "Installing sandbox certificate")
-						: localize('agentHost.sandboxCertificateMissing', "Sandbox trusted CA is not installed"),
+						: localize('agentHost.sandboxCertificateMissing', "Sandbox trusted CA is not installed (optional)"),
 			description,
 			actions: canInstall && !this._certificateBusy ? [{
 				kind: ChatInputNotificationActionKind.Command,
