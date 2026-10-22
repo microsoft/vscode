@@ -7,7 +7,11 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { OperatingSystem, OS } from '../../../../../../base/common/platform.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
+import { ISSHRemoteAgentHostService } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { IListService, ListService } from '../../../../../../platform/list/browser/listService.js';
+import { IEditorService } from '../../../../../../workbench/services/editor/common/editorService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureCondition } from '../../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { ICustomizationRemote, IRemotesModel, RemoteKind } from '../../browser/remotesModel.js';
 import { RemotesWidget } from '../../browser/remotesWidget.js';
@@ -33,15 +37,21 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 		additionalServices: reg => {
 			registerWorkbenchServices(reg);
 			reg.define(IListService, ListService);
+			reg.defineInstance(ISSHRemoteAgentHostService, new class extends mock<ISSHRemoteAgentHostService>() {
+				override async ensureUserSSHConfig() { return URI.file('/home/user/.ssh/config'); }
+			}());
+			reg.defineInstance(IEditorService, new class extends mock<IEditorService>() {
+				override async openEditor() { return undefined; }
+			}());
 		},
 	});
-	const model = new class extends Disposable implements IRemotesModel {
+	const model = disposableStore.add(new class extends Disposable implements IRemotesModel {
 		readonly remotes = observableValue<readonly ICustomizationRemote[]>(this, empty ? [] : remotes);
 		async refresh() { return failedKinds; }
 		async setEnabled(id: string, enabled: boolean) {
 			this.remotes.set(this.remotes.get().map(remote => remote.id === id ? { ...remote, enabled } : remote), undefined);
 		}
-	}();
+	}());
 	const widget = disposableStore.add(instantiationService.createInstance(RemotesWidget, content, model, operatingSystem));
 	widget.setVisible(true);
 	await waitForFixtureCondition(() => content.querySelector('.remotes-message')?.textContent === '', 'Remotes refresh should finish before capture');
@@ -53,5 +63,8 @@ export default defineThemedFixtureGroup({ path: 'sessions/customizations/remotes
 	Windows: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 700, OperatingSystem.Windows) }),
 	Narrow: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 360) }),
 	Empty: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 700, OS, true) }),
-	RefreshWarnings: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 700, OS, false, ['tunnel', 'devContainer']) }),
+	EmptyWindows: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 700, OperatingSystem.Windows, true) }),
+	EmptyNarrow: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 360, OperatingSystem.Windows, true) }),
+	RefreshWarnings: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 700, OS, false, ['ssh', 'tunnel']) }),
+	EmptyRefreshWarnings: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 700, OS, true, ['tunnel']) }),
 });

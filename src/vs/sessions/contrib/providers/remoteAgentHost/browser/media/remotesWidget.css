@@ -89,3 +89,21 @@
 .remotes-widget .customization-toggle {
 	flex-shrink: 0;
 }
+
+.remotes-widget .remotes-empty-row {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	gap: var(--vscode-spacing-size40);
+	padding-inline: var(--vscode-spacing-size80);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+}
+
+.remotes-widget .remotes-empty-label,
+.remotes-widget .remotes-empty-description,
+.remotes-widget .remotes-empty-actions {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}

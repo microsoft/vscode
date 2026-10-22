@@ -12,6 +12,7 @@ import { Disposable, toDisposable } from '../../../../../../base/common/lifecycl
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { ISSHRemoteAgentHostService } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -54,6 +55,7 @@ suite('RemotesEditor', () => {
 		const configuration = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true });
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const instantiation = workbenchInstantiationService({ configurationService: () => configuration }, store);
+		instantiation.stub(ISSHRemoteAgentHostService, {});
 		instantiation.stub(ISharedProcessService, { getChannel: () => ({ call: async (): Promise<never> => { throw new Error('Unexpected IPC call'); }, listen: () => Event.None }) });
 		const model = store.add(new TestRemotesModel());
 		instantiation.stubInstance(RemotesModel, model);

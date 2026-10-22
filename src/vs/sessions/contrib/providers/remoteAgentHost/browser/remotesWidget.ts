@@ -6,19 +6,23 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
-import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { IListRenderer } from '../../../../../base/browser/ui/list/list.js';
 import { RenderIndentGuides } from '../../../../../base/browser/ui/tree/abstractTree.js';
 import { IObjectTreeElement, ObjectTreeElementCollapseState } from '../../../../../base/browser/ui/tree/tree.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { Action } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
+import { WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
+import { ISSHRemoteAgentHostService } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
+import { WSL_INSTALL_DOCS_URL } from '../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -26,11 +30,15 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { Link } from '../../../../../platform/opener/browser/link.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { AccessibilityVerbositySettingId } from '../../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { CUSTOMIZATION_GROUP_HEADER_HEIGHT, CustomizationGroupHeaderRenderer, ICustomizationGroupHeaderEntry } from '../../../../../workbench/contrib/chat/browser/aiCustomization/customizationGroupHeaderRenderer.js';
 import { CustomizationToggle } from '../../../../../workbench/contrib/chat/browser/aiCustomization/customizationToggle.js';
 import { asTreeRenderer, customizationTreeStyles, getCustomizationTreeContentHeight } from '../../../../../workbench/contrib/chat/browser/aiCustomization/customizationTree.js';
+import { setVirtualizedRowActionsTabbable } from '../../../../../workbench/contrib/chat/browser/aiCustomization/customizationCardList.js';
+import { IEditorService, MODAL_GROUP } from '../../../../../workbench/services/editor/common/editorService.js';
 import { getVisibleRemoteKinds, ICustomizationRemote, IRemotesModel, RemoteKind, remoteKindLabels } from './remotesModel.js';
 import '../../../../../workbench/contrib/chat/browser/aiCustomization/media/aiCustomizationManagement.css';
 import './media/remotesWidget.css';
@@ -43,10 +51,107 @@ interface IRemoteEntry {
 }
 
 interface IRemoteGroupEntry extends ICustomizationGroupHeaderEntry {
+	readonly kind: RemoteKind;
 	readonly warning?: string;
 }
 
-type RemoteTreeEntry = IRemoteGroupEntry | IRemoteEntry;
+interface IRemoteEmptyEntry {
+	readonly type: 'empty';
+	readonly id: string;
+	readonly label: string;
+	readonly description?: string;
+	readonly documentation?: { readonly label: string; readonly href: string };
+}
+
+type RemoteTreeEntry = IRemoteGroupEntry | IRemoteEntry | IRemoteEmptyEntry;
+
+const remoteSetup: Record<RemoteKind, { readonly label: string; readonly description: string; readonly documentation: { readonly label: string; readonly href: string } }> = {
+	ssh: {
+		label: localize('remotes.empty.ssh', "No SSH hosts configured."),
+		description: localize('remotes.empty.ssh.description', "Use the SSH settings action to add a host."),
+		documentation: { label: localize('remotes.docs.ssh', "SSH Setup Guide"), href: 'https://aka.ms/vscode-agent-ssh' },
+	},
+	wsl: {
+		label: localize('remotes.empty.wsl', "No WSL 2 distributions found."),
+		description: localize('remotes.empty.wsl.description', "Install WSL and a Linux distribution to get started."),
+		documentation: { label: localize('remotes.docs.wsl', "Install WSL"), href: WSL_INSTALL_DOCS_URL },
+	},
+	tunnel: {
+		label: localize('remotes.empty.tunnels', "No tunnels found for this account."),
+		description: localize('remotes.empty.tunnels.description', "Enable a tunnel on another computer, then sign in with the same account."),
+		documentation: { label: localize('remotes.docs.tunnels', "Remote Tunnels Guide"), href: 'https://aka.ms/vscode-agent-tunnel' },
+	},
+	devContainer: {
+		label: localize('remotes.empty.devContainers', "No Dev Containers found."),
+		description: localize('remotes.empty.devContainers.description', "Create a Dev Container for a local project."),
+		documentation: { label: localize('remotes.docs.devContainers', "Dev Containers Guide"), href: 'https://aka.ms/vscode-remote/containers' },
+	},
+};
+
+interface IRemoteEmptyTemplate {
+	readonly label: HTMLElement;
+	readonly description: HTMLElement;
+	readonly actions: HTMLElement;
+	readonly disposables: DisposableStore;
+	id?: string;
+}
+
+class RemoteEmptyRenderer implements IListRenderer<IRemoteEmptyEntry, IRemoteEmptyTemplate> {
+	readonly templateId = 'remoteEmpty';
+	private readonly templates = new Set<IRemoteEmptyTemplate>();
+	private focusedId: string | undefined;
+
+	constructor(
+		private readonly hoverService: IHoverService,
+		private readonly openerService: IOpenerService,
+	) { }
+
+	renderTemplate(container: HTMLElement): IRemoteEmptyTemplate {
+		container.classList.add('remotes-empty-row');
+		const template = {
+			label: dom.append(container, dom.$('.remotes-empty-label')),
+			description: dom.append(container, dom.$('.remotes-empty-description')),
+			actions: dom.append(container, dom.$('.remotes-empty-actions')),
+			disposables: new DisposableStore(),
+		};
+		this.templates.add(template);
+		return template;
+	}
+
+	renderElement(entry: IRemoteEmptyEntry, _index: number, template: IRemoteEmptyTemplate): void {
+		template.disposables.clear();
+		template.id = entry.id;
+		template.label.textContent = entry.label;
+		template.description.textContent = entry.description ?? '';
+		template.description.hidden = !entry.description;
+		dom.clearNode(template.actions);
+		template.disposables.add(this.hoverService.setupDelayedHover(template.label, { content: entry.label }));
+		if (entry.description) {
+			template.disposables.add(this.hoverService.setupDelayedHover(template.description, { content: entry.description }));
+		}
+		if (entry.documentation) {
+			template.disposables.add(new Link(template.actions, entry.documentation, {}, this.hoverService, this.openerService));
+		}
+		setVirtualizedRowActionsTabbable(template.actions, entry.id === this.focusedId);
+	}
+
+	setFocusedId(id: string | undefined): void {
+		this.focusedId = id;
+		for (const template of this.templates) {
+			setVirtualizedRowActionsTabbable(template.actions, template.id === id);
+		}
+	}
+
+	disposeElement(_entry: IRemoteEmptyEntry, _index: number, template: IRemoteEmptyTemplate): void {
+		template.disposables.clear();
+		template.id = undefined;
+	}
+
+	disposeTemplate(template: IRemoteEmptyTemplate): void {
+		this.templates.delete(template);
+		template.disposables.dispose();
+	}
+}
 
 interface IRemoteTemplate {
 	readonly container: HTMLElement;
@@ -138,24 +243,29 @@ export class RemotesWidget extends Disposable {
 	private readonly treeContainer: HTMLElement;
 	private readonly message: HTMLElement;
 	private readonly searchInput: InputBox;
-	private readonly refreshButton: Button;
+	private readonly refreshAction: Action;
 	private readonly refreshRequest = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly pending = new Map<string, boolean>();
 	private readonly kinds: readonly RemoteKind[];
 	private visible = false;
 	private query = '';
 	private failedKinds: readonly RemoteKind[] = [];
+	private refreshing = false;
+	private hasRefreshed = false;
 
 	constructor(
 		container: HTMLElement,
 		private readonly model: IRemotesModel,
 		operatingSystem: OperatingSystem,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextViewService contextViewService: IContextViewService,
 		@IHoverService hoverService: IHoverService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
+		@ISSHRemoteAgentHostService private readonly sshService: ISSHRemoteAgentHostService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IOpenerService openerService: IOpenerService,
 	) {
 		super();
 		this._register(model);
@@ -164,9 +274,9 @@ export class RemotesWidget extends Disposable {
 		const header = dom.append(this.domNode, dom.$('.section-title-header'));
 		const titleRow = dom.append(header, dom.$('.section-title-row'));
 		dom.append(titleRow, dom.$('h2.section-title')).textContent = localize('remotes.title', "Remotes");
-		this.refreshButton = this._register(new Button(dom.append(titleRow, dom.$('.section-title-actions')), { ...defaultButtonStyles, secondary: true, small: true }));
-		this.refreshButton.label = localize('remotes.refresh', "Refresh");
-		this._register(this.refreshButton.onDidClick(() => { void this.refresh(); }));
+		this.refreshAction = this._register(new Action('remotes.refresh', localize('remotes.refresh', "Refresh"), ThemeIcon.asClassName(Codicon.refresh), true, () => this.refresh()));
+		const toolbar = this._register(instantiationService.createInstance(WorkbenchToolBar, dom.append(titleRow, dom.$('.section-title-actions')), { ariaLabel: localize('remotes.actions', "Remotes actions") }));
+		toolbar.setActions([this.refreshAction]);
 		dom.append(header, dom.$('p.section-title-description')).textContent = localize('remotes.description', "Choose which remotes appear in the New Session location picker. Hiding a remote may disconnect it.");
 		const searchContainer = dom.append(dom.append(this.domNode, dom.$('.list-search-and-button-container')), dom.$('.list-search-container'));
 		this.searchInput = this._register(new InputBox(searchContainer, contextViewService, {
@@ -183,12 +293,13 @@ export class RemotesWidget extends Disposable {
 			label = localize('remotes.treeLabelWithHelp', "{0}. Use {1} for accessibility help.", label, helpKeybinding);
 		}
 		const renderer = new RemoteRenderer(hoverService, (id, enabled) => { void this.setEnabled(id, enabled); });
+		const emptyRenderer = new RemoteEmptyRenderer(hoverService, openerService);
 		this.tree = this._register(instantiationService.createInstance(WorkbenchObjectTree<RemoteTreeEntry>,
 			'RemotesCustomizationTree', this.treeContainer, {
-			getHeight: entry => entry.type === 'group-header' ? CUSTOMIZATION_GROUP_HEADER_HEIGHT : 56,
-			getTemplateId: entry => entry.type === 'group-header' ? 'remoteGroup' : renderer.templateId,
+			getHeight: entry => entry.type === 'group-header' ? CUSTOMIZATION_GROUP_HEADER_HEIGHT : entry.type === 'empty' ? 76 : 56,
+			getTemplateId: entry => entry.type === 'group-header' ? 'remoteGroup' : entry.type === 'empty' ? emptyRenderer.templateId : renderer.templateId,
 		}, [
-			asTreeRenderer(new CustomizationGroupHeaderRenderer<IRemoteGroupEntry>('remoteGroup', hoverService, undefined, (entry, container, disposables) => {
+			asTreeRenderer(new CustomizationGroupHeaderRenderer<IRemoteGroupEntry>('remoteGroup', hoverService, (entry, container, disposables) => this.renderGroupActions(entry, container, disposables), (entry, container, disposables) => {
 				if (entry.warning) {
 					const icon = dom.append(container, renderIcon(Codicon.warning));
 					icon.classList.add('remotes-refresh-warning');
@@ -197,6 +308,7 @@ export class RemotesWidget extends Disposable {
 				}
 			})),
 			asTreeRenderer(renderer),
+			asTreeRenderer(emptyRenderer),
 		], {
 			indent: 8,
 			renderIndentGuides: RenderIndentGuides.None,
@@ -205,20 +317,23 @@ export class RemotesWidget extends Disposable {
 			multipleSelectionSupport: false,
 			setRowLineHeight: false,
 			horizontalScrolling: false,
-			identityProvider: { getId: entry => entry.type === 'group-header' ? entry.id : entry.remote.id },
-			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: entry => entry.type === 'group-header' ? entry.label : entry.remote.name },
+			identityProvider: { getId: entry => entry.type === 'remote' ? entry.remote.id : entry.id },
+			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: entry => entry.type === 'remote' ? entry.remote.name : entry.label },
 			accessibilityProvider: {
 				getWidgetAriaLabel: () => label,
 				getAriaLabel: entry => entry.type === 'group-header'
 					? entry.warning
 						? localize('remotes.groupWarningLabel', "{0}, {1} remotes. Warning: {2}", entry.label, entry.count, entry.warning)
 						: localize('remotes.groupLabel', "{0}, {1} remotes", entry.label, entry.count)
-					: this.getRemoteAriaLabel(entry.remote, entry.checked),
+					: entry.type === 'empty'
+						? [entry.label, entry.description, entry.documentation?.label].filter(Boolean).join(' ')
+						: this.getRemoteAriaLabel(entry.remote, entry.checked),
 			},
 		}));
 		this._register(this.tree.onDidChangeFocus(event => {
 			const entry = event.elements[0];
 			renderer.setFocusedId(entry?.type === 'remote' ? entry.remote.id : undefined);
+			emptyRenderer.setFocusedId(entry?.type === 'empty' ? entry.id : undefined);
 		}));
 		this._register(dom.addDisposableListener(this.searchInput.inputElement, dom.EventType.KEY_DOWN, event => {
 			const keyboardEvent = new StandardKeyboardEvent(event);
@@ -236,6 +351,35 @@ export class RemotesWidget extends Disposable {
 			this.model.remotes.read(reader);
 			this.render();
 		}));
+	}
+
+	private renderGroupActions(entry: IRemoteGroupEntry, container: HTMLElement, disposables: DisposableStore): void {
+		if (entry.kind !== 'ssh') {
+			return;
+		}
+		const action = disposables.add(new Action('remotes.openSSHConfig', localize('remotes.openSSHConfig', "Open SSH Configuration"), ThemeIcon.asClassName(Codicon.settingsGear), true, async () => {
+			try {
+				const resource = await this.sshService.ensureUserSSHConfig();
+				await this.editorService.openEditor({ resource, options: { pinned: true } }, MODAL_GROUP);
+			} catch (error) {
+				this.notificationService.error(error);
+			}
+		}));
+		const toolbar = disposables.add(this.instantiationService.createInstance(WorkbenchToolBar, container, { ariaLabel: localize('remotes.sshActions', "SSH actions") }));
+		toolbar.setActions([action]);
+		const updateFocus = () => {
+			const focused = this.tree.getFocus()[0];
+			toolbar.setFocusable(focused?.type === 'group-header' && focused.id === entry.id);
+		};
+		disposables.add(this.tree.onDidChangeFocus(updateFocus));
+		disposables.add(dom.addDisposableGenericMouseDownListener(container, event => dom.EventHelper.stop(event, true)));
+		disposables.add(dom.addDisposableListener(container, dom.EventType.KEY_DOWN, event => {
+			const keyboardEvent = new StandardKeyboardEvent(event);
+			if (keyboardEvent.keyCode === KeyCode.Space || keyboardEvent.keyCode === KeyCode.Enter) {
+				keyboardEvent.stopPropagation();
+			}
+		}));
+		updateFocus();
 	}
 
 	setVisible(visible: boolean): void {
@@ -263,22 +407,23 @@ export class RemotesWidget extends Disposable {
 	private cancelRefresh(): void {
 		this.refreshRequest.value?.cancel();
 		this.refreshRequest.clear();
-		this.refreshButton.enabled = true;
+		this.refreshing = false;
+		this.refreshAction.enabled = true;
 	}
 
 	private async refresh(): Promise<void> {
 		this.cancelRefresh();
 		const request = new CancellationTokenSource();
 		this.refreshRequest.value = request;
-		this.refreshButton.enabled = false;
+		this.refreshing = true;
+		this.refreshAction.enabled = false;
 		this.message.textContent = localize('remotes.loading', "Looking for remotes...");
-		this.layout();
+		this.render();
 		try {
 			const failedKinds = await this.model.refresh(request.token);
 			if (!request.token.isCancellationRequested && !this._store.isDisposed) {
 				this.failedKinds = failedKinds;
-				this.message.textContent = '';
-				this.render();
+				this.hasRefreshed = true;
 				if (failedKinds.some(kind => this.kinds.includes(kind))) {
 					status(localize('remotes.refreshWarnings', "Some remote locations could not be refreshed. Check the warnings on the remote groups for details."));
 				}
@@ -286,13 +431,16 @@ export class RemotesWidget extends Disposable {
 		} catch (error) {
 			if (!request.token.isCancellationRequested) {
 				this.notificationService.error(error);
-				this.message.textContent = '';
-				this.layout();
+				this.failedKinds = this.kinds;
+				this.hasRefreshed = true;
 			}
 		} finally {
 			if (this.refreshRequest.value === request) {
-				this.refreshButton.enabled = true;
+				this.refreshAction.enabled = true;
 				this.refreshRequest.clear();
+				this.refreshing = false;
+				this.message.textContent = '';
+				this.render();
 			}
 		}
 	}
@@ -302,6 +450,24 @@ export class RemotesWidget extends Disposable {
 			&& `${remote.name} ${remote.detail} ${remoteKindLabels[remote.kind]}`.toLowerCase().includes(this.query));
 	}
 
+	private getEmptyEntry(kind: RemoteKind): IRemoteEmptyEntry {
+		const id = `remote-empty-${kind}`;
+		if (this.query) {
+			return { type: 'empty', id, label: localize('remotes.empty.filtered', "No matching remotes.") };
+		}
+		if (this.refreshing || !this.hasRefreshed) {
+			return { type: 'empty', id, label: localize('remotes.empty.loading', "Looking for {0} locations...", remoteKindLabels[kind]) };
+		}
+		if (this.failedKinds.includes(kind)) {
+			return {
+				type: 'empty', id, label: localize('remotes.empty.failed', "Could not refresh {0}.", remoteKindLabels[kind]),
+				description: localize('remotes.empty.retry', "Check the group warning, then try Refresh."),
+				documentation: remoteSetup[kind].documentation,
+			};
+		}
+		return { type: 'empty', id, ...remoteSetup[kind] };
+	}
+
 	private render(): void {
 		const remotes = this.getFilteredRemotes();
 		const children = this.kinds.map((kind, index): IObjectTreeElement<RemoteTreeEntry> => {
@@ -309,16 +475,16 @@ export class RemotesWidget extends Disposable {
 			const warning = this.getRefreshWarning(kind);
 			return {
 				element: {
-					type: 'group-header', id: `remote-group-${kind}`, label: remoteKindLabels[kind],
+					type: 'group-header', id: `remote-group-${kind}`, kind, label: remoteKindLabels[kind],
 					icon: Codicon.remote, count: entries.length, isFirst: index === 0, collapsed: false,
 					warning,
 					description: warning ?? localize('remotes.groupDescription', "{0} locations available for new sessions.", remoteKindLabels[kind]),
 				},
 				collapsible: true,
 				collapsed: this.query ? ObjectTreeElementCollapseState.Expanded : ObjectTreeElementCollapseState.PreserveOrExpanded,
-				children: entries.map(remote => ({
+				children: entries.length ? entries.map(remote => ({
 					element: { type: 'remote', remote, checked: this.pending.get(remote.id) ?? remote.enabled, busy: this.pending.has(remote.id) },
-				})),
+				})) : [{ element: this.getEmptyEntry(kind) }],
 			};
 		});
 		this.tree.setChildren(null, children);
@@ -368,10 +534,13 @@ export class RemotesWidget extends Disposable {
 		const remotes = this.getFilteredRemotes();
 		return this.kinds.flatMap(kind => {
 			const warning = this.getRefreshWarning(kind);
+			const entries = remotes.filter(remote => remote.kind === kind);
+			const empty = entries.length ? undefined : this.getEmptyEntry(kind);
 			return [
 				remoteKindLabels[kind],
 				...(warning ? [warning] : []),
-				...remotes.filter(remote => remote.kind === kind).map(remote => this.getRemoteAriaLabel(remote)),
+				...entries.map(remote => this.getRemoteAriaLabel(remote)),
+				...(empty ? [empty.label, empty.description ?? '', empty.documentation ? `${empty.documentation.label}: ${empty.documentation.href}` : ''] : []),
 			];
 		}).join('\n');
 	}

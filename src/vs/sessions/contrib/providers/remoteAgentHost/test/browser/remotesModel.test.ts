@@ -132,7 +132,6 @@ suite('RemotesModel', () => {
 			{ kind: 'ssh', name: 'build', enabled: false },
 			{ kind: 'wsl', name: 'Ubuntu', enabled: true },
 			{ kind: 'tunnel', name: 'Laptop', enabled: false },
-			{ kind: 'devContainer', name: 'Project', enabled: false },
 		]);
 	});
 
@@ -156,8 +155,8 @@ suite('RemotesModel', () => {
 			ssh: entries[0],
 			restored: model.remotes.get().filter(remote => remote.enabled).map(remote => remote.kind),
 		}, {
-			checked: [true, true, true, true], unchecked: [false, false, false, false],
-			removals: ['ssh:build', 'wsl:Ubuntu', 'tunnel:laptop', 'container'],
+			checked: [true, true, true], unchecked: [false, false, false],
+			removals: ['ssh:build', 'wsl:Ubuntu', 'tunnel:laptop'],
 			ssh: { name: 'build', connectionToken: undefined, connection: { type: 'ssh', address: 'ssh:build', hostName: 'build.example', user: 'developer', port: 22, sshConfigHost: 'build' } },
 			restored: ['wsl', 'tunnel'],
 		});
@@ -170,20 +169,21 @@ suite('RemotesModel', () => {
 		setSSHDiscovery(async () => { throw error; });
 		const failedKinds = await model.refresh(CancellationToken.None);
 		assert.deepStrictEqual({ failedKinds, kinds: model.remotes.get().map(remote => remote.kind), logEntries }, {
-			failedKinds: ['ssh'], kinds: ['ssh', 'wsl', 'tunnel', 'devContainer'],
+			failedKinds: ['ssh'], kinds: ['ssh', 'wsl', 'tunnel'],
 			logEntries: [{ message: '[Remotes] ssh discovery failed', args: [error] }],
 		});
 	});
 
 	test('does not publish canceled discovery results', async () => {
-		const deferred = new DeferredPromise<readonly IDiscoveredDevContainer[]>();
-		const { model } = setup(() => deferred.p);
+		const deferred = new DeferredPromise<string[]>();
+		const { model, setSSHDiscovery } = setup();
+		setSSHDiscovery(() => deferred.p);
 		const cancellation = store.add(new CancellationTokenSource());
 		const refresh = model.refresh(cancellation.token);
 		cancellation.cancel();
-		await deferred.complete([{ id: 'late', name: 'Late container', workspaceFolder: '/late' }]);
+		await deferred.complete(['late-host']);
 		await refresh;
-		assert.deepStrictEqual(model.remotes.get().filter(remote => remote.kind === 'devContainer'), []);
+		assert.deepStrictEqual(model.remotes.get().filter(remote => remote.kind === 'ssh'), []);
 	});
 
 	test('does not discover or mutate when AI is disabled', async () => {
@@ -195,12 +195,16 @@ suite('RemotesModel', () => {
 		assert.strictEqual(calls, 0);
 	});
 
-	test('shows unsupported containers without pretending they can be selected', async () => {
-		const { model } = setup(async () => [{ id: 'volume', name: 'Volume container' }]);
-		await model.refresh(CancellationToken.None);
-		const remote = model.remotes.get().find(remote => remote.kind === 'devContainer')!;
-		await assert.rejects(model.setEnabled(remote.id, true), /no local source folder/);
-		assert.strictEqual(remote.enabled, false);
+	test('does not discover hidden Dev Containers even when the feature is enabled', async () => {
+		let calls = 0;
+		const { model } = setup(async () => {
+			calls++;
+			throw new Error('Docker unavailable');
+		});
+		const failures = await model.refresh(CancellationToken.None);
+		assert.deepStrictEqual({ calls, failures, containers: model.remotes.get().filter(remote => remote.kind === 'devContainer') }, {
+			calls: 0, failures: [], containers: [],
+		});
 	});
 
 	test('WSL discovery follows the platform', async () => {

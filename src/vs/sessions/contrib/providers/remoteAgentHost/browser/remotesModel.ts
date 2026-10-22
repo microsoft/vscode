@@ -7,7 +7,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
-import { isWindows, OperatingSystem } from '../../../../../base/common/platform.js';
+import { isWindows, OperatingSystem, OS } from '../../../../../base/common/platform.js';
 import { getComparisonKey, isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -51,7 +51,7 @@ export interface IRemotesModel extends IDisposable {
 }
 
 export function getVisibleRemoteKinds(operatingSystem: OperatingSystem): readonly RemoteKind[] {
-	return operatingSystem === OperatingSystem.Windows ? ['wsl', 'ssh', 'tunnel', 'devContainer'] : ['ssh', 'tunnel', 'devContainer'];
+	return operatingSystem === OperatingSystem.Windows ? ['wsl', 'ssh', 'tunnel'] : ['ssh', 'tunnel'];
 }
 
 type RemoteTarget =
@@ -124,7 +124,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 				const authProvider = await this.tunnelService.getAuthProvider({ silent: true });
 				return (await this.tunnelService.listTunnels({ silent: true, authProvider })).map(tunnel => ({ kind: 'tunnel', tunnel, authProvider }));
 			}),
-			discover('devContainer', async () => this.configurationService.getValue<boolean>(DevContainerAgentHostEnabledSettingId)
+			discover('devContainer', async () => getVisibleRemoteKinds(OS).includes('devContainer') && this.configurationService.getValue<boolean>(DevContainerAgentHostEnabledSettingId)
 				? (await this.discoverDevContainers(token)).map(container => ({
 					kind: 'devContainer',
 					container,

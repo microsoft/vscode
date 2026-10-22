@@ -65,10 +65,11 @@ class RemotesAccessibleView implements IAccessibleViewImplementation {
 			AccessibleViewProviderId.Remotes,
 			{ type: this.type },
 			() => this.type === AccessibleViewType.Help ? [
-				localize('remotes.help.overview', "Remotes groups known SSH hosts, tunnels, and Dev Containers in a tree. WSL distributions are also available on Windows."),
+				localize('remotes.help.overview', "Remotes groups known SSH hosts and tunnels in a tree. WSL distributions are also available on Windows."),
 				localize('remotes.help.navigation', "Type in Search to filter remotes. Use Down Arrow from Search to enter the tree. Use Up and Down Arrow to navigate, and Left and Right Arrow to collapse or expand groups. On a remote, press Tab to reach its switch, then Space to show or hide it."),
 				localize('remotes.help.toggle', "Remotes with their switch on appear in the New Session location picker. Switching off removes the remote and may disconnect it. Switching on registers it without explicitly connecting; existing automatic connection settings still apply."),
-				localize('remotes.help.discovery', "Refresh looks for remotes without connecting or starting containers. A warning icon on a group means its locations could not be refreshed. The tooltip and group label explain the problem; the Window log contains diagnostic details. Known locations remain available, and Refresh retries discovery. Containers without a local source folder cannot currently be added."),
+				localize('remotes.help.discovery', "Refresh looks for remotes without connecting. A warning icon on a group means its locations could not be refreshed. The tooltip and group label explain the problem; the Window log contains diagnostic details. Known locations remain available, and Refresh retries discovery."),
+				localize('remotes.help.setup', "Empty groups show setup guidance and a documentation link. Focus the placeholder row and press Tab to reach its link. On the SSH group, press Tab to reach Open SSH Configuration, which opens your user SSH config in a modal editor and creates it if necessary. After configuring a host, return to Remotes and choose Refresh."),
 			].join('\n\n') : editor.getAccessibilityContent(),
 			() => dom.isHTMLElement(focused) && focused.isConnected ? focused.focus() : editor.focus(),
 			AccessibilityVerbositySettingId.Remotes,
