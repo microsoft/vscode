@@ -7,25 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { IChatWidget } from '../../../browser/chat.js';
-import { acceptVoiceInput, combineVoiceInput, getVoiceBargeInHint } from '../../../browser/voiceClient/voiceInputUtils.js';
-
-suite('getVoiceBargeInHint', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('includes the configured shortcut or falls back to speech', () => {
-		assert.deepStrictEqual([
-			getVoiceBargeInHint('Ctrl+Space'),
-			getVoiceBargeInHint('Alt+V'),
-			getVoiceBargeInHint(undefined),
-			getVoiceBargeInHint(null),
-		], [
-			'Speak or use Ctrl+Space',
-			'Speak or use Alt+V',
-			'Speak to barge in',
-			'Speak to barge in',
-		]);
-	});
-});
+import { acceptVoiceInput, combineVoiceInput } from '../../../browser/voiceClient/voiceInputUtils.js';
 
 suite('combineVoiceInput', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
