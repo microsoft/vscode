@@ -8,6 +8,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { IChatWidget } from '../../../browser/chat.js';
 import { acceptVoiceInput, combineVoiceInput } from '../../../browser/voiceClient/voiceInputUtils.js';
+import { ChatRequestQueueKind } from '../../../common/chatService/chatService.js';
+import { constObservable } from '../../../../../../base/common/observable.js';
+import { IChatModel } from '../../../common/model/chatModel.js';
 
 suite('combineVoiceInput', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -36,19 +39,28 @@ suite('combineVoiceInput', () => {
 suite('acceptVoiceInput', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('preserves typed input, focus and voice-progress options in the owning widget', async () => {
-		const sent: { text: string | undefined; options: Parameters<IChatWidget['acceptInput']>[1] }[] = [];
-		const widget = new class extends mock<IChatWidget>() {
-			override readonly viewModel = new class extends mock<NonNullable<IChatWidget['viewModel']>>() { }();
-			override getInput(): string { return 'Typed draft'; }
-			override async acceptInput(text?: string, options?: Parameters<IChatWidget['acceptInput']>[1]) {
-				sent.push({ text, options });
-				return undefined;
-			}
-		}();
-		await acceptVoiceInput(widget, 'spoken request', true);
-		assert.deepStrictEqual(sent, [{ text: 'Typed draft spoken request', options: { preserveFocus: true, isVoiceModeInput: true } }]);
-	});
+	for (const inProgress of [false, true]) {
+		test(`preserves typed input, focus and voice-progress options and ${inProgress ? 'steers an active request' : 'sends normally when idle'}`, async () => {
+			const sent: { text: string | undefined; options: Parameters<IChatWidget['acceptInput']>[1] }[] = [];
+			const widget = new class extends mock<IChatWidget>() {
+				override readonly viewModel = new class extends mock<NonNullable<IChatWidget['viewModel']>>() {
+					override readonly model = new class extends mock<IChatModel>() {
+						override readonly requestInProgress = constObservable(inProgress);
+					}();
+				}();
+				override getInput(): string { return 'Typed draft'; }
+				override async acceptInput(text?: string, options?: Parameters<IChatWidget['acceptInput']>[1]) {
+					sent.push({ text, options });
+					return undefined;
+				}
+			}();
+			await acceptVoiceInput(widget, 'spoken request', true);
+			assert.deepStrictEqual(sent, [{
+				text: 'Typed draft spoken request',
+				options: { preserveFocus: true, isVoiceModeInput: true, ...(inProgress ? { queue: ChatRequestQueueKind.Steering } : {}) },
+			}]);
+		});
+	}
 
 	test('populates an edited request for review rather than submitting it', async () => {
 		const populated: { text: string; transient: boolean }[] = [];
