@@ -94,6 +94,7 @@
 }
 
 .customization-migration-dashboard .migration-category-error-title {
+	margin: 0;
 	font-size: var(--vscode-fontSize-body1);
 }
 
