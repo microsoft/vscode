@@ -35402,6 +35402,26 @@ suite('AgentService (node dispatcher)', () => {
 				};
 			}
 
+			/** The config values of Agent Merge on `folder`, turned on by `chat` and bound to pull request `number`. */
+			function agentMergeConfigValues(chat: string, folder: URI, number: number): Record<string, unknown> {
+				const folderKey = getWorkingDirectoryKey(folder.toString());
+				return {
+					[SessionConfigKey.AgentMergeFolders]: { [folderKey]: { enabled: true, overrides: { mergePullRequest: 'never' }, chat } },
+					[SessionConfigKey.AgentMergeControllerFolders]: { [folderKey]: { target: { branchName: `pr-${number}`, pullRequestUrl: `https://github.com/microsoft/vscode/pull/${number}`, enabledAt: `enabled-${number}`, commentWatermark: `watermark-${number}` } } },
+				};
+			}
+
+			/** The Agent Merge config values among `values`. */
+			function agentMergeConfigValuesOf(values: Readonly<Record<string, unknown>> | undefined): Record<string, unknown> {
+				return Object.fromEntries(Object.entries(values ?? {}).filter(([key]) => key.startsWith(SessionConfigKey.AgentMerge)));
+			}
+
+			/** The config values of `session` as persisted, which a restart restores. */
+			async function persistedConfigValues(service: AgentService, session: URI): Promise<unknown> {
+				const persisted = (await getTestSessionStateStore(service).readWithoutImport(session, ['configValues'])).get('configValues');
+				return persisted === undefined ? undefined : JSON.parse(persisted);
+			}
+
 			class MovingAgent extends MockAgent {
 				readonly materialized: { readonly chat: string; readonly providerData: string | undefined }[] = [];
 				readonly metadataStorage: string[] = [];
@@ -36831,6 +36851,40 @@ suite('AgentService (node dispatcher)', () => {
 				});
 			});
 
+			test('a promoted chat\'s new session inherits neither the Agent Merge of its source nor its elevation', async () => {
+				const { service, source, peer, folder } = await setupMove();
+				const stateManager = getStateManager(service);
+				const schema = {
+					type: 'object' as const, properties: {
+						autoApprove: { type: 'string' as const, title: 'Approvals', enum: ['default', 'assisted', 'autoApprove'], sessionMutable: true, chatMutable: true },
+						autonomy: { type: 'string' as const, title: 'Autonomy', enum: ['low', 'high'], sessionMutable: true },
+					},
+				};
+				const agentMerge = agentMergeConfigValues(buildDefaultChatUri(source), folder, 1);
+				// Elevated session-wide, as for a folder without a chat of the session: the peer uses it.
+				const elevation = { previous: { autoApprove: 'assisted', autonomy: 'low' }, applied: { autoApprove: 'autoApprove', autonomy: 'high' } };
+				stateManager.setSessionConfig(source.toString(), {
+					schema, values: {
+						autoApprove: 'autoApprove', autonomy: 'high', ...agentMerge,
+						[SessionConfigKey.AgentMergeInjectedConfiguration]: elevation,
+					},
+				});
+
+				completeTurn(service, peer);
+				const target = await service.moveChat(source, peer, { kind: 'newSession' });
+				await timeout(0);
+
+				assert.deepStrictEqual({
+					memory: stateManager.getSessionState(target.toString())?.config?.values,
+					persisted: await persistedConfigValues(service, target),
+					sourceAgentMerge: agentMergeConfigValuesOf(stateManager.getSessionState(source.toString())?.config?.values),
+				}, {
+					memory: { autoApprove: 'assisted', autonomy: 'low' },
+					persisted: { autoApprove: 'assisted', autonomy: 'low' },
+					sourceAgentMerge: { ...agentMerge, [SessionConfigKey.AgentMergeInjectedConfiguration]: elevation },
+				});
+			});
+
 			test('a promoted worktree chat\'s session is a worktree session with its branch, base branch and isolation, its worktree recorded centrally only (Block 5)', async () => {
 				const { service, source, peer, folder } = await setupMove(true, undefined, true, undefined, true);
 				const stateManager = getStateManager(service);
@@ -37595,6 +37649,34 @@ suite('AgentService (node dispatcher)', () => {
 						draft: (await store.chatRows.getDraft(target, chat))?.text,
 						strayDirectory: await fileService.exists(sessionDataService.getSessionDataDir(chat)),
 					}, { draft: 'After the move', strayDirectory: false });
+				});
+
+				test('a moved session\'s chat promoted out again inherits none of the destination\'s Agent Merge, in memory or on disk', async () => {
+					const { orchestratorDatabase, service, source, target, chat } = await setupSessionMove();
+					const stateManager = getStateManager(service);
+					const targetChat = stateManager.getSessionState(target.toString())!.defaultChat!;
+					const agentMerge = agentMergeConfigValues(targetChat, URI.file('/repo'), 2);
+					const targetConfig = stateManager.getSessionState(target.toString())?.config;
+					stateManager.setSessionConfig(target.toString(), { schema: targetConfig?.schema ?? { type: 'object', properties: {} }, values: { ...targetConfig?.values, ...agentMerge } });
+
+					await service.moveSession(source, target, undefined);
+					// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Write the stored row, as the host does.
+					const raw = await orchestratorDatabase['_ensureDatabase']();
+					await new Promise<void>((resolve, reject) => raw.run('UPDATE chats_v2 SET provider_data = ? WHERE chat_uri = ?', ['session-backing', chat.toString()], error => error ? reject(error) : resolve()));
+					completeTurn(service, chat);
+					const promoted = await service.moveChat(target, chat, { kind: 'newSession' });
+					await service.whenCatalogReconciliationIdle();
+					await getTestSessionStateStore(service).whenIdle(undefined);
+
+					assert.deepStrictEqual({
+						memory: agentMergeConfigValuesOf(stateManager.getSessionState(promoted.toString())?.config?.values),
+						persisted: agentMergeConfigValuesOf(await persistedConfigValues(service, promoted) as Record<string, unknown>),
+						target: agentMergeConfigValuesOf(stateManager.getSessionState(target.toString())?.config?.values),
+					}, {
+						memory: {},
+						persisted: {},
+						target: agentMerge,
+					});
 				});
 
 				test('the session\'s recorded pull request moves with its chat, and comes back with it when the move is undone by promoting the chat, across a restart', async () => {

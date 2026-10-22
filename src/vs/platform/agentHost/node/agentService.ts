@@ -469,13 +469,18 @@ function getPullRequestSessionGitHubState(session: URI, config: Record<string, u
 	return { owner: pullRequest.owner, repo: pullRequest.repo, ...withMostRecentRelatedSessionPullRequest(undefined, pullRequestUrl, branchName) };
 }
 
-const HOST_OWNED_SESSION_CONFIG_KEYS = [
+/** Every session config value Agent Merge keeps: its settings, lifecycle state and elevation, current and of older builds. */
+const AGENT_MERGE_SESSION_CONFIG_KEYS = [
 	SessionConfigKey.AgentMerge,
 	SessionConfigKey.AgentMergeController,
 	SessionConfigKey.AgentMergeFolders,
 	SessionConfigKey.AgentMergeControllerFolders,
 	SessionConfigKey.AgentMergeInjectedConfiguration,
 	SessionConfigKey.AgentMergeChatInjectedConfiguration,
+] as const;
+
+const HOST_OWNED_SESSION_CONFIG_KEYS = [
+	...AGENT_MERGE_SESSION_CONFIG_KEYS,
 	SessionConfigKey.Isolation,
 	SessionConfigKey.Branch,
 	SessionConfigKey.WorktreeBranchPrefix,
@@ -8085,6 +8090,20 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/**
+	 * The config values a promoted chat's new session starts with: its source's, with the chat's own values over them.
+	 * Agent Merge belongs to the chat that turned it on, so none of the source's Agent Merge comes along, nor the
+	 * elevation it applied session-wide.
+	 */
+	private _promotedSessionConfigValues(sourceValues: Readonly<Record<string, unknown>>, source: string, chat: string): Record<string, unknown> {
+		const elevation = readAgentMergeInjectedConfiguration(sourceValues as Record<string, unknown>);
+		const values: Record<string, unknown> = { ...withoutAgentMergeElevation(sourceValues, elevation), ...withoutAgentMergeElevation(this._movedChatConfig(source, source, chat), elevation) };
+		for (const key of AGENT_MERGE_SESSION_CONFIG_KEYS) {
+			delete values[key];
+		}
+		return values;
+	}
+
+	/**
 	 * Prepares the sessions a move, promotion or reorder re-projects, as 4a's contract for two-session writes asks
 	 * (agentHostChatCatalogV2.md): waits for their in-flight peer-store writes, converts a legacy chat catalog to
 	 * normalized authority, and brings each older-build copy in sync (imports what older builds changed, publishes the
@@ -8221,7 +8240,7 @@ export class AgentService extends Disposable implements IAgentService {
 			let movedArtifacts: IMovedChatArtifacts | undefined;
 			const sourceConfig = this._stateManager.getSessionState(sourceKey)?.config;
 			// The chat's own values become the new session's: its future chats start from them.
-			const config: SessionConfigState | undefined = sourceConfig && { schema: sourceConfig.schema, values: { ...sourceConfig.values, ...this._movedChatConfig(sourceKey, sourceKey, chatKey), ...this._promotedIsolationConfig(sourceConfig, session, chatKey, promotedRepository) } };
+			const config: SessionConfigState | undefined = sourceConfig && { schema: sourceConfig.schema, values: { ...this._promotedSessionConfigValues(sourceConfig.values, sourceKey, chatKey), ...this._promotedIsolationConfig(sourceConfig, session, chatKey, promotedRepository) } };
 			try {
 				this._checkMovedChat(sourceKey, chatKey);
 				const current = chatSubtree(this._stateManager, sourceKey, chatKey);
