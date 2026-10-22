@@ -2070,7 +2070,6 @@ export class NewChatWidget extends Disposable {
 				synthesisHarness: synthesisModelId ? resolveHarness(synthesisModelId) : undefined,
 				branch,
 			});
-			this._comparisonSelection.reset();
 			try {
 				if (this.configurationService.getValue<boolean>(COMPARE_AGENTS_OPEN_IN_GRID_SETTING)) {
 					// An empty composer would create a new draft and cancel the grid navigation.
@@ -2080,6 +2079,8 @@ export class NewChatWidget extends Disposable {
 			} catch (error) {
 				this.logService.error('Failed to open session comparison:', error);
 				this.notificationService.error(error);
+			} finally {
+				this._comparisonSelection.reset();
 			}
 			return true;
 		} catch (error) {
