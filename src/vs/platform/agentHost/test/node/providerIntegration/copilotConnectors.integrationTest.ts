@@ -108,14 +108,16 @@ suite('Copilot SDK Connector reconciliation', function () {
 				json({ login: 'connector-test', id: 1 });
 			} else if (path === '/copilot-connectors/api/v1/plugins') {
 				json({
-					plugins: ['mail', 'calendar', 'drive', 'files'].map(name => {
-						const connected = name === 'mail' ? mailConnected : name === 'drive' || name === 'files' ? newConnectorsConnected : true;
-						return {
-							name, metadata: { displayName: `Test ${name}`, tier: 'standard', releaseTag: 'preview' },
-							connection: { status: connected ? 'connected' : 'available' },
-							mcpServers: { mcpServers: { [name]: { type: 'http', url: `${mcpUrl}/mcp/${name === 'mail' ? mailEndpoint : name}` } } },
-						};
-					}),
+					plugins: [
+						{ name: 'mail', connected: mailConnected, endpoint: mailEndpoint },
+						{ name: 'calendar', connected: true, endpoint: 'calendar' },
+						{ name: 'drive', connected: newConnectorsConnected, endpoint: 'drive' },
+						{ name: 'files', connected: newConnectorsConnected, endpoint: 'files' },
+					].map(({ name, connected, endpoint }) => ({
+						name, metadata: { displayName: `Test ${name}`, tier: 'standard', releaseTag: 'preview' },
+						connection: { status: connected ? 'connected' : 'available' },
+						mcpServers: { mcpServers: { [name]: { type: 'http', url: `${mcpUrl}/mcp/${endpoint}` } } },
+					})),
 				});
 			} else {
 				const stub = getAncillaryStub(request.method ?? 'GET', path);
