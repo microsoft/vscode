@@ -60,6 +60,8 @@ export interface ICacheWarmingJob {
 	readonly builtInExtensions?: { readonly target: string };
 	/** Whether the job caches the WSL installer with `.github/actions/restore-wsl-installer`. */
 	readonly wslInstaller?: boolean;
+	/** The `runner.arch` and `browsers` of `.github/actions/restore-playwright`. */
+	readonly playwright?: { readonly arch: string; readonly browsers: string };
 }
 
 /**
@@ -83,17 +85,20 @@ export const cacheWarmingJobs: Readonly<Record<string, ICacheWarmingJob>> = {
 		os: 'Linux',
 		nodeModules: { prefix: 'node_modules-linux', args: ['linux', 'x64', 'x64'] },
 		electron: { arch: 'x64' },
+		playwright: { arch: 'X64', browsers: '--only-shell chromium' },
 	},
 	'macOS': {
 		os: 'macOS',
 		nodeModules: { prefix: 'node_modules-macos', args: ['darwin', 'arm64', 'arm64'] },
 		electron: { arch: 'arm64' },
+		playwright: { arch: 'ARM64', browsers: '--only-shell chromium webkit' },
 	},
 	'windows': {
 		os: 'Windows',
 		nodeModules: { prefix: 'node_modules-windows', args: ['win32', 'x64', 'x64'] },
 		electron: { arch: 'x64' },
 		wslInstaller: true,
+		playwright: { arch: 'X64', browsers: '--only-shell chromium' },
 	},
 	'copilot-linux': {
 		os: 'Linux',
@@ -154,6 +159,11 @@ export function getCaches(job: ICacheWarmingJob, readFile: ReadRepositoryFile): 
 	}
 	if (job.wslInstaller) {
 		caches.push(cache(`wsl-installer-v1-${job.os}-${hashFiles(readFile('build/checksums/wsl.txt'))}`, '.build/wsl-installer'));
+	}
+	if (job.playwright) {
+		const version = JSON.parse(readFile('package-lock.json').toString('utf8')).packages['node_modules/playwright'].version;
+		const browsers = job.playwright.browsers.replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '');
+		caches.push(cache(`playwright-v1-${job.os}-${job.playwright.arch}-${version}-${browsers}`, '.build/ms-playwright'));
 	}
 	return caches;
 }

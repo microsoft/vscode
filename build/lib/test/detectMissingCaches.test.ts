@@ -50,10 +50,10 @@ function readRepositoryFile(relativePath: string): Buffer {
  * `ELECTRON_CACHE_PATH` that `.github/actions/setup-electron` sets on the runner, which depends on its
  * user profile and is part of the cache version.
  */
-const runners: Record<string, { platform: string; arch: string; os: ICacheWarmingJob['os']; electronCachePath: string }> = {
-	'vscode-large-runners-ubuntu-8-core': { platform: 'linux', arch: 'x64', os: 'Linux', electronCachePath: '/home/runner/.cache/electron' },
-	'vscode-large-runners-windows-8-core': { platform: 'win32', arch: 'x64', os: 'Windows', electronCachePath: 'C:\\Users\\runneradmin\\AppData\\Local\\electron\\Cache' },
-	'vscode-large-runners-macos-5-core-0': { platform: 'darwin', arch: 'arm64', os: 'macOS', electronCachePath: '/Users/runner/Library/Caches/electron' },
+const runners: Record<string, { platform: string; arch: string; runnerArch: string; os: ICacheWarmingJob['os']; electronCachePath: string }> = {
+	'vscode-large-runners-ubuntu-8-core': { platform: 'linux', arch: 'x64', runnerArch: 'X64', os: 'Linux', electronCachePath: '/home/runner/.cache/electron' },
+	'vscode-large-runners-windows-8-core': { platform: 'win32', arch: 'x64', runnerArch: 'X64', os: 'Windows', electronCachePath: 'C:\\Users\\runneradmin\\AppData\\Local\\electron\\Cache' },
+	'vscode-large-runners-macos-5-core-0': { platform: 'darwin', arch: 'arm64', runnerArch: 'ARM64', os: 'macOS', electronCachePath: '/Users/runner/Library/Caches/electron' },
 };
 
 function getRunner(job: IJob, name: string) {
@@ -81,12 +81,14 @@ suite('Detect missing caches', () => {
 
 			const nodeModules = step('./.github/actions/restore-node-modules')?.with;
 			const electron = step('./.github/actions/setup-electron')?.with;
+			const playwright = step('./.github/actions/restore-playwright')?.with;
 			jobs[name] = {
 				os: runner.os,
 				nodeModules: { prefix: nodeModules?.['key-prefix'] ?? '', args: evaluate(nodeModules?.['key-args'] ?? '').split(/\s+/) },
 				...electron ? { electron: { arch: evaluate(electron.arch) } } : {},
 				...job.steps.some(step => step.with?.key?.startsWith('builtin-extensions-')) ? { builtInExtensions: { target: `${runner.platform}-${runner.arch}` } } : {},
 				...step('./.github/actions/restore-wsl-installer') ? { wslInstaller: true } : {},
+				...playwright ? { playwright: { arch: runner.runnerArch, browsers: playwright.browsers } } : {},
 			};
 			gates[name] = `${job.needs} ${job.if}`;
 		}
@@ -122,6 +124,7 @@ suite('Detect missing caches', () => {
 			electron: [...caches(loadActionSteps('setup-electron')), ...commands(loadActionSteps('setup-electron'), /ELECTRON_CACHE_PATH=|\$cacheRoot =/)],
 			builtInExtensions: [...caches(compile), ...commands(compile, /computeBuiltInDepsCacheKey/)],
 			wslInstaller: caches(loadActionSteps('restore-wsl-installer')),
+			playwright: [...caches(loadActionSteps('restore-playwright')), ...commands(loadActionSteps('restore-playwright'), /const (version|browsers) =/)],
 		}, {
 			nodeModules: [
 				{ key: '${{ inputs.key-prefix }}-${{ hashFiles(\'.build/packagelockhash\') }}', path: '.build/node_modules_cache', enableCrossOsArchive: undefined },
@@ -144,6 +147,12 @@ suite('Detect missing caches', () => {
 			wslInstaller: [
 				{ key: 'wsl-installer-v1-${{ runner.os }}-${{ hashFiles(\'build/checksums/wsl.txt\') }}', path: '.build/wsl-installer', enableCrossOsArchive: undefined },
 				{ key: '${{ steps.restore.outputs.cache-primary-key }}', path: '.build/wsl-installer', enableCrossOsArchive: undefined },
+			],
+			playwright: [
+				{ key: 'playwright-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.prepare.outputs.version }}-${{ steps.prepare.outputs.browsers }}', path: '.build/ms-playwright', enableCrossOsArchive: undefined },
+				{ key: '${{ steps.restore.outputs.cache-primary-key }}', path: '.build/ms-playwright', enableCrossOsArchive: undefined },
+				'const version = JSON.parse(fs.readFileSync(process.env.PLAYWRIGHT_PACKAGE_LOCK, \'utf8\')).packages[\'node_modules/playwright\'].version;',
+				'const browsers = process.env.PLAYWRIGHT_INSTALL_ARGS.replace(/[^A-Za-z0-9]+/g, \'-\').replace(/^-|-$/g, \'\');',
 			],
 		});
 	});
