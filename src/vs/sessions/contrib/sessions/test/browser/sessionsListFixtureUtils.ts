@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../../base/browser/dom.js';
-import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
+import { getContextMenuAutoSelectItem, IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
 import { getAnchorRect } from '../../../../../base/browser/ui/contextview/contextview.js';
 import { Menu } from '../../../../../base/browser/ui/menu/menu.js';
 import { ActionRunner } from '../../../../../base/common/actions.js';
@@ -324,7 +324,16 @@ export class FixtureContextMenuService extends Disposable implements IContextMen
 			this.onDidHideContextMenuEmitter.fire();
 		}));
 		this.shownMenu.value = store;
-		this.focus({ focus: () => menu.focus(!!delegate.autoSelectFirstItem) });
+		this.focus({
+			focus: () => {
+				const selection = getContextMenuAutoSelectItem(delegate, actions);
+				if (typeof selection === 'number') {
+					menu.focus(selection);
+				} else {
+					menu.focus(selection);
+				}
+			},
+		});
 		this.onDidShowContextMenuEmitter.fire();
 	}
 }

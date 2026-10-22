@@ -47,6 +47,7 @@ import { CONNECTED_EDITOR_TABS_SELECTOR } from '../../../workbench/browser/parts
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording } from '../../../platform/chat/common/sessionArchiveActions.js';
 import { getSessionToolbarSecondaryActionsPosition, getSessionChatAncestors } from './sessionHeaderBar.js';
+import { SessionStatusIcon } from '../sessionStatusIcon.js';
 
 interface IChatTab {
 	readonly chat: IChat;
@@ -422,12 +423,10 @@ export class ChatCompositeBar extends Disposable {
 			tab.classList.toggle('untitled', status === SessionStatus.Untitled);
 		}));
 
-		// Track unread / needs-input / in-progress state for the indicator.
-		// Precedence: needs-input (unread) > in-progress (spinner) > unread when not active.
-		// At most one indicator is shown at a time.
-		const indicator = $('.chat-composite-bar-tab-indicator');
+		const indicator = $('.chat-composite-bar-tab-indicator', { 'aria-hidden': true });
 		const indicatorIcon = $('.chat-composite-bar-tab-indicator-icon');
 		indicator.appendChild(indicatorIcon);
+		const statusIcon = this._tabDisposables.add(this._instantiationService.createInstance(SessionStatusIcon, indicatorIcon));
 		this._tabDisposables.add(autorun(reader => {
 			const isActive = delegate?.activeChatResource.read(reader) === chat.resource.toString();
 			const status = chat.status.read(reader);
@@ -446,13 +445,14 @@ export class ChatCompositeBar extends Disposable {
 			tab.classList.toggle('unread', mode === 'unread');
 			tab.classList.toggle('in-progress', mode === 'in-progress');
 
-			indicatorIcon.className = 'chat-composite-bar-tab-indicator-icon';
 			if (mode === 'in-progress') {
-				indicatorIcon.classList.add(...ThemeIcon.asClassNameArray(ThemeIcon.modify(Codicon.loading, 'spin')));
+				statusIcon.setStatus(status, isRead, chat.isArchived.read(reader));
+			} else {
+				statusIcon.reset();
 			}
 		}));
 
-		tab.appendChild(indicator);
+		tab.insertBefore(indicator, lockIcon);
 
 		// Close button — contributed via Menus.SessionChatTab (the chat tab menu).
 		// Only non-main chats can be closed; the main chat lives and dies with its

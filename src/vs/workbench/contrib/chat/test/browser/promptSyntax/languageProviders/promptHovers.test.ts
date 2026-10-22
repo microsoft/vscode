@@ -27,8 +27,9 @@ import { PromptFileParser } from '../../../../common/promptSyntax/promptFilePars
 import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { getPromptFileExtension } from '../../../../common/promptSyntax/config/promptFileLocations.js';
-import { createVSCodeHarnessDescriptor, ICustomizationHarnessService } from '../../../../common/customizationHarnessService.js';
+import { createVSCodeHarnessDescriptor, ICustomizationHarnessService, type IAgentFileToolInventoryEntry } from '../../../../common/customizationHarnessService.js';
 import { constObservable } from '../../../../../../../base/common/observable.js';
+import { Event } from '../../../../../../../base/common/event.js';
 
 suite('PromptHoverProvider', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -36,9 +37,11 @@ suite('PromptHoverProvider', () => {
 	let instaService: TestInstantiationService;
 	let hoverProvider: PromptHoverProvider;
 	let activeTarget: Target;
+	let copilotToolInventory: readonly IAgentFileToolInventoryEntry[];
 
 	setup(async () => {
 		activeTarget = Target.Undefined;
+		copilotToolInventory = [];
 		const testConfigService = new TestConfigurationService();
 		testConfigService.setUserConfiguration(ChatConfiguration.ExtensionToolsEnabled, true);
 		instaService = workbenchInstantiationService({
@@ -99,11 +102,21 @@ suite('PromptHoverProvider', () => {
 			}
 		});
 		const localDescriptor = createVSCodeHarnessDescriptor();
-		const copilotDescriptor = { ...localDescriptor, id: 'copilot-test', customAgentTarget: Target.GitHubCopilot };
+		const copilotDescriptor = {
+			...localDescriptor,
+			id: 'copilot-test',
+			customAgentTarget: Target.GitHubCopilot,
+			itemProvider: {
+				onDidChange: Event.None,
+				provideChatSessionCustomizations: async () => [],
+				provideAgentFileTools: async () => copilotToolInventory,
+			},
+		};
 		instaService.stub(ICustomizationHarnessService, {
 			activeHarness: constObservable('copilot-test'),
 			availableHarnesses: constObservable([localDescriptor, copilotDescriptor]),
 			getActiveDescriptor: () => activeTarget === Target.GitHubCopilot ? copilotDescriptor : localDescriptor,
+			getSessionResourceForHarness: harnessId => URI.parse(`test:/${harnessId}`),
 		});
 
 		hoverProvider = instaService.createInstance(PromptHoverProvider);
@@ -423,11 +436,26 @@ suite('PromptHoverProvider', () => {
 			].join('\n');
 			// Hover on 'shell' tool
 			const hoverShell = await getHover(content, 4, 10, PromptsType.agent);
-			assert.strictEqual(hoverShell, 'ToolSet: execute\n\n\nExecute code and applications on your machine');
+			assert.strictEqual(hoverShell, 'Execute commands');
 
 			// Hover on 'read' tool
 			const hoverEdit = await getHover(content, 4, 20, PromptsType.agent);
-			assert.strictEqual(hoverEdit, 'ToolSet: read\n\n\nRead files in your workspace');
+			assert.strictEqual(hoverEdit, 'Read files');
+		});
+
+		test('hover on unavailable github-copilot tool shows provider availability', async () => {
+			copilotToolInventory = [{ name: 'github/*', description: 'GitHub tools', availability: 'disabled' }];
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				`tools: ['github/*']`,
+				'---',
+			].join('\n');
+
+			const hover = await getHover(content, 4, 10, PromptsType.agent);
+
+			assert.strictEqual(hover, 'GitHub tools\n\nThis tool is recognized but disabled for the matching GitHub Copilot harness.');
 		});
 
 		test('hover on github-copilot tool with target undefined', async () => {

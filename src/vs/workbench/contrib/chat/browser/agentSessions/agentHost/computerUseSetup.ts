@@ -12,7 +12,7 @@ import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { COMPUTER_USE_REQUEST_KEY, type IComputerUseRequest, type IComputerUseSetupActionV1, type IComputerUseStatusV1 } from '../../../../../../platform/agentHost/common/computerUse.js';
-import { readComputerUseStatusFromRootState } from '../../../../../../platform/agentHost/common/meta/computerUse.js';
+import { getComputerUseActivationMessage, readComputerUseStatusFromRootState } from '../../../../../../platform/agentHost/common/meta/computerUse.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { ROOT_STATE_URI, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { createDecorator, IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -45,6 +45,14 @@ export function getComputerUseSetupCardText(): { readonly title: string; readonl
 	return {
 		title: localize('computerUseSetup.card.title', "Computer Use needs permission to control apps and capture their windows."),
 		message: localize('computerUseSetup.card.message', "Copilot continues your task once macOS confirms both permissions."),
+	};
+}
+
+/** The text of the chat card that asks to turn on Computer Use, live or restored. The message is Markdown source. */
+export function getComputerUseActivationCardText(reason: string | undefined): { readonly title: string; readonly message: string } {
+	return {
+		title: localize('computerUseActivation.card.title', "Turn on Computer Use?"),
+		message: getComputerUseActivationMessage(reason),
 	};
 }
 
