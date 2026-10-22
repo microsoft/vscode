@@ -5,7 +5,7 @@
 
 import { assert } from 'chai';
 import { suite, test } from 'vitest';
-import { getAgentFileContext } from '../promptFileContextService';
+import { getAgentFileContext, getAgentFileTarget } from '../promptFileContextService';
 
 suite('PromptFileContextContribution', () => {
 	const models = ['GPT-5.6 Sol'];
@@ -13,13 +13,22 @@ suite('PromptFileContextContribution', () => {
 
 	test('provides only shared agent attributes without a target', () => {
 		const context = getAgentFileContext(undefined, models, modelIds);
-		const values = context.map(item => 'value' in item ? item.value : '');
+		const values = context.map(item => 'value' in item ? item.value : '').join('\n');
 
-		assert.include(values[0], 'name, description, target, model, tools');
-		assert.notInclude(values[0], 'argument-hint');
-		assert.notInclude(values[0], 'mcp-servers');
-		assert.notInclude(values.join('\n'), 'GPT-5.6 Sol');
-		assert.notInclude(values.join('\n'), 'gpt-5.6-sol');
+		assert.include(values, 'name, description, target, model, tools');
+		assert.notInclude(values, 'argument-hint');
+		assert.notInclude(values, 'mcp-servers');
+		assert.notInclude(values, 'GPT-5.6 Sol');
+		assert.notInclude(values, 'gpt-5.6-sol');
+	});
+
+	test('parses only supported explicit targets', () => {
+		assert.deepEqual([
+			getAgentFileTarget('---\ntarget: vscode\n---\nBody'),
+			getAgentFileTarget('---\ntarget: github-copilot\n---\nBody'),
+			getAgentFileTarget('---\ntarget: future-harness\n---\nBody'),
+			getAgentFileTarget('Body without frontmatter'),
+		], ['vscode', 'github-copilot', undefined, undefined]);
 	});
 
 	test('provides VS Code-specific agent context', () => {

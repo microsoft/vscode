@@ -30,7 +30,7 @@ const sharedAgentAttributes = [
 	PromptHeaderAttributes.userInvocable,
 	PromptHeaderAttributes.disableModelInvocation,
 	PromptHeaderAttributes.hooks,
-	'reasoning-effort',
+	PromptHeaderAttributes.reasoningEffort,
 ];
 
 const vscodeAgentAttributes = [
@@ -43,13 +43,13 @@ const vscodeAgentAttributes = [
 
 const githubCopilotAgentAttributes = [
 	...sharedAgentAttributes,
-	'mcp-servers',
-	'model-policy',
-	'skills',
-	'deferred-tools',
-	'strict-tools-list',
-	'include-custom-instructions',
-	'github',
+	PromptHeaderAttributes.mcpServers,
+	PromptHeaderAttributes.modelPolicy,
+	PromptHeaderAttributes.skills,
+	PromptHeaderAttributes.deferredToolLoading,
+	PromptHeaderAttributes.strictToolsList,
+	PromptHeaderAttributes.includeCustomInstructions,
+	PromptHeaderAttributes.github,
 ];
 
 const agentToolAliases = ['execute', 'read', 'edit', 'search', 'web', 'agent', 'todo'];
@@ -132,6 +132,11 @@ export function getAgentFileContext(target: AgentFileTarget, modelNames: readonl
 	return context;
 }
 
+export function getAgentFileTarget(content: string): AgentFileTarget {
+	const authoredTarget = parseFrontMatter(content)?.getStringValue(PromptHeaderAttributes.target);
+	return authoredTarget === 'vscode' || authoredTarget === 'github-copilot' ? authoredTarget : undefined;
+}
+
 export class PromptFileContextContribution extends Disposable {
 
 	private readonly _enableCompletionContext: IObservable<boolean>;
@@ -139,6 +144,7 @@ export class PromptFileContextContribution extends Disposable {
 
 	private models: string[] = ['GPT-4.1', 'GPT-4o'];
 	private modelIds: string[] = [];
+	private readonly agentFileTargets = new Map<string, { readonly version: number; readonly target: AgentFileTarget }>();
 
 	constructor(
 		@IConfigurationService configurationService: IConfigurationService,
@@ -157,6 +163,7 @@ export class PromptFileContextContribution extends Disposable {
 				this.registration = undefined;
 			}
 		}));
+		this._register(vscode.workspace.onDidCloseTextDocument(document => this.agentFileTargets.delete(document.uri.toString())));
 
 	}
 
@@ -279,9 +286,7 @@ export class PromptFileContextContribution extends Disposable {
 				];
 			}
 			case PromptFileLangageId.agent: {
-				const authoredTarget = parseFrontMatter(document.getText())?.getStringValue(PromptHeaderAttributes.target);
-				const target: AgentFileTarget = authoredTarget === 'vscode' || authoredTarget === 'github-copilot' ? authoredTarget : undefined;
-				return getAgentFileContext(target, this.models, this.modelIds);
+				return getAgentFileContext(this.getAgentFileTarget(document), this.models, this.modelIds);
 			}
 			default:
 				return [];
@@ -292,6 +297,16 @@ export class PromptFileContextContribution extends Disposable {
 		return agentToolAliases;
 	}
 
+	private getAgentFileTarget(document: vscode.TextDocument): AgentFileTarget {
+		const key = document.uri.toString();
+		const cached = this.agentFileTargets.get(key);
+		if (cached?.version === document.version) {
+			return cached.target;
+		}
+		const target = getAgentFileTarget(document.getText());
+		this.agentFileTargets.set(key, { version: document.version, target });
+		return target;
+	}
 
 	private async getCopilotApi(): Promise<Copilot.ContextProviderApiV1 | undefined> {
 		const copilotExtension = vscode.extensions.getExtension('GitHub.copilot');
