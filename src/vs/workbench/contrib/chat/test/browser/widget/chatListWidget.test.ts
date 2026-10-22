@@ -397,8 +397,8 @@ suite('ChatListWidget', () => {
 	});
 
 	suite('generated image preview retention', () => {
-		for (const imageCount of [1, 3]) {
-			test(`image generation preserves scroll position on every frame before expansion (${imageCount} calls)`, async () => {
+		for (const { imageCount, fraction } of [1, 3].flatMap(imageCount => [undefined, 0.25, 0.75].map(fraction => ({ imageCount, fraction })))) {
+			test(`image generation preserves scroll position on every frame before expansion (${imageCount} calls, fraction=${fraction ?? 'natural'})`, async () => {
 				const { disposables, instantiationService, model, viewModel, container, widget } = createWidget({}, configuration => {
 					configuration.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
 					configuration.setUserConfiguration(ChatConfiguration.ThinkingPhrases, { mode: 'replace', phrases: ['Working'] });
@@ -431,7 +431,11 @@ suite('ChatListWidget', () => {
 				context.fillRect(0, 0, canvas.width, canvas.height);
 				const imageData = decodeBase64(canvas.toDataURL('image/png').split(',')[1]);
 				const imageBytes = new DeferredPromise<typeof imageData>();
-				disposables.add(toDisposable(() => { void imageBytes.complete(imageData); }));
+				disposables.add(toDisposable(() => {
+					if (!imageBytes.isSettled) {
+						void imageBytes.complete(imageData);
+					}
+				}));
 				instantiationService.stub(IFileService, disposables.add(new class extends TestFileService {
 					override async readFile(resource: URI) {
 						return { ...await super.readFile(resource), value: await imageBytes.p };
@@ -454,6 +458,14 @@ suite('ChatListWidget', () => {
 				widget.refresh();
 				widget.layout(300, 500);
 				await waitForStableLayout(widget);
+				if (fraction !== undefined) {
+					const row = container.querySelector<HTMLElement>('.interactive-response')!;
+					const markdown = row.querySelector<HTMLElement>('.chat-markdown-part')!;
+					const height = row.getBoundingClientRect().height;
+					markdown.style.height = `${markdown.getBoundingClientRect().height + Math.ceil(height) - height + fraction}px`;
+					await waitForStableLayout(widget);
+					assert.strictEqual(row.getBoundingClientRect().height % 1, fraction);
+				}
 				widget.scrollToEnd();
 				await waitForStableLayout(widget);
 				assert.ok(widget.scrollTop > 0);
@@ -483,12 +495,14 @@ suite('ChatListWidget', () => {
 				await retry(async () => assert.ok(container.querySelector('.chat-image-reveal.revealing')), 10, 50);
 				disposables.dispose();
 				assert.deepStrictEqual({
-					frames,
+					frames: frames.map(({ scrollTop, scrollHeight, rowHeight }) => ({ scrollTop, scrollHeight, rowHeight })),
+					boundsUnchanged: frames.every(frame => Math.abs(frame.top - running.top) <= 1 / 64 && Math.abs(frame.height - running.height) <= 1 / 64),
 					sameSurface,
 					maxScrollHeightChange: Math.max(0, ...scrollHeights.map(height => Math.abs(height - running.scrollHeight))),
 					disposedSurface: !surface.isConnected && surface.width === 0 && surface.height === 0,
 				}, {
-					frames: Array.from({ length: 7 }, () => running),
+					frames: Array.from({ length: 7 }, () => ({ scrollTop: running.scrollTop, scrollHeight: running.scrollHeight, rowHeight: running.rowHeight })),
+					boundsUnchanged: true,
 					sameSurface: true,
 					maxScrollHeightChange: 0,
 					disposedSurface: true,

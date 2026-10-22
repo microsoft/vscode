@@ -615,6 +615,8 @@ export class ChatListWidget extends Disposable {
 				horizontalScrolling: false,
 				alwaysConsumeMouseWheel: false,
 				supportDynamicHeights: true,
+				// Match the renderer's ResizeObserver measurements when the list re-probes a row.
+				measureDynamicHeight: row => Math.ceil(row.getBoundingClientRect().height),
 				paddingBottom: this._paddingBottom,
 				hideTwistiesOfChildlessElements: true,
 				enableStickyScroll: this.isTreeStickyScrollEnabled(),

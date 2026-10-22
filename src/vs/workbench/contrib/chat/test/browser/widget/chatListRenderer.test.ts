@@ -3782,7 +3782,7 @@ suite('ChatListRenderer', () => {
 					handoff,
 					expansionStart,
 					expands: expanded.width > running.width && expanded.height >= running.height,
-					anchored: expanded.top === running.top && expanded.left === running.left,
+					anchored: Math.abs(expanded.top - running.top) <= 1 / 64 && Math.abs(expanded.left - running.left) <= 1 / 64,
 					footerFollowsExpansion: Math.abs(expanded.footerTop - running.footerTop - (expanded.height - running.height)) <= 1 / 64,
 				}, {
 					sameSurface: true,
