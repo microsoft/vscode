@@ -11729,7 +11729,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			agentHost.setSessionState('reorder-notify', 'copilotcli', makeState([makeChatSummary(defaultChat, ''), peer(first, 'First'), peer(second, 'Second')], { defaultChat }));
 			// Session lists read `chats` reactively, so a reorder reaches them without a session change event.
 			const observed: string[] = [];
-			disposables.add(autorun(reader => observed.push(session.chats.read(reader).map(chat => chat.title.read(undefined)).join(','))));
+			disposables.add(autorun(reader => observed.push(session.chats.read(reader).map(chat => chat.title.read(reader)).join(','))));
 
 			agentHost.setSessionState('reorder-notify', 'copilotcli', makeState([makeChatSummary(defaultChat, ''), peer(second, 'Second'), peer(first, 'First')], { defaultChat }));
 			const third = buildDefaultChatUri(AgentSession.uri('copilotcli', 'third').toString());

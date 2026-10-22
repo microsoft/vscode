@@ -8727,6 +8727,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		cached.applyChatCatalog(state);
 		this._cacheDirty = true;
+		// Chat order reaches consumers through the `chats` observable, not `onDidChangeSessions`: this runs
+		// while session lists observe chat details during rendering, and a session change would re-enter them.
 	}
 
 	/**
