@@ -60,7 +60,9 @@ import { isExperimentalSessionComposerLayoutEnabled, NewChatWidget } from './new
 import { NewChatInSessionWidget } from './newChatInSessionWidget.js';
 import { SessionInputBanners } from '../../sessionInputBanners/browser/sessionInputBanners.js';
 import { SESSION_CHAT_INPUT_TOOLBAR_HEIGHT, SessionChatInputToolbar } from './sessionChatInputToolbar.js';
-import { ResponseSelectionSideChatController } from './responseSelectionSideChatController.js';
+import { ResponseSelectionSideChatController } from '../../../../workbench/contrib/chat/browser/responseSelectionSideChatController.js';
+import { logResponseSelectionWidgetAction } from '../../../common/sessionsTelemetry.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ISessionChatPillsDebugService } from './sessionChatInputToolbarDebug.js';
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
 import { activeSessionViewBackground, activeSessionViewForeground, agentsPanelBackground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../../common/theme.js';
@@ -77,7 +79,7 @@ import { ISessionPickerVisibility, noSessionPickerVisibility } from '../../../se
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../services/sessions/common/sessionComparison.js';
 import { IAgentsWindowDraft } from '../../../../platform/window/common/window.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../common/layoutConstants.js';
-import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
+import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 
 const SESSION_CHAT_RESPONSE_INTERNAL_HORIZONTAL_PADDING = 12;
 // 14px icon + 6px padding + 4px gap + breathing room. The percentage label expands over the editor on hover.
@@ -164,6 +166,12 @@ export class NewChatView extends AbstractChatView {
 
 	override toJSON(): object {
 		return { type: NewChatView.TYPE };
+	}
+
+	override setChat(chat: IChat): void {
+		if (this._widget instanceof NewChatInSessionWidget) {
+			this._widget.setChat(chat);
+		}
 	}
 
 	override get preserveOnSessionClear(): boolean {
@@ -378,6 +386,7 @@ export class ChatView extends AbstractChatView {
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionComparisonService private readonly comparisonService: ISessionComparisonService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super();
 		this._register(toDisposable(() => this._reportModelUnbound()));
@@ -424,6 +433,11 @@ export class ChatView extends AbstractChatView {
 				enableImplicitContext: true,
 				enableWorkingSet: 'implicit',
 				supportsChangingModes: true,
+				supportsSideChat: derived(this, reader => {
+					const session = this._currentSessionObs.read(reader);
+					return !!session && session.status.read(reader) !== SessionStatus.Untitled
+						&& !session.isArchived.read(reader) && !!session.capabilities.read(reader).supportsSideChat;
+				}),
 				renderSecondaryToolbar: shouldRenderRunningSessionSecondaryToolbar(initiallyUsesExperimentalComposerLayout),
 				inputEditorMinLines: 2,
 				isSessionsWindow: true,
@@ -493,7 +507,10 @@ export class ChatView extends AbstractChatView {
 		this._setupTranscriptPreparationProgress(chatModel);
 		this._setupInitialTranscriptContext(chatModel);
 
-		this._selectionSideChatController = this._register(scopedInstantiationService.createInstance(ResponseSelectionSideChatController, this._widget, isResponseSelectionSupported()));
+		this._selectionSideChatController = this._register(scopedInstantiationService.createInstance(ResponseSelectionSideChatController, this._widget, isResponseSelectionSupported(), {
+			useActionMenu: () => configurationService.getValue<boolean>(AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING),
+			onAction: (variant, action) => logResponseSelectionWidgetAction(telemetryService, variant, action),
+		}));
 
 		// Mount the session banners directly above the chat input.
 		this._banners = this._register(instantiationService.createInstance(SessionInputBanners));
@@ -702,7 +719,7 @@ export class ChatView extends AbstractChatView {
 
 		// Reflect this chat's last-turn changes, status, and background activity.
 		this._chatPills.setChat(chat);
-		this._selectionSideChatController.setChat(chat);
+		this._selectionSideChatController.setChat(chat.resource, derived(this, reader => chat.interactivity.read(reader) !== ChatInteractivity.Full || this._modelReadOnly.read(reader)));
 		this._banners.setDebugData(undefined);
 
 		// Reflect read-only (non-interactive) chats: hide the composer and gate
@@ -1028,6 +1045,7 @@ export class ChatView extends AbstractChatView {
 		}
 		this._widget.clear().catch(err => this.logService.error('[ChatView] Failed to clear chat widget', err));
 		this._widget.setModel(undefined);
+		this._selectionSideChatController.setChat(undefined, constObservable(true));
 		this._modelRef.clear();
 		// Clear the bound-resource attribute while the rebind is in flight so
 		// test automation can wait for the next `setChat` cycle to finish

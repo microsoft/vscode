@@ -69,6 +69,7 @@ import { NewSessionPromptOptionsPresenter } from './newSessionPromptOptions.js';
 import { NewChatUserInteraction } from './newChatUserInteraction.js';
 import { hasSendableModelSelection } from './sessionModelPickerState.js';
 import { ISessionModelSelection, SessionModelSelection } from './sessionModelSelection.js';
+import { SessionReferenceCompletions } from './sessionReferenceCompletions.js';
 import { SessionTypePicker } from './sessionTypePicker.js';
 import { ChatInputPickerResponsiveLayout } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerResponsiveLayout.js';
 import { isPhoneLayout } from '../../../browser/parts/mobile/mobileLayout.js';
@@ -307,7 +308,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 				resultEditorBackground: agentsPanelBackground,
 			},
 		));
-		widget.render(widgetContainer, root, this.options.petHostPreferred);
+		widget.render(widgetContainer, root, this.options.petHostPreferred, this.options.setChatPetPlatformOccupation);
 		widget.setVisible(true);
 		widget.setInputPartMaxHeightOverride(COMPOSER_INPUT_MAX_HEIGHT);
 
@@ -320,6 +321,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			this._onDidChangeAttachments.fire();
 			this._onDidChangeInput.fire();
 		}));
+		this._register(this.instantiationService.createInstance(SessionReferenceCompletions, widget, () => this.options.session.get()));
 		if (this.options.supportsBackground) {
 			// Alt+Enter sends without navigating into the session, like the other Agents window composers.
 			this._register(widget.inputEditor.onKeyDown(e => {
@@ -351,6 +353,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		this._register(widget.input.registerChatPetHorizontalPlatformProvider({
 			onDidChange: Event.any(this.options.onDidChangeChatPetPlatform ?? Event.None, this.sessionTypePicker.onDidChangeChatPetPlatform),
 			getElements: () => [...(this.options.getChatPetPlatformElements?.() ?? []), ...this.sessionTypePicker.getChatPetPlatformElements()],
+			getBaseElement: this.options.getChatPetBasePlatformElement,
 		}));
 
 		this._renderSessionControls(parent);
@@ -358,14 +361,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			widget.attachmentModel.addContext(...this._pendingAttachments.splice(0));
 		}
 		this._restoreDraftState();
-
-		// The widget needs a chat model before it accepts input. Bind the draft's
-		// chat so the input sees its session type, and keep the input when the
-		// draft is replaced.
-		this._register(autorun(reader => {
-			const session = this.options.session.read(reader);
-			void this._bindModel(session?.activeChat.read(reader).resource);
-		}));
+		this._bindChatModel();
 
 		const resizeObserver = this._register(new dom.DisposableResizeObserver('SharedChatInputComposer', () => this._layoutWidget(), dom.getWindow(container)));
 		this._register(resizeObserver.observe(container));
@@ -543,6 +539,18 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 
 	// #region Chat model binding
 
+	/**
+	 * The widget needs a chat model before it accepts input. Binds the host's
+	 * chat, by default the draft's, so the input sees its session type, and keeps
+	 * the input when that chat is replaced.
+	 */
+	private _bindChatModel(): void {
+		this._register(autorun(reader => {
+			const chat = this.options.chat ? this.options.chat.read(reader) : this.options.session.read(reader)?.activeChat.read(reader);
+			void this._bindModel(chat?.resource);
+		}));
+	}
+
 	private async _bindModel(resource: URI | undefined): Promise<void> {
 		const widget = this._widget;
 		if (!widget || (this._modelRef.value && isEqual(this._boundResource, resource))) {
@@ -571,15 +579,18 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		// to accept input. It never sends to that model: the composer's host sends.
 		ref ??= this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { debugOwner: 'SharedChatInputComposer' });
 
-		// The composer owns its draft, so carry the typed input and attachments
-		// over instead of adopting whatever the newly bound model had.
+		// The composer owns its draft, so carry the typed input, its inline
+		// references and attachments over instead of adopting whatever the newly
+		// bound model had.
 		const inputText = widget.getInput();
 		const attachments = [...widget.attachmentModel.attachments];
+		const references = [...getDynamicVariablesForWidget(widget)];
 		widget.setModel(ref.object);
 		if (widget.getInput() !== inputText) {
 			this.setInputValue(inputText);
 		}
 		widget.attachmentModel.clearAndSetContext(...attachments);
+		widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.setInputState({ [ChatDynamicVariableModel.ID]: references });
 		this._modelRef.value = ref;
 	}
 

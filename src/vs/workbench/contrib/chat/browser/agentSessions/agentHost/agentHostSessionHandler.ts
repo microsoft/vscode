@@ -31,6 +31,7 @@ import { getOlderHostSubagentChatUri } from '../../../../../../platform/agentHos
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { newAgentHostChatUri, newAgentHostSessionUri } from '../../../../../../platform/agentHost/common/agentHostSessionIdentity.js';
 import { getAgentHostChatId } from '../../../../../../platform/agentHost/common/agentHostChatIdentity.js';
+import { IChatSideChatOrigin, IChatSideChatSelection } from '../../../common/chatSideChatService.js';
 import { getTelemetryChatId } from '../../../../../../platform/agentHost/common/agentTelemetryCorrelation.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IPosition } from '../../../../../../editor/common/core/position.js';
@@ -122,6 +123,7 @@ import { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatAgentLocation, ChatConfiguratio
 import { readAgentCustomizationMeta } from '../../../../../../platform/agentHost/common/meta/agentCustomizationMeta.js';
 import { normalizeAgentHostApprovalConfig } from '../../../common/agentHostConfigPolicy.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
+import { IChatSessionReviewPreferencesService } from '../../../common/editing/chatSessionReviewPreferences.js';
 import { HIDE_AUTO_EXPLAINABILITY_TREATMENT } from '../../../common/chatAutoModeExplainability.js';
 import { AUTO_RAW_MODEL_ID, getLanguageModelDisplayNameWithProvider, ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
 import { getLanguageModelDisplayNameWithSubscriptionSource } from '../../../common/languageModelSourcePresentation.js';
@@ -719,6 +721,26 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 	private readonly _chatState = observableValue<IObservable<ChatState | undefined>>(this, constObservable(undefined));
 	readonly backgroundShellCount = derived(this, reader =>
 		this._chatState.read(reader).read(reader)?.backgroundWork?.filter(work => work.kind === BackgroundWorkKind.Shell).length);
+	readonly sideChatOrigin = derived<IChatSideChatOrigin | undefined>(this, reader => {
+		if (this._disposed.read(reader)) {
+			return undefined;
+		}
+		const session = this._sessionState.read(reader).read(reader);
+		const chat = this._chatState.read(reader).read(reader);
+		const origin = session?.chats.find(summary => summary.resource === chat?.resource)?.origin;
+		if (!session || origin?.kind !== ChatOriginKind.SideChat) {
+			return undefined;
+		}
+		const sourceChat = session.chats.find(summary => summary.resource === origin.chat);
+		return {
+			sourceSessionResource: getAgentHostSessionResource(this.sessionResource).with({
+				fragment: origin.chat === session.defaultChat ? '' : getAgentHostChatId(origin.chat),
+			}),
+			sourceTurnId: origin.turnId,
+			sourceTitle: sourceChat?.title,
+			selection: origin.selection ? { text: origin.selection.text } : undefined,
+		};
+	});
 	private readonly _disposed = observableValue(this, false);
 	private readonly _onDidChangeCanvasDefinitions = this._register(new Emitter<void>());
 	private readonly _canvasDefinitionsTracking = this._register(new MutableDisposable<IDisposable>());
@@ -745,6 +767,10 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 		return this._supportsFork() ? this._forkSessionIfWritable : undefined;
 	}
 	private readonly _forkSessionIfWritable: NonNullable<IChatSession['forkSession']>;
+	get createSideChat(): IChatSession['createSideChat'] {
+		return this._supportsSideChat() ? this._createSideChatIfWritable : undefined;
+	}
+	private readonly _createSideChatIfWritable: NonNullable<IChatSession['createSideChat']>;
 	readonly renameSession: IChatSession['renameSession'];
 	readonly transferredState: IChatSession['transferredState'];
 	prepareForClientTools: IChatSession['prepareForClientTools'];
@@ -769,6 +795,8 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 		onDispose: () => void,
 		interruptActiveResponse: () => boolean,
 		private readonly _supportsFork: () => boolean,
+		private readonly _createSideChat: NonNullable<IChatSession['createSideChat']>,
+		private readonly _supportsSideChat: () => boolean,
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
@@ -846,6 +874,12 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 				throw new Error('Session is read-only');
 			}
 			return this._forkSession(request, token, options);
+		};
+		this._createSideChatIfWritable = (turnId, token, selection) => {
+			if (this.isReadOnly.get()) {
+				throw new Error('Session is read-only');
+			}
+			return this._createSideChat(turnId, token, selection);
 		};
 		this.renameSession = (title, token) => {
 			if (this.isReadOnly.get()) {
@@ -1419,10 +1453,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 		@ITextFileService textFileService: ITextFileService,
 		@IComputerUseSetupService private readonly _computerUseSetupService: IComputerUseSetupService,
+		@IChatSessionReviewPreferencesService reviewPreferences: IChatSessionReviewPreferencesService,
 	) {
 		super();
 		this._config = config;
-		const reviewEnabled = observableConfigValue(ChatConfiguration.EditorKeepUndoEnabled, false, this._configurationService);
+		const workingSetEnabled = observableConfigValue(ChatConfiguration.EditorWorkingSetEnabled, false, this._configurationService);
+		const reviewEnabled = derived(reader => workingSetEnabled.read(reader) && reviewPreferences.keepUndoEnabled.read(reader));
 		this._register(autorun(reader => {
 			if (reviewEnabled.read(reader)) {
 				reader.store.add(textFileService.files.retainResolvedContent());
@@ -1506,7 +1542,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					// Inline chat edits are short lived and reviewed by inline chat itself, and a subagent's
 					// chat shares its parent session's Working Set.
 					if (isGlobalEditingSession && this._shouldReviewEdits(chatSessionResource)) {
-						controller.attachReview(this._instantiationService.createInstance(AgentHostEditReview, chatSessionResource));
+						const instantiationService = this._instantiationService;
+						controller.attachReview(reviewEnabled, () => instantiationService.createInstance(AgentHostEditReview, chatSessionResource));
 					}
 					return controller;
 				},
@@ -1973,6 +2010,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				() => {
 					const agent = this._getRootState()?.agents.find(agent => agent.provider === this._config.provider);
 					return agent?.capabilities?.multipleChats?.fork === true;
+				},
+				(turnId: string, token: CancellationToken, selection?: IChatSideChatSelection) =>
+					this._createSideChat(sessionResource, resolvedSession, turnId, token, selection),
+				() => {
+					const agent = this._getRootState()?.agents.find(agent => agent.provider === this._config.provider);
+					return agent?.capabilities?.multipleChats?.sideChat === true;
 				},
 			);
 		} catch (err) {
@@ -6366,8 +6409,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private _shouldReviewEdits(chatSessionResource: URI): boolean {
 		const session = this._resolveSessionUri(chatSessionResource);
 		const chat = this._getChatURIOrDefault(chatSessionResource, session);
-		return this._configurationService.getValue<boolean>(ChatConfiguration.EditorKeepUndoEnabled) === true
-			&& !this._isSubagentChat(session.toString(), chat);
+		return !this._isSubagentChat(session.toString(), chat);
 	}
 
 	/** Records snapshot data and returns the per-file edit pills for a completed tool call. */
@@ -6464,6 +6506,45 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return undefined;
 		}
 		return this._connectionsService.findSessionResource(legacy, authority) ? legacy : undefined;
+	}
+
+	private async _createSideChat(sessionResource: URI, backendSession: URI, turnId: string, token: CancellationToken, selection?: IChatSideChatSelection): Promise<IChatSessionItem> {
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		const agent = this._getRootState()?.agents.find(agent => agent.provider === this._config.provider);
+		if (!agent?.capabilities?.multipleChats?.sideChat) {
+			throw new Error(`Provider ${this._config.provider} does not support side chats`);
+		}
+		const sessionUri = backendSession.toString();
+		const rawState = this._getRawSessionState(sessionUri);
+		if (!rawState) {
+			throw new Error(`Cannot create side chat: session state is not hydrated for ${sessionUri}`);
+		}
+		const sourceChat = this._resolveChatUriFromState(sessionResource, rawState);
+		const sourceState = this._getSessionState(sessionUri, sourceChat);
+		if (sourceState?.activeTurn?.id !== turnId && !sourceState?.turns.some(turn => turn.id === turnId)) {
+			throw new Error(`Cannot create side chat: turn ${turnId} not found`);
+		}
+		const chat = URI.parse(newAgentHostChatUri(sessionUri, rawState.defaultChat, this._config.connection.initializeResult.get()));
+		await this._config.connection.createChat(backendSession, chat, {
+			model: lastTurnModelSelection(sourceState),
+			sideChat: { source: URI.parse(sourceChat), turnId, ...(selection ? { selection } : {}) },
+		});
+		const subscription = this._ensureSessionSubscription(sessionUri);
+		const summary = await waitForState(
+			observableFromSubscription(this, subscription).map(state => state?.chats.find(summary => summary.resource === chat.toString())),
+			(summary): summary is ChatSummary => !!summary,
+			undefined,
+			token,
+		);
+		const now = Date.now();
+		return {
+			resource: sessionResource.with({ fragment: getAgentHostChatId(summary.resource) }),
+			label: summary.title || localize('agentHost.sideChatLabel', "Side Chat"),
+			iconPath: getAgentSessionProviderIcon(this._config.sessionType),
+			timing: { created: now, lastRequestStarted: now, lastRequestEnded: now },
+		};
 	}
 
 	private _isNewSessionResource(sessionResource: URI): boolean {

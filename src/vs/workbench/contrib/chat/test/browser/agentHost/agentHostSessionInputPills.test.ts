@@ -2253,7 +2253,14 @@ suite('AgentHostSessionInputPills', () => {
 		});
 		setFiles([first]);
 		const states = [readState()];
-		await setEnabled(true);
+		harness.instantiationService.stub(IConfigurationService, 'updateValue', async (key: string, value: boolean) => {
+			assert.strictEqual(key, ChatConfiguration.EditorWorkingSetEnabled);
+			assert.strictEqual(typeof value, 'boolean');
+			await setEnabled(value === true);
+		});
+		const showWorkingSet = harness.menu(harness.persistentContent.querySelector('.chat-changes-pill-button')).find(action => action.label === 'Show Working Set');
+		assert.ok(showWorkingSet);
+		await showWorkingSet.run();
 		states.push(readState());
 		setFiles([first, second]);
 		states.push(readState());

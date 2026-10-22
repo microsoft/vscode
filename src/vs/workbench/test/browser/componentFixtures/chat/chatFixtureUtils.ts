@@ -64,7 +64,7 @@ import { IRemoteAgentService } from '../../../../services/remote/common/remoteAg
 import { IVoiceModeOnboardingService } from '../../../../contrib/agentsVoice/browser/voiceModeOnboarding.js';
 import { IChatAccessibilityService, IChatWidget, IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
 import { IChatResponseFileChangesService } from '../../../../contrib/chat/browser/chatResponseFileChangesService.js';
-import { IChatPetService } from '../../../../contrib/chat/browser/chatPetService.js';
+import { ChatPetHorizontalPosition, IChatPetService } from '../../../../contrib/chat/browser/chatPetService.js';
 import { ChatPetWidgetService, IChatPetWidgetService } from '../../../../contrib/chat/browser/widget/chatPetWidgetService.js';
 import { ChatOpenDiagnosticsService, IChatOpenDiagnosticsService } from '../../../../contrib/chat/common/chatOpenDiagnosticsService.js';
 import { IChatOutputRendererService } from '../../../../contrib/chat/browser/chatOutputItemRenderer.js';
@@ -87,7 +87,9 @@ import { IChatModeService } from '../../../../contrib/chat/common/chatModes.js';
 import { MockChatModeService } from '../../../../contrib/chat/test/common/mockChatModeService.js';
 import { IChatService } from '../../../../contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../contrib/chat/common/chatSessionsService.js';
+import { ChatSideChatService, IChatSideChatService } from '../../../../contrib/chat/common/chatSideChatService.js';
 import { ISessionChatPillVisibilityService, SessionChatPillVisibility } from '../../../../contrib/chat/common/sessionChatPills.js';
+import { ChatSessionReviewPreferencesService, IChatSessionReviewPreferencesService } from '../../../../contrib/chat/common/editing/chatSessionReviewPreferences.js';
 import { Target } from '../../../../contrib/chat/common/promptSyntax/promptTypes.js';
 import { ILanguageModelsService } from '../../../../contrib/chat/common/languageModels.js';
 import { ChatAgentService, IChatAgent, IChatAgentNameService, IChatAgentService } from '../../../../contrib/chat/common/participants/chatAgents.js';
@@ -186,6 +188,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	registerWorkbenchServices(reg);
 	reg.define(IMenuService, FixtureMenuService);
 	reg.define(ISessionChatPillVisibilityService, SessionChatPillVisibility);
+	reg.define(IChatSessionReviewPreferencesService, ChatSessionReviewPreferencesService);
 	reg.define(IMarkdownRendererService, MarkdownRendererService);
 	reg.define(IListService, ListService);
 	reg.defineInstance(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
@@ -260,6 +263,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override getAgentNameRestriction() { return true; }
 	}());
 	reg.define(IChatService, MockChatService);
+	reg.define(IChatSideChatService, ChatSideChatService);
 	// Further services a full chat widget reads, such as the one hosted by the Agents window composer.
 	reg.defineInstance(IChatDebugService, new class extends mock<IChatDebugService>() {
 		override readonly onDidAddEvent = Event.None;
@@ -294,7 +298,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override readonly unseenAchievements = observableValue('chatPetUnseenAchievements', []);
 		override readonly selectedAccessory = observableValue('chatPetSelectedAccessory', undefined);
 		override readonly onDidUnlockAchievement = Event.None;
-		override readonly horizontalPosition = observableValue<number | undefined>('chatPetHorizontalPosition', undefined);
+		override readonly horizontalPosition = observableValue<ChatPetHorizontalPosition | undefined>('chatPetHorizontalPosition', undefined);
 		override toggle() { return false; }
 		override setColor() { }
 		override setOnTheRun() { }
@@ -304,7 +308,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override markAchievementSeen() { return false; }
 		override setAccessory() { }
 		override resetAchievements() { }
-		override setHorizontalPosition(position: number) { this.horizontalPosition.set(position, undefined); }
+		override setHorizontalPosition(position: ChatPetHorizontalPosition) { this.horizontalPosition.set(position, undefined); }
 	}());
 	reg.defineInstance(IChatWidgetService, new class extends mock<IChatWidgetService>() {
 		override readonly lastFocusedWidget = undefined;
@@ -371,6 +375,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override async getChatInputCompletionTriggerCharacters() { return []; }
 		override resolveChatResponseUri(_sessionResource: URI, href: string) { return href; }
 		override sessionSupportsFork() { return false; }
+		override sessionSupportsSideChat() { return false; }
 	}());
 	reg.defineInstance(IChatEntitlementService, new class extends mock<IChatEntitlementService>() {
 		override readonly quotas = {};

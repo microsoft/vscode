@@ -2667,18 +2667,20 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		dom.clearNode(templateData.value);
-		if (!isStickyScrollRow && (element.origin || (this.environmentService.isSessionsWindow && isFirstRequest))) {
+		if (!isStickyScrollRow && (element.origin || isFirstRequest)) {
 			const requestOriginPart = this.instantiationService.createInstance(ChatRequestOriginPart, element.sessionResource, element.origin);
 			templateData.value.appendChild(requestOriginPart.domNode);
 			templateData.elementDisposables.add(requestOriginPart);
 		}
 		const parts: IChatContentPart[] = [];
+		let hasRequestContent = !!requestSummary;
 		if (!isStickyScrollRow) {
 			const explicitImageAttachmentsPart = explicitImageVariables.length ? this.renderAttachments(explicitImageVariables, element.sessionResource, element.contentReferences, element.modelId, templateData, element.resolvedModelId) : undefined;
 			if (explicitImageAttachmentsPart?.domNode) {
 				explicitImageAttachmentsPart.domNode.classList.add('chat-request-attachment-cards', 'chat-request-image-attachments');
 				templateData.value.appendChild(explicitImageAttachmentsPart.domNode);
 				templateData.elementDisposables.add(explicitImageAttachmentsPart);
+				hasRequestContent = true;
 			}
 			const explicitFileAttachmentsPart = explicitFileOrDirectoryVariables.length ? this.renderAttachments(explicitFileOrDirectoryVariables, element.sessionResource, element.contentReferences, element.modelId, templateData) : undefined;
 			if (explicitFileAttachmentsPart?.domNode) {
@@ -2689,11 +2691,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				explicitFileAttachmentsPart.domNode.style.flexWrap = 'nowrap';
 				templateData.value.appendChild(explicitFileAttachmentsPart.domNode);
 				templateData.elementDisposables.add(explicitFileAttachmentsPart);
+				hasRequestContent = true;
 			}
 			if (otherVariables.length) {
 				const otherAttachmentsPart = this.renderAttachments(otherVariables, element.sessionResource, element.contentReferences, element.modelId, templateData);
 				if (otherAttachmentsPart.domNode) {
 					templateData.value.appendChild(otherAttachmentsPart.domNode);
+					hasRequestContent = true;
 				}
 				templateData.elementDisposables.add(otherAttachmentsPart);
 			}
@@ -2856,7 +2860,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			stickyScrollSourcePart.addDisposable(this.registerSynchronizedRequestBubbleHover(element.id, templateData, templateData.stickyScrollSource));
 		}
 
-		if (!isStickyScrollRow && !element.pendingKind && !element.confirmation && this.rendererOptions.renderStyle !== 'minimal' && templateData.value.childElementCount > 0) {
+		hasRequestContent ||= parts.some(part => !!part.domNode);
+		if (!isStickyScrollRow && !element.pendingKind && !element.confirmation && this.rendererOptions.renderStyle !== 'minimal' && hasRequestContent) {
 			const timestamp = renderChatRequestTimestamp(templateData.requestTimestampContainer, element.requestTimestamp);
 			if (timestamp?.hoverText) {
 				templateData.elementDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), timestamp.element, timestamp.hoverText));

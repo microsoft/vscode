@@ -7418,7 +7418,7 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('shows non-main chats and excludes side chats, subagents, and hidden chats', () => {
+		test('shows non-main chats including side chats and excludes subagents and hidden chats', () => {
 			const main = createChat('Main chat');
 			const peer = createChat('Peer chat', ChatOriginKind.User);
 			const fork = createChat('Forked chat', ChatOriginKind.Fork);
@@ -7442,7 +7442,8 @@ suite('Sessions - SessionsList', () => {
 				})),
 				[
 					{ title: 'Peer chat', last: false },
-					{ title: 'Forked chat', last: true },
+					{ title: 'Forked chat', last: false },
+					{ title: 'Side chat', last: true },
 				]
 			);
 		});
@@ -8191,7 +8192,7 @@ suite('Sessions - SessionsList', () => {
 		});
 
 		for (const { expanded, withPeer } of [{ expanded: true, withPeer: true }, { expanded: false, withPeer: true }, { expanded: true, withPeer: false }]) {
-			test(`parent session row reflects side chat activity ${withPeer ? `with peer chats ${expanded ? 'expanded' : 'collapsed'}` : 'without peer chats'}`, () => {
+			test(`side chat activity has its own row when expanded and aggregates when collapsed ${withPeer ? 'with peers' : 'without peers'} (expanded=${expanded})`, () => {
 				const mainStatus = observableValue('main-status', SessionStatus.Completed);
 				const main = { ...createChat('Main chat'), status: mainStatus };
 				const peers = withPeer ? [createChat('Peer chat', ChatOriginKind.User)] : [];
@@ -8258,9 +8259,9 @@ suite('Sessions - SessionsList', () => {
 				const workingWithoutTime = { inProgress: true, needsInput: false, ariaLabel: 'Session, State: In Progress' };
 				const waitingWithoutTime = { inProgress: false, needsInput: true, ariaLabel: 'Session, State: Attention Needed' };
 				assert.deepStrictEqual({ snapshots, chats: chatRowTitles(container) }, {
-					snapshots: withPeer && !expanded
+					snapshots: !expanded
 						? [completed, working, waiting, waitingWithoutTime, workingWithoutTime, completed, working, working, working, working, waiting, waiting, waiting, completed]
-						: [completed, working, waiting, waitingWithoutTime, workingWithoutTime, completed, completed, working, completed, working, completed, waiting, completed, completed],
+						: [completed, completed, completed, workingWithoutTime, workingWithoutTime, completed, completed, completed, completed, completed, completed, completed, completed, completed],
 					chats: expanded && withPeer ? ['Peer chat'] : [],
 				});
 			});
@@ -8620,8 +8621,6 @@ suite('Sessions - SessionsList', () => {
 			const selectedChat = container.querySelector('.monaco-list-row.selected .session-chat-title')?.textContent;
 			activeChat.set(side, undefined);
 			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
-			// Side chats are not shown as nested rows, so activating one falls
-			// back to selecting the parent session rather than a chat row.
 			const selectedSideChat = container.querySelector('.monaco-list-row.selected .session-chat-title')?.textContent;
 			const parentDuringSideChat = container.querySelector('.monaco-list-row.selected .session-title')?.textContent;
 			activeChat.set(main, undefined);
@@ -8659,8 +8658,8 @@ suite('Sessions - SessionsList', () => {
 				selectionBeforeFrame: undefined,
 				parentBeforeFrame: undefined,
 				selectedChat: 'Second chat',
-				selectedSideChat: undefined,
-				parentDuringSideChat: 'Session',
+				selectedSideChat: 'Side chat',
+				parentDuringSideChat: undefined,
 				mainSelection: 'Session',
 				expanded: 'true',
 				activeElement: focusTarget,
