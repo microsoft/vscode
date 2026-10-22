@@ -1786,6 +1786,13 @@ export class SCMViewPane extends ViewPane {
 								: groupItem.resources.find(r => this.uriIdentityService.extUri.isEqual(r.sourceUri, uri));
 
 							if (resource) {
+								// Do not auto-reveal if the resource group is
+								// collapsed, as this would override the user's
+								// explicit collapse action
+								if (this.tree.hasNode(groupItem) && this.tree.isCollapsed(groupItem)) {
+									return;
+								}
+
 								await this.tree.expandTo(resource);
 								this.tree.reveal(resource);
 
