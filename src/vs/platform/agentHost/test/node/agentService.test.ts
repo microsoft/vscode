@@ -19,7 +19,7 @@ import type { Database } from '@vscode/sqlite3';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { fileURLToPath } from 'url';
-import { DeferredPromise, disposableTimeout, raceTimeout, retry, Sequencer, timeout } from '../../../../base/common/async.js';
+import { Barrier, DeferredPromise, disposableTimeout, raceTimeout, retry, Sequencer, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
@@ -14000,6 +14000,8 @@ suite('AgentService (node dispatcher)', () => {
 				_providerDiscoveryRegistrations: ReadonlyMap<string, Promise<void>>;
 				_getDiscoveryRegistrationMetrics(chats: readonly IAgentDiscoveredChat[]): IAgentHostStartupMetrics;
 				_runSessionListReconciliation(): Promise<void>;
+				_startupSettled: Barrier;
+				_backgroundInitialMigrationRetries: ReadonlyMap<string, Promise<void>>;
 			};
 		}
 
@@ -14815,9 +14817,7 @@ suite('AgentService (node dispatcher)', () => {
 			const startsAfterStartupComplete = agent.discoveryStarts;
 			const initiallyVisible = await svc.listSessions();
 			await svc.whenDeferredWorkSettled();
-			for (let attempt = 0; attempt < 50 && (await svc.getRegisteredSessions()).length === 0; attempt++) {
-				await timeout(0);
-			}
+			await svc.whenDiscoveredChatsRegistered();
 			await waitForSessionListReconciliation(svc);
 
 			assert.deepStrictEqual({
@@ -14850,9 +14850,8 @@ suite('AgentService (node dispatcher)', () => {
 			const startsBeforeEnablement = agent.discoveryStarts;
 
 			setExternalSessionsMode(svc, AgentHostExternalSessionsMode.Last30Days, 1);
-			for (let attempt = 0; attempt < 50 && (await svc.getRegisteredSessions()).length === 0; attempt++) {
-				await timeout(0);
-			}
+			await agent.discoveryStarted.p;
+			await svc.whenDiscoveredChatsRegistered();
 			await waitForSessionListReconciliation(svc);
 
 			assert.deepStrictEqual({
@@ -14879,9 +14878,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			registerTestAgentProvider(svc, agent);
 			await svc.whenDeferredWorkSettled();
-			for (let attempt = 0; attempt < 50 && (await svc.getRegisteredSessions()).length === 0; attempt++) {
-				await timeout(0);
-			}
+			await svc.whenDiscoveredChatsRegistered();
 			await waitForSessionListReconciliation(svc);
 
 			assert.deepStrictEqual({
@@ -14900,9 +14897,8 @@ suite('AgentService (node dispatcher)', () => {
 			registerTestAgentProvider(svc, agent);
 
 			await svc.listSessions();
-			for (let attempt = 0; attempt < 50 && (await svc.getRegisteredSessions()).length === 0; attempt++) {
-				await timeout(0);
-			}
+			await agent.discoveryStarted.p;
+			await svc.whenDiscoveredChatsRegistered();
 
 			assert.deepStrictEqual({
 				discoveryStarts: agent.discoveryStarts,
@@ -17058,9 +17054,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 			await summaryChanged;
 			releaseFirstPass.complete();
-			for (let attempt = 0; attempt < 50 && passes < 2; attempt++) {
-				await timeout(0);
-			}
+			await waitForSessionListReconciliation(svc);
 
 			assert.strictEqual(passes, 2);
 		});
@@ -17498,9 +17492,6 @@ suite('AgentService (node dispatcher)', () => {
 			exposeListedSessions(svc, initiallyListed);
 			(svc as unknown as { _queueSessionListReconciliation(): void })._queueSessionListReconciliation();
 			await waitForSessionListReconciliation(svc);
-			for (let i = 0; i < 20 && notifications.length < initiallyListed.length; i++) {
-				await timeout(0);
-			}
 			notifications.length = 0;
 
 			agent.addSession('third', now);
@@ -17534,13 +17525,16 @@ suite('AgentService (node dispatcher)', () => {
 			const second = agent.addSession('second', now - 1);
 			const third = agent.addSession('third', now - 2);
 			const registry = (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry;
-			const originalRegister = registry.register.bind(registry);
+			const originalRegister = registry.registerDiscovered.bind(registry);
 			const registrationGate = new DeferredPromise<void>();
-			let registrationsStarted = 0;
-			registry.register = async (session, sessionOptions, registerOptions) => {
-				registrationsStarted++;
+			const registrationsStarted = new DeferredPromise<void>();
+			let registrations = 0;
+			registry.registerDiscovered = async (session, backingSession, sessionOptions) => {
+				if (++registrations === 3) {
+					registrationsStarted.complete();
+				}
 				await registrationGate.p;
-				return originalRegister(session, sessionOptions, registerOptions);
+				return originalRegister(session, backingSession, sessionOptions);
 			};
 
 			const notifications: string[] = [];
@@ -17554,9 +17548,7 @@ suite('AgentService (node dispatcher)', () => {
 				{ session: second, chat: URI.parse(buildDefaultChatUri(second)), startTime: now - 1, modifiedTime: now - 1, external: true },
 				{ session: third, chat: URI.parse(buildDefaultChatUri(third)), startTime: now - 2, modifiedTime: now - 2, external: true },
 			]);
-			for (let attempt = 0; attempt < 20 && registrationsStarted < 3; attempt++) {
-				await timeout(0);
-			}
+			await registrationsStarted.p;
 
 			setExternalSessionsMode(svc, AgentHostExternalSessionsMode.Recent, 2);
 			await waitForSessionListReconciliation(svc);
@@ -17620,9 +17612,7 @@ suite('AgentService (node dispatcher)', () => {
 			}));
 			registerTestAgentProvider(svc, agent);
 			await svc.listSessions();
-			for (let attempt = 0; attempt < 20 && (await svc.getRegisteredSessions()).length === 0; attempt++) {
-				await timeout(0);
-			}
+			await waitForInitialProviderMigration(svc, agent);
 			setExternalSessionsMode(svc, AgentHostExternalSessionsMode.None, 1);
 			await waitForSessionListReconciliation(svc);
 			notifications.length = 0;
@@ -17695,9 +17685,7 @@ suite('AgentService (node dispatcher)', () => {
 			registerTestAgentProvider(svc, agent);
 			assert.deepStrictEqual(await svc.listSessions(), []);
 			agent.fireDiscoveredChats([discoveredChat(session)]);
-			for (let attempt = 0; attempt < 20 && (await svc.getRegisteredSessions()).length === 0; attempt++) {
-				await timeout(0);
-			}
+			await svc.whenDiscoveredChatsRegistered();
 			await svc.restoreSession(session);
 			notifications.length = 0;
 
@@ -17721,9 +17709,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const session = AgentSession.uri('copilot', 'provider-internal');
 			agent.fireDiscoveredChats([discoveredChat(session, false)]);
-			for (let i = 0; i < 50 && (await svc.getRegisteredSessions()).length === 0; i++) {
-				await timeout(0);
-			}
+			await svc.whenDiscoveredChatsRegistered();
 
 			assert.deepStrictEqual(
 				(await (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry.list()).map(entry => ({
@@ -17896,11 +17882,11 @@ suite('AgentService (node dispatcher)', () => {
 			const agent = disposables.add(new FailTwiceCatalogAgent('claude'));
 			const backing = AgentSession.uri('claude', 'twice-failed-migration');
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(backing), backing);
+			const discovered = Event.toPromise(agent.onDidDiscoverChats);
 			registerTestAgentProvider(svc, agent);
 
-			for (let i = 0; i < 50 && (await svc.getRegisteredSessions()).length === 0; i++) {
-				await timeout(0);
-			}
+			await discovered;
+			await svc.whenDiscoveredChatsRegistered();
 
 			assert.deepStrictEqual({
 				catalogCalls: agent.catalogCalls,
@@ -19938,9 +19924,7 @@ suite('AgentService (node dispatcher)', () => {
 				};
 
 				agent.fireDiscoveredChats([{ ...metadata(absent), external: true }]);
-				for (let i = 0; i < 50 && !await database.getSessionV2(absent.toString()); i++) {
-					await timeout(0);
-				}
+				await svc.whenDiscoveredChatsRegistered();
 
 				assert.deepStrictEqual({
 					exclusionAfterEnumeration,
@@ -20090,9 +20074,7 @@ suite('AgentService (node dispatcher)', () => {
 				await (svc as unknown as { _ensureSessionsV2Imported(provider: IAgent, force: boolean): Promise<void> })._ensureSessionsV2Imported(agent, false);
 				const markerFastDatabaseOpens = [...perSession.databaseOpens];
 				agent.fireDiscoveredChats([{ ...metadata(stale), external: true }]);
-				for (let i = 0; i < 50 && !(await database.getSessionV2(stale.toString())); i++) {
-					await timeout(0);
-				}
+				await svc.whenDiscoveredChatsRegistered();
 
 				assert.deepStrictEqual({
 					staleExclusion,
@@ -20290,15 +20272,11 @@ suite('AgentService (node dispatcher)', () => {
 			].sort((a, b) => a.session.localeCompare(b.session)));
 
 			agent.fireDiscoveredChats([discoveredChat(external)]);
-			for (let i = 0; i < 50 && (await svc.getRegisteredSessions()).length < 2; i++) {
-				await timeout(0);
-			}
+			await svc.whenDiscoveredChatsRegistered();
 			assert.deepStrictEqual({ externalCalls: agent.externalCalls, legacyCalls: agent.legacyCalls }, { externalCalls: 1, legacyCalls: 1 });
 
 			agent.fireDiscoveredChats([discoveredChat(legacy)]);
-			for (let i = 0; i < 50 && (await svc.getRegisteredSessions()).length < 2; i++) {
-				await timeout(0);
-			}
+			await svc.whenDiscoveredChatsRegistered();
 			assert.deepStrictEqual({ externalCalls: agent.externalCalls, legacyCalls: agent.legacyCalls }, { externalCalls: 1, legacyCalls: 1 });
 		});
 
@@ -20354,9 +20332,7 @@ suite('AgentService (node dispatcher)', () => {
 			};
 
 			agent.fireDiscoveredChats([discoveredChat(session, false)]);
-			for (let i = 0; i < 50 && fail; i++) {
-				await timeout(0);
-			}
+			await svc.whenDiscoveredChatsRegistered();
 			assert.strictEqual(getStateManager(svc).getSurfacedSessionSummary(session.toString()), undefined);
 
 			await (svc as unknown as { _announceSurfacedSession(meta: IAgentSessionMetadata, provider: string): Promise<void> })._announceSurfacedSession({
@@ -20621,13 +20597,13 @@ suite('AgentService (node dispatcher)', () => {
 				await releaseFallback.p;
 				return originalFallback(registered);
 			};
+			const discoveredBatch = Event.toPromise(agent.onDidDiscoverChats);
 			registerTestAgentProvider(svc, agent);
 
 			const listing = svc.listSessions();
 			await fallbackStarted.p;
-			for (let i = 0; i < 50 && !await database.getSessionV2(discovered.toString()); i++) {
-				await timeout(0);
-			}
+			await discoveredBatch;
+			await svc.whenDiscoveredChatsRegistered();
 			releaseFallback.complete();
 
 			assert.deepStrictEqual(
@@ -20673,9 +20649,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(await svc.getRegisteredSessions(), []);
 
 			agent.fireDiscoveredChats([discoveredChat(legacy)]);
-			for (let i = 0; i < 50 && (await svc.getRegisteredSessions()).length === 0; i++) {
-				await timeout(0);
-			}
+			await svc.whenDiscoveredChatsRegistered();
 			assert.deepStrictEqual((await svc.listSessions()).map(session => session.session.toString()), [legacy.toString()]);
 			assert.deepStrictEqual((await svc.getRegisteredSessions()).map(session => session.toString()), [legacy.toString()]);
 		});
@@ -20716,7 +20690,11 @@ suite('AgentService (node dispatcher)', () => {
 			}
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			let automationRefreshes = 0;
-			(svc as unknown as { _automationService: { handleAgentsChanged(): void } })._automationService.handleAgentsChanged = () => automationRefreshes++;
+			const automationRefreshed = new DeferredPromise<void>();
+			(svc as unknown as { _automationService: { handleAgentsChanged(): void } })._automationService.handleAgentsChanged = () => {
+				automationRefreshes++;
+				automationRefreshed.complete();
+			};
 			const agent = disposables.add(new GatedMigrationAgent('copilot'));
 
 			registerTestAgentProvider(svc, agent);
@@ -20724,9 +20702,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(automationRefreshes, 0);
 
 			await migrationGate.complete();
-			for (let i = 0; i < 20 && automationRefreshes === 0; i++) {
-				await timeout(0);
-			}
+			await automationRefreshed.p;
 			assert.strictEqual(automationRefreshes, 1);
 		});
 
@@ -20765,10 +20741,8 @@ suite('AgentService (node dispatcher)', () => {
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(legacy), legacy);
 			agent.fireDiscoveredChats([discoveredChat(legacy)]);
 
-			// Wait for the fire-and-forget forced re-sweep triggered by the signal.
-			for (let i = 0; i < 50 && (await svc.getRegisteredSessions()).length === 0; i++) {
-				await timeout(0);
-			}
+			// Wait for the registration of the batch the signal delivered.
+			await svc.whenDiscoveredChatsRegistered();
 
 			assert.deepStrictEqual((await svc.getRegisteredSessions()).map(s => s.toString()), [legacy.toString()]);
 			assert.strictEqual(agent.listExternalChatsCalls, 1, 'event payload ingestion must not re-enumerate the provider');
@@ -20911,9 +20885,7 @@ suite('AgentService (node dispatcher)', () => {
 			// The provider's SDK becomes available and requests a retry.
 			agent.enumerable = true;
 			agent.fireDiscoveredChats([discoveredChat(legacy)]);
-			for (let i = 0; i < 50 && (await svc.getRegisteredSessions()).length === 0; i++) {
-				await timeout(0);
-			}
+			await svc.whenDiscoveredChatsRegistered();
 			assert.deepStrictEqual((await svc.listSessions()).map(s => s.session.toString()), [legacy.toString()]);
 			assert.strictEqual(agent.listExternalChatsCalls, 1);
 		});
@@ -20966,9 +20938,7 @@ suite('AgentService (node dispatcher)', () => {
 			deferred.ready = true;
 			(deferred as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(deferredSession), deferredSession);
 			deferred.fireDiscoveredChats([discoveredChat(deferredSession)]);
-			for (let i = 0; i < 50 && !(await db.isSessionsV2Backfilled('claude', AGENT_HOST_CATALOG_PAYLOAD_VERSION)); i++) {
-				await timeout(0);
-			}
+			await svc.whenDiscoveredChatsRegistered();
 
 			assert.deepStrictEqual({
 				markerAfterReadiness: await db.isSessionsV2Backfilled('claude', AGENT_HOST_CATALOG_PAYLOAD_VERSION),
@@ -21031,11 +21001,11 @@ suite('AgentService (node dispatcher)', () => {
 			const agent = disposables.add(new FailOnceCatalogAgent('claude'));
 			const legacy = AgentSession.uri('claude', 'failed-initial-migration');
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(legacy), legacy);
+			const discovered = Event.toPromise(agent.onDidDiscoverChats);
 			registerTestAgentProvider(svc, agent);
 
-			for (let i = 0; i < 50 && (await svc.getRegisteredSessions()).length === 0; i++) {
-				await timeout(0);
-			}
+			await discovered;
+			await svc.whenDiscoveredChatsRegistered();
 
 			assert.deepStrictEqual({
 				catalogCalls: agent.catalogCalls,
@@ -21178,11 +21148,8 @@ suite('AgentService (node dispatcher)', () => {
 			await assert.rejects(svc.listSessions());
 			let deferredWorkSettled = false;
 			void svc.whenDeferredWorkSettled().then(() => { deferredWorkSettled = true; });
-			// Ample turns for the gated maintenance to run if the gate were open.
-			for (let i = 0; i < 50; i++) {
-				await timeout(0);
-			}
-			const settledByFailedListing = deferredWorkSettled;
+			// Deferred work runs once the startup gate opens, which a served listing does before it returns.
+			const settledByFailedListing = getStartupTestInternals(svc)._startupSettled.isOpen();
 
 			agent.enumerable = true;
 			await svc.listSessions();
@@ -21196,13 +21163,17 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('overlapping mode computations share ownership of a replacement migration retry', async () => {
 			const retryGate = new DeferredPromise<void>();
+			const firstCatalogCall = new DeferredPromise<void>();
+			const retryStarted = new DeferredPromise<void>();
 			class SingleFlightRetryAgent extends MockAgent {
 				catalogCalls = 0;
 				override async listChatsToMigrate(): Promise<IAgentListedChat[] | undefined> {
 					this.catalogCalls++;
 					if (this.catalogCalls === 1) {
+						firstCatalogCall.complete();
 						return undefined;
 					}
+					retryStarted.complete();
 					await retryGate.p;
 					return [];
 				}
@@ -21210,15 +21181,11 @@ suite('AgentService (node dispatcher)', () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new SingleFlightRetryAgent('copilot'));
 			registerTestAgentProvider(svc, agent);
-			for (let i = 0; i < 20 && agent.catalogCalls === 0; i++) {
-				await timeout(0);
-			}
+			await firstCatalogCall.p;
 
 			const last30Days = svc.listSessions(AgentHostExternalSessionsMode.Last30Days);
 			const recent = svc.listSessions(AgentHostExternalSessionsMode.Recent);
-			for (let i = 0; i < 20 && agent.catalogCalls < 2; i++) {
-				await timeout(0);
-			}
+			await retryStarted.p;
 			assert.strictEqual(agent.catalogCalls, 2, 'overlapping computations must share the replacement retry');
 			retryGate.complete();
 			await Promise.all([last30Days, recent]);
@@ -21255,9 +21222,7 @@ suite('AgentService (node dispatcher)', () => {
 			const callsAfterFailure = { copilot: copilot.catalogCalls, claude: claude.catalogCalls };
 			claude.available = true;
 			await svc.listSessions();
-			for (let i = 0; i < 50 && !await db.isSessionsV2Backfilled('claude', AGENT_HOST_CATALOG_PAYLOAD_VERSION); i++) {
-				await timeout(0);
-			}
+			await getStartupTestInternals(svc)._backgroundInitialMigrationRetries.get('claude');
 			const [first, second] = await Promise.all([svc.listSessions(), svc.listSessions()]);
 
 			assert.deepStrictEqual({
@@ -21285,6 +21250,7 @@ suite('AgentService (node dispatcher)', () => {
 			// silently swallowing the force intent instead of re-reading the
 			// provider's on-disk set fresh.
 			const gate = new DeferredPromise<void>();
+			const firstListStarted = new DeferredPromise<void>();
 			class GatedListAgent extends MockAgent {
 				listCalls = 0;
 				override async listExternalChats(): Promise<IAgentListedChat[]> {
@@ -21294,6 +21260,7 @@ suite('AgentService (node dispatcher)', () => {
 					// not whatever has since been added while it was stalled.
 					const snapshot = await super.listExternalChats();
 					if (this.listCalls === 1) {
+						firstListStarted.complete();
 						await gate.p;
 						return snapshot;
 					}
@@ -21314,9 +21281,7 @@ suite('AgentService (node dispatcher)', () => {
 			// Start the first (non-forced) sweep and let it stall inside
 			// `listExternalChats` before it can see any sessions.
 			const first = svc.listSessions();
-			for (let i = 0; i < 20 && agent.listCalls === 0; i++) {
-				await timeout(0);
-			}
+			await firstListStarted.p;
 			assert.strictEqual(agent.listCalls, 1);
 
 			// While the first sweep is still gated, a session becomes
@@ -21332,15 +21297,8 @@ suite('AgentService (node dispatcher)', () => {
 			await first;
 
 			assert.strictEqual(agent.listCalls, 1, 'event payload ingestion must not re-enumerate the provider');
-			let registered: readonly URI[] = [];
-			for (let i = 0; i < 50; i++) {
-				registered = await svc.getRegisteredSessions();
-				if (registered.length > 0) {
-					break;
-				}
-				await timeout(0);
-			}
-			assert.deepStrictEqual(registered.map(s => s.toString()), [legacy.toString()]);
+			await svc.whenDiscoveredChatsRegistered();
+			assert.deepStrictEqual((await svc.getRegisteredSessions()).map(s => s.toString()), [legacy.toString()]);
 		});
 
 		test('legacy migration markers are never written by current provider imports', async () => {
@@ -21401,9 +21359,7 @@ suite('AgentService (node dispatcher)', () => {
 			// A forced re-sweep triggered by the provider's own signal must not
 			// resurrect the explicitly-deleted session.
 			agent.fireDiscoveredChats([discoveredChat(session)]);
-			for (let i = 0; i < 50; i++) {
-				await timeout(0);
-			}
+			await svc.whenDiscoveredChatsRegistered();
 			assert.deepStrictEqual(await svc.getRegisteredSessions(), [], 'a tombstoned session must not be resurrected by a forced backfill sweep');
 			assert.deepStrictEqual((await svc.listSessions()).map(s => s.session.toString()), []);
 		});
@@ -21502,9 +21458,6 @@ suite('AgentService (node dispatcher)', () => {
 			// the legacy list (which still includes the session) and then
 			// stalls before its registration write.
 			agent.fireDiscoveredChats([discoveredChat(session)]);
-			for (let i = 0; i < 20 && agent.listCalls < 2; i++) {
-				await timeout(0);
-			}
 
 			// While the sweep is stalled, the session is explicitly deleted.
 			await svc.disposeSession(session);
@@ -21512,9 +21465,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			// Let the stalled sweep's registration attempt proceed.
 			gate.complete();
-			for (let i = 0; i < 50 && agent.listCalls < 2; i++) {
-				await timeout(0);
-			}
+			await svc.whenDiscoveredChatsRegistered();
 
 			assert.deepStrictEqual(await svc.getRegisteredSessions(), [], 'the concurrently-tombstoned session must not be resurrected by the in-flight backfill sweep');
 		});
@@ -21554,11 +21505,13 @@ suite('AgentService (node dispatcher)', () => {
 			// silently coalesced away instead of chaining its own follow-up.
 			class SequentiallyGatedListAgent extends MockAgent {
 				listCalls = 0;
+				readonly firstCallStarted = new DeferredPromise<void>();
 				private readonly _gates: DeferredPromise<void>[] = [];
 				override async listExternalChats(): Promise<IAgentListedChat[]> {
 					this.listCalls++;
 					const gate = new DeferredPromise<void>();
 					this._gates[this.listCalls] = gate;
+					this.firstCallStarted.complete();
 					await gate.p;
 					return super.listExternalChats();
 				}
@@ -21580,22 +21533,18 @@ suite('AgentService (node dispatcher)', () => {
 			// Let the automatic non-forced first sweep (from `registerProvider`)
 			// start, then release and await it to completion so its entry is
 			// cleared — the provider has no in-flight backfill afterward.
-			for (let i = 0; i < 20 && agent.listCalls === 0; i++) {
-				await timeout(0);
-			}
+			await agent.firstCallStarted.p;
 			assert.strictEqual(agent.listCalls, 1);
+			const firstBatch = Event.toPromise(agent.onDidDiscoverChats);
 			agent.releaseCall(1);
 			await svc.listSessions();
-			for (let i = 0; i < 20; i++) {
-				await timeout(0);
-			}
+			await firstBatch;
+			await svc.whenDiscoveredChatsRegistered();
 
 			const discovered = AgentSession.uri('copilot', 'repeated-discovery');
 			agent.fireDiscoveredChats([discoveredChat(discovered)]);
 			agent.fireDiscoveredChats([discoveredChat(discovered)]);
-			for (let i = 0; i < 50 && (await svc.getRegisteredSessions()).length === 0; i++) {
-				await timeout(0);
-			}
+			await svc.whenDiscoveredChatsRegistered();
 			assert.deepStrictEqual({
 				listCalls: agent.listCalls,
 				registered: (await svc.getRegisteredSessions()).map(session => session.toString()),
@@ -21614,11 +21563,13 @@ suite('AgentService (node dispatcher)', () => {
 			// silently coalesced away instead of queuing its own follow-up.
 			class SequentiallyGatedListAgent extends MockAgent {
 				listCalls = 0;
+				readonly firstCallStarted = new DeferredPromise<void>();
 				private readonly _gates: DeferredPromise<void>[] = [];
 				override async listExternalChats(): Promise<IAgentListedChat[]> {
 					this.listCalls++;
 					const gate = new DeferredPromise<void>();
 					this._gates[this.listCalls] = gate;
+					this.firstCallStarted.complete();
 					await gate.p;
 					return super.listExternalChats();
 				}
@@ -21639,9 +21590,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			// Call #1: the initial non-forced sweep. Let it start and gate.
 			const first = svc.listSessions();
-			for (let i = 0; i < 20 && agent.listCalls === 0; i++) {
-				await timeout(0);
-			}
+			await agent.firstCallStarted.p;
 			assert.strictEqual(agent.listCalls, 1);
 
 			const discovered = AgentSession.uri('copilot', 'in-flight-discovery');
@@ -21651,9 +21600,7 @@ suite('AgentService (node dispatcher)', () => {
 			agent.releaseCall(1);
 			await first;
 			agent.fireDiscoveredChats([discoveredChat(discovered)]);
-			for (let i = 0; i < 50 && (await svc.getRegisteredSessions()).length === 0; i++) {
-				await timeout(0);
-			}
+			await svc.whenDiscoveredChatsRegistered();
 			assert.deepStrictEqual({
 				listCalls: agent.listCalls,
 				registered: (await svc.getRegisteredSessions()).map(session => session.toString()),
@@ -22189,9 +22136,7 @@ suite('AgentService (node dispatcher)', () => {
 			registerTestAgentProvider(svc, agent);
 			const sessionResource = (await agent.listSessions())[0].session;
 			agent.fireDiscoveredChats([discoveredChat(sessionResource)]);
-			for (let i = 0; i < 50 && (await svc.getRegisteredSessions()).length === 0; i++) {
-				await timeout(0);
-			}
+			await svc.whenDiscoveredChatsRegistered();
 			agent.sessionMessages = [];
 
 			const before = await svc.listSessions();
@@ -22532,9 +22477,7 @@ suite('AgentService (node dispatcher)', () => {
 			await waitForSessionListReconciliation(svc);
 			registerTestAgentProvider(svc, agent);
 			agent.fireDiscoveredChats([discoveredChat(session)]);
-			for (let i = 0; i < 50 && (await svc.getRegisteredSessions()).length === 0; i++) {
-				await timeout(0);
-			}
+			await svc.whenDiscoveredChatsRegistered();
 			await svc.whenCatalogReconciliationIdle();
 			(svc as unknown as { _invalidateSessionList(): void })._invalidateSessionList();
 			catalogDatabase.deferReads = true;
@@ -22947,10 +22890,14 @@ suite('AgentService (node dispatcher)', () => {
 				uncommittedChanges: 0,
 			};
 			const computeCalls: Array<{ sessionUri: string; baseBranch: string | undefined }> = [];
+			const computedTwice = new DeferredPromise<void>();
 			const gitService = createNoopGitService();
 			gitService.getSessionGitState = async () => gitState;
 			gitService.computeSessionFileDiffs = async (_wd, opts) => {
 				computeCalls.push({ sessionUri: opts.sessionUri, baseBranch: opts.baseBranch });
+				if (computeCalls.length === 2) {
+					computedTwice.complete();
+				}
 				return [];
 			};
 			const sessionDb = new SessionDatabase(':memory:');
@@ -22964,9 +22911,7 @@ suite('AgentService (node dispatcher)', () => {
 			registerTestAgentProvider(localService, agent);
 
 			const session = await localService.createSession({ legacyChatUris: true, provider: 'copilot' });
-			for (let i = 0; i < 100 && computeCalls.length < 2; i++) {
-				await new Promise(resolve => setTimeout(resolve, 2));
-			}
+			await computedTwice.p;
 
 			assert.deepStrictEqual(
 				computeCalls.sort((a, b) => (a.baseBranch ?? '').localeCompare(b.baseBranch ?? '')),
