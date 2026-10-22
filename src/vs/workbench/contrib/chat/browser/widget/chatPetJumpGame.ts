@@ -268,12 +268,14 @@ export class ChatPetJumpGame extends Disposable {
 		this.render();
 	}
 
-	resume(): void {
+	resume(restoreFocus = true): void {
 		if (this.disposed) {
 			return;
 		}
 		this.paused = false;
-		this.pet.focus({ preventScroll: true });
+		if (restoreFocus) {
+			this.pet.focus({ preventScroll: true });
+		}
 		this.scheduleFrame();
 	}
 

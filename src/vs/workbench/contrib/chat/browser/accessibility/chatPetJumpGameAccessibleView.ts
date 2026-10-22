@@ -26,12 +26,14 @@ export class ChatPetJumpGameAccessibleView implements IAccessibleViewImplementat
 		}
 		const content = this.type === AccessibleViewType.Help ? game.getHelp() : game.getAccessibleContent();
 		game.pause();
-		return new AccessibleContentProvider(
+		const provider = new AccessibleContentProvider(
 			AccessibleViewProviderId.ChatPetJumpGame,
 			{ type: this.type },
 			() => content,
 			() => game.resume(),
 			AccessibilityVerbositySettingId.ChatPetJumpGame,
 		);
+		provider.onDispose = () => game.resume(false);
+		return provider;
 	}
 }
