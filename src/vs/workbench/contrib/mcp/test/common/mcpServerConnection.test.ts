@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { raceTimeout, timeout } from '../../../../../base/common/async.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, observableValue, waitForState } from '../../../../../base/common/observable.js';
 import { upcast } from '../../../../../base/common/types.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
@@ -157,6 +157,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 		const starting = connection.start({}, policyValues);
 		transport.setConnectionState({ state: McpConnectionState.Kind.Running });
 		const state = await starting;
+		await waitForHandler(connection);
 		assert.deepStrictEqual({ state: state.state, received }, { state: McpConnectionState.Kind.Running, received: [policyValues] });
 	});
 
@@ -164,10 +165,12 @@ suite('Workbench - MCP - ServerConnection', () => {
 		const host: IMcpHostDelegate = delegate;
 		const resolvedValues: McpServerPolicyValues = { '${NODE}/bin/node': '/resolved/bin/node' };
 		const received: (McpServerPolicyValues | undefined)[] = [];
+		let currentTransport = transport;
 		host.resolvePolicyVariables = async () => resolvedValues;
 		host.start = (_collection, _definition, _launch, options) => {
 			received.push(options?.policyValues);
-			return transport;
+			currentTransport = store.add(new TestMcpMessageTransport());
+			return currentTransport;
 		};
 		const connection = store.add(instantiationService.createInstance(
 			McpServerConnection, collection, serverDefinition, host, serverDefinition.launch,
@@ -178,9 +181,11 @@ suite('Workbench - MCP - ServerConnection', () => {
 		for (const policyValues of suppliedValues) {
 			const resolved = await connection.resolvePolicyVariables(['${NODE}/bin/node']);
 			const beforeStart = connection.state.get().state;
+			const previousHandler = connection.handler.get();
 			const starting = connection.start({}, policyValues);
-			transport.setConnectionState({ state: McpConnectionState.Kind.Running });
+			currentTransport.setConnectionState({ state: McpConnectionState.Kind.Running });
 			const state = await starting;
+			await waitForState(connection.handler, handler => !!handler && handler !== previousHandler);
 			results.push({ resolved, beforeStart, started: state.state });
 			await connection.stop();
 		}

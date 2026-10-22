@@ -108,7 +108,7 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 				}, cts.token).then(
 					handler => {
 						if (!store.isDisposed) {
-							this._requestHandler.set(handler, undefined);
+							this._requestHandler.set(store.add(handler), undefined);
 						} else {
 							handler.dispose();
 						}
@@ -143,7 +143,6 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 	public override dispose(): void {
 		transaction(tx => {
 			this._stopRequested.set(true, tx);
-			this._requestHandler.get()?.dispose();
 			super.dispose();
 			this._state.set({ state: McpConnectionState.Kind.Stopped }, tx);
 		});

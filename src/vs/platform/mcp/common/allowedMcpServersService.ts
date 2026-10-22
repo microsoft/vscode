@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import * as nls from '../../../nls.js';
 import { createCommandUri, IMarkdownString, MarkdownString } from '../../../base/common/htmlContent.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
@@ -11,7 +12,7 @@ import { hasConfigurationVariable } from '../../configuration/common/configurati
 import { Emitter } from '../../../base/common/event.js';
 import { hasKey, isString } from '../../../base/common/types.js';
 import { checkMcpServerAllowed, getMcpServerMatchers, IMcpServerIdentity, IMcpServerMatcher, McpServerAllowResult } from './allowedMcpServers.js';
-import { IAllowedMcpServersService, IGalleryMcpServer, IInstallableMcpServer, ILocalMcpServer, mcpAccessConfig, mcpAllowedServersConfig, mcpDeniedServersConfig, McpAccessValue, RegistryType } from './mcpManagement.js';
+import { IAllowedMcpServersService, IGalleryMcpServer, IInstallableMcpServer, ILocalMcpServer, mcpAccessConfig, mcpAllowedServersConfig, mcpDeniedServersConfig, McpAccessValue, McpServerConfigurationParseResult, RegistryType } from './mcpManagement.js';
 import { McpServerType } from './mcpPlatformTypes.js';
 import { COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_CONFIG } from '../../policy/common/copilotManagedSettings.js';
 import { McpServerManifestParser } from './mcpManagementService.js';
@@ -44,12 +45,17 @@ export class AllowedMcpServersService extends Disposable implements IAllowedMcpS
 		}
 
 		const parser = new McpServerManifestParser();
-		const candidates = [
-			...(mcpServer.configuration.remotes ?? []).map(remote => parser.getMcpServerConfigurationFromManifest({ remotes: [remote] }, RegistryType.REMOTE)),
-			...(mcpServer.configuration.packages ?? [])
-				.filter(p => [RegistryType.NODE, RegistryType.PYTHON, RegistryType.DOCKER, RegistryType.NUGET].includes(p.registryType))
-				.map(p => parser.getMcpServerConfigurationFromManifest({ packages: [p] }, p.registryType)),
-		];
+		let candidates: McpServerConfigurationParseResult[];
+		try {
+			candidates = [
+				...(mcpServer.configuration.remotes ?? []).map(remote => parser.getMcpServerConfigurationFromManifest({ remotes: [remote] }, RegistryType.REMOTE)),
+				...(mcpServer.configuration.packages ?? [])
+					.filter(p => [RegistryType.NODE, RegistryType.PYTHON, RegistryType.DOCKER, RegistryType.NUGET].includes(p.registryType))
+					.map(p => parser.getMcpServerConfigurationFromManifest({ packages: [p] }, p.registryType)),
+			];
+		} catch (error) {
+			return new MarkdownString().appendText(nls.localize('mcp gallery configuration invalid', "This Model Context Protocol server cannot be installed because its gallery configuration is invalid: {0}", toErrorMessage(error)));
+		}
 		let result = this.isServerAllowedBeforeResolution({ name: mcpServer.name });
 		for (const candidate of candidates) {
 			const allowed = this.isAllowed({ name: mcpServer.name, config: candidate.mcpServerConfiguration.config });
@@ -108,6 +114,14 @@ export class AllowedMcpServersService extends Disposable implements IAllowedMcpS
 			case McpServerAllowResult.Denied:
 				return new MarkdownString(nls.localize('mcp server is denied', "This Model Context Protocol server is blocked by your organization's policy. Please contact your administrator for more information."));
 			case McpServerAllowResult.NotAllowed:
+				if (allowlist?.some(matcher => matcher.serverName === identity.name)) {
+					if (identity.url !== undefined) {
+						return new MarkdownString(nls.localize('mcp server name overridden by url', "This Model Context Protocol server is not in the list of servers allowed by your organization. A name entry matches, but this allowlist contains URL entries, so the server must match an allowed URL. Please contact your administrator for more information."));
+					}
+					if (identity.command !== undefined) {
+						return new MarkdownString(nls.localize('mcp server name overridden by command', "This Model Context Protocol server is not in the list of servers allowed by your organization. A name entry matches, but this allowlist contains command entries, so the server must match an allowed command and arguments. Please contact your administrator for more information."));
+					}
+				}
 				return new MarkdownString(nls.localize('mcp server not in allowlist', "This Model Context Protocol server is not in the list of servers allowed by your organization. Please contact your administrator for more information."));
 		}
 
@@ -123,21 +137,18 @@ export class AllowedMcpServersService extends Disposable implements IAllowedMcpS
 
 		const knownIdentity: IMcpServerIdentity = {
 			name: identity.name,
-			url: unresolvedUrl ? '' : identity.url,
-			command: unresolvedCommand ? [] : identity.command,
+			url: unresolvedUrl ? undefined : identity.url,
+			command: unresolvedCommand ? undefined : identity.command,
 			policyValues: identity.policyValues,
 		};
 		if (checkMcpServerAllowed(undefined, denylist, knownIdentity) === McpServerAllowResult.Denied) {
 			return McpServerAllowResult.Denied;
 		}
-		if (allowlist === undefined || checkMcpServerAllowed(allowlist, undefined, knownIdentity) === McpServerAllowResult.Allowed) {
+		if (allowlist?.some(matcher =>
+			(unresolvedUrl && isString(matcher.serverUrl)) || (unresolvedCommand && Array.isArray(matcher.serverCommand)))) {
 			return McpServerAllowResult.Allowed;
 		}
-
-		return allowlist.some(matcher =>
-			(unresolvedUrl && isString(matcher.serverUrl)) || (unresolvedCommand && Array.isArray(matcher.serverCommand)))
-			? McpServerAllowResult.Allowed
-			: McpServerAllowResult.NotAllowed;
+		return checkMcpServerAllowed(allowlist, undefined, knownIdentity);
 	}
 
 	private getAllConfiguredMatchers(key: string): IMcpServerMatcher[] {

@@ -99,6 +99,25 @@ suite('AllowedMcpServersService', () => {
 			], [true, false, true, false, true]);
 		});
 
+		test('reports invalid gallery configurations without admitting another candidate', () => {
+			const service = createService({ [mcpAllowedServersConfig]: [{ serverCommand: ['npx', 'approved'] }] });
+			const server = gallery({
+				remotes: [{
+					type: TransportType.STREAMABLE_HTTP,
+					url: 'https://{host}/mcp',
+					variables: { host: { description: 'URL host' } },
+					headers: [{ name: 'X-Host', value: '{host}', variables: { host: { description: 'Header host' } } }],
+				}],
+				packages: [{ registryType: RegistryType.NODE, identifier: 'approved', transport: { type: TransportType.STDIO } }],
+			});
+			const result = service.isAllowed(server);
+			assert.deepStrictEqual({
+				allowed: result === true,
+				invalidManifest: result !== true && result.value.includes('gallery&nbsp;configuration&nbsp;is&nbsp;invalid'),
+				conflict: result !== true && result.value.includes('conflicting&nbsp;definitions'),
+			}, { allowed: false, invalidManifest: true, conflict: true });
+		});
+
 		test('does not normalize executable wrappers or add npm arguments to satisfy a policy', () => {
 			const server = gallery({
 				packages: [{
@@ -133,6 +152,44 @@ suite('AllowedMcpServersService', () => {
 			values: ['${RUNTIME}', '${SCRIPT:-approved.js}'],
 			preliminary: true, unresolved: false, approved: true, otherHost: false, denied: false,
 		});
+	});
+
+	test('explains why a matching name does not admit a nonmatching command or URL', () => {
+		const service = createService({
+			[mcpAllowedServersConfig]: [
+				{ serverName: 'approved' },
+				{ serverCommand: ['node', 'approved.js'] },
+				{ serverUrl: 'https://approved.example/mcp' },
+			],
+		});
+		const commandResult = service.isServerAllowed({ name: 'approved', command: ['node', 'other.js'] });
+		const urlResult = service.isServerAllowed({ name: 'approved', url: 'https://other.example/mcp' });
+		assert.deepStrictEqual({
+			command: commandResult !== true && commandResult.value.includes('this allowlist contains command entries'),
+			url: urlResult !== true && urlResult.value.includes('this allowlist contains URL entries'),
+		}, { command: true, url: true });
+	});
+
+	test('defers unknown transport details without bypassing known name denials or final rules', () => {
+		const allowlist = [
+			{ serverName: 'approved' },
+			{ serverCommand: ['node', 'approved.js'] },
+			{ serverUrl: 'https://approved.example/mcp' },
+		];
+		const service = createService({ [mcpAllowedServersConfig]: allowlist });
+		const denied = createService({ [mcpAllowedServersConfig]: allowlist, [mcpDeniedServersConfig]: [{ serverName: 'approved' }] });
+		const unresolved = [
+			{ name: 'approved', command: ['node', '${input:script}'] },
+			{ name: 'approved', url: 'https://${input:host}/mcp' },
+		];
+		assert.deepStrictEqual({
+			preliminary: unresolved.map(identity => service.isServerAllowedBeforeResolution(identity) === true),
+			denied: unresolved.map(identity => denied.isServerAllowedBeforeResolution(identity) === true),
+			resolved: [
+				{ name: 'approved', command: ['node', 'other.js'] },
+				{ name: 'approved', url: 'https://other.example/mcp' },
+			].map(identity => service.isServerAllowed(identity) === true),
+		}, { preliminary: [true, true], denied: [false, false], resolved: [false, false] });
 	});
 
 	test('blocks all servers when access is None', () => {
