@@ -58,9 +58,10 @@ export type AutomationTriggerCatalog =
 /** A checked canonical workspace, or an explanation while checking or unavailable. */
 export interface IAutomationWorkspaceTarget {
 	readonly workspace?: URI;
+	readonly repositoryLabel?: string;
 	readonly disabledReason?: string;
 	readonly pending?: boolean;
-	readonly isPublicRepository?: boolean;
+	readonly isRepository?: boolean;
 }
 
 /** Catalogue completeness; only `ready` makes an empty snapshot authoritative. */

@@ -11,7 +11,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { getZoomFactor } from '../../../../base/browser/browser.js';
 import { unmnemonicLabel } from '../../../../base/common/labels.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { IContextMenuDelegate, IContextMenuEvent } from '../../../../base/browser/contextmenu.js';
+import { getContextMenuAutoSelectItem, IContextMenuDelegate, IContextMenuEvent } from '../../../../base/browser/contextmenu.js';
 import { createSingleCallFunction } from '../../../../base/common/functional.js';
 import { IContextMenuItem } from '../../../../base/parts/contextmenu/common/contextmenu.js';
 import { popup } from '../../../../base/parts/contextmenu/electron-browser/contextmenu.js';
@@ -212,7 +212,9 @@ export class NativeContextMenuService extends Disposable implements IContextMenu
 				y = Math.floor(y * zoom);
 			}
 
-			this.menuPopup(menu, { x, y, positioningItem: delegate.autoSelectFirstItem ? 0 : undefined, }, () => onHide());
+			const selection = getContextMenuAutoSelectItem(delegate, actions);
+			const positioningItem = typeof selection === 'number' ? selection : selection ? 0 : undefined;
+			this.menuPopup(menu, { x, y, positioningItem }, () => onHide());
 
 			this._onDidShowContextMenu.fire();
 		}
