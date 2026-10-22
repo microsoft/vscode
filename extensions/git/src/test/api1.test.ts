@@ -204,9 +204,16 @@ suite('git.api.generateRandomBranchName', () => {
 
 		setup(async () => {
 			directory = await fs.mkdtemp(path.join(os.tmpdir(), 'git-api-naming-'));
-			repositoryRoot = path.join(directory, 'repository');
+			const canonicalDirectory = path.join(directory, 'canonical');
+			await fs.mkdir(canonicalDirectory);
+			const workspaceDirectory = path.join(directory, 'workspace');
+			await fs.symlink(canonicalDirectory, workspaceDirectory, process.platform === 'win32' ? 'junction' : 'dir');
+			repositoryRoot = path.join(workspaceDirectory, 'repository');
 			await fs.mkdir(path.join(repositoryRoot, 'src'), { recursive: true });
-			repository = { root: repositoryRoot } as Pick<Repository, 'root'> as Repository;
+			repository = {
+				root: repositoryRoot,
+				rootRealPath: await fs.realpath(repositoryRoot)
+			} as Pick<Repository, 'root' | 'rootRealPath'> as Repository;
 			resolveRoot = sinon.stub().resolves(repositoryRoot);
 			model = {
 				git: { getRepositoryRoot: resolveRoot },
