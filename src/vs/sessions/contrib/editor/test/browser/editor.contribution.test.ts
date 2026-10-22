@@ -19,7 +19,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAccessibleViewService } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
-import { IMenuService, isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { IMenuService, isIMenuItem, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
@@ -60,17 +60,18 @@ import { IFileQuery, ISearchComplete, ISearchService } from '../../../../../work
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { Menus } from '../../../../browser/menus.js';
 import { SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING } from '../../../../common/sessionConfig.js';
+import { NEW_FILE_TAB_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { SessionChangesEditorInput } from '../../../changes/browser/sessionChangesEditorInput.js';
-import { NewBrowserTabAction, NewChangesTabAction, NewFileTabAction, NewSearchTabAction, OpenBrowserAction } from '../../browser/addTabActions.js';
+import { NEW_BROWSER_TAB_COMMAND_ID, NEW_CHANGES_TAB_COMMAND_ID, NEW_SEARCH_TAB_COMMAND_ID, NewBrowserTabAction, NewChangesTabAction, NewFileTabAction, NewSearchTabAction, OPEN_BROWSER_COMMAND_ID, OpenBrowserAction, registerSessionActivityBarTabEntries } from '../../browser/addTabActions.js';
 import { EmptyFileEditor } from '../../browser/emptyFileEditor.js';
 import { emptyFileEditorConfiguration } from '../../browser/emptyFileEditor.contribution.js';
 import { EmptyFileEditorSearch, EmptyFileEditorSearchPickerFocusedContext } from '../../browser/emptyFileEditorSearch.js';
 import { EmptyFileEditorInput, EmptyFileEditorSerializer } from '../../browser/emptyFileEditorInput.js';
-import { EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, AuxiliaryBarVisibleContext, EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
 import { TestEnvironmentService, TestLayoutService, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { createFileStat } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IsQuickChatSessionContext, DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext } from '../../../../common/contextkeys.js';
@@ -1411,13 +1412,15 @@ suite('Sessions - Editor Contribution', () => {
 	});
 
 	test('the session activity bar offers each tab whenever it is available', () => {
-		const actions = { changes: new NewChangesTabAction(), files: new NewFileTabAction(), browser: new OpenBrowserAction(), addBrowserTab: new NewBrowserTabAction(), search: new NewSearchTabAction() };
+		store.add(registerSessionActivityBarTabEntries());
+		for (const action of [NewChangesTabAction, NewFileTabAction, OpenBrowserAction, NewBrowserTabAction, NewSearchTabAction]) {
+			store.add(registerAction2(action));
+		}
+		const ids = { changes: NEW_CHANGES_TAB_COMMAND_ID, files: NEW_FILE_TAB_COMMAND_ID, browser: OPEN_BROWSER_COMMAND_ID, addBrowserTab: NEW_BROWSER_TAB_COMMAND_ID, search: NEW_SEARCH_TAB_COMMAND_ID };
 		// Search and the explicit new browser tab are only offered in the Add Tab dropdown.
-		const evaluate = (action: NewChangesTabAction | NewFileTabAction | OpenBrowserAction | NewBrowserTabAction | NewSearchTabAction, values: Record<string, ContextKeyValue>): boolean | undefined => {
-			const menu = action.desc.menu;
-			const item = (Array.isArray(menu) ? menu : [menu]).find(item => item?.id === Menus.SessionActivityBar);
-			return item?.when?.evaluate({ getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined } satisfies IContext);
-		};
+		const items = MenuRegistry.getMenuItems(Menus.SessionActivityBar).filter(isIMenuItem);
+		const evaluate = (id: string, values: Record<string, ContextKeyValue>): boolean | undefined =>
+			items.find(item => item.command.id === id)?.when?.evaluate({ getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined } satisfies IContext);
 		// The toolbar ignores tab state: tabs are open and the right group is not the active one.
 		const baseContext: Record<string, ContextKeyValue> = {
 			[IsSessionsWindowContext.key]: true,
@@ -1436,7 +1439,7 @@ suite('Sessions - Editor Contribution', () => {
 
 		const result: Record<string, string[]> = {};
 		for (const [name, values] of Object.entries(contexts)) {
-			result[name] = Object.entries(actions).filter(([, action]) => evaluate(action, values)).map(([id]) => id);
+			result[name] = Object.entries(ids).filter(([, id]) => evaluate(id, values)).map(([name]) => name);
 		}
 		assert.deepStrictEqual(result, {
 			workspaceChat: ['changes', 'files', 'browser'],
@@ -1444,6 +1447,35 @@ suite('Sessions - Editor Contribution', () => {
 			quickChat: ['browser'],
 			auxiliaryWindow: [],
 		});
+	});
+
+	test('the session activity bar checks the entry whose editor the side pane shows', () => {
+		store.add(registerSessionActivityBarTabEntries());
+		store.add(registerAction2(OpenBrowserAction));
+		const ids = { changes: NEW_CHANGES_TAB_COMMAND_ID, files: NEW_FILE_TAB_COMMAND_ID, browser: OPEN_BROWSER_COMMAND_ID };
+		const items = MenuRegistry.getMenuItems(Menus.SessionActivityBar).filter(isIMenuItem);
+		const checked = (values: Record<string, ContextKeyValue>) => Object.entries(ids)
+			.filter(([, id]) => (items.find(item => item.command.id === id)?.command.toggled as ContextKeyExpression | undefined)?.evaluate({ getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined } satisfies IContext))
+			.map(([name]) => name);
+		const showing = (editorId: string, editorAreaVisible = true, detailPanelVisible = false) => ({ [ActiveEditorContext.key]: editorId, [MainEditorAreaVisibleContext.key]: editorAreaVisible, [AuxiliaryBarVisibleContext.key]: detailPanelVisible });
+
+		assert.deepStrictEqual({
+			changes: checked(showing(SessionChangesEditorInput.EDITOR_ID)),
+			files: checked(showing(EmptyFileEditorInput.EDITOR_ID)),
+			browser: checked(showing(BrowserEditorInput.EDITOR_ID)),
+			otherEditor: checked(showing('workbench.editors.files.textFileEditor')),
+			detailPanelOnly: checked(showing(EmptyFileEditorInput.EDITOR_ID, false, true)),
+			sidePaneClosed: checked(showing(SessionChangesEditorInput.EDITOR_ID, false)),
+		}, {
+			changes: ['changes'],
+			files: ['files'],
+			browser: ['browser'],
+			otherEditor: [],
+			detailPanelOnly: ['files'],
+			sidePaneClosed: [],
+		});
+		// The Add Tab entries are not checked.
+		assert.deepStrictEqual([new NewChangesTabAction(), new NewFileTabAction()].map(action => action.desc.toggled), [undefined, undefined]);
 	});
 
 	test('new changes tab action is enabled for an uncreated workspace session with Changes available', () => {

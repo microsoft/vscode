@@ -1918,6 +1918,40 @@ suite('NewChatWidget', () => {
 			: [undefined, 'Chat [Test Remote]', undefined]);
 	});
 
+	test('keeps Chat unqualified after selecting it in an explicit remote environment', () => {
+		const provider = upcastPartial<ISessionsProvider>({
+			id: 'agenthost-remote-test', label: 'benbox1', supportsQuickChats: true,
+		});
+		const selections: (ICreateNewSessionOptions | undefined)[] = [];
+		const isQuickChat = observableValue('isQuickChat', false);
+		const harness: INoWorkspaceOptionHarness = {
+			_environment: constObservable({
+				id: provider.id, kind: 'remote', label: provider.label, icon: Codicon.remote, providerIds: [provider.id],
+			}),
+			_useConsolidatedRemoteWorkspaces: constObservable(true),
+			_isWorkspacePickerQuickChat: isQuickChat,
+			_session: constObservable({ providerId: provider.id }),
+			sessionsProvidersService: { getProviders: () => [provider] },
+			sessionsManagementService: { isQuickChatTargetAvailable: () => true },
+			selectNoWorkspace: options => {
+				selections.push(options);
+				isQuickChat.set(true, undefined);
+			},
+		};
+		const before = getNoWorkspaceOption.call(harness);
+		before?.select();
+		const after = getNoWorkspaceOption.call(harness);
+		assert.deepStrictEqual({
+			before: before && { selected: before.isSelected, selectedLabel: before.selectedLabel },
+			after: after && { selected: after.isSelected, selectedLabel: after.selectedLabel, submenuActions: after.submenuActions },
+			selections,
+		}, isWeb ? { before: undefined, after: undefined, selections: [] } : {
+			before: { selected: false, selectedLabel: undefined },
+			after: { selected: true, selectedLabel: undefined, submenuActions: undefined },
+			selections: [{ providerId: provider.id }],
+		});
+	});
+
 	test('hides offline Mission Control hosts from Chat while preserving the active chat label', () => {
 		const visibility = observableValue('environmentVisibility', false);
 		const providers = [

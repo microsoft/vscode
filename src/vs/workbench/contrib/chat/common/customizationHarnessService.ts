@@ -144,6 +144,10 @@ export interface ICustomizationMcpConfigurationProvider {
 	addGlobal(name: string, config: IMcpServerConfiguration): Promise<void>;
 }
 
+export interface ICustomizationPluginInstallProvider {
+	installFromSource(sessionResource: URI, source: string): Promise<void>;
+}
+
 /**
  * Describes a single harness option for the UI toggle.
  */
@@ -229,6 +233,8 @@ export interface IHarnessDescriptor {
 	readonly mcpServerMigrationProvider?: ICustomizationMcpServerMigrationProvider;
 	/** Provisionally routes harness-owned global MCP configuration. */
 	readonly mcpConfigurationProvider?: ICustomizationMcpConfigurationProvider;
+	/** Installs plugin sources through the harness instead of VS Code's plugin configuration. */
+	readonly pluginInstallProvider?: ICustomizationPluginInstallProvider;
 	/** Supplies authoritative installation inventory and mutations for this harness. */
 	readonly marketplaceInstallProvider?: ICustomizationMarketplaceInstallProvider;
 	/** Supplies a harness-native replacement for the public customization catalog. */
