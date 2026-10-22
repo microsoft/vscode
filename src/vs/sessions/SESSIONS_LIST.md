@@ -15,11 +15,13 @@ This specification defines stable placement and state-ownership rules. Row styli
 | Session catalog and lifecycle | `ISessionsManagementService` |
 | Pin and per-sort ordering state | `ISessionsListModelService` |
 | Order of a session's nested chats | The session's provider |
-| Custom groups, their nesting, automatic-section parents, mixed child order, and session membership | `ISessionGroupsService` |
+| Custom groups, group and grouping-section appearance, nesting, automatic-section parents, mixed child order, and session membership | `ISessionGroupsService` |
 | Top-level custom group and grouping-section order | `ISessionSectionOrderService` |
 | Tree composition and presentation | `SessionsView` and `SessionsList` |
 
 List-owned state is local presentation state. It is not synchronized back to a provider and must not mutate provider timestamps or metadata.
+
+Grouping-section appearance is persisted by the section's stable identity, independently of its nesting and grouping mode. Temporary absence of a workspace or remote host does not discard its appearance; custom groups and their subgroups keep independent overrides.
 
 ## Inputs
 
