@@ -793,6 +793,7 @@ suite('AgentHostSandboxNotification', () => {
 				await Promise.resolve();
 				assert.deepStrictEqual({
 					renderedButton, calls, confirmations: confirmations.length,
+					description: descriptionElement.textContent,
 					descriptionLinks: descriptionElement.querySelectorAll('a').length,
 					untrustedContent: descriptionElement.textContent?.includes('untrusted'),
 					keepOpen: notification.actions[0].keepOpen,
@@ -801,6 +802,7 @@ suite('AgentHostSandboxNotification', () => {
 				}, {
 					renderedButton: { label: 'Install', role: 'button', tabIndex: 0, ariaLabel: 'Sandbox trusted CA is not installed Install' },
 					calls: outcome === 'cancelled' ? 0 : 1, confirmations: 1,
+					description: 'Some tools in this session\'s sandbox might require the sandbox certificate authority (CA) to be trusted by the agent host\'s operating system. Install it in the OS trust store to enable those tools to connect securely.',
 					descriptionLinks: 0, untrustedContent: false, keepOpen: true,
 					remaining: outcome === 'installed' ? undefined : id,
 					errors: outcome === 'failed' ? ['Could not install the sandbox certificate: OS authorization denied'] : [],
@@ -1042,7 +1044,7 @@ suite('AgentHostSandboxNotification', () => {
 			const { onDismiss, description, ...body } = notice;
 			assert.ok(isMarkdownString(description));
 			const rendered = store.add(renderMarkdown(description));
-			assert.deepStrictEqual({ before, body: { ...body, description: rendered.element.textContent?.replace(/\u00a0/g, ' ') }, dismissible: typeof onDismiss, dispatched }, {
+			assert.deepStrictEqual({ before, body: { ...body, description: rendered.element.textContent }, dismissible: typeof onDismiss, dispatched }, {
 				before: 0,
 				body: {
 					id, inputUri,
