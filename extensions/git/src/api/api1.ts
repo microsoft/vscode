@@ -631,13 +631,12 @@ export function registerAPICommands(extension: GitExtensionImpl): Disposable {
 			return undefined;
 		}
 
-		await model.openRepository(resource.fsPath, true, true);
-		const repository = model.getRepository(resource);
+		const repository = await model.openRepository(resource.fsPath, true, true);
 		if (!repository) {
 			return undefined;
 		}
 
-		const branchName = await repository.generateRandomBranchName();
+		const branchName = await repository.generateRandomBranchName({ sanitize: true });
 		if (branchName === undefined) {
 			return undefined;
 		}

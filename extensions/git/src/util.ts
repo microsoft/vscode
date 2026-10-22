@@ -20,6 +20,10 @@ export type Mutable<T> = {
 	-readonly [P in keyof T]: T[P]
 };
 
+export function sanitizeBranchName(name: string, whitespaceChar: string): string {
+	return name ? name.trim().replace(/^-+/, '').replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$|\[|\]$/g, whitespaceChar) : name;
+}
+
 export function log(...args: any[]): void {
 	console.log.apply(console, ['git:', ...args]);
 }

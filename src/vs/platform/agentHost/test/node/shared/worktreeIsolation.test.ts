@@ -1845,38 +1845,38 @@ suite('WorktreeIsolation', () => {
 	});
 
 	for (const useGitSettings of [false, true]) {
-	test(`resolveWorkingDirectory avoids an existing worktree directory (Git policy=${useGitSettings})`, async () => {
-		const collisionSessionId = '12345678-aaaa-bbbb-cccc-123456789abc';
-		const collisionSessionUri = URI.parse(`agent-session://test/${collisionSessionId}`);
-		const existingWorktree = URI.joinPath(worktreesRoot, 'add-feature');
-		mkdirSync(existingWorktree.fsPath, { recursive: true });
-		branchExists = false;
-		const isolation = createIsolation(disposables, {
-			branchNameGenerator: new AgentBranchNameGenerator(createNullCopilotApiService(), new NullLogService()),
-		});
+		test(`resolveWorkingDirectory avoids an existing worktree directory (Git policy=${useGitSettings})`, async () => {
+			const collisionSessionId = '12345678-aaaa-bbbb-cccc-123456789abc';
+			const collisionSessionUri = URI.parse(`agent-session://test/${collisionSessionId}`);
+			const existingWorktree = URI.joinPath(worktreesRoot, 'add-feature');
+			mkdirSync(existingWorktree.fsPath, { recursive: true });
+			branchExists = false;
+			const isolation = createIsolation(disposables, {
+				branchNameGenerator: new AgentBranchNameGenerator(createNullCopilotApiService(), new NullLogService()),
+			});
 
-		const resolved = await isolation.resolveWorkingDirectory({
-			sessionUri: collisionSessionUri,
-			sessionId: collisionSessionId,
-			workingDirectory: repoRoot,
-			config: {
-				[SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main',
-				...(useGitSettings ? {
-					[SessionConfigKey.WorktreeBranchPrefix]: 'team/',
-					[SessionConfigKey.WorktreeBranchNaming]: { useGitSettings: true, preferredBranchName: 'team/add-feature' },
-				} : {}),
-			},
-			prompt: 'Add feature',
-		});
+			const resolved = await isolation.resolveWorkingDirectory({
+				sessionUri: collisionSessionUri,
+				sessionId: collisionSessionId,
+				workingDirectory: repoRoot,
+				config: {
+					[SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main',
+					...(useGitSettings ? {
+						[SessionConfigKey.WorktreeBranchPrefix]: 'team/',
+						[SessionConfigKey.WorktreeBranchNaming]: { useGitSettings: true, preferredBranchName: 'team/add-feature' },
+					} : {}),
+				},
+				prompt: 'Add feature',
+			});
 
-		assert.deepStrictEqual({
-			branchName: addWorktreeCalls[0]?.newBranchName,
-			worktree: resolved?.toString(),
-		}, {
-			branchName: `${useGitSettings ? 'team/' : 'agents/'}add-feature-12345678`,
-			worktree: URI.joinPath(worktreesRoot, 'add-feature-12345678').toString(),
+			assert.deepStrictEqual({
+				branchName: addWorktreeCalls[0]?.newBranchName,
+				worktree: resolved?.toString(),
+			}, {
+				branchName: `${useGitSettings ? 'team/' : 'agents/'}add-feature-12345678`,
+				worktree: URI.joinPath(worktreesRoot, 'add-feature-12345678').toString(),
+			});
 		});
-	});
 	}
 
 	test('resolveWorkingDirectory treats a failed branch check as a collision', async () => {

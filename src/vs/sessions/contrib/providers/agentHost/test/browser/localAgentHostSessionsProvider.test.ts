@@ -8179,56 +8179,56 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
-		for (const enabled of [false, true]) {
-			test(`Git branch naming is opt-in even when random names are already enabled (opt-in=${enabled})`, async () => {
-				const configService = new TestConfigurationService();
-				configService.setUserConfiguration('chat.agentHost.branchName.useGitSettings', enabled);
-				configService.setUserConfiguration('git.branchRandomName.enable', true);
-				const provider = createProvider(disposables, agentHost, undefined, { configurationService: configService });
-				const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
-				await provider.whenSessionConfigResolved(session.sessionId, CancellationToken.None);
-				assert.deepStrictEqual(provider.getSessionConfig(session.sessionId, session.mainChat.get().resource)?.values[SessionConfigKey.WorktreeBranchNaming],
-					enabled ? { useGitSettings: true } : undefined);
-			});
-		}
-
-		test('prepares a random Git name only on first send and forwards the complete candidate and its prefix', async () => {
-			const requests: string[] = [];
-			class NamingProvider extends LocalAgentHostSessionsProvider {
-				protected override async _prepareRandomBranchName(resource: URI) {
-					requests.push(resource.toString());
-					return { branchName: 'repo/quiet-otter', branchPrefix: 'repo/' };
-				}
-			}
+	for (const enabled of [false, true]) {
+		test(`Git branch naming is opt-in even when random names are already enabled (opt-in=${enabled})`, async () => {
 			const configService = new TestConfigurationService();
-			configService.setUserConfiguration('chat.agentHost.branchName.useGitSettings', true);
+			configService.setUserConfiguration('chat.agentHost.branchName.useGitSettings', enabled);
 			configService.setUserConfiguration('git.branchRandomName.enable', true);
-			let sentConfig: Record<string, unknown> | undefined;
-			const provider = createProvider(disposables, agentHost, undefined, {
-				configurationService: configService,
-				providerCtor: NamingProvider,
-				openSession: true,
-				sendRequest: async (resource, _message, options): Promise<ChatSendResult> => {
-					sentConfig = options?.agentHostSessionConfig;
-					agentHost.addSession(createSession(AgentSession.id(resource), { summary: 'Created From Send' }));
-					return { kind: 'sent', data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
-				},
-			});
+			const provider = createProvider(disposables, agentHost, undefined, { configurationService: configService });
 			const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
 			await provider.whenSessionConfigResolved(session.sessionId, CancellationToken.None);
-			const chat = await provider.createNewChat(session.sessionId);
-			assert.deepStrictEqual(requests, []);
-			await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
-			assert.deepStrictEqual({
-				requests,
-				naming: sentConfig?.[SessionConfigKey.WorktreeBranchNaming],
-				prefix: sentConfig?.[SessionConfigKey.WorktreeBranchPrefix],
-			}, {
-				requests: ['file:///home/user/project'],
-				naming: { useGitSettings: true, preferredBranchName: 'repo/quiet-otter' },
-				prefix: 'repo/',
-			});
+			assert.deepStrictEqual(provider.getSessionConfig(session.sessionId, session.mainChat.get().resource)?.values[SessionConfigKey.WorktreeBranchNaming],
+				enabled ? { useGitSettings: true } : undefined);
 		});
+	}
+
+	test('prepares a random Git name only on first send and forwards the complete candidate and its prefix', async () => {
+		const requests: string[] = [];
+		class NamingProvider extends LocalAgentHostSessionsProvider {
+			protected override async _prepareRandomBranchName(resource: URI) {
+				requests.push(resource.toString());
+				return { branchName: 'repo/quiet-otter', branchPrefix: 'repo/' };
+			}
+		}
+		const configService = new TestConfigurationService();
+		configService.setUserConfiguration('chat.agentHost.branchName.useGitSettings', true);
+		configService.setUserConfiguration('git.branchRandomName.enable', true);
+		let sentConfig: Record<string, unknown> | undefined;
+		const provider = createProvider(disposables, agentHost, undefined, {
+			configurationService: configService,
+			providerCtor: NamingProvider,
+			openSession: true,
+			sendRequest: async (resource, _message, options): Promise<ChatSendResult> => {
+				sentConfig = options?.agentHostSessionConfig;
+				agentHost.addSession(createSession(AgentSession.id(resource), { summary: 'Created From Send' }));
+				return { kind: 'sent', data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
+			},
+		});
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await provider.whenSessionConfigResolved(session.sessionId, CancellationToken.None);
+		const chat = await provider.createNewChat(session.sessionId);
+		assert.deepStrictEqual(requests, []);
+		await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+		assert.deepStrictEqual({
+			requests,
+			naming: sentConfig?.[SessionConfigKey.WorktreeBranchNaming],
+			prefix: sentConfig?.[SessionConfigKey.WorktreeBranchPrefix],
+		}, {
+			requests: ['file:///home/user/project'],
+			naming: { useGitSettings: true, preferredBranchName: 'repo/quiet-otter' },
+			prefix: 'repo/',
+		});
+	});
 
 	for (const [optIn, randomEnabled] of [[false, true], [true, false], [true, true]]) {
 		test(`first send retains prompt naming without applicable Git random support (opt-in=${optIn}, random=${randomEnabled})`, async () => {

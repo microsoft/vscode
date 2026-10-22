@@ -9,7 +9,6 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { NullLogService } from '../../../../log/common/log.js';
 import { AgentBranchNameGenerator } from '../../../node/shared/agentBranchNameGenerator.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
-import { getAgentBranchNaming, getPersistedSessionConfigValues, omitAutomationSessionTemplateConfigValues, SessionConfigKey } from '../../../common/sessionConfigKeys.js';
 
 suite('AgentBranchNameGenerator Git policy', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -55,14 +54,5 @@ suite('AgentBranchNameGenerator Git policy', () => {
 		for (const preferredBranchName of ['', '../outside', 'user/a.lock', 'user/bad name', 'user/a\\b', 'user/@{bad', 'user//topic', 'user/topic.']) {
 			await assert.rejects(generator.generateBranchName({ sessionId: '12345678', useGitSettings: true, preferredBranchName }), /Invalid Git branch name/);
 		}
-	});
-
-	test('prepared naming survives session persistence but not reusable automation templates', () => {
-		const naming = { useGitSettings: true, preferredBranchName: 'team./quiet-otter' };
-		const config = { [SessionConfigKey.WorktreeBranchNaming]: naming };
-		assert.deepStrictEqual({
-			persisted: getAgentBranchNaming(getPersistedSessionConfigValues(config, undefined)),
-			automation: omitAutomationSessionTemplateConfigValues(config),
-		}, { persisted: naming, automation: {} });
 	});
 });

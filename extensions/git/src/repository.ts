@@ -27,7 +27,7 @@ import { IPushErrorHandlerRegistry } from './pushError';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 import { StatusBarCommands } from './statusbar';
 import { toGitUri } from './uri';
-import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, getCommitShortHash, IDisposable, isCopilotWorktreeFolder, isDescendant, isLinuxSnap, isRemote, isWindows, Limiter, onceEvent, pathEquals, relativePath } from './util';
+import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, getCommitShortHash, IDisposable, isCopilotWorktreeFolder, isDescendant, isLinuxSnap, isRemote, isWindows, Limiter, onceEvent, pathEquals, relativePath, sanitizeBranchName } from './util';
 import { IFileWatcher, watch } from './watch';
 import { ISourceControlHistoryItemDetailsProviderRegistry } from './historyItemDetailsProvider';
 import { GitArtifactProvider } from './artifactProvider';
@@ -3589,7 +3589,8 @@ export class Repository implements Disposable {
 		return this.unpublishedCommits;
 	}
 
-	async generateRandomBranchName(): Promise<string | undefined> {
+	/** Opt-in sanitization checks collisions against the name that will actually be created. */
+	async generateRandomBranchName({ sanitize = false }: { sanitize?: boolean } = {}): Promise<string | undefined> {
 		const config = workspace.getConfiguration('git', Uri.file(this.root));
 		const branchRandomNameEnabled = config.get<boolean>('branchRandomName.enable', false);
 
@@ -3629,10 +3630,13 @@ export class Repository implements Disposable {
 				separator: branchWhitespaceChar
 			});
 
+			const name = `${branchPrefix}${randomName}`;
+			const branchName = sanitize ? sanitizeBranchName(name, branchWhitespaceChar) : name;
+
 			// Check for local ref conflict
-			const refs = await this.getRefs({ pattern: `refs/heads/${branchPrefix}${randomName}` });
+			const refs = await this.getRefs({ pattern: `refs/heads/${branchName}` });
 			if (refs.length === 0) {
-				return `${branchPrefix}${randomName}`;
+				return branchName;
 			}
 		}
 
