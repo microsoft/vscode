@@ -67,7 +67,7 @@ export function filterModelsForSession(
 	if (hasSessionScopedModels(models, sessionType)) {
 		// One pass: check eligibility once, then partition so session-targeted models come first.
 		const sessionScoped: ILanguageModelChatMetadataAndIdentifier[] = [];
-		const byokScoped: ILanguageModelChatMetadataAndIdentifier[] = [];
+		const unscopedByok: ILanguageModelChatMetadataAndIdentifier[] = [];
 		for (const entry of models) {
 			if (!isModelEligible(entry, currentModeKind, location)) {
 				continue;
@@ -77,10 +77,10 @@ export function filterModelsForSession(
 			if (targetSessionType === sessionType) {
 				sessionScoped.push(entry);
 			} else if (!targetSessionType && entry.metadata && isByokModel(entry.metadata)) {
-				byokScoped.push(entry);
+				unscopedByok.push(entry);
 			}
 		}
-		return [...sessionScoped, ...byokScoped];
+		return [...sessionScoped, ...unscopedByok];
 	}
 
 	return models.filter(entry =>
