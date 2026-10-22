@@ -17,14 +17,28 @@ import { ILayoutService } from '../../../../../platform/layout/browser/layoutSer
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, waitForFixtureCondition } from '../fixtureUtils.js';
 
-const sections: readonly IMultiSelectDropdownSection[] = [
+const shortSections: readonly IMultiSelectDropdownSection[] = [
 	{
 		label: 'Weekdays',
-		items: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(label => ({ id: label, label })),
+		items: ['Monday', 'Tuesday', 'Wednesday'].map(label => ({ id: label, label })),
 	},
 ];
 
-async function render(context: ComponentFixtureContext): Promise<void> {
+const longSections: readonly IMultiSelectDropdownSection[] = [
+	{
+		label: 'Required checks',
+		items: ['Build', 'Lint', 'Unit tests', 'Integration tests'].map(label => ({ id: label, label })),
+	},
+	{
+		label: 'Optional checks',
+		items: Array.from({ length: 20 }, (_, index) => {
+			const label = `Optional check ${index + 1}`;
+			return { id: label, label };
+		}),
+	},
+];
+
+async function render(context: ComponentFixtureContext, sections: readonly IMultiSelectDropdownSection[], maxVisibleItems?: number): Promise<void> {
 	const { container, disposableStore, theme } = context;
 	container.style.width = '320px';
 	container.style.height = '300px';
@@ -46,14 +60,22 @@ async function render(context: ComponentFixtureContext): Promise<void> {
 	button.element.style.width = '280px';
 	button.element.setAttribute('aria-haspopup', 'menu');
 	button.element.setAttribute('aria-expanded', 'false');
-	button.label = 'Weekdays';
+	button.label = 'Checks';
 	const dropdown = disposableStore.add(instantiationService.createInstance(MultiSelectDropdown));
-	let selectedIds: readonly string[] = ['Monday', 'Wednesday', 'Friday'];
+	let selectedIds: readonly string[] = [sections[0].items[0].id];
 	disposableStore.add(dropdown.onDidChangeSelection(ids => {
 		selectedIds = ids;
 	}));
 	disposableStore.add(button.onDidClick(() => dropdown.show({
-		anchor: button.element, ariaLabel: 'Weekdays', sections, selectedIds,
+		anchor: button.element,
+		ariaLabel: 'Checks',
+		sections,
+		selectedIds,
+		searchable: true,
+		filterPlaceholder: 'Filter checks',
+		maxVisibleItems,
+		allowEmptySelection: false,
+		closeOnAccept: true,
 	})));
 	button.element.click();
 	context.focus(container.querySelector<HTMLElement>('.monaco-list')!);
@@ -63,10 +85,16 @@ async function render(context: ComponentFixtureContext): Promise<void> {
 }
 
 export default defineThemedFixtureGroup({ path: 'editor/multiSelectDropdown' }, {
-	Weekdays: defineComponentFixture({
+	ShortList: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		virtualTime: { enabled: false },
 		deferPaint: true,
-		render,
+		render: context => render(context, shortSections),
+	}),
+	LongList: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		virtualTime: { enabled: false },
+		deferPaint: true,
+		render: context => render(context, longSections, 8),
 	}),
 });
