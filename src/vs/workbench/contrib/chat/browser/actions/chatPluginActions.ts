@@ -508,7 +508,12 @@ export class ManagePluginMarketplacesAction extends Action2 {
 					picker.hide();
 				}
 			};
-			store.add(picker.onDidAccept(() => complete(picker.selectedItems[0], true)));
+			store.add(picker.onDidAccept(() => {
+				const selectedItem = picker.selectedItems[0];
+				if (selectedItem) {
+					complete(selectedItem, true);
+				}
+			}));
 			store.add(picker.onDidTriggerButton(button => {
 				if (button === quickInputService.backButton) {
 					complete('back', true);
@@ -592,6 +597,12 @@ export class ManagePluginMarketplacesAction extends Action2 {
 
 		return new Promise(resolve => {
 			let resolved = false;
+			const updateValidation = (value: string) => {
+				const validationError = this.getMarketplaceInputError(value, configuredMarketplaces);
+				inputBox.severity = validationError ? Severity.Error : Severity.Ignore;
+				inputBox.validationMessage = validationError;
+				return validationError;
+			};
 			const complete = (result: string | 'back' | undefined, hide: boolean) => {
 				if (resolved) {
 					return;
@@ -603,15 +614,13 @@ export class ManagePluginMarketplacesAction extends Action2 {
 				}
 			};
 			store.add(inputBox.onDidAccept(() => {
-				const validationError = this.getMarketplaceInputError(inputBox.value, configuredMarketplaces);
-				if (validationError) {
-					inputBox.validationMessage = validationError;
+				if (updateValidation(inputBox.value)) {
 					return;
 				}
 				complete(inputBox.value, true);
 			}));
 			store.add(inputBox.onDidChangeValue(value => {
-				inputBox.validationMessage = this.getMarketplaceInputError(value, configuredMarketplaces);
+				updateValidation(value);
 			}));
 			store.add(inputBox.onDidTriggerButton(button => {
 				if (button === quickInputService.backButton) {

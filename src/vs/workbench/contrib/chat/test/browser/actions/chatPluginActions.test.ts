@@ -16,7 +16,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { INotification, INotificationHandle, INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { INotification, INotificationHandle, INotificationService, Severity } from '../../../../../../platform/notification/common/notification.js';
 import { IInputBox, IPickOptions, IQuickInputButton, IQuickInputHideEvent, IQuickInputService, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, QuickInputHideReason, QuickPickInput } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { InstallFromSourceAction, ManagePluginMarketplacesAction } from '../../../browser/actions/chatPluginActions.js';
@@ -225,9 +225,14 @@ suite('ManagePluginMarketplacesAction', () => {
 		readonly quickPickSnapshots: { id: string | undefined; label: string; type: string }[][] = [];
 		readonly quickPickHasBackButton: boolean[] = [];
 		readonly inputBoxSnapshots: { title: string | undefined; placeholder: string | undefined; prompt: string | undefined; hasBackButton: boolean }[] = [];
+		readonly inputValidationSnapshots: { phase: 'change' | 'accept'; value: string; message: string | undefined; severity: Severity }[] = [];
 		readonly picks: QuickPickInput<IQuickPickItem>[][] = [];
 		inputValue: string | undefined;
+		readonly inputChangeValues: string[] = [];
+		inputValueChangeBeforeAccept = true;
+		inputBackAfterAccept = false;
 		inputBackCount = 0;
+		quickPickEmptyAcceptCount = 0;
 		pickIds: (string | undefined)[] = [];
 		buttonItemIds: string[] = [];
 		readonly removedItemIds: string[] = [];
@@ -286,6 +291,10 @@ suite('ManagePluginMarketplacesAction', () => {
 				override show(): void {
 					service.quickPickSnapshots.push(this.items.map(item => ({ id: item.id, label: item.label, type: item.type ?? 'item' })));
 					service.quickPickHasBackButton.push(this.buttons.includes(service.backButton));
+					if (service.quickPickEmptyAcceptCount > 0) {
+						service.quickPickEmptyAcceptCount--;
+						acceptEmitter.fire({ inBackground: false });
+					}
 					const id = service.pickIds.shift();
 					if (id === 'back') {
 						buttonEmitter.fire(service.backButton);
@@ -324,6 +333,7 @@ suite('ManagePluginMarketplacesAction', () => {
 				override buttons: readonly IQuickInputButton[] = [];
 				override value = '';
 				override validationMessage: string | undefined;
+				override severity = Severity.Ignore;
 				override readonly onDidAccept = acceptEmitter.event;
 				override readonly onDidChangeValue = changeValueEmitter.event;
 				override readonly onDidHide = hideEmitter.event;
@@ -336,6 +346,16 @@ suite('ManagePluginMarketplacesAction', () => {
 						prompt: this.prompt,
 						hasBackButton: this.buttons.includes(service.backButton),
 					});
+					for (const value of service.inputChangeValues.splice(0)) {
+						this.value = value;
+						changeValueEmitter.fire(this.value);
+						service.inputValidationSnapshots.push({
+							phase: 'change',
+							value: this.value,
+							message: this.validationMessage,
+							severity: this.severity,
+						});
+					}
 					if (service.inputBackCount > 0) {
 						service.inputBackCount--;
 						buttonEmitter.fire(service.backButton);
@@ -343,8 +363,19 @@ suite('ManagePluginMarketplacesAction', () => {
 					}
 					if (service.inputValue !== undefined) {
 						this.value = service.inputValue;
-						changeValueEmitter.fire(this.value);
+						if (service.inputValueChangeBeforeAccept) {
+							changeValueEmitter.fire(this.value);
+						}
 						acceptEmitter.fire();
+						service.inputValidationSnapshots.push({
+							phase: 'accept',
+							value: this.value,
+							message: this.validationMessage,
+							severity: this.severity,
+						});
+						if (service.inputBackAfterAccept) {
+							buttonEmitter.fire(service.backButton);
+						}
 					} else {
 						this.hide();
 					}
@@ -493,6 +524,43 @@ suite('ManagePluginMarketplacesAction', () => {
 				placeholder: 'owner/repo, Git URL, or local repository URI',
 				prompt: 'Only add marketplaces you trust.',
 				hasBackButton: true,
+			}],
+			configurationUpdates: [],
+		});
+	});
+
+	test('styles marketplace validation errors and clears the styling for valid input', async () => {
+		const fixture = createFixture({
+			[ChatConfiguration.PluginMarketplaces]: ['github/awesome-copilot#marketplace'],
+			[ChatConfiguration.ExtraMarketplaces]: {},
+		});
+		fixture.quickInputService.pickIds.push('addMarketplace', undefined);
+		fixture.quickInputService.inputChangeValues.push('invalid', 'microsoft/vscode-marketplace');
+		fixture.quickInputService.inputValue = 'github/awesome-copilot#marketplace';
+		fixture.quickInputService.inputValueChangeBeforeAccept = false;
+		fixture.quickInputService.inputBackAfterAccept = true;
+
+		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
+
+		assert.deepStrictEqual({
+			validation: fixture.quickInputService.inputValidationSnapshots,
+			configurationUpdates: fixture.configurationService.updates,
+		}, {
+			validation: [{
+				phase: 'change',
+				value: 'invalid',
+				message: 'Enter a GitHub repository, Git repository URL, or local repository URI.',
+				severity: Severity.Error,
+			}, {
+				phase: 'change',
+				value: 'microsoft/vscode-marketplace',
+				message: undefined,
+				severity: Severity.Ignore,
+			}, {
+				phase: 'accept',
+				value: 'github/awesome-copilot#marketplace',
+				message: 'This marketplace is already configured.',
+				severity: Severity.Error,
 			}],
 			configurationUpdates: [],
 		});
@@ -770,6 +838,32 @@ suite('ManagePluginMarketplacesAction', () => {
 			hasBackButton: [true],
 			configurationUpdates: [],
 			commands: [],
+		});
+	});
+
+	test('keeps marketplace actions open when accepting without a selection', async () => {
+		const marketplace = parseMarketplaceReference('anthropics/claude-code')!;
+		const fixture = createFixture({
+			[ChatConfiguration.PluginMarketplaces]: [marketplace.rawValue],
+			[ChatConfiguration.ExtraMarketplaces]: {},
+		});
+		fixture.quickInputService.pickIds.push(marketplace.canonicalId, 'removeMarketplace', undefined);
+		fixture.quickInputService.quickPickEmptyAcceptCount = 1;
+
+		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
+
+		assert.deepStrictEqual({
+			actions: fixture.quickInputService.quickPickSnapshots,
+			configurationUpdates: fixture.configurationService.updates,
+		}, {
+			actions: [[
+				{ id: 'showPlugins', label: 'Show Plugins', type: 'item' },
+				{ id: 'removeMarketplace', label: 'Remove Marketplace', type: 'item' },
+			]],
+			configurationUpdates: [{
+				key: ChatConfiguration.PluginMarketplaces,
+				value: [],
+			}],
 		});
 	});
 
