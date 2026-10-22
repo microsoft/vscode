@@ -333,7 +333,7 @@ suite('SessionWorktreeCleanupService', () => {
 		});
 	});
 
-	test('worktree manager data excludes sessions without measurable active worktrees', async () => {
+	test('worktree manager excludes unmeasurable worktree paths, archived sessions, and sessions without worktrees', async () => {
 		const eligible = createSession('eligible', oldDate());
 		const running = createSession('running', oldDate(), SessionStatus.InProgress);
 		const recent = createSession('recent', new Date());
@@ -421,6 +421,40 @@ suite('SessionWorktreeCleanupService', () => {
 		}, {
 			fourteenDays: 'recent',
 			sevenDays: 'eligible',
+		});
+	});
+
+	test('any-time cleanup allows recent sessions while preserving protection and suggestion thresholds', async () => {
+		const recent = new Date();
+		const pinned = createSession('pinned', recent);
+		const service = disposables.add(createService(
+			[
+				createSession('recent', recent),
+				pinned,
+				createSession('running', recent, SessionStatus.InProgress),
+				createSession('needs-input', recent, SessionStatus.NeedsInput),
+				createSession('untitled', recent, SessionStatus.Untitled),
+				createSession('error', recent, SessionStatus.Error),
+			],
+			true,
+			() => 6 * ByteSize.GB,
+			undefined, undefined, undefined, undefined, pinned,
+		));
+		await service.activate();
+		const worktrees = await service.getWorktrees(0);
+		assert.deepStrictEqual({
+			states: worktrees.map(worktree => [worktree.session.sessionId, worktree.cleanupState]),
+			suggestion: service.suggestion.get(),
+		}, {
+			states: [
+				['recent', 'eligible'],
+				['pinned', 'pinned'],
+				['running', 'running'],
+				['needs-input', 'needsInput'],
+				['untitled', 'untitled'],
+				['error', 'error'],
+			],
+			suggestion: undefined,
 		});
 	});
 

@@ -116,14 +116,16 @@ suite('Sessions - View Menu', () => {
 				getProviders: () => environments.map(environment => ({ environment })),
 			},
 			_register: <T extends IDisposable>(disposable: T): T => store.add(disposable),
+			sessionsControl,
 			registerSessionFilters: Reflect.get(SessionsView.prototype, 'registerSessionFilters') as (control: SessionsList) => void,
 			registerArchivedFilter: Reflect.get(SessionsView.prototype, 'registerArchivedFilter') as (control: SessionsList) => void,
-			registerResetFiltersAction: Reflect.get(SessionsView.prototype, 'registerResetFiltersAction') as (control: SessionsList) => void,
+			registerResetFiltersAction: Reflect.get(SessionsView.prototype, 'registerResetFiltersAction') as () => void,
+			resetFilters: SessionsView.prototype.resetFilters,
 			syncFilterContextKeys: Reflect.get(SessionsView.prototype, 'syncFilterContextKeys') as (control: SessionsList) => void,
 		};
 		host.registerSessionFilters(sessionsControl);
 		host.registerArchivedFilter(sessionsControl);
-		host.registerResetFiltersAction(sessionsControl);
+		host.registerResetFiltersAction();
 
 		const snapshot = (menu: MenuId) => MenuRegistry.getMenuItems(menu)
 			.filter(item => contextKeyService.contextMatchesRules(item.when))

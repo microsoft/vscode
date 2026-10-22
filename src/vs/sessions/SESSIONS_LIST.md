@@ -131,6 +131,10 @@ A session drop resolves to a destination placement: Pinned, a custom group, an u
 
 Archived sections and comparison groups keep a fixed order, and comparison group membership cannot change by dragging. Multi-selection preserves relative order.
 
+## Agent tools
+
+The `readSessionsList` and `organizeSessionsList` client tools let an agent read and change the list as the user can. Reading reports the view options and the composed tree, including rows and sections that capping hides, using stable header ids (section ids, and `group:<id>` for custom groups) and session ids. Changes go through `SessionsList` and `SessionsView` rather than directly through the owning services, so they follow the same placement precedence, validity rules, and undo affordances as drag and drop and the list's actions. The tools exist only in the Agents window, form the `vscodeSessionsList` client tool set, and are deferred behind tool search on agent hosts.
+
 ## Reactive presentation
 
 Rows derive title, status, workspace, changes, capabilities, and quick-chat identity from session observables. Renderers must support tree virtualization: reusing a row template for another session must not retain stale state, animations, hovers, or disposables.

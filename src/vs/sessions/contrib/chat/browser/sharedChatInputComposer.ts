@@ -170,6 +170,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 	private _container: HTMLElement | undefined;
 	private _repositoryControlsContainer: HTMLElement | undefined;
 	private _repositoryControlsHome: HTMLElement | undefined;
+	private _repositoryToolbar: MenuWorkbenchToolBar | undefined;
 	private _updateBottomContainerVisibility: (() => void) | undefined;
 	private _bottomPickerResponsiveLayout: ChatInputPickerResponsiveLayout | undefined;
 	private _lastLayoutWidth: number | undefined;
@@ -438,7 +439,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			hostRepositoryControls = this._register(this.options.renderRepositoryControls(repositoryControlsContainer));
 		} else if (this.options.renderRepositoryControls !== false) {
 			const session = this.options.session;
-			repositoryToolbar = this._register(this._scopedInstantiationService.createInstance(MenuWorkbenchToolBar, repositoryControlsContainer, Menus.NewSessionRepositoryConfig, {
+			repositoryToolbar = this._repositoryToolbar = this._register(this._scopedInstantiationService.createInstance(MenuWorkbenchToolBar, repositoryControlsContainer, Menus.NewSessionRepositoryConfig, {
 				hiddenItemStrategy: HiddenItemStrategy.NoHide,
 				hoverDelegate: this.pickerHoverDelegate,
 				ariaLabel: localize('sessionsSharedChatInput.repositoryControls', "Repository Controls"),
@@ -770,6 +771,11 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 
 	selectVoiceModel(identifier: string): boolean {
 		return this._modelSelection.selectModel(identifier);
+	}
+
+	/** The id of the repository control action that renders `element`, if any. */
+	getRepositoryControlId(element: HTMLElement): string | undefined {
+		return this._repositoryToolbar?.getItemAction(element)?.id;
 	}
 
 	placeRepositoryControls(container?: HTMLElement): void {

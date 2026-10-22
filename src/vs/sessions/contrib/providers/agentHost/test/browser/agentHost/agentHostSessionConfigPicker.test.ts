@@ -15,7 +15,10 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../../platform/actions/common/actions.js';
-import { IActionViewItemService } from '../../../../../../../platform/actions/browser/actionViewItemService.js';
+import { IActionViewItemFactory, IActionViewItemService } from '../../../../../../../platform/actions/browser/actionViewItemService.js';
+import { toAction } from '../../../../../../../base/common/actions.js';
+import { mainWindow } from '../../../../../../../base/browser/window.js';
+import { ISessionContext } from '../../../../../../services/sessions/browser/sessionContext.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID } from '../../../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
@@ -629,6 +632,42 @@ suite('Agent Host Session Config Picker', () => {
 			.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value);
 
 		assert.deepStrictEqual(entries, ['Isolation', 'Base Branch']);
+	});
+
+	test('repository pickers keep their menu action so the composer can identify them', async () => {
+		const services = setupServices(store);
+		const providers = new Map<string, IActionViewItemFactory>();
+		services.instantiationService.stub(IActionViewItemService, new class extends mock<IActionViewItemService>() {
+			override readonly onDidChange = Event.None;
+			override register(menu: MenuId, commandId: string | MenuId, provider: IActionViewItemFactory) {
+				if (menu !== Menus.NewSessionRepositoryConfig) {
+					return toDisposable(() => { });
+				}
+				providers.set(String(commandId), provider);
+				return toDisposable(() => providers.delete(String(commandId)));
+			}
+		}());
+		services.instantiationService.stub(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() {
+			override readonly mainContainer = document.createElement('div');
+		}());
+		services.instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly visibleSessions = constObservable([services.activeSession]);
+		}());
+		services.instantiationService.stub(ISessionContext, new class extends mock<ISessionContext>() {
+			override readonly session = constObservable(services.activeSession);
+		}());
+		store.add(services.instantiationService.createInstance(AgentHostSessionConfigPickerContribution));
+
+		const actionIds = Array.from(providers, ([commandId, provider]) => {
+			const action = toAction({ id: commandId, label: commandId, run: () => { } });
+			const item = provider(action, {}, services.instantiationService, mainWindow.vscodeWindowId);
+			if (item) {
+				store.add(item);
+			}
+			return item?.action.id === commandId;
+		});
+
+		assert.deepStrictEqual({ count: actionIds.length > 0, allKeepAction: actionIds.every(Boolean) }, { count: true, allKeepAction: true });
 	});
 
 	test('restores pointer and keyboard focus without leaving pointer focus visible', async () => {
