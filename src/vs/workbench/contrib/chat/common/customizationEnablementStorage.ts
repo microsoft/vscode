@@ -46,6 +46,8 @@ export function migrateCustomizationEnablementToApplicationStorage(storageServic
 	mergeIntoApplication(storageService, AGENT_PLUGIN_ENABLEMENT_IDENTITIES_STORAGE_KEY, mergeIdentityEntries);
 	mergeIntoApplication(storageService, AGENT_HOST_TOOL_SET_ENABLEMENT_STORAGE_KEY, mergeToolSetEnablement);
 
+	// Mark migrated even when a profile value is unreadable. The owners already treat such a
+	// value as empty, and retrying later could merge stale choices over newer shared ones.
 	storageService.store(CUSTOMIZATION_ENABLEMENT_MIGRATED_PROFILES_KEY, JSON.stringify([...migratedProfiles, profile.id]), StorageScope.APPLICATION, StorageTarget.MACHINE);
 }
 

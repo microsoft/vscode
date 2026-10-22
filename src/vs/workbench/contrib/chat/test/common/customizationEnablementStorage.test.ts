@@ -159,6 +159,21 @@ suite('Customization enablement storage', () => {
 			});
 		});
 
+		test('ignores unreadable profile values and still marks the profile migrated', () => {
+			const storage = store.add(new InMemoryStorageService());
+			storeAll(storage, StorageScope.APPLICATION, applicationValues);
+			for (const key of Object.keys(profileValues)) {
+				storage.store(key, '{not json', StorageScope.PROFILE, StorageTarget.MACHINE);
+			}
+
+			migrateCustomizationEnablementToApplicationStorage(storage, agentsProfile);
+
+			assert.deepStrictEqual(readScope(storage, StorageScope.APPLICATION), {
+				...applicationValues,
+				[CUSTOMIZATION_ENABLEMENT_MIGRATED_PROFILES_KEY]: ['agents'],
+			});
+		});
+
 		for (const [name, profile] of [
 			['default profile', defaultProfile],
 			['profile using default global state', createTestProfile('shared-state', { useDefaultGlobalState: true })],

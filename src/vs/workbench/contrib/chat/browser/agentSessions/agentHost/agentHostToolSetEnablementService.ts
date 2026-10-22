@@ -126,7 +126,7 @@ export class AgentHostToolSetEnablementService extends Disposable implements IAg
 		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 	) {
 		super();
-		migrateCustomizationEnablementToApplicationStorage(_storageService, userDataProfileService.currentProfile);
+		migrateCustomizationEnablementToApplicationStorage(this._storageService, userDataProfileService.currentProfile);
 		this._state = observableValue('agentHostToolSetEnablement', this._load());
 		const storeForListener = this._register(new DisposableStore());
 		this._register(this._storageService.onDidChangeValue(StorageScope.APPLICATION, STORAGE_KEY, storeForListener)(() => {

@@ -38,7 +38,10 @@ class WindowApplicationStorageDatabase implements IStorageDatabase {
 		request.delete?.forEach(key => this._shared.items.delete(key));
 		for (const other of this._shared.windows) {
 			if (other !== this) {
-				other._onDidChangeItemsExternal.fire({ changed: request.insert, deleted: request.delete });
+				other._onDidChangeItemsExternal.fire({
+					changed: request.insert ? new Map(request.insert) : undefined,
+					deleted: request.delete ? new Set(request.delete) : undefined,
+				});
 			}
 		}
 	}
