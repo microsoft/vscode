@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -227,6 +228,45 @@ suite('ManagePluginMarketplacesAction', () => {
 		pickIds: (string | undefined)[] = [];
 		buttonItemIds: string[] = [];
 		readonly removedItemIds: string[] = [];
+		readonly acceptEmitter = store.add(new Emitter<void>());
+		readonly changeEmitter = store.add(new Emitter<string>());
+		readonly hideEmitter = store.add(new Emitter<IQuickInputHideEvent>());
+		readonly showEmitter = store.add(new Emitter<void>());
+		readonly validationEmitter = store.add(new Emitter<void>());
+		readonly inputBox = this.createTestInputBox();
+
+		private createTestInputBox() {
+			const quickInputService = this;
+			return new class extends mock<IInputBox>() {
+				override value = '';
+				override busy = false;
+				override enabled = true;
+				visible = false;
+				disposed = false;
+				private message: string | undefined;
+				override get validationMessage() { return this.message; }
+				override set validationMessage(value: string | undefined) {
+					this.message = value;
+					if (value) {
+						quickInputService.validationEmitter.fire();
+					}
+				}
+				override readonly onDidAccept = quickInputService.acceptEmitter.event;
+				override readonly onDidChangeValue = quickInputService.changeEmitter.event;
+				override readonly onDidHide = quickInputService.hideEmitter.event;
+				override show() {
+					this.visible = true;
+					quickInputService.showEmitter.fire();
+				}
+				override hide() {
+					this.visible = false;
+					quickInputService.hideEmitter.fire({ reason: QuickInputHideReason.Other });
+				}
+				override dispose() { this.disposed = true; }
+			}();
+		}
+
+		override createInputBox() { return this.inputBox; }
 
 		override async pick<T extends IQuickPickItem>(picks: QuickPickInput<T>[], options?: IPickOptions<T>): Promise<T | undefined> {
 			this.picks.push(picks);
@@ -504,9 +544,12 @@ suite('ManagePluginMarketplacesAction', () => {
 			[ChatConfiguration.ExtraMarketplaces]: {},
 		}, false, provider);
 		fixture.quickInputService.pickIds.push('addMarketplace', undefined);
-		fixture.quickInputService.inputValue = 'provider/marketplace';
-
-		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
+		const shown = Event.toPromise(fixture.quickInputService.showEmitter.event);
+		const result = fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
+		await shown;
+		fixture.quickInputService.inputBox.value = ' provider/marketplace ';
+		fixture.quickInputService.acceptEmitter.fire();
+		await result;
 
 		assert.deepStrictEqual({
 			addCalls,
@@ -516,6 +559,160 @@ suite('ManagePluginMarketplacesAction', () => {
 			configurationUpdates: [],
 		});
 	});
+
+	test('keeps the provider input busy and shows errors inline for correction and retry', async () => {
+		const pending = new DeferredPromise<void>();
+		const addCalls: { session: URI; source: string }[] = [];
+		const provider: ICustomizationMarketplaceManagementProvider = {
+			onDidChange: Event.None,
+			list: async () => [],
+			add: async (session, source) => {
+				addCalls.push({ session, source });
+				if (addCalls.length === 1) {
+					await pending.p;
+					throw new Error('Repository not found');
+				}
+				return { name: 'marketplace', source, isDefault: false, managed: false, available: true };
+			},
+			queryMarketplace: async () => ({ items: [], total: 0 }),
+			remove: async () => ({ removed: true }),
+			refresh: async () => [],
+		};
+		const fixture = createFixture({}, false, provider);
+		const quickInput = fixture.quickInputService;
+		quickInput.pickIds.push('addMarketplace');
+		const shown = Event.toPromise(quickInput.showEmitter.event);
+		const result = fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
+		await shown;
+
+		quickInput.inputBox.value = 'owner/missing';
+		quickInput.acceptEmitter.fire();
+		quickInput.acceptEmitter.fire();
+		const busyState = {
+			visible: quickInput.inputBox.visible,
+			busy: quickInput.inputBox.busy,
+			enabled: quickInput.inputBox.enabled,
+			picks: quickInput.picks.length,
+			calls: addCalls.length,
+		};
+		const failed = Event.toPromise(quickInput.validationEmitter.event);
+		await pending.complete();
+		await failed;
+		const errorState = {
+			visible: quickInput.inputBox.visible,
+			busy: quickInput.inputBox.busy,
+			enabled: quickInput.inputBox.enabled,
+			value: quickInput.inputBox.value,
+			message: quickInput.inputBox.validationMessage,
+		};
+		quickInput.inputBox.value = 'owner/corrected';
+		quickInput.changeEmitter.fire(quickInput.inputBox.value);
+		const clearedMessage = quickInput.inputBox.validationMessage;
+		quickInput.acceptEmitter.fire();
+		await result;
+
+		assert.deepStrictEqual({
+			busyState, errorState, clearedMessage, addCalls,
+			disposed: quickInput.inputBox.disposed,
+			visible: quickInput.inputBox.visible,
+			picks: quickInput.picks.length,
+			updates: fixture.configurationService.updates,
+			notifications: fixture.notifications,
+		}, {
+			busyState: { visible: true, busy: true, enabled: false, picks: 1, calls: 1 },
+			errorState: {
+				visible: true, busy: false, enabled: true, value: 'owner/missing',
+				message: 'Failed to add marketplace: Repository not found',
+			},
+			clearedMessage: undefined,
+			addCalls: [
+				{ session: URI.parse('local:/session'), source: 'owner/missing' },
+				{ session: URI.parse('local:/session'), source: 'owner/corrected' },
+			],
+			disposed: true,
+			visible: false,
+			picks: 2,
+			updates: [],
+			notifications: [],
+		});
+	});
+
+	test('validates provider marketplace input before adding', async () => {
+		const provider: ICustomizationMarketplaceManagementProvider = {
+			onDidChange: Event.None,
+			list: async () => [{
+				name: 'existing', source: 'owner/existing', isDefault: false, managed: false, available: true,
+			}],
+			add: async () => { throw new Error('Invalid input must not reach the provider'); },
+			queryMarketplace: async () => ({ items: [], total: 0 }),
+			remove: async () => ({ removed: true }),
+			refresh: async () => [],
+		};
+		const fixture = createFixture({}, false, provider);
+		const quickInput = fixture.quickInputService;
+		quickInput.pickIds.push('addMarketplace');
+		const shown = Event.toPromise(quickInput.showEmitter.event);
+		const result = fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
+		await shown;
+		const messages = [];
+		for (const source of ['', 'invalid', 'owner/existing']) {
+			quickInput.inputBox.value = source;
+			quickInput.acceptEmitter.fire();
+			messages.push(quickInput.inputBox.validationMessage);
+		}
+		quickInput.inputBox.hide();
+		await result;
+
+		assert.deepStrictEqual(messages, [
+			'Enter a GitHub repository, Git repository URL, or local repository URI.',
+			'Enter a GitHub repository, Git repository URL, or local repository URI.',
+			'This marketplace is already configured.',
+		]);
+	});
+
+	for (const fails of [false, true]) {
+		test(`dismisses the provider input during an add without reopening it after ${fails ? 'failure' : 'success'}`, async () => {
+			const pending = new DeferredPromise<void>();
+			const finished = new DeferredPromise<void>();
+			const provider: ICustomizationMarketplaceManagementProvider = {
+				onDidChange: Event.None,
+				list: async () => [],
+				add: async (_session, source) => {
+					try {
+						await pending.p;
+						if (fails) {
+							throw new Error('Repository not found');
+						}
+						return { name: 'marketplace', source, isDefault: false, managed: false, available: true };
+					} finally {
+						await finished.complete();
+					}
+				},
+				queryMarketplace: async () => ({ items: [], total: 0 }),
+				remove: async () => ({ removed: true }),
+				refresh: async () => [],
+			};
+			const fixture = createFixture({}, false, provider);
+			const quickInput = fixture.quickInputService;
+			quickInput.pickIds.push('addMarketplace');
+			const shown = Event.toPromise(quickInput.showEmitter.event);
+			const result = fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
+			await shown;
+			quickInput.inputBox.value = 'owner/marketplace';
+			quickInput.acceptEmitter.fire();
+			quickInput.inputBox.hide();
+			await result;
+			await pending.complete();
+			await finished.p;
+
+			assert.deepStrictEqual({
+				disposed: quickInput.inputBox.disposed,
+				visible: quickInput.inputBox.visible,
+				message: quickInput.inputBox.validationMessage,
+				picks: quickInput.picks.length,
+			}, { disposed: true, visible: false, message: undefined, picks: 2 });
+		});
+	}
 
 	test('shows plugins from a configured marketplace in Customizations', async () => {
 		const marketplace = parseMarketplaceReference('anthropics/claude-code')!;

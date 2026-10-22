@@ -435,10 +435,9 @@ export class ManagePluginMarketplacesAction extends Action2 {
 				return;
 			}
 			if (selected.kind === 'add') {
-				const source = await this.promptMarketplaceSource(quickInputService, marketplaces.map(marketplace => marketplace.source));
-				if (source !== undefined) {
+				await this.promptMarketplaceSource(quickInputService, marketplaces.map(marketplace => marketplace.source), async source => {
 					await provider.add(sessionResource, source);
-				}
+				});
 				continue;
 			}
 			const marketplace = selected.marketplace;
@@ -532,16 +531,67 @@ export class ManagePluginMarketplacesAction extends Action2 {
 		await configurationService.updateValue(ChatConfiguration.PluginMarketplaces, [...userValues, reference.rawValue]);
 	}
 
-	private promptMarketplaceSource(quickInputService: IQuickInputService, configuredSources: readonly string[]): Promise<string | undefined> {
+	private promptMarketplaceSource(quickInputService: IQuickInputService, configuredSources: readonly string[], addMarketplace?: (source: string) => Promise<void>): Promise<string | undefined> {
 		const configuredMarketplaces = configuredSources
 			.map(parseMarketplaceReference)
 			.filter((reference): reference is IMarketplaceReference => !!reference);
-		return quickInputService.input({
+		const options = {
 			title: localize('addPluginMarketplace', "Add Plugin Marketplace"),
 			placeHolder: localize('pluginMarketplaceSourcePlaceholder', "owner/repo, Git URL, or local repository URI"),
 			prompt: localize('marketplaceTrustPrompt', "Only add marketplaces you trust."),
 			ignoreFocusLost: true,
-			validateInput: async input => this.getMarketplaceInputError(input, configuredMarketplaces),
+			validateInput: async (input: string) => this.getMarketplaceInputError(input, configuredMarketplaces),
+		};
+		if (!addMarketplace) {
+			return quickInputService.input(options);
+		}
+
+		return new Promise(resolve => {
+			const store = new DisposableStore();
+			const inputBox = store.add(quickInputService.createInputBox());
+			inputBox.title = options.title;
+			inputBox.placeholder = options.placeHolder;
+			inputBox.prompt = options.prompt;
+			inputBox.ignoreFocusOut = options.ignoreFocusLost;
+			store.add(inputBox.onDidHide(() => {
+				store.dispose();
+				resolve(undefined);
+			}));
+			store.add(inputBox.onDidChangeValue(() => {
+				inputBox.validationMessage = undefined;
+			}));
+			store.add(inputBox.onDidAccept(async () => {
+				if (inputBox.busy) {
+					return;
+				}
+				const source = inputBox.value.trim();
+				const validationError = this.getMarketplaceInputError(source, configuredMarketplaces);
+				if (validationError) {
+					inputBox.validationMessage = validationError;
+					return;
+				}
+
+				inputBox.validationMessage = undefined;
+				inputBox.busy = true;
+				inputBox.enabled = false;
+				try {
+					await addMarketplace(source);
+					if (!store.isDisposed) {
+						resolve(source);
+						inputBox.hide();
+					}
+				} catch (error) {
+					if (!store.isDisposed) {
+						inputBox.validationMessage = localize('addMarketplaceFailed', "Failed to add marketplace: {0}", error instanceof Error ? error.message : String(error));
+					}
+				} finally {
+					if (!store.isDisposed) {
+						inputBox.busy = false;
+						inputBox.enabled = true;
+					}
+				}
+			}));
+			inputBox.show();
 		});
 	}
 
