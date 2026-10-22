@@ -4489,15 +4489,25 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	/** Consecutive `onDidError` retry count per session while chat-details references are held. */
 	private readonly _sessionStateErrorRetries = new Map<string, number>();
 	private static readonly MAX_SESSION_STATE_ERROR_RETRIES = 2;
+	/** Sessions whose observed chat details have not opened their session-state subscription yet. */
+	private readonly _pendingChatDetailsSubscriptions = new Set<string>();
 	private readonly _sessionChatDetailsReferences = new SessionChatDetailsReferenceCollection(
 		sessionId => {
 			this._sessionStateErrorRetries.delete(sessionId);
-			this._ensureSessionStateSubscription(sessionId, false);
 			this._sessionStateIdleTimers.deleteAndDispose(sessionId);
+			// Details are first observed while UI renders, such as a sessions list row. Opening the
+			// subscription applies its cached state, which notifies session changes, so open it once the
+			// observing call returns: a notification must not re-enter the UI that is rendering.
+			this._pendingChatDetailsSubscriptions.add(sessionId);
+			queueMicrotask(() => {
+				if (this._pendingChatDetailsSubscriptions.delete(sessionId) && !this._store.isDisposed) {
+					this._ensureSessionStateSubscription(sessionId, false);
+				}
+			});
 		},
 		sessionId => {
 			this._sessionStateErrorRetries.delete(sessionId);
-			if (!this._store.isDisposed) {
+			if (!this._pendingChatDetailsSubscriptions.delete(sessionId) && !this._store.isDisposed) {
 				this._keepSessionStateAlive(sessionId, false);
 			}
 		},

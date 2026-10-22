@@ -10082,6 +10082,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				observed.main = multi.mainChat.read(reader).updatedAt.read(reader)?.getTime();
 				observed.peer = peer.updatedAt.read(reader)?.getTime();
 			}));
+			await timeout(0);
 			const mainModifiedAt = new Date(30_000).toISOString();
 			const peerModifiedAt = new Date(40_000).toISOString();
 			agentHost.setSessionState('multi-chat-time', 'copilotcli', makeState([
@@ -10151,9 +10152,11 @@ suite('LocalAgentHostSessionsProvider', () => {
 				}
 			}));
 			renderRows();
+			await timeout(0);
 			const listed = wire();
 			rows.clear();
 			renderRows();
+			await timeout(0);
 			const rerendered = wire();
 			const shownResource = shownSession.resource;
 			visibleSessions.set([new class extends mock<IActiveSession>() {
@@ -10383,6 +10386,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				initialPeer.title.read(reader);
 				initialPeer.status.read(reader);
 			}));
+			await timeout(0);
 			agentHost.setSessionState(rawId, 'copilotcli', makeState([
 				makeChatSummary(defaultChat.toString(), 'Default', ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsRead),
 				makeChatSummary(peerChat.toString(), 'Hydrated Peer', ProtocolSessionStatus.InProgress),
@@ -10650,6 +10654,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			assert.ok(session);
 			const peer = session.chats.get()[1];
 			disposables.add(autorun(reader => peer.title.read(reader)));
+			await timeout(0);
 			const subscriptionsBeforeFailure = agentHost.sessionSubscribeCounts.get(sessionUri.toString()) ?? 0;
 
 			agentHost.fireSessionStateError(sessionUri, new Error('subscription failed'));
@@ -11736,6 +11741,43 @@ suite('LocalAgentHostSessionsProvider', () => {
 			agentHost.setSessionState('reorder-notify', 'copilotcli', makeState([makeChatSummary(defaultChat, ''), peer(second, 'Second'), peer(first, 'First'), peer(third, 'Third')], { defaultChat }));
 
 			assert.deepStrictEqual(changed.filter(entry => entry.length > 0), [['Session,Second,First']]);
+		});
+
+		test('observing chat details tells session lists about a cached reorder only after the observing call returns', async () => {
+			const rawId = 'observe-cached-reorder';
+			const sessionUri = AgentSession.uri('copilotcli', rawId).toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const [first, second] = ['first', 'second'].map(id => buildChatUri(sessionUri, id));
+			agentHost.addSession(createSession(rawId, {
+				summary: 'Session',
+				chats: [
+					{ chat: URI.parse(defaultChat), kind: 'default', summary: 'Default' },
+					{ chat: URI.parse(first), kind: 'peer', summary: 'First' },
+					{ chat: URI.parse(second), kind: 'peer', summary: 'Second' },
+				],
+			}));
+			const provider = createProvider(disposables, agentHost);
+			provider.getSessions();
+			await timeout(0);
+			const session = provider.getSessions().find(candidate => AgentSession.id(candidate.resource.toString()) === rawId);
+			assert.ok(session);
+			// Another client already holds the session's state, which orders its chats differently.
+			agentHost.setSessionState(rawId, 'copilotcli', makeState([makeChatSummary(defaultChat, 'Default'), makeChatSummary(second, 'Second'), makeChatSummary(first, 'First')], { defaultChat }));
+			const notified: string[] = [];
+			let observing = false;
+			disposables.add(provider.onDidChangeSessions(e => {
+				if (e.changed.some(candidate => candidate.sessionId === session.sessionId)) {
+					notified.push(observing ? 'while observing' : 'after observing');
+				}
+			}));
+
+			// Session list rows observe chat details while the list renders them.
+			observing = true;
+			disposables.add(autorun(reader => session.chats.read(reader).at(-1)?.title.read(reader)));
+			observing = false;
+			await timeout(0);
+
+			assert.deepStrictEqual({ notified, chats: session.chats.get().map(chat => chat.title.get()) }, { notified: ['after observing'], chats: ['Default', 'Second', 'First'] });
 		});
 
 		test('explains a workspace-less refusal by whether the chat shares its scratch folder with another chat (Block 9)', async () => {
