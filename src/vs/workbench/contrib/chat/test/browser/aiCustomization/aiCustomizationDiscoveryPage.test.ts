@@ -523,6 +523,97 @@ suite('AICustomizationDiscoveryPage', () => {
 		});
 	});
 
+	test('marks only Copilot Connector search results as verified by GitHub', async () => {
+		const fixture = createPage(['agentFinder', 'copilotConnectors']);
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({
+			items: [
+				resource('copilot-connector', {
+					sourceId: 'copilotConnectors',
+					installation: { kind: 'copilotConnector', name: 'copilot-connector' },
+				}),
+				resource('public-alternative', {
+					installation: { kind: 'mcp', name: 'public/alternative', version: '1.0.0' },
+				}),
+			],
+		});
+		await timeout(0);
+
+		const getVerification = (name: string) => {
+			const card = [...fixture.container.querySelectorAll<HTMLElement>('.customization-discovery-card')]
+				.find(card => card.querySelector('.customization-discovery-card-name')?.textContent === name);
+			const verified = card?.querySelector<HTMLElement>('.customization-discovery-verified');
+			const visible = verified?.style.display === '';
+			return {
+				visible,
+				label: verified?.getAttribute('aria-label') ?? null,
+				icon: !!verified?.querySelector('.codicon-extensions-verified-publisher'),
+				afterMetadata: visible && verified.previousElementSibling?.classList.contains('customization-discovery-card-metadata') === true,
+			};
+		};
+
+		assert.deepStrictEqual({
+			connector: getVerification('copilot-connector'),
+			alternative: getVerification('public-alternative'),
+			accessibility: fixture.page.getAccessibilityContent().includes('Verified by GitHub'),
+		}, {
+			connector: { visible: false, label: null, icon: false, afterMetadata: false },
+			alternative: { visible: false, label: null, icon: false, afterMetadata: false },
+			accessibility: false,
+		});
+
+		fixture.page.setSearchQuery('connector');
+		await waitForRequestCount(fixture.requests, 2);
+		await fixture.requests[1].result.complete({
+			items: [
+				resource('copilot-connector', {
+					sourceId: 'copilotConnectors',
+					installation: { kind: 'copilotConnector', name: 'copilot-connector' },
+				}),
+			],
+		});
+		await timeout(0);
+
+		const getResultVerification = (name: string) => {
+			const row = [...fixture.container.querySelectorAll<HTMLElement>('.customization-discovery-result-content')]
+				.find(row => row.querySelector('.customization-discovery-result-name')?.textContent === name);
+			const verified = row?.querySelector<HTMLElement>('.customization-discovery-verified');
+			const visible = verified?.style.display === '';
+			return {
+				visible,
+				label: verified?.getAttribute('aria-label') ?? null,
+				hidden: verified?.getAttribute('aria-hidden') ?? null,
+				afterDetail: visible && verified.previousElementSibling?.classList.contains('customization-discovery-result-detail') === true,
+			};
+		};
+		assert.deepStrictEqual({
+			connector: getResultVerification('copilot-connector'),
+			accessibility: fixture.page.getAccessibilityContent().includes('copilot-connector\nMCP server · Copilot Connectors · Verified by GitHub'),
+		}, {
+			connector: { visible: true, label: 'Verified by GitHub', hidden: null, afterDetail: true },
+			accessibility: true,
+		});
+
+		fixture.page.setSearchQuery('public');
+		await waitForRequestCount(fixture.requests, 3);
+		await fixture.requests[2].result.complete({
+			items: [
+				resource('public-alternative', {
+					installation: { kind: 'mcp', name: 'public/alternative', version: '1.0.0' },
+				}),
+			],
+		});
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			alternative: getResultVerification('public-alternative'),
+			accessibility: fixture.page.getAccessibilityContent().includes('Verified by GitHub'),
+		}, {
+			alternative: { visible: false, label: null, hidden: 'true', afterDetail: false },
+			accessibility: false,
+		});
+	});
+
 	test('installed item changes keep browse cards and update search results in place', async () => {
 		const fixture = createPage(['agentFinder']);
 		fixture.page.setVisible(true);

@@ -10948,6 +10948,37 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		});
 
+		test('a chat that moved away with its Agent Merge leaves its folder off for the chats that stay, at once', () => {
+			const provider = createProvider(disposables, agentHost);
+			const directory = URI.file('/workspace-moved-away');
+			const session = setupMultiChatSession(provider, 'agent-merge-moved-away', [directory]);
+			const sessionUri = AgentSession.uri('copilotcli', 'agent-merge-moved-away').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const movedChat = buildChatUri(sessionUri, 'moved');
+			const meta = withWorkingDirectoryKey(undefined, directory.toString(), directory.toString());
+			const setConfigValues = (values: Record<string, unknown>) => agentHost.setSessionState('agent-merge-moved-away', 'copilotcli', {
+				...makeState([makeChatSummary(defaultChat, '', ProtocolSessionStatus.Idle, [directory.toString()])], { defaultChat, meta, workingDirectories: [directory.toString()] }),
+				config: { schema: { type: 'object', properties: {} }, values },
+			});
+			const mainChat = session.mainChat.get();
+			const observable = provider.getAgentMergeClientStateObservable(session.sessionId, mainChat.resource);
+			const read = () => ({ state: provider.getAgentMergeSessionState(session.sessionId, mainChat.resource)?.enabled, observable: observable.get()?.enabled });
+			setConfigValues({ [SessionConfigKey.AgentMergeFolders]: { [directory.toString()]: { enabled: true, chat: movedChat } } });
+			const before = read();
+			// What the host publishes for the source of the move: the folder is off, with nothing of the chat's.
+			setConfigValues({ [SessionConfigKey.AgentMergeFolders]: { [directory.toString()]: { enabled: false } } });
+			const afterMove = read();
+			setConfigValues({ [SessionConfigKey.AgentMergeFolders]: { [directory.toString()]: { enabled: true, chat: movedChat } } });
+			// Had the host removed the folder's entry instead, clients would keep showing it on.
+			setConfigValues({ [SessionConfigKey.AgentMergeFolders]: {} });
+
+			assert.deepStrictEqual({ before, afterMove, afterRemoval: read() }, {
+				before: { state: true, observable: true },
+				afterMove: { state: false, observable: false },
+				afterRemoval: { state: true, observable: true },
+			});
+		});
+
 		test('uses host-published folder keys and scope ids for mixed-case remote paths', () => {
 			const provider = createProvider(disposables, agentHost);
 			const primaryDirectory = URI.file('/work/MyRepo');

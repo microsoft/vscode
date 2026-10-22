@@ -29,7 +29,7 @@ import { IWorkspaceContextService } from '../../../../../platform/workspace/comm
 import { ConfigurationResolverExpression } from '../../../../services/configurationResolver/common/configurationResolverExpression.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
-import { TestContextService, TestLoggerService, TestProductService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
+import { TestContextService, TestLoggerService, TestProductService, TestStorageService, TestUserDataProfileService } from '../../../../test/common/workbenchTestServices.js';
 import { IMcpRegistry } from '../../common/mcpRegistryTypes.js';
 import { McpServerConnection } from '../../common/mcpServerConnection.js';
 import { McpService } from '../../common/mcpService.js';
@@ -58,7 +58,7 @@ suite('Workbench - MCP - McpService', () => {
 		const registry = new TestMcpRegistry(parentInstantiationService);
 		const instantiationService = store.add(parentInstantiationService.createChild(new ServiceCollection([IMcpRegistry, registry])));
 		const configurationService = new TestConfigurationService({ [mcpAutoStartConfig]: McpAutoStartValue.NewAndOutdated });
-		const mcpService = store.add(new McpService(instantiationService, registry, new NullLogService(), configurationService, storageService));
+		const mcpService = store.add(new McpService(instantiationService, registry, new NullLogService(), configurationService, storageService, new TestUserDataProfileService()));
 		return { mcpService, registry, instantiationService };
 	};
 

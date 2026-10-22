@@ -38,7 +38,8 @@ import { IWorkspaceContextService, toWorkspaceFolder, WorkspaceFolder } from '..
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { DidUninstallWorkbenchMcpServerEvent, IWorkbenchLocalMcpServer, IWorkbenchMcpManagementService, IWorkbenchMcpServerInstallResult, LocalMcpServerScope } from '../../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
-import { TestContextService, TestLoggerService, TestProductService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
+import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
+import { TestContextService, TestLoggerService, TestProductService, TestStorageService, TestUserDataProfileService } from '../../../../test/common/workbenchTestServices.js';
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ContributionEnablementState } from '../../../chat/common/enablement.js';
 import { McpServerEditorInput } from '../../browser/mcpServerEditorInput.js';
@@ -932,6 +933,7 @@ suite('McpWorkbenchService', () => {
 				[ITelemetryService, NullTelemetryService],
 				[IProductService, TestProductService],
 				[IAllowedMcpServersService, upcastPartial<IAllowedMcpServersService>({ onDidChangeAllowedMcpServers: Event.None, isAllowed: () => true, isServerAllowedBeforeResolution: () => true, isServerAllowed: () => true })],
+				[IUserDataProfileService, new TestUserDataProfileService()],
 			);
 			const instantiationService = store.add(new TestInstantiationService(services));
 			const registry = store.add(instantiationService.createInstance(McpRegistry));
