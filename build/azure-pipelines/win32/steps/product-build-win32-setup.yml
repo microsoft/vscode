@@ -48,21 +48,49 @@ steps:
     parameters:
       windows: true
 
+  # node_modules is cached in two halves (see isNativeDir in build/npm/dirs.ts):
+  # the native directories, which take most of the install time, and the
+  # JS-only directories, whose lockfiles change most often. A change to a
+  # JS-only lockfile then only reinstalls the JS-only directories.
   - pwsh: |
       mkdir .build -ea 0
-      node build/azure-pipelines/common/computeNodeModulesCacheKey.ts win32 $(VSCODE_ARCH) $(node -p process.arch) > .build/packagelockhash
-    displayName: Prepare node_modules cache key
+      node build/azure-pipelines/common/computeNodeModulesCacheKey.ts --part=native win32 $(VSCODE_ARCH) $(node -p process.arch) > .build/packagelockhash-native
+      node build/azure-pipelines/common/computeNodeModulesCacheKey.ts --part=js win32 $(VSCODE_ARCH) $(node -p process.arch) > .build/packagelockhash-js
+    displayName: Prepare node_modules cache keys
 
   - task: Cache@2
     inputs:
-      key: '"node_modules" | .build/packagelockhash'
-      path: .build/node_modules_cache
-      cacheHitVar: NODE_MODULES_RESTORED
-    displayName: Restore node_modules cache
+      key: '"node_modules_native" | .build/packagelockhash-native'
+      path: .build/node_modules_native_cache
+      cacheHitVar: NODE_MODULES_NATIVE_RESTORED
+    displayName: Restore native node_modules cache
 
-  - powershell: 7z.exe x .build/node_modules_cache/cache.7z -aoa
+  - task: Cache@2
+    inputs:
+      key: '"node_modules_js" | .build/packagelockhash-js'
+      path: .build/node_modules_js_cache
+      cacheHitVar: NODE_MODULES_JS_RESTORED
+    displayName: Restore JS node_modules cache
+
+  - pwsh: |
+      $Restored = '$(NODE_MODULES_NATIVE_RESTORED)' -eq 'true' -and '$(NODE_MODULES_JS_RESTORED)' -eq 'true'
+      echo "##vso[task.setvariable variable=NODE_MODULES_RESTORED]$($Restored.ToString().ToLower())"
+    displayName: Check node_modules cache
+
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      exec { 7z.exe x .build/node_modules_native_cache/cache.7z -aoa }
+    condition: and(succeeded(), eq(variables.NODE_MODULES_NATIVE_RESTORED, 'true'))
+    displayName: Extract native node_modules cache
+
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      exec { 7z.exe x .build/node_modules_js_cache/cache.7z -aoa }
+      exec { node build/azure-pipelines/common/nodeModulesCacheManifest.ts verify }
     condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
-    displayName: Extract node_modules cache
+    displayName: Extract JS node_modules cache
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
@@ -107,23 +135,54 @@ steps:
         FOUNDRY_LOCAL_NUGET_FEEDS: "https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/nuget/v3/index.json"
     retryCountOnTaskFailure: 5
     displayName: Install dependencies
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+    condition: and(succeeded(), ne(variables.NODE_MODULES_NATIVE_RESTORED, 'true'))
+
+  # The native half was restored, so only the JS-only directories need installing.
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      exec { node build/npm/postinstall.ts }
+    env:
+      VSCODE_POSTINSTALL_SCOPE: js
+      VSCODE_FORCE_INSTALL: "1"
+      npm_command: ci
+      npm_config_arch: $(VSCODE_ARCH)
+      npm_config_foreground_scripts: "true"
+      ${{ if and(eq(parameters.VSCODE_CIBUILD, true), gt(length(parameters.VSCODE_TEST_IDS), 0)) }}:
+        npm_config_timing: "true"
+        npm_config_logs_dir: $(Build.SourcesDirectory)/.build/logs/npm
+      ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+      GITHUB_TOKEN: "$(github-token-code-oss)"
+    retryCountOnTaskFailure: 5
+    displayName: Install JS-only dependencies
+    condition: and(succeeded(), eq(variables.NODE_MODULES_NATIVE_RESTORED, 'true'), ne(variables.NODE_MODULES_JS_RESTORED, 'true'))
 
   - powershell: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
     displayName: Verify native optional dependency binaries
 
   - powershell: node build/azure-pipelines/distro/mixin-npm.ts
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+    condition: and(succeeded(), ne(variables.NODE_MODULES_NATIVE_RESTORED, 'true'))
     displayName: Mixin distro node modules
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
-      exec { node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt }
-      exec { mkdir -Force .build/node_modules_cache }
-      exec { 7z.exe a .build/node_modules_cache/cache.7z -mx3 `@.build/node_modules_list.txt }
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-    displayName: Create node_modules archive
+      exec { node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_native_list.txt native }
+      exec { mkdir -Force .build/node_modules_native_cache }
+      exec { 7z.exe a .build/node_modules_native_cache/cache.7z -mx3 `@.build/node_modules_native_list.txt }
+    condition: and(succeeded(), ne(variables.NODE_MODULES_NATIVE_RESTORED, 'true'))
+    displayName: Create native node_modules archive
+
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      exec { node build/azure-pipelines/common/nodeModulesCacheManifest.ts write }
+      exec { node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_js_list.txt js }
+      exec { mkdir -Force .build/node_modules_js_cache }
+      exec { 7z.exe a .build/node_modules_js_cache/cache.7z -mx3 `@.build/node_modules_js_list.txt }
+    condition: and(succeeded(), ne(variables.NODE_MODULES_JS_RESTORED, 'true'))
+    displayName: Create JS node_modules archive
 
   - powershell: node build/azure-pipelines/distro/mixin-quality.ts
     displayName: Mixin distro quality

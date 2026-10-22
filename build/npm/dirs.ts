@@ -70,3 +70,13 @@ if (existsSync(`${import.meta.dirname}/../../.build/distro/npm`)) {
 	dirs.push('.build/distro/npm/remote');
 	dirs.push('.build/distro/npm/remote/web');
 }
+
+/**
+ * Whether a directory of {@link dirs} installs native modules or feeds them:
+ * the root (whose node_modules also receives the distro mixins), `build`,
+ * `remote` and the distro packages. CI caches these separately from the
+ * JS-only directories, which change more often and install much faster.
+ */
+export function isNativeDir(dir: string): boolean {
+	return dir === '' || dir === 'build' || dir === 'remote' || dir.startsWith('.build/');
+}

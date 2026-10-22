@@ -559,7 +559,7 @@ suite('Cloud Sandbox install setup', () => {
 			export function finishCloudSandbox() { fs.appendFileSync('calls', 'finish\\n'); }
 		`);
 		fs.writeFileSync(path.join(npmDirectory, 'electronTypes.ts'), 'export async function ensureElectronTypes() {}');
-		fs.writeFileSync(path.join(npmDirectory, 'dirs.ts'), 'export const dirs = [];');
+		fs.writeFileSync(path.join(npmDirectory, 'dirs.ts'), 'export const dirs = []; export function isNativeDir() { return false; }');
 		fs.writeFileSync(path.join(npmDirectory, 'installStateHash.ts'), `
 			export const root = process.cwd(), stateFile = root + '/node_modules/.postinstall-state',
 				stateContentsFile = root + '/node_modules/.postinstall-state-contents', forceInstallMessage = '';

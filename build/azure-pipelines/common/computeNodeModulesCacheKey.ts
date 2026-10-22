@@ -3,6 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { computeNodeModulesCacheKey } from './cacheKeys.ts';
+import { computeNodeModulesCacheKey, type NodeModulesCachePart } from './cacheKeys.ts';
 
-process.stdout.write(computeNodeModulesCacheKey(process.argv.slice(2)));
+// Usage: node computeNodeModulesCacheKey.ts [--part=native|js] ARGS...
+let part: NodeModulesCachePart = 'all';
+const args: string[] = [];
+for (const arg of process.argv.slice(2)) {
+	const match = /^--part=(native|js)$/.exec(arg);
+	if (match) {
+		part = match[1] as NodeModulesCachePart;
+	} else if (arg.startsWith('--')) {
+		throw new Error(`Unknown option: ${arg}`);
+	} else {
+		args.push(arg);
+	}
+}
+
+process.stdout.write(computeNodeModulesCacheKey(args, undefined, part));
