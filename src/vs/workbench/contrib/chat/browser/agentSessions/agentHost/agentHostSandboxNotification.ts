@@ -228,20 +228,19 @@ export class AgentHostSandboxNotification extends Disposable {
 			this._notificationService.deleteNotification(this._certificateId);
 			return;
 		}
+		const learnMore = new MarkdownString().appendLink(
+			'https://code.visualstudio.com/docs/agents/run/agent-sandboxing#_why-certificate-trust-is-needed',
+			localize('agentHost.sandboxCertificateWhyTrust', "Learn more"),
+		);
 		const description = new MarkdownString();
 		description.appendMarkdown(this._certificateOperation === 'remove'
 			? localize('agentHost.sandboxCertificateRemovingDetail', "Removing trust from the agent host's operating system trust store. The stored certificate authority is kept.")
 			: this._certificateOperation === 'rotate'
 				? localize('agentHost.sandboxCertificateRotatingDetail', "Replacing the certificate authority and establishing operating system trust. Running sandboxed tools may need to restart.")
-				: localize('agentHost.sandboxCertificateMissingDetail', "Install the sandbox certificate authority (CA) so developer tools can connect securely through a proxy that adds credentials to outgoing requests without exposing them to agent tools."));
-		if (this._certificateOperation !== 'remove' && this._certificateOperation !== 'rotate') {
-			description.appendMarkdown(' ');
-			description.appendLink(
-				'https://code.visualstudio.com/docs/agents/run/agent-sandboxing#_why-certificate-trust-is-needed',
-				localize('agentHost.sandboxCertificateWhyTrust', "Learn more"),
-			);
-			description.appendText('.');
-		}
+				: localize({
+					key: 'agentHost.sandboxCertificateMissingDetail',
+					comment: ['{0} is a Markdown link labeled "Learn more" that opens certificate trust documentation.'],
+				}, "Install the sandbox certificate authority (CA) so developer tools can connect securely through a proxy that adds credentials to outgoing requests without exposing them to agent tools. {0}.", learnMore.value));
 		this._notificationService.setNotification({
 			id: this._certificateId,
 			inputUri,
