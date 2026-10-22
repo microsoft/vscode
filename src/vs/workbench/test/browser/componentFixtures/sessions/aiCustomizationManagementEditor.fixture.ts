@@ -1220,7 +1220,6 @@ interface IRenderEditorOptions {
 	readonly pluginMarketplaceMigration?: boolean;
 	readonly pluginMarketplaceMigrationOnly?: boolean;
 	readonly pluginMarketplaceMigrationDeselected?: boolean;
-	readonly canvasDisable?: string;
 }
 
 // ============================================================================
@@ -1439,7 +1438,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			const sourceEnabled = () => configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) === true;
 			ctx.disposableStore.add({ dispose: () => configurationService.onDidChangeConfigurationEmitter.dispose() });
 			registerWorkbenchServices(reg);
-			if (options.migrationConfirmation || options.canvasDisable) {
+			if (options.migrationConfirmation) {
 				reg.defineInstance(IDialogService, new class extends mock<IDialogService>() {
 					override confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
 						const dialog = ctx.disposableStore.add(new Dialog(
@@ -2113,14 +2112,6 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			() => ctx.container.querySelector('.copilot-customizations-widget .copilot-customization-tree-item') !== null,
 			'Copilot customization rows did not finish rendering.',
 		);
-	}
-	if (options.canvasDisable) {
-		const findSwitch = () => [...ctx.container.querySelectorAll<HTMLElement>('.copilot-canvas-tree-item')]
-			.find(row => row.querySelector('.copilot-customization-tree-label')?.textContent === options.canvasDisable)
-			?.querySelector<HTMLElement>('[role="switch"]');
-		await waitForFixtureCondition(() => findSwitch() !== undefined, `The '${options.canvasDisable}' Canvas row did not render.`);
-		findSwitch()!.click();
-		await waitForFixtureCondition(() => ctx.container.querySelector('.monaco-dialog-box') !== null, 'The Canvas disable confirmation did not render.');
 	}
 	assert(ctx.container.querySelector<HTMLButtonElement>('.sidebar-home-button')?.title === (discoverEnabled ? 'Back to Customizations' : 'Back to overview'), 'Home tooltip must describe the active surface.');
 	if (options.selectedSection === AICustomizationManagementSection.McpServers && options.marketplaceVisibilityEnabled === false) {
@@ -3357,6 +3348,15 @@ const fixtureCopilotExtensionInventory: IAgentExtensionInventory = {
 			pluginName: 'azure-tools',
 			enabled: false,
 		},
+		{
+			id: 'plugin:microsoft-foundry:microsoft-foundry',
+			name: 'microsoft-foundry',
+			resource: URI.file('/workspace/.copilot/plugins/microsoft-foundry/extensions/microsoft-foundry/extension.mjs'),
+			source: 'plugin',
+			status: 'running',
+			pluginName: 'microsoft-foundry',
+			enabled: true,
+		},
 	],
 };
 const fixtureCopilotCanvases: readonly ICanvasDefinition[] = [
@@ -3516,25 +3516,12 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	CanvasesTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['Canvases uses the shared customization tree design, grouped by extension source, with a switch and contextual actions on every row.'],
+		expectedVisualDescriptions: ['Canvases literally reuses the shared Tools content container, including its recessed panel background, border, padding, title/search alignment, and source-group tree styling. It groups every inventory extension under User, Workspace, Session, and Plugins sections, including extensions that report no Canvases. Extension rows do not repeat source icons; only extension parents have enablement switches, and cached children of disabled extensions are labeled as last known.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			selectedSection: AICustomizationManagementSection.Canvases,
 			copilotExtensionInventory: fixtureCopilotExtensionInventory,
 			copilotCanvases: fixtureCopilotCanvases,
-		}),
-	}),
-
-	CanvasesDisableDialog: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: false },
-		virtualTime: { enabled: false },
-		expectedVisualDescriptions: ['Disabling PR Review Board asks for confirmation because Release Notes Draft comes from the same extension and will also be disabled.'],
-		render: ctx => renderEditor(ctx, {
-			sessionResource: agentHostCopilotSessionResource,
-			selectedSection: AICustomizationManagementSection.Canvases,
-			copilotExtensionInventory: fixtureCopilotExtensionInventory,
-			copilotCanvases: fixtureCopilotCanvases,
-			canvasDisable: 'PR Review Board',
 		}),
 	}),
 

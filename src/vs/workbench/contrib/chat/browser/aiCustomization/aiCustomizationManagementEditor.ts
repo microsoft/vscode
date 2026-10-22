@@ -1292,7 +1292,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			if (!aiCustomizationManagementSectionRegistry.has(section)) {
 				continue;
 			}
-			const container = DOM.append(contentInner, $('.contributed-section-container'));
+			const container = DOM.append(contentInner, $('.contributed-section-container.tools-content-container'));
 			this.contributedSectionContainers.set(section, container);
 		}
 
@@ -1344,6 +1344,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 				this.updateSectionCount(section, observable.read(reader));
 			}));
 		}
+		this.initializeContributedSectionWidgets();
 
 		// Load items for the initial section
 		if (this.isPromptsSection(this.selectedSection)) {
@@ -3578,6 +3579,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (widget.onDidChangeItemCount) {
 			this.editorDisposables.add(widget.onDidChangeItemCount(count => this.updateSectionCount(section, count)));
 		}
+		widget.fireItemCount?.();
 		if (widget.onDidRequestShowPlugin) {
 			this.editorDisposables.add(widget.onDidRequestShowPlugin(item => this.showPluginDetail(item)));
 		}
@@ -3586,6 +3588,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 			widget.layout?.(this.dimension);
 		}
 		return widget;
+	}
+
+	private initializeContributedSectionWidgets(): void {
+		for (const section of this.workspaceService.managementSections) {
+			const contribution = aiCustomizationManagementSectionRegistry.get(section, this.harnessService.activeHarness.get());
+			if (contribution?.initializeOnEditorOpen) {
+				this.ensureContributedSectionWidget(section);
+			}
+		}
 	}
 
 	getActiveSectionWidget(): IAICustomizationManagementSectionWidget | undefined {

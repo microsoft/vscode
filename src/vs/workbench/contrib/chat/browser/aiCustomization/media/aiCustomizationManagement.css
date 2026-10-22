@@ -1181,8 +1181,8 @@ per-word capitalization does not survive translation. */
 	padding-block: var(--vscode-spacing-size400) var(--vscode-spacing-sizeNone);
 	padding-inline: var(--vscode-spacing-size400);
 	background: var(--vscode-agentsPanel-background);
-	border: 1px solid var(--vscode-agentsPanel-border);
-	border-radius: 6px;
+	border: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
+	border-radius: var(--vscode-cornerRadius-medium);
 	overflow: hidden;
 	box-sizing: border-box;
 }
@@ -1378,6 +1378,10 @@ per-word capitalization does not survive translation. */
 	line-height: 14px;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+}
+
+.ai-customization-management-editor .copilot-canvas-tree-item .copilot-customization-tree-label {
+	font-weight: var(--vscode-fontWeight-regular);
 }
 
 .ai-customization-management-editor .copilot-customization-tree-item.disabled .copilot-customization-tree-text {

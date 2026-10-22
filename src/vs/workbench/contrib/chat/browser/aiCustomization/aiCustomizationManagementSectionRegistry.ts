@@ -14,6 +14,7 @@ import type { IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js'
 export interface IAICustomizationManagementSectionWidget extends IDisposable {
 	layout?(dimension: Dimension): void;
 	focus?(): void;
+	fireItemCount?(): void;
 	setSearchQuery?(query: string): void;
 	setVisible?(visible: boolean): void;
 	getAccessibilityContent?(): string;
@@ -28,6 +29,8 @@ export interface IAICustomizationManagementSectionContribution {
 	readonly description: string;
 	/** At least one of these boolean settings must be enabled to show or instantiate the section. */
 	readonly enablementSettings?: readonly string[];
+	/** Instantiate while hidden so sidebar metadata such as item counts is available before first navigation. */
+	readonly initializeOnEditorOpen?: boolean;
 	readonly supportsHarness: (harnessId: string) => boolean;
 	create(instantiationService: IInstantiationService, container: HTMLElement): IAICustomizationManagementSectionWidget;
 }

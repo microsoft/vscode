@@ -2097,6 +2097,13 @@ suite('CopilotAgent', () => {
 				source: 'plugin',
 				enabled: false,
 				plugin: { name: 'dashboard' },
+			}, {
+				id: 'plugin:microsoft-foundry:microsoft-foundry',
+				name: 'microsoft-foundry',
+				path: '/home/test/.copilot/plugins/microsoft-foundry/extensions/microsoft-foundry/extension.mjs',
+				source: 'plugin',
+				enabled: true,
+				plugin: { name: 'microsoft-foundry' },
 			}],
 		};
 		const agent = createTestAgent(disposables, { copilotClient: client });
@@ -2183,6 +2190,14 @@ suite('CopilotAgent', () => {
 						status: 'disabled',
 						enabled: false,
 						pluginName: 'dashboard',
+					}, {
+						id: 'plugin:microsoft-foundry:microsoft-foundry',
+						name: 'microsoft-foundry',
+						resource: 'file:///home/test/.copilot/plugins/microsoft-foundry/extensions/microsoft-foundry/extension.mjs',
+						source: 'plugin',
+						status: 'running',
+						enabled: true,
+						pluginName: 'microsoft-foundry',
 					}],
 				},
 				scopedInventory: [{
@@ -2197,6 +2212,18 @@ suite('CopilotAgent', () => {
 					source: 'project',
 					status: 'disabled',
 					enabled: false,
+				}, {
+					id: 'plugin:dashboard',
+					resource: 'file:///home/test/.copilot/plugins/dashboard/extensions/dashboard/extension.mjs',
+					source: 'plugin',
+					status: 'disabled',
+					enabled: false,
+				}, {
+					id: 'plugin:microsoft-foundry:microsoft-foundry',
+					resource: 'file:///home/test/.copilot/plugins/microsoft-foundry/extensions/microsoft-foundry/extension.mjs',
+					source: 'plugin',
+					status: 'unknown',
+					enabled: true,
 				}],
 				enableRequests: [{ ids: ['user:preview'] }, { ids: ['plugin:dashboard'] }],
 				disableRequests: [{ ids: ['user:preview'] }],

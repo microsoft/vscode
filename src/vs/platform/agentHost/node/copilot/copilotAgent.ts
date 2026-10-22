@@ -2921,16 +2921,26 @@ export class CopilotAgent extends Disposable implements IAgent {
 			throw new Error('The selected chat is not running, so its extensions cannot be listed.');
 		}
 		const persistedById = new Map(persisted.extensions.map(extension => [extension.id, extension]));
+		const liveExtensions = await liveSession.listExtensions();
+		const liveExtensionIds = new Set(liveExtensions.map(extension => extension.id));
 		return {
 			mode: persisted.mode,
-			extensions: (await liveSession.listExtensions()).map(extension => {
-				const persistedExtension = persistedById.get(extension.id);
-				return {
-					...extension,
-					...(persistedExtension?.resource ? { resource: persistedExtension.resource } : {}),
-					...(persistedExtension?.pluginName ? { pluginName: persistedExtension.pluginName } : {}),
-				};
-			}),
+			extensions: [
+				...liveExtensions.map(extension => {
+					const persistedExtension = persistedById.get(extension.id);
+					return {
+						...extension,
+						...(persistedExtension?.resource ? { resource: persistedExtension.resource } : {}),
+						...(persistedExtension?.pluginName ? { pluginName: persistedExtension.pluginName } : {}),
+					};
+				}),
+				...persisted.extensions
+					.filter(extension => !liveExtensionIds.has(extension.id))
+					.map(extension => ({
+						...extension,
+						status: extension.enabled ? 'unknown' as const : 'disabled' as const,
+					})),
+			],
 		};
 	}
 

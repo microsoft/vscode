@@ -415,6 +415,7 @@ suite('aiCustomizationManagementEditor', () => {
 		contributedSectionContainers: Map<AICustomizationManagementSection, HTMLElement>;
 		contributedSectionWidgets: Map<AICustomizationManagementSection, IAICustomizationManagementSectionWidget>;
 		getActiveSectionWidget(): IAICustomizationManagementSectionWidget | undefined;
+		initializeContributedSectionWidgets(): void;
 		selectSection(section: AICustomizationManagementSection): void;
 		setInput: AICustomizationManagementEditor['setInput'];
 		clearInput(): void;
@@ -880,7 +881,7 @@ suite('aiCustomizationManagementEditor', () => {
 		});
 	});
 
-	function createContributedSectionEditor(enablementSettings?: readonly string[]) {
+	function createContributedSectionEditor(enablementSettings?: readonly string[], initializeOnEditorOpen = false) {
 		const editor = createTestEditor();
 		store.add(editor.editorPreviewDisposables);
 		const visibilityChanges: boolean[] = [];
@@ -905,6 +906,7 @@ suite('aiCustomizationManagementEditor', () => {
 			description: 'Test contributed section lifecycle',
 			icon: Codicon.search,
 			enablementSettings,
+			initializeOnEditorOpen,
 			supportsHarness: id => id === harnessId,
 			create: () => {
 				state.created++;
@@ -920,6 +922,15 @@ suite('aiCustomizationManagementEditor', () => {
 		}));
 		return { editor, section, state, visibilityChanges, focusedVisibility };
 	}
+
+	test('initializes opted-in contributed sections before first navigation', () => {
+		const { editor, section, state } = createContributedSectionEditor(undefined, true);
+		Object.assign(editor.workspaceService, { managementSections: [section] });
+
+		editor.initializeContributedSectionWidgets();
+
+		assert.deepStrictEqual(state, { created: 1, visible: false, promptsFocused: 0, disposed: 0 });
+	});
 
 	function createGatedSectionEditor(enabled?: boolean, enablementSettings: readonly string[] = [CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]) {
 		const context = createContributedSectionEditor(enablementSettings);
