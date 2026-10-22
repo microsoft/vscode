@@ -79,6 +79,7 @@ suite('SessionEnvironmentPicker', () => {
 			{ id: 'cloud', kind: 'cloud', providerIds: ['cloud'], description: undefined },
 			{ id: 'agenthost-remote-visible', kind: 'remote', providerIds: ['agenthost-remote-visible'], description: 'Connected' },
 		]);
+		assert.deepStrictEqual(getSessionCreationEnvironments(providers, false), getSessionCreationEnvironments(providers));
 	});
 
 	test('Cloud requires a supported session type, not merely a resolvable local folder', () => {

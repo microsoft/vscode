@@ -574,6 +574,38 @@ suite('NewChatWidget', () => {
 		const container: ISessionCreationEnvironment = { ...local, id: 'container:local', kind: 'container' };
 		const folder = URI.file('/project');
 
+		test('legacy environment reconciliation keeps provider ordering and container metadata unchanged', () => {
+			const first = { ...local, id: 'first-local' };
+			const second = { ...local, id: 'second-local' };
+			const picked = observableValue<ISessionCreationEnvironment | undefined>('picked', second);
+			const widget: NewChatWidget = Object.assign(Object.create(NewChatWidget.prototype), {
+				_environment: picked,
+				_environments: constObservable([first, second]),
+				_pickedEnvironment: picked,
+			});
+			const reconcile = Reflect.get(NewChatWidget.prototype, '_reconcileWorkspaceEnvironment') as (this: NewChatWidget, options: ISelectWorkspaceOptions) => void;
+			reconcile.call(widget, { providerId: LOCAL_AGENT_HOST_PROVIDER_ID });
+			const localSelection = picked.get();
+			reconcile.call(widget, { providerId: LOCAL_AGENT_HOST_PROVIDER_ID, preferDevContainer: true });
+			assert.deepStrictEqual({ localSelection, containerSelection: picked.get() }, {
+				localSelection: first,
+				containerSelection: { ...first, id: 'container:first-local', kind: 'container', label: 'Dev Container', icon: Codicon.remote },
+			});
+		});
+
+		test('reconciliation preserves only an explicit local isolation choice', () => {
+			const worktree: ISessionCreationEnvironment = { ...local, id: 'local:worktree', isolation: 'worktree' };
+			const picked = observableValue<ISessionCreationEnvironment | undefined>('picked', worktree);
+			const widget: NewChatWidget = Object.assign(Object.create(NewChatWidget.prototype), {
+				_environment: picked,
+				_environments: constObservable([local, worktree]),
+				_pickedEnvironment: picked,
+			});
+			const reconcile = Reflect.get(NewChatWidget.prototype, '_reconcileWorkspaceEnvironment') as (this: NewChatWidget, options: ISelectWorkspaceOptions) => void;
+			reconcile.call(widget, { providerId: LOCAL_AGENT_HOST_PROVIDER_ID });
+			assert.strictEqual(picked.get(), worktree);
+		});
+
 		test('automatic workspace restoration does not pin Cloud before This Computer registers', async () => {
 			const environments = observableValue<readonly ISessionCreationEnvironment[]>('environments', [cloud]);
 			const picked = observableValue<ISessionCreationEnvironment | undefined>('pickedEnvironment', undefined);

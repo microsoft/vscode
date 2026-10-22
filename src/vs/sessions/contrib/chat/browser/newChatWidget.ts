@@ -373,14 +373,15 @@ export class NewChatWidget extends Disposable {
 			const provider = session && this.sessionsProvidersService.getProvider(session.providerId);
 			const containerRequested = provider && isAgentHostProvider(provider) && provider.isDevContainerRequested?.(session.sessionId);
 			this._environmentWorkspaceChanged.read(reader);
-			const config = session && provider && isAgentHostProvider(provider) ? provider.getSessionConfig(session.sessionId, session.mainChat.read(reader).resource) : undefined;
+			const useLocalIsolation = localIsolationEnabled.read(reader);
+			const config = useLocalIsolation && session && provider && isAgentHostProvider(provider) ? provider.getSessionConfig(session.sessionId, session.mainChat.read(reader).resource) : undefined;
 			const isolationProperty = config && getSessionWorkspaceProperties(config.schema).isolation;
 			const isolation = config && isolationProperty && readSessionIsolation(isolationProperty, config.values[isolationProperty.key] ?? isolationProperty.schema.default);
 			const providerId = this._workspacePicker?.selectedResolved?.providerId ?? session?.providerId;
-			const selected = (!picked || picked.kind === 'local') && !containerRequested && provider?.environment.id === 'local' && isolation && localIsolationEnabled.read(reader)
+			const selected = useLocalIsolation && (!picked || picked.kind === 'local') && !containerRequested && provider?.environment.id === 'local' && isolation
 				? environments.find(environment => environment.kind === 'local' && environment.isolation === isolation)
 				: picked
-				? environments.find(environment => environment.id === picked.id) ?? (picked.kind === 'local' ? getDefaultSessionCreationEnvironment(environments, this._workspacePicker?.selectedFolderUri, providerId, !!containerRequested) : picked)
+				? environments.find(environment => environment.id === picked.id) ?? (picked.isolation ? getDefaultSessionCreationEnvironment(environments, this._workspacePicker?.selectedFolderUri, providerId, !!containerRequested) : picked)
 				: getDefaultSessionCreationEnvironment(environments, this._workspacePicker?.selectedFolderUri, providerId, !!containerRequested);
 			return selected && previous?.id === selected.id && previous.label === selected.label
 				&& previous.providerIds.length === selected.providerIds.length && previous.providerIds.every((id, index) => id === selected.providerIds[index])
@@ -1739,7 +1740,7 @@ export class NewChatWidget extends Disposable {
 			return;
 		}
 		const current = this._session.get();
-		const provider = current && this.sessionsProvidersService.getProvider(current.providerId);
+		const provider = environment.isolation && current ? this.sessionsProvidersService.getProvider(current.providerId) : undefined;
 		if (environment.isolation && current && !current.isQuickChat?.get() && !current.isCreated.get() && this._environment.get()?.kind === 'local'
 			&& environment.providerIds.includes(current.providerId) && provider?.setIsolationMode
 			&& this._workspacePicker.selectedFolderUri && provider.getSessionTypes(this._workspacePicker.selectedFolderUri).some(type => type.id === current.sessionType && type.supportsWorktreeConfiguration)) {
@@ -2466,11 +2467,11 @@ export class NewChatWidget extends Disposable {
 		}
 		const picked = this._pickedEnvironment.get();
 		const environments = this._environments.get();
-		const environment = environments.find(environment => environment.kind !== 'container' && environment.id === picked?.id && environment.providerIds.includes(providerId))
+		const environment = environments.find(environment => picked?.isolation && environment.kind !== 'container' && environment.id === picked.id && environment.providerIds.includes(providerId))
 			?? environments.find(environment => environment.kind !== 'container' && environment.providerIds.includes(providerId));
 		if (environment) {
 			this._pickedEnvironment.set(options.preferDevContainer
-				? { ...environment, id: `container:${environment.id}`, kind: 'container', isolation: undefined, label: localize('environmentPicker.container', "Dev Container"), icon: Codicon.remote }
+				? { ...environment, ...(environment.isolation ? { isolation: undefined } : undefined), id: `container:${environment.id}`, kind: 'container', label: localize('environmentPicker.container', "Dev Container"), icon: Codicon.remote }
 				: environment, undefined);
 		}
 	}

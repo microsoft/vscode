@@ -1956,10 +1956,10 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 			}
 			const isNewSession = provider.getCreateSessionConfig(session.sessionId) !== undefined;
 			const workspace = getSessionWorkspaceProperties(config.schema);
-			const isolationInEnvironment = isNewSession && provider.environment.id === 'local'
+			const isolationInEnvironment = isEnvironmentPickerLocalIsolationEnabled(this._configurationService)
+				&& isNewSession && provider.environment.id === 'local'
 				&& !isPhoneLayout(this._layoutService)
-				&& !provider.isDevContainerRequested?.(session.sessionId)
-				&& isEnvironmentPickerLocalIsolationEnabled(this._configurationService);
+				&& !provider.isDevContainerRequested?.(session.sessionId);
 			const properties = orderSessionConfigProperties(
 				Object.entries(config.schema.properties),
 				isPhoneLayout(this._layoutService),

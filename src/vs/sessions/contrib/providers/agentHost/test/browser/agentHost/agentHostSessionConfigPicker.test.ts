@@ -644,6 +644,15 @@ suite('Agent Host Session Config Picker', () => {
 			.filter(item => item.command.id.startsWith('sessions.agentHost.sessionConfigPicker.'))
 			.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value);
 		assert.deepStrictEqual(localEntries, ['Base Branch']);
+		await services.configurationService.setUserConfiguration(ENVIRONMENT_PICKER_LOCAL_ISOLATION_SETTING, false);
+		services.configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+			affectsConfiguration: () => true,
+		}));
+		const restoredEntries = MenuRegistry.getMenuItems(Menus.NewSessionRepositoryConfig)
+			.filter(isIMenuItem)
+			.filter(item => item.command.id.startsWith('sessions.agentHost.sessionConfigPicker.'))
+			.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value);
+		assert.deepStrictEqual(restoredEntries, entries);
 	});
 
 	test('repository pickers keep their menu action so the composer can identify them', async () => {
