@@ -1,7 +1,12 @@
 {
   "name": "code-oss-dev",
+<<<<<<< HEAD
   "version": "1.144.0",
   "distro": "eb93e228cf5aa5544a0eccb94616d63902d7e4e8",
+=======
+  "version": "1.143.1",
+  "distro": "9dc951d85c195663bfa3e0d631079d0fee839077",
+>>>>>>> e646868227c (chore: bump remote node@24.22.1 (#343541))
   "author": {
     "name": "Microsoft Corporation"
   },
