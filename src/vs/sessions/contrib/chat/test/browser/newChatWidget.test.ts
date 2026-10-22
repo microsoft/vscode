@@ -3579,7 +3579,7 @@ suite('NewChatWidget', () => {
 											thinkingLevel: { type: 'string', enum: ['medium'] },
 											contextSize: { type: 'number' },
 											testAttempt: { type: 'number' },
-											...(id.startsWith('copilot') ? { serviceTier: { type: 'string' as const, enum: ['priority'] } } : {}),
+											serviceTier: { type: 'string' as const, enum: ['priority'] },
 										},
 									},
 								}),

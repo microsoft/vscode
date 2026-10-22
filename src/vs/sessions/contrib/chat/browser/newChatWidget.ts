@@ -123,6 +123,17 @@ function getComparisonHasGitRemote(session: ISession | undefined, selectedWorksp
 	return getComparisonSessionFolder(session, selectedFolderUri)?.gitRepository?.hasGitRemote;
 }
 
+function sanitizeComparisonModelConfiguration(sessionTypeId: string, modelConfiguration: Record<string, string | number | boolean | null>): Record<string, string | number | boolean | null> {
+	if (sessionTypeId === 'copilotcli') {
+		return modelConfiguration;
+	}
+	const sanitized = { ...modelConfiguration };
+	delete sanitized.serviceTier;
+	delete sanitized.tier;
+	delete sanitized.autoTier;
+	return sanitized;
+}
+
 export function isExperimentalSessionComposerLayoutEnabled(configurationService: IConfigurationService): boolean {
 	return configurationService.getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING)
 		&& configurationService.getValue<boolean>(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING);
@@ -2047,13 +2058,14 @@ export class NewChatWidget extends Disposable {
 						modelConfiguration[key] = value;
 					}
 				}
+				const sanitizedModelConfiguration = sanitizeComparisonModelConfiguration(resolved.sessionType.id, modelConfiguration);
 				return {
 					providerId: session.providerId,
 					sessionTypeId: resolved.sessionType.id,
 					label: resolved.sessionType.label,
 					modelId: resolved.model.identifier,
 					modelLabel: resolved.model.metadata.name,
-					modelConfiguration: Object.keys(modelConfiguration).length ? modelConfiguration : undefined,
+					modelConfiguration: Object.keys(sanitizedModelConfiguration).length ? sanitizedModelConfiguration : undefined,
 					permissionId: harnessPermission.id,
 					permissionLabel: harnessPermission.label,
 					modeId: harnessPermission.comparisonModeId,
