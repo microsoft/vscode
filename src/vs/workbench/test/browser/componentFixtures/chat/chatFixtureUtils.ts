@@ -64,7 +64,7 @@ import { IRemoteAgentService } from '../../../../services/remote/common/remoteAg
 import { IVoiceModeOnboardingService } from '../../../../contrib/agentsVoice/browser/voiceModeOnboarding.js';
 import { IChatAccessibilityService, IChatWidget, IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
 import { IChatResponseFileChangesService } from '../../../../contrib/chat/browser/chatResponseFileChangesService.js';
-import { IChatPetService } from '../../../../contrib/chat/browser/chatPetService.js';
+import { ChatPetHorizontalPosition, IChatPetService } from '../../../../contrib/chat/browser/chatPetService.js';
 import { ChatPetWidgetService, IChatPetWidgetService } from '../../../../contrib/chat/browser/widget/chatPetWidgetService.js';
 import { ChatOpenDiagnosticsService, IChatOpenDiagnosticsService } from '../../../../contrib/chat/common/chatOpenDiagnosticsService.js';
 import { IChatOutputRendererService } from '../../../../contrib/chat/browser/chatOutputItemRenderer.js';
@@ -296,7 +296,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override readonly unseenAchievements = observableValue('chatPetUnseenAchievements', []);
 		override readonly selectedAccessory = observableValue('chatPetSelectedAccessory', undefined);
 		override readonly onDidUnlockAchievement = Event.None;
-		override readonly horizontalPosition = observableValue<number | undefined>('chatPetHorizontalPosition', undefined);
+		override readonly horizontalPosition = observableValue<ChatPetHorizontalPosition | undefined>('chatPetHorizontalPosition', undefined);
 		override toggle() { return false; }
 		override setColor() { }
 		override setOnTheRun() { }
@@ -306,7 +306,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override markAchievementSeen() { return false; }
 		override setAccessory() { }
 		override resetAchievements() { }
-		override setHorizontalPosition(position: number) { this.horizontalPosition.set(position, undefined); }
+		override setHorizontalPosition(position: ChatPetHorizontalPosition) { this.horizontalPosition.set(position, undefined); }
 	}());
 	reg.defineInstance(IChatWidgetService, new class extends mock<IChatWidgetService>() {
 		override readonly lastFocusedWidget = undefined;

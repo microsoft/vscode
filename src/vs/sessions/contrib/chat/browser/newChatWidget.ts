@@ -10,7 +10,7 @@ import { Action, toAction } from '../../../../base/common/actions.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { isErrorWithActions, toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
-import { Event } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, derivedObservableWithCache, disposableObservableValue, IObservable, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { isWeb } from '../../../../base/common/platform.js';
@@ -61,6 +61,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { ChatInputTipPresenter } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputTipPresenter.js';
 import { chatInputStackClass, chatInputStackSlotClass, chatInputSurfaceStackClass, ChatInputStackSlot, setChatInputStackSlot } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
 import { IChatPetService } from '../../../../workbench/contrib/chat/browser/chatPetService.js';
+import type { IChatPetPlatformOccupation } from '../../../../workbench/contrib/chat/browser/widget/chatPetWidget.js';
 import { IChatTipService } from '../../../../workbench/contrib/chat/browser/chatTipService.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
@@ -176,6 +177,9 @@ export class NewChatWidget extends Disposable {
 	private _workspaceSessionOptionsHost: HTMLElement | undefined;
 	private readonly _sessionOptionsExpanded = observableValue(this, true);
 	private _quickChatHeaderPickerHost: HTMLElement | undefined;
+	private _welcomeMessageTitle: HTMLElement | undefined;
+	private _welcomePetPlatform: HTMLElement | undefined;
+	private readonly _onDidChangeChatPetPlatform = this._register(new Emitter<void>());
 
 	private readonly _session: IObservable<IActiveSession | undefined>;
 
@@ -554,8 +558,13 @@ export class NewChatWidget extends Disposable {
 			supportsBackground: true,
 			deferredNotificationsEnabled,
 			petHostPreferred: this.options.petHostPreferred,
-			getChatPetPlatformElements: () => this._workspacePicker.getChatPetPlatformElements(),
-			onDidChangeChatPetPlatform: this._workspacePicker.onDidChangeChatPetPlatform,
+			getChatPetPlatformElements: () => [
+				...(this._welcomeMessageTitle ? [this._welcomeMessageTitle] : []),
+				...this._workspacePicker.getChatPetPlatformElements(),
+			],
+			getChatPetBasePlatformElement: () => this._workspacePickerRow?.classList.contains('new-chat-session-options') ? this._workspacePickerRow : undefined,
+			onDidChangeChatPetPlatform: Event.any(this._workspacePicker.onDidChangeChatPetPlatform, this._onDidChangeChatPetPlatform.event),
+			setChatPetPlatformOccupation: occupation => this._setChatPetPlatformOccupation(occupation),
 			sessionTypePickerOptions: {
 				providerId: creationProviderId,
 				allowedProviders: derived(this, reader => {
@@ -773,6 +782,8 @@ export class NewChatWidget extends Disposable {
 		const chatWidgetContent = dom.append(chatWidgetContainer, dom.$(`.new-chat-widget-content.${chatInputStackClass}`));
 		const welcomeMessage = dom.append(chatWidgetContent, dom.$('.new-session-welcome-message'));
 		const welcomeMessageTitle = dom.append(welcomeMessage, dom.$('h2.new-session-welcome-message-title'));
+		this._welcomeMessageTitle = welcomeMessageTitle;
+		this._welcomePetPlatform = dom.append(welcomeMessage, dom.$('span.new-session-welcome-pet-platform', { 'aria-hidden': 'true' }));
 		const welcomeMessageActions = dom.append(welcomeMessage, dom.$('.new-session-welcome-message-actions'));
 		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, welcomeMessageActions, Menus.NewSessionWelcome, {
 			ariaLabel: localize('newSession.welcome.actions', "Welcome message actions"),
@@ -822,6 +833,7 @@ export class NewChatWidget extends Disposable {
 				this._welcomePhraseIndex,
 			);
 			chatWidgetContent.classList.toggle('welcome-phrases-visible', !!phrase);
+			this._onDidChangeChatPetPlatform.fire();
 			this._announceWelcomeMessage(phrase, inputVisible);
 		}));
 		this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => void this._refreshGitHubProfileName()));
@@ -1147,6 +1159,31 @@ export class NewChatWidget extends Disposable {
 		const phrase = phrases[phraseIndex % phrases.length];
 		title.textContent = phrase;
 		return phrase;
+	}
+
+	private _setChatPetPlatformOccupation(occupation: IChatPetPlatformOccupation | undefined): void {
+		const title = this._welcomeMessageTitle;
+		if (!title) {
+			return;
+		}
+		const bounds = title.getBoundingClientRect();
+		const platform = this._welcomePetPlatform;
+		const occupied = !!occupation
+			&& !!platform
+			&& bounds.width > 0
+			&& bounds.height > 0
+			&& occupation.centerX >= bounds.left
+			&& occupation.centerX <= bounds.right
+			&& Math.abs(occupation.top - bounds.top) < 1;
+		title.classList.toggle('chat-pet-platform-occupied', occupied);
+		if (occupied && platform) {
+			const platformParentBounds = platform.parentElement?.getBoundingClientRect() ?? bounds;
+			platform.style.left = `${occupation.centerX - platformParentBounds.left}px`;
+			platform.style.width = `${occupation.width}px`;
+		} else {
+			platform?.style.removeProperty('left');
+			platform?.style.removeProperty('width');
+		}
 	}
 
 	private _announceWelcomeMessage(phrase: string | undefined, inputVisible: boolean): void {
@@ -1610,6 +1647,7 @@ export class NewChatWidget extends Disposable {
 			// experiment trigger when the composer actually reaches that collapsed state — before
 			// the setting is read, so both arms count and users who never collapse don't dilute it.
 			onDidCollapse: () => logSettingExperimentTrigger(this.telemetryService, COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING),
+			onDidChangeLayout: () => this._onDidChangeChatPetPlatform.fire(),
 		}));
 		const sessionOptions = sessionOptionsRow.details;
 		const toggle = sessionOptionsRow.toggle;

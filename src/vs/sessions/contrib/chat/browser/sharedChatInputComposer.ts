@@ -308,7 +308,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 				resultEditorBackground: agentsPanelBackground,
 			},
 		));
-		widget.render(widgetContainer, root, this.options.petHostPreferred);
+		widget.render(widgetContainer, root, this.options.petHostPreferred, this.options.setChatPetPlatformOccupation);
 		widget.setVisible(true);
 		widget.setInputPartMaxHeightOverride(COMPOSER_INPUT_MAX_HEIGHT);
 
@@ -353,6 +353,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		this._register(widget.input.registerChatPetHorizontalPlatformProvider({
 			onDidChange: Event.any(this.options.onDidChangeChatPetPlatform ?? Event.None, this.sessionTypePicker.onDidChangeChatPetPlatform),
 			getElements: () => [...(this.options.getChatPetPlatformElements?.() ?? []), ...this.sessionTypePicker.getChatPetPlatformElements()],
+			getBaseElement: this.options.getChatPetBasePlatformElement,
 		}));
 
 		this._renderSessionControls(parent);
