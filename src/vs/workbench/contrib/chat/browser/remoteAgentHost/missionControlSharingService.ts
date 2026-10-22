@@ -29,11 +29,13 @@ import { AuthenticationSessionAccount, IAuthenticationService } from '../../../.
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 
 const sharingStorageKey = 'agentHost.missionControl.sharing';
+const environmentNameStorageKey = 'agentHost.missionControl.environmentName';
 const missionControlIgnoreRemoteControlPolicy = 'chat.agentHost.experimentalMissionControl.ignoreRemoteControlPolicy';
 
 export class MissionControlSharingService extends Disposable implements IMissionControlSharingService {
 	declare readonly _serviceBrand: undefined;
 	readonly state = observableValue<'disabled' | 'connecting' | 'enabled'>(this, 'disabled');
+	readonly environmentName = observableValue<string | undefined>(this, undefined);
 	private _enabled = false;
 	private _configured = false;
 	private _generation = 0;
@@ -63,6 +65,7 @@ export class MissionControlSharingService extends Disposable implements IMission
 		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
 	) {
 		super();
+		this.environmentName.set(this._storage.get(environmentNameStorageKey, StorageScope.APPLICATION), undefined);
 		if (!this._agentHost.configureMissionControl) {
 			return;
 		}
@@ -86,6 +89,15 @@ export class MissionControlSharingService extends Disposable implements IMission
 					void this._withdraw().catch(error => this._reportWithdrawalError(error));
 				}
 				this._update.schedule();
+			}
+		}));
+		this._register(this._storage.onDidChangeValue(StorageScope.APPLICATION, environmentNameStorageKey, this._store)(e => {
+			if (e.external) {
+				const name = this._storage.get(environmentNameStorageKey, StorageScope.APPLICATION);
+				if (name !== this.environmentName.get()) {
+					this.environmentName.set(name, undefined);
+					void this._applyEnvironmentName().catch(error => this._logService.error('Failed to update GitHub environment name', error));
+				}
 			}
 		}));
 		this._register(this._workspace.onDidChangeWorkspaceFolders(() => {
@@ -167,6 +179,32 @@ export class MissionControlSharingService extends Disposable implements IMission
 		}
 		this.state.set('connecting', undefined);
 		await this._updates.queue(() => this._configure(true));
+	}
+
+	async setEnvironmentName(name: string): Promise<void> {
+		name = name.trim();
+		if (!name || /[\r\n\x00-\x1f\x7f]/.test(name)) {
+			throw new Error(localize('missionControlSharing.invalidName', "Enter an environment name without control characters."));
+		}
+		if (!this._agentHost.configureMissionControl || this._entitlement.sentiment.hidden) {
+			throw new Error(localize('missionControlSharing.unavailable', "GitHub environment sharing is unavailable."));
+		}
+		if (name === this.environmentName.get()) {
+			return;
+		}
+		this.environmentName.set(name, undefined);
+		this._storage.store(environmentNameStorageKey, name, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		await this._applyEnvironmentName();
+	}
+
+	private async _applyEnvironmentName(): Promise<void> {
+		this._generation++;
+		this._update.cancel();
+		await this._withdraw();
+		if (this._enabled) {
+			this.state.set('connecting', undefined);
+			await this._updates.queue(() => this._configure());
+		}
 	}
 
 	private _usesMissionControl(): boolean {
@@ -313,6 +351,7 @@ export class MissionControlSharingService extends Disposable implements IMission
 				projects,
 				defaultDirectory: home.fsPath,
 				live: true,
+				...(this.environmentName.get() ? { name: this.environmentName.get() } : {}),
 				...(useLocalCredentials ? { useLocalCredentials: true } : {}),
 				...(ignoreRemoteControlPolicy ? { ignoreRemoteControlPolicy: true } : {}),
 			});

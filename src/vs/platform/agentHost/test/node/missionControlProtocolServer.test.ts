@@ -2755,6 +2755,26 @@ suite('Mission Control WPS', () => {
 			});
 		});
 
+		test('exposes the same environment name used for registration, including an explicit override', async () => {
+			await withEnvironment([], async ({ service, options, requests }) => {
+				const defaultName = service.environmentName;
+				await service.configure(undefined);
+				const disabledName = service.environmentName;
+				await service.configure({ ...options, name: 'Custom environment name' });
+				assert.deepStrictEqual({
+					defaultName,
+					disabledName,
+					configuredName: service.environmentName,
+					registeredName: requests.filter(request => request.path.endsWith('/register')).at(-1)?.body?.name,
+				}, {
+					defaultName: 'Test Machine (VS Code OSS)',
+					disabledName: 'Test Machine (VS Code OSS)',
+					configuredName: 'Custom environment name',
+					registeredName: 'Custom environment name',
+				});
+			});
+		});
+
 		for (const scenario of [
 			{ name: 'delta-seconds on the initial online heartbeat', value: '120', delay: 120_000 },
 			{ name: 'HTTP-date', value: new Date(Date.UTC(2026, 9, 2) + 120_000).toUTCString(), delay: 120_000 },
