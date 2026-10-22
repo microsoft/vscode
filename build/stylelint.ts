@@ -8,6 +8,7 @@ import glob from 'glob';
 import vfs from 'vinyl-fs';
 import { stylelintFilter } from './filters.ts';
 import { findClassAttributeSubstringSelector, findRootAnchoredHas } from './lib/stylelint/validateHasSelectors.ts';
+import { findHardcodedNativeScrollbarColor, hasWorkbenchNativeScrollbarTheming } from './lib/stylelint/validateNativeScrollbars.ts';
 import { getVariableNameValidator } from './lib/stylelint/validateVariableNames.ts';
 import { validateCodiconFontSizes, validateFontSizeTokens, validateFontWeightTokens, validateCornerRadiusTokens, validateSpacingTokens, validateStrokeTokens, validateDeprecatedTokens } from './lib/stylelint/validateDesignTokens.ts';
 
@@ -35,6 +36,7 @@ export default function gulpstylelint(reporter: Reporter, designTokensEverywhere
 	const extensionCssPattern = /^extensions[\/\\]/;
 	const testCssPattern = /[\/\\](?:test|test-data|testData)[\/\\]/;
 	const designSystemPattern = /^src[\/\\]vs[\/\\]sessions[\/\\]/;
+	const workbenchGlobalStylePattern = /^src[\/\\]vs[\/\\]workbench[\/\\]browser[\/\\]media[\/\\]style\.css$/;
 	const layerCheckerDisablePattern = /\/\*\s*stylelint-disable\s+layer-checker\s*\*\//;
 	const hasAnchorCheckerDisablePattern = /^\s*\/\*\s*stylelint-disable\s+has-anchor-checker\s*\*\/\s*$/;
 
@@ -84,6 +86,17 @@ export default function gulpstylelint(reporter: Reporter, designTokensEverywhere
 				reporter(file.relative + '(' + lineNumberAtOffset(contents, classAttributeSubstringOffset) + ',1): Class attribute substring selectors make unrelated class mutations trigger style recalculation. Use a stable marker class instead', true);
 				errorCount++;
 			}
+
+			const hardcodedNativeScrollbarColorOffset = findHardcodedNativeScrollbarColor(contents);
+			if (hardcodedNativeScrollbarColorOffset !== undefined) {
+				reporter(file.relative + '(' + lineNumberAtOffset(contents, hardcodedNativeScrollbarColorOffset) + ',1): Native scrollbar colors must use a theme variable or transparent, never a hardcoded color', true);
+				errorCount++;
+			}
+		}
+
+		if (workbenchGlobalStylePattern.test(file.relative) && !hasWorkbenchNativeScrollbarTheming(contents)) {
+			reporter(file.relative + '(1,1): Workbench theme classes must set the corresponding light or dark color-scheme for browser-native controls', true);
+			errorCount++;
 		}
 
 		// Design-token checks that need block (selector + declaration) awareness.
