@@ -2781,10 +2781,11 @@ suite('AgentHostSessionInputPills', () => {
 			}),
 			notificationService: upcastPartial<INotificationService>({ error: message => { errors.push(String(message)); } }),
 		});
-		const setOperations = (operations: ChangesetOperation[]) => harness.connection.setState(StateComponents.Changeset, upcastPartial<ChangesetState>({
+		const setOperations = (operations: ChangesetOperation[], nonce?: string) => harness.connection.setState(StateComponents.Changeset, upcastPartial<ChangesetState>({
 			status: ChangesetStatus.Ready,
 			files: [{
 				id: 'file.ts',
+				...(nonce !== undefined ? { nonce } : {}),
 				edit: {
 					before: { uri: 'file:///repo/file.ts', content: { uri: 'snapshot:/before/file.ts' } },
 					after: { uri: 'file:///repo/file.ts', content: { uri: 'snapshot:/after/file.ts' } },
@@ -2806,6 +2807,46 @@ suite('AgentHostSessionInputPills', () => {
 	const acceptChanges = (status: ChangesetOperationStatus, confirmation?: string): ChangesetOperation => ({ id: 'accept-changes', label: 'Accept Changes', scopes: [ChangesetOperationScope.Resource], status, ...(confirmation ? { confirmation } : {}) });
 	// Like undoing a file in the editing session's working set, the host doesn't ask to confirm discarding a Working Set file.
 	const discardWorkingSetChanges = (status: ChangesetOperationStatus): ChangesetOperation => ({ id: 'discard-changes', label: 'Discard Changes', scopes: [ChangesetOperationScope.Resource], status });
+
+	for (const nonce of [undefined, 'opaque-file-nonce']) {
+		test(`echoes an optional file nonce for working-set Keep and Undo (nonce=${nonce})`, async () => {
+			const { harness, setOperations, errors } = createSessionWorkingSetPills();
+			setOperations([acceptChanges(ChangesetOperationStatus.Idle), discardWorkingSetChanges(ChangesetOperationStatus.Idle)], nonce);
+			await harness.setWorkingSetEnabled(true);
+			const keep = harness.workingSetKeep();
+			const undo = harness.workingSetUndo();
+			const [diff] = harness.workingSetChanges() ?? [];
+			assert.ok(keep && undo && diff);
+			const results = [await keep.keep([diff], false), await undo.undo([diff], false)];
+
+			assert.deepStrictEqual({ results, requests: harness.connection.invokedChangesetOperations, errors }, {
+				results: [true, true],
+				requests: ['accept-changes', 'discard-changes'].map(operationId => ({
+					channel: 'vendor-diff:/opaque/working-set',
+					operationId,
+					target: { kind: ChangesetOperationTargetKind.Resource, resource: 'file:///repo/file.ts', ...(nonce !== undefined ? { nonce } : {}) },
+				})),
+				errors: [],
+			});
+		});
+	}
+
+	test('does not replace a displayed nonce with a newer one on unchanged content URIs', async () => {
+		const { harness, setOperations, errors } = createSessionWorkingSetPills();
+		setOperations([acceptChanges(ChangesetOperationStatus.Idle)], 'first');
+		await harness.setWorkingSetEnabled(true);
+		const keep = harness.workingSetKeep();
+		const [before] = harness.workingSetChanges() ?? [];
+		assert.ok(keep && before);
+		setOperations([acceptChanges(ChangesetOperationStatus.Idle)], 'second');
+		const [after] = harness.workingSetChanges() ?? [];
+		assert.ok(after);
+		const results = [await keep.keep([before], false), await keep.keep([after], false)];
+
+		assert.deepStrictEqual({ results, nonces: harness.connection.invokedChangesetOperations.map(params => params.target?.nonce), errors: errors.length }, {
+			results: [false, true], nonces: ['second'], errors: 1,
+		});
+	});
 
 	test('shows the session\'s Working Set instead of Session Changes, keeping and undoing its files with the host operations', async () => {
 		const { harness, session, errors, confirmations, setConfirmed, setOperations, readState, readInvoked } = createSessionWorkingSetPills();

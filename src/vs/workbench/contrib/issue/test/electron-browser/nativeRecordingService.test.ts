@@ -46,6 +46,7 @@ class TestNativeRecordingService extends NativeRecordingService {
 		private readonly devices: MediaDevices,
 		private readonly recorderConstructor: typeof MediaRecorder,
 		nativeHostService: INativeHostService,
+		private readonly playableFormats?: readonly string[],
 	) {
 		super(new NullLogService(), nativeHostService);
 	}
@@ -56,6 +57,10 @@ class TestNativeRecordingService extends NativeRecordingService {
 
 	protected override getMediaRecorderConstructor(): typeof MediaRecorder {
 		return this.recorderConstructor;
+	}
+
+	protected override canPlayType(mimeType: string): boolean {
+		return this.playableFormats?.includes(mimeType) ?? super.canPlayType(mimeType);
 	}
 }
 
@@ -70,6 +75,7 @@ suite('NativeRecordingService', () => {
 		deferStop?: boolean;
 		empty?: boolean;
 		formats?: string[];
+		playableFormats?: string[];
 	} = {}) {
 		const tracks = options.tracks ?? [new TestTrack()];
 		const stream = new TestStream(tracks);
@@ -157,7 +163,7 @@ suite('NativeRecordingService', () => {
 			override async requestScreenCaptureAccess(): Promise<boolean> { nativeCalls.push('request'); return true; }
 			override async openExternal(url: string): Promise<boolean> { nativeCalls.push(url); return true; }
 		}();
-		const service = store.add(new TestNativeRecordingService(devices, TestRecorder, nativeHost));
+		const service = store.add(new TestNativeRecordingService(devices, TestRecorder, nativeHost, options.playableFormats ?? options.formats ?? ['video/mp4', 'video/webm;codecs=vp9', 'video/webm']));
 		return { service, tracks, recorders, devices, nativeCalls, recorderCreated };
 	}
 
@@ -217,6 +223,25 @@ suite('NativeRecordingService', () => {
 		const { service } = createService();
 		await service.startRecording('video/webm');
 		assert.strictEqual((await service.stopRecording())?.mimeType, 'video/webm');
+	});
+
+	test('only uses formats that can also be decoded', async () => {
+		const { service } = createService({ playableFormats: ['video/mp4'] });
+		await service.startRecording('video/webm');
+		const data = await service.stopRecording();
+		const { service: unsupported } = createService({ playableFormats: [] });
+		await assert.rejects(unsupported.startRecording(), /not supported/);
+		assert.deepStrictEqual({
+			supported: service.isSupported,
+			formats: service.getSupportedFormats(),
+			fallback: data?.mimeType,
+			unsupported: { isSupported: unsupported.isSupported, formats: unsupported.getSupportedFormats() },
+		}, {
+			supported: true,
+			formats: [{ mimeType: 'video/mp4', label: 'MP4', extension: 'mp4' }],
+			fallback: 'video/mp4',
+			unsupported: { isSupported: false, formats: [] },
+		});
 	});
 
 	test('external track stop preserves the final recording data', async () => {
@@ -414,9 +439,10 @@ suite('NativeRecordingService', () => {
 	});
 
 	for (const mimeType of ['video/mp4', 'video/webm']) {
-		const supported = typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(mimeType);
-		(supported ? test : test.skip)(`encodes and decodes playable ${mimeType} without OS capture`, async () => {
+		// The video/webm case: WebM can't be opened on the shipped (feed) Electron that product builds test with (`PipelineStatus::DEMUXER_ERROR_COULD_NOT_OPEN: FFmpegDemuxer: open context failed`), so this is skipped until https://github.com/microsoft/vscode/issues/343345 is fixed.
+		(mimeType === 'video/webm' ? test.skip : test)(`only advertises and round-trips playable ${mimeType} without OS capture`, async () => {
 			const canvas = mainWindow.document.createElement('canvas');
+			const video = mainWindow.document.createElement('video');
 			canvas.width = 32;
 			canvas.height = 24;
 			const context = canvas.getContext('2d')!;
@@ -443,11 +469,22 @@ suite('NativeRecordingService', () => {
 				override async getDisplayMedia(): Promise<MediaStream> { return stream; }
 			}();
 			const service = store.add(new TestNativeRecordingService(devices, ObservedMediaRecorder, new class extends mock<INativeHostService>() { }()));
-			await Promise.all([service.startRecording(mimeType), firstChunk.p]);
+			const candidates = mimeType === 'video/webm' ? ['video/webm;codecs=vp9', 'video/webm'] : [mimeType];
+			const capabilities = candidates.map(candidate => ({
+				mimeType: candidate,
+				recordable: typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(candidate),
+				playable: !!video.canPlayType(candidate),
+			}));
+			const format = service.getSupportedFormats().find(format => candidates.includes(format.mimeType));
+			if (!format) {
+				assert.ok(capabilities.every(capability => !capability.recordable || !capability.playable), JSON.stringify(capabilities));
+				return;
+			}
+			assert.ok(capabilities.some(capability => capability.mimeType === format.mimeType && capability.recordable && capability.playable));
+			await Promise.all([service.startRecording(format.mimeType), firstChunk.p]);
 			const data = await service.stopRecording();
 			assert.ok(data?.sizeBytes);
 
-			const video = mainWindow.document.createElement('video');
 			const url = URL.createObjectURL(data.blob);
 			store.add(toDisposable(() => {
 				video.pause();
@@ -457,7 +494,7 @@ suite('NativeRecordingService', () => {
 			}));
 			const decoded = new Promise<void>((resolve, reject) => {
 				store.add(VSCodeEvent.once(VSCodeEvent.fromDOMEventEmitter(video, 'loadeddata'))(() => resolve()));
-				store.add(VSCodeEvent.once(VSCodeEvent.fromDOMEventEmitter(video, 'error'))(() => reject(new Error('Recorded video could not be decoded'))));
+				store.add(VSCodeEvent.once(VSCodeEvent.fromDOMEventEmitter(video, 'error'))(() => reject(new Error(`Recorded video could not be decoded: ${video.error?.code ?? 'unknown'} ${video.error?.message ?? ''}`.trim()))));
 			});
 			video.muted = true;
 			video.src = url;
@@ -467,6 +504,6 @@ suite('NativeRecordingService', () => {
 			assert.deepStrictEqual({
 				state: service.state, width: video.videoWidth, height: video.videoHeight, mimeType: data.mimeType.split(';')[0],
 			}, { state: RecordingState.Idle, width: 32, height: 24, mimeType });
-		}).timeout(10000);
+		})?.timeout(10000); // `test.skip` returns nothing in this runner
 	}
 });

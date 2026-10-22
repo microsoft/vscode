@@ -15,8 +15,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IPlatformCustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/platformCustomizationMarketplaceService.js';
-import { createLazyCustomizationMarketplaceProvider, CustomizationMarketplaceRecoveryGroup, CustomizationMarketplaceService, ICustomizationMarketplaceBrowseSections, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceInfo, ICustomizationMarketplaceSourceRecoveryAction } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
-import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources, getEnabledCustomizationMarketplaceSources, queryEnabledCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { createLazyCustomizationMarketplaceProvider, CustomizationMarketplaceQueryProgressCallback, CustomizationMarketplaceRecoveryGroup, CustomizationMarketplaceService, ICustomizationMarketplaceBrowseSection, ICustomizationMarketplaceBrowseSections, ICustomizationMarketplaceBrowseSectionsProgress, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceQueryProgress, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceInfo, ICustomizationMarketplaceSourceRecoveryAction } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { affectsCustomizationMarketplaceSources, CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources, getEnabledCustomizationMarketplaceSources, queryEnabledCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { createMcpGalleryMarketplaceProviders, getAllMcpGalleryMarketplaceSourceInfos, getCustomizationMarketplaceSourceInfos } from '../../../../../platform/customizationMarketplace/common/mcpGalleryMarketplaceProvider.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -42,6 +42,7 @@ interface IAgentFinderBrowseFeed {
 
 type AgentFinderBrowseFeedSlot = 'editorsPicks' | 'planBuildAndShip' | 'connectYourWork';
 type AgentFinderBrowseFeedOutcome = 'success' | 'authentication' | 'timeout' | 'error' | 'cancelled';
+type AgentFinderBrowseFeedCacheStatus = 'hit' | 'miss';
 
 type AgentFinderBrowseFeedLoadedEvent = {
 	feedSlot: AgentFinderBrowseFeedSlot;
@@ -49,6 +50,7 @@ type AgentFinderBrowseFeedLoadedEvent = {
 	durationMs: number;
 	availableCount: number;
 	unavailableCount: number;
+	cacheStatus: AgentFinderBrowseFeedCacheStatus;
 };
 
 type AgentFinderBrowseFeedLoadedClassification = {
@@ -59,9 +61,53 @@ type AgentFinderBrowseFeedLoadedClassification = {
 	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Feed load duration in milliseconds.' };
 	availableCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of feed entries returned as installable.' };
 	unavailableCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of feed entries returned as unavailable.' };
+	cacheStatus: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether a valid in-memory result for this feed slot was available while it refreshed.' };
 };
 
 const agentFinderBrowseFeedTimeoutMs = 10_000;
+const agentFinderBrowseFeedCacheLifetimeMs = 10 * 60_000;
+
+interface IAgentFinderBrowseFeedCacheEntry {
+	readonly section: ICustomizationMarketplaceBrowseSection;
+	readonly expiresAt: number;
+}
+
+type CustomizationMarketplaceBrowseSourceCategory = 'mcpGallery' | 'copilotConnectors' | 'publicFeed' | 'pluginMarketplace' | 'providerMarketplace' | 'other';
+
+type CustomizationMarketplaceBrowseSourceLoadedEvent = {
+	sourceCategory: CustomizationMarketplaceBrowseSourceCategory;
+	outcome: 'success' | 'error';
+	cacheStatus: AgentFinderBrowseFeedCacheStatus;
+	timeToSourceSettledMs: number;
+};
+
+type CustomizationMarketplaceBrowseSourceLoadedClassification = {
+	owner: 'houghj16';
+	comment: 'Tracks bounded Browse source health and cache use without collecting configured source names, URLs, queries, or customization content.';
+	sourceCategory: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded category of the marketplace source.' };
+	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the source completed successfully or with an error.' };
+	cacheStatus: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether a valid in-memory result for the source was available while it refreshed.' };
+	timeToSourceSettledMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds from the start of the overall query until the source settled.' };
+};
+
+function getBrowseSourceCategory(sourceId: string): CustomizationMarketplaceBrowseSourceCategory {
+	if (sourceId === CustomizationMarketplaceSources.McpGallery.id) {
+		return 'mcpGallery';
+	}
+	if (sourceId === CustomizationMarketplaceSources.CopilotConnectors.id) {
+		return 'copilotConnectors';
+	}
+	if (sourceId === CustomizationMarketplaceSources.AgentFinderPublicFeed.id) {
+		return 'publicFeed';
+	}
+	if (sourceId.startsWith(CustomizationMarketplaceSources.PluginMarketplaces.id)) {
+		return 'pluginMarketplace';
+	}
+	if (sourceId.startsWith('providerPluginMarketplace.')) {
+		return 'providerMarketplace';
+	}
+	return 'other';
+}
 
 const agentFinderBrowseFeeds: readonly IAgentFinderBrowseFeed[] = [
 	{
@@ -104,10 +150,11 @@ export class PlatformCustomizationMarketplaceWorkbenchService implements ICustom
 		]));
 	}
 
-	query(options: ICustomizationMarketplaceQuery, token: CancellationToken): Promise<ICustomizationMarketplacePage> {
+	query(options: ICustomizationMarketplaceQuery, token: CancellationToken, onProgress?: CustomizationMarketplaceQueryProgressCallback): Promise<ICustomizationMarketplacePage> {
 		return queryEnabledCustomizationMarketplaceSources(
 			this.configurationService, this.sources, options, token,
-			(request, token) => this.service.value.query(request, token),
+			(request, token, onProgress) => this.service.value.query(request, token, onProgress),
+			onProgress,
 		);
 	}
 }
@@ -158,6 +205,7 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 	private marketplaceManagementRefreshVersion = 0;
 	private service: CustomizationMarketplaceService | undefined;
 	private serviceSignature: string | undefined;
+	private readonly browseFeedCache = new Map<AgentFinderBrowseFeedSlot, IAgentFinderBrowseFeedCacheEntry>();
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -183,11 +231,11 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 				descriptor?.marketplaceManagementProvider,
 			);
 		}));
-		this.onDidChangeSources = Event.any(
+		this.onDidChangeSources = Event.map(Event.any(
 			this._onDidChangeSources.event,
 			pluginMarketplaceService.onDidChangeMarketplaces,
 			Event.filter(configurationService.onDidChangeConfiguration, event =>
-				event.affectsConfiguration(ChatConfiguration.PluginsEnabled)),
+				affectsCustomizationMarketplaceSources(event, this.allSources)),
 			platformService.onDidChangeSources ?? Event.None,
 			Event.fromObservableLight(this.harnessService.activeHarness),
 			Event.fromObservableLight(this.harnessService.activeSessionResource),
@@ -197,7 +245,11 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 				return !!account && event.providerId === account.authenticationProvider.id &&
 					[...event.event.added ?? [], ...event.event.removed ?? []].some(session => session.id === account.sessionId);
 			}), () => undefined),
-		);
+		), () => {
+			this.service?.clearBrowseCache();
+			this.browseFeedCache.clear();
+			return undefined;
+		});
 	}
 
 	private getProviderMarketplaceSources(includeUnavailable: boolean): readonly ICustomizationMarketplaceSourceInfo[] {
@@ -361,7 +413,7 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 		};
 	}
 
-	async getBrowseSections(options: Pick<ICustomizationMarketplaceQuery, 'sourceIds'>, token: CancellationToken): Promise<ICustomizationMarketplaceBrowseSections | undefined> {
+	async getBrowseSections(options: Pick<ICustomizationMarketplaceQuery, 'sourceIds'>, token: CancellationToken, onProgress?: (progress: ICustomizationMarketplaceBrowseSectionsProgress) => void): Promise<ICustomizationMarketplaceBrowseSections | undefined> {
 		const source = CustomizationMarketplaceSources.AgentFinderPublicFeed;
 		const provider = this.marketplaceSearchProvider;
 		const sessionResource = this.marketplaceSessionResource;
@@ -379,8 +431,43 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 			}
 		}));
 		try {
-			const results = await raceCancellationError(Promise.all(agentFinderBrowseFeeds.map(async feed => {
+			const cachedSections = agentFinderBrowseFeeds.map(feed => {
+				const cached = this.browseFeedCache.get(feed.slot);
+				if (!cached || cached.expiresAt <= Date.now()) {
+					this.browseFeedCache.delete(feed.slot);
+					return undefined;
+				}
+				return cached.section;
+			});
+			const results: ({ section?: ICustomizationMarketplaceBrowseSection; error?: string } | undefined)[] =
+				cachedSections.map(section => section ? { section } : undefined);
+			const completed = new Set<number>();
+			const emitProgress = () => {
+				if (!onProgress || cancellation.token.isCancellationRequested) {
+					return;
+				}
+				const errors = [...new Set(results.flatMap(result => result?.error ? [result.error] : []))];
+				onProgress({
+					result: {
+						sourceId: source.id,
+						sections: results.flatMap(result => result?.section ? [result.section] : []),
+						error: errors.length === 0
+							? undefined
+							: errors.length === 1
+								? errors[0]
+								: localize('customizationMarketplace.partialFeedsError', "Some curated customization sections could not be loaded. {0}", errors[0]),
+					},
+					completedSectionCount: completed.size,
+					cachedSectionCount: cachedSections.filter(section => section !== undefined).length,
+					totalSectionCount: agentFinderBrowseFeeds.length,
+				});
+			};
+			if (cachedSections.some(section => section !== undefined)) {
+				emitProgress();
+			}
+			await raceCancellationError(Promise.all(agentFinderBrowseFeeds.map(async (feed, index) => {
 				const startedAt = Date.now();
+				const cacheStatus: AgentFinderBrowseFeedCacheStatus = cachedSections[index] ? 'hit' : 'miss';
 				const feedCancellation = new CancellationTokenSource(cancellation.token);
 				try {
 					const page = await raceTimeout(
@@ -389,31 +476,37 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 						() => feedCancellation.cancel(),
 					);
 					if (!page) {
-						this.logBrowseFeedLoaded(feed.slot, 'timeout', startedAt, 0, 0);
-						return { error: localize('customizationMarketplace.feedTimeout', "The {0} section took too long to load.", feed.title) };
+						this.logBrowseFeedLoaded(feed.slot, 'timeout', cacheStatus, startedAt, 0, 0);
+						results[index] = { section: cachedSections[index], error: localize('customizationMarketplace.feedTimeout', "The {0} section took too long to load.", feed.title) };
+						return;
 					}
 					const unavailableCount = page.items.filter(item => item.installation?.kind === 'providerCatalog' && item.installation.installable === false).length;
-					this.logBrowseFeedLoaded(feed.slot, 'success', startedAt, page.items.length - unavailableCount, unavailableCount);
-					return { section: { id: feed.id, title: feed.title, items: page.items.map(item => ({ ...item, sourceId: source.id })) } };
+					this.logBrowseFeedLoaded(feed.slot, 'success', cacheStatus, startedAt, page.items.length - unavailableCount, unavailableCount);
+					const section = { id: feed.id, title: feed.title, items: page.items.map(item => ({ ...item, sourceId: source.id })) };
+					results[index] = { section };
+					this.browseFeedCache.set(feed.slot, { section, expiresAt: Date.now() + agentFinderBrowseFeedCacheLifetimeMs });
 				} catch (error) {
 					if (isCancellationError(error)) {
 						if (cancellation.token.isCancellationRequested) {
-							this.logBrowseFeedLoaded(feed.slot, 'cancelled', startedAt, 0, 0);
+							this.logBrowseFeedLoaded(feed.slot, 'cancelled', cacheStatus, startedAt, 0, 0);
 							throw error;
 						}
-						this.logBrowseFeedLoaded(feed.slot, 'timeout', startedAt, 0, 0);
-						return { error: localize('customizationMarketplace.feedTimeout', "The {0} section took too long to load.", feed.title) };
+						this.logBrowseFeedLoaded(feed.slot, 'timeout', cacheStatus, startedAt, 0, 0);
+						results[index] = { section: cachedSections[index], error: localize('customizationMarketplace.feedTimeout', "The {0} section took too long to load.", feed.title) };
+						return;
 					}
-					this.logBrowseFeedLoaded(feed.slot, provider.getRecoveryAction?.()?.kind === 'signIn' ? 'authentication' : 'error', startedAt, 0, 0);
-					return { error: getErrorMessage(error) };
+					this.logBrowseFeedLoaded(feed.slot, provider.getRecoveryAction?.()?.kind === 'signIn' ? 'authentication' : 'error', cacheStatus, startedAt, 0, 0);
+					results[index] = { section: cachedSections[index], error: getErrorMessage(error) };
 				} finally {
 					feedCancellation.dispose();
+					completed.add(index);
+					emitProgress();
 				}
 			})), cancellation.token);
-			const errors = [...new Set(results.flatMap(result => result.error ? [result.error] : []))];
+			const errors = [...new Set(results.flatMap(result => result?.error ? [result.error] : []))];
 			return {
 				sourceId: source.id,
-				sections: results.flatMap(result => result.section ? [result.section] : []),
+				sections: results.flatMap(result => result?.section ? [result.section] : []),
 				error: errors.length === 0
 					? undefined
 					: errors.length === 1
@@ -425,17 +518,18 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 		}
 	}
 
-	private logBrowseFeedLoaded(feedSlot: AgentFinderBrowseFeedSlot, outcome: AgentFinderBrowseFeedOutcome, startedAt: number, availableCount: number, unavailableCount: number): void {
+	private logBrowseFeedLoaded(feedSlot: AgentFinderBrowseFeedSlot, outcome: AgentFinderBrowseFeedOutcome, cacheStatus: AgentFinderBrowseFeedCacheStatus, startedAt: number, availableCount: number, unavailableCount: number): void {
 		this.telemetryService.publicLog2<AgentFinderBrowseFeedLoadedEvent, AgentFinderBrowseFeedLoadedClassification>('chatCustomizationMarketplace.browseFeedLoaded', {
 			feedSlot,
 			outcome,
 			durationMs: Date.now() - startedAt,
 			availableCount,
 			unavailableCount,
+			cacheStatus,
 		});
 	}
 
-	async query(options: ICustomizationMarketplaceQuery, token: CancellationToken): Promise<ICustomizationMarketplacePage> {
+	async query(options: ICustomizationMarketplaceQuery, token: CancellationToken, onProgress?: CustomizationMarketplaceQueryProgressCallback): Promise<ICustomizationMarketplacePage> {
 		const store = new DisposableStore();
 		const cancellation = store.add(new CancellationTokenSource(token));
 		const sources = this.sources;
@@ -449,10 +543,28 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 				cancellation.cancel();
 			}
 		}));
+		const startedAt = Date.now();
+		const loggedSourceIds = new Set<string>();
+		const reportProgress = onProgress ? (progress: ICustomizationMarketplaceQueryProgress) => {
+			for (const sourceId of progress.completedSourceIds) {
+				if (loggedSourceIds.has(sourceId)) {
+					continue;
+				}
+				loggedSourceIds.add(sourceId);
+				this.telemetryService.publicLog2<CustomizationMarketplaceBrowseSourceLoadedEvent, CustomizationMarketplaceBrowseSourceLoadedClassification>('chatCustomizationMarketplace.browseSourceLoaded', {
+					sourceCategory: getBrowseSourceCategory(sourceId),
+					outcome: progress.page.sourceErrors?.some(error => error.sourceId === sourceId) ? 'error' : 'success',
+					cacheStatus: progress.cachedSourceIds.includes(sourceId) ? 'hit' : 'miss',
+					timeToSourceSettledMs: Date.now() - startedAt,
+				});
+			}
+			onProgress(progress);
+		} : undefined;
 		try {
 			return await queryEnabledCustomizationMarketplaceSources(
 				this.configurationService, sources, options, cancellation.token,
-				(request, token) => this.getService().query(request, token),
+				(request, token, onProgress) => this.getService().query(request, token, onProgress),
+				reportProgress,
 			);
 		} finally {
 			store.dispose();

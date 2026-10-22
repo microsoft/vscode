@@ -182,7 +182,7 @@ export class NewChatWidget extends Disposable {
 	/** Whether the active draft is a workspace-less quick chat. */
 	private readonly _isQuickChatComposer: IObservable<boolean>;
 	private readonly _isWorkspacePickerQuickChat: IObservable<boolean>;
-	private readonly _workspaceOptOutTarget: IObservable<IPreferredSessionType | undefined>;
+	private readonly _workspaceOptOutTarget: IObservable<ICreateNewSessionOptions | undefined>;
 	private readonly _workspaceOptOutEnabled: IObservable<boolean>;
 	private readonly _useConsolidatedRemoteWorkspaces: IObservable<boolean>;
 	private readonly _compareAgentsEnabled: IObservable<boolean>;
@@ -374,13 +374,7 @@ export class NewChatWidget extends Disposable {
 		});
 		this._workspaceOptOutTarget = derived(this, reader => {
 			sessionTypesChanged.read(reader);
-			const environment = this._environment.read(reader);
-			const session = this._session.read(reader);
-			if (!session || environment?.kind === 'cloud' || environment?.kind === 'container') {
-				return undefined;
-			}
-			const target = { providerId: session.providerId, sessionTypeId: session.sessionType };
-			return this.sessionsManagementService.isQuickChatTargetAvailable(target) ? target : undefined;
+			return this._getWorkspaceOptOutTarget(this._environment.read(reader), this._session.read(reader));
 		});
 		const recentWorkspacesChanged = observableSignalFromEvent(this, this.recentWorkspacesService.onDidChangeRecentWorkspaces);
 		const availableEnvironments = derived(this, reader => {
@@ -1226,12 +1220,14 @@ export class NewChatWidget extends Disposable {
 				|| this._newSessionCreation.value || this._workspacePicker.selectedFolderUri) {
 				return;
 			}
-			if (this.sessionsManagementService.isQuickChatTargetAvailable()) {
+			const environment = this._environment.get();
+			const target = environment ? this._workspaceOptOutTarget.get() : undefined;
+			if (environment ? !!target : this.sessionsManagementService.isQuickChatTargetAvailable()) {
 				if (this._workspacePicker.isNoWorkspaceSelected()) {
-					this.selectNoWorkspace();
+					this.selectNoWorkspace(target);
 				} else {
 					// An automatic fallback must not persist a user choice or supersede a window-open workspace.
-					this._createdSessionId = this.sessionsService.openQuickChat(undefined, true)?.sessionId;
+					this._createdSessionId = this.sessionsService.openQuickChat(target, true)?.sessionId;
 				}
 			}
 		} catch (error) {
@@ -1467,11 +1463,49 @@ export class NewChatWidget extends Disposable {
 		this._pendingPreferredUpgrade.clear();
 		this._newSessionCreation.clear();
 		this._workspacePicker.selectNoWorkspace(selectionOptions?.userSelection !== false);
-		return this._openQuickChat(options, selectionOptions?.preserveNavigation);
+		const environment = this._environment.get();
+		const session = environment?.kind === 'cloud' || environment?.kind === 'container'
+			? this.sessionsService.openQuickChat(options, selectionOptions?.preserveNavigation)
+			: this._openQuickChat(options, selectionOptions?.preserveNavigation);
+		if (session && environment && (environment.kind === 'container' || !environment.providerIds.includes(session.providerId))) {
+			this._reconcileWorkspaceEnvironment({ providerId: session.providerId });
+		}
+		return session;
 	}
 
 	private _openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean): IActiveSession | undefined {
+		const environment = this._environment.get();
+		if (!options && environment) {
+			options = this._workspaceOptOutTarget.get();
+			if (!options) {
+				this.logService.trace(`Waiting for a compatible quick-chat harness in environment '${environment.id}' (providers: ${environment.providerIds.join(', ')}).`);
+				return undefined;
+			}
+		}
 		return this.sessionsService.openQuickChat(options, preserveNavigation);
+	}
+
+	private _getWorkspaceOptOutTarget(environment: ISessionCreationEnvironment | undefined, session: ISession | undefined): ICreateNewSessionOptions | undefined {
+		if (environment?.kind === 'cloud' || environment?.kind === 'container') {
+			return undefined;
+		}
+		if (!environment || (session && environment.providerIds.includes(session.providerId))) {
+			const target = session && { providerId: session.providerId, sessionTypeId: session.sessionType };
+			if (target && this.sessionsManagementService.isQuickChatTargetAvailable(target)) {
+				return target;
+			}
+			if (!environment) {
+				return undefined;
+			}
+			const providerTarget = session && { providerId: session.providerId };
+			if (providerTarget && this.sessionsManagementService.isQuickChatTargetAvailable(providerTarget)) {
+				return providerTarget;
+			}
+		}
+		const targets = this.sessionsManagementService.getQuickChatSessionTypes().filter(target => environment.providerIds.includes(target.providerId));
+		const preferred = session && targets.find(target => target.sessionType.id === session.sessionType);
+		return preferred ? { providerId: preferred.providerId, sessionTypeId: preferred.sessionType.id }
+			: targets[0] && { providerId: targets[0].providerId };
 	}
 
 	private _getNoWorkspaceOption(): IWorkspacePickerNoWorkspaceOption | undefined {
@@ -1656,7 +1690,13 @@ export class NewChatWidget extends Disposable {
 		if (!folderUri || !workspace) {
 			this._changingEnvironment = true;
 			try {
-				this._workspacePicker.clearSelection();
+				if ((environment.kind === 'local' || environment.kind === 'remote')
+					&& (session?.isQuickChat?.get() || this._workspaceOptOutEnabled.get())) {
+					this._workspacePicker.selectNoWorkspace(false);
+					await this._onWorkspaceSelected(undefined);
+				} else {
+					this._workspacePicker.clearSelection();
+				}
 			} finally {
 				this._changingEnvironment = false;
 			}
