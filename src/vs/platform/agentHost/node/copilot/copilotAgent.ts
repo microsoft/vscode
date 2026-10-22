@@ -8,7 +8,7 @@ import { CopilotClient, RuntimeConnection, type CopilotClientOptions, type GitHu
 import { constants as fsConstants } from 'fs';
 import * as fs from 'fs/promises';
 import * as os from 'os';
-import { CancelablePromise, createCancelablePromise, DeferredPromise, Delayer, disposableTimeout, Limiter, raceCancellationError, raceTimeout, Sequencer, SequencerByKey } from '../../../../base/common/async.js';
+import { CancelablePromise, createCancelablePromise, DeferredPromise, Delayer, disposableTimeout, Limiter, raceCancellationError, raceTimeout, Sequencer, SequencerByKey, Throttler } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { CancellationError, getErrorCode, getErrorMessage } from '../../../../base/common/errors.js';
@@ -54,7 +54,7 @@ import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoAppro
 import { getCopilotApprovalConfig, getCopilotApprovalPolicy } from './copilotApprovalPolicy.js';
 import { AGENT_HOST_COPILOT_CLIENT_NAME, CopilotManagedSettingsResolver, resolveCopilotManagedSettings } from './copilotManagedSettings.js';
 import { hasCopilotManagedAutoPreference, omitCopilotManagedModelDefaults, projectCopilotManagedModelConfiguration } from './copilotManagedModelConfiguration.js';
-import { CopilotProjectExtensionLaunchPolicy } from './copilotProjectExtensionLaunchPolicy.js';
+import { CopilotProjectExtensionLaunchPolicy, ICopilotProjectExtensionTrustChange } from './copilotProjectExtensionLaunchPolicy.js';
 import { buildCopilotBuiltinAgentsContainer, COPILOT_BUILTIN_AGENT_NAMES_BY_URI, CopilotBuiltinAgentsStore } from './copilotBuiltinAgents.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
@@ -1254,6 +1254,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private readonly _plugins: PluginController;
 	private readonly _sessionLauncher: CopilotSessionLauncher;
 	private readonly _projectExtensionLaunchPolicy: CopilotProjectExtensionLaunchPolicy;
+	/** Reconciles live sessions with workspace trust; changes arriving while it runs coalesce into one more pass. */
+	private readonly _projectExtensionTrustReconciler = this._register(new Throttler());
+	private _pendingProjectExtensionTrustChange: ICopilotProjectExtensionTrustChange | undefined;
 	private readonly _gitHubTelemetryForwarder: CopilotGitHubTelemetryForwarder;
 	private readonly _secondaryAssignmentContext: CopilotSecondaryAssignmentContext;
 	private readonly _githubTelemetryRouter: AgentHostGitHubTelemetryRouter | undefined;
@@ -1424,7 +1427,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// startup changes, disposing any active sessions. These values are applied in
 		// `_ensureClient`, so they only take effect on the next client start.
 		this._register(this._configurationService.onDidRootConfigChange(() => {
-			this._projectExtensionLaunchPolicy.updateTrust();
+			const trustChange = this._projectExtensionLaunchPolicy.updateTrust();
+			if (trustChange) {
+				this._scheduleProjectExtensionTrustReconciliation(trustChange);
+			}
 			this._restartClientIfStartupConfigChanged().catch(err =>
 				this._logService.error('[Copilot] Failed to apply root config change', err)
 			);
@@ -2297,6 +2303,42 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	protected _createCopilotClient(options: CopilotClientOptions): CopilotClient {
 		return new CopilotClient(options);
+	}
+
+	private _scheduleProjectExtensionTrustReconciliation(change: ICopilotProjectExtensionTrustChange): void {
+		const pending = this._pendingProjectExtensionTrustChange;
+		this._pendingProjectExtensionTrustChange = {
+			expanded: change.expanded || pending?.expanded === true,
+			contracted: change.contracted || pending?.contracted === true,
+		};
+		// While a pass runs, the throttler keeps only the latest queued pass, which takes every change accumulated meanwhile.
+		void this._projectExtensionTrustReconciler.queue(() => this._reconcilePendingProjectExtensionTrustChange())
+			.catch(error => this._logService.error('[Copilot] Failed to reconcile project extensions after workspace trust changed', error));
+	}
+
+	/** Applies every trust change accumulated since the previous pass. */
+	private async _reconcilePendingProjectExtensionTrustChange(): Promise<void> {
+		const accumulated = this._pendingProjectExtensionTrustChange;
+		this._pendingProjectExtensionTrustChange = undefined;
+		if (accumulated) {
+			await this._reconcileProjectExtensionsAfterTrustChange(accumulated);
+		}
+	}
+
+	private async _reconcileProjectExtensionsAfterTrustChange(change: ICopilotProjectExtensionTrustChange): Promise<void> {
+		const reconciliation = await this._projectExtensionLaunchPolicy.reconciliationFor(change);
+		if (!reconciliation.expanded && reconciliation.revokedExtensionNames.size === 0) {
+			return;
+		}
+		await Promise.all(this._allLiveSessions()
+			.filter(session => session.canvasRuntimeEnabled)
+			.map(async session => {
+				try {
+					await session.reconcileProjectExtensionsAfterTrustChange(reconciliation);
+				} catch (error) {
+					this._logService.error(`[Copilot:${session.sessionId}] Failed to reconcile project extensions after workspace trust changed`, error);
+				}
+			}));
 	}
 
 	protected _acquireProjectExtensionLaunchAdmission(session: CopilotAgentSession) {
@@ -9061,8 +9103,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 		session.setExtensionLaunchAdmission(extensionLaunchAdmission);
 		this._sessionsPendingRegistration.add(session);
 		this._copilotChatDiscovery.ignoreSession(session.sessionId);
+		// Live-session reconciliation skips a session until it registers, so it catches up with any trust change itself.
+		let reconciledTrustState = extensionLaunchAdmission.trustState;
 		try {
 			await session.initializeSession(token);
+			const changeDuringInitialization = this._projectExtensionLaunchPolicy.trustChangeSince(reconciledTrustState);
+			if (session.canvasRuntimeEnabled && changeDuringInitialization) {
+				reconciledTrustState = this._projectExtensionLaunchPolicy.trustState;
+				await session.reconcileProjectExtensionsAfterTrustChange(await this._projectExtensionLaunchPolicy.reconciliationFor(changeDuringInitialization));
+			}
 			await beforeRegistration?.();
 			if (session.hasPendingConnectorRefresh) {
 				await session.refreshConnectors();
@@ -9072,6 +9121,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 				throw new CancellationError();
 			}
 			register();
+			const changeBeforeRegistration = this._projectExtensionLaunchPolicy.trustChangeSince(reconciledTrustState);
+			if (session.canvasRuntimeEnabled && changeBeforeRegistration) {
+				try {
+					await session.reconcileProjectExtensionsAfterTrustChange(await this._projectExtensionLaunchPolicy.reconciliationFor(changeBeforeRegistration));
+				} catch (error) {
+					this._logService.error(`[Copilot:${session.sessionId}] Failed to reconcile project extensions after registration`, error);
+				}
+			}
 		} finally {
 			this._sessionsPendingRegistration.deleteAndLeak(session);
 		}

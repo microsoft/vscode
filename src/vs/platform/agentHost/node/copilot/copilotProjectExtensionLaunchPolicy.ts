@@ -10,11 +10,35 @@ import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js'
 import { ResourceMap } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isAbsolute } from '../../../../base/common/path.js';
-import { basename, extUriBiasedIgnorePathCase, isEqual } from '../../../../base/common/resources.js';
+import { basename, dirname, extUriBiasedIgnorePathCase, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../log/common/log.js';
 import { AgentHostWorkspaceTrustConfigKey, IAgentHostWorkspaceTrust, platformRootSchema } from '../../common/agentHostSchema.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
+
+/** How the effective workspace trust changed: it may now allow launches it refused, refuse launches it allowed, or both. */
+export interface ICopilotProjectExtensionTrustChange {
+	readonly expanded: boolean;
+	readonly contracted: boolean;
+}
+
+/** What a trust change means for running sessions' project extensions. */
+export interface ICopilotProjectExtensionTrustReconciliation {
+	/** Trust may now allow launches it refused. */
+	readonly expanded: boolean;
+	/** Directory names of project extensions launched under trust that no longer covers them. */
+	readonly revokedExtensionNames: ReadonlySet<string>;
+}
+
+/** Counts of trust expansions and contractions, compared to find what changed since a session last reconciled. */
+export interface ICopilotProjectExtensionTrustState {
+	readonly expansions: number;
+	readonly contractions: number;
+}
+
+export interface ICopilotProjectExtensionLaunchAdmission extends IDisposable {
+	readonly trustState: ICopilotProjectExtensionTrustState;
+}
 
 type CopilotExtensionSource = 'project' | 'user' | 'plugin' | 'session';
 
@@ -29,8 +53,11 @@ export class CopilotProjectExtensionLaunchPolicy {
 	private readonly _workspacelessRoots = new ResourceMap<number>();
 	private _trust = this._readTrust();
 	private _trustGeneration = 0;
+	private _trustState: ICopilotProjectExtensionTrustState = { expansions: 0, contractions: 0 };
 	/** Canonical trusted roots of the current trust, by trusted URI. Only resolved roots are kept, so a missing one is retried. */
 	private readonly _canonicalTrustedRoots = new Map<string, Promise<URI | undefined>>();
+	/** Project extensions whose latest launch was allowed, by requested entrypoint path. */
+	private readonly _allowedLaunches = new Map<string, { readonly module: URI; readonly extensionName: string }>();
 
 	constructor(
 		private readonly _configurationService: IAgentConfigurationService,
@@ -38,15 +65,59 @@ export class CopilotProjectExtensionLaunchPolicy {
 		private readonly _realpath: (path: string) => Promise<string> = fs.realpath,
 	) { }
 
-	/** Re-reads workspace trust, so later launch decisions use the current trust. */
-	updateTrust(): void {
+	get trustState(): ICopilotProjectExtensionTrustState {
+		return this._trustState;
+	}
+
+	/** Re-reads workspace trust; returns how it changed, or `undefined` when no launch decision can change. */
+	updateTrust(): ICopilotProjectExtensionTrustChange | undefined {
 		const trust = this._readTrust();
 		if (structuralEquals(this._trust, trust)) {
-			return;
+			return undefined;
 		}
+		const change: ICopilotProjectExtensionTrustChange = {
+			expanded: this._expandsTrust(this._trust, trust),
+			contracted: this._contractsTrust(this._trust, trust),
+		};
 		this._trust = trust;
+		if (!change.expanded && !change.contracted) {
+			// The same roots in another order: every launch decision, and every resolved root, still holds.
+			return undefined;
+		}
 		this._trustGeneration++;
 		this._canonicalTrustedRoots.clear();
+		this._trustState = {
+			expansions: this._trustState.expansions + (change.expanded ? 1 : 0),
+			contractions: this._trustState.contractions + (change.contracted ? 1 : 0),
+		};
+		return change;
+	}
+
+	/** How trust changed since `state` was observed, or `undefined` when it did not. */
+	trustChangeSince(state: ICopilotProjectExtensionTrustState): ICopilotProjectExtensionTrustChange | undefined {
+		const expanded = state.expansions !== this._trustState.expansions;
+		const contracted = state.contractions !== this._trustState.contractions;
+		return expanded || contracted ? { expanded, contracted } : undefined;
+	}
+
+	/** Resolves `change` into the project extensions it affects: a contraction revokes the allowed launches trust no longer covers. */
+	async reconciliationFor(change: ICopilotProjectExtensionTrustChange): Promise<ICopilotProjectExtensionTrustReconciliation> {
+		const revokedExtensionNames = new Set<string>();
+		if (change.contracted) {
+			for (const [modulePath, launch] of [...this._allowedLaunches]) {
+				if (!this._isAdmitted(launch.module)) {
+					// No live session admits it, so no session runs it.
+					if (this._allowedLaunches.get(modulePath) === launch) {
+						this._allowedLaunches.delete(modulePath);
+					}
+					continue;
+				}
+				if (!await this._isLaunchTrusted(launch.module)) {
+					revokedExtensionNames.add(launch.extensionName);
+				}
+			}
+		}
+		return { expanded: change.expanded, revokedExtensionNames };
 	}
 
 	/**
@@ -54,7 +125,7 @@ export class CopilotProjectExtensionLaunchPolicy {
 	 * one of `directories`, is the host-allocated scratch folder of a workspace-less chat: its extensions launch without
 	 * workspace trust, as the agent itself created them.
 	 */
-	async acquireAdmission(directories: readonly URI[], workspacelessRoot: URI | undefined): Promise<IDisposable> {
+	async acquireAdmission(directories: readonly URI[], workspacelessRoot: URI | undefined): Promise<ICopilotProjectExtensionLaunchAdmission> {
 		const roots: URI[] = [];
 		for (const directory of directories) {
 			const root = await this._canonicalFileUri(directory, `extension launch root '${directory.fsPath}'`);
@@ -74,7 +145,8 @@ export class CopilotProjectExtensionLaunchPolicy {
 			this._workspacelessRoots.set(admittedWorkspacelessRoot, (this._workspacelessRoots.get(admittedWorkspacelessRoot) ?? 0) + 1);
 		}
 
-		return toDisposable(() => {
+		const trustState = this._trustState;
+		const lifetime = toDisposable(() => {
 			for (const root of roots) {
 				this._releaseReference(this._admittedRoots, root);
 			}
@@ -82,6 +154,10 @@ export class CopilotProjectExtensionLaunchPolicy {
 				this._releaseReference(this._workspacelessRoots, admittedWorkspacelessRoot);
 			}
 		});
+		return {
+			trustState,
+			dispose: () => lifetime.dispose(),
+		};
 	}
 
 	async resolveLaunch(modulePath: string, source: CopilotExtensionSource, extensionBootstrapPath: string) {
@@ -91,6 +167,8 @@ export class CopilotProjectExtensionLaunchPolicy {
 
 		let launchModulePath = modulePath;
 		if (source === 'project') {
+			// Until this decision allows it again, the extension is not running under trust that might be revoked.
+			this._allowedLaunches.delete(modulePath);
 			const module = await this._canonicalFileUri(URI.file(modulePath));
 			if (!module || basename(module) !== 'extension.mjs') {
 				this._logService.trace(`[Copilot] Project extension launch denied because its entrypoint could not be resolved: ${modulePath}`);
@@ -104,6 +182,8 @@ export class CopilotProjectExtensionLaunchPolicy {
 				this._logService.trace(`[Copilot] Project extension launch denied because its workspace is not trusted: ${module.fsPath}`);
 				return {};
 			}
+			// The runtime names a project extension after the folder it discovered, which a symlink may resolve elsewhere.
+			this._allowedLaunches.set(modulePath, { module, extensionName: basename(dirname(URI.file(modulePath))) });
 			launchModulePath = module.fsPath;
 		}
 
@@ -173,6 +253,40 @@ export class CopilotProjectExtensionLaunchPolicy {
 
 	private _readTrust(): IAgentHostWorkspaceTrust | undefined {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostWorkspaceTrustConfigKey);
+	}
+
+	private _expandsTrust(previous: IAgentHostWorkspaceTrust | undefined, current: IAgentHostWorkspaceTrust | undefined): boolean {
+		if (!current) {
+			return false;
+		}
+		if (!current.enabled) {
+			return previous?.enabled !== false;
+		}
+		if (!previous) {
+			return current.trustedUris.length > 0;
+		}
+		if (!previous.enabled) {
+			return false;
+		}
+		const previousUris = new Set(previous.trustedUris);
+		return current.trustedUris.some(uri => !previousUris.has(uri));
+	}
+
+	private _contractsTrust(previous: IAgentHostWorkspaceTrust | undefined, current: IAgentHostWorkspaceTrust | undefined): boolean {
+		if (!previous) {
+			return false;
+		}
+		if (!current) {
+			return !previous.enabled || previous.trustedUris.length > 0;
+		}
+		if (!previous.enabled) {
+			return current.enabled;
+		}
+		if (!current.enabled) {
+			return false;
+		}
+		const currentUris = new Set(current.trustedUris);
+		return previous.trustedUris.some(uri => !currentUris.has(uri));
 	}
 
 	private async _canonicalFileUri(resource: URI, label?: string): Promise<URI | undefined> {

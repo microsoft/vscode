@@ -86,6 +86,7 @@ import { allowCopilotSdkExecution, restoreDeferredCopilotSdkExecution } from './
 import { getCopilotSdkToolResourceUri } from './copilotSdkMeta.js';
 import { isAutoModel } from './modelIdentifiers.js';
 import { clientToolNamesFromSnapshot, composeByokSessionConfig, findLocalModelDirectFamily, getCopilotWorkingDirectoryTrust, isMcpServerExplicitlyProjected, resolveCopilotSessionManagedSettings, toSessionConfigMcpServers, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
+import type { ICopilotProjectExtensionTrustReconciliation } from './copilotProjectExtensionLaunchPolicy.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, NON_DEFERRED_CLIENT_TOOL_NAMES, RUNTIME_TOOL_SEARCH_TOOL_NAME, searchToolsWithoutClient } from './toolSearchDeferral.js';
 import { ActiveClientToolSet, structuralToolsEqual } from '../activeClientState.js';
 import { AgentHostTelemetryReporter, toInitiatorTelemetry, type IAgentHostEventClassification, type IAgentHostEventTelemetry, type ICanvasExtensionsReadyEvent } from '../agentHostTelemetryReporter.js';
@@ -3725,6 +3726,10 @@ export class CopilotAgentSession extends Disposable {
 		return this._launchPlan.workspaceless ? this._launchPlan.workingDirectory : undefined;
 	}
 
+	get canvasRuntimeEnabled(): boolean {
+		return this._wrapper.canvasRuntimeEnabled;
+	}
+
 	get customizationDirectory(): URI | undefined {
 		return this._customizationDirectory;
 	}
@@ -5467,6 +5472,38 @@ export class CopilotAgentSession extends Disposable {
 
 	async reconcileExtensions(): Promise<void> {
 		await this._awaitControlPlaneRpc('rpc.extensions.reconcile', this._wrapper.session.rpc.extensions.reconcile());
+	}
+
+	/**
+	 * Applies a workspace-trust change to this session's project extensions. The SDK consults the launch provider only
+	 * when it starts an extension, so: a running extension whose launch lost trust is stopped by a reload, which
+	 * relaunches only those still allowed, and refused (`failed`) ones are retried once trust expands.
+	 * Sessions without affected project extensions are left alone.
+	 */
+	async reconcileProjectExtensionsAfterTrustChange(reconciliation: ICopilotProjectExtensionTrustReconciliation): Promise<void> {
+		if (!reconciliation.expanded && reconciliation.revokedExtensionNames.size === 0) {
+			return;
+		}
+		const listProjectExtensions = async () => (await this.listExtensions()).filter(extension => extension.source === 'project');
+		let projectExtensions = await listProjectExtensions();
+		// The runtime names a project extension after its folder, as the policy recorded its revoked launch.
+		const revoked = projectExtensions.filter(extension => (extension.status === 'running' || extension.status === 'starting') && reconciliation.revokedExtensionNames.has(extension.name));
+		if (revoked.length) {
+			this._logService.info(`[Copilot:${this.sessionId}] Reloading extensions after workspace trust was revoked for ${revoked.map(extension => extension.id).join(', ')}`);
+			this._recordRuntimeMutation('extensionsReload');
+			await this._awaitControlPlaneRpc('rpc.extensions.reload', this._wrapper.session.rpc.extensions.reload());
+			if (!reconciliation.expanded) {
+				return;
+			}
+			projectExtensions = await listProjectExtensions();
+		}
+		if (!reconciliation.expanded || !projectExtensions.some(extension => extension.status === 'failed')) {
+			return;
+		}
+		// Host-only and not persisted: it retries refused launches under the session's current enablement, and leaves
+		// running extensions alone.
+		this._logService.info(`[Copilot:${this.sessionId}] Reconciling extensions after workspace trust expanded`);
+		await this.reconcileExtensions();
 	}
 
 	/**
