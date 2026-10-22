@@ -2172,6 +2172,30 @@ suite('authenticateProtectedResources', () => {
 		}]);
 	});
 
+	test('resolves the default account through another authorization server of the provider', async () => {
+		const aDefault: AuthenticationSession = { id: 'a-default', scopes: ['user:email'], accessToken: 'a-default-token', account: { id: 'account-a', label: 'A' } };
+		const aRead: AuthenticationSession = { id: 'a-read', scopes: ['read'], accessToken: 'a-read-token', account: { id: 'account-a', label: 'A' } };
+		const bRead: AuthenticationSession = { id: 'b-read', scopes: ['read'], accessToken: 'b-read-token', account: { id: 'account-b', label: 'B' } };
+		const authentication = createMockAuthService({
+			getOrActivateProviderIdForServer: async () => 'github',
+			getSessions: async (_providerId, scopes, options: IAuthenticationProviderSessionOptions | undefined) => {
+				const sessions = options?.authorizationServer ? [bRead, aRead] : [bRead, aRead, aDefault];
+				return scopes ? sessions.filter(session => scopes.every(scope => session.scopes.includes(scope))) : sessions;
+			},
+		});
+		const instantiationService = createAuthInstantiationService(disposables, authentication);
+		instantiationService.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
+			override readonly currentDefaultAccount: IDefaultAccount = {
+				sessionId: aDefault.id, accountName: 'A', enterprise: false, authenticationProvider: { id: 'github', name: 'GitHub', enterprise: false },
+			};
+		}());
+		const tokens: string[] = [];
+		await instantiationService.invokeFunction(authenticateProtectedResources, [new class extends mock<AgentInfo>() {
+			override readonly protectedResources = [protectedResource];
+		}()], { logPrefix: '[Test]', authenticate: async request => { tokens.push(request.token); } });
+		assert.deepStrictEqual(tokens, ['a-read-token']);
+	});
+
 	test('follows the default account across account switches and sign-in', async () => {
 		const accountA = { id: 'account-a', label: 'A' };
 		const accountB = { id: 'account-b', label: 'B' };

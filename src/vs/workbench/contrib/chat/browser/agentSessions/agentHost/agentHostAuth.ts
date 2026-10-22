@@ -254,12 +254,14 @@ export function selectAuthenticationSession(
 }
 
 function selectNarrowestSession(sessions: readonly AuthenticationSession[], requestedScopes: readonly string[]): Extract<AuthenticationSessionSelection, { kind: 'selected' }> | undefined {
-	const supersets = sessions.filter(session => requestedScopes.every(scope => session.scopes.includes(scope)));
-	const session = findFirstMin(supersets, compareBy(candidate => new Set(candidate.scopes).size, numberComparator));
-	return session && {
+	const supersets = sessions
+		.filter(session => requestedScopes.every(scope => session.scopes.includes(scope)))
+		.map(session => ({ session, scopeCount: new Set(session.scopes).size }));
+	const narrowest = findFirstMin(supersets, compareBy(candidate => candidate.scopeCount, numberComparator));
+	return narrowest && {
 		kind: 'selected',
-		session,
-		match: new Set(session.scopes).size === new Set(requestedScopes).size ? 'exact' : 'superset',
+		session: narrowest.session,
+		match: narrowest.scopeCount === new Set(requestedScopes).size ? 'exact' : 'superset',
 	};
 }
 
@@ -505,9 +507,18 @@ async function resolveAuthenticationSessionForResource(
 			continue;
 		}
 		const preferredAccountSessionId = preferredSessionId ?? defaultAccountSessionId;
-		const preferredAccountId = preferredAccountSessionId
+		let preferredAccountId = preferredAccountSessionId
 			? allSessions.find(session => session.id === preferredAccountSessionId)?.account.id
 			: undefined;
+		if (defaultAccountSessionId && !preferredAccountId) {
+			// The default account may have signed in through another authorization server of this provider.
+			try {
+				const providerSessions = await authenticationService.getSessions(providerId, undefined, undefined, true);
+				preferredAccountId = providerSessions.find(session => session.id === defaultAccountSessionId)?.account.id;
+			} catch (error) {
+				logService.trace(`${logPrefix} Unable to resolve the default account's session for provider '${providerId}'`, error);
+			}
+		}
 		if (preferredSessionId && !preferredAccountId) {
 			logService.trace(`${logPrefix} Preferred authentication session '${preferredSessionId}' is unavailable for server: ${server}`);
 			continue;
