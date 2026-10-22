@@ -8,6 +8,9 @@
   "license": "MIT",
   "main": "./out/main.js",
   "type": "module",
+  "engines": {
+    "node": ">=22.21.1"
+  },
   "private": true,
   "scripts": {
     "test": "node -e \"console.error('Run a test script from the scripts folder, for example: ./scripts/test.sh --run <file>.'); process.exit(1)\"",
