@@ -225,4 +225,87 @@ suite('CopilotProjectExtensionLaunchPolicy', () => {
 		}
 	});
 
+	test('classifies trust changes as expansions and contractions', () => {
+		const { configurationService, policy } = createPolicy();
+		const initial = policy.trustState;
+		const update = (trust: { enabled: boolean; trustedUris: string[] }) => {
+			configurationService.updateRootConfig({ [AgentHostWorkspaceTrustConfigKey]: trust });
+			return policy.updateTrust();
+		};
+
+		assert.deepStrictEqual({
+			nothingTrusted: update({ enabled: true, trustedUris: [] }),
+			addA: update({ enabled: true, trustedUris: ['file:///a'] }),
+			addB: update({ enabled: true, trustedUris: ['file:///a', 'file:///b'] }),
+			reorder: update({ enabled: true, trustedUris: ['file:///b', 'file:///a'] }),
+			replaceAWithC: update({ enabled: true, trustedUris: ['file:///b', 'file:///c'] }),
+			removeB: update({ enabled: true, trustedUris: ['file:///c'] }),
+			disableTrust: update({ enabled: false, trustedUris: [] }),
+			enableTrust: update({ enabled: true, trustedUris: ['file:///c'] }),
+			sinceInitial: policy.trustChangeSince(initial),
+			sinceCurrent: policy.trustChangeSince(policy.trustState),
+		}, {
+			nothingTrusted: undefined,
+			addA: { expanded: true, contracted: false },
+			addB: { expanded: true, contracted: false },
+			reorder: undefined,
+			replaceAWithC: { expanded: true, contracted: true },
+			removeB: { expanded: false, contracted: true },
+			disableTrust: { expanded: true, contracted: false },
+			enableTrust: { expanded: false, contracted: true },
+			sinceInitial: { expanded: true, contracted: true },
+			sinceCurrent: undefined,
+		});
+	});
+
+	test('revokes only allowed launches that trust no longer covers, under the names the runtime gives them', async () => {
+		const root = await fs.mkdtemp(`${os.tmpdir()}/copilot-extension-revocation-`);
+		const repoA = join(root, 'a');
+		const repoB = join(root, 'b');
+		const module = (repo: string, name: string) => join(repo, '.github', 'extensions', name, 'extension.mjs');
+		for (const path of [module(repoA, 'stable'), module(repoB, 'doomed'), join(repoB, 'tools', 'real', 'extension.mjs')]) {
+			await fs.mkdir(join(path, '..'), { recursive: true });
+			await fs.writeFile(path, '');
+		}
+		// Discovered as `alias`, launched from where it resolves.
+		await fs.symlink(join(repoB, 'tools', 'real'), join(repoB, '.github', 'extensions', 'alias'), process.platform === 'win32' ? 'junction' : 'dir');
+		const { configurationService, policy } = createPolicy();
+		const trust = (repos: string[]) => {
+			configurationService.updateRootConfig({ [AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: repos.map(repo => URI.file(repo).toString()) } });
+			return policy.updateTrust() ?? { expanded: false, contracted: false };
+		};
+		const launches = async (path: string) => !!(await policy.resolveLaunch(path, 'project', '/copilot-sdk/extension-bootstrap.mjs')).launch;
+		const revoked = async () => [...(await policy.reconciliationFor({ expanded: false, contracted: true })).revokedExtensionNames].sort();
+		try {
+			disposables.add(await policy.acquireAdmission([URI.file(repoA)], undefined));
+			const admissionB = await policy.acquireAdmission([URI.file(repoB)], undefined);
+			trust([repoA, repoB]);
+			const allowed = [await launches(module(repoA, 'stable')), await launches(module(repoB, 'doomed')), await launches(module(repoB, 'alias'))];
+			trust([repoA, repoB, join(root, 'unrelated')]);
+			const unrelatedRemoved = await policy.reconciliationFor(trust([repoA, repoB]));
+			const repoBRemoved = await policy.reconciliationFor(trust([repoA]));
+			const relaunchRefused = await launches(module(repoB, 'doomed'));
+			const afterRefusedRelaunch = await revoked();
+			admissionB.dispose();
+			const afterSessionEnded = await revoked();
+
+			assert.deepStrictEqual({
+				allowed,
+				unrelatedRemoved: { expanded: unrelatedRemoved.expanded, revoked: [...unrelatedRemoved.revokedExtensionNames] },
+				repoBRemoved: { expanded: repoBRemoved.expanded, revoked: [...repoBRemoved.revokedExtensionNames].sort() },
+				relaunchRefused,
+				afterRefusedRelaunch,
+				afterSessionEnded,
+			}, {
+				allowed: [true, true, true],
+				unrelatedRemoved: { expanded: false, revoked: [] },
+				repoBRemoved: { expanded: false, revoked: ['alias', 'doomed'] },
+				relaunchRefused: false,
+				afterRefusedRelaunch: ['alias'],
+				afterSessionEnded: [],
+			});
+		} finally {
+			await fs.rm(root, { recursive: true, force: true });
+		}
+	});
 });
