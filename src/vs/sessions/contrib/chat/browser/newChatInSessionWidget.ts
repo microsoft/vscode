@@ -372,7 +372,7 @@ export class NewChatInSessionWidget extends Disposable {
 		}
 		const activeChat = this._chat.get() ?? activeSession.activeChat.get();
 		const workspace = this._workspaceSupport.get() ? await this._workspaceControls.resolveWorkspace() : undefined;
-		if (this._session.get() !== activeSession) {
+		if (this._session.get()?.sessionId !== activeSession.sessionId) {
 			// Another session was opened while the folder was checked: the choice is now that session's.
 			userInteraction?.cancel('cancelled');
 			return false;

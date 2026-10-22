@@ -379,7 +379,7 @@ suite('Sessions - New Nested Session composer', () => {
 			return { resource: URI.parse(`chat:/${name}`), status: constObservable(status) } as Partial<IChat> as IChat;
 		}
 
-		function createSend(initialWorkspace: INestedChatWorkspace | undefined, options: { placeholder?: IChat; activeElsewhere?: IChat; refuse?: Error; supported?: boolean; failSend?: () => boolean; disposeDuringApply?: boolean; switchSessionDuringCheck?: boolean } = {}) {
+		function createSend(initialWorkspace: INestedChatWorkspace | undefined, options: { placeholder?: IChat; activeElsewhere?: IChat; refuse?: Error; supported?: boolean; failSend?: () => boolean; disposeDuringApply?: boolean; sessionDuringCheck?: string } = {}) {
 			let workspace = initialWorkspace;
 			const placeholder = options.placeholder ?? chat('placeholder');
 			const activeChat = observableValue<IChat>('activeChat', options.activeElsewhere ?? placeholder);
@@ -395,8 +395,8 @@ suite('Sessions - New Nested Session composer', () => {
 				_workspaceSupport: constObservable(options.supported === false ? undefined : support(repo)),
 				_workspaceControls: {
 					resolveWorkspace: async () => {
-						if (options.switchSessionDuringCheck) {
-							owner._session.set({ sessionId: 'other' }, undefined);
+						if (options.sessionDuringCheck) {
+							owner._session.set({ ...session, sessionId: options.sessionDuringCheck }, undefined);
 						}
 						return workspace;
 					},
@@ -510,9 +510,16 @@ suite('Sessions - New Nested Session composer', () => {
 			});
 		});
 
-		test('a session switch while the folder is checked sends nothing to the old session\'s chat', async () => {
-			const h = createSend({ kind: 'scratch' }, { switchSessionDuringCheck: true });
-			assert.deepStrictEqual({ sent: await h.send(), calls: h.calls }, { sent: false, calls: ['cancel cancelled'] });
+		test('a session switch while the folder is checked sends nothing to the old session\'s chat, a refreshed session object still sends', async () => {
+			const switched = createSend({ kind: 'scratch' }, { sessionDuringCheck: 'other' });
+			const refreshed = createSend({ kind: 'scratch' }, { sessionDuringCheck: 's' });
+			assert.deepStrictEqual({
+				switched: { sent: await switched.send(), calls: switched.calls },
+				refreshed: { sent: await refreshed.send(), calls: refreshed.calls },
+			}, {
+				switched: { sent: false, calls: ['cancel cancelled'] },
+				refreshed: { sent: true, calls: ['apply /placeholder {"kind":"scratch"}', 'handoff', 'send /placeholder hello measured', 'reset'] },
+			});
 		});
 
 		test('a chat that already started never gets a workspace', async () => {
