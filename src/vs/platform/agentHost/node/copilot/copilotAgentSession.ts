@@ -1479,7 +1479,7 @@ export class CopilotAgentSession extends Disposable {
 				let provisionalRestarts: ReadonlyMap<string, IProvisionalMcpServerRestart> | undefined;
 				let reconciled = false;
 				try {
-					// Apply customization enablement first: reconciliation keeps disabled servers off.
+					// Apply customization enablement before connector reconciliation checks for stopped servers.
 					await raceCancellationError(this._reconcileMcpServerEnablement(), token);
 					if (!canReconcile()) {
 						return;
@@ -1490,6 +1490,8 @@ export class CopilotAgentSession extends Disposable {
 					const result = await reconcileCopilotConnectors(this._wrapper.session, this._logService, {
 						forceConnectorName,
 						canReconcile,
+						preserveStoppedServers: true,
+						addNewlyConnected: forceConnectorName === undefined && requestGeneration !== this._newlyConnectedCheckedGeneration,
 						token,
 						onReconcileRequested: rpc => {
 							this._recordRuntimeMutation('customizationsChanged');
@@ -1497,6 +1499,9 @@ export class CopilotAgentSession extends Disposable {
 						},
 					});
 					reconciled = result.reconciled;
+					if (result.newlyConnectedChecked && forceConnectorName === undefined) {
+						this._newlyConnectedCheckedGeneration = requestGeneration;
+					}
 					if (reconciled) {
 						// The runtime restarted these servers, so their requests are stale even if this refresh is now cancelled.
 						this._cancelStaleCopilotConnectorAuthRequests(staleAuthRequestIds);
@@ -1834,8 +1839,8 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _pendingMcpAuthRequests = new PendingRequestRegistry<McpAuthResult | null | undefined, IPendingMcpAuthRequest>();
 	private _connectorRefreshGeneration = 0;
 	private readonly _pendingConnectorRefreshes = new Map<string | undefined, number>();
-	/** Connector-owned servers the user stopped in this session, held disabled in the runtime until Start. */
-	private readonly _userStoppedMcpServers = new Set<string>();
+	/** The ordinary refresh generation whose deferral already added newly connected Connectors from a refreshed catalog. */
+	private _newlyConnectedCheckedGeneration: number | undefined;
 	private _connectorRefresh: Promise<void> | undefined;
 	private readonly _connectorRefreshCancellation = this._register(new MutableDisposable<CancellationTokenSource>());
 	private _outstandingConnectorReconcile: Promise<void> | undefined;
@@ -4809,12 +4814,6 @@ export class CopilotAgentSession extends Disposable {
 			this._copilotConnectorServers.set(serverName, server);
 		}
 		this._copilotConnectorAuthorizationRequired = connectorServers.authorizationRequired;
-		for (const serverName of this._userStoppedMcpServers) {
-			if (!this._copilotConnectorServers.has(serverName)) {
-				// A disconnected Connector's stop ends with its server; reconnecting it starts it again.
-				this._userStoppedMcpServers.delete(serverName);
-			}
-		}
 		// Republish servers that stopped being Connector-owned too, so their Connector metadata is removed.
 		for (const serverName of new Set([...previous, ...connectorServers.servers.keys()])) {
 			const state = this._mcpCustomizations.stateForServer(serverName);
@@ -6519,15 +6518,6 @@ export class CopilotAgentSession extends Disposable {
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
-			if (this._userStoppedMcpServers.delete(serverName)) {
-				this._logService.info(`[Copilot:${this.sessionId}] Starting MCP server '${serverName}' by enabling it after a user stop`);
-				try {
-					await this._enableMcpServer(serverName, 'userRequested');
-				} finally {
-					this._seedMcpServersFromRpc();
-				}
-				return;
-			}
 			const state = this._mcpCustomizations.stateForServer(serverName);
 			if (state?.kind === McpServerStatus.AuthRequired) {
 				this._mcpLifecycleVersion++;
@@ -6592,12 +6582,6 @@ export class CopilotAgentSession extends Disposable {
 		let changed = false;
 		for (const [serverName, desired] of desiredEnablement) {
 			const enabled = observedEnablement.get(serverName);
-			if (!desired) {
-				// The setting now keeps the server off, so turning it back on starts the server as usual.
-				this._userStoppedMcpServers.delete(serverName);
-			} else if (this._userStoppedMcpServers.has(serverName)) {
-				continue;
-			}
 			try {
 				if (desired) {
 					const observed = observedServers.get(serverName);
@@ -6755,10 +6739,10 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	private async _enableMcpServer(serverName: string, cause: CopilotRuntimeMutation = 'mcpEnable'): Promise<void> {
+	private async _enableMcpServer(serverName: string): Promise<void> {
 		this._expectedMcpEnablementChanges.set(serverName, true);
 		try {
-			this._recordRuntimeMutation(cause);
+			this._recordRuntimeMutation('mcpEnable');
 			await this._wrapper.session.rpc.mcp.enable({ serverName });
 		} catch (error) {
 			if (this._expectedMcpEnablementChanges.get(serverName) === true) {
@@ -6768,13 +6752,13 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	private async _disableMcpServer(serverName: string, cause: CopilotRuntimeMutation = 'mcpDisable'): Promise<void> {
+	private async _disableMcpServer(serverName: string): Promise<void> {
 		// disable() hangs until pending auth requests have resolved.
 		// reported to the SDK folks though arguable whether it's a bug or not...
 		this._cancelPendingMcpAuthRequestsForServer(serverName);
 		this._expectedMcpEnablementChanges.set(serverName, false);
 		try {
-			this._recordRuntimeMutation(cause);
+			this._recordRuntimeMutation('mcpDisable');
 			await this._wrapper.session.rpc.mcp.disable({ serverName });
 		} catch (error) {
 			if (this._expectedMcpEnablementChanges.get(serverName) === false) {
@@ -6793,20 +6777,8 @@ export class CopilotAgentSession extends Disposable {
 		this._cancelPendingMcpAuthRequestsForServer(serverName);
 		return this._runMcpServerControl(() => this._mcpServerLifecycleSequencer.queue(serverName, async () => {
 			this._cancelPendingMcpAuthRequestsForServer(serverName);
-			if (this._copilotConnectorServers.has(serverName)) {
-				// Connector reconciliation restarts a stopped server whose definition changed, but keeps a disabled
-				// one off. Disabling holds the stop without changing the enablement setting; Start enables it again.
-				this._userStoppedMcpServers.add(serverName);
-				try {
-					await this._disableMcpServer(serverName, 'userRequested');
-				} catch (error) {
-					this._userStoppedMcpServers.delete(serverName);
-					throw error;
-				}
-			} else {
-				this._recordRuntimeMutation('userRequested');
-				await this._wrapper.session.rpc.mcp.stopServer({ serverName });
-			}
+			this._recordRuntimeMutation('userRequested');
+			await this._wrapper.session.rpc.mcp.stopServer({ serverName });
 			this._mcpLifecycleVersion++;
 			this._mcpCustomizations.applyOne({ name: serverName, state: { kind: McpServerStatus.Stopped } });
 		}));
