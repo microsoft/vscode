@@ -3161,7 +3161,7 @@ export class CopilotAgentSession extends Disposable {
 		const subagentMeta = toolKind === 'subagent' ? getSubagentMetadata(parameters) : undefined;
 		const clientToolName = this._clientToolName(toolName);
 		const networkRestrictions = this._clientToolNames.has(clientToolName)
-			? getCopilotBrowserSandboxNetworkRestrictions(this._configurationService, { session: this.launchOwner.toString(), chat: this._chatChannelUri.toString() }, clientToolName) : undefined;
+			? getCopilotBrowserSandboxNetworkRestrictions(this._configurationService, this._configTarget(), clientToolName) : undefined;
 		return {
 			...(networkRestrictions ? {
 				'vscode.copilotSandboxNetworkRestrictions': networkRestrictions,
@@ -7704,7 +7704,7 @@ export class CopilotAgentSession extends Disposable {
 				&& !this._sandbox.isCustomTerminalToolEnabled();
 			// Session-only by construction: root and parent-session values are
 			// never consulted.
-			const own = enabled ? this._configurationService.getSessionConfigValues(this.launchOwner.toString())?.[SessionConfigKey.ShellInitScripts] : undefined;
+			const own = enabled ? this._configurationService.getSessionConfigValues(this._configTarget().session)?.[SessionConfigKey.ShellInitScripts] : undefined;
 			if (own !== undefined && !isShellInitScriptList(own)) {
 				// Keep the last valid registration rather than clearing it.
 				this._logService.warn(`[Copilot:${this.sessionId}] Ignoring malformed shell init script config`);

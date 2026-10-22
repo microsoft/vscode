@@ -31582,6 +31582,19 @@ Use the attached image as context.
 			);
 		});
 
+		test('applies the session script of the chat\'s current owner once its launch owner ended by moving it under another session', async () => {
+			const ended = AgentSession.uri('copilot', 'owner-ended');
+			const current = AgentSession.uri('copilot', 'owner-current');
+			const owner = disposables.add(new TestChatOwnerRef(ended));
+			// Only the current owner has config: the launch owner ended with the move.
+			const { session, mockSession } = await createEnabledSession({ sessionUri: current, owner, configValues: { [SessionConfigKey.ShellInitScripts]: [initScript] } });
+			owner.set(current);
+
+			await session.send('go', undefined, 'turn-1', 'interactive');
+
+			assert.deepStrictEqual(mockSession.shellInitScriptUpdates.map(update => (update as unknown[]).length), [1]);
+		});
+
 		test('does not apply a session script while the host flag is off', async () => {
 			const { session, mockSession, storedFileContents, setConfigValue } = await createAgentSession(disposables);
 			setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
