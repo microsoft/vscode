@@ -232,6 +232,42 @@ suite('ActionListWidget', () => {
 		});
 	});
 
+	test('footer navigation only intercepts forward Tab from the list and Shift+Tab from the link', () => {
+		const widget = createActionListWidget(disposables, {
+			listOptions: {
+				showFilter: true,
+				footerText: 'Shared as Workstation',
+				footerAction: toAction({ id: 'rename', label: 'Workstation', run: () => { } }),
+			},
+		});
+		widget.focus();
+		const list = widget.domNode.querySelector<HTMLElement>('.monaco-list')!;
+		const link = widget.footerContainer!.querySelector<HTMLElement>('.monaco-link')!;
+		const reverseFromList = dispatchKeyDown(list, { key: 'Tab', shiftKey: true });
+		const reverseKeptListFocus = isActiveElement(list);
+		const forwardFromList = dispatchKeyDown(list, { key: 'Tab' });
+		const forwardFocusedLink = isActiveElement(link);
+		const forwardFromLink = dispatchKeyDown(link, { key: 'Tab' });
+		const reverseFromLink = dispatchKeyDown(link, { key: 'Tab', shiftKey: true });
+		assert.deepStrictEqual({
+			reverseFromList: reverseFromList.defaultPrevented,
+			reverseKeptListFocus,
+			forwardFromList: forwardFromList.defaultPrevented,
+			forwardFocusedLink,
+			forwardFromLink: forwardFromLink.defaultPrevented,
+			reverseFromLink: reverseFromLink.defaultPrevented,
+			reverseFocusedList: isActiveElement(list),
+		}, {
+			reverseFromList: false,
+			reverseKeptListFocus: true,
+			forwardFromList: true,
+			forwardFocusedLink: true,
+			forwardFromLink: false,
+			reverseFromLink: true,
+			reverseFocusedList: true,
+		});
+	});
+
 	test('the footer links the name rather than matching text in the status prefix', () => {
 		const widget = createActionListWidget(disposables, {
 			listOptions: {
@@ -296,6 +332,27 @@ suite('ActionListWidget', () => {
 			shrinksWhenWidened: rows[0].getBoundingClientRect().height < narrowHeight,
 			measuredTotal: widget.computeListHeight() === [...rows].reduce((sum, row) => sum + row.getBoundingClientRect().height, 0),
 		}, { wraps: true, fitsWidth: true, fitsHeight: true, noOverlap: true, shrinksWhenWidened: true, measuredTotal: true });
+	});
+
+	test('wrapped details release the explicit width before a natural-width layout', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [{ ...action('Remote environment'), detail: 'A wrapping description for this remote environment.' }],
+			listOptions: { showFilter: false, wrapDetails: true },
+		});
+		const wrapper = document.createElement('div');
+		wrapper.classList.add('action-widget');
+		wrapper.style.width = '240px';
+		widget.domNode.parentElement?.insertBefore(wrapper, widget.domNode);
+		wrapper.appendChild(widget.domNode);
+		disposables.add({ dispose: () => wrapper.remove() });
+		widget.layout(200, 180);
+		const explicitWidth = widget.domNode.style.width;
+		widget.layout(200);
+		const naturalWidth = { style: widget.domNode.style.width, measured: widget.domNode.getBoundingClientRect().width };
+		widget.layout(200, 300);
+		assert.deepStrictEqual({ explicitWidth, naturalWidth, updatedWidth: widget.domNode.style.width }, {
+			explicitWidth: '180px', naturalWidth: { style: '', measured: 240 }, updatedWidth: '300px',
+		});
 	});
 
 	test('the footer describes the list for screen readers', () => {

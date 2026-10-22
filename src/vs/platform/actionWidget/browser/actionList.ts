@@ -1439,7 +1439,7 @@ export class ActionListWidget<T> extends Disposable {
 					linkElement.setAttribute('aria-haspopup', 'dialog');
 					this._footerContainer.append(this._options.footerText.slice(nameIndex + action.label.length));
 					this._register(dom.addDisposableListener(this.domNode, 'keydown', e => {
-						if (e.key === 'Tab' && !e.ctrlKey && !e.altKey && !e.metaKey && action.enabled && dom.getActiveElement() === this._list.getHTMLElement()) {
+						if (e.key === 'Tab' && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey && action.enabled && dom.getActiveElement() === this._list.getHTMLElement()) {
 							dom.EventHelper.stop(e, true);
 							linkElement.focus();
 						}
@@ -1448,7 +1448,7 @@ export class ActionListWidget<T> extends Disposable {
 						if (e.key === 'Escape') {
 							dom.EventHelper.stop(e, true);
 							this.hide(true);
-						} else if (e.key === 'Tab' && !e.ctrlKey && !e.altKey && !e.metaKey) {
+						} else if (e.key === 'Tab' && e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
 							dom.EventHelper.stop(e, true);
 							this._list.domFocus();
 						}
@@ -2306,8 +2306,8 @@ export class ActionListWidget<T> extends Disposable {
 	 */
 	layout(height: number, width?: number): void {
 		this._hasLaidOut = true;
-		if (this._options?.wrapDetails && width !== undefined) {
-			this.domNode.style.width = `${width}px`;
+		if (this._options?.wrapDetails) {
+			this.domNode.style.width = width === undefined ? '' : `${width}px`;
 		}
 		this._list.layout(height, width);
 		this.domNode.style.height = `${height}px`;
