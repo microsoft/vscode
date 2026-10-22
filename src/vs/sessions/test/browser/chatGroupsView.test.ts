@@ -736,12 +736,13 @@ suite('Sessions - ChatGroupsView', () => {
 
 		const grid = view['_grid']!;
 		const [mainGroup, secondaryGroup] = view['_groups'].map(group => group.view);
-		const widths = () => ({ main: grid.getViewSize(mainGroup).width, secondary: grid.getViewSize(secondaryGroup).width });
+		const collapseTolerance = 8;
+		const isMainCollapsed = () => grid.getViewSize(mainGroup).width <= mainGroup.minimumWidth + collapseTolerance;
 		grid.resizeView(secondaryGroup, { width: 800, height: 600 });
-		const collapsed = widths().main <= mainGroup.minimumWidth + 8;
+		const collapsed = isMainCollapsed();
 		await sessionsService.openChat(session, main.resource);
 
-		assert.deepStrictEqual({ collapsed, mainExpanded: widths().main > mainGroup.minimumWidth + 8 }, { collapsed: true, mainExpanded: true });
+		assert.deepStrictEqual({ collapsed, mainCollapsed: isMainCollapsed() }, { collapsed: true, mainCollapsed: false });
 	});
 
 	test('uses split-chat gaps in both presentations and removes them at zero-gap density', async () => {
