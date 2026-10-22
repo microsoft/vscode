@@ -117,11 +117,11 @@ type Compare<T> = (a: T, b: T) => number;
  * @param data The unsorted array
  * @param compare A comparator function that defines the sort order
  * @returns The nth smallest element
- * @throws TypeError if nth is out of bounds (< 0 or >= data.length)
+ * @throws TypeError if nth is not finite or is out of bounds (< 0 or >= data.length)
  */
 export function quickSelect<T>(nth: number, data: T[], compare: Compare<T>): T {
 
-	if (Number.isNaN(nth) || nth < 0 || nth >= data.length) {
+	if (!Number.isFinite(nth) || nth < 0 || nth >= data.length) {
 		throw new TypeError('invalid index');
 	}
 
