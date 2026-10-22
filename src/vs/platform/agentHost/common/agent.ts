@@ -291,6 +291,26 @@ export interface IAgentPluginUninstallRequest {
 	readonly directSourceId?: string;
 }
 
+export type AgentExtensionMode = 'disabled' | 'load_only' | 'load_and_augment' | 'unknown';
+export type AgentExtensionSource = 'user' | 'project' | 'plugin';
+export type AgentExtensionStatus = 'running' | 'disabled' | 'failed' | 'starting' | 'unknown';
+
+/** One executable extension discovered from the provider's persisted or session-effective inventory. */
+export interface IAgentExtensionInfo {
+	readonly id: string;
+	readonly name: string;
+	readonly resource?: URI;
+	readonly source: AgentExtensionSource;
+	readonly status: AgentExtensionStatus;
+	readonly pluginName?: string;
+}
+
+/** Host-scoped extension inventory and the provider's effective loading mode. */
+export interface IAgentExtensionInventory {
+	readonly mode: AgentExtensionMode;
+	readonly extensions: readonly IAgentExtensionInfo[];
+}
+
 export type AgentCanvasExtensionSource = 'user' | 'project' | 'session' | 'plugin' | 'unknown';
 
 /** One canvas declaration available to an initialized provider chat. */
@@ -1748,6 +1768,12 @@ export interface IAgent {
 	 * @see https://github.com/github/copilot-agent-runtime/issues/26495
 	 */
 	addMcpServerConfiguration?(name: string, config: IMcpServerConfiguration): Promise<void>;
+
+	/** Discover executable extensions from the provider's persisted inventory. */
+	listAgentExtensions?(session?: URI, chat?: URI): Promise<IAgentExtensionInventory>;
+
+	/** Persist extension enablement and reconcile one exact live chat when supplied. */
+	setAgentExtensionEnabled?(extensionId: string, enabled: boolean, session?: URI, chat?: URI): Promise<void>;
 
 	/** Capture the current account without allowing a later account to relabel an in-flight turn. */
 	getTelemetryContext?(): IAgentTelemetryContext;

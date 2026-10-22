@@ -3631,6 +3631,102 @@ suite('AgentHostProtocolClient', () => {
 		await assertRemoteProtocolError(result, error);
 	});
 
+	test('manages Copilot extensions through advertised extension methods', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, false, false, false, false, false, false, true));
+		transport.sentMessages.length = 0;
+
+		const session = URI.parse('copilotcli:/session-1');
+		const chat = URI.parse('vendor-chat://opaque.example/threads/chat-1');
+		const extensionInventory = client.listAgentExtensions(session, chat);
+		assert.deepStrictEqual(transport.sentMessages[0], {
+			jsonrpc: '2.0',
+			id: 2,
+			method: 'vscode/listAgentExtensions',
+			params: { session: session.toString(), chat: chat.toString() },
+		});
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: 2,
+			result: {
+				mode: 'load_and_augment',
+				extensions: [{
+					id: 'user:preview',
+					name: 'Preview',
+					resource: 'file:///home/test/.copilot/extensions/preview/extension.mjs',
+					source: 'user',
+					status: 'running',
+				}],
+			},
+		});
+
+		const toggle = client.setAgentExtensionEnabled('user:preview', false, session, chat);
+		assert.deepStrictEqual(transport.sentMessages[1], {
+			jsonrpc: '2.0',
+			id: 3,
+			method: 'vscode/setAgentExtensionEnabled',
+			params: { extensionId: 'user:preview', enabled: false, session: session.toString(), chat: chat.toString() },
+		});
+		transport.fireMessage({ jsonrpc: '2.0', id: 3, result: null });
+
+		const inventory = await extensionInventory;
+		await toggle;
+		assert.deepStrictEqual({
+			mode: inventory.mode,
+			extensions: inventory.extensions.map(extension => ({
+				id: extension.id,
+				resourceScheme: extension.resource?.scheme,
+				resourcePath: extension.resource?.path,
+				source: extension.source,
+				status: extension.status,
+			})),
+		}, {
+			mode: 'load_and_augment',
+			extensions: [{
+				id: 'user:preview',
+				resourceScheme: 'vscode-agent-host',
+				resourcePath: '/home/test/.copilot/extensions/preview/extension.mjs',
+				source: 'user',
+				status: 'running',
+			}],
+		});
+	});
+
+	test('does not call Copilot extension methods without the advertised capability', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta());
+		transport.sentMessages.length = 0;
+		const session = URI.parse('copilotcli:/session-1');
+
+		await assert.rejects(client.listAgentExtensions(), /does not support Copilot extension inventory/);
+		await assert.rejects(client.setAgentExtensionEnabled('user:preview', false, session), /does not support Copilot extension management/);
+		assert.strictEqual(transport.sentMessages.length, 0);
+	});
+
+	test('rejects invalid Copilot extension inventory resources', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, false, false, false, false, false, false, true));
+		transport.sentMessages.length = 0;
+
+		const inventory = client.listAgentExtensions();
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: 2,
+			result: {
+				mode: 'load_and_augment',
+				extensions: [{
+					id: 'user:preview',
+					name: 'Preview',
+					resource: 'https://example.test/extension.mjs',
+					source: 'user',
+					status: 'running',
+				}],
+			},
+		});
+
+		await assert.rejects(inventory, /invalid extension resource/);
+	});
+
 	test('removeSessionArtifact sends the VS Code extension request', async () => {
 		const { client, transport } = createClient();
 		const session = URI.parse('copilotcli:/session-1');

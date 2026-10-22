@@ -161,6 +161,8 @@ class MockCopilotSession {
 	/** Instances `rpc.canvas.listOpen` reports as live in the runtime. */
 	readonly listedOpenCanvases: CopilotSession['openCanvases'] = [];
 	readonly extensions: Awaited<ReturnType<CopilotSession['rpc']['extensions']['list']>>['extensions'] = [];
+	readonly extensionEnableCalls: Parameters<CopilotSession['rpc']['extensions']['enable']>[0][] = [];
+	readonly extensionDisableCalls: Parameters<CopilotSession['rpc']['extensions']['disable']>[0][] = [];
 	readonly canvases: Awaited<ReturnType<CopilotSession['rpc']['canvas']['list']>>['canvases'] = [];
 	readonly canvasOpenCalls: Parameters<CopilotSession['rpc']['canvas']['open']>[0][] = [];
 	readonly canvasCloseCalls: Parameters<CopilotSession['rpc']['canvas']['close']>[0][] = [];
@@ -175,6 +177,7 @@ class MockCopilotSession {
 	onCanvasListOpen: (() => void) | undefined;
 	extensionReloadCalls = 0;
 	extensionReloadError: Error | undefined;
+	extensionReconcileCalls = 0;
 	readonly eventLogReadRequests: Parameters<CopilotSession['rpc']['eventLog']['read']>[0][] = [];
 	eventLogReadGate: Promise<void> | undefined;
 	readonly sendRequests: unknown[] = [];
@@ -537,11 +540,21 @@ class MockCopilotSession {
 				}
 				return { extensions };
 			},
+			enable: async (params: Parameters<CopilotSession['rpc']['extensions']['enable']>[0]) => {
+				this.extensionEnableCalls.push(params);
+			},
+			disable: async (params: Parameters<CopilotSession['rpc']['extensions']['disable']>[0]) => {
+				this.extensionDisableCalls.push(params);
+			},
 			reload: async () => {
 				this.extensionReloadCalls++;
 				if (this.extensionReloadError) {
 					throw this.extensionReloadError;
 				}
+			},
+			reconcile: async () => {
+				this.extensionReconcileCalls++;
+				return { extensions: this.extensions };
 			},
 		},
 		canvas: {
@@ -3644,6 +3657,35 @@ suite('CopilotAgentSession', () => {
 		session.dispose();
 	});
 
+	test('lists and changes live extensions', async () => {
+		const { session, mockSession } = await createAgentSession(disposables, {
+			configureMockSession: mock => {
+				mock.extensions.push(
+					{ id: 'project:preview', name: 'Preview extension', source: 'project', status: 'running' },
+				);
+			},
+		});
+
+		const extensions = await session.listExtensions();
+		await session.setExtensionEnabled('project:preview', false);
+
+		assert.deepStrictEqual({
+			extensions,
+			enableCalls: mockSession.extensionEnableCalls,
+			disableCalls: mockSession.extensionDisableCalls,
+		}, {
+			extensions: [{
+				id: 'project:preview',
+				name: 'Preview extension',
+				source: 'project',
+				status: 'running',
+			}],
+			enableCalls: [],
+			disableCalls: [{ id: 'project:preview' }],
+		});
+		session.dispose();
+	});
+
 	suite('canvas definition registry stability', () => {
 		test('withholds transient registry listings until extension reload settles', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables, {
@@ -4480,6 +4522,13 @@ suite('CopilotAgentSession', () => {
 
 		await assert.rejects(() => runtime.reloadExtensions(), /reload failed/);
 		assert.strictEqual(mockSession.extensionReloadCalls, 2);
+		session.dispose();
+	});
+
+	test('reconciles extension membership through the live SDK session', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		await session.reconcileExtensions();
+		assert.strictEqual(mockSession.extensionReconcileCalls, 1);
 		session.dispose();
 	});
 

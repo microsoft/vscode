@@ -42,9 +42,10 @@ import { FileType } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
-import { AgentPolicyError, type IAgent, type IAgentCreateChatRequestOptions, type IAgentCreateChatWorkspace, type IAgentCreateSessionConfig, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
+import { AgentPolicyError, type IAgent, type IAgentCreateChatRequestOptions, type IAgentCreateChatWorkspace, type IAgentCreateSessionConfig, type IAgentExtensionInventory, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentCreateChatInitialMessageContext, type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
-import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, StopBackgroundWorkExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, ListAgentExtensionsExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, StopBackgroundWorkExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import { supportsAgentHostCopilotExtensions } from '../../common/meta/agentHostCopilotExtensionsMeta.js';
 import { supportsAgentHostSavedChat, supportsAgentHostSavedChatContinuation } from '../../common/meta/agentHostSavedChatMeta.js';
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult, ResourceType } from '../../common/state/protocol/commands.js';
 import type { IArtifactIntegrationAccess } from '../../../artifactIntegrations/common/artifactIntegration.js';
@@ -253,6 +254,9 @@ class MockAgentService extends Disposable implements IAgentService {
 	rotateSandboxCertificate: ((chat: string, scopeId: string) => Promise<void>) | undefined;
 	removeSandboxCertificate: ((chat: string, scopeId: string) => Promise<void>) | undefined;
 	readonly importedSessions: string[] = [];
+	agentExtensionInventory: IAgentExtensionInventory = { mode: 'load_and_augment', extensions: [] };
+	readonly listAgentExtensionsCalls: { session: string | undefined; chat: string | undefined }[] = [];
+	readonly setAgentExtensionEnabledCalls: { extensionId: string; enabled: boolean; session: string | undefined; chat: string | undefined }[] = [];
 	readonly createDetachedWorktreeCalls: { session: string; prompt: string }[] = [];
 	readonly setDetachedWorktreeArchivedCalls: { handle: string; archived: boolean }[] = [];
 	readonly deleteDetachedWorktreeCalls: string[] = [];
@@ -420,6 +424,13 @@ class MockAgentService extends Disposable implements IAgentService {
 	}
 	async importSession(session: URI): Promise<void> {
 		this.importedSessions.push(session.toString());
+	}
+	async listAgentExtensions(session?: URI, chat?: URI): Promise<IAgentExtensionInventory> {
+		this.listAgentExtensionsCalls.push({ session: session?.toString(), chat: chat?.toString() });
+		return this.agentExtensionInventory;
+	}
+	async setAgentExtensionEnabled(extensionId: string, enabled: boolean, session?: URI, chat?: URI): Promise<void> {
+		this.setAgentExtensionEnabledCalls.push({ extensionId, enabled, session: session?.toString(), chat: chat?.toString() });
 	}
 	async createDetachedWorktree(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }> {
 		this.createDetachedWorktreeCalls.push({ session: session.toString(), prompt });
@@ -676,6 +687,7 @@ suite('ProtocolServerHandler', () => {
 				'vscode.devContainers': true,
 				// Offered whether or not moving chats is enabled, so enabling it needs no reconnect.
 				'vscode.sessionMove': true,
+				'vscode.copilotExtensions': true,
 			},
 		});
 	});
@@ -1678,6 +1690,7 @@ suite('ProtocolServerHandler', () => {
 		const initialize = findResponse(transport.sent, 1);
 		assert.ok(initialize && hasKey(initialize, { result: true }));
 		assert.strictEqual(supportsAgentHostTiming(initialize.result as InitializeResult), true);
+		assert.strictEqual(supportsAgentHostCopilotExtensions(initialize.result as InitializeResult), false);
 		assert.strictEqual(supportsAgentHostTiming(undefined), false);
 		assert.strictEqual(supportsAgentHostTiming({ ...(initialize.result as InitializeResult), _meta: { 'vscode.agentHostTiming': 'true' } }), false);
 		const diagnostic: IAgentHostFirstResponseDiagnostic = {
@@ -2033,6 +2046,62 @@ suite('ProtocolServerHandler', () => {
 			supported: true, legacy: false, malformed: false, uninitialized: false,
 			response: { jsonrpc: '2.0', id: 20, result: null },
 			imported: ['copilotcli:/session-1'],
+		});
+	});
+
+	test('advertises and routes Copilot extension inventory', async () => {
+		agentService.agentExtensionInventory = {
+			mode: 'load_and_augment',
+			extensions: [{
+				id: 'user:preview',
+				name: 'Preview',
+				resource: URI.file('/extensions/preview/extension.mjs'),
+				source: 'user',
+				status: 'running',
+			}],
+		};
+		const transport = connectClient('client-copilot-extensions');
+		const initialized = findResponse(transport.sent, 1);
+		assert.ok(initialized && hasKey(initialized, { result: true }));
+
+		const listExtensions = waitForResponse(transport, 20);
+		transport.simulateMessage(request(20, ListAgentExtensionsExtensionMethod, {
+			session: 'copilotcli:/session-1',
+			chat: 'vendor-chat://opaque.example/threads/chat-1',
+		}));
+		const setExtension = waitForResponse(transport, 21);
+		transport.simulateMessage(request(21, SetAgentExtensionEnabledExtensionMethod, {
+			extensionId: 'user:preview',
+			enabled: false,
+			session: 'copilotcli:/session-1',
+			chat: 'vendor-chat://opaque.example/threads/chat-1',
+		}));
+
+		assert.deepStrictEqual({
+			supported: supportsAgentHostCopilotExtensions(initialized.result as InitializeResult),
+			listExtensions: await listExtensions,
+			listCalls: agentService.listAgentExtensionsCalls,
+			setExtension: await setExtension,
+			setCalls: agentService.setAgentExtensionEnabledCalls,
+		}, {
+			supported: true,
+			listExtensions: {
+				jsonrpc: '2.0',
+				id: 20,
+				result: {
+					mode: 'load_and_augment',
+					extensions: [{
+						id: 'user:preview',
+						name: 'Preview',
+						resource: 'file:///extensions/preview/extension.mjs',
+						source: 'user',
+						status: 'running',
+					}],
+				},
+			},
+			listCalls: [{ session: 'copilotcli:/session-1', chat: 'vendor-chat://opaque.example/threads/chat-1' }],
+			setExtension: { jsonrpc: '2.0', id: 21, result: null },
+			setCalls: [{ extensionId: 'user:preview', enabled: false, session: 'copilotcli:/session-1', chat: 'vendor-chat://opaque.example/threads/chat-1' }],
 		});
 	});
 
