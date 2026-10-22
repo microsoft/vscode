@@ -244,7 +244,8 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 			const workspace = worktree.session.workspace.get();
 			return workspace ? [[extUri.getComparisonKey(workspace.uri), workspace] as const] : [];
 		}));
-		if (!workspaces.has(this.selectedWorkspace)) {
+		dom.setVisibility(workspaces.size > 1, this.workspaceSelect.parentElement!);
+		if (workspaces.size <= 1 || !workspaces.has(this.selectedWorkspace)) {
 			this.selectedWorkspace = '';
 		}
 		dom.clearNode(this.workspaceSelect);

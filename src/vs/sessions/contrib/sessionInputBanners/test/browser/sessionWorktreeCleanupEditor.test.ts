@@ -180,6 +180,43 @@ suite('SessionWorktreeCleanupEditor', () => {
 		});
 	});
 
+	test('shows the workspace picker only when multiple distinct workspaces are available', async () => {
+		let worktrees: readonly ISessionWorktree[] = [];
+		const { editor, container } = createEditor({ getWorktrees: async () => worktrees });
+		const picker = container.querySelector<HTMLSelectElement>('.session-worktree-cleanup-workspace')!;
+		const label = picker.parentElement!;
+		const states = [];
+		for (const nextWorktrees of [
+			[],
+			[createWorktree('first', '/repos/app'), createWorktree('second', '/repos/app')],
+			[createWorktree('first', '/repos/app'), createWorktree('other', '/other/app')],
+			[createWorktree('first', '/repos/app'), createWorktree('second', '/repos/app')],
+			[],
+		]) {
+			worktrees = nextWorktrees;
+			editor.showAllWorktrees();
+			await timeout(0);
+			states.push({
+				visible: mainWindow.getComputedStyle(label).display !== 'none',
+				ariaHidden: label.getAttribute('aria-hidden'),
+				selected: picker.value,
+				rows: [...container.querySelectorAll('.session-worktree-cleanup-session-link')].map(link => link.textContent),
+			});
+			if (worktrees.some(worktree => worktree.session.sessionId === 'other')) {
+				picker.value = URI.file('/repos/app').toString();
+				picker.dispatchEvent(new Event(dom.EventType.CHANGE));
+			}
+		}
+
+		assert.deepStrictEqual(states, [
+			{ visible: false, ariaHidden: 'true', selected: '', rows: [] },
+			{ visible: false, ariaHidden: 'true', selected: '', rows: ['first', 'second'] },
+			{ visible: true, ariaHidden: null, selected: '', rows: ['first', 'other'] },
+			{ visible: false, ariaHidden: 'true', selected: '', rows: ['first', 'second'] },
+			{ visible: false, ariaHidden: 'true', selected: '', rows: [] },
+		]);
+	});
+
 	test('age filtering includes all ages by default and can return to recently used worktrees', async () => {
 		const { container, ages } = await openEditor([
 			createWorktree('recent', '/repos/app'),
