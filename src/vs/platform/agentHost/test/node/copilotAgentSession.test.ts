@@ -2373,6 +2373,29 @@ suite('CopilotAgentSession', () => {
 			});
 		});
 
+		test('configures the running process for its current owner once its launch owner ended by moving it under another session', async () => {
+			const ended = AgentSession.uri('copilot', 'owner-ended');
+			const current = AgentSession.uri('copilot', 'owner-current');
+			const owner = disposables.add(new TestChatOwnerRef(ended));
+			const logService = new CapturingLogService();
+			// Only the current owner has config: the launch owner ended with the move, leaving its values to the chat.
+			const { session, mockSession } = await createAgentSession(disposables, {
+				sessionUri: current, owner, logService,
+				configValues: { [SessionConfigKey.AutoApprove]: 'default' },
+				chatConfigValues: { [SessionConfigKey.AutoApprove]: 'assisted', [SessionConfigKey.Mode]: 'autopilot' },
+			});
+			owner.set(current);
+			await session.syncPermissionMode('config-change');
+
+			assert.deepStrictEqual({
+				permissionModes: mockSession.permissionModeSetCalls,
+				logs: logService.infos.map(entry => entry.message).filter(message => message.includes('Syncing permission mode')),
+			}, {
+				permissionModes: ['assisted'],
+				logs: ['[Copilot:test-session-1] Syncing permission mode: source=config-change, agentMode=autopilot, configuredLevel=assisted, sdkMode=assisted, previousSdkMode=unknown, globalAutoApprove=false'],
+			});
+		});
+
 		test('shows a synchronous command once the runtime moves it to the background', async () => {
 			const { mockSession, signals, waitForSignal } = await createAgentSession(disposables);
 			mockSession.backgroundTasks = [{ ...shell('timed-out'), executionMode: 'sync' }];
@@ -31683,6 +31706,19 @@ Use the attached image as context.
 				mockSession.operationLog.indexOf('options.update:sandbox') < mockSession.operationLog.indexOf('options.update:shell'),
 				JSON.stringify(mockSession.operationLog),
 			);
+		});
+
+		test('applies the session script of the chat\'s current owner once its launch owner ended by moving it under another session', async () => {
+			const ended = AgentSession.uri('copilot', 'owner-ended');
+			const current = AgentSession.uri('copilot', 'owner-current');
+			const owner = disposables.add(new TestChatOwnerRef(ended));
+			// Only the current owner has config: the launch owner ended with the move.
+			const { session, mockSession } = await createEnabledSession({ sessionUri: current, owner, configValues: { [SessionConfigKey.ShellInitScripts]: [initScript] } });
+			owner.set(current);
+
+			await session.send('go', undefined, 'turn-1', 'interactive');
+
+			assert.deepStrictEqual(mockSession.shellInitScriptUpdates.map(update => (update as unknown[]).length), [1]);
 		});
 
 		test('does not apply a session script while the host flag is off', async () => {
