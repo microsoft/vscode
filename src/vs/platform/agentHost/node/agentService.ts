@@ -3558,7 +3558,13 @@ export class AgentService extends Disposable implements IAgentService {
 			if (source?.verified && source.payloadDirty !== 0 && agent) {
 				reconciliationMetadata = await this._getCatalogReconciliationMetadata(agent, registered, () => this._isChatBacking(registered.session, this._chatOwnership.createRecordedOwnerLookup()));
 			}
-			if (source?.verified && !reconciliationMetadata) {
+			const pending = await database?.object.getCatalogSyncSnapshot();
+			const aggregateHasApplicableNonCurrentPending = source?.verified
+				&& pending?.state === 'pending'
+				&& pending.projectionVersion !== AGENT_HOST_CATALOG_PAYLOAD_VERSION
+				&& pending.sessionGeneration === source.sessionGeneration
+				&& pending.sourceRevision >= source.sourceRevision;
+			if (source?.verified && !reconciliationMetadata && !aggregateHasApplicableNonCurrentPending) {
 				const decoded = decodeAgentHostCatalogPayloadData(source.payload, { forMigration: true, payloadVersion: source.payloadVersion });
 				if (!decoded.ok || !snapshot.header) {
 					throw new Error(`Invalid normalized session aggregate for ${registered.session.toString()}: ${decoded.ok ? 'missing header' : decoded.error}`);

@@ -16617,6 +16617,78 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		}
 
+		test('normalized reconciliation preserves an applicable legacy pending snapshot without a provider', async () => {
+			const orchestratorDatabase = new CentralCatalogDatabase();
+			const session = AgentSession.uri('copilot', 'normalized-legacy-pending');
+			const registered: IRegisteredSession = {
+				session,
+				provider: 'copilot',
+				startTime: 10,
+				modifiedTime: 40,
+				external: false,
+				source: 'explicit',
+			};
+			await orchestratorDatabase.registerSessionV2(session.toString(), {
+				provider: registered.provider,
+				startTime: registered.startTime,
+				source: registered.source,
+			}, { checkTombstone: false });
+			orchestratorDatabase.setCatalog(session, centralData(session, 40, 'Stale central'), legacyCatalogPayloadVersion);
+			const normalizedChat = URI.parse('ahp-chat:/normalized-legacy-pending');
+			orchestratorDatabase.setSnapshot({
+				session: session.toString(),
+				authorityVersion: 2,
+				identity: { ...registered, session: session.toString() },
+				isChatBacking: false,
+				provisional: false,
+				header: {
+					session: session.toString(),
+					revision: 1,
+					authorityVersion: 2,
+					defaultChatUri: normalizedChat.toString(),
+					sessionGeneration: 'test-generation',
+				},
+				chats: [{
+					chat: normalizedChat.toString(),
+					order: 0,
+					ownerSession: session.toString(),
+					originSession: session.toString(),
+					ownershipRevision: 1,
+					metadataRevision: 1,
+				}],
+			});
+			const database = new TestSessionDatabase();
+			const pending = catalogEnvelopeAtVersion(catalogEnvelope(session, centralData(session, 50, 'Newer pending'), 'test-generation', 2), legacyCatalogPayloadVersion);
+			await database.setMetadataValuesAndCatalogSyncSnapshot({}, {
+				sessionGeneration: pending.sessionGeneration,
+				sourceRevision: pending.sourceRevision,
+				projectionVersion: pending.payloadVersion,
+				payload: pending.payload,
+				payloadHash: pending.payloadHash,
+				state: 'pending',
+			});
+			const svc = createCentralCatalogService(createSessionDataService(database), orchestratorDatabase);
+			const internal = svc as unknown as { _resolveCatalogReconciliationSource: AgentService['_resolveCatalogReconciliationSource'] };
+
+			const result = await internal._resolveCatalogReconciliationSource(registered, { object: database, dispose: () => { } });
+
+			assert.deepStrictEqual({
+				result,
+				pending: await database.getCatalogSyncSnapshot(),
+			}, {
+				result: { status: 'providerUnavailable' },
+				pending: {
+					sessionGeneration: pending.sessionGeneration,
+					sourceRevision: pending.sourceRevision,
+					projectionVersion: pending.payloadVersion,
+					payload: pending.payload,
+					payloadHash: pending.payloadHash,
+					state: 'pending',
+					acknowledgedHash: undefined,
+				},
+			});
+		});
+
 		test('central list applies the same live state overlay as legacy listing', async () => {
 			const orchestratorDatabase = new CentralCatalogDatabase();
 			const svc = createCentralCatalogService(createSessionDataService(), orchestratorDatabase);
