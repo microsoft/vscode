@@ -28,8 +28,8 @@ test('build lifecycle includes asynchronous hooks and preserves opt-out behavior
 		assert.equal((await run(hook)).stdout, 'VSCODE_BUILD_START\nPOSTPROCESS\nVSCODE_BUILD_DONE\n');
 		assert.equal((await run(hook, '')).stdout, 'POSTPROCESS\n');
 		for (const phase of ['before', 'after']) {
-			const error = 'await new Promise(resolve => setTimeout(resolve, 20)); throw new Error("hook failed");';
-			await assert.rejects(run(phase === 'after' ? error : '', '1', phase === 'before' ? error : ''), (error: Error & { stdout: string; stderr: string }) => {
+			const hookErrorCode = 'await new Promise(resolve => setTimeout(resolve, 20)); throw new Error("hook failed");';
+			await assert.rejects(run(phase === 'after' ? hookErrorCode : '', '1', phase === 'before' ? hookErrorCode : ''), (error: Error & { stdout: string; stderr: string }) => {
 				assert.equal(error.stdout, 'VSCODE_BUILD_START\nVSCODE_BUILD_FAILED\n');
 				assert.match(error.stderr, /hook failed/);
 				return true;

@@ -31,10 +31,7 @@ async function buildOnce(
 	try {
 		await beforeBuild?.();
 		const result = await esbuild.build(options);
-		failed = result.errors.length > 0;
-		if (!failed) {
-			await didBuild?.();
-		}
+		await didBuild?.();
 		return result;
 	} catch (error) {
 		failed = true;
