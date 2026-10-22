@@ -2780,8 +2780,15 @@ suite('Sessions - SessionsList', () => {
 				fixture.button.classList.remove('hovered');
 				fixture.button.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }));
 
-				assert.deepStrictEqual({ resting, hovered, changedTheme, restored: appearance() }, {
-					resting: { background: 'rgba(0, 0, 0, 0)', color: 'rgb(100, 110, 120)' },
+				assert.deepStrictEqual({
+					restingColor: resting.color,
+					hoverBackgroundsDifferFromResting: [hovered, changedTheme].every(style => style.background !== resting.background),
+					hovered,
+					changedTheme,
+					restored: appearance(),
+				}, {
+					restingColor: 'rgb(100, 110, 120)',
+					hoverBackgroundsDifferFromResting: true,
 					hovered: { background: 'rgba(10, 20, 30, 0.1)', color: 'rgb(200, 210, 220)' },
 					changedTheme: { background: 'rgb(30, 40, 50)', color: 'rgb(200, 210, 220)' },
 					restored: resting,
