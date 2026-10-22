@@ -6,8 +6,30 @@
 import { mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from '../../../../base/common/path.js';
-import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
+import { AgentHostDatabase, type IAgentHostDatabaseOptions } from '../../node/agentHostDatabase.js';
 import { CompatibleAgentHostDatabase } from '../../node/compatibleAgentHostDatabase.js';
+
+/**
+ * Tests open many fresh on-disk databases, each running every schema migration as its own transaction. With the
+ * default durability each commit creates, syncs and deletes a journal file, so these tests stall whenever the
+ * machine's disk is slow to sync. Restarts and old builds are modelled by reopening the file, which needs no
+ * durability, so test databases drop it.
+ */
+const testDatabaseOptions: IAgentHostDatabaseOptions = { nonDurableForTests: true };
+
+/** An {@link AgentHostDatabase} for tests: see {@link testDatabaseOptions}. */
+export class NonDurableAgentHostDatabase extends AgentHostDatabase {
+	constructor(path: string, onDidRunStatement?: (sql: string) => Promise<void>) {
+		super(path, onDidRunStatement, testDatabaseOptions);
+	}
+}
+
+/** A {@link CompatibleAgentHostDatabase} for tests: see {@link testDatabaseOptions}. */
+export class NonDurableCompatibleAgentHostDatabase extends CompatibleAgentHostDatabase {
+	constructor(path: string, writeCompatibility = true) {
+		super(path, writeCompatibility, testDatabaseOptions);
+	}
+}
 
 /**
  * A temporary directory holding on-disk agent host databases for one test.

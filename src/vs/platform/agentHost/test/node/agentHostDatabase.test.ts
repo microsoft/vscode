@@ -17,6 +17,7 @@ import { AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT, AgentHostDatabase, IAgentHos
 import { AGENT_HOST_CATALOG_CHILD_LIMIT, AGENT_HOST_CATALOG_PAYLOAD_VERSION, AgentHostCatalogData, decodeAgentHostCatalogPayload, projectAgentHostCatalogChatOrigin } from '../../node/agentHostCatalogProjection.js';
 import { ChatInteractivity, ChatOriginKind } from '../../common/state/protocol/channels-chat/state.js';
 import { encodeChatV2Metadata } from '../../node/agentHostChatCatalogV2.js';
+import { NonDurableAgentHostDatabase } from './agentHostDatabaseTestUtils.js';
 
 function openDatabase(path: string): Promise<Database> {
 	return new Promise((resolve, reject) => {
@@ -235,7 +236,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 
 	test('creates the central catalog schema without changing the legacy registry', async () => {
 		const path = join(temporaryDirectory!, 'agent-host.db');
-		database = new AgentHostDatabase(path);
+		database = new NonDurableAgentHostDatabase(path);
 		await database.registerSessionV2('session://fresh', {
 			provider: 'copilot',
 			startTime: 1,
@@ -288,7 +289,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 	});
 
 	test('stores revisioned authoritative peer-chat membership', async () => {
-		database = new AgentHostDatabase(join(temporaryDirectory!, 'agent-host.db'));
+		database = new NonDurableAgentHostDatabase(join(temporaryDirectory!, 'agent-host.db'));
 		const session = 'session://chat-catalog';
 		await database.registerRuntimeSession(session, {
 			provider: 'copilot',
@@ -664,7 +665,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 	test('rolls back every chat batch and its revision when a later insert fails', async () => {
 		const path = join(temporaryDirectory!, 'chat-batch-rollback.db');
 		const session = 'session://chat-batch-rollback';
-		database = new AgentHostDatabase(path);
+		database = new NonDurableAgentHostDatabase(path);
 		await database.registerRuntimeSession(session, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
 		await database.replaceSessionChatCatalog(session, [{ chat: 'ahp-chat://original', order: 0, providerData: 'original' }], undefined);
 		await database.markSessionChatCatalogLegacyMirrored(session, 1, 'original-mirror');
@@ -678,7 +679,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 		} finally {
 			await close(rawDatabase);
 		}
-		database = new AgentHostDatabase(path);
+		database = new NonDurableAgentHostDatabase(path);
 		const chats = Array.from({ length: 1001 }, (_, order) => ({ chat: `ahp-chat://replacement-${order}`, order }));
 
 		await assert.rejects(database.replaceSessionChatCatalog(session, chats, 1), /late chat batch failed/);
@@ -720,7 +721,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 		test(`upgrades published v${version} rows and invalidates old projections`, async () => {
 			const path = join(temporaryDirectory!, `agent-host-published-v${version}.db`);
 			await createPublishedSessionsV2Database(path, version);
-			const upgraded = new AgentHostDatabase(path);
+			const upgraded = new NonDurableAgentHostDatabase(path);
 			try {
 				const session = `session://published-${version}`;
 				const direct = `session://direct-${version}`;
@@ -763,7 +764,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 	test('applies the catalog migration after upstream v4', async () => {
 		const path = join(temporaryDirectory!, 'agent-host-upstream-v4.db');
 		await createUpstreamVersion4Database(path);
-		database = new AgentHostDatabase(path);
+		database = new NonDurableAgentHostDatabase(path);
 
 		assert.deepStrictEqual({
 			registration: await database.getSessionV2Registration('copilotcli:/upstream-v4'),
@@ -803,7 +804,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 		await exec(v7Database, 'PRAGMA user_version = 7');
 		await close(v7Database);
 
-		database = new AgentHostDatabase(path);
+		database = new NonDurableAgentHostDatabase(path);
 		const registration = await database.getSessionV2Registration('session://published-6');
 		const projection = await database.getSessionV2('session://published-6');
 		await database.close();
@@ -845,7 +846,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 
 	test('normalizes the pre-release v11 version without rebuilding its final catalog', async () => {
 		const path = join(temporaryDirectory!, 'agent-host-v11.db');
-		database = new AgentHostDatabase(path);
+		database = new NonDurableAgentHostDatabase(path);
 		await database.registerSessionV2('session://v11', { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
 		await database.replaceSessionChatCatalog('session://v11', [
 			{ chat: 'ahp-chat://peer', order: 0, providerData: 'peer' },
@@ -857,7 +858,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 		await exec(preReleaseDatabase, 'PRAGMA user_version = 11');
 		await close(preReleaseDatabase);
 
-		database = new AgentHostDatabase(path);
+		database = new NonDurableAgentHostDatabase(path);
 		const registration = await database.getSessionV2Registration('session://v11');
 		const catalog = await database.getSessionChatCatalog('session://v11');
 		await database.close();
@@ -887,7 +888,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 
 	test('repairs missing chat columns without lowering a future schema version', async () => {
 		const path = join(temporaryDirectory!, 'agent-host-future-v20.db');
-		database = new AgentHostDatabase(path);
+		database = new NonDurableAgentHostDatabase(path);
 		await database.registerSessionV2('session://future-v20', { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
 		await database.replaceSessionChatCatalog('session://future-v20', [
 			{ chat: 'ahp-chat://peer', order: 0, providerData: 'peer' },
@@ -902,7 +903,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 			PRAGMA user_version = 20`);
 		await close(futureDatabase);
 
-		database = new AgentHostDatabase(path);
+		database = new NonDurableAgentHostDatabase(path);
 		const catalog = await database.getSessionChatCatalog('session://future-v20');
 		await database.close();
 		database = undefined;
@@ -925,7 +926,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 
 	test('upgrades a pre-release v6 catalog while preserving unknown tables', async () => {
 		const path = join(temporaryDirectory!, 'agent-host-future-v6.db');
-		database = new AgentHostDatabase(path);
+		database = new NonDurableAgentHostDatabase(path);
 		await database.registerSessionV2('session://future-v6', { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
 		await database.close();
 		database = undefined;
@@ -934,7 +935,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 		await exec(futureDatabase, 'CREATE TABLE future_v6_marker (value INTEGER); PRAGMA user_version = 6');
 		await close(futureDatabase);
 
-		database = new AgentHostDatabase(path);
+		database = new NonDurableAgentHostDatabase(path);
 		const registration = await database.getSessionV2Registration('session://future-v6');
 		await database.close();
 		database = undefined;
@@ -1054,7 +1055,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 			`);
 			await close(rawDatabase);
 
-			const upgraded = new AgentHostDatabase(path);
+			const upgraded = new NonDurableAgentHostDatabase(path);
 			try {
 				const session = await upgraded.getSession(`session://upgrade-${version}`);
 				const migratedDatabase = await openDatabase(path);
@@ -1261,7 +1262,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 	test('updates incomplete current provenance without changing the projection revision', async () => {
 		const path = join(temporaryDirectory!, 'external-backfill.db');
 		const session = 'session://external-backfill';
-		database = new AgentHostDatabase(path);
+		database = new NonDurableAgentHostDatabase(path);
 		await database.registerSessionV2(session, { provider: 'copilot', startTime: 1, source: 'restore' }, { checkTombstone: false });
 		await database.upsertSessionV2(createEnvelope(session, 'generation-1', 1), undefined);
 		await database.close();
@@ -1271,7 +1272,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 		await exec(rawDatabase, `UPDATE sessions_v2 SET external = NULL WHERE session_uri = '${session}'`);
 		await close(rawDatabase);
 
-		database = new AgentHostDatabase(path);
+		database = new NonDurableAgentHostDatabase(path);
 		await database.updateSessionV2External([{ session, external: true }]);
 		const row = await database.getSessionV2(session);
 
@@ -1371,7 +1372,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 	test('runtime provenance resolution mirrors both registries without changing catalog revision', async () => {
 		const path = join(temporaryDirectory!, 'runtime-provenance.db');
 		const session = 'session://runtime-provenance';
-		database = new AgentHostDatabase(path);
+		database = new NonDurableAgentHostDatabase(path);
 		await database.registerRuntimeSession(session, { provider: 'copilot', startTime: 1, source: 'restore' }, { checkTombstone: false });
 		await database.upsertSessionV2(createEnvelope(session, 'generation-1', 3), undefined);
 		await database.close();
@@ -1382,7 +1383,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 			UPDATE sessions SET external = NULL WHERE session_uri = '${session}'`);
 		await close(rawDatabase);
 
-		database = new AgentHostDatabase(path);
+		database = new NonDurableAgentHostDatabase(path);
 		await database.updateRuntimeSessionExternal([{ session, external: true }]);
 		const current = await database.getSessionV2(session);
 		assert.deepStrictEqual({
@@ -1405,7 +1406,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 
 	test('runtime legacy mirror failure rolls back current registration', async () => {
 		const path = join(temporaryDirectory!, 'runtime-rollback.db');
-		database = new AgentHostDatabase(path);
+		database = new NonDurableAgentHostDatabase(path);
 		await database.listSessions();
 		await database.close();
 		database = undefined;
@@ -1418,7 +1419,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 			END`);
 		await close(rawDatabase);
 
-		database = new AgentHostDatabase(path);
+		database = new NonDurableAgentHostDatabase(path);
 		const session = 'session://runtime-rollback';
 		await assert.rejects(
 			database.registerRuntimeSession(session, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false }),
@@ -1435,7 +1436,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 
 	test('legacy and current rows diverge independently', async () => {
 		const path = join(temporaryDirectory!, 'old-build.db');
-		database = new AgentHostDatabase(path);
+		database = new NonDurableAgentHostDatabase(path);
 		const currentOnly = 'session://current-only';
 		await database.registerSessionV2(currentOnly, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
 		await database.upsertSessionV2(createEnvelope(currentOnly, 'generation-1', 1), undefined);
@@ -1449,7 +1450,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 			VALUES ('session://old-build', 'copilot', 2, 1, 'discovery')`);
 		await close(oldBuildDatabase);
 
-		database = new AgentHostDatabase(path);
+		database = new NonDurableAgentHostDatabase(path);
 		assert.deepStrictEqual({
 			currentOnlyLegacy: await database.getSession(currentOnly),
 			currentOnlyV2: await database.getSessionV2(currentOnly),
@@ -1466,7 +1467,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 	test('legacy row absence is not current deletion', async () => {
 		const path = join(temporaryDirectory!, 'old-build-orphan.db');
 		const session = 'session://old-build-orphan';
-		database = new AgentHostDatabase(path);
+		database = new NonDurableAgentHostDatabase(path);
 		await database.registerSessionV2(session, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
 		await database.upsertSessionV2(createEnvelope(session, 'generation-1', 1), undefined);
 		await database.close();
@@ -1477,7 +1478,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 		const orphanRows = await all(oldBuildDatabase, `SELECT session_uri FROM sessions_v2 WHERE session_uri = '${session}'`);
 		await close(oldBuildDatabase);
 
-		database = new AgentHostDatabase(path);
+		database = new NonDurableAgentHostDatabase(path);
 		assert.deepStrictEqual({
 			orphanRows,
 			get: await database.getSessionV2(session),
@@ -1966,7 +1967,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 
 		test('records the session each chat is created in; rows without it read as created in their owner', async () => {
 			const path = join(temporaryDirectory!, 'chat-origin.db');
-			let instance = new AgentHostDatabase(path);
+			let instance = new NonDurableAgentHostDatabase(path);
 			database = instance;
 			await seed(instance);
 			await instance.ensureChatCatalogV2(session, expectation(), candidate());
@@ -1984,7 +1985,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				const before = await openDatabase(path);
 				await exec(before, `ALTER TABLE chats_v2 DROP COLUMN origin_session_uri; PRAGMA user_version = ${version}`);
 				await new Promise<void>((resolve, reject) => before.close(error => error ? reject(error) : resolve()));
-				instance = new AgentHostDatabase(path);
+				instance = new NonDurableAgentHostDatabase(path);
 				database = instance;
 				const listed = (await instance.readCatalogSnapshot([session]))[0]?.chats.map(chat => chat.originSession);
 				// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Check the stored schema version.
@@ -2361,7 +2362,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				test(`a database at version ${version} migrates to 20 with the projection marker, and normalized catalogs start as candidates`, async () => {
 					const path = join(tmpdir(), `agent-host-projected-revision-${generateUuid()}.db`);
 					try {
-						let instance = new AgentHostDatabase(path);
+						let instance = new NonDurableAgentHostDatabase(path);
 						database = instance;
 						await seed(instance);
 						await instance.ensureChatCatalogV2(session, expectation(), candidate());
@@ -2369,7 +2370,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 						const old = await openDatabase(path);
 						await exec(old, `ALTER TABLE session_chat_catalogs DROP COLUMN projected_revision; ${leftBehind[version]} PRAGMA user_version = ${version}`);
 						await close(old);
-						instance = new AgentHostDatabase(path);
+						instance = new NonDurableAgentHostDatabase(path);
 						database = instance;
 						// A catalog upgraded from before the marker is a candidate once; its import records it as projected.
 						const candidates = await instance.findOlderBuildChatCatalogEdits(AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT);
@@ -2555,7 +2556,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 
 		test('activation and first mutation roll back together on stale CAS and late SQL failure', async () => {
 			const path = join(temporaryDirectory!, 'normalized-rollback.db');
-			database = new AgentHostDatabase(path);
+			database = new NonDurableAgentHostDatabase(path);
 			await seed();
 			const stale = await database.ensureChatCatalogV2(session, expectation(), candidate(), {
 				chat: peer, expected: { ownershipRevision: 0, metadataRevision: 1 }, patch: { isRead: true },
@@ -2733,12 +2734,12 @@ suite('AgentHostDatabase sessions_v2', () => {
 			} finally {
 				await close(raw);
 			}
-			database = new AgentHostDatabase(path);
+			database = new NonDurableAgentHostDatabase(path);
 			await seed();
 			await database.ensureChatCatalogV2(session, expectation(), candidate());
 			const before = await database.readCatalogSnapshot([session]);
 			await database.close();
-			database = new AgentHostDatabase(path);
+			database = new NonDurableAgentHostDatabase(path);
 			const inspect = await openDatabase(path);
 			try {
 				assert.deepStrictEqual({
@@ -3016,8 +3017,8 @@ suite('AgentHostDatabase sessions_v2', () => {
 
 		test('file-backed independent connections serialize activation and typed write-through CAS', async () => {
 			const path = join(temporaryDirectory!, 'independent-connections.db');
-			const first = new AgentHostDatabase(path);
-			const second = new AgentHostDatabase(path);
+			const first = new NonDurableAgentHostDatabase(path);
+			const second = new NonDurableAgentHostDatabase(path);
 			database = first;
 			try {
 				await seed(first);
@@ -3129,7 +3130,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 		test('explicit legacy both-empty deletion facts preserve global tombstones before legacy keys are cleaned', async () => {
 			const path = join(temporaryDirectory!, 'legacy-deleted-identity.db');
 			const deletedChat = 'chat://deleted-legacy';
-			database = new AgentHostDatabase(path);
+			database = new NonDurableAgentHostDatabase(path);
 			await seed();
 			await database.replaceSessionChatCatalog(session, [
 				{ chat: peer, order: 0, isRead: false, archived: true, inheritedTurnId: 't'.repeat(4096), origin: '{"kind":"subagent"}' },
@@ -3139,7 +3140,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				...candidate(), deletedChats: [{ chat: deletedChat, summary: '', titleSource: '' }],
 			});
 			await database.close();
-			database = new AgentHostDatabase(path);
+			database = new NonDurableAgentHostDatabase(path);
 			const raw = await openDatabase(path);
 			try {
 				const current = (await database.getSessionChatCatalog(session))!;
@@ -3179,7 +3180,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 
 		test('late requested membership failure rolls back activation and every normalized row', async () => {
 			const path = join(temporaryDirectory!, 'activation-membership-rollback.db');
-			database = new AgentHostDatabase(path);
+			database = new NonDurableAgentHostDatabase(path);
 			await seed();
 			const raw = await openDatabase(path);
 			try {
@@ -3420,7 +3421,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 
 		test('private lifecycle deletion tombstones only private closure and survives restart without resurrection', async () => {
 			const path = join(temporaryDirectory!, 'private-lifecycle.db');
-			database = new AgentHostDatabase(path);
+			database = new NonDurableAgentHostDatabase(path);
 			await seed();
 			const input = candidate();
 			await database.ensureChatCatalogV2(session, expectation(), {
@@ -3431,7 +3432,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 			const publicTarget = await database.removePrivateChatV2(session, peer, 2);
 			const removed = await database.removePrivateChatV2(session, privateChat, 2);
 			await database.close();
-			database = new AgentHostDatabase(path);
+			database = new NonDurableAgentHostDatabase(path);
 			const reinsert = await database.insertPrivateChatV2(session, child, 3);
 			const stale = await database.removePrivateChatV2(session, privateChat, 2);
 			const unrelated = await database.insertPrivateChatV2(session, { chat: 'chat://new-unrelated', metadata: { interactivity: ChatInteractivity.Hidden } }, 3);
@@ -3471,7 +3472,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 
 		test('private lifecycle late SQL failures roll back insertion, closure tombstones and header revision', async () => {
 			const path = join(temporaryDirectory!, 'private-lifecycle-rollback.db');
-			database = new AgentHostDatabase(path);
+			database = new NonDurableAgentHostDatabase(path);
 			await seed();
 			await database.ensureChatCatalogV2(session, expectation(), candidate());
 			const raw = await openDatabase(path);

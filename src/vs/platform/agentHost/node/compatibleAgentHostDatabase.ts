@@ -8,7 +8,7 @@ import { URI } from '../../../base/common/uri.js';
 import { isEqual } from '../../../base/common/resources.js';
 import { Sequencer } from '../../../base/common/async.js';
 import { AgentSession } from '../common/agent.js';
-import { AgentHostDatabase, type IAgentHostDatabase } from './agentHostDatabase.js';
+import { AgentHostDatabase, type IAgentHostDatabase, type IAgentHostDatabaseOptions } from './agentHostDatabase.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import { isShapedChatUri } from '../common/agentHostChatIdentity.js';
 import { SessionStorageIdentity, storedChatUri, type ChatStorageRole, type IChatStorageIdentityRecord } from './sessionStorageIdentity.js';
@@ -29,9 +29,9 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 	private readonly _allocations = new Sequencer();
 	private readonly _pendingChatRecords = new Set<Promise<void>>();
 
-	constructor(path: string, private readonly _writeCompatibility = true) {
+	constructor(path: string, private readonly _writeCompatibility = true, options?: IAgentHostDatabaseOptions) {
 		super();
-		this.raw = this._register(new AgentHostDatabase(path));
+		this.raw = this._register(new AgentHostDatabase(path, undefined, options));
 		this.identity = new SessionStorageIdentity();
 	}
 

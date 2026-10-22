@@ -14,6 +14,7 @@ import { ChatInteractivity } from '../../common/state/protocol/channels-chat/sta
 import { AH_META_IS_ARCHIVED_DB_KEY } from '../../common/state/sessionState.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { SESSION_WORKING_DIRECTORIES_KEY } from '../../node/shared/persistSessionMetadata.js';
+import { NonDurableAgentHostDatabase } from './agentHostDatabaseTestUtils.js';
 
 const FOLDER = 'file:///scratch/chat-1';
 const OWNER_SESSION = 'copilotcli:/owner';
@@ -107,7 +108,7 @@ suite('AgentHostScratchFolderDatabase', () => {
 	test('the table is created empty by the migration from 20 and the open is idempotent', async () => {
 		const path = join(tmpdir(), `agent-host-scratch-${generateUuid()}.db`);
 		try {
-			let database = new AgentHostDatabase(path);
+			let database = new NonDurableAgentHostDatabase(path);
 			await database.registerSessionV2('copilotcli:/s', { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
 			await database.close();
 
@@ -115,11 +116,11 @@ suite('AgentHostScratchFolderDatabase', () => {
 			await execRaw(downgraded, 'DROP TABLE scratch_folders; PRAGMA user_version = 20');
 			await closeRaw(downgraded);
 
-			database = new AgentHostDatabase(path);
+			database = new NonDurableAgentHostDatabase(path);
 			const migrated = await database.listScratchFolders();
 			await database.insertScratchFolder(REQUEST);
 			await database.close();
-			database = new AgentHostDatabase(path);
+			database = new NonDurableAgentHostDatabase(path);
 			const reopened = await database.listScratchFolders();
 			await database.close();
 
@@ -142,14 +143,14 @@ suite('AgentHostScratchFolderDatabase', () => {
 	test('the open-time repair recreates a missing table of a profile already at 21', async () => {
 		const path = join(tmpdir(), `agent-host-scratch-repair-${generateUuid()}.db`);
 		try {
-			let database = new AgentHostDatabase(path);
+			let database = new NonDurableAgentHostDatabase(path);
 			await database.registerSessionV2('copilotcli:/s', { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
 			await database.close();
 			const raw = await openRaw(path);
 			await execRaw(raw, 'DROP TABLE scratch_folders');
 			await closeRaw(raw);
 
-			database = new AgentHostDatabase(path);
+			database = new NonDurableAgentHostDatabase(path);
 			const rows = await database.listScratchFolders();
 			await database.close();
 
@@ -195,7 +196,7 @@ suite('AgentHostScratchFolderDatabase', () => {
 	test('a live chat that still lists its removing folder does not keep it in use, another does', async () => {
 		const path = join(tmpdir(), `agent-host-scratch-owner-${generateUuid()}.db`);
 		try {
-			let database = new AgentHostDatabase(path);
+			let database = new NonDurableAgentHostDatabase(path);
 			await registerOwner(database, OWNER_SESSION, [{ chat: OWNER_CHAT, workingDirectories: [FOLDER] }]);
 			await database.insertScratchFolder(REQUEST);
 			await database.close();
@@ -203,7 +204,7 @@ suite('AgentHostScratchFolderDatabase', () => {
 			await execRaw(raw, `UPDATE scratch_folders SET state = 'removing'`);
 			await closeRaw(raw);
 
-			database = new AgentHostDatabase(path);
+			database = new NonDurableAgentHostDatabase(path);
 			const ownerOnly = await database.isScratchFolderInUse(FOLDER);
 			await registerOwner(database, 'copilotcli:/other', [{ chat: 'ahp-chat:/other', workingDirectories: [FOLDER] }]);
 			const withOther = await database.isScratchFolderInUse(FOLDER);

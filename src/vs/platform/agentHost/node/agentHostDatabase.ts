@@ -1163,6 +1163,16 @@ function close(database: Database): Promise<void> {
 	return new Promise((resolve, reject) => database.close(error => error ? reject(error) : resolve()));
 }
 
+export interface IAgentHostDatabaseOptions {
+	/**
+	 * Opens the connection with `synchronous = OFF` and an in-memory rollback journal, so commits neither create a
+	 * journal file nor wait for the disk. A crash can lose or corrupt the database, so only tests set this: they
+	 * reopen files to model restarts and old builds, and must not depend on how fast the machine's disk syncs.
+	 * The file format is unchanged, so another connection reads it as usual.
+	 */
+	readonly nonDurableForTests?: boolean;
+}
+
 export class AgentHostDatabase implements IAgentHostDatabase {
 	declare readonly _serviceBrand: undefined;
 
@@ -1175,6 +1185,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 	constructor(
 		private readonly _path: string,
 		private readonly _onDidRunStatement?: (sql: string) => Promise<void>,
+		private readonly _options: IAgentHostDatabaseOptions = {},
 	) { }
 
 	/** A plain database stores every session as addressed, so there is no storage spelling to map. */
@@ -4341,6 +4352,9 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				try {
 					database.serialize();
 					await exec(database, 'PRAGMA foreign_keys = ON');
+					if (this._options.nonDurableForTests) {
+						await exec(database, 'PRAGMA journal_mode = MEMORY; PRAGMA synchronous = OFF');
+					}
 					const versionRow = await get(database, 'PRAGMA user_version', []);
 					const currentVersion = await normalizePreReleaseCatalogSchema(database, (versionRow?.user_version as number | undefined) ?? 0);
 					for (const migration of migrations) {

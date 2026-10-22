@@ -20,7 +20,7 @@ import { FileService } from '../../../files/common/fileService.js';
 import { CompatibleAgentHostDatabase } from '../../node/compatibleAgentHostDatabase.js';
 import { migrateChatCatalogV2 } from '../../node/agentHostChatCatalogMigration.js';
 import { createLiveChatOwnership, noOlderBuildCopyParticipant } from './chatOwnershipTestUtils.js';
-import { AgentHostDatabaseTestDirectory } from './agentHostDatabaseTestUtils.js';
+import { AgentHostDatabaseTestDirectory, NonDurableAgentHostDatabase, NonDurableCompatibleAgentHostDatabase } from './agentHostDatabaseTestUtils.js';
 import { createLegacySessionFixture, editChatListAsOldBuild, editChatStateAsOldBuild, InMemorySessionDataService, moveChatAsBlock4, LEGACY_BUILDS, legacyPeerMetadata, legacySessionMetadata, normalizeLegacySessionFixture, readOldBuildView, remirrorChatListAsOldBuildAtQuit, reprojectLegacyFixturePayload, restorePeersAsOldBuild, writeLegacySessionState, type ILegacyChatFixture, type ILegacySessionFixture } from './sessionStateCompatibilityFixtures.js';
 import { AH_META_IS_ARCHIVED_DB_KEY, buildChatUri, buildDefaultChatUri, ChatOriginKind, MessageKind } from '../../common/state/sessionState.js';
 import { ChatInteractivity } from '../../common/state/protocol/state.js';
@@ -42,7 +42,7 @@ suite('Session state compatibility fixtures', () => {
 	}
 
 	async function writeOldBuild(fixture: ILegacySessionFixture, sessionData: InMemorySessionDataService): Promise<void> {
-		const oldBuild = openDatabase(AgentHostDatabase);
+		const oldBuild = openDatabase(NonDurableAgentHostDatabase);
 		await writeLegacySessionState(sessionData.createService(), oldBuild, fixture);
 		await oldBuild.close();
 	}
@@ -55,7 +55,7 @@ suite('Session state compatibility fixtures', () => {
 		const fixture = createLegacySessionFixture('1.143');
 		const sessionData = store.add(new InMemorySessionDataService());
 		await writeOldBuild(fixture, sessionData);
-		const today = openDatabase(CompatibleAgentHostDatabase);
+		const today = openDatabase(NonDurableCompatibleAgentHostDatabase);
 		await today.initialize();
 		const extra = await normalizeLegacySessionFixture(today.raw, fixture);
 		const service = sessionData.createService(today.identity);
@@ -81,7 +81,7 @@ suite('Session state compatibility fixtures', () => {
 			const fixture = createLegacySessionFixture(build);
 			const sessionData = store.add(new InMemorySessionDataService());
 			await writeOldBuild(fixture, sessionData);
-			const oldBuild = openDatabase(AgentHostDatabase);
+			const oldBuild = openDatabase(NonDurableAgentHostDatabase);
 			const view = await readOldBuildView(sessionData.createService(), oldBuild, fixture);
 			const [defaultChat, sameFolder, otherFolder] = fixture.chats;
 
@@ -127,7 +127,7 @@ suite('Session state compatibility fixtures', () => {
 			const sessionData = store.add(new InMemorySessionDataService());
 			await writeOldBuild(fixture, sessionData);
 
-			const today = openDatabase(CompatibleAgentHostDatabase);
+			const today = openDatabase(NonDurableCompatibleAgentHostDatabase);
 			await today.initialize();
 			const service = sessionData.createService(today.identity);
 			const peers = new AgentHostPeerChatStore(today, service, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(today, service), noOlderBuildCopyParticipant);
@@ -162,7 +162,7 @@ suite('Session state compatibility fixtures', () => {
 			const fixture = createLegacySessionFixture(build);
 			const sessionData = store.add(new InMemorySessionDataService());
 			await writeOldBuild(fixture, sessionData);
-			const today = openDatabase(CompatibleAgentHostDatabase);
+			const today = openDatabase(NonDurableCompatibleAgentHostDatabase);
 			await today.initialize();
 			const extra = await normalizeLegacySessionFixture(today.raw, fixture);
 			const service = sessionData.createService(today.identity);
@@ -206,7 +206,7 @@ suite('Session state compatibility fixtures', () => {
 		const fixture = createLegacySessionFixture('1.143');
 		const sessionData = store.add(new InMemorySessionDataService());
 		await writeOldBuild(fixture, sessionData);
-		const today = openDatabase(CompatibleAgentHostDatabase);
+		const today = openDatabase(NonDurableCompatibleAgentHostDatabase);
 		await today.initialize();
 		await normalizeLegacySessionFixture(today.raw, fixture);
 		const service = sessionData.createService(today.identity);
@@ -243,7 +243,7 @@ suite('Session state compatibility fixtures', () => {
 			const fixture = createLegacySessionFixture(build);
 			const sessionData = store.add(new InMemorySessionDataService());
 			await writeOldBuild(fixture, sessionData);
-			const today = openDatabase(CompatibleAgentHostDatabase);
+			const today = openDatabase(NonDurableCompatibleAgentHostDatabase);
 			await today.initialize();
 			const extra = await normalizeLegacySessionFixture(today.raw, fixture);
 			const service = sessionData.createService(today.identity);
@@ -525,7 +525,7 @@ suite('Session state compatibility fixtures', () => {
 			const fixture = createLegacySessionFixture(build);
 			const sessionData = store.add(new InMemorySessionDataService());
 			await writeOldBuild(fixture, sessionData);
-			const today = openDatabase(CompatibleAgentHostDatabase);
+			const today = openDatabase(NonDurableCompatibleAgentHostDatabase);
 			await today.initialize();
 			const service = sessionData.createService(today.identity);
 			const peers = new AgentHostPeerChatStore(today, service, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(today, service), noOlderBuildCopyParticipant);
@@ -563,7 +563,7 @@ suite('Session state compatibility fixtures', () => {
 		const fixture = createLegacySessionFixture('2b');
 		const sessionData = store.add(new InMemorySessionDataService());
 		await writeOldBuild(fixture, sessionData);
-		const today = openDatabase(CompatibleAgentHostDatabase);
+		const today = openDatabase(NonDurableCompatibleAgentHostDatabase);
 		await today.initialize();
 		const service = sessionData.createService(today.identity);
 		const peers = new AgentHostPeerChatStore(today, service, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(today, service), noOlderBuildCopyParticipant);
@@ -1116,7 +1116,7 @@ suite('Session state compatibility fixtures', () => {
 
 	test('a normalized session\'s title and default-chat read changes write nothing inline to the databases old builds read', async () => {
 		const sessionData = store.add(new InMemorySessionDataService());
-		const today = openDatabase(CompatibleAgentHostDatabase);
+		const today = openDatabase(NonDurableCompatibleAgentHostDatabase);
 		await today.initialize();
 		const service = sessionData.createService(today.identity);
 		const peers = new AgentHostPeerChatStore(today, service, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(today, service), noOlderBuildCopyParticipant);

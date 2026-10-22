@@ -15,6 +15,7 @@ import { AgentSession } from '../../common/agent.js';
 import { AgentHostDatabase, AgentHostDatabaseSessionChatCatalogReplaceResult, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabase, IAgentHostDatabaseExternalUpdate, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSession, IAgentHostDatabaseSessionChat, IAgentHostDatabaseSessionChatCatalog, IAgentHostDatabaseSessionsV2Exclusion, IAgentHostDatabaseSessionOptions, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Envelope, IAgentHostDatabaseSessionV2Receipt } from '../../node/agentHostDatabase.js';
 import { AgentSessionRegistry } from '../../node/agentSessionRegistry.js';
 import { findTestCatalogPayloadChatOwners, findTestCentralChatOwners, listTestLegacyChatCatalogSessions, readTestChatV2, readTestSessionListCatalogs, readTestSessionRegistrations, SessionStateUnsupportedDatabase, testRegistrationGeneration, disposeTestSessionStateDatabases } from './chatMetadataTestHelpers.js';
+import { NonDurableAgentHostDatabase } from './agentHostDatabaseTestUtils.js';
 
 class TestAgentHostDatabase extends SessionStateUnsupportedDatabase implements IAgentHostDatabase {
 	/** Test double: sessions are stored as addressed. */
@@ -757,13 +758,13 @@ suite('AgentSessionRegistry', () => {
 		const directory = join(tmpdir(), `vscode-external-adoption-${generateUuid()}`);
 		const databasePath = join(directory, 'agent-host.db');
 		await database.close();
-		database = new AgentHostDatabase(databasePath);
+		database = new NonDurableAgentHostDatabase(databasePath);
 		try {
 			const registry = createRegistry();
 			await registerDiscovered(registry, a, 'copilot', 100);
 			await registry.adoptExternalSession(a);
 			await database.close();
-			database = new AgentHostDatabase(databasePath);
+			database = new NonDurableAgentHostDatabase(databasePath);
 			const restarted = createRegistry();
 			await registerDiscovered(restarted, a, 'copilot', 200);
 			assert.deepStrictEqual(await database.getSessionV2Registration(a.toString()), {
