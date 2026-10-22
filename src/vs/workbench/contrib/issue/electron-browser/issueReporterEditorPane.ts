@@ -11,7 +11,7 @@ import { disposableTimeout, timeout } from '../../../../base/common/async.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
@@ -22,15 +22,15 @@ import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/com
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { EditorActivation, IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../platform/files/common/files.js';
-import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-browser/environmentService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { decodeBase64, encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
+import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { URI } from '../../../../base/common/uri.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { FileAccess, Schemas } from '../../../../base/common/network.js';
 import { IssueReporterEditorInput } from '../browser/issueReporterEditorInput.js';
-import { IssueReporterOverlay } from '../browser/issueReporterOverlay.js';
-import { getIssueReporterMediaFormat, IIssueReporterVideoMetadata, ImportedIssueMedia, readIssueReporterImage, readIssueReporterMediaFile, readIssueReporterVideo } from '../browser/issueReporterMedia.js';
+import { IIssueReporterAttachmentImport, IssueReporterOverlay } from '../browser/issueReporterOverlay.js';
+import { getIssueReporterMediaFormat, readIssueReporterImage, readIssueReporterMediaFile } from '../browser/issueReporterMedia.js';
 import { IRecordingService, IRecordingData, RecordingState, ScreenCapturePermissionStatus, shouldShowScreenCapturePermissionSettings } from '../browser/recordingService.js';
 import { IScreenshotService } from '../browser/screenshotService.js';
 import { IIssueFormService } from '../common/issue.js';
@@ -38,7 +38,6 @@ import { IProcessService } from '../../../../platform/process/common/process.js'
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
 import product from '../../../../platform/product/common/product.js';
 import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
-import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { ChatMessageRole, ILanguageModelsService } from '../../chat/common/languageModels.js';
 import { IChatUtilityModelService } from '../../chat/common/chatUtilityModelService.js';
@@ -49,6 +48,9 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
+import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 
 /** Context key that's `true` whenever any IssueReporter editor is open in any group, even when not focused. */
 export const IssueReporterOpenContext = new RawContextKey<boolean>('issueReporterOpen', false);
@@ -80,6 +82,7 @@ export class IssueReporterEditorPane extends EditorPane {
 	/** Survives the framework calling clearInput() when the user switches away. */
 	private wizardInput: IssueReporterEditorInput | undefined;
 	private readonly inputDisposables = this._register(new DisposableStore());
+	private readonly inputStateCallbacks = this._register(new MutableDisposable());
 	private hasRequestedScreenCapturePermission = false;
 	private pendingRecordingStart: Promise<void> | undefined;
 	private pendingRecordingStop: Promise<void> | undefined;
@@ -95,14 +98,12 @@ export class IssueReporterEditorPane extends EditorPane {
 		@IScreenshotService private readonly screenshotService: IScreenshotService,
 		@ILogService private readonly logService: ILogService,
 		@IFileService private readonly fileService: IFileService,
-		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IIssueFormService private readonly issueFormService: IIssueFormService,
 		@IProcessService private readonly processService: IProcessService,
 		@IWorkbenchAssignmentService private readonly experimentService: IWorkbenchAssignmentService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
-		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@IChatUtilityModelService private readonly chatUtilityModelService: IChatUtilityModelService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -113,6 +114,9 @@ export class IssueReporterEditorPane extends EditorPane {
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
 		super(IssueReporterEditorPane.ID, group, telemetryService, themeService, storageService);
 		IssueReporterEditorPane.liveInstances.add(this);
@@ -161,6 +165,7 @@ export class IssueReporterEditorPane extends EditorPane {
 
 		// If the wizard is already built and its DOM is still attached, re-parent floating bar if needed
 		if (this.wizard && this.wizardInput === input && this.container.contains(this.wizard.getPanel())) {
+			this.bindInputCallbacks(input, this.wizard);
 			this.wizard.reparentFloatingBar();
 			this.wizard.showFloatingBar();
 			this.wizard.setUpdateAvailable(this.shouldShowUpdateBanner());
@@ -183,20 +188,21 @@ export class IssueReporterEditorPane extends EditorPane {
 		}
 
 		// Create the wizard — renders inside this container
-		this.wizard = new IssueReporterOverlay(
+		this.wizard = this.instantiationService.createInstance(IssueReporterOverlay,
 			data,
+			input.descriptionModel,
 			this.recordingService.isSupported,
 			this.container,
 			this.contextViewService,
-			(repo, title, signal) => this.issueFormService.searchGitHubIssues(repo, title, signal),
 			this.contextMenuService,
-			this.markdownRendererService,
 			true,
 			extensionId => this.issueFormService.sendReporterMenu(extensionId),
 			async url => { await this.openerService.open(URI.parse(url), { openExternal: true }); },
 			this.shouldShowUpdateBanner(),
 			() => this.refreshPerformanceInfo(),
 			commandId => this.keybindingService.lookupKeybinding(commandId),
+			input.diagnosticsState,
+			this.layoutService.getContainer(mainWindow),
 		);
 		this.inputDisposables.add(this.wizard);
 		const wizard = this.wizard;
@@ -207,8 +213,7 @@ export class IssueReporterEditorPane extends EditorPane {
 		}));
 		this.inputDisposables.add(this.updateService.onStateChange(() => this.wizard?.setUpdateAvailable(this.shouldShowUpdateBanner())));
 
-		// Let the input check wizard state for close confirmation
-		input.hasUserInputFn = () => this.wizard?.hasUnsavedChanges() ?? false;
+		this.bindInputCallbacks(input, wizard);
 
 		// Close the editor tab when the user discards
 		this.inputDisposables.add(this.wizard.onDidClose(() => {
@@ -222,6 +227,7 @@ export class IssueReporterEditorPane extends EditorPane {
 		}));
 
 		this.wizard.show();
+		this.wizard.restoreDescriptionViewState(input.descriptionViewState);
 
 		// Restore attachments mirrored onto the input before a move, and keep the
 		// input in sync as attachments change so they survive the wizard being
@@ -229,15 +235,14 @@ export class IssueReporterEditorPane extends EditorPane {
 		// editor part in the Agents Window.
 		this.restoreAttachmentsFromInput(input);
 		this.inputDisposables.add(wizard.onDidChangeAttachments(() => {
-			input.savedScreenshots = wizard.getScreenshots().slice();
-			input.savedRecordings = wizard.getRecordings().slice();
+			input.savedAttachments = wizard.getAttachments();
 		}));
 
 		// Populate system info in background (non-blocking)
 		void this.populateSystemInfo();
 
 		// Wire screenshot capture
-		this.inputDisposables.add(wizard.onDidRequestScreenshot(async () => {
+		this.inputDisposables.add(wizard.onDidRequestScreenshot(async id => {
 			const isCurrent = () => this.wizard === wizard && !mediaCancellation.token.isCancellationRequested;
 			try {
 				// Conditionally hide the floating bar based on user setting
@@ -264,7 +269,7 @@ export class IssueReporterEditorPane extends EditorPane {
 				if (!isCurrent()) {
 					return;
 				}
-				wizard.addScreenshot({ dataUrl, ...dimensions });
+				wizard.addScreenshot({ dataUrl, ...dimensions }, id);
 
 				// Bring the wizard back into focus after the capture in case
 				// the user switched editors/groups while setting up the shot.
@@ -275,7 +280,7 @@ export class IssueReporterEditorPane extends EditorPane {
 					this.logService.error('[IssueReporterEditorPane] Screenshot failed:', err);
 				}
 			} finally {
-				wizard.completeScreenshotCapture();
+				wizard.completeScreenshotCapture(id);
 			}
 		}));
 
@@ -301,49 +306,28 @@ export class IssueReporterEditorPane extends EditorPane {
 			}
 		}));
 
-		// Wire open screenshot — save to temp file and open in editor
-		this.inputDisposables.add(this.wizard.onDidRequestOpenScreenshot(async (screenshot) => {
+		this.inputDisposables.add(this.wizard.onDidRequestOpenFile(async (filePath) => {
 			try {
-				const dataUrl = screenshot.annotatedDataUrl ?? screenshot.dataUrl;
-				const commaIndex = dataUrl.indexOf(',');
-				if (commaIndex === -1) {
-					return;
-				}
-				const format = getIssueReporterMediaFormat('', dataUrl.slice(5, commaIndex).split(';', 1)[0]);
-				if (!format || format.kind !== 'image') {
-					return;
-				}
-				// Write to the OS temp folder so artifacts are cleaned up automatically.
-				const folder = URI.joinPath(this.environmentService.tmpDir, 'issue-screenshots');
-				const target = URI.joinPath(folder, `screenshot-${Date.now()}.${format.extension}`);
-				await this.fileService.createFolder(folder);
-				await this.fileService.writeFile(target, decodeBase64(dataUrl.substring(commaIndex + 1)));
-				await this.editorService.openEditor({ resource: target });
-			} catch (err) {
-				this.logService.error('[IssueReporterEditorPane] Open screenshot failed:', err);
-			}
-		}));
-
-		// Wire open recording — open file in editor
-		this.inputDisposables.add(this.wizard.onDidRequestOpenRecording(async (filePath) => {
-			try {
+				const resource = URI.file(filePath);
+				await this.filesConfigurationService.updateReadonly(resource, new MarkdownString(localize('attachmentReadonly', "Issue reporter attachments are read-only. Edit the original file and attach it again.")));
 				const isQuickTime = getIssueReporterMediaFormat(filePath)?.mimeType === 'video/quicktime';
-				await this.editorService.openEditor({ resource: URI.file(filePath), ...(isQuickTime ? { options: { override: 'vscode.videoPreview' } } : {}) });
+				await this.editorService.openEditor({ resource, ...(isQuickTime ? { options: { override: 'vscode.videoPreview' } } : {}) });
 			} catch (err) {
-				this.logService.error('[IssueReporterEditorPane] Open recording failed:', err);
+				this.logService.error('[IssueReporterEditorPane] Open attachment failed:', err);
+				this.notificationService.error(localize('attachmentPreviewFailed', "Could not open the attachment: {0}", toErrorMessage(err)));
 			}
 		}));
 
 		// Wire submit — delegate to form service for upload + open URL
-		this.inputDisposables.add(this.wizard.onDidSubmit(async ({ title, body }) => {
-			if (!this.wizard) {
+		this.inputDisposables.add(wizard.onDidSubmit(async ({ title, body }) => {
+			if (this.wizard !== wizard) {
 				return;
 			}
-			const opened = await this.issueFormService.submitIssue(this.wizard, data, title, body);
-			if (opened) {
+			const opened = await this.issueFormService.submitIssue(wizard, data, title, body);
+			if (opened && this.wizard === wizard) {
 				// User opened the link — keep the wizard editable, but offer an explicit close action.
-				this.wizard.markPreviewOpened();
-				this.wizard.showCloseButton();
+				wizard.markPreviewOpened();
+				wizard.showCloseButton();
 			}
 		}));
 
@@ -402,51 +386,41 @@ export class IssueReporterEditorPane extends EditorPane {
 		return this.userDataProfilesService.defaultProfile.globalStorageHome.with({ scheme: Schemas.file });
 	}
 
-	protected readAttachmentVideo(file: URI, token: CancellationToken): Promise<IIssueReporterVideoMetadata> {
-		return readIssueReporterVideo(FileAccess.uriToBrowserUri(file).toString(true), token);
-	}
-
-	protected async importAttachments(files: readonly File[], wizard: IssueReporterOverlay, input: IssueReporterEditorInput, token: CancellationToken): Promise<void> {
+	protected async importAttachments(files: readonly IIssueReporterAttachmentImport[], wizard: IssueReporterOverlay, input: IssueReporterEditorInput, token: CancellationToken): Promise<void> {
 		const isCurrent = () => this.wizard === wizard && this.wizardInput === input && !input.isDisposed() && !token.isCancellationRequested;
-		for (const file of files) {
+		for (const { id, file } of files) {
 			let target: URI | undefined;
 			try {
 				if (!isCurrent()) {
 					throw new CancellationError();
 				}
-				const { format, bytes, durationMs } = await readIssueReporterMediaFile(file, token);
+				const { format, bytes } = await readIssueReporterMediaFile(file, token);
 				if (!isCurrent()) {
 					throw new CancellationError();
 				}
-				let attachment: ImportedIssueMedia;
-				if (format.kind === 'image') {
-					const dataUrl = `data:${format.mimeType};base64,${encodeBase64(bytes)}`;
-					attachment = { kind: 'image', image: { dataUrl, ...await this.readAttachmentImage(dataUrl, token) } };
-				} else {
-					const folder = URI.joinPath(this.mediaStorageHome, 'issue-attachments');
-					await this.fileService.createFolder(folder);
-					if (!isCurrent()) {
-						throw new CancellationError();
-					}
-					target = URI.joinPath(folder, `import-${generateUuid()}.${format.extension}`);
-					await this.fileService.writeFile(target, bytes);
-					if (!isCurrent()) {
-						throw new CancellationError();
-					}
-					const metadata = await this.readAttachmentVideo(target, token);
-					attachment = { kind: 'video', video: { filePath: target.fsPath, ...metadata, durationMs: format.mimeType === 'video/webm' ? durationMs : metadata.durationMs } };
-				}
+				const folder = URI.joinPath(this.mediaStorageHome, 'issue-attachments');
+				await this.fileService.createFolder(folder);
 				if (!isCurrent()) {
 					throw new CancellationError();
 				}
-				const added = wizard.completeAttachmentImport(attachment);
+				target = URI.joinPath(folder, `import-${generateUuid()}.${format.extension}`);
+				await this.fileService.writeFile(target, bytes);
+				if (!isCurrent()) {
+					throw new CancellationError();
+				}
+				const added = wizard.completeAttachmentImport(id, {
+					filePath: target.fsPath,
+					name: file.name || `attachment.${format.extension}`,
+					mimeType: format.mimeType,
+					thumbnailDataUrl: format.kind === 'image' ? `data:${format.mimeType};base64,${encodeBase64(bytes)}` : undefined,
+				});
 				if (added && target) {
 					const ownedFile = target;
-					input.registerImportedFile(ownedFile.fsPath, importedFileCleanup(ownedFile, this.fileService, this.logService));
+					input.registerImportedFile(ownedFile.fsPath, importedFileCleanup(ownedFile, this.fileService, this.filesConfigurationService, this.logService));
 					target = undefined;
 				}
 			} catch (error) {
-				wizard.completeAttachmentImport(undefined, isCurrent() && !isCancellationError(error)
+				wizard.completeAttachmentImport(id, undefined, isCurrent() && !isCancellationError(error)
 					? localize('attachmentImportFailed', "Could not attach {0}: {1}", file.name || localize('unnamedAttachment', "Clipboard attachment"), toErrorMessage(error))
 					: undefined);
 			} finally {
@@ -543,16 +517,34 @@ export class IssueReporterEditorPane extends EditorPane {
 		}
 	}
 
+	private bindInputCallbacks(input: IssueReporterEditorInput, wizard: IssueReporterOverlay): void {
+		const hasUserInput = () => wizard.hasUnsavedChanges();
+		const hasPendingOperations = () => wizard.hasPendingOperations();
+		this.inputStateCallbacks.value = toDisposable(() => {
+			if (input.hasUserInputFn === hasUserInput) {
+				input.hasUserInputFn = undefined;
+			}
+			if (input.hasPendingOperationsFn === hasPendingOperations) {
+				input.hasPendingOperationsFn = undefined;
+			}
+		});
+		input.hasUserInputFn = hasUserInput;
+		input.hasPendingOperationsFn = hasPendingOperations;
+	}
+
 	private restoreAttachmentsFromInput(input: IssueReporterEditorInput): void {
 		if (!this.wizard) {
 			return;
 		}
-		if (input.savedScreenshots !== undefined || input.savedRecordings !== undefined) {
-			this.wizard.restoreAttachments(input.savedScreenshots ?? [], input.savedRecordings ?? []);
+		if (input.savedAttachments !== undefined) {
+			this.wizard.restoreAttachments(input.savedAttachments);
 		}
 	}
 
 	private destroyWizard(): void {
+		if (this.wizard && this.wizardInput) {
+			this.wizardInput.descriptionViewState = this.wizard.saveDescriptionViewState();
+		}
 		this.recordingGeneration++;
 		this.pendingRecordingStart = undefined;
 		this.pendingRecordingStop = undefined;
@@ -560,6 +552,7 @@ export class IssueReporterEditorPane extends EditorPane {
 			this.recordingService.discardRecording();
 		}
 		this.recordingOwner = undefined;
+		this.inputStateCallbacks.clear();
 		this.inputDisposables.clear();
 		this.wizard = undefined;
 		this.wizardInput = undefined;
@@ -783,9 +776,9 @@ export class IssueReporterEditorPane extends EditorPane {
 			// the vscode-file:// protocol which the renderer can load.
 			const thumbnailDataUrl = await this.generateVideoThumbnail(target);
 			if (this.wizard === wizard) {
-				if (wizard.addRecording(target.fsPath, data.durationMs, thumbnailDataUrl)) {
+				if (wizard.addRecording({ filePath: target.fsPath, name: fileName, mimeType: data.mimeType, durationMs: data.durationMs, thumbnailDataUrl })) {
 					const ownedFile = target;
-					input.registerImportedFile(ownedFile.fsPath, importedFileCleanup(ownedFile, this.fileService, this.logService));
+					input.registerImportedFile(ownedFile.fsPath, importedFileCleanup(ownedFile, this.fileService, this.filesConfigurationService, this.logService));
 					target = undefined;
 				} else {
 					this.notificationService.warn(localize('recordingAttachmentRejected', "The recording could not be attached because the attachment limit was reached. Remove an attachment and record again."));
@@ -874,12 +867,16 @@ export class IssueReporterEditorPane extends EditorPane {
 		if (this.container) {
 			this.container.style.width = `${dimension.width}px`;
 			this.container.style.height = `${dimension.height}px`;
+			this.wizard?.layout();
 		}
 	}
 }
 
-function importedFileCleanup(file: URI, fileService: IFileService, logService: ILogService): IDisposable {
-	return toDisposable(() => { void deleteImportedFile(file, fileService, logService); });
+function importedFileCleanup(file: URI, fileService: IFileService, filesConfigurationService: IFilesConfigurationService, logService: ILogService): IDisposable {
+	return toDisposable(() => {
+		void filesConfigurationService.updateReadonly(file, 'reset').catch(error => logService.warn('[IssueReporterEditorPane] Failed to release attachment read-only state:', error));
+		void deleteImportedFile(file, fileService, logService);
+	});
 }
 
 async function deleteImportedFile(file: URI, fileService: IFileService, logService: ILogService): Promise<void> {

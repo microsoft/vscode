@@ -7,7 +7,7 @@ import assert from 'assert';
 import { spy } from 'sinon';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
-import { decodeBase64, encodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
+import { decodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
@@ -20,31 +20,41 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ipcRenderer } from '../../../../../base/parts/sandbox/electron-browser/globals.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
+import { Selection } from '../../../../../editor/common/core/selection.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
-import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IFileContent, IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
-import { _util } from '../../../../../platform/instantiation/common/instantiation.js';
-import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IInstantiationService, _util } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { INotificationService, NoOpNotification } from '../../../../../platform/notification/common/notification.js';
+import product from '../../../../../platform/product/common/product.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
+import { IUserInteractionService } from '../../../../../platform/userInteraction/browser/userInteractionService.js';
+import { UserInteractionService } from '../../../../../platform/userInteraction/browser/userInteractionServiceImpl.js';
 import { IUpdateService, StateType } from '../../../../../platform/update/common/update.js';
 import { IUserDataProfile, IUserDataProfilesService } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
+import { TestLayoutService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { NullFilesConfigurationService } from '../../../../test/common/workbenchTestServices.js';
 import { IUntypedEditorInput } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
-import { INativeWorkbenchEnvironmentService } from '../../../../services/environment/electron-browser/environmentService.js';
 import { IssueReporterEditorInput } from '../../browser/issueReporterEditorInput.js';
-import { getIssueReporterMediaFormat, IIssueReporterVideoMetadata, MAX_ISSUE_IMAGE_BYTES, MAX_ISSUE_VIDEO_BYTES, readIssueReporterVideo } from '../../browser/issueReporterMedia.js';
-import { IssueReporterOverlay } from '../../browser/issueReporterOverlay.js';
+import { getIssueReporterMediaFormat, MAX_ISSUE_FILE_BYTES, MAX_ISSUE_IMAGE_BYTES, MAX_ISSUE_VIDEO_BYTES } from '../../browser/issueReporterMedia.js';
+import { IIssueReporterAttachmentImport, IScreenshot, IssueReporterOverlay } from '../../browser/issueReporterOverlay.js';
 import { IRecordingData, IRecordingService, RecordingState, ScreenCapturePermissionStatus } from '../../browser/recordingService.js';
 import { IScreenshotService } from '../../browser/screenshotService.js';
-import { IIssueFormService, IssueReporterData, IssueSource, IssueType } from '../../common/issue.js';
+import { IIssueFormService, IssueReporterAttachment, IssueReporterData, IssueSource, IssueType } from '../../common/issue.js';
+import { resolveIssueReporterTarget } from '../../common/issueReporterTarget.js';
+import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { IssueReporterEditorPane } from '../../electron-browser/issueReporterEditorPane.js';
 import { issueReporterImageFixture, issueReporterVideoFixtures } from '../common/issueReporterMediaFixtures.js';
 
@@ -94,17 +104,12 @@ class MediaFileService extends mock<IFileService>() {
 class MediaTestPane extends IssueReporterEditorPane {
 	readonly imports: Promise<void>[] = [];
 	readonly decoding = new DeferredPromise<void>();
-	videoDecoder: (resource: URI, token: CancellationToken) => Promise<IIssueReporterVideoMetadata> = async () => ({ width: 48, height: 32, durationMs: 500, thumbnailDataUrl: issueReporterImageFixture });
 	imageDecoder: ((dataUrl: string, token: CancellationToken) => Promise<{ width: number; height: number }>) | undefined;
 	thumbnailDecoder: ((resource: URI) => Promise<string | undefined>) | undefined;
+	thumbnailRequests = 0;
 
 	mount(parent: HTMLElement): void {
 		this.createEditor(parent);
-	}
-
-	protected override readAttachmentVideo(resource: URI, token: CancellationToken): Promise<IIssueReporterVideoMetadata> {
-		void this.decoding.complete();
-		return this.videoDecoder(resource, token);
 	}
 
 	protected override readAttachmentImage(dataUrl: string, token: CancellationToken): Promise<{ width: number; height: number }> {
@@ -113,10 +118,11 @@ class MediaTestPane extends IssueReporterEditorPane {
 	}
 
 	protected override async generateVideoThumbnail(resource: URI): Promise<string | undefined> {
+		this.thumbnailRequests++;
 		return this.thumbnailDecoder ? this.thumbnailDecoder(resource) : issueReporterImageFixture;
 	}
 
-	protected override importAttachments(files: readonly File[], wizard: IssueReporterOverlay, input: IssueReporterEditorInput, token: CancellationToken): Promise<void> {
+	protected override importAttachments(files: readonly IIssueReporterAttachmentImport[], wizard: IssueReporterOverlay, input: IssueReporterEditorInput, token: CancellationToken): Promise<void> {
 		const operation = super.importAttachments(files, wizard, input, token);
 		this.imports.push(operation);
 		return operation;
@@ -131,6 +137,7 @@ class InstrumentedMediaFile extends File {
 	reads = 0;
 	readonly reading = new DeferredPromise<void>();
 	readGate: DeferredPromise<void> | undefined;
+	readError: Error | undefined;
 	reportedSize: number | undefined;
 
 	override get size(): number {
@@ -141,6 +148,9 @@ class InstrumentedMediaFile extends File {
 		this.reads++;
 		void this.reading.complete();
 		await this.readGate?.p;
+		if (this.readError) {
+			throw this.readError;
+		}
 		return super.arrayBuffer();
 	}
 }
@@ -199,6 +209,13 @@ class MediaRecordingService extends mock<IRecordingService>() {
 suite('Issue reporter media import lifecycle', () => {
 	/* eslint-disable local/code-no-bracket-notation-for-identifiers -- Pass typed File fakes through the same reservation seam as paste/drop. */
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	function savedFiles(input: IssueReporterEditorInput) {
+		return input.savedAttachments?.flatMap(attachment => attachment.kind === 'file' ? [attachment.file] : []);
+	}
+
+	function capturedScreenshots(count: number): IssueReporterAttachment<IScreenshot>[] {
+		return Array.from({ length: count }, (_, index) => ({ id: `screenshot-${index}`, kind: 'screenshot', screenshot: { dataUrl: issueReporterImageFixture, width: 48, height: 32 } }));
+	}
 	const data: IssueReporterData = {
 		styles: {}, zoomLevel: 0, enabledExtensions: [], restrictedMode: false,
 		isInstallationPure: true, isSessionsWindow: false, githubAccessToken: '',
@@ -217,14 +234,19 @@ suite('Issue reporter media import lifecycle', () => {
 		return ipcRenderer.invoke('vscode:test-file-resource', FileAccess.uriToBrowserUri(resource).toString(true), protocolRoots) as Promise<INativeResourceAccess>;
 	}
 
-	function createInput(): IssueReporterEditorInput {
-		return store.add(new IssueReporterEditorInput({ ...data }, new class extends mock<IDialogService>() { }()));
+	function createInput(overrides: Partial<IssueReporterData> = {}): IssueReporterEditorInput {
+		const instantiation = workbenchInstantiationService(undefined, store);
+		return store.add(instantiation.createInstance(IssueReporterEditorInput, { ...data, ...overrides }));
 	}
 
-	async function createPane(input = createInput(), files = new MediaFileService(), recording?: IRecordingService) {
-		const instantiation = store.add(new TestInstantiationService());
+	async function createPane(input = createInput(), files = new MediaFileService(), recording?: IRecordingService, filesConfigurationService: IFilesConfigurationService = NullFilesConfigurationService) {
+		const instantiation = workbenchInstantiationService(undefined, store);
+		instantiation.stub(IConfigurationService, new TestConfigurationService({ 'editor.editContext': false }));
+		instantiation.stub(IUserInteractionService, new UserInteractionService());
 		for (const dependency of _util.getServiceDependencies(IssueReporterEditorPane as typeof IssueReporterEditorPane & _util.DI_TARGET_OBJ)) {
-			instantiation.stub(dependency.id, {});
+			if (dependency.id !== IInstantiationService && dependency.id !== IConfigurationService && dependency.id !== IKeybindingService) {
+				instantiation.stub(dependency.id, {});
+			}
 		}
 		const submit = spy(async () => false);
 		const openEditor = spy(async (_input: EditorInput | IUntypedEditorInput) => undefined);
@@ -242,7 +264,7 @@ suite('Issue reporter media import lifecycle', () => {
 		});
 		instantiation.stub(IScreenshotService, { captureScreenshot: async () => issueReporterImageFixture });
 		instantiation.stub(IFileService, files);
-		instantiation.stub(INativeWorkbenchEnvironmentService, { tmpDir });
+		instantiation.stub(IFilesConfigurationService, filesConfigurationService);
 		instantiation.stub(IUserDataProfilesService, {
 			defaultProfile: new class extends mock<IUserDataProfile>() {
 				override readonly globalStorageHome = globalStorageHome.with({ scheme: Schemas.vscodeUserData });
@@ -250,22 +272,29 @@ suite('Issue reporter media import lifecycle', () => {
 		});
 		instantiation.stub(IContextViewService, { getContextViewElement: () => mainWindow.document.createElement('div') });
 		instantiation.stub(IMarkdownRendererService, { render: () => ({ element: mainWindow.document.createElement('div'), dispose: () => { } }) });
-		instantiation.stub(IIssueFormService, { searchGitHubIssues: async () => [], submitIssue: submit });
-		instantiation.stub(IKeybindingService, { lookupKeybinding: () => undefined });
+		instantiation.stub(IIssueFormService, { submitIssue: submit });
 		instantiation.stub(IUpdateService, { state: { type: StateType.Uninitialized }, onStateChange: Event.None });
 		instantiation.stub(IEditorService, { openEditor });
 		instantiation.stub(IEditorGroupsService, { activateGroup: () => group });
 		const container = mainWindow.document.createElement('div');
+		container.style.width = '800px';
+		container.style.height = '900px';
 		mainWindow.document.body.appendChild(container);
 		store.add(toDisposable(() => container.remove()));
+		instantiation.stub(IWorkbenchLayoutService, new class extends TestLayoutService {
+			override getContainer(): HTMLElement { return container; }
+		}());
 		const pane = store.add(instantiation.createInstance(MediaTestPane, group));
 		pane.mount(container);
 		await pane.setInput(input, undefined, {}, CancellationToken.None);
-		return { pane, input, files, container, submit, openEditor, errors, warnings };
+		const editor = container.querySelector<HTMLTextAreaElement>('textarea.inputarea')!;
+		const model = input.descriptionModel;
+		const widget = instantiation.get(ICodeEditorService).listCodeEditors().find(editor => editor.getModel() === model)!;
+		return { pane, input, files, container, submit, openEditor, errors, warnings, editor, widget, model };
 	}
 
-	function image(): InstrumentedMediaFile {
-		return new InstrumentedMediaFile([new Uint8Array(decodeBase64(issueReporterImageFixture.split(',')[1]).buffer)], 'image.png', { type: 'image/png' });
+	function image(name = 'image.png'): InstrumentedMediaFile {
+		return new InstrumentedMediaFile([new Uint8Array(decodeBase64(issueReporterImageFixture.split(',')[1]).buffer)], name, { type: 'image/png' });
 	}
 
 	function video(name = 'clip.mp4', type = 'video/mp4'): InstrumentedMediaFile {
@@ -279,6 +308,74 @@ suite('Issue reporter media import lifecycle', () => {
 		return { blob, mimeType: blob.type, durationMs: 500, sizeBytes: blob.size };
 	}
 
+	test('allocates one Markdown model for ten matching reporter candidates and disposes it with the used input', () => {
+		const instantiation = workbenchInstantiationService(undefined, store);
+		const modelService = instantiation.get(IModelService);
+		const before = modelService.getModels().length;
+		const candidates = Array.from({ length: 10 }, () => store.add(instantiation.createInstance(IssueReporterEditorInput, { ...data })));
+		const unused = modelService.getModels().length - before;
+		const editors: IssueReporterEditorInput[] = [];
+		for (const candidate of candidates) {
+			const selected = editors.find(input => input.matches(candidate)) ?? candidate;
+			if (selected === candidate) {
+				editors.push(selected);
+			}
+			selected.descriptionModel.getValue();
+		}
+		const used = modelService.getModels().length - before;
+		candidates.forEach(candidate => candidate.dispose());
+		assert.deepStrictEqual({ unused, editors: editors.length, used, remaining: modelService.getModels().length - before }, { unused: 0, editors: 1, used: 1, remaining: 0 });
+	});
+
+	test('opens generic copies read-only with an explanation and retains that state until input disposal', async () => {
+		const services = workbenchInstantiationService({}, store);
+		const readonlyService = services.get(IFilesConfigurationService);
+		const first = await createPane(createInput(), new MediaFileService(), undefined, readonlyService);
+		const file = new File(['original text'], 'notes.txt', { type: 'text/plain' });
+		first.pane.getWizard()!['requestAddAttachments']([file]);
+		await first.pane.waitForImports();
+		const resource = URI.file(savedFiles(first.input)![0].filePath);
+		first.container.querySelector<HTMLElement>('.wizard-file-card')!.click();
+		await Promise.resolve();
+		const state = readonlyService.isReadonly(resource);
+		const message = typeof state === 'object' ? state.value : undefined;
+		first.pane.dispose();
+		const retained = !!readonlyService.isReadonly(resource);
+		const second = await createPane(first.input, first.files, undefined, readonlyService);
+		const restored = savedFiles(second.input)?.[0].name;
+		first.input.dispose();
+		assert.deepStrictEqual({
+			message, opened: first.openEditor.callCount, retained, restored,
+			released: readonlyService.isReadonly(resource), original: readonlyService.isReadonly(URI.file('/user-files/notes.txt')),
+		}, { message: 'Issue reporter attachments are read-only. Edit the original file and attach it again.', opened: 1, retained: true, restored: 'notes.txt', released: false, original: false });
+	});
+
+	test('persists Marketplace category normalization across pane rebuilds', async () => {
+		const first = await createPane();
+		first.container.querySelector<HTMLElement>(`[data-type="${IssueType.PerformanceIssue}"]`)!.click();
+		first.container.querySelector<HTMLElement>('[data-source="marketplace"]')!.click();
+		const persisted = first.input.data?.issueType;
+		first.pane.dispose();
+		const second = await createPane(first.input, first.files);
+		second.container.querySelector<HTMLElement>('.wizard-preview')!.click();
+		assert.deepStrictEqual({
+			persisted, restored: second.input.data?.issueType,
+			selected: second.container.querySelector('.wizard-type-btn.selected[data-type]')?.getAttribute('data-type'),
+			performanceHidden: second.container.querySelector(`[data-type="${IssueType.PerformanceIssue}"]`)?.classList.contains('hidden'),
+			submitted: second.submit.callCount,
+		}, { persisted: IssueType.Bug, restored: IssueType.Bug, selected: String(IssueType.Bug), performanceHidden: true, submitted: 1 });
+	});
+
+	test('normalizes unsupported restored categories and restores all options when the source changes', async () => {
+		const { input, container } = await createPane(createInput({ issueSource: IssueSource.Marketplace, issueType: IssueType.PerformanceIssue }));
+		const restored = input.data?.issueType;
+		container.querySelector<HTMLElement>('[data-source="vscode"]')!.click();
+		const performance = container.querySelector<HTMLElement>(`[data-type="${IssueType.PerformanceIssue}"]`)!;
+		const available = !performance.classList.contains('hidden');
+		performance.click();
+		assert.deepStrictEqual({ restored, available, selected: input.data?.issueType }, { restored: IssueType.Bug, available: true, selected: IssueType.PerformanceIssue });
+	});
+
 	test('stores imported videos inside the native protocol global storage root and deletes only owned copies', async () => {
 		const { pane, input, files } = await createPane();
 		const originals = ['mp4', 'webm', 'mov'].map(extension => URI.file(`/user-videos/original.${extension}`));
@@ -287,20 +384,18 @@ suite('Issue reporter media import lifecycle', () => {
 			files.files.set(original, VSBuffer.fromString('untouched'));
 		}
 		const accesses: { status: number; pathMatches: boolean }[] = [];
-		const decode = pane.videoDecoder;
-		pane.videoDecoder = async (resource, token) => {
-			const access = await checkNativeResourceAccess(resource);
-			accesses.push({ status: access.status, pathMatches: access.path === resource.fsPath });
-			assert.strictEqual(access.status, 200, access.errors.join('\n'));
-			return decode(resource, token);
-		};
 		pane.getWizard()!['requestAddAttachments']([
 			video(originals[0].fsPath),
 			video(originals[1].fsPath, 'video/webm'),
 			video(originals[2].fsPath, 'video/quicktime'),
 		]);
 		await pane.waitForImports();
-		const attached = input.savedRecordings?.length;
+		for (const resource of files.writes) {
+			const access = await checkNativeResourceAccess(resource);
+			accesses.push({ status: access.status, pathMatches: access.path === resource.fsPath });
+			assert.strictEqual(access.status, 200, access.errors.join('\n'));
+		}
+		const attached = savedFiles(input)?.length;
 		input.dispose();
 		assert.deepStrictEqual({
 			accesses,
@@ -364,7 +459,7 @@ suite('Issue reporter media import lifecycle', () => {
 			pane.dispose();
 			const survivedPane = files.files.has(owned);
 			const second = await createPane(input, files);
-			const restored = second.pane.getWizard()!.getRecordings().map(recording => recording.filePath);
+			const restored = second.pane.getWizard()!.getFileAttachments().map(recording => recording.filePath);
 			input.dispose();
 			assert.deepStrictEqual({
 				accesses,
@@ -398,7 +493,7 @@ suite('Issue reporter media import lifecycle', () => {
 			recording.result = recordingData();
 			const { pane, files, errors, warnings } = await createPane(createInput(), new MediaFileService(), recording);
 			const wizard = pane.getWizard()!;
-			wizard.restoreAttachments(Array.from({ length: 4 }, () => ({ dataUrl: issueReporterImageFixture, width: 48, height: 32 })), []);
+			wizard.restoreAttachments(capturedScreenshots(4));
 			if (phase === 'permission') {
 				wizard['captureStripRecordBtn']!.element.click();
 			} else {
@@ -422,10 +517,10 @@ suite('Issue reporter media import lifecycle', () => {
 			wizard.triggerToggleRecording();
 			await pane['pendingRecordingStop'];
 			assert.deepStrictEqual({
-				screenshots: wizard.getScreenshots().length, recordings: wizard.getRecordings().length,
+				screenshots: wizard.getScreenshots().length, recordings: wizard.getFileAttachments().length,
 				state: wizard.recordingState, occupied: wizard['getOccupiedAttachmentSlots'](),
 				starts: recording.starts, writes: files.writes.length, files: files.files.size,
-				attachedFile: wizard.getRecordings()[0].filePath, errors, warnings,
+				attachedFile: wizard.getFileAttachments()[0].filePath, errors, warnings,
 			}, { screenshots: 4, recordings: 1, state: RecordingState.Idle, occupied: 5, starts: 1, writes: 1, files: 1, attachedFile: files.writes[0].fsPath, errors: [], warnings: [] });
 		});
 	}
@@ -443,7 +538,7 @@ suite('Issue reporter media import lifecycle', () => {
 			}
 			const { pane, files } = await createPane(createInput(), new MediaFileService(), recording);
 			const wizard = pane.getWizard()!;
-			wizard.restoreAttachments(Array.from({ length: 4 }, () => ({ dataUrl: issueReporterImageFixture, width: 48, height: 32 })), []);
+			wizard.restoreAttachments(capturedScreenshots(4));
 			wizard.triggerToggleRecording();
 			const starting = pane['pendingRecordingStart']!;
 			await (outcome === 'denial' ? recording.permissionRequested.p : recording.startRequested.p);
@@ -457,7 +552,7 @@ suite('Issue reporter media import lifecycle', () => {
 			}, { occupied: 4, state: RecordingState.Idle, recordEnabled: true });
 			wizard['requestAddAttachments']([image()]);
 			await pane.waitForImports();
-			assert.deepStrictEqual({ screenshots: wizard.getScreenshots().length, writes: files.writes }, { screenshots: 5, writes: [] });
+			assert.deepStrictEqual({ screenshots: wizard.getScreenshots().length, attachments: wizard.getFileAttachments().length, writes: files.writes.length }, { screenshots: 4, attachments: 1, writes: 1 });
 		});
 	}
 
@@ -480,7 +575,7 @@ suite('Issue reporter media import lifecycle', () => {
 			await starting;
 			assert.deepStrictEqual({
 				reserved: wizard['recordingSlotReserved'], state: recording.state,
-				recordings: wizard.getRecordings(), writes: files.writes,
+				recordings: wizard.getFileAttachments(), writes: files.writes,
 				discards: recording.discards,
 			}, { reserved: false, state: RecordingState.Idle, recordings: [], writes: [], discards: phase === 'start' ? 1 : 0 });
 		});
@@ -491,7 +586,7 @@ suite('Issue reporter media import lifecycle', () => {
 		recording.permissionGate = new DeferredPromise<void>();
 		const { pane } = await createPane(createInput(), new MediaFileService(), recording);
 		const wizard = pane.getWizard()!;
-		wizard.restoreAttachments(Array.from({ length: 4 }, () => ({ dataUrl: issueReporterImageFixture, width: 48, height: 32 })), []);
+		wizard.restoreAttachments(capturedScreenshots(4));
 		wizard.triggerToggleRecording();
 		const starting = pane['pendingRecordingStart']!;
 		await recording.permissionRequested.p;
@@ -500,7 +595,7 @@ suite('Issue reporter media import lifecycle', () => {
 		await pane.waitForImports();
 		await recording.permissionGate.complete();
 		await starting;
-		assert.deepStrictEqual({ screenshots: wizard.getScreenshots().length, occupied: wizard['getOccupiedAttachmentSlots'](), starts: recording.starts }, { screenshots: 5, occupied: 5, starts: 0 });
+		assert.deepStrictEqual({ screenshots: wizard.getScreenshots().length, attachments: wizard.getFileAttachments().length, occupied: wizard['getOccupiedAttachmentSlots'](), starts: recording.starts }, { screenshots: 4, attachments: 1, occupied: 5, starts: 0 });
 	});
 
 	test('MR-3 retains the reserved slot when the recording stops before startup resolves', async () => {
@@ -509,11 +604,11 @@ suite('Issue reporter media import lifecycle', () => {
 		recording.result = recordingData();
 		const { pane, files } = await createPane(createInput(), new MediaFileService(), recording);
 		const wizard = pane.getWizard()!;
-		wizard.restoreAttachments(Array.from({ length: 4 }, () => ({ dataUrl: issueReporterImageFixture, width: 48, height: 32 })), []);
+		wizard.restoreAttachments(capturedScreenshots(4));
 		wizard.triggerToggleRecording();
 		await pane['pendingRecordingStart'];
 		assert.deepStrictEqual({
-			recordings: wizard.getRecordings().length, occupied: wizard['getOccupiedAttachmentSlots'](),
+			recordings: wizard.getFileAttachments().length, occupied: wizard['getOccupiedAttachmentSlots'](),
 			state: wizard.recordingState, writes: files.writes.length,
 		}, { recordings: 1, occupied: 5, state: RecordingState.Idle, writes: 1 });
 	});
@@ -525,11 +620,11 @@ suite('Issue reporter media import lifecycle', () => {
 		const wizard = pane.getWizard()!;
 		wizard.triggerToggleRecording();
 		await pane['pendingRecordingStart'];
-		wizard.restoreAttachments(Array.from({ length: 5 }, () => ({ dataUrl: issueReporterImageFixture, width: 48, height: 32 })), []);
+		wizard.restoreAttachments(capturedScreenshots(5));
 		wizard.triggerToggleRecording();
 		await pane['pendingRecordingStop'];
 		assert.deepStrictEqual({
-			recordings: wizard.getRecordings(), files: files.files.size, removed: files.deletions,
+			recordings: wizard.getFileAttachments(), files: files.files.size, removed: files.deletions,
 			warnings: warnings.length, explained: warnings[0]?.includes('attachment limit'),
 		}, { recordings: [], files: 0, removed: files.writes, warnings: 1, explained: true });
 	});
@@ -548,23 +643,23 @@ suite('Issue reporter media import lifecycle', () => {
 		pane.dispose();
 		await files.writeGate.complete();
 		await stopping;
-		assert.deepStrictEqual({ recordings: wizard.getRecordings(), files: files.files.size, removed: files.deletions }, { recordings: [], files: 0, removed: files.writes });
+		assert.deepStrictEqual({ recordings: wizard.getFileAttachments(), files: files.files.size, removed: files.deletions }, { recordings: [], files: 0, removed: files.writes });
 	});
 
 	test('pastes real image media once through the pane without uploading or opening annotation', async () => {
-		const { pane, input, files, container, submit } = await createPane();
-		container.querySelector<HTMLElement>('.wizard-next')!.click();
-		const description = container.querySelector('textarea')!;
+		const { pane, input, files, container, submit, editor } = await createPane();
+		editor.focus();
+		const description = container.querySelector<HTMLElement>('.wizard-description-editor')!;
 		const transfer = new DataTransfer();
 		transfer.items.add(image());
 		const event = new ClipboardEvent('paste', { clipboardData: transfer, bubbles: true, cancelable: true });
 		description.dispatchEvent(event);
 		await pane.waitForImports();
 		assert.deepStrictEqual({
-			imports: pane.imports.length, screenshots: input.savedScreenshots,
-			writes: files.writes, submissions: submit.callCount, focus: document.activeElement === description,
+			imports: pane.imports.length, attachments: savedFiles(input)?.map(file => ({ name: file.name, mimeType: file.mimeType, thumbnailDataUrl: file.thumbnailDataUrl })),
+			writes: files.writes.length, submissions: submit.callCount, focus: mainWindow.document.activeElement === editor,
 			annotation: !!container.querySelector('.issue-reporter-annotation-overlay'),
-		}, { imports: 1, screenshots: [{ dataUrl: issueReporterImageFixture, width: 48, height: 32 }], writes: [], submissions: 0, focus: true, annotation: false });
+		}, { imports: 1, attachments: [{ name: 'image.png', mimeType: 'image/png', thumbnailDataUrl: issueReporterImageFixture }], writes: 1, submissions: 0, focus: true, annotation: false });
 	});
 
 	test('still opens annotation for a captured screenshot and releases the pending capture slot', async () => {
@@ -575,48 +670,45 @@ suite('Issue reporter media import lifecycle', () => {
 		await captured.p;
 		await timeout(0);
 		assert.deepStrictEqual({
-			screenshots: input.savedScreenshots?.length,
+			screenshots: input.savedAttachments?.filter(attachment => attachment.kind === 'screenshot').length,
 			annotation: !!container.querySelector('.issue-reporter-annotation-overlay'),
 			pending: pane.getWizard()!['screenshotCapturePending'],
 		}, { screenshots: 1, annotation: true, pending: false });
 	});
 
-	test('drops and decodes an actual MP4 into a playable owned copy, never reading or modifying the original', async () => {
+	test('drops an actual MP4 into an owned copy without decoding or modifying the original', async () => {
 		const { pane, input, files, container, submit, openEditor } = await createPane();
 		const original = URI.file('/user-videos/original.mp4');
 		const originalBytes = decodeBase64(issueReporterVideoFixtures.mp4);
 		files.files.set(original, originalBytes);
-		pane.videoDecoder = async (resource, token) => {
-			const content = files.files.get(resource)!;
-			return readIssueReporterVideo(`data:video/mp4;base64,${encodeBase64(content)}`, token);
-		};
 		const transfer = new DataTransfer();
 		transfer.items.add(video(original.fsPath));
 		container.querySelector('.wizard-screenshots')!.dispatchEvent(new DragEvent('drop', { dataTransfer: transfer, bubbles: true, cancelable: true }));
 		await pane.waitForImports();
-		const recording = input.savedRecordings![0];
-		container.querySelector<HTMLElement>('.wizard-recording-card')!.click();
+		const recording = savedFiles(input)![0];
+		container.querySelector<HTMLElement>('.wizard-file-card')!.click();
+		await Promise.resolve();
 		const owned = URI.file(recording.filePath);
 		const editorInput = openEditor.firstCall.args[0];
 		assert.deepStrictEqual({
-			duration: recording.durationMs, width: recording.width, height: recording.height,
-			thumbnail: recording.thumbnailDataUrl?.startsWith('data:image/jpeg'),
+			duration: recording.durationMs, thumbnail: recording.thumbnailDataUrl, name: recording.name, mimeType: recording.mimeType,
 			originalUntouched: files.files.get(original) === originalBytes,
 			ownedBytes: files.files.get(owned)?.equals(originalBytes),
 			differentFile: recording.filePath !== original.fsPath,
 			reads: files.reads, submissions: submit.callCount,
 			editorResource: hasKey(editorInput, { resource: true }) && isEqual(editorInput.resource, owned),
-		}, { duration: 500, width: 48, height: 32, thumbnail: true, originalUntouched: true, ownedBytes: true, differentFile: true, reads: [], submissions: 0, editorResource: true });
-		container.querySelector<HTMLElement>('.wizard-recording-card .wizard-screenshot-delete')!.click();
-		assert.deepStrictEqual({ recordings: input.savedRecordings, deletions: files.deletions.map(file => file.path), originalUntouched: files.files.get(original) === originalBytes }, { recordings: [], deletions: [owned.path], originalUntouched: true });
+		}, { duration: undefined, thumbnail: undefined, name: original.fsPath, mimeType: 'video/mp4', originalUntouched: true, ownedBytes: true, differentFile: true, reads: [], submissions: 0, editorResource: true });
+		container.querySelector<HTMLElement>('.wizard-file-card .wizard-screenshot-delete')!.click();
+		assert.deepStrictEqual({ recordings: savedFiles(input), deletions: files.deletions.map(file => file.path), originalUntouched: files.files.get(original) === originalBytes }, { recordings: [], deletions: [owned.path], originalUntouched: true });
 	});
 
 	test('uses a generated filename and the video editor for a nameless or path-like MOV import', async () => {
 		const { pane, input, files, container, openEditor } = await createPane();
 		pane.getWizard()!['requestAddAttachments']([video('../../original.MOV', '')]);
 		await pane.waitForImports();
-		const path = input.savedRecordings![0].filePath;
-		container.querySelector<HTMLElement>('.wizard-recording-card')!.click();
+		const path = savedFiles(input)![0].filePath;
+		container.querySelector<HTMLElement>('.wizard-file-card')!.click();
+		await Promise.resolve();
 		assert.deepStrictEqual({
 			generated: /[/\\]issue-attachments[/\\]import-[a-f\d-]+\.mov$/.test(path),
 			originalInName: path.includes('original'),
@@ -625,10 +717,10 @@ suite('Issue reporter media import lifecycle', () => {
 		}, { generated: true, originalInName: false, writes: 1, editor: [{ resource: URI.file(path), options: { override: 'vscode.videoPreview' } }] });
 	});
 
-	for (const [kind, maximum] of [['image', MAX_ISSUE_IMAGE_BYTES], ['video', MAX_ISSUE_VIDEO_BYTES]] as const) {
+	for (const [kind, maximum] of [['image', MAX_ISSUE_IMAGE_BYTES], ['video', MAX_ISSUE_VIDEO_BYTES], ['file', MAX_ISSUE_FILE_BYTES]] as const) {
 		test(`rejects ${kind} one byte over its limit without reading or decoding it`, async () => {
 			const { pane, files, container } = await createPane();
-			const file = kind === 'image' ? image() : video();
+			const file = kind === 'image' ? image() : kind === 'video' ? video() : new InstrumentedMediaFile(['zip'], 'report.zip', { type: 'application/zip' });
 			file.reportedSize = maximum + 1;
 			pane.getWizard()!['requestAddAttachments']([file]);
 			await pane.waitForImports();
@@ -640,11 +732,11 @@ suite('Issue reporter media import lifecycle', () => {
 
 		test(`accepts ${kind} exactly at its byte limit`, async () => {
 			const { pane } = await createPane();
-			const file = kind === 'image' ? image() : video();
+			const file = kind === 'image' ? image() : kind === 'video' ? video() : new InstrumentedMediaFile(['zip'], 'report.zip', { type: 'application/zip' });
 			file.reportedSize = maximum;
 			pane.getWizard()!['requestAddAttachments']([file]);
 			await pane.waitForImports();
-			assert.deepStrictEqual({ reads: file.reads, attachments: pane.getWizard()!.getScreenshots().length + pane.getWizard()!.getRecordings().length }, { reads: 1, attachments: 1 });
+			assert.deepStrictEqual({ reads: file.reads, attachments: pane.getWizard()!.getScreenshots().length + pane.getWizard()!.getFileAttachments().length }, { reads: 1, attachments: 1 });
 		});
 	}
 
@@ -660,57 +752,46 @@ suite('Issue reporter media import lifecycle', () => {
 		pane.getWizard()!['requestAddAttachments'](imports.slice(4));
 		await gate.complete();
 		await pane.waitForImports();
-		assert.deepStrictEqual({ reads: imports.map(file => file.reads), screenshots: pane.getWizard()!.getScreenshots().length }, { reads: [1, 1, 1, 1, 1, 0, 0], screenshots: 5 });
+		assert.deepStrictEqual({ reads: imports.map(file => file.reads), attachments: pane.getWizard()!.getFileAttachments().length }, { reads: [1, 1, 1, 1, 1, 0, 0], attachments: 5 });
 	});
 
-	test('uses detected media types rather than trusting misleading names or MIME types', async () => {
+	test('retains original names and MIME types rather than rewriting them from signatures', async () => {
 		const { pane, input } = await createPane();
 		const misleadingImage = new File([new Uint8Array(decodeBase64(issueReporterImageFixture.split(',')[1]).buffer)], 'picture.jpg', { type: 'image/jpeg' });
 		const misleadingVideo = new File([new Uint8Array(decodeBase64(issueReporterVideoFixtures.mp4).buffer)], 'video.webm', { type: 'video/webm' });
 		pane.getWizard()!['requestAddAttachments']([misleadingImage, misleadingVideo]);
 		await pane.waitForImports();
-		assert.deepStrictEqual({
-			image: input.savedScreenshots?.[0].dataUrl,
-			video: getIssueReporterMediaFormat(input.savedRecordings![0].filePath)?.mimeType,
-		}, { image: issueReporterImageFixture, video: 'video/mp4' });
+		assert.deepStrictEqual(savedFiles(input)?.map(file => ({ name: file.name, mimeType: file.mimeType })), [
+			{ name: 'picture.jpg', mimeType: 'image/jpeg' }, { name: 'video.webm', mimeType: 'video/webm' },
+		]);
 	});
 
-	test('checks the image limit from a bounded header before reading a mislabeled large image', async () => {
-		const { pane, files, container } = await createPane();
-		const file = new InstrumentedMediaFile([new Uint8Array(decodeBase64(issueReporterImageFixture.split(',')[1]).buffer)], 'fake-video.mp4', { type: 'video/mp4' });
-		file.reportedSize = MAX_ISSUE_IMAGE_BYTES + 1;
-		pane.getWizard()!['requestAddAttachments']([file]);
-		await pane.waitForImports();
-		assert.deepStrictEqual({
-			reads: file.reads, writes: files.writes, decoding: pane.decoding.isSettled,
-			error: container.querySelector('.wizard-attachment-status')?.textContent?.includes('10 MB per image'),
-		}, { reads: 0, writes: [], decoding: false, error: true });
-	});
+	for (const [name, mimeType] of [['undecodable.mov', 'video/quicktime'], ['bundle.zip', 'application/zip'], ['custom.bin', 'application/x-custom'], ['broken.png', 'image/png']]) {
+		test(`accepts ${name} without decoding and retains original bytes`, async () => {
+			const { pane, input, files, submit, container } = await createPane();
+			const bytes = new Uint8Array([0, 1, 255, 3]);
+			const file = new InstrumentedMediaFile([bytes], name, { type: mimeType });
+			pane.getWizard()!['requestAddAttachments']([file]);
+			await pane.waitForImports();
+			const attachment = savedFiles(input)![0];
+			assert.deepStrictEqual({
+				name: attachment.name, mimeType: attachment.mimeType,
+				bytes: [...files.files.get(URI.file(attachment.filePath))!.buffer],
+				reads: file.reads, decoding: pane.decoding.isSettled, thumbnails: pane.thumbnailRequests,
+				submissions: submit.callCount, error: container.querySelector('.wizard-attachment-status')?.textContent,
+			}, { name, mimeType, bytes: [0, 1, 255, 3], reads: 1, decoding: false, thumbnails: 0, submissions: 0, error: '' });
+		});
+	}
 
-	test('rejects damaged headers before reading the full file', async () => {
+	test('does not invent metadata for imported WebM files', async () => {
 		const { pane, container } = await createPane();
-		const file = new InstrumentedMediaFile(['not an image'], 'picture.png', { type: 'image/png' });
-		pane.getWizard()!['requestAddAttachments']([file]);
+		pane.getWizard()!['requestAddAttachments']([video('recording.webm', 'video/webm')]);
 		await pane.waitForImports();
+		const recording = pane.getWizard()!.getFileAttachments()[0];
 		assert.deepStrictEqual({
-			reads: file.reads, decoding: pane.decoding.isSettled,
-			error: container.querySelector('.wizard-attachment-status')?.textContent?.includes('damaged'),
-		}, { reads: 0, decoding: false, error: true });
-	});
-
-	test('does not present Chromium’s last-frame estimate as the duration of an imported WebM', async () => {
-		const { pane, container } = await createPane();
-		const bytes = new Uint8Array(decodeBase64(issueReporterVideoFixtures.webm).buffer);
-		const durationTag = bytes.findIndex((value, index) => value === 0x44 && bytes[index + 1] === 0x89 && bytes[index + 2] === 0x88);
-		bytes[durationTag] = 0xEC;
-		pane.videoDecoder = async () => ({ width: 48, height: 32, durationMs: 500, thumbnailDataUrl: issueReporterImageFixture });
-		pane.getWizard()!['requestAddAttachments']([new File([bytes], 'recording.webm', { type: 'video/webm' })]);
-		await pane.waitForImports();
-		const recording = pane.getWizard()!.getRecordings()[0];
-		assert.deepStrictEqual({
-			duration: recording.durationMs, width: recording.width, height: recording.height,
+			duration: recording.durationMs, thumbnail: recording.thumbnailDataUrl,
 			label: container.querySelector('.wizard-recording-duration')?.textContent,
-		}, { duration: undefined, width: 48, height: 32, label: 'Unknown duration' });
+		}, { duration: undefined, thumbnail: undefined, label: undefined });
 	});
 
 	test('keeps completed imports with their input across pane moves and deletes them only on input disposal', async () => {
@@ -721,9 +802,106 @@ suite('Issue reporter media import lifecycle', () => {
 		first.pane.dispose();
 		const survivedPane = first.files.files.has(owned);
 		const second = await createPane(first.input, first.files);
-		const restored = second.pane.getWizard()!.getRecordings().map(recording => recording.filePath);
+		const restored = second.pane.getWizard()!.getFileAttachments().map(recording => recording.filePath);
 		first.input.dispose();
 		assert.deepStrictEqual({ survivedPane, restored, deletions: first.files.deletions }, { survivedPane: true, restored: [owned.fsPath], deletions: [owned] });
+	});
+
+	test('persists mixed request order, annotations and upload badges across pane moves', async () => {
+		const first = await createPane();
+		const wizard = first.pane.getWizard()!;
+		const pending = image('A.png');
+		pending.readGate = new DeferredPromise<void>();
+		wizard['requestAddAttachments']([pending]);
+		await pending.reading.p;
+		const captured = new DeferredPromise<void>();
+		store.add(wizard.onDidChangeAttachments(() => {
+			if (wizard.getAttachments().some(attachment => attachment.kind === 'screenshot')) {
+				void captured.complete();
+			}
+		}));
+		wizard.triggerCaptureScreenshot();
+		wizard['requestAddAttachments']([image('B.png')]);
+		await first.pane.imports[1];
+		await captured.p;
+		await pending.readGate.complete();
+		await first.pane.waitForImports();
+		const annotation = first.container.querySelector('.issue-reporter-annotation-overlay')!;
+		[...annotation.querySelectorAll<HTMLElement>('.monaco-button')].find(button => button.textContent === 'Save')!.click();
+		const saved = first.input.savedAttachments!;
+		const annotated = saved.find(attachment => attachment.kind === 'screenshot')!;
+		const destination = resolveIssueReporterTarget(first.input.data!, product)!.url;
+		wizard.setUploading(true);
+		for (const attachment of saved) {
+			wizard.setAttachmentUploadState(attachment, { destination, state: 'done' });
+		}
+		wizard.setUploading(false);
+		first.pane.dispose();
+		const second = await createPane(first.input, first.files);
+		const restored = second.pane.getWizard()!.getAttachments();
+		const owned = URI.file(savedFiles(first.input)![0].filePath);
+		second.container.querySelector<HTMLElement>('.wizard-screenshot-delete')!.click();
+		assert.deepStrictEqual({
+			order: restored.map(attachment => attachment.kind === 'file' ? attachment.file.name : 'capture'),
+			identities: restored.map(attachment => attachment.id),
+			annotationPreserved: restored.find(attachment => attachment.kind === 'screenshot') === annotated && !!annotated.screenshot.annotationState,
+			remaining: second.pane.getWizard()!.getAttachments().map(attachment => attachment.kind === 'file' ? attachment.file.name : 'capture'),
+			checks: second.container.querySelectorAll('.upload-done .review-progress-check').length,
+			deletions: first.files.deletions.map(file => file.path),
+		}, { order: ['A.png', 'capture', 'B.png'], identities: saved.map(attachment => attachment.id), annotationPreserved: true, remaining: ['capture', 'B.png'], checks: 2, deletions: [owned.path] });
+	});
+
+	test('keeps the Markdown model, selection and undo history across pane moves', async () => {
+		const first = await createPane();
+		const model = first.model;
+		first.widget.setSelection(new Selection(1, 1, 1, 12));
+		const transfer = new DataTransfer();
+		transfer.setData('text/plain', '**Markdown**');
+		first.editor.dispatchEvent(new ClipboardEvent('paste', { clipboardData: transfer, bubbles: true, cancelable: true }));
+		first.widget.setSelection(new Selection(1, 3, 1, 11));
+		first.pane.dispose();
+		const second = await createPane(first.input, first.files);
+		const restored = { sameModel: second.model === model, value: model.getValue(), selection: second.widget.getSelection() };
+		await model.undo();
+		assert.deepStrictEqual({ restored, undone: model.getValue() }, {
+			restored: { sameModel: true, value: '**Markdown**', selection: new Selection(1, 3, 1, 11) },
+			undone: 'Description',
+		});
+		first.input.dispose();
+		assert.deepStrictEqual({ disposed: model.isDisposed(), body: first.input.data?.issueBody }, { disposed: true, body: 'Description' });
+	});
+
+	test('keeps diagnostic inclusion and expansion choices with the input across pane moves', async () => {
+		const first = await createPane(createInput({ data: 'Private diagnostic context' }));
+		const extension = first.container.querySelector('[data-diagnostic-option="includeExtensionData"]')!;
+		extension.querySelector<HTMLElement>('.review-diag-checkbox')!.click();
+		extension.querySelector<HTMLElement>('.review-diag-toggle-area')!.click();
+		first.pane.dispose();
+		const second = await createPane(first.input, first.files);
+		const wizard = second.pane.getWizard()!;
+		wizard.updateModel({ experimentInfo: 'New background data' });
+		const restored = second.container.querySelector('[data-diagnostic-option="includeExtensionData"]')!;
+		let body = '';
+		store.add(wizard.onDidSubmit(submission => { body = submission.body; }));
+		second.container.querySelector<HTMLElement>('.wizard-preview')!.click();
+		assert.deepStrictEqual({
+			included: restored.querySelector('.review-diag-checkbox')?.getAttribute('aria-checked'),
+			expanded: restored.querySelector('.review-diag-toggle-area')?.getAttribute('aria-expanded'),
+			contentHidden: restored.querySelector<HTMLElement>('.review-diag-content')?.hidden,
+			bodyIncludesDiagnostic: body.includes('Private diagnostic context'),
+			bodyIncludesExperiments: body.includes('New background data'),
+		}, { included: 'false', expanded: 'true', contentHidden: false, bodyIncludesDiagnostic: false, bodyIncludesExperiments: true });
+	});
+
+	test('retains description scroll position across pane moves', async () => {
+		const first = await createPane(createInput({ issueBody: Array.from({ length: 30 }, (_, index) => `## Heading ${index}\n\nParagraph ${index}`).join('\n\n') }));
+		first.widget.setScrollTop(100);
+		const before = first.widget.getScrollTop();
+		first.pane.dispose();
+		const second = await createPane(first.input, first.files);
+		const restored = second.widget.getScrollTop();
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+		assert.deepStrictEqual({ before, restored, afterLayout: second.widget.getScrollTop() }, { before: 100, restored: 100, afterLayout: 100 });
 	});
 
 	test('keeps an in-progress import when the same input is hidden and shown again', async () => {
@@ -737,18 +915,131 @@ suite('Issue reporter media import lifecycle', () => {
 		await pane.setInput(input, undefined, {}, CancellationToken.None);
 		await file.readGate.complete();
 		await pane.waitForImports();
-		assert.deepStrictEqual({ sameWizard: pane.getWizard() === wizard, screenshots: input.savedScreenshots?.length }, { sameWizard: true, screenshots: 1 });
+		assert.deepStrictEqual({ sameWizard: pane.getWizard() === wizard, attachments: savedFiles(input)?.length }, { sameWizard: true, attachments: 1 });
+	});
+
+	test('keeps pending reservation order when a partially populated input is shown again', async () => {
+		const { pane, input } = await createPane();
+		const wizard = pane.getWizard()!;
+		wizard['requestAddAttachments']([image('first.png')]);
+		await pane.waitForImports();
+		const pending = image('second.png');
+		pending.readGate = new DeferredPromise<void>();
+		wizard['requestAddAttachments']([pending]);
+		await pending.reading.p;
+		pane.clearInput();
+		await pane.setInput(input, undefined, {}, CancellationToken.None);
+		await pending.readGate.complete();
+		await pane.waitForImports();
+		assert.deepStrictEqual(savedFiles(input)?.map(file => file.name), ['first.png', 'second.png']);
+	});
+
+	for (const otherPane of ['retained', 'disposed'] as const) {
+		test(`rebinds input callbacks after a cached-pane roundtrip with the other pane ${otherPane}`, async () => {
+			const first = await createPane();
+			const wizard = first.pane.getWizard()!;
+			wizard.markPreviewOpened();
+			first.pane.clearInput();
+			const second = await createPane(first.input, first.files);
+			second.pane.getWizard()!.markPreviewOpened();
+			second.pane.clearInput();
+			await first.pane.setInput(first.input, undefined, {}, CancellationToken.None);
+			if (otherPane === 'disposed') {
+				second.pane.dispose();
+			}
+			const observe = (operation: string) => ({
+				operation,
+				pending: wizard.hasPendingOperations(),
+				move: typeof first.input.canMove(1, 2),
+				confirm: first.input.closeHandler.showConfirm(),
+			});
+			wizard.setUploading(true);
+			const pending = [observe('upload')];
+			wizard.setUploading(false);
+
+			const file = image();
+			file.readGate = new DeferredPromise<void>();
+			wizard['requestAddAttachments']([file]);
+			await file.reading.p;
+			pending.push(observe('import'));
+			await file.readGate.complete();
+			await first.pane.waitForImports();
+			wizard.markPreviewOpened();
+
+			const dimensions = new DeferredPromise<{ width: number; height: number }>();
+			first.pane.imageDecoder = () => dimensions.p;
+			const captured = new DeferredPromise<void>();
+			store.add(wizard.onDidChangeAttachments(() => { void captured.complete(); }));
+			wizard.triggerCaptureScreenshot();
+			await first.pane.decoding.p;
+			pending.push(observe('capture'));
+			await dimensions.complete({ width: 48, height: 32 });
+			await captured.p;
+			await timeout(0);
+			wizard.markPreviewOpened();
+			assert.deepStrictEqual({
+				reused: first.pane.getWizard() === wizard,
+				pending,
+				completed: { pending: wizard.hasPendingOperations(), move: first.input.canMove(1, 2), confirm: first.input.closeHandler.showConfirm() },
+			}, {
+				reused: true,
+				pending: [
+					{ operation: 'upload', pending: true, move: 'string', confirm: true },
+					{ operation: 'import', pending: true, move: 'string', confirm: true },
+					{ operation: 'capture', pending: true, move: 'string', confirm: true },
+				],
+				completed: { pending: false, move: true, confirm: false },
+			});
+		});
+	}
+
+	test('prevents cross-group moves during imports without cancelling the pending file', async () => {
+		const { pane, input } = await createPane();
+		const file = image();
+		file.readGate = new DeferredPromise<void>();
+		pane.getWizard()!['requestAddAttachments']([file]);
+		await file.reading.p;
+		const pending = { crossGroup: typeof input.canMove(1, 2), sameGroup: input.canMove(1, 1) };
+		await file.readGate.complete();
+		await pane.waitForImports();
+		assert.deepStrictEqual({ pending, completed: input.canMove(1, 2), files: savedFiles(input)?.length }, {
+			pending: { crossGroup: 'string', sameGroup: true }, completed: true, files: 1,
+		});
+	});
+
+	test('prevents moving an active upload and releases the guard on completion', async () => {
+		const { pane, input } = await createPane();
+		const wizard = pane.getWizard()!;
+		wizard.setUploading(true);
+		const pending = typeof input.canMove(1, 2);
+		wizard.setUploading(false);
+		assert.deepStrictEqual({ pending, completed: input.canMove(1, 2) }, { pending: 'string', completed: true });
+	});
+
+	test('retains a recording while its permission and capture operations block moves', async () => {
+		const recording = new MediaRecordingService();
+		recording.permissionGate = new DeferredPromise<void>();
+		const { pane, input } = await createPane(createInput(), new MediaFileService(), recording);
+		const wizard = pane.getWizard()!;
+		wizard.triggerToggleRecording();
+		await recording.permissionRequested.p;
+		const permission = typeof input.canMove(1, 2);
+		await recording.permissionGate.complete();
+		await pane['pendingRecordingStart'];
+		const active = typeof input.canMove(1, 2);
+		wizard.triggerToggleRecording();
+		await pane['pendingRecordingStop'];
+		assert.deepStrictEqual({ permission, active, completed: input.canMove(1, 2), discards: recording.discards }, { permission: 'string', active: 'string', completed: true, discards: 0 });
 	});
 
 	test('restores an explicitly empty attachment list instead of retaining stale cards', async () => {
 		const { pane, input, files } = await createPane();
 		pane.getWizard()!['requestAddAttachments']([video()]);
 		await pane.waitForImports();
-		input.savedScreenshots = [];
-		input.savedRecordings = [];
+		input.savedAttachments = [];
 		pane.clearInput();
 		await pane.setInput(input, undefined, {}, CancellationToken.None);
-		assert.deepStrictEqual({ recordings: pane.getWizard()!.getRecordings(), filesLeft: files.files.size }, { recordings: [], filesLeft: 0 });
+		assert.deepStrictEqual({ recordings: pane.getWizard()!.getFileAttachments(), filesLeft: files.files.size }, { recordings: [], filesLeft: 0 });
 	});
 
 	test('removing one reporter input never clears another input’s attachments', async () => {
@@ -758,8 +1049,8 @@ suite('Issue reporter media import lifecycle', () => {
 		first.pane.getWizard()!['requestAddAttachments']([video()]);
 		second.pane.getWizard()!['requestAddAttachments']([video()]);
 		await Promise.all([first.pane.waitForImports(), second.pane.waitForImports()]);
-		const firstFile = URI.file(first.input.savedRecordings![0].filePath);
-		const secondFile = URI.file(second.input.savedRecordings![0].filePath);
+		const firstFile = URI.file(savedFiles(first.input)![0].filePath);
+		const secondFile = URI.file(savedFiles(second.input)![0].filePath);
 		first.input.dispose();
 		assert.deepStrictEqual({ deletions: files.deletions.map(file => file.path), secondExists: files.files.has(secondFile), distinct: !isEqual(firstFile, secondFile) }, { deletions: [firstFile.path], secondExists: true, distinct: true });
 	});
@@ -774,7 +1065,7 @@ suite('Issue reporter media import lifecycle', () => {
 		await pane.setInput(replacement, undefined, {}, CancellationToken.None);
 		await pane.waitForImports();
 		await file.readGate.complete();
-		assert.deepStrictEqual({ old: input.savedScreenshots, current: pane.getWizard()!.getScreenshots(), writes: files.writes, decoding: pane.decoding.isSettled }, { old: undefined, current: [], writes: [], decoding: false });
+		assert.deepStrictEqual({ old: savedFiles(input), current: pane.getWizard()!.getFileAttachments(), writes: files.writes, decoding: pane.decoding.isSettled }, { old: undefined, current: [], writes: [], decoding: false });
 	});
 
 	test('cleans a late owned write after disposal without decoding or retaining the copy', async () => {
@@ -785,46 +1076,46 @@ suite('Issue reporter media import lifecycle', () => {
 		pane.dispose();
 		await files.writeGate.complete();
 		await pane.waitForImports();
-		assert.deepStrictEqual({ filesLeft: files.files.size, deletions: files.deletions, recordings: input.savedRecordings, decoding: pane.decoding.isSettled }, { filesLeft: 0, deletions: files.writes, recordings: undefined, decoding: false });
+		assert.deepStrictEqual({ filesLeft: files.files.size, deletions: files.deletions, recordings: savedFiles(input), decoding: pane.decoding.isSettled }, { filesLeft: 0, deletions: files.writes, recordings: undefined, decoding: false });
 	});
 
-	test('ignores an uncancellable late decoder result after replacement and deletes its owned copy', async () => {
+	test('removes a late owned write after input replacement', async () => {
 		const { pane, input, files } = await createPane();
-		const decoded = new DeferredPromise<IIssueReporterVideoMetadata>();
-		pane.videoDecoder = () => decoded.p;
+		files.writeGate = new DeferredPromise<void>();
 		pane.getWizard()!['requestAddAttachments']([video()]);
-		await pane.decoding.p;
+		await files.writeStarted.p;
 		await pane.setInput(createInput(), undefined, {}, CancellationToken.None);
-		await decoded.complete({ width: 48, height: 32, durationMs: 500, thumbnailDataUrl: issueReporterImageFixture });
+		await files.writeGate.complete();
 		await pane.waitForImports();
-		assert.deepStrictEqual({ old: input.savedRecordings, current: pane.getWizard()!.getRecordings(), filesLeft: files.files.size, deletions: files.deletions }, { old: undefined, current: [], filesLeft: 0, deletions: files.writes });
+		assert.deepStrictEqual({ old: savedFiles(input), current: pane.getWizard()!.getFileAttachments(), filesLeft: files.files.size, deletions: files.deletions }, { old: undefined, current: [], filesLeft: 0, deletions: files.writes });
 	});
 
-	for (const failure of ['write', 'decode'] as const) {
+	for (const failure of ['write', 'read'] as const) {
 		test(`reports ${failure} failure and deletes only its owned partial copy`, async () => {
 			const { pane, input, files, container } = await createPane();
 			const original = URI.file('/user-videos/original.mp4');
 			files.files.set(original, VSBuffer.fromString('original'));
+			const file = video();
 			if (failure === 'write') {
 				files.writeError = new Error('Writing failed');
 			} else {
-				pane.videoDecoder = async () => { throw new Error('Decoding failed'); };
+				file.readError = new Error('Reading failed');
 			}
-			pane.getWizard()!['requestAddAttachments']([video()]);
+			pane.getWizard()!['requestAddAttachments']([file]);
 			await pane.waitForImports();
 			assert.deepStrictEqual({
-				recordings: input.savedRecordings, originalExists: files.files.has(original), copies: files.files.size - 1,
+				recordings: savedFiles(input), originalExists: files.files.has(original), copies: files.files.size - 1,
 				deletions: files.deletions, error: container.querySelector('.wizard-attachment-status')?.textContent?.includes('failed'),
 			}, { recordings: undefined, originalExists: true, copies: 0, deletions: files.writes, error: true });
 		});
 	}
 
-	test('uses filename fallback only for recognized formats, never arbitrary path reads', async () => {
+	test('uses filename MIME fallback without reading arbitrary paths or changing the original type', async () => {
 		const { pane, files } = await createPane();
 		const file = video('/user-videos/original.webm', 'application/octet-stream');
 		pane.getWizard()!['requestAddAttachments']([file]);
 		await pane.waitForImports();
-		const recording = pane.getWizard()!.getRecordings()[0];
-		assert.deepStrictEqual({ reads: files.reads, mime: getIssueReporterMediaFormat(recording.filePath)?.mimeType }, { reads: [], mime: 'video/webm' });
+		const recording = pane.getWizard()!.getFileAttachments()[0];
+		assert.deepStrictEqual({ reads: files.reads, mime: recording.mimeType, name: recording.name }, { reads: [], mime: 'application/octet-stream', name: '/user-videos/original.webm' });
 	});
 });

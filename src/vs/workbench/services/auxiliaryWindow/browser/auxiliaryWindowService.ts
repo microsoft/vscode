@@ -75,6 +75,12 @@ export interface BeforeAuxiliaryWindowUnloadEvent {
 	veto(reason: string | undefined): void;
 }
 
+/** Close removes owned content or returns false to cancel; readiness is rechecked immediately before native unload. */
+export interface IAuxiliaryWindowCloseHandler {
+	close(): Promise<boolean>;
+	isReadyToClose(): boolean;
+}
+
 export interface IAuxiliaryWindow extends IDisposable {
 
 	readonly onWillLayout: Event<Dimension>;
@@ -82,6 +88,7 @@ export interface IAuxiliaryWindow extends IDisposable {
 
 	readonly onBeforeUnload: Event<BeforeAuxiliaryWindowUnloadEvent>;
 	readonly onUnload: Event<void>;
+	readonly onWillDispose: Event<void>;
 
 	readonly whenStylesHaveLoaded: Promise<void>;
 
@@ -95,6 +102,9 @@ export interface IAuxiliaryWindow extends IDisposable {
 	layout(): void;
 
 	createState(): IAuxiliaryWindowOpenOptions;
+
+	/** Registers the single close owner for this native window until the registration is disposed. */
+	registerCloseHandler?(handler: IAuxiliaryWindowCloseHandler): IDisposable;
 }
 
 const DEFAULT_AUX_WINDOW_DIMENSIONS = new Dimension(DEFAULT_AUX_WINDOW_SIZE.width, DEFAULT_AUX_WINDOW_SIZE.height);
@@ -132,7 +142,15 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 	) {
 		super(window, undefined, hostService, environmentService, contextMenuService, layoutService);
 
-		this.whenStylesHaveLoaded = stylesHaveLoaded.wait().then(() => undefined);
+		this.whenStylesHaveLoaded = stylesHaveLoaded.wait().then(() => {
+			if (this._store.isDisposed) {
+				return;
+			}
+			this.layout();
+			if (!this._store.isDisposed) {
+				this.container.style.removeProperty('opacity');
+			}
+		});
 
 		this.registerListeners();
 	}
@@ -169,7 +187,7 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 		}
 	}
 
-	private handleBeforeUnload(e: BeforeUnloadEvent): void {
+	protected handleBeforeUnload(e: BeforeUnloadEvent, confirmedClose = false): void {
 
 		// Check for veto from a listening component
 		let veto: string | undefined;
@@ -189,7 +207,7 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 		// Check for confirm before close setting
 		const confirmBeforeCloseSetting = this.configurationService.getValue<'always' | 'never' | 'keyboardOnly'>('window.confirmBeforeClose');
 		const confirmBeforeClose = confirmBeforeCloseSetting === 'always' || (confirmBeforeCloseSetting === 'keyboardOnly' && ModifierKeyEmitter.getInstance().isModifierPressed);
-		if (confirmBeforeClose) {
+		if (confirmBeforeClose && !confirmedClose) {
 			this.confirmBeforeClose(e);
 		}
 	}
@@ -555,6 +573,8 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		container.style.display = 'flex';
 		container.style.height = '100%';
 		container.style.flexDirection = 'column';
+		// Preserve focus requests made by editors while their styles are still loading.
+		container.style.opacity = '0';
 		auxiliaryWindow.document.body.append(container);
 
 		// Track attributes

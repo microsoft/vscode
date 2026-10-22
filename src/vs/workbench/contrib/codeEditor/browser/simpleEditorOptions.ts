@@ -56,7 +56,7 @@ export function getSimpleEditorOptions(configurationService: IConfigurationServi
 	};
 }
 
-export function getSimpleCodeEditorWidgetOptions(): ICodeEditorWidgetOptions {
+export function getSimpleCodeEditorWidgetOptions(options: { suggestions?: boolean } = {}): ICodeEditorWidgetOptions {
 	return {
 		isSimpleWidget: true,
 		contributions: EditorExtensionsRegistry.getSomeEditorContributions([
@@ -66,7 +66,7 @@ export function getSimpleCodeEditorWidgetOptions(): ICodeEditorWidgetOptions {
 			SuggestController.ID,
 			SnippetController2.ID,
 			TabCompletionController.ID,
-		])
+		].filter(id => options.suggestions !== false || (id !== SuggestController.ID && id !== TabCompletionController.ID)))
 	};
 }
 

@@ -22,7 +22,7 @@ import { IRectangle } from '../../../../platform/window/common/window.js';
 import { AuxiliaryWindowMode, IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchGitHubService } from '../../../services/github/common/githubService.js';
-import { IIssueFormService, IIssueSubmissionHost, ISimilarIssue, IssueReporterData, IssueSource } from '../common/issue.js';
+import { IIssueFormService, IIssueSubmissionHost, ISimilarIssue, IssueReporterAttachment, IssueReporterData, IssueSource } from '../common/issue.js';
 import { getIssueReporterUrlWithTitle, resolveIssueReporterTarget } from '../common/issueReporterTarget.js';
 import BaseHtml from './issueReporterPage.js';
 import { IssueWebReporter } from './issueReporterService.js';
@@ -31,9 +31,12 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { URI } from '../../../../base/common/uri.js';
 import { LRUCache } from '../../../../base/common/map.js';
-import { hash } from '../../../../base/common/hash.js';
+import { hash, hashAsync } from '../../../../base/common/hash.js';
+import { escapeMarkdownSyntaxTokens } from '../../../../base/common/htmlContent.js';
+import { escape } from '../../../../base/common/strings.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { decodeBase64 } from '../../../../base/common/buffer.js';
-import { getIssueReporterMediaFormat } from './issueReporterMedia.js';
+import { getIssueReporterScreenshotFile } from './issueReporterMedia.js';
 import './media/issueReporter.css';
 import { abortOnDispose } from '../../../../base/common/cancellation.js';
 
@@ -154,6 +157,7 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 	}
 
 	async submitIssue(host: IIssueSubmissionHost, data: IssueReporterData, title: string, body: string): Promise<boolean> {
+		host.setAttachmentUploadError(undefined);
 		const issueTarget = resolveIssueReporterTarget(data, product);
 		if (!issueTarget?.url) {
 			this.logService.error('[IssueFormService] Invalid issue reporting destination.');
@@ -164,65 +168,79 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 			return this.openerService.open(issueTarget.url, { openExternal: true });
 		}
 
-		const screenshots = host.getScreenshots();
-		const recordings = host.getRecordings();
+		const attachments = host.getAttachments();
 		const gitHubDetails = issueTarget.repository;
+		const hasAttachments = attachments.length > 0;
+		if (gitHubDetails && data.getGitHubAccessToken) {
+			host.setUploading(true);
+			try {
+				data.githubAccessToken = await data.getGitHubAccessToken();
+			} catch (error) {
+				data.githubAccessToken = '';
+				this.logService.error('[IssueFormService] GitHub session lookup failed:', error);
+				if (hasAttachments) {
+					host.setAttachmentUploadError(localize('issueReporter.authenticationFailed', "Could not access your GitHub session. Try signing in again, or remove the attachments and add them on GitHub."));
+					return false;
+				}
+			} finally {
+				host.setUploading(false);
+			}
+		}
+		const githubAccessToken = data.githubAccessToken;
 		let repoId: string | undefined;
 		const resolveRepoId = async (): Promise<string | undefined> => {
 			if (!gitHubDetails) {
 				return undefined;
 			}
-			repoId ??= await this.githubUploadService.resolveRepositoryId(gitHubDetails.owner, gitHubDetails.repositoryName, data.githubAccessToken);
+			repoId ??= await this.githubUploadService.resolveRepositoryId(gitHubDetails.owner, gitHubDetails.repositoryName, githubAccessToken);
 			return repoId;
 		};
 
 		let mediaMarkdown = '';
-		const hasAttachments = screenshots.length > 0 || recordings.length > 0;
+		if (hasAttachments && (!githubAccessToken || !gitHubDetails)) {
+			host.setAttachmentUploadError(localize('issueReporter.attachmentsNeedAuthentication', "Attachments could not be uploaded. Sign in to GitHub, or remove the attachments and add them on GitHub."));
+			return false;
+		}
 
 		// Only attempt the Mobile Upload API when the issue target actually resolves to a
 		// GitHub repo. Otherwise we'd upload attachments to an unrelated repository (and
 		// potentially leak them) just because a GitHub token is present.
-		if (hasAttachments && data.githubAccessToken && gitHubDetails) {
+		if (hasAttachments && githubAccessToken && gitHubDetails) {
 			host.setUploading(true);
-
+			let attachmentName: string | undefined;
 			try {
-				// Collect files, keyed for cache lookup. We hash the data URL / file path so the
-				// (potentially very large) screenshot/recording payloads aren't retained as Map keys.
-				const filesToProcess: IssueUploadFile[] = [];
-				for (let i = 0; i < screenshots.length; i++) {
-					const dataUrl = screenshots[i].annotatedDataUrl ?? screenshots[i].dataUrl;
-					const bytes = this.dataUrlToBytes(dataUrl);
-					if (bytes) {
-						const format = getIssueReporterMediaFormat('', dataUrl.slice(5, dataUrl.indexOf(',')).split(';', 1)[0]);
-						if (!format || format.kind !== 'image') {
-							throw new Error('Unsupported image attachment.');
-						}
-						filesToProcess.push({ key: `screenshot:${hash(dataUrl)}`, name: `screenshot-${i + 1}.${format.extension}`, bytes, contentType: format.mimeType });
-					}
+				const filesToProcess: (IssueUploadFile & { attachment: IssueReporterAttachment })[] = [];
+				for (const attachment of attachments) {
+					host.setAttachmentUploadState(attachment, { destination: issueTarget.url, state: 'pending' });
 				}
-				for (let i = 0; i < recordings.length; i++) {
-					const rec = recordings[i];
-					const format = getIssueReporterMediaFormat(rec.filePath);
-					if (!format || format.kind !== 'video') {
-						throw new Error('Unsupported video attachment.');
+				let screenshotNumber = 0;
+				for (const attachment of attachments) {
+					if (attachment.kind === 'screenshot') {
+						screenshotNumber++;
+						attachmentName = localize('screenshotAttachment', "Screenshot {0}", screenshotNumber);
+						const { dataUrl, name, format } = getIssueReporterScreenshotFile(attachment.screenshot, screenshotNumber);
+						const bytes = this.dataUrlToBytes(dataUrl);
+						if (!bytes || format.kind !== 'image') {
+							throw new Error(localize('invalidScreenshotAttachment', "The screenshot could not be read."));
+						}
+						filesToProcess.push({ attachment, key: `screenshot:${name}:${hash(dataUrl)}`, name, bytes, contentType: format.mimeType });
+					} else {
+						const file = attachment.file;
+						attachmentName = file.name;
+						const fileContent = await this.fileService.readFile(URI.file(file.filePath));
+						filesToProcess.push({ attachment, key: `file:${file.filePath}:${await hashAsync(fileContent.value)}`, name: file.name, bytes: fileContent.value.buffer, contentType: file.mimeType });
 					}
-					const fileContent = await this.fileService.readFile(URI.file(rec.filePath));
-					filesToProcess.push({ key: `recording:${rec.filePath}`, name: `recording-${i + 1}.${format.extension}`, bytes: fileContent.value.buffer, contentType: format.mimeType });
 				}
 
 				if (filesToProcess.length > 0) {
-					for (let i = 0; i < filesToProcess.length; i++) {
-						host.setAttachmentUploadState(i, 'pending');
-					}
-
 					const uploadResults: import('./githubUploadService.js').IGitHubUploadResult[] = [];
-					for (let i = 0; i < filesToProcess.length; i++) {
-						const file = filesToProcess[i];
+					for (const file of filesToProcess) {
+						attachmentName = file.name;
 						const cacheKey = `${gitHubDetails.owner.toLowerCase()}/${gitHubDetails.repositoryName.toLowerCase()}:${file.key}`;
 						const cached = this.uploadCache.get(cacheKey);
 						if (cached) {
 							uploadResults.push(cached);
-							host.setAttachmentUploadState(i, 'done');
+							host.setAttachmentUploadState(file.attachment, { destination: issueTarget.url, state: 'done' });
 							continue;
 						}
 
@@ -230,28 +248,34 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 						if (!resolvedRepoId) {
 							throw new Error('No GitHub repository resolved for attachment upload.');
 						}
-						host.setAttachmentUploadState(i, 'uploading');
+						host.setAttachmentUploadState(file.attachment, { destination: issueTarget.url, state: 'uploading' });
 						const [result] = await this.githubUploadService.uploadViaMobileApi(
-							data.githubAccessToken, resolvedRepoId, [file]
+							githubAccessToken, resolvedRepoId, [file]
 						);
 						if (!result) {
 							throw new Error(`Upload returned no result for ${file.name}.`);
 						}
 						this.uploadCache.set(cacheKey, result);
 						uploadResults.push(result);
-						host.setAttachmentUploadState(i, 'done');
+						host.setAttachmentUploadState(file.attachment, { destination: issueTarget.url, state: 'done' });
 					}
 
 					mediaMarkdown = `\n\n### ${localize('issueReporter.attachmentsHeading', "Attachments")}\n\n`;
-					for (const r of uploadResults) {
-						mediaMarkdown += r.contentType.startsWith('video/')
-							? `${r.assetUrl}\n\n`
-							: `![${r.fileName}](${r.assetUrl})\n\n`;
+					for (let i = 0; i < uploadResults.length; i++) {
+						const file = filesToProcess[i];
+						const url = URI.parse(uploadResults[i].assetUrl).toString().replace(/\(/g, '%28').replace(/\)/g, '%29');
+						const name = escapeMarkdownSyntaxTokens(escape(file.name)).replace(/\r/g, '&#13;').replace(/\n/g, '&#10;');
+						mediaMarkdown += file.contentType.startsWith('video/')
+							? `${url}\n\n`
+							: `${file.contentType.startsWith('image/') ? '!' : ''}[${name}](${url})\n\n`;
 					}
 				}
 			} catch (err) {
 				this.logService.error('[IssueFormService] Upload failed:', err);
-				mediaMarkdown = `\n\n### ${localize('issueReporter.attachmentsHeading', "Attachments")}\n\n> ${localize('issueReporter.attachmentsUploadFailed', "Upload failed. Please drag and drop attachments manually.")}\n\n`;
+				host.setAttachmentUploadError(attachmentName
+					? localize('issueReporter.attachmentUploadFailed', "Could not upload {0}. Try again, or remove this file and attach it on GitHub.", attachmentName)
+					: localize('issueReporter.attachmentsUploadFailed', "Could not upload attachments. Try again, or remove them and attach them on GitHub."), toErrorMessage(err));
+				return false;
 			} finally {
 				host.setUploading(false);
 			}
@@ -263,8 +287,8 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 		let previewBody = issueBody;
 		let url = this.createIssuePreviewUrl(baseUrl, previewBody, gitHubDetails, data.issueSource);
 
-		if (url.length > MAX_URL_LENGTH && data.githubAccessToken && gitHubDetails) {
-			const shortenedBody = await this.tryCreateBodyWithIssueDataAttachment(host, issueBody, baseUrl, gitHubDetails, data.issueSource, data.githubAccessToken, resolveRepoId);
+		if (url.length > MAX_URL_LENGTH && githubAccessToken && gitHubDetails) {
+			const shortenedBody = await this.tryCreateBodyWithIssueDataAttachment(host, issueBody, baseUrl, gitHubDetails, data.issueSource, githubAccessToken, resolveRepoId);
 			if (shortenedBody) {
 				previewBody = shortenedBody;
 				url = this.createIssuePreviewUrl(baseUrl, previewBody, gitHubDetails, data.issueSource);
