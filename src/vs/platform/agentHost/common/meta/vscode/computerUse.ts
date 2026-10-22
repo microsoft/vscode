@@ -4,12 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import {
+	COMPUTER_USE_ACTIVATION_META_KEY,
+	COMPUTER_USE_ACTIVATION_QUESTION_ID,
 	COMPUTER_USE_SETUP_META_KEY,
 	computerUseActions,
 	computerUsePermissionActions,
 	computerUsePermissions,
 	computerUsePermissionStates,
 	computerUseSetupStates,
+	type ComputerUseActivationChoice,
+	type IComputerUseActivationCard,
 	type IComputerUseErrorV1,
 	type IComputerUseHelperAppV1,
 	type IComputerUseOperationV1,
@@ -18,7 +22,7 @@ import {
 	type IComputerUseSetupV1,
 	type IComputerUseStatusV1,
 } from '../../computerUse.js';
-import type { ChatInputRequest } from '../../state/protocol/channels-chat/state.js';
+import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputResponseKind, type ChatInputAnswer, type ChatInputRequest } from '../../state/protocol/channels-chat/state.js';
 
 /*
  * Validating readers for the VS Code Computer Use extension values: every field is checked, unknown keys are ignored,
@@ -32,6 +36,7 @@ const MAX_ICON_LENGTH = 512 * 1024;
 const PNG_DATA_URL_PREFIX = 'data:image/png;base64,';
 const MAX_CODE_LENGTH = 100;
 const MAX_MESSAGE_LENGTH = 1000;
+const MAX_ACTIVATION_REASON_LENGTH = 1000;
 const MAX_SETUPS = 32;
 const MAX_ACTIONS = 8;
 
@@ -166,4 +171,40 @@ export function withComputerUseSetupCard<T extends ChatInputRequest>(request: T,
 		...request,
 		_meta: { ...meta, [COMPUTER_USE_SETUP_META_KEY]: { setupId } satisfies IComputerUseSetupCard },
 	};
+}
+
+/** Reads what a request to turn on Computer Use shows, if it carries a valid {@link COMPUTER_USE_ACTIVATION_META_KEY}. */
+export function readComputerUseActivationCard(request: ChatInputRequest): IComputerUseActivationCard | undefined {
+	const card = asBag(asBag((request as ChatInputRequestWithMeta)._meta)?.[COMPUTER_USE_ACTIVATION_META_KEY]);
+	if (!card) {
+		return undefined;
+	}
+	const reason = boundedString(card.reason, MAX_ACTIVATION_REASON_LENGTH);
+	return reason ? { reason } : {};
+}
+
+/** Returns a copy of `request` marked as a request to turn on Computer Use, preserving other metadata. */
+export function withComputerUseActivationCard<T extends ChatInputRequest>(request: T, card: IComputerUseActivationCard): T {
+	const meta = (request as ChatInputRequestWithMeta)._meta;
+	return {
+		...request,
+		_meta: { ...meta, [COMPUTER_USE_ACTIVATION_META_KEY]: card },
+	};
+}
+
+/** The answers that submit `choice` to a request to turn on Computer Use. */
+export function getComputerUseActivationAnswers(choice: ComputerUseActivationChoice): Record<string, ChatInputAnswer> {
+	return {
+		[COMPUTER_USE_ACTIVATION_QUESTION_ID]: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Selected, value: choice } },
+	};
+}
+
+/** Whether a response to a request to turn on Computer Use turns it on. */
+export function isComputerUseActivationAccepted(response: ChatInputResponseKind | undefined, answers: Record<string, ChatInputAnswer> | undefined): boolean {
+	const turnOn: ComputerUseActivationChoice = 'turnOn';
+	const answer = answers?.[COMPUTER_USE_ACTIVATION_QUESTION_ID];
+	return response === ChatInputResponseKind.Accept
+		&& answer?.state === ChatInputAnswerState.Submitted
+		&& answer.value.kind === ChatInputAnswerValueKind.Selected
+		&& answer.value.value === turnOn;
 }

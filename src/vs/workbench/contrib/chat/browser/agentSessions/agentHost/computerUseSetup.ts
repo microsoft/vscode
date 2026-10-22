@@ -5,6 +5,7 @@
 
 import { structuralEquals } from '../../../../../../base/common/equals.js';
 import { Event, Relay } from '../../../../../../base/common/event.js';
+import { escapeMarkdownSyntaxTokens } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IObservable, observableFromEventOpts } from '../../../../../../base/common/observable.js';
 import { isMacintosh, isNative } from '../../../../../../base/common/platform.js';
@@ -45,6 +46,19 @@ export function getComputerUseSetupCardText(): { readonly title: string; readonl
 	return {
 		title: localize('computerUseSetup.card.title', "Computer Use needs permission to control apps and capture their windows."),
 		message: localize('computerUseSetup.card.message', "Copilot continues your task once macOS confirms both permissions."),
+	};
+}
+
+/**
+ * The text of the chat card that asks to turn on Computer Use, live or restored. The message is Markdown source;
+ * `reason` is the agent's own words, so it is escaped to stay literal.
+ */
+export function getComputerUseActivationCardText(reason: string | undefined): { readonly title: string; readonly message: string } {
+	return {
+		title: localize('computerUseActivation.card.title', "Turn on Computer Use?"),
+		message: reason
+			? localize('computerUseActivation.card.messageWithReason', "{0}\n\nComputer Use lets Copilot see and control apps on this computer. It stays on for Copilot, including the Copilot CLI, until you run `/computer off`.", escapeMarkdownSyntaxTokens(reason))
+			: localize('computerUseActivation.card.message', "Computer Use lets Copilot see and control apps on this computer. It stays on for Copilot, including the Copilot CLI, until you run `/computer off`."),
 	};
 }
 

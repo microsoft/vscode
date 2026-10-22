@@ -68,7 +68,8 @@ import { resolveAgentHostSessionTrustFolders } from '../../../../../../platform/
 import { CLIENT_SEMANTIC_SEARCH_TOOL_ID, SEMANTIC_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/semanticSearchConstants.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/toolSearchConstants.js';
 import { readAgentPlanReview, type IAgentPlanReview } from '../../../../../../platform/agentHost/common/meta/agentPlanReview.js';
-import { readComputerUseSetupCard } from '../../../../../../platform/agentHost/common/meta/computerUse.js';
+import type { IComputerUseActivationCard } from '../../../../../../platform/agentHost/common/computerUse.js';
+import { getComputerUseActivationAnswers, isComputerUseActivationAccepted, readComputerUseActivationCard, readComputerUseSetupCard } from '../../../../../../platform/agentHost/common/meta/computerUse.js';
 import { IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ChatTruncatedAction } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { CompletionItemKind as AhpCompletionItemKind, ContentEncoding, type CompletionItem as AhpCompletionItem } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
@@ -135,7 +136,7 @@ import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgent
 import { ILanguageModelToolsService, IToolData, IToolResult, stringifyPromptTsxPart, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { IChatWidgetService } from '../../chat.js';
 import { AgentHostLocalModelSupport } from './agentHostLocalModelSupport.js';
-import { getComputerUseSetupCardText, IComputerUseSetupService } from './computerUseSetup.js';
+import { getComputerUseActivationCardText, getComputerUseSetupCardText, IComputerUseSetupService } from './computerUseSetup.js';
 import { getAgentSessionProviderIcon } from '../agentSessions.js';
 import { IAgentCustomizationScope, IAgentHostActiveClientService } from './agentHostActiveClientService.js';
 import { getMcpServerDisplayLabel, IAgentHostCustomizationService } from './agentHostCustomizationService.js';
@@ -5286,6 +5287,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return;
 		}
 
+		const computerUseActivation = readComputerUseActivationCard(inputReq);
+		if (computerUseActivation) {
+			this._setupComputerUseActivationCard(part$, computerUseActivation, store, opts);
+			return;
+		}
+
 		if (inputReq.url) {
 			this._setupUrlInputRequest(part$, inputReq.url, store, opts);
 			return;
@@ -5486,6 +5493,75 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (response !== undefined) {
 				completed = true;
 				card.state.set(response === ChatInputResponseKind.Accept ? ElicitationState.Accepted : ElicitationState.Rejected, undefined);
+			}
+		}));
+
+		const reject = () => {
+			if (card.state.get() === ElicitationState.Pending) {
+				card.state.set(ElicitationState.Rejected, undefined);
+			}
+		};
+		const cancel = () => {
+			settle(ChatInputResponseKind.Cancel);
+			reject();
+		};
+		if (opts.cancellationToken.isCancellationRequested) {
+			cancel();
+		} else {
+			store.add(opts.cancellationToken.onCancellationRequested(cancel));
+		}
+		store.add(toDisposable(reject));
+	}
+
+	/**
+	 * Shows a request to turn on Computer Use as one compact card in place of its question. Turn On accepts with the
+	 * `turnOn` answer and Not Now declines; a completion from any client settles the card, which shows as accepted only
+	 * when that completion turned Computer Use on.
+	 */
+	private _setupComputerUseActivationCard(
+		part$: IObservable<InputRequestResponsePart>,
+		{ reason }: IComputerUseActivationCard,
+		store: DisposableStore,
+		opts: IObserveTurnOptions,
+	): void {
+		const requestId = part$.get().request.id;
+		let completed = false;
+		const settle = (response: ChatInputResponseKind, answers?: Record<string, ChatInputAnswer>) => {
+			if (completed) {
+				return;
+			}
+			completed = true;
+			this._config.connection.dispatch(opts.chatURI, {
+				type: ActionType.ChatInputCompleted,
+				requestId,
+				response,
+				...(answers ? { answers } : {}),
+			});
+		};
+
+		const { title, message } = getComputerUseActivationCardText(reason);
+		const card = new ChatElicitationRequestPart(
+			title,
+			new MarkdownString(message),
+			'',
+			localize('agentHost.computerUseActivation.turnOn', "Turn On"),
+			localize('agentHost.computerUseActivation.notNow', "Not Now"),
+			async () => {
+				settle(ChatInputResponseKind.Accept, getComputerUseActivationAnswers('turnOn'));
+				return ElicitationState.Accepted;
+			},
+			async () => {
+				settle(ChatInputResponseKind.Decline);
+				return ElicitationState.Rejected;
+			},
+		);
+		opts.sink([card]);
+
+		store.add(autorun(reader => {
+			const part = part$.read(reader);
+			if (part.response !== undefined) {
+				completed = true;
+				card.state.set(isComputerUseActivationAccepted(part.response, part.request.answers) ? ElicitationState.Accepted : ElicitationState.Rejected, undefined);
 			}
 		}));
 
