@@ -1301,10 +1301,8 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			}
 		},
 	});
-	const copilotExtensionsDidChangeEmitter = ctx.disposableStore.add(new Emitter<void>());
 	let copilotExtensionInventory = options.copilotExtensionInventory ?? { mode: 'disabled', extensions: [] };
 	const copilotExtensionsService = new class extends mock<ICopilotExtensionsService>() {
-		override readonly onDidChange = copilotExtensionsDidChangeEmitter.event;
 		override async listExtensions(): Promise<IAgentExtensionInventory> {
 			return copilotExtensionInventory;
 		}
@@ -1316,7 +1314,6 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 					status: enabled ? 'running' : 'disabled',
 				} : extension),
 			};
-			copilotExtensionsDidChangeEmitter.fire();
 		}
 	}();
 	const copilotCanvasDefinitions = options.copilotCanvases ?? [];
@@ -3510,7 +3507,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	CanvasesTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['Canvases literally reuses the shared Tools content container, including its recessed panel background, border, padding, title/search alignment, and source-group tree styling. It groups every supported inventory extension under User, Workspace, and Plugins sections, including extensions that report no Canvases. Extension rows do not repeat source icons; only extension parents have enablement switches, and cached children of disabled extensions are labeled as last known.'],
+		expectedVisualDescriptions: ['Canvases literally reuses the shared Tools content container, including its recessed panel background, border, padding, title/search alignment, and source-group tree styling. It groups every supported inventory extension under User, Workspace, and Plugins sections, including extensions that report no Canvases. Extension rows do not repeat source icons; User and Plugin parents have enablement switches, while Workspace parents are read-only.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			selectedSection: AICustomizationManagementSection.Canvases,

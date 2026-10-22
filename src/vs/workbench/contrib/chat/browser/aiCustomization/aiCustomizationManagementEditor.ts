@@ -3630,9 +3630,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.editorDisposables.add(widget.onDidChangeItemCount(count => this.updateSectionCount(section, count)));
 		}
 		widget.fireItemCount?.();
-		if (widget.onDidRequestShowPlugin) {
-			this.editorDisposables.add(widget.onDidRequestShowPlugin(item => this.showPluginDetail(item)));
-		}
 		widget.setVisible?.(this.isVisible() && this.viewMode === 'list' && this.selectedSection === section);
 		if (this.dimension) {
 			widget.layout?.(this.dimension);

@@ -15,7 +15,7 @@ import { IAgentHostCustomizationService } from '../../../browser/agentSessions/a
 import { CopilotExtensionsService } from '../../../browser/aiCustomization/copilotExtensionsService.js';
 
 suite('CopilotExtensionsService', () => {
-	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('routes inventory globally and reconciles the selected exact chat after enablement changes', async () => {
 		const frontendSession = URI.parse('agent-host-copilotcli:/session-1');
@@ -59,9 +59,7 @@ suite('CopilotExtensionsService', () => {
 				return sessionResource.toString() === frontendSession.toString() ? backendChat : undefined;
 			}
 		}();
-		const service = disposables.add(new CopilotExtensionsService(connections, customizationService));
-		let changeCount = 0;
-		disposables.add(service.onDidChange(() => changeCount++));
+		const service = new CopilotExtensionsService(connections, customizationService);
 
 		const listed = await service.listExtensions(frontendSession, CancellationToken.None);
 		await service.setExtensionEnabled(frontendSession, 'user:preview', false);
@@ -69,14 +67,12 @@ suite('CopilotExtensionsService', () => {
 		assert.deepStrictEqual({
 			listed,
 			calls,
-			changeCount,
 		}, {
 			listed: inventory,
 			calls: [
 				'listExtensions:copilotcli:/session-1:vendor-chat://opaque.example/threads/chat-1',
 				'setExtension:user:preview:false:copilotcli:/session-1:vendor-chat://opaque.example/threads/chat-1',
 			],
-			changeCount: 1,
 		});
 	});
 
@@ -92,7 +88,7 @@ suite('CopilotExtensionsService', () => {
 			override resolveSessionResource(): undefined { return undefined; }
 			override resolveSessionResourceIdentity(): undefined { return undefined; }
 		}();
-		const service = disposables.add(new CopilotExtensionsService(connections, new class extends mock<IAgentHostCustomizationService>() { }()));
+		const service = new CopilotExtensionsService(connections, new class extends mock<IAgentHostCustomizationService>() { }());
 
 		assert.deepStrictEqual(
 			await service.listExtensions(URI.parse('agent-host-copilotcli:/untitled'), CancellationToken.None),

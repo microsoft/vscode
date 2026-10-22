@@ -13,7 +13,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
-import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentExtensionInventory } from '../../../../../../platform/agentHost/common/agent.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -21,8 +21,8 @@ import { IContextMenuService } from '../../../../../../platform/contextview/brow
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { getCanvasDefinitionInstanceId, ICanvas, ICanvasContext, ICanvasContextService, ICanvasDefinition, ICanvasReference, ICanvasService } from '../../../../canvases/common/canvas.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
-import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { CopilotCanvasesWidget } from '../../../browser/aiCustomization/copilotCustomizationsWidget.js';
 import { ICopilotExtensionsService } from '../../../browser/aiCustomization/copilotExtensionsService.js';
 
@@ -65,15 +65,16 @@ suite('CopilotCanvasesWidget', () => {
 		readonly definitions?: readonly ICanvasDefinition[];
 		readonly initialCanvases?: (definition: ICanvasDefinition) => readonly ICanvas[];
 		readonly listCanvases?: () => Promise<readonly ICanvasDefinition[]>;
-		readonly pluginName?: string;
 		readonly extensionInventory?: IAgentExtensionInventory;
 		readonly storageService?: IStorageService;
 		readonly visible?: boolean;
 		readonly contextAvailable?: boolean;
+		readonly ownerSuffix?: string;
 	}) {
 		const container = DOM.append(mainWindow.document.body, DOM.$('.copilot-canvases-test'));
 		store.add({ dispose: () => container.remove() });
-		const frontendSessionResource = URI.parse('agent-host-copilotcli:/frontend-owner');
+		const ownerSuffix = options?.ownerSuffix ?? 'owner';
+		const frontendSessionResource = URI.parse(`agent-host-copilotcli:/frontend-${ownerSuffix}`);
 		let definitions = options?.definitions ?? [definition()];
 		let extensionInventory = options?.extensionInventory ?? inventory(definitions);
 		const definitionsChanged = store.add(new Emitter<void>());
@@ -82,8 +83,8 @@ suite('CopilotCanvasesWidget', () => {
 		const context: ICanvasContext = {
 			owner: {
 				providerId: 'remote/copilotcli',
-				session: URI.parse('vendor-session:/opaque-backend'),
-				chat: URI.parse('vendor-chat:/opaque-chat'),
+				session: URI.parse(`vendor-session:/opaque-${ownerSuffix}`),
+				chat: URI.parse(`vendor-chat:/opaque-${ownerSuffix}`),
 			},
 			canvases: constObservable(options?.initialCanvases?.(definitions[0]) ?? []),
 			definitionProvider: {
@@ -96,9 +97,10 @@ suite('CopilotCanvasesWidget', () => {
 			},
 		};
 		const enabled = observableValue('enabled', true);
+		const contexts = observableValue<readonly ICanvasContext[]>('contexts', options?.contextAvailable === false ? [] : [context]);
 		const reveals: string[] = [];
 		const canvasContextService = new class extends mock<ICanvasContextService>() {
-			override readonly contexts = constObservable(options?.contextAvailable === false ? [] : [context]);
+			override readonly contexts = contexts;
 			override readonly onDidRemoveOwner = Event.None;
 			override isOwnerVisible() { return true; }
 			override getContext() { return context; }
@@ -114,9 +116,7 @@ suite('CopilotCanvasesWidget', () => {
 		}();
 		const listRequests: { session: URI; token: CancellationToken }[] = [];
 		const setRequests: { session: URI; extensionId: string; enabled: boolean }[] = [];
-		const extensionsChanged = store.add(new Emitter<void>());
 		const extensionsService = new class extends mock<ICopilotExtensionsService>() {
-			override readonly onDidChange = extensionsChanged.event;
 			override async listExtensions(session: URI, token: CancellationToken): Promise<IAgentExtensionInventory> {
 				listRequests.push({ session, token });
 				return extensionInventory;
@@ -133,7 +133,6 @@ suite('CopilotCanvasesWidget', () => {
 				if (!value) {
 					definitions = definitions.filter(canvas => canvas.extensionId !== extensionId);
 				}
-				extensionsChanged.fire();
 				definitionsChanged.fire();
 			}
 		}();
@@ -150,13 +149,6 @@ suite('CopilotCanvasesWidget', () => {
 		instantiationService.stub(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
 			override readonly activeSessionResource = constObservable(URI.parse('agent-host-copilotcli:/unrelated-active'));
 		}());
-		const plugin = options?.pluginName ? upcastPartial<IAgentPlugin>({
-			label: options.pluginName,
-			uri: URI.file(`/plugins/${options.pluginName}`),
-		}) : undefined;
-		instantiationService.stub(IAgentPluginService, new class extends mock<IAgentPluginService>() {
-			override readonly plugins = constObservable(plugin ? [plugin] : []);
-		}());
 		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
 			override executeCommand<R = unknown>(id: string, ...args: unknown[]): Promise<R | undefined> {
 				commands.push({ id, args });
@@ -171,9 +163,7 @@ suite('CopilotCanvasesWidget', () => {
 		}());
 		const widget = store.add(instantiationService.createInstance(CopilotCanvasesWidget, container));
 		const itemCounts: number[] = [];
-		const requestedPlugins: string[] = [];
 		store.add(widget.onDidChangeItemCount(count => itemCounts.push(count)));
-		store.add(widget.onDidRequestShowPlugin(item => requestedPlugins.push(item.name)));
 		if (options?.visible !== false) {
 			widget.setVisible(true);
 		}
@@ -193,7 +183,7 @@ suite('CopilotCanvasesWidget', () => {
 			get openCalls() { return openCalls; },
 			reveals,
 			itemCounts,
-			requestedPlugins,
+			setContextAvailable(value: boolean) { contexts.set(value ? [context] : [], undefined); },
 			widget,
 		};
 	}
@@ -445,6 +435,39 @@ suite('CopilotCanvasesWidget', () => {
 		});
 	});
 
+	test('keeps cached definitions isolated between chat owners with the same extension id', async () => {
+		const storageService = store.add(new InMemoryStorageService());
+		const first = createHarness({ ownerSuffix: 'first', storageService });
+		await timeout(20);
+		first.widget.dispose();
+
+		const second = createHarness({
+			ownerSuffix: 'second',
+			definitions: [],
+			extensionInventory: inventory([definition()], 'running'),
+			storageService,
+		});
+		await timeout(20);
+		second.widget.dispose();
+
+		const restored = createHarness({
+			ownerSuffix: 'first',
+			definitions: [],
+			extensionInventory: inventory([definition()], 'disabled'),
+			storageService,
+		});
+		await timeout(20);
+
+		const accessible = restored.widget.getAccessibilityContent();
+		assert.deepStrictEqual({
+			canvas: accessible.includes('Preview. Last known:'),
+			lastKnown: accessible.includes('Last known:'),
+		}, {
+			canvas: true,
+			lastKnown: true,
+		});
+	});
+
 	test('uses each Canvas frontend target and reveals an existing Canvas', async () => {
 		const canvasResource = URI.parse('canvas:/live-preview');
 		const harness = createHarness({
@@ -470,9 +493,25 @@ suite('CopilotCanvasesWidget', () => {
 		});
 	});
 
+	test('does not run a retained Canvas action after its owner retires', async () => {
+		const harness = createHarness();
+		await timeout(0);
+		const more = harness.container.querySelector<HTMLElement>('[aria-label="More Actions for Canvas Preview"]');
+		assert.ok(more);
+		more.click();
+		const show = harness.menuActions.find(action => action.id === 'canvas.show');
+		assert.ok(show);
+
+		harness.setContextAvailable(false);
+		await timeout(0);
+		await show.run();
+		harness.hideMenu();
+
+		assert.strictEqual(harness.openCalls, 0);
+	});
+
 	test('routes input-requiring plugin Canvases to Plugins', async () => {
 		const harness = createHarness({
-			pluginName: 'Diagram Plugin',
 			definitions: [definition({
 				canvasId: 'diagram',
 				extensionId: 'plugin:diagram:canvas',
@@ -492,13 +531,13 @@ suite('CopilotCanvasesWidget', () => {
 		assert.ok(row);
 		row.click();
 
-		assert.deepStrictEqual({
-			requestedPlugins: harness.requestedPlugins,
-			commands: harness.commands,
-		}, {
-			requestedPlugins: ['Diagram Plugin'],
-			commands: [],
-		});
+		assert.deepStrictEqual(harness.commands, [{
+			id: AICustomizationManagementCommands.OpenEditor,
+			args: [{
+				section: AICustomizationManagementSection.Plugins,
+				sessionResource: harness.frontendSessionResource,
+			}],
+		}]);
 	});
 
 	test('ignores a retired Canvas listing for a reactivated owner', async () => {

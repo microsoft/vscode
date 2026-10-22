@@ -4370,19 +4370,16 @@ export class CopilotAgentSession extends Disposable {
 		}
 		this._publishSettledCanvasRegistry();
 		const extensionSources = new Map(extensions.extensions.map(extension => [extension.id, this._canvasExtensionSource(extension.source)]));
-		return result.canvases.flatMap(canvas => {
-			const extensionSource = extensionSources.get(canvas.extensionId) ?? this._canvasExtensionSourceFromId(canvas.extensionId);
-			return extensionSource === 'session' ? [] : [{
-				canvasId: canvas.canvasId,
-				extensionId: canvas.extensionId,
-				extensionSource,
-				...(canvas.extensionName ? { extensionName: canvas.extensionName } : {}),
-				displayName: canvas.displayName,
-				description: canvas.description,
-				requiresInput: this._canvasRequiresInput(canvas.inputSchema),
-				actionCount: canvas.actions?.length ?? 0,
-			}];
-		});
+		return result.canvases.map(canvas => ({
+			canvasId: canvas.canvasId,
+			extensionId: canvas.extensionId,
+			extensionSource: extensionSources.get(canvas.extensionId) ?? 'unknown',
+			...(canvas.extensionName ? { extensionName: canvas.extensionName } : {}),
+			displayName: canvas.displayName,
+			description: canvas.description,
+			requiresInput: this._canvasRequiresInput(canvas.inputSchema),
+			actionCount: canvas.actions?.length ?? 0,
+		}));
 	}
 
 	async listExtensions(): Promise<readonly IAgentExtensionInfo[]> {
@@ -4568,11 +4565,6 @@ export class CopilotAgentSession extends Disposable {
 			default:
 				return 'unknown';
 		}
-	}
-
-	private _canvasExtensionSourceFromId(extensionId: string): AgentCanvasExtensionSource {
-		const separator = extensionId.indexOf(':');
-		return this._canvasExtensionSource(separator === -1 ? '' : extensionId.slice(0, separator));
 	}
 
 	private _canvasRequiresInput(inputSchema: JsonValue | undefined): boolean {

@@ -325,7 +325,7 @@ The response also reports the effective mode:
 
 Client-level `extensions.enable` and `extensions.disable` persist IDs for future sessions. `session.extensions.reconcile` refreshes authoritative membership for an exact live chat after plugin or preference changes without creating a second session-owned preference.
 
-The session-level `session.extensions.list` RPC returns the effective user, project, and plugin extensions for one initialized chat with status `running`, `disabled`, `failed`, or `starting`. `session.extensions.enable` and `session.extensions.disable` own project-scoped decisions. VS Code exposes this inventory only as supporting state for the Canvases section; there is no separate Copilot Extensions management destination.
+The session-level `session.extensions.list` RPC returns the effective user, project, and plugin extensions for one initialized chat with status `running`, `disabled`, `failed`, or `starting`. VS Code exposes this inventory only as supporting state for the Canvases section; Project extensions are read-only, and there is no separate Copilot Extensions management destination.
 
 ### 8.2 Ownership
 

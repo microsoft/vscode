@@ -3665,14 +3665,6 @@ suite('CopilotAgentSession', () => {
 					description: 'Preview with optional input.',
 					inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
 				});
-				mock.extensions.push({ id: 'session:test-session-1:temporary', name: 'Temporary extension', source: 'session', status: 'running' });
-				mock.canvases.push({
-					canvasId: 'temporary',
-					extensionId: 'session:test-session-1:temporary',
-					extensionName: 'Temporary extension',
-					displayName: 'Temporary',
-					description: 'Session-scoped Canvas.',
-				});
 			},
 		});
 

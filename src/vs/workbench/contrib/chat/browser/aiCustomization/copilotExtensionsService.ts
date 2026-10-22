@@ -5,8 +5,6 @@
 
 import { raceCancellationError } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import type { IAgentConnection, IAgentExtensionInventory } from '../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
@@ -18,23 +16,17 @@ export const ICopilotExtensionsService = createDecorator<ICopilotExtensionsServi
 
 export interface ICopilotExtensionsService {
 	readonly _serviceBrand: undefined;
-	readonly onDidChange: Event<void>;
 	listExtensions(sessionResource: URI, token: CancellationToken): Promise<IAgentExtensionInventory>;
 	setExtensionEnabled(sessionResource: URI, extensionId: string, enabled: boolean): Promise<void>;
 }
 
-export class CopilotExtensionsService extends Disposable implements ICopilotExtensionsService {
+export class CopilotExtensionsService implements ICopilotExtensionsService {
 	declare readonly _serviceBrand: undefined;
-
-	private readonly _onDidChange = this._register(new Emitter<void>());
-	readonly onDidChange = this._onDidChange.event;
 
 	constructor(
 		@IAgentHostConnectionsService private readonly connectionsService: IAgentHostConnectionsService,
 		@IAgentHostCustomizationService private readonly customizationService: IAgentHostCustomizationService,
-	) {
-		super();
-	}
+	) { }
 
 	async listExtensions(sessionResource: URI, token: CancellationToken): Promise<IAgentExtensionInventory> {
 		const { connection, session } = this.resolveConnection(sessionResource);
@@ -49,11 +41,7 @@ export class CopilotExtensionsService extends Disposable implements ICopilotExte
 		if (!connection.setAgentExtensionEnabled) {
 			throw new Error('This Agent Host does not support Copilot extension management.');
 		}
-		try {
-			await connection.setAgentExtensionEnabled(extensionId, enabled, session, this.customizationService.getBackendChatResource?.(sessionResource));
-		} finally {
-			this._onDidChange.fire();
-		}
+		await connection.setAgentExtensionEnabled(extensionId, enabled, session, this.customizationService.getBackendChatResource?.(sessionResource));
 	}
 
 	private resolveConnection(sessionResource: URI): { readonly connection: IAgentConnection; readonly session?: URI } {

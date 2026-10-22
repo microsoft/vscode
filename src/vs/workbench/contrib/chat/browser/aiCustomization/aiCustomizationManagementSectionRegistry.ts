@@ -10,7 +10,6 @@ import { IObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
-import type { IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
 
 export interface IAICustomizationManagementSectionWidget extends IDisposable {
 	layout?(dimension: Dimension): void;
@@ -20,7 +19,6 @@ export interface IAICustomizationManagementSectionWidget extends IDisposable {
 	setVisible?(visible: boolean): void;
 	getAccessibilityContent?(): string;
 	readonly onDidChangeItemCount?: Event<number>;
-	readonly onDidRequestShowPlugin?: Event<IAgentPluginItem>;
 }
 
 export interface IAICustomizationManagementSectionContribution {
