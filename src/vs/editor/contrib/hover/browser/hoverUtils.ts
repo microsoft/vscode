@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import { isMacintosh } from '../../../../base/common/platform.js';
 import { IEditorMouseEvent } from '../../../browser/editorBrowser.js';
 
 const enum PADDING {
@@ -23,7 +24,8 @@ export function isMousePositionWithinElement(element: HTMLElement, posx: number,
 /**
  * Determines whether hover should be shown based on the hover setting and current keyboard modifiers.
  * When `hoverEnabled` is 'onKeyboardModifier', hover is shown when the user presses the opposite
- * modifier key from the multi-cursor modifier (e.g., if multi-cursor uses Alt, hover shows on Ctrl/Cmd).
+ * modifier key from the multi-cursor modifier (e.g., if multi-cursor uses Alt, hover shows on
+ * Cmd on macOS / Ctrl on Windows and Linux).
  *
  * @param hoverEnabled - The hover enabled setting
  * @param multiCursorModifier - The modifier key used for multi-cursor operations
@@ -47,13 +49,17 @@ export function shouldShowHover(
 /**
  * Returns true if the trigger modifier (inverse of multi-cursor modifier) is pressed.
  * This works with both mouse and keyboard events by relying only on the modifier flags.
+ *
+ * When the multi-cursor modifier is `altKey`, the trigger modifier is the platform's primary
+ * modifier (`metaKey` / Cmd on macOS, `ctrlKey` / Ctrl on Windows and Linux). This mirrors
+ * how `multiCursorModifier === 'ctrlCmd'` resolves and matches the documented hover behavior.
  */
 export function isTriggerModifierPressed(
 	multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey',
 	event: { ctrlKey: boolean; metaKey: boolean; altKey: boolean }
 ): boolean {
 	if (multiCursorModifier === 'altKey') {
-		return event.ctrlKey || event.metaKey;
+		return isMacintosh ? event.metaKey : event.ctrlKey;
 	}
 	return event.altKey; // multiCursorModifier is ctrlKey or metaKey
 }
