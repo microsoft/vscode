@@ -12863,17 +12863,21 @@ suite('CopilotAgent', () => {
 			});
 		}
 
-		(process.platform === 'linux' ? test : test.skip)('passes Linux sandbox tool fallback directories to the runtime without changing the host PATH', async () => {
+		test('passes sandbox tool PATH to the runtime without changing the host PATH', async () => {
 			const inheritedPath = process.env.PATH;
-			const { agent } = createTestAgentContext(disposables);
+			const { agent } = createTestAgentContext(disposables, { copilotClient: new TestCopilotClient([]) });
 			try {
 				await agent.listChatsToMigrate();
-				const path = getCreatedClientOptions(agent).at(-1)?.env?.['PATH'];
+				const env = getCreatedClientOptions(agent).at(-1)?.env;
+				const pathKey = Object.keys(env ?? {}).find(key => key.toUpperCase() === 'PATH') ?? 'PATH';
+				const path = env?.[pathKey];
 				assert.ok(path);
-				const directories = path.split(':');
+				const separator = process.platform === 'win32' ? ';' : ':';
+				const directories = path.split(separator);
+				const fallbackDirectories = process.platform === 'linux' ? ['/usr/local/sbin', '/usr/local/bin', '/usr/sbin', '/usr/bin', '/sbin', '/bin'] : [];
 				assert.deepStrictEqual({
-					inheritedPrefix: inheritedPath ? path.startsWith(`${inheritedPath}:`) : true,
-					missingDirectories: ['/usr/local/sbin', '/usr/local/bin', '/usr/sbin', '/usr/bin', '/sbin', '/bin'].filter(directory => !directories.includes(directory)),
+					inheritedPrefix: inheritedPath ? path.startsWith(`${inheritedPath}${separator}`) : true,
+					missingDirectories: fallbackDirectories.filter(directory => !directories.includes(directory)),
 					hostPath: process.env.PATH,
 				}, { inheritedPrefix: true, missingDirectories: [], hostPath: inheritedPath });
 			} finally {
