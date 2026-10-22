@@ -101,7 +101,7 @@ suite('CanvasEditor', () => {
 				}
 			},
 			setVisible: value => { visible.push(value); log.push(`host.visible:${value}`); },
-			layout: () => { },
+			layout: () => { log.push('host.layout'); },
 			tryFocus: () => false,
 			dispose: () => { },
 		});
@@ -161,7 +161,7 @@ suite('CanvasEditor', () => {
 			attached: true,
 			shownWhileHidden: false,
 			boundsWhileHidden: [],
-			reveal: ['model.layout:400x200', 'host.visible:true'],
+			reveal: ['model.layout:400x200', 'host.layout', 'host.visible:true'],
 		});
 	});
 
@@ -174,6 +174,7 @@ suite('CanvasEditor', () => {
 			'host.visible:false',
 			'host.model:attached',
 			'model.layout:400x200',
+			'host.layout',
 			'host.visible:true',
 		]);
 	});
@@ -196,7 +197,7 @@ suite('CanvasEditor', () => {
 			applied: harness.log.slice(showStart + pending.length),
 		}, {
 			pending: ['model.layout:400x200'],
-			applied: ['host.visible:true'],
+			applied: ['host.layout', 'host.visible:true'],
 		});
 	});
 
@@ -212,7 +213,26 @@ suite('CanvasEditor', () => {
 		await timeout(0);
 		assert.deepStrictEqual({ pending, applied: harness.log.slice(pending.length) }, {
 			pending: ['host.visible:false', 'host.model:attached', 'model.layout:400x200'],
-			applied: ['host.visible:true'],
+			applied: ['host.layout', 'host.visible:true'],
+		});
+	});
+
+	test('refreshes overlays of a resized visible model only after its new bounds are applied', async () => {
+		const harness = createHarness();
+		await harness.show();
+		await harness.open();
+		await harness.modelAttached.p;
+		await timeout(0);
+		const layouts = harness.deferLayouts();
+		const resizeStart = harness.log.length;
+		harness.parent.style.width = '300px';
+		harness.editor.layout();
+		const pending = harness.log.slice(resizeStart);
+		await layouts[0].complete();
+		await timeout(0);
+		assert.deepStrictEqual({ pending, applied: harness.log.slice(resizeStart + pending.length) }, {
+			pending: ['model.layout:300x200'],
+			applied: ['host.layout', 'host.visible:true'],
 		});
 	});
 
@@ -225,7 +245,7 @@ suite('CanvasEditor', () => {
 		await layouts[0].error(new Error('view is gone'));
 		await timeout(0);
 		assert.deepStrictEqual({ log: harness.log, errors: harness.errors }, {
-			log: ['host.visible:false', 'host.model:attached', 'model.layout:400x200', 'host.visible:false'],
+			log: ['host.visible:false', 'host.model:attached', 'model.layout:400x200', 'host.visible:false', 'host.layout'],
 			errors: ['[CanvasEditor] Failed to layout canvas'],
 		});
 	});
@@ -247,7 +267,7 @@ suite('CanvasEditor', () => {
 		assert.deepStrictEqual({ sent, afterStale, afterLatest: harness.log.slice(sent.length + afterStale.length) }, {
 			sent: ['host.visible:false', 'host.model:attached', 'model.layout:400x200', 'model.layout:300x200'],
 			afterStale: [],
-			afterLatest: ['host.visible:true'],
+			afterLatest: ['host.layout', 'host.visible:true'],
 		});
 	});
 
@@ -284,7 +304,7 @@ suite('CanvasEditor', () => {
 		harness.parent.style.display = 'none';
 		await layouts[0].complete();
 		await timeout(0);
-		assert.deepStrictEqual(harness.log, ['host.visible:false', 'host.model:attached', 'model.layout:400x200', 'host.visible:false']);
+		assert.deepStrictEqual(harness.log, ['host.visible:false', 'host.model:attached', 'model.layout:400x200', 'host.visible:false', 'host.layout']);
 	});
 
 	test('does not create a view while canvas state has no live source', async () => {

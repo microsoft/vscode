@@ -310,7 +310,6 @@ export class CanvasEditor extends EditorPane {
 			this.host.layout();
 			return;
 		}
-		this.host.layout();
 		void this._layoutAndReveal(model, bounds, sequence);
 	}
 
@@ -332,7 +331,14 @@ export class CanvasEditor extends EditorPane {
 		// The pane can be hidden or moved off-screen without a new layout while the bounds are applied.
 		const visible = applied && this._measure().visible;
 		this.presentationVisible.set(visible, undefined);
-		this.host.setVisible(visible);
+		if (!visible) {
+			this.host.setVisible(false);
+		}
+		// Refreshing overlays can reveal a visible host that is no longer obscured, so it must follow the bounds.
+		this.host.layout();
+		if (visible) {
+			this.host.setVisible(true);
+		}
 	}
 
 	private _measure(): { readonly rect: DOMRect; readonly bounds: IBrowserViewBounds; readonly visible: boolean } {
