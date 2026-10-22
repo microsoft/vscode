@@ -141,6 +141,7 @@ export class SessionActivityBar extends Disposable {
 				rendered.class = action.class ?? '';
 				rendered.enabled = action.enabled;
 				rendered.tooltip = action.tooltip;
+				rendered.checked = action.checked;
 			}
 			scopedContextKeyService.bufferChangeEvents(() => {
 				for (const [id, key] of keys) {

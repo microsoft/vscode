@@ -96,8 +96,8 @@ suite('Issue Actions', () => {
 			visibleWithIssue: item.when?.evaluate(withIssue),
 			visibleWithoutIssue: item.when?.evaluate(withoutIssue),
 		})), [{
-			group: SessionActivityBarGroup.GitHub,
-			order: 1,
+			group: SessionActivityBarGroup.SidePanel,
+			order: 101,
 			icon: Codicon.issues,
 			visibleWithIssue: true,
 			visibleWithoutIssue: false,
