@@ -948,19 +948,41 @@ suite('Sessions - Editor Contribution', () => {
 		});
 	});
 
-	test('empty file editor scopes Open File shortcut to its actions', () => {
+	test('empty file editor gates Open File and its shortcut on the experimental actions setting', () => {
 		const ctrlCmdP = decodeKeybinding(KeyMod.CtrlCmd | KeyCode.KeyP, OS)!.getHashCode();
 		const rule = KeybindingsRegistry.getDefaultKeybindings()
 			.find(item => item.command === OPEN_FILE_IN_EMPTY_EDITOR_COMMAND_ID && item.keybinding?.getHashCode() === ctrlCmdP);
-		const evaluate = (values: Record<string, boolean>) => rule?.when?.evaluate({ getValue: <T>(key: string) => values[key] as T | undefined });
+		const menuItem = MenuRegistry.getMenuItems(Menus.EmptyFileEditorActions)
+			.find(item => isIMenuItem(item) && item.command.id === OPEN_FILE_IN_EMPTY_EDITOR_COMMAND_ID);
+		assert.ok(menuItem && isIMenuItem(menuItem));
+		const states = [undefined, false, true, false].map(enabled => {
+			const values: Record<string, boolean | undefined> = {
+				[`config.${SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING}`]: enabled,
+				[EmptyFileEditorFocusedContext.key]: true,
+			};
+			const context = { getValue: <T>(key: string) => values[key] as T | undefined };
+			const focused = rule?.when?.evaluate(context);
+			delete values[EmptyFileEditorFocusedContext.key];
+			return {
+				enabled,
+				focused,
+				elsewhere: rule?.when?.evaluate(context),
+				menuVisible: menuItem.when?.evaluate(context),
+				actionEnabled: menuItem.command.precondition?.evaluate(context),
+			};
+		});
 		assert.deepStrictEqual({
 			registered: !!rule,
-			editorFocused: evaluate({ [EmptyFileEditorFocusedContext.key]: true }),
-			elsewhere: evaluate({}),
+			states,
 		}, {
 			registered: true,
-			editorFocused: true,
-			elsewhere: false,
+			states: [undefined, false, true, false].map(enabled => ({
+				enabled,
+				focused: enabled === true,
+				elsewhere: false,
+				menuVisible: enabled === true,
+				actionEnabled: enabled === true,
+			})),
 		});
 	});
 

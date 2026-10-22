@@ -85,6 +85,59 @@ suite('Sessions - Empty state layout', () => {
 		assert.deepStrictEqual(results, results.map(result => ({ ...result, firstButtonAligned: true })));
 	});
 
+	test('observes only alignment targets and preceding toolbars while following header changes', () => {
+		const observed: Element[] = [];
+		let observer: TestResizeObserver | undefined;
+		class TestResizeObserver implements ResizeObserver {
+			constructor(readonly callback: ResizeObserverCallback) { observer = this; }
+			observe(target: Element): void { observed.push(target); }
+			unobserve(): void { }
+			disconnect(): void { }
+		}
+		const group = append(mainWindow.document.body, $('.editor-group-container'));
+		group.style.cssText = 'height: 220px; width: 400px; display: flex; flex-direction: column;';
+		store.add(toDisposable(() => group.remove()));
+		const header = append(group, $('div'));
+		header.style.flex = '0 0 35px';
+		const wrapper = append(group, $('div'));
+		wrapper.style.cssText = 'display: flex; flex: 1; min-height: 0;';
+		const container = append(wrapper, $('div'));
+		container.style.cssText = 'display: flex; flex-direction: column; flex: 1; min-height: 0;';
+		const toolbar = append(container, $('div'));
+		toolbar.style.flex = '0 0 20px';
+		const content = append(container, $('div'));
+		content.style.cssText = 'flex: 0 0 56px; margin: auto 0;';
+		const anchor = append(content, $('button'));
+		anchor.style.cssText = 'display: block; height: 28px;';
+		const unrelated = append(container, $('div'));
+		unrelated.style.cssText = 'position: absolute; height: 10px;';
+		store.add(new SessionsEmptyStateLayout(container, [content], anchor, TestResizeObserver));
+		assert.ok(observer);
+		const geometry = () => ({
+			aligned: Math.abs(anchor.getBoundingClientRect().top - (group.getBoundingClientRect().top + group.getBoundingClientRect().bottom) / 2 + 42) < 1,
+			belowToolbar: content.getBoundingClientRect().top >= toolbar.getBoundingClientRect().bottom,
+			insidePanel: content.getBoundingClientRect().bottom <= group.getBoundingClientRect().bottom,
+		});
+		const before = geometry();
+		header.style.flexBasis = '40px';
+		toolbar.style.flexBasis = '80px';
+		observer.callback([], observer);
+		const clamped = geometry();
+		group.style.height = '400px';
+		observer.callback([], observer);
+		assert.deepStrictEqual({
+			targets: observed.map(element => element === container ? 'container' : element === group ? 'group' : element === anchor ? 'anchor' : element === content ? 'content' : element === toolbar ? 'toolbar' : 'unrelated'),
+			before,
+			clamped,
+			resized: geometry(),
+		}, {
+			targets: ['container', 'group', 'anchor', 'content', 'toolbar'],
+			before: { aligned: true, belowToolbar: true, insidePanel: true },
+			clamped: { aligned: false, belowToolbar: true, insidePanel: true },
+			resized: { aligned: true, belowToolbar: true, insidePanel: true },
+		});
+	});
+
 	test('clamps short panels below the toolbar and cleans up positioning on dispose', () => {
 		let disconnected = false;
 		class TestResizeObserver implements ResizeObserver {

@@ -27,14 +27,10 @@ export class SessionsEmptyStateLayout extends Disposable {
 		const observer = new ResizeObserverCtor(() => this.layout());
 		this._register(toDisposable(() => observer.disconnect()));
 		const observed = new Set<HTMLElement>([container, this.reference, this.anchor, ...elements]);
-		if (container !== this.reference) {
-			for (let ancestor = container.parentElement; ancestor && ancestor !== this.reference; ancestor = ancestor.parentElement) {
-				observed.add(ancestor);
-			}
-		}
-		for (const child of container.children) {
-			if (isHTMLElement(child)) {
-				observed.add(child);
+		// Only preceding toolbars can change the space available above the aligned content.
+		for (let sibling = elements[0].previousElementSibling; sibling; sibling = sibling.previousElementSibling) {
+			if (isHTMLElement(sibling)) {
+				observed.add(sibling);
 			}
 		}
 		for (const element of observed) {
