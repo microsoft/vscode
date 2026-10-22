@@ -17,8 +17,9 @@ import { mock, upcastPartial } from '../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
-import { IMenu, IMenuChangeEvent, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from '../../../platform/actions/common/actions.js';
+import { IMenu, IMenuActionOptions, IMenuChangeEvent, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from '../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
+import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextMenuMenuDelegate, IContextMenuService, IContextViewService } from '../../../platform/contextview/browser/contextView.js';
@@ -27,6 +28,7 @@ import { ChatViewSessionActivityBar, SessionActivityBar } from '../../browser/pa
 import { SessionActivityBarGroup } from '../../browser/menus.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../browser/workbench.js';
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../common/sessionConfig.js';
+import { TOGGLE_SIDE_PANEL_COMMAND_ID } from '../../common/sessionCommands.js';
 import { ISessionActivityBarActivityService, SessionActivityBarActivityService } from '../../services/activity/common/sessionActivityBarActivityService.js';
 import { IconBadge, NumberBadge } from '../../../workbench/services/activity/common/activity.js';
 import { TestContextViewService } from './testContextViewService.js';
@@ -40,6 +42,8 @@ interface ITestEntry {
 	readonly submenu?: readonly { readonly id: string; readonly title: string }[];
 	/** The menu group, `navigation` by default. */
 	readonly group?: string;
+	/** Whether the entry is checked, as when the side pane shows its editor. */
+	readonly checked?: boolean;
 }
 
 const changes: ITestEntry = { id: 'test.changes', title: 'Changes', icon: Codicon.gitCompare };
@@ -77,6 +81,17 @@ suite('Sessions - Session Activity Bar', () => {
 			override isScreenReaderOptimized(): boolean { return false; }
 		});
 
+		const createEntryAction = (entry: ITestEntry, options: IMenuActionOptions | undefined) => {
+			if (!entry.checked) {
+				return instantiationService.createInstance(MenuItemAction, { id: entry.id, title: entry.title, icon: entry.icon }, undefined, options, undefined, undefined);
+			}
+			// The entry's toggled condition holds, as when the side pane shows its editor.
+			const contextKeyService = new class extends mock<IContextKeyService>() {
+				override contextMatchesRules(rules: ContextKeyExpression | undefined): boolean { return !!rules?.evaluate({ getValue: () => undefined }); }
+			};
+			return instantiationService.invokeFunction(accessor => new MenuItemAction({ id: entry.id, title: entry.title, icon: entry.icon, toggled: ContextKeyExpr.true() }, undefined, options, undefined, undefined, contextKeyService, accessor.get(ICommandService)));
+		};
+
 		let entries = initialEntries;
 		let createdMenu: IMenu | undefined;
 		const onDidChangeMenu = testStore.add(new Emitter<IMenuChangeEvent>());
@@ -92,7 +107,7 @@ suite('Sessions - Session Activity Bar', () => {
 							groups.set(group, [...groups.get(group) ?? [], entry.submenu
 								? new SubmenuItemAction({ submenu: MenuId.for(entry.id), title: entry.title, icon: entry.icon }, undefined, entry.submenu.map(item =>
 									instantiationService.createInstance(MenuItemAction, { id: item.id, title: item.title }, undefined, options, undefined, undefined)))
-								: instantiationService.createInstance(MenuItemAction, { id: entry.id, title: entry.title, icon: entry.icon }, undefined, options, undefined, undefined)]);
+								: createEntryAction(entry, options)]);
 						}
 						return [...groups];
 					},
@@ -647,6 +662,27 @@ suite('Sessions - Session Activity Bar', () => {
 		await timeout(0);
 
 		assert.deepStrictEqual(ran, ['test.browser']);
+	});
+
+	test('shows a checked entry as pressed and hides the side pane when it is clicked or activated by keyboard', async () => {
+		const { label, ran } = createActivityBar(store, [{ ...changes, checked: true }, browser]);
+
+		const state = (title: string) => ({ checked: label(title).classList.contains('checked'), pressed: label(title).getAttribute('aria-pressed') });
+		const before = { changes: state('Changes'), browser: state('Browser') };
+		label('Changes').click();
+		await timeout(0);
+		label('Browser').click();
+		await timeout(0);
+		key(label('Changes'), 36, 'Home');
+		key(label('Changes'), 13, 'Enter');
+		// The action bar runs the focused entry when Enter is released.
+		label('Changes').dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+		await timeout(0);
+
+		assert.deepStrictEqual({ before, ran }, {
+			before: { changes: { checked: true, pressed: 'true' }, browser: { checked: false, pressed: null } },
+			ran: [TOGGLE_SIDE_PANEL_COMMAND_ID, 'test.browser', TOGGLE_SIDE_PANEL_COMMAND_ID],
+		});
 	});
 
 	test('opens the Canvas submenu to the left on hover, click, and keyboard, and runs its items', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

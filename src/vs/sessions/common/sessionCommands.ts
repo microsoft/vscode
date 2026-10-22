@@ -10,6 +10,9 @@
  * without crossing the sessions layering rules.
  */
 
+/** Toggles the side pane (editor area and auxiliary bar). Registered in `baseSessionLayoutController.ts`. */
+export const TOGGLE_SIDE_PANEL_COMMAND_ID = 'workbench.action.agentToggleSidePanel';
+
 /** Unarchives a session. Registered in `sessionsViewActions.ts`. */
 export const UNARCHIVE_SESSION_COMMAND_ID = 'sessionsViewPane.unarchiveSession';
 

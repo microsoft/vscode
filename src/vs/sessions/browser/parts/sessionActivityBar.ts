@@ -17,6 +17,7 @@ import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposab
 import { clamp } from '../../../base/common/numbers.js';
 import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue, transaction } from '../../../base/common/observable.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
+import { IAction, toAction } from '../../../base/common/actions.js';
 import { localize } from '../../../nls.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
 import { IMenuEntryActionViewItemOptions, MenuEntryActionViewItem } from '../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -26,6 +27,7 @@ import { INotificationService } from '../../../platform/notification/common/noti
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { IBadge, NumberBadge } from '../../../workbench/services/activity/common/activity.js';
 import { ISessionActivityBarActivityService } from '../../services/activity/common/sessionActivityBarActivityService.js';
+import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
@@ -36,6 +38,7 @@ import { Menus } from '../menus.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../workbench.js';
 import { AGENTS_CONTENT_HORIZONTAL_PADDING } from '../../common/layoutConstants.js';
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../common/sessionConfig.js';
+import { TOGGLE_SIDE_PANEL_COMMAND_ID } from '../../common/sessionCommands.js';
 import { isPhoneLayout } from './mobile/mobileLayout.js';
 import { SubmenuFlyout } from './submenuFlyout.js';
 
@@ -394,6 +397,7 @@ export class SessionActivityBarActionViewItem extends MenuEntryActionViewItem {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@ISessionActivityBarActivityService private readonly activityService: ISessionActivityBarActivityService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(action, options, keybindingService, notificationService, contextKeyService, themeService, contextMenuService, accessibilityService);
 
@@ -415,6 +419,30 @@ export class SessionActivityBarActionViewItem extends MenuEntryActionViewItem {
 	/** The badge of the most recent activity reported for the entry's command, which the entry shows. */
 	protected getBadge(): IBadge | undefined {
 		return this.activityService.getActivity(this._menuItemAction.id).at(-1)?.badge;
+	}
+
+	/** Whether the entry is checked because the side pane shows its content, so running it hides the side pane like the workbench activity bar. */
+	private get hidesSidePane(): boolean {
+		return this._menuItemAction.enabled && !!this._menuItemAction.checked && this._menuItemAction.id !== TOGGLE_SIDE_PANEL_COMMAND_ID;
+	}
+
+	override getActionToRun(event: EventLike & { readonly altKey?: boolean; readonly shiftKey?: boolean }): IAction {
+		if (this.hidesSidePane) {
+			return toAction({ id: TOGGLE_SIDE_PANEL_COMMAND_ID, label: this._menuItemAction.label, run: () => this.commandService.executeCommand(TOGGLE_SIDE_PANEL_COMMAND_ID) });
+		}
+		return super.getActionToRun(event);
+	}
+
+	override async onClick(event: MouseEvent): Promise<void> {
+		if (!this.hidesSidePane) {
+			return super.onClick(event);
+		}
+		EventHelper.stop(event, true);
+		try {
+			await this.actionRunner.run(this.getActionToRun(event), this._context);
+		} catch (error) {
+			this._notificationService.error(error);
+		}
 	}
 
 	protected override getTooltip(): string {
