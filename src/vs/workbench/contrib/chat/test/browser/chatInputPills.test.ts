@@ -219,16 +219,16 @@ suite('StandardChatInputPillSources', () => {
 			readonly remainingPinnable?: boolean;
 			readonly remainingHasPopup?: boolean;
 		}[] = [
-			{ property: 'pullRequests', kind: SessionChatPillKind.PullRequests, aggregateLabel: '2 Pull Requests', remainingLabel: 'second' },
-			{ property: 'issues', kind: SessionChatPillKind.Issues, aggregateLabel: '2 Issues', remainingLabel: 'second' },
-			{ property: 'artifacts', kind: SessionChatPillKind.Artifacts, aggregateLabel: '2 Artifacts', remainingLabel: 'second' },
-			{ property: 'references', kind: SessionChatPillKind.References, aggregateLabel: '2 References', remainingLabel: 'second' },
-			{ property: 'customizations', kind: SessionChatPillKind.Customizations, aggregateLabel: '2 Customizations', remainingLabel: 'second' },
-			{ property: 'canvases', kind: SessionChatPillKind.Canvases, aggregateLabel: '2 Canvases', remainingLabel: 'second' },
-			{ property: 'browsers', kind: SessionChatPillKind.Browsers, aggregateLabel: '2 Active Browsers', remainingLabel: 'second' },
-			{ property: 'subagents', kind: SessionChatPillKind.Subagents, aggregateLabel: '2 Subagents', remainingLabel: 'second' },
-			{ property: 'backgroundShells', kind: SessionChatPillKind.BackgroundShells, aggregateLabel: '2 Background Shells', remainingLabel: '1 Background Shell', remainingPinnable: true, remainingHasPopup: true },
-		];
+				{ property: 'pullRequests', kind: SessionChatPillKind.PullRequests, aggregateLabel: '2 Pull Requests', remainingLabel: 'second' },
+				{ property: 'issues', kind: SessionChatPillKind.Issues, aggregateLabel: '2 Issues', remainingLabel: 'second' },
+				{ property: 'artifacts', kind: SessionChatPillKind.Artifacts, aggregateLabel: '2 Artifacts', remainingLabel: 'second' },
+				{ property: 'references', kind: SessionChatPillKind.References, aggregateLabel: '2 References', remainingLabel: 'second' },
+				{ property: 'customizations', kind: SessionChatPillKind.Customizations, aggregateLabel: '2 Customizations', remainingLabel: 'second' },
+				{ property: 'canvases', kind: SessionChatPillKind.Canvases, aggregateLabel: '2 Canvases', remainingLabel: 'second' },
+				{ property: 'browsers', kind: SessionChatPillKind.Browsers, aggregateLabel: '2 Active Browsers', remainingLabel: 'second' },
+				{ property: 'subagents', kind: SessionChatPillKind.Subagents, aggregateLabel: '2 Subagents', remainingLabel: 'second' },
+				{ property: 'backgroundShells', kind: SessionChatPillKind.BackgroundShells, aggregateLabel: '2 Background Shells', remainingLabel: '1 Background Shell', remainingPinnable: true, remainingHasPopup: true },
+			];
 		const results = [];
 		for (const testCase of cases) {
 			const sections = constObservable<readonly IChatPillSection[]>([{
