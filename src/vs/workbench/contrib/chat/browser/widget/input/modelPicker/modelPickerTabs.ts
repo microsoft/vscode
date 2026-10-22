@@ -8,6 +8,7 @@ import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { isDefined } from '../../../../../../../base/common/types.js';
 import { localize } from '../../../../../../../nls.js';
 import { COPILOT_VENDOR_ID, getLanguageModelProviderIcon, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, isUserProvidedModel, LanguageModelProviderIcon } from '../../../../common/languageModels.js';
+import { getLanguageModelSourcePresentation, ILanguageModelSourcePresentation } from '../../../../common/languageModelSourcePresentation.js';
 import { buildModelToProviderGroupMap, getProviderGroupForModel, getProviderGroupKey, isVersionAtLeast } from './modelPickerItemPrimitives.js';
 import { isDeprecated } from './modelPickerBadges.js';
 import { isEarlyAccessModel, latestOfEachLine } from './modelPickerLineage.js';
@@ -34,10 +35,7 @@ export interface IModelPickerProviderPlaceholder {
 	readonly action?: { readonly label: string; readonly run: () => void };
 }
 
-/**
- * One tab of the picker: the built-in provider, or one the user added. Each names a
- * single provider, so a tab's models never need to say where they came from.
- */
+/** One tab of the picker: built-in models, possibly from several sources, or a provider the user added. */
 export interface IModelPickerDestination {
 	readonly id: string;
 	/** Names the destination in the tab tooltip and as the list heading. */
@@ -99,12 +97,18 @@ export function buildModelPickerDestinations(
 	keepBuiltIn = false,
 ): IModelPickerDestination[] {
 	const builtInModels: ILanguageModelChatMetadataAndIdentifier[] = [];
+	const builtInSources = new Set<ILanguageModelSourcePresentation>();
 	const userModels: ILanguageModelChatMetadataAndIdentifier[] = [];
 	for (const model of models) {
+		const userProvided = isUserProvidedModel(model, languageModelsService);
+		const source = !userProvided ? getLanguageModelSourcePresentation(model) : undefined;
+		if (source) {
+			builtInSources.add(source);
+		}
 		if (hasOwnRow(model)) {
 			continue;
 		}
-		(isUserProvidedModel(model, languageModelsService) ? userModels : builtInModels).push(model);
+		(userProvided ? userModels : builtInModels).push(model);
 	}
 
 	const builtInVendor = languageModelsService.getVendors().find(vendor => vendor.isDefault);
@@ -121,7 +125,9 @@ export function buildModelPickerDestinations(
 	if (builtInModels.length || builtInPlaceholders.length || hasOwnRowModel || keepBuiltIn) {
 		destinations.push({
 			id: MODEL_PICKER_BUILT_IN_DESTINATION,
-			label: builtInLabel,
+			label: builtInSources.size > 1 || [...builtInSources].some(source => source.label !== builtInLabel)
+				? localize('chat.modelPicker.multipleSources', "Models")
+				: builtInLabel,
 			icon: builtInVendor?.icon ?? getProviderIconForIdentity(`${builtInLabel} ${builtInVendorId}`),
 			models: builtInModels,
 			placeholders: builtInPlaceholders,
