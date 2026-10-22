@@ -387,7 +387,7 @@ suite('ExtensionsActions', () => {
 					uninstallEnabled: uninstall.enabled,
 					uninstallLabel: uninstall.label,
 					manageEnabled: manage.enabled,
-					manageHidden: manage.class.endsWith(' hide')
+					manageHidden: manage.class.trim().split(/\s+/).includes('hide')
 				}));
 				const installedState = {
 					uninstallEnabled: true,
