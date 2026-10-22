@@ -16,20 +16,21 @@ suite('Computer Use setup contract', () => {
 	test('accepts only well-formed requests, with the permission each action needs', () => {
 		const base = { nonce: 'n', setupId: 's', round: 1 };
 		assert.deepStrictEqual([
+			{ ...base, action: 'allow', permission: 'accessibility' },
+			{ ...base, action: 'allow', permission: 'screenRecording' },
+			{ ...base, action: 'recheck' },
+			{ ...base, action: 'allow' },
+			{ ...base, action: 'recheck', permission: 'accessibility' },
+			{ ...base, action: 'allow', permission: 'camera' },
 			{ ...base, action: 'request', permission: 'accessibility' },
 			{ ...base, action: 'openSettings', permission: 'screenRecording' },
-			{ ...base, action: 'recheck' },
-			{ ...base, action: 'request' },
-			{ ...base, action: 'recheck', permission: 'accessibility' },
-			{ ...base, action: 'request', permission: 'camera' },
-			{ ...base, action: 'reset' },
 			{ ...base, action: 'recheck', round: -1 },
 			{ ...base, action: 'recheck', round: 1.5 },
 			{ ...base, action: 'recheck', nonce: '' },
 			{ ...base, action: 'recheck', setupId: 'x'.repeat(257) },
 			['recheck'],
 			undefined,
-		].map(isComputerUseRequest), [true, true, true, false, false, false, false, false, false, false, false, false, false]);
+		].map(isComputerUseRequest), [true, true, true, false, false, false, false, false, false, false, false, false, false, false]);
 	});
 
 	test('reads published status defensively and only from schema version 1', () => {
@@ -37,9 +38,9 @@ suite('Computer Use setup contract', () => {
 			schemaVersion: 1,
 			permissions: [{ permission: 'screenRecording', state: 'granted' }, { permission: 'accessibility', state: 'bogus' }, { permission: 'camera', state: 'granted' }],
 			verifiedAt: 5,
-			operation: { setupId: 'a', action: 'request' },
+			operation: { setupId: 'a', action: 'allow', permission: 'accessibility' },
 			setups: [
-				{ id: 'a', chat: 'chat:a', state: 'needsPermissions', round: 2, actions: [{ action: 'request', permission: 'accessibility' }, { action: 'openSettings' }, { action: 'recheck', permission: 'accessibility' }, { action: 'recheck' }], error: { code: 'stillNotGranted', message: 'Still off' }, extra: true },
+				{ id: 'a', chat: 'chat:a', state: 'needsPermissions', round: 2, actions: [{ action: 'allow', permission: 'accessibility' }, { action: 'allow' }, { action: 'request', permission: 'screenRecording' }, { action: 'recheck', permission: 'accessibility' }, { action: 'recheck' }], error: { code: 'stillNotGranted', message: 'Still off' }, extra: true },
 				{ id: 'a', chat: 'chat:a', state: 'ready', round: 3, actions: [] },
 				{ id: 'b', chat: 'chat:b', state: 'ready', round: 1, actions: [{ action: 'recheck' }], error: { code: '', message: 'dropped' } },
 				{ id: 'c', chat: 'chat:c', state: 'unknown', round: 1, actions: [] },
@@ -48,6 +49,11 @@ suite('Computer Use setup contract', () => {
 		});
 		assert.deepStrictEqual({
 			status,
+			operations: [
+				{ setupId: 'a', action: 'recheck' },
+				{ setupId: 'a', action: 'allow' },
+				{ setupId: 'a', action: 'openSettings', permission: 'accessibility' },
+			].map(operation => readComputerUseStatus({ schemaVersion: 1, permissions: [], setups: [], operation })?.operation),
 			otherVersion: readComputerUseStatus({ schemaVersion: 2, permissions: [], setups: [] }),
 			notAnObject: readComputerUseStatus('status'),
 			helperApps: [
@@ -64,11 +70,13 @@ suite('Computer Use setup contract', () => {
 				schemaVersion: 1,
 				permissions: [{ permission: 'accessibility', state: 'unknown' }, { permission: 'screenRecording', state: 'granted' }],
 				verifiedAt: 5,
+				operation: { setupId: 'a', action: 'allow', permission: 'accessibility' },
 				setups: [
-					{ id: 'a', chat: 'chat:a', state: 'needsPermissions', round: 2, actions: [{ action: 'request', permission: 'accessibility' }, { action: 'recheck' }], error: { code: 'stillNotGranted', message: 'Still off' } },
+					{ id: 'a', chat: 'chat:a', state: 'needsPermissions', round: 2, actions: [{ action: 'allow', permission: 'accessibility' }, { action: 'recheck' }], error: { code: 'stillNotGranted', message: 'Still off' } },
 					{ id: 'b', chat: 'chat:b', state: 'ready', round: 1, actions: [] },
 				],
 			},
+			operations: [{ setupId: 'a', action: 'recheck' }, undefined, undefined],
 			otherVersion: undefined,
 			notAnObject: undefined,
 			helperApps: [
