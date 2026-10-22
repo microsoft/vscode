@@ -22,6 +22,7 @@ import { FONT_SIZE, addKeyboardActivation, isSecondaryPointerGesture } from './c
 import type { VoiceState, IPendingToolConfirmation, ITranscriptTurn } from '../../chat/browser/voiceClient/voiceSessionController.js';
 import { computeVoiceMicGlowBoxShadow, IVoiceGlowColors } from '../../chat/browser/voiceClient/voiceGlow.js';
 import { createVoiceGlowController, GlowThemeKind, IVoiceGlowController } from '../../chat/browser/voiceClient/voiceGlowController.js';
+import { getVoiceBargeInHint } from '../../chat/browser/voiceClient/voiceInputUtils.js';
 
 export interface VoiceWidgetCallbacks {
 	readonly copilotIconSrc: string;
@@ -725,8 +726,10 @@ export class AgentsVoiceWidget extends Disposable {
 					|| localize('agentsVoice.reconnecting', "Reconnecting...");
 			} else if (isConnecting) {
 				this._inputBoxPlaceholder!.textContent = localize('agentsVoice.connecting', "Connecting...");
-			} else if (isConnected && (voiceState === 'listening' || voiceState === 'speaking')) {
+			} else if (isConnected && voiceState === 'listening') {
 				this._inputBoxPlaceholder!.textContent = '';
+			} else if (isConnected && voiceState === 'speaking') {
+				this._inputBoxPlaceholder!.textContent = getVoiceBargeInHint(keyLabel);
 			} else if (isConnected) {
 				this._inputBoxPlaceholder!.textContent = keyLabel
 					? localize('agentsVoice.holdToTalk', "Hold {0} to talk", keyLabel)

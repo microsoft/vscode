@@ -6,7 +6,7 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, IReader, autorun } from '../../../../../base/common/observable.js';
+import { IObservable, IReader, autorun, observableSignalFromEvent } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -20,6 +20,7 @@ import { IMicCaptureService } from './micCaptureService.js';
 import { ITtsPlaybackService } from './ttsPlaybackService.js';
 import { readVoiceGlowIntensity, resolveVoiceGlowColors, shouldRenderVoiceInputGlow } from './voiceGlow.js';
 import { createVoiceGlowController, IVoiceGlowController } from './voiceGlowController.js';
+import { getVoiceBargeInHint } from './voiceInputUtils.js';
 import { IVoiceSessionController } from './voiceSessionController.js';
 
 import './media/voiceInputDecorations.css';
@@ -143,7 +144,9 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 	store.add({ dispose: () => stopGlowAnimation() });
 
 	// --- Transcript rendering ---
+	const keybindingsChanged = observableSignalFromEvent(options, keybindingService.onDidUpdateKeybindings);
 	store.add(autorun(reader => {
+		keybindingsChanged.read(reader);
 		const turns = voiceSessionController.transcriptTurns.read(reader);
 		const connected = voiceSessionController.isConnected.read(reader);
 		const voiceState = voiceSessionController.voiceState.read(reader);
@@ -172,6 +175,16 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 				const listening = dom.$('span.listening');
 				listening.textContent = localize('voiceMode.mutedUnmuteToSpeak', "Unmute to speak...");
 				transcriptOverlay.append(listening);
+				transcriptScrollable.scanDomNode();
+			} else if (!showTranscript && voiceState === 'speaking') {
+				transcriptOverlayNode.style.display = '';
+				transcriptOverlayNode.classList.remove('has-transcript');
+				transcriptOverlay.replaceChildren();
+				const hint = dom.$('span.partial');
+				const keybinding = keybindingService.lookupKeybinding('workbench.action.chat.voiceInputMode.holdToTalk')
+					?? keybindingService.lookupKeybinding('agentsVoice.pushToTalk');
+				hint.textContent = getVoiceBargeInHint(keybinding?.getLabel());
+				transcriptOverlay.append(hint);
 				transcriptScrollable.scanDomNode();
 			} else if (voiceState === 'idle' && visible.length === 0 && showTranscript && !handsFree) {
 				transcriptOverlayNode.style.display = '';

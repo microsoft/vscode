@@ -240,6 +240,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	private _gptLiveBriefing: string | undefined;
 	private _gptLiveBriefingRevision = 0;
 	private _gptLiveAwarenessInstructionsSent = false;
+	private _gptLiveAwaitingFirstInteraction = false;
 	private readonly _gptLiveRequest = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly _gptLiveDisconnectTimer = this._register(new MutableDisposable());
 	private _connectionAttempt = 0;
@@ -373,7 +374,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	}
 
 	private _updateGptLiveAudioMuted(): void {
-		const muted = this._configurationService.getValue<boolean>('agents.voice.speakResponses') === false;
+		const muted = this._configurationService.getValue<boolean>('agents.voice.speakResponses') === false || this._gptLiveAwaitingFirstInteraction;
 		const playback = this._gptLiveAudioFallback.value;
 		if (this._gptLiveAudio) {
 			this._gptLiveAudio.muted = muted || !!playback;
@@ -544,6 +545,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 
 		try {
 			this._usingGptLive = true;
+			this._gptLiveAwaitingFirstInteraction = this._gptLiveSessionAwareness;
 			await this._micCaptureService.startCapture(window);
 			if (!this._isActiveConnectionAttempt(connectionAttempt)) {
 				return true;
@@ -569,9 +571,9 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 				this._gptLiveAudioFallback.clear();
 				this._gptLiveRemoteStream = this._createGptLiveRemoteStream(window, event.track);
 				audio.srcObject = this._gptLiveRemoteStream;
-				audio.muted = this._configurationService.getValue<boolean>('agents.voice.speakResponses') === false;
 				this._gptLiveAudio?.pause();
 				this._gptLiveAudio = audio;
+				this._updateGptLiveAudioMuted();
 				this._playGptLiveAudio();
 			};
 			peer.onconnectionstatechange = () => {
@@ -804,9 +806,10 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 				this._gptLiveInputTranscript += delta;
 				const text = getGptLiveInputText(this._gptLiveInputTranscript, !!event.is_final);
 				if (text.replace(/\[[^\]\r\n]{1,40}\]/g, '').trim()) {
-					if (this._gptLiveOutputSuppressedUntilInput && this._isGptLiveInputTargetCurrent()) {
+					if ((this._gptLiveOutputSuppressedUntilInput || this._gptLiveAwaitingFirstInteraction) && this._isGptLiveInputTargetCurrent()) {
 						this._finalizeGptLiveOutput();
 						this._gptLiveOutputSuppressedUntilInput = false;
+						this._gptLiveAwaitingFirstInteraction = false;
 						this._updateGptLiveAudioMuted();
 					}
 					this._startGptLivePassiveSpeech();
@@ -825,6 +828,10 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 				break;
 			}
 			case 'session.output_transcript.delta': {
+				if (this._gptLiveAwaitingFirstInteraction) {
+					this._logService.trace('[voice] ignoring unsolicited GPT-Live output before user input or requested narration');
+					break;
+				}
 				if (!this._gptLiveOutputStarted && !this._gptLiveInputTarget?.session?.pending) {
 					this._finalizeGptLiveInput();
 				}
@@ -855,6 +862,13 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			}
 			case 'session.delegation.created': {
 				const delegationId = asOptionalNonEmptyString(event.delegation?.id);
+				if (this._gptLiveAwaitingFirstInteraction) {
+					if (delegationId) {
+						this._gptLiveDelegations.add(delegationId);
+					}
+					this._logService.trace('[voice] ignoring unsolicited GPT-Live delegation before user input or requested narration');
+					break;
+				}
 				this._finalizeGptLiveInput();
 				if (delegationId && !this._gptLiveDelegations.has(delegationId)) {
 					this._gptLiveDelegations.add(delegationId);
@@ -1299,6 +1313,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		this._gptLiveBriefing = undefined;
 		this._gptLiveBriefingRevision = 0;
 		this._gptLiveAwarenessInstructionsSent = false;
+		this._gptLiveAwaitingFirstInteraction = false;
 		this._gptLiveDelegations.clear();
 		this._gptLiveOutputTranscript = '';
 		this._gptLiveOutputStarted = false;
@@ -1749,12 +1764,17 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		if (chunk) {
 			chunks.push(chunk);
 		}
-		return chunks.length > 0 && chunks.every((part, index) => this._sendGptLiveEvent({
+		const sent = chunks.length > 0 && chunks.every((part, index) => this._sendGptLiveEvent({
 			type,
 			event_id: index === 0 ? eventId : generateUuid(),
 			delegation_id: delegationId,
 			content: part,
 		}));
+		if (sent && type === 'session.commentary.append' && this._gptLiveAwaitingFirstInteraction) {
+			this._gptLiveAwaitingFirstInteraction = false;
+			this._updateGptLiveAudioMuted();
+		}
+		return sent;
 	}
 
 	private _sendGptLiveEvent(event: Record<string, unknown>): boolean {

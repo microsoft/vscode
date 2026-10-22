@@ -18,7 +18,7 @@ import { Event } from '../../../../../../base/common/event.js';
 import { MutableDisposable, toDisposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../../../base/common/map.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
-import { autorun, IObservable, IReader, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, IObservable, IReader, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { getComparisonKey, isEqual } from '../../../../../../base/common/resources.js';
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -90,7 +90,7 @@ import { IVoiceSessionController } from '../../voiceClient/voiceSessionControlle
 import { IVoiceInputModeService, SimulatedVoiceState } from '../../voiceInputMode/voiceInputMode.js';
 import { readVoiceGlowIntensity, resolveVoiceGlowColors, shouldRenderVoiceInputGlow } from '../../voiceClient/voiceGlow.js';
 import { createVoiceGlowController } from '../../voiceClient/voiceGlowController.js';
-import { acceptVoiceInput } from '../../voiceClient/voiceInputUtils.js';
+import { acceptVoiceInput, getVoiceBargeInHint } from '../../voiceClient/voiceInputUtils.js';
 import { IVoiceModelSelectionResult, resolveVoiceModel } from '../../voiceClient/voiceToolDispatchService.js';
 import { IAgentTitleBarStatusService } from '../../agentSessions/experiments/agentTitleBarStatusService.js';
 import { IVoicePlaybackService } from '../../../common/voicePlaybackService.js';
@@ -633,7 +633,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// follow an untitled "New Chat" session before any dictation starts.
 		let listeningSession: URI | undefined;
 		let ownerSession: URI | undefined;
+		const keybindingsChanged = observableSignalFromEvent(this, this.keybindingService.onDidUpdateKeybindings);
 		this._register(autorun(reader => {
+			keybindingsChanged.read(reader);
 			// Dev/preview: when a walkthrough is simulating, drive the overlay hint from the
 			// simulated state + version so each design shows its own instruction.
 			const simState = this.voiceInputModeService.simulatedVoiceState.read(reader);
@@ -751,6 +753,16 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					const listening = $('span.listening');
 					listening.textContent = localize('voiceMode.mutedUnmuteToSpeak', "Unmute to speak...");
 					transcriptOverlay.append(listening);
+					transcriptScrollable.scanDomNode();
+				} else if (!showTranscript && voiceState === 'speaking') {
+					transcriptOverlayNode.style.display = '';
+					transcriptOverlayNode.classList.remove('has-transcript');
+					transcriptOverlay.replaceChildren();
+					const hint = $('span.partial');
+					const keybinding = this.keybindingService.lookupKeybinding('workbench.action.chat.voiceInputMode.holdToTalk')
+						?? this.keybindingService.lookupKeybinding('agentsVoice.pushToTalk');
+					hint.textContent = getVoiceBargeInHint(keybinding?.getLabel());
+					transcriptOverlay.append(hint);
 					transcriptScrollable.scanDomNode();
 				} else if (voiceState === 'idle' && visible.length === 0 && showTranscript && !handsFree) {
 					transcriptOverlayNode.style.display = '';

@@ -3,8 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from '../../../../../nls.js';
 import { IChatResponseModel } from '../../common/model/chatModel.js';
 import { IChatWidget } from '../chat.js';
+
+export function getVoiceBargeInHint(keybindingLabel: string | null | undefined): string {
+	return keybindingLabel
+		? localize('voiceMode.bargeInHint', "Speak or use {0}", keybindingLabel)
+		: localize('voiceMode.bargeInHintNoKb', "Speak to barge in");
+}
 
 /** Submit through the owning widget, preserving its input state and normal request options. */
 export function acceptVoiceInput(widget: IChatWidget | undefined, text: string, isVoiceModeInput: boolean): boolean | Promise<IChatResponseModel | undefined> {
