@@ -1306,10 +1306,9 @@ export class TabbedModelPicker extends Disposable {
 					? [createLocalModelDetailsAction(rowLabel, () => this._showLocalModelDetails(localDirect.familyId), summary)]
 					: [this._createDetailsAction(model, rowLabel, summary)],
 			toolbarDialogActionIds: [MODEL_DETAILS_ACTION_ID, LOCAL_MODEL_DETAILS_ACTION_ID],
-			tooltip: [
-				[rowLabel, summary, defaultDescription].filter(Boolean).join(' \u00b7 '),
-				isAutoModel(model) && model.metadata.autoModelFusion ? ILanguageModelChatMetadata.getFusionSummary() : undefined,
-			].filter(Boolean).join('\n'),
+			tooltip: isAutoModel(model) && model.metadata.autoModelFusion
+				? [ILanguageModelChatMetadata.getFusionSummary(), defaultDescription].filter(Boolean).join('\n')
+				: [rowLabel, summary, defaultDescription].filter(Boolean).join(' \u00b7 '),
 		};
 	}
 

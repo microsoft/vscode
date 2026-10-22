@@ -1652,7 +1652,7 @@ suite('TabbedModelPicker', () => {
 		const fusion = createPicker({ models: [...models, createFusionModel()], selectedModelId: models[0].identifier });
 		const auto = createPicker({ models: [...models, createAutoModel()], selectedModelId: models[0].identifier });
 		assert.deepStrictEqual({ fusion: rowTitle(fusion.popup, copilotFusionName), auto: rowTitle(auto.popup, 'Auto') }, {
-			fusion: 'Copilot Fusion \u00b7 Standard\nCopilot Fusion selects a single model or orchestrates multiple models to complete your task.',
+			fusion: 'Copilot Fusion selects a single model or orchestrates multiple models to complete your task.',
 			auto: 'Auto \u00b7 Balance',
 		});
 	});
