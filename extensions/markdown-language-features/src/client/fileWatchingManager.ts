@@ -14,7 +14,6 @@ type DirWatcherEntry = {
 	readonly disposables: readonly IDisposable[];
 };
 
-
 export class FileWatcherManager {
 
 	readonly #fileWatchers = new Map<number, {
@@ -33,13 +32,42 @@ export class FileWatcherManager {
 			return;
 		}
 
-		const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(uri, '*'), !listeners.create, !listeners.change, !listeners.delete);
+		// Watch the parent directory and filter to this file. RelativePattern(fileUri, '*')
+		// never matches events for that file (empty relative path), so creates did not
+		// clear the language service's cached "file does not exist" diagnostics. Using the
+		// basename as the glob pattern would also mis-handle names with glob metacharacters
+		// (e.g. `[draft].md`), so keep the pattern simple and filter by URI instead.
+		const watcher = vscode.workspace.createFileSystemWatcher(
+			new vscode.RelativePattern(Utils.dirname(uri), '*'),
+			!listeners.create,
+			!listeners.change,
+			!listeners.delete,
+		);
 		const parentDirWatchers: DirWatcherEntry[] = [];
 		this.#fileWatchers.set(id, { watcher, dirWatchers: parentDirWatchers });
 
-		if (listeners.create) { watcher.onDidCreate(listeners.create); }
-		if (listeners.change) { watcher.onDidChange(listeners.change); }
-		if (listeners.delete) { watcher.onDidDelete(listeners.delete); }
+		const isTarget = (eventUri: vscode.Uri) => eventUri.toString() === uri.toString();
+		if (listeners.create) {
+			watcher.onDidCreate(eventUri => {
+				if (isTarget(eventUri)) {
+					listeners.create!();
+				}
+			});
+		}
+		if (listeners.change) {
+			watcher.onDidChange(eventUri => {
+				if (isTarget(eventUri)) {
+					listeners.change!();
+				}
+			});
+		}
+		if (listeners.delete) {
+			watcher.onDidDelete(eventUri => {
+				if (isTarget(eventUri)) {
+					listeners.delete!();
+				}
+			});
+		}
 
 		if (watchParentDirs && uri.scheme !== Schemes.untitled) {
 			// We need to watch the parent directories too for when these are deleted / created
@@ -48,7 +76,7 @@ export class FileWatcherManager {
 
 				let parentDirWatcher = this.#dirWatchers.get(dirUri);
 				if (!parentDirWatcher) {
-					const glob = new vscode.RelativePattern(Utils.dirname(dirUri), Utils.basename(dirUri));
+					const glob = new vscode.RelativePattern(Utils.dirname(dirUri), '*');
 					const parentWatcher = vscode.workspace.createFileSystemWatcher(glob, !listeners.create, true, !listeners.delete);
 					parentDirWatcher = { refCount: 0, watcher: parentWatcher };
 					this.#dirWatchers.set(dirUri, parentDirWatcher);
@@ -56,7 +84,10 @@ export class FileWatcherManager {
 				parentDirWatcher.refCount++;
 
 				if (listeners.create) {
-					disposables.push(parentDirWatcher.watcher.onDidCreate(async () => {
+					disposables.push(parentDirWatcher.watcher.onDidCreate(async (eventUri) => {
+						if (eventUri.toString() !== dirUri.toString()) {
+							return;
+						}
 						// Just because the parent dir was created doesn't mean our file was created
 						try {
 							const stat = await vscode.workspace.fs.stat(uri);
@@ -72,7 +103,11 @@ export class FileWatcherManager {
 				if (listeners.delete) {
 					// When the parent dir is deleted, consider our file deleted too
 					// TODO: this fires if the file previously did not exist and then the parent is deleted
-					disposables.push(parentDirWatcher.watcher.onDidDelete(listeners.delete));
+					disposables.push(parentDirWatcher.watcher.onDidDelete(eventUri => {
+						if (eventUri.toString() === dirUri.toString()) {
+							listeners.delete!();
+						}
+					}));
 				}
 
 				parentDirWatchers.push({ uri: dirUri, disposables });
