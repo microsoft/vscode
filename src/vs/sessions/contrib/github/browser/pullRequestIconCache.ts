@@ -18,12 +18,19 @@ export interface ICachedPullRequestState {
 	readonly lastChecked: number;
 }
 
+export interface ICachedPullRequestEntry {
+	readonly icon?: ThemeIcon;
+	readonly pullRequest?: ICachedPullRequestState;
+}
+
 /** Bounded, persistent last-known PR state and icons, keyed by normalized PR URL. */
 export interface IPullRequestIconCache {
 	readonly _serviceBrand: undefined;
 
 	/** The last icon stored for `prLink`, or `undefined` if none is cached. */
 	get(prLink: string): ThemeIcon | undefined;
+
+	getEntry(prLink: string): ICachedPullRequestEntry | undefined;
 
 	getState(prLink: string): ICachedPullRequestState | undefined;
 
@@ -33,15 +40,13 @@ export interface IPullRequestIconCache {
 	set(prLink: string, icon: ThemeIcon): void;
 }
 
-/** Retain only the most recently updated pull-request icons. */
-const MAX_CACHED_ICONS = 1000;
+/** Retain only the most recently updated pull-request cache entries. */
+const MAX_CACHED_ENTRIES = 1000;
 
 const STORAGE_KEY = 'sessions.github.pullRequestIconCache';
 
-interface IStoredEntry {
+interface IStoredEntry extends ICachedPullRequestEntry {
 	readonly link: string;
-	readonly icon?: ThemeIcon;
-	readonly pullRequest?: ICachedPullRequestState;
 }
 
 export class PullRequestIconCache implements IPullRequestIconCache {
@@ -60,11 +65,16 @@ export class PullRequestIconCache implements IPullRequestIconCache {
 		return this._icons.get(getPullRequestUrlKey(prLink))?.icon;
 	}
 
-	getState(prLink: string): ICachedPullRequestState | undefined {
+	getEntry(prLink: string): ICachedPullRequestEntry | undefined {
 		const entry = this._icons.get(getPullRequestUrlKey(prLink));
-		return entry?.pullRequest ?? (entry?.icon?.id === Codicon.gitPullRequestDone.id
-			? { state: GitHubPullRequestState.Merged, isDraft: false, lastChecked: 0 }
-			: undefined);
+		if (!entry || entry.pullRequest || entry.icon?.id !== Codicon.gitPullRequestDone.id) {
+			return entry;
+		}
+		return { ...entry, pullRequest: { state: GitHubPullRequestState.Merged, isDraft: false, lastChecked: 0 } };
+	}
+
+	getState(prLink: string): ICachedPullRequestState | undefined {
+		return this.getEntry(prLink)?.pullRequest;
 	}
 
 	setState(prLink: string, pullRequest: Pick<IGitHubPullRequest, 'state' | 'isDraft'>): void {
@@ -100,7 +110,7 @@ export class PullRequestIconCache implements IPullRequestIconCache {
 		this._icons.delete(entry.link);
 		this._icons.set(entry.link, entry);
 		// Drop the least recently updated entries beyond the cap.
-		while (this._icons.size > MAX_CACHED_ICONS) {
+		while (this._icons.size > MAX_CACHED_ENTRIES) {
 			const oldest = this._icons.keys().next().value;
 			if (oldest === undefined) {
 				break;
@@ -145,7 +155,7 @@ export class PullRequestIconCache implements IPullRequestIconCache {
 				}
 			}
 		}
-		while (this._icons.size > MAX_CACHED_ICONS) {
+		while (this._icons.size > MAX_CACHED_ENTRIES) {
 			const oldest = this._icons.keys().next().value;
 			if (oldest !== undefined) {
 				this._icons.delete(oldest);

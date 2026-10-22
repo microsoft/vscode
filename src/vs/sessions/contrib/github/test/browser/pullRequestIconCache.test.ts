@@ -100,6 +100,19 @@ suite('PullRequestIconCache', () => {
 		}, { publicState: GitHubPullRequestState.Merged, enterpriseState: undefined });
 	});
 
+	test('returns the stored icon and state together after restart', () => {
+		const storage = store.add(new InMemoryStorageService());
+		new PullRequestIconCache(storage).setState(link(1), { state: GitHubPullRequestState.Open, isDraft: true });
+		const cache = new PullRequestIconCache(storage);
+		const entry = cache.getEntry('https://GitHub.com/Owner/Repo/pull/1/');
+		assert.deepStrictEqual({
+			icon: entry?.icon, pullRequest: entry?.pullRequest, missing: cache.getEntry(link(2)),
+		}, {
+			icon: computePullRequestIcon('draft'),
+			pullRequest: cache.getState(link(1)), missing: undefined,
+		});
+	});
+
 	test('preserves observed merges across restart and stale state or icon updates', () => {
 		const storage = store.add(new InMemoryStorageService());
 		new PullRequestIconCache(storage).setState(link(1), { state: GitHubPullRequestState.Merged, isDraft: false });

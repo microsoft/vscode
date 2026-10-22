@@ -36,6 +36,7 @@ suite('Pull request presentation origin isolation', () => {
 				const cache = new class extends mock<IPullRequestIconCache>() {
 					override get = () => undefined;
 					override getState = () => undefined;
+					override getEntry = () => undefined;
 				}();
 				const ref = {
 					owner: 'owner', repo: 'repo', number: 42, title: 'Host draft',
@@ -60,6 +61,30 @@ suite('Pull request presentation origin isolation', () => {
 
 suite('Pull request presentation state', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('restores the cached icon and state with one combined lookup', () => {
+		const calls: string[] = [];
+		const icon = computePullRequestIcon(GitHubPullRequestState.Open);
+		const cache = new class extends mock<IPullRequestIconCache>() {
+			override getEntry(link: string) {
+				calls.push(link);
+				return { icon, pullRequest: { state: GitHubPullRequestState.Open, isDraft: false, lastChecked: 1 } };
+			}
+			override get = () => assert.fail('Expected a combined cache lookup');
+			override getState = () => assert.fail('Expected a combined cache lookup');
+		}();
+		const service = new class extends mock<IGitHubService>() {
+			override readonly enterpriseHost = undefined;
+			override createPullRequestModelReference = () => new ImmortalReference(new class extends mock<GitHubPullRequestModel>() {
+				override readonly pullRequest = constObservable(undefined);
+			}());
+		}();
+		const ref = { owner: 'owner', repo: 'repo', number: 42, uri: URI.parse('https://github.com/owner/repo/pull/42') };
+		const result = derived(reader => computePullRequestRefPresentation(reader, service, cache, ref)).get();
+		assert.deepStrictEqual({ result, calls }, {
+			result: { icon, title: undefined, liveState: GitHubPullRequestState.Open }, calls: [ref.uri.toString()],
+		});
+	});
 
 	test('restores an observed merge before the live model resolves after restart', () => {
 		const storage = store.add(new InMemoryStorageService());
