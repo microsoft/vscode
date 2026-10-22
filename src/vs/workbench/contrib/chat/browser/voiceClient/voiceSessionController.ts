@@ -6671,8 +6671,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * so it stays accurate even though the backend isn't told about it.
 	 */
 	private _reportedAgentState(realState: string, isActive: boolean): { state: string; hideConfirmationDetail: boolean } {
-		const sessionAwareness = this._usingGptLiveByok && this.configurationService.getValue<boolean>(AgentsVoiceSettingId.SessionAwareness) === true;
-		if (realState === 'waiting_for_confirmation' && !isActive && !sessionAwareness) {
+		if (realState === 'waiting_for_confirmation' && !isActive && !this.voiceClientService.isSessionAwarenessEnabled) {
 			return { state: 'thinking', hideConfirmationDetail: true };
 		}
 		return { state: realState, hideConfirmationDetail: false };
@@ -6834,7 +6833,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		if (targetSessionId && !sessionList.some(session => session.id === targetSessionId)) {
 			sessionList.push({ id: targetSessionId, is_active: true, agent_state: 'unknown' });
 		}
-		if (this._usingGptLiveByok && this.configurationService.getValue<boolean>(AgentsVoiceSettingId.SessionAwareness) === true) {
+		if (this.voiceClientService.isSessionAwarenessEnabled) {
 			const active = sessionList.find(session => session.is_active);
 			const model = active ? this.chatService.getSession(URI.parse(active.id)) : undefined;
 			if (active && model) {

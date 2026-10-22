@@ -681,6 +681,8 @@ suite('VoiceClientService', () => {
 			total_tracked_sessions: number; truncated: boolean; active_session_id: string;
 			sessions: { id: string; recent_turns?: { user: string; assistant: string }[]; attachment_names?: string[] }[];
 		};
+		peer.channel.sent.length = 0;
+		service.sendSessionContext({ ...context, sessions: context.sessions.toReversed() });
 		assert.deepStrictEqual({
 			bounded: json.length <= 48_000,
 			total: briefing.total_tracked_sessions, truncated: briefing.truncated,
@@ -689,10 +691,11 @@ suite('VoiceClientService', () => {
 			turns: briefing.sessions[0].recent_turns?.map(turn => [turn.user.length, turn.assistant.length]),
 			attachments: briefing.sessions[0].attachment_names?.map(name => name.length),
 			backgroundHistory: briefing.sessions.slice(1).some(session => session.recent_turns),
+			reorderedEvents: peer.channel.sent.length,
 		}, {
 			bounded: true, total: 30, truncated: true, active: 'chat-session:/29', first: 'chat-session:/29',
 			sessionCountBounded: true, turns: [[400, 600], [400, 600], [400, 600]],
-			attachments: Array(10).fill(80), backgroundHistory: false,
+			attachments: Array(10).fill(80), backgroundHistory: false, reorderedEvents: 0,
 		});
 	});
 
@@ -708,8 +711,10 @@ suite('VoiceClientService', () => {
 		await service.connect(createTestWindow());
 		peer.channel.fireMessage({ type: 'session.started', session: { id: 'live-enabled' } });
 		service.sendStartSession(context, 'machine');
-		service.disconnect();
 		await service.configurationService.setUserConfiguration('agents.voice.sessionAwareness', false);
+		const enabledUntilReconnect = service.isSessionAwarenessEnabled;
+		service.disconnect();
+		const enabledAfterDisconnect = service.isSessionAwarenessEnabled;
 		peer.channel.sent.length = 0;
 		await service.connect(createTestWindow());
 		peer.channel.fireMessage({ type: 'session.started', session: { id: 'live-disabled' } });
@@ -719,10 +724,34 @@ suite('VoiceClientService', () => {
 		assert.deepStrictEqual({
 			thinking,
 			hasException: instructions.includes('Session-awareness exception'),
+			enabledUntilReconnect,
+			enabledAfterDisconnect,
+			enabledAfterReconnect: service.isSessionAwarenessEnabled,
 		}, {
 			thinking: 'Current chat input: {"id":"chat-session:/a","state":"idle"}. This is context, not a request to speak.',
 			hasException: false,
+			enabledUntilReconnect: true,
+			enabledAfterDisconnect: false,
+			enabledAfterReconnect: false,
 		});
+	});
+
+	test('enabling session awareness applies only to the next GPT Live connection', async () => {
+		const peer = new TestRtcPeerConnection();
+		const service = store.add(new TestGptLiveVoiceClientService(peer, new TestMicCaptureService(new TestMediaStream(new TestMediaStreamTrack())), productService, {
+			'agents.voice.sessionAwareness': false,
+		}));
+		await service.connect(createTestWindow());
+		const initial = service.isSessionAwarenessEnabled;
+		await service.configurationService.setUserConfiguration('agents.voice.sessionAwareness', true);
+		const beforeReconnect = service.isSessionAwarenessEnabled;
+		service.disconnect();
+		await service.connect(createTestWindow());
+		assert.deepStrictEqual({
+			initial,
+			beforeReconnect,
+			afterReconnect: service.isSessionAwarenessEnabled,
+		}, { initial: false, beforeReconnect: false, afterReconnect: true });
 	});
 
 	test('grounds the initial welcome composer and requires real client delegation before claiming submission', async () => {

@@ -83,6 +83,13 @@ suite('VoiceToolDispatchService - session actions', () => {
 		});
 	});
 
+	test('treats missing user text as empty when reading recent turns', () => {
+		const model = upcastDeepPartial<IChatModel>({
+			getRequests: () => [{ message: {} }],
+		});
+		assert.deepStrictEqual(getVoiceRecentTurns(model, 3), [{ user: '', assistant: '' }]);
+	});
+
 	interface IActionHarnessOptions {
 		readonly currentResource?: URI;
 		readonly targetResource?: URI;

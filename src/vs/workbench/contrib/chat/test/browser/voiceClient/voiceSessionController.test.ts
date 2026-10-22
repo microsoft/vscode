@@ -134,6 +134,7 @@ class TestVoiceClientService extends mock<IVoiceClientService>() {
 	private resuming = false;
 	private reconnecting = false;
 	gptLiveByok = false;
+	override isSessionAwarenessEnabled = false;
 	gptLiveAvailability: Promise<boolean> | undefined;
 	availabilityChecks = 0;
 	connectCalls = 0;
@@ -2366,7 +2367,9 @@ suite('VoiceSessionController', () => {
 		const results = [];
 		for (const [gptLive, awareness] of [[true, true], [true, false], [false, true]]) {
 			const chatService = new ControllableChatService();
-			const controller = createController(new TestVoiceClientService(), undefined, undefined, undefined, undefined,
+			const voiceClientService = new TestVoiceClientService();
+			voiceClientService.isSessionAwarenessEnabled = gptLive && awareness;
+			const controller = createController(voiceClientService, undefined, undefined, undefined, undefined,
 				new TestConfigurationService({ [AgentsVoiceSettingId.SessionAwareness]: awareness }), chatService);
 			const resource = URI.parse('chat-session:/recent-context');
 			const request = upcastDeepPartial<IChatRequestModel>({

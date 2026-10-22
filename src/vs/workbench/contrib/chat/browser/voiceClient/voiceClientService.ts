@@ -11,6 +11,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Language } from '../../../../../base/common/platform.js';
+import { compare } from '../../../../../base/common/strings.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -48,15 +49,15 @@ import { IMicCaptureService } from './micCaptureService.js';
 import { ITtsPlaybackService } from './ttsPlaybackService.js';
 import { ISpeechService, IVoiceLiveSessionResult } from '../../../speech/common/speechService.js';
 import { IVoiceLiveInputTarget, VoiceLiveInputRouter } from '../../common/voiceClient/voiceLiveInputRouter.js';
+import { AgentsVoiceSettingId } from '../../../agentsVoice/common/agentsVoice.js';
 
 const GPT_LIVE_SESSION_PROVIDER_ID = 'github.copilot.gptLive';
 const GPT_LIVE_DISCONNECT_GRACE_MS = 10_000;
-const GPT_LIVE_SESSION_AWARENESS_SETTING = 'agents.voice.sessionAwareness';
 
 function serializeGptLiveSessionBriefing(context: IVoiceSessionContext): string {
 	const text = (value: string | undefined, length: number) => value?.slice(0, length);
 	const sessions = [...context.sessions]
-		.sort((a, b) => Number(b.is_active) - Number(a.is_active))
+		.sort((a, b) => Number(b.is_active) - Number(a.is_active) || compare(a.id, b.id))
 		.slice(0, 20)
 		.map(session => ({
 			id: text(session.id, 512),
@@ -323,6 +324,10 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		return this._isResuming;
 	}
 
+	get isSessionAwarenessEnabled(): boolean {
+		return this._usingGptLive && this._gptLiveSessionAwareness;
+	}
+
 	get willReconnect(): boolean {
 		return this._reconnectTimer !== undefined;
 	}
@@ -484,7 +489,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		this._authToken = authToken;
 		this._resetReconnectBudget();
 		this._intentionalDisconnect = false;
-		this._gptLiveSessionAwareness = this._configurationService.getValue<boolean>(GPT_LIVE_SESSION_AWARENESS_SETTING) === true;
+		this._gptLiveSessionAwareness = this._configurationService.getValue<boolean>(AgentsVoiceSettingId.SessionAwareness) === true;
 		if (await this._connectGptLive(window, connectionAttempt) || !this._isActiveConnectionAttempt(connectionAttempt)) {
 			return;
 		}
