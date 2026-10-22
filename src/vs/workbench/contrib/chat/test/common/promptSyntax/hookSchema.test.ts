@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { resolveHookCommand, resolveEffectiveCommand, formatHookCommandLabel, IHookCommand, parseSubagentHooksFromYaml, ChatRequestHooks } from '../../../common/promptSyntax/hookSchema.js';
+import { resolveHookCommand, resolveEffectiveCommand, formatHookCommandLabel, IHookCommand, parseSubagentHooksFromYaml, ChatRequestHooks, hookFileSchema, HOOK_COMMAND_FIELD_DESCRIPTIONS } from '../../../common/promptSyntax/hookSchema.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { HookType } from '../../../common/promptSyntax/hookTypes.js';
@@ -13,6 +13,25 @@ import { Range } from '../../../../../../editor/common/core/range.js';
 
 suite('HookSchema', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('Copilot CLI schema accepts command alongside bash and powershell', () => {
+		const commandSchema = hookFileSchema.then?.properties?.hooks.properties?.preToolUse.items;
+		assert.ok(commandSchema && !Array.isArray(commandSchema));
+		assert.deepStrictEqual({
+			command: commandSchema.properties?.command,
+			anyOf: commandSchema.anyOf,
+		}, {
+			command: {
+				type: 'string',
+				description: HOOK_COMMAND_FIELD_DESCRIPTIONS.command,
+			},
+			anyOf: [
+				{ required: ['command'] },
+				{ required: ['bash'] },
+				{ required: ['powershell'] },
+			],
+		});
+	});
 
 	suite('resolveHookCommand', () => {
 		const workspaceRoot = URI.file('/workspace');

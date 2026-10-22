@@ -196,15 +196,20 @@ const copilotCliHookCommandSchema: IJSONSchema = {
 	additionalProperties: true,
 	required: ['type'],
 	anyOf: [
+		{ required: ['command'] },
 		{ required: ['bash'] },
 		{ required: ['powershell'] }
 	],
-	errorMessage: nls.localize('hook.cliCommandRequired', 'At least one of "bash" or "powershell" must be specified.'),
+	errorMessage: nls.localize('hook.cliCommandRequired', 'At least one of "command", "bash", or "powershell" must be specified.'),
 	properties: {
 		type: {
 			type: 'string',
 			enum: ['command'],
 			description: HOOK_COMMAND_FIELD_DESCRIPTIONS.type
+		},
+		command: {
+			type: 'string',
+			description: HOOK_COMMAND_FIELD_DESCRIPTIONS.command
 		},
 		bash: {
 			type: 'string',
