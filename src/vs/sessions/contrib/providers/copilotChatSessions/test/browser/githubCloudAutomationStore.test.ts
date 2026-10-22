@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { useFakeTimers } from 'sinon';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
-import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
@@ -17,11 +18,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { COPILOT_INTEGRATION_ID } from '../../../../../../platform/endpoint/common/licenseAgreement.js';
-import { AutomationDetail, CreateAutomationTaskResponse, EditAutomationRequest, IAutomationsClient, ListAutomationsOptions, ListRepoAutomationsResponse } from '../../../../../../platform/github/common/missionControl/automations.js';
+import { AutomationDetail, AutomationRepositoryConfiguration, CreateAutomationTaskResponse, EditAutomationRequest, IAutomationsClient, ListAutomationsOptions, ListRepoAutomationsResponse } from '../../../../../../platform/github/common/missionControl/automations.js';
 import { PaginatedResponse } from '../../../../../../platform/github/common/missionControl/missionControl.js';
 import { ApiRequestError, MutationUncertainError } from '../../../../../../platform/github/common/missionControl/missionControlClient.js';
 import { ITasksClient, ListTasksResponse, Task, TaskListOptions } from '../../../../../../platform/github/common/missionControl/tasks.js';
-import { GitHubRepositoryRef } from '../../../../../../platform/github/common/githubQueryService.js';
 import { GitHubService } from '../../../../../../platform/github/common/githubService.js';
 import { IGitHubAccountClient } from '../../../../../../platform/github/common/account/account.js';
 import { GitHubChannelClient } from '../../../../../../platform/github/common/remote/ipcClient.js';
@@ -29,7 +29,6 @@ import { IGitHubCredentialBroker } from '../../../../../../platform/github/commo
 import { registerGitHubChannel } from '../../../../../../platform/github/common/remote/ipcServer.js';
 import { TestConnection } from '../../../../../../platform/github/test/common/testConnection.js';
 import { ClientConnectionEvent, IPCServer } from '../../../../../../base/parts/ipc/common/ipc.js';
-import { IRepositoriesClient, Repository } from '../../../../../../platform/github/common/core/repositories.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
@@ -59,12 +58,12 @@ const reconciliationMessage = 'The automation request may have been accepted. Re
 class TestApi extends mock<IAutomationsClient>() {
 	readonly priorities: { method: string; priority: RequestPriority | undefined }[] = [];
 	readonly calls: { method: string; account: string; repository: typeof repository; token: AbortSignal }[] = [];
-	readonly visibility = new Map<string, boolean | Error | Promise<boolean>>();
+	readonly manageability = new Map<string, boolean | Error | Promise<boolean>>();
 	readonly definitions = new Map<string, readonly AutomationDetail[] | Error | Promise<readonly AutomationDetail[]>>();
 	readonly detailCalls: { id: string; signal: AbortSignal }[] = [];
 	detailResult: ((id: string, signal: AbortSignal) => Promise<AutomationDetail>) | undefined;
 	accountName = account.accountName;
-	readonly visibilityStarted = new DeferredPromise<void>();
+	readonly manageabilityStarted = new DeferredPromise<void>();
 	readonly listStarted = new DeferredPromise<void>();
 	readonly mutations: string[] = [];
 	mutationResult: AutomationDetail | Promise<AutomationDetail> | Error = definition;
@@ -119,16 +118,20 @@ class TestApi extends mock<IAutomationsClient>() {
 		}
 	}
 
-	async isPrivateRepository(ref: GitHubRepositoryRef, token: AbortSignal, options?: ApiRequestOptions): Promise<boolean> {
-		this.priorities.push({ method: 'visibility', priority: options?.priority });
-		assert.strictEqual(ref.host, 'api.github.com');
-		this.calls.push({ method: 'visibility', account: ref.accountId, repository: { owner: ref.owner, repo: ref.repo }, token });
-		const result = this.visibility.get(ref.repo) ?? true;
-		await this.visibilityStarted.complete();
+	override async getConfiguration(ref: RepositoryRef, token: AbortSignal, options?: ApiRequestOptions): Promise<AutomationRepositoryConfiguration> {
+		this.priorities.push({ method: 'capability', priority: options?.priority });
+		this.calls.push({ method: 'capability', account: this.accountName, repository: ref, token });
+		const result = this.manageability.get(ref.repo) ?? true;
+		await this.manageabilityStarted.complete();
 		if (result instanceof Error) {
 			throw result;
 		}
-		return result;
+		return {
+			automations_enabled: true,
+			can_manage_automations: await result,
+			allow_read_access_triggers: false,
+			require_trigger_scoped_writes: false,
+		};
 	}
 
 	override async list(ref: RepositoryRef, token: AbortSignal, options?: ListAutomationsOptions): Promise<PaginatedResponse<ListRepoAutomationsResponse>> {
@@ -199,15 +202,6 @@ suite('GitHubCloudAutomationStore', () => {
 					override readonly onDidChangeCredentials = Event.fromDOMEventEmitter<void>(credentialLifetime.signal, 'abort');
 					override readonly authorization = { providerId: 'github', sessionId: selected.sessionId, scopes: ['repo'] };
 					override readonly automations = api;
-					override readonly repositories = new class extends mock<IRepositoriesClient>() {
-						override async get(ref: RepositoryRef, signal: AbortSignal, options?: ApiRequestOptions) {
-							const isPrivate = await api.isPrivateRepository({ host: 'api.github.com', accountId: selected.accountName, owner: ref.owner, repo: ref.repo }, signal, options);
-							return new class extends mock<Repository>() {
-								override readonly private = isPrivate;
-								override readonly permissions = { push: true, pull: true, admin: false };
-							}();
-						}
-					}();
 					override readonly tasks = new class extends mock<ITasksClient>() {
 						override get(_id: string, _signal: AbortSignal, options?: ApiRequestOptions): Promise<Task> { return api.getTask(options); }
 						override async abort(): Promise<void> { api.mutations.push('stop'); }
@@ -248,13 +242,13 @@ suite('GitHubCloudAutomationStore', () => {
 			const options = background ? { background: true } : undefined;
 			await store.refresh(options);
 			await store.refreshHistory(options);
-			assert.deepStrictEqual(api.priorities, ['visibility', 'list', 'get', 'history', 'task'].map(method => ({
+			assert.deepStrictEqual(api.priorities, ['capability', 'list', 'get', 'history', 'task'].map(method => ({
 				method, priority: background ? 'background' : undefined,
 			})));
 
 			api.priorities.length = 0;
 			await store.create(workspace, createValue);
-			assert.deepStrictEqual(api.priorities, [{ method: 'visibility', priority: undefined }]);
+			assert.deepStrictEqual(api.priorities, [{ method: 'capability', priority: undefined }]);
 		});
 	}
 
@@ -266,26 +260,118 @@ suite('GitHubCloudAutomationStore', () => {
 		assert.deepStrictEqual({
 			target: target.get(), calls: api.calls.map(call => call.method), entries: store.entries.get(),
 			cached: target === store.getWorkspaceTarget(URI.file('/repo')),
-		}, { target: { workspace }, calls: ['visibility'], entries: [], cached: true });
+		}, { target: { workspace, repositoryLabel: 'microsoft/vscode-internalbacklog' }, calls: ['capability'], entries: [], cached: true });
 	});
 
-	for (const visibility of [false, new Error('Offline')]) {
-		test(`fails closed for ${visibility === false ? 'public' : 'unverifiable'} repositories`, async () => {
+	test('background refresh updates cached repository eligibility in both directions', async () => {
+		const { store, api } = setup();
+		const target = store.getWorkspaceTarget(workspace);
+		await timeout(0);
+
+		api.manageability.set(repository.repo, false);
+		await store.refresh({ background: true });
+		const unavailable = target.get();
+
+		api.manageability.set(repository.repo, true);
+		await store.refresh({ background: true });
+		assert.deepStrictEqual({
+			unavailable: { blocked: !!unavailable.disabledReason, repository: unavailable.isRepository, workspace: unavailable.workspace },
+			available: target.get().workspace?.toString(),
+			calls: api.calls.map(call => call.method),
+		}, {
+			unavailable: { blocked: true, repository: true, workspace: undefined },
+			available: workspace.toString(),
+			calls: ['capability', 'capability', 'capability', 'list'],
+		});
+	});
+
+	for (const manageability of [false, new Error('Offline')]) {
+		test(`fails closed for ${manageability === false ? 'unmanageable' : 'unverifiable'} repositories`, async () => {
 			const { store, api } = setup();
-			api.visibility.set(repository.repo, visibility);
+			api.manageability.set(repository.repo, manageability);
 			const target = store.getWorkspaceTarget(workspace);
 			await timeout(0);
-			assert.deepStrictEqual({ blocked: !!target.get().disabledReason, public: target.get().isPublicRepository, workspace: target.get().workspace, calls: api.calls.map(call => call.method) }, {
-				blocked: true, public: visibility === false ? true : undefined, workspace: undefined, calls: ['visibility'],
+			assert.deepStrictEqual({ blocked: !!target.get().disabledReason, repository: target.get().isRepository, workspace: target.get().workspace, calls: api.calls.map(call => call.method) }, {
+				blocked: true, repository: true, workspace: undefined, calls: ['capability'],
 			});
 		});
 	}
+
+	test('does not classify repository resolution failures as repositories', async () => {
+		const { store } = setup(() => { throw new Error('Resolution failed'); });
+		const target = store.getWorkspaceTarget(URI.file('/not-a-repository'));
+		await timeout(0);
+		assert.deepStrictEqual({
+			blocked: !!target.get().disabledReason,
+			repository: target.get().isRepository,
+			workspace: target.get().workspace,
+		}, {
+			blocked: true,
+			repository: false,
+			workspace: undefined,
+		});
+	});
+
+	test('temporarily suppresses repeated failed capability checks and retries after expiry', async () => {
+		const clock = useFakeTimers();
+		const { store, api } = setup();
+		try {
+			api.manageability.set(repository.repo, new Error('Offline'));
+			const first = await store.isRepositoryManageable(repository, CancellationToken.None);
+			const second = await store.isRepositoryManageable(repository, CancellationToken.None);
+			const callsBeforeExpiry = api.calls.length;
+			await clock.tickAsync(30_000);
+			const third = await store.isRepositoryManageable(repository, CancellationToken.None);
+			assert.deepStrictEqual({ first, second, third, callsBeforeExpiry, calls: api.calls.length }, {
+				first: false, second: false, third: false, callsBeforeExpiry: 1, calls: 2,
+			});
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('successful capability checks clear transient failure suppression', async () => {
+		const { store, api } = setup();
+		api.manageability.set(repository.repo, new Error('Offline'));
+		await store.isRepositoryManageable(repository, CancellationToken.None);
+		await store.refresh();
+		api.manageability.set(repository.repo, true);
+		assert.strictEqual(await store.isRepositoryManageable(repository, CancellationToken.None), true);
+		assert.strictEqual(api.calls.filter(call => call.method === 'capability').length, 2);
+	});
+
+	test('cancelled capability checks do not enter transient failure suppression', async () => {
+		const { store, api } = setup();
+		const pending = new DeferredPromise<boolean>();
+		api.manageability.set(repository.repo, pending.p);
+		const source = disposables.add(new CancellationTokenSource());
+		const first = assert.rejects(store.isRepositoryManageable(repository, source.token), isCancellationError);
+		await api.manageabilityStarted.p;
+		source.cancel();
+		await pending.complete(true);
+		await first;
+		api.manageability.set(repository.repo, new Error('Offline'));
+		assert.strictEqual(await store.isRepositoryManageable(repository, CancellationToken.None), false);
+		assert.strictEqual(api.calls.filter(call => call.method === 'capability').length, 2);
+	});
+
+	test('bounds transient capability failure suppression', async () => {
+		const { store, api } = setup();
+		for (let index = 0; index <= 100; index++) {
+			const ref = { owner: 'owner', repo: `repo-${index}` };
+			api.manageability.set(ref.repo, new Error('Offline'));
+			await store.isRepositoryManageable(ref, CancellationToken.None);
+		}
+		const first = { owner: 'owner', repo: 'repo-0' };
+		await store.isRepositoryManageable(first, CancellationToken.None);
+		assert.strictEqual(api.calls.filter(call => call.method === 'capability').length, 102);
+	});
 
 	for (const invalidate of ['account', 'dispose'] as const) {
 		test(`invalidates observed eligibility on ${invalidate} and ignores late responses`, async () => {
 			const { store, api, changeAccount } = setup();
 			const pending = new DeferredPromise<boolean>();
-			api.visibility.set(repository.repo, pending.p);
+			api.manageability.set(repository.repo, pending.p);
 			const target = store.getWorkspaceTarget(workspace);
 			await timeout(0);
 			if (invalidate === 'account') {
@@ -305,14 +391,14 @@ suite('GitHubCloudAutomationStore', () => {
 		const { store, api } = setup();
 		const pending = new DeferredPromise<boolean>();
 		for (let i = 0; i < 12; i++) {
-			api.visibility.set(`repo-${i}`, pending.p);
+			api.manageability.set(`repo-${i}`, pending.p);
 			store.getWorkspaceTarget(URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/owner/repo-${i}/HEAD` }));
 		}
 		await timeout(0);
 		assert.strictEqual(api.calls.length, 5);
 		await pending.complete(true);
 		await timeout(0);
-		assert.deepStrictEqual(api.calls.map(call => call.method), Array(12).fill('visibility'));
+		assert.deepStrictEqual(api.calls.map(call => call.method), Array(12).fill('capability'));
 	});
 
 	test('coordinates create, preflight update, acknowledgement-only run and deletion', async () => {
@@ -332,11 +418,11 @@ suite('GitHubCloudAutomationStore', () => {
 		});
 	});
 
-	test('pre-dispatch guards and public visibility prevent mutations', async () => {
+	test('pre-dispatch guards and repository manageability prevent mutations', async () => {
 		const { store, api } = setup();
 		await assert.rejects(store.create(workspace, createValue, () => { throw new Error('Disabled'); }), /Disabled/);
-		api.visibility.set(repository.repo, false);
-		await assert.rejects(store.create(workspace, createValue), /private GitHub repository/);
+		api.manageability.set(repository.repo, false);
+		await assert.rejects(store.create(workspace, createValue), /cannot be managed/);
 		assert.deepStrictEqual(api.mutations, []);
 	});
 
@@ -481,9 +567,9 @@ suite('GitHubCloudAutomationStore', () => {
 	test('credential renewal does not invalidate an otherwise successful operation', async () => {
 		const { store, api, credentialLifetime, leases } = setup();
 		const pending = new DeferredPromise<boolean>();
-		api.visibility.set(repository.repo, pending.p);
+		api.manageability.set(repository.repo, pending.p);
 		const create = store.create(workspace, createValue);
-		await api.visibilityStarted.p;
+		await api.manageabilityStarted.p;
 		credentialLifetime.abort();
 		await pending.complete(true);
 		await create;
@@ -527,7 +613,7 @@ suite('GitHubCloudAutomationStore', () => {
 			calls: api.calls.map(({ method, account, repository }) => ({ method, account, repository })),
 			entries: store.entries.get(), stored: JSON.parse(storage.get(storageKey, StorageScope.PROFILE)!),
 		}, {
-			calls: [{ method: 'visibility', account: 'octocat', repository }, { method: 'list', account: 'octocat', repository }],
+			calls: [{ method: 'capability', account: 'octocat', repository }, { method: 'list', account: 'octocat', repository }],
 			entries: [{ repository, definition }], stored: [storedRepository],
 		});
 	});
@@ -538,7 +624,7 @@ suite('GitHubCloudAutomationStore', () => {
 		assert.deepStrictEqual({
 			methods: api.calls.map(call => call.method), entries: store.entries.get(),
 			stored: JSON.parse(storage.get(storageKey, StorageScope.PROFILE)!),
-		}, { methods: ['visibility'], entries: [{ repository, definition }], stored: [storedRepository] });
+		}, { methods: ['capability'], entries: [{ repository, definition }], stored: [storedRepository] });
 		const updated = { ...definition, name: 'Updated on GitHub' };
 		api.definitions.set(repository.repo, [updated]);
 		await store.refresh();
@@ -689,12 +775,12 @@ suite('GitHubCloudAutomationStore', () => {
 				const headers = new Headers();
 				if (url.pathname === '/user') {
 					data = { id: 101 };
-				} else if (url.pathname === '/repos/microsoft/vscode-internalbacklog') {
+				} else if (url.pathname === '/agents/repos/microsoft/vscode-internalbacklog/automations/configuration') {
 					data = {
-						id: 1, node_id: 'R_1', private: true, owner: { id: 1, node_id: 'U_1', login: 'microsoft', avatar_url: '', html_url: 'https://github.com/microsoft', type: 'Organization' },
-						name: repository.repo, full_name: `microsoft/${repository.repo}`, default_branch: 'main', html_url: 'https://github.com/microsoft/vscode-internalbacklog',
-						url: url.href, clone_url: 'https://github.com/microsoft/vscode-internalbacklog.git', ssh_url: 'git@github.com:microsoft/vscode-internalbacklog.git',
-						archived: false, disabled: false, language: null, stargazers_count: 0, description: null, fork: false,
+						automations_enabled: true,
+						can_manage_automations: true,
+						allow_read_access_triggers: false,
+						require_trigger_scoped_writes: false,
 					};
 				} else if (url.pathname.endsWith('/automation-1')) {
 					data = definition;
@@ -749,7 +835,7 @@ suite('GitHubCloudAutomationStore', () => {
 			entries: [{ repository, definition }, { repository, definition: secondDefinition }],
 			requests: [
 				{ url: 'https://api.github.com/user', integration: null },
-				{ url: 'https://api.github.com/repos/microsoft/vscode-internalbacklog', integration: null },
+				{ url: 'https://api.githubcopilot.com/agents/repos/microsoft/vscode-internalbacklog/automations/configuration', integration: COPILOT_INTEGRATION_ID },
 				{ url: 'https://api.githubcopilot.com/agents/repos/microsoft/vscode-internalbacklog/automations/v2?page=1&per_page=100', integration: COPILOT_INTEGRATION_ID },
 				{ url: 'https://api.githubcopilot.com/agents/repos/microsoft/vscode-internalbacklog/automations/v2?page=2&per_page=100', integration: COPILOT_INTEGRATION_ID },
 				{ url: 'https://api.githubcopilot.com/agents/repos/microsoft/vscode-internalbacklog/automations/automation-1', integration: COPILOT_INTEGRATION_ID },
@@ -808,15 +894,15 @@ suite('GitHubCloudAutomationStore', () => {
 		assert.deepStrictEqual({ mutations: api.mutations, entries: store.entries.get() }, { mutations: ['create'], entries: [] });
 	});
 
-	test('skips public repositories and rechecks known repository visibility on refresh', async () => {
+	test('skips unmanageable repositories and rechecks known repository capability on refresh', async () => {
 		const { store, api, recents } = setup();
 		recents.workspaces = [recentWorkspace(workspace)];
 		await store.refresh();
-		api.visibility.set(repository.repo, false);
+		api.manageability.set(repository.repo, false);
 		await store.refresh();
-		await assert.rejects(store.create(workspace, createValue), /private GitHub repository/);
+		await assert.rejects(store.create(workspace, createValue), /cannot be managed/);
 		assert.deepStrictEqual({ entries: store.entries.get(), state: store.catalogueState.get(), methods: api.calls.map(call => call.method) }, {
-			entries: [], state: 'ready', methods: ['visibility', 'list', 'visibility', 'visibility'],
+			entries: [], state: 'ready', methods: ['capability', 'list', 'capability', 'capability'],
 		});
 	});
 
@@ -840,7 +926,7 @@ suite('GitHubCloudAutomationStore', () => {
 		await pending.complete([definition]);
 		await Promise.all([first, second]);
 		assert.deepStrictEqual({ states, methods: api.calls.map(call => call.method) }, {
-			states: ['loading', 'ready'], methods: ['visibility', 'list'],
+			states: ['loading', 'ready'], methods: ['capability', 'list'],
 		});
 	});
 
@@ -880,7 +966,7 @@ suite('GitHubCloudAutomationStore', () => {
 		const { store, api, recents } = setup();
 		await store.create(workspace, createValue);
 		recents.workspaces = [recentWorkspace(workspace.with({ path: '/microsoft/inaccessible/HEAD' }))];
-		api.visibility.set('inaccessible', new Error('Access denied'));
+		api.manageability.set('inaccessible', new Error('Access denied'));
 		await assert.rejects(store.refresh(), /Some GitHub repositories/);
 		assert.deepStrictEqual({ entries: store.entries.get(), state: store.catalogueState.get() }, {
 			entries: [{ repository, definition }], state: 'error',
@@ -978,16 +1064,16 @@ suite('GitHubCloudAutomationStore', () => {
 		await current.complete([{ ...definition, name: 'New session' }]);
 		await Promise.all([second, coalesced]);
 		assert.deepStrictEqual({ entries: store.entries.get(), methods: api.calls.map(call => call.method) }, {
-			entries: [{ repository, definition: { ...definition, name: 'New session' } }], methods: ['visibility', 'list', 'visibility', 'list'],
+			entries: [{ repository, definition: { ...definition, name: 'New session' } }], methods: ['capability', 'list', 'capability', 'list'],
 		});
 	});
 
 	test('late creation preflight cannot persist repositories or dispatch after an account reset', async () => {
 		const { store, api, changeAccount, storage } = setup();
 		const pending = new DeferredPromise<boolean>();
-		api.visibility.set(repository.repo, pending.p);
+		api.manageability.set(repository.repo, pending.p);
 		const create = store.create(workspace, createValue);
-		await api.visibilityStarted.p;
+		await api.manageabilityStarted.p;
 		const rejected = assert.rejects(create, isCancellationError);
 		changeAccount(account);
 		await pending.complete(true);
