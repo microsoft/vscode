@@ -1021,10 +1021,12 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual(provider.getSessions(), []);
 	});
 
-	test('Copilot schema discovery prevents VS defaults and approval reports entering creation', async () => {
+	test('Copilot schema discovery prevents VS defaults and approval reports entering creation and first send', async () => {
 		const configurationService = new TestConfigurationService();
 		await configurationService.setUserConfiguration('chat.defaultConfiguration', { approvals: 'allowAll' });
 		await configurationService.setUserConfiguration('git.branchPrefix', 'user/');
+		await configurationService.setUserConfiguration('chat.agentHost.branchName.useGitSettings', true);
+		await configurationService.setUserConfiguration('git.branchRandomName.enable', true);
 		agentHost.resolveSessionConfigResult = {
 			schema: {
 				type: 'object', properties: {
@@ -1036,18 +1038,31 @@ suite('LocalAgentHostSessionsProvider', () => {
 			},
 			values: { approvalMode: 'assisted', effectiveApprovalMode: 'manual', availableApprovalModes: ['manual', 'assisted'], target: 'workspace' },
 		};
-		const provider = createProvider(disposables, agentHost, undefined, { configurationService });
+		let sentConfig: Record<string, unknown> | undefined;
+		const provider = createProvider(disposables, agentHost, undefined, {
+			configurationService,
+			openSession: true,
+			sendRequest: async (resource, _message, options): Promise<ChatSendResult> => {
+				sentConfig = options?.agentHostSessionConfig;
+				agentHost.addSession(createSession(AgentSession.id(resource), { summary: 'Created From Send' }));
+				return { kind: 'sent', data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
+			},
+		});
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
 		await waitForSessionConfig(provider, session, config => config?.values.target === 'workspace');
 		await timeout(0);
-		assert.deepStrictEqual({
+		const beforeSend = {
 			discovery: agentHost.resolveSessionConfigRequests.map(request => request.config),
 			creation: provider.getCreateSessionConfig(session.sessionId),
 			eager: agentHost.createSessionConfigs.at(-1)?.config,
-		}, {
+		};
+		const chat = await provider.createNewChat(session.sessionId);
+		await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+		assert.deepStrictEqual({ ...beforeSend, sentConfig }, {
 			discovery: [undefined],
 			creation: { approvalMode: 'assisted', target: 'workspace' },
 			eager: { approvalMode: 'assisted', target: 'workspace' },
+			sentConfig: { approvalMode: 'assisted', target: 'workspace' },
 		});
 	});
 

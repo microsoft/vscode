@@ -123,7 +123,7 @@ suite('git.api.generateRandomBranchName', () => {
 			refs: getRefs.firstCall.args
 		}, {
 			disabled: undefined,
-			prefix: 'feature ',
+			prefix: 'feature_',
 			matchesRepeatedDictionary: true,
 			refs: [{ pattern: `refs/heads/${result?.branchName}` }]
 		});
@@ -140,13 +140,29 @@ suite('git.api.generateRandomBranchName', () => {
 		const apiLookups = getRefs.getCalls().map(call => call.args);
 		const defaultName = await repository.generateRandomBranchName();
 		assert.deepStrictEqual({ result, apiLookups, defaultName }, {
-			result: { branchName: 'feature_quiet-fox', branchPrefix: 'feature ' },
+			result: { branchName: 'feature_quiet-fox', branchPrefix: 'feature_' },
 			apiLookups: [
 				[{ pattern: 'refs/heads/feature_calm-otter' }],
 				[{ pattern: 'refs/heads/feature_quiet-fox' }]
 			],
 			defaultName: 'feature quiet-fox'
 		});
+	});
+
+	test('sanitizes prefixes in branch context, preserving trailing separators', async () => {
+		const { settings } = useRealRandomNameGenerator();
+		sinon.stub(randomNames, 'uniqueNamesGenerator').returns('calm-otter');
+		const results = [];
+		for (const prefix of ['feature/', 'feature.', '  --feature ', '']) {
+			settings.branchPrefix = prefix;
+			results.push(await generate(root.toString()));
+		}
+		assert.deepStrictEqual(results, [
+			{ branchName: 'feature/calm-otter', branchPrefix: 'feature/' },
+			{ branchName: 'feature.calm-otter', branchPrefix: 'feature.' },
+			{ branchName: 'feature_calm-otter', branchPrefix: 'feature_' },
+			{ branchName: 'calm-otter', branchPrefix: '' },
+		]);
 	});
 
 	test('does not return a sanitized candidate that persistently collides', async () => {
