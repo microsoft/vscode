@@ -8,6 +8,7 @@ import { createSandbox, spy } from 'sinon';
 import { Dimension } from '../../../../../base/browser/dom.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { timeout } from '../../../../../base/common/async.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -31,6 +32,7 @@ import { IViewDescriptorService } from '../../../../common/views.js';
 import { ITerminalConfigurationService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from '../../browser/terminal.js';
 import { TerminalConfigurationService } from '../../browser/terminalConfigurationService.js';
 import { parseExitResult, TerminalInstance, TerminalLabelComputer } from '../../browser/terminalInstance.js';
+import { TerminalIconPicker } from '../../browser/terminalIconPicker.js';
 import { IEnvironmentVariableService } from '../../common/environmentVariable.js';
 import { EnvironmentVariableService } from '../../common/environmentVariableService.js';
 import { ITerminalProfileResolverService, ProcessState, DEFAULT_COMMANDS_TO_SKIP_SHELL } from '../../common/terminal.js';
@@ -218,6 +220,28 @@ suite('Workbench - TerminalInstance', () => {
 			dataTransfer.setData(CodeDataTransfers.FILES, JSON.stringify(['/test/file.txt']));
 			container.dispatchEvent(new DragEvent('drop', { dataTransfer }));
 		}
+
+		test('icon reset restores the default without changing the terminal color', async () => {
+			const instance = await createTerminalInstance(undefined, undefined, { color: 'terminal.ansiRed' });
+			const defaultIcon = instance.icon;
+			await instance.changeIcon(Codicon.rocket);
+			const reset = await instance.changeIcon(null);
+			deepStrictEqual({ reset, icon: instance.icon, color: instance.shellLaunchConfig.color }, {
+				reset: null,
+				icon: defaultIcon,
+				color: 'terminal.ansiRed',
+			});
+		});
+
+		test('cancelling the shared icon picker preserves the terminal icon', async () => {
+			const sandbox = createSandbox();
+			store.add(toDisposable(() => sandbox.restore()));
+			sandbox.stub(TerminalIconPicker.prototype, 'pickIcons').resolves(undefined);
+			const instance = await createTerminalInstance();
+			await instance.changeIcon(Codicon.rocket);
+			const result = await instance.changeIcon();
+			deepStrictEqual({ result, icon: instance.icon }, { result: undefined, icon: Codicon.rocket });
+		});
 
 		async function createTerminalWithLongLine(): Promise<TerminalInstance> {
 			const instance = await createTerminalInstance();
