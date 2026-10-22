@@ -45,7 +45,7 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 	}
 
 	constructor(
-		primaryAction: MenuItemAction,
+		primaryAction: IAction,
 		dropdownAction: IAction,
 		dropdownMenuActions: readonly IAction[] | IActionProvider,
 		className: string,
@@ -58,7 +58,9 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 		@IAccessibilityService _accessibilityService: IAccessibilityService
 	) {
 		super(null, primaryAction, { hoverDelegate: _options?.hoverDelegate });
-		this._primaryAction = new MenuEntryActionViewItem(primaryAction, { hoverDelegate: _options?.hoverDelegate }, _keybindingService, _notificationService, _contextKeyService, _themeService, _contextMenuProvider, _accessibilityService);
+		this._primaryAction = primaryAction instanceof MenuItemAction
+			? new MenuEntryActionViewItem(primaryAction, { hoverDelegate: _options?.hoverDelegate }, _keybindingService, _notificationService, _contextKeyService, _themeService, _contextMenuProvider, _accessibilityService)
+			: new ActionViewItem(undefined, primaryAction, { icon: true, label: false, hoverDelegate: _options?.hoverDelegate });
 		if (_options?.actionRunner) {
 			this._primaryAction.actionRunner = _options.actionRunner;
 		}
@@ -109,7 +111,7 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 			}
 			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.RightArrow)) {
-				this._primaryAction.element!.tabIndex = -1;
+				this._primaryAction.setFocusable(false);
 				this._dropdown.focus();
 				event.stopPropagation();
 			}
@@ -120,9 +122,8 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 			}
 			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.LeftArrow)) {
-				this._primaryAction.element!.tabIndex = 0;
 				this._dropdown.setFocusable(false);
-				this._primaryAction.element?.focus();
+				this._primaryAction.focus();
 				event.stopPropagation();
 			}
 		}));
@@ -134,22 +135,19 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 		if (fromRight) {
 			this._dropdown.focus();
 		} else {
-			this._primaryAction.element!.tabIndex = 0;
-			this._primaryAction.element!.focus();
+			this._primaryAction.focus();
 		}
 	}
 
 	override blur(): void {
-		this._primaryAction.element!.tabIndex = -1;
+		this._primaryAction.blur();
 		this._dropdown.blur();
 		this._container!.blur();
 	}
 
 	override setFocusable(focusable: boolean): void {
-		if (focusable) {
-			this._primaryAction.element!.tabIndex = 0;
-		} else {
-			this._primaryAction.element!.tabIndex = -1;
+		this._primaryAction.setFocusable(focusable);
+		if (!focusable) {
 			this._dropdown.setFocusable(false);
 		}
 	}

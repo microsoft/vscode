@@ -12,7 +12,7 @@ import { Event } from '../../../../base/common/event.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { autorun, constObservable, derived, derivedOpts, IObservable, IReader, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
@@ -24,7 +24,8 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
+import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
+import { WebviewInput } from '../../../../workbench/contrib/webviewPanel/browser/webviewEditorInput.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
@@ -61,12 +62,15 @@ import { computePullRequestIcon } from '../../../../workbench/common/chatPullReq
 import { ISessionChangesStatsCache, readChatChangesStats, readLoadedChatChangesStats } from '../../../services/sessions/common/sessionChangesStatsCache.js';
 import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
+import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 import { SessionCanvasesControl } from '../../canvases/browser/sessionCanvasesControl.js';
 import { createIssueHover, getIssueStatus } from '../../github/browser/issueHover.js';
 import { createPullRequestHover, getPullRequestChecksStatusLabel } from '../../github/browser/pullRequestHover.js';
 import { ArtifactDetailsContextView } from './artifactDetailsContextView.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ChatPillHoverCache, createChatPillHover } from '../../../../workbench/browser/chatPillHover.js';
+import { ISessionActivityBarAction } from '../../../browser/parts/sessionActivityBar.js';
 
 const copiedLabel = localize('sessionChatPills.copied', "Copied");
 const copiedToClipboardStatus = localize('sessionChatPills.copiedToClipboard', "Copied to clipboard");
@@ -409,7 +413,7 @@ export class SessionChatInputToolbar extends Disposable {
 	readonly element: HTMLElement;
 	readonly onDidChangeChatPetPlatform: Event<void>;
 	readonly onDidChangeVisibility: Event<boolean>;
-	readonly activityBarActions: IObservable<readonly IAction[]>;
+	readonly activityBarActions: IObservable<readonly ISessionActivityBarAction[]>;
 	private readonly _inputPills: ChatInputPills;
 	private _inputElement: HTMLElement | undefined;
 
@@ -425,7 +429,6 @@ export class SessionChatInputToolbar extends Disposable {
 	private readonly _issueHoverCache = this._register(new ChatPillHoverCache());
 	private readonly _pullRequestCopyActions = this._register(new CopyFeedbackActionCache());
 	private readonly _issueCopyActions = this._register(new CopyFeedbackActionCache());
-	private readonly _activityBarPicker = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _activityBarOpenerCheck = this._register(new MutableDisposable());
 
 	/** The session that owns the reflected chat, from an explicit override or resolved from the chat. */
@@ -475,7 +478,7 @@ export class SessionChatInputToolbar extends Disposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IChatEntitlementService entitlementService: IChatEntitlementService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IQuickInputService quickInputService: IQuickInputService,
+		@IEditorService editorService: IEditorService,
 		@IExternalUriOpenerService externalUriOpenerService: IExternalUriOpenerService,
 		@IExtensionService extensionService: IExtensionService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -636,13 +639,15 @@ export class SessionChatInputToolbar extends Disposable {
 			});
 			return supported;
 		});
+		const activeEditor = observableFromEvent(this, editorService.onDidActiveEditorChange, () => editorService.activeEditor);
+		const editorPaneVisible = observableFromEvent(this, layoutService.onDidChangePartVisibility, () => layoutService.isVisible(Parts.EDITOR_PART, mainWindow));
 		this.activityBarActions = derived(this, reader => {
 			if (!gitHubActionsEnabled.read(reader) || !pillsVisible.read(reader) || this._debugData.read(reader) || entitlementService.sentimentObs.read(reader).hidden) {
 				return [];
 			}
 			const chat = this._chat.read(reader);
 			const session = this._session.read(reader);
-			const createAction = (id: string, title: string, sections: IObservable<readonly IChatPillSection[]>, icon: ThemeIcon): IAction[] => {
+			const createAction = (id: string, title: string, sections: IObservable<readonly IChatPillSection[]>, icon: ThemeIcon, viewType: string, refs: readonly (IGitHubPullRequestRef | IGitHubIssueRef)[]): ISessionActivityBarAction[] => {
 				const supported = activityBarOpeners.read(reader).read(reader);
 				const entries = getChatPillEntries(sections.read(reader)).filter(entry => supported.has(entry.id));
 				if (!entries.length) {
@@ -651,57 +656,54 @@ export class SessionChatInputToolbar extends Disposable {
 				const label = entries.length === 1
 					? entries[0].ariaLabel ?? entries[0].label
 					: localize('sessionChatPills.activityBar.openEntries', "{0} ({1})", title, entries.length);
-				return [toAction({
-					id, label, class: ThemeIcon.asClassName(icon),
-					run: async () => {
-						if (this._store.isDisposed || !gitHubActionsEnabled.read(undefined) || !pillsVisible.read(undefined) || entitlementService.sentimentObs.read(undefined).hidden || this._chat.read(undefined) !== chat || this._session.read(undefined) !== session) {
-							return;
-						}
-						this._activityBarPicker.clear();
-						const currentEntries = getChatPillEntries(sections.read(undefined)).filter(entry => activityBarOpeners.read(undefined).read(undefined).has(entry.id));
-						if (currentEntries.length <= 1) {
-							currentEntries[0]?.open();
-							return;
-						}
-						const store = new DisposableStore();
-						this._activityBarPicker.value = store;
-						const cancellation = new CancellationTokenSource();
-						store.add(toDisposable(() => cancellation.dispose(true)));
-						try {
-							store.add(autorun(reader => {
-								if (!gitHubActionsEnabled.read(reader) || !pillsVisible.read(reader) || this._debugData.read(reader) || entitlementService.sentimentObs.read(reader).hidden || this._chat.read(reader) !== chat || this._session.read(reader) !== session) {
-									cancellation.cancel();
-									return;
+				const matchesEditor = () => {
+					const editor = activeEditor.read(undefined);
+					return editor instanceof WebviewInput && editor.providerId === viewType
+						|| !!editor?.resource && refs.some(ref => supported.has(ref.recordedReferenceId ?? ref.uri.toString()) && isEqual(ref.uri, editor.resource));
+				};
+				activeEditor.read(reader);
+				const checked = editorPaneVisible.read(reader) && matchesEditor();
+				const currentEntries = () => {
+					if (this._store.isDisposed || !gitHubActionsEnabled.read(undefined) || !pillsVisible.read(undefined) || this._debugData.read(undefined) || entitlementService.sentimentObs.read(undefined).hidden || this._chat.read(undefined) !== chat || this._session.read(undefined) !== session) {
+						return [];
+					}
+					const supported = activityBarOpeners.read(undefined).read(undefined);
+					return getChatPillEntries(sections.read(undefined)).filter(entry => supported.has(entry.id));
+				};
+				const openEntry = (entryId: string) => {
+					currentEntries().find(entry => entry.id === entryId)?.open();
+				};
+				const action: ISessionActivityBarAction = {
+					...toAction({
+						id, label, class: ThemeIcon.asClassName(icon), checked,
+						run: async () => {
+							const entries = currentEntries();
+							if (!entries.length) {
+								return;
+							}
+							if (matchesEditor()) {
+								if (layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+									layoutService.hideSidePane();
+								} else {
+									layoutService.revealEditorPartExplicitly();
 								}
-								const supported = activityBarOpeners.read(reader).read(reader);
-								const entries = getChatPillEntries(sections.read(reader)).filter(entry => supported.has(entry.id));
-								if (entries.length !== currentEntries.length || entries.some((entry, index) => entry.id !== currentEntries[index].id)) {
-									cancellation.cancel();
-								}
-							}));
-							const selected = await quickInputService.pick(currentEntries.map(entry => ({
-								label: `${entry.icon ? `$(${entry.icon.id}) ` : ''}${entry.badge ? `${entry.badge} ` : ''}${entry.label}`,
-								description: entry.ariaDescription,
-								entry,
-							})), { title, matchOnDescription: true }, cancellation.token);
-							if (selected && !cancellation.token.isCancellationRequested) {
-								getChatPillEntries(sections.read(undefined)).find(entry => entry.id === selected.entry.id && activityBarOpeners.read(undefined).read(undefined).has(entry.id))?.open();
+								return;
 							}
-						} catch (error) {
-							if (!cancellation.token.isCancellationRequested) {
-								notificationService.error(error);
-							}
-						} finally {
-							if (this._activityBarPicker.value === store) {
-								this._activityBarPicker.clear();
-							}
-						}
-					},
-				})];
+							openEntry(entries[0].id);
+						},
+					}),
+					dropdownActions: entries.length > 1 ? entries.map(entry => toAction({
+						id: entry.id,
+						label: `${entry.badge ? `${entry.badge} ` : ''}${entry.label}`,
+						class: entry.icon ? ThemeIcon.asClassName(entry.icon) : undefined,
+						run: () => openEntry(entry.id),
+					})) : undefined,
+				};
+				return [action];
 			};
 			return [
-				...createAction(OPEN_PULL_REQUEST_ACTION_ID, localize('sessionChatPills.activityBar.openPullRequest', "Open Pull Request"), activityBarPullRequests.sections, activityBarPullRequests.icon.read(reader)),
-				...createAction(OPEN_ISSUE_ACTION_ID, localize('sessionChatPills.activityBar.openIssue', "Open Issue"), issueSections, issueIcon.read(reader)),
+				...createAction(OPEN_PULL_REQUEST_ACTION_ID, localize('sessionChatPills.activityBar.openPullRequest', "Open Pull Request"), activityBarPullRequests.sections, activityBarPullRequests.icon.read(reader), 'PullRequestOverview', pullRequestRefs.read(reader)),
+				...createAction(OPEN_ISSUE_ACTION_ID, localize('sessionChatPills.activityBar.openIssue', "Open Issue"), issueSections, issueIcon.read(reader), 'IssueOverview', issueRefs.read(reader)),
 			];
 		});
 		const integratedSources = derived(this, reader => {

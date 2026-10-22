@@ -5,6 +5,7 @@
 
 import { $, append } from '../../../../../base/browser/dom.js';
 import { Event } from '../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { toAction } from '../../../../../base/common/actions.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { autorun, constObservable } from '../../../../../base/common/observable.js';
@@ -14,7 +15,8 @@ import { IMenuService } from '../../../../../platform/actions/common/actions.js'
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
+import { ContextMenuService } from '../../../../../platform/contextview/browser/contextMenuService.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { PromptTimelineRulerRail } from '../../../../../workbench/contrib/chat/browser/promptTimeline/promptTimelineRulerRail.js';
@@ -57,6 +59,8 @@ interface IFixtureOptions {
 	/** Badges the Changes entry, as new changes do. */
 	readonly newChanges?: boolean;
 	readonly githubReferenceCount?: number;
+	readonly githubChecked?: boolean;
+	readonly openGitHubDropdown?: boolean;
 }
 
 // The tab entries share the side panel toggle's group; the terminal shares the panel toggle's.
@@ -96,6 +100,8 @@ export default defineThemedFixtureGroup({ path: 'sessions/sessionActivityBar/' }
 	NewChanges: activityBarFixture({ newChanges: true }, highContrastThemes),
 	GitHubReferences: activityBarFixture({ githubReferenceCount: 1 }, highContrastThemes),
 	MultipleGitHubReferences: activityBarFixture({ githubReferenceCount: 2 }, highContrastThemes),
+	CheckedGitHubReferences: activityBarFixture({ githubReferenceCount: 2, githubChecked: true }, highContrastThemes),
+	GitHubDropdownOpen: activityBarFixture({ githubReferenceCount: 2, openGitHubDropdown: true }, highContrastThemes),
 });
 
 const HEIGHT = 500;
@@ -133,8 +139,8 @@ async function renderActivityBar(context: ComponentFixtureContext, options: IFix
 	const { renderChatWidget } = await import('../../../../../workbench/test/browser/componentFixtures/chat/chatWidget.fixture.js');
 	const width = options.width ?? 640;
 	const githubEntries: readonly IFixtureEntry[] = options.githubReferenceCount ? [
-		{ id: OPEN_PULL_REQUEST_ACTION_ID, title: 'Open Pull Request', icon: Codicon.gitPullRequest, group: SessionActivityBarGroup.GitHub },
-		{ id: OPEN_ISSUE_ACTION_ID, title: 'Open Issue', icon: Codicon.issues, group: SessionActivityBarGroup.GitHub },
+		{ id: OPEN_PULL_REQUEST_ACTION_ID, title: 'Open Pull Request', icon: Codicon.gitPullRequest, group: SessionActivityBarGroup.SidePanel },
+		{ id: OPEN_ISSUE_ACTION_ID, title: 'Open Issue', icon: Codicon.issues, group: SessionActivityBarGroup.SidePanel },
 	] : [];
 	const entries = [...(options.entries ?? workspaceChatEntries), ...githubEntries];
 	container.style.width = `${width}px`;
@@ -164,14 +170,17 @@ async function renderActivityBar(context: ComponentFixtureContext, options: IFix
 	if (options.newChanges) {
 		disposableStore.add(activityService.showActivity(fixtureChanges.id, { badge: new IconBadge(Codicon.circleFilled, () => 'New changes') }));
 	}
+	const contextViewService = new FixtureContextViewService(container);
+	disposableStore.add(toDisposable(() => contextViewService.hideContextView()));
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: theme,
 		additionalServices: reg => {
 			registerWorkbenchServices(reg);
+			reg.define(IContextMenuService, ContextMenuService);
 			reg.defineInstance(IMenuService, menuService);
 			reg.defineInstance(ISessionActivityBarActivityService, activityService);
 			reg.defineInstance(IKeybindingService, new FixtureKeybindingService(entries));
-			reg.defineInstance(IContextViewService, new FixtureContextViewService(container));
+			reg.defineInstance(IContextViewService, contextViewService);
 			reg.defineInstance(IConfigurationService, new TestConfigurationService({
 				[SESSION_ACTIVITY_BAR_SETTING]: options.enabled ?? true,
 				[SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING]: true,
@@ -190,11 +199,17 @@ async function renderActivityBar(context: ComponentFixtureContext, options: IFix
 
 	const areaHeight = HEIGHT - HEADER_HEIGHT;
 	const activityBar = disposableStore.add(instantiationService.createInstance(ChatViewSessionActivityBar, chatGroup));
-	activityBar.setChatActions(constObservable(githubEntries.map(entry => toAction({
-		id: entry.id,
-		label: options.githubReferenceCount === 1 ? `${entry.title} #42: Improve the activity bar` : `${entry.title} (${options.githubReferenceCount})`,
-		class: ThemeIcon.asClassName(entry.icon),
-		run: () => { },
+	activityBar.setChatActions(constObservable(githubEntries.map(entry => ({
+		...toAction({
+			id: entry.id,
+			label: options.githubReferenceCount === 1 ? `${entry.title} #42: Improve the activity bar` : `${entry.title} (${options.githubReferenceCount})`,
+			class: ThemeIcon.asClassName(entry.icon),
+			checked: options.githubChecked,
+			run: () => { },
+		}),
+		dropdownActions: (options.githubReferenceCount ?? 0) > 1 ? [42, 43].map(number => toAction({
+			id: `${entry.id}.${number}`, label: `#${number} Improve the activity bar`, run: () => { },
+		})) : undefined,
 	}))));
 	activityBar.layout(HEADER_HEIGHT, areaHeight);
 	const reservedWidth = activityBar.reservedWidth.get();
@@ -274,6 +289,10 @@ async function renderActivityBar(context: ComponentFixtureContext, options: IFix
 		const submenuEntry = element.querySelector<HTMLElement>('.action-label[aria-haspopup="menu"]');
 		submenuEntry?.dispatchEvent(new MouseEvent('mouseenter'));
 		await waitForFixtureCondition(() => !!container.querySelector('.fixture-context-view .monaco-menu .action-item'), 'The hovered Canvas entry did not open its submenu');
+	}
+	if (options.openGitHubDropdown) {
+		container.querySelector<HTMLElement>('.session-activity-bar .dropdown-action-container .action-label')!.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+		await waitForFixtureCondition(() => !!container.querySelector('.monaco-menu .action-item'), 'The GitHub reference dropdown did not open');
 	}
 }
 

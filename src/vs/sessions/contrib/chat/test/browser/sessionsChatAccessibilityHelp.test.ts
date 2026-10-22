@@ -58,11 +58,12 @@ suite('SessionsChatAccessibilityHelp', () => {
 			instantiationService.stub(IAgentWorkbenchLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop, mainContainer: container });
 			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
 			assert.deepStrictEqual({
-				optIn: content.includes('Pull request and issue actions are off by default. Enable Show Pull Request and Issue Actions in the activity bar\'s context menu to show them.'),
-				chatScope: content.includes('Open Pull Request and Open Issue are also available for the active chat\'s pull requests and issues when a contributed opener is available for their links.'),
-				singleAndMultiple: content.includes('A single supported reference opens directly; multiple supported references open a picker.'),
-				cancel: content.includes('Enter to choose a reference, or Escape to cancel.'),
-			}, { optIn: enabled, chatScope: enabled, singleAndMultiple: enabled, cancel: enabled });
+				optIn: content.includes('Pull request and issue actions are off by default. Enable Show Pull Request and Issue Actions in the activity bar\'s context menu to show them in the side-pane group.'),
+				chatScope: content.includes('Open Pull Request and Open Issue are available for the active chat\'s references when a contributed opener is available for their links.'),
+				checkedToggle: content.includes('The main button opens a reference, or toggles the side pane when it contains the matching editor. A checked button means the side pane is showing that editor.'),
+				dropdown: content.includes('With multiple references, an adjacent dropdown lets you choose another reference.'),
+				keyboard: content.includes('Press Right Arrow to reach the dropdown, Enter or Space to open it, then Up or Down Arrow and Enter to choose. Escape closes the menu; Left Arrow returns to the main button.'),
+			}, { optIn: enabled, chatScope: enabled, checkedToggle: enabled, dropdown: enabled, keyboard: enabled });
 		});
 	}
 

@@ -11,7 +11,7 @@ import { retry, timeout } from '../../../base/common/async.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
-import { toAction } from '../../../base/common/actions.js';
+import { IAction, toAction } from '../../../base/common/actions.js';
 import { derived, observableValue } from '../../../base/common/observable.js';
 import { AnchorAlignment } from '../../../base/common/layout.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
@@ -140,11 +140,15 @@ suite('Sessions - Session Activity Bar', () => {
 		instantiationService.stub(IContextViewService, contextViewService);
 
 		const contextMenus: string[] = [];
+		let dropdownActions: readonly IAction[] = [];
+		let dropdownHost: HTMLElement | undefined;
 		instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() {
 			override readonly onDidShowContextMenu = Event.None;
 			override readonly onDidHideContextMenu = Event.None;
 			override showContextMenu(delegate: IContextMenuMenuDelegate): void {
 				contextMenus.push(delegate.menuId?.id ?? 'none');
+				dropdownActions = delegate.getActions?.() ?? [];
+				dropdownHost = delegate.domForShadowRoot;
 			}
 		});
 
@@ -173,6 +177,8 @@ suite('Sessions - Session Activity Bar', () => {
 			ran,
 			contextViewService,
 			contextMenus,
+			getDropdownActions: () => dropdownActions,
+			getDropdownHost: () => dropdownHost,
 			label: (title: string) => activityBar.element.querySelector<HTMLElement>(`.action-label[aria-label^="${title}"]`)!,
 			setEntries: (newEntries: readonly ITestEntry[]) => {
 				entries = newEntries;
@@ -208,7 +214,7 @@ suite('Sessions - Session Activity Bar', () => {
 
 	test('scopes chat actions to their bar and refreshes their labels and callbacks', async () => {
 		const id = 'test.pullRequest';
-		const entry = { id, title: 'Open Pull Request', icon: Codicon.gitPullRequest, group: SessionActivityBarGroup.GitHub, when: sessionActivityBarChatActionContext(id) };
+		const entry = { id, title: 'Open Pull Request', icon: Codicon.gitPullRequest, group: SessionActivityBarGroup.SidePanel, when: sessionActivityBarChatActionContext(id) };
 		const first = createActivityBar(store, [browser, entry]);
 		const second = createActivityBar(store, [browser, entry]);
 		const opened: number[] = [];
@@ -237,6 +243,41 @@ suite('Sessions - Session Activity Bar', () => {
 
 		assert.deepStrictEqual({ opened, originalIdReads, updated, otherBar, restored, focusPreserved, cleared: !!first.label('Open Pull Request'), commands: first.ran }, {
 			opened: [1, 2, 2], originalIdReads: 0, updated: 'Open Pull Request #2', otherBar: false, restored: true, focusPreserved: true, cleared: false, commands: [],
+		});
+	});
+
+	test('keeps a checked primary action beside a keyboard-accessible, current dropdown', async () => {
+		const id = 'test.issue';
+		const { activityBar, label, getDropdownActions, getDropdownHost } = createActivityBar(store, [{
+			id, title: 'Issues', icon: Codicon.issues, group: SessionActivityBarGroup.SidePanel, when: sessionActivityBarChatActionContext(id),
+		}]);
+		const ran: number[] = [];
+		const action = (number: number, checked: boolean, multiple = true) => ({
+			...toAction({ id, label: 'Issues', checked, class: ThemeIcon.asClassName(Codicon.issues), run: () => { ran.push(number); } }),
+			dropdownActions: multiple ? [1, 2].map(item => toAction({ id: `issue.${item}`, label: `Issue ${number + item}`, run: () => { ran.push(number + item); } })) : undefined,
+		});
+		const actions = observableValue('actions', [action(1, false)]);
+		activityBar.setChatActions(actions);
+		const primary = label('Issues');
+		primary.click();
+		const dropdown = activityBar.element.querySelector<HTMLElement>('.dropdown-action-container .action-label')!;
+		const firstMenu = actions.get()[0].dropdownActions?.map(action => action.label);
+		actions.set([action(2, true)], undefined);
+		const checked = { css: primary.classList.contains('checked'), pressed: primary.getAttribute('aria-pressed'), sameElement: primary === label('Issues') };
+		key(primary, 39, 'ArrowRight');
+		const dropdownFocused = !!getActiveElement()?.closest('.dropdown-action-container');
+		key(dropdown, 37, 'ArrowLeft');
+		const primaryFocused = getActiveElement() === primary;
+		dropdown.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+		await getDropdownActions()[1].run();
+		primary.click();
+		actions.set([action(3, false, false)], undefined);
+		assert.deepStrictEqual({
+			ran, firstMenu, checked, dropdownFocused, primaryFocused, menuInOverlay: getDropdownHost() === undefined,
+			removed: !activityBar.element.querySelector('.dropdown-action-container'), hasDropdown: activityBar.hasDropdown.get(),
+		}, {
+			ran: [1, 4, 2], firstMenu: ['Issue 2', 'Issue 3'], checked: { css: true, pressed: 'true', sameElement: true },
+			dropdownFocused: true, primaryFocused: true, menuInOverlay: true, removed: true, hasDropdown: false,
 		});
 	});
 
