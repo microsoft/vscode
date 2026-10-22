@@ -33,11 +33,10 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { ICustomEndpointTelemetryService, ITelemetryService, TelemetryLevel } from '../../../../platform/telemetry/common/telemetry.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
-import { ViewContainerLocation } from '../../../common/views.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
-import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { LiveTestResult } from '../../testing/common/testResult.js';
 import { ITestResultService } from '../../testing/common/testResultService.js';
 import { ITestService } from '../../testing/common/testService.js';
@@ -115,7 +114,7 @@ export class DebugSession implements IDebugSession {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IHostService private readonly hostService: IHostService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
+		@IViewsService private readonly viewsService: IViewsService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IProductService private readonly productService: IProductService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -1390,7 +1389,7 @@ export class DebugSession implements IDebugSession {
 
 							if (thread.stoppedDetails && !token.isCancellationRequested) {
 								if (thread.stoppedDetails.reason === 'breakpoint' && this.configurationService.getValue<IDebugConfiguration>('debug').openDebug === 'openOnDebugBreak' && !this.suppressDebugView) {
-									await this.paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar);
+									await this.viewsService.openViewContainer(VIEWLET_ID);
 								}
 
 								if (this.configurationService.getValue<IDebugConfiguration>('debug').focusWindowOnBreak && !this.workbenchEnvironmentService.extensionTestsLocationURI) {
