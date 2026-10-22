@@ -50,7 +50,7 @@ import { REVEAL_CANVAS_COMMAND_ID } from '../../../../../workbench/contrib/canva
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../changes/common/sessionChangesService.js';
 import { getGitHubHoverDate, getGitHubHoverDescription, getGitHubHoverTitle, getGitHubHoverTitleParts } from '../../../github/browser/githubHover.js';
 import { createIssueHover } from '../../../github/browser/issueHover.js';
-import { GitHubCIOverallStatus, GitHubIssueState, GitHubIssueStateReason, GitHubPullRequestState, type IGitHubIssue, type IGitHubPullRequest } from '../../../github/common/types.js';
+import { GitHubCIOverallStatus, GitHubIssueState, GitHubIssueStateReason, GitHubPullRequestState, OPEN_ISSUE_ACTION_ID, OPEN_PULL_REQUEST_ACTION_ID, OPEN_PULL_REQUEST_CHANGES_ACTION_ID, type IGitHubIssue, type IGitHubPullRequest } from '../../../github/common/types.js';
 import type { IResolvedSessionPullRequest } from '../../../github/browser/pullRequestIconStatus.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { GitHubPullRequestModel } from '../../../github/browser/models/githubPullRequestModel.js';
@@ -1740,9 +1740,9 @@ suite('SessionChatInputToolbar', () => {
 		const recordedOpenIds: string[] = [];
 		const pullRequests = refs.map(ref => ({ ref, pullRequest: undefined, icon: Codicon.gitPullRequest, status: {} }));
 		const commandService = upcastPartial<ICommandService>({
-			executeCommand: async (_command, arg) => {
+			executeCommand: async (command, arg) => {
 				assert.ok(arg && typeof arg === 'object');
-				opened.push(arg);
+				opened.push({ command, ...arg });
 				return undefined;
 			},
 		});
@@ -1761,7 +1761,9 @@ suite('SessionChatInputToolbar', () => {
 		await entries[0].promotedAction?.run();
 		await entries[1].promotedAction?.run();
 		await issueEntry.promotedAction?.run();
-		await entries[0].toolbarActions?.[0].run();
+		for (const action of entries[0].toolbarActions ?? []) {
+			await action.run();
+		}
 		entries[0].open();
 		entries[2].open();
 		issueEntry.open();
@@ -1770,6 +1772,7 @@ suite('SessionChatInputToolbar', () => {
 			ids: entries.map(entry => entry.id),
 			removable: [...entries.map(entry => !!entry.promotedAction), !!issueEntry.promotedAction],
 			removeLabels: [...entries, issueEntry].map(entry => entry.promotedAction && [entry.promotedAction.label, entry.promotedAction.hoverLabel]),
+			toolbarLabels: entries[0].toolbarActions?.map(action => [action.label, action.hoverLabel]),
 			unsupported: unsupported.map(entry => !!entry.promotedAction),
 			removed, copied, recordedOpenIds, opened,
 		}, {
@@ -1781,14 +1784,19 @@ suite('SessionChatInputToolbar', () => {
 				undefined,
 				['Remove Issue Artifact from Session', 'Remove Artifact'],
 			],
+			toolbarLabels: [
+				['Open Pull Request Changes', 'Open Changes'],
+				['Copy pull request URL', 'Copy URL'],
+			],
 			unsupported: [false, false, false],
 			removed: ['reference-a', 'reference-b', 'issue-reference'],
 			copied: [refs[0].uri.toString(true)],
 			recordedOpenIds: ['reference-a', 'issue-reference'],
 			opened: [
-				{ pullRequest: refs[0] },
-				{ pullRequest: refs[2] },
-				{ issue: issueRef },
+				{ command: OPEN_PULL_REQUEST_CHANGES_ACTION_ID, pullRequest: refs[0] },
+				{ command: OPEN_PULL_REQUEST_ACTION_ID, pullRequest: refs[0] },
+				{ command: OPEN_PULL_REQUEST_ACTION_ID, pullRequest: refs[2] },
+				{ command: OPEN_ISSUE_ACTION_ID, issue: issueRef },
 			],
 		});
 	});

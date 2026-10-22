@@ -38,6 +38,7 @@ class MockApiClient extends mock<GitHubApiClient>() {
 	private readonly account = upcastPartial<IGitHubAccountClient>({
 		repositories: upcastPartial<IGitHubAccountClient['repositories']>({
 			listForAuthenticatedUser: (_signal, options) => this.respond('repositories.listForAuthenticatedUser', options),
+			compare: (repository, base, head, _signal, options) => this.respond('repositories.compare', repository, base, head, options),
 		}),
 		users: upcastPartial<IGitHubAccountClient['users']>({
 			getAuthenticated: () => this.respond('users.getAuthenticated'),
@@ -741,6 +742,30 @@ suite('GitHubPRFetcher', () => {
 			await assert.rejects(fetcher[method]('owner', 'repo', 1), candidate => candidate === error);
 		});
 	}
+
+	test('getChanges diffs the changed files from the merge base to the head commit', async () => {
+		mockApi.setResponses(
+			{ title: 'Open changes', base: { sha: 'base-tip' }, head: { sha: 'head-sha' } },
+			{ merge_base_commit: { sha: 'merge-base' } },
+			[{ filename: 'src/new.ts', previous_filename: 'src/old.ts', status: 'renamed', additions: 1, deletions: 2 }],
+		);
+
+		const changes = await fetcher.getChanges('owner', 'repo', 7);
+
+		assert.deepStrictEqual({ changes, calls: mockApi.calls.map(call => call.method === 'repositories.compare' ? call : { method: call.method }) }, {
+			changes: {
+				title: 'Open changes',
+				baseSha: 'merge-base',
+				headSha: 'head-sha',
+				files: [{ filename: 'src/new.ts', previous_filename: 'src/old.ts', status: 'renamed', additions: 1, deletions: 2, patch: undefined }],
+			},
+			calls: [
+				{ method: 'pullRequests.get' },
+				{ method: 'repositories.compare', args: [{ owner: 'owner', repo: 'repo' }, 'base-tip', 'head-sha', { query: { per_page: 1 } }] },
+				{ method: 'pullRequests.listFiles' },
+			],
+		});
+	});
 
 	test('computeMergeability detects draft blocker', () => {
 		const pr = makePR({ state: GitHubPullRequestState.Open, isDraft: true, mergeable: true, mergeableState: 'clean' });
