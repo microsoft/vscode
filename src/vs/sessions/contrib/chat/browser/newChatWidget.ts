@@ -555,6 +555,7 @@ export class NewChatWidget extends Disposable {
 			loading,
 			useExperimentalLayout: this._useExperimentalComposerLayout,
 			placeholder: NEW_SESSION_PROMPT_PLACEHOLDER,
+			onboardingTargetId: 'sessions.newSession.input',
 			supportsBackground: true,
 			deferredNotificationsEnabled,
 			petHostPreferred: this.options.petHostPreferred,

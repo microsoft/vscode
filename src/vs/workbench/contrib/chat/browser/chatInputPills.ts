@@ -23,6 +23,7 @@ import { createChatSectionPill, type IChatDropdownPillOptions } from '../../../b
 import { getSessionChatPillLabel, getSessionChatPillMenu, ISessionChatPillVisibilityService, type ISessionChatPillMenuEntry, SessionChatPillKind } from '../common/sessionChatPills.js';
 import { chatArtifactPillOptions } from './widget/chatTurnPills.js';
 import { sessionBackgroundShellsPillOptions, sessionBrowsersPillOptions, sessionCanvasesPillOptions, sessionCustomizationsPillOptions, sessionIssuesPillOptions, sessionPullRequestsPillOptions, sessionReferencesPillOptions, sessionSubagentsPillOptions } from './sessionChatPillOptions.js';
+import { markOnboardingTarget } from '../../onboarding/browser/spotlight/onboardingTarget.js';
 
 export interface IChatInputPillSource {
 	readonly kind?: SessionChatPillKind;
@@ -76,6 +77,20 @@ export interface IStandardChatInputPillsData {
 	readonly backgroundShells?: IStandardChatInputPillSections;
 }
 
+/** Onboarding spotlight target of a chat input's changes pill, used by tours that teach reviewing changes. */
+export const CHAT_CHANGES_PILL_ONBOARDING_TARGET_ID = 'chat.changesPill';
+
+/** The changes pill, marked as an onboarding spotlight target that advances when the pill opens the changes. */
+class ChatInputChangesPillActionViewItem extends ChatChangesPillActionViewItem {
+	override render(container: HTMLElement): void {
+		super.render(container);
+		const element = this.buttonElement;
+		if (element) {
+			this._register(markOnboardingTarget(element, CHAT_CHANGES_PILL_ONBOARDING_TARGET_ID));
+		}
+	}
+}
+
 function setsEqual<T>(first: ReadonlySet<T>, second: ReadonlySet<T>): boolean {
 	return first === second || (first.size === second.size && [...first].every(value => second.has(value)));
 }
@@ -120,7 +135,7 @@ export class StandardChatInputPillSources extends Disposable {
 			}));
 			const pill: IChatPill = {
 				action,
-				createActionViewItem: (options: IActionViewItemOptions) => new ChatChangesPillActionViewItem(action, options, changes.stats, instantiationService),
+				createActionViewItem: (options: IActionViewItemOptions) => new ChatInputChangesPillActionViewItem(action, options, changes.stats, instantiationService),
 			};
 			sources.push({
 				kind: SessionChatPillKind.Changes,

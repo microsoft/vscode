@@ -6478,6 +6478,33 @@ suite('Sessions - SessionsList', () => {
 			}, { first: false, second: true });
 		});
 
+		test('spotlights the workspace section of a session, or its row when the list is grouped by date', () => {
+			const spotlight = (grouping: SessionsGrouping) => {
+				const session = createTestSession('Fix login', { workspaceLabel: 'vscode' }).session;
+				const other = createTestSession('Update docs', { workspaceLabel: 'vscode-docs' }).session;
+				const harness = createListHarness(disposables, [other, session]);
+				harness.instantiationService.stub(ICustomViewService, { hideCustomView: () => { }, activeCustomView: constObservable(undefined) });
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, harness.createContainer(), {
+					grouping: () => grouping,
+					sorting: () => SessionsSorting.Created,
+					onSessionOpen: () => { },
+				}));
+				list.layout(300, 400);
+				list.collapseAllSections();
+				const reveal = harness.store.add(list.revealSessionWorkspaceForOnboarding(session));
+				const target = findOnboardingTarget(mainWindow, reveal.targetId);
+				return {
+					targetId: reveal.targetId,
+					visible: target?.checkVisibility(),
+					label: (target?.querySelector('.session-section-label') ?? target?.querySelector('.session-title'))?.textContent,
+				};
+			};
+			assert.deepStrictEqual({ workspace: spotlight(SessionsGrouping.Workspace), date: spotlight(SessionsGrouping.Date) }, {
+				workspace: { targetId: 'sessions.section.workspace:vscode', visible: true, label: 'vscode' },
+				date: { targetId: 'sessions.session.Fix login', visible: true, label: 'Fix login' },
+			});
+		});
+
 		for (const customGroup of [false, true]) {
 			test(`reveals only the onboarding target beyond the ${customGroup ? 'custom group' : 'workspace'} cap`, () => {
 				const sessions = Array.from({ length: 12 }, (_, index) => ({

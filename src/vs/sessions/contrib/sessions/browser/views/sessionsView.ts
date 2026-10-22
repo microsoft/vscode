@@ -61,7 +61,7 @@ import { SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING } from '../../../../common
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { CustomizationsNavigationState } from '../customizationsNavigationState.js';
-import { createSessionsListNotices } from './sessionsListNotice.js';
+import { createSessionsListNotices, ISessionsListNoticeHost } from './sessionsListNotice.js';
 import { SessionStorageCleanupNotice } from './sessionStorageCleanupNotice.js';
 import { SessionsListNotification } from './sessionsListNotification.js';
 
@@ -282,6 +282,7 @@ export class SessionsView extends ViewPane {
 		const navigationContainer = DOM.append(sessionsContent, $('.agent-sessions-navigation-container'));
 		const sessionsHeaderContainer = DOM.append(sessionsContent, $('.agent-sessions-header-container'));
 		const header = this.createSessionsHeader(sessionsHeaderContainer, phoneLayout, this._register(new DisposableStore()));
+		const topNoticesContainer = DOM.append(sessionsContent, $('.agent-sessions-top-notices'));
 
 		// Container for the tree's find widget (toggled by the toolbar's Find action)
 		const findWidgetContainer = this.findWidgetContainer = DOM.append(header.row, $('.agent-sessions-find-widget-container'));
@@ -336,8 +337,9 @@ export class SessionsView extends ViewPane {
 		}));
 		const storageCleanupNotice = this._register(this.instantiationService.createInstance(SessionStorageCleanupNotice, () => sessionsControl.focus(), status));
 		sessionsContent.appendChild(storageCleanupNotice.domNode);
-		for (const notice of createSessionsListNotices(this.instantiationService, {
-			container: sessionsContent,
+		const createNoticeHost = (container: HTMLElement): ISessionsListNoticeHost => ({
+			container,
+			relayout: () => this.layoutSidebarSplitView(),
 			onDidChangeVisibility: this.onDidChangeBodyVisibility,
 			isVisible: () => this.isBodyVisible(),
 			focusSessionsList: () => sessionsControl.focus(),
@@ -357,6 +359,10 @@ export class SessionsView extends ViewPane {
 				};
 			},
 			announce: status,
+		});
+		for (const notice of createSessionsListNotices(this.instantiationService, {
+			top: createNoticeHost(topNoticesContainer),
+			bottom: createNoticeHost(sessionsContent),
 		})) { this._register(notice); }
 		this._register(this.onDidChangeBodyVisibility(visible => sessionsControl.setVisible(visible)));
 		this.listNotification = this._register(this.instantiationService.createInstance(SessionsListNotification, sessionsContent, () => sessionsControl.focus()));
