@@ -5,6 +5,7 @@
 
 import { execFile, exec } from 'child_process';
 import { AutoOpenBarrier, ProcessTimeRunOnceScheduler, Promises, Queue, timeout } from '../../../base/common/async.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { IProcessEnvironment, isWindows, OperatingSystem, OS } from '../../../base/common/platform.js';
@@ -394,7 +395,7 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 
 	@traceRpc
-	async setParentWindow(id: number, handle: number): Promise<void> {
+	async setParentWindow(id: number, handle: VSBuffer): Promise<void> {
 		this._throwIfNoPty(id).setParentWindow(handle);
 	}
 
@@ -927,7 +928,7 @@ class PersistentTerminalProcess extends Disposable {
 		this._serializer.clearBuffer();
 		this._terminalProcess.clearBuffer();
 	}
-	setParentWindow(handle: number): void {
+	setParentWindow(handle: VSBuffer): void {
 		this._terminalProcess.setParentWindow(handle);
 	}
 	setUnicodeVersion(version: '6' | '11'): void {

@@ -5,7 +5,7 @@
 
 import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
-import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { encodeHex, VSBuffer } from '../../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { getCaseInsensitive } from '../../../../../base/common/objects.js';
@@ -61,7 +61,7 @@ class TestTerminalChildProcess implements ITerminalChildProcess {
 	sendSignal(signal: string): void { }
 	resize(cols: number, rows: number): void { }
 	clearBuffer(): void { }
-	setParentWindow(handle: number): void { this.calls.push(`setParentWindow ${handle}`); }
+	setParentWindow(handle: VSBuffer): void { this.calls.push(`setParentWindow ${encodeHex(handle)}`); }
 	acknowledgeDataEvent(charCount: number): void { }
 	async setUnicodeVersion(version: '6' | '11'): Promise<void> { }
 	async getInitialCwd(): Promise<string> { return ''; }
@@ -401,6 +401,10 @@ suite('Workbench - TerminalProcessManager', () => {
 			return handle;
 		}
 
+		function sent(windowId: number): string {
+			return `setParentWindow ${encodeHex(windowHandle(windowId))}`;
+		}
+
 		async function setReparentConsoleWindow(enabled: boolean): Promise<void> {
 			const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
 			const terminalConfig = configurationService.getValue<{ integrated?: object } | undefined>('terminal');
@@ -418,7 +422,7 @@ suite('Workbench - TerminalProcessManager', () => {
 		test('sets the parent window before the process starts', async () => {
 			await manager.setParentWindow(4);
 			await manager.createProcess({}, 80, 24, false);
-			deepStrictEqual(terminalInstanceService.createdProcesses.map(p => p.calls), [isWindows ? ['setParentWindow 4', 'start'] : ['start']]);
+			deepStrictEqual(terminalInstanceService.createdProcesses.map(p => p.calls), [isWindows ? [sent(4), 'start'] : ['start']]);
 		});
 
 		test('updates the parent window only when the terminal moves to another window', async () => {
@@ -426,7 +430,7 @@ suite('Workbench - TerminalProcessManager', () => {
 			await manager.createProcess({}, 80, 24, false);
 			await manager.setParentWindow(4);
 			await manager.setParentWindow(5);
-			deepStrictEqual(terminalInstanceService.createdProcesses.map(p => p.calls), [isWindows ? ['setParentWindow 4', 'start', 'setParentWindow 5'] : ['start']]);
+			deepStrictEqual(terminalInstanceService.createdProcesses.map(p => p.calls), [isWindows ? [sent(4), 'start', sent(5)] : ['start']]);
 		});
 
 		test('waits for the latest window before starting when the terminal moves during startup', async () => {
@@ -447,14 +451,14 @@ suite('Workbench - TerminalProcessManager', () => {
 			ok(!isWindows || terminalInstanceService.createdProcesses.every(p => !p.calls.includes('start')), 'must not start before the latest window handle is known');
 			await lookups.get(5)?.complete(windowHandle(5));
 			await created;
-			deepStrictEqual(terminalInstanceService.createdProcesses.map(p => p.calls), [isWindows ? ['setParentWindow 5', 'start'] : ['start']]);
+			deepStrictEqual(terminalInstanceService.createdProcesses.map(p => p.calls), [isWindows ? [sent(5), 'start'] : ['start']]);
 		});
 
-		test('sign-extends the low 32 bits of the window handle', async () => {
-			instantiationService.stub(IHostService, 'getNativeWindowHandle', async () => windowHandle(0x80001234, 0xFFFFFFFF));
+		test('passes all bytes of the window handle through unchanged', async () => {
+			instantiationService.stub(IHostService, 'getNativeWindowHandle', async () => windowHandle(0x80001234, 0x00000001));
 			await manager.setParentWindow(4);
 			await manager.createProcess({}, 80, 24, false);
-			deepStrictEqual(terminalInstanceService.createdProcesses.map(p => p.calls), [isWindows ? [`setParentWindow ${0x80001234 | 0}`, 'start'] : ['start']]);
+			deepStrictEqual(terminalInstanceService.createdProcesses.map(p => p.calls), [isWindows ? ['setParentWindow 3412008001000000', 'start'] : ['start']]);
 		});
 
 		test('does nothing when the setting is disabled', async () => {

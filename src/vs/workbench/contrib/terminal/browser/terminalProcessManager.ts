@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, dispose, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -139,7 +140,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	get processTraits(): IProcessReadyEvent | undefined { return this._processTraits; }
 
 	private _parentWindowId: number | undefined;
-	private _parentWindowHandle: number | undefined;
+	private _parentWindowHandle: VSBuffer | undefined;
 
 	constructor(
 		private readonly _instanceId: number,
@@ -783,7 +784,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		}
 		this._parentWindowId = windowId;
 		const handle = await this._getNativeWindowHandle(windowId);
-		if (windowId !== this._parentWindowId || handle === undefined || handle === this._parentWindowHandle) {
+		if (windowId !== this._parentWindowId || handle === undefined || this._parentWindowHandle?.equals(handle)) {
 			return;
 		}
 		this._parentWindowHandle = handle;
@@ -807,11 +808,9 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		}
 	}
 
-	private async _getNativeWindowHandle(windowId: number): Promise<number | undefined> {
+	private async _getNativeWindowHandle(windowId: number): Promise<VSBuffer | undefined> {
 		try {
-			const handle = await this._hostService.getNativeWindowHandle(windowId);
-			// Only the low 32 bits of an HWND are significant, sign-extend them like Windows does
-			return handle && handle.byteLength >= 4 ? handle.readUInt32LE(0) | 0 : undefined;
+			return await this._hostService.getNativeWindowHandle(windowId);
 		} catch {
 			return undefined;
 		}

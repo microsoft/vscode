@@ -6,6 +6,7 @@
 import * as fs from 'fs';
 import { exec } from 'child_process';
 import { timeout } from '../../../base/common/async.js';
+import { encodeHex, VSBuffer } from '../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 import * as path from '../../../base/common/path.js';
@@ -104,7 +105,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	private _exitMessage: string | undefined;
 	private _closeTimeout: Timeout | undefined;
 	private _ptyProcess: IPty | undefined;
-	private _parentWindow: number | undefined;
+	private _parentWindow: VSBuffer | undefined;
 	private _currentTitle: string = '';
 	private _processStartupComplete: Promise<void> | undefined;
 	private _windowsShellHelper: WindowsShellHelper | undefined;
@@ -585,7 +586,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this._ptyProcess?.clear();
 	}
 
-	setParentWindow(handle: number): void {
+	setParentWindow(handle: VSBuffer): void {
 		if (!hasConptyOption(this._ptyOptions) || !this._ptyOptions.useConptyDll) {
 			return;
 		}
@@ -596,15 +597,14 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}
 	}
 
-	private _sendParentWindow(ptyProcess: IPty, handle: number): void {
+	private _sendParentWindow(ptyProcess: IPty, handle: VSBuffer): void {
 		try {
-			// node-pty takes the HWND as an unsigned pointer value, so sign-extend the signed 32-bit
-			// handle to 64 bits like LongToHandle does
-			const sent = ptyProcess.setParentWindow?.(BigInt.asUintN(64, BigInt(handle)));
-			this._logService.trace('node-pty.IPty#setParentWindow', handle, sent);
+			// The HWND bytes as Electron's getNativeWindowHandle() returned them, which node-pty takes as is
+			const sent = ptyProcess.setParentWindow?.(Buffer.from(handle.buffer));
+			this._logService.trace('node-pty.IPty#setParentWindow', encodeHex(handle), sent);
 		} catch (e) {
 			// This also runs right after spawn, so never let it fail the launch
-			this._logService.warn('node-pty.IPty#setParentWindow failed', handle, e);
+			this._logService.warn('node-pty.IPty#setParentWindow failed', encodeHex(handle), e);
 		}
 	}
 
