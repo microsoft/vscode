@@ -13,15 +13,17 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { Context } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IResourceMultiDiffEditorInput, isResourceMultiDiffEditorInput } from '../../../../../workbench/common/editor.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
-import { Menus } from '../../../../browser/menus.js';
+import { Menus, SessionActivityBarGroup } from '../../../../browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { SessionHasPullRequestContext } from '../../../../common/contextkeys.js';
+import { sessionActivityBarChatActionContext, SessionHasPullRequestContext } from '../../../../common/contextkeys.js';
 import { IGitHubPullRequestRef, ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import '../../browser/pullRequestActions.js';
 import { createPullRequestChangesEditorInput } from '../../browser/pullRequestChangesMultiDiffSourceResolver.js';
 import { SessionPullRequestPresentationModel } from '../../browser/pullRequestIconStatus.js';
@@ -216,6 +218,48 @@ suite('Pull Request Actions', () => {
 		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.agentSessions.action.copyPullRequestUrl')!.handler(accessor, session));
 
 		assert.deepStrictEqual(clipboardService.writes, [pullRequestUri.toString(true)]);
+	});
+
+	test('Open Pull Request is available in the activity bar only with an associated pull request', () => {
+		const items = MenuRegistry.getMenuItems(Menus.SessionActivityBar)
+			.filter(isIMenuItem)
+			.filter(item => item.command.id === 'workbench.agentSessions.action.openPullRequest');
+		const withPullRequest = new Context(1, null);
+		withPullRequest.setValue(sessionActivityBarChatActionContext('workbench.agentSessions.action.openPullRequest').key, true);
+		const withoutPullRequest = new Context(2, null);
+
+		assert.deepStrictEqual(items.map(item => ({
+			group: item.group,
+			order: item.order,
+			icon: item.command.icon,
+			visibleWithPullRequest: item.when?.evaluate(withPullRequest),
+			visibleWithoutPullRequest: item.when?.evaluate(withoutPullRequest),
+		})), [{
+			group: SessionActivityBarGroup.GitHub,
+			order: 0,
+			icon: Codicon.gitPullRequest,
+			visibleWithPullRequest: true,
+			visibleWithoutPullRequest: false,
+		}]);
+	});
+
+	test('Open Pull Request falls back to the active session without an explicit target', async () => {
+		const pullRequestUri = URI.parse('https://github.com/owner/repo/pull/1');
+		const session = createSessionWithPullRequest(pullRequestUri);
+		const instantiationService = new TestInstantiationService();
+		const openerService = new TestOpenerService();
+		instantiationService.stub(IOpenerService, openerService);
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable(upcastPartial<IActiveSession>({ workspace: session.workspace }));
+		});
+
+		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.agentSessions.action.openPullRequest')!.handler(accessor));
+
+		assert.deepStrictEqual(openerService.opened, [{
+			resource: pullRequestUri,
+			openExternal: true,
+			allowContributedOpeners: true,
+		}]);
 	});
 
 	test('Copy Pull Request URL is a no-op when the session has no pull request', async () => {

@@ -139,4 +139,6 @@ export const SessionActivityBarGroup = {
 	SidePanel: '1_sidePanel',
 	/** The terminal, followed by the panel toggle. */
 	Panel: '2_panel',
+	/** Links to the active chat's pull requests and issues. */
+	GitHub: '3_github',
 } as const;
