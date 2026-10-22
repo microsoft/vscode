@@ -79,6 +79,8 @@ export interface ITabbedModelPickerContext {
 	/** Whether the account is billed by credits, which is when cost numbers are shown. */
 	readonly isUBB: boolean;
 	readonly showManageModels: boolean;
+	/** When set, the Add Models action is shown disabled with this reason as its tooltip. */
+	readonly manageModelsDisabledReason?: string;
 	/**
 	 * What it takes to unlock a curated model the user cannot select yet, used to
 	 * offer the upgrade, admin or update path instead of simply omitting the model.
@@ -832,6 +834,7 @@ export class TabbedModelPicker extends Disposable {
 				id: 'addProvider',
 				icon: Codicon.add,
 				tooltip: localize('chat.modelPicker.addProvider', "Add Models..."),
+				disabledReason: context.manageModelsDisabledReason,
 				run: () => {
 					this._widget.hide();
 					context.onManageModels();

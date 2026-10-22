@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
 import { ActionListItemKind, IActionListItem } from '../../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetDropdownAction } from '../../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
-import { getControlModelsForEntitlement, getModelPickerAccessibilityProvider, getModelPickerControlModels } from '../../../../../browser/widget/input/modelPicker/modelPickerItems.js';
+import { getAddModelsUnavailableReason, getControlModelsForEntitlement, getModelPickerAccessibilityProvider, getModelPickerControlModels } from '../../../../../browser/widget/input/modelPicker/modelPickerItems.js';
 import { createModelAction, createModelItem } from '../../../../../browser/widget/input/modelPicker/modelPickerItemPrimitives.js';
 import { buildModelPickerDestinations } from '../../../../../browser/widget/input/modelPicker/modelPickerTabs.js';
 import { filterModelsForSession } from '../../../../../browser/widget/input/chatInputModelUtils.js';
@@ -213,6 +213,32 @@ suite('getModelPickerControlModels', () => {
 
 		assert.deepStrictEqual(getModelPickerControlModels(manifest, ChatEntitlement.Unknown, [availableTargeted, byokModel]), {
 			'available-targeted': { label: 'Available Targeted', featured: true, exists: true },
+		});
+	});
+});
+
+suite('getAddModelsUnavailableReason', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('only the remotely running Copilot agent-host harness cannot add models', () => {
+		const reason = (sessionType: string | undefined, remoteAuthority?: string) => getAddModelsUnavailableReason(sessionType, remoteAuthority) !== undefined;
+		assert.deepStrictEqual({
+			noHarness: reason(undefined, 'ssh-remote+host'),
+			localHarnessInRemoteWindow: reason('local', 'ssh-remote+host'),
+			copilotHarnessLocally: reason('agent-host-copilotcli'),
+			copilotHarnessInRemoteWindow: reason('agent-host-copilotcli', 'ssh-remote+host'),
+			remoteAgentHostCopilotHarness: reason('remote-my-host-copilotcli'),
+			remoteAgentHostClaudeHarness: reason('remote-my-host-claude'),
+			claudeHarnessInRemoteWindow: reason('agent-host-claude', 'ssh-remote+host'),
+		}, {
+			noHarness: false,
+			localHarnessInRemoteWindow: false,
+			copilotHarnessLocally: false,
+			copilotHarnessInRemoteWindow: true,
+			remoteAgentHostCopilotHarness: true,
+			remoteAgentHostClaudeHarness: false,
+			claudeHarnessInRemoteWindow: false,
 		});
 	});
 });
