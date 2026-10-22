@@ -438,6 +438,12 @@ export class Menubar extends Disposable {
 		edit.append(this.createRoleMenuItem(nls.localize('standaloneSelectAll', "Select All"), 'editor.action.selectAll', 'selectAll'));
 		menu.append(new MenuItem({ label: nls.localize('standaloneEdit', "Edit"), submenu: edit }));
 
+		const view = new Menu();
+		view.append(this.createMenuItem(nls.localize('standaloneZoomIn', "Zoom In"), 'workbench.action.zoomIn'));
+		view.append(this.createMenuItem(nls.localize('standaloneZoomOut', "Zoom Out"), 'workbench.action.zoomOut'));
+		view.append(this.createMenuItem(nls.localize('standaloneZoomReset', "Reset Zoom"), 'workbench.action.zoomReset'));
+		menu.append(new MenuItem({ label: nls.localize('standaloneView', "View"), submenu: view }));
+
 		const window = new Menu();
 		this.setMacWindowMenu(window, true);
 		menu.append(new MenuItem({ label: nls.localize('mWindow', "Window"), submenu: window, role: 'window' }));
@@ -742,7 +748,8 @@ export class Menubar extends Disposable {
 		const options: MenuItemConstructorOptions = {
 			label,
 			click,
-			enabled
+			enabled,
+			registerAccelerator: !this.focusedStandaloneWindow
 		};
 
 		if (checked) {
@@ -883,6 +890,15 @@ export class Menubar extends Disposable {
 				case 'editor.action.selectAll': contents?.selectAll(); break;
 				case 'workbench.action.closeActiveEditor':
 				case 'workbench.action.closeWindow': nativeWindow?.close(); break;
+				case 'workbench.action.zoomIn':
+				case 'workbench.action.zoomOut':
+				case 'workbench.action.zoomReset':
+					this.windowsMainService.getWindowById(window.parentId)?.sendWhenReady('vscode:runAction', CancellationToken.None, {
+						id: '_workbench.action.issueReporter.zoom',
+						from: 'menu',
+						args: [window.id, commandId],
+					} satisfies INativeRunActionInWindowRequest);
+					break;
 			}
 		}
 

@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { restore, stub } from 'sinon';
 import { CodeWindow, mainWindow } from '../../../../../base/browser/window.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { decodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
-import { isCancellationError } from '../../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -38,6 +40,7 @@ import { issueReporterAvifFixture, issueReporterGifFixture, issueReporterImageFi
 
 suite('IssueFormService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	teardown(() => restore());
 
 	function capturedScreenshot(screenshot: IIssueReporterScreenshot, id = 'screenshot'): IssueReporterAttachment {
 		return { id, kind: 'screenshot', screenshot };
@@ -107,6 +110,20 @@ suite('IssueFormService', () => {
 		const failures = { remaining: failUploads ? Infinity : 0, message: 'Upload rejected' };
 		const loggedFailures: Error[] = [];
 		const errors = { logged: [] as string[], shown: [] as string[] };
+		const controls: {
+			read?: () => Promise<void>;
+			repository?: () => Promise<void>;
+			upload?: () => Promise<void>;
+			clipboard?: () => Promise<void>;
+			progress?: (state: string) => void;
+		} = {};
+		const clipboardWrites: string[] = [];
+		instantiationService.stub(IClipboardService, {
+			writeText: async value => {
+				clipboardWrites.push(value);
+				await controls.clipboard?.();
+			},
+		});
 		instantiationService.stub(ILogService, new class extends NullLogService {
 			override error(message: string | Error, error?: Error): void {
 				errors.logged.push(String(message));
@@ -120,6 +137,7 @@ suite('IssueFormService', () => {
 		instantiationService.stub(IFileService, {
 			readFile: async resource => {
 				fileReads.push(resource);
+				await controls.read?.();
 				const value = media?.contents ? VSBuffer.wrap(media.contents) : decodeBase64(resource.path.endsWith('.webm') ? issueReporterVideoFixtures.webm : resource.path.endsWith('.mov') ? issueReporterVideoFixtures.mov : issueReporterVideoFixtures.mp4);
 				return new class extends mock<IFileContent>() { override readonly value = value; }();
 			},
@@ -128,6 +146,7 @@ suite('IssueFormService', () => {
 			resolveRepositoryId: async (owner, repository) => {
 				const id = `${owner}/${repository}`;
 				repositories.push(id);
+				await controls.repository?.();
 				return id;
 			},
 			uploadViaMobileApi: async (token, repository, files) => {
@@ -135,6 +154,7 @@ suite('IssueFormService', () => {
 				uploads.push({ repository, names: files.map(file => file.name) });
 				mediaUploads.push(...files.map(file => ({ repository, name: file.name, contentType: file.contentType })));
 				payloads.push(...files.map(file => ({ name: file.name, contentType: file.contentType, bytes: [...file.bytes] })));
+				await controls.upload?.();
 				if (failures.remaining > 0) {
 					failures.remaining--;
 					throw new Error(failures.message);
@@ -146,7 +166,10 @@ suite('IssueFormService', () => {
 		const host = new class extends mock<IIssueSubmissionHost>() {
 			override getAttachments() { return attachments; }
 			override setUploading(value: boolean) { uploading.push(value); }
-			override setAttachmentUploadState(attachment: IssueReporterAttachment, upload: IIssueReporterAttachmentUpload) { progress.push({ id: attachment.id, state: upload.state }); }
+			override setAttachmentUploadState(attachment: IssueReporterAttachment, upload: IIssueReporterAttachmentUpload) {
+				progress.push({ id: attachment.id, state: upload.state });
+				controls.progress?.(upload.state);
+			}
 			override setAttachmentUploadError(message: string | undefined, details?: string) { uploadErrors.push(message); uploadErrorDetails.push(details); }
 		}();
 		const data: IssueReporterData = {
@@ -155,8 +178,152 @@ suite('IssueFormService', () => {
 			issueSource: IssueSource.VSCode,
 			privateUri: URI.parse(internalIssueReporterUrl),
 		};
-		return { service: store.add(instantiationService.createInstance(IssueFormService)), host, data, opened, repositories, uploads, uploadTokens, errors, mediaUploads, fileReads, payloads, uploadErrors, uploadErrorDetails, loggedFailures, progress, uploading, failures };
+		return { service: store.add(instantiationService.createInstance(IssueFormService)), host, data, opened, repositories, uploads, uploadTokens, errors, mediaUploads, fileReads, payloads, uploadErrors, uploadErrorDetails, loggedFailures, progress, uploading, failures, controls, clipboardWrites };
 	}
+
+	for (const hasAttachments of [false, true]) {
+		for (const lookupFails of [false, true]) {
+			test(`cancels a ${hasAttachments ? 'media' : 'text-only'} submission during ${lookupFails ? 'rejected' : 'successful'} session lookup without logging or opening`, async () => {
+				const { service, host, data, opened, uploads, errors, uploadErrors, uploading } = createSubmissionService(hasAttachments);
+				const token = new DeferredPromise<string>();
+				data.getGitHubAccessToken = () => token.p;
+				const cancellation = new AbortController();
+				const submission = service.submitIssue(host, data, 'Cancelled', 'Description', cancellation.signal);
+				const rejected = assert.rejects(submission, isCancellationError);
+				cancellation.abort(new CancellationError());
+				if (lookupFails) {
+					await token.error(new Error('Late authentication failure'));
+				} else {
+					await token.complete('late-token');
+				}
+				await rejected;
+				assert.deepStrictEqual({ opened, uploads, errors, uploadErrors, uploading, token: data.githubAccessToken }, {
+					opened: [], uploads: [], errors: { logged: [], shown: [] }, uploadErrors: [undefined], uploading: [true, false], token: 'test-token',
+				});
+			});
+		}
+	}
+
+	for (const phase of ['read', 'repository', 'upload'] as const) {
+		test(`does not resume attachment submission after cancellation during ${phase}`, async () => {
+			const { service, host, data, controls, opened, uploads, errors, uploadErrors, progress } = createSubmissionService(false, false, {
+				attachments: [attachedFile({ filePath: '/owned/report.json', name: 'report.json', mimeType: 'application/json' })],
+			});
+			const started = new DeferredPromise<void>();
+			const gate = new DeferredPromise<void>();
+			controls[phase] = () => {
+				void started.complete();
+				return gate.p;
+			};
+			const cancellation = new AbortController();
+			const submission = service.submitIssue(host, data, 'Cancelled', 'Description', cancellation.signal);
+			const rejected = assert.rejects(submission, isCancellationError);
+			await started.p;
+			cancellation.abort(new CancellationError());
+			await gate.complete();
+			await rejected;
+			assert.deepStrictEqual({
+				opened, uploads: uploads.length, errors, uploadErrors, completed: progress.filter(item => item.state === 'done'),
+			}, { opened: [], uploads: phase === 'upload' ? 1 : 0, errors: { logged: [], shown: [] }, uploadErrors: [undefined], completed: [] });
+		});
+	}
+
+	test('checks cancellation immediately before starting a media upload', async () => {
+		const { service, host, data, controls, uploads, opened, errors } = createSubmissionService(true);
+		const cancellation = new AbortController();
+		controls.progress = state => {
+			if (state === 'uploading') {
+				cancellation.abort(new CancellationError());
+			}
+		};
+		await assert.rejects(service.submitIssue(host, data, 'Cancelled', 'Description', cancellation.signal), isCancellationError);
+		assert.deepStrictEqual({ uploads, opened, errors }, { uploads: [], opened: [], errors: { logged: [], shown: [] } });
+	});
+
+	test('checks cancellation on cached media results before opening the preview', async () => {
+		const { service, host, data, controls, uploads, opened, errors } = createSubmissionService(true);
+		await service.submitIssue(host, data, 'First preview', 'Description');
+		const cancellation = new AbortController();
+		controls.progress = state => {
+			if (state === 'done') {
+				cancellation.abort(new CancellationError());
+			}
+		};
+		await assert.rejects(service.submitIssue(host, data, 'Cancelled retry', 'Description', cancellation.signal), isCancellationError);
+		assert.deepStrictEqual({ uploads: uploads.length, previews: opened.map(url => new URL(url).searchParams.get('title')), errors }, {
+			uploads: 1, previews: ['First preview'], errors: { logged: [], shown: [] },
+		});
+	});
+
+	for (const cached of [false, true]) {
+		test(`cancellation of ${cached ? 'cached' : 'new'} issue-data uploads does not fall through to confirmation or opening`, async () => {
+			const { service, host, data, controls, uploads, opened, errors, clipboardWrites } = createSubmissionService();
+			const body = `Description\n\n<details><summary>Diagnostics</summary>${'x'.repeat(8000)}</details>`;
+			if (cached) {
+				await service.submitIssue(host, data, 'First preview', body);
+			}
+			const started = new DeferredPromise<void>();
+			const gate = new DeferredPromise<void>();
+			controls[cached ? 'repository' : 'upload'] = () => {
+				void started.complete();
+				return gate.p;
+			};
+			const confirmation = stub(service, 'showClipboardDialog').resolves(true);
+			const cancellation = new AbortController();
+			const submission = service.submitIssue(host, data, 'Cancelled', body, cancellation.signal);
+			const rejected = assert.rejects(submission, isCancellationError);
+			await started.p;
+			cancellation.abort(new CancellationError());
+			await gate.complete();
+			await rejected;
+			assert.deepStrictEqual({ uploads: uploads.length, opened: opened.length, errors, clipboardWrites, confirmations: confirmation.callCount }, {
+				uploads: 1, opened: cached ? 1 : 0, errors: { logged: [], shown: [] }, clipboardWrites: [], confirmations: 0,
+			});
+		});
+	}
+
+	for (const phase of ['confirmation', 'clipboard'] as const) {
+		test(`cancellation during ${phase} never opens a clipboard-fallback preview`, async () => {
+			const { service, host, data, controls, opened, errors, clipboardWrites } = createSubmissionService();
+			const started = new DeferredPromise<void>();
+			const gate = new DeferredPromise<void>();
+			const wait = () => {
+				void started.complete();
+				return gate.p;
+			};
+			stub(service, 'showClipboardDialog').callsFake(async () => {
+				if (phase === 'confirmation') {
+					await wait();
+				}
+				return true;
+			});
+			if (phase === 'clipboard') {
+				controls.clipboard = wait;
+			}
+			const cancellation = new AbortController();
+			const submission = service.submitIssue(host, data, 'Cancelled', 'x'.repeat(8000), cancellation.signal);
+			const rejected = assert.rejects(submission, isCancellationError);
+			await started.p;
+			cancellation.abort(new CancellationError());
+			await gate.complete();
+			await rejected;
+			assert.deepStrictEqual({ opened, errors, clipboardWrites: clipboardWrites.length }, {
+				opened: [], errors: { logged: [], shown: [] }, clipboardWrites: phase === 'clipboard' ? 1 : 0,
+			});
+		});
+	}
+
+	test('service disposal cancels a pending submission without discarding authentication failures as success', async () => {
+		const { service, host, data, opened, errors } = createSubmissionService();
+		const token = new DeferredPromise<string>();
+		data.getGitHubAccessToken = () => token.p;
+		const submission = service.submitIssue(host, data, 'Cancelled', 'Description');
+		const rejected = assert.rejects(submission, isCancellationError);
+		service.dispose();
+		await token.complete('late-token');
+		await rejected;
+		assert.deepStrictEqual({ opened, errors }, { opened: [], errors: { logged: [], shown: [] } });
+	});
 
 	test('uploads all supported imported image formats with matching MIME types and extensions', async () => {
 		const canvas = mainWindow.document.createElement('canvas');

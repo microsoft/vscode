@@ -2268,7 +2268,7 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 	}
 
 	private escapeMarkdownTableCell(value: string): string {
-		return value.replace(/\r?\n/g, '<br>').replace(/\|/g, '\\|');
+		return value.replace(/[\\|]/g, '\\$&').replace(/\r?\n/g, '<br>');
 	}
 
 	setUpdateAvailable(showUpdateBanner: boolean): void {

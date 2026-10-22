@@ -21,6 +21,12 @@ suite('Standalone auxiliary native menus', () => {
 			nativeActions: ['undo', 'redo', 'cut', 'copy', 'paste', 'selectAll', 'close', 'close'],
 			nativeRoles: isMacintosh ? ['close', 'undo', 'redo', 'cut', 'copy', 'paste', 'selectall'] : [],
 			nativeAccelerators: isMacintosh ? [false, false, false, false, false, false, false] : [],
+			nativeZoom: [
+				{ id: '_workbench.action.issueReporter.zoom', from: 'menu', args: [15, 'workbench.action.zoomIn'] },
+				{ id: '_workbench.action.issueReporter.zoom', from: 'menu', args: [15, 'workbench.action.zoomOut'] },
+				{ id: '_workbench.action.issueReporter.zoom', from: 'menu', args: [15, 'workbench.action.zoomReset'] },
+			],
+			zoomMenuItems: isMacintosh ? ['Zoom In', 'Zoom Out', 'Reset Zoom'] : [],
 			workbenchItems: isMacintosh ? [] : ['New Text File', 'Open Folder', 'Recent File'],
 			rebuildOnAuxiliaryFocus: isMacintosh,
 		});

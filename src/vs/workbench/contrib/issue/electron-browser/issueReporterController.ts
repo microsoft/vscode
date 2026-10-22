@@ -139,6 +139,12 @@ export class IssueReporterController extends Disposable {
 			return;
 		}
 
+		for (const controller of IssueReporterController.liveInstances) {
+			if (controller !== this && controller.wizardInput === input) {
+				controller.destroyWizard();
+			}
+		}
+
 		// If the wizard is already built and its DOM is still attached, re-parent floating bar if needed
 		if (this.wizard && this.wizardInput === input && this.container.contains(this.wizard.getPanel())) {
 			this.bindInputCallbacks(input, this.wizard);
@@ -297,16 +303,23 @@ export class IssueReporterController extends Disposable {
 			if (this.wizard !== wizard) {
 				return;
 			}
-			const opened = await this.issueFormService.submitIssue(wizard, data, title, body);
-			if (opened && this.wizard === wizard) {
-				// User opened the link — keep the wizard editable, but offer an explicit close action.
-				wizard.markPreviewOpened();
-				wizard.showCloseButton();
+			try {
+				const opened = await this.issueFormService.submitIssue(wizard, data, title, body, input.submissionSignal);
+				if (opened && this.wizard === wizard) {
+					// User opened the link — keep the wizard editable, but offer an explicit close action.
+					wizard.markPreviewOpened();
+					wizard.showCloseButton();
+				}
+			} catch (error) {
+				if (!isCancellationError(error)) {
+					this.logService.error('[IssueReporterEditorPane] Submit failed:', error);
+				}
 			}
 		}));
 
 		// Wire AI title generation
 		this.inputDisposables.add(this.wizard.onDidRequestGenerateTitle(async (description) => {
+			const isCurrent = () => this.wizard === wizard && !mediaCancellation.token.isCancellationRequested;
 			try {
 				// Wait for installed extensions to be registered so the Copilot Chat
 				// extension has had a chance to contribute its `copilot` language
@@ -315,15 +328,21 @@ export class IssueReporterController extends Disposable {
 				// has already activated; we're the only place that can be invoked
 				// before it has.)
 				await this.extensionService.whenInstalledExtensionsRegistered();
+				if (!isCurrent()) {
+					return;
+				}
 
 				// `copilot-utility-small` matches what other utility callers in the
 				// workbench use (chat thinking summaries, tool-risk assessment,
 				// chat-edit explanations). The earlier `copilot-fast` id never
 				// existed and was the root cause of the empty-result regression.
 				const modelIds = await this.languageModelsService.selectLanguageModels({ vendor: 'copilot', id: 'copilot-utility-small' });
+				if (!isCurrent()) {
+					return;
+				}
 				if (modelIds.length === 0) {
 					this.logService.warn('[IssueReporterEditorPane] No language models available for title generation');
-					this.wizard?.resetGenerateButton();
+					wizard.resetGenerateButton();
 					return;
 				}
 				const modelId = modelIds[0];
@@ -337,16 +356,21 @@ export class IssueReporterController extends Disposable {
 							value: `Generate a concise issue title (max 10 words, no quotes, no prefix like "Bug:" or "Feature:") for this bug report description:\n\n${description}`,
 						}],
 					}],
-				}, CancellationToken.None);
+				}, mediaCancellation.token);
+				if (!isCurrent()) {
+					return;
+				}
 				const title = (response ?? '').trim().replace(/^["']|["']$/g, '');
-				if (title && this.wizard) {
-					this.wizard.setGeneratedTitle(title);
+				if (title) {
+					wizard.setGeneratedTitle(title);
 				} else {
-					this.wizard?.resetGenerateButton();
+					wizard.resetGenerateButton();
 				}
 			} catch (err) {
-				this.logService.error('[IssueReporterEditorPane] Title generation failed:', err);
-				this.wizard?.resetGenerateButton();
+				if (isCurrent() && !isCancellationError(err)) {
+					this.logService.error('[IssueReporterEditorPane] Title generation failed:', err);
+					wizard.resetGenerateButton();
+				}
 			}
 		}));
 	}
@@ -406,19 +430,27 @@ export class IssueReporterController extends Disposable {
 	}
 
 	private async fetchPerformanceInfo(options?: { skipCache?: boolean; unbounded?: boolean }): Promise<void> {
-		if (!this.wizard) {
+		const wizard = this.wizard;
+		if (!wizard) {
 			return;
 		}
 		try {
 			const performanceInfo = await this.processService.getPerformanceInfo(options);
-			this.wizard.updateModel({
+			if (this.wizard !== wizard) {
+				return;
+			}
+			wizard.updateModel({
 				processInfo: performanceInfo.processInfo,
 				workspaceInfo: performanceInfo.workspaceInfo,
 			});
 		} catch (err) {
-			this.logService.error('[IssueReporterEditorPane] Failed to fetch performance info:', err);
+			if (this.wizard === wizard) {
+				this.logService.error('[IssueReporterEditorPane] Failed to fetch performance info:', err);
+			}
 		} finally {
-			this.wizard?.markPerformanceInfoLoaded();
+			if (this.wizard === wizard) {
+				wizard.markPerformanceInfoLoaded();
+			}
 		}
 	}
 
@@ -430,7 +462,8 @@ export class IssueReporterController extends Disposable {
 	}
 
 	private async populateSystemInfo(): Promise<void> {
-		if (!this.wizard) {
+		const wizard = this.wizard;
+		if (!wizard) {
 			return;
 		}
 
@@ -441,7 +474,10 @@ export class IssueReporterController extends Disposable {
 			// Version info
 			const vscodeVersion = `${product.nameShort} ${!!product.darwinUniversalAssetId ? `${product.version} (Universal)` : product.version} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})`;
 			const systemInfo = await this.processService.getSystemInfo();
-			this.wizard.updateModel({
+			if (this.wizard !== wizard) {
+				return;
+			}
+			wizard.updateModel({
 				versionInfo: { vscodeVersion, os: systemInfo.os },
 				systemInfo,
 				systemInfoWeb: navigator.userAgent,
@@ -454,14 +490,22 @@ export class IssueReporterController extends Disposable {
 			const fullScan = this.configurationService.getValue<boolean>('issueReporter.wizard.fullWorkspaceScan') !== false;
 			await this.fetchPerformanceInfo({ unbounded: fullScan });
 		} catch (err) {
-			this.logService.error('[IssueReporterEditorPane] Failed to collect system info:', err);
-			this.wizard?.markPerformanceInfoLoaded();
+			if (this.wizard === wizard) {
+				this.logService.error('[IssueReporterEditorPane] Failed to collect system info:', err);
+				wizard.markPerformanceInfoLoaded();
+			}
+		}
+		if (this.wizard !== wizard) {
+			return;
 		}
 
 		// Experiments (independent from system info)
 		try {
 			const experiments = await this.experimentService.getCurrentExperiments();
-			this.wizard?.updateModel({ experimentInfo: experiments?.join('\n') ?? localize('noExperiments', "No current experiments.") });
+			if (this.wizard !== wizard) {
+				return;
+			}
+			wizard.updateModel({ experimentInfo: experiments?.join('\n') ?? localize('noExperiments', "No current experiments.") });
 		} catch {
 			// Ignore
 		}
@@ -469,10 +513,13 @@ export class IssueReporterController extends Disposable {
 		// Wait for the issue service to finish enumerating installed extensions
 		// (it kicks off enumeration in parallel with this pane opening).
 		await data?.whenExtensionsLoaded;
+		if (this.wizard !== wizard) {
+			return;
+		}
 		if (data && data.enabledExtensions.length > 0) {
 			const nonTheme = data.enabledExtensions.filter(e => !e.isTheme && !e.isBuiltin);
 			const themeCount = data.enabledExtensions.filter(e => e.isTheme).length;
-			this.wizard?.updateModel({
+			wizard.updateModel({
 				allExtensions: data.enabledExtensions,
 				enabledNonThemeExtesions: nonTheme,
 				numberOfThemeExtesions: themeCount,
@@ -484,8 +531,8 @@ export class IssueReporterController extends Disposable {
 		// Note: githubAccessToken doesn't need forwarding — it's read from the
 		// shared data object at submit time, not from the overlay's internal model.
 		await data?.whenDataComplete;
-		if (data) {
-			this.wizard?.updateModel({
+		if (data && this.wizard === wizard) {
+			wizard.updateModel({
 				isInstallationPure: data.isInstallationPure,
 			});
 		}

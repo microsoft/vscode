@@ -10,6 +10,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { getExtensionForMimeType, getMediaMime, Mimes } from '../../../../base/common/mime.js';
+import { extname } from '../../../../base/common/path.js';
 import { localize } from '../../../../nls.js';
 import { IIssueReporterScreenshot } from '../common/issue.js';
 
@@ -34,13 +35,16 @@ export interface IIssueReporterVideoMetadata {
 
 export function getIssueReporterMediaFormat(name: string, type = ''): IIssueReporterMediaFormat {
 	const inferredType = getMediaMime(name);
-	const mimeType = type || (inferredType === 'image/jpg' ? 'image/jpeg' : inferredType) || Mimes.binary;
-	const mediaType = (type && type !== Mimes.binary ? type : getMediaMime(name) || mimeType).split(';', 1)[0].trim().toLowerCase();
+	const declaredType = type.split(';', 1)[0].trim().toLowerCase();
+	const mimeType = declaredType && declaredType !== Mimes.binary ? type : (inferredType === 'image/jpg' ? 'image/jpeg' : inferredType) || Mimes.binary;
+	const mediaType = mimeType.split(';', 1)[0].trim().toLowerCase();
 	const kind = mediaType.startsWith('image/') ? 'image' : mediaType.startsWith('video/') ? 'video' : 'file';
+	const originalExtension = extname(name).slice(1).toLowerCase();
+	const inferredExtension = mediaType === 'image/jpeg' || mediaType === 'image/jpg' ? 'jpg' : getExtensionForMimeType(mediaType)?.slice(1);
 	return {
 		kind,
 		mimeType,
-		extension: mediaType === 'image/jpeg' || mediaType === 'image/jpg' ? 'jpg' : getExtensionForMimeType(mediaType)?.slice(1) || 'bin',
+		extension: /^[a-z0-9][a-z0-9_+-]*$/.test(originalExtension) ? originalExtension : inferredExtension || 'bin',
 		maxBytes: kind === 'image' ? MAX_ISSUE_IMAGE_BYTES : kind === 'video' ? MAX_ISSUE_VIDEO_BYTES : MAX_ISSUE_FILE_BYTES,
 	};
 }

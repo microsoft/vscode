@@ -156,7 +156,7 @@ export interface IIssueFormService {
 	showClipboardDialog(): Promise<boolean>;
 	sendReporterMenu(extensionId: string): Promise<IssueReporterData | undefined>;
 	closeReporter(): Promise<void>;
-	submitIssue(host: IIssueSubmissionHost, data: IssueReporterData, title: string, body: string): Promise<boolean>;
+	submitIssue(host: IIssueSubmissionHost, data: IssueReporterData, title: string, body: string, signal?: AbortSignal): Promise<boolean>;
 	searchGitHubIssues(repo: string, title: string, signal: AbortSignal): Promise<readonly ISimilarIssue[]>;
 }
 

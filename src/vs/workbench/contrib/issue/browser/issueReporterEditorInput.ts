@@ -15,6 +15,7 @@ import { localize } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { abortOnDispose } from '../../../../base/common/cancellation.js';
 
 const issueReporterIcon = registerIcon('issue-reporter', Codicon.report, localize('issueReporterIcon', "Icon for the issue reporter editor."));
 
@@ -28,6 +29,7 @@ export class IssueReporterEditorInput extends EditorInput {
 	readonly descriptionInput = $<HTMLTextAreaElement>('textarea.wizard-description-input');
 	private descriptionScrollTop = 0;
 	readonly diagnosticsState: IIssueReporterDiagnosticsState = { included: {}, expanded: new Set() };
+	readonly submissionSignal = abortOnDispose(this._store);
 
 	attachDescriptionInput(container: HTMLElement): void {
 		if (this.descriptionInput.parentElement !== container) {

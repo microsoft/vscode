@@ -9,6 +9,7 @@ import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js
 import { addDisposableListener } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -1016,6 +1017,20 @@ suite('IssueReporterOverlay', () => {
 		checkbox.click();
 		preview.click();
 		assert.deepStrictEqual(bodies.map(body => body.includes('Private diagnostic context')), [true, false]);
+	});
+
+	test('preserves backslashes and pipes in rendered diagnostic table cells', () => {
+		const { overlay, preview, instantiation } = createReporter();
+		const version = String.raw`1\|2\\|3`;
+		overlay.updateModel({ versionInfo: { vscodeVersion: version, os: 'First|line\r\nSecond\\line' } });
+		let body = '';
+		store.add(overlay.onDidSubmit(event => { body = event.body; }));
+		preview.click();
+		const rendered = store.add(instantiation.get(IMarkdownRendererService).render(new MarkdownString(body, { supportHtml: true })));
+		const rows = [...rendered.element.querySelector('table')!.querySelectorAll('tbody tr')]
+			.map(row => [...row.querySelectorAll('td')].map(cell => cell.textContent))
+			.filter(([label]) => label === 'VS Code Version' || label === 'OS Version');
+		assert.deepStrictEqual(rows, [['VS Code Version', version], ['OS Version', 'First|lineSecond\\line']]);
 	});
 
 	test('keeps optional diagnostic inclusion controls visible while each detail section is collapsed', () => {

@@ -9,9 +9,10 @@ import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js
 import { Event } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { isMacintosh } from '../../../../base/common/platform.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { ResultKind } from '../../../../platform/keybinding/common/keybindingResolver.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -33,6 +34,7 @@ export class IssueReporterOpenStateContribution extends Disposable {
 		@IEditorService private readonly editorService: IEditorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) {
 		super();
 		const ctx = IssueReporterOpenContext.bindTo(contextKeyService);
@@ -54,23 +56,13 @@ export class IssueReporterOpenStateContribution extends Disposable {
 			return;
 		}
 		const evt = new StandardKeyboardEvent(e);
-		const primaryMod = isMacintosh ? evt.metaKey : evt.ctrlKey;
-		const otherMod = isMacintosh ? evt.ctrlKey : evt.metaKey;
-		if (!primaryMod || !evt.shiftKey || evt.altKey || otherMod) {
-			return;
-		}
-		let commandId: string | undefined;
-		if (evt.keyCode === KeyCode.KeyS) {
-			commandId = ISSUE_REPORTER_CAPTURE_SCREENSHOT_COMMAND_ID;
-		} else if (evt.keyCode === KeyCode.KeyR) {
-			commandId = ISSUE_REPORTER_TOGGLE_RECORDING_COMMAND_ID;
-		}
-		if (!commandId) {
+		const resolved = this.keybindingService.softDispatch(evt, evt.target ?? mainWindow.document.body);
+		if (resolved.kind !== ResultKind.KbFound || (resolved.commandId !== ISSUE_REPORTER_CAPTURE_SCREENSHOT_COMMAND_ID && resolved.commandId !== ISSUE_REPORTER_TOGGLE_RECORDING_COMMAND_ID)) {
 			return;
 		}
 		e.preventDefault();
 		e.stopPropagation();
-		void this.commandService.executeCommand(commandId);
+		void this.commandService.executeCommand(resolved.commandId);
 	}
 }
 

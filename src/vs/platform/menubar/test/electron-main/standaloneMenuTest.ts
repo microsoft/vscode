@@ -8,6 +8,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
+import { hasKey } from '../../../../base/common/types.js';
 import { upcastPartial } from '../../../../base/test/common/mock.js';
 import { IAuxiliaryWindow } from '../../../auxiliaryWindow/electron-main/auxiliaryWindow.js';
 import { IAuxiliaryWindowsMainService } from '../../../auxiliaryWindow/electron-main/auxiliaryWindows.js';
@@ -24,6 +25,7 @@ import { IStateService } from '../../../state/node/state.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { IUpdateService, StateType } from '../../../update/common/update.js';
+import { INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest } from '../../../window/common/window.js';
 import { ICodeWindow } from '../../../window/electron-main/window.js';
 import { IWindowsMainService } from '../../../windows/electron-main/windows.js';
 import { IMenubarData } from '../../common/menubar.js';
@@ -36,6 +38,8 @@ export interface IStandaloneMenuTestResult {
 	nativeActions: string[];
 	nativeRoles: string[];
 	nativeAccelerators: boolean[];
+	nativeZoom: INativeRunActionInWindowRequest[];
+	zoomMenuItems: string[];
 	workbenchItems: string[];
 	rebuildOnAuxiliaryFocus: boolean;
 }
@@ -53,8 +57,11 @@ export function testStandaloneWindowMenu(): IStandaloneMenuTestResult {
 			instantiation.stub(dependency.id, {});
 		}
 		const configuration = new TestConfigurationService({
-			'window.titleBarStyle': 'native',
-			'window.nativeTabs': true,
+			window: {
+				titleBarStyle: 'native',
+				nativeTabs: true,
+				enableMenuBarMnemonics: false,
+			},
 		});
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		instantiation.stub(IConfigurationService, configuration);
@@ -88,6 +95,7 @@ export function testStandaloneWindowMenu(): IStandaloneMenuTestResult {
 		let picker = 0;
 		let recent = 0;
 		let newWindow = 0;
+		const nativeZoom: INativeRunActionInWindowRequest[] = [];
 		instantiation.stub(INativeHostMainService, {
 			onDidFocusMainOrAuxiliaryWindow: focus.event,
 			onDidBlurMainOrAuxiliaryWindow: Event.None,
@@ -97,7 +105,13 @@ export function testStandaloneWindowMenu(): IStandaloneMenuTestResult {
 			id: 5,
 			isReady: true,
 			win: upcastPartial<BrowserWindow>({ id: 5, isMinimized: () => true }),
-			sendWhenReady: () => { renderer++; },
+			sendWhenReady: (channel, _token, request: INativeRunActionInWindowRequest | INativeRunKeybindingInWindowRequest) => {
+				if (channel === 'vscode:runAction' && hasKey(request, { id: true }) && request.id === '_workbench.action.issueReporter.zoom') {
+					nativeZoom.push(request);
+				} else {
+					renderer++;
+				}
+			},
 		});
 		instantiation.stub(IWindowsMainService, {
 			getWindowCount: () => 1,
@@ -121,7 +135,7 @@ export function testStandaloneWindowMenu(): IStandaloneMenuTestResult {
 				selectAll: () => { nativeActions.push('selectAll'); },
 			}),
 		});
-		const auxiliary = upcastPartial<IAuxiliaryWindow>({ parentId: 5, win: nativeWindow, get disableWorkbenchMenu() { return isolated; } });
+		const auxiliary = upcastPartial<IAuxiliaryWindow>({ id: 15, parentId: 5, win: nativeWindow, get disableWorkbenchMenu() { return isolated; } });
 		instantiation.stub(IAuxiliaryWindowsMainService, {
 			getFocusedWindow: () => auxiliary,
 			getWindowByWebContents: () => auxiliary,
@@ -136,6 +150,7 @@ export function testStandaloneWindowMenu(): IStandaloneMenuTestResult {
 		const folder = fileItems.find(item => item.label === 'Open Folder')!;
 		const recentFile = fileItems.find(item => item.label === 'Recent File')!;
 		const split = menubar['createMenuItem']('Split Right', 'workbench.action.splitEditorRight', true);
+		const zoom = ['workbench.action.zoomIn', 'workbench.action.zoomOut', 'workbench.action.zoomReset'].map(commandId => menubar['createMenuItem']('Zoom', commandId, true));
 		const event = upcastPartial<KeyboardEvent>({ triggeredByAccelerator: true });
 		const click = (item: MenuItem) => item.click(item, undefined, event);
 		click(newText);
@@ -155,6 +170,9 @@ export function testStandaloneWindowMenu(): IStandaloneMenuTestResult {
 		for (const commandId of ['undo', 'redo', 'editor.action.clipboardCutAction', 'editor.action.clipboardCopyAction', 'editor.action.clipboardPasteAction', 'editor.action.selectAll', 'workbench.action.closeActiveEditor', 'workbench.action.closeWindow']) {
 			menubar['runActionInRenderer']({ type: 'commandId', commandId });
 		}
+		for (const item of zoom) {
+			click(item);
+		}
 		menubar['install']();
 		const menu = Menu.getApplicationMenu()!;
 		const nativeItems = isMacintosh ? menu.items
@@ -162,6 +180,7 @@ export function testStandaloneWindowMenu(): IStandaloneMenuTestResult {
 			.flatMap(item => item.submenu!.items.filter(item => item.type !== 'separator' && item.enabled)) : [];
 		const nativeRoles = nativeItems.map(item => item.role!);
 		const nativeAccelerators = nativeItems.map(item => item.registerAccelerator);
+		const zoomMenuItems = isMacintosh ? menu.items.find(item => item.label === 'View')!.submenu!.items.map(item => item.label) : [];
 		const workbenchItems = menu.items.flatMap(item => item.submenu?.items ?? []).filter(item => ['New Text File', 'Open Folder', 'Recent File'].includes(item.label)).map(item => item.label);
 
 		isolated = false;
@@ -170,7 +189,7 @@ export function testStandaloneWindowMenu(): IStandaloneMenuTestResult {
 		menubar['install']();
 		click(newText);
 		const ordinaryAfter = renderer;
-		return { ordinaryBefore, ordinaryAfter, stale, nativeActions, nativeRoles, nativeAccelerators, workbenchItems, rebuildOnAuxiliaryFocus };
+		return { ordinaryBefore, ordinaryAfter, stale, nativeActions, nativeRoles, nativeAccelerators, nativeZoom, zoomMenuItems, workbenchItems, rebuildOnAuxiliaryFocus };
 	} finally {
 		shutdown.fire({ reason: ShutdownReason.QUIT, join: () => { } });
 		store.dispose();

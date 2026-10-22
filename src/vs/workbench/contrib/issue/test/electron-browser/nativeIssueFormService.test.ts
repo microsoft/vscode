@@ -6,15 +6,19 @@
 import assert from 'assert';
 import { spy } from 'sinon';
 import { $, addDisposableListener, Dimension, EventHelper, registerWindow } from '../../../../../base/browser/dom.js';
+import { getZoomLevel } from '../../../../../base/browser/browser.js';
 import { CodeWindow, ensureCodeWindow, mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { isMacintosh } from '../../../../../base/common/platform.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { decodeKeybinding } from '../../../../../base/common/keybindings.js';
+import { isMacintosh, OS } from '../../../../../base/common/platform.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ConfigurationScope, Extensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -24,10 +28,14 @@ import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.j
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService, _util } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { IKeyboardEvent, IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { KeybindingResolver, NoMatchingKb } from '../../../../../platform/keybinding/common/keybindingResolver.js';
+import { ResolvedKeybindingItem } from '../../../../../platform/keybinding/common/resolvedKeybindingItem.js';
+import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { INativeHostService } from '../../../../../platform/native/common/native.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IUpdateService, StateType } from '../../../../../platform/update/common/update.js';
 import { IUntypedEditorInput } from '../../../../common/editor.js';
@@ -38,14 +46,16 @@ import { IEditorService, PreferredGroup } from '../../../../services/editor/comm
 import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
+import { ILifecycleService, ShutdownReason } from '../../../../services/lifecycle/common/lifecycle.js';
 import { TestLayoutService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { TestLifecycleService } from '../../../../test/common/workbenchTestServices.js';
 import { IssueReporterEditorInput } from '../../browser/issueReporterEditorInput.js';
 import { IRecordingService } from '../../browser/recordingService.js';
 import { IScreenshotService } from '../../browser/screenshotService.js';
-import { IssueReporterData, IssueSource } from '../../common/issue.js';
+import { IIssueFormService, IssueReporterData, IssueSource } from '../../common/issue.js';
 import { IssueReporterController } from '../../electron-browser/issueReporterController.js';
 import { IssueReporterEditorPane } from '../../electron-browser/issueReporterEditorPane.js';
-import { ISSUE_REPORTER_CAPTURE_SCREENSHOT_COMMAND_ID, IssueReporterOpenStateContribution } from '../../electron-browser/issueReporterKeybindings.js';
+import { ISSUE_REPORTER_CAPTURE_SCREENSHOT_COMMAND_ID, ISSUE_REPORTER_TOGGLE_RECORDING_COMMAND_ID, IssueReporterOpenStateContribution } from '../../electron-browser/issueReporterKeybindings.js';
 import { NativeIssueFormService } from '../../electron-browser/nativeIssueFormService.js';
 import { issueReporterImageFixture } from '../common/issueReporterMediaFixtures.js';
 import '../../electron-browser/issue.contribution.js';
@@ -76,6 +86,7 @@ class TestAuxiliaryWindow extends Disposable implements IAuxiliaryWindow {
 	handler: IAuxiliaryWindowCloseHandler | undefined;
 	lastClose: Promise<boolean> | undefined;
 	closeCalls = 0;
+	disposeCalls = 0;
 	readonly registerCloseHandler;
 
 	constructor(id: number, supported: boolean, closeOnRegister: boolean) {
@@ -122,6 +133,7 @@ class TestAuxiliaryWindow extends Disposable implements IAuxiliaryWindow {
 	createState(): IAuxiliaryWindowOpenOptions { return {}; }
 
 	override dispose(): void {
+		this.disposeCalls++;
 		if (!this._store.isDisposed) {
 			this.willDispose.fire();
 			super.dispose();
@@ -156,6 +168,24 @@ suite('NativeIssueFormService reporter windows', () => {
 		});
 		instantiation.stub(IConfigurationService, configuration);
 		instantiation.stub(ILogService, new NullLogService());
+		const lifecycle = store.add(new TestLifecycleService());
+		instantiation.stub(ILifecycleService, lifecycle);
+		const keybindings = new class extends MockKeybindingService {
+			bindings: { command: string; key: number }[] = [
+				{ command: ISSUE_REPORTER_CAPTURE_SCREENSHOT_COMMAND_ID, key: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyS },
+				{ command: ISSUE_REPORTER_TOGGLE_RECORDING_COMMAND_ID, key: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyR },
+			];
+
+			override softDispatch(event: IKeyboardEvent) {
+				const items = this.bindings.map(binding => new ResolvedKeybindingItem(this.resolveKeybinding(decodeKeybinding(binding.key, OS)!)[0], binding.command, undefined, undefined, false, null, false));
+				const resolver = new KeybindingResolver([], items, () => { });
+				const chord = this.resolveKeyboardEvent(event).getDispatchChords()[0];
+				return chord ? resolver.resolve({ getValue: () => undefined }, [], chord) : NoMatchingKb;
+			}
+		}();
+		instantiation.stub(IKeybindingService, keybindings);
+		const previews: string[] = [];
+		instantiation.stub(IOpenerService, { open: async resource => { previews.push(resource.toString()); return true; } });
 		const confirmations: string[] = [];
 		const confirmStarted = new DeferredPromise<void>();
 		const screenshotStarted = new DeferredPromise<void>();
@@ -248,8 +278,18 @@ suite('NativeIssueFormService reporter windows', () => {
 		});
 		const instances = spy(instantiation, 'createInstance');
 		const service = store.add(instantiation.createInstance(TestNativeIssueFormService));
+		instantiation.stub(IIssueFormService, service);
 		return {
-			service, controls, configuration, confirmations, confirmStarted, screenshotStarted, opens, main, windows, windowOptions, focused, source, instantiation, readonlyUpdates, writes,
+			service, controls, configuration, confirmations, confirmStarted, screenshotStarted, opens, main, windows, windowOptions, focused, source, instantiation, readonlyUpdates, writes, lifecycle, keybindings, previews,
+			shutdown: async (reason: ShutdownReason) => {
+				const vetos: (boolean | Promise<boolean>)[] = [];
+				lifecycle.fireBeforeShutdown({ reason, veto: value => { vetos.push(value); }, finalVeto: () => { throw new Error('Unexpected final veto'); } });
+				const vetoed = (await Promise.all(vetos)).some(Boolean);
+				if (!vetoed) {
+					lifecycle.fireShutdown(reason);
+				}
+				return { vetoed, participants: vetos.length };
+			},
 			inputs: () => instances.returnValues.filter((value): value is IssueReporterEditorInput => value instanceof IssueReporterEditorInput),
 			createInput: (initial = data()) => store.add(instantiation.createInstance(IssueReporterEditorInput, initial)),
 			addGroup: (windowId: number) => {
@@ -356,6 +396,74 @@ suite('NativeIssueFormService reporter windows', () => {
 		const closed = await windows[0].lastClose;
 		assert.deepStrictEqual({ shared: first === repeated, cancelled, retained, closed, disposed: inputs()[0].isDisposed(), confirmations, registered: !!windows[0].handler, opens: opens.length, editors: main.editors.length }, {
 			shared: true, cancelled: false, retained: true, closed: true, disposed: true, confirmations: ['Discard issue report?', 'Discard issue report?'], registered: false, opens: 0, editors: 0,
+		});
+	});
+
+	for (const reason of [ShutdownReason.CLOSE, ShutdownReason.QUIT, ShutdownReason.RELOAD, ShutdownReason.LOAD]) {
+		for (const discard of [false, true]) {
+			test(`${discard ? 'discards' : 'retains'} the standalone draft for source shutdown reason ${reason}`, async () => {
+				const { service, controls, inputs, windows, confirmations, source, shutdown } = createService();
+				await service.openReporter(data());
+				controls.confirm = discard;
+				const result = await shutdown(reason);
+				assert.deepStrictEqual({
+					result, disposed: inputs()[0].isDisposed(), connected: windows[0].frame.isConnected,
+					registered: !!windows[0].handler, captureBars: source.querySelectorAll('.issue-reporter-floating-bar').length, confirmations,
+				}, {
+					result: { vetoed: !discard, participants: 1 }, disposed: discard, connected: !discard,
+					registered: !discard, captureBars: discard ? 0 : 1, confirmations: ['Discard issue report?'],
+				});
+			});
+		}
+
+		test(`leaves editor-mode shutdown confirmation to the editor lifecycle for reason ${reason}`, async () => {
+			const { service, inputs, confirmations, shutdown } = createService('editor');
+			await service.openReporter(data());
+			const result = await shutdown(reason);
+			assert.deepStrictEqual({ result, confirmations, disposed: inputs()[0].isDisposed() }, {
+				result: { vetoed: false, participants: 0 }, confirmations: [], disposed: false,
+			});
+		});
+	}
+
+	test('keeps an approved draft and its owned files when another shutdown participant vetoes', async () => {
+		const { service, lifecycle, shutdown, inputs, windows, source, confirmations, confirmStarted } = createService();
+		await service.openReporter(data());
+		const input = inputs()[0];
+		const cleanup = spy();
+		input.savedAttachments = [{ id: 'owned', kind: 'file', file: { filePath: '/owned/report.json', name: 'report.json', mimeType: 'application/json' } }];
+		input.registerImportedFile('/owned/report.json', toDisposable(cleanup));
+		const otherVeto = new DeferredPromise<boolean>();
+		const participant = store.add(lifecycle.onBeforeShutdown(event => event.veto(otherVeto.p, 'otherParticipant')));
+		const pending = shutdown(ShutdownReason.QUIT);
+		await confirmStarted.p;
+		await timeout(0);
+		const beforeVeto = { disposed: input.isDisposed(), connected: windows[0].frame.isConnected, cleanup: cleanup.callCount };
+		await otherVeto.complete(true);
+		const vetoed = await pending;
+		const afterVeto = { disposed: input.isDisposed(), registered: !!windows[0].handler, captureBars: source.querySelectorAll('.issue-reporter-floating-bar').length, cleanup: cleanup.callCount };
+		participant.dispose();
+		const committed = await shutdown(ShutdownReason.QUIT);
+		assert.deepStrictEqual({ beforeVeto, vetoed, afterVeto, committed, disposed: input.isDisposed(), cleanup: cleanup.callCount, confirmations }, {
+			beforeVeto: { disposed: false, connected: true, cleanup: 0 },
+			vetoed: { vetoed: true, participants: 2 },
+			afterVeto: { disposed: false, registered: true, captureBars: 1, cleanup: 0 },
+			committed: { vetoed: false, participants: 1 }, disposed: true, cleanup: 1,
+			confirmations: ['Discard issue report?', 'Discard issue report?'],
+		});
+	});
+
+	test('waits for a reporter being created before deciding source shutdown', async () => {
+		const { service, controls, inputs, windows, shutdown } = createService();
+		controls.createGate = new DeferredPromise<void>();
+		controls.confirm = false;
+		const opening = service.openReporter(data());
+		await timeout(0);
+		const closing = shutdown(ShutdownReason.QUIT);
+		await controls.createGate.complete();
+		await opening;
+		assert.deepStrictEqual({ result: await closing, disposed: inputs()[0].isDisposed(), registered: !!windows[0].handler }, {
+			result: { vetoed: true, participants: 1 }, disposed: false, registered: true,
 		});
 	});
 
@@ -494,8 +602,58 @@ suite('NativeIssueFormService reporter windows', () => {
 		await controls.createGate.complete();
 		await opening;
 		await windows[0].lastClose;
-		assert.deepStrictEqual({ disposed: inputs()[0].isDisposed(), mounted: windows[0].container.children.length, live: !!IssueReporterController.getAnyLiveInstance() }, {
-			disposed: true, mounted: 0, live: false,
+		assert.deepStrictEqual({ disposed: inputs()[0].isDisposed(), mounted: windows[0].container.children.length, live: !!IssueReporterController.getAnyLiveInstance(), connected: windows[0].frame.isConnected, disposals: windows[0].disposeCalls }, {
+			disposed: true, mounted: 0, live: false, connected: false, disposals: 1,
+		});
+	});
+
+	test('service disposal closes a mounted auxiliary and rejects late close and capture operations', async () => {
+		const { service, windows, inputs, source, controls, screenshotStarted, writes } = createService();
+		controls.screenshotGate = new DeferredPromise<string | undefined>();
+		await service.openReporter(data());
+		const wizard = IssueReporterController.getAnyLiveInstance()!.getWizard()!;
+		const handler = windows[0].handler!;
+		wizard.triggerCaptureScreenshot();
+		await screenshotStarted.p;
+		service.dispose();
+		await controls.screenshotGate.complete(issueReporterImageFixture);
+		await timeout(0);
+		await service.openReporter(data());
+		assert.deepStrictEqual({
+			disposed: inputs()[0].isDisposed(), connected: windows[0].frame.isConnected, disposals: windows[0].disposeCalls,
+			registered: !!windows[0].handler, captureBars: source.querySelectorAll('.issue-reporter-floating-bar').length,
+			lateClose: await handler.close(), live: !!IssueReporterController.getAnyLiveInstance(), windows: windows.length, writes,
+		}, { disposed: true, connected: false, disposals: 1, registered: false, captureBars: 0, lateClose: false, live: false, windows: 1, writes: [] });
+	});
+
+	test('host-originated auxiliary disposal does not recursively dispose it or complete a pending close', async () => {
+		const { service, windows, inputs, source, controls, confirmStarted } = createService();
+		await service.openReporter(data());
+		controls.confirmGate = new DeferredPromise<void>();
+		windows[0].window.close();
+		await confirmStarted.p;
+		windows[0].dispose();
+		await controls.confirmGate.complete();
+		assert.deepStrictEqual({
+			closed: await windows[0].lastClose, disposed: inputs()[0].isDisposed(), disposals: windows[0].disposeCalls,
+			connected: windows[0].frame.isConnected, registered: !!windows[0].handler, captureBars: source.querySelectorAll('.issue-reporter-floating-bar').length,
+		}, { closed: false, disposed: true, disposals: 1, connected: false, registered: false, captureBars: 0 });
+	});
+
+	test('discard cancels an attachment-free submission waiting for its GitHub session', async () => {
+		const { service, windows, inputs, previews } = createService();
+		const token = new DeferredPromise<string>();
+		const submission = spy(service, 'submitIssue');
+		await service.openReporter(data({ getGitHubAccessToken: () => token.p }));
+		windows[0].container.querySelector<HTMLElement>('.wizard-preview')!.click();
+		assert.strictEqual(submission.callCount, 1);
+		windows[0].window.close();
+		await windows[0].lastClose;
+		const cancelled = assert.rejects(submission.firstCall.returnValue, isCancellationError);
+		await token.complete('late-token');
+		await cancelled;
+		assert.deepStrictEqual({ disposed: inputs()[0].isDisposed(), cancelled: inputs()[0].submissionSignal.aborted, previews }, {
+			disposed: true, cancelled: true, previews: [],
 		});
 	});
 
@@ -546,6 +704,89 @@ suite('NativeIssueFormService reporter windows', () => {
 			target.dispatchEvent(new KeyboardEvent('keydown', { key: 'p', ctrlKey: !isMacintosh, metaKey: isMacintosh, bubbles: true }));
 		}
 		assert.deepStrictEqual(dispatched, ['source', 'ordinary auxiliary']);
+	});
+
+	test('routes configured zoom commands only to the reporter and blocks other resolved commands', async () => {
+		const { service, windows, inputs, configuration, keybindings, opens } = createService();
+		await configuration.setUserConfiguration('window.zoomPerWindow', false);
+		await configuration.setUserConfiguration('window.zoomLevel', 2);
+		keybindings.bindings = [
+			{ command: 'workbench.action.zoomIn', key: KeyMod.CtrlCmd | KeyCode.Equal },
+			{ command: 'workbench.action.zoomOut', key: KeyMod.CtrlCmd | KeyCode.Minus },
+			{ command: 'workbench.action.zoomReset', key: KeyMod.CtrlCmd | KeyCode.Numpad0 },
+			{ command: 'workbench.action.quickOpen', key: KeyMod.CtrlCmd | KeyCode.KeyP },
+			{ command: 'workbench.action.splitEditorRight', key: KeyMod.CtrlCmd | KeyCode.Backslash },
+		];
+		await service.openReporter(data());
+		const sourceLevel = getZoomLevel(mainWindow);
+		const target = windows[0].window;
+		const initialLevel = getZoomLevel(target);
+		const send = (keyCode: number, key: string, modifiers: KeyboardEventInit = { ctrlKey: !isMacintosh, metaKey: isMacintosh }) => {
+			const event = new KeyboardEvent('keydown', { ...modifiers, key, keyCode, bubbles: true, cancelable: true });
+			inputs()[0].descriptionInput.dispatchEvent(event);
+			return { prevented: event.defaultPrevented, level: getZoomLevel(target) };
+		};
+		const ordinary = [send(187, '='), send(189, '-'), send(96, '0'), send(80, 'p'), send(220, '\\')];
+		keybindings.bindings = [
+			{ command: 'workbench.action.zoomIn', key: KeyMod.Alt | KeyCode.F8 },
+			{ command: 'workbench.action.zoomOut', key: KeyMod.Alt | KeyCode.F9 },
+			{ command: 'workbench.action.zoomReset', key: KeyMod.Alt | KeyCode.F10 },
+			{ command: 'workbench.action.quickOpen', key: KeyMod.CtrlCmd | KeyCode.Equal },
+		];
+		const customized = [send(119, 'F8', { altKey: true }), send(120, 'F9', { altKey: true }), send(121, 'F10', { altKey: true }), send(187, '=')];
+		assert.deepStrictEqual({ ordinary, customized, sourceUnchanged: getZoomLevel(mainWindow) === sourceLevel, opens }, {
+			ordinary: [{ prevented: true, level: initialLevel + 1 }, { prevented: true, level: initialLevel }, { prevented: true, level: 2 }, { prevented: false, level: 2 }, { prevented: false, level: 2 }],
+			customized: [{ prevented: true, level: 3 }, { prevented: true, level: 2 }, { prevented: true, level: 2 }, { prevented: false, level: 2 }],
+			sourceUnchanged: true, opens: [],
+		});
+	});
+
+	test('routes native menu zoom commands to their registered reporter rather than the source window', async () => {
+		const { service, instantiation, windows, configuration, opens } = createService();
+		await configuration.setUserConfiguration('window.zoomPerWindow', false);
+		await configuration.setUserConfiguration('window.zoomLevel', 2);
+		await service.openReporter(data());
+		const sourceLevel = getZoomLevel(mainWindow);
+		const target = windows[0].window;
+		const initialLevel = getZoomLevel(target);
+		const command = CommandsRegistry.getCommand(NativeIssueFormService.ZOOM_COMMAND_ID)!;
+		const zoom = (windowId: number, commandId: string) => {
+			instantiation.invokeFunction(accessor => command.handler(accessor, windowId, commandId));
+			return getZoomLevel(target);
+		};
+		const levels = [
+			zoom(target.vscodeWindowId, 'workbench.action.zoomIn'),
+			zoom(target.vscodeWindowId, 'workbench.action.zoomOut'),
+			zoom(target.vscodeWindowId, 'workbench.action.zoomReset'),
+			zoom(mainWindow.vscodeWindowId, 'workbench.action.zoomIn'),
+			zoom(target.vscodeWindowId, 'workbench.action.quickOpen'),
+		];
+		service.dispose();
+		const afterClose = zoom(target.vscodeWindowId, 'workbench.action.zoomIn');
+		assert.deepStrictEqual({ levels, afterClose, sourceUnchanged: getZoomLevel(mainWindow) === sourceLevel, opens }, {
+			levels: [initialLevel + 1, initialLevel, 2, 2, 2], afterClose: 2, sourceUnchanged: true, opens: [],
+		});
+	});
+
+	test('a customized zoom shortcut is not stolen by the capture-phase screenshot handler', async () => {
+		const { service, instantiation, windows, inputs, keybindings } = createService();
+		const commands: string[] = [];
+		instantiation.stub(ICommandService, { executeCommand: async id => { commands.push(id); } });
+		store.add(instantiation.createInstance(IssueReporterOpenStateContribution));
+		keybindings.bindings = [
+			{ command: 'workbench.action.zoomIn', key: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyS },
+			{ command: ISSUE_REPORTER_CAPTURE_SCREENSHOT_COMMAND_ID, key: KeyMod.Alt | KeyCode.F8 },
+		];
+		await service.openReporter(data());
+		const editor = inputs()[0].descriptionInput;
+		const initialLevel = getZoomLevel(windows[0].window);
+		const zoom = new KeyboardEvent('keydown', { key: 's', keyCode: 83, ctrlKey: !isMacintosh, metaKey: isMacintosh, shiftKey: true, bubbles: true, cancelable: true });
+		editor.dispatchEvent(zoom);
+		const capture = new KeyboardEvent('keydown', { key: 'F8', keyCode: 119, altKey: true, bubbles: true, cancelable: true });
+		editor.dispatchEvent(capture);
+		assert.deepStrictEqual({ zoom: getZoomLevel(windows[0].window), zoomPrevented: zoom.defaultPrevented, capturePrevented: capture.defaultPrevented, commands }, {
+			zoom: initialLevel + 1, zoomPrevented: true, capturePrevented: true, commands: [ISSUE_REPORTER_CAPTURE_SCREENSHOT_COMMAND_ID],
+		});
 	});
 
 	for (const location of ['editor', 'window'] as const) {

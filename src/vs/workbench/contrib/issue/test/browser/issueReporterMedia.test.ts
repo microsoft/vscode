@@ -39,21 +39,43 @@ suite('Issue reporter media decoding', () => {
 
 	for (const [name, type, mimeType, extension] of [
 		['image.PNG', '', 'image/png', 'png'],
-		['photo.JPEG', '', 'image/jpeg', 'jpg'],
-		['photo.jpe', 'application/octet-stream', 'application/octet-stream', 'jpg'],
+		['photo.JPEG', '', 'image/jpeg', 'jpeg'],
+		['photo.jpe', 'application/octet-stream', 'image/jpeg', 'jpe'],
 		['', 'image/jpg', 'image/jpg', 'jpg'],
 		['', 'IMAGE/WEBP', 'IMAGE/WEBP', 'webp'],
 		['image.gif', 'image/gif', 'image/gif', 'gif'],
 		['image.avif', 'image/avif', 'image/avif', 'avif'],
 		['recording.MP4', '', 'video/mp4', 'mp4'],
 		['', 'video/webm;codecs=vp9', 'video/webm;codecs=vp9', 'webm'],
-		['clip.MOV', 'application/octet-stream', 'application/octet-stream', 'mov'],
+		['clip.MOV', 'application/octet-stream', 'video/quicktime', 'mov'],
+		['clip.MOV', 'APPLICATION/OCTET-STREAM; charset=binary', 'video/quicktime', 'mov'],
 	]) {
 		test(`resolves supported media metadata for ${name || type}`, () => {
 			const format = validateIssueReporterMediaFile({ name, type, size: 1 });
 			assert.deepStrictEqual({ mimeType: format.mimeType, extension: format.extension }, { mimeType, extension });
 		});
 	}
+
+	test('preserves safe original suffixes for filename-based attachment previews', () => {
+		const files = [
+			['report.ipynb', '', 'ipynb'],
+			['report.ipynb', 'application/json', 'ipynb'],
+			['report.ipynb', 'application/x-ipynb+json', 'ipynb'],
+			['report.ipynb', 'text/plain', 'ipynb'],
+			['report.PDF', 'application/pdf', 'pdf'],
+			['trace.json', 'application/json', 'json'],
+			['notes.md', 'text/plain', 'md'],
+			['source.c++', '', 'c++'],
+			['bundle.zip', 'application/octet-stream', 'zip'],
+			['unnamed', 'text/plain', 'txt'],
+			['file.txt:stream', '', 'bin'],
+			['file.bad\\suffix', '', 'bin'],
+			['file.', '', 'bin'],
+			['.env', '', 'bin'],
+			['', '', 'bin'],
+		];
+		assert.deepStrictEqual(files.map(([name, type]) => validateIssueReporterMediaFile({ name, type, size: 1 }).extension), files.map(([, , extension]) => extension));
+	});
 
 	for (const [name, type] of [
 		['document.pdf', 'application/pdf'],

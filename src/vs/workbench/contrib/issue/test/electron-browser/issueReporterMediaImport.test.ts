@@ -775,6 +775,38 @@ suite('Issue reporter media import lifecycle', () => {
 		});
 	}
 
+	for (const [name, suppliedMimeType, expectedMimeType] of [
+		['notebook.ipynb', '', 'application/octet-stream'],
+		['notebook.IPYNB', 'text/plain', 'text/plain'],
+		['document.PDF', 'application/pdf', 'application/pdf'],
+		['settings.json', 'application/x-custom-json', 'application/x-custom-json'],
+		['photo.JPEG', 'application/octet-stream', 'image/jpeg'],
+		['photo.jpe', '', 'image/jpeg'],
+	]) {
+		test(`preserves the original name, bytes and editor suffix of ${name} declared as ${suppliedMimeType || 'no MIME type'}`, async () => {
+			const { pane, input, files, container, openEditor } = await createPane();
+			const contents = new Uint8Array([0, 255, 42, 10]);
+			const file = new InstrumentedMediaFile([contents], name, { type: suppliedMimeType });
+			pane.getWizard()!['requestAddAttachments']([file]);
+			await pane.waitForImports();
+			const attachment = savedFiles(input)![0];
+			const resource = URI.file(attachment.filePath);
+			container.querySelector<HTMLElement>('.wizard-file-card, .wizard-screenshot')!.click();
+			await timeout(0);
+			const opened = openEditor.firstCall?.args[0];
+			assert.deepStrictEqual({
+				name: attachment.name, mimeType: attachment.mimeType,
+				suffix: resource.path.slice(resource.path.lastIndexOf('.') + 1),
+				owned: resource.path.startsWith(`${globalStorageHome.path}/issue-attachments/import-`),
+				bytes: [...files.files.get(resource)!.buffer], reads: file.reads,
+				previewPath: opened && hasKey(opened, { resource: true }) ? opened.resource?.path : undefined,
+			}, {
+				name, mimeType: expectedMimeType, suffix: name.split('.').at(-1)!.toLowerCase(),
+				owned: true, bytes: [...contents], reads: 1, previewPath: resource.path,
+			});
+		});
+	}
+
 	test('does not invent metadata for imported WebM files', async () => {
 		const { pane, container } = await createPane();
 		pane.getWizard()!['requestAddAttachments']([video('recording.webm', 'video/webm')]);
@@ -915,7 +947,7 @@ suite('Issue reporter media import lifecycle', () => {
 		});
 	});
 
-	test('refreshes a cached Preview and its native field descriptions after a pane roundtrip', async () => {
+	test('refreshes Preview and its native field descriptions after returning to a cached controller', async () => {
 		const first = await createPane();
 		first.container.querySelectorAll<HTMLElement>('.wizard-description-tabs [role=tab]')[1].click();
 		const second = await createPane(first.input, first.files);
@@ -923,6 +955,7 @@ suite('Issue reporter media import lifecycle', () => {
 		second.editor.select();
 		document.execCommand('insertText', false, 'Text changed in the other pane');
 		first.pane.setInput(first.input);
+		first.container.querySelectorAll<HTMLElement>('.wizard-description-tabs [role=tab]')[1].click();
 		const identifiers = [first.container, second.container].flatMap(container => [...container.querySelectorAll('[id]')].map(element => element.id));
 		assert.deepStrictEqual({
 			preview: first.container.querySelector('.wizard-description-preview')?.textContent,
@@ -933,6 +966,51 @@ suite('Issue reporter media import lifecycle', () => {
 			preview: 'Text changed in the other pane', inputOwner: true,
 			description: first.container.querySelector('.wizard-description-guidance')!.id,
 			uniqueIdentifiers: true,
+		});
+	});
+
+	test('transfers ownership while both groups remain open and disables stale controls before returning', async () => {
+		const first = await createPane();
+		const oldWizard = first.pane.getWizard()!;
+		oldWizard['requestAddAttachments']([new File(['original'], 'report.json', { type: 'application/json' })]);
+		await first.pane.waitForImports();
+		const owned = first.files.writes[0];
+		const oldRemove = first.container.querySelector<HTMLElement>('.wizard-screenshot-delete')!;
+		const oldPreview = first.container.querySelector<HTMLElement>('.wizard-preview')!;
+		const oldCapture = document.querySelector<HTMLElement>('.issue-reporter-floating-bar .wizard-segmented-main')!;
+		const second = await createPane(first.input, first.files);
+		const moved = {
+			controller: IssueReporterController.getAnyLiveInstance() === second.pane,
+			released: first.pane.getWizard() === undefined,
+			oldGroupOpen: first.container.isConnected,
+			bars: document.querySelectorAll('.issue-reporter-floating-bar').length,
+		};
+		oldRemove.click();
+		oldPreview.click();
+		oldCapture.click();
+		oldWizard.triggerCaptureScreenshot();
+		oldWizard['requestAddAttachments']([image('stale.png')]);
+		await first.pane.waitForImports();
+		await timeout(0);
+		const afterStaleActions = {
+			attachments: savedFiles(first.input)?.map(file => file.name), exists: first.files.files.has(owned),
+			submitted: first.submit.callCount, capturing: second.pane.getWizard()!.hasPendingOperations(), writes: first.files.writes.length,
+		};
+		first.pane.setInput(first.input);
+		const returnedWizard = first.pane.getWizard()!;
+		const returned = {
+			controller: IssueReporterController.getAnyLiveInstance() === first.pane,
+			released: second.pane.getWizard() === undefined,
+			oldGroupOpen: second.container.isConnected,
+			bars: document.querySelectorAll('.issue-reporter-floating-bar').length,
+			attachments: returnedWizard.getFileAttachments().map(file => file.name),
+		};
+		first.pane.setInput(first.input);
+		assert.deepStrictEqual({ moved, afterStaleActions, returned, sameOwnerRetained: first.pane.getWizard() === returnedWizard }, {
+			moved: { controller: true, released: true, oldGroupOpen: true, bars: 1 },
+			afterStaleActions: { attachments: ['report.json'], exists: true, submitted: 0, capturing: false, writes: 1 },
+			returned: { controller: true, released: true, oldGroupOpen: true, bars: 1, attachments: ['report.json'] },
+			sameOwnerRetained: true,
 		});
 	});
 
@@ -967,12 +1045,13 @@ suite('Issue reporter media import lifecycle', () => {
 	for (const otherPane of ['retained', 'disposed'] as const) {
 		test(`rebinds input callbacks after a cached-pane roundtrip with the other pane ${otherPane}`, async () => {
 			const first = await createPane();
-			const wizard = first.pane.getWizard()!;
-			wizard.markPreviewOpened();
+			first.pane.getWizard()!.markPreviewOpened();
 			const second = await createPane(first.input, first.files);
 			second.pane.getWizard()!.markPreviewOpened();
 			const movedController = IssueReporterController.getAnyLiveInstance();
 			first.pane.setInput(first.input);
+			const wizard = first.pane.getWizard()!;
+			wizard.markPreviewOpened();
 			if (otherPane === 'disposed') {
 				second.pane.dispose();
 			}
@@ -1142,12 +1221,14 @@ suite('Issue reporter media import lifecycle', () => {
 		});
 	}
 
-	test('uses filename MIME fallback without reading arbitrary paths or changing the original type', async () => {
+	test('uses filename MIME fallback without reading arbitrary paths or changing the source File type', async () => {
 		const { pane, files } = await createPane();
 		const file = video('/user-videos/original.webm', 'application/octet-stream');
 		pane.getWizard()!['requestAddAttachments']([file]);
 		await pane.waitForImports();
 		const recording = pane.getWizard()!.getFileAttachments()[0];
-		assert.deepStrictEqual({ reads: files.reads, mime: recording.mimeType, name: recording.name }, { reads: [], mime: 'application/octet-stream', name: '/user-videos/original.webm' });
+		assert.deepStrictEqual({ reads: files.reads, mime: recording.mimeType, name: recording.name, originalType: file.type }, {
+			reads: [], mime: 'video/webm', name: '/user-videos/original.webm', originalType: 'application/octet-stream',
+		});
 	});
 });
