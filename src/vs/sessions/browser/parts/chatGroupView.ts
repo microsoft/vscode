@@ -257,6 +257,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		this._connection.setSession(context?.session);
 
 		if (!context) {
+			this._sessionActivityBar.setChatActions(undefined);
 			this._draftChatResource = undefined;
 			this._activeChatIsClosableKey.reset();
 			this._activeChatCanArchiveKey.reset();

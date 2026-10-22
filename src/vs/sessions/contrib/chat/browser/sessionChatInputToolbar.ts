@@ -15,7 +15,7 @@ import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { autorun, constObservable, derived, derivedOpts, IObservable, IReader, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, derivedOpts, IObservable, IReader, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -25,6 +25,13 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
+import { IExternalUriOpenerService } from '../../../../workbench/contrib/externalUriOpener/common/externalUriOpenerService.js';
+import { externalUriOpenersSettingId } from '../../../../workbench/contrib/externalUriOpener/common/configuration.js';
+import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_SETTING } from '../../../common/sessionConfig.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { AgentHostAutoAttachPullRequestsConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
 import { ChatInputPills, StandardChatInputPillSources, createChatInputPillSource, IChatInputPillSource } from '../../../../workbench/contrib/chat/browser/chatInputPills.js';
@@ -407,6 +414,7 @@ export class SessionChatInputToolbar extends Disposable {
 	private readonly _pullRequestCopyActions = this._register(new CopyFeedbackActionCache());
 	private readonly _issueCopyActions = this._register(new CopyFeedbackActionCache());
 	private readonly _activityBarPicker = this._register(new MutableDisposable<DisposableStore>());
+	private readonly _activityBarOpenerCheck = this._register(new MutableDisposable());
 
 	/** The session that owns the reflected chat, from an explicit override or resolved from the chat. */
 	private readonly _session: IObservable<IActiveSession | undefined> = derived(reader => {
@@ -456,6 +464,10 @@ export class SessionChatInputToolbar extends Disposable {
 		@IChatEntitlementService entitlementService: IChatEntitlementService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IQuickInputService quickInputService: IQuickInputService,
+		@IExternalUriOpenerService externalUriOpenerService: IExternalUriOpenerService,
+		@IExtensionService extensionService: IExtensionService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@ILogService logService: ILogService,
 	) {
 		super();
 
@@ -575,14 +587,52 @@ export class SessionChatInputToolbar extends Disposable {
 			.map(section => ({ ...section, entries: section.entries.filter(entry => !sessionArtifacts.hasIntegration(entry.id, reader)) })));
 		const pullRequestData = createSessionPullRequestPillData(plainPullRequestSections, visibility.pullRequests, pullRequestPresentation.icon);
 		const activityBarPullRequests = createSessionPullRequestPillData(pullRequestSections, visibility.pullRequests, pullRequestPresentation.icon);
+		const gitHubActionsEnabled = observableConfigValue(SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_SETTING, false, configurationService);
+		const openerChanges = observableSignalFromEvent(this, Event.any<unknown>(
+			extensionService.onDidChangeExtensions,
+			Event.filter(configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(externalUriOpenersSettingId)),
+		));
+		const activityBarOpeners = derived(this, reader => {
+			openerChanges.read(reader);
+			const supported = observableValue<ReadonlySet<string>>(this, new Set());
+			if (!gitHubActionsEnabled.read(reader) || !pillsVisible.read(reader) || this._debugData.read(reader) || entitlementService.sentimentObs.read(reader).hidden) {
+				return supported;
+			}
+			const refs = [...pullRequestRefs.read(reader), ...issueRefs.read(reader)];
+			const cancellation = new CancellationTokenSource();
+			const check = toDisposable(() => cancellation.dispose(true));
+			this._activityBarOpenerCheck.value = check;
+			reader.store.add(toDisposable(() => {
+				if (this._activityBarOpenerCheck.value === check) {
+					this._activityBarOpenerCheck.clear();
+				}
+			}));
+			void Promise.all(refs.map(async ref => {
+				try {
+					const opener = await externalUriOpenerService.getOpener(ref.uri, { sourceUri: ref.uri }, cancellation.token);
+					return opener ? ref.recordedReferenceId ?? ref.uri.toString() : undefined;
+				} catch (error) {
+					if (!cancellation.token.isCancellationRequested) {
+						logService.error('[SessionChatInputToolbar] Could not resolve GitHub activity bar opener', error);
+					}
+					return undefined;
+				}
+			})).then(ids => {
+				if (!cancellation.token.isCancellationRequested) {
+					supported.set(new Set(coalesce(ids)), undefined);
+				}
+			});
+			return supported;
+		});
 		this.activityBarActions = derived(this, reader => {
-			if (!pillsVisible.read(reader) || this._debugData.read(reader) || entitlementService.sentimentObs.read(reader).hidden) {
+			if (!gitHubActionsEnabled.read(reader) || !pillsVisible.read(reader) || this._debugData.read(reader) || entitlementService.sentimentObs.read(reader).hidden) {
 				return [];
 			}
 			const chat = this._chat.read(reader);
 			const session = this._session.read(reader);
 			const createAction = (id: string, title: string, sections: IObservable<readonly IChatPillSection[]>, icon: ThemeIcon): IAction[] => {
-				const entries = getChatPillEntries(sections.read(reader));
+				const supported = activityBarOpeners.read(reader).read(reader);
+				const entries = getChatPillEntries(sections.read(reader)).filter(entry => supported.has(entry.id));
 				if (!entries.length) {
 					return [];
 				}
@@ -592,11 +642,11 @@ export class SessionChatInputToolbar extends Disposable {
 				return [toAction({
 					id, label, class: ThemeIcon.asClassName(icon),
 					run: async () => {
-						if (this._store.isDisposed || !pillsVisible.read(undefined) || entitlementService.sentimentObs.read(undefined).hidden || this._chat.read(undefined) !== chat || this._session.read(undefined) !== session) {
+						if (this._store.isDisposed || !gitHubActionsEnabled.read(undefined) || !pillsVisible.read(undefined) || entitlementService.sentimentObs.read(undefined).hidden || this._chat.read(undefined) !== chat || this._session.read(undefined) !== session) {
 							return;
 						}
 						this._activityBarPicker.clear();
-						const currentEntries = getChatPillEntries(sections.read(undefined));
+						const currentEntries = getChatPillEntries(sections.read(undefined)).filter(entry => activityBarOpeners.read(undefined).read(undefined).has(entry.id));
 						if (currentEntries.length <= 1) {
 							currentEntries[0]?.open();
 							return;
@@ -607,7 +657,7 @@ export class SessionChatInputToolbar extends Disposable {
 						store.add(toDisposable(() => cancellation.dispose(true)));
 						try {
 							store.add(autorun(reader => {
-								if (this._chat.read(reader) !== chat || this._session.read(reader) !== session) {
+								if (!gitHubActionsEnabled.read(reader) || this._chat.read(reader) !== chat || this._session.read(reader) !== session) {
 									cancellation.cancel();
 								}
 							}));
@@ -617,7 +667,7 @@ export class SessionChatInputToolbar extends Disposable {
 								entry,
 							})), { title, matchOnDescription: true }, cancellation.token);
 							if (selected && !cancellation.token.isCancellationRequested) {
-								getChatPillEntries(sections.read(undefined)).find(entry => entry.id === selected.entry.id)?.open();
+								getChatPillEntries(sections.read(undefined)).find(entry => entry.id === selected.entry.id && activityBarOpeners.read(undefined).read(undefined).has(entry.id))?.open();
 							}
 						} catch (error) {
 							notificationService.error(error);

@@ -58,10 +58,11 @@ suite('SessionsChatAccessibilityHelp', () => {
 			instantiationService.stub(IAgentWorkbenchLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop, mainContainer: container });
 			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
 			assert.deepStrictEqual({
-				chatScope: content.includes('Open Pull Request and Open Issue are also available for the active chat\'s pull requests and issues.'),
-				singleAndMultiple: content.includes('A single reference opens directly; multiple references open a picker.'),
+				optIn: content.includes('Pull request and issue actions are off by default. Enable Show Pull Request and Issue Actions in the activity bar\'s context menu to show them.'),
+				chatScope: content.includes('Open Pull Request and Open Issue are also available for the active chat\'s pull requests and issues when a contributed opener is available for their links.'),
+				singleAndMultiple: content.includes('A single supported reference opens directly; multiple supported references open a picker.'),
 				cancel: content.includes('Enter to choose a reference, or Escape to cancel.'),
-			}, { chatScope: enabled, singleAndMultiple: enabled, cancel: enabled });
+			}, { optIn: enabled, chatScope: enabled, singleAndMultiple: enabled, cancel: enabled });
 		});
 	}
 
