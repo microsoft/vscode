@@ -1363,6 +1363,101 @@ suite('mcpListWidget', () => {
 		});
 	});
 
+	suite('MCP enablement routing for a server with a local twin', () => {
+		const sessionResource = URI.parse('vscode-agent-session:///session-1');
+		const localServerId = 'copilot.null.github';
+
+		function exercise(mcpService: IMcpService, agentHostService: IAgentHostCustomizationService, activeSessionServer: AgentHostMcpServer | undefined) {
+			const shownEnabled = isPrimaryMcpServerEnabled(mcpService, localServerId, activeSessionServer);
+			setPrimaryMcpServerEnablement(mcpService, agentHostService, sessionResource, localServerId, activeSessionServer, false);
+			const menu = trackActions(disposables, getBuiltinMcpServerEnablementActions(mcpService, localServerId, false, agentHostService, createAgentPluginService(), sessionResource, activeSessionServer));
+			menu.forEach(runAction);
+			const serverItemMenu = getServerItemContextMenuActions(
+				[trackActions(disposables, [
+					new Action(DisableMcpServerGloballyAction.ID, 'Disable (Globally)'),
+					new Action(DisableMcpServerForWorkspaceAction.ID, 'Disable (Workspace)'),
+				])],
+				activeSessionServer,
+				undefined,
+				[],
+			);
+			return {
+				shownEnabled,
+				menu: menu.map(action => action.label),
+				serverItemLocalMenu: serverItemMenu.filter(action => !(action instanceof Separator)).map(action => action.label),
+			};
+		}
+
+		test('routes a host-discovered Copilot-home server to the agent host', () => {
+			// The buggy flow left a window-local disable on the twin that the host never saw.
+			const { service: mcpService, calls: localCalls } = createMcpService(ContributionEnablementState.DisabledProfile);
+			const { service: agentHostService, calls: agentHostCalls } = createAgentHostCustomizations();
+			const server = createAgentHostServer({
+				id: 'github',
+				name: 'github',
+				source: 'user',
+				isPluginProvided: false,
+				isClientBundled: false,
+			});
+
+			assert.deepStrictEqual({ ...exercise(mcpService, agentHostService, server), localCalls, agentHostCalls }, {
+				shownEnabled: true,
+				menu: ['Disable (Globally)', 'Disable (Workspace)', 'Disable (Session)'],
+				serverItemLocalMenu: [],
+				localCalls: [],
+				agentHostCalls: [
+					[sessionResource, 'github', undefined, CustomizationEnablementKind.Global, false],
+					[sessionResource, 'github', undefined, CustomizationEnablementKind.Global, false],
+					[sessionResource, 'github', undefined, CustomizationEnablementKind.Workspace, false],
+					[sessionResource, 'github', undefined, CustomizationEnablementKind.Session, false],
+				],
+			});
+		});
+
+		test('keeps the client-owned global decision for a client-forwarded server', () => {
+			const { service: mcpService, calls: localCalls } = createMcpService(ContributionEnablementState.EnabledProfile);
+			const { service: agentHostService, calls: agentHostCalls } = createAgentHostCustomizations();
+			const server = createAgentHostServer({
+				id: 'github',
+				name: 'github',
+				isPluginProvided: true,
+				isClientBundled: true,
+				enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }],
+			});
+
+			assert.deepStrictEqual({ ...exercise(mcpService, agentHostService, server), localCalls, agentHostCalls }, {
+				shownEnabled: true,
+				menu: ['Disable (Globally)', 'Disable (Workspace)', 'Disable (Session)'],
+				serverItemLocalMenu: ['Disable (Globally)'],
+				localCalls: [
+					[localServerId, ContributionEnablementState.DisabledProfile],
+					[localServerId, ContributionEnablementState.DisabledProfile],
+				],
+				agentHostCalls: [
+					[sessionResource, 'github', server.enablement, CustomizationEnablementKind.Workspace, false],
+					[sessionResource, 'github', server.enablement, CustomizationEnablementKind.Session, false],
+				],
+			});
+		});
+
+		test('uses local enablement without an active agent-host session', () => {
+			const { service: mcpService, calls: localCalls } = createMcpService(ContributionEnablementState.EnabledProfile);
+			const { service: agentHostService, calls: agentHostCalls } = createAgentHostCustomizations();
+
+			assert.deepStrictEqual({ ...exercise(mcpService, agentHostService, undefined), localCalls, agentHostCalls }, {
+				shownEnabled: true,
+				menu: ['Disable (Globally)', 'Disable (Workspace)'],
+				serverItemLocalMenu: ['Disable (Globally)', 'Disable (Workspace)'],
+				localCalls: [
+					[localServerId, ContributionEnablementState.DisabledProfile],
+					[localServerId, ContributionEnablementState.DisabledProfile],
+					[localServerId, ContributionEnablementState.DisabledWorkspace],
+				],
+				agentHostCalls: [],
+			});
+		});
+	});
+
 	test('distinguishes membership changes from state-only changes', () => {
 		const getMembershipSignature = (sourceUri: URI | undefined, source?: AgentHostMcpServer['source'], displayName?: string) => {
 			const widget = Object.create(McpListWidget.prototype);
@@ -1558,6 +1653,8 @@ suite('mcpListWidget', () => {
 		test('replaces the VS Code workspace action with agent-host workspace and session actions', () => {
 			const { service, calls } = createAgentHostCustomizations();
 			const server = createAgentHostServer({
+				isPluginProvided: true,
+				isClientBundled: true,
 				enabled: false,
 				enablement: [
 					{ kind: CustomizationEnablementKind.Session, enabled: false },
@@ -1594,6 +1691,27 @@ suite('mcpListWidget', () => {
 			]);
 		});
 
+		test('adds agent-host enablement actions once when several groups hold local enablement actions', () => {
+			const { service } = createAgentHostCustomizations();
+			const server = createAgentHostServer({ isPluginProvided: true, isClientBundled: true });
+			const agentHostActions = trackActions(disposables, getAgentHostMcpServerEnablementActions(service, createAgentPluginService(), sessionResource, server, ['workspace', 'session']));
+			const actions = getServerItemContextMenuActions(
+				[
+					trackActions(disposables, [new Action(DisableMcpServerGloballyAction.ID, 'Disable (Globally)')]),
+					trackActions(disposables, [new Action(DisableMcpServerForWorkspaceAction.ID, 'Disable (Workspace)')]),
+				],
+				server,
+				undefined,
+				agentHostActions,
+			);
+
+			assert.deepStrictEqual(actions.filter(action => !(action instanceof Separator)).map(action => action.label), [
+				'Disable (Globally)',
+				'Disable (Workspace)',
+				'Disable (Session)',
+			]);
+		});
+
 		test('keeps the VS Code-owned enablement set without an active agent-host session', () => {
 			const localActions = trackActions(disposables, [
 				new Action(EnableMcpServerGloballyAction.ID, 'Enable'),
@@ -1623,6 +1741,8 @@ suite('mcpListWidget', () => {
 				const { service: mcpService, calls: localCalls } = createMcpService(ContributionEnablementState.EnabledProfile);
 				const { service: agentHostService, calls: agentHostCalls } = createAgentHostCustomizations();
 				const server = createAgentHostServer({
+					isPluginProvided: true,
+					isClientBundled: true,
 					enabled: false,
 					enablement: [
 						{ kind: CustomizationEnablementKind.Global, enabled: false },
@@ -2637,7 +2757,7 @@ suite('mcpListWidget', () => {
 					logSessions: ctx.shownLogSessions,
 				}, {
 					checkedAfterSnapshot: 'false', currentToggle: true, currentMore: true, focused: true,
-					scopeLabels: kind === 'matched' ? ['Disable (Session)'] : ['Enable', 'Disable (Session)'],
+					scopeLabels: ['Enable', 'Disable (Session)'],
 					starts: ['latest'],
 					hostEnablement: [[ctx.activeSessionResource.get(), server.id, enablement, CustomizationEnablementKind.Global, true]],
 					localEnablement: [], logs: [server.id], logSessions: [ctx.activeSessionResource.get().toString()],

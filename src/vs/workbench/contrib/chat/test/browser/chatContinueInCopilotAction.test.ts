@@ -38,13 +38,14 @@ import { IAgentHostUntitledProvisionalSessionService } from '../../browser/agent
 import { IAgentHostNewSessionFolderService } from '../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentSessionsService } from '../../browser/agentSessions/agentSessionsService.js';
 import { IAgentSession, IAgentSessionsModel } from '../../browser/agentSessions/agentSessionsModel.js';
+import { AgentHostClientConnectionKind } from '../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 
 suite('Continue in Copilot policy recovery', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	for (const sidebar of [false, true]) {
-		for (const scenario of ['local', SessionType.AgentHostClaude, SessionType.AgentHostCodex, 'empty', 'unavailable', 'unsupported', 'prepare-failed', 'import-failed', 'import-missing', 'history-missing', 'history-load-error', 'open-failed', 'open-cancelled', 'double-click', 'archived', 'unresolved-history', 'missing-history', 'cancelled', 'in-progress', 'hidden', 'switched', 'hidden-during-preparation', 'hidden-during-materialization', 'switched-during-materialization', 'cleanup-failed']) {
+		for (const scenario of ['local', SessionType.AgentHostClaude, SessionType.AgentHostCodex, 'empty', 'unavailable', 'unsupported', 'archived-unsupported', 'archived-remote', 'prepare-failed', 'import-failed', 'import-missing', 'history-missing', 'history-load-error', 'open-failed', 'open-cancelled', 'double-click', 'archived', 'unresolved-history', 'missing-history', 'cancelled', 'in-progress', 'hidden', 'switched', 'hidden-during-preparation', 'hidden-during-materialization', 'switched-during-materialization', 'cleanup-failed']) {
 			test(`preserves draft and does not send for ${scenario} in ${sidebar ? 'panel' : 'editor'}`, async () => {
 				const services = store.add(new TestInstantiationService());
 				const imports = new AgentHostImportConversationStore();
@@ -80,7 +81,7 @@ suite('Continue in Copilot policy recovery', () => {
 					data: { action: scenario === 'empty' ? 'newChat' : 'migrate', location: sidebar ? 'panel' : 'editor', outcome },
 				})));
 				services.stub(ITelemetryService, { publicLog2: (event, data) => { telemetry.push({ event, data }); } });
-				let archived = scenario === 'archived';
+				let archived = scenario === 'archived' || scenario === 'archived-unsupported' || scenario === 'archived-remote';
 				let historyResolved = scenario !== 'unresolved-history';
 				const openStarted = new DeferredPromise<void>();
 				const opening = new DeferredPromise<void>();
@@ -104,7 +105,7 @@ suite('Continue in Copilot policy recovery', () => {
 					}
 				};
 				const targetModel = upcastPartial<IChatModel>({
-					getRequests: () => scenario === 'history-missing' || scenario === 'unsupported' ? []
+					getRequests: () => scenario === 'history-missing' || scenario === 'unsupported' || scenario === 'archived-unsupported' ? []
 						: scenario === 'history-load-error' ? [upcastPartial<IChatRequestModel>({ message: { text: '', parts: [] }, isSystemInitiated: true })]
 							: [request],
 					inputModel: upcastPartial<IInputModel>({ setState: state => { draft = state; } }),
@@ -192,7 +193,10 @@ suite('Continue in Copilot policy recovery', () => {
 					},
 				});
 				services.stub(IAgentHostNewSessionFolderService, { resolveNewSessionPrimary: () => undefined });
-				services.stub(IAgentHostService, { supportsConversationImport: scenario !== 'unsupported' });
+				services.stub(IAgentHostService, {
+					supportsConversationImport: scenario !== 'unsupported' && scenario !== 'archived-unsupported',
+					clientConnectionKind: scenario === 'archived-remote' ? AgentHostClientConnectionKind.RemoteExtensionHost : AgentHostClientConnectionKind.Local,
+				});
 				services.stub(ICustomizationHarnessService, {});
 				services.stub(ILanguageModelToolsService, {});
 				services.stub(IProgressService, { withProgress: (_options, task) => task({ report: () => { } }) });
@@ -281,7 +285,7 @@ suite('Continue in Copilot policy recovery', () => {
 					return;
 				}
 				await run;
-				const transcriptOnly = scenario === 'unsupported';
+				const transcriptOnly = scenario === 'unsupported' || scenario === 'archived-unsupported';
 				const newChat = scenario === 'empty' || transcriptOnly;
 				assert.deepStrictEqual(telemetry.map(entry => entry.data), ['started', 'succeeded'].map(outcome => ({
 					action: scenario === 'empty' ? 'newChat' : transcriptOnly ? 'transcript' : 'migrate', location: sidebar ? 'panel' : 'editor', outcome,
@@ -302,7 +306,8 @@ suite('Continue in Copilot policy recovery', () => {
 						selections: [],
 					},
 					preparation: newChat ? ['open'] : ['prepare', 'import', 'release draft', 'open', 'release imported ownership', 'archive'],
-					archived: !newChat,
+					// A transcript continuation leaves the source archive state alone.
+					archived: !newChat || scenario === 'archived-unsupported',
 					backendExists: !newChat, listed: !newChat, deleted: [],
 					aliases: newChat ? [] : [real],
 					published: newChat ? [] : [real],

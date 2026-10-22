@@ -20,6 +20,7 @@ import { IStorageService } from '../../../../../platform/storage/common/storage.
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { GitHubService } from '../../browser/githubService.js';
+import { IPullRequestIconCache, PullRequestIconCache } from '../../browser/pullRequestIconCache.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../services/sessions/common/session.js';
 
@@ -34,12 +35,14 @@ suite('GitHubService', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IStorageService, store.add(new TestStorageService()));
+		instantiationService.stub(IPullRequestIconCache, instantiationService.createInstance(PullRequestIconCache));
 		instantiationService.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
 			override readonly onDidChangeDefaultAccount = Event.None;
 			override readonly currentDefaultAccount = null;
 			override getDefaultAccountAuthenticationProvider() { return { id: 'github', name: 'GitHub', enterprise: false }; }
 		}());
 		instantiationService.stub(IWorkbenchGitHubService, new class extends mock<IWorkbenchGitHubService>() {
+			override readonly onDidChangeDefaultClient = Event.None;
 			override async acquireDefaultAccountApiClient() {
 				return upcastPartial<IGitHubAccountClient>({
 					onDidInvalidate: Event.None,

@@ -33,6 +33,7 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { IDialogService, IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
@@ -60,6 +61,7 @@ import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/co
 import { ADDITIONAL_FOLDER_CONTEXT_ID_PREFIX, ADDITIONAL_REPOSITORY_CONTEXT_ID_PREFIX, getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../common/newChatContextIds.js';
 import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 import { registerPickerKeybindingPresentation } from './newChatPickerKeybinding.js';
+import { createSessionPickerToolbar } from './sessionPickerToolbar.js';
 import { getEnvironmentWorkspaceProvider, ISessionCreationEnvironment, resolveEnvironmentWorkspace } from './sessionEnvironmentPicker.js';
 
 export type { IResolvedFolderWorkspace } from './sessionWorkspaceFallback.js';
@@ -75,6 +77,16 @@ type DevContainerSampleSelectedClassification = {
 };
 
 const FILTER_THRESHOLD = 10;
+
+/** How workspace picker rows are laid out: the folder name, then its location as a description that truncates first. */
+export const WORKSPACE_PICKER_LIST_OPTIONS = {
+	className: 'sessions-new-chat-picker-list',
+	useFullHeight: true,
+	reserveSubmenuSpace: false,
+	inlineDescription: true,
+	showGroupTitleOnFirstItem: true,
+	hideDefaultKeybindingTooltip: true,
+} as const satisfies IActionListOptions;
 
 /**
  * Fixed picker width when the categorical tab bar is shown. Keeps the tab
@@ -186,6 +198,7 @@ interface IRestoredWorkspaceSelection {
 }
 
 interface IWorkspacePickerTriggerElements {
+	readonly slot: HTMLElement;
 	icon?: HTMLElement;
 	label?: HTMLElement;
 	badge?: CountBadge;
@@ -467,7 +480,7 @@ export class WorkspacePicker extends Disposable {
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IHoverService private readonly hoverService: IHoverService,
+		@IHoverService _hoverService: IHoverService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IFileService private readonly fileService: IFileService,
@@ -607,7 +620,7 @@ export class WorkspacePicker extends Disposable {
 		return disposables;
 	}
 
-	renderCategoryTriggers(container: HTMLElement, triggers: readonly IWorkspacePickerTrigger[], label?: string): HTMLElement {
+	renderCategoryTriggers(container: HTMLElement, triggers: readonly IWorkspacePickerTrigger[], label?: string, hoverDelegate?: IHoverDelegate): HTMLElement {
 		this._renderDisposables.clear();
 		const row = dom.append(container, dom.$('.sessions-workspace-category-picker'));
 		this._renderDisposables.add({ dispose: () => row.remove() });
@@ -618,7 +631,7 @@ export class WorkspacePicker extends Disposable {
 		for (const options of triggers) {
 			const slot = dom.append(row, dom.$('.sessions-chat-picker-slot.sessions-workspace-category-picker-slot'));
 			slot.classList.toggle('sessions-workspace-picker-trigger', options.reflectsWorkspace === true);
-			this._renderDisposables.add(this._addTrigger(slot, options));
+			this._renderDisposables.add(this._addTrigger(slot, options, hoverDelegate));
 		}
 		const platformObserver = this._renderDisposables.add(new dom.DisposableResizeObserver(
 			'WorkspacePicker.chatPetPlatforms',
@@ -640,17 +653,24 @@ export class WorkspacePicker extends Disposable {
 	 * Shared trigger-creation core for {@link render}. Wires up the click /
 	 * keyboard / touch handlers and the per-trigger lifecycle.
 	 */
-	private _addTrigger(slot: HTMLElement, options?: IWorkspacePickerTrigger): IDisposable {
+	private _addTrigger(slot: HTMLElement, options?: IWorkspacePickerTrigger, hoverDelegate?: IHoverDelegate): IDisposable {
 		const triggerDisposables = new DisposableStore();
 
-		const trigger = dom.append(slot, dom.$('a.action-label'));
+		const tooltip = options?.tooltip;
+		const getTooltip = typeof tooltip === 'function' ? () => {
+			const label = tooltip();
+			return options?.focusCommand?.enabled.get() ? this.keybindingService.appendKeybinding(label, options.focusCommand.id) : label;
+		} : undefined;
+		const { trigger, action } = createSessionPickerToolbar(triggerDisposables, slot, this.instantiationService,
+			options?.focusCommand?.id ?? 'sessions.workspacePicker', options?.ariaLabel ?? localize('workspacePicker.chooseWorkspace', "Choose Workspace"),
+			() => this.showPicker(false, trigger, options?.group, options?.attachesContext), hoverDelegate, getTooltip);
 		trigger.tabIndex = 0;
 		trigger.role = 'button';
 		trigger.setAttribute('aria-haspopup', 'listbox');
 		trigger.setAttribute('aria-expanded', 'false');
 
 		this._triggerElements.add(trigger);
-		const contents: IWorkspacePickerTriggerElements = {};
+		const contents: IWorkspacePickerTriggerElements = { slot };
 		this._triggerContents.set(trigger, contents);
 		if (options) {
 			this._triggerOptions.set(trigger, options);
@@ -660,6 +680,7 @@ export class WorkspacePicker extends Disposable {
 		if (options?.clearable) {
 			const clearButton = triggerDisposables.add(new Button(slot, {
 				...defaultButtonStyles,
+				hoverDelegate,
 				buttonBackground: undefined,
 				buttonHoverBackground: undefined,
 				buttonForeground: undefined,
@@ -669,14 +690,7 @@ export class WorkspacePicker extends Disposable {
 			clearButton.icon = Codicon.closeCompact;
 			const clearLabel = localize('workspacePicker.clearWorkspace', "Chat without a workspace");
 			clearButton.setAriaLabel(clearLabel);
-			triggerDisposables.add(this.hoverService.setupManagedHover({
-				delay: 0,
-				placement: 'element',
-				showHover: (options, focus) => this.hoverService.showInstantHover({
-					...options,
-					appearance: { ...options.appearance, skipFadeInAnimation: true },
-				}, focus),
-			}, clearButton.element, clearLabel));
+			clearButton.setTitle(clearLabel);
 			triggerDisposables.add(clearButton.onDidClick(() => {
 				this.clearSelection();
 				trigger.focus();
@@ -690,24 +704,20 @@ export class WorkspacePicker extends Disposable {
 		}
 		if (options?.tooltip) {
 			if (options.focusCommand) {
-				const tooltip = typeof options.tooltip === 'function' ? options.tooltip() : options.tooltip;
 				registerPickerKeybindingPresentation(
 					triggerDisposables,
 					trigger,
-					tooltip,
+					typeof options.tooltip === 'function' ? options.ariaLabel : options.tooltip,
 					options.focusCommand.id,
 					options.focusCommand.when,
 					options.focusCommand.enabled,
 					this.commandService,
 					this.contextMenuService,
-					this.hoverService,
+					action,
 					this.keybindingService,
 				);
-			} else {
-				const tooltip = options.tooltip;
-				triggerDisposables.add(typeof tooltip === 'function'
-					? this.hoverService.setupDelayedHover(trigger, () => ({ content: tooltip() }))
-					: this.hoverService.setupDelayedHover(trigger, { content: tooltip }));
+			} else if (typeof options.tooltip === 'string') {
+				action.tooltip = options.tooltip;
 			}
 		}
 		// Onboarding spotlight target — id is referenced by the "new session" tour
@@ -742,7 +752,7 @@ export class WorkspacePicker extends Disposable {
 			this.showPicker(false, trigger, options?.group, options?.attachesContext);
 		}));
 		triggerDisposables.add(dom.addDisposableListener(trigger, dom.EventType.KEY_DOWN, (e) => {
-			if (e.key === 'Enter' || e.key === ' ') {
+			if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown') {
 				dom.EventHelper.stop(e, true);
 				this.showPicker(false, trigger, options?.group, options?.attachesContext);
 			}
@@ -931,8 +941,8 @@ export class WorkspacePicker extends Disposable {
 		const showFilter = isConsolidatedWorkspacePicker
 			|| items.filter(i => i.kind === ActionListItemKind.Action).length > FILTER_THRESHOLD;
 		return showFilter
-			? { className: 'sessions-new-chat-picker-list', useFullHeight: true, showFilter: true, focusFilterOnOpen: isConsolidatedWorkspacePicker, filterPlaceholder: isConsolidatedWorkspacePicker ? localize('workspacePicker.filter', "Search") : undefined, submenuPointerIntent: isConsolidatedWorkspacePicker || undefined, submenuHoverDelay: isConsolidatedWorkspacePicker ? 0 : undefined, reserveSubmenuSpace: false, inlineDescription: true, showGroupTitleOnFirstItem: true, minWidth: pickerWidth, maxWidth: pickerWidth, hideDefaultKeybindingTooltip: true }
-			: { className: 'sessions-new-chat-picker-list', useFullHeight: true, submenuHoverDelay: isConsolidatedWorkspacePicker ? 0 : undefined, reserveSubmenuSpace: false, inlineDescription: true, showGroupTitleOnFirstItem: true, minWidth: pickerWidth, maxWidth: pickerWidth, hideDefaultKeybindingTooltip: true };
+			? { ...WORKSPACE_PICKER_LIST_OPTIONS, showFilter: true, focusFilterOnOpen: isConsolidatedWorkspacePicker, filterPlaceholder: isConsolidatedWorkspacePicker ? localize('workspacePicker.filter', "Search") : undefined, submenuPointerIntent: isConsolidatedWorkspacePicker || undefined, submenuHoverDelay: isConsolidatedWorkspacePicker ? 0 : undefined, minWidth: pickerWidth, maxWidth: pickerWidth }
+			: { ...WORKSPACE_PICKER_LIST_OPTIONS, submenuHoverDelay: isConsolidatedWorkspacePicker ? 0 : undefined, minWidth: pickerWidth, maxWidth: pickerWidth };
 	}
 
 	/**
@@ -1836,7 +1846,7 @@ export class WorkspacePicker extends Disposable {
 				: undefined;
 			items.push({
 				kind: ActionListItemKind.Action,
-				label: workspace.label,
+				label: environmentProvider ? this._getWorkspaceLabel(workspace, environmentProvider.id) : workspace.label,
 				description: workspace.description,
 				group: { title: '', icon },
 				disabled: this._isProviderUnavailable(providerId),
@@ -1888,11 +1898,12 @@ export class WorkspacePicker extends Disposable {
 					: action.label;
 			const isPromotedRemoteBrowseAction = useRemoteSubmenu && action.group === SESSION_WORKSPACE_GROUP_REMOTE;
 			const itemLabel = isPromotedRemoteBrowseAction ? action.description || actionLabel : actionLabel;
-			const browseDescription = isPromotedRemoteBrowseAction && action.description ? actionLabel : action.description;
 			const actionProvider = action.providerId ? this.sessionsProvidersService.getProvider(action.providerId) : undefined;
+			const redundantEnvironmentDescription = actionProvider && environment?.providerIds.includes(actionProvider.id) && action.description === actionProvider.label;
+			const browseDescription = isPromotedRemoteBrowseAction && action.description ? actionLabel : redundantEnvironmentDescription ? undefined : action.description;
 			const hostDescription = actionProvider && isAgentHostProvider(actionProvider) ? actionProvider.hostDescription?.get() : undefined;
 			const itemDescription = hostDescription
-				? localize('workspacePicker.browseHostDescription', "{0} · {1}", browseDescription ?? actionLabel, hostDescription)
+				? redundantEnvironmentDescription ? hostDescription : localize('workspacePicker.browseHostDescription', "{0} · {1}", browseDescription ?? actionLabel, hostDescription)
 				: browseDescription;
 			const isUnavailable = this._isProviderUnavailable(action.providerId);
 			const isRepositoryAction = action.group === SESSION_WORKSPACE_GROUP_GITHUB && action.attachesContext !== true;
@@ -2213,7 +2224,7 @@ export class WorkspacePicker extends Disposable {
 			const workspace = noWorkspaceSelected ? undefined : this._selectedResolved?.workspace;
 			const clearable = reflectsWorkspace && options.clearable?.get() === true;
 			const canClear = clearable && workspace !== undefined;
-			trigger.parentElement?.classList.toggle('workspace-clearable', canClear);
+			contents.slot.classList.toggle('workspace-clearable', canClear);
 			if (contents.clearButton) {
 				contents.clearButton.element.hidden = !canClear;
 			}
@@ -2242,7 +2253,7 @@ export class WorkspacePicker extends Disposable {
 			const hideForMissingWorkspace = workspace === undefined && options.hideWhenNoWorkspaceSelected === true;
 			const hideForMissingGitHubRepository = options.hideWhenNoGitHubRepository === true
 				&& this._getCurrentRepositoryId() === undefined;
-			trigger.parentElement?.toggleAttribute('hidden', hideForSelectedWorkspace || hideForMissingWorkspace || hideForMissingGitHubRepository);
+			contents.slot.toggleAttribute('hidden', hideForSelectedWorkspace || hideForMissingWorkspace || hideForMissingGitHubRepository);
 			trigger.classList.toggle('selected', noWorkspaceSelected || (reflectsWorkspace && workspace !== undefined) || isSelectedCategory || badgeCount > 0 || relatedGitHubInfo !== undefined);
 			const workspaceIcon = workspace ? this._getWorkspaceIcon(workspace) : undefined;
 			const icon = noWorkspaceSelected
@@ -2265,9 +2276,9 @@ export class WorkspacePicker extends Disposable {
 			const label = noWorkspaceSelected
 				? this._getSelectedNoWorkspaceLabel()
 				: (reflectsWorkspace && workspace
-					? this._getWorkspaceLabel(workspace)
+					? this._getWorkspaceLabel(workspace, this._selectedResolved?.providerId)
 					: undefined)
-				?? (relatedGitHubInfo ? `${relatedGitHubInfo.owner}/${relatedGitHubInfo.repo}` : (isSelectedCategory && workspace ? workspace.label : emptyLabel));
+				?? (relatedGitHubInfo ? `${relatedGitHubInfo.owner}/${relatedGitHubInfo.repo}` : (isSelectedCategory && workspace ? this._getWorkspaceLabel(workspace, this._selectedResolved?.providerId) : emptyLabel));
 			trigger.setAttribute('aria-label', badgeCount > 0
 				? localize('workspacePicker.attachedContextCountAriaLabel', "{0}, {1} attached", options.ariaLabel, badgeCount)
 				: label && label !== emptyLabel
@@ -2301,7 +2312,7 @@ export class WorkspacePicker extends Disposable {
 		const workspace = noWorkspaceSelected ? undefined : this._selectedResolved?.workspace;
 		const label = noWorkspaceSelected
 			? this._getSelectedNoWorkspaceLabel()
-			: workspace ? this._getWorkspaceLabel(workspace) : localize('pickWorkspace', "workspace");
+			: workspace ? this._getWorkspaceLabel(workspace, this._selectedResolved?.providerId) : localize('pickWorkspace', "workspace");
 		const icon = noWorkspaceSelected ? Codicon.commentDiscussion : workspace?.icon ?? Codicon.project;
 
 		trigger.setAttribute('aria-label', noWorkspaceSelected
@@ -2316,7 +2327,11 @@ export class WorkspacePicker extends Disposable {
 		dom.append(trigger, renderIcon(Codicon.chevronDownCompact)).classList.add('sessions-chat-dropdown-chevron');
 	}
 
-	private _getWorkspaceLabel(workspace: ISessionWorkspace): string {
+	private _getWorkspaceLabel(workspace: ISessionWorkspace, providerId: string | undefined): string {
+		const environment = this.options.environment?.get();
+		if (environment && providerId && environment.providerIds.includes(providerId) && !workspace.isVirtualWorkspace) {
+			return workspace.folders[0]?.name ?? workspace.label;
+		}
 		return !this.options.environment?.get() && this._selectedDevContainerFolderUri && this.uriIdentityService.extUri.isEqual(this._selectedDevContainerFolderUri, workspace.folders[0]?.root)
 			? localize('workspacePicker.devContainer.label', "{0} - Dev Container", workspace.label)
 			: workspace.label;

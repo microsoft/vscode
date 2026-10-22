@@ -4,12 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
+import { StandardMouseEvent } from '../../../../../../base/browser/mouseEvent.js';
 import { ButtonWithIcon } from '../../../../../../base/browser/ui/button/button.js';
-import { toAction } from '../../../../../../base/common/actions.js';
+import { Separator, toAction } from '../../../../../../base/common/actions.js';
 import { equals } from '../../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { StringSHA1 } from '../../../../../../base/common/hash.js';
+import { KeyCode, KeyMod } from '../../../../../../base/common/keyCodes.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable, IReader, ISettableObservable, observableSignal, observableSignalFromEvent } from '../../../../../../base/common/observable.js';
 import { getComparisonKey, isEqual } from '../../../../../../base/common/resources.js';
@@ -23,12 +26,15 @@ import { WorkbenchButtonBar } from '../../../../../../platform/actions/browser/b
 import { getActionBarActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 import { chatEditingWidgetFileStateContextKey, IEditSessionEntryDiff, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
+import { IChatSessionReviewPreferencesService } from '../../../common/editing/chatSessionReviewPreferences.js';
 import { getChatFileChangeLineCounts, IChangesSummaryFileList, openChatFileChangeDiff, renderChangesSummaryFileList } from '../chatContentParts/chatChangesSummaryPart.js';
 import { openChatFileChanges } from '../../editorChatResponseFileChangesService.js';
 
@@ -93,12 +99,15 @@ export class ChatSessionWorkingSet extends Disposable {
 		private readonly _diffs: IObservable<readonly IEditSessionEntryDiff[]>,
 		collapsed: ISettableObservable<boolean>,
 		private readonly _fileActions: IChatSessionWorkingSetFileActions,
+		focusInput: () => void,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 		@IMenuService menuService: IMenuService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IChatSessionReviewPreferencesService private readonly _reviewPreferences: IChatSessionReviewPreferencesService,
 	) {
 		super();
 		const scopedContextKeyService = this._register(contextKeyService.createScoped(this.domNode));
@@ -106,6 +115,7 @@ export class ChatSessionWorkingSet extends Disposable {
 		// Every listed file has changes to keep or undo, like the modified files of the editing session's working set.
 		chatEditingWidgetFileStateContextKey.bindTo(scopedContextKeyService).set(ModifiedFileEntryState.Modified);
 		const keepEnabledKey = ChatContextKeys.sessionWorkingSetKeepEnabled.bindTo(scopedContextKeyService);
+		const reviewEnabledKey = ChatContextKeys.sessionWorkingSetReviewEnabled.bindTo(scopedContextKeyService);
 		const hasUndoKey = ChatContextKeys.sessionWorkingSetHasUndo.bindTo(scopedContextKeyService);
 		const undoEnabledKey = ChatContextKeys.sessionWorkingSetUndoEnabled.bindTo(scopedContextKeyService);
 		this._register(autorun(reader => {
@@ -114,8 +124,9 @@ export class ChatSessionWorkingSet extends Disposable {
 			const undoEnabled = !!sessionUndo?.enabled.read(reader);
 			scopedContextKeyService.bufferChangeEvents(() => {
 				keepEnabledKey.set(keepEnabled);
+				reviewEnabledKey.set(this._reviewPreferences.keepUndoEnabled.read(reader));
 				hasUndoKey.set(!!sessionUndo);
-				undoEnabledKey.set(undoEnabled);
+				undoEnabledKey.set(undoEnabled && this._reviewPreferences.keepUndoEnabled.read(reader));
 			});
 		}));
 		const scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])));
@@ -130,21 +141,68 @@ export class ChatSessionWorkingSet extends Disposable {
 		const actionsContainer = dom.append(overview, dom.$('.chat-editing-session-actions'));
 		const listContainer = dom.append(this.domNode, dom.$('.chat-editing-session-list'));
 
+		const showContextMenu = (anchor: HTMLElement | StandardMouseEvent) => {
+			const previousFocus = dom.getActiveElement();
+			contextMenuService.showContextMenu({
+				getAnchor: () => anchor,
+				getActions: () => [
+					toAction({
+						id: 'chat.sessionWorkingSet.toggleKeepUndo',
+						label: localize('chat.sessionWorkingSet.keepUndo', "Keep and Undo"),
+						checked: this.keepUndoEnabled,
+						run: () => this._reviewPreferences.setKeepUndoEnabled(!this.keepUndoEnabled),
+					}),
+					new Separator(),
+					toAction({
+						id: 'chat.sessionWorkingSet.showPill',
+						label: localize('chat.sessionWorkingSet.showPill', "Show Pill"),
+						run: async () => {
+							await configurationService.updateValue(ChatConfiguration.EditorWorkingSetEnabled, false);
+							focusInput();
+						},
+					}),
+				],
+				onHide: () => {
+					if (dom.isHTMLElement(previousFocus) && previousFocus.isConnected) {
+						previousFocus.focus();
+					} else if (this.domNode.isConnected) {
+						button.focus();
+					} else {
+						focusInput();
+					}
+				},
+			});
+		};
+		this._register(dom.addDisposableListener(this.domNode, dom.EventType.CONTEXT_MENU, event => {
+			dom.EventHelper.stop(event, true);
+			showContextMenu(new StandardMouseEvent(dom.getWindow(this.domNode), event));
+		}, true));
+		this._register(dom.addDisposableListener(this.domNode, dom.EventType.KEY_DOWN, event => {
+			const keyboardEvent = new StandardKeyboardEvent(event);
+			if (keyboardEvent.equals(KeyMod.Shift | KeyCode.F10) || keyboardEvent.equals(KeyCode.ContextMenu)) {
+				dom.EventHelper.stop(event, true);
+				const focused = dom.getActiveElement();
+				showContextMenu(dom.isHTMLElement(focused) ? focused : button.element);
+			}
+		}, true));
+
 		// Like the editing session's working set, Keep leads and View All Edits is an icon.
 		const buttonBar = this._register(scopedInstantiationService.createInstance(WorkbenchButtonBar, actionsContainer, {
 			small: true,
 			buttonConfigProvider: action => action.id === VIEW_ALL_EDITS_ACTION_ID ? { showIcon: true, showLabel: false, isSecondary: true } : undefined,
 		}));
 		this._register(autorun(reader => {
+			const keepUndoEnabled = this._reviewPreferences.keepUndoEnabled.read(reader);
 			const sessionUndo = this._fileActions.undo.read(reader);
+			const hadFocus = dom.isAncestorOfActiveElement(actionsContainer);
 			buttonBar.update([
-				toAction({
+				...(keepUndoEnabled ? [toAction({
 					id: 'chat.sessionWorkingSet.keepAll',
 					label: localize('chat.sessionWorkingSet.keep', "Keep"),
 					tooltip: localize('chat.sessionWorkingSet.keepAll', "Keep All Edits"),
 					run: () => this._keep(this._diffs.read(undefined), false),
-				}),
-				...(sessionUndo ? [toAction({
+				})] : []),
+				...(keepUndoEnabled && sessionUndo ? [toAction({
 					id: 'chat.sessionWorkingSet.undoAll',
 					label: localize('chat.sessionWorkingSet.undo', "Undo"),
 					tooltip: localize('chat.sessionWorkingSet.undoAll', "Undo All Edits"),
@@ -157,7 +215,10 @@ export class ChatSessionWorkingSet extends Disposable {
 					run: () => openChatFileChanges(this._editorService, localize('chat.sessionWorkingSet.changesEditor', "Session Changes"), this._diffs.read(undefined)),
 				}),
 			], []);
-			if (sessionUndo) {
+			if (hadFocus) {
+				button.focus();
+			}
+			if (keepUndoEnabled && sessionUndo) {
 				// Updating the button in place keeps keyboard focus on it.
 				const undoButton = buttonBar.buttons[1];
 				reader.store.add(autorun(enabledReader => {
@@ -165,7 +226,7 @@ export class ChatSessionWorkingSet extends Disposable {
 				}));
 			}
 			const keepEnabled = this._fileActions.keepEnabled;
-			if (keepEnabled) {
+			if (keepUndoEnabled && keepEnabled) {
 				const keepButton = buttonBar.buttons[0];
 				reader.store.add(autorun(enabledReader => {
 					keepButton.enabled = keepEnabled.read(enabledReader);
@@ -211,6 +272,10 @@ export class ChatSessionWorkingSet extends Disposable {
 		}));
 	}
 
+	get keepUndoEnabled(): boolean {
+		return this._reviewPreferences.keepUndoEnabled.get();
+	}
+
 	/** The files of the selected rows. */
 	get selectedResources(): URI[] {
 		return this._fileList.getSelectedElements().map(diff => diff.modifiedURI);
@@ -246,7 +311,7 @@ export class ChatSessionWorkingSet extends Disposable {
 	async undoFiles(resources: readonly URI[]): Promise<void> {
 		const sessionUndo = this._fileActions.undo.get();
 		const diffs = this._getDiffs(resources);
-		if (sessionUndo?.enabled.get() && diffs.length > 0) {
+		if (this.keepUndoEnabled && sessionUndo?.enabled.get() && diffs.length > 0) {
 			await this._undo(sessionUndo, diffs, false);
 		}
 	}
@@ -264,16 +329,22 @@ export class ChatSessionWorkingSet extends Disposable {
 	}
 
 	private _isKeepEnabled(reader: IReader | undefined): boolean {
-		return this._fileActions.keepEnabled?.read(reader) ?? true;
+		return this._reviewPreferences.keepUndoEnabled.read(reader) && (this._fileActions.keepEnabled?.read(reader) ?? true);
 	}
 
 	private async _keep(diffs: readonly IEditSessionEntryDiff[], automatic: boolean): Promise<void> {
+		if (!automatic && !this._isKeepEnabled(undefined)) {
+			return;
+		}
 		if (await this._fileActions.keep(diffs, automatic)) {
 			this._accessibilitySignalService.playSignal(AccessibilitySignal.editsKept, { allowManyInParallel: true });
 		}
 	}
 
 	private async _undo(sessionUndo: IChatSessionWorkingSetUndo, diffs: readonly IEditSessionEntryDiff[], all: boolean): Promise<void> {
+		if (!this.keepUndoEnabled || !sessionUndo.enabled.get()) {
+			return;
+		}
 		if (await sessionUndo.undo(diffs, all)) {
 			this._accessibilitySignalService.playSignal(AccessibilitySignal.editsUndone, { allowManyInParallel: true });
 		}

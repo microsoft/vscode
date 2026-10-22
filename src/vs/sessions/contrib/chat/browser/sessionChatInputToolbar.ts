@@ -25,14 +25,14 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { AgentHostAutoAttachPullRequestsConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
-import { ChatInputPills, StandardChatInputPillSources } from '../../../../workbench/contrib/chat/browser/chatInputPills.js';
+import { ChatInputPills, StandardChatInputPillSources, createChatInputPillSource, IChatInputPillSource } from '../../../../workbench/contrib/chat/browser/chatInputPills.js';
 import { createSessionPullRequestPillData, type IChatPullRequestPillEntry, type IChatPullRequestPillSection } from '../../../../workbench/contrib/chat/browser/sessionPullRequestPill.js';
 import { diffStatsEqual, EMPTY_DIFF_STATS, IDiffStats } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
 import { SessionArtifacts, sessionArtifactLocation } from './sessionArtifacts.js';
 import { SessionCustomizations } from '../../../../workbench/contrib/chat/browser/sessionCustomizations.js';
 import { localize } from '../../../../nls.js';
 import { CHAT_INPUT_PILLS_ROW_HEIGHT, chatPillCopyUrlHoverLabel, chatPillRemoveArtifactHoverLabel, getChatPillResourceLocation, getChatReferencePillPresentation, type ChatPillsCompactMode, type IChatPillEntry, type IChatPillSection, withChatPillHoverLabel } from '../../../../workbench/browser/chatPills.js';
-import { computeAggregateIssueIcon, computeIssueIcon, getPullRequestStatusFromIcon, GitHubCIOverallStatus, GitHubIssueState, OPEN_ISSUE_ACTION_ID, OPEN_PULL_REQUEST_ACTION_ID, type IGitHubIssue } from '../../github/common/types.js';
+import { computeAggregateIssueIcon, computeIssueIcon, getPullRequestStatusFromIcon, GitHubCIOverallStatus, GitHubIssueState, OPEN_ISSUE_ACTION_ID, OPEN_PULL_REQUEST_ACTION_ID, OPEN_PULL_REQUEST_CHANGES_ACTION_ID, type IGitHubIssue } from '../../github/common/types.js';
 import { getSessionGitHubReferences } from '../../github/common/sessionGitHubReferences.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { IResolvedSessionPullRequest, SessionPullRequestPresentationModel } from '../../github/browser/pullRequestIconStatus.js';
@@ -49,16 +49,19 @@ import { SessionBrowsersControl } from './sessionBrowsersControl.js';
 import type { ISessionChatPillsDebugData } from './sessionChatInputToolbarDebug.js';
 import { SessionActivatingActionRunner } from '../../../browser/sessionActionRunner.js';
 import { computePullRequestIcon } from '../../../../workbench/common/chatPullRequest.js';
-import { ISessionChangesStatsCache, readChatChangesStats } from '../../../services/sessions/common/sessionChangesStatsCache.js';
+import { ISessionChangesStatsCache, readChatChangesStats, readLoadedChatChangesStats } from '../../../services/sessions/common/sessionChangesStatsCache.js';
 import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { SessionCanvasesControl } from '../../canvases/browser/sessionCanvasesControl.js';
 import { createIssueHover, getIssueStatus } from '../../github/browser/issueHover.js';
 import { createPullRequestHover, getPullRequestChecksStatusLabel } from '../../github/browser/pullRequestHover.js';
+import { ArtifactDetailsContextView } from './artifactDetailsContextView.js';
+import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ChatPillHoverCache, createChatPillHover } from '../../../../workbench/browser/chatPillHover.js';
 
 const copiedLabel = localize('sessionChatPills.copied', "Copied");
 const copiedToClipboardStatus = localize('sessionChatPills.copiedToClipboard', "Copied to clipboard");
+const openChangesHoverLabel = localize('sessionChatPills.openChanges', "Open Changes");
 const copyFeedbackDuration = 1200;
 
 /** Fake artifacts for the pill debug overlay. */
@@ -150,7 +153,17 @@ export function buildSessionPullRequestSections(pullRequests: readonly IResolved
 				class: ThemeIcon.asClassName(Codicon.close),
 				run: () => artifactActions.remove?.([recordedReferenceId], resourceLabel),
 			}), chatPillRemoveArtifactHoverLabel) : undefined,
-			toolbarActions: [withChatPillHoverLabel(createCopyAction?.(
+			toolbarActions: [withChatPillHoverLabel(toAction({
+				id: `sessionChatPills.openPullRequestChanges.${ref.owner.toLowerCase()}.${ref.repo.toLowerCase()}.${ref.number}`,
+				label: localize('sessionChatPills.openPullRequestChanges', "Open Pull Request Changes"),
+				class: ThemeIcon.asClassName(Codicon.diffMultiple),
+				run: () => {
+					if (session) {
+						sessionsService.setActive(session);
+					}
+					return commandService.executeCommand(OPEN_PULL_REQUEST_CHANGES_ACTION_ID, { pullRequest: ref });
+				},
+			}), openChangesHoverLabel), withChatPillHoverLabel(createCopyAction?.(
 				`${ref.owner.toLowerCase()}/${ref.repo.toLowerCase()}/${ref.number}`,
 				localize('sessionChatPills.copyPullRequest', "Copy pull request URL"),
 				() => clipboardService.writeText(ref.uri.toString(true)),
@@ -272,6 +285,25 @@ export function computeSessionInputPillStats(session: IActiveSession | undefined
 	return (isMainChat && session ? changesStatsCache?.get(session.sessionId, reader) : undefined) ?? EMPTY_DIFF_STATS;
 }
 
+/**
+ * The focused chat's changes counts the shared Changes pill reports, or `undefined`
+ * while they are not known yet: before the chat reports its changes, while the
+ * represented changeset loads, or while the session's worktree is being created.
+ * Unlike {@link computeSessionInputPillStats}, this never falls back to cached stats.
+ */
+export function readLoadedSessionInputPillStats(session: IActiveSession | undefined, chat: IChat | undefined, reader: IReader): IDiffStats | undefined {
+	if (session?.worktreePending?.read(reader)) {
+		return undefined;
+	}
+	const workspace = chat?.workspace?.read(reader);
+	const stats = chat && workspace ? readLoadedChatChangesStats(chat, reader, getChangesPillChangesetId(workspace, isNestedChat(session, chat, reader), session)) : undefined;
+	// Providers that only summarize the session report its main chat's file list empty until it resolves.
+	if (stats?.files === 0 && chat && !chat.changesSummary && !isNestedChat(session, chat, reader) && (session?.changesSummary?.read(reader)?.files ?? 0) > 0) {
+		return undefined;
+	}
+	return stats;
+}
+
 /** Whether `chat` is one of the session's nested chats rather than its main chat. */
 function isNestedChat(session: IActiveSession | undefined, chat: IChat | undefined, reader: IReader | undefined): boolean {
 	const mainChat = session?.mainChat?.read(reader);
@@ -357,6 +389,7 @@ export class SessionChatInputToolbar extends Disposable {
 	readonly onDidChangeChatPetPlatform: Event<void>;
 	readonly onDidChangeVisibility: Event<boolean>;
 	private readonly _inputPills: ChatInputPills;
+	private _inputElement: HTMLElement | undefined;
 
 	/** Sentinel distinguishing "no override" from an explicit `undefined` session. */
 	private readonly _sessionOverride = observableValue<IActiveSession | undefined | 'unset'>(this, 'unset');
@@ -416,6 +449,7 @@ export class SessionChatInputToolbar extends Disposable {
 		@IOpenerService openerService: IOpenerService,
 		@ISessionChatPillVisibilityService visibility: ISessionChatPillVisibilityService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IChatEntitlementService entitlementService: IChatEntitlementService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super();
@@ -445,7 +479,8 @@ export class SessionChatInputToolbar extends Disposable {
 
 		// The browsers pill already offers the pages it lists, so the artifacts and
 		// references pills leave those websites out.
-		const sessionArtifacts = this._register(instantiationService.createInstance(SessionArtifacts, this._session, this._chat, this._browsers.urls, gitHubReferences));
+		const detailsHost = this._register(instantiationService.createInstance(ArtifactDetailsContextView, () => this._inputElement ?? this.element, () => this.element, focusFallback));
+		const sessionArtifacts = this._register(instantiationService.createInstance(SessionArtifacts, this._session, this._chat, this._browsers.urls, gitHubReferences, detailsHost));
 		this._artifactSections = derived(this, reader => {
 			const debugData = this._debugData.read(reader);
 			return debugData ? buildDebugArtifactSections(debugData) : sessionArtifacts.sections.read(reader);
@@ -529,6 +564,34 @@ export class SessionChatInputToolbar extends Disposable {
 			}
 			return computeAggregateIssueIcon(resolved.map(({ issue }) => issue));
 		});
+		const plainPullRequestSections = derived(this, reader => pullRequestSections.read(reader)
+			.map(section => ({ ...section, entries: section.entries.filter(entry => !sessionArtifacts.hasIntegration(entry.id, reader)) })));
+		const plainIssueSections = derived(this, reader => issueSections.read(reader)
+			.map(section => ({ ...section, entries: section.entries.filter(entry => !sessionArtifacts.hasIntegration(entry.id, reader)) })));
+		const integratedSources = derived(this, reader => {
+			if (this._debugData.read(reader) || entitlementService.sentimentObs.read(reader).hidden) {
+				return [];
+			}
+			const pullRequests = new Map(pullRequestSections.read(reader).flatMap(section => section.entries.map(entry => [entry.id, entry] as const)));
+			const issues = new Map(issueSections.read(reader).flatMap(section => section.entries.map(entry => [entry.id, entry] as const)));
+			const artifacts = this._session.read(reader)?.artifacts?.read(reader) ?? [];
+			return sessionArtifacts.integratedEntries.read(reader).flatMap((entry): IChatInputPillSource[] => {
+				const preferredEntry = pullRequests.get(entry.id) ?? issues.get(entry.id);
+				const decorated = preferredEntry ? sessionArtifacts.decorateEntry(preferredEntry, reader) : entry;
+				if (!decorated.inlinePill) {
+					return [];
+				}
+				const kind = pullRequests.has(entry.id) ? SessionChatPillKind.PullRequests : issues.has(entry.id) ? SessionChatPillKind.Issues
+					: artifacts.find(artifact => artifact.id === entry.id)?.isArtifact ? SessionChatPillKind.Artifacts : SessionChatPillKind.References;
+				return [{
+					...createChatInputPillSource(decorated.inlinePill, kind),
+					isVisible: kind === SessionChatPillKind.PullRequests
+						? constObservable(visibility.pullRequests.isVisible(getPullRequestStatusFromIcon(decorated.icon) ?? pullRequests.get(entry.id)?.pullRequestState, reader))
+						: undefined,
+					getContextMenuPrimaryActions: () => decorated.promotedAction ? [decorated.promotedAction] : [],
+				}];
+			});
+		});
 		const changesLabel = derived(this, reader => {
 			const session = this._session.read(reader);
 			if (isNestedChat(session, this._chat.read(reader), reader) || isCloudSandboxSession(session)) {
@@ -560,10 +623,11 @@ export class SessionChatInputToolbar extends Disposable {
 					});
 				},
 			},
-			pullRequests: createSessionPullRequestPillData(pullRequestSections, visibility.pullRequests, pullRequestPresentation.icon),
+			pullRequests: createSessionPullRequestPillData(plainPullRequestSections, visibility.pullRequests, pullRequestPresentation.icon),
 			issues: {
-				sections: issueSections,
+				sections: plainIssueSections,
 				icon: issueIcon,
+
 			},
 			artifacts: { sections: this._artifactSections },
 			references: { sections: this._referenceSections },
@@ -578,7 +642,7 @@ export class SessionChatInputToolbar extends Disposable {
 			debugName: 'SessionChatInputToolbar.content',
 			compact,
 			enabled: pillsVisible,
-			sources: constObservable(sources.sources),
+			sources: derived(reader => sources.sources.flatMap(source => source.kind === SessionChatPillKind.Artifacts ? [...integratedSources.read(reader), source] : [source])),
 			offeredKinds: SESSION_CHAT_PILL_KINDS,
 			context: this._session,
 			actionRunner,
@@ -592,6 +656,10 @@ export class SessionChatInputToolbar extends Disposable {
 
 	get visible(): boolean {
 		return this._inputPills.visible;
+	}
+
+	setInputElement(element: HTMLElement | undefined): void {
+		this._inputElement = element;
 	}
 
 	getChatPetPlatformElements(): readonly HTMLElement[] {
