@@ -59,6 +59,10 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		return this._missionControl?.environmentId;
 	}
 
+	async getMissionControlEnvironmentName(): Promise<string | undefined> {
+		return this._missionControl?.environmentName;
+	}
+
 	createSessionWithExtensions(config: IAgentCreateSessionConfig): Promise<URI> {
 		return this._runMutation(() => this._agentService.createSession({ ...config, legacyChatUris: undefined }));
 	}

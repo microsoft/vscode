@@ -884,6 +884,7 @@ export interface IAgentHostManagementService {
 	configureMissionControl(options: IMissionControlOptions | undefined, withdrawingAccountId?: string): Promise<void>;
 	sealMissionControlCredential(request: IMissionControlCredentialSealingRequest): Promise<string>;
 	getMissionControlEnvironmentId(): Promise<string | undefined>;
+	getMissionControlEnvironmentName(): Promise<string | undefined>;
 
 	/**
 	 * Local-only compatibility path for session fields not yet represented by
@@ -1543,6 +1544,7 @@ export interface IAgentHostService extends IAgentConnection {
 	configureMissionControl?(options: IMissionControlOptions | undefined, withdrawingAccountId?: string): Promise<void>;
 	sealMissionControlCredential?(request: IMissionControlCredentialSealingRequest): Promise<string>;
 	getMissionControlEnvironmentId?(): Promise<string | undefined>;
+	getMissionControlEnvironmentName?(): Promise<string | undefined>;
 	/**
 	 * Whether {@link createSession} can seed `importConversation` history. AHP
 	 * cannot carry it, so only the local native Agent Host management connection
