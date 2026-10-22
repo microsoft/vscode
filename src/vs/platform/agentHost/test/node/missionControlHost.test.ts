@@ -853,12 +853,21 @@ suite('Mission Control host integration', () => {
 				detail: 'queuedFrames=508; inFlightFrames=4; attemptedFrames=1',
 			});
 		}
+		for (const detail of [undefined, '']) {
+			options.onPublishDiagnostic!({
+				operationId: '', phase: 'relayPublish', timestamp: 0, outcome: 'failed', failure: 'socketFailure', detail,
+			});
+		}
 		assert.deepStrictEqual({
 			info: info.args, warnings: warn.args,
 			heartbeatTelemetry: events.filter(event => event.eventName === 'agentHost.missionControlOperation'),
 		}, {
 			info: [['[AgentHost] Mission Control heartbeat response; environmentId=environment; advertisedStatus=online; httpStatus=200']],
-			warnings: [['[AgentHost] Mission Control publish failed; reason=queueLimit; queuedFrames=508; inFlightFrames=4; attemptedFrames=1']],
+			warnings: [
+				['[AgentHost] Mission Control publish failed; reason=queueLimit; queuedFrames=508; inFlightFrames=4; attemptedFrames=1'],
+				['[AgentHost] Mission Control publish failed; reason=socketFailure'],
+				['[AgentHost] Mission Control publish failed; reason=socketFailure'],
+			],
 			heartbeatTelemetry: [],
 		});
 	});

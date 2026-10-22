@@ -106,7 +106,7 @@ class MissionControlLane extends Disposable implements IProtocolTransport {
 	private readonly _earlyMessages: ProtocolMessage[] = [];
 	private readonly _resourceRequests = new Set<number | string>();
 	private _inFlightResourceRequests = 0;
-	private readonly _queuedResourceRequests: { readonly message: ProtocolMessage; readonly id: number | string; readonly bytes: number }[] = [];
+	private readonly _queuedResourceRequests: { readonly message: ProtocolMessage; readonly bytes: number }[] = [];
 	private _queuedResourceRequestBytes = 0;
 	private _resourceDrainScheduled = false;
 	readonly generation = newConnectionGeneration();
@@ -177,7 +177,7 @@ class MissionControlLane extends Disposable implements IProtocolTransport {
 	private _dispatch(message: ProtocolMessage): void {
 		if (hasKey(message, { id: true, method: true })
 			&& (message.method === 'resourceRead' || message.method === 'resourceResolve' || message.method === 'resourceList')) {
-			if (this._resourceRequests.has(message.id) || this._queuedResourceRequests.some(request => request.id === message.id)) {
+			if (this._resourceRequests.has(message.id)) {
 				this.dispose();
 				throw new Error('Mission Control resource request ID is already pending');
 			}
@@ -187,7 +187,8 @@ class MissionControlLane extends Disposable implements IProtocolTransport {
 					this.dispose();
 					throw new Error('Mission Control resource request backlog exceeded its limit');
 				}
-				this._queuedResourceRequests.push({ message, id: message.id, bytes });
+				this._resourceRequests.add(message.id);
+				this._queuedResourceRequests.push({ message, bytes });
 				this._queuedResourceRequestBytes += bytes;
 				return;
 			}
@@ -211,7 +212,6 @@ class MissionControlLane extends Disposable implements IProtocolTransport {
 			while (!this._closed && this._inFlightResourceRequests < maxInFlightPublishes && this._queuedResourceRequests.length > 0) {
 				const request = this._queuedResourceRequests.shift()!;
 				this._queuedResourceRequestBytes -= request.bytes;
-				this._resourceRequests.add(request.id);
 				this._inFlightResourceRequests++;
 				this._onMessage.fire(request.message);
 			}

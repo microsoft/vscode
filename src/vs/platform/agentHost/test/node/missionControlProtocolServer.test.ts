@@ -1066,6 +1066,46 @@ suite('Mission Control WPS', () => {
 			});
 		});
 
+		for (const id of [65, 'queued-resource']) {
+			test(`rejects duplicate queued resource IDs: ${id}`, async () => {
+				const f = await fixture();
+				f.open();
+				const deliver = (id: number | string) => f.deliver(`${prefix}.client.client-a.to-host`, {
+					kind: 'message', data: { jsonrpc: '2.0', id, method: 'resourceRead', params: { channel: ROOT_STATE_URI, uri: 'file:///workspace' } },
+				});
+				for (let id = 1; id <= 64; id++) {
+					deliver(id);
+				}
+				deliver(id);
+				const admitted = f.received.length;
+				deliver(id);
+				assert.deepStrictEqual({ admitted, received: f.received.length, errors: f.errors }, {
+					admitted: 64, received: 64, errors: ['Mission Control resource request ID is already pending'],
+				});
+			});
+		}
+
+		test('releases a queued resource ID after its admitted response is sent', async () => {
+			const f = await fixture();
+			const lane = f.open();
+			const deliver = (id: number) => f.deliver(`${prefix}.client.client-a.to-host`, {
+				kind: 'message', data: { jsonrpc: '2.0', id, method: 'resourceRead', params: { channel: ROOT_STATE_URI, uri: 'file:///workspace' } },
+			});
+			for (let id = 1; id <= 65; id++) {
+				deliver(id);
+			}
+			lane.send(response(1));
+			f.drain();
+			await Promise.resolve();
+			lane.send(response(65));
+			deliver(65);
+			f.drain();
+			await Promise.resolve();
+			assert.deepStrictEqual({
+				received: f.received.map(message => hasKey(message, { id: true }) ? message.id : undefined), errors: f.errors,
+			}, { received: [...Array.from({ length: 65 }, (_, index) => index + 1), 65], errors: [] });
+		});
+
 		test('retains mirror backpressure credit until the in-flight event is acknowledged', async () => {
 			const f = await fixture();
 			const event = {

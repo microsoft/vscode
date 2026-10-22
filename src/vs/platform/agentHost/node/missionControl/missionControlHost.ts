@@ -321,7 +321,7 @@ export class MissionControlHost extends Disposable {
 				if (event.phase === 'relayPublish' && event.outcome === 'succeeded') {
 					this._logService.trace(`[AgentHost] Mission Control publish ${event.detail}; durationMs=${event.durationMs}`);
 				} else if (event.phase === 'relayPublish' && event.outcome === 'failed' && event.failure !== 'mirrorBackpressure') {
-					this._logService.warn(`[AgentHost] Mission Control publish failed; reason=${event.failure}; ${event.detail ?? ''}`);
+					this._logService.warn(`[AgentHost] Mission Control publish failed; reason=${event.failure}${event.detail ? `; ${event.detail}` : ''}`);
 				}
 			},
 			getSessionCount: () => this._agentService.getSessionCount(),
