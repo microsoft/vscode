@@ -11171,7 +11171,8 @@ export class CopilotAgentSession extends Disposable {
 		if (update) {
 			this._emitFusionProgress(update);
 		}
-		if (event.type === 'assistant.fusion_phase_completed' || event.type === 'assistant.fusion_phase_failed') {
+		// `accept` drops repeated phase records and records for a finished workflow, so report only phases it accepted.
+		if (update?.phase && (event.type === 'assistant.fusion_phase_completed' || event.type === 'assistant.fusion_phase_failed')) {
 			reportCopilotFusionPhase(this._telemetryService, event, {
 				syntheticModel: this._fusionProgress.syntheticModel,
 				pattern: this._fusionProgress.getPattern(event.data.fusionId),
