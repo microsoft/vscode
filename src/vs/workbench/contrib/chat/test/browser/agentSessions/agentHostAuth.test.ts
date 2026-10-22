@@ -38,7 +38,7 @@ import { IAuthenticationMcpUsageService } from '../../../../../services/authenti
 import { IAuthenticationService, type AuthenticationSession, type IAuthenticationProvider, type IAuthenticationProviderSessionOptions } from '../../../../../services/authentication/common/authentication.js';
 import { IDynamicAuthenticationProviderStorageService } from '../../../../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
 import { CHAT_SETUP_ACTION_ID } from '../../../browser/actions/chatActions.js';
-import { AgentHostAuthenticationRecovery, authenticateCopilotConnectorCredential, autoAuthenticateMcpServer, authenticateProtectedResources, resolveAuthenticationInteractively, resolveSessionForResource, AgentHostAuthTokenCache, agentHostMcpServerId, resolveMcpServerAuthentication, modelRequiresAgentAuthentication, revokeAuthenticationForRemovedSessions, type IAgentHostAuthenticationOptions, type IAgentHostAuthenticateRequest, AgentHostInteractiveAuthentication } from '../../../browser/agentSessions/agentHost/agentHostAuth.js';
+import { AgentHostAuthenticationRecovery, authenticateCopilotConnectorCredential, autoAuthenticateMcpServer, authenticateProtectedResources, resolveAuthenticationInteractively, resolveSessionForResource, AgentHostAuthTokenCache, agentHostMcpServerId, resolveMcpServerAuthentication, modelRequiresAgentAuthentication, revokeAuthenticationForRemovedSessions, selectAuthenticationSession, type AuthenticationSessionSelection, type IAgentHostAuthenticationOptions, type IAgentHostAuthenticateRequest, AgentHostInteractiveAuthentication } from '../../../browser/agentSessions/agentHost/agentHostAuth.js';
 import { createAgentModelByokMeta } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 
 const mcpAuthenticationTarget: McpServerAuthenticateTarget = {
@@ -227,6 +227,40 @@ suite('resolveSessionForResource', () => {
 		))?.accessToken;
 		assert.strictEqual(token, 'server2-token');
 		assert.strictEqual(calls.length, 2);
+	});
+});
+
+suite('selectAuthenticationSession', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const session = (id: string, accountId: string, scopes: readonly string[]): AuthenticationSession => ({ id, accessToken: `${id}-token`, account: { id: accountId, label: accountId }, scopes });
+	const aBroad = session('a-broad', 'a', ['read', 'write']);
+	const aRead = session('a-read', 'a', ['read']);
+	const aOther = session('a-other', 'a', ['user:email']);
+	const bRead = session('b-read', 'b', ['read']);
+
+	test('selects by account preference and sole-account fallback', () => {
+		const select = (sessions: readonly AuthenticationSession[], accountId?: string, fallbackToSoleAccount = false) =>
+			selectAuthenticationSession(sessions, ['read'], accountId === undefined && !fallbackToSoleAccount ? undefined : { accountId, fallbackToSoleAccount });
+		const summarize = (selection: AuthenticationSessionSelection) => selection.kind === 'selected' ? `${selection.session.id}:${selection.match}` : selection.kind;
+		assert.deepStrictEqual({
+			narrowestWithoutPreference: summarize(select([aBroad, bRead, aRead])),
+			preferredAccount: summarize(select([bRead, aBroad, aRead], 'a')),
+			preferredAccountSuperset: summarize(select([bRead, aBroad], 'a')),
+			strictPreferenceDoesNotFallBack: summarize(select([bRead, aOther], 'a')),
+			fallbackWithOtherAccountsIsMismatch: summarize(select([bRead, aOther], 'a', true)),
+			fallbackToSoleAccount: summarize(select([bRead], undefined, true)),
+			soleAccountWithoutScopes: summarize(select([aOther], 'a', true)),
+		}, {
+			narrowestWithoutPreference: 'b-read:exact',
+			preferredAccount: 'a-read:exact',
+			preferredAccountSuperset: 'a-broad:superset',
+			strictPreferenceDoesNotFallBack: 'none',
+			fallbackWithOtherAccountsIsMismatch: 'accountMismatch',
+			fallbackToSoleAccount: 'b-read:exact',
+			soleAccountWithoutScopes: 'none',
+		});
 	});
 });
 
@@ -2136,6 +2170,68 @@ suite('authenticateProtectedResources', () => {
 			token: 'provider-token',
 			_meta: authenticationAccountMeta({ providerId: 'example-provider', accountId: 'account' }),
 		}]);
+	});
+
+	test('follows the default account across account switches and sign-in', async () => {
+		const accountA = { id: 'account-a', label: 'A' };
+		const accountB = { id: 'account-b', label: 'B' };
+		const aDefault: AuthenticationSession = { id: 'a-default', scopes: ['user:email'], accessToken: 'a-default-token', account: accountA };
+		const aRead: AuthenticationSession = { id: 'a-read', scopes: ['read'], accessToken: 'a-read-token', account: accountA };
+		const bRead: AuthenticationSession = { id: 'b-read', scopes: ['read'], accessToken: 'b-read-token', account: accountB };
+		let sessions: readonly AuthenticationSession[] = [bRead, aDefault, aRead];
+		let defaultProvider = 'github';
+		const authentication = createMockAuthService({
+			getOrActivateProviderIdForServer: async () => 'github',
+			getSessions: async (_providerId, scopes) => scopes
+				? sessions.filter(session => scopes.every(scope => session.scopes.includes(scope)))
+				: sessions,
+		});
+		const commandService = new TestCommandService();
+		commandService.onExecute = () => { sessions = [...sessions, aRead]; };
+		const instantiationService = createAuthInstantiationService(disposables, authentication, commandService);
+		instantiationService.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
+			override get currentDefaultAccount(): IDefaultAccount {
+				return { sessionId: aDefault.id, accountName: 'A', enterprise: false, authenticationProvider: { id: defaultProvider, name: 'GitHub', enterprise: false } };
+			}
+		}());
+		const agents = [new class extends mock<AgentInfo>() {
+			override readonly protectedResources = [protectedResource];
+		}()];
+		const tokens: string[] = [];
+		const options: IAgentHostAuthenticationOptions = {
+			logPrefix: '[Test]',
+			authTokenCache: new AgentHostAuthTokenCache(),
+			authenticate: async request => { tokens.push(request.token); },
+		};
+		const steps: Record<string, string[]> = {};
+		const step = async (name: string, run: () => Promise<unknown>) => {
+			tokens.length = 0;
+			await run();
+			steps[name] = [...tokens];
+		};
+
+		await step('default account preferred over earlier account', () => instantiationService.invokeFunction(authenticateProtectedResources, agents, options));
+		defaultProvider = 'other';
+		await step('default account of another provider is ignored', () => instantiationService.invokeFunction(authenticateProtectedResources, agents, options));
+		defaultProvider = 'github';
+		sessions = [bRead, aDefault];
+		await step('default account lacking scopes revokes the other account', () => instantiationService.invokeFunction(authenticateProtectedResources, agents, options));
+		await step('revocation is not repeated', () => instantiationService.invokeFunction(authenticateProtectedResources, agents, options));
+		await step('interactive sign-in forwards the default account', () => instantiationService.invokeFunction(resolveAuthenticationInteractively, [protectedResource], options));
+		sessions = [bRead];
+		await step('sole signed-in account is used when default session is gone', () => instantiationService.invokeFunction(authenticateProtectedResources, agents, options));
+
+		assert.deepStrictEqual({ steps, prompts: commandService.calls.length }, {
+			steps: {
+				'default account preferred over earlier account': ['a-read-token'],
+				'default account of another provider is ignored': ['b-read-token'],
+				'default account lacking scopes revokes the other account': [''],
+				'revocation is not repeated': [],
+				'interactive sign-in forwards the default account': ['a-read-token'],
+				'sole signed-in account is used when default session is gone': ['b-read-token'],
+			},
+			prompts: 1,
+		});
 	});
 
 	for (const defaultSession of ['session', 'connector-session']) {

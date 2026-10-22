@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { fetchAuthorizationServerMetadata } from '../../../../../../base/common/oauth.js';
+import { compareBy, numberComparator } from '../../../../../../base/common/arrays.js';
+import { findFirstMin } from '../../../../../../base/common/arraysFind.js';
 import { SequencerByKey } from '../../../../../../base/common/async.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { match } from '../../../../../../base/common/glob.js';
@@ -200,7 +202,8 @@ export class AgentHostAuthTokenCache {
 
 type AuthenticationSessionResolution =
 	| { readonly kind: 'resolved'; readonly providerId: string; readonly session: AuthenticationSession; readonly match: 'exact' | 'superset'; readonly entitlementSessionId?: string }
-	| { readonly kind: 'signedOut' }
+	/** `accountMismatch` is set when the preferred account cannot satisfy the resource but other accounts are signed in. */
+	| { readonly kind: 'signedOut'; readonly accountMismatch?: true }
 	| { readonly kind: 'unavailable'; readonly reason: 'provider' | 'sessions' };
 
 interface RejectedAuthenticationSession {
@@ -215,6 +218,49 @@ function isSameAuthenticationSession(session: AuthenticationSession, rejectedSes
 
 function isAuthenticationSessionCandidate(session: AuthenticationSession, rejectedSession: RejectedAuthenticationSession | null): boolean {
 	return rejectedSession === null || (session.account.id === rejectedSession.accountId && !isSameAuthenticationSession(session, rejectedSession));
+}
+
+export type AuthenticationSessionSelection =
+	| { readonly kind: 'selected'; readonly session: AuthenticationSession; readonly match: 'exact' | 'superset' }
+	| { readonly kind: 'none' }
+	| { readonly kind: 'accountMismatch' };
+
+export interface IAuthenticationAccountPreference {
+	/** The preferred account, or `undefined` when its session is no longer signed in. */
+	readonly accountId: string | undefined;
+	/** Whether another account may be used when it is the only signed-in account. */
+	readonly fallbackToSoleAccount: boolean;
+}
+
+/**
+ * Selects the session that grants every requested scope with the fewest extra scopes. With a
+ * preference, only the preferred account's sessions qualify. When that account cannot satisfy the
+ * scopes, another account is chosen only if the preference allows falling back and it is the sole
+ * signed-in account; otherwise using it would override the user's choice of account.
+ */
+export function selectAuthenticationSession(
+	sessions: readonly AuthenticationSession[],
+	requestedScopes: readonly string[],
+	preference?: IAuthenticationAccountPreference,
+): AuthenticationSessionSelection {
+	const selected = selectNarrowestSession(preference ? sessions.filter(session => session.account.id === preference.accountId) : sessions, requestedScopes);
+	if (selected || !preference?.fallbackToSoleAccount) {
+		return selected ?? { kind: 'none' };
+	}
+	if (new Set(sessions.map(session => session.account.id)).size > 1) {
+		return { kind: 'accountMismatch' };
+	}
+	return selectNarrowestSession(sessions, requestedScopes) ?? { kind: 'none' };
+}
+
+function selectNarrowestSession(sessions: readonly AuthenticationSession[], requestedScopes: readonly string[]): Extract<AuthenticationSessionSelection, { kind: 'selected' }> | undefined {
+	const supersets = sessions.filter(session => requestedScopes.every(scope => session.scopes.includes(scope)));
+	const session = findFirstMin(supersets, compareBy(candidate => new Set(candidate.scopes).size, numberComparator));
+	return session && {
+		kind: 'selected',
+		session,
+		match: new Set(session.scopes).size === new Set(requestedScopes).size ? 'exact' : 'superset',
+	};
 }
 
 /**
@@ -389,9 +435,11 @@ async function resolveAuthenticationSessionForResource(
 	logPrefix: string,
 	rejectedSession: RejectedAuthenticationSession | null = null,
 	preferredSessionId?: string,
+	defaultAccount?: IDefaultAccount | null,
 ): Promise<AuthenticationSessionResolution> {
 	let hasUnavailableProvider = false;
 	let hasLoadingProvider = false;
+	let accountMismatch = false;
 	const requestedSet = new Set(scopes);
 	for (const server of authorizationServers) {
 		const serverUri = URI.parse(server);
@@ -420,25 +468,30 @@ async function resolveAuthenticationSessionForResource(
 		}
 		logService.trace(`${logPrefix} Resolved auth provider '${providerId}' for server: ${server}`);
 
-		let sessions: readonly AuthenticationSession[];
-		try {
-			// Try exact scope match first
-			sessions = await authenticationService.getSessions(providerId, [...scopes], { authorizationServer: serverUri }, true);
-		} catch (error) {
-			hasUnavailableProvider = true;
-			hasLoadingProvider ||= !authenticationService.isAuthenticationProviderRegistered(providerId);
-			logService.trace(`${logPrefix} Authentication provider '${providerId}' is not ready to resolve sessions for server: ${server}`, error);
-			continue;
-		}
-		const exactSession = sessions.find(session => isAuthenticationSessionCandidate(session, rejectedSession) &&
-			(!preferredSessionId || session.id === preferredSessionId));
-		if (exactSession) {
-			return {
-				kind: 'resolved',
-				providerId,
-				session: exactSession,
-				match: exactSession.scopes.every(scope => requestedSet.has(scope)) ? 'exact' : 'superset',
-			};
+		// The default account (chosen via account preferences) decides which of the provider's accounts
+		// to use. An explicit preferred session takes precedence.
+		const defaultAccountSessionId = !preferredSessionId && defaultAccount?.authenticationProvider.id === providerId ? defaultAccount.sessionId : undefined;
+		if (!defaultAccountSessionId) {
+			let sessions: readonly AuthenticationSession[];
+			try {
+				// Try exact scope match first
+				sessions = await authenticationService.getSessions(providerId, [...scopes], { authorizationServer: serverUri }, true);
+			} catch (error) {
+				hasUnavailableProvider = true;
+				hasLoadingProvider ||= !authenticationService.isAuthenticationProviderRegistered(providerId);
+				logService.trace(`${logPrefix} Authentication provider '${providerId}' is not ready to resolve sessions for server: ${server}`, error);
+				continue;
+			}
+			const exactSession = sessions.find(session => isAuthenticationSessionCandidate(session, rejectedSession) &&
+				(!preferredSessionId || session.id === preferredSessionId));
+			if (exactSession) {
+				return {
+					kind: 'resolved',
+					providerId,
+					session: exactSession,
+					match: exactSession.scopes.every(scope => requestedSet.has(scope)) ? 'exact' : 'superset',
+				};
+			}
 		}
 
 		let allSessions: readonly AuthenticationSession[];
@@ -451,41 +504,36 @@ async function resolveAuthenticationSessionForResource(
 			logService.trace(`${logPrefix} Authentication provider '${providerId}' is not ready to resolve sessions for server: ${server}`, error);
 			continue;
 		}
-		const preferredAccountId = preferredSessionId
-			? allSessions.find(session => session.id === preferredSessionId)?.account.id
+		const preferredAccountSessionId = preferredSessionId ?? defaultAccountSessionId;
+		const preferredAccountId = preferredAccountSessionId
+			? allSessions.find(session => session.id === preferredAccountSessionId)?.account.id
 			: undefined;
 		if (preferredSessionId && !preferredAccountId) {
 			logService.trace(`${logPrefix} Preferred authentication session '${preferredSessionId}' is unavailable for server: ${server}`);
 			continue;
 		}
-		let bestSession: AuthenticationSession | undefined;
-		let bestExtraScopes = Infinity;
-		for (const session of allSessions) {
-			if (!isAuthenticationSessionCandidate(session, rejectedSession) ||
-				preferredAccountId && session.account.id !== preferredAccountId) {
-				continue;
-			}
-			const sessionScopes = new Set(session.scopes);
-			let isSuperset = true;
-			for (const scope of requestedSet) {
-				if (!sessionScopes.has(scope)) {
-					isSuperset = false;
-					break;
-				}
-			}
-			if (isSuperset) {
-				const extraScopes = sessionScopes.size - requestedSet.size;
-				if (extraScopes < bestExtraScopes) {
-					bestExtraScopes = extraScopes;
-					bestSession = session;
-				}
-			}
+		const selection = selectAuthenticationSession(
+			allSessions.filter(session => isAuthenticationSessionCandidate(session, rejectedSession)),
+			scopes,
+			preferredAccountSessionId ? { accountId: preferredAccountId, fallbackToSoleAccount: defaultAccountSessionId !== undefined } : undefined,
+		);
+		if (selection.kind === 'selected') {
+			// Another session of the default account still carries the default account's entitlement.
+			const isOtherDefaultAccountSession = defaultAccountSessionId !== undefined && selection.session.account.id === preferredAccountId && selection.session.id !== defaultAccountSessionId;
+			return {
+				kind: 'resolved', providerId, session: selection.session, match: selection.match,
+				...(isOtherDefaultAccountSession ? { entitlementSessionId: defaultAccountSessionId } : {}),
+			};
 		}
-		if (bestSession) {
-			return { kind: 'resolved', providerId, session: bestSession, match: bestExtraScopes === 0 ? 'exact' : 'superset' };
+		if (selection.kind === 'accountMismatch') {
+			accountMismatch = true;
+			logService.trace(`${logPrefix} Default account cannot satisfy ${resourceServer.toString(true)} and other accounts are signed in for server: ${server}`);
 		}
 	}
-	return hasUnavailableProvider ? { kind: 'unavailable', reason: hasLoadingProvider ? 'provider' : 'sessions' } : { kind: 'signedOut' };
+	if (hasUnavailableProvider) {
+		return { kind: 'unavailable', reason: hasLoadingProvider ? 'provider' : 'sessions' };
+	}
+	return accountMismatch ? { kind: 'signedOut', accountMismatch: true } : { kind: 'signedOut' };
 }
 
 export interface IAgentHostAuthenticateRequest {
@@ -512,11 +560,11 @@ export interface IAgentHostAuthenticationOptions {
 
 interface IResolvedAgentHostAuthenticationOptions extends IAgentHostAuthenticationOptions {
 	readonly preferConnectorScopedSession: boolean;
-	readonly getDefaultAccount: () => IDefaultAccount | null;
+	readonly defaultAccountService: IDefaultAccountService;
 }
 
 interface IAgentHostAuthenticationForwardingOptions extends Pick<IAgentHostAuthenticationOptions, 'authTokenCache' | 'authenticate' | 'isCurrent'> {
-	readonly getDefaultAccount?: () => IDefaultAccount | null;
+	readonly defaultAccountService?: IDefaultAccountService;
 	readonly target?: AuthenticateTarget;
 }
 
@@ -529,11 +577,10 @@ interface IForwardedAuthenticationSession {
 }
 
 function resolveAuthenticationOptions(accessor: ServicesAccessor, options: IAgentHostAuthenticationOptions): IResolvedAgentHostAuthenticationOptions {
-	const defaultAccountService = accessor.get(IDefaultAccountService);
 	return {
 		...options,
 		preferConnectorScopedSession: accessor.get(IConfigurationService).getValue<boolean>(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled) === true,
-		getDefaultAccount: () => defaultAccountService.currentDefaultAccount,
+		defaultAccountService: accessor.get(IDefaultAccountService),
 	};
 }
 
@@ -576,7 +623,7 @@ async function forwardAuthenticationToken(
 		throw new CancellationError();
 	}
 	const request = {
-		...toAuthenticateRequest(resource, scopes, session, providerId, options.getDefaultAccount?.(), entitlementSessionId),
+		...toAuthenticateRequest(resource, scopes, session, providerId, options.defaultAccountService?.currentDefaultAccount, entitlementSessionId),
 		...(options.target ? { target: options.target } : {}),
 	};
 	if (options.authTokenCache) {
@@ -631,6 +678,7 @@ export async function resolveProtectedResourceAuthentication(
 	const resolution = await resolveSessionForProtectedResource(accessor.get(IAuthenticationService), logService, resource, {
 		logPrefix,
 		preferConnectorScopedSession: accessor.get(IConfigurationService).getValue<boolean>(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled) === true,
+		defaultAccountService,
 	});
 	if (resolution.kind === 'unavailable') {
 		if (resolution.reason === 'provider') {
@@ -814,6 +862,13 @@ async function authenticateProtectedResourceWithServices(
 	throwIfAuthenticationStale(options);
 	const resolution = await resolveSessionForProtectedResource(authenticationService, logService, resource, options);
 	throwIfAuthenticationStale(options);
+	if (resolution.kind === 'signedOut' && resolution.accountMismatch) {
+		// A credential forwarded for another account must not outlive the user's switch away from it.
+		if (await forwardAuthenticationToken(options, resource.resource, resource.scopes_supported ?? [], undefined)) {
+			logService.info(`${options.logPrefix} Clearing authentication for resource the default account cannot satisfy: ${resource.resource}`);
+		}
+		return false;
+	}
 	if (resolution.kind !== 'resolved') {
 		logAuthenticationSessionResolution(logService, options.logPrefix, resource.resource, resolution);
 		return false;
@@ -835,7 +890,7 @@ async function resolveSessionForProtectedResource(
 	authenticationService: IAuthenticationService,
 	logService: ILogService,
 	resource: ProtectedResourceMetadata,
-	options: Pick<IResolvedAgentHostAuthenticationOptions, 'logPrefix' | 'authTokenCache' | 'preferredSessionId' | 'preferConnectorScopedSession'>,
+	options: Pick<IResolvedAgentHostAuthenticationOptions, 'logPrefix' | 'authTokenCache' | 'preferredSessionId' | 'preferConnectorScopedSession' | 'defaultAccountService'>,
 	rejectedSession: RejectedAuthenticationSession | null = options.authTokenCache?.getRejectedSession(resource.resource, resource.scopes_supported) ?? null,
 ): Promise<AuthenticationSessionResolution> {
 	const resolution = await resolveAuthenticationSessionForResource(
@@ -847,6 +902,7 @@ async function resolveSessionForProtectedResource(
 		options.logPrefix,
 		rejectedSession,
 		options.preferredSessionId,
+		options.defaultAccountService.currentDefaultAccount,
 	);
 	if (!options.preferConnectorScopedSession || resource.resource !== deriveGitHubEndpoints(undefined).apiBaseUri ||
 		resolution.kind !== 'resolved' || resolution.session.scopes.includes(copilotConnectorsScope)) {
@@ -872,7 +928,7 @@ async function resolveSessionForProtectedResource(
 	}
 	return preferred === resolution.session ? resolution : {
 		kind: 'resolved', providerId: resolution.providerId, session: preferred, match: 'superset',
-		...(isEqual(preferred.authorizationServer, resolution.session.authorizationServer) ? { entitlementSessionId: resolution.session.id } : {}),
+		...(isEqual(preferred.authorizationServer, resolution.session.authorizationServer) ? { entitlementSessionId: resolution.entitlementSessionId ?? resolution.session.id } : {}),
 	};
 }
 
@@ -907,7 +963,7 @@ export class AgentHostInteractiveAuthentication {
 		await forceAuthenticationInteractively(this.authenticationService, this.commandService, this.logService, this.telemetryService, resource, {
 			...options,
 			preferConnectorScopedSession: this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled) === true,
-			getDefaultAccount: () => this.defaultAccountService.currentDefaultAccount,
+			defaultAccountService: this.defaultAccountService,
 		}, 'hostChallenge');
 	}
 }
