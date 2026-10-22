@@ -490,14 +490,14 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		return super.createNewChat(chatId, prompt, options);
 	}
 
-	override async resolveNestedChatFolder(sessionId: string, folder: URI, token: CancellationToken): Promise<INestedChatFolderInfo> {
+	override async resolveNestedChatFolder(sessionId: string, chat: URI, folder: URI, token: CancellationToken): Promise<INestedChatFolderInfo> {
 		await this._ensureDevContainerConnection();
-		return super.resolveNestedChatFolder(sessionId, folder, token);
+		return super.resolveNestedChatFolder(sessionId, chat, folder, token);
 	}
 
-	override async getNestedChatBranches(sessionId: string, folder: URI, query: string, token: CancellationToken): Promise<readonly string[]> {
+	override async getNestedChatBranches(sessionId: string, chat: URI, folder: URI, query: string, token: CancellationToken): Promise<readonly string[]> {
 		await this._ensureDevContainerConnection();
-		return super.getNestedChatBranches(sessionId, folder, query, token);
+		return super.getNestedChatBranches(sessionId, chat, folder, query, token);
 	}
 
 	override async applyNestedChatWorkspace(sessionId: string, chat: URI, workspace: INestedChatWorkspace, prompt: string): Promise<void> {

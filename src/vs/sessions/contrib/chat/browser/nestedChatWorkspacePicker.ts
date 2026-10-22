@@ -73,6 +73,11 @@ export function getNestedChatFolderOptions(support: INestedChatWorkspaceSupport,
 	return { choices, browseActions: support.browseActions, openFolder: sources.canOpenLocalFolder };
 }
 
+/** Whether `choice` is one the support offers: any folder or "No workspace" with multiple folders, otherwise only the default. */
+export function isNestedChatFolderOffered(support: INestedChatWorkspaceSupport, choice: NestedChatFolderChoice): boolean {
+	return support.multipleFolders || isSameNestedChatFolder(choice, getDefaultNestedChatFolder(support));
+}
+
 export function isSameNestedChatFolder(a: NestedChatFolderChoice, b: NestedChatFolderChoice): boolean {
 	return a.kind === 'scratch' ? b.kind === 'scratch' : b.kind === 'folder' && isEqual(a.folder, b.folder);
 }
@@ -170,7 +175,22 @@ export class NestedChatWorkspaceControls extends Disposable {
 		this._select(support ? getDefaultNestedChatFolder(support) : undefined);
 	}
 
-	private _select(choice: NestedChatFolderChoice | undefined): void {
+	/**
+	 * Re-reads the facts of the chosen folder, e.g. after the new chat's agent changed. A choice the current
+	 * support no longer offers goes back to the session's default (its folder, without a worktree); otherwise
+	 * the worktree choice and branch are kept where the folder still supports them.
+	 */
+	refresh(): void {
+		const support = this._host.support.get();
+		const folder = this._folder.get();
+		if (!support || !folder || !isNestedChatFolderOffered(support, folder)) {
+			this.reset();
+			return;
+		}
+		this._select(folder, { worktree: this._worktree.get(), branch: this._branch.get() });
+	}
+
+	private _select(choice: NestedChatFolderChoice | undefined, keep?: { readonly worktree: boolean; readonly branch: string | undefined }): void {
 		const store = new DisposableStore();
 		this._resolve.value = store;
 		transaction(tx => {
@@ -192,7 +212,8 @@ export class NestedChatWorkspaceControls extends Disposable {
 			}
 			transaction(tx => {
 				this._folderInfo.set(info, tx);
-				this._branch.set(info.defaultBranch, tx);
+				this._worktree.set(!!keep?.worktree && info.supportsWorktree, tx);
+				this._branch.set(keep?.worktree && info.supportsWorktree ? keep.branch ?? info.defaultBranch : info.defaultBranch, tx);
 			});
 		}, error => {
 			if (!cts.token.isCancellationRequested) {

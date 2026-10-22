@@ -7677,22 +7677,24 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return this._createAdditionalChat(chatId, connection, options?.harness);
 	}
 
-	getNestedChatWorkspaceSupport(sessionId: string, reader: IReader | undefined): INestedChatWorkspaceSupport | undefined {
+	getNestedChatWorkspaceSupport(sessionId: string, chat: URI, reader: IReader | undefined): INestedChatWorkspaceSupport | undefined {
 		const cached = this._getNestedChatWorkspaceSession(sessionId, reader);
-		if (!cached) {
+		const provider = cached && this._getNestedChatAgent(cached, chat, reader);
+		if (!cached || !provider) {
 			return undefined;
 		}
 		const { sessionFolder, folders } = cached.getNestedChatFolders(reader);
 		return {
 			sessionFolder,
 			sessionFolders: folders,
-			multipleFolders: !!this._agentCapabilities.read(reader)?.get(cached.agentProvider)?.multipleWorkingDirectories,
+			// The chat's own agent decides whether it may work in folders of its own.
+			multipleFolders: !!this._agentCapabilities.read(reader)?.get(provider)?.multipleWorkingDirectories,
 			browseActions: this.browseActions,
 		};
 	}
 
-	async resolveNestedChatFolder(sessionId: string, folder: URI, token: CancellationToken): Promise<INestedChatFolderInfo> {
-		const { schema, values } = await this._resolveNestedChatFolderConfig(sessionId, folder, token);
+	async resolveNestedChatFolder(sessionId: string, chat: URI, folder: URI, token: CancellationToken): Promise<INestedChatFolderInfo> {
+		const { schema, values } = await this._resolveNestedChatFolderConfig(sessionId, chat, folder, token);
 		const { isolation, baseBranch } = getSessionWorkspaceProperties(schema);
 		const defaultBranch = baseBranch ? values[baseBranch.key] ?? baseBranch.schema.default : undefined;
 		return {
@@ -7701,8 +7703,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		};
 	}
 
-	async getNestedChatBranches(sessionId: string, folder: URI, query: string, token: CancellationToken): Promise<readonly string[]> {
-		const { connection, provider, schema, values } = await this._resolveNestedChatFolderConfig(sessionId, folder, token);
+	async getNestedChatBranches(sessionId: string, chat: URI, folder: URI, query: string, token: CancellationToken): Promise<readonly string[]> {
+		const { connection, provider, schema, values } = await this._resolveNestedChatFolderConfig(sessionId, chat, folder, token);
 		const baseBranch = getSessionWorkspaceProperties(schema).baseBranch;
 		if (!baseBranch) {
 			return [];
@@ -7723,7 +7725,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	async applyNestedChatWorkspace(sessionId: string, chat: URI, workspace: INestedChatWorkspace, prompt: string): Promise<void> {
 		this._assertSessionAvailable(sessionId);
-		const support = this.getNestedChatWorkspaceSupport(sessionId, undefined);
+		const support = this.getNestedChatWorkspaceSupport(sessionId, chat, undefined);
 		const cached = this._getNestedChatWorkspaceSession(sessionId, undefined);
 		const connection = this.connection;
 		if (!support || !cached || !connection || !isNestedChatWorkspaceAllowed(support, workspace)) {
@@ -7768,14 +7770,25 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return cached;
 	}
 
-	/** Resolves the agent's default configuration for a new chat in `folder`, as a new session draft does. */
-	private async _resolveNestedChatFolderConfig(sessionId: string, folder: URI, token: CancellationToken): Promise<ResolveSessionConfigResult & { readonly connection: IAgentConnection; readonly provider: string }> {
+	/**
+	 * The agent backing `chat`, a new nested chat of `cached`: its own for a chat using another harness, otherwise
+	 * the session's. `undefined` when enterprise policy disables that agent.
+	 */
+	private _getNestedChatAgent(cached: AgentHostSessionAdapter, chat: URI, reader: IReader | undefined): string | undefined {
+		// The chat's agent is known once the session's catalog lists it.
+		cached.chats.read(reader);
+		const provider = cached.getChatAgentProvider(chat);
+		return this._isAgentDisabledByPolicy(provider) ? undefined : provider;
+	}
+
+	/** Resolves the default configuration of `chat`'s agent for a new chat in `folder`, as a new session draft does. */
+	private async _resolveNestedChatFolderConfig(sessionId: string, chat: URI, folder: URI, token: CancellationToken): Promise<ResolveSessionConfigResult & { readonly connection: IAgentConnection; readonly provider: string }> {
 		const cached = this._getNestedChatWorkspaceSession(sessionId, undefined);
+		const provider = cached && this._getNestedChatAgent(cached, chat, undefined);
 		const connection = this.connection;
-		if (!cached || !connection) {
+		if (!cached || !provider || !connection) {
 			throw NestedChatWorkspaceError.notSupported();
 		}
-		const provider = cached.agentProvider;
 		const result = await raceCancellationError(connection.resolveSessionConfig({ provider, workingDirectory: folder, config: undefined }), token);
 		return { ...result, connection, provider };
 	}

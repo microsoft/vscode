@@ -165,6 +165,45 @@ suite('Sessions - New Nested Session composer', () => {
 		assert.deepStrictEqual({ unsupported, resolves }, { unsupported: { resolves: 0, workspace: undefined }, resolves: 1 });
 	});
 
+	test('refresh re-reads the chosen folder for the new agent, and falls back to the session folder when the choice is no longer offered', async () => {
+		const value = observableValue<INestedChatWorkspaceSupport | undefined>('support', support(repo));
+		let resolves = 0;
+		let info: INestedChatFolderInfo = git;
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IActionWidgetService, { isVisible: false, hide: () => { } } as Partial<IActionWidgetService>);
+		instantiationService.stub(ILabelService, { getUriBasenameLabel: (uri: URI) => uri.path.split('/').pop() ?? '' } as Partial<ILabelService>);
+		const controls = store.add(instantiationService.createInstance(NestedChatWorkspaceControls, {
+			support: value,
+			resolveFolder: async () => { resolves++; return info; },
+			getBranches: async () => [],
+			getFolderSources: () => ({ recentFolders: [], canOpenLocalFolder: false }),
+			openLocalFolder: async () => undefined,
+		}));
+		const settle = () => new Promise(resolve => setTimeout(resolve, 0));
+		const h = { controls, pick: (folder: URI) => Reflect.get(controls, '_select').call(controls, { kind: 'folder', folder }) };
+		await settle();
+		h.pick(other);
+		await settle();
+		const resolvesBefore = resolves;
+
+		// The new agent still offers other folders, but this one has no worktrees for it.
+		info = { supportsWorktree: false, defaultBranch: undefined };
+		controls.refresh();
+		await settle();
+		const reread = { workspace: controls.getWorkspace(), resolves: resolves - resolvesBefore };
+
+		// The new agent works only in the session folder.
+		value.set(support(repo, false), undefined);
+		controls.refresh();
+		await settle();
+
+		assert.deepStrictEqual({ reread, fallback: controls.getWorkspace() }, {
+			reread: { workspace: { kind: 'folder', folder: other, isolation: 'folder' }, resolves: 1 },
+			// The default: the session folder without a worktree, which needs no request.
+			fallback: undefined,
+		});
+	});
+
 	suite('send', () => {
 
 		type Send = (query: string, attachments?: undefined, background?: boolean, userInteraction?: never) => Promise<boolean>;

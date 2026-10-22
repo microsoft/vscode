@@ -55,6 +55,11 @@ export function getUnsentPeerChat(session: IActiveSession | undefined, reader: I
 	return !isEqual(chat.resource, session.mainChat.read(reader).resource) && chat.status.read(reader) === SessionStatus.Untitled ? chat : undefined;
 }
 
+/** The chat the composer creates: its unsent peer draft, or the main chat (on the session's agent) until one exists. */
+function getNewChatResource(session: IActiveSession, reader: IReader | undefined): URI {
+	return (getUnsentPeerChat(session, reader) ?? session.mainChat.read(reader)).resource;
+}
+
 /**
  * A widget for composing a secondary chat within an existing session.
  * Reuses the new-session composer input. There is no harness (session type) or environment
@@ -119,12 +124,18 @@ export class NewChatInSessionWidget extends Disposable {
 			}
 			session.workspace.read(reader);
 			session.capabilities.read(reader);
-			return this.sessionsProvidersService.getProvider(session.providerId)?.getNestedChatWorkspaceSupport(session.sessionId, reader);
+			return this.sessionsProvidersService.getProvider(session.providerId)?.getNestedChatWorkspaceSupport(session.sessionId, getNewChatResource(session, reader), reader);
 		});
 		this._workspaceControls = this._register(this.instantiationService.createInstance(NestedChatWorkspaceControls, {
 			support: this._workspaceSupport,
-			resolveFolder: (folder, token) => this._requireProvider().resolveNestedChatFolder(this._requireSession().sessionId, folder, token),
-			getBranches: (folder, token) => this._requireProvider().getNestedChatBranches(this._requireSession().sessionId, folder, '', token),
+			resolveFolder: (folder, token) => {
+				const session = this._requireSession();
+				return this._requireProvider().resolveNestedChatFolder(session.sessionId, getNewChatResource(session, undefined), folder, token);
+			},
+			getBranches: (folder, token) => {
+				const session = this._requireSession();
+				return this._requireProvider().getNestedChatBranches(session.sessionId, getNewChatResource(session, undefined), folder, '', token);
+			},
 			getFolderSources: () => this._getFolderSources(),
 			openLocalFolder: async () => (await this.fileDialogService.showOpenDialog({ canSelectFolders: true, canSelectFiles: false, canSelectMany: false }))?.[0],
 		}));
@@ -137,6 +148,17 @@ export class NewChatInSessionWidget extends Disposable {
 				lastSessionId = sessionId;
 				this._workspaceControls.reset();
 			}
+		}));
+		// A harness switch replaces the draft with one of another agent: re-read what that agent allows and the
+		// folder's facts for it, keeping the user's choice where it still applies.
+		let lastChat = this._session.get() && getNewChatResource(this._session.get()!, undefined);
+		this._register(autorun(reader => {
+			const session = this._session.read(reader);
+			const chat = session && getNewChatResource(session, reader);
+			if (session?.sessionId === lastSessionId && chat && lastChat && !isEqual(chat, lastChat)) {
+				this._workspaceControls.refresh();
+			}
+			lastChat = chat;
 		}));
 
 		const canSendRequest = derived(reader => {

@@ -13229,8 +13229,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 				return session;
 			}
 
-			function describeSupport(provider: ReturnType<typeof createProvider>, sessionId: string) {
-				const support = provider.getNestedChatWorkspaceSupport(sessionId, undefined);
+			function describeSupport(provider: ReturnType<typeof createProvider>, session: ISession) {
+				const support = provider.getNestedChatWorkspaceSupport(session.sessionId, session.mainChat.get().resource, undefined);
 				return support && {
 					sessionFolder: support.sessionFolder?.toString(),
 					sessionFolders: support.sessionFolders.map(folder => folder.toString()),
@@ -13247,7 +13247,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				const error = await provider.applyNestedChatWorkspace(session.sessionId, peer.resource, { kind: 'folder', folder: repo, isolation: 'folder' }, 'Fix the bug').then(() => undefined, e => e);
 
 				assert.deepStrictEqual({
-					support: provider.getNestedChatWorkspaceSupport(session.sessionId, undefined),
+					support: provider.getNestedChatWorkspaceSupport(session.sessionId, peer.resource, undefined),
 					error: error instanceof NestedChatWorkspaceError ? error.kind : error,
 					requests: agentHost.chatWorkspaceRequests.length,
 				}, {
@@ -13261,7 +13261,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				const provider = createProvider(disposables, agentHost);
 				const session = setupWorkspaceSession(provider, 'nested-reactive');
 				const support = derived(reader => {
-					const value = provider.getNestedChatWorkspaceSupport(session.sessionId, reader);
+					const value = provider.getNestedChatWorkspaceSupport(session.sessionId, session.mainChat.read(reader).resource, reader);
 					return value && { multipleFolders: value.multipleFolders, sessionFolders: value.sessionFolders.map(folder => folder.toString()) };
 				});
 				const observed: unknown[] = [];
@@ -13305,8 +13305,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 				fireSessionSummaryChanged(agentHost, 'nested-wl', { workingDirectories: quickDirectories, _meta: quickMeta });
 
 				assert.deepStrictEqual({
-					workspace: describeSupport(provider, workspaceSession.sessionId),
-					workspaceless: describeSupport(provider, quickSession.sessionId),
+					workspace: describeSupport(provider, workspaceSession),
+					workspaceless: describeSupport(provider, quickSession),
 				}, {
 					workspace: { sessionFolder: repo.toString(), sessionFolders: [repo.toString(), other.toString()], multipleFolders: true, browseActions: true },
 					workspaceless: { sessionFolder: undefined, sessionFolders: [other.toString()], multipleFolders: true, browseActions: true },
@@ -13332,7 +13332,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				], { defaultChat: quickDefault, meta: quickMeta, workingDirectories: quickDirectories }));
 				fireSessionSummaryChanged(agentHost, 'nested-wl-primary', { workingDirectories: quickDirectories, _meta: quickMeta });
 
-				assert.deepStrictEqual(describeSupport(provider, quickSession.sessionId), { sessionFolder: undefined, sessionFolders: [other.toString()], multipleFolders: true, browseActions: true });
+				assert.deepStrictEqual(describeSupport(provider, quickSession), { sessionFolder: undefined, sessionFolders: [other.toString()], multipleFolders: true, browseActions: true });
 			}));
 
 			test('a single-folder agent may only give a nested chat the session folder', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -13350,7 +13350,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				};
 
 				assert.deepStrictEqual({
-					multipleFolders: provider.getNestedChatWorkspaceSupport(session.sessionId, undefined)?.multipleFolders,
+					multipleFolders: provider.getNestedChatWorkspaceSupport(session.sessionId, chat.resource, undefined)?.multipleFolders,
 					sessionFolder: await outcome({ kind: 'folder', folder: repo, isolation: 'folder' }),
 					sessionFolderWorktree: await outcome({ kind: 'folder', folder: repo, isolation: 'worktree', baseBranch: 'main' }),
 					otherFolder: await outcome({ kind: 'folder', folder: other, isolation: 'folder' }),
@@ -13450,10 +13450,11 @@ suite('LocalAgentHostSessionsProvider', () => {
 				agentHost.resolveSessionConfigResult = { schema: createVSCodeSessionConfigSchema(), values: { isolation: 'worktree', branch: 'develop' } };
 				agentHost.branchCompletionItems = [{ value: 'feature/a', label: 'feature/a' }];
 
-				const info = await provider.resolveNestedChatFolder(session.sessionId, other, CancellationToken.None);
-				const branches = await provider.getNestedChatBranches(session.sessionId, other, 'feat', CancellationToken.None);
+				const chat = session.mainChat.get().resource;
+				const info = await provider.resolveNestedChatFolder(session.sessionId, chat, other, CancellationToken.None);
+				const branches = await provider.getNestedChatBranches(session.sessionId, chat, other, 'feat', CancellationToken.None);
 				agentHost.resolveSessionConfigResult = { schema: createVSCodeSessionConfigSchema({ isolation: { type: 'string', title: 'Isolation', enum: ['folder'], default: 'folder', sessionMutable: false } }), values: {} };
-				const folderOnly = await provider.resolveNestedChatFolder(session.sessionId, other, CancellationToken.None);
+				const folderOnly = await provider.resolveNestedChatFolder(session.sessionId, chat, other, CancellationToken.None);
 
 				assert.deepStrictEqual({
 					info,
@@ -13468,6 +13469,78 @@ suite('LocalAgentHostSessionsProvider', () => {
 					resolvedFolders: [other.toString(), other.toString(), other.toString()],
 					completion: [{ property: 'branch', query: 'feat', workingDirectory: other.toString() }],
 				});
+			}));
+
+			test('a draft using another harness gets that agent\'s folders, folder facts, and branches; a same-harness draft the session\'s', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+				agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), _meta: { ...agentHost.initializeResult.get()._meta, [AgentHostCreateChatWorkspaceCapabilityMetaKey]: true } }, undefined);
+				// The session's agent gives each chat its own folders; the other agent doesn't.
+				agentHost.setAgents([
+					{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true }, multipleWorkingDirectories: {} } } as AgentInfo,
+					{ provider: 'claude', displayName: 'Claude', description: '', models: [], capabilities: { multipleChats: {} } } as AgentInfo,
+				]);
+				const provider = createProvider(disposables, agentHost);
+				const session = setupWorkspaceSession(provider, 'nested-harness');
+				const sessionUri = AgentSession.uri('copilotcli', 'nested-harness').toString();
+				const defaultChat = buildDefaultChatUri(sessionUri);
+				const claudeDraft: ChatSummary = { ...makeChatSummary(buildChatUri(sessionUri, 'claude-draft'), '', ProtocolSessionStatus.Idle), provider: 'claude' };
+				const sameDraft = makeChatSummary(buildChatUri(sessionUri, 'same-draft'), '', ProtocolSessionStatus.Idle);
+				agentHost.setSessionState('nested-harness', 'copilotcli', makeState([
+					makeChatSummary(defaultChat, '', ProtocolSessionStatus.Idle, [repo.toString()]), claudeDraft, sameDraft,
+				], { defaultChat, workingDirectories: [repo.toString()] }));
+				const claude = session.chats.get().find(chat => chat.resource.fragment === 'claude-draft')!.resource;
+				const same = session.chats.get().find(chat => chat.resource.fragment === 'same-draft')!.resource;
+				agentHost.resolveSessionConfigResult = { schema: createVSCodeSessionConfigSchema(), values: { isolation: 'worktree', branch: 'develop' } };
+				agentHost.resolveSessionConfigRequests.length = 0;
+
+				const claudeInfo = await provider.resolveNestedChatFolder(session.sessionId, claude, other, CancellationToken.None);
+				await provider.getNestedChatBranches(session.sessionId, claude, other, 'feat', CancellationToken.None);
+				const sameInfo = await provider.resolveNestedChatFolder(session.sessionId, same, other, CancellationToken.None);
+				await provider.getNestedChatBranches(session.sessionId, same, other, 'feat', CancellationToken.None);
+
+				assert.deepStrictEqual({
+					multipleFolders: {
+						claude: provider.getNestedChatWorkspaceSupport(session.sessionId, claude, undefined)?.multipleFolders,
+						same: provider.getNestedChatWorkspaceSupport(session.sessionId, same, undefined)?.multipleFolders,
+					},
+					info: { claude: claudeInfo, same: sameInfo },
+					resolvedProviders: agentHost.resolveSessionConfigRequests.map(request => request.provider),
+					completionProviders: agentHost.branchCompletionRequests.map(request => request.provider),
+				}, {
+					multipleFolders: { claude: false, same: true },
+					info: { claude: { supportsWorktree: true, defaultBranch: 'develop' }, same: { supportsWorktree: true, defaultBranch: 'develop' } },
+					resolvedProviders: ['claude', 'claude', 'copilotcli', 'copilotcli'],
+					completionProviders: ['claude', 'copilotcli'],
+				});
+			}));
+
+			test('a draft whose agent is disabled by policy is offered no workspace choices', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+				agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), _meta: { ...agentHost.initializeResult.get()._meta, [AgentHostCreateChatWorkspaceCapabilityMetaKey]: true } }, undefined);
+				agentHost.setAgents([
+					{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true }, multipleWorkingDirectories: {} } } as AgentInfo,
+					{ provider: 'claude', displayName: 'Claude', description: '', models: [], capabilities: { multipleChats: {}, multipleWorkingDirectories: {} } } as AgentInfo,
+				]);
+				const setting = 'chat.agentHost.claudeAgent.enabled';
+				const configurationService = new class extends TestConfigurationService {
+					override inspect<T>(key: string) {
+						const value = super.inspect<T>(key);
+						return { ...value, policyValue: key === setting ? value.value : undefined };
+					}
+				}({ [setting]: false });
+				const provider = createProvider(disposables, agentHost, undefined, { configurationService, isSessionsWindow: true });
+				const session = setupWorkspaceSession(provider, 'nested-policy');
+				const sessionUri = AgentSession.uri('copilotcli', 'nested-policy').toString();
+				const defaultChat = buildDefaultChatUri(sessionUri);
+				agentHost.setSessionState('nested-policy', 'copilotcli', makeState([
+					makeChatSummary(defaultChat, '', ProtocolSessionStatus.Idle, [repo.toString()]),
+					{ ...makeChatSummary(buildChatUri(sessionUri, 'claude-draft'), '', ProtocolSessionStatus.Idle), provider: 'claude' },
+				], { defaultChat, workingDirectories: [repo.toString()] }));
+				const claude = session.chats.get().find(chat => chat.resource.fragment === 'claude-draft')!.resource;
+
+				const error = await provider.resolveNestedChatFolder(session.sessionId, claude, other, CancellationToken.None).then(() => undefined, e => e);
+				assert.deepStrictEqual({
+					support: provider.getNestedChatWorkspaceSupport(session.sessionId, claude, undefined),
+					error: error instanceof NestedChatWorkspaceError ? error.kind : error,
+				}, { support: undefined, error: 'notSupported' });
 			}));
 		});
 

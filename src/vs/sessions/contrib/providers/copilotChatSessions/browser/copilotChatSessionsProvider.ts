@@ -2011,15 +2011,15 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		return newChat;
 	}
 
-	getNestedChatWorkspaceSupport(_sessionId: string, _reader: IReader | undefined): INestedChatWorkspaceSupport | undefined {
+	getNestedChatWorkspaceSupport(_sessionId: string, _chat: URI, _reader: IReader | undefined): INestedChatWorkspaceSupport | undefined {
 		return undefined;
 	}
 
-	async resolveNestedChatFolder(_sessionId: string, _folder: URI, _token: CancellationToken): Promise<INestedChatFolderInfo> {
+	async resolveNestedChatFolder(_sessionId: string, _chat: URI, _folder: URI, _token: CancellationToken): Promise<INestedChatFolderInfo> {
 		throw NestedChatWorkspaceError.notSupported();
 	}
 
-	async getNestedChatBranches(_sessionId: string, _folder: URI, _query: string, _token: CancellationToken): Promise<readonly string[]> {
+	async getNestedChatBranches(_sessionId: string, _chat: URI, _folder: URI, _query: string, _token: CancellationToken): Promise<readonly string[]> {
 		throw NestedChatWorkspaceError.notSupported();
 	}
 

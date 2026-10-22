@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -14,6 +14,16 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { IChat, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ICreateNewChatInSessionOptions, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
+import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
+import { NestedChatWorkspaceControls } from '../../browser/nestedChatWorkspacePicker.js';
+import { SharedChatInputComposer } from '../../browser/sharedChatInputComposer.js';
 
 class TestNewChatInSessionWidget extends NewChatInSessionWidget {
 	send(query: string, background: boolean): Promise<boolean> {
@@ -33,12 +43,59 @@ suite('NewChatInSessionWidget', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('reads the nested chat workspace for the draft\'s own agent, and re-reads it when a harness switch replaces the draft', () => {
+		const store = new DisposableStore();
+		const chat = (fragment: string, status: SessionStatus) => upcastPartial<IChat>({ resource: URI.parse(`test:///session#${fragment}`), status: constObservable(status) });
+		const main = chat('', SessionStatus.Completed);
+		const copilotDraft = chat('copilot-draft', SessionStatus.Untitled);
+		const claudeDraft = chat('claude-draft', SessionStatus.Untitled);
+		const activeChat = observableValue<IChat>('activeChat', copilotDraft);
+		const session = upcastPartial<IActiveSession>({
+			sessionId: 's', providerId: 'p', isCreated: constObservable(true), mainChat: constObservable(main), activeChat,
+			workspace: constObservable(undefined), capabilities: constObservable({ supportsMultipleChats: true }),
+		});
+		const supportFor: string[] = [];
+		const controlsCalls: string[] = [];
+		const instantiationService = new class extends mock<IInstantiationService>() {
+			override createInstance = ((ctor: unknown) => ctor === NestedChatWorkspaceControls
+				? { reset: () => controlsCalls.push('reset'), refresh: () => controlsCalls.push('refresh'), dispose: () => { } }
+				: Object.assign(Object.create(SharedChatInputComposer.prototype), { dispose: () => { } })) as IInstantiationService['createInstance'];
+		}();
+		const widget = store.add(new NewChatInSessionWidget(
+			{},
+			new TestConfigurationService(),
+			instantiationService,
+			new NullLogService(),
+			new class extends mock<INotificationService>() { }(),
+			new class extends mock<ISessionsProvidersService>() {
+				override getProvider<T extends ISessionsProvider>(): T | undefined {
+					return upcastPartial<ISessionsProvider>({
+						getNestedChatWorkspaceSupport: (_sessionId: string, chat: URI) => { supportFor.push(chat.fragment); return undefined; },
+					}) as T;
+				}
+			}(),
+			new class extends mock<ISessionsRecentWorkspacesService>() { }(),
+			new class extends mock<IFileDialogService>() { }(),
+			new class extends mock<ISessionsManagementService>() { }(),
+			new class extends mock<ISessionsService>() { override readonly activeSession = constObservable<IActiveSession | undefined>(session); }(),
+			new class extends mock<IStorageService>() { }(),
+		));
+		store.add(autorun(reader => { Reflect.get(widget, '_workspaceSupport').read(reader); }));
+
+		activeChat.set(claudeDraft, undefined);
+		store.dispose();
+
+		assert.deepStrictEqual({ supportFor, controlsCalls }, { supportFor: ['copilot-draft', 'claude-draft'], controlsCalls: ['refresh'] });
+	});
+
 	test('resets the composer to a chat of the main harness after a background send', async () => {
 		const draft = upcastPartial<IChat>({ resource: URI.parse('test:///session#draft'), harness: 'other' });
 		const session = upcastPartial<IActiveSession>({ harness: 'main', activeChat: constObservable(draft) });
 		const resets: (ICreateNewChatInSessionOptions | undefined)[] = [];
 		const widget: TestNewChatInSessionWidget = Object.assign(Object.create(TestNewChatInSessionWidget.prototype), {
 			_session: constObservable(session),
+			_workspaceSupport: constObservable(undefined),
+			_store: { isDisposed: false },
 			logService: new NullLogService(),
 			sessionsService: new class extends mock<ISessionsService>() {
 				override async openNewChatInSession(_session: IActiveSession, options?: ICreateNewChatInSessionOptions): Promise<void> {
@@ -184,6 +241,8 @@ suite('NewChatInSessionWidget', () => {
 		let finishOpen!: () => void;
 		const widget: TestNewChatInSessionWidget = Object.assign(Object.create(TestNewChatInSessionWidget.prototype), {
 			_session: constObservable(session),
+			_workspaceSupport: constObservable(undefined),
+			_store: { isDisposed: false },
 			logService: new NullLogService(),
 			sessionsService: new class extends mock<ISessionsService>() {
 				override openNewChatInSession(): Promise<void> {

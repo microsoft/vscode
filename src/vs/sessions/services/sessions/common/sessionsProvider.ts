@@ -789,14 +789,16 @@ export interface ISessionsProvider {
 	 * `undefined` when the composer must not offer workspace choices (a host without nested chat workspaces, a
 	 * provider or session without multiple chats, an archived or unknown session, or a provider that is not an
 	 * agent host).
+	 * `chat` is the new chat: what it may choose follows its own agent, which differs from the session's for a
+	 * chat using another harness.
 	 */
-	getNestedChatWorkspaceSupport(sessionId: string, reader: IReader | undefined): INestedChatWorkspaceSupport | undefined;
+	getNestedChatWorkspaceSupport(sessionId: string, chat: URI, reader: IReader | undefined): INestedChatWorkspaceSupport | undefined;
 
-	/** Resolves the isolation and branch facts of `folder` for a new nested chat in the session. */
-	resolveNestedChatFolder(sessionId: string, folder: URI, token: CancellationToken): Promise<INestedChatFolderInfo>;
+	/** Resolves the isolation and branch facts of `folder` for `chat`, a new nested chat in the session, with its own agent. */
+	resolveNestedChatFolder(sessionId: string, chat: URI, folder: URI, token: CancellationToken): Promise<INestedChatFolderInfo>;
 
-	/** Branch names of the repository of `folder` matching `query` (may be empty). */
-	getNestedChatBranches(sessionId: string, folder: URI, query: string, token: CancellationToken): Promise<readonly string[]>;
+	/** Branch names of the repository of `folder` matching `query` (may be empty), as `chat`'s own agent lists them. */
+	getNestedChatBranches(sessionId: string, chat: URI, folder: URI, query: string, token: CancellationToken): Promise<readonly string[]>;
 
 	/**
 	 * Gives `chat`, an untitled peer chat of the session that has not sent a request, the chosen workspace;
