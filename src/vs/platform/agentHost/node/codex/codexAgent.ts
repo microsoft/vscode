@@ -39,7 +39,7 @@ import { AgentSdkSetupChannel } from '../agentSdkSetupChannel.js';
 import { CODEX_ACCOUNT_META_KEY, CODEX_ACCOUNT_REFRESH_REQUEST_KEY, CODEX_ACCOUNT_SIGN_IN_REQUEST_KEY, CODEX_ACCOUNT_SIGN_OUT_REQUEST_KEY, type ICodexAccountInfo } from '../../common/codexAccount.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
 import { AgentChatMigrationDeferred, type AgentChatMigrationResult, AgentSession, fixedChatOwnerRef, resolveSessionBackedStorage, type IAgentChatOwnerRef, AgentSignal, AgentWorkingDirectoryChangedError, CODEX_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatHistoryChange, IAgentChatMetadata, type IAgentChatMetadataOptions, IAgentChats, IAgentCreateChatForkSource, IAgentCreateChatResult, IAgentCreateChatOptions, IAgentDescriptor, IAgentDiscoveredChat, IAgentListedChat, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPrepareChatResult, IAgentResolveChatConfigParams, IAgentSpawnChatEvent, IMcpNotification, resolveAgentChatContext, resolveAgentHostInstructions, type AgentProvider, type AuthenticateParams } from '../../common/agent.js';
-import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentCodexHomeEnvVar } from '../../common/agentService.js';
+import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentSdkRootEnvVar } from '../../common/agentService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ActionType, isChatAction, type SessionAction, type ChatAction } from '../../common/state/sessionActions.js';
@@ -89,7 +89,7 @@ import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { CodexAppServerClient, JsonRpcError, JsonRpcErrorCode, JsonRpcResponseError, transportFromChildProcess, type ICodexAppServerClient, type ServerRequestHandlerResult } from './codexAppServerClient.js';
 import { decodeCodexChat, encodeCodexChat, type ICodexPersistedChat } from './codexChatBacking.js';
-import { CodexSdkPackage, codexPackageSuffix, codexBinaryTriple, resolveCodexDevSdkRoot } from './codexSdk.js';
+import { CodexSdkPackage, codexPackageSuffix, codexBinaryTriple, findCodexBinaryPath, resolveCodexDevSdkRoot } from './codexSdk.js';
 import { CODEX_PORTABLE_HISTORY_HEADER, ICodexProxyService, type ICodexProxyHandle } from './codexProxyService.js';
 import { GITHUB_MCP_SERVER_NAME, resolveGitHubMcpServerConfiguration } from '../shared/githubMcpServer.js';
 import { isAgentHostTelemetryService } from '../agentHostTelemetryService.js';
@@ -2585,9 +2585,9 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * resolves we defer to the downloader so callers get its actionable
 	 * "not configured" diagnostic.
 	 */
-	private async _resolveSdkRoot(token: CancellationToken = CancellationToken.None): Promise<string> {
+	private async _resolveSdkRoot(token: CancellationToken = CancellationToken.None, ignoreDevOverride = false): Promise<string> {
 		if (this._agentSdkDownloader.isAvailable(CodexSdkPackage)) {
-			return this._agentSdkDownloader.loadSdkRoot(CodexSdkPackage, token);
+			return this._agentSdkDownloader.loadSdkRoot(CodexSdkPackage, token, ignoreDevOverride);
 		}
 		const devRoot = await resolveCodexDevSdkRoot();
 		if (token.isCancellationRequested) {
@@ -2597,10 +2597,21 @@ export class CodexAgent extends Disposable implements IAgent {
 			this._logService.info(`[Codex] resolving SDK from repo node_modules (dev fallback): ${devRoot}`);
 			return devRoot;
 		}
-		return this._agentSdkDownloader.loadSdkRoot(CodexSdkPackage, token);
+		return this._agentSdkDownloader.loadSdkRoot(CodexSdkPackage, token, ignoreDevOverride);
 	}
 
 	private async _isSdkResolvableWithoutDownload(): Promise<boolean> {
+		const override = process.env[AgentHostCodexAgentSdkRootEnvVar];
+		if (override) {
+			const binary = await findCodexBinaryPath(override);
+			if (binary) {
+				return true;
+			}
+			if (this._agentSdkDownloader.isAvailable(CodexSdkPackage)) {
+				return this._agentSdkDownloader.isSdkResolvableWithoutDownload(CodexSdkPackage, true);
+			}
+			return (await resolveCodexDevSdkRoot()) !== undefined;
+		}
 		if (this._agentSdkDownloader.isAvailable(CodexSdkPackage)) {
 			return this._agentSdkDownloader.isSdkResolvableWithoutDownload(CodexSdkPackage);
 		}
@@ -2611,27 +2622,24 @@ export class CodexAgent extends Disposable implements IAgent {
 	private async _startRawConnection(initializationTimeoutMs?: number, token: CancellationToken = CancellationToken.None): Promise<IConnectionReady> {
 		// Resolve the Codex SDK root: dev override / product download via the
 		// downloader, or this repo's `node_modules` in a source checkout (see
-		// `_resolveSdkRoot`). We spawn the native codex binary inside the
-		// platform package directly (the same shape the JS shim at
-		// `node_modules/@openai/codex/bin/codex.js` would resolve to) — going
-		// through the shim adds a launcher hop and forces an
-		// `ELECTRON_RUN_AS_NODE` round-trip when the agent host runs as an
-		// Electron utility process.
-		const root = await this._resolveSdkRoot(token);
-		const codexTarget = codexPackageSuffix(process.platform, process.arch);
-		if (!codexTarget) {
-			throw new Error(`Codex: unsupported platform ${process.platform}-${process.arch}`);
+		// `_resolveSdkRoot`). We spawn the native codex binary directly (the
+		// same shape the JS shim at `node_modules/@openai/codex/bin/codex.js`
+		// would resolve to) — going through the shim adds a launcher hop and
+		// forces an `ELECTRON_RUN_AS_NODE` round-trip when the agent host runs
+		// as an Electron utility process.
+		let root = await this._resolveSdkRoot(token);
+		let binaryPath = await findCodexBinaryPath(root);
+		if (!binaryPath && process.env[AgentHostCodexAgentSdkRootEnvVar] && root === process.env[AgentHostCodexAgentSdkRootEnvVar]) {
+			this._logService.warn(`[Codex] Configured sdkRoot '${root}' does not contain an executable Codex binary. Falling back to default SDK.`);
+			root = await this._resolveSdkRoot(token, true);
+			binaryPath = await findCodexBinaryPath(root);
 		}
-		const triple = codexBinaryTriple(codexTarget);
-		if (!triple) {
-			throw new Error(`Codex: no binary triple known for sdkTarget '${codexTarget}'`);
-		}
-		const binaryName = process.platform === 'win32' ? 'codex.exe' : 'codex';
-		const binaryPath = join(root, 'node_modules', `@openai/codex-${codexTarget}`, 'vendor', triple, 'bin', binaryName);
-		try {
-			await fs.promises.access(binaryPath, fs.constants.X_OK);
-		} catch (err) {
-			throw new Error(`Codex binary not executable: ${binaryPath} (${err instanceof Error ? err.message : String(err)})`);
+		if (!binaryPath) {
+			const codexTarget = codexPackageSuffix(process.platform, process.arch);
+			const triple = codexTarget && codexBinaryTriple(codexTarget);
+			const binaryName = process.platform === 'win32' ? 'codex.exe' : 'codex';
+			const fallbackPath = codexTarget && triple ? join(root, 'node_modules', `@openai/codex-${codexTarget}`, 'vendor', triple, 'bin', binaryName) : root;
+			throw new Error(`Codex binary not found or not executable: ${fallbackPath}`);
 		}
 
 		const proxyStart = this._codexProxyService.start(this._githubToken ?? '');

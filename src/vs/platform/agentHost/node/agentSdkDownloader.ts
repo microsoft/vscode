@@ -192,7 +192,7 @@ export interface IAgentSdkDownloader {
 	 * Repeated failures are latched for {@link LOAD_FAILURE_NEGATIVE_CACHE_MS}
 	 * so a misconfigured CDN doesn't get hammered on every SDK method call.
 	 */
-	loadSdkRoot(pkg: IAgentSdkPackage, token: CancellationToken): Promise<string>;
+	loadSdkRoot(pkg: IAgentSdkPackage, token: CancellationToken, ignoreDevOverride?: boolean): Promise<string>;
 
 	/**
 	 * Cheap, synchronous gate used at startup to decide whether to register
@@ -215,10 +215,10 @@ export interface IAgentSdkDownloader {
 	 * startup) use this to avoid kicking off a multi-second cold download
 	 * before the user has asked for anything.
 	 */
-	isSdkResolvableWithoutDownload(pkg: IAgentSdkPackage): Promise<boolean>;
+	isSdkResolvableWithoutDownload(pkg: IAgentSdkPackage, ignoreDevOverride?: boolean): Promise<boolean>;
 
 	/** Returns an existing SDK root without downloading or repairing its cache. */
-	resolveInstalledSdkRoot(pkg: IAgentSdkPackage): Promise<string | undefined>;
+	resolveInstalledSdkRoot(pkg: IAgentSdkPackage, ignoreDevOverride?: boolean): Promise<string | undefined>;
 }
 
 // #endregion
@@ -327,14 +327,16 @@ export class AgentSdkDownloader extends Disposable implements IAgentSdkDownloade
 		});
 	}
 
-	async isSdkResolvableWithoutDownload(pkg: IAgentSdkPackage): Promise<boolean> {
-		return (await this.resolveInstalledSdkRoot(pkg)) !== undefined;
+	async isSdkResolvableWithoutDownload(pkg: IAgentSdkPackage, ignoreDevOverride = false): Promise<boolean> {
+		return (await this.resolveInstalledSdkRoot(pkg, ignoreDevOverride)) !== undefined;
 	}
 
-	async resolveInstalledSdkRoot(pkg: IAgentSdkPackage): Promise<string | undefined> {
-		const override = process.env[pkg.devOverrideEnvVar];
-		if (override) {
-			return override;
+	async resolveInstalledSdkRoot(pkg: IAgentSdkPackage, ignoreDevOverride = false): Promise<string | undefined> {
+		if (!ignoreDevOverride) {
+			const override = process.env[pkg.devOverrideEnvVar];
+			if (override) {
+				return override;
+			}
 		}
 		const config = this._productService.agentSdks?.[pkg.id];
 		if (!config) {
@@ -348,12 +350,14 @@ export class AgentSdkDownloader extends Disposable implements IAgentSdkDownloade
 		return await this._fileService.exists(URI.joinPath(URI.file(root), '.complete')) ? root : undefined;
 	}
 
-	async loadSdkRoot(pkg: IAgentSdkPackage, token: CancellationToken): Promise<string> {
+	async loadSdkRoot(pkg: IAgentSdkPackage, token: CancellationToken, ignoreDevOverride = false): Promise<string> {
 		// 1. Dev override.
-		const override = process.env[pkg.devOverrideEnvVar];
-		if (override) {
-			this._logService.info(`[AgentSdkDownloader] ${pkg.id}: using dev override at ${override}`);
-			return override;
+		if (!ignoreDevOverride) {
+			const override = process.env[pkg.devOverrideEnvVar];
+			if (override) {
+				this._logService.info(`[AgentSdkDownloader] ${pkg.id}: using dev override at ${override}`);
+				return override;
+			}
 		}
 
 		// 2. Negative cache: a recent failure short-circuits without I/O. Not for a

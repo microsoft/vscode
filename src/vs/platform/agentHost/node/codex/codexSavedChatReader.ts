@@ -6,7 +6,6 @@
 import { Sequencer } from '../../../../base/common/async.js';
 import type { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
-import { join } from '../../../../base/common/path.js';
 import { localize } from '../../../../nls.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IFileService } from '../../../files/common/files.js';
@@ -21,7 +20,7 @@ import { toCodexModelSelectionId } from '../../common/codexModelSelection.js';
 import { replayThreadToTurns } from './codexReplayMapper.js';
 import { readCodexRolloutMetadata } from './codexRolloutMetadata.js';
 import { readCodexSavedThreadFromDisk } from './codexSavedThreadReader.js';
-import { CodexSdkPackage, codexBinaryTriple, codexPackageSuffix, resolveCodexDevSdkRoot } from './codexSdk.js';
+import { CodexSdkPackage, findCodexBinaryPath, resolveCodexDevSdkRoot } from './codexSdk.js';
 import { CodexSessionMetadataStore } from './codexSessionMetadataStore.js';
 import type { Thread } from './protocol/generated/v2/Thread.js';
 
@@ -72,12 +71,13 @@ export class CodexSavedChatReader implements IAgentHostSavedChatReader {
 			? await this._sdkDownloader.resolveInstalledSdkRoot(CodexSdkPackage)
 			: await resolveCodexDevSdkRoot();
 		throwIfCancelled(token);
-		const target = codexPackageSuffix(process.platform, process.arch);
-		const triple = target && codexBinaryTriple(target);
-		if (!root || !target || !triple) {
+		if (!root) {
 			throw new Error(localize('codex.savedChat.sdkUnavailable', "The local Codex history reader is not available."));
 		}
-		const binary = join(root, 'node_modules', `@openai/codex-${target}`, 'vendor', triple, 'bin', process.platform === 'win32' ? 'codex.exe' : 'codex');
+		const binary = await findCodexBinaryPath(root);
+		if (!binary) {
+			throw new Error(localize('codex.savedChat.sdkUnavailable', "The local Codex history reader is not available."));
+		}
 		return readCodexSavedThreadFromDisk(binary, threadId, this._environmentService.userHome.fsPath, this._logService, token);
 	}
 }
