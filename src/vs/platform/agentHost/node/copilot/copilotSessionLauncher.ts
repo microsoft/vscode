@@ -285,6 +285,9 @@ export interface ICopilotSessionRuntime {
 	createClientSdkTools(toolSearchActive: boolean, hostToolNames?: ReadonlySet<string>): Tool<any>[];
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	createServerSdkTools(toolSearchActive?: boolean): Tool<any>[];
+	/** Tools that let the agent ask the user to turn on Computer Use; empty unless the runtime has it and it is off. */
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	createComputerUseActivationTools?(): Promise<Tool<any>[]>;
 	reloadExtensions(): Promise<void>;
 }
 
@@ -1329,8 +1332,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		}));
 		const customAgentsPromise = plan.isEphemeral ? Promise.resolve([]) : toSdkCustomAgents(getCopilotCustomAgents(plan.snapshot), this._fileService, availableModelIds, clientToolRegistrationNames);
 		const byokPromise = this.resolveByokSessionConfig(plan.sessionId);
+		const computerUseToolsPromise = plan.isEphemeral ? Promise.resolve([]) : runtime.createComputerUseActivationTools?.() ?? Promise.resolve([]);
 		// These are independent, so resolve them concurrently rather than paying each in turn.
-		const [externalByok, shellTools, pluginCustomAgents] = await Promise.all([byokPromise, shellToolsPromise, customAgentsPromise]);
+		const [externalByok, shellTools, pluginCustomAgents, computerUseTools] = await Promise.all([byokPromise, shellToolsPromise, customAgentsPromise, computerUseToolsPromise]);
 		const customAgents = plan.isEphemeral ? [] : [
 			...pluginCustomAgents.filter(agent => !COPILOT_BUILTIN_AGENT_NAMES.has(agent.name)),
 			...buildCopilotBuiltinAgents(plan.snapshot.tools),
@@ -1414,12 +1418,13 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const toolSearchDeferThreshold = normalizeToolSearchDeferThreshold(this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ToolSearchDeferThreshold));
 		const serverTools = runtime.createServerSdkTools(toolSearchActive);
 		const extensionTools = createCopilotExtensionTools(canvasRuntimeEnabled, () => runtime.reloadExtensions(), this._logService);
-		const hostToolNames = new Set([...shellTools, ...serverTools, ...extensionTools].map(tool => tool.name));
+		const hostToolNames = new Set([...shellTools, ...serverTools, ...extensionTools, ...computerUseTools].map(tool => tool.name));
 		const tools = [
 			...shellTools,
 			...runtime.createClientSdkTools(toolSearchActive, hostToolNames),
 			...serverTools,
 			...extensionTools,
+			...computerUseTools,
 		];
 		const promptOverrides = await applyConfiguredPromptOverrides(promptOverrideString, promptOverrideFile, tools, this._fileService, this._logService);
 		const bridgedPermissions = this._managedSettingsService.permissions;

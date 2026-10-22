@@ -216,6 +216,10 @@ export class CanvasEditor extends EditorPane {
 		}
 		this.modelLifetime.clear();
 		this.model = model;
+		if (model) {
+			// Attach hidden: only `layout` may reveal the native view, after sending visible bounds.
+			this.host.setVisible(false);
+		}
 		this.host.setModel(model);
 		this.invalidateSemanticContent();
 		this.helpAnnounced = false;
@@ -258,7 +262,6 @@ export class CanvasEditor extends EditorPane {
 				void this._load(input, `${canvas.resource.toString()}\u0000${canvas.source.toString()}`);
 			}
 		}));
-		this.host.setVisible(this.editorVisible.get());
 		this.layout();
 	}
 
@@ -304,30 +307,37 @@ export class CanvasEditor extends EditorPane {
 			&& rect.left < this.window.innerWidth
 			&& rect.top < this.window.innerHeight;
 		this.presentationVisible.set(visible, undefined);
-		this.host.setVisible(visible);
 		this.container.style.left = `${x - rect.left}px`;
 		this.container.style.top = `${y - rect.top}px`;
 		this.container.style.width = `${width}px`;
 		this.container.style.height = `${height}px`;
+		if (!visible) {
+			// Keep the last valid native bounds; empty or off-screen bounds must never be revealed.
+			this.host.setVisible(false);
+			this.host.layout();
+			return;
+		}
+		// Bounds must reach the native view before it is revealed, or it shows at stale bounds.
 		void this.model.layout({ x, y, width, height, windowId: this.group.windowId, zoomFactor, cornerRadius: 0 })
 			.catch(error => this.logService.error('[CanvasEditor] Failed to layout canvas', error));
+		this.host.setVisible(true);
 		this.host.layout();
 	}
 
 	protected override setEditorVisible(visible: boolean): void {
 		this.editorVisible.set(visible, undefined);
+		this.pendingVisibleLayout.clear();
 		if (!visible) {
 			this.presentationVisible.set(false, undefined);
+			this.host?.setVisible(false);
+			return;
 		}
-		this.host?.setVisible(visible);
-		this.pendingVisibleLayout.clear();
-		if (visible) {
-			this.pendingVisibleLayout.value = scheduleAtNextAnimationFrame(this.window, () => {
-				if (this.editorVisible.get()) {
-					this.layout();
-				}
-			});
-		}
+		// A pane can be told it is visible inside a hidden editor part, so only `layout` reveals it.
+		this.pendingVisibleLayout.value = scheduleAtNextAnimationFrame(this.window, () => {
+			if (this.editorVisible.get()) {
+				this.layout();
+			}
+		});
 	}
 
 	override focus(): void {
