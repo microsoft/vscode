@@ -49,7 +49,7 @@ import { SessionBrowsersControl } from './sessionBrowsersControl.js';
 import type { ISessionChatPillsDebugData } from './sessionChatInputToolbarDebug.js';
 import { SessionActivatingActionRunner } from '../../../browser/sessionActionRunner.js';
 import { computePullRequestIcon } from '../../../../workbench/common/chatPullRequest.js';
-import { ISessionChangesStatsCache, readChatChangesStats } from '../../../services/sessions/common/sessionChangesStatsCache.js';
+import { ISessionChangesStatsCache, readChatChangesStats, readLoadedChatChangesStats } from '../../../services/sessions/common/sessionChangesStatsCache.js';
 import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { SessionCanvasesControl } from '../../canvases/browser/sessionCanvasesControl.js';
@@ -272,6 +272,25 @@ export function computeSessionInputPillStats(session: IActiveSession | undefined
 	const mainChat = session?.mainChat?.read(reader);
 	const isMainChat = mainChat && chat && isEqual(mainChat.resource, chat.resource);
 	return (isMainChat && session ? changesStatsCache?.get(session.sessionId, reader) : undefined) ?? EMPTY_DIFF_STATS;
+}
+
+/**
+ * The focused chat's changes counts the shared Changes pill reports, or `undefined`
+ * while they are not known yet: before the chat reports its changes, while the
+ * represented changeset loads, or while the session's worktree is being created.
+ * Unlike {@link computeSessionInputPillStats}, this never falls back to cached stats.
+ */
+export function readLoadedSessionInputPillStats(session: IActiveSession | undefined, chat: IChat | undefined, reader: IReader): IDiffStats | undefined {
+	if (session?.worktreePending?.read(reader)) {
+		return undefined;
+	}
+	const workspace = chat?.workspace?.read(reader);
+	const stats = chat && workspace ? readLoadedChatChangesStats(chat, reader, getChangesPillChangesetId(workspace, isNestedChat(session, chat, reader), session)) : undefined;
+	// Providers that only summarize the session report its main chat's file list empty until it resolves.
+	if (stats?.files === 0 && chat && !chat.changesSummary && !isNestedChat(session, chat, reader) && (session?.changesSummary?.read(reader)?.files ?? 0) > 0) {
+		return undefined;
+	}
+	return stats;
 }
 
 /** Whether `chat` is one of the session's nested chats rather than its main chat. */
