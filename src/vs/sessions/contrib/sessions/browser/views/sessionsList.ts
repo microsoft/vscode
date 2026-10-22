@@ -2212,7 +2212,7 @@ function getSessionRowLocationLabel(session: ISession, workspace: ISessionWorksp
 }
 
 function isExternalApplicationBadgeEligible(session: ISession, reader: IReader): boolean {
-	const application = session.isExternal?.read(reader) === true ? session.application?.read(reader) : undefined;
+	const application = session.application?.read(reader);
 	return application !== undefined && application.id !== 'vscode';
 }
 
