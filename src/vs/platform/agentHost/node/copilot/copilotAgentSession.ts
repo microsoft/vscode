@@ -8343,25 +8343,34 @@ export class CopilotAgentSession extends Disposable {
 		}
 		const result = input.toolName === CopilotToolName.ImageGeneration ? await this._saveGeneratedImages(input) : undefined;
 		const discardedEdits = this._takeDiscardedEditNotes();
+		if (result?.additionalContext && discardedEdits) {
+			return { ...result, additionalContext: `${result.additionalContext}\n\n${discardedEdits.additionalContext}` };
+		}
 		return result ? { ...result, ...discardedEdits } : discardedEdits;
 	}
 
-	/**
-	 * Saves generated images where the Copilot CLI does, in the session folder, and
-	 * adds each file's path to the tool's result. The runtime gives the agent only an
-	 * image ID, so without the path it searches for the file and finds none.
-	 */
+	/** Saves generated images where the Copilot CLI does and avoids duplicating their built-in presentation. */
 	private async _saveGeneratedImages(input: PostToolUseHookInput): Promise<PostToolUseHookOutput> {
+		const images = getGeneratedImages(input.toolResult);
+		if (!images.length) {
+			return undefined;
+		}
+		const presentationContext = input.toolResult.resultType === 'success' ? {
+			additionalContext: 'The generated images are already displayed in the chat and listed as artifacts. Do not embed them again in Markdown or register them with add_artifact_or_reference.',
+		} : undefined;
 		try {
 			const sessionDirectory = URI.joinPath(this._copilotHomeService.home, SESSION_STATE_DIRECTORY, this.sessionId);
-			const saved = await saveGeneratedImages(getGeneratedImages(input.toolResult), sessionDirectory, this._fileService, this._logService);
+			const saved = await saveGeneratedImages(images, sessionDirectory, this._fileService, this._logService);
 			if (saved.length) {
-				return { modifiedResult: { resultType: input.toolResult.resultType, textResultForLlm: appendGeneratedImagePaths(input.toolResult.textResultForLlm, saved) } };
+				return {
+					...presentationContext,
+					modifiedResult: { resultType: input.toolResult.resultType, textResultForLlm: appendGeneratedImagePaths(input.toolResult.textResultForLlm, saved) },
+				};
 			}
 		} catch (error) {
 			this._logService.warn(`[Copilot:${this.sessionId}] Could not save generated images: ${getErrorMessage(error)}`);
 		}
-		return undefined;
+		return presentationContext;
 	}
 
 	/** The agent's edit may have failed because the user undid changes it built on, so it's told. */
