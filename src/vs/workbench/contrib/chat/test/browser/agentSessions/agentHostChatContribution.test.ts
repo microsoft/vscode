@@ -132,7 +132,7 @@ import { NullWorkbenchAssignmentService } from '../../../../../services/assignme
 import { ChatInputModelSelectionController } from '../../../browser/widget/input/chatInputModelSelectionController.js';
 import { IChatInputNotificationService, type IChatInputNotification } from '../../../browser/widget/input/chatInputNotificationService.js';
 import { ChatModelConfigurationStore } from '../../../browser/widget/input/chatModelConfigurationStore.js';
-import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IStorageService, InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { ChatSessionReviewPreferencesService, IChatSessionReviewPreferencesService } from '../../../common/editing/chatSessionReviewPreferences.js';
@@ -1598,6 +1598,34 @@ suite('AgentHostChatContribution', () => {
 			const { chatAgentService } = createContribution(disposables);
 
 			assert.deepStrictEqual(chatAgentService.registeredAgents.get('agent-host-copilot')?.data.modes, [ChatModeKind.Agent, ChatModeKind.Ask]);
+		});
+
+		test('offers plugin source installation only when the management API supports it', () => {
+			const results = [];
+			for (const supported of [false, true]) {
+				const { instantiationService, agentHostService } = createTestServices(disposables);
+				const host: IAgentHostService = agentHostService;
+				host.installPlugin = supported ? async () => { } : undefined;
+				const harnesses: IHarnessDescriptor[] = [];
+				instantiationService.stub(ICustomizationHarnessService, {
+					activeSessionResource: constObservable(URI.parse('agent-host-copilotcli:/session')),
+					registerExternalHarness: (descriptor: IHarnessDescriptor) => {
+						harnesses.push(descriptor);
+						return toDisposable(() => { });
+					},
+				});
+				agentHostService.setRootState({
+					agents: [{ provider: 'copilotcli', displayName: 'Copilot', description: 'test', models: [] }],
+					activeSessions: 0,
+				});
+				disposables.add(instantiationService.createInstance(AgentHostContribution));
+				const harness = harnesses.find(descriptor => descriptor.id === 'agent-host-copilotcli');
+				results.push({ registered: !!harness, sourceInstallSupported: !!harness?.pluginInstallProvider });
+			}
+			assert.deepStrictEqual(results, [
+				{ registered: true, sourceInstallSupported: false },
+				{ registered: true, sourceInstallSupported: true },
+			]);
 		});
 
 	});
