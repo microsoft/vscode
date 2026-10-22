@@ -174,7 +174,7 @@ async function renderReferences(ctx: ComponentFixtureContext, scenario: Scenario
 	});
 	let finishHoverConstruction: (() => void) | undefined;
 	try {
-		renderPills(ctx, session, {
+		await renderPills(ctx, session, {
 			height: referenceList ? '420px' : resourcePreview ? '600px' : dedicatedCollection ? '280px' : '420px',
 			width: referenceList ? '700px' : scenario === 'single' ? '660px' : '1200px',
 			popupPlacement: 'above',

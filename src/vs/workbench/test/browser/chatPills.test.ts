@@ -1314,21 +1314,29 @@ suite('ChatPills', () => {
 			compactGlyph: promoted.classList.contains('codicon-close-compact'),
 			reservesSpace: container.classList.contains('has-promoted-action'),
 			itemDisplay: mainWindow.getComputedStyle(container).display,
-			actionCenterDelta: Math.abs(
+			actionCentered: Math.abs(
 				promoted.getBoundingClientRect().top + promoted.getBoundingClientRect().height / 2
 				- (container.getBoundingClientRect().top + container.getBoundingClientRect().height / 2)
-			),
+			) <= 1,
 			keepsFocus: mouseDown.defaultPrevented,
 			clicked,
 			tapped,
 		};
-		const withoutIconSingle = { promoted: withoutIcon.container.querySelector('.chat-pill-promoted-action'), pillHoverActions: withoutIcon.hoverActions() };
+		const withoutIconSingle = {
+			promoted: withoutIcon.container.querySelector('.chat-pill-promoted-action'),
+			reservesSpace: withoutIcon.container.classList.contains('has-promoted-action'),
+			pillHoverActions: withoutIcon.hoverActions(),
+		};
 		sections.set([{ title: 'Canvases', entries: [entry, { id: 'other', label: 'Other', promotedAction, open: () => { } }] }], undefined);
+		const summarized = { shown: container.contains(promoted), reservesSpace: container.classList.contains('has-promoted-action') };
+		sections.set([{ title: 'Canvases', entries: [entry] }], undefined);
+		const restoredPromoted = container.querySelector('.chat-pill-promoted-action');
 
 		assert.deepStrictEqual({
 			single,
 			withoutIcon: withoutIconSingle,
-			summarized: { shown: container.contains(promoted), reservesSpace: container.classList.contains('has-promoted-action') },
+			summarized,
+			restoredPromotedRecreated: !!restoredPromoted && restoredPromoted !== promoted,
 		}, {
 			single: {
 				attributes: { role: 'button', tabIndex: '-1', ariaLabel: 'Close Canvas Preview' },
@@ -1337,13 +1345,14 @@ suite('ChatPills', () => {
 				compactGlyph: true,
 				reservesSpace: true,
 				itemDisplay: 'flex',
-				actionCenterDelta: 0,
+				actionCentered: true,
 				keepsFocus: true,
 				clicked: ['closed'],
 				tapped: ['closed'],
 			},
-			withoutIcon: { promoted: null, pillHoverActions: ['Close Canvas Preview'] },
+			withoutIcon: { promoted: null, reservesSpace: false, pillHoverActions: ['Close Canvas Preview'] },
 			summarized: { shown: false, reservesSpace: false },
+			restoredPromotedRecreated: true,
 		});
 	});
 });

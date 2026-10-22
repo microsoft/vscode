@@ -728,9 +728,10 @@ export abstract class ChatPillActionViewItemBase extends BaseActionViewItem {
 		if (!container) {
 			return;
 		}
-		container.classList.toggle('has-promoted-action', !!action);
+		container.classList.toggle('has-promoted-action', !!action && !!icon);
 		if (!action || !icon) {
 			this._promotedActionElement?.remove();
+			this._promotedActionElement = undefined;
 			return;
 		}
 		const element = this._promotedActionElement ??= this._createPromotedActionElement(icon, hoverService);

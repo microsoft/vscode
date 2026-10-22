@@ -238,7 +238,7 @@ async function createImageReferenceContent(resource: URI): Promise<IFileContent>
 	};
 }
 
-export function renderPills(ctx: ComponentFixtureContext, sessionMock: IMockSessionAndChat, options?: { readonly compact?: boolean | 'auto'; readonly debugData?: ISessionChatPillsDebugData; readonly height?: string; readonly width?: string; readonly popupPlacement?: 'above'; readonly additionalServices?: (reg: ServiceRegistration) => void; readonly prepareServices?: (services: TestInstantiationService) => void }): void {
+export async function renderPills(ctx: ComponentFixtureContext, sessionMock: IMockSessionAndChat, options?: { readonly compact?: boolean | 'auto'; readonly debugData?: ISessionChatPillsDebugData; readonly height?: string; readonly width?: string; readonly popupPlacement?: 'above'; readonly additionalServices?: (reg: ServiceRegistration) => void; readonly prepareServices?: (services: TestInstantiationService) => void }): Promise<void> {
 	const { container, disposableStore } = ctx;
 
 	const instantiationService = createEditorServices(disposableStore, {
@@ -288,7 +288,7 @@ export function renderPills(ctx: ComponentFixtureContext, sessionMock: IMockSess
 		if (!(configurationService instanceof TestConfigurationService)) {
 			throw new Error('Expected TestConfigurationService');
 		}
-		void configurationService.setUserConfiguration(CanvasesEnabledSettingId, true);
+		await configurationService.setUserConfiguration(CanvasesEnabledSettingId, true);
 	}
 
 	const visibility = instantiationService.get(ISessionChatPillVisibilityService);
