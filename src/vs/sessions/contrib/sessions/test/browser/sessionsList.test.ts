@@ -2013,6 +2013,10 @@ suite('Sessions - SessionsList', () => {
 					ariaIncludesApplication: container.querySelector('.monaco-list-row[role="treeitem"][aria-level="2"]')?.getAttribute('aria-label')?.includes(`created in ${application.get().label}`) ?? false,
 				});
 				const vscode = snapshot();
+				const unknownApplications = ['agent_tasks_api', 'agent_tasks_public_api', 'api_call_received', 'unknown'].map(name => {
+					application.set(getSessionApplication(name), undefined);
+					return snapshot();
+				});
 				application.set(getSessionApplication('github/cli'), undefined);
 				const external = snapshot();
 				testSession.isExternal.set(false, undefined);
@@ -2028,8 +2032,9 @@ suite('Sessions - SessionsList', () => {
 					detailsBadge: mode === ExternalSessionApplicationBadgeMode.Details ? 'From Copilot CLI' : undefined,
 					ariaIncludesApplication: mode !== ExternalSessionApplicationBadgeMode.Off,
 				};
-				assert.deepStrictEqual({ vscode, external, continued, vscodeAgentsWindow, otherApplication }, {
+				assert.deepStrictEqual({ vscode, unknownApplications, external, continued, vscodeAgentsWindow, otherApplication }, {
 					vscode: hidden,
+					unknownApplications: Array(4).fill(hidden),
 					external: cliBadge,
 					continued: cliBadge,
 					vscodeAgentsWindow: hidden,
@@ -3829,15 +3834,23 @@ suite('Sessions - SessionsList', () => {
 		});
 		session.application.set(getSessionApplication('vscode'), undefined);
 		const vscodeApplication = getSessionSummaryHoverData(session, ...services).application;
+		const unknownApplications = ['agent_tasks_api', 'agent_tasks_public_api', 'api_call_received', 'unknown'].map(name => {
+			session.application.set(getSessionApplication(name), undefined);
+			return [
+				getSessionSummaryHoverData(session, ...services).application,
+				getChatSummaryHoverData(session, chat, ...services).application,
+			];
+		});
 		session.application.set(getSessionApplication('custom_client', 'Custom Client'), undefined);
 		const customApplication = getSessionSummaryHoverData(session, ...services).application?.label;
 		session.isExternal.set(false, undefined);
 		const adoptedApplication = getSessionSummaryHoverData(session, ...services).application?.label;
 
-		assert.deepStrictEqual({ snapshots, opened, vscodeApplication, customApplication, adoptedApplication }, {
+		assert.deepStrictEqual({ snapshots, opened, vscodeApplication, unknownApplications, customApplication, adoptedApplication }, {
 			snapshots: Array(2).fill({ buttonType: 'button', rows: ['Created in · Copilot CLI'] }),
 			opened: Array(2).fill({ uri: `command:${SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID}`, options: { allowCommands: true } }),
 			vscodeApplication: undefined,
+			unknownApplications: Array(4).fill([undefined, undefined]),
 			customApplication: 'Custom Client',
 			adoptedApplication: 'Custom Client',
 		});
