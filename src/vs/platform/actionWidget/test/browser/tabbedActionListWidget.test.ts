@@ -262,7 +262,8 @@ suite('TabbedActionListWidget', () => {
 		const { widget } = createWidget(disposables);
 		const anchor = document.createElement('div');
 		document.body.appendChild(anchor);
-		disposables.add({ dispose: () => anchor.remove() });
+		document.body.style.setProperty('--vscode-toolbar-hoverBackground', 'rgb(1, 2, 3)');
+		disposables.add({ dispose: () => { anchor.remove(); document.body.style.removeProperty('--vscode-toolbar-hoverBackground'); } });
 		let runs = 0;
 		widget.show<ITestItem>({
 			user: 'test',
@@ -270,7 +271,8 @@ suite('TabbedActionListWidget', () => {
 			tabs: [{ id: 'Models' }],
 			initialTab: 'Models',
 			tabBarActions: [
-				{ id: 'add', icon: Codicon.add, tooltip: 'Add Models...', disabledReason: 'Not supported here', run: () => runs++ },
+				{ id: 'add', icon: Codicon.add, tooltip: 'Add Models...', checked: true, disabledReason: 'Not supported here', run: () => runs++ },
+				{ id: 'search', icon: Codicon.search, tooltip: 'Search Models', checked: true, run: () => { } },
 			],
 			createActionList: () => ({ items: [] }),
 			delegate: { onSelect: () => { }, onHide: () => { } },
@@ -283,6 +285,8 @@ suite('TabbedActionListWidget', () => {
 			description: button.getAttribute('aria-description'),
 			title: button.title,
 			disabledClass: button.classList.contains('disabled'),
+			checkedBackground: mainWindow.getComputedStyle(button).backgroundColor,
+			enabledCheckedBackground: mainWindow.getComputedStyle(document.querySelector<HTMLElement>('[data-id="search"]')!).backgroundColor,
 			runs,
 		}, {
 			label: 'Add Models...',
@@ -290,6 +294,8 @@ suite('TabbedActionListWidget', () => {
 			description: 'Not supported here',
 			title: 'Not supported here',
 			disabledClass: true,
+			checkedBackground: 'rgba(0, 0, 0, 0)',
+			enabledCheckedBackground: 'rgb(1, 2, 3)',
 			runs: 0,
 		});
 	});

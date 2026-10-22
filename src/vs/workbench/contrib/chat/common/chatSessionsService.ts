@@ -12,7 +12,7 @@ import { IObservable } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IPosition } from '../../../../editor/common/core/position.js';
-import { isRemoteAgentHostSessionType } from '../../../../platform/agentHost/common/agentHostSessionType.js';
+import { isCopilotAgentHostSessionType, isRemoteAgentHostSessionType } from '../../../../platform/agentHost/common/agentHostSessionType.js';
 import type { IAgentModelConfigurationReport } from '../../../../platform/agentHost/common/agentModelConfiguration.js';
 import { createDecorator, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -26,6 +26,7 @@ import { IChatRequestOrigin } from './chatRequestOrigin.js';
 import { IChatProgress, IChatResponseErrorDetails, IChatSendRequestOptions, IChatSessionTiming } from './chatService/chatService.js';
 import { ChatAgentLocation } from './constants.js';
 import { Target } from './promptSyntax/promptTypes.js';
+import { localize } from '../../../../nls.js';
 import type { ICanvasContext } from '../../canvases/common/canvas.js';
 import type { IChatSessionHistoryStatus } from '../../../../platform/chat/common/chatSessionHistory.js';
 
@@ -462,6 +463,18 @@ export function isAgentHostTarget(target: string): boolean {
 
 export function isAgentHostSessionResource(resource: URI): boolean {
 	return isAgentHostTarget(resource.scheme);
+}
+
+/**
+ * Returns why models cannot be added for the given chat session type (harness), or `undefined` when they can.
+ * Added models are extension-provided BYOK models, which a remotely running Copilot agent host cannot reach:
+ * either a remote agent host session type, or the Copilot harness of a remote editor window.
+ */
+export function getAddModelsUnavailableReason(sessionType: string | undefined, remoteAuthority: string | undefined): string | undefined {
+	if (sessionType && isCopilotAgentHostSessionType(sessionType) && (isRemoteAgentHostSessionType(sessionType) || !!remoteAuthority)) {
+		return localize('chat.addModels.remoteCopilotUnsupported', "BYOK models aren't supported in remote Copilot sessions");
+	}
+	return undefined;
 }
 
 /** Returns the registered agent implementation handling the session. */

@@ -51,7 +51,7 @@ import { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
 import { formatTokenCount } from '../../../../../base/common/numbers.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { CHAT_SETUP_ACTION_ID } from '../actions/chatActions.js';
-import { getAddModelsUnavailableReason } from '../widget/input/modelPicker/modelPickerItems.js';
+import { getAddModelsUnavailableReason } from '../../common/chatSessionsService.js';
 
 const $ = DOM.$;
 

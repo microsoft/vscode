@@ -7,7 +7,6 @@ import { IStringDictionary } from '../../../../../../../base/common/collections.
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../../nls.js';
-import { isCopilotAgentHostSessionType, isRemoteAgentHostSessionType } from '../../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { ActionListItemKind, IActionListItem } from '../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetDropdownAction } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
@@ -57,18 +56,6 @@ export function shouldShowManageModelsAction(chatEntitlementService: IChatEntitl
 		chatEntitlementService.entitlement === ChatEntitlement.Business ||
 		chatEntitlementService.entitlement === ChatEntitlement.Enterprise ||
 		chatEntitlementService.isInternal;
-}
-
-/**
- * Returns why models cannot be added for the given chat session type (harness), or `undefined` when they can.
- * Added models are extension-provided BYOK models, which a remotely running Copilot agent host cannot reach:
- * either a remote agent host session type, or the Copilot harness of a remote editor window.
- */
-export function getAddModelsUnavailableReason(sessionType: string | undefined, remoteAuthority: string | undefined): string | undefined {
-	if (sessionType && isCopilotAgentHostSessionType(sessionType) && (isRemoteAgentHostSessionType(sessionType) || !!remoteAuthority)) {
-		return localize('chat.addModels.remoteCopilotUnsupported', "BYOK models aren't supported in remote Copilot sessions");
-	}
-	return undefined;
 }
 
 export function createManageModelsAction(commandService: ICommandService, sessionType?: string): IActionWidgetDropdownAction {

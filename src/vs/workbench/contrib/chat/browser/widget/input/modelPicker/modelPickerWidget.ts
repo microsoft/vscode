@@ -31,7 +31,7 @@ import { ITelemetryService } from '../../../../../../../platform/telemetry/commo
 import { COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_ID, isCopilotHydraFusionModelId } from '../../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
 import { COPILOT_VENDOR_ID, getLanguageModelProviderDisplayName, IModelControlEntry, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isUserProvidedModel } from '../../../../common/languageModels.js';
-import { SessionType } from '../../../../common/chatSessionsService.js';
+import { getAddModelsUnavailableReason, SessionType } from '../../../../common/chatSessionsService.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
 import { getLanguageModelDisplayNameWithSubscriptionSource } from '../../../../common/languageModelSourcePresentation.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
@@ -45,7 +45,7 @@ import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 
 import { IWorkbenchEnvironmentService } from '../../../../../../services/environment/common/environmentService.js';
 import { getCompactCodicon } from '../../../chatIcons.js';
 import { renderChatInputPickerSplit } from '../chatInputPickerActionItem.js';
-import { createManageModelsAction, getAddModelsUnavailableReason, getModelPickerControlModels, shouldShowManageModelsAction } from './modelPickerItems.js';
+import { createManageModelsAction, getModelPickerControlModels, shouldShowManageModelsAction } from './modelPickerItems.js';
 import { requiresNewerVSCode } from './modelPickerItemPrimitives.js';
 import { renderModelConfigurationButton } from './modelPickerConfiguration.js';
 import { getCompactModelPickerIcon } from './modelProviderIcons.js';

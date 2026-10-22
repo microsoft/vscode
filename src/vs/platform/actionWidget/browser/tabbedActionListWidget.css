@@ -103,7 +103,9 @@
 	color: var(--vscode-foreground);
 }
 
+/* Follows the checked rule at equal specificity, so a disabled action never looks pressed or interactive. */
 .action-widget .tabbed-action-list-tabbar .tabbed-action-list-tabbar-action.disabled {
+	background-color: transparent;
 	color: var(--vscode-disabledForeground);
 	cursor: default;
 }
