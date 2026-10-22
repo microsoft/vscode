@@ -89,7 +89,7 @@ import { getRegisteredLanguageModels, getVisibleLanguageModelsForTarget, resolve
 import { canInitializeCodexWithoutGitHub } from '../../../../../workbench/services/agentHost/browser/codexAccountService.js';
 import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvider, IAgentMergeClientState, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
 import { agentHostSessionWorkspaceKey, buildAgentHostChatWorkspaceWithScratchFolders, type IFolderGitHubInfoResolver, withoutScratchFolders } from '../../../../common/agentHostSessionWorkspace.js';
-import { USE_WORKTREE_SETTING, isSessionConfigComplete } from '../../../../common/sessionConfig.js';
+import { AGENT_HOST_BRANCH_NAME_USE_GIT_SETTINGS_SETTING, USE_WORKTREE_SETTING, isSessionConfigComplete } from '../../../../common/sessionConfig.js';
 import { linkKey } from '../../../../common/sessionLinks.js';
 import { ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionOwnedGitHubPullRequestRefs, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, isActiveSessionStatus, ISession, ISessionAgentRef, ISessionApplication, ISessionEnvironment, ISessionArtifact, ISessionCanvas, ISessionCanvasDefinition, ISessionCapabilities, ISessionChangesSummary, ISessionChatCustomization, ISessionChangeset, ISessionCreationReference, ISessionFileChange, ISessionPreparationProgress, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, sessionWorkspaceEqual, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus, SessionTypeAuthRequirement, toSessionId, type SessionCanvasDefinitionSnapshot } from '../../../../services/sessions/common/session.js';
 import { dedupeLinks, partitionSessionArtifacts, type IRecordedGitHubReference } from './agentHostSessionArtifacts.js';
@@ -5743,7 +5743,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (typeof branchPrefix === 'string' && branchPrefix.length > 0) {
 			config[SessionConfigKey.WorktreeBranchPrefix] = branchPrefix;
 		}
-		if (this._baseConfigurationService.getValue<boolean>('chat.agentHost.branchName.useGitSettings', { resource }) === true) {
+		if (this._baseConfigurationService.getValue<boolean>(AGENT_HOST_BRANCH_NAME_USE_GIT_SETTINGS_SETTING, { resource }) === true) {
 			config[SessionConfigKey.WorktreeBranchNaming] = { useGitSettings: true };
 		}
 
@@ -8016,7 +8016,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 		const namingResource = newSession.session.workspace.get()?.folders[0]?.root;
 		if (namingResource && newSession.getConfig()?.schema.properties[SessionConfigKey.WorktreeBranchNaming]
-			&& this._baseConfigurationService.getValue<boolean>('chat.agentHost.branchName.useGitSettings', { resource: namingResource }) === true
+			&& this._baseConfigurationService.getValue<boolean>(AGENT_HOST_BRANCH_NAME_USE_GIT_SETTINGS_SETTING, { resource: namingResource }) === true
 			&& this._baseConfigurationService.getValue<boolean>('git.branchRandomName.enable', { resource: namingResource }) === true
 			&& !newSession.getConfigValues()?.[SessionConfigKey.PullRequestUrl]) {
 			const connection = this.connection;

@@ -7,6 +7,8 @@ import type { ResolveSessionConfigResult } from '../../platform/agentHost/common
 
 export const USE_WORKTREE_SETTING = 'sessions.useWorktree';
 
+export const AGENT_HOST_BRANCH_NAME_USE_GIT_SETTINGS_SETTING = 'chat.agentHost.branchName.useGitSettings';
+
 export const SESSIONS_CHAT_TABS_SETTING = 'sessions.showChatTabs';
 
 export const SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING = 'sessions.experimental.emptyFileEditorActions';
