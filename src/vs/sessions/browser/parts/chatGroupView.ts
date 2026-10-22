@@ -121,9 +121,10 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 	private readonly _contentContainer: HTMLElement;
 	private readonly _remoteHostUnavailableEmptyState: RemoteHostUnavailableEmptyState;
 
+	// Stop observing the session before disposing the view those observers can replace.
+	private readonly _contextDisposables = this._register(new DisposableStore());
 	private readonly _currentView = this._register(new MutableDisposable<AbstractChatView>());
 	private _draftChatResource: URI | undefined;
-	private readonly _contextDisposables = this._register(new DisposableStore());
 	private readonly _scopedInstantiationService: IInstantiationService;
 	private readonly _activeChatIsClosableKey: IContextKey<boolean>;
 	private readonly _activeChatCanArchiveKey: IContextKey<boolean>;
@@ -557,6 +558,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		const contentInset = this._sessionActivityBar.reservedWidth.get();
 		size(this._barContainer, width, barHeight);
 		size(this._contentContainer, width, height - barHeight);
+		this._sessionActivityBar.setScrollDownButton(this._currentView.value?.scrollDownButtonDomNode);
 		this._sessionActivityBar.layout(barHeight, height - barHeight);
 		this._currentView.value?.layout(width, height - barHeight, top + barHeight, left, contentInset);
 	}

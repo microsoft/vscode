@@ -149,7 +149,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[AgentMergeSettingId.Enabled]: {
 			type: 'boolean',
-			description: nls.localize('chat.agentMerge.enabled', "Enables the experimental Agent Merge controller and its commands. Agent Merge can monitor an agent session's pull request, ask the agent to address selected blockers, and optionally merge the pull request when it is ready."),
+			markdownDescription: nls.localize('chat.agentMerge.enabled', "Enables the experimental Agent Merge controller and its commands. Agent Merge can monitor an agent session's pull request, ask the agent to address selected blockers, and optionally merge the pull request when it is ready. It is paused while `#chat.artifactIntegrations.enabled#` is enabled; its saved choices are preserved."),
 			default: product.quality !== 'stable',
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', AGENT_MERGE_SETTING_TAG],
@@ -224,13 +224,6 @@ configurationRegistry.registerConfiguration({
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
 			agentHost: { key: ChatMoveConfigKey.Enabled },
-		},
-		[ChatMoveSettingId.ConfirmDragAndDrop]: {
-			type: 'boolean',
-			description: nls.localize('chat.agentHost.moveChats.confirmDragAndDrop', "Controls whether the Agents window asks for confirmation before moving a chat or session to another session or into a new session via drag and drop. Reordering chats within a session is never confirmed."),
-			default: true,
-			scope: ConfigurationScope.APPLICATION,
-			tags: ['experimental'],
 		},
 		...titleGenerationConfigurationProperties,
 		...artifactToolsConfigurationProperties,
@@ -327,7 +320,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[AgentHostMcpToolRoutingEnabledSettingId]: {
 			type: 'boolean',
-			description: nls.localize('chat.agentHost.experimental.mcpToolRouting', "When enabled, agent-host sessions use cached MCP tool metadata to route requests and only prompt for MCP authentication when a server is relevant. Newly created sessions pick up changes to this setting."),
+			description: nls.localize('chat.agentHost.experimental.mcpToolRouting', "When enabled and tool search is available, agent-host sessions use cached MCP tool metadata to route requests and only prompt for MCP authentication when a server is relevant. Routing tools wait for the selected server's tools to become available. Servers without routing tools retain proactive sign-in hints. Newly created sessions pick up changes to this setting."),
 			default: false,
 			tags: ['experimental', 'advanced'],
 			experiment: { mode: 'auto' },

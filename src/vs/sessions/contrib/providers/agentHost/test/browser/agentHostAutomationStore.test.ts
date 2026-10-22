@@ -1107,7 +1107,7 @@ suite('AgentHostAutomationStore', () => {
 	test('keep-history removes the definition but retains the owner name', async () => {
 		const connection = disposables.add(new TestAutomationConnection());
 		const storage = disposables.add(new InMemoryStorageService());
-		connection.initializeResult.set({ ...connection.initializeResult.get()!, _meta: getAgentHostExtensionInitializeResultMeta(true, false, false, false, false, false, false, true) }, undefined);
+		connection.initializeResult.set({ ...connection.initializeResult.get()!, _meta: getAgentHostExtensionInitializeResultMeta(true, false, false, false, false, false, false, false, true) }, undefined);
 		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
 		const automation = await store.createAutomation({ ...createOptions(), target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' } });
 		await store.deleteAutomation(automation.id, undefined, { deleteHistory: false });
@@ -1121,7 +1121,7 @@ suite('AgentHostAutomationStore', () => {
 		test(`legacy cleanup requires exact backend acknowledgement (${outcome})`, async () => {
 			const connection = disposables.add(new TestAutomationConnection());
 			const storage = disposables.add(new InMemoryStorageService());
-			connection.initializeResult.set({ ...connection.initializeResult.get()!, _meta: getAgentHostExtensionInitializeResultMeta(true, false, false, false, false, false, false, true) }, undefined);
+			connection.initializeResult.set({ ...connection.initializeResult.get()!, _meta: getAgentHostExtensionInitializeResultMeta(true, false, false, false, false, false, false, false, true) }, undefined);
 			const mapper: IAgentHostAutomationBoundaryMapper = {
 				toHost: uri => uri, fromHost: uri => uri, resourceSchemeForProvider: () => 'agent-host-mock',
 				resolveBackendSession: uri => uri.toString() === 'agent-host-mock:/frontend' ? URI.parse('ahp-session://tenant/backend') : undefined,
@@ -1167,7 +1167,7 @@ suite('AgentHostAutomationStore', () => {
 	test('resumes acknowledged archive cleanup after a local flush failure', async () => {
 		const connection = disposables.add(new TestAutomationConnection());
 		const storage = disposables.add(new InMemoryStorageService());
-		connection.initializeResult.set({ ...connection.initializeResult.get()!, _meta: getAgentHostExtensionInitializeResultMeta(true, false, false, false, false, false, false, true) }, undefined);
+		connection.initializeResult.set({ ...connection.initializeResult.get()!, _meta: getAgentHostExtensionInitializeResultMeta(true, false, false, false, false, false, false, false, true) }, undefined);
 		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
 		const automation = await store.createAutomation({ ...createOptions(), target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' } });
 		const created = connection.dispatched.find(item => item.action.type === ActionType.AutomationCreateRequested);
@@ -1200,7 +1200,7 @@ suite('AgentHostAutomationStore', () => {
 	test('unreadable optional archive does not prevent deleting host history', async () => {
 		const connection = disposables.add(new TestAutomationConnection());
 		const storage = disposables.add(new InMemoryStorageService());
-		connection.initializeResult.set({ ...connection.initializeResult.get()!, _meta: getAgentHostExtensionInitializeResultMeta(true, false, false, false, false, false, false, true) }, undefined);
+		connection.initializeResult.set({ ...connection.initializeResult.get()!, _meta: getAgentHostExtensionInitializeResultMeta(true, false, false, false, false, false, false, false, true) }, undefined);
 		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
 		const automation = await store.createAutomation({ ...createOptions(), target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' } });
 		const key = 'agentHostAutomation.legacyRunArchive.local-agent-host';

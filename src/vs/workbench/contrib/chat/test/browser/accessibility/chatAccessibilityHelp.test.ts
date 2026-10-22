@@ -8,12 +8,38 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { ChatSessionArchiveActionWording } from '../../../../../../platform/chat/common/sessionArchiveActions.js';
 import { MockKeybindingService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { getTabbedActionListKeybindingLabels } from '../../../../../../platform/actionWidget/browser/tabbedActionListWidget.js';
-import { getAccessibilityHelpText } from '../../../browser/actions/chatAccessibilityHelp.js';
+import { getAccessibilityHelpText, getCloudSandboxPreparationAccessibilityHelp } from '../../../browser/actions/chatAccessibilityHelp.js';
 import { AGENT_SESSION_RENAME_ACTION_ID } from '../../../browser/agentSessions/agentSessions.js';
 import { isResponseSelectionSupported } from '../../../browser/chat.js';
 
 suite('Chat Accessibility Help', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('documents side questions and concurrent responses in both windows but not inline or quick chat', () => {
+		assert.deepStrictEqual([
+			getAccessibilityHelpText('panelChat', new MockKeybindingService(), true),
+			getAccessibilityHelpText('agentView', new MockKeybindingService(), true),
+			getAccessibilityHelpText('editsView', new MockKeybindingService(), true),
+			getAccessibilityHelpText('agentView', new MockKeybindingService(), true, true),
+			getAccessibilityHelpText('inlineChat', new MockKeybindingService(), true),
+			getAccessibilityHelpText('quickChat', new MockKeybindingService(), true),
+		].map(help => help.includes('/btw followed by a question') && help.includes('while a response is in progress')), [true, true, true, true, false, false]);
+	});
+
+	test('documents private early preparation and the pending Send handoff', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), false);
+		const preparation = getCloudSandboxPreparationAccessibilityHelp();
+
+		assert.deepStrictEqual({
+			included: help.includes(preparation),
+			setting: preparation.includes('chat.agentHost.cloudSandbox.earlyPreparation'),
+			repositories: preparation.includes('with or without a repository'),
+			private: preparation.includes('no conversation is added to the session list until you press Send'),
+			pending: preparation.includes('Send waits for pending preparation'),
+			fallback: preparation.includes('otherwise it can continue without early preparation'),
+			repositoryChange: preparation.includes('when you change repositories'),
+		}, { included: true, setting: true, repositories: true, private: true, pending: true, fallback: true, repositoryChange: true });
+	});
 
 	test('explains the disabled Local harness only on editor chat surfaces', () => {
 		assert.deepStrictEqual([
@@ -59,6 +85,19 @@ suite('Chat Accessibility Help', () => {
 			getAccessibilityHelpText('inlineChat', new MockKeybindingService(), true, false, false, false, false, ChatSessionArchiveActionWording.Archive, false, false, undefined, true),
 			getAccessibilityHelpText('quickChat', new MockKeybindingService(), true, false, false, false, false, ChatSessionArchiveActionWording.Archive, false, false, undefined, true),
 		].map(help => help.includes('changes across the whole session instead of showing a Changes pill') || help.includes('press Tab to reach its Keep button')), [false, false, false, false]);
+	});
+
+	test('explains the context menu and read-only actions when Keep and Undo is hidden', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true, false, false, true, false, ChatSessionArchiveActionWording.Archive, false, false, undefined, true, true, false);
+		assert.deepStrictEqual({
+			contextMenu: help.includes('Shift+F10 or the Context Menu key'),
+			toggle: help.includes('toggle it to show or hide review controls in both the working set and open editors'),
+			hidden: help.includes('Keep and Undo are hidden in both'),
+			diff: help.includes('View All Edits remains available'),
+			pill: help.includes('Show Pill replaces the working set'),
+			restore: help.includes('Show Working Set to restore it'),
+			noKeepButton: !help.includes('press Tab to reach its Keep button'),
+		}, { contextMenu: true, toggle: true, hidden: true, diff: true, pill: true, restore: true, noKeepButton: true });
 	});
 
 	for (const type of ['panelChat', 'agentView', 'editsView', 'inlineChat', 'quickChat'] as const) {
@@ -255,10 +294,18 @@ suite('Chat Accessibility Help', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({
 			artifacts: help.includes('Generated images also appear in artifacts'),
-			conversation: help.includes('generated images and user-attached images from the same conversation'),
+			conversation: help.includes('generated images, user-attached images, and images shown in responses from the same conversation'),
 			keyboard: help.includes('Use the Left and Right Arrow keys to move between images'),
 			immediateResize: help.includes('the preview begins resizing immediately, followed by the glyph-to-image reveal'),
 		}, { artifacts: true, conversation: true, keyboard: true, immediateResize: true });
+	});
+
+	test('documents opening and attaching images shown in responses', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			open: help.includes('To open an image shown in a response, use Tab to focus it and press Enter or Space'),
+			attach: help.includes('choose Add File to Chat, or drag it into the chat input'),
+		}, { open: true, attach: true });
 	});
 
 	test('documents the shared editor artifacts pill and its actions', () => {
@@ -409,7 +456,7 @@ suite('Chat Accessibility Help', () => {
 			hydraTiers: help.includes('HydraFusion\'s details offer two tiers, Default and Max, along with a Learn more link'),
 			hydraSelection: help.includes('HydraFusion stays in the model list with that tier as its readout'),
 			autoEntry: help.includes('The preference readout beside Auto in the chat input opens the same details'),
-			fusion: help.includes('When Auto is presented as Fusion, its details hold an "Effort Level" setting instead'),
+			fusion: help.includes('When Auto\'s tiers come from the Copilot service, Auto is presented as Copilot Fusion, and its details hold an "Effort Level" setting instead'),
 		}, { details: true, inspection: true, inputShortcut: true, defaults: true, visibility: true, preferences: true, activation: true, discount: true, hydra: true, hydraTiers: true, hydraSelection: true, autoEntry: true, fusion: true });
 	});
 
@@ -567,7 +614,7 @@ suite('Chat Accessibility Help', () => {
 		});
 	});
 
-	test('only describes the selection side chat affordance in the sessions window', () => {
+	test('describes selection side chats in both windows', () => {
 		const keybindingService = new MockKeybindingService();
 
 		assert.deepStrictEqual({
@@ -575,8 +622,19 @@ suite('Chat Accessibility Help', () => {
 			regularWindow: getAccessibilityHelpText('agentView', keybindingService, true, false).includes('Ask Question'),
 		}, {
 			sessionsWindow: isResponseSelectionSupported(),
-			regularWindow: false,
+			regularWindow: isResponseSelectionSupported(),
 		});
+	});
+
+	test('documents the editor selection action and quote without describing transient chats', () => {
+		const help = (type: 'agentView' | 'quickChat' | 'inlineChat') => getAccessibilityHelpText(type, new MockKeybindingService(), true, false, false, true, false, ChatSessionArchiveActionWording.Archive, false, false, true);
+		assert.deepStrictEqual({
+			editor: help('agentView').includes('Choose Ask in Side Chat... to open a small Ask Question input'),
+			quote: help('agentView').includes('through the selected response and its quoted text'),
+			keyboard: help('agentView').includes('context menu with Shift+F10 or the context menu key'),
+			quick: help('quickChat').includes('Ask Question'),
+			inline: help('inlineChat').includes('Ask Question'),
+		}, { editor: true, quote: true, keyboard: true, quick: false, inline: false });
 	});
 
 	test('omits mobile-web selection pop-up help without hiding other sessions help', () => {
@@ -596,7 +654,7 @@ suite('Chat Accessibility Help', () => {
 	test('only describes session result pill activation in the sessions window', () => {
 		const keybindingService = new MockKeybindingService();
 		const describe = (help: string) => ({
-			focus: help.includes('Use Tab to focus it'),
+			focus: help.includes('target session or chat button in the response. Use Tab to focus it'),
 			open: help.includes('Enter or Space to open it normally'),
 			openToSide: help.includes('Alt+Enter (Option+Enter on macOS) to open it to the side'),
 		});

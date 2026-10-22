@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CopilotToken, createTestExtendedTokenInfo } from '../../../authentication/common/copilotToken';
 import { ICopilotTokenStore } from '../../../authentication/common/copilotTokenStore';
 import { ConfigKey } from '../../../configuration/common/configurationService';
@@ -59,14 +59,14 @@ describe('InlineEditsModelService', () => {
 		configurationService = new InMemoryConfigurationService(new DefaultsOnlyConfigurationService());
 	});
 
-	function createService(copilotToken?: CopilotToken): InlineEditsModelService {
+	function createService(copilotToken?: CopilotToken, experimentationService = new NullExperimentationService()): InlineEditsModelService {
 		const tokenStore: ICopilotTokenStore = { copilotToken, onDidStoreUpdate: Event.None } as ICopilotTokenStore;
 		return store.add(new InlineEditsModelService(
 			tokenStore,
 			proxyModelsService,
 			new NullUndesiredModelsManager(),
 			configurationService,
-			new NullExperimentationService(),
+			experimentationService,
 			new NullTelemetryService(),
 			new TestLogService() as unknown as ILogService,
 		));
@@ -132,6 +132,40 @@ describe('InlineEditsModelService', () => {
 		}).toEqual({
 			supportsUnifiedCompletions: true,
 			modelLoads: 0,
+		});
+	});
+
+	it.each(['local', 'experiment', 'defaultExperiment'] as const)('preserves request arguments from %s model configuration', async source => {
+		const modelConfig: ModelConfiguration = {
+			modelName: 'configured-model',
+			promptingStrategy: PromptingStrategy.PatchBased02Unified,
+			includeTagsInCurrentFile: false,
+			lintOptions: undefined,
+			reasoningEffort: 'low',
+			maxCompletionTokens: 8192,
+		};
+		const experimentationService = new NullExperimentationService();
+		await configurationService.setConfig(ConfigKey.TeamInternal.InlineEditsUseSlashModels, false);
+		if (source === 'local') {
+			await configurationService.setConfig(ConfigKey.Advanced.InlineEditsXtabProviderModelConfiguration, modelConfig);
+		} else {
+			const key = source === 'experiment'
+				? ConfigKey.TeamInternal.InlineEditsXtabProviderModelConfigurationString
+				: ConfigKey.TeamInternal.InlineEditsXtabProviderDefaultModelConfigurationString;
+			vi.spyOn(experimentationService, 'getTreatmentVariable').mockImplementation(name =>
+				name === `copilotchat.config.${key.id}` ? JSON.stringify(modelConfig) : undefined);
+		}
+		const service = createService(undefined, experimentationService);
+		await service.ensureModelSelection(CancellationToken.None);
+		const selected = service.selectedModelConfiguration();
+		expect({
+			modelName: selected.modelName,
+			reasoningEffort: selected.reasoningEffort,
+			maxCompletionTokens: selected.maxCompletionTokens,
+		}).toEqual({
+			modelName: 'configured-model',
+			reasoningEffort: 'low',
+			maxCompletionTokens: 8192,
 		});
 	});
 

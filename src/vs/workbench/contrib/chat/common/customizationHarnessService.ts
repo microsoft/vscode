@@ -12,7 +12,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { AICustomizationManagementSection, AICustomizationSource, BUILTIN_STORAGE } from './aiCustomizationWorkspaceService.js';
-import { PromptsType } from './promptSyntax/promptTypes.js';
+import { PromptsType, Target } from './promptSyntax/promptTypes.js';
 import { AGENT_MD_FILENAME } from './promptSyntax/config/promptFileLocations.js';
 import { IAgentSource, IChatPromptSlashCommand, ICustomAgent, IPromptsService, IResolvedChatPromptSlashCommand, matchesSessionType, PromptsStorage } from './promptSyntax/service/promptsService.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -28,6 +28,7 @@ import type { IMcpServerCustomizationMigrationCandidate, IMcpServerCustomization
 import type { ICustomizationMarketplaceInstallProvider } from './customizationMarketplaceInstallService.js';
 import type { ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery, ICustomizationMarketplaceSourceRecoveryAction } from '../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import type { IMcpServerConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
+import type { AgentModelCatalogStatus } from '../../../../platform/agentHost/common/agentModelCatalogStatus.js';
 
 
 export const ICustomizationHarnessService = createDecorator<ICustomizationHarnessService>('customizationHarnessService');
@@ -105,6 +106,8 @@ export interface ICustomizationMarketplaceSearchProvider {
 	 * allowing the workbench to use its compatibility catalog transport.
 	 */
 	query(sessionResource: URI, options: ICustomizationMarketplaceSourceQuery, token: CancellationToken): Promise<ICustomizationMarketplaceSourcePage | undefined>;
+	/** Retrieves an ordered saved feed using the same authentication and installation authority as search. */
+	getFeed?(sessionResource: URI, feedId: string, token: CancellationToken): Promise<ICustomizationMarketplaceSourcePage>;
 	/** Optional explicit recovery for the provider's current source failure. */
 	getRecoveryAction?(): ICustomizationMarketplaceSourceRecoveryAction | undefined;
 }
@@ -151,6 +154,12 @@ export interface IHarnessDescriptor {
 	readonly id: string;
 	readonly label: string;
 	readonly icon: ThemeIcon;
+	/**
+	 * The target whose custom agent format this harness supports.
+	 */
+	readonly customAgentTarget?: Target;
+	/** Authoritative model discovery state when supplied by the harness. */
+	readonly modelCatalogueStatus?: IObservable<AgentModelCatalogStatus | undefined>;
 	/**
 	 * Management sections that should be hidden when this harness is active.
 	 * For example, Claude does not support prompt files so the Prompts

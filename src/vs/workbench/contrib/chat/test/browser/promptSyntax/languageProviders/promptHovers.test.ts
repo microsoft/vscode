@@ -27,14 +27,18 @@ import { PromptFileParser } from '../../../../common/promptSyntax/promptFilePars
 import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { getPromptFileExtension } from '../../../../common/promptSyntax/config/promptFileLocations.js';
+import { createVSCodeHarnessDescriptor, ICustomizationHarnessService } from '../../../../common/customizationHarnessService.js';
+import { constObservable } from '../../../../../../../base/common/observable.js';
 
 suite('PromptHoverProvider', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let instaService: TestInstantiationService;
 	let hoverProvider: PromptHoverProvider;
+	let activeTarget: Target;
 
 	setup(async () => {
+		activeTarget = Target.Undefined;
 		const testConfigService = new TestConfigurationService();
 		testConfigService.setUserConfiguration(ChatConfiguration.ExtensionToolsEnabled, true);
 		instaService = workbenchInstantiationService({
@@ -59,10 +63,12 @@ suite('PromptHoverProvider', () => {
 			{ id: 'claude-sonnet-4.5', name: 'Claude Sonnet 4.5', vendor: 'copilot', version: '1.0', family: 'claude', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 200000, maxOutputTokens: 8192, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: {} } satisfies ILanguageModelChatMetadata,
 			{ id: 'claude-opus-4.6', name: 'Claude Opus 4.6', vendor: 'copilot', version: '1.0', family: 'claude', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 200000, maxOutputTokens: 8192, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: {} } satisfies ILanguageModelChatMetadata,
 			{ id: 'claude-haiku-4.5', name: 'Claude Haiku 4.5', vendor: 'copilot', version: '1.0', family: 'claude', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 200000, maxOutputTokens: 8192, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: {} } satisfies ILanguageModelChatMetadata,
+			{ id: 'copilot-model', name: 'Copilot Model', vendor: 'copilot-test', version: '1.0', family: 'copilot', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: {}, targetChatSessionType: 'copilot-test', tooltip: 'Copilot model tooltip', configurationSchema: { type: 'object', properties: { reasoningEffort: { type: 'string', enum: ['low', 'high'] } } } } satisfies ILanguageModelChatMetadata,
 		];
 
 		instaService.stub(ILanguageModelsService, {
 			getLanguageModelIds() { return testModels.map(m => m.id); },
+			lookupLanguageModel(id: string) { return testModels.find(model => model.id === id); },
 			lookupLanguageModelByQualifiedName(qualifiedName: string) {
 				for (const metadata of testModels) {
 					if (ILanguageModelChatMetadata.matchesQualifiedName(qualifiedName, metadata)) {
@@ -70,7 +76,8 @@ suite('PromptHoverProvider', () => {
 					}
 				}
 				return undefined;
-			}
+			},
+			hasResolvedVendor: () => true,
 		});
 
 		const customChatMode = new CustomChatMode({
@@ -90,6 +97,13 @@ suite('PromptHoverProvider', () => {
 			getParsedPromptFile(model: ITextModel) {
 				return parser.parse(model.uri, model.getValue());
 			}
+		});
+		const localDescriptor = createVSCodeHarnessDescriptor();
+		const copilotDescriptor = { ...localDescriptor, id: 'copilot-test', customAgentTarget: Target.GitHubCopilot };
+		instaService.stub(ICustomizationHarnessService, {
+			activeHarness: constObservable('copilot-test'),
+			availableHarnesses: constObservable([localDescriptor, copilotDescriptor]),
+			getActiveDescriptor: () => activeTarget === Target.GitHubCopilot ? copilotDescriptor : localDescriptor,
 		});
 
 		hoverProvider = instaService.createInstance(PromptHoverProvider);
@@ -115,6 +129,48 @@ suite('PromptHoverProvider', () => {
 	}
 
 	suite('agent hovers', () => {
+		test('hover on github-copilot body placeholders and Local references', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'---',
+				'Work in {{cwd}}.',
+				'Use #tool:tool2 and #file:README.md.'
+			].join('\n');
+
+			const placeholderHover = await getHover(content, 5, 11, PromptsType.agent);
+			const toolHover = await getHover(content, 6, 13, PromptsType.agent);
+			const fileHover = await getHover(content, 6, 29, PromptsType.agent);
+
+			assert.deepStrictEqual({
+				placeholderHover,
+				toolHover,
+				fileHover,
+			}, {
+				placeholderHover: 'Current working directory.',
+				toolHover: 'Local `#tool:` references are not expanded by the GitHub Copilot harness.',
+				fileHover: 'Local `#file:` references are not expanded by the GitHub Copilot harness.',
+			});
+		});
+
+		test('uses active harness target when target is not specified', async () => {
+			activeTarget = Target.GitHubCopilot;
+			const content = [
+				'---',
+				'description: "Test"',
+				'handoffs:',
+				'  - label: Test',
+				'    agent: Default',
+				'    prompt: Test',
+				'---',
+			].join('\n');
+
+			const hover = await getHover(content, 3, 1, PromptsType.agent);
+
+			assert.strictEqual(hover, 'Possible handoff actions when the agent has completed its task.\n\nNote: This attribute is not used by the GitHub Copilot harness.');
+		});
+
 		test('hover on target attribute shows description', async () => {
 			const content = [
 				'---',
@@ -135,7 +191,172 @@ suite('PromptHoverProvider', () => {
 				'---',
 			].join('\n');
 			const hover = await getHover(content, 4, 1, PromptsType.agent);
-			assert.strictEqual(hover, 'Specify the model that runs this custom agent. This is supported by the GitHub Copilot harness. You can also provide an ordered list of model preferences; the first available model will be used.');
+			assert.strictEqual(hover, 'The model to use. An array is treated as an ordered list of model preferences.');
+		});
+
+		test('hover on a model from the github-copilot harness', async () => {
+			activeTarget = Target.GitHubCopilot;
+			const content = [
+				'---',
+				'description: "Test"',
+				'model: copilot-model',
+				'---',
+			].join('\n');
+
+			const hover = await getHover(content, 3, 10, PromptsType.agent);
+
+			assert.strictEqual(hover, 'The model to use. An array is treated as an ordered list of model preferences.\n\n- Name: Copilot Model\n- Family: copilot\n- Vendor: copilot-test\n\n\nCopilot model tooltip');
+		});
+
+		test('hover on model-specific github-copilot reasoning effort', async () => {
+			activeTarget = Target.GitHubCopilot;
+			const content = [
+				'---',
+				'description: "Test"',
+				'model: copilot-model',
+				'reasoning-effort: high',
+				'---',
+			].join('\n');
+
+			const hover = await getHover(content, 4, 20, PromptsType.agent);
+
+			assert.strictEqual(hover, 'The reasoning-effort override for this custom agent. Supported values depend on the selected model.\n\nSupported by: `copilot-model` (copilot-test).');
+		});
+
+		test('hover on github-copilot model policy uses schema description', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'model-policy: required',
+				'---',
+			].join('\n');
+
+			const hover = await getHover(content, 4, 1, PromptsType.agent);
+
+			assert.strictEqual(hover, 'Controls whether the configured model list is preferred or required.');
+		});
+
+		test('hover on github-copilot infer explains the replacement', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'infer: false',
+				'---',
+			].join('\n');
+
+			const hover = await getHover(content, 4, 1, PromptsType.agent);
+
+			assert.strictEqual(hover, 'Legacy inverse of `disable-model-invocation`. Set to false to prevent model-driven invocation.\n\nLegacy: Use `disable-model-invocation` instead.');
+		});
+
+		test('hover on github-copilot hook event and HTTP property', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'hooks:',
+				'  preMcpToolCall:',
+				'    - type: http',
+				'      url: https://example.com/hook',
+				'---',
+			].join('\n');
+
+			const eventHover = await getHover(content, 5, 3, PromptsType.agent);
+			const urlHover = await getHover(content, 7, 7, PromptsType.agent);
+
+			assert.deepStrictEqual({
+				eventHover,
+				urlHover,
+			}, {
+				eventHover: '**Pre-MCP Tool Call**\n\nExecuted before an MCP tool is called.',
+				urlHover: 'HTTP or HTTPS URL invoked by the hook.',
+			});
+		});
+
+		test('hover on github-copilot github properties', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'github:',
+				'  toolsets: [repos]',
+				'  permissions:',
+				'    issues: write',
+				'---',
+			].join('\n');
+
+			const toolsetsHover = await getHover(content, 5, 3, PromptsType.agent);
+			const permissionsHover = await getHover(content, 6, 3, PromptsType.agent);
+
+			assert.deepStrictEqual({
+				toolsetsHover,
+				permissionsHover,
+			}, {
+				toolsetsHover: 'GitHub MCP toolsets available to the custom agent.',
+				permissionsHover: 'GitHub MCP permission policy.',
+			});
+		});
+
+		test('hover on github-copilot local MCP properties and values', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'mcp-servers:',
+				'  local:',
+				'    type: stdio',
+				'    command: node',
+				'    args: [server.js]',
+				'    tools: [search]',
+				'    deferTools: auto',
+				'---',
+			].join('\n');
+
+			const commandHover = await getHover(content, 7, 5, PromptsType.agent);
+			const typeValueHover = await getHover(content, 6, 12, PromptsType.agent);
+			const deferToolsValueHover = await getHover(content, 10, 18, PromptsType.agent);
+
+			assert.deepStrictEqual({
+				commandHover,
+				typeValueHover,
+				deferToolsValueHover,
+			}, {
+				commandHover: 'Command used to start the MCP server.',
+				typeValueHover: 'Local MCP server transport type.\n\nAllowed values: `local`, `stdio`.',
+				deferToolsValueHover: 'Controls whether MCP tools are deferred.\n\nAllowed values: `auto`, `never`.',
+			});
+		});
+
+		test('hover on github-copilot remote MCP properties and values', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'mcp-servers:',
+				'  remote:',
+				'    type: http',
+				'    url: https://example.com/mcp',
+				'    tools: [fetch]',
+				'    headers:',
+				'      Authorization: token',
+				'---',
+			].join('\n');
+
+			const urlHover = await getHover(content, 7, 5, PromptsType.agent);
+			const headersHover = await getHover(content, 9, 5, PromptsType.agent);
+			const typeValueHover = await getHover(content, 6, 12, PromptsType.agent);
+
+			assert.deepStrictEqual({
+				urlHover,
+				headersHover,
+				typeValueHover,
+			}, {
+				urlHover: 'Remote MCP server URL.',
+				headersHover: 'HTTP headers sent to the MCP server.',
+				typeValueHover: 'Remote MCP server transport type.\n\nAllowed values: `http`, `sse`.',
+			});
 		});
 
 		test('hover on model attribute with vscode target shows model info', async () => {
@@ -172,7 +393,7 @@ suite('PromptHoverProvider', () => {
 			const expected = [
 				'Possible handoff actions when the agent has completed its task.',
 				'',
-				'Note: This attribute is not used in GitHub Copilot or Claude targets.'
+				'Note: This attribute is not used by the GitHub Copilot harness.'
 			].join('\n');
 			assert.strictEqual(hover, expected);
 		});

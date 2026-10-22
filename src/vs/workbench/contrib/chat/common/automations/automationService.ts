@@ -9,8 +9,9 @@ import { URI } from '../../../../../base/common/uri.js';
 import { stableStringify } from '../../../../../base/common/objects.js';
 import { localize } from '../../../../../nls.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
+import type { AutomationTriggerDefinition } from '../../../../../platform/github/common/missionControl/automations.js';
 import { ChatPermissionLevel } from '../constants.js';
-import { IAutomationDescriptor, IAutomationRun, IAutomationSchedule, IAutomationSessionTemplate, AutomationTarget } from './automation.js';
+import { IAutomationCloudTrigger, IAutomationDescriptor, IAutomationRun, IAutomationSchedule, IAutomationSessionTemplate, AutomationTarget } from './automation.js';
 
 export const IAutomationService = createDecorator<IAutomationService>('automationService');
 export const ConfigureAutomationToolReferenceName = 'configureAutomation';
@@ -25,6 +26,8 @@ export interface IAutomationProviderConfiguration {
 	readonly tools: IObservable<AutomationToolCatalog>;
 	/** Starts loading the tool catalog if it is not loaded or loading, retrying after a failure. */
 	loadTools(): void;
+	readonly triggers?: IObservable<AutomationTriggerCatalog>;
+	loadTriggers?(): void;
 	pickWorkspace(token: CancellationToken): Promise<URI | undefined>;
 	getWorkspaceTarget(workspace: URI | undefined): IObservable<IAutomationWorkspaceTarget>;
 }
@@ -45,6 +48,11 @@ export interface IAutomationToolGroup {
 export type AutomationToolCatalog =
 	| { readonly kind: 'loading' }
 	| { readonly kind: 'ready'; readonly groups: readonly IAutomationToolGroup[] }
+	| { readonly kind: 'error'; readonly message: string };
+
+export type AutomationTriggerCatalog =
+	| { readonly kind: 'loading' }
+	| { readonly kind: 'ready'; readonly definitions: readonly AutomationTriggerDefinition[] }
 	| { readonly kind: 'error'; readonly message: string };
 
 /** A checked canonical workspace, or an explanation while checking or unavailable. */
@@ -111,9 +119,11 @@ export function assertAutomationSessionTemplateAuthority(current: IAutomationDes
  * `nextRunAt`.
  */
 export interface ICreateAutomationOptions {
+	readonly ownership?: 'user' | 'repository';
 	readonly name: string;
 	readonly prompt: string;
 	readonly schedule: IAutomationSchedule;
+	readonly cloudTrigger?: IAutomationCloudTrigger;
 	readonly target: AutomationTarget;
 	readonly sessionTemplate?: IAutomationSessionTemplate;
 	/** @deprecated Compatibility input translated into {@link sessionTemplate}. */
@@ -152,6 +162,7 @@ export interface IUpdateAutomationOptions {
 	readonly name?: string;
 	readonly prompt?: string;
 	readonly schedule?: IAutomationSchedule;
+	readonly cloudTrigger?: IAutomationCloudTrigger;
 	readonly target?: AutomationTarget;
 	readonly sessionTemplate?: IAutomationSessionTemplate | null;
 	/** @deprecated Compatibility input translated into {@link sessionTemplate}. */
@@ -213,6 +224,7 @@ export function serializeAutomationEditableState(automation: IAutomationDescript
 		mode: automation.mode,
 		permissionLevel: automation.permissionLevel ?? ChatPermissionLevel.Default,
 		enabled: automation.enabled,
+		cloudTrigger: automation.cloudTrigger,
 	});
 }
 

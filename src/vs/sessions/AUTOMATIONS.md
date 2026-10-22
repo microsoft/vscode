@@ -4,7 +4,7 @@
 
 ## Scope and authority
 
-Automations schedule or manually start agent sessions through their selected provider. Local and remote Agent Hosts execute through AHP; the opt-in Copilot Cloud provider dispatches user-owned GitHub automations through the Copilot gateway.
+Automations schedule or manually start agent sessions through their selected provider. Local and remote Agent Hosts execute through AHP; the opt-in Copilot Cloud provider dispatches user-owned and repository-owned GitHub automations through the Copilot gateway.
 
 The Agents Window manages definitions, requests manual execution, and observes authoritative state. It does not evaluate schedules, elect a window leader, claim runs in browser storage, create run sessions, send their first prompts, or recover their lifecycle. An unavailable or unsupported provider never falls back to browser execution or to another provider.
 
@@ -61,9 +61,11 @@ Sessions management marks Automation configuration drafts with `isAutomationDraf
 
 `IAutomationDescriptor` contains immutable identity, editable name and prompt, schedule, execution target, optional session template, enabled state, and host-projected runtime timestamps.
 
+Cloud ownership is separate from the execution target and creator: `user` (Only me) or `repository`, defaulting to `user` for legacy responses. Ownership is accepted only on creation, never in updates. Repository write access is required for cloud mutations; every definition returned by the server is available through the UI and agent tools.
+
 An `AutomationTarget` separates concrete provider identity (`providerId`) from its agent (`sessionTypeId`). Workspace targets also carry the workspace URI and isolation choice. Session type or display name alone cannot determine ownership. Creation requires an explicit, available Automation-capable provider.
 
-Cloud definitions retain UTC schedule semantics. Unsupported triggers project as a custom, non-editable schedule rather than a manual schedule. Portable local-time blueprints and AHP mutations reject cloud schedules they cannot preserve.
+Cloud definitions retain UTC schedule semantics and their raw event configuration separately from the schedule projection. Unsupported triggers project as a custom schedule rather than a manual schedule. Unrelated updates omit triggers, since the cloud API replaces a supplied trigger map as a whole. The editable-state conflict check includes raw triggers and actor-write permission. Portable local-time blueprints and AHP mutations reject cloud schedules they cannot preserve.
 
 Cloud schedule presentation uses local wall-clock values without changing canonical UTC definitions. The dialog captures the local UTC offset when opened and uses it for both load and save; provider changes do not convert the form fields again. Daily and weekly schedules remain fixed UTC recurrences on GitHub, so their displayed local time can shift across daylight-saving changes.
 
@@ -117,9 +119,11 @@ Providers may expose observable enablement. Disabled providers are excluded from
 
 Cloud dialog configuration is supplied by the enabled provider through the shared Automation contract. Repository selection reuses the New Chat repository search, validates private repository access, and defaults to Cloud while retaining a matching local checkout. Session types follow workspace capabilities; selecting another supported provider changes execution without changing the displayed workspace. Provider-owned model/tool drafts, UTC scheduling, and immutable-target guidance follow the selected provider. The cloud provider loads its selectable tools from the Mission Control tool catalog once per account session; new definitions select every catalog tool, and saved tool IDs outside the catalog are preserved unchanged. Eligibility is advisory UI state; mutations still revalidate access at the provider boundary.
 
+Cloud event authoring is dialog-only and uses an explicitly supported subset of the account's trigger catalog. Trigger sections that cannot be faithfully represented remain read-only with Open on GitHub, while other fields remain editable. Event changes retain opaque settings; unchanged sections omit the trigger map entirely. Supported event automations do not offer eventless manual execution. Duplication of event configurations is declined in favor of GitHub, and portable export remains restricted.
+
 Agent-facing tools consume that same provider configuration. Listing refreshes enabled cloud catalogues and loads selectable tools, returning a serializable snapshot with explicit tool-catalog readiness or errors. It exposes known active runs and the provider's history readiness separately from definition readiness; a missing active run does not establish an uncertain request's outcome. Configure preserves UTC schedules and provider-owned partial-update semantics. Run distinguishes accepted, started, already-running, uncertain, and not-started outcomes; providers translate uncertain mutations into the shared `AutomationMutationUncertainError` without inviting an automatic retry.
 
-Cloud discovery is limited to user-owned definitions in known and recent private/internal GitHub.com repositories. Mutations revalidate repository eligibility and updates compare the latest editable state before dispatch; REST does not provide atomic compare-and-swap. An uncertain mutation blocks further writes until refresh reconciles the catalogue. Cloud run requests return acceptance without a correlated run or completion promise. History remains a bounded server-owned window, with external links and no synthesized native session resource.
+Cloud discovery includes the authenticated user's definitions and repository-owned definitions in known and recent private/internal GitHub.com repositories. Agent-facing tools consume the same returned catalogue as the human UI. Mutations revalidate repository eligibility and updates compare the latest editable state before dispatch; REST does not provide atomic compare-and-swap. An uncertain mutation blocks further writes until refresh reconciles the catalogue. Cloud run requests return acceptance without a correlated run or completion promise. History remains a bounded server-owned window, with external links and no synthesized native session resource.
 
 Creation availability is observable and comes from the negotiated AHP create capability and authoritative catalogue readiness. Forms and tools use the same capability. Definition-specific Run, Update, and Remove actions come from the host's operations; clients do not infer permission from a locally retained definition.
 
