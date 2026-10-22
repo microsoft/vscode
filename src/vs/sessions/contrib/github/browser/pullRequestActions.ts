@@ -10,12 +10,15 @@ import { Action2, registerAction2 } from '../../../../platform/actions/common/ac
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { Menus } from '../../../browser/menus.js';
+import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { SessionHasPullRequestContext } from '../../../common/contextkeys.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { getGitHubPullRequestRefs, IGitHubPullRequestRef, ISession } from '../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
-import { OPEN_PULL_REQUEST_ACTION_ID } from '../common/types.js';
+import { OPEN_PULL_REQUEST_ACTION_ID, OPEN_PULL_REQUEST_CHANGES_ACTION_ID } from '../common/types.js';
+import { createPullRequestChangesEditorInput } from './pullRequestChangesMultiDiffSourceResolver.js';
 
 class PullRequestActionContext {
 	constructor(readonly pullRequest: IGitHubPullRequestRef) { }
@@ -70,6 +73,35 @@ function getSessionPullRequest(session: ISession | undefined): IGitHubPullReques
 	const gitHubInfo = session?.workspace.get()?.folders[0]?.gitRepository?.gitHubInfo.get();
 	return getGitHubPullRequestRefs(gitHubInfo)[0];
 }
+
+class OpenPullRequestChangesAction extends Action2 {
+	static readonly ID = OPEN_PULL_REQUEST_CHANGES_ACTION_ID;
+
+	constructor() {
+		super({
+			id: OpenPullRequestChangesAction.ID,
+			title: localize2('agentSessions.openPullRequestChanges', "Open Pull Request Changes"),
+			icon: Codicon.diffMultiple,
+			f1: false,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, sessionOrContext?: IActiveSession | ISession | PullRequestActionContext): Promise<void> {
+		const sessionsService = accessor.get(ISessionsService);
+		const editorService = accessor.get(IEditorService);
+		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
+
+		const target = sessionOrContext ?? sessionsService.activeSession.get();
+		const pullRequest = isPullRequestActionContext(target) ? target.pullRequest : getSessionPullRequest(target);
+		if (!pullRequest) {
+			return;
+		}
+
+		layoutService.revealEditorPartExplicitly();
+		await editorService.openEditor(createPullRequestChangesEditorInput(pullRequest));
+	}
+}
+registerAction2(OpenPullRequestChangesAction);
 
 class CopyPullRequestUrlAction extends Action2 {
 	static readonly ID = 'workbench.agentSessions.action.copyPullRequestUrl';

@@ -118,7 +118,7 @@ export class NodeExtHostMpcService extends ExtHostMcpService {
 		}
 
 		// Create the connection manager for graceful shutdown
-		const connectionManager = new McpStdioStateHandler(child);
+		const connectionManager = new McpStdioStateHandler(child, message => this._proxy.$onDidPublishLog(id, LogLevel.Debug, message));
 
 		this._proxy.$onDidChangeState(id, { state: McpConnectionState.Kind.Starting });
 

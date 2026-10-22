@@ -81,6 +81,16 @@ suite('SettingsChangeRelauncher', () => {
 		assert.strictEqual(restartCount, 1, 'should restart when confirmed');
 	});
 
+	test('prompts to restart when chat.agentHost.computerUse.enabled changes', async () => {
+		confirmResult = true;
+		await changeSetting(
+			'chat.agentHost.computerUse.enabled',
+			() => ({ chat: { agentHost: { computerUse: { enabled: false } } } }),
+			c => c.chat.agentHost.computerUse.enabled = true);
+
+		assert.deepStrictEqual({ confirmCount, restartCount }, { confirmCount: 1, restartCount: 1 });
+	});
+
 	test('does not prompt to restart when chat.agentHost.codexAgent.enabled changes', async () => {
 		confirmResult = true;
 		await changeSetting(

@@ -10,10 +10,10 @@ import { NullLogService } from '../../../log/common/log.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
-import { AgentMergeConfigKey, agentMergeDisableReasons, agentMergeEnabledNotice, agentMergeRootConfigSchema, defaultAgentMergeConfiguration, readAgentMergeChatInjectedConfigurations, readAgentMergeFolderState, readAgentMergeSessionState } from '../../common/agentMerge.js';
+import { AgentMergeConfigKey, agentMergeDisableReasons, agentMergeEnabledNotice, agentMergeRootConfigSchema, defaultAgentMergeConfiguration, readAgentMergeChatInjectedConfigurations, readAgentMergeFolderState, readAgentMergeSessionState, agentMergeGateFragments } from '../../common/agentMerge.js';
 import { getWorkingDirectoryKey } from '../../common/agentHostWorkingDirectories.js';
 import type { IAgent } from '../../common/agent.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
+import { AgentHostArtifactIntegrationsConfigKey, AgentHostAutoApprovePolicyRestrictedConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -26,13 +26,14 @@ import { ChatOriginKind, SessionStatus, buildChatUri, buildDefaultChatUri, creat
 import { IGitHubClient } from '../../../github/common/githubService.js';
 import { createTestGitHubService } from './testGitHubService.js';
 import { GitHubCredential, IGitHubCredentials } from '../../../github/common/githubCredentialService.js';
-import { PullRequestSnapshot, PullRequestSubscription } from '../../../github/common/githubPullRequestService.js';
+import { PullRequestSnapshot, PullRequestSubscription, firstCredentialFailure } from '../../../github/common/githubPullRequestService.js';
 import { PullRequestMutationApi, PullRequestReplyAndResolveResult } from '../../../github/common/githubPullRequestMutationService.js';
+import { isSamlEnforcementError } from '../../../github/common/githubTransport.js';
 import { IPullRequestResources } from '../../../github/common/pullRequestResourceService.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
-import { AgentMergeController, firstCredentialFailure, isSamlEnforcementError } from '../../node/agentMergeController.js';
+import { AgentMergeController } from '../../node/agentMergeController.js';
 import type { IAgentHostGitHubService } from '../../node/agentHostGitHubService.js';
 import { AgentMergeTools } from '../../node/agentMergeTools.js';
 import { captureCredentialSource, type IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
@@ -189,6 +190,29 @@ suite('AgentMergeController', () => {
 				chat: undefined,
 			},
 			restored: ['interactive', 'default'],
+		});
+	});
+
+	test('artifact integrations do not inherit Agent Merge elevated permissions', () => {
+		const { stateManager, configurationService, session } = createControllerHarness(disposables);
+		setSchemaWithoutChatProperties(stateManager, session);
+		configurationService.updateSessionConfig(session, {
+			[SessionConfigKey.Mode]: 'interactive', [SessionConfigKey.AutoApprove]: 'default',
+			[SessionConfigKey.AgentMerge]: { enabled: true },
+		});
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+		const values = () => {
+			const config = configurationService.getSessionConfigValues(session);
+			return [config?.[SessionConfigKey.Mode], config?.[SessionConfigKey.AutoApprove], readAgentMergeSessionState(config)?.enabled];
+		};
+		const before = values();
+		configurationService.updateRootConfig({ [AgentHostArtifactIntegrationsConfigKey]: true });
+		const integrations = values();
+		configurationService.updateRootConfig({ [AgentHostArtifactIntegrationsConfigKey]: false });
+		assert.deepStrictEqual({ before, integrations, restored: values() }, {
+			before: ['autopilot', 'assisted', true],
+			integrations: ['interactive', 'default', true],
+			restored: ['autopilot', 'assisted', true],
 		});
 	});
 
@@ -641,6 +665,26 @@ suite('AgentMergeController', () => {
 			authorized: { owner: true, sameFolder: false },
 			refreshedAfterRemoval: true,
 		});
+	});
+
+	test('artifact integration mode stops only Agent Merge work and preserves the saved opt-in', async () => {
+		const h = createPeerRepairHarness(disposables);
+		const humanChat = buildDefaultChatUri(h.session);
+		h.stateManager.dispatchServerAction(humanChat, {
+			type: ActionType.ChatTurnStarted, turnId: 'human-turn', startedAt: new Date().toISOString(),
+			message: { text: 'Keep working', origin: { kind: MessageKind.User } },
+		});
+		await h.start();
+		h.configurationService.updateRootConfig({ [AgentHostArtifactIntegrationsConfigKey]: true });
+		const paused = { enabled: h.controller.isEnabled(), context: h.controller.getTurnContext(h.peerChat) };
+		await assert.rejects(h.controller.setEnabled(h.peerChat, true), /disabled/);
+		h.configurationService.updateRootConfig({ [AgentHostArtifactIntegrationsConfigKey]: false });
+		assert.deepStrictEqual({
+			paused, resumed: h.controller.isEnabled(), cancelled: h.cancelledTurns,
+			humanTurn: h.stateManager.getChatState(humanChat)?.activeTurn?.id,
+			preference: h.configurationService.getRootValue(agentMergeRootConfigSchema, AgentMergeConfigKey.Enabled),
+			optIn: readAgentMergeFolderState(h.configurationService.getSessionConfigValues(h.session), h.otherKey, getWorkingDirectoryKey(REPOSITORY))?.enabled,
+		}, { paused: { enabled: false, context: undefined }, resumed: true, cancelled: [h.peerChat], humanTurn: 'human-turn', preference: true, optIn: true });
 	});
 
 	suite('pending review handoff', () => {
@@ -2295,12 +2339,12 @@ suite('AgentMergeController', () => {
 		assert.deepStrictEqual({
 			// Only the first refresh of a subscription throws; every later failure is
 			// recorded here, which is the state the SAML scenario actually reaches.
-			refused: firstCredentialFailure(snapshot({ checks: { status: 'error', complete: false, error: { kind: 'authorization', statusCode: 200, message: saml } } })),
-			signedOut: firstCredentialFailure(snapshot({ core: { status: 'error', complete: false, error: { kind: 'authentication', message: 'Bad credentials' } } }))?.id,
+			refused: firstCredentialFailure(snapshot({ checks: { status: 'error', complete: false, error: { kind: 'authorization', statusCode: 200, message: saml } } }), agentMergeGateFragments),
+			signedOut: firstCredentialFailure(snapshot({ core: { status: 'error', complete: false, error: { kind: 'authentication', message: 'Bad credentials' } } }), agentMergeGateFragments)?.id,
 			// A failure the user cannot fix by authorizing must not prompt.
-			serverError: firstCredentialFailure(snapshot({ checks: { status: 'error', complete: false, error: { kind: 'server', message: 'boom' } } })),
-			stillLoading: firstCredentialFailure(snapshot({ mergeability: { status: 'loading', complete: false } })),
-			healthy: firstCredentialFailure(snapshot({})),
+			serverError: firstCredentialFailure(snapshot({ checks: { status: 'error', complete: false, error: { kind: 'server', message: 'boom' } } }), agentMergeGateFragments),
+			stillLoading: firstCredentialFailure(snapshot({ mergeability: { status: 'loading', complete: false } }), agentMergeGateFragments),
+			healthy: firstCredentialFailure(snapshot({}), agentMergeGateFragments),
 			saml: isSamlEnforcementError(saml),
 			notSaml: isSamlEnforcementError('Bad credentials'),
 		}, {

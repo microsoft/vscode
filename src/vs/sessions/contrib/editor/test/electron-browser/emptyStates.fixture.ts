@@ -35,6 +35,7 @@ import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
 import { TestLayoutService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IChatWidgetService, IQuickChatService } from '../../../../../workbench/contrib/chat/browser/chat.js';
+import { IExternalUriOpenerService } from '../../../../../workbench/contrib/externalUriOpener/common/externalUriOpenerService.js';
 import { NEW_UNTITLED_FILE_COMMAND_ID } from '../../../../../workbench/contrib/files/browser/fileConstants.js';
 import '../../../../../workbench/contrib/search/browser/searchQuickAccess.contribution.js';
 import { IDecorationsService } from '../../../../../workbench/services/decorations/common/decorations.js';
@@ -215,6 +216,7 @@ async function renderFilesEmptyState(context: ComponentFixtureContext, searchVal
 			}());
 			registration.defineInstance(IEditorService, new class extends mock<IEditorService>() { }());
 			registration.defineInstance(IEditorGroupsService, new class extends mock<IEditorGroupsService>() { }());
+			registration.defineInstance(IExternalUriOpenerService, new class extends mock<IExternalUriOpenerService>() { }());
 		},
 	});
 	const editor = disposableStore.add(instantiationService.createInstance(EmptyFileEditor, createMockEditorGroup()));
