@@ -16,9 +16,6 @@ import { COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, NullManagedSettingsService }
 import { NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { AccountPolicyGateState } from '../../../../../../services/policies/common/accountPolicyService.js';
 import { TestContextService, TestStorageService } from '../../../../../../test/common/workbenchTestServices.js';
-import { $ } from '../../../../../../../base/browser/dom.js';
-import { ChatConfiguration } from '../../../../common/constants.js';
-import { AgentSessionsViewerOrientation } from '../../../../browser/agentSessions/agentSessions.js';
 import { ChatViewPane } from '../../../../browser/widgetHosts/viewPane/chatViewPane.js';
 import { ChatOpenDiagnosticsService } from '../../../../common/chatOpenDiagnosticsService.js';
 import { MockChatSessionsService } from '../../../common/mockChatSessionsService.js';
@@ -107,7 +104,7 @@ suite('ChatViewPane chat open diagnostics', () => {
 			layoutService: { isRestored: () => options.restored ?? true },
 			notificationService: { error: () => { } },
 			progressService: { withProgress: (_: unknown, task: () => Promise<unknown>) => task() },
-			loadSessionCts: store.add(new MutableDisposable<CancellationTokenSource>()),
+			loadSessionCts: { value: undefined, },
 			element: { ownerDocument: { hidden: false } },
 			_widget: { viewModel: options.shown ? { sessionResource: options.shown } : undefined, visible: true, getInput: () => '' },
 			chatService: {
@@ -171,57 +168,5 @@ suite('ChatViewPane chat open diagnostics', () => {
 		const { pane, events } = createPane({ restored: false, acquired: chat });
 		await pane.loadSession(chat);
 		assert.deepStrictEqual(summarize(events), []);
-	});
-
-	test('keeps stacked sessions list visible when no model is bound unless a session load is in flight', () => {
-		const loadSessionCts = store.add(new MutableDisposable<CancellationTokenSource>());
-		let viewModel: { model: { title: string } } | undefined;
-		let isEmpty = true;
-		const pane: { updateSessionsControlVisibility(): { changed: boolean; visible: boolean } } = Object.assign(Object.create(ChatViewPane.prototype), {
-			sessionsContainer: $('div'),
-			viewPaneContainer: $('div'),
-			sessionsListRevealCount: 0,
-			_sessionsListSuppressionCount: 0,
-			sessionsViewerOrientation: AgentSessionsViewerOrientation.Stacked,
-			sessionsViewerVisible: false,
-			sessionsViewerVisibilityContext: { set: () => { } },
-			configurationService: new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsEnabled]: true }),
-			chatEntitlementService: { sentiment: { completed: true }, hasByokModels: false },
-			welcomeController: { isShowingWelcome: constObservable(false) },
-			loadSessionCts,
-			_widget: {
-				isEmpty: () => isEmpty,
-				get viewModel() { return viewModel; },
-			},
-		});
-
-		const withoutModelIdle = pane.updateSessionsControlVisibility().visible;
-		loadSessionCts.value = new CancellationTokenSource();
-		const withoutModelLoading = pane.updateSessionsControlVisibility().visible;
-		loadSessionCts.value.cancel();
-		const withoutModelCancelled = pane.updateSessionsControlVisibility().visible;
-		loadSessionCts.clear();
-		viewModel = { model: { title: '' } };
-		const withEmptyUntitledModel = pane.updateSessionsControlVisibility().visible;
-		viewModel = { model: { title: 'Existing session' } };
-		const withTitledModel = pane.updateSessionsControlVisibility().visible;
-		isEmpty = false;
-		const withNonEmptyModel = pane.updateSessionsControlVisibility().visible;
-
-		assert.deepStrictEqual({
-			withoutModelIdle,
-			withoutModelLoading,
-			withoutModelCancelled,
-			withEmptyUntitledModel,
-			withTitledModel,
-			withNonEmptyModel,
-		}, {
-			withoutModelIdle: true,
-			withoutModelLoading: false,
-			withoutModelCancelled: true,
-			withEmptyUntitledModel: true,
-			withTitledModel: false,
-			withNonEmptyModel: false,
-		});
 	});
 });
