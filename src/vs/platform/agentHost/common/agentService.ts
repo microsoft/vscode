@@ -1547,9 +1547,9 @@ export interface IAgentHostService extends IAgentConnection {
 	sealMissionControlCredential?(request: IMissionControlCredentialSealingRequest): Promise<string>;
 	getMissionControlEnvironmentId?(): Promise<string | undefined>;
 	/**
-	 * Whether {@link createSession} can seed `importConversation` history. AHP
-	 * cannot carry it, so only the local native Agent Host management connection
-	 * supports it.
+	 * Whether {@link createSession} can seed `importConversation` history
+	 * (supported by the local management connection and by AHP connections that
+	 * advertise `vscode.createSessionImport`).
 	 */
 	readonly supportsConversationImport?: boolean;
 

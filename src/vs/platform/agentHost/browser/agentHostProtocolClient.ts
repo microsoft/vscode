@@ -24,6 +24,7 @@ import { AgentHostChatUrisCapabilityMetaKey, AgentHostSessionUrisCapabilityMetaK
 import { readRelayKeepAliveTimeout } from '../common/meta/relayConnectionMeta.js';
 import { supportsAgentHostWorktreeDiskUsage } from '../common/meta/agentHostWorktreeDiskUsageMeta.js';
 import { serializeChatWorkspace, withCreateChatWorkspaceMeta } from '../common/meta/agentHostCreateChatWorkspaceMeta.js';
+import { AGENT_HOST_CREATE_SESSION_IMPORT_CHUNK_CHARS, serializeCreateSessionImport, splitCreateSessionImportChunks, StageCreateSessionImportChunkExtensionMethod, supportsAgentHostCreateSessionImport, withCreateSessionImportMeta, withStagedCreateSessionImportMeta } from '../common/meta/agentHostCreateSessionImportMeta.js';
 import { vArray, vEnum, vObj, vOptionalProp, vString, vUndefined, vUnknown } from '../../../base/common/validation.js';
 import { AgentHostChannelScheduler, readChannelFlowControl } from '../common/agentHostChannelDelivery.js';
 import { AgentHostTcpBudget, AgentHostTcpConnection, agentHostTcpReceiveLimits, type IAgentHostTcpConnection } from '../common/agentHostTcpConnection.js';
@@ -319,6 +320,9 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	readonly sandboxCertificateInstallationSupported = derived(this, reader => supportsSandboxCertificateInstallation(this._initializeResult.read(reader)));
 	readonly sandboxCertificateRotationSupported = derived(this, reader => supportsSandboxCertificateRotation(this._initializeResult.read(reader)));
 	readonly sandboxCertificateRemovalSupported = derived(this, reader => supportsSandboxCertificateRemoval(this._initializeResult.read(reader)));
+	get supportsConversationImport(): boolean {
+		return supportsAgentHostCreateSessionImport(this._initializeResult.get());
+	}
 	private readonly _devContainerService = this._register(new DevContainerAgentHostProtocolClient((method, params) => this._sendExtensionRequest(method, params)));
 
 	get devContainerService(): IDevContainerAgentHostMainService | undefined {
@@ -1846,9 +1850,9 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		if (!provider) {
 			throw new Error('Cannot create remote agent host session without a provider.');
 		}
-		if (config.importConversation) {
-			// AHP `createSession` has no field for imported history. Creating the
-			// session anyway would silently produce an empty one.
+		if (config.importConversation && !this.supportsConversationImport) {
+			// A host that does not advertise `vscode.createSessionImport` cannot carry
+			// imported history. Creating the session anyway would silently produce an empty one.
 			throw new Error('Cannot import a conversation into a remote agent host session.');
 		}
 		const root = this.rootState.value;
@@ -1856,17 +1860,33 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		if (config?.activeClient?.customizations) {
 			this._grantImplicitReadsForCustomizations(config.activeClient.customizations);
 		}
-		// Use `.then` (not `async`) so the tracked promise and the returned promise are the same object — callers
-		// awaiting via `getInflightSessionCreate` resume on the same microtask queue as direct `createSession()` awaiters.
-		const promise = this._sendRequest('createSession', {
+		const sendCreateSession = (meta: Record<string, unknown> | undefined) => this._sendRequest('createSession', {
 			channel: session.toString(),
-			_meta: config?._meta,
+			_meta: meta,
 			provider,
 			workingDirectories: config?.workingDirectories?.map(d => fromAgentHostUri(d).toString()),
 			config: config?.config,
 			activeClient: config?.activeClient,
 			progressToken: config?.progressToken,
 		}).then(() => session);
+		if (config?.importConversation) {
+			const serialized = JSON.stringify(serializeCreateSessionImport(config.importConversation));
+			if (serialized.length > AGENT_HOST_CREATE_SESSION_IMPORT_CHUNK_CHARS) {
+				const chunks = splitCreateSessionImportChunks(serialized);
+				const transferId = generateUuid();
+				const promise = (async () => {
+					for (const chunk of chunks) {
+						await this._sendExtensionRequest(StageCreateSessionImportChunkExtensionMethod, { transferId, chunk });
+					}
+					return sendCreateSession(withStagedCreateSessionImportMeta(config._meta, transferId));
+				})();
+				this._subscriptionManager.trackSessionCreate(session, promise);
+				return promise;
+			}
+		}
+		// Use `.then` (not `async`) so the tracked promise and the returned promise are the same object — callers
+		// awaiting via `getInflightSessionCreate` resume on the same microtask queue as direct `createSession()` awaiters.
+		const promise = sendCreateSession(config?.importConversation ? withCreateSessionImportMeta(config._meta, config.importConversation) : config?._meta);
 		this._subscriptionManager.trackSessionCreate(session, promise);
 		return promise;
 	}
