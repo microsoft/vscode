@@ -107,7 +107,7 @@ test('managed launcher readiness, lifetime, isolation, forwarding and exact-run 
 			await fs.writeFile(path.join(repo, 'scripts', 'code.bat'), '');
 			await fs.copyFile(process.execPath, path.join(repo, '.build', 'electron', 'Code.exe'));
 		} else {
-			const quote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
+			const quote = (value: string) => `'${value.replaceAll('\'', '\'\\\'\'')}'`;
 			await fs.writeFile(path.join(repo, 'scripts', 'code.sh'), `#!/bin/sh\nexec ${quote(process.execPath)} ${quote(path.join(repo, 'index.js'))} "$@"\n`, { mode: 0o755 });
 		}
 		for (const [relative, content] of Object.entries({
