@@ -703,8 +703,8 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 	}());
 
 	const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
-	// Render terminal-approval labels as real (monospace) code blocks; otherwise the command is blank.
-	await configurationService.setUserConfiguration('editor', { fontFamily: 'monospace' });
+	// Pin the Linux screenshot font instead of depending on Chromium's generic monospace fallback.
+	await configurationService.setUserConfiguration('editor', { fontFamily: 'Liberation Mono, monospace' });
 	for (const [key, value] of Object.entries(state.settings ?? {})) {
 		await configurationService.setUserConfiguration(key, value);
 	}
