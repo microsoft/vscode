@@ -3833,6 +3833,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 		await super.setInput(input, options, context, token);
 		input.setTargetLabels(this.getActiveHarnessLabel(), this.workspaceService.activeProjectLabel.get());
 		if (!token.isCancellationRequested) {
+			this.initializeContributedSectionWidgets();
+			if (this.selectedSection && this.isContributedSectionEnabled(this.selectedSection)) {
+				this.ensureContributedSectionWidget(this.selectedSection);
+			}
 			this.welcomePage?.setVisible(this.isVisible() && this.viewMode === 'list' && this.selectedSection === undefined);
 			for (const [section, widget] of this.contributedSectionWidgets) {
 				widget.setVisible?.(this.isVisible() && this.viewMode === 'list' && this.selectedSection === section && this.isContributedSectionEnabled(section));
@@ -3876,8 +3880,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.cancelCustomizationMigrationRefresh();
 		this.disposeBuiltinEditingSessions();
 		this.welcomePage?.setVisible(false);
-		for (const widget of this.contributedSectionWidgets.values()) {
+		for (const [section, widget] of [...this.contributedSectionWidgets]) {
 			widget.setVisible?.(false);
+			this.disposeContributedSectionWidget(section);
 		}
 		super.clearInput();
 	}
