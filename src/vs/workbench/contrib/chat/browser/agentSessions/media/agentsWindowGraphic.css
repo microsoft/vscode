@@ -43,6 +43,39 @@
 	overflow: visible;
 }
 
+/* Compact graphics fill the width of their container, such as a hover card. */
+.agents-window-graphic.compact {
+	flex-wrap: nowrap;
+	gap: var(--vscode-spacing-size120);
+}
+
+.agents-window-graphic.compact .agents-window-graphic-figure {
+	gap: var(--vscode-spacing-size60);
+}
+
+.agents-window-graphic.window-comparison.compact .agents-window-graphic-figure {
+	min-width: 0;
+	max-width: none;
+}
+
+.agents-window-graphic.many-windows-to-one.compact .agents-window-graphic-figure {
+	flex: 1 1 auto;
+}
+
+.agents-window-graphic.many-windows-to-one.compact .agents-window-graphic-svg {
+	width: 100%;
+}
+
+.agents-window-graphic.compact .agents-window-graphic-caption {
+	font-size: var(--vscode-fontSize-body2);
+	line-height: 16px;
+}
+
+.agents-window-graphic.compact .agents-window-graphic-title {
+	color: var(--vscode-descriptionForeground);
+	font-weight: var(--vscode-fontWeight-regular);
+}
+
 .agents-window-graphic-caption {
 	display: flex;
 	flex-direction: column;
