@@ -1783,6 +1783,11 @@ per-word capitalization does not survive translation. */
 	min-height: 0;
 }
 
+.ai-customization-management-editor .embedded-marketplace-detail {
+	-webkit-user-select: text;
+	user-select: text;
+}
+
 .ai-customization-management-editor .mcp-detail-editor-scrollable,
 .ai-customization-management-editor .marketplace-detail-scrollable,
 .ai-customization-management-editor .plugin-detail-editor-scrollable {

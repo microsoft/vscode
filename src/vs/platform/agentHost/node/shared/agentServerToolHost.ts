@@ -9,6 +9,7 @@ import { ActionType } from '../../common/state/protocol/common/actions.js';
 import { isAhpChatChannel, isSubagentSession, type StringOrMarkdown, type ToolDefinition, type URI } from '../../common/state/sessionState.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import type { AgentHostStateManager } from '../agentHostStateManager.js';
+import { requestServerToolConfirmation, type IServerToolConfirmation } from './serverToolConfirmation.js';
 
 export const IAgentHostServerToolService = createDecorator<IAgentHostServerToolService>('agentHostServerToolService');
 
@@ -55,6 +56,11 @@ export interface IServerToolExecutionContext {
 	readonly sessionUri: URI;
 	readonly chatUri: URI;
 	readonly turnId?: string;
+	/**
+	 * Asks the person in this chat to confirm, through an input request that tool auto-approval cannot answer.
+	 * Resolves `false` when they decline or the turn ends. Absent when the chat has no running turn.
+	 */
+	readonly requestConfirmation?: (confirmation: IServerToolConfirmation) => Promise<boolean>;
 }
 
 /**
@@ -286,10 +292,12 @@ export class AgentServerToolHost implements IAgentHostServerToolService {
 	}
 
 	private _executionContext(chatUri: URI): IServerToolExecutionContext {
+		const turnId = this._stateManager.getActiveTurnId(chatUri);
 		return {
 			sessionUri: this._stateManager.requireChatOwner(chatUri),
 			chatUri,
-			turnId: this._stateManager.getActiveTurnId(chatUri),
+			turnId,
+			...(turnId ? { requestConfirmation: (confirmation: IServerToolConfirmation) => requestServerToolConfirmation(this._stateManager, chatUri, turnId, confirmation) } : {}),
 		};
 	}
 

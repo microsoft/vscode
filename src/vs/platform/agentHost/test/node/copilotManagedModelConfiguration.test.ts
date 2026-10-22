@@ -9,7 +9,8 @@ import { NullLogService } from '../../../log/common/log.js';
 import type { IAgentModelInfo } from '../../common/agent.js';
 import { modelConfigurationSourceKey } from '../../common/agentModelConfiguration.js';
 import { readAgentManagedModelDefaults, readAgentModelConfigurationDefaults } from '../../common/meta/agentModelConfigurationMeta.js';
-import { omitCopilotManagedModelDefaults, projectCopilotManagedModelConfiguration } from '../../node/copilot/copilotManagedModelConfiguration.js';
+import { withAgentModelAutoTiersMeta } from '../../common/meta/agentModelMeta.js';
+import { omitCopilotManagedModelDefaults, projectCopilotManagedModelConfiguration, type CopilotManagedModelPolicy } from '../../node/copilot/copilotManagedModelConfiguration.js';
 
 suite('Copilot managed model configuration', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -86,6 +87,59 @@ suite('Copilot managed model configuration', () => {
 		}, new NullLogService());
 		assert.deepStrictEqual(result.configSchema?.properties.tier, {
 			type: 'string', title: 'Optimize for', enum: ['balance', 'intelligence'], default: 'intelligence',
+		});
+	});
+
+	test('a configured Fusion tier supersedes legacy Auto policy and resolves to the runtime\'s offered routing tier', () => {
+		const auto = (offered: string[], bindings?: Record<string, string>): IAgentModelInfo => ({
+			provider: 'copilotcli', id: 'auto', name: 'Auto', supportsVision: false,
+			configSchema: { type: 'object', properties: { tier: { type: 'string', title: 'Optimize for', enum: offered, default: 'balance' } } },
+			...(bindings ? { _meta: withAgentModelAutoTiersMeta(undefined, { tiers: offered.map(id => ({ id, label: id, enabled: true, ...(bindings[id] ? { fusionTier: bindings[id] } : {}) })) }) } : {}),
+		});
+		const builtIn = auto(['efficiency', 'balance', 'intelligence']);
+		const dynamic = auto(['balance', 'intelligence', 'hydrafusion', 'hydrafusion-max']);
+		// Server-delivered documents carry plain values rather than authoring wrappers.
+		const policy = (settings: { [key: string]: string } | undefined, values: CopilotManagedModelPolicy['values']): CopilotManagedModelPolicy => ({ ...(settings ? { layers: [{ source: 'server', settings }] } : {}), values });
+		const warnings: string[] = [];
+		const log = new class extends NullLogService {
+			override warn(message: string): void { warnings.push(message); }
+		}();
+		const cases: [string, IAgentModelInfo, CopilotManagedModelPolicy][] = [
+			['legacy alias', builtIn, policy({ autoTier: 'efficiency' }, { autoTier: 'efficiency', fusionTier: 'standard' })],
+			['Fusion over legacy', builtIn, policy({ autoTier: 'intelligence', fusionTier: 'standard' }, { autoTier: 'intelligence', fusionTier: 'standard' })],
+			['older runtime ignoring Fusion', builtIn, policy({ autoTier: 'intelligence', fusionTier: 'standard' }, { autoTier: 'intelligence' })],
+			['High without HydraFusion', builtIn, policy({ fusionTier: 'high' }, { fusionTier: 'high' })],
+			['High with HydraFusion', dynamic, policy({ fusionTier: 'high' }, { fusionTier: 'high' })],
+			['catalog binding', auto(['balance', 'intelligence', 'fusion-high'], { 'fusion-high': 'high' }), policy({ fusionTier: 'high' }, { fusionTier: 'high' })],
+			['Max with HydraFusion Max', dynamic, policy({ fusionTier: 'max' }, { fusionTier: 'max' })],
+			['Max without HydraFusion Max', builtIn, policy({ fusionTier: 'max' }, { fusionTier: 'max' })],
+			['unmanaged withdraws legacy', builtIn, policy({ fusionTier: 'unmanaged', autoTier: 'intelligence' }, { autoTier: 'intelligence', fusionTier: 'unmanaged' })],
+			['no layers', builtIn, policy(undefined, { fusionTier: 'high' })],
+		];
+		assert.deepStrictEqual({
+			results: Object.fromEntries(cases.map(([name, model, managed]) => {
+				const projected = projectCopilotManagedModelConfiguration(model, managed, log);
+				return [name, {
+					default: projected.configSchema?.properties.tier.default,
+					managed: readAgentManagedModelDefaults(projected)?.keys ?? [],
+					omitsImplicit: omitCopilotManagedModelDefaults({ id: 'auto', config: { tier: 'balance', [modelConfigurationSourceKey('tier')]: 'default' } }, managed).config?.tier === undefined,
+				}];
+			})),
+			warnings,
+		}, {
+			results: {
+				'legacy alias': { default: 'efficiency', managed: ['tier'], omitsImplicit: true },
+				'Fusion over legacy': { default: 'balance', managed: ['tier'], omitsImplicit: true },
+				'older runtime ignoring Fusion': { default: 'intelligence', managed: ['tier'], omitsImplicit: true },
+				'High without HydraFusion': { default: 'intelligence', managed: ['tier'], omitsImplicit: true },
+				'High with HydraFusion': { default: 'hydrafusion', managed: ['tier'], omitsImplicit: true },
+				'catalog binding': { default: 'fusion-high', managed: ['tier'], omitsImplicit: true },
+				'Max with HydraFusion Max': { default: 'hydrafusion-max', managed: ['tier'], omitsImplicit: true },
+				'Max without HydraFusion Max': { default: 'balance', managed: [], omitsImplicit: true },
+				'unmanaged withdraws legacy': { default: 'balance', managed: [], omitsImplicit: false },
+				'no layers': { default: 'intelligence', managed: ['tier'], omitsImplicit: true },
+			},
+			warnings: ['[Copilot] Managed model option \'tier\' is not offered by the selected model; leaving its picker unchanged.'],
 		});
 	});
 

@@ -12,10 +12,11 @@ import { Event } from '../../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
+import { resolvePath } from '../../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import { mock } from '../../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { SymbolKind, SymbolTag } from '../../../../../../../editor/common/languages.js';
 import { ILinkPresentation, ILinkPresentationService } from '../../../../../../../platform/dataChannel/common/dataChannel.js';
@@ -38,6 +39,7 @@ import { ChatMarkdownContentPart } from '../../../../browser/widget/chatContentP
 import { ChatMarkdownDecorationsRenderer } from '../../../../browser/widget/chatContentParts/chatMarkdownDecorationsRenderer.js';
 import { ChatMarkdownAnchorService, IChatMarkdownAnchorService } from '../../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { IChatPetService } from '../../../../browser/chatPetService.js';
+import { IChatImageCarouselService } from '../../../../browser/chatImageCarouselService.js';
 import { ChatContentMarkdownRenderer } from '../../../../browser/widget/chatContentMarkdownRenderer.js';
 import { EditorPool, DiffEditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
 import { CodeBlockPart, ICodeBlockData } from '../../../../browser/widget/chatContentParts/codeBlockPart.js';
@@ -45,6 +47,7 @@ import { IChatOutputRendererService, type RenderedOutputPart } from '../../../..
 import { IChatOutputPartStateCache, IOutputPartState } from '../../../../browser/widget/chatContentParts/chatOutputPartStateCache.js';
 import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
 import { IChatContentInlineReference } from '../../../../common/chatService/chatService.js';
+import { getChatMarkdownImageId } from '../../../../common/chatImageExtraction.js';
 import { IChatSessionsService } from '../../../../common/chatSessionsService.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
 import { rewriteAgentHostLinkTarget } from '../../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
@@ -125,11 +128,11 @@ suite('ChatMarkdownContentPart', () => {
 		};
 	}
 
-	function createMarkdownPart(markdownText: string, context?: IChatContentPartRenderContext, fillInIncompleteTokens = false, supportHtml = false): ChatMarkdownContentPart {
+	function createMarkdownPart(markdown: string | MarkdownString, context?: IChatContentPartRenderContext, fillInIncompleteTokens = false, supportHtml = false): ChatMarkdownContentPart {
 		const ctx = context ?? createRenderContext();
 		return store.add(instantiationService.createInstance(
 			ChatMarkdownContentPart,
-			{ kind: 'markdownContent', content: new MarkdownString(markdownText, { supportHtml }) },
+			{ kind: 'markdownContent', content: typeof markdown === 'string' ? new MarkdownString(markdown, { supportHtml }) : markdown },
 			ctx,
 			editorPool,
 			fillInIncompleteTokens,
@@ -631,6 +634,69 @@ suite('ChatMarkdownContentPart', () => {
 			await failed.p;
 			assert.deepStrictEqual({ alt: image.alt, width: image.naturalWidth }, { alt: 'Robot', width: 0 });
 		});
+
+		test('opens file images, but not linked or remote images, in the conversation image carousel', () => {
+			(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.ImageCarouselEnabled, true);
+			const opened: Parameters<IChatImageCarouselService['openCarouselAtResource']>[] = [];
+			instantiationService.stub(IChatImageCarouselService, upcastPartial<IChatImageCarouselService>({ openCarouselAtResource: async (...args) => { opened.push(args); } }));
+			const part = createMarkdownPart('![Robot](./image.png) [![Linked](./image.png)](https://example.com) ![Remote](https://github.com/user-attachments/assets/image.png)');
+			const images = Array.from(part.domNode.querySelectorAll('img'));
+
+			images[0].click();
+			images[0].dispatchEvent(new mainWindow.KeyboardEvent('keydown', { keyCode: 13, bubbles: true, cancelable: true }));
+
+			assert.deepStrictEqual({
+				images: images.map(image => ({ alt: image.alt, role: image.getAttribute('role'), tabIndex: image.tabIndex, label: image.getAttribute('aria-label') })),
+				opened: opened.map(([openedResource, data, options]) => ({ resource: openedResource.toString(), data, sessionResource: options?.sessionResource?.toString(), imageId: options?.imageId })),
+			}, {
+				images: [
+					{ alt: 'Robot', role: 'button', tabIndex: 0, label: 'Open image Robot' },
+					{ alt: 'Linked', role: null, tabIndex: -1, label: null },
+					{ alt: 'Remote', role: null, tabIndex: -1, label: null },
+				],
+				opened: [0, 1].map(() => ({ resource: resource.toString(), data: undefined, sessionResource: 'chat-session://test/session1', imageId: getChatMarkdownImageId('test-response-id', resource) })),
+			});
+		});
+
+		test('drags file images as their resource instead of the browser transport URL', () => {
+			const part = createMarkdownPart('![Robot](./image.png)');
+			const dataTransfer = new DataTransfer();
+			dataTransfer.setData('text/uri-list', 'blob:vscode-file://vscode-app/image');
+
+			part.domNode.querySelector('img')!.dispatchEvent(new DragEvent('dragstart', { dataTransfer, bubbles: true, cancelable: true }));
+
+			assert.deepStrictEqual({
+				types: [...dataTransfer.types].sort(),
+				uriList: dataTransfer.getData('text/uri-list'),
+			}, {
+				types: ['application/vnd.code.uri-list', 'codeeditors', 'resourceurls', 'text/plain', 'text/uri-list'],
+				uriList: resource.toString(),
+			});
+		});
+	});
+
+	test('makes response images interactive at the resource that the renderer loads', () => {
+		(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.ImageCarouselEnabled, true);
+		const opened: Parameters<IChatImageCarouselService['openCarouselAtResource']>[] = [];
+		instantiationService.stub(IChatImageCarouselService, upcastPartial<IChatImageCarouselService>({ openCarouselAtResource: async (...args) => { opened.push(args); } }));
+		const relative = new MarkdownString('![Relative](images/relative.png)');
+		relative.baseUri = URI.file('/workspace/README.md');
+		const local = 'file:///workspace/mapped.png';
+		const mapped = new MarkdownString(`![Mapped](${local})`);
+		mapped.uris = { [local]: URI.parse('vscode-remote://ssh-remote+host/workspace/mapped.png') };
+
+		for (const markdown of [relative, mapped]) {
+			createMarkdownPart(markdown).domNode.querySelector('img')!.click();
+		}
+
+		assert.deepStrictEqual(
+			opened.map(([openedResource, , options]) => ({ resource: openedResource.toString(), imageId: options?.imageId })),
+			// Like the renderer, relative resolution adds the current drive on Windows.
+			[resolvePath(URI.file('/workspace'), 'images/relative.png'), URI.parse('vscode-remote://ssh-remote+host/workspace/mapped.png')].map(target => ({
+				resource: target.toString(),
+				imageId: getChatMarkdownImageId('test-response-id', target),
+			})),
+		);
 	});
 
 	test('renders plain markdown without code blocks', () => {

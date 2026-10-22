@@ -22,6 +22,10 @@ import { resolveMcpServerWorkingDirectory } from '../shared/mcpServerWorkingDire
 type PreToolUseHookInput = Parameters<NonNullable<SessionHooks['onPreToolUse']>>[0];
 type PreToolUseHookOutput = Awaited<ReturnType<NonNullable<SessionHooks['onPreToolUse']>>>;
 type PostToolUseHookInput = Parameters<NonNullable<SessionHooks['onPostToolUse']>>[0];
+type PostToolUseHookOutput = Awaited<ReturnType<NonNullable<SessionHooks['onPostToolUse']>>>;
+type PostToolUseHookResult = Exclude<PostToolUseHookOutput, void>;
+type PostToolUseFailureHookInput = Parameters<NonNullable<SessionHooks['onPostToolUseFailure']>>[0];
+type PostToolUseFailureHookOutput = Exclude<Awaited<ReturnType<NonNullable<SessionHooks['onPostToolUseFailure']>>>, void>;
 type UserPromptSubmittedHookInput = Parameters<NonNullable<SessionHooks['onUserPromptSubmitted']>>[0];
 type SessionStartHookInput = Parameters<NonNullable<SessionHooks['onSessionStart']>>[0];
 type SessionEndHookInput = Parameters<NonNullable<SessionHooks['onSessionEnd']>>[0];
@@ -170,13 +174,18 @@ function getCustomAgentHooks(md: MarkdownNode): CustomAgentConfig['hooks'] {
  * Each agent file is read and (when present) its YAML frontmatter is parsed:
  *  - `name` falls back to the agent's resource name (filename stem).
  *  - `description` is forwarded verbatim.
- *  - `tools` is forwarded as the SDK's allow-list; an empty / missing array
- *    becomes `null` so the SDK grants the agent access to all tools.
+ *  - Extension-qualified `tools` references are translated to their SDK registration names;
+ *    an empty / missing array becomes `null` so the SDK grants the agent access to all tools.
  *  - `reasoning-effort` is forwarded when it is a supported runtime value.
  *  - `prompt` is the markdown body that follows the frontmatter (or the
  *    full file content when there is no frontmatter).
  */
-export async function toSdkCustomAgents(agents: readonly INamedPluginResource[], fileService: IFileService): Promise<ICopilotCustomAgentConfig[]> {
+export async function toSdkCustomAgents(
+	agents: readonly INamedPluginResource[],
+	fileService: IFileService,
+	availableModelIds?: ReadonlySet<string>,
+	clientToolNames?: ReadonlyMap<string, string>,
+): Promise<ICopilotCustomAgentConfig[]> {
 	const configs: ICopilotCustomAgentConfig[] = [];
 	for (const agent of agents) {
 		try {
@@ -205,17 +214,15 @@ export async function toSdkCustomAgents(agents: readonly INamedPluginResource[],
 					infer = false;
 				}
 				const prompt = md.body ?? raw;
-				let model: string | undefined = md.getStringValue('model') ?? undefined;
+				const scalarModel = md.getStringValue('model') || undefined;
 				const models = md.getStringArrayValue('model') ?? undefined;
-				if (!model && models && Array.isArray(models) && models.length > 0) {
-					model = models[0];
-				}
+				const model = scalarModel ?? models?.find(model => availableModelIds?.has(model)) ?? models?.[0];
 				configs.push({
 					name,
 					...(description ? { description } : {}),
 					...(model ? { model } : {}),
 					...(isCustomAgentReasoningEffort(reasoningEffort) ? { reasoningEffort } : {}),
-					tools: tools && tools.length > 0 ? tools : null,
+					tools: tools && tools.length > 0 ? tools.map(tool => clientToolNames?.get(tool) ?? tool) : null,
 					...(skills !== undefined ? { skills } : {}),
 					...(hooks ? { hooks } : {}),
 					...(infer !== undefined ? { infer } : {}),
@@ -246,8 +253,10 @@ export interface IPluginAgentsForSdk {
 export async function toSdkSessionCustomAgents(
 	plugins: readonly IPluginAgentsForSdk[],
 	fileService: IFileService,
+	availableModelIds?: ReadonlySet<string>,
+	clientToolNames?: ReadonlyMap<string, string>,
 ): Promise<ICopilotCustomAgentConfig[]> {
-	return toSdkCustomAgents(plugins.flatMap(plugin => plugin.agents), fileService);
+	return toSdkCustomAgents(plugins.flatMap(plugin => plugin.agents), fileService, availableModelIds, clientToolNames);
 }
 
 /**
@@ -356,6 +365,10 @@ function executeHookCommand(hook: IParsedHookCommand, stdin?: string): Promise<s
 		child.stdout.on('data', (data: Buffer) => { stdout += data.toString(); });
 		child.stderr.on('data', (data: Buffer) => { stderr += data.toString(); });
 
+		// Hooks may exit without reading their input, failing the write with
+		// EPIPE (EOF on Windows). The exit code decides the outcome, so don't
+		// surface it as an unhandled stream error.
+		child.stdin.on('error', () => { });
 		if (stdin) {
 			child.stdin.write(stdin);
 			child.stdin.end();
@@ -418,19 +431,41 @@ const HOOK_TYPE_TO_SDK_KEY: Record<string, keyof SessionHooks> = {
 };
 
 /**
+ * Combines VS Code's own post-tool-use output with a plugin hook's, the way the
+ * runtime combines successive hooks: result changes merge, with the plugin's
+ * applied last, and both hooks' added context is kept.
+ */
+function combinePostToolUseOutputs(host: PostToolUseHookResult | undefined, plugin: object | undefined): object | undefined {
+	if (!host || !plugin) {
+		return host ?? plugin;
+	}
+	const pluginOutput: Partial<PostToolUseHookResult> = plugin;
+	const additionalContext = [host.additionalContext, pluginOutput.additionalContext].filter(context => typeof context === 'string' && context.trim()).join('\n\n');
+	return {
+		...host,
+		...plugin,
+		...(host.modifiedResult || pluginOutput.modifiedResult ? { modifiedResult: { ...host.modifiedResult, ...pluginOutput.modifiedResult } } : {}),
+		...(additionalContext ? { additionalContext } : {}),
+	};
+}
+
+/**
  * Converts parsed plugin hooks into SDK {@link SessionHooks} handler functions.
  *
  * Each handler executes the hook's shell commands sequentially when invoked.
  * Hook types that don't map to SDK handler keys are silently ignored.
  *
- * The optional `editTrackingHooks` parameter provides internal edit-tracking
- * callbacks from {@link CopilotAgentSession} that are merged with plugin hooks.
+ * The optional `editTrackingHooks` parameter provides internal callbacks from
+ * {@link CopilotAgentSession}, such as edit tracking, that are merged with plugin
+ * hooks. Its post-tool-use output comes first, and plugin hooks see the result it
+ * changed.
  */
 export function toSdkHooks(
 	hookGroups: readonly IParsedHookGroup[],
 	editTrackingHooks?: {
 		readonly onPreToolUse: (input: PreToolUseHookInput) => Promise<PreToolUseHookOutput>;
-		readonly onPostToolUse: (input: PostToolUseHookInput) => Promise<void>;
+		readonly onPostToolUse: (input: PostToolUseHookInput) => Promise<PostToolUseHookOutput>;
+		readonly onPostToolUseFailure?: (input: PostToolUseFailureHookInput) => PostToolUseFailureHookOutput | undefined;
 		readonly onUserPromptSubmitted?: () => { readonly additionalContext: string } | undefined;
 	},
 ): SessionHooks {
@@ -464,9 +499,16 @@ export function toSdkHooks(
 	const postToolCommands = commandsByKey.get('onPostToolUse');
 	if (postToolCommands?.length || editTrackingHooks) {
 		hooks.onPostToolUse = async (input: PostToolUseHookInput) => {
-			await editTrackingHooks?.onPostToolUse(input);
-			return runHookCommands(postToolCommands, input);
+			const host = await editTrackingHooks?.onPostToolUse(input) || undefined;
+			const pluginInput = host?.modifiedResult ? { ...input, toolResult: { ...input.toolResult, ...host.modifiedResult } } : input;
+			return combinePostToolUseOutputs(host, await runHookCommands(postToolCommands, pluginInput));
 		};
+	}
+
+	// Post-tool-use-failure handler, which only the host uses
+	const onPostToolUseFailure = editTrackingHooks?.onPostToolUseFailure;
+	if (onPostToolUseFailure) {
+		hooks.onPostToolUseFailure = async (input: PostToolUseFailureHookInput) => onPostToolUseFailure(input);
 	}
 
 	// User-prompt-submitted handler

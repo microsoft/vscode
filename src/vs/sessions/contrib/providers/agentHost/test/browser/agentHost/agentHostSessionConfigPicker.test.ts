@@ -15,7 +15,10 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../../platform/actions/common/actions.js';
-import { IActionViewItemService } from '../../../../../../../platform/actions/browser/actionViewItemService.js';
+import { IActionViewItemFactory, IActionViewItemService } from '../../../../../../../platform/actions/browser/actionViewItemService.js';
+import { toAction } from '../../../../../../../base/common/actions.js';
+import { mainWindow } from '../../../../../../../base/browser/window.js';
+import { ISessionContext } from '../../../../../../services/sessions/browser/sessionContext.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID } from '../../../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
@@ -29,6 +32,10 @@ import { Context } from '../../../../../../../platform/contextkey/browser/contex
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService, type IPrompt, type IPromptResult } from '../../../../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../../../platform/hover/test/browser/nullHoverService.js';
+import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
+import { MockKeybindingService } from '../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { ISessionInputPickerVisibility, SessionInputPickerVisibility } from '../../../../../../services/sessions/common/sessionPickerVisibility.js';
 import { INotificationService } from '../../../../../../../platform/notification/common/notification.js';
 import { IQuickInputService } from '../../../../../../../platform/quickinput/common/quickInput.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -295,7 +302,9 @@ function setupServices(
 			actionWidget.focusedItem = actionWidget.items.find(item => item.item?.id === id);
 		},
 	} as Partial<IActionWidgetService> as IActionWidgetService);
-	instantiationService.stub(IHoverService, { setupDelayedHover: () => ({ dispose: () => { } }) } as Partial<IHoverService> as IHoverService);
+	instantiationService.stub(IHoverService, NullHoverService);
+	instantiationService.stub(IKeybindingService, new MockKeybindingService());
+	instantiationService.stub(ISessionInputPickerVisibility, store.add(new SessionInputPickerVisibility()));
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	const configurationService = new TestConfigurationService({
 		[DevContainerWorktreeEnabledSettingId]: false,
@@ -623,6 +632,42 @@ suite('Agent Host Session Config Picker', () => {
 			.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value);
 
 		assert.deepStrictEqual(entries, ['Isolation', 'Base Branch']);
+	});
+
+	test('repository pickers keep their menu action so the composer can identify them', async () => {
+		const services = setupServices(store);
+		const providers = new Map<string, IActionViewItemFactory>();
+		services.instantiationService.stub(IActionViewItemService, new class extends mock<IActionViewItemService>() {
+			override readonly onDidChange = Event.None;
+			override register(menu: MenuId, commandId: string | MenuId, provider: IActionViewItemFactory) {
+				if (menu !== Menus.NewSessionRepositoryConfig) {
+					return toDisposable(() => { });
+				}
+				providers.set(String(commandId), provider);
+				return toDisposable(() => providers.delete(String(commandId)));
+			}
+		}());
+		services.instantiationService.stub(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() {
+			override readonly mainContainer = document.createElement('div');
+		}());
+		services.instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly visibleSessions = constObservable([services.activeSession]);
+		}());
+		services.instantiationService.stub(ISessionContext, new class extends mock<ISessionContext>() {
+			override readonly session = constObservable(services.activeSession);
+		}());
+		store.add(services.instantiationService.createInstance(AgentHostSessionConfigPickerContribution));
+
+		const actionIds = Array.from(providers, ([commandId, provider]) => {
+			const action = toAction({ id: commandId, label: commandId, run: () => { } });
+			const item = provider(action, {}, services.instantiationService, mainWindow.vscodeWindowId);
+			if (item) {
+				store.add(item);
+			}
+			return item?.action.id === commandId;
+		});
+
+		assert.deepStrictEqual({ count: actionIds.length > 0, allKeepAction: actionIds.every(Boolean) }, { count: true, allKeepAction: true });
 	});
 
 	test('restores pointer and keyboard focus without leaving pointer focus visible', async () => {
@@ -960,10 +1005,10 @@ suite('Agent Host Session Config Picker', () => {
 		}, {
 			choices: [
 				{ label: 'Manual permissions', badge: undefined },
-				{ label: 'Assisted permissions, Experimental', badge: 'Experimental' },
+				{ label: 'Assisted permissions, New', badge: 'New' },
 				{ label: 'Custom permissions', badge: undefined },
 			],
-			withDescription: 'Assisted permissions, Experimental, Evaluates risk before running tools',
+			withDescription: 'Assisted permissions, New, Evaluates risk before running tools',
 			descriptionOnly: 'Assisted permissions, Evaluates risk before running tools',
 		});
 	});

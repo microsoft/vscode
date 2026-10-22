@@ -347,16 +347,10 @@ export class SessionHeaderBar extends Disposable {
 		activeChatObservable: IObservable<IChat | undefined>,
 		reader: IReader,
 	): void {
-		// Session icon — the SessionStatusIcon widget owns the rendering (spinner vs.
-		// codicon, cross-fade, reduced-motion); here we just feed it the latest state.
-		// Metadata is surfaced above the chat input, so the title keeps the
-		// read/unread status indicator.
-		// The title shows the active chat, so its status and read state must too: the
-		// session's own `status` and `isRead` aggregate all chats and would show another
-		// peer chat's in-progress or unread state.
+		// An empty header must not inherit activity or unread state from other chats.
 		const activeChat = activeChatObservable.read(reader);
-		const status = activeChat ? activeChat.status.read(reader) : session.status.read(reader);
-		const isRead = activeChat ? activeChat.isRead.read(reader) : session.isRead.read(reader);
+		const status = activeChat?.status.read(reader) ?? SessionStatus.Untitled;
+		const isRead = activeChat?.isRead.read(reader) ?? true;
 		const isArchived = session.isArchived.read(reader);
 		this._statusIcon.setStatus(status, isRead, isArchived);
 

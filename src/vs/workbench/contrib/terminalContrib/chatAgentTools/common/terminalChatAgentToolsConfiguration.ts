@@ -107,6 +107,7 @@ const terminalChatAgentProfileSchema: IJSONSchema = {
 export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	[TerminalChatAgentToolsSettingId.EnableAutoApprove]: {
 		restricted: true,
+		tags: ['chatPermissions'],
 		description: localize('autoApproveMode.description', "Controls whether to allow auto approval in the run in terminal tool."),
 		type: 'boolean',
 		default: true,
@@ -125,6 +126,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 	},
 	[TerminalChatAgentToolsSettingId.AutoApprove]: {
 		restricted: true,
+		tags: ['chatPermissions'],
 		markdownDescription: [
 			localize('autoApprove.description.intro', "A list of commands or regular expressions that control whether the run in terminal tool commands require explicit approval. These will be matched against the start of a command. A regular expression can be provided by wrapping the string in {0} characters followed by optional flags such as {1} for case-insensitivity.", '`/`', '`i`'),
 			localize('autoApprove.description.values', "Set to {0} to automatically approve commands, {1} to always require explicit approval or {2} to unset the value.", '`true`', '`false`', '`null`'),
@@ -422,7 +424,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		restricted: true,
 		type: 'boolean',
 		default: false,
-		tags: ['experimental'],
+		tags: ['experimental', 'chatPermissions'],
 		markdownDescription: localize('ignoreDefaultAutoApproveRules.description', "Whether to ignore the built-in default auto-approve rules used by the run in terminal tool as defined in {0}. When this setting is enabled, the run in terminal tool will ignore any rule that comes from the default set but still follow rules defined in the user, remote and workspace settings. Use this setting at your own risk; the default auto-approve rules are designed to protect you against running dangerous commands.", `\`#${TerminalChatAgentToolsSettingId.AutoApprove}#\``),
 	},
 	[TerminalChatAgentToolsSettingId.AutoApproveWorkspaceNpmScripts]: {
@@ -431,7 +433,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		// In order to use agent mode the workspace must be trusted, this plus the fact that
 		// modifying package.json is protected means this is safe to enable by default.
 		default: true,
-		tags: ['experimental'],
+		tags: ['experimental', 'chatPermissions'],
 		markdownDescription: localize('autoApproveWorkspaceNpmScripts.description', "Whether to automatically approve npm, yarn, and pnpm run commands when the script is defined in a workspace package.json file. Since the workspace is trusted, scripts defined in package.json are considered safe to run without explicit approval."),
 	},
 	[TerminalChatAgentToolsSettingId.BlockDetectedFileWrites]: {
@@ -444,7 +446,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			localize('blockFileWrites.all', "Block all detected file writes."),
 		],
 		default: 'outsideWorkspace',
-		tags: ['experimental'],
+		tags: ['experimental', 'chatPermissions'],
 		markdownDescription: localize('blockFileWrites.description', "Controls whether detected file write operations are blocked in the run in terminal tool. When detected, this will require explicit approval regardless of whether the command would normally be auto approved. Note that this cannot detect all possible methods of writing files, this is what is currently detected:\n\n- File redirection (detected via the bash or PowerShell tree sitter grammar)\n- `sed` in-place editing (`-i`, `-I`, `--in-place`)"),
 	},
 	[TerminalChatAgentToolsSettingId.ShellIntegrationTimeout]: {
@@ -531,6 +533,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		managedSettingsPresentation: read => SandboxSettingsResolutionHelper.resolveEnabled(undefined, read(COPILOT_SANDBOX_ENABLED_KEY) === true),
 		order: 10,
 		keywords: ['Sandbox', 'sandboxing'],
+		tags: ['chatPermissions'],
 		markdownDescription: localize('agentSandbox.enabledSetting', "Controls whether agent mode uses sandboxing to restrict what tools can do. When enabled, tools like the terminal are run in a sandboxed environment to limit access to the system. The Local harness supports sandboxing on Linux and macOS only. The Copilot Agent Host harness uses the SDK runtime's sandbox, including on supported Windows hosts."),
 		type: 'string',
 		enum: [AgentSandboxEnabledValue.Off, AgentSandboxEnabledValue.On],
@@ -569,6 +572,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		managedSettingsPresentation: read => SandboxSettingsResolutionHelper.resolveAllowAccess(undefined, read(COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY) !== false),
 		order: 20,
 		keywords: ['Sandbox', 'sandboxing'],
+		tags: ['chatPermissions'],
 		markdownDescription: localize('agentSandbox.allowNetwork', "Allow outbound network access in the sandbox (`allowOutbound` in the SDK). Configured allowed and denied network domains still restrict destinations. When disabled, outbound network access is blocked, including for the integrated browser."),
 		type: 'boolean',
 		default: true,
@@ -589,6 +593,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		managedSettingsPresentation: read => SandboxSettingsResolutionHelper.resolveAllowAccess(undefined, read(COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY) !== false),
 		order: 25,
 		keywords: ['Sandbox', 'sandboxing'],
+		tags: ['chatPermissions'],
 		markdownDescription: localize('agentSandbox.allowLocalNetwork', "Allow the sandboxed process to reach hosts on the local network. Windows needs this on when a proxy, host rules, or credential masking is used: it reaches the local listener over host loopback, and a sandboxed command will not launch without it. The local proxy checks destination addresses for direct connections. An upstream proxy resolves its own destinations."),
 		type: 'boolean',
 		default: false,
@@ -601,6 +606,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		},
 		order: 30,
 		keywords: ['Sandbox', 'sandboxing'],
+		tags: ['chatPermissions'],
 		markdownDescription: localize('agentSandbox.allowUnsandboxedCommands', "Controls whether agent mode terminal commands can run outside the sandbox after user confirmation when a sandboxed command fails or when sandbox restrictions would block the command."),
 		type: 'boolean',
 		default: true,
@@ -623,13 +629,14 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		deprecationMessageShowInSettings: true,
 		type: 'boolean',
 		default: true,
-		tags: ['preview'],
+		tags: ['preview', 'chatPermissions'],
 		restricted: true
 	},
 	[AgentSandboxSettingId.AgentSandboxMcpServers]: {
 		managedSettingsPresentation: read => SandboxSettingsResolutionHelper.resolveSandboxServers(undefined, read(COPILOT_SANDBOX_MCP_SERVERS_KEY) === true),
 		order: 40,
 		keywords: ['Sandbox', 'sandboxing'],
+		tags: ['chatPermissions'],
 		markdownDescription: localize('agentSandbox.mcpServers', "Controls whether MCP servers run in the sandbox when sandboxing is enabled."),
 		type: 'boolean',
 		default: true,
@@ -639,6 +646,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		managedSettingsPresentation: read => SandboxSettingsResolutionHelper.resolveSandboxServers(undefined, read(COPILOT_SANDBOX_LSP_SERVERS_KEY) === true),
 		order: 50,
 		keywords: ['Sandbox', 'sandboxing'],
+		tags: ['chatPermissions'],
 		markdownDescription: localize('agentSandbox.lspServers', "Controls whether LSP servers run in the sandbox when sandboxing is enabled."),
 		type: 'boolean',
 		default: true,
@@ -647,6 +655,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 	[AgentSandboxSettingId.AgentSandboxMaskedEnvironmentVariables]: {
 		order: 53,
 		keywords: ['Sandbox', 'sandboxing'],
+		tags: ['chatPermissions'],
 		markdownDescription: localize('agentSandbox.maskedEnvironmentVariables', "Choose environment variables and the HTTPS hosts allowed to receive their real values."),
 		type: 'object',
 		default: {},
@@ -675,6 +684,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		managedSettingsPresentation: read => SandboxSettingsResolutionHelper.resolveAllowAccess(undefined, read(COPILOT_SANDBOX_AUTH_GIT_KEY) !== false),
 		order: 51,
 		keywords: ['Sandbox', 'sandboxing'],
+		tags: ['chatPermissions'],
 		markdownDescription: localize('agentSandbox.authenticateGit', "Use your credentials for HTTPS git operations inside the sandbox. Applies only to the Copilot Agent Host harness."),
 		type: 'boolean',
 		default: true,
@@ -684,6 +694,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		managedSettingsPresentation: read => SandboxSettingsResolutionHelper.resolveAllowAccess(undefined, read(COPILOT_SANDBOX_AUTH_GH_KEY) !== false),
 		order: 52,
 		keywords: ['Sandbox', 'sandboxing'],
+		tags: ['chatPermissions'],
 		markdownDescription: localize('agentSandbox.authenticateGh', "Use your GitHub account for gh commands inside the sandbox. Applies only to the Copilot Agent Host harness."),
 		type: 'boolean',
 		default: true,
@@ -693,12 +704,14 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		managedSettingsPresentation: read => SandboxSettingsResolutionHelper.resolveAllowAccess(undefined, read(COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY) !== false),
 		order: 60,
 		keywords: ['Sandbox', 'sandboxing'],
+		tags: ['chatPermissions'],
 		markdownDescription: localize('agentSandbox.allowDevToolAccess', "Grant read access to the tool directories found on PATH, in toolchain env vars (CARGO_HOME, GOROOT, and similar) and under your user profile, plus dev-tool config and caches (including registry tokens), and read-write to shared build caches."),
 		type: 'boolean',
 		default: true,
 		restricted: true,
 	},
 	[AgentSandboxSettingId.AgentSandboxUserConfiguredPaths]: {
+		tags: ['chatPermissions'],
 		managedSettingsPresentation: (read, localValue) => {
 			const managed: IAgentSandboxUserConfiguredPaths = {};
 			for (const [property, key] of [
@@ -810,7 +823,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			allowWrite: [],
 			denyWrite: []
 		},
-		tags: ['preview'],
+		tags: ['preview', 'chatPermissions'],
 		restricted: true,
 	},
 	[TerminalChatAgentToolsSettingId.AgentSandboxMacFileSystem]: {
@@ -852,7 +865,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			allowWrite: [],
 			denyWrite: []
 		},
-		tags: ['preview'],
+		tags: ['preview', 'chatPermissions'],
 		restricted: true,
 	},
 	[TerminalChatAgentToolsSettingId.AgentSandboxAdvancedRuntime]: {
@@ -864,7 +877,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			enableWeakerNestedSandbox: false
 		},
 		additionalProperties: true,
-		tags: ['preview'],
+		tags: ['preview', 'chatPermissions'],
 		restricted: true,
 	},
 	[TerminalChatAgentToolsSettingId.PreventShellHistory]: {

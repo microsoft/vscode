@@ -38,8 +38,8 @@ import { ISessionsProvidersService } from '../../../../services/sessions/browser
 import { getSessionFilterOptions, ISessionFilterOption, sessionFilterKey } from './sessionsListFilters.js';
 import { AICustomizationShortcutsWidget } from '../aiCustomizationShortcutsWidget.js';
 import { AgentHostShortcutsWidget } from '../agentHostShortcutsWidget.js';
-import { Action2, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
-import { SubmenuEntryActionViewItem } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { Action2, IMenuService, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { getFlatContextMenuActions, SubmenuEntryActionViewItem } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IDropdownMenuActionViewItemOptions } from '../../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { agentsBackground } from '../../../../common/theme.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -197,6 +197,7 @@ export class SessionsView extends ViewPane {
 		@IStorageService private readonly storageService: IStorageService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
+		@IMenuService private readonly menuService: IMenuService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this.separateNavigation = observableConfigValue(SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING, false, configurationService);
@@ -320,6 +321,7 @@ export class SessionsView extends ViewPane {
 				return this.sessionsService.openSession(session.resource, { preserveFocus, source: 'sessionsList', forceMainChat: true }).then(onOpened).catch(onUnexpectedError);
 			},
 			canOpenSession: session => this.sessionsService.canOpenSession(session),
+			getMoveNotice: () => this.isBodyVisible() ? this.listNotification : undefined,
 			onChatOpen: (session, chat, preserveFocus, sideBySide) => {
 				const onOpened = () => {
 					if (isWeb && isPhoneLayout(this.layoutService)) {
@@ -378,7 +380,7 @@ export class SessionsView extends ViewPane {
 
 		this.registerSessionFilters(sessionsControl);
 		this.registerArchivedFilter(sessionsControl);
-		this.registerResetFiltersAction(sessionsControl);
+		this.registerResetFiltersAction();
 
 		// Refresh sessions when window gets focus to compensate for missing events
 		this._register(this.hostService.onDidChangeFocus(hasFocus => {
@@ -472,11 +474,29 @@ export class SessionsView extends ViewPane {
 	}
 
 	private createSessionsHeader(parent: HTMLElement, phoneLayout: boolean, disposables: DisposableStore): ISessionsHeaderElements {
-		const header = renderSessionsHeader(parent, phoneLayout, this.instantiationService, this.scopedContextKeyService, disposables, () => this.sessionsControl?.reportArchivedFilterShown());
+		const header = renderSessionsHeader(parent, phoneLayout, this.instantiationService, this.scopedContextKeyService, disposables, () => this.sessionsControl?.reportFilterMenuShown());
 		this.sessionsHeaders.add(header);
 		disposables.add(toDisposable(() => this.sessionsHeaders.delete(header)));
 		this.updateHeaderLayout();
 		return header;
+	}
+
+	showApplicationFilters(): void {
+		const header = [...this.sessionsHeaders].find(header => DOM.isHTMLElement(header.row.offsetParent));
+		const anchor = header?.actions ?? this.sessionsControlContainer;
+		if (!anchor) {
+			return;
+		}
+		this.hoverService.hideHover(true);
+		const actions = getFlatContextMenuActions(this.menuService.getMenuActions(Menus.SessionsViewFilter, this.scopedContextKeyService));
+		const applicationIndex = actions.findIndex(action => action instanceof SubmenuItemAction && action.item.submenu === Menus.SessionsViewSource);
+		this.sessionsControl?.reportFilterMenuShown();
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => anchor,
+			getActions: () => actions,
+			autoSelectItem: applicationIndex >= 0 ? applicationIndex : true,
+			onHide: () => this.sessionsControl?.focus(),
+		});
 	}
 
 	private updateCustomizationsPresentation(presentation: CustomizationsPresentation): void {
@@ -725,20 +745,8 @@ export class SessionsView extends ViewPane {
 		}));
 	}
 
-	private registerResetFiltersAction(sessionsControl: SessionsList): void {
-		const resetFilters = () => {
-			const restore = sessionsControl.resetFilters();
-			this.syncFilterContextKeys(sessionsControl);
-			this.listNotification?.show({
-				message: localize('filtersReset', "Filters reset"),
-				help: localize('filtersResetHelp', "This notice appears after resetting the filters. Undo restores the previous filters, including which sessions are shown and how many each section lists."),
-				undo: async () => {
-					restore();
-					this.syncFilterContextKeys(sessionsControl);
-					status(localize('filtersRestored', "Filters restored."));
-				},
-			});
-		};
+	private registerResetFiltersAction(): void {
+		const resetFilters = () => this.resetFilters();
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
@@ -755,6 +763,41 @@ export class SessionsView extends ViewPane {
 				resetFilters();
 			}
 		}));
+	}
+
+	/** Returns every filter and display option to its default, offering Undo. */
+	resetFilters(): void {
+		const sessionsControl = this.sessionsControl;
+		if (!sessionsControl) {
+			return;
+		}
+		const restore = sessionsControl.resetFilters();
+		this.syncFilterContextKeys(sessionsControl);
+		this.listNotification?.show({
+			message: localize('filtersReset', "Filters reset"),
+			help: localize('filtersResetHelp', "This notice appears after resetting the filters. Undo restores the previous filters, including which sessions are shown and how many each section lists."),
+			undo: async () => {
+				restore();
+				this.syncFilterContextKeys(sessionsControl);
+				status(localize('filtersRestored', "Filters restored."));
+			},
+		});
+	}
+
+	/** Shows or hides archived sessions, as the filter menu's toggle does. */
+	setShowArchived(show: boolean): void {
+		if (this.sessionsControl && this.sessionsControl.isExcludeArchived() === show) {
+			this.sessionsControl.setExcludeArchived(!show);
+			this.syncFilterContextKeys(this.sessionsControl);
+		}
+	}
+
+	/** Caps workspace, repository, and environment sections to their recent sessions, or shows all of them. */
+	setWorkspaceGroupCapped(capped: boolean): void {
+		if (this.sessionsControl && this.sessionsControl.isWorkspaceGroupCapped() !== capped) {
+			this.sessionsControl.setWorkspaceGroupCapped(capped);
+			this.syncFilterContextKeys(this.sessionsControl);
+		}
 	}
 
 	/** Updates the filter menu context keys to the list's current state, such as after resetting the filters or undoing that. */
@@ -860,7 +903,7 @@ export class SessionsView extends ViewPane {
 	}
 
 	/**
-	 * Phone-only: present a bottom sheet with the four sort/group toggles.
+	 * Phone-only: present a bottom sheet with the sort and group toggles.
 	 * The sheet omits the desktop filtering, capping, and collapse actions.
 	 */
 	private openSortGroupSheet(): void {
@@ -889,6 +932,18 @@ export class SessionsView extends ViewPane {
 				groupTitle: groupTitle,
 			},
 			{
+				id: SessionsGrouping.Repository,
+				label: localize('groupByRepository', "Group by Repository"),
+				checked: this.currentGrouping === SessionsGrouping.Repository,
+				group: 'group',
+			},
+			{
+				id: SessionsGrouping.Environment,
+				label: localize('groupByEnvironment', "Group by Environment"),
+				checked: this.currentGrouping === SessionsGrouping.Environment,
+				group: 'group',
+			},
+			{
 				id: SessionsGrouping.Date,
 				label: localize('groupByTime', "Group by Time"),
 				checked: this.currentGrouping === SessionsGrouping.Date,
@@ -902,10 +957,22 @@ export class SessionsView extends ViewPane {
 			}
 			if (selectedId === SessionsSorting.Created || selectedId === SessionsSorting.Updated) {
 				this.setSorting(selectedId);
-			} else if (selectedId === SessionsGrouping.Workspace || selectedId === SessionsGrouping.Date) {
+			} else if (selectedId === SessionsGrouping.Workspace || selectedId === SessionsGrouping.Repository || selectedId === SessionsGrouping.Environment || selectedId === SessionsGrouping.Date) {
 				this.setGrouping(selectedId);
 			}
 		});
+	}
+
+	get grouping(): SessionsGrouping {
+		return this.currentGrouping;
+	}
+
+	get sorting(): SessionsSorting {
+		return this.currentSorting;
+	}
+
+	get compact(): boolean {
+		return this.currentCompact;
 	}
 
 	setGrouping(grouping: SessionsGrouping): void {

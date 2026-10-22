@@ -42,6 +42,7 @@ import { GRID_GAP_SASH_CLASS } from '../../browser/parts/gridGap.js';
 import { SessionDropTarget } from '../../browser/parts/sessionDropTarget.js';
 import { DraggedSessionIdentifier, SessionsDataTransfers } from '../../browser/dnd.js';
 import { SessionActiveChatCanArchiveContext, SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionActiveChatIsUntitledContext, SessionActiveChatResourceContext, SessionFocusedChatIsRenameTargetContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionHeaderTargetsChatContext, SessionToolbarShowsSessionContext } from '../../common/contextkeys.js';
+import { ISessionActivityBarActivityService, SessionActivityBarActivityService } from '../../services/activity/common/sessionActivityBarActivityService.js';
 import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
 import { agentsPanelBorder } from '../../common/theme.js';
 import { type IAgentHostAutoConnect, type IAgentHostConnectProgress, type IAgentHostConnectionLabels, IAgentHostSessionsProvider } from '../../common/agentHostSessionsProvider.js';
@@ -310,6 +311,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, tabsReplaceHea
 					: menu;
 			}
 		}());
+		instantiationService.stub(ISessionActivityBarActivityService, store.add(new SessionActivityBarActivityService()));
 	}
 	const sessionsService = new TestSessionsService();
 	const chatViewFactory = new TestChatViewFactory();
@@ -409,7 +411,7 @@ suite('Sessions - ChatGroupsView', () => {
 		assert.strictEqual(view['_mainChatResource'], undefined);
 	});
 
-	test('aligns transcript overlays with full-width split chats', () => {
+	test('aligns transcript context with full-width split chats', () => {
 		const workbench = mainWindow.document.createElement('div');
 		workbench.classList.add('agent-sessions-workbench');
 		workbench.style.setProperty('--session-view-content-horizontal-padding', '24px');
@@ -419,14 +421,12 @@ suite('Sessions - ChatGroupsView', () => {
 		groups.classList.add('chat-groups-view');
 		const session = mainWindow.document.createElement('div');
 		session.classList.add('interactive-session');
-		const scrollDown = mainWindow.document.createElement('button');
-		scrollDown.classList.add('chat-scroll-down');
 		const list = mainWindow.document.createElement('div');
 		list.classList.add('interactive-list');
 		const transcriptContext = mainWindow.document.createElement('div');
 		transcriptContext.classList.add('chat-transcript-context');
 		list.appendChild(transcriptContext);
-		session.append(scrollDown, list);
+		session.appendChild(list);
 		groups.appendChild(session);
 		sessionsPart.appendChild(groups);
 		workbench.appendChild(sessionsPart);
@@ -434,10 +434,8 @@ suite('Sessions - ChatGroupsView', () => {
 		disposables.add(toDisposable(() => workbench.remove()));
 
 		assert.deepStrictEqual({
-			scrollDownRight: mainWindow.getComputedStyle(scrollDown).right,
 			transcriptContextMaxWidth: mainWindow.getComputedStyle(transcriptContext).maxWidth,
 		}, {
-			scrollDownRight: '24px',
 			transcriptContextMaxWidth: 'none',
 		});
 	});
@@ -723,6 +721,28 @@ suite('Sessions - ChatGroupsView', () => {
 				sashes: 1,
 			},
 		});
+	});
+
+	test('expands a collapsed group when its chat becomes active without taking focus', async () => {
+		const { sessionsService, view } = createHarness(disposables);
+		const main = createChat('main');
+		const secondary = createChat('secondary');
+		const session = new TestActiveSession([main, secondary]);
+		sessionsService.activeSession.set(session, undefined);
+		view.setSession(session, options);
+		view.layout(800, 600, 0, 0, 4);
+		view.splitChatToSide(secondary.resource);
+		await timeout(0);
+
+		const grid = view['_grid']!;
+		const [mainGroup, secondaryGroup] = view['_groups'].map(group => group.view);
+		const collapseTolerance = 8;
+		const isMainCollapsed = () => grid.getViewSize(mainGroup).width <= mainGroup.minimumWidth + collapseTolerance;
+		grid.resizeView(secondaryGroup, { width: 800, height: 600 });
+		const collapsed = isMainCollapsed();
+		await sessionsService.openChat(session, main.resource);
+
+		assert.deepStrictEqual({ collapsed, mainCollapsed: isMainCollapsed() }, { collapsed: true, mainCollapsed: false });
 	});
 
 	test('uses split-chat gaps in both presentations and removes them at zero-gap density', async () => {

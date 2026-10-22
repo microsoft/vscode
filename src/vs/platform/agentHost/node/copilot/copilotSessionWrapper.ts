@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotSession, NamedProviderConfig, ProviderModelConfig, SessionEvent, SessionEventPayload, SessionEventType } from '@github/copilot-sdk';
+import type { CopilotSession, NamedProviderConfig, ProviderModelConfig, SessionConfig, SessionEvent, SessionEventPayload, SessionEventType } from '@github/copilot-sdk';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -58,6 +58,8 @@ export interface ICopilotByokSessionConfig {
  */
 export class CopilotSessionWrapper extends Disposable {
 
+	private readonly _onEvent = this._register(new Emitter<SessionEvent>());
+	readonly onEvent = this._onEvent.event;
 	private readonly _handledEventTypes = new Set<SessionEventType>();
 	private readonly _onUnhandledEvent = this._register(new Emitter<SessionEvent>());
 	readonly onUnhandledEvent = this._onUnhandledEvent.event;
@@ -83,11 +85,15 @@ export class CopilotSessionWrapper extends Disposable {
 		/** BYOK providers and models the SDK session was launched with. */
 		readonly launchByokConfig: ICopilotByokSessionConfig,
 		readonly launchImageGenerationEnabled: boolean,
+		readonly launchImageGenerationWatermark: boolean,
+		/** The trust the SDK session was created with for its working directory; `undefined` for a resume or no grant. */
+		readonly launchWorkingDirectoryTrust: SessionConfig['trustWorkingDirectory'],
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 		this._logService.info(this._lifecycleLogMessage('attached'));
 		const unsubscribeAll = session.on(event => {
+			this._onEvent.fire(event);
 			if (isProvisionalFusionConversationEvent(event)) {
 				if (event.type === 'tool.execution_start' || event.type === 'tool.execution_complete' || event.type === 'assistant.message') {
 					this._onProvisionalFusionEvent.fire(event);
