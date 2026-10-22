@@ -8,6 +8,7 @@ import type { Attachment, SendOptions } from '@github/copilot/sdk';
 export interface ICopilotCLIPendingRequestContext {
 	readonly prompt: string;
 	readonly attachments: Attachment[];
+	readonly command?: string;
 	readonly source?: SendOptions['source'];
 }
 
