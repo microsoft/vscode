@@ -8754,7 +8754,7 @@ suite('ProtocolServerHandler', () => {
 				const scopedHandler = disposables.add(new ProtocolServerHandler(
 					agentService, stateManager, relay, { allowExtensionMethods: false, relayResourceRoots: () => [workspace] },
 					disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
-					managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
+					managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
 				));
 				const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'relay-chat-workspace', false));
 				transport.relayAuthenticated = true;

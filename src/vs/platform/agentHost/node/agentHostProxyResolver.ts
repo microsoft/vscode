@@ -142,8 +142,8 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 		}
 		this._clientCertificates = Object.freeze(combined);
 		this._proxyResolver = undefined;
-		this._proxyAgentParams = undefined;
 		this._fetch = undefined;
+		this._webSocket = undefined;
 		this._onDidChangeConfiguration.fire();
 	}
 

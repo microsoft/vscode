@@ -12213,9 +12213,7 @@ suite('CopilotAgent', () => {
 				assert.ok(firstPath);
 				const firstContent = await fs.readFile(firstPath, 'utf8');
 				proxyResolver.setClientCertificates('client', ['UPDATED CLIENT CA']);
-				for (let i = 0; i < 20 && client.stopCallCount < 1; i++) {
-					await timeout(0);
-				}
+				await proxyRefresh(agent);
 				await agent.listChatsToMigrate();
 				const secondPath = getCreatedClientOptions(agent).at(-1)?.env?.NODE_EXTRA_CA_CERTS;
 				assert.ok(secondPath);
