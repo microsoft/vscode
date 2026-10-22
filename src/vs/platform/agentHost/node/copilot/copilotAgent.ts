@@ -2853,6 +2853,20 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}));
 	}
 
+	async listPluginInstallations() {
+		// Session plugins.list also contains runtime-only plugins; only global records establish installation ownership.
+		const { plugins } = await this._retryAfterClosedConnection('listPluginInstallations', client => client.rpc.plugins.list());
+		return plugins.filter(plugin => plugin.installed !== false && plugin.source !== 'builtin').map(plugin => ({
+			name: plugin.name,
+			marketplace: plugin.marketplace,
+			directSourceId: plugin.directSourceId,
+			version: plugin.version,
+			description: plugin.description,
+			verifiedSource: plugin.verifiedSource,
+			iconUrl: plugin.iconUrl,
+		}));
+	}
+
 	async listAgentExtensions(session?: URI, chat?: URI): Promise<IAgentExtensionInventory> {
 		const inventory = await this._retryAfterClosedConnection('listExtensions', client => client.rpc.extensions.discover());
 		if (!inventory || typeof inventory !== 'object' || typeof inventory.mode !== 'string' || !Array.isArray(inventory.extensions)) {
