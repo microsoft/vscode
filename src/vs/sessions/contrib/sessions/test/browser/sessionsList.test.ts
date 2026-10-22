@@ -6814,6 +6814,29 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		test('reorders nested chat rows when the session reorders its chats, without a session change event', async () => {
+			const main = createChat('Main chat');
+			const first = { ...createChat('First chat'), createdAt: new Date('2024-01-01') };
+			const second = { ...createChat('Second chat'), createdAt: new Date('2024-01-01') };
+			const chats = observableValue<readonly IChat[]>('chats', [main, first, second]);
+			const session: ISession = {
+				...createTestSession('Session').session,
+				chats,
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const { container } = renderSessionChatsList(session);
+			const initial = chatRowTitles(container);
+
+			chats.set([main, second, first], undefined);
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+
+			assert.deepStrictEqual({ initial, reordered: chatRowTitles(container) }, {
+				initial: ['First chat', 'Second chat'],
+				reordered: ['Second chat', 'First chat'],
+			});
+		});
+
 		test('observes updated ordering after archived nested sessions are shown', async () => {
 			const main = createChat('Main chat');
 			const archivedUpdatedAt = observableValue<Date | undefined>('archived-updated-at', new Date('2024-01-01'));
