@@ -9,7 +9,7 @@ import { IMenuService, MenuId, IMenu, SubmenuItemAction, registerAction2, Action
 import { MenuBarVisibility, IWindowOpenable, getMenuBarVisibility, MenuSettings, hasNativeMenu } from '../../../../platform/window/common/window.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IAction, Action, SubmenuAction, Separator, IActionRunner, ActionRunner, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification, toAction } from '../../../../base/common/actions.js';
-import { addDisposableListener, Dimension, EventType } from '../../../../base/browser/dom.js';
+import { addDisposableListener, Dimension, EventType, isMouseEvent } from '../../../../base/browser/dom.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { isMacintosh, isWeb, isIOS, isNative } from '../../../../base/common/platform.js';
 import { IConfigurationService, IConfigurationChangeEvent } from '../../../../platform/configuration/common/configuration.js';
@@ -379,6 +379,29 @@ export class CustomMenubarControl extends MenubarControl {
 		}
 	}
 
+	private isOptionClick(event: unknown): boolean {
+		if (!isMouseEvent(event)) {
+			return false;
+		}
+
+		return (!isMacintosh && (event.ctrlKey || event.shiftKey)) || (isMacintosh && (event.metaKey || event.altKey));
+	}
+
+	private getCommandIdForClick(commandId: string, event: unknown): string {
+		if (!this.isOptionClick(event)) {
+			return commandId;
+		}
+
+		switch (commandId) {
+			case 'workbench.action.files.openFileFolder':
+				return 'workbench.action.files.openFileFolderInNewWindow';
+			case 'workbench.action.files.openFolder':
+				return 'workbench.action.files.openFolderInNewWindow';
+			default:
+				return commandId;
+		}
+	}
+
 	private getUpdateAction(): IAction | null {
 		const state = this.updateService.state;
 
@@ -580,7 +603,7 @@ export class CustomMenubarControl extends MenubarControl {
 							title = menuItem.item.toggled.mnemonicTitle ?? menuItem.item.toggled.title ?? title;
 						}
 
-						const newAction = store.add(new Action(menuItem.id, mnemonicMenuLabel(title), menuItem.class, menuItem.enabled, () => this.commandService.executeCommand(menuItem.id)));
+						const newAction = store.add(new Action(menuItem.id, mnemonicMenuLabel(title), menuItem.class, menuItem.enabled, event => this.commandService.executeCommand(this.getCommandIdForClick(menuItem.id, event))));
 						newAction.tooltip = menuItem.tooltip;
 						newAction.checked = menuItem.checked;
 						target.push(newAction);
