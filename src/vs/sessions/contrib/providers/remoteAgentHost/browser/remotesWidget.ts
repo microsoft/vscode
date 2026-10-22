@@ -14,6 +14,7 @@ import { IObjectTreeElement, ObjectTreeElementCollapseState } from '../../../../
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Action } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
@@ -22,6 +23,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { ISSHRemoteAgentHostService } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
+import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { WSL_INSTALL_DOCS_URL } from '../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -40,6 +42,7 @@ import { asTreeRenderer, customizationTreeStyles, getCustomizationTreeContentHei
 import { setVirtualizedRowActionsTabbable } from '../../../../../workbench/contrib/chat/browser/aiCustomization/customizationCardList.js';
 import { IEditorService, MODAL_GROUP } from '../../../../../workbench/services/editor/common/editorService.js';
 import { getVisibleRemoteKinds, ICustomizationRemote, IRemotesModel, RemoteKind, remoteKindLabels } from './remotesModel.js';
+import { getStatusHover, getStatusLabel } from './remoteHostOptions.js';
 import '../../../../../workbench/contrib/chat/browser/aiCustomization/media/aiCustomizationManagement.css';
 import './media/remotesWidget.css';
 
@@ -48,6 +51,7 @@ interface IRemoteEntry {
 	readonly remote: ICustomizationRemote;
 	readonly checked: boolean;
 	readonly busy: boolean;
+	readonly connecting?: boolean;
 }
 
 interface IRemoteGroupEntry extends ICustomizationGroupHeaderEntry {
@@ -157,10 +161,18 @@ interface IRemoteTemplate {
 	readonly container: HTMLElement;
 	readonly name: HTMLElement;
 	readonly detail: HTMLElement;
+	readonly connectionState: HTMLElement;
+	readonly connectionAction: Action;
+	readonly toolbar: WorkbenchToolBar;
 	readonly toggle: CustomizationToggle;
 	readonly disposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
 	entry?: IRemoteEntry;
+}
+
+function getConnectionLabel(remote: ICustomizationRemote, connecting?: boolean): string {
+	return connecting === undefined ? getStatusLabel(remote.connectionStatus)
+		: connecting ? getStatusLabel(RemoteAgentHostConnectionStatus.connecting) : localize('remotes.disconnecting', "Disconnecting");
 }
 
 class RemoteRenderer implements IListRenderer<IRemoteEntry, IRemoteTemplate> {
@@ -171,6 +183,8 @@ class RemoteRenderer implements IListRenderer<IRemoteEntry, IRemoteTemplate> {
 	constructor(
 		private readonly hoverService: IHoverService,
 		private readonly setEnabled: (id: string, enabled: boolean) => void,
+		private readonly setConnected: (id: string, connected: boolean) => void,
+		private readonly instantiationService: IInstantiationService,
 	) { }
 
 	renderTemplate(container: HTMLElement): IRemoteTemplate {
@@ -180,9 +194,19 @@ class RemoteRenderer implements IListRenderer<IRemoteEntry, IRemoteTemplate> {
 		const details = dom.append(container, dom.$('.remotes-details'));
 		const name = dom.append(details, dom.$('.remotes-name'));
 		const detail = dom.append(details, dom.$('.remotes-detail'));
+		const connectionState = dom.append(container, dom.$('.remotes-connection-state'));
+		const actions = dom.append(container, dom.$('.remotes-connection-actions'));
+		const connectionAction = disposables.add(new Action('remotes.connection', '', undefined, true, async () => {
+			if (template.entry) {
+				this.setConnected(template.entry.remote.id, !RemoteAgentHostConnectionStatus.isConnected(template.entry.remote.connectionStatus));
+			}
+		}));
+		const toolbar = disposables.add(this.instantiationService.createInstance(WorkbenchToolBar, actions, { ariaLabel: localize('remotes.connectionActions', "Connection actions") }));
+		toolbar.setActions([connectionAction]);
 		const toggle = disposables.add(new CustomizationToggle({ ariaLabel: '' }));
 		dom.append(container, toggle.domNode);
-		const template: IRemoteTemplate = { container, name, detail, toggle, disposables, elementDisposables };
+		const template: IRemoteTemplate = { container, name, detail, connectionState, connectionAction, toolbar, toggle, disposables, elementDisposables };
+		disposables.add(dom.addDisposableGenericMouseDownListener(actions, event => dom.EventHelper.stop(event, true)));
 		disposables.add(dom.addDisposableGenericMouseDownListener(toggle.domNode, event => dom.EventHelper.stop(event, true)));
 		disposables.add(dom.addDisposableListener(toggle.domNode, dom.EventType.KEY_DOWN, event => {
 			const keyboardEvent = new StandardKeyboardEvent(event);
@@ -208,8 +232,16 @@ class RemoteRenderer implements IListRenderer<IRemoteEntry, IRemoteTemplate> {
 		template.container.setAttribute('aria-busy', String(entry.busy));
 		template.name.textContent = remote.name;
 		template.detail.textContent = remote.unavailableReason ?? remote.detail;
+		template.connectionState.textContent = getConnectionLabel(remote, entry.connecting);
+		const connected = RemoteAgentHostConnectionStatus.isConnected(remote.connectionStatus);
+		template.connectionAction.label = connected ? localize('remotes.disconnect', "Disconnect {0}", remote.name) : localize('remotes.connect', "Connect to {0}", remote.name);
+		template.connectionAction.class = ThemeIcon.asClassName(connected ? Codicon.debugDisconnect : Codicon.debugConnected);
+		template.connectionAction.enabled = !entry.busy && !remote.unavailableReason
+			&& !RemoteAgentHostConnectionStatus.isConnecting(remote.connectionStatus)
+			&& !RemoteAgentHostConnectionStatus.isReconnecting(remote.connectionStatus);
+		template.toolbar.setFocusable(remote.id === this.focusedId);
 		template.toggle.checked = entry.checked;
-		template.toggle.disabled = !!remote.unavailableReason;
+		template.toggle.disabled = !!remote.unavailableReason || entry.connecting !== undefined;
 		template.toggle.setAriaLabel(
 			localize('remotes.switchLabel', "Show {0} ({1}) in the location picker", remote.name, remoteKindLabels[remote.kind]),
 			remote.unavailableReason ?? (entry.checked ? localize('remotes.hideRemote', "Hide {0} from the location picker", remote.name) : localize('remotes.showRemote', "Show {0} in the location picker", remote.name)),
@@ -217,12 +249,16 @@ class RemoteRenderer implements IListRenderer<IRemoteEntry, IRemoteTemplate> {
 		template.toggle.setTabIndex(remote.id === this.focusedId ? 0 : -1);
 		template.elementDisposables.add(this.hoverService.setupDelayedHover(template.name, { content: remote.name }));
 		template.elementDisposables.add(this.hoverService.setupDelayedHover(template.detail, { content: template.detail.textContent }));
+		template.elementDisposables.add(this.hoverService.setupDelayedHover(template.connectionState, {
+			content: entry.connecting === undefined ? getStatusHover(remote.connectionStatus) : template.connectionState.textContent,
+		}));
 	}
 
 	setFocusedId(id: string | undefined): void {
 		this.focusedId = id;
 		for (const template of this.templates) {
 			template.toggle.setTabIndex(template.entry?.remote.id === id ? 0 : -1);
+			template.toolbar.setFocusable(template.entry?.remote.id === id);
 		}
 	}
 
@@ -246,6 +282,7 @@ export class RemotesWidget extends Disposable {
 	private readonly refreshAction: Action;
 	private readonly refreshRequest = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly pending = new Map<string, boolean>();
+	private readonly pendingConnections = new Map<string, boolean>();
 	private readonly kinds: readonly RemoteKind[];
 	private visible = false;
 	private query = '';
@@ -292,7 +329,7 @@ export class RemotesWidget extends Disposable {
 		if (configurationService.getValue<boolean>(AccessibilityVerbositySettingId.Remotes) && helpKeybinding) {
 			label = localize('remotes.treeLabelWithHelp', "{0}. Use {1} for accessibility help.", label, helpKeybinding);
 		}
-		const renderer = new RemoteRenderer(hoverService, (id, enabled) => { void this.setEnabled(id, enabled); });
+		const renderer = new RemoteRenderer(hoverService, (id, enabled) => { void this.setEnabled(id, enabled); }, (id, connected) => { void this.setConnected(id, connected); }, instantiationService);
 		const emptyRenderer = new RemoteEmptyRenderer(hoverService, openerService);
 		this.tree = this._register(instantiationService.createInstance(WorkbenchObjectTree<RemoteTreeEntry>,
 			'RemotesCustomizationTree', this.treeContainer, {
@@ -483,7 +520,10 @@ export class RemotesWidget extends Disposable {
 				collapsible: true,
 				collapsed: this.query ? ObjectTreeElementCollapseState.Expanded : ObjectTreeElementCollapseState.PreserveOrExpanded,
 				children: entries.length ? entries.map(remote => ({
-					element: { type: 'remote', remote, checked: this.pending.get(remote.id) ?? remote.enabled, busy: this.pending.has(remote.id) },
+					element: {
+						type: 'remote', remote, checked: this.pending.get(remote.id) ?? remote.enabled,
+						busy: this.pending.has(remote.id) || this.pendingConnections.has(remote.id), connecting: this.pendingConnections.get(remote.id),
+					},
 				})) : [{ element: this.getEmptyEntry(kind) }],
 			};
 		});
@@ -495,7 +535,7 @@ export class RemotesWidget extends Disposable {
 	}
 
 	private async setEnabled(id: string, enabled: boolean): Promise<void> {
-		if (this.pending.has(id)) {
+		if (this.pending.has(id) || this.pendingConnections.has(id)) {
 			this.render();
 			return;
 		}
@@ -513,9 +553,29 @@ export class RemotesWidget extends Disposable {
 		}
 	}
 
+	private async setConnected(id: string, connected: boolean): Promise<void> {
+		if (this.pending.has(id) || this.pendingConnections.has(id)) {
+			return;
+		}
+		this.pendingConnections.set(id, connected);
+		this.render();
+		try {
+			await this.model.setConnected(id, connected);
+		} catch (error) {
+			if (!isCancellationError(error)) {
+				this.notificationService.error(error);
+			}
+		} finally {
+			this.pendingConnections.delete(id);
+			if (!this._store.isDisposed) {
+				this.render();
+			}
+		}
+	}
+
 	private getRemoteAriaLabel(remote: ICustomizationRemote, enabled = remote.enabled): string {
-		return localize('remotes.accessibleRow', "{0}: {1}. {2}", remote.name,
-			enabled ? localize('remotes.shown', "Shown") : localize('remotes.hidden', "Not shown"), remote.unavailableReason ?? remote.detail);
+		return localize('remotes.accessibleRow', "{0}: {1}. {2}. Connection: {3}", remote.name,
+			enabled ? localize('remotes.shown', "Shown") : localize('remotes.hidden', "Not shown"), remote.unavailableReason ?? remote.detail, getConnectionLabel(remote, this.pendingConnections.get(remote.id)));
 	}
 
 	private getRefreshWarning(kind: RemoteKind): string | undefined {

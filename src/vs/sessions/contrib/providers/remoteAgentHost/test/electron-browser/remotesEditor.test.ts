@@ -11,7 +11,7 @@ import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ISSHRemoteAgentHostService } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
@@ -29,7 +29,7 @@ import '../../electron-browser/remotes.contribution.js';
 
 class TestRemotesModel extends Disposable implements IRemotesModel {
 	readonly remotes = observableValue<readonly ICustomizationRemote[]>(this, [
-		{ id: 'ssh:build', kind: 'ssh', name: 'Build server', detail: 'build.example.com', enabled: true },
+		{ id: 'ssh:build', kind: 'ssh', name: 'Build server', detail: 'build.example.com', enabled: true, connectionStatus: RemoteAgentHostConnectionStatus.connected },
 	]);
 	readonly refreshTokens: CancellationToken[] = [];
 	pendingRefresh: DeferredPromise<readonly RemoteKind[]> | undefined;
@@ -41,6 +41,7 @@ class TestRemotesModel extends Disposable implements IRemotesModel {
 	}
 
 	async setEnabled(): Promise<void> { }
+	async setConnected(): Promise<void> { }
 
 	override dispose(): void {
 		this.disposed = true;

@@ -6,13 +6,13 @@
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { isWindows, OperatingSystem, OS } from '../../../../../base/common/platform.js';
 import { getComparisonKey, isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IDiscoveredDevContainer } from '../../../../../platform/agentHost/common/devContainerAgentHost.js';
-import { addSSHRemoteAgentHostEntry, getEntryAddress, IRemoteAgentHostEntry, IRemoteAgentHostService, readSSHRemoteAgentHostEntries, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { addSSHRemoteAgentHostEntry, getEntryAddress, IRemoteAgentHostEntry, IRemoteAgentHostService, readSSHRemoteAgentHostEntries, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ISSHRemoteAgentHostService } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { ITunnelAgentHostService, ITunnelInfo, TUNNEL_ADDRESS_PREFIX, TUNNEL_MIN_PROTOCOL_VERSION } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IWSLRemoteAgentHostService, WSL_ADDRESS_PREFIX } from '../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
@@ -22,7 +22,7 @@ import { IStorageService, StorageScope } from '../../../../../platform/storage/c
 import { DevContainerAgentHostEnabledSettingId, IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
 import { isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { removeRemoteHost } from './remoteHostOptions.js';
+import { reconnectRemoteHost, removeRemoteHost } from './remoteHostOptions.js';
 
 export const remoteKinds = ['ssh', 'wsl', 'tunnel', 'devContainer'] as const;
 export type RemoteKind = typeof remoteKinds[number];
@@ -40,6 +40,7 @@ export interface ICustomizationRemote {
 	readonly name: string;
 	readonly detail: string;
 	readonly enabled: boolean;
+	readonly connectionStatus: RemoteAgentHostConnectionStatus;
 	readonly unavailableReason?: string;
 }
 
@@ -48,6 +49,7 @@ export interface IRemotesModel extends IDisposable {
 	/** Returns the kinds that failed to refresh; diagnostic details are written to the log. */
 	refresh(token: CancellationToken): Promise<readonly RemoteKind[]>;
 	setEnabled(id: string, enabled: boolean): Promise<void>;
+	setConnected(id: string, connected: boolean): Promise<void>;
 }
 
 export function getVisibleRemoteKinds(operatingSystem: OperatingSystem): readonly RemoteKind[] {
@@ -83,7 +85,12 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		this._register(tunnelService.onDidChangeTunnels(() => this.update()));
 		this._register(wslService.onDidChangeConnections(() => this.update()));
 		this._register(devContainerService.onDidChangeAvailability(() => this.update()));
-		this._register(providersService.onDidChangeProviders(() => this.update()));
+		const providersChanged = observableSignalFromEvent(this, providersService.onDidChangeProviders);
+		this._register(autorun(reader => {
+			providersChanged.read(reader);
+			this.update(reader);
+		}));
+		this._register(remoteAgentHostService.onDidChangeConnections(() => this.update()));
 		this._register(storageService.onDidChangeValue(StorageScope.APPLICATION, undefined, this._store)(() => this.update()));
 		this._register(configurationService.onDidChangeConfiguration(() => this.update()));
 	}
@@ -190,6 +197,46 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		this.update();
 	}
 
+	async setConnected(id: string, connected: boolean): Promise<void> {
+		const target = this.targets.get(id);
+		if (!target || !this.enabled) {
+			throw new Error(localize('remotes.unavailable', "This remote is no longer available."));
+		}
+		if (connected) {
+			await this.setEnabled(id, true);
+		}
+		const provider = this.providersService.getProviders().filter(isAgentHostProvider).find(provider => provider.remoteAddress === id);
+		try {
+			if (connected) {
+				const connectionStatus = provider?.connectionStatus?.get() ?? this.remoteAgentHostService.connections.find(connection => connection.address === id)?.status;
+				if (RemoteAgentHostConnectionStatus.isConnected(connectionStatus)) {
+					return;
+				}
+				if (provider) {
+					await reconnectRemoteHost(provider, this.remoteAgentHostService);
+				} else if (target.kind === 'tunnel') {
+					await this.tunnelService.connect(target.tunnel, target.authProvider, { userInitiated: true });
+				} else if (target.kind === 'ssh' || target.kind === 'wsl') {
+					// Registration can precede the provider's scheduled reconciliation.
+					this.remoteAgentHostService.reconnect(id, true);
+					await this.remoteAgentHostService.waitForConnection(id);
+				} else {
+					throw new Error(localize('remotes.providerNotReady', "The remote provider is not ready. Try again."));
+				}
+			} else if (provider?.disconnect) {
+				await provider.disconnect();
+			} else if (provider?.remoteAddress) {
+				await this.remoteAgentHostService.removeRemoteAgentHost(provider.remoteAddress);
+			} else {
+				throw new Error(localize('remotes.providerNotReady', "The remote provider is not ready. Try again."));
+			}
+		} finally {
+			if (!this._store.isDisposed) {
+				this.update();
+			}
+		}
+	}
+
 	private getId(target: RemoteTarget): string {
 		switch (target.kind) {
 			case 'ssh': return getEntryAddress(target.entry);
@@ -199,11 +246,18 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		}
 	}
 
-	private update(): void {
+	private update(reader?: IReader): void {
 		const sshEntries = readSSHRemoteAgentHostEntries(this.storageService);
 		const distros = this.wslService.getCachedDistros();
 		const tunnels = this.tunnelService.getCachedTunnels();
 		const workspaces = this.devContainerService.getWorkspaces();
+		const providers = this.providersService.getProviders().filter(isAgentHostProvider);
+		const connectionStatuses = new Map(providers.map(provider => [provider.remoteAddress, provider.connectionStatus?.read(reader)]));
+		for (const connection of this.remoteAgentHostService.connections) {
+			if (!connectionStatuses.get(connection.address)) {
+				connectionStatuses.set(connection.address, connection.status);
+			}
+		}
 		const registered: RemoteTarget[] = [
 			...sshEntries.map((entry): RemoteTarget => ({ kind: 'ssh', entry })),
 			...distros.map((distro): RemoteTarget => ({ kind: 'wsl', ...distro })),
@@ -247,7 +301,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 						: !target.workspaceUri ? localize('remotes.devContainerNoSource', "This container has no local source folder. Attaching to it is not yet supported in the Agents window.") : undefined;
 					break;
 			}
-			remotes.push({ id, kind: target.kind, name, detail, enabled, unavailableReason });
+			remotes.push({ id, kind: target.kind, name, detail, enabled, unavailableReason, connectionStatus: connectionStatuses.get(id) ?? RemoteAgentHostConnectionStatus.disconnected });
 		}
 		this._remotes.set(remotes.sort((a, b) => remoteKinds.indexOf(a.kind) - remoteKinds.indexOf(b.kind) || a.name.localeCompare(b.name)), undefined);
 	}

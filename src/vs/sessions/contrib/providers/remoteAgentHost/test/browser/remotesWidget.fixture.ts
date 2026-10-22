@@ -10,6 +10,7 @@ import { OperatingSystem, OS } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ISSHRemoteAgentHostService } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
+import { RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IListService, ListService } from '../../../../../../platform/list/browser/listService.js';
 import { IEditorService } from '../../../../../../workbench/services/editor/common/editorService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureCondition } from '../../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
@@ -17,14 +18,14 @@ import { ICustomizationRemote, IRemotesModel, RemoteKind } from '../../browser/r
 import { RemotesWidget } from '../../browser/remotesWidget.js';
 
 const remotes: ICustomizationRemote[] = [
-	{ id: 'ssh:build', kind: 'ssh', name: 'Build server', detail: 'build.example.com', enabled: true },
-	{ id: 'ssh:staging', kind: 'ssh', name: 'Staging', detail: 'staging.example.com', enabled: false },
-	{ id: 'wsl:Ubuntu', kind: 'wsl', name: 'Ubuntu', detail: 'Ubuntu-24.04', enabled: true },
-	{ id: 'wsl:Debian', kind: 'wsl', name: 'Debian', detail: 'Debian', enabled: false },
-	{ id: 'tunnel:laptop', kind: 'tunnel', name: 'Work laptop', detail: 'work-laptop-europe', enabled: true },
-	{ id: 'tunnel:home', kind: 'tunnel', name: 'Home workstation', detail: 'home-workstation', enabled: false },
-	{ id: 'container:project', kind: 'devContainer', name: 'Project development container', detail: '/Users/developer/projects/example-project-with-a-long-source-folder-name', enabled: true },
-	{ id: 'container:api', kind: 'devContainer', name: 'API service', detail: '/Users/developer/projects/api', enabled: false },
+	{ id: 'ssh:build', kind: 'ssh', name: 'Build server', detail: 'build.example.com', enabled: true, connectionStatus: RemoteAgentHostConnectionStatus.connected },
+	{ id: 'ssh:staging', kind: 'ssh', name: 'Staging', detail: 'staging.example.com', enabled: false, connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
+	{ id: 'wsl:Ubuntu', kind: 'wsl', name: 'Ubuntu', detail: 'Ubuntu-24.04', enabled: true, connectionStatus: RemoteAgentHostConnectionStatus.connecting },
+	{ id: 'wsl:Debian', kind: 'wsl', name: 'Debian', detail: 'Debian', enabled: false, connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
+	{ id: 'tunnel:laptop', kind: 'tunnel', name: 'Work laptop', detail: 'work-laptop-europe', enabled: true, connectionStatus: RemoteAgentHostConnectionStatus.reconnecting },
+	{ id: 'tunnel:home', kind: 'tunnel', name: 'Home workstation', detail: 'home-workstation', enabled: true, connectionStatus: RemoteAgentHostConnectionStatus.incompatible('The remote host needs an update.', ['1']) },
+	{ id: 'container:project', kind: 'devContainer', name: 'Project development container', detail: '/Users/developer/projects/example-project-with-a-long-source-folder-name', enabled: true, connectionStatus: RemoteAgentHostConnectionStatus.connected },
+	{ id: 'container:api', kind: 'devContainer', name: 'API service', detail: '/Users/developer/projects/api', enabled: false, connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
 ];
 
 async function render({ container, disposableStore, theme }: ComponentFixtureContext, width: number, operatingSystem = OS, empty = false, failedKinds: readonly RemoteKind[] = []): Promise<void> {
@@ -50,6 +51,11 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 		async refresh() { return failedKinds; }
 		async setEnabled(id: string, enabled: boolean) {
 			this.remotes.set(this.remotes.get().map(remote => remote.id === id ? { ...remote, enabled } : remote), undefined);
+		}
+		async setConnected(id: string, connected: boolean) {
+			this.remotes.set(this.remotes.get().map(remote => remote.id === id ? {
+				...remote, enabled: connected, connectionStatus: connected ? RemoteAgentHostConnectionStatus.connected : RemoteAgentHostConnectionStatus.disconnected,
+			} : remote), undefined);
 		}
 	}());
 	const widget = disposableStore.add(instantiationService.createInstance(RemotesWidget, content, model, operatingSystem));

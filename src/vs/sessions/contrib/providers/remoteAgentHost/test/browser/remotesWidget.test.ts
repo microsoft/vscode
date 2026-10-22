@@ -14,6 +14,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { ISSHRemoteAgentHostService } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
+import { RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IResourceEditorInput } from '../../../../../../platform/editor/common/editor.js';
@@ -24,12 +25,14 @@ import { RemotesWidget } from '../../browser/remotesWidget.js';
 
 class TestRemotesModel extends Disposable implements IRemotesModel {
 	readonly remotes = observableValue<readonly ICustomizationRemote[]>(this, [
-		{ id: 'ssh:build', kind: 'ssh', name: 'Build server', detail: 'build.example.com', enabled: true },
-		{ id: 'wsl:Ubuntu', kind: 'wsl', name: 'Ubuntu', detail: 'Ubuntu', enabled: true },
-		{ id: 'tunnel:laptop', kind: 'tunnel', name: 'Laptop', detail: 'work-laptop', enabled: false },
-		{ id: 'container:project', kind: 'devContainer', name: 'Project', detail: '/project', enabled: true },
+		{ id: 'ssh:build', kind: 'ssh', name: 'Build server', detail: 'build.example.com', enabled: true, connectionStatus: RemoteAgentHostConnectionStatus.connected },
+		{ id: 'wsl:Ubuntu', kind: 'wsl', name: 'Ubuntu', detail: 'Ubuntu', enabled: true, connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
+		{ id: 'tunnel:laptop', kind: 'tunnel', name: 'Laptop', detail: 'work-laptop', enabled: false, connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
+		{ id: 'container:project', kind: 'devContainer', name: 'Project', detail: '/project', enabled: true, connectionStatus: RemoteAgentHostConnectionStatus.connected },
 	]);
 	readonly changes: { id: string; enabled: boolean }[] = [];
+	readonly connectionChanges: { id: string; connected: boolean }[] = [];
+	pendingConnection: DeferredPromise<void> | undefined;
 	pendingChange: DeferredPromise<void> | undefined;
 	failedKinds: readonly RemoteKind[] = [];
 	pendingRefresh: DeferredPromise<readonly RemoteKind[]> | undefined;
@@ -44,6 +47,14 @@ class TestRemotesModel extends Disposable implements IRemotesModel {
 		this.changes.push({ id, enabled });
 		await this.pendingChange?.p;
 		this.remotes.set(this.remotes.get().map(remote => remote.id === id ? { ...remote, enabled } : remote), undefined);
+	}
+
+	async setConnected(id: string, connected: boolean): Promise<void> {
+		this.connectionChanges.push({ id, connected });
+		await this.pendingConnection?.p;
+		this.remotes.set(this.remotes.get().map(remote => remote.id === id ? {
+			...remote, enabled: connected, connectionStatus: connected ? RemoteAgentHostConnectionStatus.connected : RemoteAgentHostConnectionStatus.disconnected,
+		} : remote), undefined);
 	}
 }
 
@@ -94,6 +105,13 @@ suite('RemotesWidget', () => {
 		const control = row?.querySelector<HTMLButtonElement>('[role="switch"]');
 		assert.ok(control, `Missing switch for ${id}`);
 		return control;
+	}
+
+	function getConnectionAction(parent: HTMLElement, id: string): HTMLElement {
+		const row = [...parent.querySelectorAll<HTMLElement>('[data-remote-id]')].find(row => row.dataset.remoteId === id);
+		const action = row?.querySelector<HTMLElement>('.remotes-connection-actions [role="button"]');
+		assert.ok(action, `Missing connection action for ${id}`);
+		return action;
 	}
 
 	for (const operatingSystem of [OperatingSystem.Windows, OperatingSystem.Macintosh, OperatingSystem.Linux]) {
@@ -191,10 +209,104 @@ suite('RemotesWidget', () => {
 
 	test('shows unavailable remotes with disabled switches', () => {
 		const { parent, model } = createWidget();
-		model.remotes.set([{ id: 'ssh:unavailable', kind: 'ssh', name: 'Unavailable', detail: 'Host', enabled: false, unavailableReason: 'Unavailable host' }], undefined);
+		model.remotes.set([{ id: 'ssh:unavailable', kind: 'ssh', name: 'Unavailable', detail: 'Host', enabled: false, unavailableReason: 'Unavailable host', connectionStatus: RemoteAgentHostConnectionStatus.disconnected }], undefined);
 		const control = getSwitch(parent, 'ssh:unavailable');
 		control.click();
 		assert.deepStrictEqual({ disabled: control.disabled, changes: model.changes }, { disabled: true, changes: [] });
+	});
+
+	test('shows live connection states and the corresponding inline action', () => {
+		const { parent, model, widget } = createWidget();
+		const states = [
+			RemoteAgentHostConnectionStatus.connected, RemoteAgentHostConnectionStatus.disconnected,
+			RemoteAgentHostConnectionStatus.connecting, RemoteAgentHostConnectionStatus.reconnecting,
+			RemoteAgentHostConnectionStatus.incompatible('Update required', ['1']),
+		];
+		const observed = states.map(connectionStatus => {
+			model.remotes.set(model.remotes.get().map(remote => remote.id === 'ssh:build' ? { ...remote, connectionStatus } : remote), undefined);
+			const action = getConnectionAction(parent, 'ssh:build');
+			return {
+				status: parent.querySelector('[data-remote-id="ssh:build"] .remotes-connection-state')?.textContent,
+				action: action.getAttribute('aria-label'),
+				disabled: action.getAttribute('aria-disabled') === 'true',
+			};
+		});
+		assert.deepStrictEqual({ observed, accessible: widget.getAccessibilityContent().includes('Connection: Incompatible') }, {
+			observed: [
+				{ status: 'Online', action: 'Disconnect Build server', disabled: false },
+				{ status: 'Offline', action: 'Connect to Build server', disabled: false },
+				{ status: 'Connecting', action: 'Connect to Build server', disabled: true },
+				{ status: 'Reconnecting', action: 'Connect to Build server', disabled: true },
+				{ status: 'Incompatible', action: 'Connect to Build server', disabled: false },
+			],
+			accessible: true,
+		});
+	});
+
+	test('connect is keyboard accessible and prevents concurrent connection and visibility changes', async () => {
+		const { parent, model } = createWidget();
+		const action = getConnectionAction(parent, 'tunnel:laptop');
+		parent.querySelector('[data-remote-id="tunnel:laptop"] .remotes-name')!.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+		const tabIndex = action.tabIndex;
+		action.focus();
+		action.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', keyCode: 9, bubbles: true }));
+		model.pendingConnection = new DeferredPromise<void>();
+		for (const type of ['keydown', 'keyup']) {
+			action.dispatchEvent(new KeyboardEvent(type, { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+		}
+		const busy = {
+			actionDisabled: action.getAttribute('aria-disabled'), switchDisabled: getSwitch(parent, 'tunnel:laptop').disabled,
+			state: parent.querySelector('[data-remote-id="tunnel:laptop"] .remotes-connection-state')?.textContent,
+		};
+		action.click();
+		getSwitch(parent, 'tunnel:laptop').click();
+		await model.pendingConnection.complete();
+		await timeout(0);
+		assert.deepStrictEqual({
+			tabIndex, busy, connectionChanges: model.connectionChanges, visibilityChanges: model.changes,
+			action: action.getAttribute('aria-label'), checked: getSwitch(parent, 'tunnel:laptop').getAttribute('aria-checked'),
+			sameControl: getConnectionAction(parent, 'tunnel:laptop') === action, focused: dom.getActiveElement() === action,
+		}, {
+			tabIndex: 0, busy: { actionDisabled: 'true', switchDisabled: true, state: 'Connecting' },
+			connectionChanges: [{ id: 'tunnel:laptop', connected: true }], visibilityChanges: [],
+			action: 'Disconnect Laptop', checked: 'true', sameControl: true, focused: true,
+		});
+	});
+
+	test('disconnect follows the model visibility changes and keeps the group expanded', async () => {
+		const { parent, model, widget } = createWidget();
+		model.pendingConnection = new DeferredPromise<void>();
+		getConnectionAction(parent, 'ssh:build').click();
+		const busy = {
+			state: parent.querySelector('[data-remote-id="ssh:build"] .remotes-connection-state')?.textContent,
+			accessible: widget.getAccessibilityContent().includes('Connection: Disconnecting'),
+			switchDisabled: getSwitch(parent, 'ssh:build').disabled,
+		};
+		await model.pendingConnection.complete();
+		await timeout(0);
+		assert.deepStrictEqual({
+			busy,
+			connectionChanges: model.connectionChanges, action: getConnectionAction(parent, 'ssh:build').getAttribute('aria-label'),
+			checked: getSwitch(parent, 'ssh:build').getAttribute('aria-checked'),
+			expanded: parent.querySelector('.ai-customization-group-header')?.closest('.monaco-list-row')?.getAttribute('aria-expanded'),
+		}, {
+			busy: { state: 'Disconnecting', accessible: true, switchDisabled: true },
+			connectionChanges: [{ id: 'ssh:build', connected: false }], action: 'Connect to Build server', checked: 'false', expanded: 'true',
+		});
+	});
+
+	test('connection failures are surfaced and the action becomes available again', async () => {
+		const { parent, model, errors } = createWidget();
+		model.pendingConnection = new DeferredPromise<void>();
+		const action = getConnectionAction(parent, 'tunnel:laptop');
+		action.click();
+		const error = new Error('Connection refused');
+		await model.pendingConnection.error(error);
+		await timeout(0);
+		assert.deepStrictEqual({
+			errors, disabled: action.getAttribute('aria-disabled'), switchDisabled: getSwitch(parent, 'tunnel:laptop').disabled,
+			status: parent.querySelector('[data-remote-id="tunnel:laptop"] .remotes-connection-state')?.textContent,
+		}, { errors: [error], disabled: null, switchDisabled: false, status: 'Offline' });
 	});
 
 	test('shows refresh warnings on the failed groups, with simple tooltips and accessible labels', async () => {

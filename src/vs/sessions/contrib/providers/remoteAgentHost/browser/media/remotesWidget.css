@@ -90,6 +90,21 @@
 	flex-shrink: 0;
 }
 
+.remotes-widget .remotes-connection-state {
+	flex: 0 1 25%;
+	max-width: 110px;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+}
+
+.remotes-widget .remotes-connection-actions {
+	flex-shrink: 0;
+}
+
 .remotes-widget .remotes-empty-row {
 	display: flex;
 	flex-direction: column;
