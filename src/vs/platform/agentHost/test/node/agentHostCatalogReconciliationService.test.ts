@@ -212,6 +212,8 @@ interface ITestHarness {
 
 suite('AgentHostCatalogReconciliationService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const shippedCatalogVerificationVersion = 3;
+	const catalogV3VerificationVersion = 4;
 
 	async function createHarness(names: readonly string[], missing: ReadonlySet<string> = new Set(), providerOf?: (name: string) => AgentProvider): Promise<ITestHarness> {
 		const central = store.add(new RecordingCatalogDatabase());
@@ -946,7 +948,7 @@ suite('AgentHostCatalogReconciliationService', () => {
 		const session = registered('one');
 		await harness.sync.synchronize(session.session, { data: catalogData('one'), legacyMetadata: { customTitle: 'one' } });
 		const storage = new TestStorageService();
-		storage.set(AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY, 3);
+		storage.set(AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY, shippedCatalogVerificationVersion);
 		const resolveSource = async (): Promise<AgentHostCatalogReconciliationSourceResult> => ({
 			status: 'available',
 			request: { data: { ...catalogData('one'), isArchived: true }, legacyMetadata: { customTitle: 'one', isArchived: 'true' } },
@@ -957,13 +959,14 @@ suite('AgentHostCatalogReconciliationService', () => {
 		const restarted = harness.createService(resolveSource, options, storage);
 		const afterRestart = await restarted.runPass();
 		const row = await harness.central.getSessionV2(session.session.toString());
+		assert.strictEqual(CATALOG_VERIFICATION_VERSION, catalogV3VerificationVersion);
 		assert.deepStrictEqual({
 			archived: row && JSON.parse(row.payload).data.isArchived,
 			markAllCalls: harness.central.markAllCalls,
 			verificationVersion: storage.get(AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY),
 			afterRestart: afterRestart.outcomes,
 		}, {
-			archived: true, markAllCalls: 1, verificationVersion: 4, afterRestart: [],
+			archived: true, markAllCalls: 1, verificationVersion: catalogV3VerificationVersion, afterRestart: [],
 		});
 	});
 
