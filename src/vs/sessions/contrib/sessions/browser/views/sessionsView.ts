@@ -303,6 +303,7 @@ export class SessionsView extends ViewPane {
 			showNavigationShortcuts: () => this.customizationsPresentation === 'treatment',
 			customizationsCount: this.customizationsNavigationState.totalCount,
 			customizationMigrationsAvailable: this.customizationsNavigationState.migrationAvailable,
+			customizationExtensionSuggestionsAvailable: this.customizationsNavigationState.extensionSuggestionsAvailable,
 			navigationContainer,
 			onDidChangeNavigationHeight: () => this.layoutSidebarSplitView(),
 			focusNewSessionInput: () => this.sessionsPartService.focusSession(this.sessionsService.activeSession.get()),
