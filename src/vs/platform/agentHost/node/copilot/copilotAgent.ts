@@ -4940,8 +4940,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._recordFirstDiscoveryResult(resultMetrics, sessions.length, failed);
 		if (recoveryEstimate && !this._shutdownPromise && !this._store.isDisposed
 			&& isCopilotSessionTelemetryEnabled(this._configurationService, this._telemetryService)) {
-			this._reportedCopilotCliRecoveryEstimate = true;
 			this._telemetryService.publicLog2<CopilotCliRecoveryEstimateEvent, CopilotCliRecoveryEstimateClassification>('agentHost.copilotCliRecoveryEstimate', recoveryEstimate);
+			this._reportedCopilotCliRecoveryEstimate = true;
 		}
 		return completed;
 	}
@@ -4983,12 +4983,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	/** Observes the proposed recovery evidence without changing discovery or adoption eligibility. */
 	private async _estimateCopilotCliRecovery(metrics: CopilotCliRecoveryEstimateEvent, sessionId: string, marker: IExtensionHostCliMarker | undefined, clientName: string | undefined): Promise<void> {
-		if (isExtensionHostCliMarker(marker)) {
+		if (!sessionId || /[\x00-\x1f\x7f/\\]/.test(sessionId) || sessionId === '.' || sessionId === '..') {
+			metrics.failedSessionCount++;
+		} else if (isExtensionHostCliMarker(marker)) {
 			metrics.alreadyEligibleSessionCount++;
 		} else if (clientName === 'vscode') {
 			metrics.recoverableByClientNameSessionCount++;
-		} else if (!sessionId || /[\x00-\x1f\x7f/\\]/.test(sessionId) || sessionId === '.' || sessionId === '..') {
-			metrics.failedSessionCount++;
 		} else {
 			try {
 				const stat = await fs.stat(this._extensionHostCliSidecarPath(sessionId, 'vscode.requests.metadata.json'));
