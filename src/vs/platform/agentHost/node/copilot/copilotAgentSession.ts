@@ -50,12 +50,12 @@ import { canStopBackgroundWork, toStoppableBackgroundWorkMeta } from '../../comm
 import { readCopilotShellAttachment, readCopilotShellId, toCopilotBackgroundShellMeta } from '../../common/meta/copilotBackgroundWorkMeta.js';
 import { SAVE_SANDBOX_PATH, type ISandboxPathGrant } from '../../common/sandboxPathGrant.js';
 import { getCopilotBrowserSandboxNetworkRestrictions } from './copilotSandboxPolicy.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpSamplingAllowedServersConfigKey, AgentHostMcpToolRoutingEnabledConfigKey, platformRootSchema, platformSessionSchema, type IAgentHostWorkspaceTrust } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpSamplingAllowedServersConfigKey, AgentHostMcpToolRoutingEnabledConfigKey, platformRootSchema, platformSessionSchema, type IAgentHostWorkspaceTrust } from '../../common/agentHostSchema.js';
 import { reconcileCopilotConnectors, type ICopilotConnectorServer, type ICopilotConnectorServers } from './copilotConnectors.js';
 import { copilotConnectorsScope } from '../../../github/common/connectors/connectors.js';
 import { createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext, type IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { measureAgentProviderOperation } from '../../common/agentHostProviderTiming.js';
-import { type AgentCanvasDefinitionSnapshot, AgentSession, type IAgentChatOwnerRef, type IAgentManagedPluginRetryEntry, COPILOT_CLI_AGENT_PROVIDER_ID, AgentSignal, AgentWorkingDirectoryChangedError, AuthenticateParams, IMcpNotification, subagentChatTitle, type AgentCanvasExtensionSource, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
+import { type AgentCanvasDefinitionSnapshot, AgentSession, type IAgentChatOwnerRef, type IAgentExtensionInfo, type IAgentManagedPluginRetryEntry, COPILOT_CLI_AGENT_PROVIDER_ID, AgentSignal, AgentWorkingDirectoryChangedError, AuthenticateParams, IMcpNotification, subagentChatTitle, type AgentCanvasExtensionSource, type AgentExtensionStatus, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
 import { isReasoningEffortLevel } from '../../common/reasoningEffort.js';
 import { agentModelConfigurationMetaKey, IAgentRuntimeModelConfiguration, readAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
 import { agentModelConfigurationReportKey, type IAgentModelConfigurationReport } from '../../common/agentModelConfiguration.js';
@@ -104,6 +104,7 @@ import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION, getAgentMergeGitHubToolRestriction
 import { GITHUB_MCP_SERVER_NAME } from '../shared/githubMcpServer.js';
 import { AgentHostComputerUseEnabledSettingId, AgentHostGitHubMcpServerEnabledSettingId } from '../../common/agentService.js';
 import { COMPUTER_USE_PLUGIN_NAME } from './copilotComputerUsePlugin.js';
+import { CopilotComputerUseActivation } from './copilotComputerUseActivationTool.js';
 import { classifyComputerUsePrompt, type CopilotComputerUsePermissionSetup, type ICopilotComputerUseSetupChat, type IComputerUsePermissionPrompt } from './copilotComputerUsePermissionSetup.js';
 import { CopilotToolName, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getSandboxPathGrantConfirmation, getSdkImageGenerationMetadata, getToolIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolSummaryInputContract, isAgentCoordinationTool, isCopilotSdkToolOutputFile, isEditTool, isHiddenTool, isShellHelperTool, isShellTool, isTaskCompleteTool, parseCopilotStreamingToolInput, synthesizeSkillToolCall, tryStringify } from './copilotToolDisplay.js';
 import { imageGenerationToolMetaKey } from '../../common/meta/agentImageGenerationMeta.js';
@@ -1926,6 +1927,8 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _computerUseSetup: (() => CopilotComputerUsePermissionSetup | undefined) | undefined;
 	/** This chat as the Computer Use setup sees it; one stable object, which the setup compares by identity. */
 	private readonly _computerUseSetupChat: ICopilotComputerUseSetupChat;
+	/** Lets the agent ask the user to turn on Computer Use; it outlives relaunches so a decline holds for the chat. */
+	private readonly _computerUseActivation: CopilotComputerUseActivation;
 	private readonly _shellManager: ShellManager | undefined;
 	/** Streams runtime-executed shell output into output-only (non-pty) terminal channels. */
 	private readonly _nonPtyShellTerminals: NonPtyShellTerminalStreams;
@@ -2109,6 +2112,15 @@ export class CopilotAgentSession extends Disposable {
 			requestInput: request => this._emitAction({ type: ActionType.ChatInputRequested, request }),
 			completeInput: (requestId, response) => this._emitAction({ type: ActionType.ChatInputCompleted, requestId, response }),
 		};
+		const getInstalledPlugins = options.getInstalledPlugins;
+		this._computerUseActivation = new CopilotComputerUseActivation({
+			// Only VS Code's setting registers the built-in plugin, and only in the shared runtime. Chats with their own GitHub credentials run without it.
+			listPlugins: async () => getInstalledPlugins && !this.usesScopedGitHubCredentials && this._configurationService.getRootValue(platformRootSchema, AgentHostComputerUseEnabledConfigKey) === true ? await getInstalledPlugins() : [],
+			enablePlugin: async () => { await this._wrapper.session.rpc.plugins.enable({ names: [COMPUTER_USE_PLUGIN_NAME] }); },
+			// A card shows only in a running turn. A background subagent can call after the turn ended, or the turn can stop while the plugin is checked.
+			canAskUser: () => this.hasActiveTurn && !this._abortToken.isCancellationRequested && !this._isAutopilotMode() && !this._isAutoReplyEnabled(),
+			requestInput: request => this._emitAction({ type: ActionType.ChatInputRequested, request }),
+		}, `[Copilot:${this.sessionId}]`, this._logService);
 		this._shellManager = options.shellManager;
 		this._nonPtyShellTerminals = this._register(this._instantiationService.createInstance(NonPtyShellTerminalStreams, options.owner, this._storageUri, options.chatChannelUri));
 		this._workingDirectory = options.workingDirectory;
@@ -2123,7 +2135,7 @@ export class CopilotAgentSession extends Disposable {
 		this._getTelemetryContext = options.telemetryContext ?? (() => undefined);
 		this._repoInfoTelemetry = this._register(this._instantiationService.createInstance(AgentHostRepoInfoTelemetry, this._telemetryReporter));
 
-		this._appliedSnapshot = options.clientSnapshot ?? { tools: [], plugins: [], mcpServers: {} };
+		this._appliedSnapshot = options.clientSnapshot ?? { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} };
 		this._declaredMcpServerNames = new Set([
 			...Object.keys(this._appliedSnapshot.mcpServers),
 			...this._appliedSnapshot.plugins.flatMap(plugin => plugin.mcpServers.map(server => server.name)),
@@ -3433,6 +3445,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 		this._currentTurn.clear();
 		this._computerUseSetup?.()?.cancelChat(this._computerUseSetupChat);
+		this._computerUseActivation.cancel();
 		this._settleIdleWaiters(true);
 		this._agentMergeTurn = false;
 		this._streamingToolCalls.clear();
@@ -4348,6 +4361,37 @@ export class CopilotAgentSession extends Disposable {
 		}));
 	}
 
+	async listExtensions(): Promise<readonly IAgentExtensionInfo[]> {
+		const result = await this._awaitControlPlaneRpc('rpc.extensions.list', this._wrapper.session.rpc.extensions.list());
+		if (!result || !Array.isArray(result.extensions)) {
+			throw new Error('Copilot returned an invalid live extension inventory.');
+		}
+		return result.extensions.flatMap((extension, index) => {
+			if (!extension || typeof extension !== 'object'
+				|| typeof extension.id !== 'string' || !extension.id
+				|| typeof extension.name !== 'string' || !extension.name
+				|| typeof extension.source !== 'string'
+				|| typeof extension.status !== 'string') {
+				this._logService.warn(`[Copilot:${this.sessionId}] Ignoring invalid live extension inventory entry at index ${index}`);
+				return [];
+			}
+			const source = this._canvasExtensionSource(extension.source);
+			if (source === 'session') {
+				return [];
+			}
+			if (source === 'unknown') {
+				this._logService.warn(`[Copilot:${this.sessionId}] Ignoring live extension inventory entry with unsupported source '${extension.source}'`);
+				return [];
+			}
+			return [{
+				id: extension.id,
+				name: extension.name,
+				source,
+				status: this._extensionStatus(extension.status),
+			}];
+		});
+	}
+
 	async openCanvas(request: IAgentCanvasOpenRequest): Promise<void> {
 		if (!this._wrapper.canvasRuntimeEnabled) {
 			throw new Error('Canvases are disabled for this session.');
@@ -4464,6 +4508,18 @@ export class CopilotAgentSession extends Disposable {
 			case 'session': return 'session';
 			case 'plugin': return 'plugin';
 			default: return 'unknown';
+		}
+	}
+
+	private _extensionStatus(status: string): AgentExtensionStatus {
+		switch (status) {
+			case 'running':
+			case 'disabled':
+			case 'failed':
+			case 'starting':
+				return status;
+			default:
+				return 'unknown';
 		}
 	}
 
@@ -4749,6 +4805,7 @@ export class CopilotAgentSession extends Disposable {
 				if (!this._store.isDisposed) {
 					if (event.type === 'session.managed_settings_resolved' && !event.agentId) {
 						this._approvalPolicy.observeRuntimePolicy(event.data);
+						this._computerUseActivation.observeManagedSettings(event.data.settings);
 						const availableApprovalModes = this._approvalPolicy.getAvailableModes(this._getApprovalInputs());
 						// A session key, written for the session that owns the chat now when the chat is its session-backed one.
 						const owner = this._ownerSessionUri.toString();
@@ -4803,6 +4860,7 @@ export class CopilotAgentSession extends Disposable {
 			}, false, 'unsandboxed-command-confirmation'),
 			createClientSdkTools: (toolSearchActive, hostToolNames) => this._createClientSdkTools(toolSearchActive, hostToolNames),
 			createServerSdkTools: toolSearchActive => this._createServerSdkTools(toolSearchActive),
+			createComputerUseActivationTools: () => this._computerUseActivation.createTools(),
 			reloadExtensions: () => this.reloadExtensions(),
 			handlePreToolUse: input => this._handlePreToolUse(input),
 			handlePostToolUse: input => this._handlePostToolUse(input),
@@ -5304,6 +5362,10 @@ export class CopilotAgentSession extends Disposable {
 		this._recordRuntimeMutation('extensionsReload');
 		await this._wrapper.session.rpc.extensions.reload();
 		this._logService.info(`[Copilot:${this.sessionId}] Extensions reloaded`);
+	}
+
+	async reconcileExtensions(): Promise<void> {
+		await this._awaitControlPlaneRpc('rpc.extensions.reconcile', this._wrapper.session.rpc.extensions.reconcile());
 	}
 
 	/**
@@ -8115,6 +8177,10 @@ export class CopilotAgentSession extends Disposable {
 		}
 
 		if (this._computerUseSetup?.()?.respondToInput(this._computerUseSetupChat, requestId, response, answers)) {
+			return true;
+		}
+
+		if (this._computerUseActivation.respondToInput(requestId, response, answers)) {
 			return true;
 		}
 
@@ -11719,6 +11785,7 @@ export class CopilotAgentSession extends Disposable {
 		this._cancelPendingUserInputs();
 		this._cancelPendingElicitations();
 		this._computerUseSetup?.()?.cancelChat(this._computerUseSetupChat);
+		this._computerUseActivation.cancel();
 		this._cancelPendingPlanReviews();
 		this._cancelPendingMcpAuthRequests();
 		this._cancelPendingMcpSamplings();

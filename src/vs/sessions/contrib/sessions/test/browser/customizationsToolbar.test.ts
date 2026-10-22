@@ -114,20 +114,15 @@ suite('Customizations toolbar', () => {
 		};
 		const customizationsChanged = disposables.add(new Emitter<void>());
 		const refreshedHint = new DeferredPromise<ICustomizationMigrationHint | undefined>();
+		const removedHint = new DeferredPromise<ICustomizationMigrationHint | undefined>();
 		const migrationHint: ICustomizationMigrationHint = { migrationFlowId: 'flow', message: 'Migrations available', counts: [] };
 		const ignoredGroupsSeen: ICustomizationMigrationIgnoredGroup[][] = [];
-		let migrationCheckCount = 0;
+		const migrationResponses = [migrationHint, refreshedHint.p, removedHint.p];
 		const migrationService = new class extends mock<ICustomizationMigrationService>() {
 			override readonly onDidChangeCustomizations = customizationsChanged.event;
-			override async computeMigrationHint(_resource: URI, _token?: CancellationToken, ignoredGroups: readonly ICustomizationMigrationIgnoredGroup[] = []): Promise<ICustomizationMigrationHint | undefined> {
+			override computeMigrationHint(_resource: URI, _token?: CancellationToken, ignoredGroups: readonly ICustomizationMigrationIgnoredGroup[] = []): Promise<ICustomizationMigrationHint | undefined> {
 				ignoredGroupsSeen.push([...ignoredGroups]);
-				if (migrationCheckCount++ === 0) {
-					return migrationHint;
-				}
-				if (migrationCheckCount === 2) {
-					return refreshedHint.p;
-				}
-				return ignoredGroups.length > 0 ? undefined : migrationHint;
+				return Promise.resolve(migrationResponses.shift() ?? (ignoredGroups.length > 0 ? undefined : migrationHint));
 			}
 		};
 		const activeProjectRoot = constObservable(URI.file('/worktrees/one'));
@@ -166,10 +161,16 @@ suite('Customizations toolbar', () => {
 		showExtensionSuggestionsBadge.set(true, undefined);
 		customizationsChanged.fire();
 		const refreshingState = state.migrationAvailable.get();
-		await refreshedHint.complete(undefined);
+		void refreshedHint.complete(migrationHint);
 		await refreshedHint.p;
 		await Promise.resolve();
 		const refreshedState = state.migrationAvailable.get();
+		customizationsChanged.fire();
+		const removingState = state.migrationAvailable.get();
+		void removedHint.complete(undefined);
+		await removedHint.p;
+		await Promise.resolve();
+		const removedState = state.migrationAvailable.get();
 		storeIgnoredCustomizationMigrationGroupKeys(storageService, new Set([
 			getCustomizationMigrationGroupIgnoreKey(
 				'agent-host-test',
@@ -190,6 +191,8 @@ suite('Customizations toolbar', () => {
 			seenSuggestionsState,
 			refreshingState,
 			refreshedState,
+			removingState,
+			removedState,
 			ignoredState,
 			restoredState,
 			ignoredGroupsSeen,
@@ -205,11 +208,14 @@ suite('Customizations toolbar', () => {
 				extensionSuggestionsAvailable: true,
 			},
 			seenSuggestionsState: false,
-			refreshingState: false,
-			refreshedState: false,
+			refreshingState: true,
+			refreshedState: true,
+			removingState: true,
+			removedState: false,
 			ignoredState: false,
 			restoredState: true,
 			ignoredGroupsSeen: [
+				[],
 				[],
 				[],
 				[{ type: CustomizationMigrationType.PromptFiles, storage: PromptsStorage.local }],

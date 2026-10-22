@@ -381,7 +381,7 @@ export class SessionsView extends ViewPane {
 
 		this.registerSessionFilters(sessionsControl);
 		this.registerArchivedFilter(sessionsControl);
-		this.registerResetFiltersAction(sessionsControl);
+		this.registerResetFiltersAction();
 
 		// Refresh sessions when window gets focus to compensate for missing events
 		this._register(this.hostService.onDidChangeFocus(hasFocus => {
@@ -746,20 +746,8 @@ export class SessionsView extends ViewPane {
 		}));
 	}
 
-	private registerResetFiltersAction(sessionsControl: SessionsList): void {
-		const resetFilters = () => {
-			const restore = sessionsControl.resetFilters();
-			this.syncFilterContextKeys(sessionsControl);
-			this.listNotification?.show({
-				message: localize('filtersReset', "Filters reset"),
-				help: localize('filtersResetHelp', "This notice appears after resetting the filters. Undo restores the previous filters, including which sessions are shown and how many each section lists."),
-				undo: async () => {
-					restore();
-					this.syncFilterContextKeys(sessionsControl);
-					status(localize('filtersRestored', "Filters restored."));
-				},
-			});
-		};
+	private registerResetFiltersAction(): void {
+		const resetFilters = () => this.resetFilters();
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
@@ -776,6 +764,41 @@ export class SessionsView extends ViewPane {
 				resetFilters();
 			}
 		}));
+	}
+
+	/** Returns every filter and display option to its default, offering Undo. */
+	resetFilters(): void {
+		const sessionsControl = this.sessionsControl;
+		if (!sessionsControl) {
+			return;
+		}
+		const restore = sessionsControl.resetFilters();
+		this.syncFilterContextKeys(sessionsControl);
+		this.listNotification?.show({
+			message: localize('filtersReset', "Filters reset"),
+			help: localize('filtersResetHelp', "This notice appears after resetting the filters. Undo restores the previous filters, including which sessions are shown and how many each section lists."),
+			undo: async () => {
+				restore();
+				this.syncFilterContextKeys(sessionsControl);
+				status(localize('filtersRestored', "Filters restored."));
+			},
+		});
+	}
+
+	/** Shows or hides archived sessions, as the filter menu's toggle does. */
+	setShowArchived(show: boolean): void {
+		if (this.sessionsControl && this.sessionsControl.isExcludeArchived() === show) {
+			this.sessionsControl.setExcludeArchived(!show);
+			this.syncFilterContextKeys(this.sessionsControl);
+		}
+	}
+
+	/** Caps workspace, repository, and environment sections to their recent sessions, or shows all of them. */
+	setWorkspaceGroupCapped(capped: boolean): void {
+		if (this.sessionsControl && this.sessionsControl.isWorkspaceGroupCapped() !== capped) {
+			this.sessionsControl.setWorkspaceGroupCapped(capped);
+			this.syncFilterContextKeys(this.sessionsControl);
+		}
 	}
 
 	/** Updates the filter menu context keys to the list's current state, such as after resetting the filters or undoing that. */
@@ -916,6 +939,12 @@ export class SessionsView extends ViewPane {
 				group: 'group',
 			},
 			{
+				id: SessionsGrouping.Environment,
+				label: localize('groupByEnvironment', "Group by Environment"),
+				checked: this.currentGrouping === SessionsGrouping.Environment,
+				group: 'group',
+			},
+			{
 				id: SessionsGrouping.Date,
 				label: localize('groupByTime', "Group by Time"),
 				checked: this.currentGrouping === SessionsGrouping.Date,
@@ -929,10 +958,22 @@ export class SessionsView extends ViewPane {
 			}
 			if (selectedId === SessionsSorting.Created || selectedId === SessionsSorting.Updated) {
 				this.setSorting(selectedId);
-			} else if (selectedId === SessionsGrouping.Workspace || selectedId === SessionsGrouping.Repository || selectedId === SessionsGrouping.Date) {
+			} else if (selectedId === SessionsGrouping.Workspace || selectedId === SessionsGrouping.Repository || selectedId === SessionsGrouping.Environment || selectedId === SessionsGrouping.Date) {
 				this.setGrouping(selectedId);
 			}
 		});
+	}
+
+	get grouping(): SessionsGrouping {
+		return this.currentGrouping;
+	}
+
+	get sorting(): SessionsSorting {
+		return this.currentSorting;
+	}
+
+	get compact(): boolean {
+		return this.currentCompact;
 	}
 
 	setGrouping(grouping: SessionsGrouping): void {

@@ -78,6 +78,16 @@ type DevContainerSampleSelectedClassification = {
 
 const FILTER_THRESHOLD = 10;
 
+/** How workspace picker rows are laid out: the folder name, then its location as a description that truncates first. */
+export const WORKSPACE_PICKER_LIST_OPTIONS = {
+	className: 'sessions-new-chat-picker-list',
+	useFullHeight: true,
+	reserveSubmenuSpace: false,
+	inlineDescription: true,
+	showGroupTitleOnFirstItem: true,
+	hideDefaultKeybindingTooltip: true,
+} as const satisfies IActionListOptions;
+
 /**
  * Fixed picker width when the categorical tab bar is shown. Keeps the tab
  * row and the list aligned and prevents horizontal jitter when switching
@@ -931,8 +941,8 @@ export class WorkspacePicker extends Disposable {
 		const showFilter = isConsolidatedWorkspacePicker
 			|| items.filter(i => i.kind === ActionListItemKind.Action).length > FILTER_THRESHOLD;
 		return showFilter
-			? { className: 'sessions-new-chat-picker-list', useFullHeight: true, showFilter: true, focusFilterOnOpen: isConsolidatedWorkspacePicker, filterPlaceholder: isConsolidatedWorkspacePicker ? localize('workspacePicker.filter', "Search") : undefined, submenuPointerIntent: isConsolidatedWorkspacePicker || undefined, submenuHoverDelay: isConsolidatedWorkspacePicker ? 0 : undefined, reserveSubmenuSpace: false, inlineDescription: true, showGroupTitleOnFirstItem: true, minWidth: pickerWidth, maxWidth: pickerWidth, hideDefaultKeybindingTooltip: true }
-			: { className: 'sessions-new-chat-picker-list', useFullHeight: true, submenuHoverDelay: isConsolidatedWorkspacePicker ? 0 : undefined, reserveSubmenuSpace: false, inlineDescription: true, showGroupTitleOnFirstItem: true, minWidth: pickerWidth, maxWidth: pickerWidth, hideDefaultKeybindingTooltip: true };
+			? { ...WORKSPACE_PICKER_LIST_OPTIONS, showFilter: true, focusFilterOnOpen: isConsolidatedWorkspacePicker, filterPlaceholder: isConsolidatedWorkspacePicker ? localize('workspacePicker.filter', "Search") : undefined, submenuPointerIntent: isConsolidatedWorkspacePicker || undefined, submenuHoverDelay: isConsolidatedWorkspacePicker ? 0 : undefined, minWidth: pickerWidth, maxWidth: pickerWidth }
+			: { ...WORKSPACE_PICKER_LIST_OPTIONS, submenuHoverDelay: isConsolidatedWorkspacePicker ? 0 : undefined, minWidth: pickerWidth, maxWidth: pickerWidth };
 	}
 
 	/**
@@ -1836,7 +1846,7 @@ export class WorkspacePicker extends Disposable {
 				: undefined;
 			items.push({
 				kind: ActionListItemKind.Action,
-				label: workspace.label,
+				label: environmentProvider ? this._getWorkspaceLabel(workspace, environmentProvider.id) : workspace.label,
 				description: workspace.description,
 				group: { title: '', icon },
 				disabled: this._isProviderUnavailable(providerId),
@@ -1888,11 +1898,12 @@ export class WorkspacePicker extends Disposable {
 					: action.label;
 			const isPromotedRemoteBrowseAction = useRemoteSubmenu && action.group === SESSION_WORKSPACE_GROUP_REMOTE;
 			const itemLabel = isPromotedRemoteBrowseAction ? action.description || actionLabel : actionLabel;
-			const browseDescription = isPromotedRemoteBrowseAction && action.description ? actionLabel : action.description;
 			const actionProvider = action.providerId ? this.sessionsProvidersService.getProvider(action.providerId) : undefined;
+			const redundantEnvironmentDescription = actionProvider && environment?.providerIds.includes(actionProvider.id) && action.description === actionProvider.label;
+			const browseDescription = isPromotedRemoteBrowseAction && action.description ? actionLabel : redundantEnvironmentDescription ? undefined : action.description;
 			const hostDescription = actionProvider && isAgentHostProvider(actionProvider) ? actionProvider.hostDescription?.get() : undefined;
 			const itemDescription = hostDescription
-				? localize('workspacePicker.browseHostDescription', "{0} · {1}", browseDescription ?? actionLabel, hostDescription)
+				? redundantEnvironmentDescription ? hostDescription : localize('workspacePicker.browseHostDescription', "{0} · {1}", browseDescription ?? actionLabel, hostDescription)
 				: browseDescription;
 			const isUnavailable = this._isProviderUnavailable(action.providerId);
 			const isRepositoryAction = action.group === SESSION_WORKSPACE_GROUP_GITHUB && action.attachesContext !== true;
@@ -2265,9 +2276,9 @@ export class WorkspacePicker extends Disposable {
 			const label = noWorkspaceSelected
 				? this._getSelectedNoWorkspaceLabel()
 				: (reflectsWorkspace && workspace
-					? this._getWorkspaceLabel(workspace)
+					? this._getWorkspaceLabel(workspace, this._selectedResolved?.providerId)
 					: undefined)
-				?? (relatedGitHubInfo ? `${relatedGitHubInfo.owner}/${relatedGitHubInfo.repo}` : (isSelectedCategory && workspace ? workspace.label : emptyLabel));
+				?? (relatedGitHubInfo ? `${relatedGitHubInfo.owner}/${relatedGitHubInfo.repo}` : (isSelectedCategory && workspace ? this._getWorkspaceLabel(workspace, this._selectedResolved?.providerId) : emptyLabel));
 			trigger.setAttribute('aria-label', badgeCount > 0
 				? localize('workspacePicker.attachedContextCountAriaLabel', "{0}, {1} attached", options.ariaLabel, badgeCount)
 				: label && label !== emptyLabel
@@ -2301,7 +2312,7 @@ export class WorkspacePicker extends Disposable {
 		const workspace = noWorkspaceSelected ? undefined : this._selectedResolved?.workspace;
 		const label = noWorkspaceSelected
 			? this._getSelectedNoWorkspaceLabel()
-			: workspace ? this._getWorkspaceLabel(workspace) : localize('pickWorkspace', "workspace");
+			: workspace ? this._getWorkspaceLabel(workspace, this._selectedResolved?.providerId) : localize('pickWorkspace', "workspace");
 		const icon = noWorkspaceSelected ? Codicon.commentDiscussion : workspace?.icon ?? Codicon.project;
 
 		trigger.setAttribute('aria-label', noWorkspaceSelected
@@ -2316,7 +2327,11 @@ export class WorkspacePicker extends Disposable {
 		dom.append(trigger, renderIcon(Codicon.chevronDownCompact)).classList.add('sessions-chat-dropdown-chevron');
 	}
 
-	private _getWorkspaceLabel(workspace: ISessionWorkspace): string {
+	private _getWorkspaceLabel(workspace: ISessionWorkspace, providerId: string | undefined): string {
+		const environment = this.options.environment?.get();
+		if (environment && providerId && environment.providerIds.includes(providerId) && !workspace.isVirtualWorkspace) {
+			return workspace.folders[0]?.name ?? workspace.label;
+		}
 		return !this.options.environment?.get() && this._selectedDevContainerFolderUri && this.uriIdentityService.extUri.isEqual(this._selectedDevContainerFolderUri, workspace.folders[0]?.root)
 			? localize('workspacePicker.devContainer.label', "{0} - Dev Container", workspace.label)
 			: workspace.label;

@@ -34,7 +34,8 @@ import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } 
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
-import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../common/constants.js';
+import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, ENVIRONMENT_PICKER_ICON_ONLY_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../common/constants.js';
+import type { IconOnlySessionPickers, ISessionOptionsIconOnlyPickers } from '../../browser/iconOnlySessionPickers.js';
 import { getNewSessionWelcomePhrases } from '../../common/welcomePhrases.js';
 import { SessionInputPickerVisibility } from '../../../../services/sessions/common/sessionPickerVisibility.js';
 import { IChatRequestVariableEntry, toFileVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
@@ -347,6 +348,7 @@ interface IRenderWorkspacePickerHarness extends IRenderSessionTypePickerHarness 
 	readonly _workspaceOptOutEnabled: ReturnType<typeof observableValue<boolean>>;
 	readonly _screenReaderOptimized: ReturnType<typeof observableValue<boolean>>;
 	readonly _collapsedSessionOptionsShowIcons: ReturnType<typeof observableValue<boolean>>;
+	readonly _iconOnlyPickers: ISessionOptionsIconOnlyPickers & Pick<IconOnlySessionPickers, 'hasChoice'>;
 	readonly _onDidChangeChatPetPlatform: Emitter<void>;
 	readonly telemetryService: ITelemetryService;
 }
@@ -420,6 +422,12 @@ interface IClearWorkspaceHarness {
 }
 
 const renderWorkspacePicker = Reflect.get(NewChatWidget.prototype, '_renderWorkspacePicker') as (this: IRenderWorkspacePickerHarness, container: HTMLElement) => IDisposable;
+const noIconOnlyPickers: IRenderWorkspacePickerHarness['_iconOnlyPickers'] = {
+	iconOnlyPickerIds: constObservable(new Set<string>()),
+	hasChoice: () => false,
+	getPickerId: () => undefined,
+	showContextMenu: () => { },
+};
 const renderSessionTypePicker = Reflect.get(NewChatWidget.prototype, '_renderSessionTypePicker') as (this: IRenderSessionTypePickerHarness, container: HTMLElement, isQuickChat: boolean) => void;
 const selectNoWorkspace = NewChatWidget.prototype.selectNoWorkspace as (this: ISelectNoWorkspaceHarness, options?: ICreateNewSessionOptions, selectionOptions?: ISelectNoWorkspaceOptions) => void;
 const openQuickChat = Reflect.get(NewChatWidget.prototype, '_openQuickChat') as ISelectNoWorkspaceHarness['_openQuickChat'];
@@ -1166,6 +1174,7 @@ suite('NewChatWidget', () => {
 				_workspaceOptOutEnabled: observableValue('optOut', enabled),
 				_screenReaderOptimized: observableValue('screenReader', false),
 				_collapsedSessionOptionsShowIcons: observableValue('icons', false),
+				_iconOnlyPickers: noIconOnlyPickers,
 				_onDidChangeChatPetPlatform: disposables.add(new Emitter<void>()),
 				telemetryService,
 			};
@@ -1289,6 +1298,7 @@ suite('NewChatWidget', () => {
 			_screenReaderOptimized: observableValue('screenReaderOptimized', false),
 			// Keep this test focused on the fully-hidden collapse; the icon rail has its own test.
 			_collapsedSessionOptionsShowIcons: observableValue('collapsedSessionOptionsShowIcons', false),
+			_iconOnlyPickers: noIconOnlyPickers,
 			_onDidChangeChatPetPlatform: disposables.add(new Emitter<void>()),
 			telemetryService,
 		};
@@ -1473,6 +1483,63 @@ suite('NewChatWidget', () => {
 			focusAfterHiding: true,
 			environmentRenderCount: 1,
 			removed: true,
+		});
+	});
+
+	test('environment icon-only experiment triggers where the environment label would show until the user chooses its presentation', () => {
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+		const telemetryService = new TestExperimentTriggerTelemetryService();
+		const hasChoice = observableValue('hasChoice', true);
+		const harness: IRenderWorkspacePickerHarness = {
+			_environment: observableValue<ISessionCreationEnvironment | undefined>('environment', undefined),
+			_environmentPickerBeforeWorkspace: observableValue('beforeWorkspace', false),
+			_environmentPicker: {
+				isVisible: constObservable(true),
+				render: target => {
+					const element = append(target, $('div'));
+					return { element, dispose: () => element.remove() };
+				},
+			},
+			agentHostFilterService: { selectedHost: { sessionCreationProviderId: 'creation' } },
+			_workspacePicker: { selectedFolderUri: undefined, onDidChangeSelection: Event.None, renderCategoryTriggers: parent => append(parent, $('div')) },
+			_newChatInput: {
+				pickerVisibility: disposables.add(new SessionInputPickerVisibility()),
+				placeRepositoryControls: () => { },
+				sessionTypePicker: { render: () => { } },
+			},
+			_renderSessionTypePicker: () => { },
+			_workspacePickerRow: undefined,
+			_workspaceSessionOptionsHost: undefined,
+			_sessionOptionsExpanded: observableValue('expanded', false),
+			_setSessionOptionsExpandedFromUser: () => { },
+			_useExperimentalComposerLayout: observableValue('layout', true),
+			_workspaceOptOutTarget: constObservable(undefined),
+			_workspaceOptOutEnabled: observableValue('optOut', false),
+			_screenReaderOptimized: observableValue('screenReader', false),
+			_collapsedSessionOptionsShowIcons: observableValue('icons', false),
+			_iconOnlyPickers: { ...noIconOnlyPickers, hasChoice: (_pickerId, reader) => hasChoice.read(reader) },
+			_onDidChangeChatPetPlatform: disposables.add(new Emitter<void>()),
+			telemetryService,
+		};
+		disposables.add(renderWorkspacePicker.call(harness, container));
+		const triggered = () => telemetryService.triggers.includes(`config.${ENVIRONMENT_PICKER_ICON_ONLY_SETTING}`);
+		const states: Record<string, boolean> = {};
+		harness._environment.set({ id: 'local', kind: 'local', label: 'This Computer', icon: Codicon.deviceDesktop, providerIds: [LOCAL_AGENT_HOST_PROVIDER_ID] }, undefined);
+		states.collapsedWithChoice = triggered();
+		harness._sessionOptionsExpanded.set(true, undefined);
+		states.expandedWithChoice = triggered();
+		harness._sessionOptionsExpanded.set(false, undefined);
+		hasChoice.set(false, undefined);
+		states.collapsedWithoutChoice = triggered();
+		harness._environmentPickerBeforeWorkspace.set(true, undefined);
+		states.beforeWorkspaceWithoutChoice = triggered();
+		assert.deepStrictEqual(states, {
+			collapsedWithChoice: false,
+			expandedWithChoice: false,
+			collapsedWithoutChoice: false,
+			beforeWorkspaceWithoutChoice: true,
 		});
 	});
 
@@ -1916,6 +1983,40 @@ suite('NewChatWidget', () => {
 		assert.deepStrictEqual(selectedLabels, isWeb
 			? [undefined, undefined, undefined]
 			: [undefined, 'Chat [Test Remote]', undefined]);
+	});
+
+	test('keeps Chat unqualified after selecting it in an explicit remote environment', () => {
+		const provider = upcastPartial<ISessionsProvider>({
+			id: 'agenthost-remote-test', label: 'benbox1', supportsQuickChats: true,
+		});
+		const selections: (ICreateNewSessionOptions | undefined)[] = [];
+		const isQuickChat = observableValue('isQuickChat', false);
+		const harness: INoWorkspaceOptionHarness = {
+			_environment: constObservable({
+				id: provider.id, kind: 'remote', label: provider.label, icon: Codicon.remote, providerIds: [provider.id],
+			}),
+			_useConsolidatedRemoteWorkspaces: constObservable(true),
+			_isWorkspacePickerQuickChat: isQuickChat,
+			_session: constObservable({ providerId: provider.id }),
+			sessionsProvidersService: { getProviders: () => [provider] },
+			sessionsManagementService: { isQuickChatTargetAvailable: () => true },
+			selectNoWorkspace: options => {
+				selections.push(options);
+				isQuickChat.set(true, undefined);
+			},
+		};
+		const before = getNoWorkspaceOption.call(harness);
+		before?.select();
+		const after = getNoWorkspaceOption.call(harness);
+		assert.deepStrictEqual({
+			before: before && { selected: before.isSelected, selectedLabel: before.selectedLabel },
+			after: after && { selected: after.isSelected, selectedLabel: after.selectedLabel, submenuActions: after.submenuActions },
+			selections,
+		}, isWeb ? { before: undefined, after: undefined, selections: [] } : {
+			before: { selected: false, selectedLabel: undefined },
+			after: { selected: true, selectedLabel: undefined, submenuActions: undefined },
+			selections: [{ providerId: provider.id }],
+		});
 	});
 
 	test('hides offline Mission Control hosts from Chat while preserving the active chat label', () => {

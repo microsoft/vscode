@@ -91,7 +91,6 @@ export class CustomizationsNavigationState extends Disposable {
 				return;
 			}
 
-			this.migrationAvailableValue.set(false, undefined);
 			const ignoredGroups = getIgnoredCustomizationMigrationGroups(
 				storageService,
 				getChatSessionType(session.resource),

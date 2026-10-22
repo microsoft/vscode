@@ -26,9 +26,9 @@ import { IActiveSession, ISessionsManagementService } from '../../../services/se
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISession, ISessionWorkspace } from '../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { ITerminalProfileService, TerminalCommandId } from '../../../../workbench/contrib/terminal/common/terminal.js';
+import { ITerminalProfileService, TERMINAL_VIEW_ID, TerminalCommandId } from '../../../../workbench/contrib/terminal/common/terminal.js';
 import { TerminalContextKeys } from '../../../../workbench/contrib/terminal/common/terminalContextKey.js';
-import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
+import { ActivePanelContext, IsAuxiliaryWindowContext, PanelVisibleContext } from '../../../../workbench/common/contextkeys.js';
 import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
 import { CustomViewVisibleContext } from '../../../common/contextkeys.js';
 import { ISessionTaskRunnerRegistry } from '../../chat/browser/sessionTaskRunner.js';
@@ -985,12 +985,14 @@ class ShowAllTerminalsAction extends Action2 {
 registerAction2(ShowAllTerminalsAction);
 
 // Reveals the terminal in the panel, creating one when there is none; the panel toggle follows it.
+// Checked while the panel shows the terminal, when activating the entry hides the panel.
 MenuRegistry.appendMenuItem(Menus.SessionActivityBar, {
 	command: {
 		id: TerminalCommandId.Focus,
 		title: localize('sessionActivityBar.terminal', "Terminal"),
 		icon: Codicon.terminal,
 		precondition: CustomViewVisibleContext.negate(),
+		toggled: ContextKeyExpr.and(PanelVisibleContext, ActivePanelContext.isEqualTo(TERMINAL_VIEW_ID)),
 	},
 	group: SessionActivityBarGroup.Panel,
 	order: 0,
