@@ -35,7 +35,7 @@ With the experiment disabled, each session owns its editor working set and panel
 | Existing Session Editor/Details profile | `sessions.singlePane.sidePaneVisibility` | Shared across Existing Sessions |
 | Side-pane and panel visibility | Workbench part visibility | Window |
 
-Draft Sessions do not persist a separate legacy visibility profile. Quick Chats reuse the Existing Session profile when they have editor content and hide the side pane when their editor working set is empty.
+Draft Sessions do not persist a separate legacy visibility profile. Quick Chats reuse the Existing Session profile when they have editor content and hide the side pane when their editor working set is empty. In `chat`, a Quick Chat with editor content instead restores its own last side-pane visibility recorded in this window.
 
 In both enabled desktop modes, the focused `(sessionResource, chatResource)` owns the singleton Editor's ordinary working set and active editor and selected bottom-panel view. Focus changes within one session and between sessions use the same layout owner boundary, including with multiple visible sessions or chat groups. Resource identities are provider-neutral and opaque. The main chat uses its session resource as its layout key; peers use a composite session/chat key.
 
