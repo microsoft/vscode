@@ -5,6 +5,8 @@
 
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
+import * as fs from 'fs';
+import * as os from 'os';
 import { IAgentHostStartupPerformance, NullAgentHostStartupPerformance } from '../../../node/agentHostStartupPerformance.js';
 import { PassThrough } from 'stream';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
@@ -13,6 +15,7 @@ import { CancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { join } from '../../../../../base/common/path.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -273,7 +276,9 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	});
 	instantiationService.stub(IAgentHostSessionTitleSignal, { _serviceBrand: undefined, onDidChangeSessionTitle: Event.None });
 	instantiationService.stub(IProductService, { _serviceBrand: undefined, version: '1.0.0-test' } as IProductService);
-	instantiationService.stub(INativeEnvironmentService, { userHome: URI.file('/tmp') });
+	const userHome = URI.file(fs.mkdtempSync(join(os.tmpdir(), 'vscode-codex-test-home-')));
+	disposables.add(toDisposable(() => fs.rmSync(userHome.fsPath, { recursive: true, force: true })));
+	instantiationService.stub(INativeEnvironmentService, { userHome });
 	instantiationService.stub(IFileService, fileService);
 	instantiationService.stub(ILogService, logService);
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
