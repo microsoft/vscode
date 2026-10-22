@@ -808,7 +808,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
-			description: localize('sessions.chat.experimental.environmentPickerIconOnly', "Controls whether the Environment picker in the new-session composer is collapsed to its icon. Choosing Collapse to Icon or Show Label from the picker's context menu takes precedence. Requires the Environment picker to be enabled."),
+			description: localize('sessions.chat.experimental.environmentPickerIconOnly', "Controls whether the Environment picker in the new-session composer is collapsed to its icon. Toggling Collapse to Icon from the picker's context menu takes precedence. Requires the Environment picker to be enabled."),
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},

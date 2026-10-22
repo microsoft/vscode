@@ -51,16 +51,16 @@ suite('Sessions - IconOnlySessionPickers', () => {
 		const toggle = (pickerId: string) => {
 			pickers.showContextMenu(pickerId, anchor);
 			const [action] = contextMenuService.actions;
-			const label = action.label;
+			const menu = `${action.label}${action.checked ? ' ✓' : ''}`;
 			action.run();
-			return label;
+			return menu;
 		};
 		const setEnvironmentDefault = async (iconOnly: boolean) => {
 			await configurationService.setUserConfiguration(ENVIRONMENT_PICKER_ICON_ONLY_SETTING, iconOnly);
 			configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: (key: string) => key === ENVIRONMENT_PICKER_ICON_ONLY_SETTING }));
 		};
-		const states: { readonly iconOnly: string[]; readonly environmentChoice: boolean; readonly menuLabel?: string }[] = [];
-		const snapshot = (menuLabel?: string) => states.push({ iconOnly: [...pickers.iconOnlyPickerIds.get()], environmentChoice: pickers.hasChoice(ENVIRONMENT_PICKER_ID, undefined), menuLabel });
+		const states: { readonly iconOnly: string[]; readonly environmentChoice: boolean; readonly menu?: string }[] = [];
+		const snapshot = (menu?: string) => states.push({ iconOnly: [...pickers.iconOnlyPickerIds.get()], environmentChoice: pickers.hasChoice(ENVIRONMENT_PICKER_ID, undefined), menu });
 
 		snapshot();
 		await setEnvironmentDefault(true);
@@ -69,17 +69,19 @@ suite('Sessions - IconOnlySessionPickers', () => {
 		await setEnvironmentDefault(true);
 		snapshot();
 		snapshot(toggle('harness'));
-		states.push({ iconOnly: [...create().iconOnlyPickerIds.get()], environmentChoice: true, menuLabel: 'restored' });
+		// A new instance over the same storage, as after a window reload.
+		const reloaded = create();
+		states.push({ iconOnly: [...reloaded.iconOnlyPickerIds.get()], environmentChoice: reloaded.hasChoice(ENVIRONMENT_PICKER_ID, undefined), menu: 'reloaded' });
 		snapshot(toggle('harness'));
 
 		assert.deepStrictEqual(states, [
-			{ iconOnly: [], environmentChoice: false, menuLabel: undefined },
-			{ iconOnly: [ENVIRONMENT_PICKER_ID], environmentChoice: false, menuLabel: undefined },
-			{ iconOnly: [], environmentChoice: true, menuLabel: 'Show Label' },
-			{ iconOnly: [], environmentChoice: true, menuLabel: undefined },
-			{ iconOnly: ['harness'], environmentChoice: true, menuLabel: 'Collapse to Icon' },
-			{ iconOnly: ['harness'], environmentChoice: true, menuLabel: 'restored' },
-			{ iconOnly: [], environmentChoice: true, menuLabel: 'Show Label' },
+			{ iconOnly: [], environmentChoice: false, menu: undefined },
+			{ iconOnly: [ENVIRONMENT_PICKER_ID], environmentChoice: false, menu: undefined },
+			{ iconOnly: [], environmentChoice: true, menu: 'Collapse to Icon ✓' },
+			{ iconOnly: [], environmentChoice: true, menu: undefined },
+			{ iconOnly: ['harness'], environmentChoice: true, menu: 'Collapse to Icon' },
+			{ iconOnly: ['harness'], environmentChoice: true, menu: 'reloaded' },
+			{ iconOnly: [], environmentChoice: true, menu: 'Collapse to Icon ✓' },
 		]);
 	});
 });

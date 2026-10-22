@@ -121,9 +121,8 @@ export class IconOnlySessionPickers extends Disposable implements ISessionOption
 		const iconOnly = this.iconOnlyPickerIds.get().has(pickerId);
 		const actions: IAction[] = [toAction({
 			id: 'sessions.newSession.togglePickerIconOnly',
-			label: iconOnly
-				? localize('sessionPicker.showLabel', "Show Label")
-				: localize('sessionPicker.collapseToIcon', "Collapse to Icon"),
+			label: localize('sessionPicker.collapseToIcon', "Collapse to Icon"),
+			checked: iconOnly,
 			run: () => this.setIconOnly(pickerId, !iconOnly),
 		})];
 		// Keep the keybinding entry the picker's own context menu offers.
