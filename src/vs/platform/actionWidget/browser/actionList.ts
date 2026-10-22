@@ -112,6 +112,8 @@ export interface IActionListUpdateOptions {
 	readonly preserveHover?: boolean;
 	/** Keep the current viewport when items are refreshed in place. */
 	readonly preserveScrollPosition?: boolean;
+	/** Return DOM focus to the filter when focusing an updated item. */
+	readonly focusFilter?: boolean;
 	/** Animate a visible focused item's move. The caller must respect reduced motion. */
 	readonly animateItemMove?: boolean;
 }
@@ -218,6 +220,12 @@ export interface IActionListItem<T> {
 	 * Optional CSS class names to add to the row container, separated by spaces.
 	 */
 	readonly className?: string;
+	/**
+	 * Height of the row as a multiple of a single action row's, e.g. 2 for a row
+	 * twice as tall. Overrides the height the item's kind and content would give it;
+	 * values below 1 or that are not finite are ignored.
+	 */
+	readonly heightInLines?: number;
 	/**
 	 * Optional badge text to display after the label (e.g., "New").
 	 */
@@ -814,6 +822,18 @@ export interface IActionListOptions {
 	 */
 	readonly focusFilterOnOpen?: boolean;
 
+	/** Let the owner lay out the list before calling focus, so initial focus does not scroll past section headings. */
+	readonly deferInitialFocus?: boolean;
+
+	/** Controls List range selection independently of checked items. Defaults to true. */
+	readonly multipleSelectionSupport?: boolean;
+
+	/** Prevents the List's synthetic double-click selection from activating an item. */
+	readonly suppressDoubleClickActivation?: boolean;
+
+	/** Exposes multiple checked options without enabling List range selection. */
+	readonly ariaMultiselectable?: boolean;
+
 	/** Optional action item id to focus when the list opens. */
 	readonly initialFocusItemId?: string;
 
@@ -1119,6 +1139,7 @@ export class ActionListWidget<T> extends Disposable {
 			new SeparatorRenderer(this._hoverService),
 		], {
 			keyboardSupport: false,
+			multipleSelectionSupport: this._options?.multipleSelectionSupport ?? true,
 			typeNavigationEnabled: !this._options?.showFilter && !this._options?.onType,
 			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel },
 			accessibilityProvider: {
@@ -1193,6 +1214,9 @@ export class ActionListWidget<T> extends Disposable {
 		}));
 
 		this._list.style(defaultListStyles);
+		if (this._options?.ariaMultiselectable !== undefined) {
+			this._list.getHTMLElement().setAttribute('aria-multiselectable', String(this._options.ariaMultiselectable));
+		}
 
 		this._register(this._list.onKeyDown(() => this._setKeyboardNavigation(true)));
 		this._register(dom.addDisposableListener(this._list.getHTMLElement(), dom.EventType.MOUSE_MOVE, (e: MouseEvent) => {
@@ -1440,7 +1464,7 @@ export class ActionListWidget<T> extends Disposable {
 
 		this._applyFilter();
 
-		if (this._list.length) {
+		if (this._list.length && !this._options?.deferInitialFocus) {
 			this._focusCheckedOrFirst();
 		}
 
@@ -1935,7 +1959,7 @@ export class ActionListWidget<T> extends Disposable {
 				this._animateItemMove(preservedItem, previousRow);
 			}
 		} else if (focusItemId !== undefined) {
-			this.focusItemById(focusItemId);
+			this.focusItemById(focusItemId, options);
 		}
 		if (scrollTop !== undefined) {
 			this._list.scrollTop = scrollTop;
@@ -1967,18 +1991,24 @@ export class ActionListWidget<T> extends Disposable {
 	}
 
 	/**
-	 * Focuses the item whose {@link IActionListItem.item}'s `id` matches
-	 * {@link itemId}, without rebuilding the list. Re-applies the focus after the
-	 * current event so a mouse click's own pointer handling cannot reset it.
+	 * Focuses an item by id, reapplying focus after the current pointer event.
+	 * Preserving scroll also retains active combobox focus.
 	 */
-	focusItemById(itemId: string): void {
+	focusItemById(itemId: string, options?: IActionListUpdateOptions): void {
+		const focusFilter = !!this._filterInput && (options?.focusFilter || options?.preserveScrollPosition && this._options?.filterAsCombobox && dom.isActiveElement(this._filterInput));
 		const focusItem = () => {
 			for (let i = 0; i < this._list.length; i++) {
 				const el = this._list.element(i);
 				if ((el.item as { id?: string })?.id === itemId) {
 					this._list.setFocus([i]);
-					this._list.reveal(i);
-					this._list.domFocus();
+					if (!options?.preserveScrollPosition) {
+						this._list.reveal(i);
+					}
+					if (focusFilter) {
+						this._filterInput?.focus();
+					} else {
+						this._list.domFocus();
+					}
 					break;
 				}
 			}
@@ -2132,6 +2162,9 @@ export class ActionListWidget<T> extends Disposable {
 
 	/** Row heights depend on the options of the tab the items belong to, not the shown one. */
 	private _itemHeightWith(item: IActionListItem<T>, options: IActionListOptions | undefined): number {
+		if (item.heightInLines !== undefined && Number.isFinite(item.heightInLines) && item.heightInLines >= 1) {
+			return Math.round(item.heightInLines * this._actionLineHeight);
+		}
 		switch (item.kind) {
 			case ActionListItemKind.Header:
 				return this._headerLineHeight;
@@ -2444,6 +2477,10 @@ export class ActionListWidget<T> extends Disposable {
 
 	private onListSelection(e: IListEvent<IActionListItem<T>>): void {
 		if (!e.elements.length) {
+			return;
+		}
+		if (this._options?.suppressDoubleClickActivation && e.browserEvent?.type === dom.EventType.DBLCLICK) {
+			this._list.setSelection([]);
 			return;
 		}
 

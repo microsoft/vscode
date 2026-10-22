@@ -151,6 +151,7 @@ suite('Sessions - Layout Actions', () => {
 
 	test('toggles the session activity bar layout actions from its context menu', async () => {
 		const items = MenuRegistry.getMenuItems(Menus.SessionActivityBarContext).filter(isIMenuItem)
+			.filter(item => item.group === 'navigation')
 			.map(item => ({ id: item.command.id, title: item.command.title, toggled: item.command.toggled, order: item.order }))
 			.sort((first, second) => (first.order ?? 0) - (second.order ?? 0));
 		const configurationService = new class extends TestConfigurationService {
@@ -210,7 +211,7 @@ suite('Sessions - Layout Actions', () => {
 		]]));
 
 		assert.deepStrictEqual({ activityBarItems: find(Menus.SessionActivityBar).map(item => ({ title: item.command.title, group: item.group, order: item.order })), placement }, {
-			activityBarItems: [{ title: 'Show Panel', group: '3_panel', order: 0 }, { title: 'Hide Panel', group: '3_panel', order: 0 }],
+			activityBarItems: [{ title: 'Show Panel', group: '2_panel', order: 1 }, { title: 'Hide Panel', group: '2_panel', order: 1 }],
 			placement: {
 				layoutActions: ['activityBar'],
 				layoutActionsOff: ['titleBar'],

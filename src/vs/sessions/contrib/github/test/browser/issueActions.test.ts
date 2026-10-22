@@ -7,15 +7,19 @@ import assert from 'assert';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { Context } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IExtensionDescription } from '../../../../../platform/extensions/common/extensions.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IOpenURLOptions, IURLService } from '../../../../../platform/url/common/url.js';
 import { IExtensionService } from '../../../../../workbench/services/extensions/common/extensions.js';
+import { Menus, SessionActivityBarGroup } from '../../../../browser/menus.js';
+import { sessionActivityBarChatActionContext } from '../../../../common/contextkeys.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
@@ -76,6 +80,50 @@ class TestOpenerService extends mock<IOpenerService>() {
 suite('Issue Actions', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('Open Issue is available in the activity bar only with an associated issue', () => {
+		const items = MenuRegistry.getMenuItems(Menus.SessionActivityBar)
+			.filter(isIMenuItem)
+			.filter(item => item.command.id === 'workbench.agentSessions.action.openIssue');
+		const withIssue = new Context(1, null);
+		withIssue.setValue(sessionActivityBarChatActionContext('workbench.agentSessions.action.openIssue').key, true);
+		const withoutIssue = new Context(2, null);
+
+		assert.deepStrictEqual(items.map(item => ({
+			group: item.group,
+			order: item.order,
+			icon: item.command.icon,
+			visibleWithIssue: item.when?.evaluate(withIssue),
+			visibleWithoutIssue: item.when?.evaluate(withoutIssue),
+		})), [{
+			group: SessionActivityBarGroup.GitHub,
+			order: 1,
+			icon: Codicon.issues,
+			visibleWithIssue: true,
+			visibleWithoutIssue: false,
+		}]);
+	});
+
+	test('Open Issue falls back to the active session without an explicit target', async () => {
+		const issueUri = URI.parse('https://github.com/owner/repo/issues/7');
+		const session = createSessionWithIssue(issueUri);
+		const instantiationService = new TestInstantiationService();
+		const openerService = new TestOpenerService();
+		instantiationService.stub(IOpenerService, openerService);
+		instantiationService.stub(IURLService, new TestURLService());
+		instantiationService.stub(IExtensionService, new class extends mock<IExtensionService>() {
+			override async getExtension(): Promise<IExtensionDescription | undefined> {
+				return undefined;
+			}
+		});
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable(upcastPartial<IActiveSession>({ workspace: session.workspace }));
+		});
+
+		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.agentSessions.action.openIssue')!.handler(accessor));
+
+		assert.deepStrictEqual(openerService.opened, [{ resource: issueUri, openExternal: true }]);
+	});
 
 	test('Open Issue opens externally when the GitHub Pull Requests extension is unavailable', async () => {
 		const issueUri = URI.parse('https://github.com/owner/repo/issues/7');

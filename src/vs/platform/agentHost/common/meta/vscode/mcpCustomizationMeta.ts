@@ -11,6 +11,24 @@ const maxDisplayNameLength = 512;
 const sourcePluginKey = 'agentHost.mcpServerSourcePlugin';
 const controllingSettingKey = 'vscode.mcpServerControllingSetting';
 const connectorNameKey = 'vscode.mcpServerConnectorName';
+const routingServersKey = 'vscode.mcpRoutingServers';
+
+/** Reads the servers with registered routing tools on this chat. */
+export function readMcpRoutingServers(session: { readonly _meta?: Record<string, unknown> } | undefined, chat: string): readonly string[] {
+	const entries = session?._meta?.[routingServersKey];
+	const value = isMetadataRecord(entries) ? entries[chat] : undefined;
+	return Array.isArray(value) && value.every(name => typeof name === 'string' && name.length > 0) ? [...value] : [];
+}
+
+/** Records one chat's routing tools while preserving other chats and unrelated session metadata. */
+export function withMcpRoutingServers(meta: Record<string, unknown> | undefined, chat: string, servers: readonly string[]): Record<string, unknown> {
+	const previous = meta?.[routingServersKey];
+	return { ...meta, [routingServersKey]: { ...(isMetadataRecord(previous) ? previous : {}), [chat]: [...servers] } };
+}
+
+function isMetadataRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
 
 export type McpServerSource =
 	| 'user' // Defined in user-level configuration.

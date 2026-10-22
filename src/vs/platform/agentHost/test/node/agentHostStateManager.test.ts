@@ -2541,6 +2541,77 @@ suite('AgentHostStateManager', () => {
 			);
 		});
 
+		for (const failedDefaultChat of [false, true]) {
+			test(`session aggregation promotes input and progress, not ${failedDefaultChat ? 'default' : 'peer'} chat errors`, () => {
+				manager.createSession(makeSessionSummary());
+				const defaultChat = buildDefaultChatUri(sessionUri);
+				const failedChat = failedDefaultChat ? defaultChat : buildChatUri(sessionUri, 'failed');
+				if (!failedDefaultChat) {
+					manager.addChat(sessionUri, failedChat, creationTimeChatStorageResource(sessionUri, failedChat, defaultChat), { title: 'Failed' });
+				}
+				manager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat, defaultChat), { title: 'Running' });
+				const startTurn = (chat: string, turnId: string) => manager.dispatchServerAction(chat, {
+					type: ActionType.ChatTurnStarted,
+					turnId,
+					startedAt: '2025-01-01T00:00:00.000Z',
+					message: { text: 'hello', origin: { kind: MessageKind.User } },
+				});
+				startTurn(failedChat, 'failed-turn');
+				manager.dispatchServerAction(failedChat, {
+					type: ActionType.ChatError,
+					turnId: 'failed-turn',
+					duration: 1000,
+					part: createErrorResponsePart({ errorType: 'failed', message: 'boom' }),
+				});
+				manager.dispatchServerAction(sessionUri, { type: ActionType.SessionIsArchivedChanged, isArchived: true });
+				const flags = SessionStatus.IsArchived;
+				const fallback = failedDefaultChat ? SessionStatus.Error : SessionStatus.Idle;
+				const snapshot = () => {
+					const state = manager.getSessionState(sessionUri)!;
+					return { status: state.status, activity: state.activity };
+				};
+				const afterError = snapshot();
+				startTurn(peerChat, 'running-turn');
+				manager.dispatchServerAction(peerChat, { type: ActionType.ChatActivityChanged, activity: 'Running tests' });
+				const whileRunning = snapshot();
+				manager.dispatchServerAction(peerChat, {
+					type: ActionType.ChatInputRequested,
+					request: withChatInputRequestPurpose({
+						id: 'request',
+						questions: [{ kind: ChatInputQuestionKind.Text, id: 'question', message: 'Continue?' }],
+					}, ChatInputRequestPurpose.AskUser),
+				});
+				const whileWaiting = snapshot();
+				manager.dispatchServerAction(peerChat, {
+					type: ActionType.ChatInputCompleted,
+					requestId: 'request',
+					response: ChatInputResponseKind.Accept,
+				});
+				const afterInput = snapshot();
+				manager.dispatchServerAction(peerChat, { type: ActionType.ChatTurnComplete, turnId: 'running-turn', duration: 1000 });
+
+				assert.deepStrictEqual({
+					afterError,
+					whileRunning,
+					whileWaiting,
+					afterInput,
+					afterComplete: snapshot(),
+					failedChatStatus: manager.getChatState(failedChat)!.status & ~flags,
+					catalogStatus: manager.getSessionState(sessionUri)!.chats.find(chat => chat.resource === failedChat)!.status & ~flags,
+					summaryStatus: manager.getSessionSummary(sessionUri)!.status,
+				}, {
+					afterError: { status: fallback | flags, activity: undefined },
+					whileRunning: { status: SessionStatus.InProgress | flags, activity: 'Running tests' },
+					whileWaiting: { status: SessionStatus.InputNeeded | flags, activity: 'Running tests' },
+					afterInput: { status: SessionStatus.InProgress | flags, activity: 'Running tests' },
+					afterComplete: { status: fallback | flags, activity: undefined },
+					failedChatStatus: SessionStatus.Error,
+					catalogStatus: SessionStatus.Error,
+					summaryStatus: fallback | flags,
+				});
+			});
+		}
+
 		test('a running peer chat forwards its own status to the session catalog so its tab can show progress', () => {
 			manager.createSession(makeSessionSummary());
 			manager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat, buildDefaultChatUri(sessionUri)), { title: 'Peer' });

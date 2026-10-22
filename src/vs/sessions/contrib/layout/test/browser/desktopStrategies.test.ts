@@ -1278,4 +1278,49 @@ suite('Desktop layout strategies', () => {
 			auxiliaryBarVisible: false,
 		});
 	});
+
+	for (const mode of ['session-shared', 'chat-shared', 'chat'] as const) {
+		for (const leftOpen of [true, false]) {
+			test(`Quick Chat side pane left ${leftOpen ? 'open' : 'closed'} is ${mode === 'chat' ? 'restored' : 'shared'} (${mode})`, () => {
+				harness = createTestHarness(store);
+				const { ctx: baseCtx, state } = createStrategyTestContext(store, harness);
+				const ctx: IDesktopLayoutContext = {
+					...baseCtx,
+					get isRestoringSessionLayout() { return baseCtx.isRestoringSessionLayout; },
+					get togglingSidePane() { return baseCtx.togglingSidePane; },
+					chatLayoutActive: () => mode !== 'session-shared',
+					sharedChatLayout: mode === 'chat-shared',
+				};
+				const quickChat = makeSession(URI.parse('session:/quick'), { isQuickChat: true });
+				const otherSession = makeSession(URI.parse('session:/other'));
+				state.setHasSavedWorkingSet(quickChat.resource, true);
+				const visibilityStore = createVisibilityStore();
+				createDraftStrategy(ctx, visibilityStore);
+				const canvas = store.add(new TestStubEditorInput(URI.parse('canvas://quick')));
+
+				activate(quickChat);
+				harness.activeGroupEditors.push(canvas);
+				harness.editorGroupsHaveContent = true;
+				harness.activeEditorInput = canvas;
+				harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+				harness.partVisibility.set(Parts.EDITOR_PART, leftOpen);
+				harness.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: leftOpen });
+
+				activate(otherSession);
+				harness.partVisibility.set(Parts.EDITOR_PART, !leftOpen);
+				visibilityStore.set(SessionVisibilityProfile.Existing, { editorVisible: !leftOpen, auxiliaryBarVisible: false });
+
+				activate(quickChat);
+				state.endSessionLayoutRestore();
+
+				assert.deepStrictEqual({
+					editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+					auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+				}, {
+					editorVisible: mode === 'chat' ? leftOpen : !leftOpen,
+					auxiliaryBarVisible: false,
+				});
+			});
+		}
+	}
 });

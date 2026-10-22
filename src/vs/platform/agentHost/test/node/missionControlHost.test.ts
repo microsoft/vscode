@@ -27,7 +27,7 @@ import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpo
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
 import { AgentHostStateManager, IAgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
-import { MissionControlEnvironment, type IMissionControlEnvironmentHost } from '../../node/missionControl/missionControlEnvironment.js';
+import { MissionControlEnvironment, type IMissionControlEnvironmentHost, type IMissionControlRelayDiagnostic } from '../../node/missionControl/missionControlEnvironment.js';
 import { getMissionControlEnvironmentName, MissionControlHost, type MissionControlOperationClassification, type MissionControlPublishSummaryClassification } from '../../node/missionControl/missionControlHost.js';
 import { MissionControlProtocolServer } from '../../node/missionControl/missionControlProtocolServer.js';
 import { MissionControlProjects } from '../../node/missionControl/missionControlProjects.js';
@@ -818,15 +818,26 @@ suite('Mission Control host integration', () => {
 				error: outcome === 'failed' ? { name: 'Error', message: 'private server response (requestId=ABCD:1234:5678:90AB:CDEF)', status: 503, requestId: 'ABCD:1234:5678:90AB:CDEF' } : undefined,
 			});
 		}
+		const relayDiagnostic = (phase: 'relayRecovery' | 'relayDisconnected', outcome: 'succeeded' | 'info', error?: IMissionControlRelayDiagnostic['error']): IMissionControlRelayDiagnostic => ({
+			operationId: '', phase, outcome, timestamp: 0, durationMs: 42, error,
+			relay: { reason: 'socketClose', closeCode: 1006, activeClients: 2, attempts: 3, interruptedClients: phase === 'relayRecovery' ? 1 : undefined },
+		});
+		options.onDiagnostic?.(relayDiagnostic('relayRecovery', 'succeeded'));
+		options.onDiagnostic?.(relayDiagnostic('relayDisconnected', 'info', { name: 'Error', message: 'private close reason', code: 'ECONNRESET' }));
 		type ClassifiedSample<T> = { [K in keyof Omit<T, 'owner' | 'comment'>]: NonNullable<T[K]> extends { isMeasurement: true } ? number : string };
 		const sample: ClassifiedSample<MissionControlOperationClassification> = {
 			operation: 'heartbeat', outcome: 'failed', durationMs: 42, statusCode: 503, hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+			closeReason: 'socketClose', closeCode: 1006, activeClients: 2, recoveryAttempts: 3, interruptedClients: 1,
 		};
+		const { closeReason: _closeReason, closeCode: _closeCode, activeClients: _activeClients, recoveryAttempts: _recoveryAttempts, interruptedClients: _interruptedClients, ...base } = sample;
+		const relay = { closeReason: 'socketClose', closeCode: 1006, activeClients: 2, recoveryAttempts: 3 };
 		assert.deepStrictEqual(events, [
-			{ eventName: 'agentHost.missionControlOperation', data: { ...sample, operation: 'register', outcome: 'succeeded', statusCode: undefined } },
-			{ eventName: 'agentHost.missionControlOperation', data: { ...sample, errorCategory: 'httpServer' } },
-			{ eventName: 'agentHost.missionControlOperation', data: { ...sample, operation: 'relay', outcome: 'succeeded', statusCode: undefined } },
-			{ eventName: 'agentHost.missionControlOperation', data: { ...sample, operation: 'relayDisconnected', outcome: 'info', statusCode: undefined } },
+			{ eventName: 'agentHost.missionControlOperation', data: { ...base, operation: 'register', outcome: 'succeeded', statusCode: undefined } },
+			{ eventName: 'agentHost.missionControlOperation', data: { ...base, errorCategory: 'httpServer' } },
+			{ eventName: 'agentHost.missionControlOperation', data: { ...base, operation: 'relay', outcome: 'succeeded', statusCode: undefined } },
+			{ eventName: 'agentHost.missionControlOperation', data: { ...base, operation: 'relayDisconnected', outcome: 'info', statusCode: undefined } },
+			{ eventName: 'agentHost.missionControlOperation', data: { ...base, ...relay, operation: 'relayRecovery', outcome: 'succeeded', statusCode: undefined, interruptedClients: 1 } },
+			{ eventName: 'agentHost.missionControlOperation', data: { ...base, ...relay, operation: 'relayDisconnected', outcome: 'info', statusCode: undefined, errorCategory: 'network', interruptedClients: undefined } },
 		]);
 	});
 

@@ -5,9 +5,11 @@
 
 import assert from 'assert';
 import { $, append } from '../../../../../../../../base/browser/dom.js';
+import { isManagedHoverTooltipMarkdownString } from '../../../../../../../../base/browser/ui/hover/hover.js';
 import { mainWindow } from '../../../../../../../../base/browser/window.js';
 import { IAction } from '../../../../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../../../../base/common/event.js';
+import { isMarkdownString } from '../../../../../../../../base/common/htmlContent.js';
 import { ResolvedKeybinding } from '../../../../../../../../base/common/keybindings.js';
 import { toDisposable } from '../../../../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../../../../base/common/observable.js';
@@ -433,24 +435,36 @@ suite('ModelPickerActionItem', () => {
 		assert.strictEqual(getHoverContents(), 'Models • First\n\nCompare Models');
 	});
 
-	test('a chat on a HydraFusion model shown as a Fusion tier names that tier in its label and hover', () => {
+	test('a chat on Copilot Fusion or a HydraFusion model shown as a Fusion tier names it in its label and describes Fusion in its hover', () => {
 		const auto = createModel('auto');
 		const fusion: ILanguageModelChatMetadataAndIdentifier = {
 			...auto,
 			metadata: {
-				...auto.metadata, name: 'Fusion', autoModelFusion: { balanceUsesHydraFusion: false }, autoModelProviderTiers: true,
+				...auto.metadata, name: 'Copilot Fusion', autoModelFusion: true, autoModelProviderTiers: true,
 				configurationSchema: { properties: { tier: { type: 'string', group: 'navigation', title: 'Effort Level', enum: ['balance', 'hydrafusion', 'hydrafusion-max'], enumItemLabels: ['Standard', 'High', 'Max'], default: 'balance' } } },
 			},
 		};
 		const max = createModel('hydrafusion-max');
 		const hydraFusionMax: ILanguageModelChatMetadataAndIdentifier = { ...max, metadata: { ...max.metadata, name: 'HydraFusion Max', modelGroup: { id: 'copilotcli' }, configurationSchema: undefined } };
-		const { domNode, getHoverContents } = renderPicker(hydraFusionMax, { models: [fusion, hydraFusionMax] });
-		assert.deepStrictEqual({
-			label: domNode.querySelector('.chat-input-picker-label')?.textContent,
-			hover: getHoverContents(),
-		}, {
-			label: 'Fusion',
-			hover: 'Models • Fusion Max',
+		const read = (selected: ILanguageModelChatMetadataAndIdentifier) => {
+			const { domNode, getHoverContents } = renderPicker(selected, { models: [fusion, hydraFusionMax] });
+			const hover = getHoverContents();
+			return {
+				label: domNode.querySelector('.chat-input-picker-label')?.textContent,
+				hover: isManagedHoverTooltipMarkdownString(hover) && isMarkdownString(hover.markdown) ? { markdown: hover.markdown.value, fallback: hover.markdownNotSupportedFallback } : hover,
+			};
+		};
+		const description = 'Copilot Fusion selects a single model or orchestrates multiple models to complete your task.';
+		const learnMore = '[Learn more](https://docs.github.com/en/early-access/copilot/hydrafusion)';
+		assert.deepStrictEqual({ fusion: read(fusion), hydraFusionMax: read(hydraFusionMax) }, {
+			fusion: {
+				label: 'Copilot Fusion',
+				hover: { markdown: `Models • Copilot Fusion\n\n${description} ${learnMore}`, fallback: `Models • Copilot Fusion\n\n${description}` },
+			},
+			hydraFusionMax: {
+				label: 'Copilot Fusion',
+				hover: { markdown: `Models • Copilot Fusion Max\n\n${description} ${learnMore}`, fallback: `Models • Copilot Fusion Max\n\n${description}` },
+			},
 		});
 	});
 
