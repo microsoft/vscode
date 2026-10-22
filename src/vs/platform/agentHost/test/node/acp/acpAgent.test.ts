@@ -7,6 +7,7 @@ import assert from 'assert';
 import * as fs from 'fs';
 import * as os from 'os';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { Event } from '../../../../../base/common/event.js';
 import { join } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -61,6 +62,11 @@ suite('AcpAgent', () => {
 		return agent.chats.createChat(chat, session, { workingDirectories: [URI.file(workspace)] });
 	}
 
+	/** Resolves once a signal matching `predicate` has been emitted, including before the call. */
+	function untilSignal(predicate: (signal: AgentSignal) => boolean): Promise<unknown> {
+		return signals.some(predicate) ? Promise.resolve() : Event.toPromise(Event.filter(agent.onDidChatProgress, predicate));
+	}
+
 	function actionTypes(): string[] {
 		return signals.map(s => s.kind === 'action' ? s.action.type : s.kind);
 	}
@@ -94,7 +100,7 @@ suite('AcpAgent', () => {
 		await agent.chats.sendMessage(chat, 'hello', undefined, undefined, 'turn-1');
 		const prompt = await agentProcess.nextMessage('session/prompt');
 		assert.deepStrictEqual(prompt, { sessionId: 'native-1', prompt: [{ type: 'text', text: 'hello' }] });
-		await waitFor(() => actionTypes().includes(ActionType.ChatTurnComplete));
+		await untilSignal(s => s.kind === 'action' && s.action.type === ActionType.ChatTurnComplete);
 		assert.deepStrictEqual(actionTypes(), [ActionType.ChatResponsePart, ActionType.ChatTurnComplete]);
 		for (const signal of signals) {
 			assert.ok(signal.kind === 'action' && signal.resource.toString() === chat.toString());
@@ -114,7 +120,7 @@ suite('AcpAgent', () => {
 		});
 		await createChat();
 		await agent.chats.sendMessage(chat, 'edit', undefined, undefined, 'turn-1');
-		await waitFor(() => signals.some(s => s.kind === 'pending_confirmation'));
+		await untilSignal(s => s.kind === 'pending_confirmation');
 		const pending = signals.find(s => s.kind === 'pending_confirmation')!;
 		assert.ok(pending.kind === 'pending_confirmation');
 		assert.strictEqual(pending.state.toolCallId, 'call-1');
@@ -136,10 +142,10 @@ suite('AcpAgent', () => {
 		});
 		await createChat();
 		await agent.chats.sendMessage(chat, 'run', undefined, undefined, 'turn-1');
-		await waitFor(() => signals.some(s => s.kind === 'pending_confirmation'));
+		await untilSignal(s => s.kind === 'pending_confirmation');
 		await agent.chats.abort(chat, session);
 		assert.deepStrictEqual(await answered.p, { outcome: { outcome: 'cancelled' } });
-		await waitFor(() => actionTypes().includes(ActionType.ChatTurnCancelled));
+		await untilSignal(s => s.kind === 'action' && s.action.type === ActionType.ChatTurnCancelled);
 	});
 
 	test('does not offer client file system or terminal access', async () => {
@@ -202,7 +208,7 @@ suite('AcpAgent', () => {
 		await agent.chats.sendMessage(chat, 'hello', undefined, undefined, 'turn-1');
 		await agentProcess.nextMessage('session/prompt');
 		agentProcess.exit(1);
-		await waitFor(() => actionTypes().includes(ActionType.ChatError));
+		await untilSignal(s => s.kind === 'action' && s.action.type === ActionType.ChatError);
 	});
 });
 
@@ -231,13 +237,3 @@ suite('AcpAgent helpers', () => {
 		assert.strictEqual(describeAuthRequired('X', []), 'X needs you to sign in. Run the agent in a terminal to complete authentication.');
 	});
 });
-
-async function waitFor(predicate: () => boolean, timeoutMs = 2_000): Promise<void> {
-	const start = Date.now();
-	while (!predicate()) {
-		if (Date.now() - start > timeoutMs) {
-			throw new Error('condition not met in time');
-		}
-		await timeout(5);
-	}
-}
