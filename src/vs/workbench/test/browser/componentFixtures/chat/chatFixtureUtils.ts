@@ -373,6 +373,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override async getChatInputCompletionTriggerCharacters() { return []; }
 		override resolveChatResponseUri(_sessionResource: URI, href: string) { return href; }
 		override sessionSupportsFork() { return false; }
+		override sessionSupportsSideChat() { return false; }
 	}());
 	reg.defineInstance(IChatEntitlementService, new class extends mock<IChatEntitlementService>() {
 		override readonly quotas = {};

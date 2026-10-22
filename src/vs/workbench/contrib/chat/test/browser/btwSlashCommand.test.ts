@@ -386,6 +386,7 @@ suite('BtwSlashCommandContribution', () => {
 		const node = dom.$('div');
 		// Other suites load workbench CSS that disables native text selection on the body.
 		node.style.userSelect = 'text';
+		node.style.setProperty('-webkit-user-select', 'text');
 		const transcript = dom.append(node, dom.$('div'));
 		transcript.textContent = 'Selected transcript';
 		const input = dom.append(node, dom.$('div'));

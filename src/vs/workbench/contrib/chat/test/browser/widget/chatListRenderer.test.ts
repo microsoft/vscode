@@ -2331,6 +2331,31 @@ suite('ChatListRenderer', () => {
 	});
 
 	suite('request side-chat origins', () => {
+		for (const requestText of ['', ' ', 'Hello']) {
+			for (const withAttachment of [false, true]) {
+				test(`only renders a timestamp for request content (text=${JSON.stringify(requestText)}, attachment=${withAttachment})`, () => {
+					const { model, request, viewModel, renderer, template, node } = createPersistentProgressRenderer({ requestText });
+					if (withAttachment) {
+						model.updateRequest(request, {
+							variables: [{ kind: 'file', id: 'attachment', name: 'attachment.ts', value: URI.file('/test/attachment.ts') }],
+						});
+					}
+					const element = viewModel.getItems().find(isRequestVM)!;
+					renderer.renderElement({ ...node, element }, 0, template);
+
+					assert.deepStrictEqual({
+						hiddenOrigin: !!template.value.querySelector('.chat-request-origin.hidden'),
+						attachment: !!template.value.querySelector('.chat-request-file-attachments'),
+						timestamp: !!template.requestTimestampContainer.querySelector('time'),
+					}, {
+						hiddenOrigin: true,
+						attachment: withAttachment,
+						timestamp: !!requestText.trim() || withAttachment,
+					});
+				});
+			}
+		}
+
 		test('hydrates a quoted source on the first editor-window request without rerendering', () => {
 			const { disposables, instantiationService, viewModel, renderer, template, node } = createPersistentProgressRenderer();
 			const origin = observableValue<IChatSideChatOrigin | undefined>('origin', undefined);
@@ -2388,6 +2413,19 @@ suite('ChatListRenderer', () => {
 	});
 
 	suite('request summaries', () => {
+		test('keeps the timestamp when only the summary has content', () => {
+			const { viewModel, renderer, template, node } = createPersistentProgressRenderer({
+				requestText: '', rendererOptions: { firstRequestSummary: 'Judge Instructions' },
+			});
+			const element = viewModel.getItems().find(isRequestVM)!;
+			renderer.renderElement({ ...node, element }, 0, template);
+
+			assert.deepStrictEqual({
+				summary: template.value.querySelector('summary')?.textContent,
+				timestamp: !!template.requestTimestampContainer.querySelector('time'),
+			}, { summary: 'Judge Instructions', timestamp: true });
+		});
+
 		for (const summary of ['Judge Instructions', 'Synthesis Instructions']) {
 			test(`collapses ${summary} without changing the full request and preserves expansion across rendering`, () => {
 				const prompt = 'Call #readAttemptComparison with the comparison ID, then inspect the attempt worktrees.';
