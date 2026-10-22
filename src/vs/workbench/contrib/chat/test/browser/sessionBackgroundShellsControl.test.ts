@@ -184,6 +184,17 @@ suite('SessionBackgroundShellsControl', () => {
 		]);
 	});
 
+	test('names a shell without a description or command by its shell ID, then generically', () => {
+		const startedAt = new Date(0).toISOString();
+		const shells = observableValue<readonly IChatBackgroundShell[]>('shells', [
+			{ id: 'shell:server', shellId: 'server', description: '', command: ' ', startedAt, attachmentMode: 'detached' },
+			{ id: 'unnamed', description: ' ', command: '', startedAt },
+		]);
+		const control = store.add(instantiationService.createInstance(SessionBackgroundShellsControl, constObservable<IChatBackgroundShellsSource>({ backgroundShells: shells })));
+
+		assert.deepStrictEqual(control.sections.get()[0].entries.map(entry => entry.label), ['server', 'Background Shell']);
+	});
+
 	test('labels only detached shells, treating an unlabeled shell as attached', () => runWithFakedTimers({}, async () => {
 		const startedAt = new Date(0).toISOString();
 		const shells = observableValue<readonly IChatBackgroundShell[]>('shells', [

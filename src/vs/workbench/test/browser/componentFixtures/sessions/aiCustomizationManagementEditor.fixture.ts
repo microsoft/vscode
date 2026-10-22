@@ -22,9 +22,10 @@ import { Range } from '../../../../../editor/common/core/range.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
-import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceMediaType, CustomizationMarketplaceQueryProgressCallback, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceBrowseSection, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IConfirmation, IConfirmationResult, IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IFileContent, IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { HoverService } from '../../../../../platform/hover/browser/hoverService.js';
@@ -46,6 +47,7 @@ import { IExtensionManifestPropertiesService } from '../../../../services/extens
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
+import { IChatService } from '../../../../contrib/chat/common/chatService/chatService.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IProgressService } from '../../../../../platform/progress/common/progress.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
@@ -128,6 +130,7 @@ import '../../../../../platform/theme/common/colors/inputColors.js';
 import '../../../../../platform/theme/common/colors/listColors.js';
 import '../../../../contrib/chat/browser/aiCustomization/media/aiCustomizationManagement.css';
 import '../../../../contrib/chat/browser/aiCustomization/customizationMarketplace.contribution.js';
+import { ISecretStorageService } from '../../../../../platform/secrets/common/secrets.js';
 import { TestSecretStorageService } from '../../../../../platform/secrets/test/common/testSecretStorageService.js';
 
 // ============================================================================
@@ -895,6 +898,53 @@ const customizationMarketplaceResources: readonly ICustomizationMarketplaceResou
 	},
 ];
 
+function curatedMarketplaceResource(
+	identifier: string,
+	displayName: string,
+	description: string,
+	mediaType: CustomizationMarketplaceMediaType,
+	publisher: string,
+): ICustomizationMarketplaceResource {
+	return {
+		sourceId: 'testSource',
+		identifier,
+		displayName,
+		description,
+		mediaType,
+		publisher,
+		tags: [],
+		capabilities: [],
+		representativeQueries: [],
+	};
+}
+
+const curatedMarketplaceSections = [{
+	id: 'editors',
+	title: 'Editor\'s picks',
+	items: [
+		curatedMarketplaceResource('curated/impeccable', 'Impeccable', 'Polish frontend interfaces with focused design reviews and concrete implementation guidance.', CustomizationMarketplaceMediaType.Skill, 'pbakaus'),
+		curatedMarketplaceResource('curated/foundry', 'Microsoft Foundry canvas', 'Design and inspect hosted agents with project-aware tools and an integrated canvas.', CustomizationMarketplaceMediaType.CopilotPlugin, 'Microsoft'),
+	],
+}, {
+	id: 'plan',
+	title: 'Plan, build, and ship',
+	items: [
+		curatedMarketplaceResource('curated/figma', 'Figma MCP', 'Bring design context into implementation.', CustomizationMarketplaceMediaType.McpServer, 'Figma'),
+		curatedMarketplaceResource('curated/playwright', 'Playwright MCP', 'Automate browsers through accessible page snapshots.', CustomizationMarketplaceMediaType.McpServer, 'Microsoft'),
+		curatedMarketplaceResource('curated/grill-me', 'Grill Me', 'Stress-test a plan through a relentless interview.', CustomizationMarketplaceMediaType.Skill, 'Matt Pocock'),
+		curatedMarketplaceResource('curated/security', 'Security best practices', 'Review security, accessibility, performance, and code quality.', CustomizationMarketplaceMediaType.CopilotPlugin, 'GitHub'),
+	],
+}, {
+	id: 'connect',
+	title: 'Connect your work',
+	items: [
+		curatedMarketplaceResource('curated/workiq', 'WorkIQ', 'Find answers across Microsoft 365 mail, meetings, documents, and Teams.', CustomizationMarketplaceMediaType.CopilotPlugin, 'Microsoft'),
+		curatedMarketplaceResource('curated/sentry', 'Sentry canvas', 'Investigate and triage application issues from Sentry.', CustomizationMarketplaceMediaType.CopilotPlugin, 'Sentry'),
+		curatedMarketplaceResource('curated/azure', 'Azure plugin', 'Plan, deploy, troubleshoot, and manage Azure resources.', CustomizationMarketplaceMediaType.CopilotPlugin, 'Microsoft'),
+		curatedMarketplaceResource('curated/azure-devops', 'Azure DevOps MCP', 'Connect repositories, work items, pipelines, and test plans.', CustomizationMarketplaceMediaType.McpServer, 'Microsoft'),
+	],
+}] satisfies ICustomizationMarketplaceBrowseSection[];
+
 const connectorIconDataUri = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="12" fill="#5b5fc7"/><path d="M13 20h38v27H13z" fill="#fff"/><path d="m13 20 19 16 19-16" fill="none" stroke="#5b5fc7" stroke-width="4"/></svg>')}`;
 
 const fixtureCopilotConnectors: readonly ICopilotConnector[] = [
@@ -1106,9 +1156,10 @@ interface IRenderEditorOptions {
 	readonly copilotConnectors?: readonly ICopilotConnector[];
 	readonly connectorConnectDelayMs?: number;
 	readonly marketplaceVisibilityEnabled?: boolean;
+	readonly curatedFeedsEnabled?: boolean;
 	readonly otherSourceEnabled?: boolean;
 	readonly toggleMarketplaceVisibility?: boolean;
-	readonly customizationMarketplaceState?: 'ready' | 'empty' | 'error' | 'loading' | 'loadingMore';
+	readonly customizationMarketplaceState?: 'ready' | 'empty' | 'error' | 'loading' | 'loadingMore' | 'partialLoading' | 'cachedRefresh';
 	readonly customizationMarketplaceInstallationState?: 'mixed' | 'missing' | 'error';
 	readonly customizationMarketplaceDetailState?: 'missing' | 'error' | 'unavailable';
 	readonly useRealConnectorInstallService?: boolean;
@@ -1350,13 +1401,32 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 					{ id: 'additionalSource', displayName: 'Additional Feed', enablementSetting: 'test.marketplace.other.enabled', requiresMarketplaceVisibility: true },
 					CustomizationMarketplaceSources.CopilotConnectors,
 				];
-				override async query(query: ICustomizationMarketplaceQuery): Promise<ICustomizationMarketplacePage> {
+				override async getBrowseSections(query: Pick<ICustomizationMarketplaceQuery, 'sourceIds'>) {
+					if (!options.curatedFeedsEnabled || query.sourceIds && !query.sourceIds.includes('testSource')) {
+						return undefined;
+					}
+					return {
+						sourceId: 'testSource',
+						sections: curatedMarketplaceSections,
+					};
+				}
+				override async query(query: ICustomizationMarketplaceQuery, _token: CancellationToken, onProgress?: CustomizationMarketplaceQueryProgressCallback): Promise<ICustomizationMarketplacePage> {
 					customizationMarketplaceQueryCount++;
 					assert(sourceEnabled(), 'A fixture with no enabled sources must not query the catalog.');
 					const pageSize = query.pageSize ?? 24;
 					const createCursor = (offset: number) => ({ token: String(offset) });
 					switch (options.customizationMarketplaceState) {
 						case 'loading': return new DeferredPromise<ICustomizationMarketplacePage>().p;
+						case 'partialLoading':
+						case 'cachedRefresh': {
+							onProgress?.({
+								page: { items: marketplaceResources.slice(0, 6) },
+								completedSourceIds: ['testSource'],
+								cachedSourceIds: options.customizationMarketplaceState === 'cachedRefresh' ? ['testSource'] : [],
+								totalSourceCount: 4,
+							});
+							return new DeferredPromise<ICustomizationMarketplacePage>().p;
+						}
 						case 'loadingMore': {
 							const resources = options.discoveryQuery?.includes('@type:plugin')
 								? marketplaceResources.filter(resource => resource.mediaType === CustomizationMarketplaceMediaType.CopilotPlugin || resource.mediaType === CustomizationMarketplaceMediaType.ClaudePlugin)
@@ -1553,6 +1623,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 					};
 				}
 			}();
+			reg.defineInstance(IAgentHostActiveClientService, activeClientService);
 			const mcpService = new class extends mock<IMcpService>() {
 				override readonly servers = constObservable([]);
 				override readonly enablementModel = {
@@ -1562,6 +1633,8 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 					remove: () => { },
 				};
 			}();
+			const secretStorageService = ctx.disposableStore.add(new TestSecretStorageService());
+			reg.defineInstance(ISecretStorageService, secretStorageService);
 			const mcpServerMigrationProvider = ctx.disposableStore.add(new AgentHostMcpServerMigrationProvider(
 				harnessService,
 				activeClientService,
@@ -1577,7 +1650,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				new class extends mock<IWorkspaceContextService>() {
 					override getWorkspace(): IWorkspace { return { id: 'test', folders: [] }; }
 				}(),
-				ctx.disposableStore.add(new TestSecretStorageService()),
+				secretStorageService,
 			));
 			const activeMcpServerMigrationProvider: ICustomizationMcpServerMigrationProvider = options.mcpMigrationCandidates ? {
 				computeMigration: async () => ({
@@ -1804,6 +1877,11 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			reg.defineInstance(IWorkbenchEnvironmentService, new class extends mock<IWorkbenchEnvironmentService>() {
 				override readonly isSessionsWindow = isSessionsWindow;
 			}());
+			reg.defineInstance(IEnvironmentService, new class extends mock<IEnvironmentService>() {
+				override readonly isBuilt = true;
+				override readonly isExtensionDevelopment = false;
+				override readonly workspaceStorageHome = URI.file('/workspaceStorage');
+			}());
 			reg.defineInstance(IQuickInputService, new class extends mock<IQuickInputService>() { }());
 			reg.defineInstance(IProgressService, new class extends mock<IProgressService>() { }());
 			reg.defineInstance(IViewsService, new class extends mock<IViewsService>() {
@@ -1815,6 +1893,9 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			reg.defineInstance(IChatWidgetService, new class extends mock<IChatWidgetService>() {
 				override get lastFocusedWidget() { return undefined; }
 				override async reveal() { return false; }
+			}());
+			reg.defineInstance(IChatService, new class extends mock<IChatService>() {
+				override getSession() { return undefined; }
 			}());
 			reg.defineInstance(IRequestService, new class extends mock<IRequestService>() {
 				override async request(): Promise<IRequestContext> {
@@ -1934,6 +2015,18 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		editor.selectSectionById(options.selectedSection);
 	}
 	editor.setVisible(true);
+	if (options.curatedFeedsEnabled) {
+		await waitForFixtureCondition(
+			() => ctx.container.querySelectorAll('.customization-discovery-section').length === curatedMarketplaceSections.length,
+			'Curated Browse sections did not render.',
+		);
+	}
+	if (options.clearDiscoveryQuery) {
+		await waitForFixtureCondition(
+			() => ctx.container.querySelector('.customization-discovery-section.featured') !== null,
+			'Featured Browse items did not render before searching.',
+		);
+	}
 	assert(ctx.container.querySelector<HTMLButtonElement>('.sidebar-home-button')?.title === (discoverEnabled ? 'Back to Customizations' : 'Back to overview'), 'Home tooltip must describe the active surface.');
 	if (options.selectedSection === AICustomizationManagementSection.McpServers && options.marketplaceVisibilityEnabled === false) {
 		editor.revealLastItem();
@@ -1963,9 +2056,9 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		const description = ctx.container.querySelector<HTMLElement>('.customization-discovery-description');
 		const descriptionLinks = [...description?.querySelectorAll('a') ?? []].map(link => link.textContent);
 		assert(
-			description?.textContent === 'Find new ways to extend your agent with Plugins, MCP Servers, Skills, Instructions, Agents, and Hooks.'
-			&& descriptionLinks.join('\n') === ['Plugins', 'MCP Servers', 'Skills', 'Instructions', 'Agents', 'Hooks'].join('\n'),
-			'Discover must link each customization type from its description.',
+			description?.textContent === 'Tailor your agent to your tools, your team, and your workflow. Learn more'
+			&& descriptionLinks.join('\n') === 'Learn more',
+			'Discover must describe customization benefits with a single Learn more link.',
 		);
 		const featured = ctx.container.querySelector<HTMLElement>('.customization-discovery-section.featured');
 		const featuredCard = featured?.querySelector<HTMLElement>('.customization-discovery-card');
@@ -1994,7 +2087,17 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			'Discover card actions must remain right-aligned.',
 		);
 		const cardIcon = featuredCard?.querySelector<HTMLElement>('.customization-discovery-card-icon');
-		assert(!cardIcon || cardIcon.offsetWidth === 40 && cardIcon.offsetHeight === 40, 'Discover cards must use the compact marketplace icon size.');
+		assert(!cardIcon || cardIcon.offsetWidth === 40 && cardIcon.offsetHeight === 40, 'Discover cards must retain the existing compact marketplace icon size.');
+		if (options.curatedFeedsEnabled) {
+			const renderedSections = [...ctx.container.querySelectorAll<HTMLElement>('.customization-discovery-section')];
+			const actualOrder = renderedSections.flatMap(section => [
+				section.querySelector('.customization-discovery-section-title')?.textContent ?? '',
+				...[...section.querySelectorAll<HTMLElement>('.customization-discovery-card-name')].map(element => element.textContent ?? ''),
+			]);
+			const expectedOrder = curatedMarketplaceSections.flatMap(section => [section.title, ...section.items.map(item => item.displayName)]);
+			assert(actualOrder.join('\n') === expectedOrder.join('\n'), 'Discover must preserve the saved feed section and item order.');
+			assert(renderedSections[0]?.classList.contains('featured') && renderedSections.slice(1).every(section => !section.classList.contains('featured')), 'Curated feeds must retain the existing Browse card styling.');
+		}
 		const header = ctx.container.querySelector<HTMLElement>('.customization-discovery-header');
 		const searchRow = ctx.container.querySelector<HTMLElement>('.customization-discovery-search-row');
 		const browse = ctx.container.querySelector<HTMLElement>('.customization-discovery-browse');
@@ -2158,6 +2261,11 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				scrollHost.getBoundingClientRect().bottom <= detailContainer.getBoundingClientRect().bottom + 1,
 				'Marketplace detail scroll host must remain inside the detail page bounds.',
 			);
+			const marketplaceDetail = detailContainer.querySelector<HTMLElement>('.embedded-marketplace-detail');
+			assert(
+				marketplaceDetail !== null && DOM.getWindow(marketplaceDetail).getComputedStyle(marketplaceDetail).userSelect === 'text',
+				'Marketplace detail text must be selectable.',
+			);
 			if (options.discoveryQuery === 'figma') {
 				const scrollContent = scrollHost.querySelector<HTMLElement>('.marketplace-detail-editor-container');
 				if (!scrollContent) {
@@ -2210,7 +2318,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	if (options.customizationMarketplaceState === 'loading' || options.customizationMarketplaceState === 'loadingMore') {
 		const progress = ctx.container.querySelector<HTMLElement>('.customization-discovery-progress');
 		assert(progress !== null && progress.offsetHeight > 0, 'Discover must always reserve space for its progress bar.');
-		assert([...ctx.container.querySelectorAll('.customization-discovery-state')].every(state => state.textContent === ''), 'Loading must not insert status text above Discover content.');
+		assert([...ctx.container.querySelectorAll('.customization-discovery-state')].every(state => state.closest('[hidden]') || state.textContent === ''), 'Loading must not insert status text above visible Discover content.');
 		if (options.customizationMarketplaceState === 'loading') {
 			assert(progress.querySelector('.monaco-progress-container.active') !== null, 'Initial loading must show the shared progress bar.');
 			const track = progress.querySelector<HTMLElement>('.monaco-progress-container');
@@ -2291,7 +2399,10 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		}
 		firstMigrationItem.click();
 		await waitForFixtureCondition(
-			() => ctx.container.querySelector<HTMLElement>('.migration-detail-warning')?.style.display !== 'none',
+			() => {
+				const warning = ctx.container.querySelector<HTMLElement>('.migration-detail-warning');
+				return !!warning && warning.style.display !== 'none';
+			},
 			'Prompt migration detail warning did not appear',
 		);
 	}
@@ -2922,6 +3033,9 @@ function renderEmbeddedMcpDetail(
 		readonly compatibilityResolved?: boolean;
 		readonly error?: string;
 		readonly migratable?: boolean;
+		readonly manualReviewReason?: string;
+		/** Enables the migration setting, which the detail requires before it shows compatibility. */
+		readonly migrationEnabled?: boolean;
 		readonly source?: IMcpServerDetailInput['source'];
 		/** Replaces the server's configuration file with a non-file provenance. */
 		readonly provenance?: IMcpServerDetailInput['provenance'];
@@ -2967,6 +3081,11 @@ function renderEmbeddedMcpDetail(
 				override async openEditor() { return undefined; }
 			}());
 			reg.defineInstance(ICustomizationHarnessService, createMockHarnessService(URI.from({ scheme: harnessId, path: '/fixture-session' }), [harnessDescriptor]));
+			if (options.migrationEnabled) {
+				const configurationService = new TestConfigurationService({ [ChatConfiguration.ChatCustomizationsMigrationEnabled]: true });
+				ctx.disposableStore.add({ dispose: () => configurationService.onDidChangeConfigurationEmitter.dispose() });
+				reg.defineInstance(IConfigurationService, configurationService);
+			}
 		},
 	});
 
@@ -2985,6 +3104,7 @@ function renderEmbeddedMcpDetail(
 			...input,
 			error: options.error ? constObservable(options.error) : undefined,
 			migratable: options.migratable,
+			manualReviewReason: options.manualReviewReason,
 			source: options.provenance ? undefined : options.source ?? input.source,
 			provenance: options.provenance,
 			definitionUnavailable: options.definitionUnavailable,
@@ -3632,6 +3752,8 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	MigrationPromptDetailNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
+		// Let the tree's deferred selection update finish before teardown.
+		virtualTime: { enabled: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			migrationDashboard: true,
@@ -3848,6 +3970,20 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
+	BrowseCuratedFeeds: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: [
+			'Browse uses the existing customization card layout unchanged while replacing its content with the three curated feed sections in feed order. Editor\'s picks retains the existing featured-section treatment, and the remaining sections use the existing two-column card grid.',
+		],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			marketplaceVisibilityEnabled: true,
+			curatedFeedsEnabled: true,
+			width: 1200,
+			height: 760,
+		}),
+	}),
+
 	DiscoverSearchResults: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		expectedVisualDescriptions: ['Wide Discover search uses the same centered content measure as the management pages. The title, search control, result selection bounds, and state messages share horizontal edges; rows retain compact icons, two-line text hierarchy, ratings, and centered actions.'],
@@ -4058,6 +4194,26 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			sessionResource: localSessionResource,
 			marketplaceVisibilityEnabled: true,
 			customizationMarketplaceState: 'loading',
+		}),
+	}),
+
+	DiscoverPartialLoading: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['Browse renders available customization cards immediately while a quiet status reports that one of four sources has loaded and the shared progress bar remains active.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			marketplaceVisibilityEnabled: true,
+			customizationMarketplaceState: 'partialLoading',
+		}),
+	}),
+
+	DiscoverCachedRefresh: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['Browse reuses cached customization cards immediately while a quiet status reports background source refresh progress and the shared progress bar remains active.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			marketplaceVisibilityEnabled: true,
+			customizationMarketplaceState: 'cachedRefresh',
 		}),
 	}),
 
@@ -4570,6 +4726,30 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 				harnessLabel: 'Copilot',
 				compatibility: { id: 'mcp-postgres', kind: 'supported' },
 				migratable: true,
+			},
+		),
+	}),
+
+	EmbeddedMcpDetailNeedsManualReview: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['The MCP detail shows a single Partially supported by Copilot warning card above the server configuration. Its bulleted details explain that the OAuth client configuration is ignored and that the server needs to be migrated manually because its OAuth client secret is stored in VS Code. There is no separate Unsupported or Migrate MCP Server card and no Review Migrations link.'],
+		render: ctx => renderEmbeddedMcpDetail(
+			ctx,
+			makeLocalMcpServer('oauth-secret', 'oauth-secret', LocalMcpServerScope.Workspace, undefined, {
+				type: McpServerType.REMOTE,
+				url: 'https://example.com/secret/mcp',
+			}),
+			{
+				width: 800,
+				height: 520,
+				harnessLabel: 'Copilot',
+				migrationEnabled: true,
+				compatibility: {
+					id: 'oauth-secret',
+					kind: 'partiallySupported',
+					details: ['The Copilot harness does not receive this server\'s custom OAuth client configuration from VS Code.\nMigrate this server to keep its OAuth client ID. Servers that use a client secret or enterprise-managed sign-in cannot be migrated.'],
+				},
+				manualReviewReason: 'This server\'s OAuth client uses a client secret stored in VS Code, which Copilot cannot use.',
 			},
 		),
 	}),

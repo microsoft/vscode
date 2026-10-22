@@ -15,16 +15,10 @@
 	display: none;
 }
 
-.customization-marketplace-source-warning,
 .customization-marketplace-source-signin {
 	display: flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size80);
-}
-
-.customization-marketplace-source-warning > .codicon {
-	flex-shrink: 0;
-	color: var(--vscode-editorWarning-foreground);
 }
 
 .customization-marketplace-source-signin {
@@ -46,12 +40,7 @@
 	overflow-wrap: anywhere;
 }
 
-.customization-marketplace-source-warning > .monaco-button,
 .customization-marketplace-source-signin > .monaco-button {
 	width: auto;
 	flex-shrink: 0;
-}
-
-.customization-marketplace-source-warning-help {
-	color: var(--vscode-descriptionForeground);
 }

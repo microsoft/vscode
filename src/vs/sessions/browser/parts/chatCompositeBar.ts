@@ -38,7 +38,7 @@ import { applySessionBarThemeColors } from './sessionBarStyles.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
 import { isAgentHostProvider } from '../../common/agentHostSessionsProvider.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
-import { ARCHIVE_CHAT_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, COPY_AGENT_HOST_CHAT_LINK_COMMAND_ID, RENAME_CHAT_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../common/sessionCommands.js';
+import { ARCHIVE_CHAT_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, COPY_AGENT_HOST_CHAT_LINK_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../common/sessionCommands.js';
 import { getSessionConversationStatusAriaLabel } from '../sessionConversationGroups.js';
 import { IEditorGroupsService } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
@@ -47,6 +47,7 @@ import { CONNECTED_EDITOR_TABS_SELECTOR } from '../../../workbench/browser/parts
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording } from '../../../platform/chat/common/sessionArchiveActions.js';
 import { getSessionToolbarSecondaryActionsPosition, getSessionChatAncestors } from './sessionHeaderBar.js';
+import { SessionStatusIcon } from '../sessionStatusIcon.js';
 
 interface IChatTab {
 	readonly chat: IChat;
@@ -422,12 +423,10 @@ export class ChatCompositeBar extends Disposable {
 			tab.classList.toggle('untitled', status === SessionStatus.Untitled);
 		}));
 
-		// Track unread / needs-input / in-progress state for the indicator.
-		// Precedence: needs-input (unread) > in-progress (spinner) > unread when not active.
-		// At most one indicator is shown at a time.
-		const indicator = $('.chat-composite-bar-tab-indicator');
+		const indicator = $('.chat-composite-bar-tab-indicator', { 'aria-hidden': true });
 		const indicatorIcon = $('.chat-composite-bar-tab-indicator-icon');
 		indicator.appendChild(indicatorIcon);
+		const statusIcon = this._tabDisposables.add(this._instantiationService.createInstance(SessionStatusIcon, indicatorIcon));
 		this._tabDisposables.add(autorun(reader => {
 			const isActive = delegate?.activeChatResource.read(reader) === chat.resource.toString();
 			const status = chat.status.read(reader);
@@ -446,13 +445,14 @@ export class ChatCompositeBar extends Disposable {
 			tab.classList.toggle('unread', mode === 'unread');
 			tab.classList.toggle('in-progress', mode === 'in-progress');
 
-			indicatorIcon.className = 'chat-composite-bar-tab-indicator-icon';
 			if (mode === 'in-progress') {
-				indicatorIcon.classList.add(...ThemeIcon.asClassNameArray(ThemeIcon.modify(Codicon.loading, 'spin')));
+				statusIcon.setStatus(status, isRead, chat.isArchived.read(reader));
+			} else {
+				statusIcon.reset();
 			}
 		}));
 
-		tab.appendChild(indicator);
+		tab.insertBefore(indicator, lockIcon);
 
 		// Close button — contributed via Menus.SessionChatTab (the chat tab menu).
 		// Only non-main chats can be closed; the main chat lives and dies with its
@@ -587,11 +587,19 @@ export class ChatCompositeBar extends Disposable {
 			this._delegate?.onTabDragEnd?.();
 		}));
 
-		const renameAction = this._tabDisposables.add(new Action(RENAME_CHAT_COMMAND_ID, localize('renameChat', "Rename..."), undefined, true, async () => {
-			if (session) {
-				await this._commandService.executeCommand(RENAME_CHAT_COMMAND_ID, { session, chat, inline: true });
-			}
-		}));
+		// The main chat's title is the session title, so its tab renames the session (as F2 does).
+		const renameLabel = localize('renameChat', "Rename...");
+		const renameAction = this._tabDisposables.add(isMainChat
+			? new Action(RENAME_SESSION_COMMAND_ID, renameLabel, undefined, true, async () => {
+				if (session) {
+					await this._commandService.executeCommand(RENAME_SESSION_COMMAND_ID, session);
+				}
+			})
+			: new Action(RENAME_CHAT_COMMAND_ID, renameLabel, undefined, true, async () => {
+				if (session) {
+					await this._commandService.executeCommand(RENAME_CHAT_COMMAND_ID, { session, chat, inline: true });
+				}
+			}));
 
 		const copyLinkAction = this._tabDisposables.add(new Action(COPY_AGENT_HOST_CHAT_LINK_COMMAND_ID, localize('copyChatLink', "Copy Link"), undefined, true, async () => {
 			if (session) {
@@ -642,9 +650,12 @@ export class ChatCompositeBar extends Disposable {
 				getActions: () => {
 					const capabilities = getChatCapabilities(chat, session, undefined);
 					const provider = session && this._sessionsProvidersService.getProvider(session.providerId);
+					const canRename = isMainChat ? !!session?.capabilities.get().supportsRename : capabilities.canRename;
 					return Separator.join(
-						capabilities.canRename ? [renameAction] : [],
-						capabilities.canArchive ? [chat.isArchived.get() ? unarchiveAction : archiveAction] : [],
+						[
+							...(canRename ? [renameAction] : []),
+							...(capabilities.canArchive ? [chat.isArchived.get() ? unarchiveAction : archiveAction] : []),
+						],
 						capabilities.canDelete ? [deleteAction] : [],
 						provider && isAgentHostProvider(provider) ? [copyLinkAction] : [],
 					);

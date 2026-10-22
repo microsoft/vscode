@@ -271,8 +271,8 @@ suite('AgentHostDatabase sessions_v2', () => {
 				sessionV2ForeignKeys,
 				sessionChatColumns: sessionChatColumns.map(row => row.name),
 			}, {
-				version: [{ user_version: 20 }],
-				tables: ['chat_row_mirror', 'chats_v2', 'metadata', 'pending_worktree_removals', 'session_chat_catalogs', 'session_chat_state', 'session_chats', 'session_folder_state', 'session_state', 'session_state_values', 'sessions', 'sessions_v2', 'worktree_co_owners'],
+				version: [{ user_version: 21 }],
+				tables: ['chat_row_mirror', 'chats_v2', 'metadata', 'pending_worktree_removals', 'scratch_folders', 'session_chat_catalogs', 'session_chat_state', 'session_chats', 'session_folder_state', 'session_state', 'session_state_values', 'sessions', 'sessions_v2', 'worktree_co_owners'],
 				sessionColumns: ['session_uri', 'provider', 'start_time', 'external', 'registration_source', 'modified_time'],
 				sessionV2Columns: [
 					'session_uri', 'provider', 'start_time', 'external', 'registration_source', 'session_generation',
@@ -741,7 +741,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 					directCurrent: await upgraded.getSessionV2Registration(direct),
 				}, {
 					version,
-					schemaVersion: [{ user_version: 20 }],
+					schemaVersion: [{ user_version: 21 }],
 					foreignKeys: [],
 					published: undefined,
 					directLegacy: undefined,
@@ -757,7 +757,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 			} finally {
 				await upgraded.close();
 			}
-		}).timeout(10_000);
+		});
 	}
 
 	test('applies the catalog migration after upstream v4', async () => {
@@ -788,8 +788,8 @@ suite('AgentHostDatabase sessions_v2', () => {
 				version: await all(rawDatabase, 'PRAGMA user_version'),
 				tables: (await all(rawDatabase, `SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name`)).map(row => row.name),
 			}, {
-				version: [{ user_version: 20 }],
-				tables: ['chat_row_mirror', 'chats_v2', 'metadata', 'pending_worktree_removals', 'session_chat_catalogs', 'session_chat_state', 'session_chats', 'session_folder_state', 'session_state', 'session_state_values', 'sessions', 'sessions_v2', 'worktree_co_owners'],
+				version: [{ user_version: 21 }],
+				tables: ['chat_row_mirror', 'chats_v2', 'metadata', 'pending_worktree_removals', 'scratch_folders', 'session_chat_catalogs', 'session_chat_state', 'session_chats', 'session_folder_state', 'session_state', 'session_state_values', 'sessions', 'sessions_v2', 'worktree_co_owners'],
 			});
 		} finally {
 			await close(rawDatabase);
@@ -881,7 +881,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				legacyMirroredRevision: 0,
 				chats: [{ chat: 'ahp-chat://peer', ownerSession: 'session://v11', order: 0, providerData: 'peer' }],
 			},
-			version: [{ user_version: 20 }],
+			version: [{ user_version: 21 }],
 		});
 	});
 
@@ -918,7 +918,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				legacyMirroredRevision: 0,
 				chats: [{ chat: 'ahp-chat://peer', ownerSession: 'session://future-v20', order: 0, providerData: 'peer' }],
 			},
-			version: [{ user_version: 20 }],
+			version: [{ user_version: 21 }],
 			columns: ['session_uri', 'chat_uri', 'chat_order', 'provider_data', 'origin', 'inherited_turn_id', 'archived', 'parent_chat', 'storage_resource', 'is_read'],
 		});
 	});
@@ -957,10 +957,10 @@ suite('AgentHostDatabase sessions_v2', () => {
 				external: false,
 				source: 'explicit',
 			},
-			version: [{ user_version: 20 }],
+			version: [{ user_version: 21 }],
 			marker: [{ name: 'future_v6_marker' }],
 		});
-	}).timeout(10_000);
+	});
 
 	test('increments dirty markers and clears only the observed marker', async () => {
 		database = new AgentHostDatabase(':memory:');
@@ -1091,7 +1091,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				migratedRows: [{ session_uri: 'session://upgrade-3', provider: 'copilot', start_time: 3, external: 0, registration_source: 'restore', verified: 0 }],
 			},
 		]);
-	}).timeout(10_000);
+	});
 
 	test('round trips one complete verified row', async () => {
 		database = new AgentHostDatabase(':memory:');
@@ -1401,7 +1401,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 			current: { session, provider: 'copilot', startTime: 1, modifiedTime: 1, external: true, source: 'discovery' },
 			sourceRevision: 3,
 		});
-	}).timeout(10_000);
+	});
 
 	test('runtime legacy mirror failure rolls back current registration', async () => {
 		const path = join(temporaryDirectory!, 'runtime-rollback.db');
@@ -1461,7 +1461,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 			oldBuildSession: { session: 'session://old-build', provider: 'copilot', startTime: 2, modifiedTime: 0, external: true, source: 'discovery' },
 			oldBuildSessionV2: undefined,
 		});
-	}).timeout(10_000);
+	});
 
 	test('legacy row absence is not current deletion', async () => {
 		const path = join(temporaryDirectory!, 'old-build-orphan.db');
@@ -1906,6 +1906,64 @@ suite('AgentHostDatabase sessions_v2', () => {
 			return { sessionGeneration: source.sessionGeneration, sourceRevision: source.sourceRevision, payloadHash: source.payloadHash, catalogRevision };
 		}
 
+		test('a legacy peer row that never recorded a read state is read, as the aggregate of a new peer says', async () => {
+			const instance = new AgentHostDatabase(':memory:');
+			database = instance;
+			const payload = stableStringify({
+				payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION,
+				data: {
+					modifiedTime: 110, isRead: true, isArchived: false, workingDirectories: [],
+					chats: [
+						{ uri: peer, kind: 'peer', order: 0, isRead: true },
+						{ uri: defaultChat, kind: 'default', order: 1, isRead: true },
+					],
+				},
+			});
+			await database.registerSessionV2(session, { provider: 'copilot', startTime: 100, source: 'explicit' }, { checkTombstone: true });
+			await database.upsertSessionV2(createEnvelope(session, 'catalog-generation', 10, { payload }), undefined);
+			// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Write the legacy row a peer is created with: no read state.
+			await exec(await instance['_ensureDatabase'](), `PRAGMA foreign_keys = OFF;
+				INSERT INTO session_chats (session_uri, chat_uri, chat_order) VALUES ('${session}', '${peer}', 0);
+				PRAGMA foreign_keys = ON;`);
+			const source = createEnvelope(session, 'catalog-generation', 10, { payload });
+
+			const result = await instance.ensureChatCatalogV2(session, { sessionGeneration: source.sessionGeneration, sourceRevision: source.sourceRevision, payloadHash: source.payloadHash, catalogRevision: 0 }, {
+				defaultChat: { chat: defaultChat, order: 1, storageResource: 'storage://default' },
+				peers: [{ chat: peer, order: 0, storageResource: 'storage://peer' }],
+				privateDescendants: [],
+			});
+
+			assert.deepStrictEqual(result.status, 'applied');
+		});
+
+		test('a legacy peer row without a read state still differs from an aggregate that says the peer is unread', async () => {
+			const instance = new AgentHostDatabase(':memory:');
+			database = instance;
+			const payload = stableStringify({
+				payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION,
+				data: {
+					modifiedTime: 110, isRead: true, isArchived: false, workingDirectories: [],
+					chats: [
+						{ uri: peer, kind: 'peer', order: 0, isRead: false },
+						{ uri: defaultChat, kind: 'default', order: 1, isRead: true },
+					],
+				},
+			});
+			await database.registerSessionV2(session, { provider: 'copilot', startTime: 100, source: 'explicit' }, { checkTombstone: true });
+			await database.upsertSessionV2(createEnvelope(session, 'catalog-generation', 10, { payload }), undefined);
+			// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Write the legacy row a peer is created with: no read state.
+			await exec(await instance['_ensureDatabase'](), `PRAGMA foreign_keys = OFF;
+				INSERT INTO session_chats (session_uri, chat_uri, chat_order) VALUES ('${session}', '${peer}', 0);
+				PRAGMA foreign_keys = ON;`);
+			const source = createEnvelope(session, 'catalog-generation', 10, { payload });
+
+			await assert.rejects(() => instance.ensureChatCatalogV2(session, { sessionGeneration: source.sessionGeneration, sourceRevision: source.sourceRevision, payloadHash: source.payloadHash, catalogRevision: 0 }, {
+				defaultChat: { chat: defaultChat, order: 1, storageResource: 'storage://default' },
+				peers: [{ chat: peer, order: 0, storageResource: 'storage://peer' }],
+				privateDescendants: [],
+			}), /Legacy peer state differs/);
+		});
+
 		test('records the session each chat is created in; rows without it read as created in their owner', async () => {
 			const path = join(temporaryDirectory!, 'chat-origin.db');
 			let instance = new AgentHostDatabase(path);
@@ -1939,8 +1997,8 @@ suite('AgentHostDatabase sessions_v2', () => {
 				written: [defaultChat, peer, privateChat].sort().map(chat => ({ chat_uri: chat, origin_session_uri: session })),
 				olderBuildRow: session,
 				reopened: {
-					15: { listed: [session, session, session], version: [{ user_version: 20 }] },
-					17: { listed: [session, session, session], version: [{ user_version: 20 }] },
+					15: { listed: [session, session, session], version: [{ user_version: 21 }] },
+					17: { listed: [session, session, session], version: [{ user_version: 21 }] },
 				},
 			});
 		});
@@ -2327,7 +2385,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 							worktreeRemovals: (await all(raw, `SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'pending_worktree_removals'`)).length,
 							candidates,
 							recorded: (await all(raw, 'SELECT revision = projected_revision AS current FROM session_chat_catalogs WHERE session_uri = ?', [session]))[0].current,
-						}, { version: [{ user_version: 20 }], columns: { projectedRevision: true, chatOrigins: true }, worktreeRemovals: 1, candidates: [session], recorded: 1 });
+						}, { version: [{ user_version: 21 }], columns: { projectedRevision: true, chatOrigins: true }, worktreeRemovals: 1, candidates: [session], recorded: 1 });
 					} finally {
 						await database?.close();
 						database = undefined;
@@ -2689,7 +2747,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 					retained: (await all(inspect, `SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('session_chats', 'sessions_v2') ORDER BY name`)).map(row => row.name),
 					legacy: (await database.getSessionChatCatalog(session))?.chats.map(chat => chat.chat),
 				}, {
-					restarted: before, before, version: [{ user_version: 20 }],
+					restarted: before, before, version: [{ user_version: 21 }],
 					retained: ['session_chats', 'sessions_v2'], legacy: [peer],
 				});
 			} finally {

@@ -4,6 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
+import { getWindow } from '../../../../../base/browser/dom.js';
+import { isManagedHoverTooltipMarkdownString } from '../../../../../base/browser/ui/hover/hover.js';
+import { getBaseLayerHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegate2.js';
 import { IAction, SubmenuAction, toAction } from '../../../../../base/common/actions.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
@@ -14,7 +18,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { CancellationError, errorHandler } from '../../../../../base/common/errors.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -42,12 +46,13 @@ import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../
 import { ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { AgentHostFilterConnectionStatus, IAgentHostFilterEntry, IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
-import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, ISessionWorkspaceBrowseAction, SessionStatus, SessionTypeAuthRequirement, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, ISession, ISessionWorkspace, ISessionWorkspaceBrowseAction, SessionStatus, SessionTypeAuthRequirement, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
 import { type IResolvedFolderWorkspace, IWorkspacePickerItem, IWorkspacePickerOptions, WorkspacePicker } from '../../browser/sessionWorkspacePicker.js';
 import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
 import { WebWorkspacePicker } from '../../browser/webWorkspacePicker.js';
 import { NewSessionWorkspacePreselectionSource } from '../../browser/newSessionComposerService.js';
 import { WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.js';
+import '../../browser/media/chatWidget.css';
 import { ISessionsRecentWorkspacesService, SessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { AutomationsWorkspacePicker, MobileAutomationsWorkspacePicker } from '../../../automations/browser/automationDialog.js';
 import { AutomationIsolationModel } from '../../../automations/common/isolationGroupModel.js';
@@ -62,9 +67,10 @@ import { IContextViewService } from '../../../../../platform/contextview/browser
 import { IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
 import { IFileContent, IFileService } from '../../../../../platform/files/common/files.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { MockContextKeyService, MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IMenuService } from '../../../../../platform/actions/common/actions.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { INotification, INotificationHandle, INotificationService, NoOpNotification, NotificationMessage } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { AGENTIC_SIGN_IN_COMMAND_ID } from '../../../../common/sessionCommands.js';
@@ -75,6 +81,7 @@ import { NullHoverService } from '../../../../../platform/hover/test/browser/nul
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { hasOnboardingTargetSelection, onDidSelectOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
+import { ISessionCreationEnvironment } from '../../browser/sessionEnvironmentPicker.js';
 
 // ---- Storage key (must match the one in sessionWorkspacePicker.ts) ----------
 const STORAGE_KEY_RECENT_WORKSPACES = 'sessions.recentlyPickedWorkspaces';
@@ -161,7 +168,15 @@ function createMockProvider(id: string, opts?: {
 		deleteSession: async () => { },
 		deleteSessions: async () => { },
 		deleteChat: async () => true,
+		canMoveChat: () => false,
+		moveChat: async () => { },
+		canMoveSessionUnder: () => false,
+		moveSessionUnder: async () => { },
 		createNewChat: async () => { throw new Error('Not implemented'); },
+		getNestedChatWorkspaceSupport: () => undefined,
+		resolveNestedChatFolder: async () => { throw new Error('Not implemented'); },
+		getNestedChatBranches: async () => [],
+		applyNestedChatWorkspace: async () => { throw new Error('Not implemented'); },
 		forkChat: async () => { throw new Error('Not implemented'); },
 		createSideChat: async () => { throw new Error('Not implemented'); },
 		sendRequest: async (_sessionId: string, _chatResource: URI, _options: ISendRequestOptions) => { throw new Error('Not implemented'); },
@@ -367,7 +382,7 @@ function createTestPicker(
 	fileDialogService: Partial<IFileDialogService> = {},
 	workspacesService: IWorkspacesService = { getRecentlyOpened: async () => ({ workspaces: [], files: [] }), onDidChangeRecentlyOpened: Event.None } as unknown as IWorkspacesService,
 	recentWorkspacesService?: ISessionsRecentWorkspacesService,
-	options?: IWorkspacePickerOptions & { readonly configuration?: Record<string, unknown>; readonly telemetryService?: ITelemetryService },
+	options?: IWorkspacePickerOptions & { readonly configuration?: Record<string, unknown>; readonly telemetryService?: ITelemetryService; readonly hoverService?: IHoverService },
 	fileService: IFileService = upcastPartial<IFileService>({
 		onDidFilesChange: Event.None,
 		onDidChangeFileSystemProviderRegistrations: Event.None,
@@ -410,7 +425,8 @@ function createTestPicker(
 	instantiationService.stub(ILogService, disposables.add(new NullLogService()));
 	instantiationService.stub(ISessionsRecentWorkspacesService, recentWorkspacesService ?? disposables.add(instantiationService.createInstance(SessionsRecentWorkspacesService)));
 	instantiationService.stub(ITelemetryService, options?.telemetryService ?? NullTelemetryService);
-	instantiationService.stub(IHoverService, NullHoverService);
+	instantiationService.stub(IHoverService, options?.hoverService ?? NullHoverService);
+	instantiationService.stub(IKeybindingService, new MockKeybindingService());
 	instantiationService.stub(IAgentHostFilterService, { isDiscovering: false, rediscover: async () => true });
 	if (agentHostFilterService) {
 		instantiationService.stub(IAgentHostFilterService, agentHostFilterService);
@@ -619,6 +635,349 @@ suite('WorkspacePicker - Dev Container sample telemetry', () => {
 		providersService.setProviders([provider]);
 		await picker.dispatchFolder(devContainerSampleUri(devContainerSamples[0]), provider.id);
 		assert.deepStrictEqual(sampleEvents(), []);
+	});
+});
+
+suite('WorkspacePicker - Environment', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const localEnvironment: ISessionCreationEnvironment = { id: 'local', kind: 'local', label: 'This Computer', icon: Codicon.deviceDesktop, providerIds: ['local-agent-host'] };
+	const containerEnvironment: ISessionCreationEnvironment = { ...localEnvironment, id: 'container:local', kind: 'container', label: 'Dev Container' };
+
+	function createEnvironmentPicker(environment: ISessionCreationEnvironment, availability?: (uri: URI) => Promise<boolean>, environmentFirst = constObservable(true)) {
+		const providers = disposables.add(new MockSessionsProvidersService());
+		providers.setProviders([
+			createMockProvider('local-agent-host', { group: SESSION_WORKSPACE_GROUP_LOCAL, isDevContainerWorkspaceAvailable: availability }),
+			createMockProvider('agenthost-remote-1', { group: SESSION_WORKSPACE_GROUP_REMOTE, connectionStatus: observableValue('connection', RemoteAgentHostConnectionStatus.connected) }),
+		]);
+		const storage = disposables.add(new TestStorageService());
+		seedStorage(storage, [
+			{ uri: URI.file('/agent-host/supported'), providerId: 'local-agent-host', checked: false },
+			{ uri: URI.file('/agent-host/unsupported'), providerId: 'local-agent-host', checked: false },
+			{ uri: URI.file('/remote/project'), providerId: 'agenthost-remote-1', checked: false },
+		]);
+		const picker = createTestPicker(disposables, providers, storage, undefined, DispatchingWorkspacePicker, {}, undefined, undefined, {
+			environment: derived(reader => environmentFirst.read(reader) ? environment : undefined),
+			configuration: { [UNIFIED_WORKSPACE_PICKER_SETTING]: true },
+		});
+		assert.ok(picker instanceof DispatchingWorkspacePicker);
+		return picker;
+	}
+
+	test('scopes recent folders to the chosen host and removes relocated host and container submenus', () => {
+		const picker = createEnvironmentPicker(localEnvironment);
+		const items = picker.getItems();
+		assert.deepStrictEqual({
+			folders: items.flatMap(item => item.item?.folderUri ? [item.item.folderUri.path] : []),
+			remote: items.some(item => item.label === 'Remote'),
+			submenus: items.filter(item => item.item?.folderUri && item.submenuActions?.length).length,
+		}, { folders: ['/agent-host/supported', '/agent-host/unsupported'], remote: false, submenus: 0 });
+	});
+
+	test('workspace-first shows all folders and reacts when the picker order changes', () => {
+		const environmentFirst = observableValue('environmentFirst', false);
+		const picker = createEnvironmentPicker(localEnvironment, undefined, environmentFirst);
+		const folders = () => picker.getItems().flatMap(item => item.item?.folderUri ? [item.item.folderUri.path] : []);
+		const workspaceFirst = folders();
+		environmentFirst.set(true, undefined);
+		const environmentFirstFolders = folders();
+		environmentFirst.set(false, undefined);
+		assert.deepStrictEqual({ workspaceFirst, environmentFirstFolders, restored: folders() }, {
+			workspaceFirst: ['/agent-host/supported', '/agent-host/unsupported', '/remote/project'],
+			environmentFirstFolders: ['/agent-host/supported', '/agent-host/unsupported'],
+			restored: workspaceFirst,
+		});
+	});
+
+	test('resolves a directly supported environment workspace only once', () => {
+		const providers = disposables.add(new MockSessionsProvidersService());
+		const base = createMockProvider('local-agent-host');
+		let resolutions = 0;
+		providers.setProviders([{
+			...base,
+			resolveWorkspace: uri => {
+				resolutions++;
+				return base.resolveWorkspace(uri);
+			},
+		}]);
+		const picker = createTestPicker(disposables, providers, undefined, undefined, WorkspacePicker, {}, undefined, undefined, { restoreFromSessions: false });
+		const folderUri = URI.file('/agent-host/project');
+		picker.setSelectedWorkspace(folderUri, { fireEvent: false, providerId: base.id });
+		resolutions = 0;
+		const resolved = picker.getEnvironmentWorkspace(localEnvironment);
+		assert.deepStrictEqual({
+			resolutions,
+			providerId: resolved?.providerId,
+			folder: resolved?.workspace.folders[0].root.toString(),
+		}, { resolutions: 1, providerId: base.id, folder: folderUri.toString() });
+	});
+
+	test('finds a matching repository in later roots without selecting unrelated or unavailable roots', () => {
+		const providers = disposables.add(new MockSessionsProvidersService());
+		const sourceUri = URI.file('/agent-host/source');
+		const unrelatedUri = URI.parse('vscode-agent-host://host/remote/unrelated');
+		const unavailableUri = URI.parse('vscode-agent-host://host/remote/unavailable');
+		const targetUri = URI.parse('vscode-agent-host://host/remote/target');
+		const remoteEnvironment: ISessionCreationEnvironment = { id: 'remote', kind: 'remote', label: 'Remote', icon: Codicon.remote, providerIds: ['remote'] };
+		const base = createMockProvider('workspace');
+		const workspaceForFolder = (uri: URI, repository: string): ISessionWorkspace => {
+			const workspace = base.resolveWorkspace(uri)!;
+			return {
+				...workspace,
+				folders: workspace.folders.map(folder => ({
+					...folder,
+					gitRepository: {
+						uri, workTreeUri: undefined, baseBranchName: undefined,
+						gitHubInfo: constObservable({ owner: 'microsoft', repo: repository }),
+					},
+				})),
+			};
+		};
+		const source = workspaceForFolder(sourceUri, 'vscode');
+		const target = workspaceForFolder(targetUri, 'vscode');
+		providers.setProviders([
+			{ ...createMockProvider('local-agent-host'), resolveWorkspace: uri => extUri.isEqual(uri, sourceUri) ? source : undefined },
+			{ ...createMockProvider('remote'), resolveWorkspace: uri => extUri.isEqual(uri, targetUri) ? target : undefined },
+		]);
+		const picker = createTestPicker(disposables, providers, undefined, undefined, TestablePicker, {}, undefined, undefined, { restoreFromSessions: false });
+		assert.ok(picker instanceof TestablePicker);
+		picker.setSelectedWorkspace(sourceUri, { fireEvent: false, providerId: 'local-agent-host' });
+		const candidate: IResolvedFolderWorkspace = {
+			providerId: 'remote',
+			workspace: {
+				...target,
+				folders: [
+					...workspaceForFolder(unrelatedUri, 'unrelated').folders,
+					...workspaceForFolder(unavailableUri, 'vscode').folders,
+					...target.folders,
+				],
+			},
+		};
+		picker.setRecentWorkspaces([candidate]);
+		const resolved = picker.getEnvironmentWorkspace(remoteEnvironment);
+		picker.setRecentWorkspaces([{ ...candidate, workspace: { ...candidate.workspace, folders: candidate.workspace.folders.slice(0, 2) } }]);
+		assert.deepStrictEqual({
+			providerId: resolved?.providerId,
+			folder: resolved?.workspace.folders[0].root.toString(),
+			withoutSupportedRoot: picker.getEnvironmentWorkspace(remoteEnvironment),
+		}, { providerId: 'remote', folder: targetUri.toString(), withoutSupportedRoot: undefined });
+	});
+
+	test('resolves environments through matching repository checkouts, not matching folder names', () => {
+		const providers = disposables.add(new MockSessionsProvidersService());
+		const localFolder = URI.file('/agent-host/project');
+		const remoteFolder = URI.parse('vscode-agent-host://host/remote/project');
+		const unrelatedFolder = URI.parse('vscode-agent-host://host/remote/other');
+		const remoteEnvironment: ISessionCreationEnvironment = { id: 'remote', kind: 'remote', label: 'Remote', icon: Codicon.remote, providerIds: ['remote'] };
+		const localGitHubInfo = observableValue<IGitHubInfo | undefined>('localGitHubInfo', undefined);
+		function repositoryProvider(id: string, scheme: string): ISessionsProvider {
+			const base = createMockProvider(id);
+			return {
+				...base,
+				resolveWorkspace: uri => {
+					const workspace = uri.scheme === scheme ? base.resolveWorkspace(uri) : undefined;
+					return workspace && {
+						...workspace,
+						folders: workspace.folders.map(folder => ({
+							...folder,
+							gitRepository: {
+								uri, workTreeUri: undefined, baseBranchName: undefined,
+								gitHubInfo: extUri.isEqual(uri, localFolder) ? localGitHubInfo
+									: constObservable({ owner: 'microsoft', repo: extUri.isEqual(uri, unrelatedFolder) ? 'other' : 'vscode' }),
+							},
+						})),
+					};
+				},
+			};
+		}
+		providers.setProviders([repositoryProvider('local-agent-host', Schemas.file), repositoryProvider('remote', AGENT_HOST_SCHEME)]);
+		const storage = disposables.add(new TestStorageService());
+		seedStorage(storage, [
+			{ uri: localFolder, providerId: 'local-agent-host', checked: true },
+			{ uri: unrelatedFolder, providerId: 'remote', checked: false },
+			{ uri: remoteFolder, providerId: 'remote', checked: false },
+		]);
+		const picker = createTestPicker(disposables, providers, storage);
+		const destinations: (string | undefined)[] = [];
+		const destination = derived(reader => picker.getEnvironmentWorkspace(remoteEnvironment, reader)?.workspace.folders[0].root.toString());
+		disposables.add(autorun(reader => destinations.push(destination.read(reader))));
+		localGitHubInfo.set({ owner: 'microsoft', repo: 'vscode' }, undefined);
+		const remote = picker.getEnvironmentWorkspace(remoteEnvironment);
+		assert.deepStrictEqual({
+			destinations,
+			local: picker.getEnvironmentWorkspace(localEnvironment)?.workspace.folders[0].root.toString(),
+			remote: remote && { providerId: remote.providerId, folder: remote.workspace.folders[0].root.toString() },
+			unsupported: picker.getEnvironmentWorkspace({ ...remoteEnvironment, providerIds: ['missing'] }),
+		}, {
+			destinations: [undefined, remoteFolder.toString()],
+			local: localFolder.toString(),
+			remote: { providerId: 'remote', folder: remoteFolder.toString() },
+			unsupported: undefined,
+		});
+	});
+
+	test('prompts to choose a workspace only for an empty environment-scoped picker', () => {
+		const providers = disposables.add(new MockSessionsProvidersService());
+		providers.setProviders([createMockProvider('local-agent-host', { group: SESSION_WORKSPACE_GROUP_LOCAL })]);
+		const environment = observableValue<ISessionCreationEnvironment | undefined>('environment', localEnvironment);
+		let chatSelected = false;
+		const picker = createTestPicker(disposables, providers, undefined, undefined, WorkspacePicker, {}, undefined, undefined, {
+			environment, restoreFromSessions: false,
+			configuration: { [UNIFIED_WORKSPACE_PICKER_SETTING]: true },
+			getNoWorkspaceOption: () => ({ description: 'Start without a backing workspace', isSelected: chatSelected, select: () => { } }),
+		});
+		const container = document.createElement('div');
+		picker.renderCategoryTriggers(container, [{
+			label: 'Workspace', ariaLabel: 'Choose a workspace', reflectsWorkspace: true, icon: Codicon.project,
+		}]);
+		const trigger = container.querySelector<HTMLElement>('.action-label')!;
+		const snapshot = () => ({
+			label: trigger.querySelector('.sessions-chat-dropdown-label')?.textContent,
+			ariaLabel: trigger.getAttribute('aria-label'),
+		});
+		const states = [snapshot()];
+		picker.setSelectedWorkspace(URI.file('/agent-host/project'), { fireEvent: false });
+		states.push(snapshot());
+		picker.clearSelection();
+		states.push(snapshot());
+		chatSelected = true;
+		picker.selectNoWorkspace();
+		states.push(snapshot());
+		chatSelected = false;
+		picker.clearSelection();
+		environment.set(undefined, undefined);
+		states.push(snapshot());
+		environment.set(localEnvironment, undefined);
+		states.push(snapshot());
+		assert.deepStrictEqual(states, [
+			{ label: 'Choose Workspace', ariaLabel: 'Choose a workspace' },
+			{ label: 'agent-host/project', ariaLabel: 'Workspace: agent-host/project' },
+			{ label: 'Choose Workspace', ariaLabel: 'Choose a workspace' },
+			{ label: 'Chat', ariaLabel: 'Workspace: Chat' },
+			{ label: 'Workspace', ariaLabel: 'Choose a workspace' },
+			{ label: 'Choose Workspace', ariaLabel: 'Choose a workspace' },
+		]);
+	});
+
+	test('keeps container checks pending, then shows only supported folders with container mode', async () => {
+		const checking = new DeferredPromise<boolean>();
+		const picker = createEnvironmentPicker(containerEnvironment, uri => uri.path.endsWith('/supported') ? checking.p : Promise.resolve(false));
+		const before = picker.getItems();
+		await checking.complete(true);
+		await timeout(0);
+		const after = picker.getItems();
+		assert.deepStrictEqual({
+			pending: before.some(item => item.label === 'Checking Dev Container Folders...'),
+			beforeFolders: before.flatMap(item => item.item?.folderUri ? [item.item.folderUri.path] : []),
+			afterFolders: after.flatMap(item => item.item?.folderUri ? [{ path: item.item.folderUri.path, container: item.item.preferDevContainer }] : []),
+		}, { pending: true, beforeFolders: [], afterFolders: [{ path: '/agent-host/supported', container: true }] });
+	});
+
+	test('rejects an unsupported browsed folder without falling back to a host session', async () => {
+		const picker = createEnvironmentPicker(containerEnvironment, async () => false);
+		const selected: (URI | undefined)[] = [];
+		disposables.add(picker.onDidSelectWorkspace(uri => selected.push(uri)));
+		const accepted = await picker.dispatchItem({
+			browseAction: {
+				...makeBrowseAction('local-agent-host', SESSION_WORKSPACE_GROUP_LOCAL, 'Browse'),
+				run: async () => createMockProvider('local-agent-host').resolveWorkspace(URI.file('/agent-host/unsupported')),
+			},
+		});
+		assert.deepStrictEqual({ accepted, selected }, { accepted: false, selected: [] });
+	});
+
+	for (const environment of [localEnvironment, containerEnvironment]) {
+		for (const hasWorkspace of [false, true]) {
+			test(`attaches Issue and Pull Request context without changing ${environment.label} execution ${hasWorkspace ? 'with' : 'without'} a workspace`, async () => {
+				const providers = disposables.add(new MockSessionsProvidersService());
+				const local = createMockProvider('local-agent-host', { group: SESSION_WORKSPACE_GROUP_LOCAL });
+				const repositoryRoot = URI.parse('github-remote-file://github/microsoft/vscode/HEAD');
+				const contexts = ['Issue', 'Pull Request'].map(label => ({
+					...local.resolveWorkspace(URI.file('/agent-host/project'))!,
+					uri: URI.parse(`https://github.com/microsoft/vscode/${label === 'Issue' ? 'issues' : 'pull'}/1`),
+					label, group: SESSION_WORKSPACE_GROUP_GITHUB,
+					folders: [{ root: repositoryRoot, workingDirectory: repositoryRoot, name: 'vscode', description: undefined }],
+				}));
+				const actions = contexts.map(context => ({
+					...makeBrowseAction('github', SESSION_WORKSPACE_GROUP_GITHUB, context.label),
+					attachesContext: true,
+					run: async () => context,
+				}));
+				providers.setProviders([local, createMockProvider('github', { group: SESSION_WORKSPACE_GROUP_GITHUB, browseActions: actions })]);
+				const warnings: string[] = [];
+				const notifications = new class extends TestNotificationService {
+					override warn(message: Parameters<TestNotificationService['warn']>[0]) {
+						warnings.push(String(message));
+						return super.warn(message);
+					}
+				}();
+				const picker = createTestPicker(disposables, providers, undefined, notifications, DispatchingWorkspacePicker, {}, undefined, undefined, {
+					environment: constObservable(environment), restoreFromSessions: false,
+				});
+				assert.ok(picker instanceof DispatchingWorkspacePicker);
+				const folder = URI.file('/agent-host/project');
+				if (hasWorkspace) {
+					picker.setSelectedWorkspace(folder, { fireEvent: false, providerId: local.id });
+				}
+				const attached: string[] = [];
+				const selected: (URI | undefined)[] = [];
+				disposables.add(picker.onDidSelectContext(context => attached.push(context.label)));
+				disposables.add(picker.onDidSelectWorkspace(uri => selected.push(uri)));
+				for (const action of actions) {
+					await picker.dispatchItem({ browseAction: action });
+				}
+				const executionAccepted = await picker.dispatchItem({ browseAction: { ...actions[0], attachesContext: false } });
+				assert.deepStrictEqual({ attached, selected, folder: picker.selectedFolderUri, executionAccepted, warnings }, {
+					attached: ['Issue', 'Pull Request'], selected: [], folder: hasWorkspace ? folder : undefined,
+					executionAccepted: false, warnings: [`Choose a workspace available in ${environment.label}.`],
+				});
+			});
+		}
+	}
+
+	test('reports failed container checks separately from unsupported folders', async () => {
+		const expectedError = new Error('container detection failed');
+		const errors: Error[] = [];
+		const previousHandler = errorHandler.getUnexpectedErrorHandler();
+		errorHandler.setUnexpectedErrorHandler(error => errors.push(error));
+		try {
+			let shouldFail = true;
+			const picker = createEnvironmentPicker(containerEnvironment, async () => {
+				if (shouldFail) {
+					throw expectedError;
+				}
+				return true;
+			});
+			picker.getItems();
+			await timeout(0);
+			const failed = picker.getItems().some(item => item.label === 'Could Not Check Dev Container Folders');
+			const unsupported = picker.getItems().some(item => item.label === 'No Compatible Dev Container Folders');
+			shouldFail = false;
+			const recovered = await picker.whenDevContainerWorkspaceAvailable(URI.file('/agent-host/supported'), 'local-agent-host');
+			assert.deepStrictEqual({
+				failed, unsupported, recovered, errors,
+			}, { failed: true, unsupported: false, recovered: true, errors: [expectedError, expectedError] });
+		} finally {
+			errorHandler.setUnexpectedErrorHandler(previousHandler);
+		}
+	});
+
+	test('accepts a supported browsed container folder without a workspace-mode submenu', async () => {
+		const picker = createEnvironmentPicker(containerEnvironment, async () => true);
+		const selected: boolean[] = [];
+		disposables.add(picker.onDidSelectWorkspaceMode(mode => selected.push(mode.preferDevContainer)));
+		const accepted = await picker.dispatchItem({
+			browseAction: {
+				...makeBrowseAction('local-agent-host', SESSION_WORKSPACE_GROUP_LOCAL, 'Browse'),
+				run: async () => createMockProvider('local-agent-host').resolveWorkspace(URI.file('/agent-host/supported')),
+			},
+		});
+		assert.deepStrictEqual({ accepted, selected, folder: picker.selectedFolderUri?.path }, { accepted: true, selected: [true], folder: '/agent-host/supported' });
+	});
+
+	test('awaits the actual detector when a local workspace provider has no container capability', async () => {
+		const picker = createEnvironmentPicker(containerEnvironment, async () => true);
+		const available = await picker.whenDevContainerWorkspaceAvailable(URI.file('/agent-host/supported'), 'another-local-provider');
+		assert.strictEqual(available, true);
 	});
 });
 
@@ -1014,7 +1373,7 @@ suite('WorkspacePicker - Connection Status', () => {
 				submenuHoverDelay: undefined,
 			},
 			unifiedListOptions: {
-				submenuPointerIntent: undefined,
+				submenuPointerIntent: true,
 				submenuHoverDelay: 0,
 				preserveVerticalPosition: true,
 				alignToAnchorTop: true,
@@ -3278,7 +3637,7 @@ suite('WorkspacePicker - Category Triggers', () => {
 			triggers: Array.from(container.querySelectorAll<HTMLElement>('.action-label')).map(trigger => ({
 				label: trigger.querySelector('.sessions-chat-dropdown-label')?.textContent,
 				ariaLabel: trigger.getAttribute('aria-label'),
-				hidden: trigger.parentElement?.hidden,
+				hidden: trigger.closest<HTMLElement>('.sessions-chat-picker-slot')?.hidden,
 				hasPopup: trigger.getAttribute('aria-haspopup'),
 				expanded: trigger.getAttribute('aria-expanded'),
 				role: trigger.getAttribute('role'),
@@ -3293,6 +3652,338 @@ suite('WorkspacePicker - Category Triggers', () => {
 				{ label: 'Remote Setup', ariaLabel: 'Choose a remote setup', hidden: true, hasPopup: 'listbox', expanded: 'false', role: 'button', tabIndex: 0, icons: ['codicon-radio-tower', 'codicon-chevron-down-compact'] },
 				{ label: undefined, ariaLabel: 'More workspace options', hidden: false, hasPopup: 'listbox', expanded: 'false', role: 'button', tabIndex: 0, icons: ['codicon-ellipsis', 'codicon-chevron-down-compact'] },
 			],
+		});
+	});
+
+	for (const activation of ['click', 'Enter', ' '] as const) {
+		test(`clears the workspace from the experimental trigger with ${activation}`, () => {
+			const providersService = disposables.add(new MockSessionsProvidersService());
+			providersService.setProviders([createMockProvider('local-1')]);
+			let userSelections = 0;
+			const picker = createTestPicker(disposables, providersService, undefined, undefined, undefined, undefined, undefined, undefined, {
+				onUserSelection: () => userSelections++,
+			});
+			const container = document.createElement('div');
+			document.body.appendChild(container);
+			disposables.add(toDisposable(() => container.remove()));
+			picker.renderCategoryTriggers(container, [{
+				label: 'Workspace',
+				ariaLabel: 'Choose a workspace',
+				icon: Codicon.project,
+				reflectsWorkspace: true,
+				clearable: constObservable(true),
+			}]);
+			const trigger = container.querySelector<HTMLElement>('.action-label')!;
+			const clearButton = container.querySelector<HTMLElement>('.sessions-workspace-clear-button')!;
+			const initiallyHidden = clearButton.hidden;
+			picker.setSelectedWorkspace(URI.file('/local/project'));
+			const shownAfterSelection = !clearButton.hidden;
+			const selections: (string | undefined)[] = [];
+			disposables.add(picker.onDidSelectWorkspace(uri => selections.push(uri?.toString())));
+			clearButton.focus();
+			if (activation === 'click') {
+				clearButton.click();
+			} else {
+				clearButton.dispatchEvent(new KeyboardEvent('keydown', {
+					key: activation,
+					keyCode: activation === 'Enter' ? 13 : 32,
+					bubbles: true,
+				}));
+			}
+
+			assert.deepStrictEqual({
+				initiallyHidden,
+				shownAfterSelection,
+				selectedFolder: picker.selectedFolderUri,
+				label: trigger.textContent,
+				clearLabel: clearButton.getAttribute('aria-label'),
+				clearHidden: clearButton.hidden,
+				clearable: trigger.closest('.sessions-chat-picker-slot')?.classList.contains('workspace-clearable'),
+				focused: document.activeElement === trigger,
+				userSelections,
+				selections,
+			}, {
+				initiallyHidden: true,
+				shownAfterSelection: true,
+				selectedFolder: undefined,
+				label: 'Choose Workspace',
+				clearLabel: 'Chat without a workspace',
+				clearHidden: true,
+				clearable: false,
+				focused: true,
+				userSelections: 1,
+				selections: [undefined],
+			});
+		});
+	}
+
+	test('renders workspace clearing as a plain close icon in all theme types', () => {
+		const providersService = disposables.add(new MockSessionsProvidersService());
+		providersService.setProviders([createMockProvider('local-1')]);
+		const picker = createTestPicker(disposables, providersService);
+		const container = document.createElement('div');
+		container.className = 'monaco-workbench';
+		container.style.setProperty('--vscode-icon-foreground', '#aabbcc');
+		container.style.setProperty('--vscode-editor-background', '#001122');
+		container.style.setProperty('--vscode-codiconFontSize-compact', '12px');
+		document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+		picker.renderCategoryTriggers(container, [{
+			label: 'Workspace',
+			ariaLabel: 'Choose a workspace',
+			icon: Codicon.project,
+			reflectsWorkspace: true,
+			clearable: constObservable(true),
+		}]);
+		picker.setSelectedWorkspace(URI.file('/local/project'));
+		const button = container.querySelector<HTMLElement>('.sessions-workspace-clear-button')!;
+		button.focus();
+
+		const results = ['vs', 'vs-dark', 'hc-black', 'hc-light'].map(theme => {
+			container.classList.add(theme);
+			const style = getWindow(button).getComputedStyle(button);
+			const iconStyle = getWindow(button).getComputedStyle(button, '::before');
+			const result = {
+				compactCloseIcon: button.classList.contains('codicon-close-compact'),
+				background: style.backgroundColor,
+				iconBackground: iconStyle.backgroundColor,
+				iconColor: iconStyle.color,
+				iconSize: iconStyle.fontSize,
+				focused: document.activeElement === button,
+			};
+			container.classList.remove(theme);
+			return result;
+		});
+
+		assert.deepStrictEqual(results, Array(4).fill({
+			compactCloseIcon: true,
+			background: 'rgba(0, 0, 0, 0)',
+			iconBackground: 'rgba(0, 0, 0, 0)',
+			iconColor: 'rgb(170, 187, 204)',
+			iconSize: '12px',
+			focused: true,
+		}));
+	});
+
+	suite('Workspace close button styles', () => {
+		let container: HTMLElement;
+		let trigger: HTMLElement;
+		let button: HTMLElement;
+
+		setup(() => {
+			const providersService = disposables.add(new MockSessionsProvidersService());
+			providersService.setProviders([createMockProvider('local-1')]);
+			const picker = createTestPicker(disposables, providersService);
+			container = document.createElement('div');
+			container.className = 'monaco-workbench experimental-new-session-composer';
+			container.style.setProperty('--vscode-toolbar-hoverBackground', '#334455');
+			container.style.setProperty('--vscode-focusBorder', '#aabbcc');
+			container.style.setProperty('--vscode-cornerRadius-small', '4px');
+			container.style.setProperty('--vscode-strokeThickness', '1px');
+			document.body.appendChild(container);
+			disposables.add(toDisposable(() => container.remove()));
+			picker.renderCategoryTriggers(container, [{
+				label: 'Workspace',
+				ariaLabel: 'Choose a workspace',
+				icon: Codicon.project,
+				reflectsWorkspace: true,
+				clearable: constObservable(true),
+			}]);
+			picker.setSelectedWorkspace(URI.file('/local/project'));
+			trigger = container.querySelector<HTMLElement>('.action-label')!;
+			button = container.querySelector<HTMLElement>('.sessions-workspace-clear-button')!;
+		});
+
+		test('highlights independently on hover in all theme types', () => {
+			const results = ['vs', 'vs-dark', 'hc-black', 'hc-light'].map(theme => {
+				container.classList.add(theme);
+				const highContrast = theme.startsWith('hc-');
+				container.style.setProperty('--vscode-toolbar-hoverOutline', highContrast ? '#ddeeff' : 'initial');
+				const restingBackground = getWindow(button).getComputedStyle(button).backgroundColor;
+				const triggerBackground = getWindow(trigger).getComputedStyle(trigger).backgroundColor;
+				button.classList.add('hovered');
+				const style = getWindow(button).getComputedStyle(button);
+				const result = {
+					backgroundChanged: style.backgroundColor !== restingBackground,
+					hoverBackground: style.backgroundColor,
+					hoverOutline: style.outlineStyle === 'none' ? undefined : {
+						color: style.outlineColor,
+						style: style.outlineStyle,
+						width: style.outlineWidth,
+					},
+					borderRadius: style.borderRadius,
+					triggerBackgroundUnchanged: getWindow(trigger).getComputedStyle(trigger).backgroundColor === triggerBackground,
+				};
+				button.classList.remove('hovered');
+				const backgroundRestored = getWindow(button).getComputedStyle(button).backgroundColor === restingBackground;
+				container.classList.remove(theme);
+				return { ...result, backgroundRestored };
+			});
+
+			assert.deepStrictEqual(results, [false, false, true, true].map(highContrast => ({
+				backgroundChanged: true,
+				hoverBackground: 'rgb(51, 68, 85)',
+				hoverOutline: highContrast ? {
+					color: 'rgb(221, 238, 255)',
+					style: 'dashed',
+					width: '1px',
+				} : undefined,
+				borderRadius: '4px',
+				triggerBackgroundUnchanged: true,
+				backgroundRestored: true,
+			})));
+		});
+
+		test('preserves the focus outline during hover in all theme types', function () {
+			// Hidden Electron windows do not match focus pseudo-classes; run this check in a browser.
+			if (!document.hasFocus()) {
+				this.skip();
+			}
+
+			const results = ['vs', 'vs-dark', 'hc-black', 'hc-light'].map(theme => {
+				container.classList.add(theme);
+				container.style.setProperty('--vscode-toolbar-hoverOutline', theme.startsWith('hc-') ? '#ddeeff' : 'initial');
+				button.focus();
+				const focusOutlineOffset = getWindow(button).getComputedStyle(button).outlineOffset;
+				button.classList.add('hovered');
+				const style = getWindow(button).getComputedStyle(button);
+				const result = {
+					focusVisible: button.matches(':focus-visible'),
+					background: style.backgroundColor,
+					outlineColor: style.outlineColor,
+					outlineStyle: style.outlineStyle,
+					outlineWidth: style.outlineWidth,
+					outlineOffsetUnchanged: style.outlineOffset === focusOutlineOffset,
+				};
+				button.classList.remove('hovered');
+				button.blur();
+				container.classList.remove(theme);
+				return result;
+			});
+
+			assert.deepStrictEqual(results, Array(4).fill({
+				focusVisible: true,
+				background: 'rgb(51, 68, 85)',
+				outlineColor: 'rgb(170, 187, 204)',
+				outlineStyle: 'solid',
+				outlineWidth: '1px',
+				outlineOffsetUnchanged: true,
+			}));
+		});
+	});
+
+	test('evaluates workspace tooltip callbacks at hover time with and without a focus command', async () => {
+		const setupManagedHover = sinon.spy(getBaseLayerHoverDelegate(), 'setupManagedHover');
+		disposables.add(toDisposable(() => setupManagedHover.restore()));
+		const results = [];
+		for (const focusCommand of [undefined, { id: 'sessions.focusWorkspacePicker', when: ContextKeyExpr.true(), enabled: constObservable(true) }]) {
+			const providersService = disposables.add(new MockSessionsProvidersService());
+			providersService.setProviders([createMockProvider('local-1')]);
+			const picker = createTestPicker(disposables, providersService);
+			let label = 'Initial workspace';
+			let evaluations = 0;
+			const container = document.createElement('div');
+			picker.renderCategoryTriggers(container, [{
+				label: 'Workspace',
+				ariaLabel: 'Choose a workspace',
+				tooltip: () => { evaluations++; return label; },
+				focusCommand,
+			}]);
+			const renderEvaluations = evaluations;
+			const target = container.querySelector('.action-item');
+			const content = setupManagedHover.getCalls().find(call => call.args[1] === target)?.args[2];
+			assert.ok(isManagedHoverTooltipMarkdownString(content) && typeof content.markdown === 'function');
+			const initial = await content.markdown(CancellationToken.None);
+			label = 'Updated workspace';
+			results.push([renderEvaluations, initial, await content.markdown(CancellationToken.None), evaluations]);
+		}
+		assert.deepStrictEqual(results, [
+			[0, 'Initial workspace', 'Updated workspace', 2],
+			[0, 'Initial workspace', 'Updated workspace', 2],
+		]);
+	});
+
+	test('uses toolbar and button hovers without an immediate workspace-clearing override', () => {
+		const registrations: Parameters<IHoverService['setupManagedHover']>[] = [];
+		const shown: Parameters<IHoverService['showInstantHover']>[] = [];
+		const hoverService: IHoverService = {
+			...NullHoverService,
+			setupManagedHover: (...args) => {
+				registrations.push(args);
+				return NullHoverService.setupManagedHover(...args);
+			},
+			showInstantHover: (...args) => {
+				shown.push(args);
+				return undefined;
+			},
+		};
+		const providersService = disposables.add(new MockSessionsProvidersService());
+		providersService.setProviders([createMockProvider('local-1')]);
+		const picker = createTestPicker(disposables, providersService, undefined, undefined, undefined, undefined, undefined, undefined, { hoverService });
+		const container = document.createElement('div');
+		picker.renderCategoryTriggers(container, [{
+			label: 'Workspace',
+			ariaLabel: 'Choose a workspace',
+			icon: Codicon.project,
+			reflectsWorkspace: true,
+			clearable: constObservable(true),
+		}]);
+		const clearButton = container.querySelector<HTMLElement>('.sessions-workspace-clear-button')!;
+		assert.deepStrictEqual({
+			customHoverRegistrations: registrations.length,
+			hasToolbar: !!container.querySelector('.monaco-toolbar'),
+			clearLabel: clearButton.getAttribute('aria-label'),
+			shown,
+		}, {
+			customHoverRegistrations: 0,
+			hasToolbar: true,
+			clearLabel: 'Chat without a workspace',
+			shown: [],
+		});
+	});
+
+	test('gates workspace clearing on the live layout flag and leaves other triggers unchanged', () => {
+		const providersService = disposables.add(new MockSessionsProvidersService());
+		providersService.setProviders([createMockProvider('local-1')]);
+		const picker = createTestPicker(disposables, providersService);
+		const clearable = observableValue('clearable', false);
+		const container = document.createElement('div');
+		picker.renderCategoryTriggers(container, [{
+			label: 'Workspace',
+			ariaLabel: 'Choose a workspace',
+			icon: Codicon.project,
+			reflectsWorkspace: true,
+			clearable,
+		}]);
+		const additionalContainer = document.createElement('div');
+		disposables.add(picker.renderAdditionalTrigger(additionalContainer, {
+			label: 'Workspace',
+			ariaLabel: 'Choose a comparison workspace',
+			reflectsWorkspace: true,
+		}));
+		const button = container.querySelector<HTMLElement>('.sessions-workspace-clear-button')!;
+		const label = () => container.querySelector('.sessions-chat-dropdown-label')?.textContent;
+		const legacyEmptyLabel = label();
+		clearable.set(true, undefined);
+		const experimentalEmptyLabel = label();
+		picker.setSelectedWorkspace(URI.file('/local/project'));
+		const experimentalSelected = !button.hidden;
+		clearable.set(false, undefined);
+
+		assert.deepStrictEqual({
+			legacyEmptyLabel,
+			experimentalEmptyLabel,
+			experimentalSelected,
+			legacySelectedHidden: button.hidden,
+			selectedLabel: label(),
+			additionalClearButtons: additionalContainer.querySelectorAll('.sessions-workspace-clear-button').length,
+		}, {
+			legacyEmptyLabel: 'Workspace',
+			experimentalEmptyLabel: 'Choose Workspace',
+			experimentalSelected: true,
+			legacySelectedHidden: true,
+			selectedLabel: 'local/project',
+			additionalClearButtons: 0,
 		});
 	});
 
@@ -3389,8 +4080,8 @@ suite('WorkspacePicker - Category Triggers', () => {
 			repositoryLabel: repositoryTrigger?.querySelector<HTMLElement>('.sessions-chat-dropdown-label')?.textContent,
 			repositoryAriaLabel: repositoryTrigger?.getAttribute('aria-label'),
 			contextLabel: container.querySelector<HTMLElement>('[aria-label="Choose an issue or pull request"] .sessions-chat-dropdown-label')?.textContent,
-			contextHidden: container.querySelector<HTMLElement>('[aria-label="Choose an issue or pull request"]')?.parentElement?.hidden,
-			remoteHidden: container.querySelector<HTMLElement>('[aria-label="Choose a remote setup"]')?.parentElement?.hidden,
+			contextHidden: container.querySelector<HTMLElement>('[aria-label="Choose an issue or pull request"]')?.closest<HTMLElement>('.sessions-chat-picker-slot')?.hidden,
+			remoteHidden: container.querySelector<HTMLElement>('[aria-label="Choose a remote setup"]')?.closest<HTMLElement>('.sessions-chat-picker-slot')?.hidden,
 		}, {
 			sameIconNode: true,
 			sameLabelNode: true,
@@ -3497,7 +4188,7 @@ suite('WorkspacePicker - Category Triggers', () => {
 
 		assert.deepStrictEqual(Array.from(container.querySelectorAll<HTMLElement>('.action-label')).map(trigger => ({
 			label: trigger.querySelector('.sessions-chat-dropdown-label')?.textContent,
-			hidden: trigger.parentElement?.hidden,
+			hidden: trigger.closest<HTMLElement>('.sessions-chat-picker-slot')?.hidden,
 		})), [
 			{ label: 'Folder', hidden: false },
 			{ label: 'remote/project', hidden: false },
@@ -3589,7 +4280,7 @@ suite('WorkspacePicker - Category Triggers', () => {
 		assert.deepStrictEqual({
 			selectedFolder: picker.selectedFolderUri?.toString(),
 			repositoryLabel: repositoryTrigger?.querySelector<HTMLElement>('.sessions-chat-dropdown-label')?.textContent,
-			contextHidden: container.querySelector<HTMLElement>('[aria-label="Choose an issue or pull request"]')?.parentElement?.hidden,
+			contextHidden: container.querySelector<HTMLElement>('[aria-label="Choose an issue or pull request"]')?.closest<HTMLElement>('.sessions-chat-picker-slot')?.hidden,
 		}, {
 			selectedFolder: URI.file('/agent-host/vscode').toString(),
 			repositoryLabel: 'microsoft/vscode',
@@ -3618,7 +4309,7 @@ suite('WorkspacePicker - Category Triggers', () => {
 			attachesContext: true,
 			hideWhenNoGitHubRepository: true,
 		}]);
-		const triggerSlot = container.querySelector<HTMLElement>('[aria-label="Choose an issue or pull request"]')?.parentElement;
+		const triggerSlot = container.querySelector<HTMLElement>('[aria-label="Choose an issue or pull request"]')?.closest<HTMLElement>('.sessions-chat-picker-slot');
 		const hiddenStates = [triggerSlot?.hidden];
 
 		picker.setSelectedWorkspace(URI.file('/local/project'), { fireEvent: false, persist: false });
@@ -4551,6 +5242,45 @@ suite('AutomationsWorkspacePicker', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('cloud mode deduplicates resolved repositories before limiting recents without merging owners or local checkouts', () => {
+		const providersService = disposables.add(new MockSessionsProvidersService());
+		const provider = createMockProvider('local-1', { group: SESSION_WORKSPACE_GROUP_LOCAL });
+		const github = createMockProvider('github', { group: SESSION_WORKSPACE_GROUP_GITHUB });
+		providersService.setProviders([provider, github]);
+		const folder = URI.file('/local/private');
+		const checkout = URI.file('/local/private-copy');
+		const repository = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/owner/private/HEAD' });
+		const branch = repository.with({ path: '/OWNER/PRIVATE/main' });
+		const otherOwner = repository.with({ path: '/another-owner/private/HEAD' });
+		const storage = disposables.add(new TestStorageService());
+		seedStorage(storage, [repository, folder, checkout, branch, otherOwner].map(uri => ({
+			uri, providerId: uri.scheme === GITHUB_REMOTE_FILE_SCHEME ? github.id : provider.id, checked: false,
+		})));
+		const picker = createTestPicker(disposables, providersService, storage, undefined, TestAutomationsWorkspacePicker,
+			undefined, undefined, undefined, { restoreFromSessions: false, canRestoreWorkspace: () => false });
+		assert.ok(picker instanceof TestAutomationsWorkspacePicker);
+		const cloudMode = observableValue('cloudMode', true);
+		picker.setCloudConfiguration(constObservable<IAutomationProviderConfiguration>({
+			sessionTypes: ['cloud-agent'], description: '', timeZone: 'UTC', targetChangeDisabledReason: '',
+			tools: constObservable<AutomationToolCatalog>({ kind: 'ready', groups: [] }), loadTools: () => { },
+			pickWorkspace: async () => repository,
+			getWorkspaceTarget: uri => constObservable({
+				workspace: extUri.isEqual(uri, otherOwner) ? otherOwner
+					: extUri.isEqual(uri, branch) ? repository.with({ path: '/OWNER/PRIVATE/HEAD' }) : repository,
+			}),
+		}));
+		picker.setCloudMode(cloudMode);
+		const folders = (items: ReturnType<TestAutomationsWorkspacePicker['getItems']>) => items.flatMap(item => item.item?.folderUri?.toString() ?? []);
+		const cloud = folders(picker.getItems());
+		const mobile = folders(picker.getMobileItems());
+		cloudMode.set(false, undefined);
+		assert.deepStrictEqual({ cloud, mobile, local: folders(picker.getItems()) }, {
+			cloud: [folder.toString(), otherOwner.toString()],
+			mobile: [folder.toString(), otherOwner.toString()],
+			local: [folder.toString(), checkout.toString()],
+		});
+	});
+
 	test('cloud mode shows Git folders with repo icons and explains disabled targets without description text', async () => {
 		const providersService = disposables.add(new MockSessionsProvidersService());
 		const provider = createMockProvider('local-1', { group: SESSION_WORKSPACE_GROUP_LOCAL });
@@ -4567,6 +5297,7 @@ suite('AutomationsWorkspacePicker', () => {
 				const workspace = provider.resolveWorkspace(uri);
 				return workspace && {
 					...workspace,
+					description: 'C:\\src',
 					folders: workspace.folders.map(folder => ({
 						...folder,
 						gitRepository: {
@@ -4595,7 +5326,7 @@ suite('AutomationsWorkspacePicker', () => {
 			pickWorkspace: async () => { pickCount++; return repository; },
 			getWorkspaceTarget: uri => extUri.isEqual(uri, folder) || extUri.isEqual(uri, repository)
 				? privateTarget
-				: constObservable({ disabledReason: 'Private GitHub repository required.', isPublicRepository: extUri.isEqual(uri, publicFolder) }),
+				: constObservable({ disabledReason: 'Cloud automations cannot be managed for this repository.', isRepository: extUri.isEqual(uri, publicFolder) }),
 		}));
 		picker.setCloudMode(cloudMode);
 		const rows = () => picker.getItems().filter(row => row.kind === ActionListItemKind.Action)
@@ -4636,18 +5367,85 @@ suite('AutomationsWorkspacePicker', () => {
 			waitedForLocalFolder: true,
 			populated: [
 				{ label: 'local/private', icon: 'repo', disabled: false, description: undefined, reason: undefined, hover: undefined },
-				{ label: 'local/public', icon: 'repo', disabled: true, description: '$(info)', reason: 'Cloud automations require a private GitHub repository. This repository is public.', hover: 'Cloud automations require a private GitHub repository. This repository is public.' },
-				{ label: 'local/other-git', icon: 'repo', disabled: true, description: '$(info)', reason: 'Private GitHub repository required.', hover: 'Private GitHub repository required.' },
+				{ label: 'local/public', icon: 'repo', disabled: true, description: '$(info)', reason: 'Cloud automations cannot be managed for this repository.', hover: 'Cloud automations cannot be managed for this repository.' },
+				{ label: 'local/other-git', icon: 'repo', disabled: true, description: '$(info)', reason: 'Cloud automations cannot be managed for this repository.', hover: 'Cloud automations cannot be managed for this repository.' },
 				{ label: 'Add repository', icon: 'github', disabled: false, description: undefined, reason: undefined, hover: undefined },
 			],
 			rejectedSelections: undefined,
 			selectedPrivateFolder: folder.toString(),
-			errors: ['Private GitHub repository required.', 'Private GitHub repository required.'],
+			errors: ['Cloud automations cannot be managed for this repository.', 'Cloud automations cannot be managed for this repository.'],
 			pickCount: 1, selected: repository.toString(),
-			publicAriaLabel: 'local/public, unavailable. Cloud automations require a private GitHub repository. This repository is public.',
-			mobilePublicRow: { icon: 'folder', description: 'Cloud automations require a private GitHub repository. This repository is public.', disabled: true },
+			publicAriaLabel: 'local/public, C:\\src, unavailable. Cloud automations cannot be managed for this repository.',
+			mobilePublicRow: { icon: 'folder', description: 'Cloud automations cannot be managed for this repository.', disabled: true },
 			localFolders: [folder, publicFolder, otherGitFolder, plainFolder].map(uri => uri.toString()).sort(),
 			localOffersGitHub: false,
+		});
+	});
+
+	test('cloud mode visually disambiguates duplicate repository names without local paths', () => {
+		const providersService = disposables.add(new MockSessionsProvidersService());
+		const provider = createMockProvider('local-1', { group: SESSION_WORKSPACE_GROUP_LOCAL });
+		const github = createMockProvider('github');
+		const first = URI.file('/local/one/shared');
+		const second = URI.file('/local/two/shared');
+		providersService.setProviders([{
+			...provider,
+			getSessionTypes: () => [{ id: 'cloud-agent', label: 'Cloud', icon: Codicon.cloud, authRequirement: SessionTypeAuthRequirement.None }],
+			resolveWorkspace: uri => {
+				const resolved = provider.resolveWorkspace(uri);
+				return resolved && {
+					...resolved,
+					label: 'shared',
+					description: uri.fsPath,
+					folders: resolved.folders.map(folder => ({
+						...folder,
+						name: 'shared',
+						gitRepository: { uri, workTreeUri: undefined, baseBranchName: undefined, gitHubInfo: constObservable(undefined), isRepository: constObservable(true) },
+					})),
+				};
+			},
+		}, {
+			...github,
+			resolveWorkspace: uri => uri.scheme === GITHUB_REMOTE_FILE_SCHEME ? github.resolveWorkspace(uri) : undefined,
+		}]);
+		const storage = disposables.add(new TestStorageService());
+		seedStorage(storage, [first, second].map(uri => ({ uri, providerId: provider.id, checked: false })));
+		const picker = createTestPicker(disposables, providersService, storage, undefined, TestAutomationsWorkspacePicker,
+			undefined, undefined, undefined, { restoreFromSessions: false, canRestoreWorkspace: () => false });
+		assert.ok(picker instanceof TestAutomationsWorkspacePicker);
+		const cloudMode = observableValue('cloudMode', true);
+		picker.setCloudConfiguration(constObservable<IAutomationProviderConfiguration>({
+			sessionTypes: ['cloud-agent'], description: '', timeZone: 'UTC', targetChangeDisabledReason: '',
+			tools: constObservable<AutomationToolCatalog>({ kind: 'ready', groups: [] }), loadTools: () => { },
+			pickWorkspace: async () => undefined,
+			getWorkspaceTarget: uri => constObservable({
+				workspace: extUri.isEqual(uri, first) ? URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/owner-one/shared/HEAD' }) : undefined,
+				disabledReason: extUri.isEqual(uri, second) ? 'Cloud automations cannot be managed for this repository.' : undefined,
+				isRepository: true,
+				repositoryLabel: extUri.isEqual(uri, first) ? 'owner-one/shared' : 'owner-two/shared',
+			}),
+		}));
+		picker.setCloudMode(cloudMode);
+		const desktop = picker.getItems().filter(row => row.kind === ActionListItemKind.Action && row.label === 'shared').map(row => ({
+			label: row.label,
+			description: typeof row.description === 'string' ? row.description : row.description?.value,
+			tooltip: row.tooltip,
+			ariaDescription: row.ariaDescription,
+		}));
+		const mobile = buildMobileWorkspacePickerRows(picker.getMobileItems().filter(row => row.kind === ActionListItemKind.Action && row.label === 'shared'), () => { })
+			.map(row => ({ label: row.sheetItem.label, description: row.sheetItem.description, disabled: row.sheetItem.disabled }));
+		assert.deepStrictEqual({ desktop, mobile }, {
+			desktop: [
+				{ label: 'shared', description: 'owner-one/shared', tooltip: 'owner-one/shared', ariaDescription: 'owner-one/shared' },
+				{
+					label: 'shared', description: '$(info) owner-two/shared', tooltip: 'owner-two/shared. Cloud automations cannot be managed for this repository.',
+					ariaDescription: 'owner-two/shared. Cloud automations cannot be managed for this repository.',
+				},
+			],
+			mobile: [
+				{ label: 'shared', description: 'owner-one/shared', disabled: false },
+				{ label: 'shared', description: 'owner-two/shared. Cloud automations cannot be managed for this repository.', disabled: true },
+			],
 		});
 	});
 
@@ -4744,18 +5542,18 @@ suite('AutomationsWorkspacePicker', () => {
 			return picker;
 		};
 		const repository = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/owner/app/HEAD' });
-		const publicReason = 'Cloud automations require a private GitHub repository. This repository is public.';
+		const publicReason = 'Cloud automations require a supported repository on GitHub.com.';
 		const cases = [
 			{
 				name: 'enabled and disabled rows with the same name', folders: [
 					{ uri: URI.file('/local/org-a/app'), target: { workspace: repository } },
-					{ uri: URI.file('/local/org-b/app'), target: { isPublicRepository: true } },
+					{ uri: URI.file('/local/org-b/app'), target: { isRepository: true } },
 				]
 			},
 			{
 				name: 'disabled rows with the same name', folders: [
-					{ uri: URI.file('/local/org-a/app'), target: { isPublicRepository: true } },
-					{ uri: URI.file('/local/org-b/app'), target: { isPublicRepository: true } },
+					{ uri: URI.file('/local/org-a/app'), target: { isRepository: true } },
+					{ uri: URI.file('/local/org-b/app'), target: { isRepository: true } },
 				]
 			},
 			{ name: 'no repositories', folders: [] },
@@ -4777,19 +5575,19 @@ suite('AutomationsWorkspacePicker', () => {
 			{
 				name: 'enabled and disabled rows with the same name',
 				rows: [
-					{ ariaLabel: 'app, /local/org-a', hover: '/local/org-a', disabled: false },
-					{ ariaLabel: `app, /local/org-b, unavailable. ${publicReason}`, hover: `/local/org-b — ${publicReason}`, disabled: true },
+					{ ariaLabel: 'app, /local/org-a', hover: undefined, disabled: false },
+					{ ariaLabel: `app, /local/org-b, unavailable. ${publicReason}`, hover: publicReason, disabled: true },
 				],
-				mobileDescriptions: ['/local/org-a', `/local/org-b — ${publicReason}`],
+				mobileDescriptions: [undefined, publicReason],
 				mobileFirst: addRepository,
 			},
 			{
 				name: 'disabled rows with the same name',
 				rows: [
-					{ ariaLabel: `app, /local/org-a, unavailable. ${publicReason}`, hover: `/local/org-a — ${publicReason}`, disabled: true },
-					{ ariaLabel: `app, /local/org-b, unavailable. ${publicReason}`, hover: `/local/org-b — ${publicReason}`, disabled: true },
+					{ ariaLabel: `app, /local/org-a, unavailable. ${publicReason}`, hover: publicReason, disabled: true },
+					{ ariaLabel: `app, /local/org-b, unavailable. ${publicReason}`, hover: publicReason, disabled: true },
 				],
-				mobileDescriptions: [`/local/org-a — ${publicReason}`, `/local/org-b — ${publicReason}`],
+				mobileDescriptions: [publicReason, publicReason],
 				mobileFirst: addRepository,
 			},
 			{ name: 'no repositories', rows: [], mobileDescriptions: [], mobileFirst: addRepository },
@@ -4899,7 +5697,7 @@ suite('AutomationsWorkspacePicker', () => {
 			picker.render(container);
 			const trigger = container.querySelector<HTMLElement>('.action-label')!;
 			trigger.click();
-			for (const key of ['Enter', ' ']) {
+			for (const key of ['Enter', ' ', 'ArrowDown']) {
 				trigger.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
 			}
 			picker.showPicker(true, trigger);
@@ -4922,7 +5720,7 @@ suite('AutomationsWorkspacePicker', () => {
 		});
 	}
 
-	test('Add repository rejects a non-private repository and rechecks eligibility at selection', async () => {
+	test('Add repository rejects an unmanageable repository and rechecks eligibility at selection', async () => {
 		const providersService = disposables.add(new MockSessionsProvidersService());
 		const provider = createMockProvider('github');
 		const folderUri = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/owner/project/HEAD' });
@@ -4932,7 +5730,7 @@ suite('AutomationsWorkspacePicker', () => {
 		const picker = createTestPicker(disposables, providersService, storage, undefined, TestAutomationsWorkspacePicker,
 			undefined, undefined, undefined, { restoreFromSessions: false, canRestoreWorkspace: () => false });
 		assert.ok(picker instanceof TestAutomationsWorkspacePicker);
-		const target = observableValue<IAutomationWorkspaceTarget>('target', { disabledReason: 'The repository must be private.' });
+		const target = observableValue<IAutomationWorkspaceTarget>('target', { disabledReason: 'Cloud automations cannot be managed for this repository.' });
 		picker.setCloudConfiguration(constObservable<IAutomationProviderConfiguration>({
 			sessionTypes: ['cloud-agent'], description: '', timeZone: 'UTC', targetChangeDisabledReason: '', tools: constObservable<AutomationToolCatalog>({ kind: 'ready', groups: [] }), loadTools: () => { },
 			pickWorkspace: async () => folderUri,
@@ -4948,14 +5746,14 @@ suite('AutomationsWorkspacePicker', () => {
 			icon: disabledRepository?.group?.icon?.id,
 			disabled: disabledRepository?.disabled,
 			reason: disabledRepository?.ariaDescription,
-		}, { icon: 'repo', disabled: true, reason: 'The repository must be private.' });
+		}, { icon: 'repo', disabled: true, reason: 'Cloud automations cannot be managed for this repository.' });
 		await picker.select('Add repository');
 		target.set({ workspace: folderUri }, undefined);
 		const enabled = picker.getItems().find(row => row.item?.folderUri)?.disabled;
 		target.set({ disabledReason: 'Repository access changed.' }, undefined);
 		await picker.select('Add repository');
 		assert.deepStrictEqual({ enabled, errors, selected: picker.selectedFolderUri }, {
-			enabled: false, errors: ['The repository must be private.', 'Repository access changed.'], selected: undefined,
+			enabled: false, errors: ['Cloud automations cannot be managed for this repository.', 'Repository access changed.'], selected: undefined,
 		});
 		target.set({ workspace: folderUri }, undefined);
 		assert.strictEqual(picker.getItems().find(row => row.item?.folderUri)?.group?.icon?.id, 'repo');
@@ -5841,6 +6639,7 @@ function createTestablePicker(
 	instantiationService.stub(IActionWidgetService, actionWidgetService);
 	instantiationService.stub(IContextViewService, { showContextView: () => ({ close: () => { } }), hideContextView: () => { }, layout: () => { } });
 	instantiationService.stub(IStorageService, storageService);
+	instantiationService.stub(IKeybindingService, new MockKeybindingService());
 	instantiationService.stub(IUriIdentityService, { extUri });
 	instantiationService.stub(ISessionsProvidersService, providersService);
 	instantiationService.stub(IAgentHostFilterService, agentHostFilterService);
@@ -6136,6 +6935,24 @@ suite('WorkspacePicker - Tab discovery', () => {
 			filterPlaceholder: 'Search',
 		});
 	});
+
+	for (const unified of [false, true]) {
+		test(`uses available height for the ${unified ? 'unified' : 'category'} workspace picker`, () => {
+			let listOptions: IActionListOptions | undefined;
+			const picker = createTestablePicker(disposables, providersService, false, {}, undefined, undefined, unified, {
+				isVisible: false,
+				hide: () => { },
+				show: (_user, _supportsPreview, _items, _delegate, _anchor, _container, _actions, _accessibilityProvider, options) => {
+					listOptions = options;
+				},
+			});
+			picker.showPicker(false, document.createElement('button'));
+			assert.deepStrictEqual({
+				useFullHeight: listOptions?.useFullHeight,
+				showFilter: picker.showsFilter(),
+			}, { useFullHeight: true, showFilter: unified });
+		});
+	}
 
 	test('caps recent workspaces in the unified picker so Remote remains visible', () => {
 		const storage = disposables.add(new TestStorageService());
@@ -6457,35 +7274,41 @@ suite('WorkspacePicker - Tab discovery', () => {
 		});
 	});
 
-	test('opens Chat as a host submenu when targets are provided', async () => {
-		const selectedHosts: string[] = [];
-		const picker = createTestablePicker(disposables, providersService, true, {
-			getNoWorkspaceOption: () => ({
-				description: 'Start without a backing workspace',
-				isSelected: false,
-				select: () => selectedHosts.push('default'),
-				submenuActions: [
-					toAction({ id: 'quickChat.local', label: 'Local', run: () => selectedHosts.push('local') }),
-					toAction({ id: 'quickChat.remote', label: 'Test Remote', run: () => selectedHosts.push('remote') }),
-				],
-			}),
-		}, undefined, undefined, true);
-		const chatItem = picker.getItems().find(item => item.label === 'Chat');
+	for (const experimentalComposerLayout of [false, true]) {
+		test(`opens Chat as an anchored host submenu with pointer intent (experimental composer: ${experimentalComposerLayout})`, async () => {
+			const selectedHosts: string[] = [];
+			const picker = createTestablePicker(disposables, providersService, true, {
+				getNoWorkspaceOption: () => ({
+					description: 'Start without a backing workspace',
+					isSelected: false,
+					select: () => selectedHosts.push('default'),
+					submenuActions: [
+						toAction({ id: 'quickChat.local', label: 'Local', run: () => selectedHosts.push('local') }),
+						toAction({ id: 'quickChat.remote', label: 'Test Remote', run: () => selectedHosts.push('remote') }),
+					],
+				}),
+			}, undefined, undefined, true, undefined, experimentalComposerLayout);
+			const chatItem = picker.getItems().find(item => item.label === 'Chat');
 
-		await picker.selectSubmenu('Chat', 'Test Remote');
+			await picker.selectSubmenu('Chat', 'Test Remote');
 
-		assert.deepStrictEqual({
-			openSubmenuOnClick: chatItem?.openSubmenuOnClick,
-			ariaDescription: chatItem?.ariaDescription,
-			actions: chatItem?.submenuActions?.map(action => action.label),
-			selectedHosts,
-		}, {
-			openSubmenuOnClick: true,
-			ariaDescription: 'Start the session in a temporary directory.',
-			actions: ['Local', 'Test Remote'],
-			selectedHosts: ['remote'],
+			assert.deepStrictEqual({
+				openSubmenuOnClick: chatItem?.openSubmenuOnClick,
+				hover: chatItem?.hover,
+				submenuPointerIntent: picker.getListOptions().submenuPointerIntent,
+				ariaDescription: chatItem?.ariaDescription,
+				actions: chatItem?.submenuActions?.map(action => action.label),
+				selectedHosts,
+			}, {
+				openSubmenuOnClick: true,
+				hover: { preserveVerticalPosition: true, alignToAnchorTop: true },
+				submenuPointerIntent: true,
+				ariaDescription: 'Start the session in a temporary directory.',
+				actions: ['Local', 'Test Remote'],
+				selectedHosts: ['remote'],
+			});
 		});
-	});
+	}
 
 	test('persists Chat as the checked selection until a workspace is selected', () => {
 		const storage = disposables.add(new TestStorageService());
@@ -6586,59 +7409,6 @@ suite('WorkspacePicker - Tab discovery', () => {
 		}, {
 			items: ['Issue'],
 			showsFilter: false,
-		});
-	});
-
-	test('exposes GitHub context actions through Add Context', async () => {
-		const localProvider = createMockProvider('local');
-		const provider = createMockProvider('github');
-		const issueUri = URI.parse('https://github.com/microsoft/vscode/issues/1');
-		const issueWorkspace = {
-			...provider.resolveWorkspace(URI.file('/github/issue'))!,
-			uri: issueUri,
-			group: SESSION_WORKSPACE_GROUP_GITHUB,
-		};
-		let contextActionWorkspace: ISessionWorkspace | undefined;
-		providersService.setProviders([localProvider, {
-			...provider,
-			resolveWorkspace: uri => {
-				const workspace = provider.resolveWorkspace(uri);
-				return workspace ? { ...workspace, label: 'GitHub-resolved selection', group: SESSION_WORKSPACE_GROUP_GITHUB } : undefined;
-			},
-			browseActions: [{
-				...makeBrowseAction('github', SESSION_WORKSPACE_GROUP_GITHUB, 'Issue...'),
-				attachesContext: true,
-				run: async workspace => {
-					contextActionWorkspace = workspace;
-					return issueWorkspace;
-				},
-			}],
-		}]);
-		const picker = createTestablePicker(disposables, providersService);
-		const selectedContexts: string[] = [];
-		disposables.add(picker.onDidSelectContext(context => selectedContexts.push(context.uri.toString())));
-
-		const actionsWithoutRepository = picker.getContextPickerActions();
-		picker.setSelectedWorkspace(URI.file('/microsoft/vscode'), { fireEvent: false, persist: false });
-		const actions = picker.getContextPickerActions();
-		await actions[0].run();
-
-		assert.deepStrictEqual({
-			actionsWithoutRepository: actionsWithoutRepository.map(action => action.label),
-			actions: actions.map(action => action.label),
-			contextActionWorkspace: contextActionWorkspace && {
-				uri: contextActionWorkspace.uri.toString(),
-				label: contextActionWorkspace.label,
-			},
-			selectedContexts,
-		}, {
-			actionsWithoutRepository: ['Issue...'],
-			actions: ['Issue...'],
-			contextActionWorkspace: {
-				uri: URI.file('/microsoft/vscode').toString(),
-				label: 'GitHub-resolved selection',
-			},
-			selectedContexts: [issueUri.toString()],
 		});
 	});
 

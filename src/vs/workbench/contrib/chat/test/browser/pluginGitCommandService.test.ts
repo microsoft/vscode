@@ -71,7 +71,7 @@ suite('BrowserPluginGitCommandService', () => {
 				'https://github.com/octocat/Hello-World/',
 				'https://github.com/octocat/Hello-World.git/',
 				'https://www.github.com/octocat/Hello-World',
-			].map(parseGitHubCloneUrl), Array(4).fill({ owner: 'octocat', name: 'Hello-World' }));
+			].map(parseGitHubCloneUrl), Array(4).fill({ owner: 'octocat', repo: 'Hello-World' }));
 		});
 
 		test('rejects unsupported hosts, protocols and extra path segments', () => {

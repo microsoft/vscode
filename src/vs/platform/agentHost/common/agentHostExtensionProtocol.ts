@@ -7,6 +7,7 @@ import { ValidatorBase, vBoolean, vEnum, vObj, vOptionalProp, vString, type Vali
 import type { IJSONSchema } from '../../../base/common/jsonSchema.js';
 import type { IDevContainerAgentHostConnectResult } from './devContainerAgentHost.js';
 import type { AgentHostDebugLogsArtifactKind, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult } from './agentService.js';
+import type { McpServerAuthenticateTarget } from './state/sessionProtocol.js';
 import type { InitializeResult } from './state/protocol/common/commands.js';
 import type { McpAuthRequirement } from './state/protocol/channels-session/state.js';
 import { AgentHostArtifactRemovalCapabilityMetaKey } from './meta/agentHostArtifactRemovalMeta.js';
@@ -21,9 +22,16 @@ import type { IAgentHostSavedChatDto, IAgentHostSavedChatContinuationResult } fr
 import { AgentHostAutonomousAutomationsCapabilityMetaKey } from './meta/agentHostAutomationsMeta.js';
 import { AgentHostChatUrisCapabilityMetaKey, AgentHostNativeImplementationMetaKey, AgentHostSessionUrisCapabilityMetaKey } from './meta/agentHostSessionUrisMeta.js';
 import { AgentHostDebugLogsCancellationCapabilityMetaKey } from './meta/agentHostDebugLogsMeta.js';
+import { AgentHostWorktreeDiskUsageCapabilityMetaKey } from './meta/agentHostWorktreeDiskUsageMeta.js';
+import { AgentHostCreateChatWorkspaceCapabilityMetaKey, chatWorkspaceValueValidator } from './meta/agentHostCreateChatWorkspaceMeta.js';
+import { AgentHostCreateSessionImportCapabilityMetaKey, StageCreateSessionImportChunkExtensionMethod, stageCreateSessionImportChunkParamsValidator, supportsAgentHostCreateSessionImport } from './meta/agentHostCreateSessionImportMeta.js';
 import { InstallSandboxCertificateExtensionMethod, RemoveSandboxCertificateExtensionMethod, RotateSandboxCertificateExtensionMethod, sandboxCertificateParamsValidator } from './sandboxCertificateProtocol.js';
+import { AgentHostArtifactIntegrationsCapabilityMetaKey, AgentHostArtifactNoticesCapabilityMetaKey } from './meta/agentHostArtifactIntegrationMeta.js';
+import type { ArtifactIntegrationRequest, ArtifactIntegrationResponse, ArtifactIntegrationUpdate } from '../../artifactIntegrations/common/artifactIntegrationProtocol.js';
+import type { ArtifactIntegrationDescriptor } from '../../artifactIntegrations/common/artifactIntegration.js';
 
 export { supportsAgentHostArtifactRemoval } from './meta/agentHostArtifactRemovalMeta.js';
+export { StageCreateSessionImportChunkExtensionMethod, stageCreateSessionImportChunkParamsValidator, supportsAgentHostCreateSessionImport };
 export { supportsAgentHostDevContainers } from './meta/agentHostDevContainersMeta.js';
 export { supportsAgentHostSessionMove } from './meta/agentHostSessionMoveMeta.js';
 
@@ -66,27 +74,52 @@ export const RequestAgentHostWorkspaceTrustExtensionMethod = 'vscode/requestWork
 export const RequestAgentHostMcpAuthenticationExtensionMethod = 'vscode/requestMcpAuthentication';
 export const RemoveSessionArtifactExtensionMethod = 'vscode/removeSessionArtifact';
 export const StopBackgroundWorkExtensionMethod = 'vscode/stopBackgroundWork';
+export const MeasureWorktreeDiskUsageExtensionMethod = 'vscode/measureWorktreeDiskUsage';
+export const CancelWorktreeDiskUsageExtensionMethod = 'vscode/cancelWorktreeDiskUsage';
+export const measureWorktreeDiskUsageParamsValidator = vObj({ uri: vString(), requestId: vString() });
+export const cancelWorktreeDiskUsageParamsValidator = vObj({ requestId: vString() });
 export const ImportSessionExtensionMethod = 'vscode/importSession';
 /**
  * Moves a single-chat session under another session (Block 4); advertised by `vscode.sessionMove` whether or not moving
  * chats is enabled, which can change after a client connected. A move while it is off is refused with `disabled`.
  */
 export const MoveAgentHostSessionExtensionMethod = 'vscode/moveSession';
+/**
+ * Applies a workspace (folder, worktree or scratch folder) to an existing peer chat that hasn't started a turn, as
+ * `createChat` does with `vscode.chatWorkspace`; gated by the same `vscode.createChatWorkspace` capability.
+ */
+export const SetChatWorkspaceExtensionMethod = 'vscode/setChatWorkspace';
 export const ReadSavedChatExtensionMethod = 'vscode/readSavedChat';
 export const CompleteSavedChatContinuationExtensionMethod = 'vscode/completeSavedChatContinuation';
 export const ReportAgentHostFirstResponseExtensionMethod = 'vscode/reportAgentHostFirstResponse';
 export const ReportChatUserInteractionExtensionMethod = 'vscode/reportChatUserInteraction';
+export const ArtifactIntegrationExtensionMethod = 'vscode/artifactIntegrations';
+export const ArtifactIntegrationUpdateNotification = 'vscode/artifactIntegrations/update';
+/** Client → host: offers or withdraws the client's own integrations; an empty list withdraws them. */
+export const RegisterClientArtifactIntegrationsExtensionMethod = 'vscode/clientArtifactIntegrations/register';
+/** Client → host: an update for a subscription the host opened on the client's integrations. */
+export const ClientArtifactIntegrationUpdateExtensionMethod = 'vscode/clientArtifactIntegrations/update';
+/** Host → client: a request against the client's own integrations. */
+export const ClientArtifactIntegrationExtensionMethod = 'vscode/clientArtifactIntegrations';
+
 const AgentHostChatStateFileCapabilityMetaKey = 'vscode.getAgentHostSessionStateFile.chat';
 const AgentHostDetachedWorktreeCapabilityMetaKey = 'vscode.detachedWorktrees';
 
 /** Namespaced VS Code implementation capabilities carried alongside standardized AHP initialize capabilities. */
 export interface IAgentHostExtensionInitializeResultMeta extends Record<string, unknown> {
+	readonly [AgentHostArtifactIntegrationsCapabilityMetaKey]?: 1;
+	readonly [AgentHostArtifactNoticesCapabilityMetaKey]?: 1;
+	readonly [AgentHostWorktreeDiskUsageCapabilityMetaKey]?: true;
 	readonly [AgentHostDebugLogsCancellationCapabilityMetaKey]?: true;
 	readonly [AgentHostSessionUrisCapabilityMetaKey]?: true;
 	readonly [AgentHostChatUrisCapabilityMetaKey]?: true;
 	readonly [AgentHostNativeImplementationMetaKey]?: true;
 	readonly [AgentHostChatStateFileCapabilityMetaKey]?: true;
 	readonly [AgentHostDetachedWorktreeCapabilityMetaKey]?: true;
+	/** Present when `createChat` honors a requested chat workspace (folder, worktree or scratch folder). */
+	readonly [AgentHostCreateChatWorkspaceCapabilityMetaKey]?: true;
+	/** Present when `createSession` honors an imported conversation on `_meta`. */
+	readonly [AgentHostCreateSessionImportCapabilityMetaKey]?: true;
 	readonly [AgentHostSavedChatCapabilityMetaKey]?: true;
 	readonly [AgentHostSavedChatContinuationCapabilityMetaKey]?: true;
 	readonly [AgentHostArtifactRemovalCapabilityMetaKey]?: true;
@@ -104,7 +137,7 @@ export interface IAgentHostExtensionInitializeResult extends InitializeResult {
 	readonly _meta?: IAgentHostExtensionInitializeResultMeta;
 }
 
-export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true, devContainers = false, timing = false, sessionImport = false, savedChat = false, savedChatContinuation = false, sessionMove = false): IAgentHostExtensionInitializeResultMeta {
+export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true, devContainers = false, timing = false, sessionImport = false, savedChat = false, savedChatContinuation = false, sessionMove = false, artifactIntegrations = false): IAgentHostExtensionInitializeResultMeta {
 	return {
 		[AgentHostDebugLogsCancellationCapabilityMetaKey]: true,
 		[AgentHostSessionUrisCapabilityMetaKey]: true,
@@ -112,6 +145,8 @@ export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true
 		[AgentHostNativeImplementationMetaKey]: true,
 		[AgentHostChatStateFileCapabilityMetaKey]: true,
 		[AgentHostDetachedWorktreeCapabilityMetaKey]: true,
+		[AgentHostCreateChatWorkspaceCapabilityMetaKey]: true,
+		[AgentHostCreateSessionImportCapabilityMetaKey]: true,
 		[AgentHostAutonomousAutomationsCapabilityMetaKey]: true,
 		[AgentHostArtifactRemovalCapabilityMetaKey]: artifactRemoval ? true : undefined,
 		...(savedChat ? { [AgentHostSavedChatCapabilityMetaKey]: true as const } : {}),
@@ -121,6 +156,7 @@ export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true
 		...(devContainers ? { [AgentHostDevContainersCapabilityMetaKey]: true as const } : {}),
 		...(timing ? { [AgentHostTimingCapabilityMetaKey]: true as const } : {}),
 		...(timing ? { [ChatUserInteractionCapability]: true as const } : {}),
+		...(artifactIntegrations ? { [AgentHostArtifactIntegrationsCapabilityMetaKey]: 1 as const, [AgentHostArtifactNoticesCapabilityMetaKey]: 1 as const } : {}),
 	};
 }
 
@@ -132,6 +168,12 @@ export function supportsAgentHostChatStateFile(result: IAgentHostExtensionInitia
 export function supportsAgentHostDetachedWorktrees(result: IAgentHostExtensionInitializeResult | undefined): boolean {
 	const meta = result?._meta;
 	return meta?.[AgentHostDetachedWorktreeCapabilityMetaKey] === true;
+}
+
+/** Whether the host honors a workspace requested for a new peer chat on `createChat`. */
+export function supportsAgentHostCreateChatWorkspace(result: IAgentHostExtensionInitializeResult | undefined): boolean {
+	const meta = result?._meta;
+	return meta?.[AgentHostCreateChatWorkspaceCapabilityMetaKey] === true;
 }
 
 export const collectAgentHostDebugLogsParamsValidator = vObj({
@@ -155,6 +197,9 @@ export const stopBackgroundWorkParamsValidator = vObj({
 });
 
 export const importSessionParamsValidator = vObj({ session: vString() });
+
+/** `workspace` has the shape of the `vscode.chatWorkspace` `createChat` `_meta` value. */
+export const setChatWorkspaceParamsValidator = vObj({ chat: vString(), workspace: chatWorkspaceValueValidator });
 
 class StringOrNullValidator extends ValidatorBase<string | null> {
 	validate(content: unknown): { content: string | null; error: undefined } | { content: undefined; error: ValidationError } {
@@ -182,15 +227,29 @@ export const readSavedChatParamsValidator = vObj({ session: vString(), chat: vOp
 export const completeSavedChatContinuationParamsValidator = vObj({ session: vString(), chat: vString(), identity: vString(), destination: vString() });
 
 export interface IAgentHostExtensionCommandMap {
+	[MeasureWorktreeDiskUsageExtensionMethod]: {
+		params: ValidatorType<typeof measureWorktreeDiskUsageParamsValidator>;
+		/** Allocated regular-file bytes on the root volume, excluding files with links outside the measured worktree. */
+		result: { sizeBytes?: number };
+	};
+	[CancelWorktreeDiskUsageExtensionMethod]: {
+		params: ValidatorType<typeof cancelWorktreeDiskUsageParamsValidator>;
+		result: void;
+	};
 	[InstallSandboxCertificateExtensionMethod]: { params: ValidatorType<typeof sandboxCertificateParamsValidator>; result: void };
 	[RotateSandboxCertificateExtensionMethod]: { params: ValidatorType<typeof sandboxCertificateParamsValidator>; result: void };
 	[RemoveSandboxCertificateExtensionMethod]: { params: ValidatorType<typeof sandboxCertificateParamsValidator>; result: void };
 	[ReadSavedChatExtensionMethod]: { params: ValidatorType<typeof readSavedChatParamsValidator>; result: IAgentHostSavedChatDto };
 	[CompleteSavedChatContinuationExtensionMethod]: { params: ValidatorType<typeof completeSavedChatContinuationParamsValidator>; result: IAgentHostSavedChatContinuationResult };
+	[StageCreateSessionImportChunkExtensionMethod]: { params: ValidatorType<typeof stageCreateSessionImportChunkParamsValidator>; result: void };
 	[ImportSessionExtensionMethod]: { params: ValidatorType<typeof importSessionParamsValidator>; result: void };
 	[MoveAgentHostSessionExtensionMethod]: { params: ValidatorType<typeof moveSessionParamsValidator>; result: { session: string } };
+	[SetChatWorkspaceExtensionMethod]: { params: ValidatorType<typeof setChatWorkspaceParamsValidator>; result: void };
 	[ReportAgentHostFirstResponseExtensionMethod]: { params: IAgentHostFirstResponseDiagnostic; result: void };
 	[ReportChatUserInteractionExtensionMethod]: { params: IChatUserInteractionTiming; result: void };
+	[ArtifactIntegrationExtensionMethod]: { params: ArtifactIntegrationRequest; result: ArtifactIntegrationResponse };
+	[RegisterClientArtifactIntegrationsExtensionMethod]: { params: { readonly integrations: readonly ArtifactIntegrationDescriptor[] }; result: void };
+	[ClientArtifactIntegrationUpdateExtensionMethod]: { params: ArtifactIntegrationUpdate; result: void };
 	[DevContainerIsDockerAvailableExtensionMethod]: { params: undefined; result: boolean };
 	[DevContainerConnectExtensionMethod]: { params: ValidatorType<typeof devContainerConnectParamsValidator>; result: IDevContainerAgentHostConnectResult };
 	[DevContainerDisconnectExtensionMethod]: { params: ValidatorType<typeof devContainerConnectionParamsValidator>; result: void };
@@ -250,6 +309,7 @@ export interface IAgentHostExtensionCommandMap {
 }
 
 export interface IAgentHostExtensionNotificationMap {
+	[ArtifactIntegrationUpdateNotification]: ArtifactIntegrationUpdate;
 	[DevContainerRelayMessageNotification]: ValidatorType<typeof devContainerRelayMessageValidator>;
 	[DevContainerRelayCloseNotification]: ValidatorType<typeof devContainerConnectionParamsValidator>;
 	[DevContainerCloseConnectionNotification]: ValidatorType<typeof devContainerConnectionParamsValidator>;
@@ -269,6 +329,8 @@ export interface IAgentHostWorkspaceTrustRequest {
  * `authenticate` command before responding.
  */
 export interface IAgentHostMcpAuthenticationRequest {
+	/** Absent from hosts that predate targeted MCP authentication. */
+	readonly target?: McpServerAuthenticateTarget;
 	readonly serverName: string;
 	readonly auth: McpAuthRequirement;
 }
@@ -277,6 +339,10 @@ export interface IAgentHostExtensionServerCommandMap {
 	[RequestAgentHostWorkspaceTrustExtensionMethod]: {
 		params: IAgentHostWorkspaceTrustRequest;
 		result: { trusted: boolean };
+	};
+	[ClientArtifactIntegrationExtensionMethod]: {
+		params: ArtifactIntegrationRequest;
+		result: ArtifactIntegrationResponse;
 	};
 	[RequestAgentHostMcpAuthenticationExtensionMethod]: {
 		params: IAgentHostMcpAuthenticationRequest;

@@ -135,11 +135,8 @@ function phaseLabel(kind: FusionPhase['phaseKind'], pattern: FusionPhase['patter
 	}
 }
 
-function milestone(summary: string, status: AgentFusionProgressStatus, fusionModel: string | undefined, details?: string, description?: string): SystemNotificationResponsePart {
+function milestone(summary: string, status: AgentFusionProgressStatus, fusionModel: string | undefined, details?: string): SystemNotificationResponsePart {
 	const content = new MarkdownString().appendText(summary);
-	if (description) {
-		content.appendMarkdown('\n\n').appendMarkdown(escapeMarkdownSyntaxTokens(description));
-	}
 	if (details) {
 		content.appendMarkdown('\n\n').appendText(details);
 	}
@@ -149,7 +146,6 @@ function milestone(summary: string, status: AgentFusionProgressStatus, fusionMod
 		_meta: toAgentSystemNotificationMeta({
 			kind: AgentSystemNotificationKind.FusionProgress,
 			fusionStatus: status,
-			fusionDescription: status === 'selected' ? description ?? '' : undefined,
 			fusionModel,
 		}),
 	};
@@ -243,7 +239,8 @@ export class CopilotFusionProgress {
 				this._fusionId = d.fusionId;
 				this._syntheticModel = d.syntheticModel;
 				this._patterns.set(d.fusionId, d.pattern);
-				part = milestone(localize('copilot.fusion.selected', "Selected {0} workflow", patternLabel(d.pattern)), 'selected', d.syntheticModel, undefined, d.hint);
+				// The runtime's workflow hint (e.g. "Using Single: ...") is not shown; the milestone only names the HydraFusion model.
+				part = milestone(localize('copilot.fusion.selected', "Selected {0} workflow", patternLabel(d.pattern)), 'selected', d.syntheticModel);
 				this._activity = localize('copilot.fusion.preparing', "Preparing the {0} workflow...", patternLabel(d.pattern));
 				break;
 			}

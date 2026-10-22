@@ -14,6 +14,8 @@ import { ColorThemeData } from '../../../services/themes/common/colorThemeData.j
 // Register shared product tokens before generating and caching any fixture theme CSS.
 import '../../../common/agentsColors.js';
 import '../../../common/agentsSizes.js';
+import '../../../contrib/chat/browser/widget/input/modelPicker/modelPickerColors.js';
+import '../../../contrib/welcomeGettingStarted/browser/gettingStartedColors.js';
 
 const themingRegistry = Registry.as<IThemingRegistry>(ThemingExtensions.ThemingContribution);
 const mockEnvironmentService: IEnvironmentService = Object.create(null);

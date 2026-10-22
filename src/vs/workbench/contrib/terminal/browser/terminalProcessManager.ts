@@ -121,7 +121,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	readonly onProcessReplayComplete = this._onProcessReplayComplete.event;
 	private readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty>());
 	readonly onDidChangeProperty = this._onDidChangeProperty.event;
-	private readonly _onEnvironmentVariableInfoChange = this._register(new Emitter<IEnvironmentVariableInfo>());
+	private readonly _onEnvironmentVariableInfoChange = this._register(new Emitter<IEnvironmentVariableInfo | undefined>());
 	readonly onEnvironmentVariableInfoChanged = this._onEnvironmentVariableInfoChange.event;
 	private readonly _onProcessExit = this._register(new Emitter<number | undefined>());
 	readonly onProcessExit = this._onProcessExit.event;
@@ -187,7 +187,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 		if (environmentVariableCollections) {
 			this._extEnvironmentVariableCollection = new MergedEnvironmentVariableCollection(environmentVariableCollections);
-			this._environmentVariableCollectionListener.value = this._environmentVariableService.onDidChangeCollections(newCollection => this._onEnvironmentVariableCollectionChange(newCollection));
+			this._environmentVariableCollectionListener.value = this._environmentVariableService.onDidChangeCollections(() => this._onEnvironmentVariableCollectionChange());
 			this.environmentVariableInfo = this._instantiationService.createInstance(EnvironmentVariableInfoChangesActive, this._extEnvironmentVariableCollection);
 			this._onEnvironmentVariableInfoChange.fire(this.environmentVariableInfo);
 		}
@@ -284,13 +284,14 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				this.userHome = remoteEnv.userHome.path;
 				this.os = remoteEnv.os;
 
-				// this is a copy of what the merged environment collection is on the remote side
-				const env = await this._resolveEnvironment(backend, variableResolver, shellLaunchConfig);
 				const shouldPersist = ((this._configurationService.getValue(TaskSettingId.Reconnection) && shellLaunchConfig.reconnectionProperties) || !shellLaunchConfig.isFeatureTerminal) && this._terminalConfigurationService.config.enablePersistentSessions && !shellLaunchConfig.isTransient;
 				if (shellLaunchConfig.attachPersistentProcess) {
 					const result = await backend.attachToProcess(shellLaunchConfig.attachPersistentProcess.id);
 					if (result) {
 						newProcess = result;
+						if (this._extEnvironmentVariableCollection) {
+							this._onEnvironmentVariableCollectionChange();
+						}
 					} else {
 						// Warn and just create a new terminal if attach failed for some reason
 						this._logService.warn(`Attach to process failed for terminal`, shellLaunchConfig.attachPersistentProcess);
@@ -298,6 +299,10 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 					}
 				}
 				if (!newProcess) {
+					// This is a copy of what the merged environment collection is on the remote side.
+					// Do not resolve it until attachment has failed: an attached process retains its
+					// actual historical collection as the diff baseline until it is relaunched.
+					const env = await this._resolveEnvironment(backend, variableResolver, shellLaunchConfig);
 					await this._terminalProfileResolverService.resolveShellLaunchConfig(shellLaunchConfig, {
 						remoteAuthority: this.remoteAuthority,
 						os: this.os
@@ -309,7 +314,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 							nonce: this.shellIntegrationNonce
 						},
 						windowsUseConptyDll: this._terminalConfigurationService.config.windowsUseConptyDll ?? false,
-						environmentVariableCollections: this._extEnvironmentVariableCollection?.collections ? serializeEnvironmentVariableCollections(this._extEnvironmentVariableCollection.collections) : undefined,
+						environmentVariableCollections: shouldUseEnvironmentVariableCollection(shellLaunchConfig) && this._extEnvironmentVariableCollection?.collections ? serializeEnvironmentVariableCollections(this._extEnvironmentVariableCollection.collections) : undefined,
 						workspaceFolder: this._cwdWorkspaceFolder,
 						isScreenReaderOptimized: this._accessibilityService.isScreenReaderOptimized()
 					};
@@ -341,6 +346,9 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 					const result = findRevivedId ? await backend.attachToRevivedProcess(id, pid) : await backend.attachToProcess(id);
 					if (result) {
 						newProcess = result;
+						if (this._extEnvironmentVariableCollection) {
+							this._onEnvironmentVariableCollectionChange();
+						}
 					} else {
 						// Warn and just create a new terminal if attach failed for some reason
 						this._logService.warn(`Attach to process failed for terminal`, shellLaunchConfig.attachPersistentProcess);
@@ -475,9 +483,9 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		this._logService.debug(`Terminal environment created with ${Object.keys(env).length} variables: ${Object.keys(env).sort().join(', ')}`);
 		this._environmentVariableCollectionListener.clear();
 		if (!this._isDisposed && shouldUseEnvironmentVariableCollection(shellLaunchConfig)) {
-			this._extEnvironmentVariableCollection = this._environmentVariableService.mergedCollection;
+			this._extEnvironmentVariableCollection = this._environmentVariableService.getMergedCollection(this.remoteAuthority, this.os ?? await this.getBackendOS());
 
-			this._environmentVariableCollectionListener.value = this._environmentVariableService.onDidChangeCollections(newCollection => this._onEnvironmentVariableCollectionChange(newCollection));
+			this._environmentVariableCollectionListener.value = this._environmentVariableService.onDidChangeCollections(() => this._onEnvironmentVariableCollectionChange());
 			// For remote terminals, this is a copy of the mergedEnvironmentCollection created on
 			// the remote side. Since the environment collection is synced between the remote and
 			// local sides immediately this is a fairly safe way of enabling the env var diffing and
@@ -488,9 +496,21 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			if (this._extEnvironmentVariableCollection.getVariableMap({ workspaceFolder }).size) {
 				this.environmentVariableInfo = this._instantiationService.createInstance(EnvironmentVariableInfoChangesActive, this._extEnvironmentVariableCollection);
 				this._onEnvironmentVariableInfoChange.fire(this.environmentVariableInfo);
+			} else {
+				this._clearEnvironmentVariableInfo();
 			}
+		} else {
+			this._extEnvironmentVariableCollection = undefined;
+			this._clearEnvironmentVariableInfo();
 		}
 		return env;
+	}
+
+	private _clearEnvironmentVariableInfo(): void {
+		if (this.environmentVariableInfo !== undefined) {
+			this.environmentVariableInfo = undefined;
+			this._onEnvironmentVariableInfoChange.fire(undefined);
+		}
 	}
 
 	private async _launchLocalProcess(
@@ -525,7 +545,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				nonce: this.shellIntegrationNonce
 			},
 			windowsUseConptyDll: this._terminalConfigurationService.config.windowsUseConptyDll ?? false,
-			environmentVariableCollections: this._extEnvironmentVariableCollection ? serializeEnvironmentVariableCollections(this._extEnvironmentVariableCollection.collections) : undefined,
+			environmentVariableCollections: shouldUseEnvironmentVariableCollection(shellLaunchConfig) && this._extEnvironmentVariableCollection ? serializeEnvironmentVariableCollections(this._extEnvironmentVariableCollection.collections) : undefined,
 			workspaceFolder: this._cwdWorkspaceFolder,
 			isScreenReaderOptimized: this._accessibilityService.isScreenReaderOptimized()
 		};
@@ -723,7 +743,11 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		this._onProcessStateChange.fire();
 	}
 
-	private _onEnvironmentVariableCollectionChange(newCollection: IMergedEnvironmentVariableCollection): void {
+	private _onEnvironmentVariableCollectionChange(): void {
+		if (this.os === undefined) {
+			return; // Process creation will compare collections once the backend OS is known.
+		}
+		const newCollection = this._environmentVariableService.getMergedCollection(this.remoteAuthority, this.os);
 		const diff = this._extEnvironmentVariableCollection!.diff(newCollection, { workspaceFolder: this._cwdWorkspaceFolder });
 		if (diff === undefined) {
 			// If there are no longer differences, remove the stale info indicator

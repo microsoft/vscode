@@ -13,7 +13,7 @@ export const ChatMoveConfigKey = {
 	Enabled: 'chatMoves.enabled',
 } as const;
 
-/** Workbench settings mirrored into {@link ChatMoveConfigKey}. */
+/** Workbench settings for moving chats. `Enabled` is mirrored into {@link ChatMoveConfigKey}. */
 export const ChatMoveSettingId = {
 	Enabled: 'chat.agentHost.moveChats.enabled',
 } as const;
@@ -109,6 +109,12 @@ export const enum AgentChatMoveRefusal {
 	NotSingleChat = 'notSingleChat',
 	/** A chat becomes its own session only once its first turn started, which is when every agent persists its conversation. */
 	NotStarted = 'notStarted',
+	/**
+	 * The chat's session and the destination session are sponsored by different credential owners, or only one of them is.
+	 * Credentials never cross owners, so such sessions can't be combined. Client text: "This chat uses a different account's
+	 * credentials than the destination session."
+	 */
+	DifferentCredentialOwner = 'differentCredentialOwner',
 }
 
 /** A chat move the host refused before changing anything. */

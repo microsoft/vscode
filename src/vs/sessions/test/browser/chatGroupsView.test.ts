@@ -23,6 +23,8 @@ import { IContextKeyService } from '../../../platform/contextkey/common/contextk
 import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../platform/actions/common/actions.js';
 import { Menus } from '../../browser/menus.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { ICommandService } from '../../../platform/commands/common/commands.js';
+import { UNARCHIVE_CHAT_COMMAND_ID } from '../../common/sessionCommands.js';
 import { LocalSelectionTransfer } from '../../../platform/dnd/browser/dnd.js';
 import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ColorScheme } from '../../../platform/theme/common/theme.js';
@@ -40,6 +42,7 @@ import { GRID_GAP_SASH_CLASS } from '../../browser/parts/gridGap.js';
 import { SessionDropTarget } from '../../browser/parts/sessionDropTarget.js';
 import { DraggedSessionIdentifier, SessionsDataTransfers } from '../../browser/dnd.js';
 import { SessionActiveChatCanArchiveContext, SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionActiveChatIsUntitledContext, SessionActiveChatResourceContext, SessionFocusedChatIsRenameTargetContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionHeaderTargetsChatContext, SessionToolbarShowsSessionContext } from '../../common/contextkeys.js';
+import { ISessionActivityBarActivityService, SessionActivityBarActivityService } from '../../services/activity/common/sessionActivityBarActivityService.js';
 import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
 import { agentsPanelBorder } from '../../common/theme.js';
 import { type IAgentHostAutoConnect, type IAgentHostConnectProgress, type IAgentHostConnectionLabels, IAgentHostSessionsProvider } from '../../common/agentHostSessionsProvider.js';
@@ -308,6 +311,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, tabsReplaceHea
 					: menu;
 			}
 		}());
+		instantiationService.stub(ISessionActivityBarActivityService, store.add(new SessionActivityBarActivityService()));
 	}
 	const sessionsService = new TestSessionsService();
 	const chatViewFactory = new TestChatViewFactory();
@@ -407,7 +411,7 @@ suite('Sessions - ChatGroupsView', () => {
 		assert.strictEqual(view['_mainChatResource'], undefined);
 	});
 
-	test('aligns transcript overlays with full-width split chats', () => {
+	test('aligns transcript context with full-width split chats', () => {
 		const workbench = mainWindow.document.createElement('div');
 		workbench.classList.add('agent-sessions-workbench');
 		workbench.style.setProperty('--session-view-content-horizontal-padding', '24px');
@@ -417,14 +421,12 @@ suite('Sessions - ChatGroupsView', () => {
 		groups.classList.add('chat-groups-view');
 		const session = mainWindow.document.createElement('div');
 		session.classList.add('interactive-session');
-		const scrollDown = mainWindow.document.createElement('button');
-		scrollDown.classList.add('chat-scroll-down');
 		const list = mainWindow.document.createElement('div');
 		list.classList.add('interactive-list');
 		const transcriptContext = mainWindow.document.createElement('div');
 		transcriptContext.classList.add('chat-transcript-context');
 		list.appendChild(transcriptContext);
-		session.append(scrollDown, list);
+		session.appendChild(list);
 		groups.appendChild(session);
 		sessionsPart.appendChild(groups);
 		workbench.appendChild(sessionsPart);
@@ -432,10 +434,8 @@ suite('Sessions - ChatGroupsView', () => {
 		disposables.add(toDisposable(() => workbench.remove()));
 
 		assert.deepStrictEqual({
-			scrollDownRight: mainWindow.getComputedStyle(scrollDown).right,
 			transcriptContextMaxWidth: mainWindow.getComputedStyle(transcriptContext).maxWidth,
 		}, {
-			scrollDownRight: '24px',
 			transcriptContextMaxWidth: 'none',
 		});
 	});
@@ -3119,6 +3119,32 @@ suite('Sessions - ChatGroupsView', () => {
 			listenerAfterSessionChange: false,
 			listenerBeforeDispose: true,
 			listenerAfterDispose: false,
+		});
+	});
+
+	test('shows the archived banner for an archived nested chat and restores only that chat', () => {
+		const { instantiationService, sessionsProvidersService, view } = createHarness(disposables);
+		const commands: { readonly id: string; readonly args: unknown[] }[] = [];
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+			override async executeCommand<R>(id: string, ...args: unknown[]): Promise<R | undefined> {
+				commands.push({ id, args });
+				return undefined;
+			}
+		}());
+		sessionsProvidersService.provider = new TestAgentHostProvider();
+		const main = createChat('main');
+		const peer = createChat('peer');
+		peer.isArchived.set(true, undefined);
+		peer.interactivity.set(ChatInteractivity.ReadOnly, undefined);
+		const session = new TestActiveSession([main, peer], [peer]);
+
+		view.setSession(session, options);
+		const banner = readBanner(view);
+		view.element.querySelector<HTMLElement>('.session-readonly-banner-action .monaco-link')?.click();
+
+		assert.deepStrictEqual({ banner, commands }, {
+			banner: { visible: true, message: 'Archived sessions are read-only.', action: 'Unarchive' },
+			commands: [{ id: UNARCHIVE_CHAT_COMMAND_ID, args: [{ session, chat: peer }] }],
 		});
 	});
 

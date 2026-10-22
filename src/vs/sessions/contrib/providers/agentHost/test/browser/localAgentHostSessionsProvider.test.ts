@@ -19,17 +19,18 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableMap, DisposableStore, ImmortalReference, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, ISettableObservable, observableFromEvent, observableValue, type IObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { ResourceMap } from '../../../../../../base/common/map.js';
+import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { extUriIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { AgentSession, CODEX_AGENT_PROVIDER_ID, type IAgentCanvasCloseRequest, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
+import { AgentSession, CODEX_AGENT_PROVIDER_ID, type IAgentCanvasCloseRequest, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, type IAgentCreateChatRequestOptions, type IAgentCreateChatWorkspace, type IAgentCreateSessionConfig, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
 import { agentSdkSetupStatusKey } from '../../../../../../platform/agentHost/common/agentSdkSetup.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { AgentHostCodexAgentEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostCodexAgentEnabledSettingId, AgentHostPrewarmSessionsSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { AgentHostAutonomousAutomationsCapabilityMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
+import { AgentHostCreateChatWorkspaceCapabilityMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostCreateChatWorkspaceMeta.js';
 import { CODEX_ACCOUNT_META_KEY } from '../../../../../../platform/agentHost/common/codexAccount.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
@@ -37,10 +38,11 @@ import { BackgroundWorkKind, type BackgroundShellWork, type BackgroundSubagentWo
 import { toCopilotBackgroundShellMeta } from '../../../../../../platform/agentHost/common/meta/copilotBackgroundWorkMeta.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult, SessionConfigSchema } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AutomationRunOriginKind, AutomationRunStatus, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageKind, SessionLifecycle, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesSummary, type ChatOrigin, type Customization, type RootState, type SessionActiveClient, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, isAhpAutomationCatalogChannel, ResponsePartKind, SessionSourceControlOutcome, SessionStatus as ProtocolSessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, withMostRecentRelatedSessionPullRequest, withSessionCreationReference, withSessionExternal, withSessionEhcliAdoptable, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ChangesetState, type ChatState, type ChatSummary, type ComponentToState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, isAhpAutomationCatalogChannel, ResponsePartKind, SessionSourceControlOutcome, SessionStatus as ProtocolSessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, withMostRecentRelatedSessionPullRequest, withSessionCreationReference, withSessionExternal, withSessionEhcliAdoptable, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionScratchFolders, withSessionSourceControlState, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ChangesetState, type ChatState, type ChatSummary, type ComponentToState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction, type SessionSummaryChangedParams } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { AHP_SESSION_NOT_FOUND, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
+import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
+import type { AgentChatMoveDestination } from '../../../../../../platform/agentHost/common/agentHostChatMove.js';
 import { PROTOCOL_VERSION } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { toRemoteSessionMessageMetadata, withRemoteSessionOrigin } from '../../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
@@ -68,7 +70,7 @@ import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../../workbench/co
 import { ChatConfiguration, ChatModeKind } from '../../../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import type { IChatModel, IChatModelInputState, IInputModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
-import { ISessionChangeEvent, ISessionsProvider, type ISessionsProviderCreateSessionOptions } from '../../../../../services/sessions/common/sessionsProvider.js';
+import { ISessionChangeEvent, ISessionsProvider, type INestedChatWorkspace, NestedChatWorkspaceError, type ISessionsProviderCreateSessionOptions } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatModelSource, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, IChat, ISession, ISessionCanvas, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionStatus, TURN_CHANGES_CHANGESET_ID, toSessionId } from '../../../../../services/sessions/common/session.js';
 import { readSessionChangesStats } from '../../../../../services/sessions/common/sessionChangesStatsCache.js';
 import { getSessionGitHubReferences } from '../../../../github/common/sessionGitHubReferences.js';
@@ -190,6 +192,15 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		this.movedSessions.push({ session: session.toString(), destination: destination.toString(), after: after?.toString() });
 		return destination;
 	}
+	public movedChats: { chat: string; destination: string }[] = [];
+	public moveChatError: Error | undefined;
+	override async moveChat(chat: URI, destination: AgentChatMoveDestination): Promise<URI> {
+		if (this.moveChatError) {
+			throw this.moveChatError;
+		}
+		this.movedChats.push({ chat: chat.toString(), destination: destination.kind === 'session' ? `${destination.session.toString()} after ${destination.after?.toString()}` : 'newSession' });
+		return destination.kind === 'session' ? destination.session : URI.parse('copilotcli:/new');
+	}
 	override async removeSessionArtifact(session: URI, artifactId: string): Promise<void> {
 		this.removedArtifacts.push({ session, artifactId });
 	}
@@ -263,8 +274,13 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		this.disposedChats.push(chat);
 	}
 
+	public chatWorkspaceRequests: { chat: URI; workspace: IAgentCreateChatWorkspace }[] = [];
+	override async setChatWorkspace(chat: URI, workspace: IAgentCreateChatWorkspace): Promise<void> {
+		this.chatWorkspaceRequests.push({ chat, workspace });
+	}
+
 	public createdChats: { session: URI; chat: URI; options?: IAgentCreateChatRequestOptions }[] = [];
-	public onCreateChat: ((session: URI, chat: URI) => void) | undefined;
+	public onCreateChat: ((session: URI, chat: URI, options?: IAgentCreateChatRequestOptions) => void) | undefined;
 	override async createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions): Promise<void> {
 		this.createdChats.push({ session, chat, options });
 		const key = session.toString();
@@ -281,7 +297,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 				chats: [...existing.chats, newChat],
 			});
 		}
-		this.onCreateChat?.(session, chat);
+		this.onCreateChat?.(session, chat, options);
 	}
 
 	public createdSessionUris: URI[] = [];
@@ -708,7 +724,7 @@ class BackendSchemeTestProvider extends LocalAgentHostSessionsProvider {
 
 function createProvider(disposables: DisposableStore, agentHostService: MockAgentHostService, contributions = [
 	{ type: 'agent-host-copilotcli', name: 'copilot', displayName: 'Copilot', description: 'test', icon: undefined },
-], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; languageModelsService?: Partial<ILanguageModelsService>; languageModelIds?: string[]; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; languageModelChanges?: Event<string>; hiddenLanguageModelIds?: ReadonlySet<string>; languageModelVisibilityChanges?: Event<void>; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; visibleSessions?: IObservable<readonly (IActiveSession | undefined)[]>; activeClient?: Omit<SessionActiveClient, 'clientId'>; activeClientAgents?: IObservable<readonly AgentCustomization[]>; activeClientScope?: (sessionType: string, roots: readonly URI[]) => IAgentCustomizationScope; storageService?: IStorageService; recentWorkspacesService?: ISessionsRecentWorkspacesService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; requestWorkspaceTrust?: (uri: URI) => Promise<boolean>; workspaceTrustBarrier?: DeferredPromise<void>; workspaceTrustError?: Error; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; gitHubService?: IGitHubService; devContainerAgentHostService?: IDevContainerAgentHostService; sessionsProvidersService?: ISessionsProvidersService; pathService?: IPathService; labelService?: ILabelService; providerCtor?: typeof LocalAgentHostSessionsProvider }): LocalAgentHostSessionsProvider {
+], options?: { chatSessionsService?: Partial<IChatSessionsService>; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; languageModelsService?: Partial<ILanguageModelsService>; languageModelIds?: string[]; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; languageModelChanges?: Event<string>; hiddenLanguageModelIds?: ReadonlySet<string>; languageModelVisibilityChanges?: Event<void>; getChatModel?: (resource: URI) => IChatModel | undefined; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; visibleSessions?: IObservable<readonly (IActiveSession | undefined)[]>; activeClient?: Omit<SessionActiveClient, 'clientId'>; activeClientAgents?: IObservable<readonly AgentCustomization[]>; activeClientScope?: (sessionType: string, roots: readonly URI[]) => IAgentCustomizationScope; storageService?: IStorageService; recentWorkspacesService?: ISessionsRecentWorkspacesService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; requestWorkspaceTrust?: (uri: URI) => Promise<boolean>; workspaceTrustBarrier?: DeferredPromise<void>; workspaceTrustError?: Error; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; gitHubService?: IGitHubService; devContainerAgentHostService?: IDevContainerAgentHostService; sessionsProvidersService?: ISessionsProvidersService; pathService?: IPathService; labelService?: ILabelService; providerCtor?: typeof LocalAgentHostSessionsProvider }): LocalAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IAgentHostService, agentHostService);
@@ -771,9 +787,11 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 		getChatSessionContribution: (chatSessionType: string) => contributions.find(c => c.type === chatSessionType),
 		getAllChatSessionContributions: () => contributions,
 		getOrCreateChatSession: async () => ({ onWillDispose: () => ({ dispose() { } }), sessionResource: URI.from({ scheme: 'test' }), history: [], dispose() { } }),
+		...options?.chatSessionsService,
 	});
 	instantiationService.stub(IChatService, {
 		acquireOrLoadSession: options?.acquireOrLoadSession ?? (async () => undefined),
+		getSession: options?.getChatModel ?? (() => undefined),
 		sendRequest: options?.sendRequest ?? (async (): Promise<ChatSendResult> => ({ kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never })),
 	});
 	instantiationService.stub(IChatWidgetService, {
@@ -4103,6 +4121,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}];
 
 		const canvases = await provider.listCanvases(session.sessionId, peer.resource);
+		assert.ok(canvases && canvases.length === 1, 'Expected one canvas definition');
 		await provider.openCanvas(session.sessionId, peer.resource, canvases[0], 'project-preview');
 		const liveCanvas: ISessionCanvas = { resource: URI.parse('ahp-canvas://another-host/documents/preview'), instanceId: 'project-preview', title: 'Preview', source: undefined };
 		await provider.closeCanvas(session.sessionId, peer.resource, liveCanvas);
@@ -4152,6 +4171,29 @@ suite('LocalAgentHostSessionsProvider', () => {
 				chat: peerBackend,
 				resource: 'ahp-canvas://another-host/documents/preview',
 			}],
+		});
+	});
+
+	suite('canvas definition registry stability', () => {
+		test('reports canvas inventory as unsettled while session or chat routing is unavailable', async () => {
+			agentHost.addSession(createSession('canvas-unsettled-route', { summary: 'Canvas Unsettled Route' }));
+			const provider = createProvider(disposables, agentHost);
+			await timeout(0);
+			const session = provider.getSessions().find(candidate => candidate.title.get() === 'Canvas Unsettled Route');
+			assert.ok(session);
+
+			const missingSession = await provider.listCanvases('missing-session', session.mainChat.get().resource);
+			const missingChat = await provider.listCanvases(session.sessionId, session.resource.with({ fragment: 'missing-chat' }));
+
+			assert.deepStrictEqual({
+				missingSession,
+				missingChat,
+				listRequests: agentHost.canvasListRequests.length,
+			}, {
+				missingSession: undefined,
+				missingChat: undefined,
+				listRequests: 0,
+			});
 		});
 	});
 
@@ -5073,9 +5115,9 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
-	test('restored quick chat reports supportsMultipleChats === false', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		// A quick chat is a single-chat session regardless of session type:
-		// the `_meta.workspaceless` tag forces `supportsMultipleChats: false`.
+	test('restored quick chat supports nested chats like any session of its agent', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// Quick chats can have nested chats (each gets its own scratch folder on the host), so the
+		// `_meta.workspaceless` tag does not restrict `supportsMultipleChats`.
 		agentHost.addSession(createSession('quick-1', {
 			summary: 'Quick Chat',
 			workingDirectory: URI.file('/tmp/copilot-scratch/quick-1'),
@@ -5087,14 +5129,180 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await timeout(0);
 
 		const session = provider.getSessions()[0];
-		assert.deepStrictEqual(session?.capabilities.get(), { supportsRemoveArtifacts: false, supportsImport: false, supportsCanvases: true, supportsMultipleChats: false, supportsIndependentChatReadState: true, supportsFork: true, supportsSideChat: false, supportsRename: true, supportsDelete: true });
+		assert.deepStrictEqual(session?.capabilities.get(), { supportsRemoveArtifacts: false, supportsImport: false, supportsCanvases: true, supportsMultipleChats: true, supportsIndependentChatReadState: true, supportsFork: true, supportsSideChat: false, supportsRename: true, supportsDelete: true });
 	}));
 
-	test('restored quick chat collapses to a single chat even when state advertises peer chats', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		// A quick chat is single-chat: even if a restored `SessionState`
-		// advertises peer chats, `supportsMultipleChats: false` collapses the
-		// catalog to the default chat. The state subscription's `_meta` (which
-		// the host copies from the summary) must keep the workspace-less tag.
+	test('restored quick chat lists nested chats; scratch folders are hidden and a foldered chat shows its own folder', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('quick-mixed', {
+			summary: 'Quick Chat',
+			workingDirectory: URI.file('/home/user/.copilot/chats/quick-mixed'),
+			quickChat: true,
+		}));
+
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+
+		const session = provider.getSessions()[0];
+		provider.getSessionConfig(session.sessionId, session.mainChat.get().resource);
+
+		const sessionUri = AgentSession.uri('copilotcli', 'quick-mixed').toString();
+		const defaultChat = buildDefaultChatUri(sessionUri);
+		const sessionScratch = URI.file('/home/user/.copilot/chats/quick-mixed').toString();
+		const chatScratch = URI.file('/home/user/.copilot/chats/nested-x').toString();
+		const folder = URI.file('/work/repo').toString();
+		agentHost.setSessionState('quick-mixed', 'copilotcli', {
+			provider: 'copilotcli',
+			title: 'Quick Chat',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			defaultChat,
+			workingDirectories: [sessionScratch, chatScratch, folder],
+			_meta: withSessionScratchFolders(withSessionWorkspaceless(undefined, true), [sessionScratch, chatScratch]),
+			chats: [
+				{ resource: defaultChat, title: '', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString(), workingDirectories: [sessionScratch] },
+				{ resource: buildChatUri(sessionUri, 'scratch'), title: 'Scratch', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString(), workingDirectories: [chatScratch] },
+				{ resource: buildChatUri(sessionUri, 'foldered'), title: 'Foldered', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString(), workingDirectories: [folder] },
+			],
+		});
+
+		assert.deepStrictEqual({
+			isQuickChat: session.isQuickChat?.get(),
+			workspace: session.workspace.get(),
+			chats: session.chats.get().map(c => ({ fragment: c.resource.fragment, workspace: c.workspace.get()?.folders.map(f => f.workingDirectory.toString()) })),
+		}, {
+			isQuickChat: true,
+			workspace: undefined,
+			chats: [
+				{ fragment: '', workspace: undefined },
+				{ fragment: 'scratch', workspace: undefined },
+				{ fragment: 'foldered', workspace: [folder] },
+			],
+		});
+	}));
+
+	test('a restored, unsubscribed workspace-less session lists a nested chat with its own folder and hides scratch folders', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const backend = AgentSession.uri('copilotcli', 'wl-restored');
+		const sessionScratch = URI.file('/home/user/.copilot/chats/wl-restored').toString();
+		const folder = URI.file('/work/repo').toString();
+		const listed = (): IAgentSessionMetadata => createSession('wl-restored', {
+			provider: 'copilotcli',
+			summary: 'Reply w1',
+			workingDirectories: [URI.parse(sessionScratch), URI.parse(folder)],
+			chats: [
+				{ chat: URI.parse(buildDefaultChatUri(backend)), kind: 'default', workingDirectories: [sessionScratch] },
+				{ chat: URI.parse(buildChatUri(backend, 'foldered')), kind: 'peer', workingDirectories: [folder] },
+			],
+			_meta: withSessionScratchFolders(withSessionWorkspaceless(undefined, true), [sessionScratch]),
+		});
+		const storageService = disposables.add(new InMemoryStorageService());
+		await persistCachedSessions(disposables, storageService, [listed()]);
+		const nextHost = new MockAgentHostService();
+		disposables.add(toDisposable(() => nextHost.dispose()));
+		nextHost.addSession(listed());
+		const provider = createProvider(disposables, nextHost, undefined, { storageService });
+		const session = provider.getSessions()[0];
+
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			workspace: session.workspace.get()?.folders.map(f => f.workingDirectory.toString()),
+			chats: session.chats.get().map(c => c.workspace.get()?.folders.map(f => f.workingDirectory.toString())),
+			subscribed: [...nextHost.sessionSubscribeCounts.keys()].filter(key => key.startsWith(backend.toString())),
+		}, { workspace: undefined, chats: [undefined, [folder]], subscribed: [] });
+	}));
+
+	for (const listsScratchFolders of [false, true]) {
+		test(`a restored, unopened workspace session shows a moved-in scratch folder only while the host listing omits it (${listsScratchFolders})`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const backend = AgentSession.uri('copilotcli', 'ws-restored');
+			const folder = URI.file('/work/repo').toString();
+			const chatScratch = URI.file('/home/user/.copilot/chats/moved-x').toString();
+			const listed = (meta: IAgentSessionMetadata['_meta']): IAgentSessionMetadata => createSession('ws-restored', {
+				provider: 'copilotcli',
+				summary: 'Workspace Session',
+				workingDirectories: [URI.parse(folder), URI.parse(chatScratch)],
+				chats: [
+					{ chat: URI.parse(buildDefaultChatUri(backend)), kind: 'default', workingDirectories: [folder] },
+					{ chat: URI.parse(buildChatUri(backend, 'moved')), kind: 'peer', workingDirectories: [chatScratch] },
+					// A chat without folders of its own works in the session's, never in the moved chat's scratch folder.
+					{ chat: URI.parse(buildChatUri(backend, 'folderless')), kind: 'peer' },
+				],
+				_meta: meta,
+			});
+			const storageService = disposables.add(new InMemoryStorageService());
+			// The previous run cached the session without its scratch folders.
+			await persistCachedSessions(disposables, storageService, [listed(undefined)]);
+			const nextHost = new MockAgentHostService();
+			disposables.add(toDisposable(() => nextHost.dispose()));
+			nextHost.addSession(listed(listsScratchFolders ? withSessionScratchFolders(undefined, [chatScratch]) : undefined));
+			const provider = createProvider(disposables, nextHost, undefined, { storageService });
+			const session = provider.getSessions()[0];
+
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				workspace: session.workspace.get()?.folders.map(f => f.workingDirectory.toString()),
+				chats: session.chats.get().map(c => c.workspace.get()?.folders.map(f => f.workingDirectory.toString())),
+				subscribed: [...nextHost.sessionSubscribeCounts.keys()].filter(key => key.startsWith(backend.toString())),
+			}, {
+				workspace: listsScratchFolders ? [folder] : [folder, chatScratch],
+				chats: [[folder], listsScratchFolders ? undefined : [chatScratch], listsScratchFolders ? [folder] : [folder, chatScratch]],
+				subscribed: [],
+			});
+		}));
+	}
+
+	test('workspace session hides a moved-in scratch folder from its workspace and its chat', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('ws-mixed', {
+			summary: 'Workspace Session',
+			workingDirectory: URI.file('/work/repo'),
+		}));
+
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+
+		const session = provider.getSessions()[0];
+		provider.getSessionConfig(session.sessionId, session.mainChat.get().resource);
+
+		const sessionUri = AgentSession.uri('copilotcli', 'ws-mixed').toString();
+		const defaultChat = buildDefaultChatUri(sessionUri);
+		const folder = URI.file('/work/repo').toString();
+		const chatScratch = URI.file('/home/user/.copilot/chats/moved-x').toString();
+		const state = {
+			provider: 'copilotcli',
+			title: 'Workspace Session',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			defaultChat,
+			workingDirectories: [folder, chatScratch],
+			_meta: withSessionScratchFolders(undefined, [chatScratch]),
+			chats: [
+				{ resource: defaultChat, title: '', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString(), workingDirectories: [folder] },
+				{ resource: buildChatUri(sessionUri, 'moved'), title: 'Moved', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString(), workingDirectories: [chatScratch] },
+			],
+		};
+		agentHost.setSessionState('ws-mixed', 'copilotcli', state);
+		fireSessionSummaryChanged(agentHost, 'ws-mixed', { workingDirectories: state.workingDirectories, _meta: state._meta });
+
+		assert.deepStrictEqual({
+			workspace: session.workspace.get()?.folders.map(f => f.workingDirectory.toString()),
+			chats: session.chats.get().map(c => ({ fragment: c.resource.fragment, workspace: c.workspace.get()?.folders.map(f => f.workingDirectory.toString()) })),
+		}, {
+			workspace: [folder],
+			chats: [
+				{ fragment: '', workspace: [folder] },
+				{ fragment: 'moved', workspace: undefined },
+			],
+		});
+	}));
+
+	test('restored quick chat lists the peer chats its state advertises', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// Quick chats can have nested chats: a restored `SessionState` advertising
+		// peer chats lists them. The state subscription's `_meta` (which the host
+		// copies from the summary) must keep the workspace-less tag.
 		agentHost.addSession(createSession('quick-multi', {
 			summary: 'Quick Chat',
 			workingDirectory: URI.file('/tmp/copilot-scratch/quick-multi'),
@@ -5133,9 +5341,9 @@ suite('LocalAgentHostSessionsProvider', () => {
 			chatTitles: session.chats.get().map(c => c.title.get()),
 		}, {
 			workspace: undefined,
-			supportsMultipleChats: false,
-			chatFragments: [''],
-			chatTitles: ['Quick Chat'],
+			supportsMultipleChats: true,
+			chatFragments: ['', 'peer-1', 'peer-2'],
+			chatTitles: ['Quick Chat', 'Peer One', 'Peer Two'],
 		});
 	}));
 
@@ -8084,6 +8292,48 @@ suite('LocalAgentHostSessionsProvider', () => {
 			sentConfig: { isolation: 'worktree', worktreeBranchPrefix: 'folder/', worktreeIncludeFiles: ['folder.json'], worktreeSymlinkFolders: [] },
 		});
 	});
+
+	for (const [prewarm, sendIsolation] of [[true, 'worktree'], [true, 'folder'], [false, 'worktree']] as const) {
+		test(`a worktree draft is created in the picked folder only when sessions pre-warm, and Send picks the isolation (prewarm=${prewarm}, send=${sendIsolation})`, async () => {
+			const configurationService = new TestConfigurationService();
+			await configurationService.setUserConfiguration(AgentHostPrewarmSessionsSettingId, prewarm);
+			agentHost.resolveSessionConfigResult = {
+				schema: createVSCodeSessionConfigSchema(),
+				values: { isolation: 'worktree', branch: 'origin/main' },
+			};
+			let sentConfig: Record<string, unknown> | undefined;
+			const provider = createProvider(disposables, agentHost, undefined, {
+				configurationService,
+				openSession: true,
+				sendRequest: async (resource, _message, options): Promise<ChatSendResult> => {
+					sentConfig = options?.agentHostSessionConfig;
+					agentHost.addSession(createSession(AgentSession.id(resource), { summary: 'Created From Send' }));
+					return { kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
+				},
+			});
+			const session = provider.createNewSession(URI.file('/home/user/project'), provider.sessionTypes[0].id);
+			await waitForSessionConfig(provider, session, config => config?.values.isolation === 'worktree');
+			if (sendIsolation === 'folder') {
+				agentHost.resolveSessionConfigResult = {
+					schema: createVSCodeSessionConfigSchema(),
+					values: { isolation: 'folder', branch: 'feature' },
+				};
+				await provider.setSessionConfigValue(session.sessionId, session.mainChat.get().resource, SessionConfigKey.Isolation, 'folder');
+			}
+			const chat = await provider.createNewChat(session.sessionId);
+			await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+
+			assert.deepStrictEqual({
+				created: agentHost.createSessionConfigs.map(created => created.config),
+				sent: { isolation: sentConfig?.[SessionConfigKey.Isolation], branch: sentConfig?.[SessionConfigKey.Branch] },
+			}, {
+				created: [prewarm ? { isolation: 'folder' } : { isolation: 'worktree', branch: 'origin/main' }],
+				sent: sendIsolation === 'worktree'
+					? { isolation: 'worktree', branch: 'origin/main' }
+					: { isolation: 'folder', branch: 'feature' },
+			});
+		});
+	}
 
 	test('Automation drafts merge derived worktree settings with saved provider configuration after discovery', async () => {
 		const configService = new TestConfigurationService();
@@ -11468,6 +11718,87 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		});
 
+		test('tells session lists when a subscribed session reorders its chats, also when its root summary stays the same (Block 5)', async () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'reorder-notify');
+			const sessionUri = AgentSession.uri('copilotcli', 'reorder-notify').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			// Former default chats of other sessions, as after moving sessions under this one.
+			const [first, second] = ['first', 'second'].map(id => buildDefaultChatUri(AgentSession.uri('copilotcli', id).toString()));
+			const peer = (resource: string, title: string): ChatSummary => ({ ...makeChatSummary(resource, title), origin: { kind: ProtocolChatOriginKind.User }, movable: true });
+			agentHost.setSessionState('reorder-notify', 'copilotcli', makeState([makeChatSummary(defaultChat, ''), peer(first, 'First'), peer(second, 'Second')], { defaultChat }));
+			const changed: string[][] = [];
+			disposables.add(provider.onDidChangeSessions(e => changed.push(e.changed.filter(candidate => candidate.sessionId === session.sessionId).map(candidate => candidate.chats.get().map(chat => chat.title.get()).join(',')))));
+
+			agentHost.setSessionState('reorder-notify', 'copilotcli', makeState([makeChatSummary(defaultChat, ''), peer(second, 'Second'), peer(first, 'First')], { defaultChat }));
+			// An added chat reaches session lists with the root summary change, not again from the catalog.
+			const third = buildDefaultChatUri(AgentSession.uri('copilotcli', 'third').toString());
+			agentHost.setSessionState('reorder-notify', 'copilotcli', makeState([makeChatSummary(defaultChat, ''), peer(second, 'Second'), peer(first, 'First'), peer(third, 'Third')], { defaultChat }));
+
+			assert.deepStrictEqual(changed.filter(entry => entry.length > 0), [['Session,Second,First']]);
+		});
+
+		test('explains a workspace-less refusal by whether the chat shares its scratch folder with another chat (Block 9)', async () => {
+			const provider = createProvider(disposables, agentHost);
+			const repo = URI.file('/work/repo').toString();
+			const shared = URI.file('/home/user/.copilot/chats/shared').toString();
+			const own = URI.file('/home/user/.copilot/chats/own').toString();
+			const source = setupMultiChatSession(provider, 'wl-refusal', [URI.parse(repo)]);
+			const sourceUri = AgentSession.uri('copilotcli', 'wl-refusal').toString();
+			const sourceDefault = buildDefaultChatUri(sourceUri);
+			const peer = (id: string, folder: string): ChatSummary => ({ ...makeChatSummary(buildChatUri(sourceUri, id), id, ProtocolSessionStatus.Idle, [folder]), origin: { kind: ProtocolChatOriginKind.User }, movable: true });
+			const meta = withSessionScratchFolders(undefined, [shared, own]);
+			agentHost.setSessionState('wl-refusal', 'copilotcli', makeState([makeChatSummary(sourceDefault, ''), peer('sharer', shared), peer('partner', shared), peer('alone', own)], { defaultChat: sourceDefault, workingDirectories: [repo, shared, own], meta }));
+			fireSessionSummaryChanged(agentHost, 'wl-refusal', { workingDirectories: [repo, shared, own], _meta: meta });
+			const [, sharer, , alone] = source.chats.get();
+			agentHost.moveChatError = new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Chat is workspace-less.', { reason: 'workspaceless' });
+
+			await assert.rejects(() => provider.moveChat(source.sessionId, sharer.resource, { kind: 'newSession' }), /^Error: This chat shares its folder with another chat in its session, so it can't be moved on its own\.$/);
+			await assert.rejects(() => provider.moveChat(source.sessionId, alone.resource, { kind: 'newSession' }), /^Error: This chat's folder is missing, so it can't be moved\.$/);
+		});
+
+		test('moves only movable peer chats, to the host resources of the destination, explaining refusals (Block 5)', async () => {
+			const provider = createProvider(disposables, agentHost);
+			const source = setupMultiChatSession(provider, 'move-chat-source');
+			const target = setupMultiChatSession(provider, 'move-chat-target');
+			const sourceUri = AgentSession.uri('copilotcli', 'move-chat-source').toString();
+			const sourceDefault = buildDefaultChatUri(sourceUri);
+			const movablePeer = buildChatUri(sourceUri, 'movable');
+			const fixedPeer = buildChatUri(sourceUri, 'fixed');
+			agentHost.setSessionState('move-chat-source', 'copilotcli', makeState([
+				makeChatSummary(sourceDefault, ''),
+				{ ...makeChatSummary(movablePeer, 'Movable'), origin: { kind: ProtocolChatOriginKind.User }, movable: true },
+				{ ...makeChatSummary(fixedPeer, 'Fixed'), origin: { kind: ProtocolChatOriginKind.User } },
+			], { defaultChat: sourceDefault }));
+			const targetUri = AgentSession.uri('copilotcli', 'move-chat-target').toString();
+			const targetDefault = buildDefaultChatUri(targetUri);
+			const targetPeer = buildChatUri(targetUri, 'peer');
+			agentHost.setSessionState('move-chat-target', 'copilotcli', makeState([
+				makeChatSummary(targetDefault, ''),
+				{ ...makeChatSummary(targetPeer, 'Target Peer'), origin: { kind: ProtocolChatOriginKind.User } },
+			], { defaultChat: targetDefault }));
+			const [main, movable, fixed] = source.chats.get();
+			const [, targetPeerChat] = target.chats.get();
+			const canMove = [main, movable, fixed].map(chat => provider.canMoveChat(source.sessionId, chat.resource));
+
+			await provider.moveChat(source.sessionId, movable.resource, { kind: 'session', sessionId: target.sessionId, after: targetPeerChat.resource });
+			await provider.moveChat(source.sessionId, movable.resource, { kind: 'session', sessionId: source.sessionId, after: undefined });
+			await provider.moveChat(source.sessionId, movable.resource, { kind: 'newSession' });
+			await assert.rejects(() => provider.moveChat(source.sessionId, fixed.resource, { kind: 'newSession' }), /This chat can't be moved\./);
+			agentHost.moveChatError = new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Session ${targetUri} is archived.`, { reason: 'sessionArchived' });
+			await assert.rejects(() => provider.moveChat(source.sessionId, movable.resource, { kind: 'session', sessionId: target.sessionId, after: undefined }), /^Error: Chats can't be moved into or out of an archived session\.$/);
+
+			assert.deepStrictEqual({ canMove, moved: agentHost.movedChats }, {
+				// Only the chat the host advertises as movable; never the main chat.
+				canMove: [false, true, false],
+				moved: [
+					{ chat: movablePeer, destination: `${targetUri} after ${targetPeer}` },
+					{ chat: movablePeer, destination: `${sourceUri} after undefined` },
+					{ chat: movablePeer, destination: 'newSession' },
+				],
+			});
+		});
+
 		test('peer chat archive dispatches to the host-supplied chat resource', async () => {
 			const provider = createProvider(disposables, agentHost);
 			const session = setupMultiChatSession(provider, 'chat-archive-resource');
@@ -11997,7 +12328,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		});
 
-		test('forkChat forwards the source chat and turn to the host and surfaces a new peer chat', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		test('forkChat sends an optional title with only fork support and returns the host-published named peer chat', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true } } } as AgentInfo]);
 			const provider = createProvider(disposables, agentHost);
 			const session = setupMultiChatSession(provider, 'multi-fork');
 			const sessionUri = AgentSession.uri('copilotcli', 'multi-fork').toString();
@@ -12007,23 +12339,231 @@ suite('LocalAgentHostSessionsProvider', () => {
 				makeChatSummary(defaultChat, ''),
 			], { defaultChat }));
 
-			const forked = await provider.forkChat(session.sessionId, session.resource, 'turn-1');
+			const forked = await provider.forkChat(session.sessionId, session.resource, 'turn-1', { title: 'Named fork' });
 
 			const call = agentHost.createdChats.at(-1);
 			assert.deepStrictEqual({
+				title: call?.options?.title,
 				forkSource: call?.options?.fork?.source.toString(),
 				forkTurnId: call?.options?.fork?.turnId,
+				forkedTitle: forked.title.get(),
 				forkedIsPeer: !!forked.resource.fragment,
 				forkedInCatalog: session.chats.get().some(c => c.resource.toString() === forked.resource.toString()),
 			}, {
+				title: 'Named fork',
 				forkSource: defaultChat,
 				forkTurnId: 'turn-1',
+				forkedTitle: 'Named fork',
 				forkedIsPeer: true,
 				forkedInCatalog: true,
 			});
 		}));
 
-		test('forkChat inherits the source peer chat\'s model, recorded as inherited', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		test('forkChat routes a prompt-bearing fork through Chat Sessions with the exact frontend source turn', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true } } } as AgentInfo]);
+			const calls: { resource: URI; requestId: string | undefined; text: string }[] = [];
+			const provider = createProvider(disposables, agentHost, undefined, {
+				chatSessionsService: {
+					forkChatSession: async (resource, _request, _token, options) => {
+						calls.push({ resource, requestId: options?.sourceRequestId, text: options?.initialMessage?.text ?? '' });
+						return { resource: resource.with({ fragment: 'prompt-child' }), label: 'Prompt child', timing: { created: 0, lastRequestStarted: 0, lastRequestEnded: 0 } };
+					},
+				},
+			});
+			const session = setupMultiChatSession(provider, 'multi-fork-prompt');
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-fork-prompt').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const childChat = buildChatUri(sessionUri, 'prompt-child');
+			agentHost.setSessionState('multi-fork-prompt', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, ''),
+				makeChatSummary(childChat, 'Prompt child'),
+			], { defaultChat }));
+
+			// This is an unsent source picker selection. The prompt branch must
+			// not copy it onto the host-created target.
+			provider.setModel(session.sessionId, session.resource, 'agent-host-copilotcli:unsent-picker', ChatModelSource.Chosen);
+			const createCallsBefore = agentHost.createdChats.length;
+			const forked = await provider.forkChat(session.sessionId, session.resource, 'selected-turn', {
+				initialMessage: { text: 'Use the actual source turn' },
+			});
+
+			assert.deepStrictEqual({
+				calls: calls.map(call => ({ resource: call.resource.toString(), requestId: call.requestId, text: call.text })),
+				createCalls: agentHost.createdChats.length - createCallsBefore,
+				targetModel: forked.modelId.get(),
+			}, {
+				calls: [{ resource: session.resource.toString(), requestId: 'selected-turn', text: 'Use the actual source turn' }],
+				createCalls: 0,
+				targetModel: undefined,
+			});
+		}));
+
+		test('forkChat requires the same fork capability for bare, named, and prompt forks', async () => {
+			agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: false } } }]);
+			let promptForks = 0;
+			const provider = createProvider(disposables, agentHost, undefined, {
+				chatSessionsService: {
+					forkChatSession: async () => {
+						promptForks++;
+						throw new Error('Unexpected prompt fork');
+					},
+				},
+			});
+			const session = setupMultiChatSession(provider, 'multi-fork-disabled');
+			for (const options of [undefined, { title: 'Named fork' }, { initialMessage: { text: 'Prompt' } }]) {
+				await assert.rejects(provider.forkChat(session.sessionId, session.resource, 'turn-1', options), /does not support forking/);
+			}
+			assert.deepStrictEqual({ creates: agentHost.createdChats.length, promptForks }, { creates: 0, promptForks: 0 });
+		});
+
+		test('forkChat retains a prompt-bearing fork without overwriting its hydrated input state', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const rawId = 'multi-fork-prompt-input-state';
+			const sessionUri = AgentSession.uri('copilotcli', rawId).toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const childChat = buildChatUri(sessionUri, 'prompt-child');
+			const sourceTurnInputState: IChatModelInputState = {
+				mode: { id: 'agent://source-custom-agent', kind: ChatModeKind.Agent },
+				selectedModel: { identifier: 'agent-host-copilotcli:source-model', metadata: createTestLanguageModel('source-model') },
+				modelConfiguration: { reasoningEffort: 'high' },
+				inputText: 'Keep the target draft',
+				attachments: [{ kind: 'file', id: 'source-file', name: 'source.ts', value: URI.file('/workspace/source.ts') }],
+				selections: [{ selectionStartLineNumber: 1, selectionStartColumn: 2, positionLineNumber: 1, positionColumn: 4 }],
+				contrib: {},
+			};
+			const inputUpdates: Partial<IChatModelInputState>[] = [];
+			const inputModel = new class extends mock<IInputModel>() {
+				override readonly state = observableValue<IChatModelInputState>(this, sourceTurnInputState);
+				override setState(state: Partial<IChatModelInputState>): void {
+					inputUpdates.push(state);
+					this.state.set({ ...this.state.get(), ...state }, undefined);
+				}
+			}();
+			const targetModel = new class extends mock<IChatModel>() {
+				override readonly inputModel = inputModel;
+			}();
+			const acquiredResources: string[] = [];
+			const releasedResources: string[] = [];
+			const provider = createProvider(disposables, agentHost, undefined, {
+				lookupLanguageModel: createTestLanguageModel,
+				acquireOrLoadSession: async resource => {
+					if (!resource.fragment) {
+						return undefined;
+					}
+					acquiredResources.push(resource.toString());
+					return {
+						object: targetModel,
+						dispose: () => {
+							releasedResources.push(resource.toString());
+						},
+					};
+				},
+				chatSessionsService: {
+					forkChatSession: async resource => {
+						agentHost.setSessionState(rawId, 'copilotcli', makeState([
+							makeChatSummary(defaultChat, ''),
+							makeChatSummary(childChat, 'Prompt child'),
+						], { defaultChat }));
+						return { resource: resource.with({ fragment: 'prompt-child' }), label: 'Prompt child', timing: { created: 0, lastRequestStarted: 0, lastRequestEnded: 0 } };
+					},
+				},
+			});
+			const session = setupMultiChatSession(provider, rawId);
+			agentHost.setSessionState(rawId, 'copilotcli', makeState([
+				makeChatSummary(defaultChat, ''),
+			], { defaultChat }));
+			provider.setModel(session.sessionId, session.resource, 'agent-host-copilotcli:unsent-picker', ChatModelSource.Chosen);
+			provider.setAgent(session.sessionId, { uri: 'agent://unsent-picker', name: 'Unsent picker' });
+
+			const createCallsBefore = agentHost.createdChats.length;
+			const forked = await provider.forkChat(session.sessionId, session.resource, 'selected-turn', {
+				initialMessage: { text: 'Continue with the source custom agent' },
+			});
+			const retained = {
+				inputState: inputModel.state.get(),
+				inputUpdates: [...inputUpdates],
+				sourceModel: session.mainChat.get().modelId.get(),
+				sourceMode: session.mainChat.get().mode.get(),
+				targetCatalogModel: forked.modelId.get(),
+				targetCatalogMode: forked.mode.get(),
+				acquiredResources: [...acquiredResources],
+				releasedResources: [...releasedResources],
+				createCalls: agentHost.createdChats.length - createCallsBefore,
+			};
+			await timeout(10_000);
+
+			assert.deepStrictEqual({ retained, releasedResources }, {
+				retained: {
+					inputState: sourceTurnInputState,
+					inputUpdates: [],
+					sourceModel: 'agent-host-copilotcli:unsent-picker',
+					sourceMode: { id: 'agent://unsent-picker', kind: ChatModeKind.Agent },
+					targetCatalogModel: undefined,
+					targetCatalogMode: undefined,
+					acquiredResources: [forked.resource.toString()],
+					releasedResources: [],
+					createCalls: 0,
+				},
+				releasedResources: [forked.resource.toString()],
+			});
+		}));
+
+		test('forkChat preserves the built-in agent default for bare and named forks', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true } } } as AgentInfo]);
+			const inputStates: Partial<IChatModelInputState>[] = [];
+			const provider = createProvider(disposables, agentHost, undefined, {
+				acquireOrLoadSession: async () => new ImmortalReference(new class extends mock<IChatModel>() {
+					override readonly inputModel = new class extends mock<IInputModel>() {
+						override setState(state: Partial<IChatModelInputState>): void {
+							inputStates.push(state);
+						}
+					}();
+				}()),
+			});
+			const session = setupMultiChatSession(provider, 'multi-fork-default-agent');
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-fork-default-agent').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			agentHost.setSessionState('multi-fork-default-agent', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, ''),
+			], { defaultChat }));
+
+			await provider.forkChat(session.sessionId, session.resource, 'turn-1');
+			await provider.forkChat(session.sessionId, session.resource, 'turn-1', { title: 'Named fork' });
+
+			assert.deepStrictEqual(inputStates, [
+				{ mode: { id: 'agent', kind: ChatModeKind.Agent } },
+				{ mode: { id: 'agent', kind: ChatModeKind.Agent } },
+			]);
+		}));
+
+		test('forkChat returns the host-generated peer title when an older host ignores the requested title', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true } } } as AgentInfo]);
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'multi-fork-no-title');
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-fork-no-title').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			agentHost.setSessionState('multi-fork-no-title', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, ''),
+			], { defaultChat }));
+			agentHost.onCreateChat = (sessionUri, chatUri) => {
+				agentHost.setSessionState('multi-fork-no-title', 'copilotcli', makeState([
+					makeChatSummary(defaultChat, ''),
+					makeChatSummary(chatUri.toString(), 'Host-generated fork'),
+				], { defaultChat: buildDefaultChatUri(sessionUri) }));
+			};
+
+			const forked = await provider.forkChat(session.sessionId, session.resource, 'turn-1', { title: 'Ignored title' });
+			const call = agentHost.createdChats.at(-1);
+
+			assert.deepStrictEqual({
+				title: call?.options?.title,
+				forkedTitle: forked.title.get(),
+			}, {
+				title: 'Ignored title',
+				forkedTitle: 'Host-generated fork',
+			});
+		}));
+
+		test('forkChat inherits the source peer model and agent instead of the default chat selection', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 			// A fork continues the chat it was taken from, so it starts on that chat's model rather
 			// than the session-level default it used to take, and records it as carried over rather
 			// than chosen here.
@@ -12063,7 +12603,9 @@ suite('LocalAgentHostSessionsProvider', () => {
 			const peer = session.chats.get().find(c => c.resource.fragment === 'peer-1');
 			assert.ok(peer);
 			activeSession.set({ sessionId: session.sessionId, activeChat: constObservable(peer!) } as IActiveSession, undefined);
+			provider.setModel(session.sessionId, session.resource, 'agent-host-copilotcli:default-model', ChatModelSource.Chosen);
 			provider.setModel(session.sessionId, peer!.resource, 'agent-host-copilotcli:peer-model', ChatModelSource.Chosen);
+			provider.setAgent?.(session.sessionId, { uri: 'agent://peer', name: 'peer' });
 
 			const forked = await provider.forkChat(session.sessionId, peer!.resource, 'turn-1');
 			const call = agentHost.createdChats.at(-1);
@@ -12071,7 +12613,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 			assert.deepStrictEqual({
 				forkSource: call?.options?.fork?.source.toString(),
-				// The source peer's model, not the session-level default the fork used to take.
+				defaultModelId: session.mainChat.get().modelId.get(),
 				createdModel: call?.options?.model,
 				forkedModelId: forkedChat?.modelId.get(),
 				forkedModelSource: forkedChat?.modelSource.get(),
@@ -12079,13 +12621,18 @@ suite('LocalAgentHostSessionsProvider', () => {
 					.filter(entry => entry.resource === forked.resource.toString())
 					.map(entry => entry.state.selectedModel?.identifier)
 					.filter((id): id is string => id !== undefined),
+				forkedInputModes: inputStates
+					.filter(entry => entry.resource === forked.resource.toString())
+					.map(entry => entry.state.mode?.id)
+					.filter((id): id is string => id !== undefined),
 			}, {
 				forkSource: peerChat,
+				defaultModelId: 'agent-host-copilotcli:default-model',
 				createdModel: { id: 'peer-model' },
 				forkedModelId: 'agent-host-copilotcli:peer-model',
-				// Inherited, not a choice, so `chat.defaultModel` may still seed the new chat.
 				forkedModelSource: ChatModelSource.CarriedOver,
 				forkedInputSelectedModels: ['agent-host-copilotcli:peer-model'],
+				forkedInputModes: ['agent://peer'],
 			});
 		}));
 
@@ -12457,6 +13004,313 @@ suite('LocalAgentHostSessionsProvider', () => {
 				createdModel: { id: 'selected-model' },
 				peerInputSelectedModels: ['agent-host-copilotcli:selected-model'],
 			});
+		});
+
+		test('createNewChat rethrows a host failure as is', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'multi-create-fails');
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-create-fails').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			agentHost.setSessionState('multi-create-fails', 'copilotcli', makeState([makeChatSummary(defaultChat, '')], { defaultChat }));
+			const failure = new Error('host refused');
+			stub(agentHost, 'createChat').callsFake(async () => { throw failure; });
+
+			const error = await provider.createNewChat(session.sessionId).then(() => undefined, e => e);
+
+			assert.deepStrictEqual({ sameError: error === failure, disposed: agentHost.disposedChats.length }, { sameError: true, disposed: 0 });
+		}));
+
+		test('createNewChat disposes the host chat when its session goes away before the chat surfaces', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'multi-create-removed');
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-create-removed').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			agentHost.setSessionState('multi-create-removed', 'copilotcli', makeState([makeChatSummary(defaultChat, '')], { defaultChat }));
+			let minted: URI | undefined;
+			stub(agentHost, 'createChat').callsFake(async (_session, chat) => {
+				// The host commits the chat, but the session is removed before the chat is published.
+				minted = chat;
+				fireSessionRemoved(agentHost, 'multi-create-removed');
+			});
+
+			const error = await provider.createNewChat(session.sessionId).then(() => undefined, e => e);
+
+			assert.deepStrictEqual({
+				failed: error instanceof Error,
+				disposed: agentHost.disposedChats.map(chat => chat.toString()),
+			}, {
+				failed: true,
+				disposed: [minted?.toString()],
+			});
+		}));
+
+		suite('nested chat workspace', () => {
+			const repo = URI.file('/work/repo');
+			const other = URI.file('/work/other');
+			const scratch = URI.file('/home/user/.copilot/chats/nested-scratch');
+
+			function enableCreateChatWorkspace(multipleWorkingDirectories: boolean): void {
+				agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), _meta: { ...agentHost.initializeResult.get()._meta, [AgentHostCreateChatWorkspaceCapabilityMetaKey]: true } }, undefined);
+				agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true }, ...(multipleWorkingDirectories ? { multipleWorkingDirectories: {} } : {}) } } as AgentInfo]);
+			}
+
+			/** A workspace session in `repo` with a peer in `other`, a peer in a scratch folder, and a peer without folders of its own. */
+			function setupWorkspaceSession(provider: ReturnType<typeof createProvider>, rawId: string): ISession {
+				const session = setupMultiChatSession(provider, rawId, [repo]);
+				const sessionUri = AgentSession.uri('copilotcli', rawId).toString();
+				const defaultChat = buildDefaultChatUri(sessionUri);
+				const meta = withSessionScratchFolders(undefined, [scratch.toString()]);
+				const workingDirectories = [repo.toString(), other.toString(), scratch.toString()];
+				agentHost.setSessionState(rawId, 'copilotcli', makeState([
+					makeChatSummary(defaultChat, '', ProtocolSessionStatus.Idle, [repo.toString()]),
+					makeChatSummary(buildChatUri(sessionUri, 'other'), 'Other', ProtocolSessionStatus.Idle, [other.toString(), repo.toString()]),
+					makeChatSummary(buildChatUri(sessionUri, 'scratch'), 'Scratch', ProtocolSessionStatus.Idle, [scratch.toString()]),
+					makeChatSummary(buildChatUri(sessionUri, 'shared'), 'Shared'),
+				], { defaultChat, meta, workingDirectories }));
+				fireSessionSummaryChanged(agentHost, rawId, { workingDirectories, _meta: meta });
+				return session;
+			}
+
+			function describeSupport(provider: ReturnType<typeof createProvider>, sessionId: string) {
+				const support = provider.getNestedChatWorkspaceSupport(sessionId, undefined);
+				return support && {
+					sessionFolder: support.sessionFolder?.toString(),
+					sessionFolders: support.sessionFolders.map(folder => folder.toString()),
+					multipleFolders: support.multipleFolders,
+					browseActions: support.browseActions === provider.browseActions,
+				};
+			}
+
+			test('offers no workspace choices and applies none on a host without the capability', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+				const provider = createProvider(disposables, agentHost);
+				const session = setupWorkspaceSession(provider, 'nested-old-host');
+				const peer = session.chats.get().find(chat => chat.resource.fragment === 'shared')!;
+
+				const error = await provider.applyNestedChatWorkspace(session.sessionId, peer.resource, { kind: 'folder', folder: repo, isolation: 'folder' }, 'Fix the bug').then(() => undefined, e => e);
+
+				assert.deepStrictEqual({
+					support: provider.getNestedChatWorkspaceSupport(session.sessionId, undefined),
+					error: error instanceof NestedChatWorkspaceError ? error.kind : error,
+					requests: agentHost.chatWorkspaceRequests.length,
+				}, {
+					support: undefined,
+					error: 'notSupported',
+					requests: 0,
+				});
+			}));
+
+			test('re-evaluates the support when the host capability, the agent, or the session folders change', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+				const provider = createProvider(disposables, agentHost);
+				const session = setupWorkspaceSession(provider, 'nested-reactive');
+				const support = derived(reader => {
+					const value = provider.getNestedChatWorkspaceSupport(session.sessionId, reader);
+					return value && { multipleFolders: value.multipleFolders, sessionFolders: value.sessionFolders.map(folder => folder.toString()) };
+				});
+				const observed: unknown[] = [];
+				disposables.add(autorun(reader => { observed.push(support.read(reader)); }));
+
+				enableCreateChatWorkspace(false);
+				enableCreateChatWorkspace(true);
+				const added = URI.file('/work/added');
+				const sessionUri = AgentSession.uri('copilotcli', 'nested-reactive').toString();
+				const defaultChat = buildDefaultChatUri(sessionUri);
+				agentHost.setSessionState('nested-reactive', 'copilotcli', makeState([
+					makeChatSummary(defaultChat, '', ProtocolSessionStatus.Idle, [repo.toString()]),
+					makeChatSummary(buildChatUri(sessionUri, 'added'), 'Added', ProtocolSessionStatus.Idle, [added.toString()]),
+				], { defaultChat }));
+
+				assert.deepStrictEqual({ first: observed[0], last: observed.at(-1), sawSingleFolder: observed.some(value => JSON.stringify(value) === JSON.stringify({ multipleFolders: false, sessionFolders: [repo.toString(), other.toString()] })) }, {
+					first: undefined,
+					last: { multipleFolders: true, sessionFolders: [repo.toString(), added.toString()] },
+					sawSingleFolder: true,
+				});
+			}));
+
+			test('reports the session folder and non-scratch folders of a workspace session and a workspace-less one', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+				enableCreateChatWorkspace(true);
+				const provider = createProvider(disposables, agentHost);
+				const workspaceSession = setupWorkspaceSession(provider, 'nested-ws');
+
+				const sessionScratch = URI.file('/home/user/.copilot/chats/quick-own');
+				agentHost.addSession(createSession('nested-wl', { summary: 'Quick', quickChat: true, workingDirectories: [sessionScratch] }));
+				fireSessionAdded(agentHost, 'nested-wl', { title: 'Quick', workingDirectories: [sessionScratch.toString()], workspaceless: true, listsMintedDefaultChat: false });
+				const quickSession = provider.getSessions().find(s => AgentSession.id(s.resource.toString()) === 'nested-wl')!;
+				provider.getSessionConfig(quickSession.sessionId, quickSession.mainChat.get().resource);
+				const quickUri = AgentSession.uri('copilotcli', 'nested-wl').toString();
+				const quickDefault = buildDefaultChatUri(quickUri);
+				const quickMeta = withSessionScratchFolders(withSessionWorkspaceless(undefined, true), [sessionScratch.toString()]);
+				const quickDirectories = [sessionScratch.toString(), other.toString()];
+				agentHost.setSessionState('nested-wl', 'copilotcli', makeState([
+					makeChatSummary(quickDefault, '', ProtocolSessionStatus.Idle, [sessionScratch.toString()]),
+					makeChatSummary(buildChatUri(quickUri, 'foldered'), 'Foldered', ProtocolSessionStatus.Idle, [other.toString()]),
+				], { defaultChat: quickDefault, meta: quickMeta, workingDirectories: quickDirectories }));
+				fireSessionSummaryChanged(agentHost, 'nested-wl', { workingDirectories: quickDirectories, _meta: quickMeta });
+
+				assert.deepStrictEqual({
+					workspace: describeSupport(provider, workspaceSession.sessionId),
+					workspaceless: describeSupport(provider, quickSession.sessionId),
+				}, {
+					workspace: { sessionFolder: repo.toString(), sessionFolders: [repo.toString(), other.toString()], multipleFolders: true, browseActions: true },
+					workspaceless: { sessionFolder: undefined, sessionFolders: [other.toString()], multipleFolders: true, browseActions: true },
+				});
+			}));
+
+			test('never offers a quick chat\'s own scratch folder, even when the host doesn\'t publish it', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+				enableCreateChatWorkspace(true);
+				const provider = createProvider(disposables, agentHost);
+				const sessionScratch = URI.file('/home/user/.copilot/chats/quick-unpublished');
+				agentHost.addSession(createSession('nested-wl-primary', { summary: 'Quick', quickChat: true, workingDirectories: [sessionScratch] }));
+				fireSessionAdded(agentHost, 'nested-wl-primary', { title: 'Quick', workingDirectories: [sessionScratch.toString()], workspaceless: true, listsMintedDefaultChat: false });
+				const quickSession = provider.getSessions().find(s => AgentSession.id(s.resource.toString()) === 'nested-wl-primary')!;
+				provider.getSessionConfig(quickSession.sessionId, quickSession.mainChat.get().resource);
+				const quickUri = AgentSession.uri('copilotcli', 'nested-wl-primary').toString();
+				const quickDefault = buildDefaultChatUri(quickUri);
+				const quickMeta = withSessionWorkspaceless(undefined, true);
+				const quickDirectories = [sessionScratch.toString(), other.toString()];
+				agentHost.setSessionState('nested-wl-primary', 'copilotcli', makeState([
+					makeChatSummary(quickDefault, '', ProtocolSessionStatus.Idle, [sessionScratch.toString()]),
+					makeChatSummary(buildChatUri(quickUri, 'sharing'), 'Sharing', ProtocolSessionStatus.Idle, [sessionScratch.toString()]),
+					makeChatSummary(buildChatUri(quickUri, 'foldered'), 'Foldered', ProtocolSessionStatus.Idle, [other.toString()]),
+				], { defaultChat: quickDefault, meta: quickMeta, workingDirectories: quickDirectories }));
+				fireSessionSummaryChanged(agentHost, 'nested-wl-primary', { workingDirectories: quickDirectories, _meta: quickMeta });
+
+				assert.deepStrictEqual(describeSupport(provider, quickSession.sessionId), { sessionFolder: undefined, sessionFolders: [other.toString()], multipleFolders: true, browseActions: true });
+			}));
+
+			test('a single-folder agent may only give a nested chat the session folder', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+				enableCreateChatWorkspace(false);
+				const provider = createProvider(disposables, agentHost);
+				const session = setupWorkspaceSession(provider, 'nested-single');
+				const chat = await provider.createNewChat(session.sessionId);
+				const outcome = async (workspace: INestedChatWorkspace) => {
+					try {
+						await provider.applyNestedChatWorkspace(session.sessionId, chat.resource, workspace, 'Fix the bug');
+						return 'applied';
+					} catch (error) {
+						return error instanceof NestedChatWorkspaceError ? error.kind : 'unexpected';
+					}
+				};
+
+				assert.deepStrictEqual({
+					multipleFolders: provider.getNestedChatWorkspaceSupport(session.sessionId, undefined)?.multipleFolders,
+					sessionFolder: await outcome({ kind: 'folder', folder: repo, isolation: 'folder' }),
+					sessionFolderWorktree: await outcome({ kind: 'folder', folder: repo, isolation: 'worktree', baseBranch: 'main' }),
+					otherFolder: await outcome({ kind: 'folder', folder: other, isolation: 'folder' }),
+					scratch: await outcome({ kind: 'scratch' }),
+					requested: agentHost.chatWorkspaceRequests.map(request => request.workspace.kind),
+				}, {
+					multipleFolders: false,
+					sessionFolder: 'applied',
+					sessionFolderWorktree: 'notSupported',
+					otherFolder: 'notSupported',
+					scratch: 'notSupported',
+					requested: ['folder'],
+				});
+			}));
+
+			test('applyNestedChatWorkspace asks the host to give the untitled chat the chosen folder, worktree, or scratch folder', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+				enableCreateChatWorkspace(true);
+				const provider = createProvider(disposables, agentHost);
+				const session = setupWorkspaceSession(provider, 'nested-apply');
+				const chat = await provider.createNewChat(session.sessionId);
+
+				await provider.applyNestedChatWorkspace(session.sessionId, chat.resource, { kind: 'folder', folder: other, isolation: 'folder' }, 'ignored');
+				await provider.applyNestedChatWorkspace(session.sessionId, chat.resource, { kind: 'folder', folder: repo, isolation: 'worktree', baseBranch: 'main' }, 'Fix the bug');
+				await provider.applyNestedChatWorkspace(session.sessionId, chat.resource, { kind: 'scratch' }, 'ignored');
+
+				const minted = agentHost.createdChats.at(-1)?.chat.toString();
+				assert.deepStrictEqual({
+					requests: agentHost.chatWorkspaceRequests.map(({ chat, workspace }) => ({ chat: chat.toString(), workspace: workspace.kind === 'folder' ? { ...workspace, folder: workspace.folder.toString() } : workspace })),
+					createdWithWorkspace: agentHost.createdChats.some(call => call.options?.workspace !== undefined),
+					untitled: chat.status.get() === SessionStatus.Untitled,
+				}, {
+					requests: [
+						{ chat: minted, workspace: { kind: 'folder', folder: other.toString(), isolation: 'folder' } },
+						{ chat: minted, workspace: { kind: 'folder', folder: repo.toString(), isolation: 'worktree', baseBranch: 'main', prompt: 'Fix the bug' } },
+						{ chat: minted, workspace: { kind: 'scratch' } },
+					],
+					createdWithWorkspace: false,
+					untitled: true,
+				});
+			}));
+
+			test('applyNestedChatWorkspace maps a host refusal to NestedChatWorkspaceError', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+				enableCreateChatWorkspace(true);
+				const provider = createProvider(disposables, agentHost);
+				const session = setupWorkspaceSession(provider, 'nested-refused');
+				const chat = await provider.createNewChat(session.sessionId);
+				stub(agentHost, 'setChatWorkspace').callsFake(async () => {
+					// A host may send a serialized error with its stack; only the reason is shown.
+					throw new Error('Error: not a git repository\n    at prepare (file:///host/agentService.js:1:1)');
+				});
+
+				const folderError = await provider.applyNestedChatWorkspace(session.sessionId, chat.resource, { kind: 'folder', folder: other, isolation: 'worktree', baseBranch: undefined }, 'Fix the bug').then(() => undefined, e => e);
+				const scratchError = await provider.applyNestedChatWorkspace(session.sessionId, chat.resource, { kind: 'scratch' }, 'Fix the bug').then(() => undefined, e => e);
+
+				assert.deepStrictEqual([folderError, scratchError].map(error => ({
+					kind: error instanceof NestedChatWorkspaceError ? error.kind : undefined,
+					message: error instanceof Error ? error.message : undefined,
+				})), [
+					{ kind: 'refused', message: 'The nested session could not be created in other: not a git repository' },
+					{ kind: 'refused', message: 'The nested session could not be created in a new folder: not a git repository' },
+				]);
+			}));
+
+			test('applyNestedChatWorkspace refuses a chat outside the session or already started without asking the host', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+				enableCreateChatWorkspace(true);
+				const requested = new ResourceSet();
+				const provider = createProvider(disposables, agentHost, undefined, {
+					getChatModel: resource => requested.has(resource) ? new class extends mock<IChatModel>() { override readonly hasRequests = true; }() : undefined,
+				});
+				const session = setupWorkspaceSession(provider, 'nested-started');
+				const sending = await provider.createNewChat(session.sessionId);
+				requested.add(sending.resource);
+				const sent = session.chats.get().find(chat => chat.resource.fragment === 'other')!;
+				const outcome = async (chat: URI) => {
+					const error = await provider.applyNestedChatWorkspace(session.sessionId, chat, { kind: 'folder', folder: other, isolation: 'folder' }, 'Fix the bug').then(() => undefined, e => e);
+					return error instanceof NestedChatWorkspaceError ? `${error.kind}: ${error.message}` : error;
+				};
+
+				const alreadyStarted = 'refused: The nested session already started, so its workspace can\'t change.';
+				assert.deepStrictEqual({
+					notInSession: await outcome(session.resource.with({ fragment: 'unknown' })),
+					sent: await outcome(sent.resource),
+					requestInFlight: await outcome(sending.resource),
+					requests: agentHost.chatWorkspaceRequests.length,
+				}, {
+					notInSession: alreadyStarted,
+					sent: alreadyStarted,
+					requestInFlight: alreadyStarted,
+					requests: 0,
+				});
+			}));
+
+			test('resolves folder isolation, default branch, and branch completions', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+				enableCreateChatWorkspace(true);
+				const provider = createProvider(disposables, agentHost);
+				const session = setupWorkspaceSession(provider, 'nested-folder-info');
+				agentHost.resolveSessionConfigResult = { schema: createVSCodeSessionConfigSchema(), values: { isolation: 'worktree', branch: 'develop' } };
+				agentHost.branchCompletionItems = [{ value: 'feature/a', label: 'feature/a' }];
+
+				const info = await provider.resolveNestedChatFolder(session.sessionId, other, CancellationToken.None);
+				const branches = await provider.getNestedChatBranches(session.sessionId, other, 'feat', CancellationToken.None);
+				agentHost.resolveSessionConfigResult = { schema: createVSCodeSessionConfigSchema({ isolation: { type: 'string', title: 'Isolation', enum: ['folder'], default: 'folder', sessionMutable: false } }), values: {} };
+				const folderOnly = await provider.resolveNestedChatFolder(session.sessionId, other, CancellationToken.None);
+
+				assert.deepStrictEqual({
+					info,
+					branches,
+					folderOnly,
+					resolvedFolders: agentHost.resolveSessionConfigRequests.map(request => request.workingDirectory?.toString()),
+					completion: agentHost.branchCompletionRequests.map(request => ({ property: request.property, query: request.query, workingDirectory: request.workingDirectory?.toString() })),
+				}, {
+					info: { supportsWorktree: true, defaultBranch: 'develop' },
+					branches: ['feature/a'],
+					folderOnly: { supportsWorktree: false, defaultBranch: undefined },
+					resolvedFolders: [other.toString(), other.toString(), other.toString()],
+					completion: [{ property: 'branch', query: 'feat', workingDirectory: other.toString() }],
+				});
+			}));
 		});
 
 		test('sendRequest keeps a peer chat model loaded while dispatching', async () => {
@@ -14493,23 +15347,38 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
-	test('moves a session under another only when the host moves sessions and says this one can move (Block 4)', async () => {
-		agentHost.addSession(createSession('move-single', { _meta: { 'vscode.movable': true } }));
+	test('offers a session the nest drop from list data alone: one unarchived chat besides its subagents, with the host able to move sessions (Block 4)', async () => {
+		const chatsOf = (rawId: string, kinds: readonly ('default' | 'peer')[]) => kinds.map((kind, index) => ({ chat: URI.parse(index === 0 ? buildDefaultChatUri(`copilotcli:/${rawId}`) : `${buildDefaultChatUri(`copilotcli:/${rawId}`)}-${index}`), kind }));
+		agentHost.addSession(createSession('move-single', { chats: chatsOf('move-single', ['default']) }));
 		agentHost.addSession(createSession('move-target'));
+		agentHost.addSession(createSession('move-multi', { chats: chatsOf('move-multi', ['default', 'peer']) }));
+		agentHost.addSession(createSession('move-archived', { status: ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsArchived }));
+		const subagentSessionUri = AgentSession.uri('copilotcli', 'move-subagent').toString();
+		agentHost.addSession(createSession('move-subagent', {
+			chats: [
+				{ chat: URI.parse(buildDefaultChatUri(subagentSessionUri)), kind: 'default' },
+				{ chat: URI.parse(buildSubagentChatUri(subagentSessionUri, 'tool-call')), kind: 'peer', origin: { kind: ProtocolChatOriginKind.Tool, chat: buildDefaultChatUri(subagentSessionUri), toolCallId: 'tool-call' } },
+			],
+		}));
 		const provider = createProvider(disposables, agentHost);
 		await timeout(0);
-		const [single, target] = ['move-single', 'move-target'].map(rawId => provider.getSessions().find(session => AgentSession.id(session.resource.toString()) === rawId)!);
-		const before = [provider.canMoveSessionUnder(single.sessionId), provider.canMoveSessionUnder(target.sessionId)];
-		await assert.rejects(() => provider.moveSessionUnder(single.sessionId, target.sessionId, undefined), /can't be moved/);
+		const rawIds = ['move-single', 'move-target', 'move-multi', 'move-archived', 'move-subagent'];
+		const sessions = rawIds.map(rawId => provider.getSessions().find(session => AgentSession.id(session.resource.toString()) === rawId)!);
+		const answers = () => sessions.map(session => provider.canMoveSessionUnder(session.sessionId));
+		const wireOpsBefore = agentHost.wireOps.length;
+		const before = answers();
+		await assert.rejects(() => provider.moveSessionUnder(sessions[0].sessionId, sessions[1].sessionId, undefined), /can't be moved/);
 		agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), _meta: { ...agentHost.initializeResult.get()._meta, 'vscode.sessionMove': true } }, undefined);
-		const after = [provider.canMoveSessionUnder(single.sessionId), provider.canMoveSessionUnder(target.sessionId)];
+		const after = answers();
+		const wireOpsAfterAnswering = agentHost.wireOps.length;
 
-		await provider.moveSessionUnder(single.sessionId, target.sessionId, undefined);
+		await provider.moveSessionUnder(sessions[0].sessionId, sessions[1].sessionId, undefined);
 
-		assert.deepStrictEqual({ before, after, moved: agentHost.movedSessions }, {
-			before: [false, false],
-			// Only a session the host says can move.
-			after: [true, false],
+		assert.deepStrictEqual({ before, after, nothingLoadedToAnswer: wireOpsAfterAnswering === wireOpsBefore, moved: agentHost.movedSessions }, {
+			before: [false, false, false, false, false],
+			// Without `vscode.movable`: any single-chat, unarchived session. Subagent chats move with their default chat.
+			after: [true, true, false, false, true],
+			nothingLoadedToAnswer: true,
 			moved: [{ session: AgentSession.uri('copilotcli', 'move-single').toString(), destination: AgentSession.uri('copilotcli', 'move-target').toString(), after: undefined }],
 		});
 	});

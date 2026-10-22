@@ -27,12 +27,12 @@ export class GitHubPRFetcher {
 
 	getPullRequest(owner: string, repo: string, prNumber: number, token?: CancellationToken, options?: ApiRequestOptions): Promise<IGitHubPullRequest> {
 		return this.client.withClient(async (client, signal) =>
-			mapPullRequest(await client.pullRequests.get({ owner, name: repo }, prNumber, signal, options)), token);
+			mapPullRequest(await client.pullRequests.get({ owner, repo }, prNumber, signal, options)), token);
 	}
 
 	getReviews(owner: string, repo: string, prNumber: number, token?: CancellationToken, options?: ApiRequestOptions): Promise<readonly IGitHubPullRequestReview[]> {
 		return this.client.withClient(async (client, signal) => {
-			const reviews = await client.reviews.list({ owner, name: repo }, prNumber, signal, {
+			const reviews = await client.reviews.list({ owner, repo }, prNumber, signal, {
 				...options,
 				query: { page: 1, per_page: 100 },
 				maxPages: 100,
@@ -43,7 +43,7 @@ export class GitHubPRFetcher {
 
 	getChangedFiles(owner: string, repo: string, prNumber: number): Promise<readonly IGitHubChangedFile[]> {
 		return this.client.withClient(async (client, signal) => {
-			const files = await client.pullRequests.listFiles({ owner, name: repo }, prNumber, signal, {
+			const files = await client.pullRequests.listFiles({ owner, repo }, prNumber, signal, {
 				query: { page: 1, per_page: 100 },
 				maxPages: 100,
 			});
@@ -60,7 +60,7 @@ export class GitHubPRFetcher {
 
 	getReviewThreads(owner: string, repo: string, prNumber: number, token?: CancellationToken, options?: ApiRequestOptions): Promise<IGitHubPullRequestReviewThread[]> {
 		return this.client.withClient(async (client, signal) => {
-			const pullRequest = await client.pullRequests.get({ owner, name: repo }, prNumber, signal, options);
+			const pullRequest = await client.pullRequests.get({ owner, repo }, prNumber, signal, options);
 			const threads = await client.reviews.listThreads(pullRequest.node_id, signal, {
 				...options,
 				query: { first: 100, commentsFirst: 100 },
@@ -102,7 +102,7 @@ export class GitHubPRFetcher {
 
 	postReviewComment(owner: string, repo: string, prNumber: number, body: string, inReplyTo: number, token?: CancellationToken): Promise<IGitHubPRComment> {
 		return this.client.withClient(async (client, signal) =>
-			mapReviewComment(await client.reviews.replyToComment({ owner, name: repo }, prNumber, inReplyTo, body, signal)), token);
+			mapReviewComment(await client.reviews.replyToComment({ owner, repo }, prNumber, inReplyTo, body, signal)), token);
 	}
 
 	postPullRequestReviewComment(
@@ -117,7 +117,7 @@ export class GitHubPRFetcher {
 					...(startLine !== undefined ? { startLine, startSide: 'RIGHT' } : {}),
 				}, signal);
 			} else {
-				await client.reviews.create({ owner, name: repo }, prNumber, {
+				await client.reviews.create({ owner, repo }, prNumber, {
 					commit_id: commitId,
 					comments: [{
 						body, path, line, side: 'RIGHT',
@@ -130,7 +130,7 @@ export class GitHubPRFetcher {
 
 	postIssueComment(owner: string, repo: string, prNumber: number, body: string, token?: CancellationToken): Promise<IGitHubPRComment> {
 		return this.client.withClient(async (client, signal) => {
-			const data = await client.issues.createComment({ owner, name: repo }, prNumber, body, signal);
+			const data = await client.issues.createComment({ owner, repo }, prNumber, body, signal);
 			return {
 				id: data.id,
 				body: data.body ?? '',

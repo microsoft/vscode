@@ -310,6 +310,18 @@ export type GetAutomationOptions = ApiQueryOptions<{
 	readonly include_tags?: boolean;
 }>;
 
+/** Server-resolved automation enablement, caller permissions, and repository policy constraints. */
+export interface AutomationRepositoryConfiguration {
+	/** Whether rollout, visibility, and effective policies permit automations, independently of the caller's write permission. */
+	readonly automations_enabled: boolean;
+	/** Whether automations are enabled and the caller's token can manage them; mutations still revalidate authorization. */
+	readonly can_manage_automations: boolean;
+	/** Whether policy permits triggers from read-access actors; individual automations may still require write access. */
+	readonly allow_read_access_triggers: boolean;
+	/** Whether effective policy and its enforcement rollout require writes to stay within the triggering resource. */
+	readonly require_trigger_scoped_writes: boolean;
+}
+
 /** A page of repository automation summaries with the complete filtered result count. */
 export interface ListRepoAutomationsResponse {
 	/** Summaries on this page, including readable repository-owned automations. */
@@ -350,6 +362,9 @@ export interface IAutomationsClient {
 
 	/** GET /agents/repos/{owner}/{repo}/automations/{automation_id}: get a user- or repository-owned automation. */
 	get(repository: RepositoryRef, automationId: string, signal: AbortSignal, options?: GetAutomationOptions): Promise<AutomationDetail>;
+
+	/** GET /agents/repos/{owner}/{repo}/automations/configuration: read caller-specific configuration, including when automations are disabled. */
+	getConfiguration(repository: RepositoryRef, signal: AbortSignal, options?: ApiRequestOptions): Promise<AutomationRepositoryConfiguration>;
 
 	/** POST /agents/repos/{owner}/{repo}/automations: create an automation. */
 	create(repository: RepositoryRef, request: CreateAutomationRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<AutomationDetail>;

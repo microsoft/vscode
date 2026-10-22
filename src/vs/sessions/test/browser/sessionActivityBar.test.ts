@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import { $, append, getActiveElement, IDimension } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
-import { timeout } from '../../../base/common/async.js';
+import { retry, timeout } from '../../../base/common/async.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
@@ -23,8 +24,11 @@ import { TestConfigurationService } from '../../../platform/configuration/test/c
 import { IContextMenuMenuDelegate, IContextMenuService, IContextViewService } from '../../../platform/contextview/browser/contextView.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { ChatViewSessionActivityBar, SessionActivityBar } from '../../browser/parts/sessionActivityBar.js';
+import { SessionActivityBarGroup } from '../../browser/menus.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../browser/workbench.js';
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../common/sessionConfig.js';
+import { ISessionActivityBarActivityService, SessionActivityBarActivityService } from '../../services/activity/common/sessionActivityBarActivityService.js';
+import { IconBadge, NumberBadge } from '../../../workbench/services/activity/common/activity.js';
 import { TestContextViewService } from './testContextViewService.js';
 import '../../../base/browser/ui/tree/media/tree.css';
 import '../../browser/parts/media/sessionView.css';
@@ -44,6 +48,11 @@ const canvas: ITestEntry = { id: 'test.canvas', title: 'Canvas', icon: Codicon.p
 
 suite('Sessions - Session Activity Bar', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	teardown(() => sinon.restore());
+
+	function nextFrame(): Promise<void> {
+		return new Promise(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+	}
 
 	function createActivityBar(disposables: Pick<DisposableStore, 'add'>, initialEntries: readonly ITestEntry[]) {
 		const testStore = disposables.add(new DisposableStore());
@@ -116,10 +125,14 @@ suite('Sessions - Session Activity Bar', () => {
 		const configurationService = new TestConfigurationService({ [SESSION_ACTIVITY_BAR_SETTING]: true });
 		instantiationService.stub(IConfigurationService, configurationService);
 
+		const activityService = testStore.add(new SessionActivityBarActivityService());
+		instantiationService.stub(ISessionActivityBarActivityService, activityService);
+
 		const activityBar = testStore.add(instantiationService.createInstance(SessionActivityBar, container));
 		return {
 			root,
 			activityBar,
+			activityService,
 			createDocked: () => {
 				const host = append(root, $('.host'));
 				host.style.cssText = 'width: 800px; height: 600px;';
@@ -183,6 +196,53 @@ suite('Sessions - Session Activity Bar', () => {
 			noEntries: false,
 			entriesAdded: true,
 			phoneLayout: false,
+		});
+	});
+
+	test('shows the activity reported for an entry as a badge and in its label', () => {
+		const { activityBar, activityService } = createActivityBar(store, [changes, browser]);
+		const state = () => [...activityBar.element.querySelectorAll<HTMLElement>('.action-item')].map(item => {
+			const badge = item.querySelector<HTMLElement>('.session-activity-bar-badge')!;
+			return {
+				ariaLabel: item.querySelector('.action-label')!.getAttribute('aria-label'),
+				badge: mainWindow.getComputedStyle(badge).display === 'none' ? undefined : badge.classList.contains('count') ? badge.textContent : 'dot',
+			};
+		});
+
+		const initial = state();
+		const dot = activityService.showActivity(changes.id, { badge: new IconBadge(Codicon.circleFilled, () => 'New changes') });
+		const withDot = state();
+		// Like the workbench activity bar, the badge overlaps the bottom-right corner of the 16px icon centered in the 24px entry.
+		for (const [token, value] of [['spacing-size20', '2px'], ['spacing-size80', '8px'], ['spacing-size120', '12px'], ['spacing-size240', '24px'], ['strokeThickness', '1px']]) {
+			activityBar.element.style.setProperty(`--vscode-${token}`, value);
+		}
+		const changesItem = activityBar.element.querySelector<HTMLElement>('.action-item')!;
+		const itemBounds = changesItem.getBoundingClientRect();
+		const badgeBounds = changesItem.querySelector('.session-activity-bar-badge')!.getBoundingClientRect();
+		const centerX = (badgeBounds.left + badgeBounds.right) / 2;
+		const centerY = (badgeBounds.top + badgeBounds.bottom) / 2;
+		const dotPlacement = {
+			insideEntry: badgeBounds.left >= itemBounds.left && badgeBounds.right <= itemBounds.right && badgeBounds.top >= itemBounds.top && badgeBounds.bottom <= itemBounds.bottom,
+			bottomRightQuadrant: centerX > (itemBounds.left + itemBounds.right) / 2 && centerY > (itemBounds.top + itemBounds.bottom) / 2,
+			smallerThanEntry: badgeBounds.width < itemBounds.width / 2 && badgeBounds.height < itemBounds.height / 2,
+		};
+		const count = activityService.showActivity(browser.id, { badge: new NumberBadge(120, n => `${n} pages`) });
+		const withCount = state();
+		// The most recent activity is shown, not an aggregate of every activity.
+		const moreRecentCount = activityService.showActivity(browser.id, { badge: new NumberBadge(3, n => `${n} tabs`) });
+		const withMoreRecentCount = state();
+		moreRecentCount.dispose();
+		dot.dispose();
+		count.dispose();
+		const cleared = state();
+
+		assert.deepStrictEqual({ initial, withDot, dotPlacement, withCount, withMoreRecentCount, cleared }, {
+			initial: [{ ariaLabel: 'Changes', badge: undefined }, { ariaLabel: 'Browser', badge: undefined }],
+			withDot: [{ ariaLabel: 'Changes - New changes', badge: 'dot' }, { ariaLabel: 'Browser', badge: undefined }],
+			dotPlacement: { insideEntry: true, bottomRightQuadrant: true, smallerThanEntry: true },
+			withCount: [{ ariaLabel: 'Changes - New changes', badge: 'dot' }, { ariaLabel: 'Browser - 120 pages', badge: '99+' }],
+			withMoreRecentCount: [{ ariaLabel: 'Changes - New changes', badge: 'dot' }, { ariaLabel: 'Browser - 3 tabs', badge: '3' }],
+			cleared: [{ ariaLabel: 'Changes', badge: undefined }, { ariaLabel: 'Browser', badge: undefined }],
 		});
 	});
 
@@ -254,16 +314,213 @@ suite('Sessions - Session Activity Bar', () => {
 		});
 	});
 
-	test('renders every menu group, separating the layout toggles above and below the tab entries', () => {
-		const sidePanel: ITestEntry = { id: 'test.sidePanel', title: 'Toggle Side Panel', icon: Codicon.layoutSidebarRight, group: '1_sidePanel' };
-		const panel: ITestEntry = { id: 'test.panel', title: 'Show Panel', icon: Codicon.layoutPanelOff, group: '3_panel' };
-		const { activityBar, ran, label } = createActivityBar(store, [sidePanel, changes, browser, panel]);
+	test('moves the scroll arrow above an overlapping strip and restores it when the gutter clears', async () => {
+		const { createDocked, setEnabled } = createActivityBar(store, [changes, browser, canvas]);
+		const docked = createDocked();
+		const element = docked.element!;
+		const host = element.parentElement!;
+		const session = append(host, $('.interactive-session'));
+		const list = append(session, $('.interactive-list'));
+		list.style.cssText = 'position: relative; width: 800px; height: 530px;';
+		const button = append(list, $('.chat-scroll-down'));
+		button.style.cssText = 'display: flex; position: absolute; right: 15px; bottom: 8px; width: 24px; height: 24px;';
+		docked.setScrollDownButton(button);
+		docked.layout(0, 600);
+		docked.setActive(true);
+		await nextFrame();
+		const initial = button.style.translate;
+
+		const handle = element.querySelector<HTMLElement>('.session-activity-bar-drag-handle')!;
+		const pointer = { pointerId: 1, button: 0, buttons: 1, bubbles: true, clientX: 500 };
+		handle.dispatchEvent(new PointerEvent('pointerdown', { ...pointer, clientY: 0 }));
+		handle.dispatchEvent(new PointerEvent('pointermove', { ...pointer, clientY: 2000 }));
+		handle.dispatchEvent(new PointerEvent('pointerup', { ...pointer, buttons: 0, clientY: 2000 }));
+		await nextFrame();
+		const movedGap = element.getBoundingClientRect().top - button.getBoundingClientRect().bottom;
+
+		list.style.height = '350px';
+		await retry(async () => assert.strictEqual(button.style.translate, ''), 10, 100);
+		const resized = button.style.translate;
+		list.style.height = '530px';
+		await retry(async () => assert.notStrictEqual(button.style.translate, ''), 10, 100);
+		setEnabled(false);
+		await nextFrame();
+		const disabled = button.style.translate;
+		setEnabled(true);
+		await nextFrame();
+		const restoredGap = element.getBoundingClientRect().top - button.getBoundingClientRect().bottom;
+		docked.setActive(false);
+		await nextFrame();
+		const inactive = button.style.translate;
+		docked.setActive(true);
+		docked.setScrollDownButton(undefined);
+		const detached = button.style.translate;
+
+		const hasExpectedGap = (gap: number) => Math.abs(gap - ChatViewSessionActivityBar.SCROLL_DOWN_BUTTON_GAP) <= 1;
+		assert.deepStrictEqual({ initial, movedGap: hasExpectedGap(movedGap), resized, disabled, restoredGap: hasExpectedGap(restoredGap), inactive, detached }, {
+			initial: '',
+			movedGap: true,
+			resized: '',
+			disabled: '',
+			restoredGap: true,
+			inactive: '',
+			detached: '',
+		});
+	});
+
+	test('skips scroll arrow measurements while hidden, inactive, or detached', async () => {
+		const { createDocked, setEnabled, setEntries } = createActivityBar(store, [changes, browser, canvas]);
+		const docked = createDocked();
+		const element = docked.element!;
+		const session = append(element.parentElement!, $('.interactive-session'));
+		const list = append(session, $('.interactive-list'));
+		list.style.cssText = 'position: relative; width: 800px; height: 80px;';
+		const button = append(list, $('.chat-scroll-down'));
+		button.style.cssText = 'display: flex; position: absolute; right: 15px; bottom: 8px; width: 24px; height: 24px;';
+		docked.setScrollDownButton(button);
+		docked.layout(0, 600);
+		docked.setActive(true);
+		await nextFrame();
+		const translated = button.style.translate !== '';
+
+		const measurements = [
+			sinon.spy(button, 'getBoundingClientRect'),
+			sinon.spy(list, 'getBoundingClientRect'),
+			sinon.spy(element, 'getBoundingClientRect'),
+		];
+		const measurementCount = () => measurements.reduce((count, spy) => count + spy.callCount, 0);
+		docked.setActive(false);
+		await nextFrame();
+		const inactive = { measurements: measurementCount(), translate: button.style.translate };
+		docked.setActive(true);
+		await nextFrame();
+		measurements.forEach(spy => spy.resetHistory());
+		setEnabled(false);
+		setEntries([changes, browser]);
+		await nextFrame();
+		const disabled = { measurements: measurementCount(), translate: button.style.translate };
+		setEnabled(true);
+		await nextFrame();
+		measurements.forEach(spy => spy.resetHistory());
+		button.style.display = 'none';
+		docked.layout(0, 600);
+		await nextFrame();
+		const hidden = { measurements: measurementCount(), translate: button.style.translate };
+		button.style.display = 'flex';
+		session.remove();
+		docked.layout(0, 600);
+		await nextFrame();
+		const detached = { measurements: measurementCount(), translate: button.style.translate };
+
+		assert.deepStrictEqual({ translated, inactive, disabled, hidden, detached }, {
+			translated: true,
+			inactive: { measurements: 0, translate: '' },
+			disabled: { measurements: 0, translate: '' },
+			hidden: { measurements: 0, translate: '' },
+			detached: { measurements: 0, translate: '' },
+		});
+	});
+
+	test('coalesces scroll arrow attachment, layout, drag, and observer updates and cancels them on detachment', async () => {
+		const { createDocked } = createActivityBar(store, [changes, browser]);
+		const docked = createDocked();
+		const session = append(docked.element!.parentElement!, $('.interactive-session'));
+		const list = append(session, $('.interactive-list'));
+		list.style.cssText = 'position: relative; width: 800px; height: 530px;';
+		const button = append(list, $('.chat-scroll-down'));
+		button.style.cssText = 'display: flex; position: absolute; right: 15px; bottom: 8px; width: 24px; height: 24px;';
+		const measurements = sinon.spy(button, 'getBoundingClientRect');
+		docked.setScrollDownButton(button);
+		docked.layout(0, 600);
+		docked.setActive(true);
+		docked.layout(0, 610);
+		const handle = docked.element!.querySelector<HTMLElement>('.session-activity-bar-drag-handle')!;
+		const pointer = { pointerId: 1, button: 0, buttons: 1, bubbles: true, clientX: 500 };
+		handle.dispatchEvent(new PointerEvent('pointerdown', { ...pointer, clientY: 0 }));
+		handle.dispatchEvent(new PointerEvent('pointermove', { ...pointer, clientY: 40 }));
+		handle.dispatchEvent(new PointerEvent('pointermove', { ...pointer, clientY: 80 }));
+		handle.dispatchEvent(new PointerEvent('pointerup', { ...pointer, buttons: 0, clientY: 80 }));
+		const beforeLayoutFrame = measurements.callCount;
+		await nextFrame();
+		const afterLayoutFrame = measurements.callCount;
+		await nextFrame();
+		await nextFrame();
+		measurements.resetHistory();
+
+		session.style.setProperty('--vscode-chat-persistent-content-height', '10px');
+		await Promise.resolve();
+		docked.layout(0, 620);
+		session.style.setProperty('--vscode-chat-persistent-content-height', '20px');
+		await Promise.resolve();
+		const beforeFrame = measurements.callCount;
+		await nextFrame();
+		const afterFrame = measurements.callCount;
+		session.style.setProperty('--vscode-chat-persistent-content-height', '30px');
+		await Promise.resolve();
+		docked.layout(0, 630);
+		docked.setScrollDownButton(undefined);
+		await nextFrame();
+
+		assert.deepStrictEqual({ beforeLayoutFrame, afterLayoutFrame, beforeFrame, afterFrame, afterDetachment: measurements.callCount }, {
+			beforeLayoutFrame: 0,
+			afterLayoutFrame: 1,
+			beforeFrame: 0,
+			afterFrame: 1,
+			afterDetachment: 1,
+		});
+	});
+
+	for (const { height, bottom, placement } of [
+		{ height: 240, bottom: 80, placement: 'below' },
+		{ height: 180, bottom: 8, placement: 'beside' },
+		{ height: 28, bottom: 8, placement: 'beside' },
+	]) {
+		test(`keeps the scroll arrow visible ${placement} the strip in a ${height}px transcript`, async () => {
+			const entries = Array.from({ length: 6 }, (_, index) => ({ id: `test.entry${index}`, title: `Entry ${index}`, icon: Codicon.globe }));
+			const { createDocked } = createActivityBar(store, entries);
+			const docked = createDocked();
+			const element = docked.element!;
+			const host = element.parentElement!;
+			host.style.cssText += 'position: fixed; top: 0; left: 0;';
+			const session = append(host, $('.interactive-session'));
+			const list = append(session, $('.interactive-list'));
+			list.style.cssText = `position: relative; width: 800px; height: ${height}px; flex: none; overflow: hidden;`;
+			const button = append(list, $('button.chat-scroll-down'));
+			button.style.cssText = `display: flex; position: absolute; right: 15px; bottom: ${bottom}px; width: 24px; height: 24px; box-sizing: border-box;`;
+			docked.setScrollDownButton(button);
+			docked.layout(0, 600);
+			docked.setActive(true);
+			await nextFrame();
+
+			const bounds = button.getBoundingClientRect();
+			const viewport = list.getBoundingClientRect();
+			const barBounds = element.getBoundingClientRect();
+			const target = mainWindow.document.elementFromPoint(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2);
+			assert.deepStrictEqual({
+				insideViewport: bounds.top >= viewport.top && bounds.bottom <= viewport.bottom && bounds.left >= viewport.left && bounds.right <= viewport.right,
+				clearOfStrip: placement === 'below'
+					? bounds.top >= barBounds.bottom + ChatViewSessionActivityBar.SCROLL_DOWN_BUTTON_GAP - 1
+					: bounds.right <= barBounds.left - ChatViewSessionActivityBar.SCROLL_DOWN_BUTTON_GAP + 1,
+				receivesPointer: target === button,
+			}, { insideViewport: true, clearOfStrip: true, receivesPointer: true });
+
+			button.style.bottom = '8px';
+			list.style.height = '530px';
+			await retry(async () => assert.strictEqual(button.style.translate, ''), 10, 100);
+		});
+	}
+
+	test('renders two groups: the side panel toggle with the tab entries, then the terminal with the panel toggle', () => {
+		const sidePanel: ITestEntry = { id: 'test.sidePanel', title: 'Toggle Side Panel', icon: Codicon.layoutSidebarRight, group: SessionActivityBarGroup.SidePanel };
+		const terminal: ITestEntry = { id: 'test.terminal', title: 'Terminal', icon: Codicon.terminal, group: SessionActivityBarGroup.Panel };
+		const panel: ITestEntry = { id: 'test.panel', title: 'Show Panel', icon: Codicon.layoutPanelOff, group: SessionActivityBarGroup.Panel };
+		const { activityBar, ran, label } = createActivityBar(store, [sidePanel, { ...changes, group: SessionActivityBarGroup.SidePanel }, { ...browser, group: SessionActivityBarGroup.SidePanel }, terminal, panel]);
 		const items = [...activityBar.element.querySelectorAll<HTMLElement>('.actions-container > .action-item')]
 			.map(item => item.querySelector('.action-label.separator') ? '---' : item.querySelector('.action-label')?.getAttribute('aria-label'));
 		label('Toggle Side Panel').click();
 
 		assert.deepStrictEqual({ items, ran }, {
-			items: ['Toggle Side Panel', '---', 'Changes', 'Browser', '---', 'Show Panel'],
+			items: ['Toggle Side Panel', 'Changes', 'Browser', '---', 'Terminal', 'Show Panel'],
 			ran: ['test.sidePanel'],
 		});
 	});

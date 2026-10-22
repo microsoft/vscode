@@ -12,7 +12,7 @@ import type { ChatUriFormat } from '../../common/agentHostChatMinting.js';
 /** A host-shaped chat context for provider tests: `owner` owns the chat, which stores under `resource`. */
 export function createTestAgentChatContext(owner: URI | IAgentChatOwnerRef, resource: URI): IAgentChatContext {
 	const ref = URI.isUri(owner) ? fixedChatOwnerRef(owner) : owner;
-	return { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: ref, resource };
+	return { sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: false, owner: ref, resource };
 }
 
 /** An owner reference a test reassigns, standing in for the host moving a chat to another session. */

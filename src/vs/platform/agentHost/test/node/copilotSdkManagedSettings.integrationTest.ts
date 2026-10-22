@@ -52,7 +52,7 @@ suite('Copilot SDK - managed settings', function () {
 	test('bundled managedSettings.schema matches the snapshot', async function () {
 		const result = await client.rpc.managedSettings.schema();
 		assert.ok(result.schema && typeof result.schema === 'object' && !Array.isArray(result.schema));
-		const content = JSON.stringify(result, null, '\t') + '\n';
+		const content = JSON.stringify(result.schema, null, '\t') + '\n';
 		const snapshotPath = snapshotPathForTest(this.test!, 'schema', 'json');
 		if (process.env[AgentHostUpdateAhpSnapshotsEnvVar] === '1') {
 			await mkdir(dirname(snapshotPath), { recursive: true });
@@ -108,13 +108,43 @@ suite('Copilot SDK - managed settings', function () {
 			{
 				name: 'drops concrete-model options for Auto while retaining the routing default',
 				layers: [{ source: 'server', settings: { model: 'auto', effortLevel: 'high', contextTier: 'long_context', autoTier: { overridable: 'intelligence' } } }],
-				values: { model: 'auto', autoTier: 'intelligence', ensembleTier: 'high' },
+				values: { model: 'auto', autoTier: 'intelligence', fusionTier: 'high' },
 				meta: {
 					model: { overridable: true, source: 'server' },
 					autoTier: { overridable: true, source: 'server' },
-					ensembleTier: { overridable: true, source: 'server' },
+					fusionTier: { overridable: true, source: 'server' },
 				},
 				warnings: ['server.contextTier', 'server.effortLevel'],
+			},
+			{
+				name: 'reports a configured Fusion tier beside the legacy Auto tier it supersedes',
+				layers: [
+					{ source: 'device', settings: { fusionTier: { overridable: 'max' } } },
+					{ source: 'server', settings: { autoTier: 'intelligence' } },
+				],
+				values: { autoTier: 'intelligence', fusionTier: 'max' },
+				meta: {
+					autoTier: { overridable: false, source: 'server' },
+					fusionTier: { overridable: true, source: 'device' },
+				},
+				warnings: [],
+			},
+			{
+				name: 'reports an unmanaged Fusion tier as overridable',
+				layers: [{ source: 'server', settings: { fusionTier: 'unmanaged', autoTier: 'intelligence' } }],
+				values: { autoTier: 'intelligence', fusionTier: 'unmanaged' },
+				meta: {
+					autoTier: { overridable: false, source: 'server' },
+					fusionTier: { overridable: true, source: 'server' },
+				},
+				warnings: [],
+			},
+			{
+				name: 'ignores the retired Ensemble tier key',
+				layers: [{ source: 'server', settings: { ensembleTier: 'high' } }],
+				values: undefined,
+				meta: undefined,
+				warnings: ['server.ensembleTier'],
 			},
 			{
 				name: 'does not turn options without a managed model into global defaults',

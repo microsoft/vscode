@@ -6,7 +6,7 @@
 import { asArray } from '../../../../base/common/arrays.js';
 import { GitHubRequestError, MissingCommitError } from '../githubTypes.js';
 import { parseResponseJson } from '../responseReader.js';
-import { RequestPriority } from '../types.js';
+import { GitHubRequestDomain, gitHubRequestDomains, RequestPriority } from '../types.js';
 import { ContentType } from './headers.js';
 import { parse } from './schema.js';
 
@@ -40,6 +40,8 @@ export interface ApiPaginationOptions<TQuery> extends ApiQueryOptions<TQuery>, P
 
 /** An API-relative operation; credentials and conditional-request headers belong to the provider. */
 export interface ApiRequest {
+	/** Fixed API domain supplied by the typed client; does not affect scheduling or caching. */
+	readonly domain?: GitHubRequestDomain;
 	/** HTTP method. */
 	readonly method: 'HEAD' | 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 	/** Encoded REST/raw-relative path; '/' selects the fixed GraphQL endpoint. */
@@ -107,10 +109,11 @@ export abstract class BufferedApiRequestProvider implements IApiRequestProvider 
 	async request<T>(request: ApiRequest, signal: AbortSignal, parser?: parse.Parser<T>): Promise<ApiResponse<T | void>> {
 		signal.throwIfAborted();
 		this.clientSignal?.throwIfAborted();
-		const bodyText = serializeRequestBody(request.body);
+		const { body, ...metadata } = request;
+		const bodyText = serializeRequestBody(body);
 		let response: ApiResponse<string | undefined>;
 		try {
-			response = await this.requestText(request, signal, bodyText);
+			response = await this.requestText(metadata, signal, bodyText);
 		} catch (error) {
 			if (isMissingCommitResponse(error)) {
 				throw new MissingCommitError(error);
@@ -153,6 +156,7 @@ const parseStatuses = parse.refine(parse.arrayOf(parseStatus), statuses => statu
 
 /** Validates wire metadata without parsing the separately serialized request body. */
 export const parseRequest = parse.object<Omit<ApiRequest, 'body'>>({
+	domain: parse.optional(parse.oneOf(...gitHubRequestDomains)),
 	method: parse.oneOf('HEAD', 'GET', 'POST', 'PUT', 'PATCH', 'DELETE'),
 	path: parse.refine(parse.nonEmptyString, path => path.startsWith('/') && !path.startsWith('//') && !/[\\#\r\n]/.test(path), 'Expected an API-relative path'),
 	authentication: parse.optional(parse.oneOf('optional', 'required')),

@@ -15,7 +15,7 @@ Reusable GitHub engine and cross-target architecture.
 
 - The [workbench binding](../../workbench/services/github/browser/githubService.ts) selects the default account or an explicit session in the renderer. Legacy consumers retain their in-process clients. Portable default-account clients execute locally on web and through the [desktop IPC binding](../../workbench/services/github/electron-browser/githubService.ts) on desktop.
 - The [Agent Host binding](../agentHost/node/agentHostGitHubService.ts) selects its host-owned repository credential resource without an attached workbench. Repository/PR association, creation, merge settings, auto-merge and issue/PR title context use its explicit clients. Copilot discovery and model requests still use the existing [Agent Host Copilot service](../agentHost/node/shared/copilotApiService.ts); migrating them is a separate change.
-- The [shared-process binding](electron-utility/githubService.ts) hosts an additional engine with direct Node networking. Its [typed service boundary](common/remote/ipc.ts) supports directly disposable anonymous and explicitly authorized account clients with REST, buffered GraphQL, pinned public raw-content, and Mission Control execution. Account credentials come from the acquiring renderer's callback channel. Sessions GitHub, Cloud Automations, and the issue reporter's anonymous search use this binding on desktop; other feature consumers retain their existing bindings.
+- The [shared-process binding](electron-utility/githubService.ts) hosts an additional engine with direct Node networking. Its [typed service boundary](common/remote/ipc.ts) supports directly disposable anonymous and explicitly authorized account clients with REST, buffered GraphQL, pinned public raw-content, Mission Control, and Copilot Connectors execution. Account credentials come from the acquiring renderer's callback channel. Sessions GitHub, Cloud Automations, Copilot Connectors, Issue Reporter anonymous search, and slow-extension issue search use this binding on desktop; other feature consumers retain their existing bindings.
 - The [Sessions service](../../sessions/contrib/github/browser/githubService.ts) retains its observable models and polling while its fetchers use the portable account API. Extension clients still own independent requests and polling.
 
 These instances do not currently share application-wide request state.
@@ -26,7 +26,7 @@ The [client inventory](client-inventory.md) maps runtime callers, migration boun
 
 The GitHub engine uses shared [types](common/types.ts), [queue](common/requestQueue.ts), [scheduler](common/scheduler.ts), [backoff](common/backoff.ts), [cooldown state](common/cooldownState.ts), [response readers](common/responseReader.ts) and [operation waiters](common/operationWaiters.ts) with neutral names. These mechanisms do not interpret service-specific payloads. GitHub header/GraphQL policy stays in [GitHubRateLimitCoordinator](common/githubRateLimitCoordinator.ts).
 
-Shared schema parsers live in [client/schema.ts](common/client/schema.ts); domain clients compose them to validate API payloads. Strict [HTTP header readers](common/client/headers.ts) validate quota counters and Retry-After feedback. Shared [routing helpers](common/client/routing.ts) encode opaque identifiers, repository paths, and query parameters.
+Shared schema parsers live in [client/schema.ts](common/client/schema.ts); domain clients compose them to validate API payloads. `parse.object` retains unknown and explicitly undefined fields. Unchanged plain objects and arrays are reused; transformations copy only the affected containers without mutating the input. `parse.copyObject` creates a fresh object containing only defined schema fields; nested filtering uses copying parsers explicitly. Execution providers select permitted transport options, request bodies are separated from IPC metadata, and task-feed connection metadata and retained error diagnostics use copying parsers to exclude unused fields. Strict [HTTP header readers](common/client/headers.ts) validate quota counters and Retry-After feedback. Shared [routing helpers](common/client/routing.ts) encode opaque identifiers, repository paths, and query parameters.
 
 Response contracts preserve omitted fields and explicit nulls rather than substituting empty values. Check both GitHub's [REST OpenAPI descriptions](https://github.com/github/rest-api-description) and [GraphQL schema](https://docs.github.com/en/graphql/overview/public-schema), and verify discrepancies against the service implementation: published descriptions can lag nullable auto-merge metadata, review-comment positioning, and Actions job metadata. [Compatibility regressions](test/common/apiCompatibility.test.ts) exercise the real response parsers; consumers must not reintroduce stricter requirements for optional display metadata.
 
@@ -50,10 +50,12 @@ Each workbench/Agent Host binding retains one reference for its selected default
 
 The acquired account client exposes [automations](common/missionControl/automations.ts), [tasks](common/missionControl/tasks.ts), and [environments](common/missionControl/environments.ts). Each operation requires an `AbortSignal`; callers do not supply authentication, transport, or endpoint options:
 
+`tasks.connectFeed` negotiates receive-only task-feed credentials through the binding-approved GitHub API gateway, separately from the Copilot-hosted task proxy. Desktop clients execute through the shared-process binding because the feed gateway does not provide CORS access for the desktop renderer origin. Feed credentials are neither cached nor coalesced.
+
 ```ts
 const client = await service.acquireDefaultAccountApiClient(signal);
 try {
-	const page = await client.automations.list({ owner: 'dmitrivMS', name: 'myRepo' }, signal);
+	const page = await client.automations.list({ owner: 'dmitrivMS', repo: 'myRepo' }, signal);
 	// Use page.data.automations; pagination remains explicit.
 } finally {
 	client.dispose();
@@ -61,6 +63,8 @@ try {
 ```
 
 `automations.listTools(signal)` and `automations.listTriggers(signal)` read the authenticated caller's unpaginated catalogs from `/agents/automations/tools` and `/agents/automations/triggers`. They return tool groups and trigger definitions, respectively, preserving field options, labels, permission scopes, and optional run-now support metadata without hard-coding the server's available tools or triggers.
+
+`automations.getConfiguration(repository, signal)` reads server-resolved enablement, caller management permission, and trigger/write policy constraints from `/agents/repos/{owner}/{repo}/automations/configuration` through the existing Mission Control binding. It preserves caller options and uses the transport's standard cache policy, honoring the service's `private, no-store` response header. Disabled automations are a valid response, not an error; missing or malformed fields and service failures reject rather than becoming disabled defaults. The response does not authorize a later mutation, which remains subject to server enforcement.
 
 The [Mission Control adapter](common/missionControl/missionControlClient.ts) is a portable domain wrapper over `IApiRequestProvider`; it parses JSON and validates domain responses in the caller. It uses the shared [request and response contracts](common/client/request.ts), with execution flags under `request.policy` and pagination/retry hints under `response.metadata`. The [local execution provider](common/client/localMissionControlRequestProvider.ts) owns credentials, service-host quota identity, retry/privacy policy, and buffered HTTP execution. The same provider supports existing in-process clients and the IPC server, without a parallel legacy transport implementation.
 
@@ -74,6 +78,22 @@ All domains share existing admission: twelve active requests overall and per hos
 
 Cloud Automations uses these portable clients over IPC on desktop and through the same local providers on web. Its repository eligibility reads use `client.repositories`; the store no longer accesses transport, credential objects, or account handles. The older cloud sandbox API service is deliberately not migrated.
 
+### Copilot Connectors
+
+The portable account client's [Connectors domain](common/connectors/connectors.ts) exposes catalog reads and connect/disconnect operations over a host-approved product endpoint. The [execution provider](common/client/localConnectorsRequestProvider.ts) runs through the existing engine and account lease: shared-process IPC on desktop and local execution on web.
+
+| Operation | Service contract |
+| --- | --- |
+| `getCatalog` | `GET /plugins`, HTTP 200 JSON containing `plugins`. Each entry includes top-level manifest fields, nested display metadata, advertised MCP URLs, and the user's lowercase catalog connection status. Nullable manifest lists and empty OAuth-discovery fields are preserved. |
+| `connect` | `PUT /connectors/managed/{name}/connection`, HTTP 200 JSON with `status`, `provisioning_state`, optional `statuses`, and an optional `consent_link`. Sends `client_source: VS_CODE`; raw API Hub lifecycle/status strings are not catalog-state enums. |
+| `disconnect` | `DELETE /connectors/managed/{name}/connection`, HTTP 204 without a response body. A missing connection (404) or conflict (409) remains an error, not a successful empty result. |
+
+The [workbench service](../../workbench/contrib/chat/browser/aiCustomization/copilotConnectorsService.ts) owns account selection, explicit consent, feature gates, presentation, and connection polling. It retains one selected-session/account/scope client so catalog refreshes replay the service's opaque ETag and reuse a cached body only after HTTP 304. Account/grant changes, invalidation, feature disablement, and disposal release that client and its cache. Credential renewal clears the previous catalog body and validator even for a Connector endpoint on a different host. Each request still has one thirty-second acquisition/execution budget; cancelled late acquisitions are disposed without replacing the retained client.
+
+Catalog browsing and connection checks use the authenticated status returned by the service without requesting Connector scope. Displaying a connected status does not authorize runtime MCP access: unscoped catalog refreshes do not reconcile runtime tools, and the workbench requests `write:plugin_gateway_connections` only for explicit management actions. The service owns credential-class and permission authorization; the generic transport does not reject a valid GitHub App grant merely because it lacks OAuth scopes. GitHub Enterprise remains unsupported by this workbench integration.
+
+Connector responses are client-limited to 5 MiB, redirects are not followed, and requests are never automatically replayed. Catalog requests do not coalesce, so a refresh after a connection change cannot join an older in-flight read. `noCache` or a service `no-store` response disables catalog retention; connection mutations never retain their bodies. Shared queue limits and quota cooldowns still apply. Manifest homepage/author/version/repository/license/logo/keywords come from the service's top-level fields, while `metadata` contains display name, tier, release tag, capabilities, and export support. Advertised MCP and consent URLs are consumer-validated, never reconstructed; only usable HTTPS consent links are opened, and absent or unusable links do not prevent connection-status polling. Errors preserve HTTP status without transporting raw error bodies.
+
 ### Anonymous public reads
 
 `acquireAnonymousClient()` is an explicit, read-only capability for GitHub.com's fixed API and raw-content endpoints. It accepts no endpoint options and does not select an account, invoke a credential provider, resolve `/user`, or acquire scopes. Hosts can construct the engine without a default credential provider; direct authenticated acquisition then fails explicitly. Shared-process account leases instead use an explicitly registered connection-owned credential scope.
@@ -83,6 +103,8 @@ Anonymous clients expose typed content, gist, and issue-search reads, not mutati
 Equivalent anonymous clients share requests and ETag state, but never share cached data with authenticated clients. All anonymous clients using the same API origin and engine-owned executor share an anonymous quota identity, independent of signed-in accounts; creating another client or releasing the final reference does not reset live server cooldowns. The engine's existing global/host/caller admission limits and client-capacity bound still apply. Independent engines/processes and unrelated clients behind the same public IP are not coordinated yet.
 
 The Issue Reporter's GitHub similar-issue searches, in both the wizard and legacy/web UI, acquire this capability through `IWorkbenchGitHubService.acquireAnonymousApiClient(signal)`: IPC on desktop and local execution on web, without account selection. Each call acquires an anonymous client, searches issues with a ten-second request deadline, and disposes the client when the call finishes. The reporter does not retain a client or manage shared acquisitions; the service owns acquisition cancellation and request coordination. Both search backends invalidate obsolete work when the source/input changes or the reporter is disposed, so late responses cannot cancel or replace a newer search. Existing duplicate-detection service calls and authenticated issue submission remain separate. Anonymous Copilot/device token issuance and general text/binary transfers remain outside this capability.
+
+The [slow-extension performance action](../../workbench/contrib/extensions/electron-browser/extensionsSlowActions.ts) also acquires the anonymous client through the workbench binding, using shared-process IPC on desktop. It searches one issue page with a single result to choose between reporting a new issue and showing existing issues. Client acquisition and search share a ten-second budget, and the client and timeout are released after every lookup. Failures are logged and do not offer an action, prompt for sign-in, or fall back to a direct request; profile export and issue-opening behavior are unchanged.
 
 Existing consumers use these clients directly; there is no compatibility singleton API for queries or mutations. Agent Merge captures its authorized client with the turn. Host token refresh preserves the client and rotates credentials on the next request; revocation, endpoint changes and a resolved account change reset the dependent runtime. Async consumers release references that arrive after their owning scope has ended and do not install subscriptions with invalidated credentials.
 
@@ -217,7 +239,7 @@ The helper does not promise full Chromium parity: SOCKS4/4a, native NTLM, ordere
 
 The neutral [IPC contract](common/remote/ipc.ts) defines `ISharedProcessGitHubService.acquireAnonymousClient(signal)` and `acquireClient(authorization, signal)`. Both return promises of directly disposable domain clients, not reference wrappers. The [anonymous client](common/anonymous/anonymous.ts) exposes content reads, `gist.get`, and `search.issues`; the [account client](common/account/account.ts) adds full gist/search and core capabilities while staying pinned to its explicit authorization context. Default-account selection remains with the caller.
 
-The acquisition signal governs acquiring a lease, not its subsequent lifetime. The wire acquisition and release commands identify a client-generated, connection-scoped lease ID so a cancelled acquisition can release it even if its reply is lost. Request messages carry that ID and an endpoint profile: `rest`, `graphql`, or `rawContent`. Content metadata and gist operations use the REST profile; public raw files use a separate `rawContent` provider.
+The acquisition signal governs acquiring a lease, not its subsequent lifetime. Cancellation rejects acquisition even while the shared-process connection is pending; cleanup still uses the original connection when it becomes available. The wire acquisition and release commands identify a client-generated, connection-scoped lease ID so a cancelled acquisition can release it even if its reply is lost. Request messages carry that ID and an endpoint profile: `rest`, `graphql`, `rawContent`, `missionControl`, or `connectors`. Content metadata and gist operations use the REST profile; public raw files use a separate `rawContent` provider.
 
 [Request providers](common/client/request.ts) use one request contract with JSON, text, and empty-response modes. Request bodies are objects before serialization and occupy a separate text slot in the IPC tuple afterward; response and error bodies likewise use separate text slots. The [remote provider](common/remote/ipcClient.ts) decodes successful JSON and invokes domain parsers in the calling process. No parser, `Headers`, or `Response` instance crosses IPC.
 
@@ -278,13 +300,13 @@ Arrays are concatenated in server order. Search, workflow, check, and task envel
 `returnPartial` does not add a new result wrapper: arrays do not report completeness, and `incomplete_results` keeps its server-defined meaning. Connections and Mission Control pages retain their continuation when the caller stops early. Non-paginated operations, including content trees and environment connections, do not expose collection options.
 
 ```ts
-const repository = await client.repositories.get({ owner: 'microsoft', name: 'vscode' }, signal);
+const repository = await client.repositories.get({ owner: 'microsoft', repo: 'vscode' }, signal);
 const issues = await client.search.issues('repo:microsoft/vscode', signal, {
 	caller: 'issuePicker',
 	query: { per_page: 20, sort: 'updated' },
 });
 await client.notifications.markRead(threadId, signal);
-const reviews = await client.reviews.list({ owner: 'microsoft', name: 'vscode' }, 42, signal, {
+const reviews = await client.reviews.list({ owner: 'microsoft', repo: 'vscode' }, 42, signal, {
 	query: { per_page: 100 },
 	maxPages: 10,
 	pageLimitBehavior: 'throw',
@@ -347,7 +369,7 @@ Cloud Automations retains its feature/account gates, private-repository prefligh
 
 ### Public repository files
 
-[The content client](common/content/contentClient.ts) separates ref resolution from raw-file download. `content.resolveRef(owner, repo, ref, signal, options)` requests `GET /repos/{owner}/{repo}/commits/{ref}` with the SHA media type and validates the returned commit. `content.getRawFile(owner, repo, commitSha, path, signal, options)` downloads `/{owner}/{repo}/{commitSha}/{path}` from the configured raw base. It does not resolve a ref, use the Contents API, or follow a response-provided `download_url`.
+[The content client](common/content/contentClient.ts) accepts a `RepositoryRef` (`{ owner, repo }`) for repository file, tree, blob, and ref reads, matching the core clients. `content.resolveRef(repository, ref, signal, options)` requests `GET /repos/{owner}/{repo}/commits/{ref}` with the SHA media type and validates the returned commit. `content.getRawFile(repository, commitSha, path, signal, options)` downloads `/{owner}/{repo}/{commitSha}/{path}` from the configured raw base. It does not resolve a ref, use the Contents API, or follow a response-provided `download_url`.
 
 Both operations take an `AbortSignal` and optional caller attribution and absolute deadline. A caller composing them supplies the same deadline to bound the whole operation. Raw content is returned as UTF-8 text without JSON/base64 parsing, preserving BOM and whitespace. Empty files and exactly 1 MiB are accepted; larger decoded byte streams fail explicitly and are cancelled. The raw provider validates the GET/text-only operation and the encoded repository/commit/file path on the execution side, not only in the facade. Returned HTTP status is checked by the caller's response parser.
 
@@ -363,11 +385,17 @@ Desktop sample reads inherit the shared-process proxy and certificate behavior a
 
 ### Telemetry
 
-[Request telemetry](common/githubRequestTelemetry.ts) uses the existing product telemetry service and usage-telemetry controls. Active ten-minute windows emit one `githubRequestSummary` with traffic, outcome, rejection and queue counters, plus at most ten reservoir-sampled `githubRequestTiming` events. Disposal flushes completed observations best-effort; idle engines emit nothing.
+[Request telemetry](common/githubRequestTelemetry.ts) uses the existing product telemetry service and usage-telemetry controls. Active ten-minute windows emit one `githubRequestSummary` with traffic, outcome, rejection and queue counters, at most ten reservoir-sampled `githubRequestTiming` events, and one `githubRequestDomainSummary` per domain with completed work or capacity rejections. There are nineteen allowlisted domains, including `connectors`, bounding emission to thirty events per interval. Disposal flushes completed observations best-effort; idle engines emit nothing.
 
 Bindings notify the collector immediately when usage telemetry is disabled, discarding buffered aggregates and invalidating completion handles even if no request or timer callback runs during the opt-out.
 
-Timing samples separate queue, cooldown and execution time and include their sample population. Categories are allowlisted; payloads contain no account/repository identifiers, hostnames, URLs, headers, request/response content, GraphQL text, or raw errors. The summary distinguishes logical callers from wire attempts and GraphQL partial-error responses.
+Timing samples separate queue, cooldown and execution time and include their sample population and API domain. Transport-kind and quota-resource categories are not emitted; quota resources remain internal to scheduling and rate-limit coordination. The reservoir remains engine-wide, not per domain: weight a sample by `max(1, samplePopulation / 10)` when estimating request-population distributions. Domain summaries are unsampled and retain rare-domain counts even when that domain is absent from the reservoir.
+
+Typed clients explicitly pass `actions`, `automations`, `checks`, `content`, `environments`, `gists`, `issues`, `notifications`, `organizations`, `pullRequests`, `repositories`, `reviews`, `search`, `tasks`, or `users` at each request call site; identity resolution and capability probes use `credentials` and `capabilities`. Unclassified operations, including legacy calls without an explicit domain, use `other`. This names the logical API domain, not a hostname or quota bucket: a GraphQL review query is `reviews`, and a blob fetch is `content` even when its caller is a plugin installer. REST, GraphQL, pagination, raw-content downloads, and Mission Control preserve the attribution through local and IPC providers. Domain attribution is carried by API and GitHub transport requests, not the shared `RequestOptions` interface. Domain metadata is validated at IPC boundaries and never changes caller-based scheduling, quotas, request headers, cache keys, or coalescing.
+
+`githubRequestDomainSummary.admittedCompleted` counts completed admitted queue operations, including queued cancellations and timeouts. Its outcome counters and `queueMsTotal`, `cooldownMsTotal`, and `executionMsTotal` cover that same population; divide time totals by `admittedCompleted` for per-operation means, not by the number of reporting windows. Capacity rejections are recorded separately as `engineRejected`, `accountRejected`, `callerRejected`, and `waiterRejected`, including domains whose requests were never admitted. Coalesced reads are attributed to the initiating operation's domain once; joining logical calls and wire retries are not additional completed operations. Work crossing an interval boundary contributes its full lifetime on completion, so these totals are not time-average queue occupancy. Engine-wide high-water marks remain in `githubRequestSummary`.
+
+Categories are allowlisted; payloads contain no account/repository identifiers, hostnames, URLs, headers, request/response content, GraphQL text, or raw errors. The engine summary still distinguishes logical callers from wire attempts and GraphQL partial-error responses; domain outcomes describe transport completion, not subsequent typed response validation or application-level success.
 
 ## Consolidation scope
 

@@ -134,7 +134,7 @@ class PromotableCloudSandboxChatSession extends Disposable implements IChatSessi
 				const progress = source.progressObs?.read(reader);
 				const complete = source.isCompleteObs?.read(reader);
 				const readOnly = source.isReadOnly?.read(reader) ?? false;
-				const blocked = source.isInputBlocked?.read(reader) ?? false;
+				const blocked = !live || (source.isInputBlocked?.read(reader) ?? false);
 				const backgroundShellCount = source.backgroundShellCount?.read(reader);
 				const canvasContext = source.canvasContext?.read(reader);
 				if (live && (previousProgress !== progress || previousComplete !== complete)) {
@@ -548,7 +548,7 @@ export class CloudSandboxSessionHandler extends Disposable implements IChatSessi
 	}
 
 	resolveChatResponseUri(resource: URI, href: string, kind: 'link' | 'image'): string {
-		return this._liveProvider?.resolveChatResponseUri?.(resource, href, kind) ?? href;
+		return this._liveProvider?.resolveChatResponseUri?.(resource, href, kind) ?? this._readOnlyHandler.resolveChatResponseUri(resource, href, kind);
 	}
 
 	provideChatInputCompletions: NonNullable<IChatSessionContentProvider['provideChatInputCompletions']> =

@@ -14,8 +14,8 @@ import { AgentSession, type AgentProvider, type IAgentCreateSessionConfig, type 
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import type { IAgentServerToolDefinition } from '../../common/agentServerTools.js';
-import { getAgentHostChatId, getInlineToolInput, getSessionRelatedPullRequestUrls, isAhpChatChannel, isSessionStatusArchived, isSessionStatusRead, MessageKind, PendingMessageKind, readSessionGitState, readSessionGitHubState, getAllSessionRelatedPullRequestUrls, readSessionWorkspaceless, ResponsePartKind, ToolCallStatus, TurnState, withSessionCreationReference, type Message, type ModelSelection, type PendingMessage, type ResponsePart, type ToolCallState, type ToolDefinition, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
-import { buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
+import { ChatInteractivity, ChatOriginKind, getAgentHostChatId, getInlineToolInput, getSessionRelatedPullRequestUrls, isAhpChatChannel, isSessionStatusArchived, isSessionStatusRead, MessageKind, PendingMessageKind, readSessionGitState, readSessionGitHubState, getAllSessionRelatedPullRequestUrls, readSessionWorkspaceless, ResponsePartKind, ToolCallStatus, TurnState, withSessionCreationReference, type Message, type ModelSelection, type PendingMessage, type ResponsePart, type ToolCallState, type ToolDefinition, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
+import { buildOpenSessionLinkForChat, buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
@@ -41,7 +41,7 @@ const maxCreatedChats = 50;
 /** Process-wide backstop against runaway `send_message` fan-out. */
 const maxSentMessages = 100;
 
-const sessionConfirmationToolNames: ReadonlySet<string> = new Set([SessionServerToolName.SetWorkspace, SessionServerToolName.CreateSession, SessionServerToolName.CreateChat, SessionServerToolName.SendMessage, SessionServerToolName.DeleteSession]);
+const sessionConfirmationToolNames: ReadonlySet<string> = new Set([SessionServerToolName.SetWorkspace, SessionServerToolName.CreateSession, SessionServerToolName.CreateChat, SessionServerToolName.SendMessage, SessionServerToolName.DeleteSession, SessionServerToolName.MoveSession]);
 const createSessionRelationshipValues = ['currentSession', 'independent'] as const;
 export type CreateSessionRelationship = typeof createSessionRelationshipValues[number];
 
@@ -112,6 +112,16 @@ const createSessionWithSharedWorkspaceInputSchema: ToolDefinition['inputSchema']
 };
 
 const createSessionWithSharedWorkspaceDescription = 'Create delegated work and start it with an initial prompt, either in a new chat sharing the current session\'s workspace, lifecycle, and aggregate diff, or in an independent session. Only supply `worktree` when the user explicitly requests working with or without a new worktree; never combine it with `currentSession`.';
+
+/** The sentences of `list_sessions` and `get_current_session` that describe a session's `chats`, by tool. */
+const listSessionsChatsSentence = 'A session with nested sessions also lists `chats`: its main session (`main: true`) and its nested sessions in order, each with a `title` and an `openLink` that names that chat in `send_message`, `get_session_context` and `rename_chat`.';
+const getCurrentSessionChatsSentence = 'Get metadata and the open link for the session this conversation is running in, with its nested sessions in `chats` like `list_sessions`.';
+const sessionChatsSentences: ReadonlyMap<string, string> = new Map([
+	[SessionServerToolName.ListSessions, listSessionsChatsSentence],
+	[SessionServerToolName.GetCurrentSession, getCurrentSessionChatsSentence],
+]);
+/** Follows a tool's {@link sessionChatsSentences} entry while `move_session` is offered. */
+const moveSessionLinksSentence = ' `move_session` takes these links too.';
 
 const getCurrentSessionInputSchema: ToolDefinition['inputSchema'] = {
 	type: 'object',
@@ -189,7 +199,7 @@ export const sessionServerToolDefinitions: IAgentServerToolDefinition[] = [
 	{
 		name: SessionServerToolName.ListSessions,
 		title: 'List Sessions',
-		description: 'List sessions and their compact metadata (status, activity, working directory, project, worktree changes, git/GitHub info, timestamps). Each result includes `session` for identity and tool inputs and `openLink` for clickable Markdown links; do not use `session` as a link target. Pass `session` to fetch a single known session by URI. By default archived sessions are omitted. Optionally filter by `status`, `workspace`, `withChanges`, `unread`, `withPullRequest`, `includeArchived`, `createdAfter`, or `createdBefore`.',
+		description: `List sessions and their compact metadata (status, activity, working directory, project, worktree changes, git/GitHub info, timestamps). Each result includes \`session\` for identity and tool inputs and \`openLink\` for clickable Markdown links; do not use \`session\` as a link target. ${listSessionsChatsSentence} Pass \`session\` to fetch a single known session by URI. By default archived sessions are omitted. Optionally filter by \`status\`, \`workspace\`, \`withChanges\`, \`unread\`, \`withPullRequest\`, \`includeArchived\`, \`createdAfter\`, or \`createdBefore\`.`,
 		inputSchema: listSessionsInputSchema,
 		annotations: { readOnlyHint: true },
 		deferLoading: true,
@@ -197,7 +207,7 @@ export const sessionServerToolDefinitions: IAgentServerToolDefinition[] = [
 	{
 		name: SessionServerToolName.GetCurrentSession,
 		title: 'Get Current Session',
-		description: 'Get metadata and the open link for the session this conversation is running in. Use this to reference the current session (for example before adding a chat to it).',
+		description: `${getCurrentSessionChatsSentence} Use this to reference the current session or one of its nested sessions (for example before adding a chat to it).`,
 		inputSchema: getCurrentSessionInputSchema,
 		annotations: { readOnlyHint: true },
 		deferLoading: true,
@@ -297,6 +307,8 @@ export type IAddSessionWorkingDirectoryOptions = ({
 	readonly isolation: 'worktree';
 	readonly prompt: string;
 	readonly forceNewWorktree?: boolean;
+	/** Branch the new worktree starts from; defaults to the repository's default branch. */
+	readonly baseBranch?: string;
 }) & { readonly credentialSource?: IAgentHostCredentialSource };
 
 /** A folder prepared for a new chat and added to its session. */
@@ -343,12 +355,53 @@ export interface IAgentServiceSessionServerToolAccessor {
 	readonly getSessionSpawnDepth: (session: URI) => number;
 	/** Records the spawn depth of a freshly-created session so its own `create_session` calls can enforce the recursion limit. */
 	readonly setSessionSpawnDepth: (session: URI, depth: number) => void;
+	/** Whether moving chats is enabled (`chatMoves.enabled`), read on every call. */
+	readonly isChatMoveEnabled: () => boolean;
+	/** Whether the session's agent supports more than one chat per session, so its chats can move. */
+	readonly supportsChatMoves: (session: URI) => boolean;
+	/**
+	 * Refuses, with an `AgentChatMoveRefusedError`, a move the host would refuse now, without changing anything.
+	 * The move validates everything again when it is applied.
+	 */
+	readonly checkChatMove: (move: ISessionServerToolMove) => Promise<void>;
+	/** Applies a move through the same host operations as AHP `moveChat` and `vscode/moveSession`; returns the session it is in now. */
+	readonly applyChatMove: (move: ISessionServerToolMove) => Promise<URI>;
+	/**
+	 * Whether the host knows `session` (loaded or listed), and with `chatId` a chat of it by that id among its recorded
+	 * chats. Synchronous, from the host's state, for display only.
+	 */
+	readonly isKnownSessionLink: (session: URI, chatId: string | undefined) => boolean;
 }
+
+/**
+ * Where `move_session` places a chat in its destination session: after a chat of
+ * that session, or after its last visible chat (`end`).
+ */
+export type SessionServerToolMoveAnchor = URI | 'end';
+
+/** A move requested by `move_session`. */
+export type ISessionServerToolMove =
+	/** A nested session moves within its session, into another session, or to a new session of its own. */
+	| {
+		readonly kind: 'chat';
+		readonly session: URI;
+		readonly chat: URI;
+		readonly destination: { readonly kind: 'session'; readonly session: URI; readonly after: SessionServerToolMoveAnchor } | { readonly kind: 'newSession' };
+	}
+	/** A session whose main session is its only chat moves into another session as a nested session. */
+	| {
+		readonly kind: 'session';
+		readonly session: URI;
+		readonly destination: URI;
+		readonly after: SessionServerToolMoveAnchor;
+	};
 
 /** Complete dependency surface needed by the session server-tool group. */
 export interface ISessionServerToolAccessor extends IAgentServiceSessionServerToolAccessor {
 	/** Returns whether a workspace change was scheduled. */
 	readonly requestSessionWorkspaceUpdate: (chat: URI, turnId: string, workspaceFolder: URI, isolation: boolean, credentials?: IAgentHostCredentialSource) => boolean;
+	/** Schedules a move of the calling chat for when its turn {@link turnId} ends successfully. */
+	readonly scheduleChatMove: (chat: ProtocolURI, turnId: string, move: ISessionServerToolMove) => void;
 	/** The recorded owning session of a registered chat. */
 	readonly getChatOwner: (chat: ProtocolURI) => ProtocolURI | undefined;
 	/** The recorded default chat of a session, if any. */
@@ -356,7 +409,7 @@ export interface ISessionServerToolAccessor extends IAgentServiceSessionServerTo
 }
 
 /** Resolves the chat a link's chat id addresses against the session's recorded chats. */
-function resolveLinkedChat(sessions: readonly IAgentSessionMetadata[], session: URI, chatId: string): URI | undefined {
+export function resolveLinkedChat(sessions: readonly IAgentSessionMetadata[], session: URI, chatId: string): URI | undefined {
 	const chats = sessions.find(candidate => candidate.session.toString() === session.toString())?.chats ?? [];
 	return (chats.find(entry => entry.chat.toString() === chatId) ?? chats.find(entry => getAgentHostChatId(entry.chat) === chatId))?.chat;
 }
@@ -366,7 +419,7 @@ function resolveLinkedChat(sessions: readonly IAgentSessionMetadata[], session: 
  * else, for a session that records none, the default chat its listing names.
  * `undefined` when neither names one.
  */
-function resolveDefaultChat(sessions: readonly IAgentSessionMetadata[], session: URI, getDefaultChat: (session: ProtocolURI) => ProtocolURI | undefined): URI | undefined {
+export function resolveDefaultChat(sessions: readonly IAgentSessionMetadata[], session: URI, getDefaultChat: (session: ProtocolURI) => ProtocolURI | undefined): URI | undefined {
 	const defaultChat = getDefaultChat(session.toString())
 		?? sessions.find(candidate => candidate.session.toString() === session.toString())?.chats?.find(chat => chat.kind === 'default')?.chat.toString();
 	return defaultChat === undefined ? undefined : URI.parse(defaultChat);
@@ -435,6 +488,40 @@ interface ISerializedSession {
 	readonly changes?: IAgentSessionMetadata['changes'];
 	readonly git?: ISerializedGitState;
 	readonly github?: ISerializedGitHubState;
+	/** The session's main session and nested sessions, in order; only when it has nested sessions. */
+	readonly chats?: readonly ISerializedSessionChat[];
+}
+
+interface ISerializedSessionChat {
+	readonly title?: string;
+	/** Clickable link naming this chat in its session: the session's own link for its main session. */
+	readonly openLink: string;
+	/** Whether this is the session's main session. */
+	readonly main?: true;
+	readonly status?: string;
+}
+
+/**
+ * The main session and nested sessions of a session as listed, in their order; `undefined` when it has no nested
+ * sessions. Chats of subagents and hidden chats are not sessions of their own and are left out.
+ */
+function serializeSessionChats(session: IAgentSessionMetadata): readonly ISerializedSessionChat[] | undefined {
+	const chats = (session.chats ?? []).filter(chat => chat.origin?.kind !== ChatOriginKind.Tool && chat.interactivity !== ChatInteractivity.Hidden);
+	if (!chats.some(chat => chat.kind !== 'default')) {
+		return undefined;
+	}
+	const defaultChat = chats.find(chat => chat.kind === 'default')?.chat;
+	return chats.map(chat => {
+		const main = chat.kind === 'default';
+		const title = chat.summary ?? (main ? session.summary : undefined);
+		const status = chat.status !== undefined ? describeSessionStatusBits(chat.status).join(',') || undefined : undefined;
+		return {
+			...(title !== undefined ? { title } : {}),
+			openLink: buildOpenSessionLinkForChat(session.session, chat.chat, defaultChat, undefined) ?? buildOpenSessionLinkUri(session.session),
+			...(main ? { main: true as const } : {}),
+			...(status !== undefined ? { status } : {}),
+		};
+	});
 }
 
 function getRequiredString(value: unknown, field: string, toolName: string): string {
@@ -890,6 +977,7 @@ function serializeSession(session: IAgentSessionMetadata): ISerializedSession {
 	const git = serializeGitState(session);
 	const github = serializeGitHubState(session);
 	const status = describeSessionStatus(session);
+	const chats = serializeSessionChats(session);
 	return {
 		session: session.session.toString(),
 		openLink: buildOpenSessionLinkUri(session.session),
@@ -908,6 +996,7 @@ function serializeSession(session: IAgentSessionMetadata): ISerializedSession {
 		...(session.changes !== undefined ? { changes: session.changes } : {}),
 		...(git !== undefined ? { git } : {}),
 		...(github !== undefined ? { github } : {}),
+		...(chats !== undefined ? { chats } : {}),
 	};
 }
 
@@ -922,6 +1011,20 @@ export interface ICreateSessionResult {
 	readonly chat: string;
 	/** Clickable {@link AGENT_HOST_SESSION_LINK_SCHEME} URI that opens the session in the Agents window. */
 	readonly openLink: string;
+}
+
+/**
+ * Whether `chat` is workspace-less in a session described by `metadata`: the session is marked and the chat has
+ * no folder of its own or shares the default chat's folder. A chat with its own folder in a marked session is
+ * not; unknown chats fail closed as workspace-less.
+ */
+export function isChatWorkspacelessInSession(metadata: IAgentSessionMetadata | undefined, chat: URI | undefined): boolean {
+	if (!readSessionWorkspaceless(metadata?._meta)) {
+		return false;
+	}
+	const folder = metadata?.chats?.find(entry => entry.chat.toString() === chat?.toString())?.workingDirectories?.[0];
+	const defaultFolder = metadata?.chats?.find(entry => entry.kind === 'default')?.workingDirectories?.[0];
+	return folder === undefined || folder === defaultFolder;
 }
 
 /**
@@ -942,7 +1045,7 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 		if (args.model !== undefined && args.model.provider !== currentProvider) {
 			throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: model "${args.model.id}" belongs to provider "${args.model.provider}", but relationship "currentSession" targets provider "${currentProvider}".`);
 		}
-		if (args.workspace !== undefined && readSessionWorkspaceless((await accessor.getSession(currentSession))?._meta)) {
+		if (args.workspace !== undefined && isChatWorkspacelessInSession(await accessor.getSession(currentSession), source)) {
 			throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: relationship "currentSession" with "workspace" is not supported from a quick chat. Use set_workspace to attach a workspace to the quick chat first, or create an independent session.`);
 		}
 		// A requested folder joins the session and is assigned only to the new chat.
@@ -1072,7 +1175,7 @@ interface IResolvedCreateChatArgs {
  * link (as returned by `create_session`/`get_current_session`) — against the
  * set of known sessions. Returns `undefined` when it matches no known session.
  */
-function resolveKnownSession(sessionInput: string, sessions: readonly IAgentSessionMetadata[]): URI | undefined {
+export function resolveKnownSession(sessionInput: string, sessions: readonly IAgentSessionMetadata[]): URI | undefined {
 	// Normalize an open-session link back to its backend session URI.
 	const fromLink = parseOpenSessionLinkUri(sessionInput);
 	const candidate = fromLink?.toString() ?? sessionInput;
@@ -1888,6 +1991,12 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 			return toolName !== SessionServerToolName.RenameChat || accessor?.getAutomaticTitleGenerationStrategy(sessionUri) !== 'utility';
 		},
 		getDefinitionForSession(definition, sessionUri): IAgentServerToolDefinition {
+			// Mentions `move_session` only while it is offered (`chatMoves.enabled`): with moves off, these read as before.
+			// Also only where its session's agent can move chats, as `move_session` itself.
+			if ((definition.name === SessionServerToolName.ListSessions || definition.name === SessionServerToolName.GetCurrentSession) && accessor?.isChatMoveEnabled() === true && accessor.supportsChatMoves(URI.parse(sessionUri))) {
+				const chatsSentence = sessionChatsSentences.get(definition.name)!;
+				return { ...definition, description: definition.description?.replace(chatsSentence, `${chatsSentence}${moveSessionLinksSentence}`) };
+			}
 			if (definition.name === SessionServerToolName.SetWorkspace && accessor?.isWorkspaceless(URI.parse(sessionUri)) === true) {
 				return { ...definition, deferLoading: false };
 			}

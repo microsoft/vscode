@@ -28,7 +28,6 @@ import { IRemoteTunnelService, INACTIVE_TUNNEL_MODE, TunnelMode, TunnelStatus } 
 import { RemoteTunnelCommandIds } from '../../remoteTunnel/electron-browser/remoteTunnel.contribution.js';
 
 const TUNNEL_ACCESS_DOCS_URL = 'https://aka.ms/vscode-agent-tunnel-access';
-const githubEnvironmentDataHandlingDescription = localize('remoteConnections.githubEnvironment.dataHandling', "Session actions are mirrored to GitHub for catalog and history storage. Conversation content is not end-to-end encrypted.");
 
 export interface IRemoteTunnelAccessState {
 	readonly isSharing: boolean;
@@ -172,7 +171,7 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 					checked: !usesGitHubEnvironment,
 					run: () => this._selectConnectionMethod('devTunnel'),
 				}),
-				detail: localize('remoteConnections.devTunnel.detail', "Connect from VS Code or a browser through a secure tunnel."),
+				detail: localize('remoteConnections.devTunnel.detail', "Access workspaces and agents on this machine from VS Code or vscode.dev/agents."),
 			},
 			{
 				...toAction({
@@ -181,9 +180,8 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 					checked: usesGitHubEnvironment,
 					run: () => this._selectConnectionMethod('githubEnvironment'),
 				}),
-				detail: localize('remoteConnections.githubEnvironment.detail', "Register this machine with GitHub for remote agent access."),
+				detail: localize('remoteConnections.githubEnvironment.detail', "Access agents on this machine from VS Code, vscode.dev/agents, GitHub apps, or github.com/copilot."),
 				badge: localize('remoteConnections.preview', "Preview"),
-				hover: { content: githubEnvironmentDataHandlingDescription },
 			},
 		];
 	}
@@ -306,10 +304,9 @@ export class ToggleRemoteConnectionsActionViewItem extends BaseActionViewItem {
 
 	private _getHoverContent(): IManagedHoverContent {
 		if (this._usesMissionControl()) {
-			return localize('missionControlSharing.hover', "{0}\n\n{1}\n\n{2}",
+			return localize('missionControlSharing.hover', "{0}\n\n{1}",
 				this._getAriaLabel(),
-				localize('missionControlSharing.fileSystemAccess', "Enabling remote connections allows clients authenticated as your GitHub account to read and modify files across this machine's accessible file systems, including sensitive files. Operating system permissions still apply."),
-				githubEnvironmentDataHandlingDescription,
+				localize('remoteConnections.githubEnvironment.detail', "Access agents on this machine from VS Code, vscode.dev/agents, GitHub apps, or github.com/copilot."),
 			);
 		}
 		const lines: string[] = [];

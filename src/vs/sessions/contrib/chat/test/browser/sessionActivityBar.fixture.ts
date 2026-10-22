@@ -23,8 +23,12 @@ import { ChatViewSessionActivityBar } from '../../../../browser/parts/sessionAct
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../../common/layoutConstants.js';
 import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
+import { ISessionActivityBarActivityService, SessionActivityBarActivityService } from '../../../../services/activity/common/sessionActivityBarActivityService.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
-import { FixtureContextViewService, FixtureKeybindingService, FixtureMenuService, fixtureBrowser, fixtureCanvas, fixtureChanges, fixtureFiles, fixtureTogglePanel, fixtureToggleSidePanel, IFixtureEntry } from '../../../../test/browser/addTabFixtureUtils.js';
+import { IconBadge } from '../../../../../workbench/services/activity/common/activity.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { FixtureContextViewService, FixtureKeybindingService, FixtureMenuService, fixtureBrowser, fixtureCanvas, fixtureChanges, fixtureFiles, fixtureTerminal, fixtureTogglePanel, fixtureToggleSidePanel, IFixtureEntry } from '../../../../test/browser/addTabFixtureUtils.js';
+import { SessionActivityBarGroup } from '../../../../browser/menus.js';
 import { ExternalSessionBanner } from '../../browser/externalSessionBanner.js';
 import '../../browser/media/chatView.css';
 import '../../../../browser/parts/media/chatCompositeBar.css';
@@ -47,9 +51,13 @@ interface IFixtureOptions {
 	readonly openSubmenu?: boolean;
 	/** Drags the strip down by this many pixels. */
 	readonly dragBy?: number;
+	/** Badges the Changes entry, as new changes do. */
+	readonly newChanges?: boolean;
 }
 
-const workspaceChatEntries = [fixtureToggleSidePanel, fixtureChanges, fixtureFiles, fixtureBrowser, fixtureCanvas, fixtureTogglePanel];
+// The tab entries share the side panel toggle's group; the terminal shares the panel toggle's.
+const sidePanelGroup = (entries: readonly IFixtureEntry[]) => entries.map(entry => ({ ...entry, group: SessionActivityBarGroup.SidePanel }));
+const workspaceChatEntries = [fixtureToggleSidePanel, ...sidePanelGroup([fixtureChanges, fixtureFiles, fixtureBrowser, fixtureCanvas]), fixtureTerminal, fixtureTogglePanel];
 const highContrastThemes: ['darkHighContrast', 'lightHighContrast'] = ['darkHighContrast', 'lightHighContrast'];
 
 function activityBarFixture(options: IFixtureOptions, additionalThemes?: typeof highContrastThemes) {
@@ -76,11 +84,12 @@ export default defineThemedFixtureGroup({ path: 'sessions/sessionActivityBar/' }
 	RulerTimelineWide: activityBarFixture({ width: 1280, rulerTimeline: true }),
 	ExternalSessionBanner: activityBarFixture({ externalBanner: true }),
 	ExternalSessionBannerWide: activityBarFixture({ width: 1280, externalBanner: true }),
-	ChatWithoutWorkspace: activityBarFixture({ entries: [fixtureToggleSidePanel, fixtureBrowser, fixtureCanvas, fixtureTogglePanel] }),
-	WithoutLayoutActions: activityBarFixture({ entries: [fixtureChanges, fixtureFiles, fixtureBrowser, fixtureCanvas] }),
+	ChatWithoutWorkspace: activityBarFixture({ entries: [fixtureToggleSidePanel, ...sidePanelGroup([fixtureBrowser, fixtureCanvas]), fixtureTerminal, fixtureTogglePanel] }),
+	WithoutLayoutActions: activityBarFixture({ entries: [...sidePanelGroup([fixtureChanges, fixtureFiles, fixtureBrowser, fixtureCanvas]), fixtureTerminal] }),
 	Moved: activityBarFixture({ dragBy: 60 }),
 	AtBottom: activityBarFixture({ dragBy: 2000 }),
 	SubmenuOpen: activityBarFixture({ openSubmenu: true }, highContrastThemes),
+	NewChanges: activityBarFixture({ newChanges: true }, highContrastThemes),
 });
 
 const HEIGHT = 500;
@@ -141,11 +150,16 @@ async function renderActivityBar(context: ComponentFixtureContext, options: IFix
 	append(append(header, $('.chat-composite-bar-header')), $('.chat-composite-bar-header-main')).textContent = 'Session Activity Bar';
 
 	const menuService = new FixtureMenuService(entries);
+	const activityService = disposableStore.add(new SessionActivityBarActivityService());
+	if (options.newChanges) {
+		disposableStore.add(activityService.showActivity(fixtureChanges.id, { badge: new IconBadge(Codicon.circleFilled, () => 'New changes') }));
+	}
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: theme,
 		additionalServices: reg => {
 			registerWorkbenchServices(reg);
 			reg.defineInstance(IMenuService, menuService);
+			reg.defineInstance(ISessionActivityBarActivityService, activityService);
 			reg.defineInstance(IKeybindingService, new FixtureKeybindingService(entries));
 			reg.defineInstance(IContextViewService, new FixtureContextViewService(container));
 			reg.defineInstance(IConfigurationService, new TestConfigurationService({
@@ -215,6 +229,7 @@ async function renderActivityBar(context: ComponentFixtureContext, options: IFix
 	});
 	await waitForFixtureCondition(() => !!view.element.querySelector('.interactive-item-container.interactive-response .rendered-markdown'), 'The chat response did not render');
 	const { listWidget } = renderedChat!;
+	activityBar.setScrollDownButton(listWidget.scrollDownButtonDomNode);
 	let previousHeight = -1;
 	let stableFrames = 0;
 	await waitForFixtureCondition(() => {

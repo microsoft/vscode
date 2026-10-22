@@ -975,7 +975,19 @@ export default defineConfig(
 					]
 				}
 			],
-			'local/code-run-with-faked-timers-whole-test': 'warn'
+			'local/code-run-with-faked-timers-whole-test': 'warn',
+			'local/code-no-timeout-polling-loop': [
+				'warn',
+				{
+					// Files should (only) be removed from the list once they no longer poll
+					'exclude': [
+						'src/vs/platform/agentHost/test/node/agentHostDebugLogs.test.ts',
+						'src/vs/platform/agentHost/test/node/agentService.test.ts',
+						'src/vs/sessions/contrib/layout/test/browser/chatLayoutOwnership.test.ts',
+						'src/vs/sessions/contrib/layout/test/browser/desktopLayoutController.test.ts',
+					]
+				}
+			]
 		}
 	},
 	// git extension - ban non-type imports from git.d.ts (use git.constants for runtime values)
@@ -2443,19 +2455,6 @@ export default defineConfig(
 					]
 				},
 				{
-					'target': 'test/mcp/**',
-					'restrictions': [
-						'test/automation',
-						'test/scenario',
-						'test/mcp/**',
-						'@vscode/*',
-						'@parcel/*',
-						'@playwright/*',
-						'@modelcontextprotocol/sdk/**/*',
-						'*' // node modules
-					]
-				},
-				{
 					'target': 'test/componentFixtures/playwright/**',
 					'restrictions': [
 						'test/componentFixtures/playwright/**',
@@ -2623,7 +2622,6 @@ export default defineConfig(
 			'extensions/markdown-language-features/preview-src/**/*.ts',
 			'extensions/mermaid-markdown-features/preview-src/chat/**/*.ts',
 			'extensions/mermaid-markdown-features/src/**/*.ts',
-			'extensions/media-preview/src/**/*.ts',
 			'extensions/simple-browser/**/*.ts',
 			'extensions/typescript-language-features/**/*.ts',
 		],
@@ -2636,10 +2634,7 @@ export default defineConfig(
 					'extensions/markdown-language-features/notebook/tsconfig.json',
 					'extensions/markdown-language-features/preview-src/tsconfig.json',
 
-					// Media preview
-					'extensions/media-preview/tsconfig.json',
-
-					// Media preview
+					// Simple browser
 					'extensions/simple-browser/tsconfig.json',
 					'extensions/simple-browser/preview-src/tsconfig.json',
 

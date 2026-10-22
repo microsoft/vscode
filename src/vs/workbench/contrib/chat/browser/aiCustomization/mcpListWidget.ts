@@ -49,6 +49,7 @@ import { LocalMcpServerScope } from '../../../../services/mcp/common/mcpWorkbenc
 import { IAgentPlugin, IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { mcpServerIcon } from './aiCustomizationIcons.js';
+import { createMcpSignInButton, registerMcpInlineButtonAction, registerMcpSignInButtonAction, resetMcpSignInButton } from './mcpServerSignInButton.js';
 import { formatDisplayName, truncateToFirstLine } from './aiCustomizationListWidget.js';
 import { MiddleEllipsisPathLabel } from './aiCustomizationListWidgetUtils.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -777,21 +778,6 @@ class McpMarketplaceItemRenderer implements IListRenderer<IMcpMarketplaceEntry, 
 	}
 }
 
-export function createMcpSignInButton(parent: HTMLElement, store: Pick<DisposableStore, 'add'>, serverLabel: string): Button {
-	const signInLabel = localize('signInToMcpServer', "Sign in to {0}", serverLabel);
-	const signInButton = store.add(new Button(parent, {
-		...getButtonStyles({ buttonSecondaryHoverBackground: undefined }),
-		secondary: true,
-		small: true,
-		title: signInLabel,
-		ariaLabel: signInLabel,
-		supportIcons: true,
-	}));
-	signInButton.label = localize('signIn', "Sign In");
-	signInButton.element.classList.add('mcp-server-sign-in');
-	return signInButton;
-}
-
 function createMcpStartButton(parent: HTMLElement, store: Pick<DisposableStore, 'add'>, serverLabel: string): Button {
 	const startLabel = localize('startMcpServer', "Start {0}", serverLabel);
 	const startButton = store.add(new Button(parent, {
@@ -829,61 +815,6 @@ async function startMcpEntry(entry: IMcpInstalledEntry): Promise<void> {
 	if (entry.type !== 'session-server-item' && entry.localServer) {
 		await entry.localServer.start({ promptType: 'all-untrusted' });
 	}
-}
-
-interface IMcpSignInButtonActionOptions {
-	readonly updateTabbability?: () => void;
-}
-
-export function registerMcpSignInButtonAction(store: Pick<DisposableStore, 'add'>, button: Button, serverLabel: string, action: () => Promise<void | boolean>, options?: IMcpSignInButtonActionOptions): void {
-	const signingInLabel = localize('signingIn', "Signing In...");
-	const signingInAriaLabel = localize('signingInToMcpServer', "Signing in to {0}", serverLabel);
-	let pending = false;
-	let disposed = false;
-	store.add(toDisposable(() => disposed = true));
-	registerMcpInlineButtonAction(store, button, async () => {
-		if (pending) {
-			return;
-		}
-
-		pending = true;
-		const wasEnabled = button.enabled;
-		button.label = `$(${Codicon.loading.id}) ${signingInLabel}`;
-		button.setTitle(signingInAriaLabel);
-		button.setAriaLabel(signingInAriaLabel);
-		button.element.setAttribute('aria-busy', 'true');
-		button.enabled = false;
-		status(localize('mcpServerSigningInStatus', "Signing in to {0}.", serverLabel));
-		try {
-			await action();
-		} finally {
-			if (!disposed) {
-				pending = false;
-				const tabIndex = button.element.tabIndex;
-				resetMcpSignInButton(button, serverLabel, wasEnabled);
-				button.element.tabIndex = tabIndex;
-				options?.updateTabbability?.();
-			}
-		}
-	});
-}
-
-function resetMcpSignInButton(button: Button, serverLabel: string, enabled: boolean): void {
-	const signInAriaLabel = localize('signInToMcpServer', "Sign in to {0}", serverLabel);
-	button.label = localize('signIn', "Sign In");
-	button.setTitle(signInAriaLabel);
-	button.setAriaLabel(signInAriaLabel);
-	button.element.removeAttribute('aria-busy');
-	button.enabled = enabled;
-}
-
-/** Registers an inline MCP button without allowing its pointer or click events to open the containing list row. */
-export function registerMcpInlineButtonAction(store: Pick<DisposableStore, 'add'>, button: Button, action: () => void | Promise<void>): void {
-	store.add(DOM.addDisposableGenericMouseDownListener(button.element, event => DOM.EventHelper.stop(event, true)));
-	store.add(button.onDidClick(event => {
-		DOM.EventHelper.stop(event, true);
-		void action();
-	}));
 }
 
 export interface IMcpServerStatusActionsOptions {
@@ -1610,7 +1541,21 @@ export function getActiveSessionServerLifecycleAction(server: AgentHostMcpServer
 type AgentHostMcpServerEnablementScope = 'global' | 'workspace' | 'session';
 
 function isHostOwnedPluginMcpServer(server: AgentHostMcpServer): boolean {
-	return server.isPluginProvided === true && !server.isClientBundled;
+	return server.isPluginProvided === true && isHostOwnedMcpServer(server);
+}
+
+/**
+ * Whether the agent host owns the server's global decision because it discovered the server itself
+ * (for example from Copilot home), rather than receiving it in a client bundle. A same-named local
+ * server is then only a twin whose window-local enablement never reaches the host.
+ */
+function isHostOwnedMcpServer(server: AgentHostMcpServer): boolean {
+	return !server.isClientBundled;
+}
+
+/** Returns the local server whose enablement drives the row, or `undefined` when the agent host owns it. */
+function getLocalEnablementServerId(localServerId: string | undefined, activeSessionServer: AgentHostMcpServer | undefined): string | undefined {
+	return activeSessionServer && isHostOwnedMcpServer(activeSessionServer) ? undefined : localServerId;
 }
 
 const agentHostMcpServerEnablementActionInfo = {
@@ -1690,13 +1635,14 @@ export function setPrimaryMcpServerEnablement(
 		);
 		return;
 	}
-	if (localServerId) {
-		const current = mcpService.enablementModel.readEnabled(localServerId);
+	const localEnablementServerId = getLocalEnablementServerId(localServerId, activeSessionServer);
+	if (localEnablementServerId) {
+		const current = mcpService.enablementModel.readEnabled(localEnablementServerId);
 		const next = getToggledMcpEnablementState(current);
 		if (isContributionEnabled(next) !== enabled) {
-			throw new Error(`Unexpected MCP enablement transition for ${localServerId}.`);
+			throw new Error(`Unexpected MCP enablement transition for ${localEnablementServerId}.`);
 		}
-		mcpService.enablementModel.setEnabled(localServerId, next);
+		mcpService.enablementModel.setEnabled(localEnablementServerId, next);
 		return;
 	}
 	if (!activeSessionServer) {
@@ -1722,8 +1668,9 @@ export function isPrimaryMcpServerEnabled(
 	if (activeSessionServer && !activeSessionServer.enabled) {
 		return false;
 	}
-	if (localServerId) {
-		return isContributionEnabled(mcpService.enablementModel.readEnabled(localServerId));
+	const localEnablementServerId = getLocalEnablementServerId(localServerId, activeSessionServer);
+	if (localEnablementServerId) {
+		return isContributionEnabled(mcpService.enablementModel.readEnabled(localEnablementServerId));
 	}
 	if (activeSessionServer) {
 		return getCustomizationScopeEnablement(activeSessionServer).global;
@@ -1776,7 +1723,7 @@ export function getBuiltinMcpServerEnablementActions(mcpService: IMcpService, se
 	if (activeSessionServer === undefined) {
 		return getLocalMcpServerEnablementActions(mcpService, serverId, isEmptyWorkbench);
 	}
-	if (isHostOwnedPluginMcpServer(activeSessionServer)) {
+	if (isHostOwnedMcpServer(activeSessionServer)) {
 		return getAgentHostMcpServerEnablementActions(agentHostCustomizations, agentPluginService, sessionResource, activeSessionServer);
 	}
 	return [
@@ -1840,16 +1787,18 @@ function isLocalMcpServerWorkspaceEnablementAction(action: IAction): boolean {
 export function getServerItemContextMenuActions(menuActionGroups: readonly (readonly IAction[])[], activeSessionServer: AgentHostMcpServer | undefined, activeSessionLifecycleAction: IAction | undefined, agentHostEnablementActions: readonly IAction[]): IAction[] {
 	const actions: IAction[] = [];
 	const hasActiveSession = activeSessionServer !== undefined;
+	// The host's actions replace every local enablement action when the local server is only a twin of a host-owned one.
+	const hideLocalEnablement = activeSessionServer !== undefined && isHostOwnedMcpServer(activeSessionServer);
 	let agentHostEnablementAdded = false;
 	if (activeSessionLifecycleAction) {
 		actions.push(activeSessionLifecycleAction, new Separator());
 	}
 	for (const menuActions of menuActionGroups) {
 		const visibleMenuActions = hasActiveSession
-			? menuActions.filter(action => !shouldHideLocalActionForActiveSessionServer(action))
+			? menuActions.filter(action => !shouldHideLocalActionForActiveSessionServer(action) && !(hideLocalEnablement && isLocalMcpServerEnablementAction(action)))
 			: menuActions;
 		actions.push(...visibleMenuActions);
-		if (hasActiveSession && menuActions.some(isLocalMcpServerEnablementAction)) {
+		if (hasActiveSession && !agentHostEnablementAdded && menuActions.some(isLocalMcpServerEnablementAction)) {
 			actions.push(...agentHostEnablementActions);
 			agentHostEnablementAdded = true;
 		}
@@ -3840,7 +3789,7 @@ export class McpListWidget extends Disposable {
 		const activeSessionServer = entry.activeSessionServer;
 		const activeSessionLifecycleAction = activeSessionServer !== undefined ? getActiveSessionServerLifecycleAction(activeSessionServer) : undefined;
 		const agentHostEnablementActions = activeSessionServer !== undefined
-			? getAgentHostMcpServerEnablementActions(this.agentHostCustomizationService, this.agentPluginService, this.customizationHarnessService.activeSessionResource.get(), activeSessionServer, ['workspace', 'session'])
+			? getAgentHostMcpServerEnablementActions(this.agentHostCustomizationService, this.agentPluginService, this.customizationHarnessService.activeSessionResource.get(), activeSessionServer, isHostOwnedMcpServer(activeSessionServer) ? ['global', 'workspace', 'session'] : ['workspace', 'session'])
 			: [];
 		for (const menuActions of groups) {
 			for (let index = 0; index < menuActions.length; index++) {
