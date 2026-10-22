@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Copyright (c) Microsoft Corporation. All rightsrols reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
@@ -24,7 +24,6 @@ async page => {
 					if (await candidate.evaluate(element => document.activeElement === element)) {
 						return match;
 					}
-					// Return the first visible one immediately as a fallback candidate if active element isn't found yet
 					return match;
 				}
 			}
@@ -44,7 +43,7 @@ async page => {
 		return true;
 	};
 
-	// Utilizing Playwright's expect().toPass() pattern or robust polling instead of manual fixed timeouts
+	// Polling for the visible chat input using a custom timeout-based loop
 	const waitForVisibleChatInput = async (timeoutMs = 1000) => {
 		const startTime = Date.now();
 		while (Date.now() - startTime < timeoutMs) {
