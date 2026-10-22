@@ -512,9 +512,14 @@ class OpenWorkspaceInAgentsTitleBarWidget extends BaseActionViewItem {
 		}
 	}
 
+	/**
+	 * While the hover card shows, the button stays an icon: it neither grows on pointer hover
+	 * (`expand-on-hover`) nor reveals its label on keyboard focus (`no-grow`).
+	 */
 	private updateGrowth(): void {
-		this.element?.classList.toggle('expand-on-hover', this.expandOnHover);
-		this.element?.classList.toggle('no-grow', this.hoverCardDesign !== undefined);
+		const showsHoverCard = this.hoverCardDesign !== undefined;
+		this.element?.classList.toggle('expand-on-hover', this.expandOnHover && !showsHoverCard);
+		this.element?.classList.toggle('no-grow', showsHoverCard);
 	}
 
 	protected override updateLabel(): void {

@@ -131,6 +131,7 @@ suite('Agents Window titlebar copy experiment', () => {
 			const card = hoverCard();
 			return {
 				hover: card ? { title: card.querySelector('.agents-window-hover-card-title')?.textContent, graphic: card.querySelector('.agents-window-graphic')?.classList[1] } : hoverContent,
+				expandOnHover: container.classList.contains('expand-on-hover'),
 				noGrow: container.classList.contains('no-grow'),
 			};
 		};
@@ -395,12 +396,12 @@ suite('Agents Window titlebar copy experiment', () => {
 				h.item.dispose();
 			}
 		}
-		const simple = (label: string, extra: object) => ({ hover: `${label} (shortcut)`, noGrow: false, label, ariaLabel: `${label} (shortcut)`, ...extra });
+		const simple = (label: string, extra: object) => ({ hover: `${label} (shortcut)`, expandOnHover: true, noGrow: false, label, ariaLabel: `${label} (shortcut)`, ...extra });
 		const newUserSimple = simple('Try Agents', { beforeHover: [treatmentName], afterHover: [richHoverTreatmentName, expansionTreatmentName] });
 		const secondSessionSimple = { ...simple('Open in Agents', {}), hover: 'Open in Agents Window (shortcut)', ariaLabel: 'Open in Agents Window (shortcut)', beforeHover: [], afterHover: [richHoverTreatmentName, expansionTreatmentName] };
 		const existingUser = { ...simple('Open in Agents', {}), hover: 'Open in Agents Window (shortcut)', ariaLabel: 'Open in Agents Window (shortcut)', beforeHover: [], afterHover: [expansionTreatmentName] };
-		// The card replaces the growing label, so the label and expansion experiments neither apply nor trigger.
-		const card = (hover: object) => ({ hover, noGrow: true, label: 'Open in Agents', ariaLabel: 'Open in Agents Window (shortcut)', beforeHover: [], afterHover: [richHoverTreatmentName] });
+		// The card replaces the growing label, so the button never grows and the label and expansion experiments neither apply nor trigger.
+		const card = (hover: object) => ({ hover, expandOnHover: false, noGrow: true, label: 'Open in Agents', ariaLabel: 'Open in Agents Window (shortcut)', beforeHover: [], afterHover: [richHoverTreatmentName] });
 		assert.deepStrictEqual(results, {
 			'none, 0 sessions': newUserSimple,
 			'none, 1 sessions': secondSessionSimple,
@@ -442,11 +443,11 @@ suite('Agents Window titlebar copy experiment', () => {
 		await h.setRichHover('none');
 		states.push(h.hoverState());
 		assert.deepStrictEqual(states, [
-			{ hover: manyWindowsToOneCard, noGrow: true },
-			{ hover: 'Open in Agents Window (shortcut)', noGrow: false },
-			{ hover: manyWindowsToOneCard, noGrow: true },
-			{ hover: windowComparisonCard, noGrow: true },
-			{ hover: 'Open in Agents Window (shortcut)', noGrow: false },
+			{ hover: manyWindowsToOneCard, expandOnHover: false, noGrow: true },
+			{ hover: 'Open in Agents Window (shortcut)', expandOnHover: true, noGrow: false },
+			{ hover: manyWindowsToOneCard, expandOnHover: false, noGrow: true },
+			{ hover: windowComparisonCard, expandOnHover: false, noGrow: true },
+			{ hover: 'Open in Agents Window (shortcut)', expandOnHover: true, noGrow: false },
 		]);
 	});
 });
