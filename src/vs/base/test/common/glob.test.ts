@@ -1232,5 +1232,15 @@ suite('Glob', () => {
 		assertGlobMatch('some/*/Random/*/Path.FILE', 'some/very/random/unusual/path.file', true);
 	});
 
+	test('does not trim control characters from the pattern', function () {
+		// `files.exclude` must be able to match Finder's `Icon\r` sidecar, whose
+		// name ends in a CR. Trim only the spaces and tabs people leave behind.
+		assertGlobMatch('**/Icon\r', 'Icon\r');
+		assertGlobMatch('**/Icon\r', 'sub/Icon\r');
+		assertNoGlobMatch('**/Icon\r', 'Icon');
+		assertNoGlobMatch('**/Icon\r', 'sub/Icon');
+		assertGlobMatch('  **/Icon\r  ', 'Icon\r');
+	});
+
 	ensureNoDisposablesAreLeakedInTestSuite();
 });

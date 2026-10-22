@@ -347,8 +347,10 @@ function parsePattern(arg1: string | IRelativePattern, options: IGlobOptions, ca
 		pattern = arg1;
 	}
 
-	// Whitespace trimming
-	pattern = pattern.trim();
+	// Whitespace trimming. Only spaces and tabs are accidental; trim() would also
+	// eat control characters that can legitimately end a file name, such as the
+	// CR in macOS Finder's `Icon\r` sidecar.
+	pattern = pattern.replace(/^[ \t]+|[ \t]+$/g, '');
 
 	const ignoreCase = options.ignoreCase ?? false;
 	const internalOptions = {
