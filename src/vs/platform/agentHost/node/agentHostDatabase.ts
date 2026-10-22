@@ -2254,8 +2254,8 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				const batchChats = new Set(batch);
 				const filter = batch.map(() => 'instr(payload, ?) > 0').join(' OR ');
 				// A payload is canonical JSON, so a chat it lists contains the chat's JSON string literal.
-				for (const candidate of await all(database, `SELECT session_uri, payload FROM sessions_v2 WHERE payload IS NOT NULL AND (${filter}) ORDER BY session_uri`, batch.map(chat => JSON.stringify(chat)))) {
-					const decoded = decodeAgentHostCatalogPayloadData(candidate.payload as string);
+				for (const candidate of await all(database, `SELECT session_uri, payload_version, payload FROM sessions_v2 WHERE payload IS NOT NULL AND (${filter}) ORDER BY session_uri`, batch.map(chat => JSON.stringify(chat)))) {
+					const decoded = decodeAgentHostCatalogPayloadData(candidate.payload as string, { forMigration: true, payloadVersion: candidate.payload_version as number });
 					if (!decoded.ok) {
 						continue;
 					}
@@ -3489,14 +3489,14 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		if (row.session_generation !== expected.sessionGeneration || row.source_revision !== expected.sourceRevision || row.payload_hash !== expected.payloadHash) {
 			return { status: 'conflict' };
 		}
-		const decoded = decodeAgentHostCatalogPayload(row.payload as string);
+		const decoded = decodeAgentHostCatalogPayloadData(row.payload as string, { forMigration: true, payloadVersion: row.payload_version as number });
 		if (!decoded.ok) {
 			throw new Error(`Invalid normalization source: ${decoded.error}`);
 		}
-		if (hashAgentHostCatalogPayload(row.payload as string) !== row.payload_hash || decoded.value.payload !== row.payload) {
+		if (hashAgentHostCatalogPayload(row.payload as string) !== row.payload_hash || stableStringify(JSON.parse(row.payload as string)) !== row.payload) {
 			throw new Error('Normalization source hash or canonical payload mismatch');
 		}
-		const source = decoded.value.data.chats;
+		const source = decoded.value.chats;
 		const visible = source.filter(chat => chat.interactivity !== ChatInteractivity.Hidden);
 		const defaults = visible.filter(chat => chat.kind === 'default');
 		const peers = visible.filter(chat => chat.kind === 'peer');

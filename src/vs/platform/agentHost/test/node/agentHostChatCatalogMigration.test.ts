@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import type { Database } from '@vscode/sqlite3';
+import { stableStringify } from '../../../../base/common/objects.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { buildChatUri, buildDefaultChatUri, ChatInteractivity } from '../../common/state/sessionState.js';
 import { migrateChatCatalogV2 } from '../../node/agentHostChatCatalogMigration.js';
-import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, encodeAgentHostCatalogPayload, type AgentHostCatalogData } from '../../node/agentHostCatalogProjection.js';
+import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, encodeAgentHostCatalogPayload, hashAgentHostCatalogPayload, type AgentHostCatalogData } from '../../node/agentHostCatalogProjection.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { CHAT_INHERITED_TURN_METADATA_KEY, CHAT_ORIGIN_METADATA_KEY, CHAT_PROVIDER_DATA_METADATA_KEY, CHAT_WORKING_DIRECTORIES_METADATA_KEY } from '../../node/agentHostPeerChatStore.js';
 import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey } from '../../node/shared/persistSessionMetadata.js';
@@ -16,10 +18,15 @@ import { createNullSessionDataService, createSessionDataService, TestSessionData
 
 suite('AgentHostChatCatalogMigration', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const legacyCatalogPayloadVersion = 2;
 	const session = URI.parse('agent-session://copilot/migration');
 	const defaultChat = buildDefaultChatUri(session);
 
-	async function createDatabase(chats: AgentHostCatalogData['chats']): Promise<AgentHostDatabase> {
+	function run(database: Database, sql: string, parameters: readonly (number | string)[]): Promise<void> {
+		return new Promise((resolve, reject) => database.run(sql, parameters, error => error ? reject(error) : resolve()));
+	}
+
+	async function createDatabase(chats: AgentHostCatalogData['chats'], payloadVersion = AGENT_HOST_CATALOG_PAYLOAD_VERSION): Promise<AgentHostDatabase> {
 		const database = store.add(new AgentHostDatabase(':memory:'));
 		await database.registerRuntimeSession(session.toString(), { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
 		const encoded = encodeAgentHostCatalogPayload({
@@ -41,6 +48,15 @@ suite('AgentHostChatCatalogMigration', () => {
 			payload: encoded.value.payload,
 			verified: true,
 		}, undefined);
+		if (payloadVersion !== AGENT_HOST_CATALOG_PAYLOAD_VERSION) {
+			const legacyValue = JSON.parse(encoded.value.payload) as { payloadVersion: number };
+			legacyValue.payloadVersion = payloadVersion;
+			const legacyPayload = stableStringify(legacyValue);
+			const sqlite = await (database as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
+			await run(sqlite, 'UPDATE sessions_v2 SET payload_version = ?, payload_hash = ?, payload = ? WHERE session_uri = ?', [
+				payloadVersion, hashAgentHostCatalogPayload(legacyPayload), legacyPayload, session.toString(),
+			]);
+		}
 		return database;
 	}
 
@@ -73,6 +89,21 @@ suite('AgentHostChatCatalogMigration', () => {
 			chats: [{ chat: defaultChat, read: true, changes: { files: 0 } }],
 			detail: { providerData: 'opaque-continuation' },
 			secondMigration: { status: 'alreadyNormalized' },
+		});
+	});
+
+	test('normalizes a legacy aggregate before catalog reconciliation', async () => {
+		const database = await createDatabase([{ uri: defaultChat, kind: 'default', order: 0, summary: 'Legacy default' }], legacyCatalogPayloadVersion);
+		const result = await migrateChatCatalogV2(database, createNullSessionDataService(), session);
+		const [snapshot] = await database.readCatalogSnapshot([session.toString()]);
+		assert.deepStrictEqual({
+			result: result.status,
+			authority: snapshot.authorityVersion,
+			chats: snapshot.chats.map(chat => ({ chat: chat.chat, summary: chat.metadata?.summary })),
+		}, {
+			result: 'applied',
+			authority: 2,
+			chats: [{ chat: defaultChat, summary: 'Legacy default' }],
 		});
 	});
 

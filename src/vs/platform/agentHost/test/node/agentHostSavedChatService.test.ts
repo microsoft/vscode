@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import type { Database } from '@vscode/sqlite3';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import type { IReference } from '../../../../base/common/lifecycle.js';
+import { stableStringify } from '../../../../base/common/objects.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -17,7 +19,7 @@ import type { ISessionDatabase, ISessionDataService } from '../../common/session
 import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, buildChatUri, buildDefaultChatUri, ChatInteractivity, ChatOriginKind, MessageKind, ResponsePartKind, TurnState, type Turn } from '../../common/state/sessionState.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentHostCatalogListReader } from '../../node/agentHostCatalogListReader.js';
-import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, encodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
+import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, encodeAgentHostCatalogPayload, hashAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
 import { CHAT_BACKING_METADATA_KEY, chatCatalogV2ToCatalogChats } from '../../node/agentHostCatalogSourceResolver.js';
 import { AgentHostSavedChatService, type AgentHostSavedChatArchiveTarget, type IAgentHostSavedChatReadContext, type IAgentHostSavedChatReader } from '../../node/agentHostSavedChatService.js';
 import { CHAT_WORKING_DIRECTORIES_METADATA_KEY } from '../../node/agentHostPeerChatStore.js';
@@ -31,6 +33,7 @@ import { readPersistedWorktreeMetadata } from '../../node/shared/worktreeIsolati
 
 suite('AgentHostSavedChatService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const legacyCatalogPayloadVersion = 2;
 	const session = URI.parse('ahp-session:/saved-owner');
 	const defaultChat = URI.parse('ahp-chat:/saved-default');
 	const peerChat = URI.parse('ahp-chat:/saved-peer');
@@ -44,6 +47,10 @@ suite('AgentHostSavedChatService', () => {
 			usage: {},
 			state: TurnState.Complete,
 		};
+	}
+
+	function run(database: Database, sql: string, parameters: readonly (number | string)[]): Promise<void> {
+		return new Promise((resolve, reject) => database.run(sql, parameters, error => error ? reject(error) : resolve()));
 	}
 
 	async function fixture(provider: AgentProvider = 'claude', normalized = true, withPeer = true) {
@@ -101,6 +108,41 @@ suite('AgentHostSavedChatService', () => {
 			assert.deepStrictEqual(savedChatToDto(await createService().readSavedChat(session)), savedChatToDto(saved));
 		});
 	}
+
+	test('reads saved history from a legacy aggregate before reconciliation', async () => {
+		const { database, sessionDatabase, calls, createService } = await fixture('claude', false);
+		await sessionDatabase.setMetadata('defaultChatProviderData', 'opaque-default-backing');
+		const encoded = encodeAgentHostCatalogPayload({
+			modifiedTime: 1, isRead: true, isArchived: false,
+			workingDirectories: [folder.toString()],
+			chats: [{ uri: buildDefaultChatUri(session), kind: 'default', order: 0, summary: 'Legacy saved chat' }],
+		});
+		assert.ok(encoded.ok);
+		await database.upsertSessionV2({
+			session: session.toString(), sessionGeneration: 'generation', sourceRevision: 1,
+			payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION, payload: encoded.value.payload, payloadHash: encoded.value.payloadHash, verified: true,
+		}, undefined);
+		const legacyValue = JSON.parse(encoded.value.payload) as { payloadVersion: number };
+		legacyValue.payloadVersion = legacyCatalogPayloadVersion;
+		const legacyPayload = stableStringify(legacyValue);
+		const sqlite = await (database as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
+		await run(sqlite, 'UPDATE sessions_v2 SET payload_version = ?, payload_hash = ?, payload = ? WHERE session_uri = ?', [
+			legacyCatalogPayloadVersion, hashAgentHostCatalogPayload(legacyPayload), legacyPayload, session.toString(),
+		]);
+
+		const saved = await createService().readSavedChat(session);
+		assert.deepStrictEqual({
+			saved: savedChatToDto(saved),
+			backing: calls.map(call => ({ chat: call.chat.toString(), providerData: call.providerData })),
+		}, {
+			saved: {
+				session: session.toString(), chat: buildDefaultChatUri(session), provider: 'claude', identity: saved.identity,
+				availability: { kind: 'available' }, title: 'Legacy saved chat', turns: [turn('native', 'Saved question')],
+				workspace: { kind: 'folder', workingDirectories: [folder.toString()] },
+			},
+			backing: [{ chat: buildDefaultChatUri(session), providerData: 'opaque-default-backing' }],
+		});
+	});
 
 	test('recovers a standard owner whose native alias marked their shared storage as a backing', async () => {
 		const { sessionDatabase, database, createService, calls } = await fixture('codex');

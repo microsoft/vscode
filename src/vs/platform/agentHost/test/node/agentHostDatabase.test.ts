@@ -18,6 +18,8 @@ import { AGENT_HOST_CATALOG_CHILD_LIMIT, AGENT_HOST_CATALOG_PAYLOAD_VERSION, Age
 import { ChatInteractivity, ChatOriginKind } from '../../common/state/protocol/channels-chat/state.js';
 import { encodeChatV2Metadata } from '../../node/agentHostChatCatalogV2.js';
 
+const legacyCatalogPayloadVersion = 2;
+
 function openDatabase(path: string): Promise<Database> {
 	return new Promise((resolve, reject) => {
 		import('@vscode/sqlite3').then(sqlite3 => {
@@ -28,6 +30,10 @@ function openDatabase(path: string): Promise<Database> {
 
 function exec(database: Database, sql: string): Promise<void> {
 	return new Promise((resolve, reject) => database.exec(sql, error => error ? reject(error) : resolve()));
+}
+
+function run(database: Database, sql: string, parameters: readonly (number | string)[]): Promise<void> {
+	return new Promise((resolve, reject) => database.run(sql, parameters, error => error ? reject(error) : resolve()));
 }
 
 function all(database: Database, sql: string, parameters: string[] = []): Promise<readonly Record<string, unknown>[]> {
@@ -451,6 +457,15 @@ suite('AgentHostDatabase sessions_v2', () => {
 		await db.upsertSessionV2(createEnvelope(payloadOwner, 'generation', 1, {
 			payload: createPayload(payloadOwner, 1).replace(`"${payloadOwner}#peer"`, `"${chat('payload-peer')}"`),
 		}), undefined);
+		const payloadOwnerRow = await db.getSessionV2(payloadOwner);
+		assert.ok(payloadOwnerRow);
+		const legacyValue = JSON.parse(payloadOwnerRow.payload) as { payloadVersion: number };
+		legacyValue.payloadVersion = legacyCatalogPayloadVersion;
+		const legacyPayload = stableStringify(legacyValue);
+		const sqlite = await (db as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
+		await run(sqlite, 'UPDATE sessions_v2 SET payload_version = ?, payload_hash = ?, payload = ? WHERE session_uri = ?', [
+			legacyCatalogPayloadVersion, createHash('sha256').update(legacyPayload, 'utf8').digest('hex'), legacyPayload, payloadOwner,
+		]);
 		await db.registerChatCatalogV2(deletedOwner, { defaultChat: { chat: chat('deleted-default'), order: 0 }, peers: [{ chat: chat('deleted-peer'), order: 1 }], privateDescendants: [] });
 		await db.tombstoneAndUnregisterSession(deletedOwner);
 

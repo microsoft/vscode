@@ -219,7 +219,7 @@ export class SessionStorageIdentity {
 			}
 			if (key && ['payload', 'origin', 'metadata', 'legacyMirroredPayload'].includes(key)) {
 				// Leave invalid and future projections intact for the catalog reader to diagnose.
-				if (key === 'payload' && !decodeAgentHostCatalogPayloadData(value).ok) {
+				if (key === 'payload' && !decodeAgentHostCatalogPayloadData(value, { forMigration: true }).ok) {
 					return value;
 				}
 				const original = JSON.parse(value);

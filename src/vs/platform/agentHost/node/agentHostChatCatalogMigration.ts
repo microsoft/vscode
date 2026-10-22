@@ -9,7 +9,7 @@ import { URI } from '../../../base/common/uri.js';
 import type { ISessionDataService } from '../common/sessionDataService.js';
 import { ChatInteractivity, ChatOriginKind } from '../common/state/protocol/state.js';
 import { creationTimeChatStorageResource } from './agentHostStateManager.js';
-import { decodeAgentHostCatalogPayload, projectAgentHostCatalogChatOrigin } from './agentHostCatalogProjection.js';
+import { decodeAgentHostCatalogPayloadData, projectAgentHostCatalogChatOrigin } from './agentHostCatalogProjection.js';
 import { fromCatalogChatOrigin } from './agentHostCatalogSourceResolver.js';
 import type { AgentHostDatabaseChatV2WriteResult, IAgentHostDatabase, IAgentHostDatabaseChatV2Mutation, IAgentHostDatabaseChatV2NormalizationCandidate, IAgentHostDatabaseChatV2NormalizationChat } from './agentHostDatabase.js';
 import { CHAT_INHERITED_TURN_METADATA_KEY, CHAT_ORIGIN_METADATA_KEY, CHAT_PROVIDER_DATA_METADATA_KEY, CHAT_WORKING_DIRECTORIES_METADATA_KEY } from './agentHostPeerChatStore.js';
@@ -51,11 +51,11 @@ export async function migrateChatCatalogV2(
 	if (!source?.verified || source.payloadDirty !== 0) {
 		return chatCatalogAwaitsReprojection;
 	}
-	const decoded = decodeAgentHostCatalogPayload(source.payload);
+	const decoded = decodeAgentHostCatalogPayloadData(source.payload, { forMigration: true, payloadVersion: source.payloadVersion });
 	if (!decoded.ok) {
 		throw new Error(`Cannot migrate chat catalog for ${sessionKey}: ${decoded.error}`);
 	}
-	const sourceChats = decoded.value.data.chats;
+	const sourceChats = decoded.value.chats;
 	const defaultChat = sourceChats.find(chat => chat.kind === 'default');
 	if (!defaultChat) {
 		throw new Error(`Cannot migrate chat catalog without a default chat for ${sessionKey}`);
