@@ -55,7 +55,7 @@ import { reconcileCopilotConnectors, type ICopilotConnectorServer, type ICopilot
 import { copilotConnectorsScope } from '../../../github/common/connectors/connectors.js';
 import { createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext, type IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { measureAgentProviderOperation } from '../../common/agentHostProviderTiming.js';
-import { type AgentCanvasDefinitionSnapshot, AgentSession, type IAgentChatOwnerRef, type IAgentManagedPluginRetryEntry, COPILOT_CLI_AGENT_PROVIDER_ID, AgentSignal, AgentWorkingDirectoryChangedError, AuthenticateParams, IMcpNotification, subagentChatTitle, type AgentCanvasExtensionSource, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
+import { type AgentCanvasDefinitionSnapshot, AgentSession, type IAgentChatOwnerRef, type IAgentExtensionInfo, type IAgentManagedPluginRetryEntry, COPILOT_CLI_AGENT_PROVIDER_ID, AgentSignal, AgentWorkingDirectoryChangedError, AuthenticateParams, IMcpNotification, subagentChatTitle, type AgentCanvasExtensionSource, type AgentExtensionStatus, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
 import { isReasoningEffortLevel } from '../../common/reasoningEffort.js';
 import { agentModelConfigurationMetaKey, IAgentRuntimeModelConfiguration, readAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
 import { agentModelConfigurationReportKey, type IAgentModelConfigurationReport } from '../../common/agentModelConfiguration.js';
@@ -2123,7 +2123,7 @@ export class CopilotAgentSession extends Disposable {
 		this._getTelemetryContext = options.telemetryContext ?? (() => undefined);
 		this._repoInfoTelemetry = this._register(this._instantiationService.createInstance(AgentHostRepoInfoTelemetry, this._telemetryReporter));
 
-		this._appliedSnapshot = options.clientSnapshot ?? { tools: [], plugins: [], mcpServers: {} };
+		this._appliedSnapshot = options.clientSnapshot ?? { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} };
 		this._declaredMcpServerNames = new Set([
 			...Object.keys(this._appliedSnapshot.mcpServers),
 			...this._appliedSnapshot.plugins.flatMap(plugin => plugin.mcpServers.map(server => server.name)),
@@ -4348,6 +4348,37 @@ export class CopilotAgentSession extends Disposable {
 		}));
 	}
 
+	async listExtensions(): Promise<readonly IAgentExtensionInfo[]> {
+		const result = await this._awaitControlPlaneRpc('rpc.extensions.list', this._wrapper.session.rpc.extensions.list());
+		if (!result || !Array.isArray(result.extensions)) {
+			throw new Error('Copilot returned an invalid live extension inventory.');
+		}
+		return result.extensions.flatMap((extension, index) => {
+			if (!extension || typeof extension !== 'object'
+				|| typeof extension.id !== 'string' || !extension.id
+				|| typeof extension.name !== 'string' || !extension.name
+				|| typeof extension.source !== 'string'
+				|| typeof extension.status !== 'string') {
+				this._logService.warn(`[Copilot:${this.sessionId}] Ignoring invalid live extension inventory entry at index ${index}`);
+				return [];
+			}
+			const source = this._canvasExtensionSource(extension.source);
+			if (source === 'session') {
+				return [];
+			}
+			if (source === 'unknown') {
+				this._logService.warn(`[Copilot:${this.sessionId}] Ignoring live extension inventory entry with unsupported source '${extension.source}'`);
+				return [];
+			}
+			return [{
+				id: extension.id,
+				name: extension.name,
+				source,
+				status: this._extensionStatus(extension.status),
+			}];
+		});
+	}
+
 	async openCanvas(request: IAgentCanvasOpenRequest): Promise<void> {
 		if (!this._wrapper.canvasRuntimeEnabled) {
 			throw new Error('Canvases are disabled for this session.');
@@ -4464,6 +4495,18 @@ export class CopilotAgentSession extends Disposable {
 			case 'session': return 'session';
 			case 'plugin': return 'plugin';
 			default: return 'unknown';
+		}
+	}
+
+	private _extensionStatus(status: string): AgentExtensionStatus {
+		switch (status) {
+			case 'running':
+			case 'disabled':
+			case 'failed':
+			case 'starting':
+				return status;
+			default:
+				return 'unknown';
 		}
 	}
 
@@ -5304,6 +5347,10 @@ export class CopilotAgentSession extends Disposable {
 		this._recordRuntimeMutation('extensionsReload');
 		await this._wrapper.session.rpc.extensions.reload();
 		this._logService.info(`[Copilot:${this.sessionId}] Extensions reloaded`);
+	}
+
+	async reconcileExtensions(): Promise<void> {
+		await this._awaitControlPlaneRpc('rpc.extensions.reconcile', this._wrapper.session.rpc.extensions.reconcile());
 	}
 
 	/**

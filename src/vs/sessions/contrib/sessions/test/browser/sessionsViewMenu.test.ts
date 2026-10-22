@@ -342,11 +342,18 @@ suite('Sessions - View Menu', () => {
 		grouping.set(SessionsGrouping.Repository);
 		const repositoryTitles = snapshot(Menus.SessionsViewFilter).filter(item => item.group === '1_presentation').map(item => item.title);
 		const repositoryShow = snapshot(Menus.SessionsViewShow);
+		grouping.set(SessionsGrouping.Environment);
+		const environmentTitles = snapshot(Menus.SessionsViewFilter).filter(item => item.group === '1_presentation').map(item => item.title);
+		const environmentGrouping = snapshot(Menus.SessionsViewGrouping);
+		const environmentShow = snapshot(Menus.SessionsViewShow);
 		grouping.set(SessionsGrouping.Date);
 
 		assert.deepStrictEqual({
 			workspaceTitles,
 			repositoryTitles,
+			environmentTitles,
+			environmentGrouping,
+			environmentShow,
 			timeTitles: snapshot(Menus.SessionsViewFilter).filter(item => item.group === '1_presentation').map(item => item.title),
 			ordering: snapshot(Menus.SessionsViewOrdering),
 			grouping: snapshot(Menus.SessionsViewGrouping),
@@ -355,6 +362,17 @@ suite('Sessions - View Menu', () => {
 		}, {
 			workspaceTitles: ['Ordering', 'Grouping', 'Show'],
 			repositoryTitles: ['Ordering', 'Grouping', 'Show'],
+			environmentTitles: ['Ordering', 'Grouping', 'Show'],
+			environmentGrouping: [
+				{ title: 'Time', group: '1_group', checked: false },
+				{ title: 'Workspace', group: '1_group', checked: false },
+				{ title: 'Repository', group: '1_group', checked: false },
+				{ title: 'Environment', group: '1_group', checked: true },
+			],
+			environmentShow: [
+				{ title: 'Recent', group: '1_show', checked: false },
+				{ title: 'All', group: '1_show', checked: true },
+			],
 			timeTitles: ['Ordering', 'Grouping'],
 			ordering: [
 				{ title: 'Created', group: '1_sort', checked: false },
@@ -364,6 +382,7 @@ suite('Sessions - View Menu', () => {
 				{ title: 'Time', group: '1_group', checked: true },
 				{ title: 'Workspace', group: '1_group', checked: false },
 				{ title: 'Repository', group: '1_group', checked: false },
+				{ title: 'Environment', group: '1_group', checked: false },
 			],
 			show: [
 				{ title: 'Recent', group: '1_show', checked: false },

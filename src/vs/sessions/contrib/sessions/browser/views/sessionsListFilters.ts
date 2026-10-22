@@ -44,12 +44,7 @@ export interface ISessionsListResettableState {
 	reset(): void;
 }
 
-export function getSessionFilterOptions(sessions: readonly ISession[], environments: readonly ISessionEnvironment[], reader?: IReader): ISessionFilterOption[] {
-	const options: ISessionFilterOption[] = [
-		{ filter: { kind: 'harness', id: 'copilot' }, label: localize('harness.copilot', "Copilot"), group: '1_harnesses' },
-		{ filter: { kind: 'harness', id: 'claude' }, label: localize('harness.claude', "Claude"), group: '1_harnesses' },
-		{ filter: { kind: 'harness', id: 'codex' }, label: localize('harness.codex', "Codex"), group: '1_harnesses' },
-	];
+export function getSessionEnvironments(environments: readonly ISessionEnvironment[]): ISessionEnvironment[] {
 	const byId = new Map<string, ISessionEnvironment>([
 		['local', { id: 'local', label: localize('environment.local', "This Computer") }],
 		['cloud', { id: 'cloud', label: localize('environment.cloud', "Cloud") }],
@@ -57,7 +52,16 @@ export function getSessionFilterOptions(sessions: readonly ISession[], environme
 	for (const environment of environments) {
 		byId.set(environment.id, environment);
 	}
-	const ordered = [...byId.values()].sort(compareSessionEnvironments);
+	return [...byId.values()].sort(compareSessionEnvironments);
+}
+
+export function getSessionFilterOptions(sessions: readonly ISession[], environments: readonly ISessionEnvironment[], reader?: IReader): ISessionFilterOption[] {
+	const options: ISessionFilterOption[] = [
+		{ filter: { kind: 'harness', id: 'copilot' }, label: localize('harness.copilot', "Copilot"), group: '1_harnesses' },
+		{ filter: { kind: 'harness', id: 'claude' }, label: localize('harness.claude', "Claude"), group: '1_harnesses' },
+		{ filter: { kind: 'harness', id: 'codex' }, label: localize('harness.codex', "Codex"), group: '1_harnesses' },
+	];
+	const ordered = getSessionEnvironments(environments);
 	for (const environment of ordered) {
 		if (environment.isConnected?.read(reader) !== false) {
 			options.push({ filter: { kind: 'environment', id: environment.id }, label: environment.label, group: '2_environments' });
