@@ -2172,6 +2172,39 @@ suite('authenticateProtectedResources', () => {
 		}]);
 	});
 
+	test('a rejected token does not keep the harness off the default account', async () => {
+		const aRead: AuthenticationSession = { id: 'a-read', scopes: ['read'], accessToken: 'a-read-token', account: { id: 'account-a', label: 'A' } };
+		const aWide: AuthenticationSession = { id: 'a-wide', scopes: ['read', 'repo'], accessToken: 'a-wide-token', account: { id: 'account-a', label: 'A' } };
+		const bRead: AuthenticationSession = { id: 'b-read', scopes: ['read'], accessToken: 'b-read-token', account: { id: 'account-b', label: 'B' } };
+		const bWide: AuthenticationSession = { id: 'b-wide', scopes: ['read', 'repo'], accessToken: 'b-wide-token', account: { id: 'account-b', label: 'B' } };
+		const sessions = [bRead, bWide, aRead, aWide];
+		const authentication = createMockAuthService({
+			getOrActivateProviderIdForServer: async () => 'github',
+			getSessions: async (_providerId, scopes) => scopes ? sessions.filter(session => scopes.every(scope => session.scopes.includes(scope))) : sessions,
+		});
+		const instantiationService = createAuthInstantiationService(disposables, authentication);
+		instantiationService.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
+			override readonly currentDefaultAccount: IDefaultAccount = { sessionId: aRead.id, accountName: 'A', enterprise: false, authenticationProvider: { id: 'github', name: 'GitHub', enterprise: false } };
+		}());
+		const cache = new AgentHostAuthTokenCache();
+		const tokens: string[] = [];
+		const options: IAgentHostAuthenticationOptions = { logPrefix: '[Test]', authTokenCache: cache, authenticate: async request => { tokens.push(request.token); } };
+		// The host rejected account B's token before the default account was applied.
+		cache.rejectSession(protectedResource.resource, protectedResource.scopes_supported, bRead);
+		await instantiationService.invokeFunction(authenticateProtectedResources, [new class extends mock<AgentInfo>() {
+			override readonly protectedResources = [protectedResource];
+		}()], options);
+		const afterSwitch = [...tokens];
+		// The host now rejects the default account's token; recovery tries the default account's other session.
+		cache.rejectSession(protectedResource.resource, protectedResource.scopes_supported, aRead);
+		const recovery = new AgentHostAuthenticationRecovery(NullTelemetryService);
+		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, protectedResource, options));
+		assert.deepStrictEqual({ afterSwitch, afterRecovery: tokens.slice(afterSwitch.length) }, {
+			afterSwitch: ['a-read-token'],
+			afterRecovery: ['a-wide-token'],
+		});
+	});
+
 	test('keeps the default account and its entitlement while a refreshed session replaces the default session', async () => {
 		const aRefreshed: AuthenticationSession = { id: 'a-refreshed', scopes: ['read'], accessToken: 'a-refreshed-token', account: { id: 'account-a', label: 'A' } };
 		const bRead: AuthenticationSession = { id: 'b-read', scopes: ['read'], accessToken: 'b-read-token', account: { id: 'account-b', label: 'B' } };

@@ -238,7 +238,7 @@ export type AuthenticationSessionSelection =
 	| { readonly kind: 'accountMismatch' };
 
 export interface IAuthenticationAccountPreference {
-	/** The preferred account, or `undefined` when its session is no longer signed in. */
+	/** The preferred account, or `undefined` when it has no session among the candidates. */
 	readonly accountId: string | undefined;
 	/** Whether another account may be used when it is the only signed-in account. */
 	readonly fallbackToSoleAccount: boolean;
@@ -531,7 +531,10 @@ async function resolveAuthenticationSessionForResource(
 			continue;
 		}
 		const selection = selectAuthenticationSession(
-			allSessions.filter(session => isAuthenticationSessionCandidate(session, rejectedSession)),
+			// With a default account, its preference picks the account, so a rejected session only excludes itself.
+			allSessions.filter(session => usesDefaultAccount
+				? rejectedSession === null || !isSameAuthenticationSession(session, rejectedSession)
+				: isAuthenticationSessionCandidate(session, rejectedSession)),
 			scopes,
 			preferredSessionId || usesDefaultAccount ? { accountId: preferredAccountId, fallbackToSoleAccount: usesDefaultAccount } : undefined,
 		);
