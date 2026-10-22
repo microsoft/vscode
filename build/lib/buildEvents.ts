@@ -17,8 +17,13 @@ export class BuildLifecycle {
 	start(): (failed?: boolean) => void {
 		if (this._activeBuilds++ === 0) {
 			this._failed = false;
-			this._onStart?.();
-			this._emit('START');
+			try {
+				this._onStart?.();
+				this._emit('START');
+			} catch (error) {
+				this._activeBuilds--;
+				throw error;
+			}
 		}
 		let completed = false;
 		return (failed = false) => {

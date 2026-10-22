@@ -52,3 +52,30 @@ function restoreBuildEvents(value: string | undefined): void {
 		process.env.VSCODE_BUILD_EVENTS = value;
 	}
 }
+
+for (const phase of ['callback', 'emit']) {
+	test(`a failed start ${phase} does not leak an active build`, t => {
+		const previous = process.env.VSCODE_BUILD_EVENTS;
+		t.after(() => restoreBuildEvents(previous));
+		process.env.VSCODE_BUILD_EVENTS = '1';
+		let fail = true;
+		const messages: unknown[] = [];
+		t.mock.method(console, 'log', (message: unknown) => {
+			if (fail && phase === 'emit') {
+				throw new Error('emit failed');
+			}
+			messages.push(message);
+		});
+		let ended = 0;
+		const lifecycle = new BuildLifecycle(() => {
+			if (fail && phase === 'callback') {
+				throw new Error('callback failed');
+			}
+		}, () => ended++);
+		assert.throws(() => lifecycle.start(), new RegExp(`${phase} failed`));
+		fail = false;
+		lifecycle.start()();
+		assert.equal(ended, 1);
+		assert.deepEqual(messages, ['VSCODE_BUILD_START', 'VSCODE_BUILD_DONE']);
+	});
+}
