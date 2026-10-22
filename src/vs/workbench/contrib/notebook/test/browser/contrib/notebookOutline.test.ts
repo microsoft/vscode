@@ -106,6 +106,54 @@ suite('Notebook Outline', function () {
 		});
 	});
 
+	test('HTML header tags in outline', async function () {
+		await withNotebookOutline([
+			['<h1>HTML Header</h1>', 'md', CellKind.Markup]
+		], OutlineTarget.OutlinePane, outline => {
+			assert.ok(outline instanceof NotebookCellOutline);
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 1);
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, 'HTML Header');
+		});
+
+		await withNotebookOutline([
+			['<h2 class="test">HTML Header with attributes</h2>', 'md', CellKind.Markup]
+		], OutlineTarget.OutlinePane, outline => {
+			assert.ok(outline instanceof NotebookCellOutline);
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 1);
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, 'HTML Header with attributes');
+		});
+
+		// Test that markdown headers work alongside HTML headers
+		await withNotebookOutline([
+			['# Markdown Header\n<h2>HTML Header</h2>', 'md', CellKind.Markup]
+		], OutlineTarget.OutlinePane, outline => {
+			assert.ok(outline instanceof NotebookCellOutline);
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 2);
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, 'Markdown Header');
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[1].label, 'HTML Header');
+		});
+
+		// Test multiline HTML headers in outline
+		await withNotebookOutline([
+			['<h1> testing\n\nsecond line </h1>', 'md', CellKind.Markup]
+		], OutlineTarget.OutlinePane, outline => {
+			assert.ok(outline instanceof NotebookCellOutline);
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 1);
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, 'testing\n\nsecond line');
+		});
+
+		// test multiple HTML headers in a single cell
+		await withNotebookOutline([
+			['<h1>Header 1</h1>\n<h2>Header 2</h2>\n<h3>Header 3</h3>', 'md', CellKind.Markup]
+		], OutlineTarget.OutlinePane, outline => {
+			assert.ok(outline instanceof NotebookCellOutline);
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 3);
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, 'Header 1');
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[1].label, 'Header 2');
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[2].label, 'Header 3');
+		});
+	});
+
 	test('Notebook falsely detects "empty cells"', async function () {
 		await withNotebookOutline([
 			['  的时代   ', 'md', CellKind.Markup]
