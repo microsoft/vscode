@@ -96,8 +96,13 @@ import type { IDevContainerAgentHostMainService } from '../common/devContainerAg
 
 const AHP_CLIENT_CONNECTION_CLOSED = -32000;
 
-function isAgentExtensionMode(value: unknown): value is AgentExtensionMode {
-	return value === 'disabled' || value === 'load_only' || value === 'load_and_augment' || value === 'unknown';
+function toAgentExtensionMode(value: unknown): AgentExtensionMode | undefined {
+	if (typeof value !== 'string') {
+		return undefined;
+	}
+	return value === 'disabled' || value === 'load_only' || value === 'load_and_augment' || value === 'unknown'
+		? value
+		: 'unknown';
 }
 
 function isAgentExtensionSource(value: unknown): value is AgentExtensionSource {
@@ -2030,7 +2035,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			...(session ? { session: session.toString() } : {}),
 			...(chat ? { chat: chat.toString() } : {}),
 		} : undefined);
-		if (!isAgentExtensionMode(result.mode) || !Array.isArray(result.extensions)) {
+		const mode = toAgentExtensionMode(result.mode);
+		if (!mode || !Array.isArray(result.extensions)) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Agent Host returned an invalid extension inventory');
 		}
 		const extensions = result.extensions.flatMap((extension, index) => {
@@ -2061,7 +2067,6 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 					resource = this._toClientUri(hostResource);
 				} catch {
 					this._logService.warn(`[AgentHostProtocolClient] Ignoring extension inventory item with invalid resource at index ${index}`);
-					return [];
 				}
 			}
 			return [{
@@ -2073,7 +2078,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				...(extension.pluginName ? { pluginName: extension.pluginName } : {}),
 			}];
 		});
-		return { mode: result.mode, extensions };
+		return { mode, extensions };
 	}
 
 	async setAgentExtensionEnabled(extensionId: string, enabled: boolean, session?: URI, chat?: URI): Promise<void> {

@@ -161,8 +161,6 @@ class MockCopilotSession {
 	/** Instances `rpc.canvas.listOpen` reports as live in the runtime. */
 	readonly listedOpenCanvases: CopilotSession['openCanvases'] = [];
 	readonly extensions: Awaited<ReturnType<CopilotSession['rpc']['extensions']['list']>>['extensions'] = [];
-	readonly extensionEnableCalls: Parameters<CopilotSession['rpc']['extensions']['enable']>[0][] = [];
-	readonly extensionDisableCalls: Parameters<CopilotSession['rpc']['extensions']['disable']>[0][] = [];
 	readonly canvases: Awaited<ReturnType<CopilotSession['rpc']['canvas']['list']>>['canvases'] = [];
 	readonly canvasOpenCalls: Parameters<CopilotSession['rpc']['canvas']['open']>[0][] = [];
 	readonly canvasCloseCalls: Parameters<CopilotSession['rpc']['canvas']['close']>[0][] = [];
@@ -540,12 +538,8 @@ class MockCopilotSession {
 				}
 				return { extensions };
 			},
-			enable: async (params: Parameters<CopilotSession['rpc']['extensions']['enable']>[0]) => {
-				this.extensionEnableCalls.push(params);
-			},
-			disable: async (params: Parameters<CopilotSession['rpc']['extensions']['disable']>[0]) => {
-				this.extensionDisableCalls.push(params);
-			},
+			enable: async () => { },
+			disable: async () => { },
 			reload: async () => {
 				this.extensionReloadCalls++;
 				if (this.extensionReloadError) {
@@ -3657,8 +3651,8 @@ suite('CopilotAgentSession', () => {
 		session.dispose();
 	});
 
-	test('lists and changes live extensions', async () => {
-		const { session, mockSession } = await createAgentSession(disposables, {
+	test('lists live extensions', async () => {
+		const { session } = await createAgentSession(disposables, {
 			configureMockSession: mock => {
 				mock.extensions.push(
 					{ id: 'project:preview', name: 'Preview extension', source: 'project', status: 'running' },
@@ -3671,27 +3665,18 @@ suite('CopilotAgentSession', () => {
 		});
 
 		const extensions = await session.listExtensions();
-		await session.setExtensionEnabled('project:preview', false);
 
-		assert.deepStrictEqual({
-			extensions,
-			enableCalls: mockSession.extensionEnableCalls,
-			disableCalls: mockSession.extensionDisableCalls,
+		assert.deepStrictEqual(extensions, [{
+			id: 'project:preview',
+			name: 'Preview extension',
+			source: 'project',
+			status: 'running',
 		}, {
-			extensions: [{
-				id: 'project:preview',
-				name: 'Preview extension',
-				source: 'project',
-				status: 'running',
-			}, {
-				id: 'user:future',
-				name: 'Future extension',
-				source: 'user',
-				status: 'unknown',
-			}],
-			enableCalls: [],
-			disableCalls: [{ id: 'project:preview' }],
-		});
+			id: 'user:future',
+			name: 'Future extension',
+			source: 'user',
+			status: 'unknown',
+		}]);
 		session.dispose();
 	});
 

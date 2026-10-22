@@ -2116,6 +2116,8 @@ suite('ProtocolServerHandler', () => {
 		const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'relay-client', false));
 		relay.simulateConnection(transport);
 		transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'relay-client' }));
+		const initialized = findResponse(transport.sent, 1);
+		assert.ok(initialized && hasKey(initialized, { result: true }));
 
 		const response = waitForResponse(transport, 20);
 		transport.simulateMessage(request(20, SetAgentExtensionEnabledExtensionMethod, {
@@ -2125,9 +2127,11 @@ suite('ProtocolServerHandler', () => {
 		await relayHandler.whenIdle();
 
 		assert.deepStrictEqual({
+			supported: supportsAgentHostCopilotExtensions(initialized.result as InitializeResult),
 			response: await response,
 			setCalls: agentService.setAgentExtensionEnabledCalls,
 		}, {
+			supported: false,
 			response: {
 				jsonrpc: '2.0',
 				id: 20,

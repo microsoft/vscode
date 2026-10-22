@@ -4379,15 +4379,6 @@ export class CopilotAgentSession extends Disposable {
 		});
 	}
 
-	async setExtensionEnabled(extensionId: string, enabled: boolean): Promise<void> {
-		await this._awaitControlPlaneRpc(
-			enabled ? 'rpc.extensions.enable' : 'rpc.extensions.disable',
-			enabled
-				? this._wrapper.session.rpc.extensions.enable({ id: extensionId })
-				: this._wrapper.session.rpc.extensions.disable({ id: extensionId }),
-		);
-	}
-
 	async openCanvas(request: IAgentCanvasOpenRequest): Promise<void> {
 		if (!this._wrapper.canvasRuntimeEnabled) {
 			throw new Error('Canvases are disabled for this session.');

@@ -1775,7 +1775,7 @@ export interface IAgent {
 
 	/**
 	 * Persist User/Plugin enablement and reconcile one exact live chat when supplied.
-	 * Project enablement is session-only and requires a live session in `load_and_augment` mode; Session extensions are unsupported.
+	 * Project entries are inventory-only; Project and Session mutation are unsupported.
 	 */
 	setAgentExtensionEnabled?(extensionId: string, enabled: boolean, session?: URI, chat?: URI): Promise<void>;
 

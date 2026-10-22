@@ -3703,7 +3703,7 @@ suite('AgentHostProtocolClient', () => {
 		assert.strictEqual(transport.sentMessages.length, 0);
 	});
 
-	test('skips invalid Copilot extension inventory items and preserves unknown statuses', async () => {
+	test('normalizes future Copilot extension inventory values and preserves entries with unsupported resources', async () => {
 		const { client, transport } = createClient();
 		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, false, false, false, false, false, false, true));
 		transport.sentMessages.length = 0;
@@ -3713,7 +3713,7 @@ suite('AgentHostProtocolClient', () => {
 			jsonrpc: '2.0',
 			id: 2,
 			result: {
-				mode: 'load_and_augment',
+				mode: 'future_mode',
 				extensions: [{
 					id: 'user:future',
 					name: 'Future',
@@ -3759,7 +3759,7 @@ suite('AgentHostProtocolClient', () => {
 				pluginName: extension.pluginName,
 			})),
 		}, {
-			mode: 'load_and_augment',
+			mode: 'unknown',
 			extensions: [{
 				id: 'user:future',
 				name: 'Future',
@@ -3767,6 +3767,14 @@ suite('AgentHostProtocolClient', () => {
 				resourcePath: '/home/test/.copilot/extensions/future/extension.mjs',
 				source: 'user',
 				status: 'unknown',
+				pluginName: undefined,
+			}, {
+				id: 'user:preview',
+				name: 'Preview',
+				resourceScheme: undefined,
+				resourcePath: undefined,
+				source: 'user',
+				status: 'running',
 				pluginName: undefined,
 			}, {
 				id: 'plugin:dashboard',
@@ -3790,8 +3798,8 @@ suite('AgentHostProtocolClient', () => {
 			jsonrpc: '2.0',
 			id: 2,
 			result: {
-				mode: 'load_and_augment',
-				extensions: {},
+				mode: 1,
+				extensions: [],
 			},
 		});
 

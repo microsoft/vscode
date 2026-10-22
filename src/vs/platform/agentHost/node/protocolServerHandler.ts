@@ -1106,7 +1106,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 							!!client.artifactIntegrations,
 							this._config.allowExtensionMethods !== false
 							&& !!this._agentService.listAgentExtensions
-							&& !!this._agentService.setAgentExtensionEnabled,
+							&& !!this._agentService.setAgentExtensionEnabled
+							&& transport.relayClientId === undefined
+							&& !transport.relayPassive,
 						),
 						...(transport.relayClientId === undefined && !transport.relayPassive ? { [AgentHostWorktreeDiskUsageCapabilityMetaKey]: true } : {}),
 						...(this._config.allowExtensionMethods !== false && this._agentService.installSandboxCertificate && transport.relayClientId === undefined && !transport.relayPassive

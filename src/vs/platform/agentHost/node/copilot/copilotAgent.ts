@@ -2910,11 +2910,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					};
 				}),
 				...persisted.extensions
-					.filter(extension => !liveExtensionIds.has(extension.id))
-					.map(extension => ({
-						...extension,
-						status: extension.status === 'disabled' ? 'disabled' as const : 'unknown' as const,
-					})),
+					.filter(extension => !liveExtensionIds.has(extension.id)),
 			],
 		};
 	}
@@ -2928,29 +2924,25 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (!extension) {
 			throw new Error(`Extension '${extensionId}' is not available or cannot be managed.`);
 		}
-		if (extension.source === 'project') {
-			if (enabled && inventory.mode !== 'load_and_augment') {
-				throw new Error(`Extension '${extensionId}' cannot be enabled while extension management mode is '${inventory.mode}'.`);
-			}
-			const liveSession = session ? this._findPluginOperationSession(session, chat) : undefined;
-			if (!liveSession) {
-				throw new Error('The selected chat is not running, so this extension cannot be changed.');
-			}
-			await this._queueChat(liveSession.sessionId, liveSession.sessionId, 'setExtensionEnabled', () => liveSession.setExtensionEnabled(extensionId, enabled));
-			return;
-		}
 		if (extension.source !== 'user' && extension.source !== 'plugin') {
 			throw new Error(`Extension '${extensionId}' does not have a manageable source.`);
 		}
 		await this._retryAfterClosedConnection('setExtensionEnabled', client => enabled
 			? client.rpc.extensions.enable({ ids: [extensionId] })
 			: client.rpc.extensions.disable({ ids: [extensionId] }));
-		const liveSession = session && chat ? this._findPluginOperationSession(session, chat) : undefined;
-		if (!liveSession) {
+		const targetSession = session ? this._findPluginOperationSession(session, chat) : undefined;
+		if (!targetSession) {
 			return;
 		}
+		const targetSessionId = targetSession.sessionId;
 		try {
-			await this._queueChat(liveSession.sessionId, liveSession.sessionId, 'reconcileExtensions', () => liveSession.reconcileExtensions());
+			await this._queueChat(targetSessionId, targetSessionId, 'reconcileExtensions', () => {
+				const currentSession = this._findPluginOperationSession(session, chat);
+				if (!currentSession || currentSession.sessionId !== targetSessionId) {
+					throw new Error(localize('copilot.extensionReconcileTargetUnavailable', "The selected chat stopped or was replaced before its extension state could be updated."));
+				}
+				return currentSession.reconcileExtensions();
+			});
 		} catch (error) {
 			throw new Error(localize('copilot.extensionReconcileFailed', "The extension preference was saved, but the selected chat could not be updated: {0}", getErrorMessage(error)));
 		}
