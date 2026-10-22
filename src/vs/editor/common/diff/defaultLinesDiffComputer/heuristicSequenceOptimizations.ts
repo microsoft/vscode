@@ -48,9 +48,30 @@ function joinSequenceDiffsByShifting(sequence1: ISequence, sequence2: ISequence,
 			const length = cur.seq1Range.start - prevResult.seq1Range.endExclusive;
 			let d;
 			for (d = 1; d <= length; d++) {
+				const seq1OffsetS = cur.seq1Range.start - d;
+				const seq1OffsetE = cur.seq1Range.endExclusive - d;
+				const seq2OffsetS = cur.seq2Range.start - d;
+				const seq2OffsetE = cur.seq2Range.endExclusive - d;
 				if (
-					sequence1.getElement(cur.seq1Range.start - d) !== sequence1.getElement(cur.seq1Range.endExclusive - d) ||
-					sequence2.getElement(cur.seq2Range.start - d) !== sequence2.getElement(cur.seq2Range.endExclusive - d)) {
+					sequence1.getElement(seq1OffsetS) !== sequence1.getElement(seq1OffsetE) ||
+					sequence2.getElement(seq2OffsetS) !== sequence2.getElement(seq2OffsetE) ||
+					/**
+					 * fixes issues like this:
+					 * seq1:                  seq2:
+					 *      [    pass]=============[    pass]
+					 * 			[.]  ^
+					 * 			[.]  |
+					 *      [.]  |
+					 * 			[  pass]
+					 *
+					 *  1. The start and end elements of seq1 are equal.
+					 *  2. The start item of seq1 and seq2 need to be strongly equal.
+					 *
+					 * Satisfying the above will skip optimization.
+					 */
+					((!sequence1.isStronglyEqual(seq1OffsetS, seq1OffsetE) ||
+						!sequence2.isStronglyEqual(seq2OffsetS, seq2OffsetE)) &&
+						sequence1.getLineValue(seq1OffsetS) === sequence2.getLineValue(seq2OffsetS))) {
 					break;
 				}
 			}
