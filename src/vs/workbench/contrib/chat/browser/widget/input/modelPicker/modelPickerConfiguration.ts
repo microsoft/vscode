@@ -7,10 +7,10 @@ import * as dom from '../../../../../../../base/browser/dom.js';
 import { localize } from '../../../../../../../nls.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
 import type { ILocalModelConfigSummary } from './modelPickerLocalModelItems.js';
-import { getModelConfigDescription, getModelConfigProperty, getModelConfigSummary, IModelConfigurationAccess, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT } from './modelPickerModelConfig.js';
+import { getModelConfigDescription, getModelConfigProperty, getModelConfigSummary, IModelConfigurationAccess, MODEL_CONFIG_GROUPS } from './modelPickerModelConfig.js';
 
 /**
- * Renders the thinking effort and context readout shown beside the model name in the
+ * Renders the thinking effort, context and speed readout shown beside the model name in the
  * chat input. It opens the model's details, which for Auto hold its routing tiers, and
  * is hidden when there is nothing to show. An on-device model shows
  * `localModelReadout` instead: its short state while it isn't ready, otherwise its
@@ -32,7 +32,7 @@ export function renderModelConfigurationButton(
 		return;
 	}
 	const summary = tierLabel ?? getModelConfigSummary(model, configurationAccess);
-	const configurable = !!getModelConfigProperty(model, configurationAccess, MODEL_CONFIG_GROUP_EFFORT) || !!getModelConfigProperty(model, configurationAccess, MODEL_CONFIG_GROUP_CONTEXT);
+	const configurable = MODEL_CONFIG_GROUPS.some(group => !!getModelConfigProperty(model, configurationAccess, group));
 	if (hidden || !model || (!configurable && !summary)) {
 		button.style.display = 'none';
 		return;

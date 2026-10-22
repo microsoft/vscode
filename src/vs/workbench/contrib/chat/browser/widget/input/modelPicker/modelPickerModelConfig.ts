@@ -22,7 +22,7 @@ export const MODEL_CONFIG_GROUP_CONTEXT = 'tokens';
 /** The service tier of a model, independent of its reasoning effort. */
 export const MODEL_CONFIG_GROUP_SPEED = 'speed';
 
-const MODEL_CONFIG_GROUPS = [MODEL_CONFIG_GROUP_EFFORT, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_SPEED] as const;
+export const MODEL_CONFIG_GROUPS: readonly string[] = [MODEL_CONFIG_GROUP_EFFORT, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_SPEED];
 
 export type IModelConfigPropertySchema = NonNullable<ILanguageModelConfigurationSchema['properties']>[string];
 
@@ -122,7 +122,9 @@ export function getModelConfigProperty(
 		if (schema.group !== group || !schema.enum?.length) {
 			continue;
 		}
-		const saved = Object.hasOwn(currentConfig, key) && (key !== 'tier' || isOfferedAutoTier(schema, currentConfig[key]));
+		const saved = Object.hasOwn(currentConfig, key)
+			&& (key !== 'tier' || isOfferedAutoTier(schema, currentConfig[key]))
+			&& (group !== MODEL_CONFIG_GROUP_SPEED || schema.enum.includes(currentConfig[key]));
 		return { key, value: saved ? currentConfig[key] : schema.default, schema };
 	}
 	return undefined;
