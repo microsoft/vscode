@@ -87,6 +87,7 @@ interface ITestWireRequest {
 		readonly threadId?: string;
 		readonly model?: string;
 		readonly modelProvider?: string;
+		readonly serviceTier?: string | null;
 		readonly config?: Readonly<Record<string, JsonValue>>;
 		readonly includeTurns?: boolean;
 		readonly numTurns?: number;
@@ -1682,6 +1683,7 @@ suite('CodexAgent createChat', () => {
 			});
 			const sourceEntry = agent['_sessions'].get('session-source')!;
 			const start = await readNextRequest(peer.outbound);
+			assert.strictEqual(start.params.serviceTier, null);
 			peer.push({ id: start.id, result: { thread: { id: 'source-thread', cwd: folder.fsPath } } });
 			await sourceEntry.materializePromise;
 
@@ -1709,6 +1711,7 @@ suite('CodexAgent createChat', () => {
 			const fork = await readNextRequest(peer.outbound);
 			assert.strictEqual(fork.method, 'thread/fork');
 			assert.strictEqual(fork.params.threadId, 'source-thread');
+			assert.strictEqual(fork.params.serviceTier, null);
 			peer.push({
 				id: fork.id,
 				result: { thread: { id: 'forked-thread', cwd: folder.fsPath }, cwd: folder.fsPath },
@@ -1753,6 +1756,7 @@ suite('CodexAgent createChat', () => {
 			const resume = await readNextRequest(peer.outbound);
 			assert.strictEqual(resume.method, 'thread/resume');
 			assert.strictEqual(resume.params.threadId, newThreadId);
+			assert.strictEqual(resume.params.serviceTier, null);
 			peer.push({ id: resume.id, result: { thread: { id: newThreadId, cwd: folder.fsPath }, cwd: folder.fsPath } });
 			const resumeInventory = await readNextRequest(peer.outbound);
 			assert.strictEqual(resumeInventory.method, 'mcpServerStatus/list');

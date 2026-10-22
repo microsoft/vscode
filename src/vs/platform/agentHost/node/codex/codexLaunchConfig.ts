@@ -83,6 +83,15 @@ export interface ICodexLaunchConfig {
 
 export const CODEX_DEFAULT_MODE_REQUEST_USER_INPUT_CONFIG_KEY = 'features.default_mode_request_user_input';
 
+/**
+ * Copilot's Responses endpoint rejects Codex's inherited fast/priority tier.
+ * Explicitly select standard routing for proxy-backed threads while preserving
+ * the user's service tier for native providers.
+ */
+export function codexServiceTierOverride(modelProvider: string | undefined): { readonly serviceTier?: null } {
+	return modelProvider === 'vscode-proxy' ? { serviceTier: null } : {};
+}
+
 export function buildCodexResumeParams(
 	model: { readonly modelProvider: string; readonly modelId: string },
 	threadId: string,
@@ -103,6 +112,7 @@ export function buildCodexResumeParams(
 		threadId,
 		model: model.modelId,
 		modelProvider: model.modelProvider,
+		...codexServiceTierOverride(model.modelProvider),
 		...(workingDirectories?.length ? {
 			cwd: workingDirectories[0],
 			runtimeWorkspaceRoots: [...workingDirectories],

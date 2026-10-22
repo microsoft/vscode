@@ -111,7 +111,7 @@ import type { TurnDiffUpdatedNotification } from './protocol/generated/v2/TurnDi
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CodexSessionMetadataStore } from './codexSessionMetadataStore.js';
-import { buildCodexLaunchConfig, buildCodexResumeParams, codexPermissionProfile, codexPermissionProfileReadRoots, CODEX_DEFAULT_MODE_REQUEST_USER_INPUT_CONFIG_KEY } from './codexLaunchConfig.js';
+import { buildCodexLaunchConfig, buildCodexResumeParams, codexPermissionProfile, codexPermissionProfileReadRoots, codexServiceTierOverride, CODEX_DEFAULT_MODE_REQUEST_USER_INPUT_CONFIG_KEY } from './codexLaunchConfig.js';
 import { codexDelegationDisplayText } from './codexDelegation.js';
 import { THREAD_LIST_MAX_PAGES, collectThreadListPages } from './codexThreadList.js';
 import { ICodexRolloutMetadata, ICodexRolloutModel, readCodexRolloutMetadata } from './codexRolloutMetadata.js';
@@ -5527,6 +5527,7 @@ export class CodexAgent extends Disposable implements IAgent {
 					...(runtimeWorkspaceRoots ? { runtimeWorkspaceRoots } : {}),
 					model: resolvedModel.modelId,
 					modelProvider: resolvedModel.modelProvider,
+					...codexServiceTierOverride(resolvedModel.modelProvider),
 					approvalPolicy,
 					permissions,
 					approvalsReviewer,
@@ -5911,6 +5912,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				[CODEX_DEFAULT_MODE_REQUEST_USER_INPUT_CONFIG_KEY]: true,
 				'features.image_generation': this._imageGenerationEnabledForModelProvider(resolvedModel?.modelProvider ?? sourceRead.thread.modelProvider),
 			};
+			const forkModelProvider = resolvedModel?.modelProvider ?? sourceRead.thread.modelProvider;
 			const forkHookTrust = await this._buildSessionHookTrustState(forkConnection.client, forkCwd);
 			const connection = forkConnection;
 			// Without a cwd of its own, the fork runs in its source thread's.
@@ -5927,6 +5929,7 @@ export class CodexAgent extends Disposable implements IAgent {
 						runtimeWorkspaceRoots,
 					} : {}),
 					...(resolvedModel ? { model: resolvedModel.modelId, modelProvider: resolvedModel.modelProvider } : {}),
+					...codexServiceTierOverride(forkModelProvider),
 					config: forkConfig,
 					approvalPolicy,
 					permissions,
@@ -6163,6 +6166,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				...(selectedCapabilityRoots.length ? { selectedCapabilityRoots } : {}),
 				model: resolvedModel.modelId,
 				modelProvider: resolvedModel.modelProvider,
+				...codexServiceTierOverride(resolvedModel.modelProvider),
 				approvalPolicy,
 				permissions: customizationLaunch.skillPermissionProfile ?? permissions,
 				approvalsReviewer,

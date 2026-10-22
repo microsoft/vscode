@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { buildCodexLaunchConfig, buildCodexResumeParams, codexPermissionProfile, codexPermissionProfileOverrides, codexPermissionProfileReadRoots } from '../../../node/codex/codexLaunchConfig.js';
+import { buildCodexLaunchConfig, buildCodexResumeParams, codexPermissionProfile, codexPermissionProfileOverrides, codexPermissionProfileReadRoots, codexServiceTierOverride } from '../../../node/codex/codexLaunchConfig.js';
 
 suite('CodexLaunchConfig', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -132,6 +132,13 @@ suite('CodexLaunchConfig', () => {
 	});
 
 	test('resume explicitly binds each session model and provider', () => {
+		assert.deepStrictEqual({
+			copilot: codexServiceTierOverride('vscode-proxy'),
+			native: codexServiceTierOverride('openai'),
+		}, {
+			copilot: { serviceTier: null },
+			native: {},
+		});
 		assert.deepStrictEqual(buildCodexResumeParams({ modelProvider: 'openai', modelId: 'native-model' }, 'thread-a', {}, undefined, {}, undefined, true), {
 			threadId: 'thread-a',
 			model: 'native-model',
@@ -142,6 +149,7 @@ suite('CodexLaunchConfig', () => {
 			threadId: 'thread-b',
 			model: 'copilot-model',
 			modelProvider: 'vscode-proxy',
+			serviceTier: null,
 			config: { 'features.default_mode_request_user_input': true, 'features.image_generation': false, mcp_servers: { GitHub: { url: 'https://api.githubcopilot.com/mcp/' } } },
 		});
 		assert.deepStrictEqual(buildCodexResumeParams({ modelProvider: 'openai', modelId: 'native-model' }, 'thread-c', {}, undefined, {
