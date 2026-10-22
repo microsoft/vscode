@@ -22,6 +22,9 @@ export const LEGACY_SESSION_TOOLBAR_SETTING = 'sessions.showSessionToolbar';
 
 export const SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING = 'sessions.list.groupExternalSessions';
 
+/** Whether agents get tools to read and organize the Agents window Sessions list. */
+export const SESSIONS_LIST_AGENT_TOOLS_SETTING = 'sessions.list.agentTools.enabled';
+
 export const SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING = 'sessions.list.externalApplicationBadge';
 
 export const SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING = 'sessions.list.externalApplicationBadge.showFrom';
