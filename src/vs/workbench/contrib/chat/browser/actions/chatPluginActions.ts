@@ -54,7 +54,7 @@ interface IInstallFromSourceActionOptions {
 	readonly skipReveal?: boolean;
 }
 
-class InstallFromSourceAction extends Action2 {
+export class InstallFromSourceAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.installPluginFromSource';
 
 	constructor() {
@@ -83,6 +83,9 @@ class InstallFromSourceAction extends Action2 {
 		const pluginInstallService = accessor.get(IPluginInstallService);
 		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 		const fileDialogService = accessor.get(IFileDialogService);
+		const customizationHarnessService = accessor.get(ICustomizationHarnessService);
+		const sessionResource = customizationHarnessService.activeSessionResource.get();
+		const pluginInstallProvider = customizationHarnessService.getDescriptorForSession(sessionResource)?.pluginInstallProvider;
 
 		const store = new DisposableStore();
 		const inputBox = store.add(quickInputService.createInputBox());
@@ -105,7 +108,7 @@ class InstallFromSourceAction extends Action2 {
 			}
 
 			// Quick format validation keeps the input box open for correction.
-			const validationError = pluginInstallService.validatePluginSource(source);
+			const validationError = pluginInstallProvider ? undefined : pluginInstallService.validatePluginSource(source);
 			if (validationError) {
 				inputBox.validationMessage = validationError;
 				return;
@@ -119,12 +122,18 @@ class InstallFromSourceAction extends Action2 {
 				// Hide the input box so it doesn't conflict with trust/progress dialogs.
 				inputBox.hide();
 
-				const result = await pluginInstallService.installPluginFromSource(source);
-				if (!result.success) {
-					if (result.message) {
-						// Re-open with the error so the user can correct their input.
+				let success: boolean;
+				if (pluginInstallProvider) {
+					await pluginInstallProvider.installFromSource(sessionResource, source);
+					success = true;
+				} else {
+					const result = await pluginInstallService.installPluginFromSource(source);
+					success = result.success;
+					if (!success && result.message) {
 						inputBox.validationMessage = result.message;
 					}
+				}
+				if (!success) {
 					inputBox.show();
 				} else {
 					installed = true;

@@ -401,6 +401,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			mcpConfigurationProvider: marketplaceInstallProvider && this._agentHostService.addMcpServerConfiguration
 				? marketplaceInstallProvider
 				: undefined,
+			pluginInstallProvider: marketplaceInstallProvider,
 			marketplaceInstallProvider,
 			marketplaceSearchProvider: marketplaceInstallProvider,
 			marketplaceManagementProvider,
