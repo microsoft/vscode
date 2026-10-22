@@ -854,6 +854,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		view: { compact: true, width: 340, height: 300 },
 	}, {
 		labels: { kind: 'screenshot', blocksCi: true },
+		deferPaint: true,
 		expectedVisualDescriptions: ['A compact session and two of its three nested chats each show their own terminal approval and Allow button. Task B has no approval and remains a single compact row; the expanded approval rows do not overlap adjacent children.'],
 	}),
 
