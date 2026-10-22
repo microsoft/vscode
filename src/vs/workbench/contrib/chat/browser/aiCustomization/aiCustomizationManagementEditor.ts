@@ -1303,7 +1303,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			if (!aiCustomizationManagementSectionRegistry.has(section)) {
 				continue;
 			}
-			const container = DOM.append(contentInner, $('.contributed-section-container'));
+			const container = DOM.append(contentInner, $('.contributed-section-container.tools-content-container'));
 			this.contributedSectionContainers.set(section, container);
 		}
 
@@ -1355,6 +1355,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 				this.updateSectionCount(section, observable.read(reader));
 			}));
 		}
+		this.initializeContributedSectionWidgets();
 
 		// Load items for the initial section
 		if (this.isPromptsSection(this.selectedSection)) {
@@ -3625,11 +3626,27 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const widget = contribution.create(this.instantiationService, container);
 		this.contributedSectionWidgets.set(section, widget);
 		this.editorDisposables.add(widget);
+		if (widget.onDidChangeItemCount) {
+			this.editorDisposables.add(widget.onDidChangeItemCount(count => this.updateSectionCount(section, count)));
+		}
+		widget.fireItemCount?.();
+		if (widget.onDidRequestShowPlugin) {
+			this.editorDisposables.add(widget.onDidRequestShowPlugin(item => this.showPluginDetail(item)));
+		}
 		widget.setVisible?.(this.isVisible() && this.viewMode === 'list' && this.selectedSection === section);
 		if (this.dimension) {
 			widget.layout?.(this.dimension);
 		}
 		return widget;
+	}
+
+	private initializeContributedSectionWidgets(): void {
+		for (const section of this.workspaceService.managementSections) {
+			const contribution = aiCustomizationManagementSectionRegistry.get(section, this.harnessService.activeHarness.get());
+			if (contribution?.initializeOnEditorOpen) {
+				this.ensureContributedSectionWidget(section);
+			}
+		}
 	}
 
 	getActiveSectionWidget(): IAICustomizationManagementSectionWidget | undefined {
@@ -3647,6 +3664,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	getCustomizationDiscoveryAccessibilityContent(): string {
+		const contributedContent = this.selectedSection
+			? this.contributedSectionWidgets.get(this.selectedSection)?.getAccessibilityContent?.()
+			: undefined;
+		if (contributedContent !== undefined) {
+			return contributedContent;
+		}
 		return this.isCustomizationDiscoveryDetailVisible()
 			? this.embeddedMarketplaceDetail?.getAccessibilityContent() ?? ''
 			: this.welcomePage?.getAccessibilityContent() ?? '';

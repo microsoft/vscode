@@ -68,6 +68,7 @@ import {
 import { AICustomizationManagementEditor, CopilotConnectorDetailOpenResult } from './aiCustomizationManagementEditor.js';
 import { AICustomizationManagementEditorInput } from './aiCustomizationManagementEditorInput.js';
 import './customizationMarketplace.contribution.js';
+import './copilotCanvases.contribution.js';
 import './customizationMigrationAccessibility.js';
 import { CustomizationMigrationResultToolContribution } from './customizationMigrationResultTool.js';
 

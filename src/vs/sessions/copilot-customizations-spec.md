@@ -4,7 +4,7 @@
 
 > **Purpose:** Definitive reference for every customization mechanism that affects agent behavior when a user sends a message. Intended for building a UI that collects all customizations into a single view.
 >
-> **Source:** `github/copilot-agent-runtime` codebase as of 2026-02-25.
+> **Source:** Copilot runtime and SDK contracts re-audited as of 2026-10-07.
 
 > Some information has been removed by the human compiling this spec, scoping to what is deemed most relevant for the agent sessions window implementation. For the full details, see the source code (for maintainers likely checked out side-by-side).
 
@@ -299,6 +299,59 @@ Within a plugin repository, the manifest is searched at:
 
 
 Each field (`skills`, `agents`, `hooks`) can be a string path, array of paths, or (for hooks) an inline object.
+
+---
+
+## 8. Copilot Extensions
+
+Executable JavaScript modules loaded by the Copilot runtime.
+
+### 8.1 Persisted and Live-Chat Inventory
+
+The client-level `extensions.discover` RPC returns user extensions and extensions contributed by enabled installed plugins. Each entry has:
+
+- a source-qualified ID accepted by the enablement RPCs;
+- a human-readable name;
+- the absolute `extension.mjs` path;
+- source `user` or `plugin`;
+- persisted per-extension enablement;
+- the owning plugin name when applicable.
+
+The response also reports the effective mode:
+
+- `disabled` — extensions are not loaded;
+- `load_only` — extensions load, but the agent cannot manage them;
+- `load_and_augment` — extensions load and can be created, reloaded, enabled, or disabled.
+
+Client-level `extensions.enable` and `extensions.disable` persist IDs for future sessions. `session.extensions.reconcile` refreshes authoritative membership for an exact live chat after plugin or preference changes without creating a second session-owned preference.
+
+The session-level `session.extensions.list` RPC returns the effective user, project, and plugin extensions for one initialized chat with status `running`, `disabled`, `failed`, or `starting`. `session.extensions.enable` and `session.extensions.disable` own project-scoped decisions. VS Code exposes this inventory only as supporting state for the Canvases section; there is no separate Copilot Extensions management destination.
+
+### 8.2 Ownership
+
+Listing metadata does not execute extension code. A runtime session executes admitted extensions and owns their process lifecycle. Plugin extensions additionally require their owning plugin to remain installed and enabled.
+
+---
+
+## 9. Canvases
+
+Interactive UI declarations registered by extensions inside a Copilot session.
+
+### 9.1 Session Registry
+
+The session-level `session.canvas.list` RPC returns declarations only after the session has loaded its extensions. Each declaration includes:
+
+- provider-local `canvasId`;
+- owning `extensionId` and optional extension display name;
+- display name and description;
+- optional input schema;
+- optional actions.
+
+Canvas declarations are session-scoped because project extensions, launch-scoped plugins, and runtime admission can differ by working directory and session. Static filesystem inspection cannot determine the registry without executing extension code.
+
+### 9.2 Management
+
+Clients may present the live Canvas registry as a capability inventory. In VS Code, shared Canvas context and presentation services own that registry, opening, restoration, and rendering, while the shared definition store owns refresh ordering and last-good-result retention. Canvas owners stay opaque; the context service maps an owner to its frontend session when management navigation or extension enablement needs it. Management composes those stores for visible chats, observes the shared presentation enablement, groups every supported extension by User, Workspace, Plugin, or Other source, and presents any Canvas declarations beneath it. Session-scoped extensions are excluded from the first-version management surface. Extensions with no reported Canvases remain visible. Enablement is exposed only on the extension parent because all child Canvases share that lifecycle. Last-known authoritative declarations are persisted by scoped extension identity and labeled as last known; when disabling withdraws the runtime declarations, the parent and cached children remain visible across editor or window recreation so the extension can be enabled again.
 
 ---
 

@@ -415,6 +415,7 @@ suite('aiCustomizationManagementEditor', () => {
 		contributedSectionContainers: Map<AICustomizationManagementSection, HTMLElement>;
 		contributedSectionWidgets: Map<AICustomizationManagementSection, IAICustomizationManagementSectionWidget>;
 		getActiveSectionWidget(): IAICustomizationManagementSectionWidget | undefined;
+		initializeContributedSectionWidgets(): void;
 		selectSection(section: AICustomizationManagementSection): void;
 		setInput: AICustomizationManagementEditor['setInput'];
 		clearInput(): void;
@@ -883,7 +884,7 @@ suite('aiCustomizationManagementEditor', () => {
 		});
 	});
 
-	function createContributedSectionEditor(enablementSettings?: readonly string[], getBadge?: IAICustomizationManagementSectionContribution['getBadge']) {
+	function createContributedSectionEditor(enablementSettings?: readonly string[], initializeOnEditorOpen = false, getBadge?: IAICustomizationManagementSectionContribution['getBadge']) {
 		const editor = createTestEditor();
 		store.add(editor.editorPreviewDisposables);
 		const visibilityChanges: boolean[] = [];
@@ -908,6 +909,7 @@ suite('aiCustomizationManagementEditor', () => {
 			description: 'Test contributed section lifecycle',
 			icon: Codicon.search,
 			enablementSettings,
+			initializeOnEditorOpen,
 			supportsHarness: id => id === harnessId,
 			getBadge,
 			create: () => {
@@ -925,8 +927,17 @@ suite('aiCustomizationManagementEditor', () => {
 		return { editor, section, state, visibilityChanges, focusedVisibility };
 	}
 
-	function createGatedSectionEditor(enabled?: boolean, enablementSettings: readonly string[] = [CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled], getBadge?: IAICustomizationManagementSectionContribution['getBadge']) {
-		const context = createContributedSectionEditor(enablementSettings, getBadge);
+	test('initializes opted-in contributed sections before first navigation', () => {
+		const { editor, section, state } = createContributedSectionEditor(undefined, true);
+		Object.assign(editor.workspaceService, { managementSections: [section] });
+
+		editor.initializeContributedSectionWidgets();
+
+		assert.deepStrictEqual(state, { created: 1, visible: false, promptsFocused: 0, disposed: 0 });
+	});
+
+	function createGatedSectionEditor(enabled?: boolean, enablementSettings: readonly string[] = [CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled], getBadge?: IAICustomizationManagementSectionContribution['getBadge'], initializeOnEditorOpen = false) {
+		const context = createContributedSectionEditor(enablementSettings, initializeOnEditorOpen, getBadge);
 		const { editor, section } = context;
 		const configuration = createConfigurationServiceStub({ [CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: enabled });
 		editor.configurationService = configuration;

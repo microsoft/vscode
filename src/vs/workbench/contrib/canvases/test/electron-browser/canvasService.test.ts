@@ -177,7 +177,10 @@ suite('CanvasService', () => {
 		harness.canvases.set([harness.canvas], undefined);
 		const hiddenCount = harness.opened.length;
 		const peerOwner = { ...harness.owner, chat: URI.parse('chat:/peer') };
-		harness.contexts.set([{ owner: harness.owner, canvases: harness.canvases }, { owner: peerOwner, canvases: harness.canvases }], undefined);
+		harness.contexts.set([
+			{ owner: harness.owner, canvases: harness.canvases },
+			{ owner: peerOwner, canvases: harness.canvases },
+		], undefined);
 		harness.visible.set(new Set([canvasOwnerKey(harness.owner), canvasOwnerKey(peerOwner)]), undefined);
 		await timeout(0);
 		assert.deepStrictEqual({
