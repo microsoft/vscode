@@ -36,7 +36,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { NativeURLService } from '../../../../../platform/url/common/urlService.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { ExtensionType, ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
+import { ExtensionType, ExtensionIdentifier, TargetPlatform } from '../../../../../platform/extensions/common/extensions.js';
 import { ExtensionKind } from '../../../../../platform/environment/common/environment.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { RemoteAgentService } from '../../../../services/remote/electron-browser/remoteAgentService.js';
@@ -415,6 +415,40 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		assert.deepStrictEqual(blockingOrigins, [ExtensionBlockingOrigin.Policy, ExtensionBlockingOrigin.Service, undefined]);
 	});
 
+	test('test same-version blocking metadata refresh preserves the server gallery and fires a change', async () => {
+		const local = aLocalExtension('blocked', { version: '1.0.0' });
+		const targetPlatform = getTargetPlatform(platform, arch);
+		const otherTargetPlatform = targetPlatform === TargetPlatform.WIN32_X64 ? TargetPlatform.LINUX_X64 : TargetPlatform.WIN32_X64;
+		let gallery = aGalleryExtension(local.manifest.name, { version: local.manifest.version }, { targetPlatform });
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+		instantiationService.stub(IExtensionGalleryService, 'query', async () => aPage(gallery));
+		instantiationService.stubPromise(IExtensionGalleryService, 'isExtensionCompatible', true);
+		testObject = await aWorkbenchService();
+
+		const initialSync = Event.toPromise(Event.filter(testObject.onChange, extension => extension?.gallery === gallery));
+		await testObject.queryGallery(CancellationToken.None);
+		await initialSync;
+		const extension = testObject.local[0];
+
+		gallery = aGalleryExtension(local.manifest.name, {
+			version: local.manifest.version,
+			blockingInfo: { origin: ExtensionBlockingOrigin.Policy, scope: ExtensionBlockingScope.Extension }
+		}, { targetPlatform: otherTargetPlatform });
+		const blockingChange = Event.toPromise(Event.filter(testObject.onChange, changed => changed === extension && changed.blockingInfo?.origin === ExtensionBlockingOrigin.Policy));
+		const result = await testObject.queryGallery(CancellationToken.None);
+		const changedExtension = await blockingChange;
+
+		assert.deepStrictEqual({
+			returnedBlockingInfo: result.firstPage[0].blockingInfo,
+			changedBlockingInfo: changedExtension?.blockingInfo,
+			galleryTargetPlatform: extension.gallery?.properties.targetPlatform,
+		}, {
+			returnedBlockingInfo: { origin: ExtensionBlockingOrigin.Policy, scope: ExtensionBlockingScope.Extension },
+			changedBlockingInfo: { origin: ExtensionBlockingOrigin.Policy, scope: ExtensionBlockingScope.Extension },
+			galleryTargetPlatform: targetPlatform,
+		});
+	});
+
 	test('test gallery queries do not wait for installed extension synchronization', async () => {
 		const local = aLocalExtension('background-sync', { version: '1.0.0' });
 		const gallery = aGalleryExtension(local.manifest.name, { version: '2.0.0' });
@@ -517,44 +551,87 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		});
 	});
 
-	test('test installed version blocking metadata refresh failure does not fail update checks', async () => {
+	test('test missing installed version blocking metadata preserves the known state', async () => {
 		const local = aLocalExtension('blocked', { version: '1.0.0' });
 		const gallery = aGalleryExtension(local.manifest.name, { version: '2.0.0', private: true });
+		let exactVersionRequestCount = 0;
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 		instantiationService.stubPromise(IExtensionGalleryService, 'isExtensionCompatible', true);
 		instantiationService.stub(IExtensionGalleryService, 'getExtensions', async (_extensionInfos: ReadonlyArray<IExtensionInfo>, options: CancellationToken | IExtensionQueryOptions) => {
 			if (!CancellationToken.isCancellationToken(options) && options.includeBlockedVersions) {
+				exactVersionRequestCount++;
+				if (exactVersionRequestCount === 1) {
+					return [];
+				}
 				throw new Error('Unavailable');
 			}
 			return [gallery];
 		});
 		testObject = await aWorkbenchService();
+		const blockingInfo = { origin: ExtensionBlockingOrigin.Policy, scope: ExtensionBlockingScope.Version };
+		(testObject.local[0] as Extension).setInstalledBlockingInfo(blockingInfo);
 
+		await testObject.checkForUpdates();
+		const afterMissingResult = testObject.local[0].installedBlockingInfo;
 		await testObject.checkForUpdates();
 
 		assert.deepStrictEqual({
 			galleryVersion: testObject.local[0].gallery?.version,
-			installedBlockingInfo: testObject.local[0].installedBlockingInfo
+			afterMissingResult,
+			afterFailure: testObject.local[0].installedBlockingInfo
 		}, {
 			galleryVersion: '2.0.0',
-			installedBlockingInfo: undefined
+			afterMissingResult: blockingInfo,
+			afterFailure: blockingInfo
 		});
 	});
 
-	test('test blocked extensions are not auto updated', async () => {
-		const local = aLocalExtension('blocked');
-		const gallery = aGalleryExtension(local.manifest.name, {
-			version: local.manifest.version,
-			blockingInfo: { origin: ExtensionBlockingOrigin.Policy, scope: ExtensionBlockingScope.Extension }
-		});
+	test('test returned installed version metadata can clear a known block', async () => {
+		const local = aLocalExtension('blocked', { version: '1.0.0' });
+		const gallery = aGalleryExtension(local.manifest.name, { version: '2.0.0', private: true });
+		const installedGallery = aGalleryExtension(local.manifest.name, { version: local.manifest.version });
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
-		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
+		instantiationService.stubPromise(IExtensionGalleryService, 'isExtensionCompatible', true);
+		instantiationService.stub(IExtensionGalleryService, 'getExtensions', async (_extensionInfos: ReadonlyArray<IExtensionInfo>, options: CancellationToken | IExtensionQueryOptions) =>
+			CancellationToken.isCancellationToken(options) ? [gallery] : options.includeBlockedVersions ? [installedGallery] : [gallery]);
+		testObject = await aWorkbenchService();
+		(testObject.local[0] as Extension).setInstalledBlockingInfo({ origin: ExtensionBlockingOrigin.Policy, scope: ExtensionBlockingScope.Version });
+
+		await testObject.checkForUpdates();
+
+		assert.strictEqual(testObject.local[0].installedBlockingInfo, undefined);
+	});
+
+	test('test blocked extensions are not reported as outdated or auto updated', async () => {
+		const local = aLocalExtension('blocked', { version: '1.0.0' });
+		let gallery = aGalleryExtension(local.manifest.name, { version: '2.0.0' });
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+		instantiationService.stub(IExtensionGalleryService, 'query', async () => aPage(gallery));
 		instantiationService.stubPromise(IExtensionGalleryService, 'isExtensionCompatible', true);
 		testObject = await aWorkbenchService();
 
+		const initialSync = Event.toPromise(Event.filter(testObject.onChange, extension => extension?.gallery === gallery));
+		await testObject.queryGallery(CancellationToken.None);
+		await initialSync;
+		const wasOutdated = testObject.local[0].outdated;
+
+		gallery = aGalleryExtension(local.manifest.name, {
+			version: '2.0.0',
+			blockingInfo: { origin: ExtensionBlockingOrigin.Policy, scope: ExtensionBlockingScope.Extension }
+		});
 		const extension = (await testObject.queryGallery(CancellationToken.None)).firstPage[0];
 
-		assert.strictEqual(testObject.isAutoUpdateEnabledFor(extension), false);
+		assert.deepStrictEqual({
+			wasOutdated,
+			outdated: extension.outdated,
+			outdatedCount: testObject.outdated.length,
+			autoUpdate: testObject.isAutoUpdateEnabledFor(extension)
+		}, {
+			wasOutdated: true,
+			outdated: false,
+			outdatedCount: 0,
+			autoUpdate: false
+		});
 	});
 
 	test('test extension state computation', async () => {

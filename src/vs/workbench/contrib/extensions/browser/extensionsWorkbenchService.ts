@@ -106,6 +106,7 @@ export class Extension implements IExtension {
 	private galleryResourcesCache = new Map<string, any>();
 
 	private _missingFromGallery: boolean | undefined;
+	private _blockingInfo: IExtensionBlockingInfo | undefined;
 	private _installedBlockingInfo: IExtensionBlockingInfo | undefined;
 	private _local: ILocalExtension | undefined;
 
@@ -123,6 +124,7 @@ export class Extension implements IExtension {
 		@IProductService private readonly productService: IProductService
 	) {
 		this._local = local;
+		this._blockingInfo = _gallery?.blockingInfo;
 		if (local && _gallery && local.manifest.version === _gallery.version) {
 			this._installedBlockingInfo = _gallery.blockingInfo;
 		}
@@ -136,9 +138,9 @@ export class Extension implements IExtension {
 		const versionChanged = this._local?.manifest.version !== local?.manifest.version;
 		this._local = local;
 		if (versionChanged) {
-			this._installedBlockingInfo = local && this._gallery && local.manifest.version === this._gallery.version ? this._gallery.blockingInfo : undefined;
+			this._installedBlockingInfo = local && this._gallery && local.manifest.version === this._gallery.version ? this._blockingInfo : undefined;
 		} else if (local && this._gallery && local.manifest.version === this._gallery.version) {
-			this._installedBlockingInfo = this._gallery.blockingInfo;
+			this._installedBlockingInfo = this._blockingInfo;
 		}
 	}
 
@@ -165,6 +167,7 @@ export class Extension implements IExtension {
 
 	set gallery(gallery: IGalleryExtension | undefined) {
 		this._gallery = gallery;
+		this._blockingInfo = gallery?.blockingInfo;
 		if (gallery && this.local?.manifest.version === gallery.version) {
 			this._installedBlockingInfo = gallery.blockingInfo;
 		}
@@ -266,7 +269,15 @@ export class Extension implements IExtension {
 	}
 
 	get blockingInfo(): IExtensionBlockingInfo | undefined {
-		return this.gallery?.blockingInfo;
+		return this._blockingInfo;
+	}
+
+	setBlockingInfo(blockingInfo: IExtensionBlockingInfo | undefined): boolean {
+		if (this._blockingInfo?.origin === blockingInfo?.origin && this._blockingInfo?.scope === blockingInfo?.scope) {
+			return false;
+		}
+		this._blockingInfo = blockingInfo;
+		return true;
 	}
 
 	get installedBlockingInfo(): IExtensionBlockingInfo | undefined {
@@ -383,6 +394,9 @@ export class Extension implements IExtension {
 	get outdated(): boolean {
 		try {
 			if (!this.gallery || !this.local) {
+				return false;
+			}
+			if (this.blockingInfo) {
 				return false;
 			}
 			// Do not allow updating system extensions in stable
@@ -722,6 +736,12 @@ class Extensions extends Disposable {
 		flagExtensionsMissingFromGallery?: IExtensionInfo[],
 		installedVersionBlockingInfo?: ReadonlyMap<string, IExtensionBlockingInfo | undefined>
 	): Promise<void> {
+		const blockingInfoChanged = new Set<Extension>();
+		for (const [extension, gallery] of this.mapInstalledExtensionWithGalleryExtension(galleryExtensions)) {
+			if (extension.setBlockingInfo(gallery.blockingInfo)) {
+				blockingInfoChanged.add(extension);
+			}
+		}
 		const extensions = await this.mapInstalledExtensionWithCompatibleGalleryExtension(galleryExtensions, productVersion);
 		for (const [extension, gallery] of extensions) {
 			// update metadata of the extension if it does not exist
@@ -740,10 +760,14 @@ class Extensions extends Disposable {
 				|| extension.gallery.blockingInfo?.origin !== gallery.blockingInfo?.origin
 				|| extension.gallery.blockingInfo?.scope !== gallery.blockingInfo?.scope) {
 				extension.gallery = gallery;
+				blockingInfoChanged.delete(extension);
 				this._onChange.fire({ extension });
-			} else if (installedBlockingInfoChanged) {
+			} else if (installedBlockingInfoChanged || blockingInfoChanged.delete(extension)) {
 				this._onChange.fire({ extension });
 			}
+		}
+		for (const extension of blockingInfoChanged) {
+			this._onChange.fire({ extension });
 		}
 		// Detect extensions that do not have a corresponding gallery entry.
 		if (flagExtensionsMissingFromGallery) {
@@ -808,7 +832,6 @@ class Extensions extends Disposable {
 		await Promise.allSettled(mappedExtensions.map(async ([extension, gallery]) => {
 			if (extension.local) {
 				if (gallery.blockingInfo?.scope === ExtensionBlockingScope.Extension) {
-					compatibleGalleryExtensions.push(gallery);
 					return;
 				}
 				if (await this.galleryService.isExtensionCompatible(gallery, extension.local.preRelease, targetPlatform, productVersion)) {
@@ -1734,7 +1757,12 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			extension = this.instantiationService.createInstance(Extension, ext => this.getExtensionState(ext), ext => this.getRuntimeState(ext), undefined, undefined, gallery, undefined);
 			(<Extension>extension).setExtensionsControlManifest(extensionsControlManifest);
 		} else if (extension.version === gallery.version) {
-			extension.gallery = gallery;
+			const installedExtension = extension as Extension;
+			const blockingInfoChanged = installedExtension.setBlockingInfo(gallery.blockingInfo);
+			const installedBlockingInfoChanged = installedExtension.setInstalledBlockingInfo(gallery.blockingInfo);
+			if (blockingInfoChanged || installedBlockingInfoChanged) {
+				this._onChange.fire(extension);
+			}
 		}
 		return extension;
 	}
@@ -2077,12 +2105,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (this.installing.some(i => areSameExtensions(i.identifier, extension.identifier) && (!extension.server || i.server === extension.server))) {
 			return ExtensionState.Installing;
 		}
-		if (extension.server) {
-			const extensions = this.extensionsServers.find(extensions => extensions.server === extension.server);
-			if (extensions) {
-				return extensions.getExtensionState(extension);
-			}
-		}
 		if (this.remoteExtensions) {
 			const state = this.remoteExtensions.getExtensionState(extension);
 			if (state !== ExtensionState.Uninstalled) {
@@ -2170,7 +2192,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				|| gallery.version === installed.version) {
 				continue;
 			}
-			result.set(getExtensionVersionKey(installed), undefined);
 			extensionInfos.push({ ...installed.identifier, version: installed.version });
 		}
 		if (!extensionInfos.length) {
