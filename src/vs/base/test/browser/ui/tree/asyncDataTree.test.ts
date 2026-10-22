@@ -656,24 +656,8 @@ suite('AsyncDataTree', function () {
 		assert(!tree.isCollapsed(a), 'a is expanded');
 	});
 
-	test('issue #331811 - node removed by parallel refresh should not render', async () => {
+	test('issue #331811 - node removed by reentrant refresh should not render', async () => {
 		const container = document.createElement('div');
-
-		const calls = new Map<string, Function[]>();
-		const dataSource = new class implements IAsyncDataSource<Element, Element> {
-			hasChildren(element: Element): boolean {
-				return !!element.children && element.children.length > 0;
-			}
-			getChildren(element: Element): Promise<Element[]> {
-				return new Promise(c => {
-					const pending = calls.get(element.id) ?? [];
-					pending.push(() => c(element.children || []));
-					calls.set(element.id, pending);
-				});
-			}
-		};
-		const resolve = (id: string) => calls.get(id)!.pop()!();
-
 		const model = new Model({
 			id: 'root',
 			children: [{
@@ -684,34 +668,36 @@ suite('AsyncDataTree', function () {
 		});
 		const a = model.get('a');
 		const aa = model.get('aa');
+		let removeNode = false;
+		let ancestorRefresh: Promise<void> | undefined;
+		const dataSource = new class extends DataSource {
+			override hasChildren(element: Element): boolean {
+				if (element === aa && removeNode) {
+					removeNode = false;
+					ancestorRefresh = tree.updateChildren(a, true);
+				}
+				return super.hasChildren(element);
+			}
+		};
 
-		const tree = store.add(new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], dataSource, { identityProvider: new IdentityProvider() }));
+		const tree = store.add(new CompressibleAsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), { isIncompressible: () => true }, [new Renderer()], dataSource, { identityProvider: new IdentityProvider() }));
 		tree.layout(200);
 
-		const pSetInput = tree.setInput(model.root);
-		resolve('root');
-		await pSetInput;
+		await tree.setInput(model.root);
+		await tree.expand(a);
+		tree.collapse(a);
 
-		const pExpandA = tree.expand(a);
-		resolve('a');
-		await pExpandA;
-
-		// Start a refresh of `aa`; its getChildren is now pending.
-		const pRefreshAA = tree.updateChildren(aa, true);
-
-		// While `aa` is mid-refresh, an ancestor refresh removes `aa` from the
-		// inner tree (a's children become empty).
 		a.children = [];
-		const pRefreshA = tree.updateChildren(a, true);
-		resolve('a');
-		await pRefreshA;
+		// Reenter from hasChildren so the ancestor renders before the child's continuation.
+		removeNode = true;
+		const childRefresh = tree.updateChildren(aa, true);
+		assert.ok(ancestorRefresh);
+		await Promise.all([ancestorRefresh, childRefresh]);
 
-		// Resolving `aa`'s getChildren must not crash with
-		// `Unknown compressed tree node` since `aa` was spliced out.
-		resolve('aa');
-		await pRefreshAA;
-
-		assert.deepStrictEqual(Array.from(container.querySelectorAll('.monaco-list-row')).map(e => e.textContent), ['a']);
+		assert.deepStrictEqual({
+			rows: Array.from(container.querySelectorAll('.monaco-list-row')).map(e => e.textContent),
+			hasChild: tree.hasNode(aa)
+		}, { rows: ['a'], hasChild: false });
 	});
 
 	test('issue #199441', async () => {
