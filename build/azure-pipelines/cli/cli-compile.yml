@@ -14,7 +14,8 @@ parameters:
 
 # Cargo steps fetch crates from the ADO Cargo feed, which intermittently cancels HTTP/2 streams
 # ("[92] HTTP/2 stream ... CANCEL"), so they fetch without multiplexing, with more cargo retries,
-# and retry the step on top.
+# and retry the step on top. The settings are --config flags rather than CARGO_* environment
+# variables, which sccache hashes into every compile key.
 steps:
   - ${{ if contains(parameters.VSCODE_CLI_TARGET, '-windows-') }}:
     - pwsh: Write-Host "##vso[task.setvariable variable=VSCODE_CLI_PRODUCT_JSON]$(Build.SourcesDirectory)/.build/distro/mixin/${{ parameters.VSCODE_QUALITY }}/product.json"
@@ -66,14 +67,12 @@ steps:
       displayName: Install sccache
 
   - ${{ if parameters.VSCODE_CHECK_ONLY }}:
-    - script: cargo clippy --target ${{ parameters.VSCODE_CLI_TARGET }} --bin=code
+    - script: cargo clippy --config http.multiplexing=false --config net.retry=5 --target ${{ parameters.VSCODE_CLI_TARGET }} --bin=code
       displayName: Lint ${{ parameters.VSCODE_CLI_TARGET }}
       retryCountOnTaskFailure: 2
       workingDirectory: $(Build.SourcesDirectory)/cli
       env:
         CARGO_NET_GIT_FETCH_WITH_CLI: true
-        CARGO_HTTP_MULTIPLEXING: "false"
-        CARGO_NET_RETRY: "5"
         RUSTC_WRAPPER: sccache
         SCCACHE_DIR: $(Pipeline.Workspace)/sccache
         ${{ each pair in parameters.VSCODE_CLI_ENV }}:
@@ -116,7 +115,7 @@ steps:
             fi
           fi
 
-          cargo build --release --target ${{ parameters.VSCODE_CLI_TARGET }} --bin=code
+          cargo build --config http.multiplexing=false --config net.retry=5 --release --target ${{ parameters.VSCODE_CLI_TARGET }} --bin=code
 
           # verify glibc requirement
           if [ -n "$SYSROOT_ARCH" ] && [ -n "$OBJDUMP" ]; then
@@ -142,8 +141,6 @@ steps:
         workingDirectory: $(Build.SourcesDirectory)/cli
         env:
           CARGO_NET_GIT_FETCH_WITH_CLI: true
-          CARGO_HTTP_MULTIPLEXING: "false"
-          CARGO_NET_RETRY: "5"
           VSCODE_CLI_COMMIT: $(Build.SourceVersion)
           GITHUB_TOKEN: "$(github-token-code-oss)"
           RUSTC_WRAPPER: sccache
@@ -152,14 +149,12 @@ steps:
             ${{ pair.key }}: ${{ pair.value }}
 
     - ${{ else }}:
-      - script: cargo build --release --target ${{ parameters.VSCODE_CLI_TARGET }} --bin=code
+      - script: cargo build --config http.multiplexing=false --config net.retry=5 --release --target ${{ parameters.VSCODE_CLI_TARGET }} --bin=code
         displayName: Compile ${{ parameters.VSCODE_CLI_TARGET }}
         retryCountOnTaskFailure: 2
         workingDirectory: $(Build.SourcesDirectory)/cli
         env:
           CARGO_NET_GIT_FETCH_WITH_CLI: true
-          CARGO_HTTP_MULTIPLEXING: "false"
-          CARGO_NET_RETRY: "5"
           VSCODE_CLI_COMMIT: $(Build.SourceVersion)
           RUSTC_WRAPPER: sccache
           SCCACHE_DIR: $(Pipeline.Workspace)/sccache
