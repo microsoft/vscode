@@ -52,7 +52,7 @@ export class TestDecorationProvider {
 	constructor(private model: ITextModel) {
 	}
 
-	getDecorationOption(isCollapsed: boolean, isHidden: boolean): ModelDecorationOptions {
+	getDecorationOption(isCollapsed: boolean, isHidden: boolean, _isManual?: boolean, _lineCount?: number): ModelDecorationOptions {
 		if (isHidden) {
 			return TestDecorationProvider.hiddenDecoration;
 		}
