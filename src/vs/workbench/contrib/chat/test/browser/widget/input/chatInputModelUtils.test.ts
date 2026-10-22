@@ -260,13 +260,21 @@ suite('ChatInputModelUtils', () => {
 		test('skips entries without metadata instead of throwing', () => {
 			// Cached model entries are read back from storage unvalidated.
 			const withoutMetadata = { identifier: 'broken/model' } as unknown as ILanguageModelChatMetadataAndIdentifier;
-			const result = filterModelsForSession(
+			const sessionScoped = filterModelsForSession(
 				[cloudModel, withoutMetadata],
 				'cloud',
 				ChatModeKind.Ask,
 				ChatAgentLocation.Chat,
 			);
-			assert.deepStrictEqual(result.map(m => m.metadata.id), ['cloud-gpt']);
+			assert.deepStrictEqual(sessionScoped.map(m => m.metadata.id), ['cloud-gpt']);
+
+			const generalPool = filterModelsForSession(
+				[gpt4o, withoutMetadata],
+				undefined,
+				ChatModeKind.Ask,
+				ChatAgentLocation.Chat,
+			);
+			assert.deepStrictEqual(generalPool.map(m => m.metadata.id), ['gpt-4o']);
 		});
 
 		test('excludes models targeting a specific session type when in general session', () => {

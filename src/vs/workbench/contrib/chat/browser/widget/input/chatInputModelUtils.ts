@@ -52,6 +52,9 @@ function hasSessionScopedModels(
  * session-targeted pool would otherwise hide them even though they are selectable
  * everywhere else.
  *
+ * Every branch applies the same eligibility rules — metadata present, user-selectable, and
+ * supported in the current mode and location — through {@link isModelEligible}.
+ *
  * `isUserSelectable` defaults to `true` when omitted: only an explicit `false` hides
  * the model from the picker and this model-selection flow.
  */
@@ -63,28 +66,18 @@ export function filterModelsForSession(
 ): ILanguageModelChatMetadataAndIdentifier[] {
 	if (hasSessionScopedModels(models, sessionType)) {
 		const sessionScoped = models.filter(entry =>
-			entry.metadata?.targetChatSessionType === sessionType &&
-			entry.metadata?.isUserSelectable !== false &&
-			isModelSupportedForMode(entry, currentModeKind) &&
-			isModelSupportedForInlineChat(entry, location)
+			entry.metadata?.targetChatSessionType === sessionType && isModelEligible(entry, currentModeKind, location)
 		);
 
 		const byokScoped = models.filter(entry =>
-			!entry.metadata?.targetChatSessionType &&
-			entry.metadata !== undefined && isByokModel(entry.metadata) &&
-			entry.metadata?.isUserSelectable !== false &&
-			isModelSupportedForMode(entry, currentModeKind) &&
-			isModelSupportedForInlineChat(entry, location)
+			isUnscopedByokModel(entry) && isModelEligible(entry, currentModeKind, location)
 		);
 
 		return [...sessionScoped, ...byokScoped];
 	}
 
 	return models.filter(entry =>
-		!entry.metadata?.targetChatSessionType &&
-		entry.metadata?.isUserSelectable !== false &&
-		isModelSupportedForMode(entry, currentModeKind) &&
-		isModelSupportedForInlineChat(entry, location)
+		!entry.metadata?.targetChatSessionType && isModelEligible(entry, currentModeKind, location)
 	);
 }
 
@@ -112,6 +105,30 @@ export function isModelSupportedForInlineChat(
 		return true;
 	}
 	return !!model.metadata.capabilities?.toolCalling;
+}
+
+/**
+ * Whether the picker may offer this entry at all: it must carry metadata (cached entries are
+ * read back unvalidated), be user-selectable, and run in the current mode and location.
+ */
+function isModelEligible(
+	entry: ILanguageModelChatMetadataAndIdentifier,
+	currentModeKind: ChatModeKind,
+	location: ChatAgentLocation,
+): boolean {
+	const metadata = entry.metadata;
+	if (!metadata) {
+		return false;
+	}
+	return metadata.isUserSelectable !== false
+		&& isModelSupportedForMode(entry, currentModeKind)
+		&& isModelSupportedForInlineChat(entry, location);
+}
+
+/** Whether the entry is a BYOK (custom endpoint) model that carries no session type. */
+function isUnscopedByokModel(entry: ILanguageModelChatMetadataAndIdentifier): boolean {
+	const metadata = entry.metadata;
+	return !!metadata && !metadata.targetChatSessionType && isByokModel(metadata);
 }
 
 /**
