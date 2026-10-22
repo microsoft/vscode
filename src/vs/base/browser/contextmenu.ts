@@ -43,7 +43,11 @@ export interface IContextMenuDelegate {
 	closeAnimation?: IContextViewCloseAnimation;
 	actionRunner?: IActionRunner;
 	skipTelemetry?: boolean;
-	autoSelectFirstItem?: boolean;
+	/**
+	 * `true` focuses the first enabled action; `false` or `undefined` leaves the menu without a selection.
+	 * A number selects a zero-based index in {@link getActions}, counting separators and each submenu as one item; non-integer or out-of-range indices are ignored.
+	 */
+	autoSelectItem?: boolean | number;
 	anchorAlignment?: AnchorAlignment;
 	anchorAxisAlignment?: AnchorAxisAlignment;
 	domForShadowRoot?: HTMLElement;
@@ -60,4 +64,13 @@ export interface IContextMenuDelegate {
 
 export interface IContextMenuProvider {
 	showContextMenu(delegate: IContextMenuDelegate): void;
+}
+
+/** Normalizes initial selection consistently for HTML and native context menus. */
+export function getContextMenuAutoSelectItem(delegate: IContextMenuDelegate, actions: readonly IAction[]): boolean | number {
+	const selection = delegate.autoSelectItem;
+	if (typeof selection === 'number') {
+		return Number.isInteger(selection) && selection >= 0 && selection < actions.length ? selection : false;
+	}
+	return selection === true;
 }
