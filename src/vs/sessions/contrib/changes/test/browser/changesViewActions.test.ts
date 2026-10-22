@@ -33,6 +33,7 @@ import { ChatPetAchievementId, ChatPetAchievementIds } from '../../../../../work
 import { IChatPetService } from '../../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { TEXT_FILE_EDITOR_ID } from '../../../../../workbench/contrib/files/common/files.js';
 import { OpenMultiDiffEditorLayoutDebugAction } from '../../../../../workbench/contrib/multiDiffEditor/browser/actions.js';
+import { multiDiffEditorExperimentalFileListSetting, MultiDiffEditorFileListAvailableContext, MultiDiffEditorFilesViewAndPositionMenu } from '../../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
@@ -605,7 +606,7 @@ suite('Changes View Actions', () => {
 		const getSubmenu = (menuId: MenuId) => MenuRegistry.getMenuItems(menuId)
 			.filter(isISubmenuItem)
 			.find(item => item.submenu === Menus.SessionsDiffEditorView);
-		const desktop = getSubmenu(Menus.SessionsEditorHeaderLayout);
+		const desktop = getSubmenu(Menus.SessionsEditorTitle);
 		const mobile = getSubmenu(MenuId.EditorTitle);
 
 		assert.ok(desktop);
@@ -616,6 +617,7 @@ suite('Changes View Actions', () => {
 			desktopTitle: typeof desktop.title === 'string' ? desktop.title : desktop.title.value,
 			desktopGroup: desktop.group,
 			desktopOrder: desktop.order,
+			desktopInEditorHeader: !!getSubmenu(Menus.SessionsEditorHeaderLayout),
 			desktopHasTextDiffGate: desktopWhen.includes(TextCompareEditorActiveContext.key),
 			desktopHasChangesGate: desktopWhen.includes(SessionChangesEditor.ID),
 			desktopHasMultiDiffGate: desktopWhen.includes(MultiDiffEditor.ID),
@@ -628,8 +630,9 @@ suite('Changes View Actions', () => {
 			mobileHasLayoutGate: mobileWhen.includes(DesktopLayoutContext.key),
 		}, {
 			desktopTitle: 'Diff View',
-			desktopGroup: 'secondary/1_diff',
+			desktopGroup: '1_diff',
 			desktopOrder: 30,
+			desktopInEditorHeader: false,
 			desktopHasTextDiffGate: true,
 			desktopHasChangesGate: true,
 			desktopHasMultiDiffGate: true,
@@ -670,7 +673,7 @@ suite('Changes View Actions', () => {
 		});
 	});
 
-	test('Word Wrap uses independent actions for code and multi-diff editors, with the diff one in the header overflow menu on desktop', () => {
+	test('Word Wrap uses independent actions for code and multi-diff editors, both in the editor title overflow menu on desktop', () => {
 		const actionIds = [
 			'workbench.action.agentSessions.toggleDiffEditorWordWrap',
 			'workbench.action.agentSessions.toggleEditorWordWrap',
@@ -747,8 +750,8 @@ suite('Changes View Actions', () => {
 			desktopEditorTitle: summarize(getItems(Menus.SessionsEditorTitle)),
 			mobile: summarize(getItems(MenuId.EditorTitle)),
 		}, {
-			desktopHeaderLayout: [diffEditorItem('secondary/1_diff', 20)],
-			desktopEditorTitle: [textEditorItem],
+			desktopHeaderLayout: [],
+			desktopEditorTitle: [diffEditorItem('1_diff', 20), textEditorItem],
 			mobile: [diffEditorItem('1_diff', 20), textEditorItem],
 		});
 	});
@@ -786,7 +789,8 @@ suite('Changes View Actions', () => {
 			}
 		});
 
-		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.action.agentSessions.toggleEditorWordWrap')!.handler(accessor, { groupId: 17 }));
+		// Editor title menus pass the active editor's resource before the editor context.
+		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.action.agentSessions.toggleEditorWordWrap')!.handler(accessor, URI.file('/repo/a.ts'), { groupId: 17 }));
 		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.action.agentSessions.toggleDiffEditorWordWrap')!.handler(accessor));
 
 		assert.deepStrictEqual({
@@ -940,6 +944,36 @@ suite('Changes View Actions', () => {
 		}, {
 			headerLayout: [],
 			editorTitleOverflow: expectedItems('2_viewMode'),
+		});
+	});
+
+	test('Files View & Position is in the editor title overflow for multi diff editors with a file list', () => {
+		const items = MenuRegistry.getMenuItems(Menus.SessionsEditorTitle)
+			.filter(isISubmenuItem)
+			.filter(item => item.submenu.id === MultiDiffEditorFilesViewAndPositionMenu.id);
+		const matches = (activeEditor: string, fileListAvailable: boolean) => {
+			const context = new Context(1, null);
+			context.setValue(IsSessionsWindowContext.key, true);
+			context.setValue(DesktopLayoutContext.key, true);
+			context.setValue(IsAuxiliaryWindowContext.key, false);
+			context.setValue(IsTopRightEditorGroupContext.key, true);
+			context.setValue(MainEditorAreaVisibleContext.key, true);
+			context.setValue(ActiveEditorContext.key, activeEditor);
+			context.setValue(`config.${multiDiffEditorExperimentalFileListSetting}`, true);
+			context.setValue(MultiDiffEditorFileListAvailableContext.key, fileListAvailable);
+			return items.map(item => item.when?.evaluate(context) ?? true);
+		};
+
+		assert.deepStrictEqual({
+			items: items.map(item => ({ title: typeof item.title === 'string' ? item.title : item.title.value, group: item.group, order: item.order })),
+			multiDiffEditorWithFileList: matches(MultiDiffEditor.ID, true),
+			multiDiffEditorWithoutFileList: matches(MultiDiffEditor.ID, false),
+			changesEditor: matches(SessionChangesEditor.ID, true),
+		}, {
+			items: [{ title: 'Files View & Position', group: '2_viewMode', order: 10 }],
+			multiDiffEditorWithFileList: [true],
+			multiDiffEditorWithoutFileList: [false],
+			changesEditor: [false],
 		});
 	});
 
