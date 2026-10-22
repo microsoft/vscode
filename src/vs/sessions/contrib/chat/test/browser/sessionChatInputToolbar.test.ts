@@ -1131,12 +1131,13 @@ suite('SessionChatInputToolbar', () => {
 			sections.set(build(title), undefined);
 		}
 		const updatedEntry = sections.get()[0].entries[0];
-		await firstEntry.toolbarActions?.[0].run();
+		const copyAction = (entry: IChatPillEntry) => entry.toolbarActions?.find(action => action.id.startsWith('sessionChatPills.copyPullRequest.'));
+		await copyAction(firstEntry)?.run();
 		await firstEntry.promotedAction?.run();
 		const snapshot = {
 			tooltipUpdates, managedUpdates,
 			sameDescriptor: firstHover === updatedEntry.pillHover,
-			sameCopyAction: firstEntry.toolbarActions?.[0] === updatedEntry.toolbarActions?.[0],
+			sameCopyAction: !!copyAction(firstEntry) && copyAction(firstEntry) === copyAction(updatedEntry),
 			sameRemoveAction: firstEntry.promotedAction === updatedEntry.promotedAction,
 			focusPreserved: mainWindow.document.activeElement === focusedControl,
 			title: element.querySelector('.sessions-pr-hover-title')?.getAttribute('title'),
