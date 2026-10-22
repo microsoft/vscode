@@ -954,7 +954,8 @@ export class LcsDiff {
 			}
 		}
 
-		return changes;
+		// filter out empty-to-empty changes
+		return changes.filter(change => change.originalLength > 0 || change.modifiedLength > 0);
 	}
 
 	private _findBetterContiguousSequence(originalStart: number, originalLength: number, modifiedStart: number, modifiedLength: number, desiredLength: number): [number, number] | null {
