@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { spawnSync } from 'child_process';
-import { constants, readFileSync, rmSync, statSync } from 'fs';
+import { constants, mkdtempSync, readFileSync, rmSync, statSync } from 'fs';
 import { tmpdir } from 'os';
 import path from 'path';
 import manifests from '../../../cgmanifest.json' with { type: 'json' };
@@ -26,11 +26,14 @@ function getDpkgShlibdepsScript(): string {
 		return dpkgShlibdepsScript;
 	}
 
-	const chromiumManifest = manifests.registrations.filter(registration => {
+	const chromiumManifest = manifests.registrations.find(registration => {
 		return registration.component.type === 'git' && registration.component.git!.name === 'chromium';
 	});
-	const dpkgShlibdepsUrl = `https://raw.githubusercontent.com/chromium/chromium/${chromiumManifest[0].version}/third_party/dpkg-shlibdeps/dpkg-shlibdeps.pl`;
-	const dpkgShlibdepsScriptLocation = `${tmpdir()}/dpkg-shlibdeps.pl`;
+	if (!chromiumManifest) {
+		throw new Error('Cannot find the chromium registration in cgmanifest.json');
+	}
+	const dpkgShlibdepsUrl = `https://raw.githubusercontent.com/chromium/chromium/${chromiumManifest.version}/third_party/dpkg-shlibdeps/dpkg-shlibdeps.pl`;
+	const dpkgShlibdepsScriptLocation = path.join(mkdtempSync(path.join(tmpdir(), 'dpkg-shlibdeps-')), 'dpkg-shlibdeps.pl');
 
 	// Pass the token through a curl config on stdin so it does not appear in the process list.
 	// Authenticated requests avoid the anonymous rate limit on shared agent IPs, but an invalid
@@ -47,7 +50,9 @@ function getDpkgShlibdepsScript(): string {
 			dpkgShlibdepsScript = dpkgShlibdepsScriptLocation;
 			return dpkgShlibdepsScript;
 		}
-		lastError = result.status === 0 ? 'Downloaded file is not a Perl script' : `curl exited with code ${result.status}. Stderr:\n${result.stderr}`;
+		lastError = result.status === 0
+			? 'Downloaded file is not a Perl script'
+			: `curl failed (status ${result.status}, signal ${result.signal}${result.error ? `, error ${result.error.message}` : ''}). Stderr:\n${result.stderr?.toString('utf8')}`;
 		console.error(`Attempt ${attempt}/${maxAttempts} (${useToken ? 'authenticated' : 'anonymous'}) to retrieve dpkg-shlibdeps failed: ${lastError}`);
 		if (attempt < maxAttempts) {
 			Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, attempt * 5000);
