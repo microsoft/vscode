@@ -166,6 +166,7 @@ suite('TabbedModelPicker', () => {
 		entitlement?: ChatEntitlement;
 		showUnavailable?: boolean;
 		showManageModels?: boolean;
+		manageModelsDisabledReason?: string;
 		comparisonKeybinding?: number;
 		providerPlaceholders?: ITabbedModelPickerContext['providerPlaceholders'];
 		beforeSave?: (values: IStringDictionary<unknown>) => Promise<void>;
@@ -284,7 +285,7 @@ suite('TabbedModelPicker', () => {
 			comparisonModels: options.comparisonModels,
 			recentModelIds: [], pinnedModelIds: options.pinnedModelIds ?? [],
 			controlModels: options.controlModels ?? Object.fromEntries(availableModels.map(model => [model.metadata.id, { exists: true, featured: true, label: model.metadata.name }])),
-			configurationAccess: access, isUBB: false, showManageModels: options.showManageModels ?? false, providerPlaceholders: options.providerPlaceholders ?? [],
+			configurationAccess: access, isUBB: false, showManageModels: options.showManageModels ?? false, manageModelsDisabledReason: options.manageModelsDisabledReason, providerPlaceholders: options.providerPlaceholders ?? [],
 			unavailableContext: { show: !!options.showUnavailable, currentVSCodeVersion: '1.140.0', manageSettingsUrl: undefined, updateStateType: StateType.Idle },
 			onUnavailableLinkClick: () => { },
 			onSelect: model => selections.push(model.identifier),
@@ -553,6 +554,17 @@ suite('TabbedModelPicker', () => {
 			addIcon: !!action.querySelector('.codicon-add'),
 			comparisonFooter: !!popup.querySelector('.tabbed-action-list-footer'),
 		}, { label: 'Add Models...', addIcon: true, comparisonFooter: false });
+	});
+
+	test('model management is disabled with its reason when models cannot be added', () => {
+		const { popup, picker } = createPicker({ showManageModels: true, manageModelsDisabledReason: 'Not supported here' });
+		const action = element(popup, '[data-id="addProvider"]');
+		action.click();
+		assert.deepStrictEqual({
+			disabled: action.getAttribute('aria-disabled'),
+			title: action.title,
+			stillOpen: picker.isVisible,
+		}, { disabled: 'true', title: 'Not supported here', stillOpen: true });
 	});
 
 	test('comparison footer shows the configured shortcut and the shortcut opens Attempts without selecting a model', () => {
@@ -1644,6 +1656,16 @@ suite('TabbedModelPicker', () => {
 			fusion: { height: '48px', featured: true, badge: '10% discount', badgeStyle: 'fusion-discount' },
 			other: { height: '24px', featured: false, badge: '', badgeStyle: undefined },
 			auto: { height: '24px', featured: false, badge: '10% discount', badgeStyle: 'preview' },
+		});
+	});
+
+	test('the Copilot Fusion row describes Fusion in its tooltip', () => {
+		const rowTitle = (popup: HTMLElement, label: string) => Array.from(popup.querySelectorAll<HTMLElement>('.chat-model-picker-model')).find(row => row.querySelector('.title')?.textContent === label)?.title;
+		const fusion = createPicker({ models: [...models, createFusionModel()], selectedModelId: models[0].identifier });
+		const auto = createPicker({ models: [...models, createAutoModel()], selectedModelId: models[0].identifier });
+		assert.deepStrictEqual({ fusion: rowTitle(fusion.popup, copilotFusionName), auto: rowTitle(auto.popup, 'Auto') }, {
+			fusion: 'Copilot Fusion selects a single model or orchestrates multiple models to complete your task.',
+			auto: 'Auto \u00b7 Balance',
 		});
 	});
 

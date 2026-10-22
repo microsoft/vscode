@@ -1038,7 +1038,11 @@ export class AgentHostSessionInputPills extends Disposable {
 			browsers: { sections: browserSections },
 			subagents: createSessionSubagentsPillData(subagents, visibility.subagents),
 			backgroundShells,
-		}, SESSION_CHAT_PILL_KINDS));
+		}, SESSION_CHAT_PILL_KINDS, derived(this, reader => {
+			const session = sessionResource.read(reader);
+			const chat = chatResource.read(reader);
+			return session && chat ? JSON.stringify([getLocalAgentHostSessionProvider(session), session.toString(), chat.toString()]) : undefined;
+		})));
 		const inputPills = this._register(instantiationService.createInstance(ChatInputPills, this._widget.inputPart.persistentContentContainerElement, {
 			debugName: 'AgentHostSessionInputPills.content',
 			compact,

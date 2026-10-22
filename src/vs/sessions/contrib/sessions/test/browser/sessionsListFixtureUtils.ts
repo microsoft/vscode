@@ -179,6 +179,8 @@ export interface ISessionsListFixtureHeader {
 	readonly customizationsCount?: number;
 	/** Shows the Customizations navigation row's migrations-available indicator. */
 	readonly customizationMigrationsAvailable?: boolean;
+	/** Shows the Customizations navigation row's badge for extensions that can be enabled in the Agents window. */
+	readonly customizationExtensionSuggestionsAvailable?: boolean;
 }
 
 /** Everything a sessions list fixture renders. */
@@ -703,8 +705,8 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 	}());
 
 	const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
-	// Render terminal-approval labels as real (monospace) code blocks; otherwise the command is blank.
-	await configurationService.setUserConfiguration('editor', { fontFamily: 'monospace' });
+	// Pin the Linux screenshot font instead of depending on Chromium's generic monospace fallback.
+	await configurationService.setUserConfiguration('editor', { fontFamily: 'Liberation Mono, monospace' });
 	for (const [key, value] of Object.entries(state.settings ?? {})) {
 		await configurationService.setUserConfiguration(key, value);
 	}
@@ -786,6 +788,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 		showNavigationShortcuts: () => header?.navigationShortcuts ?? false,
 		customizationsCount: constObservable(header?.customizationsCount ?? 0),
 		customizationMigrationsAvailable: constObservable(header?.customizationMigrationsAvailable ?? false),
+		customizationExtensionSuggestionsAvailable: constObservable(header?.customizationExtensionSuggestionsAvailable ?? false),
 		navigationContainer,
 		onSessionOpen: () => { },
 		approvalModel,
