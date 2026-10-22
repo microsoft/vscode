@@ -14,6 +14,9 @@ import { promisify } from 'node:util';
 
 const exec = promisify(execFile);
 const runner = new URL('./esbuild-common.mts', import.meta.url).href;
+const start = '{"type":"vscode.build","version":1,"event":"start"}';
+const success = '{"type":"vscode.build","version":1,"event":"finish","success":true}';
+const failure = '{"type":"vscode.build","version":1,"event":"finish","success":false}';
 
 test('build lifecycle includes asynchronous hooks and preserves opt-out behavior', async () => {
 	const root = await mkdtemp(join(import.meta.dirname, '.build-events-test-'));
@@ -25,19 +28,19 @@ test('build lifecycle includes asynchronous hooks and preserves opt-out behavior
 			await runBuild({ ...${JSON.stringify(config)}, beforeBuild: async () => { ${beforeBuild} } }, {}, [], async () => { ${hook} });`,
 		], { env: { ...process.env, VSCODE_BUILD_EVENTS: events } });
 		const hook = 'await new Promise(resolve => setTimeout(resolve, 20)); console.log("POSTPROCESS");';
-		assert.equal((await run(hook)).stdout, 'VSCODE_BUILD_START\nPOSTPROCESS\nVSCODE_BUILD_DONE\n');
+		assert.equal((await run(hook)).stdout, `${start}\nPOSTPROCESS\n${success}\n`);
 		assert.equal((await run(hook, '')).stdout, 'POSTPROCESS\n');
 		for (const phase of ['before', 'after']) {
 			const hookErrorCode = 'await new Promise(resolve => setTimeout(resolve, 20)); throw new Error("hook failed");';
 			await assert.rejects(run(phase === 'after' ? hookErrorCode : '', '1', phase === 'before' ? hookErrorCode : ''), (error: Error & { stdout: string; stderr: string }) => {
-				assert.equal(error.stdout, 'VSCODE_BUILD_START\nVSCODE_BUILD_FAILED\n');
+				assert.equal(error.stdout, `${start}\n${failure}\n`);
 				assert.match(error.stderr, /hook failed/);
 				return true;
 			});
 		}
 		await writeFile(config.entryPoints[0], 'export const = ;');
 		await assert.rejects(run('console.log("UNREACHABLE");'), (error: Error & { stdout: string }) => {
-			assert.equal(error.stdout, 'VSCODE_BUILD_START\nVSCODE_BUILD_FAILED\n');
+			assert.equal(error.stdout, `${start}\n${failure}\n`);
 			return true;
 		});
 		await assert.rejects(run('', ''), (error: Error & { stdout: string; code: number }) => {
@@ -63,7 +66,7 @@ test('overlapping builds include all postprocessing and retain plugin failures',
 				runBuild({ ...config, outdir: config.outdir + "2" }, {}, [], () => console.log("FAST_POSTPROCESS")),
 			]);`,
 		], { env: { ...process.env, VSCODE_BUILD_EVENTS: '1' } });
-		assert.equal(result.stdout, 'VSCODE_BUILD_START\nFAST_POSTPROCESS\nSLOW_POSTPROCESS\nVSCODE_BUILD_DONE\n');
+		assert.equal(result.stdout, `${start}\nFAST_POSTPROCESS\nSLOW_POSTPROCESS\n${success}\n`);
 		await assert.rejects(exec(process.execPath, ['--input-type=module', '-e',
 			`import { runBuild } from ${JSON.stringify(runner)};
 			const config = ${JSON.stringify(config)};
@@ -74,7 +77,7 @@ test('overlapping builds include all postprocessing and retain plugin failures',
 				}),
 			]);`,
 		], { env: { ...process.env, VSCODE_BUILD_EVENTS: '1' } }), (error: Error & { stdout: string; stderr: string }) => {
-			assert.equal(error.stdout, 'VSCODE_BUILD_START\nSIBLING_DONE\nVSCODE_BUILD_FAILED\n');
+			assert.equal(error.stdout, `${start}\nSIBLING_DONE\n${failure}\n`);
 			assert.match(error.stderr, /plugin failed/);
 			return true;
 		});
@@ -111,14 +114,14 @@ test('native watcher reports compilation and postprocessing failure and recovery
 		}
 	}
 	try {
-		await waitFor('VSCODE_BUILD_DONE');
+		await waitFor(success);
 		await writeFile(entry, 'export const = ;');
-		await waitFor('VSCODE_BUILD_FAILED');
+		await waitFor(failure);
 		await writeFile(entry, 'export const postprocessError = true;');
-		await waitFor('VSCODE_BUILD_FAILED', 2);
+		await waitFor(failure, 2);
 		await writeFile(entry, 'export const value = 2;');
-		await waitFor('VSCODE_BUILD_DONE', 2);
-		assert.equal(stdout.split('VSCODE_BUILD_START').length - 1, 4);
+		await waitFor(success, 2);
+		assert.equal(stdout.split(start).length - 1, 4);
 		assert.match(stderr, /postprocessing failed/);
 	} finally {
 		if (child.exitCode === null && child.signalCode === null) {

@@ -19,7 +19,7 @@ export class BuildLifecycle {
 			this._failed = false;
 			try {
 				this._onStart?.();
-				this._emit('START');
+				this._emit({ event: 'start' });
 			} catch (error) {
 				this._activeBuilds--;
 				throw error;
@@ -34,14 +34,14 @@ export class BuildLifecycle {
 			this._failed ||= failed;
 			if (--this._activeBuilds === 0) {
 				this._onEnd?.();
-				this._emit(this._failed ? 'FAILED' : 'DONE');
+				this._emit({ event: 'finish', success: !this._failed });
 			}
 		};
 	}
 
-	private _emit(event: 'START' | 'DONE' | 'FAILED'): void {
+	private _emit(event: { event: 'start' } | { event: 'finish'; success: boolean }): void {
 		if (process.env.VSCODE_BUILD_EVENTS === '1') {
-			console.log(`VSCODE_BUILD_${event}`);
+			console.log(JSON.stringify({ type: 'vscode.build', version: 1, ...event }));
 		}
 	}
 }

@@ -12,19 +12,24 @@ test('overlapping builds retain failures, finish once, and recover next cycle', 
 	const previous = process.env.VSCODE_BUILD_EVENTS;
 	t.after(() => restoreBuildEvents(previous));
 	process.env.VSCODE_BUILD_EVENTS = '1';
-	const messages = () => log.mock.calls.map(call => call.arguments[0]);
+	const messages = () => log.mock.calls.map(call => JSON.parse(call.arguments[0]));
 	const lifecycle = new BuildLifecycle();
 	const first = lifecycle.start();
 	const second = lifecycle.start();
 	first(true);
-	assert.deepEqual(messages(), ['VSCODE_BUILD_START']);
+	assert.deepEqual(messages(), [{ type: 'vscode.build', version: 1, event: 'start' }]);
 	first();
 	second();
-	assert.deepEqual(messages(), ['VSCODE_BUILD_START', 'VSCODE_BUILD_FAILED']);
+	assert.deepEqual(messages(), [
+		{ type: 'vscode.build', version: 1, event: 'start' },
+		{ type: 'vscode.build', version: 1, event: 'finish', success: false },
+	]);
 	lifecycle.start()();
 	assert.deepEqual(messages(), [
-		'VSCODE_BUILD_START', 'VSCODE_BUILD_FAILED',
-		'VSCODE_BUILD_START', 'VSCODE_BUILD_DONE',
+		{ type: 'vscode.build', version: 1, event: 'start' },
+		{ type: 'vscode.build', version: 1, event: 'finish', success: false },
+		{ type: 'vscode.build', version: 1, event: 'start' },
+		{ type: 'vscode.build', version: 1, event: 'finish', success: true },
 	]);
 });
 
@@ -60,11 +65,11 @@ for (const phase of ['callback', 'emit']) {
 		process.env.VSCODE_BUILD_EVENTS = '1';
 		let fail = true;
 		const messages: unknown[] = [];
-		t.mock.method(console, 'log', (message: unknown) => {
+		t.mock.method(console, 'log', (message: string) => {
 			if (fail && phase === 'emit') {
 				throw new Error('emit failed');
 			}
-			messages.push(message);
+			messages.push(JSON.parse(message));
 		});
 		let ended = 0;
 		const lifecycle = new BuildLifecycle(() => {
@@ -76,6 +81,9 @@ for (const phase of ['callback', 'emit']) {
 		fail = false;
 		lifecycle.start()();
 		assert.equal(ended, 1);
-		assert.deepEqual(messages, ['VSCODE_BUILD_START', 'VSCODE_BUILD_DONE']);
+		assert.deepEqual(messages, [
+			{ type: 'vscode.build', version: 1, event: 'start' },
+			{ type: 'vscode.build', version: 1, event: 'finish', success: true },
+		]);
 	});
 }
