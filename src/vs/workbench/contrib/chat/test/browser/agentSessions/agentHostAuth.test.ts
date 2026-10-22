@@ -2172,28 +2172,38 @@ suite('authenticateProtectedResources', () => {
 		}]);
 	});
 
-	test('resolves the default account through another authorization server of the provider', async () => {
-		const aDefault: AuthenticationSession = { id: 'a-default', scopes: ['user:email'], accessToken: 'a-default-token', account: { id: 'account-a', label: 'A' } };
-		const aRead: AuthenticationSession = { id: 'a-read', scopes: ['read'], accessToken: 'a-read-token', account: { id: 'account-a', label: 'A' } };
+	test('keeps the default account and its entitlement while a refreshed session replaces the default session', async () => {
+		const aRefreshed: AuthenticationSession = { id: 'a-refreshed', scopes: ['read'], accessToken: 'a-refreshed-token', account: { id: 'account-a', label: 'A' } };
 		const bRead: AuthenticationSession = { id: 'b-read', scopes: ['read'], accessToken: 'b-read-token', account: { id: 'account-b', label: 'B' } };
 		const authentication = createMockAuthService({
 			getOrActivateProviderIdForServer: async () => 'github',
-			getSessions: async (_providerId, scopes, options: IAuthenticationProviderSessionOptions | undefined) => {
-				const sessions = options?.authorizationServer ? [bRead, aRead] : [bRead, aRead, aDefault];
-				return scopes ? sessions.filter(session => scopes.every(scope => session.scopes.includes(scope))) : sessions;
-			},
+			getSessions: async (_providerId, scopes) => scopes ? [bRead, aRefreshed].filter(session => scopes.every(scope => session.scopes.includes(scope))) : [bRead, aRefreshed],
 		});
 		const instantiationService = createAuthInstantiationService(disposables, authentication);
 		instantiationService.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
+			// The default account still points at the replaced session until it reconciles.
 			override readonly currentDefaultAccount: IDefaultAccount = {
-				sessionId: aDefault.id, accountName: 'A', enterprise: false, authenticationProvider: { id: 'github', name: 'GitHub', enterprise: false },
+				sessionId: 'a-replaced', accountName: 'A', enterprise: false, authenticationProvider: { id: 'github', name: 'GitHub', enterprise: false },
+				entitlementsData: {
+					access_type_sku: 'copilot_enterprise', analytics_tracking_id: 'analytics', chat_enabled: true, assigned_date: '',
+					can_signup_for_limited: false, copilot_plan: 'enterprise', organization_login_list: [],
+				},
 			};
 		}());
-		const tokens: string[] = [];
-		await instantiationService.invokeFunction(authenticateProtectedResources, [new class extends mock<AgentInfo>() {
+		const agents = [new class extends mock<AgentInfo>() {
 			override readonly protectedResources = [protectedResource];
-		}()], { logPrefix: '[Test]', authenticate: async request => { tokens.push(request.token); } });
-		assert.deepStrictEqual(tokens, ['a-read-token']);
+		}()];
+		const requests: { token: string; entitlement: ReturnType<typeof readAgentEntitlementHint> }[] = [];
+		const options: IAgentHostAuthenticationOptions = {
+			logPrefix: '[Test]',
+			authTokenCache: new AgentHostAuthTokenCache(),
+			authenticate: async request => { requests.push({ token: request.token, entitlement: readAgentEntitlementHint(request) }); },
+		};
+		await instantiationService.invokeFunction(authenticateProtectedResources, agents, options);
+		await instantiationService.invokeFunction(revokeAuthenticationForRemovedSessions, agents, 'github', [
+			{ ...aRefreshed, id: 'a-replaced', accessToken: 'a-replaced-token' },
+		], options);
+		assert.deepStrictEqual(requests, [{ token: 'a-refreshed-token', entitlement: { trackingId: 'analytics', sku: 'copilot_enterprise' } }]);
 	});
 
 	test('follows the default account across account switches and sign-in', async () => {
@@ -2273,10 +2283,11 @@ suite('authenticateProtectedResources', () => {
 			}));
 			let sku = 'no_access';
 			let sessionId = defaultSession;
+			let accountName = 'Account';
 			instantiation.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
 				override get currentDefaultAccount(): IDefaultAccount {
 					return {
-						sessionId, accountName: 'Account', enterprise: false,
+						sessionId, accountName, enterprise: false,
 						authenticationProvider: { id: 'github', name: 'GitHub', enterprise: false },
 						entitlementsData: {
 							access_type_sku: sku, analytics_tracking_id: 'analytics', chat_enabled: true, assigned_date: '',
@@ -2303,6 +2314,7 @@ suite('authenticateProtectedResources', () => {
 			], options);
 			await instantiation.invokeFunction(authenticateProtectedResources, agents, options);
 			sessionId = 'another-session';
+			accountName = 'Another account';
 			await instantiation.invokeFunction(authenticateProtectedResources, agents, options);
 			assert.deepStrictEqual(observed, [
 				{ trackingId: 'analytics', sku: 'no_access' },

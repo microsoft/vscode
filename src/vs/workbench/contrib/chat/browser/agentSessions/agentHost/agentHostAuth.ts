@@ -471,9 +471,10 @@ async function resolveAuthenticationSessionForResource(
 		logService.trace(`${logPrefix} Resolved auth provider '${providerId}' for server: ${server}`);
 
 		// The default account (chosen via account preferences) decides which of the provider's accounts
-		// to use. An explicit preferred session takes precedence.
-		const defaultAccountSessionId = !preferredSessionId && defaultAccount?.authenticationProvider.id === providerId ? defaultAccount.sessionId : undefined;
-		if (!defaultAccountSessionId) {
+		// to use. It is matched by account rather than session, because providers replace a session with
+		// a new id on refresh before the default account catches up. An explicit preferred session takes precedence.
+		const usesDefaultAccount = !preferredSessionId && defaultAccount?.authenticationProvider.id === providerId;
+		if (!usesDefaultAccount) {
 			let sessions: readonly AuthenticationSession[];
 			try {
 				// Try exact scope match first
@@ -506,19 +507,9 @@ async function resolveAuthenticationSessionForResource(
 			logService.trace(`${logPrefix} Authentication provider '${providerId}' is not ready to resolve sessions for server: ${server}`, error);
 			continue;
 		}
-		const preferredAccountSessionId = preferredSessionId ?? defaultAccountSessionId;
-		let preferredAccountId = preferredAccountSessionId
-			? allSessions.find(session => session.id === preferredAccountSessionId)?.account.id
-			: undefined;
-		if (defaultAccountSessionId && !preferredAccountId) {
-			// The default account may have signed in through another authorization server of this provider.
-			try {
-				const providerSessions = await authenticationService.getSessions(providerId, undefined, undefined, true);
-				preferredAccountId = providerSessions.find(session => session.id === defaultAccountSessionId)?.account.id;
-			} catch (error) {
-				logService.trace(`${logPrefix} Unable to resolve the default account's session for provider '${providerId}'`, error);
-			}
-		}
+		const preferredAccountId = preferredSessionId
+			? allSessions.find(session => session.id === preferredSessionId)?.account.id
+			: usesDefaultAccount ? allSessions.find(session => session.account.label === defaultAccount.accountName)?.account.id : undefined;
 		if (preferredSessionId && !preferredAccountId) {
 			logService.trace(`${logPrefix} Preferred authentication session '${preferredSessionId}' is unavailable for server: ${server}`);
 			continue;
@@ -526,14 +517,14 @@ async function resolveAuthenticationSessionForResource(
 		const selection = selectAuthenticationSession(
 			allSessions.filter(session => isAuthenticationSessionCandidate(session, rejectedSession)),
 			scopes,
-			preferredAccountSessionId ? { accountId: preferredAccountId, fallbackToSoleAccount: defaultAccountSessionId !== undefined } : undefined,
+			preferredSessionId || usesDefaultAccount ? { accountId: preferredAccountId, fallbackToSoleAccount: usesDefaultAccount } : undefined,
 		);
 		if (selection.kind === 'selected') {
 			// Another session of the default account still carries the default account's entitlement.
-			const isOtherDefaultAccountSession = defaultAccountSessionId !== undefined && selection.session.account.id === preferredAccountId && selection.session.id !== defaultAccountSessionId;
+			const isOtherDefaultAccountSession = usesDefaultAccount && selection.session.account.id === preferredAccountId && selection.session.id !== defaultAccount.sessionId;
 			return {
 				kind: 'resolved', providerId, session: selection.session, match: selection.match,
-				...(isOtherDefaultAccountSession ? { entitlementSessionId: defaultAccountSessionId } : {}),
+				...(isOtherDefaultAccountSession ? { entitlementSessionId: defaultAccount.sessionId } : {}),
 			};
 		}
 		if (selection.kind === 'accountMismatch') {
