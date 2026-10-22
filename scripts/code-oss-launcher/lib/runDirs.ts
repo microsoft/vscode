@@ -12,6 +12,7 @@ import { randomBytes } from 'node:crypto';
 import { promises as fs, realpathSync } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
 
 const STATE_FILE = 'launch-state.json';
 const CLAIM_FILE = 'launch-claim.json';
@@ -279,8 +280,19 @@ async function canRename(runDir: string): Promise<boolean> {
 	} catch {
 		return false;
 	}
-	await fs.rename(probe, runDir);
-	return true;
+	const errors: unknown[] = [];
+	for (let attempt = 0; attempt < 3; attempt++) {
+		try {
+			await fs.rename(probe, runDir);
+			return true;
+		} catch (error) {
+			errors.push(error);
+			if (attempt < 2) {
+				await delay(100);
+			}
+		}
+	}
+	throw new AggregateError(errors, `Cannot restore run directory ${runDir} after checking its lock. Its contents remain at ${probe}; restore that path before retrying.`);
 }
 
 export function isProcessAlive(pid: number): boolean {

@@ -64,6 +64,7 @@ function probe(port: number, requestTimeoutMs: number): Promise<boolean> {
 			response.on('data', (chunk: string) => {
 				body += chunk;
 				if (body.length > 64 * 1024) {
+					response.destroy();
 					finish(false);
 				}
 			});

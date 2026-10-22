@@ -29,6 +29,8 @@ On macOS/Linux, use `scripts/code-oss-launcher/launch.ts` and appropriate paths.
 
 The normal Windows source launcher is reproduced by launching Electron directly, avoiding `cmd.exe` argument mangling. macOS/Linux use `scripts/code.sh`. Host-only environment variables such as `ELECTRON_RUN_AS_NODE` are removed for the application.
 
+For an option value beginning with `--`, use the equals form, for example `--session-title=--example`. The space-separated form rejects such values to catch missing option arguments.
+
 ## Readiness and lifetime contract
 
 Diagnostics go to stderr and application output to `<runDir>/code.log`. After `/json/version` returns valid CDP metadata containing a WebSocket debugger URL, stdout receives **one JSON line**:
@@ -56,6 +58,8 @@ node scripts\code-oss-launcher\cleanup\cleanup.ts <runDir>
 Cleanup validates the run root and launcher state, then identifies processes by their exact `--user-data-dir` argument, not a potentially reused PID. It stops only that run's process tree, waits for its files to be released, and prints one JSON line: `{"runDir":"...","stopped":true,"removed":true}`. Fresh directories are removed. Reused directories are retained unless `--remove` is passed. `--run-dir <runDir>` is also supported.
 
 `cleanup.ts --gc <runRoot>` removes abandoned runs in a recognized root, but never stops processes. A launch also performs garbage collection after readiness: unused fresh directories have a two-minute grace period and unused reused profiles expire after seven days. Logs and failed launch directories are retained until cleanup or collection, so failures can be diagnosed.
+
+On Windows, the lock probe briefly renames a run directory and restores it. Transient restoration failures are retried; if restoration still fails, the error names the retained recovery directory. Restore it before retrying rather than deleting the profile.
 
 ## Tests
 

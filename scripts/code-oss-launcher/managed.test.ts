@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { once } from 'node:events';
 import { existsSync, promises as fs } from 'node:fs';
+import { stripTypeScriptTypes } from 'node:module';
 import * as path from 'node:path';
 import { test } from 'node:test';
 
@@ -98,7 +99,9 @@ test('managed launcher readiness, lifetime, isolation, forwarding and exact-run 
 	try {
 		await fs.mkdir(path.join(repo, 'scripts'), { recursive: true });
 		await fs.writeFile(path.join(repo, 'product.json'), JSON.stringify({ nameShort: 'Code', sharedDataFolderName: '.unused' }));
-		await fs.copyFile(path.join(import.meta.dirname, 'fixtures', 'fakeCode.mjs'), path.join(repo, 'index.js'));
+		await fs.writeFile(path.join(repo, 'index.js'), stripTypeScriptTypes(
+			await fs.readFile(path.join(import.meta.dirname, 'fixtures', 'fakeCode.ts'), 'utf8'),
+		));
 		if (process.platform === 'win32') {
 			await fs.mkdir(path.join(repo, '.build', 'electron'), { recursive: true });
 			await fs.writeFile(path.join(repo, 'scripts', 'code.bat'), '');

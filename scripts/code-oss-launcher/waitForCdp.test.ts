@@ -45,3 +45,19 @@ test('reports when the launched process exits before readiness', async () => {
 	await once(child, 'exit');
 	assert.deepStrictEqual(await waitForCdp(child.pid!, 1, 2000), { status: 'exited' });
 });
+
+test('oversized responses are disconnected before the server finishes sending', async () => {
+	let disconnected = 0;
+	const server = http.createServer((_request, response) => {
+		response.on('close', () => disconnected++);
+		response.write('x'.repeat(65 * 1024));
+	});
+	await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+	try {
+		assert.deepStrictEqual(await waitForCdp(process.pid, (server.address() as AddressInfo).port, 300), { status: 'timeout' });
+		assert.ok(disconnected > 0);
+	} finally {
+		server.closeAllConnections();
+		await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+	}
+});
