@@ -1456,8 +1456,8 @@ export class TestContext {
 	}
 
 	/**
-	 * Copies VS Code's own process logs ({@link capturedLogNames}) under `logsDir` next to the
-	 * screenshots, so they are uploaded with them. Extension output logs are not copied. Overwrites an
+	 * Copies VS Code's own process logs ({@link capturedLogNames}) from `logsDir` into the screenshots
+	 * directory, so they are uploaded with the screenshots. Extension output logs are not copied. Overwrites an
 	 * earlier copy for the same test. Each file keeps at most its last `maxFileBytes` bytes, and
 	 * copying stops once `maxTotalBytes` are copied.
 	 */

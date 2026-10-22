@@ -298,7 +298,11 @@ export function setup(context: TestContext) {
 		} catch (error) {
 			failure = { error };
 		}
-		await context.closeElectronApp(app);
+		try {
+			await context.closeElectronApp(app);
+		} catch (error) {
+			failure ??= { error };
+		}
 
 		if (!failure) {
 			try {
