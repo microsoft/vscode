@@ -72,11 +72,17 @@ export function filterModelsForSession(
 			if (!isModelEligible(entry, currentModeKind, location)) {
 				continue;
 			}
-			// `isModelEligible` is not a type guard, so keep the metadata access optional.
-			const targetSessionType = entry.metadata?.targetChatSessionType;
+
+			// `isModelEligible` is not a type guard, so assert the invariant once per iteration.
+			const metadata = entry.metadata;
+			if (!metadata) {
+				continue;
+			}
+
+			const targetSessionType = metadata.targetChatSessionType;
 			if (targetSessionType === sessionType) {
 				sessionScoped.push(entry);
-			} else if (!targetSessionType && entry.metadata && isByokModel(entry.metadata)) {
+			} else if (!targetSessionType && isByokModel(metadata)) {
 				unscopedByok.push(entry);
 			}
 		}
