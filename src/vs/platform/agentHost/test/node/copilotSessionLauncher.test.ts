@@ -1560,7 +1560,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				const launcher = createTestLauncher(undefined, { [AgentHostSessionSyncEnabledConfigKey]: enabled }, logService);
 				const basePlan = {
 					client, sessionId: session.sessionId, workingDirectory: testWorkingDirectory,
-					resolvedAgentName: undefined, snapshot: { tools: [], plugins: [], mcpServers: {} },
+					resolvedAgentName: undefined, snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 					activeClientToolSet: new ActiveClientToolSet(), shellManager: undefined,
 					githubCredentials: CopilotGitHubSessionCredentials.fromToken('token'),
 				};
