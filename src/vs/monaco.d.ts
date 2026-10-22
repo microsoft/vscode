@@ -8203,6 +8203,7 @@ declare namespace monaco.languages {
 	export interface DocumentSymbol {
 		name: string;
 		detail: string;
+		tooltip?: string;
 		kind: SymbolKind;
 		tags: ReadonlyArray<SymbolTag>;
 		containerName?: string;
