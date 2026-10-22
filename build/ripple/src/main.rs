@@ -33,22 +33,47 @@ const USAGE: &str = "usage: ripple <command> --config FILE [--repo PATH] [option
 	\tblame --test PATH --since REV [--until REV]: the commits in a range that can affect a test\n\
 	\treplay --since DATE [--until REV] [--out FILE] [--hubs 1]: selection statistics over first-parent history";
 
+/// The options of all commands. Each one takes a value.
+const OPTIONS: &[&str] = &[
+	"config",
+	"repo",
+	"rev",
+	"base",
+	"head",
+	"file",
+	"max-share",
+	"out-dir",
+	"test",
+	"since",
+	"until",
+	"out",
+	"hubs",
+];
+
 struct Args {
 	command: String,
 	options: Vec<(String, String)>,
 }
 
 impl Args {
-	fn parse() -> Self {
-		let mut it = std::env::args().skip(1);
+	/// Parses `<command> [--option value]...`, rejecting unknown options and missing values, so
+	/// that a typo or a renamed option fails instead of being ignored.
+	fn parse(mut it: impl Iterator<Item = String>) -> Result<Self> {
 		let command = it.next().unwrap_or_default();
 		let mut options = Vec::new();
 		while let Some(a) = it.next() {
-			if let Some(name) = a.strip_prefix("--") {
-				options.push((name.to_owned(), it.next().unwrap_or_default()));
+			let Some(name) = a.strip_prefix("--") else {
+				bail!("unexpected argument '{a}'\n\n{USAGE}");
+			};
+			if !OPTIONS.contains(&name) {
+				bail!("unknown option '--{name}'\n\n{USAGE}");
+			}
+			match it.next() {
+				Some(value) if !value.starts_with("--") => options.push((name.to_owned(), value)),
+				_ => bail!("--{name} needs a value\n\n{USAGE}"),
 			}
 		}
-		Self { command, options }
+		Ok(Self { command, options })
 	}
 
 	fn get(&self, name: &str) -> Option<&str> {
@@ -70,7 +95,7 @@ fn weight<S: AsRef<str>>(snap: &Snapshot, files: impl Iterator<Item = S>) -> f64
 }
 
 fn main() -> Result<()> {
-	let args = Args::parse();
+	let args = Args::parse(std::env::args().skip(1))?;
 	let command = args.command.as_str();
 	if !["stats", "affected", "analyze", "plan", "blame", "replay"].contains(&command) {
 		bail!("{USAGE}");
@@ -654,4 +679,48 @@ fn replay(
 		}
 	}
 	Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	fn parse(args: &[&str]) -> Result<Args> {
+		Args::parse(args.iter().map(|a| a.to_string()))
+	}
+
+	#[test]
+	fn options_must_be_known_and_have_values() {
+		let args = parse(&["plan", "--config", "c.jsonc", "--base", "main"]).unwrap();
+		assert_eq!(
+			(
+				args.command.as_str(),
+				args.get("config"),
+				args.get("base"),
+				args.get("head")
+			),
+			("plan", Some("c.jsonc"), Some("main"), None)
+		);
+		let errors: Vec<String> = [
+			&["plan", "--config"][..],
+			&["plan", "--base", "--head", "HEAD"],
+			&["plan", "--lists", "dir"],
+			&["plan", "origin/main"],
+		]
+		.iter()
+		.map(|args| {
+			let error = parse(args).err().map(|e| e.to_string()).unwrap_or_default();
+			error.lines().next().unwrap_or_default().to_owned()
+		})
+		.collect();
+		assert_eq!(
+			errors,
+			vec![
+				"--config needs a value",
+				"--base needs a value",
+				"unknown option '--lists'",
+				"unexpected argument 'origin/main'"
+			]
+		);
+	}
 }
