@@ -228,7 +228,7 @@ suite('CopilotSessionLauncher customization policy session', () => {
 			enableSessionStore: captured?.enableSessionStore,
 			infiniteSessions: captured?.infiniteSessions,
 			memory: captured?.memory,
-			remoteSession: captured?.remoteSession,
+			legacyRemoteOption: Object.hasOwn(captured!, 'remoteSession'),
 			managedSettings: captured?.managedSettings,
 			featureFlags: captured?.featureFlags,
 			gitHubToken: captured?.gitHubToken,
@@ -246,7 +246,7 @@ suite('CopilotSessionLauncher customization policy session', () => {
 			enableSessionStore: false,
 			infiniteSessions: { enabled: false },
 			memory: { enabled: false },
-			remoteSession: 'off',
+			legacyRemoteOption: false,
 			managedSettings: { permissions },
 			featureFlags: {
 				...catalogInstallationFeatureFlags,
@@ -405,6 +405,62 @@ suite('CopilotSessionLauncher customization policy session', () => {
 			credentialUpdates: 0,
 		});
 	});
+});
+
+suite('CopilotSessionLauncher history export', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const kind of ['create', 'resume'] as const) {
+		for (const scenario of ['enabled', 'disabled', 'ephemeral', 'failure'] as const) {
+			test(`${kind}: ${scenario} history export`, async () => {
+				const requests: Parameters<CopilotSession['rpc']['remote']['enable']>[0][] = [];
+				const failure = new Error('History export unavailable');
+				const session = new class extends mock<CopilotSession>() {
+					override readonly sessionId = 'history-export';
+					override get rpc() {
+						return new class extends mock<CopilotSession['rpc']>() {
+							override readonly agent = new class extends mock<CopilotSession['rpc']['agent']>() {
+								override list = emptyAgentCatalog.list;
+							};
+							override readonly options = new class extends mock<CopilotSession['rpc']['options']>() {
+								override update = async () => ({ success: true });
+							};
+							override readonly remote = new class extends mock<CopilotSession['rpc']['remote']>() {
+								override enable = async (request: Parameters<CopilotSession['rpc']['remote']['enable']>[0]) => {
+									requests.push(request);
+									if (scenario === 'failure') {
+										throw failure;
+									}
+									return { remoteSteerable: false };
+								};
+							};
+						};
+					}
+					override on = () => () => { };
+					override disconnect = async () => { };
+				};
+				const logService = new CapturingLogService();
+				const launcher = createTestLauncher(undefined, { [AgentHostSessionSyncEnabledConfigKey]: scenario !== 'disabled' }, logService);
+				const plan = {
+					client: returningSession(session), sessionId: session.sessionId, workingDirectory: testWorkingDirectory,
+					resolvedAgentName: undefined, snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
+					activeClientToolSet: new ActiveClientToolSet(), shellManager: undefined,
+					githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
+					isEphemeral: scenario === 'ephemeral',
+				};
+				store.add(await launcher.launch(kind === 'create'
+					? { ...plan, kind, model: undefined }
+					: { ...plan, kind, fallback: { model: undefined } }, testRuntime));
+				assert.deepStrictEqual({
+					requests,
+					warnings: logService.warnings,
+				}, {
+					requests: scenario === 'disabled' || scenario === 'ephemeral' ? [] : [{ mode: 'export' }],
+					warnings: scenario === 'failure' ? [{ message: '[Copilot:history-export] Failed to enable session history export', args: [failure] }] : [],
+				});
+			});
+		}
+	}
 });
 
 suite('CopilotSessionLauncher agent catalog readiness', () => {
@@ -1576,11 +1632,16 @@ suite('CopilotSessionLauncher shared session config', () => {
 
 	test('client-owned credentials preserve workspace discovery, tools, BYOK and host policy on create and resume', async () => {
 		const configs: SessionConfig[] = [];
+		const exports: Parameters<CopilotSession['rpc']['remote']['enable']>[0][] = [];
 		const session = {
 			sessionId: 'scoped-session',
 			on: () => () => { },
 			disconnect: async () => { },
-			rpc: { agent: emptyAgentCatalog, options: { update: async () => ({ success: true }) } },
+			rpc: {
+				agent: emptyAgentCatalog,
+				options: { update: async () => ({ success: true }) },
+				remote: { enable: async (request: Parameters<CopilotSession['rpc']['remote']['enable']>[0]) => { exports.push(request); return { remoteSteerable: false }; } },
+			},
 		} as unknown as CopilotSession;
 		const client = {
 			createSession: async (config: SessionConfig) => { configs.push(config); reportManagedSettings(config); return session; },
@@ -1626,7 +1687,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 			environment: config.systemMessage?.mode === 'customize' ? config.systemMessage.sections?.environment_context : undefined,
 			sessionStore: config.enableSessionStore,
 			oauthStorage: config.mcpOAuthTokenStorage,
-			remoteSession: config.remoteSession,
+			legacyRemoteOption: Object.hasOwn(config, 'remoteSession'),
 			connectors: config.featureFlags?.CONNECTORS,
 			tools: config.availableTools, excludedTools: config.excludedTools,
 			providers: config.providers, models: config.models, managedSettings: config.managedSettings,
@@ -1637,13 +1698,14 @@ suite('CopilotSessionLauncher shared session config', () => {
 			skipCustomInstructions: undefined, onDemandInstructions: undefined, hostGit: undefined, sessionTelemetry: undefined,
 			coauthor: undefined, builtinSkills: undefined, localAgents: undefined,
 			environment: undefined,
-			sessionStore: true, oauthStorage: 'in-memory', remoteSession: 'export',
+			sessionStore: true, oauthStorage: 'in-memory', legacyRemoteOption: false,
 			tools: [...COPILOT_DEFAULT_AVAILABLE_TOOLS],
 			excludedTools: [...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
 			providers: [], models: [], managedSettings: { permissions },
 			pluginDirectories: [pluginDirectory.fsPath],
 		})));
 		assert.strictEqual(byokResolutions, 2);
+		assert.deepStrictEqual(exports, [{ mode: 'export' }, { mode: 'export' }]);
 	});
 
 	test('derives explicit MCP registration from client metadata rather than cwd equality', () => {
@@ -1841,8 +1903,8 @@ suite('CopilotSessionLauncher shared session config', () => {
 					return compatible.imageGeneration;
 				}),
 			}, {
-				createImage: [{ enabled: true, watermark: false }, { enabled: true, watermark: false }],
-				resumeImage: [{ enabled: true, watermark: false }],
+				createImage: [{ enabled: true, watermark: false, saveToDisk: false }, { enabled: true, watermark: false, saveToDisk: false }],
+				resumeImage: [{ enabled: true, watermark: false, saveToDisk: false }],
 			});
 
 			assert.deepStrictEqual({
@@ -1934,7 +1996,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 			}, {
 				createClientName: 'vscode-agent-host',
 				createInteractiveUser: true,
-				createImageGeneration: { enabled: true, watermark: false },
+				createImageGeneration: { enabled: true, watermark: false, saveToDisk: false },
 				createCustomAgents: buildCopilotBuiltinAgents(basePlan.snapshot.tools),
 				createGitHubMcpToolConfig: { disableFormDeferral: true },
 				createPluginDirectories: [pluginDir.fsPath, syntheticPluginDir.fsPath],
@@ -1969,7 +2031,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				createLocalMemoryStore: true,
 				resumeClientName: 'vscode-agent-host',
 				resumeInteractiveUser: true,
-				resumeImageGeneration: { enabled: true, watermark: false },
+				resumeImageGeneration: { enabled: true, watermark: false, saveToDisk: false },
 				resumeCustomAgents: buildCopilotBuiltinAgents(basePlan.snapshot.tools),
 				resumeGitHubMcpToolConfig: { disableFormDeferral: true },
 				resumePluginDirectories: [pluginDir.fsPath, syntheticPluginDir.fsPath],
@@ -2004,7 +2066,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumeLocalMemoryStore: true,
 				ephemeralMemory: { enabled: false },
 				ephemeralInteractiveUser: true,
-				ephemeralImageGeneration: { enabled: true, watermark: false },
+				ephemeralImageGeneration: { enabled: true, watermark: false, saveToDisk: false },
 				ephemeralCustomAgents: [],
 				ephemeralAskUserVariant: 'elicitation',
 				ephemeralDetachLongLivedServices: true,
@@ -2065,7 +2127,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 					}, {
 						launch: [enabled === true, enabled === true],
 						watermark: [watermark === true, watermark === true],
-						config: [{ enabled: enabled === true, watermark: watermark === true }, { enabled: enabled === true, watermark: watermark === true }],
+						config: [{ enabled: enabled === true, watermark: watermark === true, saveToDisk: false }, { enabled: enabled === true, watermark: watermark === true, saveToDisk: false }],
 					});
 				}
 			}
