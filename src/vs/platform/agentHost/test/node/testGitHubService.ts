@@ -40,7 +40,7 @@ export function createTestGitHubService(client: IGitHubClient = new class extend
 		}
 		override acquireRepositoryClient() { return new ImmortalReference(client); }
 		override acquireRepositoryApiClient() {
-			return upcastPartial<IGitHubAccountClient>({ ...api, dispose: () => { } });
+			return upcastPartial<IGitHubAccountClient>({ authorization: client.authorization, ...api, dispose: () => { } });
 		}
 	}();
 }

@@ -22,14 +22,17 @@ import { toAgentMessageDelegationMeta } from '../../../../../../platform/agentHo
 import { compactContextAttribution } from '../../../../../../platform/agentHost/common/meta/agentUsageMeta.js';
 import { buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
+import { AgentHostArtifactNoticeMetaKey, AgentHostArtifactRequestMetaKey, AgentHostArtifactRunMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostArtifactIntegrationMeta.js';
+import { createTestArtifactRequestPresentation } from '../../../../../../platform/artifactIntegrations/test/common/artifactIntegrationTestUtils.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSystemNotificationWorkspaceKind, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentWorkspaceContinuationMeta.js';
+import { getComputerUseActivationAnswers, withComputerUseActivationCard, withComputerUseSetupCard } from '../../../../../../platform/agentHost/common/meta/computerUse.js';
 import { ConfirmationOptionKind, McpAuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, toAgentHostContentUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { buildSubagentChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, createErrorResponsePart, MessageAttachmentKind, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, withMessageHiddenFromTranscript, withMessageRequestHiddenFromTranscript, withMessageSystemInitiatedLabel, type ActiveTurn, type ChatInputAnswer, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ChatTranscriptContextAttachmentDisplayKind, IChatRequestTranscriptContextVariableEntry, toChatTranscriptContextAttachmentMeta } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatRequestOriginKind } from '../../../common/chatRequestOrigin.js';
-import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatPlanReviewResult, type IChatProgress, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatToolInputInvocationData, type IChatUsage } from '../../../common/chatService/chatService.js';
+import { ElicitationState, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatPlanReviewResult, type IChatProgress, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatToolInputInvocationData, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { appendToolOutput, turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, getAgentHostActivityProgressId, systemNotificationToChatPart, messageAttachmentsToVariableData, shouldObserveSubagentChat, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, turnToResultMetadata, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { getQuotaReset } from '../../../../../services/chat/common/chatEntitlementService.js';
@@ -605,6 +608,42 @@ suite('stateToProgressAdapter', () => {
 			});
 		});
 
+		test('restores a Computer Use setup request as a settled card instead of the plugin\'s questions', () => {
+			const card = (id: string, response: ChatInputResponseKind) => ({
+				kind: ResponsePartKind.InputRequest,
+				request: withComputerUseSetupCard({ id, message: 'Copilot Computer Use needs macOS permissions', questions: [{ kind: ChatInputQuestionKind.SingleSelect, id: 'choice', title: 'choice', message: 'choice', required: true, options: [{ id: 'try_again', label: 'Try again' }] }] }, 'setup-1'),
+				response,
+			} as const);
+			const turn = createTurn({ responseParts: [card('ready', ChatInputResponseKind.Accept), card('declined', ChatInputResponseKind.Decline)] });
+			const parts = turnsToHistory(URI.parse('ahp-session:/opaque-host-identity'), [JSON.parse(JSON.stringify(turn))], 'participant').find(item => item.type === 'response')?.parts ?? [];
+			assert.deepStrictEqual(parts.map(part => part.kind === 'elicitationSerialized' ? { kind: part.kind, title: part.title, state: part.state } : { kind: part.kind }), [
+				{ kind: 'elicitationSerialized', title: 'Computer Use needs permission to control apps and capture their windows.', state: ElicitationState.Accepted },
+				{ kind: 'elicitationSerialized', title: 'Computer Use needs permission to control apps and capture their windows.', state: ElicitationState.Rejected },
+			]);
+		});
+
+		test('restores a request to turn on Computer Use as a settled card that is accepted only when Turn On was submitted', () => {
+			const card = (id: string, response: ChatInputResponseKind, answers: Record<string, ChatInputAnswer>, reason?: string) => ({
+				kind: ResponsePartKind.InputRequest,
+				request: withComputerUseActivationCard({ id, message: 'Copilot asks to turn on Computer Use', questions: [{ kind: ChatInputQuestionKind.SingleSelect, id: 'computerUse', title: 'Computer Use', message: 'Turn on Computer Use?', required: true, options: [{ id: 'turnOn', label: 'Turn On' }, { id: 'notNow', label: 'Not Now' }] }], answers }, reason ? { reason } : {}),
+				response,
+			} as const);
+			const turn = createTurn({
+				responseParts: [
+					card('turned-on', ChatInputResponseKind.Accept, getComputerUseActivationAnswers('turnOn'), 'Open *Calculator*'),
+					card('not-now', ChatInputResponseKind.Accept, getComputerUseActivationAnswers('notNow')),
+					card('declined', ChatInputResponseKind.Decline, getComputerUseActivationAnswers('turnOn')),
+				],
+			});
+			const parts = turnsToHistory(URI.parse('ahp-session:/opaque-host-identity'), [JSON.parse(JSON.stringify(turn))], 'participant').find(item => item.type === 'response')?.parts ?? [];
+			const explanation = 'Computer Use lets Copilot see and control apps on this computer. It stays on for Copilot, including the Copilot CLI, until you run `/computer off`.';
+			assert.deepStrictEqual(parts.map(part => part.kind === 'elicitationSerialized' ? { kind: part.kind, title: part.title, message: typeof part.message === 'string' ? part.message : part.message.value, state: part.state } : { kind: part.kind }), [
+				{ kind: 'elicitationSerialized', title: 'Turn on Computer Use?', message: `Open \\*Calculator\\*\n\n${explanation}`, state: ElicitationState.Accepted },
+				{ kind: 'elicitationSerialized', title: 'Turn on Computer Use?', message: explanation, state: ElicitationState.Rejected },
+				{ kind: 'elicitationSerialized', title: 'Turn on Computer Use?', message: explanation, state: ElicitationState.Rejected },
+			]);
+		});
+
 		test('empty turns produces empty history', () => {
 			const result = turnsToHistory(URI.file('/'), [], 'p');
 			assert.deepStrictEqual(result, []);
@@ -673,6 +712,24 @@ suite('stateToProgressAdapter', () => {
 				{ isSystemInitiated: true, requestSource: undefined },
 				{ isSystemInitiated: undefined, requestSource: undefined },
 				{ isSystemInitiated: true, requestSource: undefined },
+			]);
+		});
+
+		test('artifact action history uses validated optional metadata on conforming hosts with opaque identifiers', () => {
+			const presentation = createTestArtifactRequestPresentation();
+			const meta = { [AgentHostArtifactRunMetaKey]: 'opaque-run-id', [AgentHostArtifactRequestMetaKey]: presentation };
+			const messages: Message[] = [
+				{ ...message('Analyse the scorecard', MessageKind.SystemNotification), _meta: meta },
+				{ ...message('Analyse the scorecard'), _meta: meta },
+				message('Analyse the scorecard', MessageKind.SystemNotification),
+				{ ...message('Analyse the scorecard', MessageKind.SystemNotification), _meta: { ...meta, [AgentHostArtifactRequestMetaKey]: { ...presentation, version: 2 } } },
+			];
+			const history = turnsToHistory(URI.parse('custom-host://opaque-session/42'), messages.map(message => createTurn({ message })), 'custom-participant');
+			assert.deepStrictEqual(history.filter(item => item.type === 'request').map(item => ({
+				prompt: item.prompt, source: item.requestSource, presentation: item.artifactRequest,
+			})), [
+				{ prompt: 'Analyse the scorecard', source: 'artifactIntegration', presentation },
+				...Array(3).fill({ prompt: 'Analyse the scorecard', source: undefined, presentation: undefined }),
 			]);
 		});
 
@@ -4400,6 +4457,21 @@ suite('stateToProgressAdapter', () => {
 				pullRequestMerged: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state'), icon: Codicon.gitMerge, renderInlineTiming: true },
 				unknown: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state') },
 			});
+		});
+
+		test('artifact automation notices reuse expandable system notifications and tolerate unknown metadata', () => {
+			const notice = (kind: string | boolean | undefined, iconId = 'git-pull-request') => systemNotificationToChatPart('Automation changed\n\nWhat happens automatically.', 'host', { [AgentHostArtifactNoticeMetaKey]: { kind, iconId } });
+			const base = { kind: 'systemNotification', content: new MarkdownString('Automation changed\n\nWhat happens automatically.') };
+			assert.deepStrictEqual([
+				notice('enabled'), notice('changed'), notice('disabled'), notice('future'), notice(true), notice(undefined), notice('enabled', 'invalid icon'), notice('enabled', ''),
+			], [
+				{ ...base, icon: { id: Codicon.gitPullRequest.id }, collapsible: true, renderInlineTiming: true },
+				{ ...base, icon: { id: Codicon.gitPullRequest.id }, collapsible: true, renderInlineTiming: true },
+				{ ...base, icon: Codicon.circleSlash, collapsible: true, renderInlineTiming: true },
+				base, base, base,
+				{ ...base, icon: Codicon.link, collapsible: true, renderInlineTiming: true },
+				{ ...base, icon: Codicon.link, collapsible: true, renderInlineTiming: true },
+			]);
 		});
 
 		test('produces thinking progress for reasoning', () => {

@@ -23,7 +23,7 @@ import { IDialogService } from '../../../../../../platform/dialogs/common/dialog
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import type { IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IRecordedCustomizationMarketplaceResource, ICustomizationMarketplaceInstallProvider } from '../../../common/customizationMarketplaceInstallService.js';
-import { ICustomizationMarketplaceInfo, ICustomizationMarketplaceManagementProvider, ICustomizationMarketplaceSearchProvider, ICustomizationMcpConfigurationProvider } from '../../../common/customizationHarnessService.js';
+import { ICustomizationMarketplaceInfo, ICustomizationMarketplaceManagementProvider, ICustomizationMarketplaceSearchProvider, ICustomizationMcpConfigurationProvider, ICustomizationPluginInstallProvider } from '../../../common/customizationHarnessService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IAgentHostCustomizationService } from './agentHostCustomizationService.js';
 import { getGitHubMcpRegistryIcon } from '../../aiCustomization/githubMcpRegistryIcons.js';
@@ -34,7 +34,7 @@ const pluginInventoryUpdateTimeoutMs = 30_000;
 const githubLoginPattern = /^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}$/;
 type AppliedPluginIdentity = Extract<IAgentCustomizationInstallationApplyResult, { readonly kind: 'plugin' }>;
 
-export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable implements ICustomizationMarketplaceInstallProvider, ICustomizationMarketplaceSearchProvider, ICustomizationMarketplaceManagementProvider, ICustomizationMcpConfigurationProvider {
+export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable implements ICustomizationMarketplaceInstallProvider, ICustomizationMarketplaceSearchProvider, ICustomizationMarketplaceManagementProvider, ICustomizationMcpConfigurationProvider, ICustomizationPluginInstallProvider {
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	private readonly receiptInstallations = new ResourceMap<readonly IRecordedCustomizationMarketplaceResource[]>();
 	private readonly unavailableCatalogItems = new Map<string, string>();
@@ -85,6 +85,14 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 			return localize('agentHost.customizationInstall.catalogIdentityUnavailable', "This customization does not provide the SDK catalog identity required for installation.");
 		}
 		return undefined;
+	}
+
+	async installFromSource(sessionResource: URI, source: string): Promise<void> {
+		if (!this.agentHostService.installPlugin) {
+			throw new Error(localize('agentHost.pluginInstall.unavailable', "The selected agent does not support installing plugins from source."));
+		}
+		await this.agentHostService.installPlugin(this.providerId, { source }, this.getBackendSession(sessionResource), this.agentHostCustomizationService.getBackendChatResource?.(sessionResource));
+		this._onDidChange.fire();
 	}
 
 	async addGlobal(name: string, config: IMcpServerConfiguration): Promise<void> {

@@ -18,6 +18,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType, IAccessibleViewService } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { IBrowserViewBounds } from '../../../../platform/browserView/common/browserView.js';
 import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -67,6 +68,7 @@ export class CanvasEditor extends EditorPane {
 	private readonly presentationVisible = observableValue(this, false);
 	private readonly semanticChanged = this._register(new Emitter<void>());
 	private loadSequence = 0;
+	private layoutSequence = 0;
 	private loadingKey: string | undefined;
 	private loadedKey: string | undefined;
 	private semanticSequence = 0;
@@ -216,6 +218,12 @@ export class CanvasEditor extends EditorPane {
 		}
 		this.modelLifetime.clear();
 		this.model = model;
+		this.layoutSequence++;
+		this.presentationVisible.set(false, undefined);
+		if (model) {
+			// Attach hidden: only `layout` may reveal the native view, after its visible bounds are applied.
+			this.host.setVisible(false);
+		}
 		this.host.setModel(model);
 		this.invalidateSemanticContent();
 		this.helpAnnounced = false;
@@ -258,7 +266,6 @@ export class CanvasEditor extends EditorPane {
 				void this._load(input, `${canvas.resource.toString()}\u0000${canvas.source.toString()}`);
 			}
 		}));
-		this.host.setVisible(this.editorVisible.get());
 		this.layout();
 	}
 
@@ -286,48 +293,84 @@ export class CanvasEditor extends EditorPane {
 	}
 
 	override layout(): void {
-		if (!this.model) {
+		const model = this.model;
+		if (!model) {
 			return;
 		}
+		const sequence = ++this.layoutSequence;
+		const { rect, bounds, visible } = this._measure();
+		this.container.style.left = `${bounds.x - rect.left}px`;
+		this.container.style.top = `${bounds.y - rect.top}px`;
+		this.container.style.width = `${bounds.width}px`;
+		this.container.style.height = `${bounds.height}px`;
+		if (!visible) {
+			// Keep the last valid native bounds; empty or off-screen bounds must never be revealed.
+			this.presentationVisible.set(false, undefined);
+			this.host.setVisible(false);
+			this.host.layout();
+			return;
+		}
+		void this._layoutAndReveal(model, bounds, sequence);
+	}
+
+	/**
+	 * Reveals the native view only after it has applied `bounds`, or it shows at stale bounds.
+	 * A newer layout, a hide or a model change supersedes the reveal.
+	 */
+	private async _layoutAndReveal(model: IBrowserViewModel, bounds: IBrowserViewBounds, sequence: number): Promise<void> {
+		let applied = false;
+		try {
+			await model.layout(bounds);
+			applied = true;
+		} catch (error) {
+			this.logService.error('[CanvasEditor] Failed to layout canvas', error);
+		}
+		if (sequence !== this.layoutSequence || this.model !== model) {
+			return;
+		}
+		// The pane can be hidden or moved off-screen without a new layout while the bounds are applied.
+		const visible = applied && this._measure().visible;
+		this.presentationVisible.set(visible, undefined);
+		if (!visible) {
+			this.host.setVisible(false);
+		}
+		// Refreshing overlays can reveal a visible host that is no longer obscured, so it must follow the bounds.
+		this.host.layout();
+		if (visible) {
+			this.host.setVisible(true);
+		}
+	}
+
+	private _measure(): { readonly rect: DOMRect; readonly bounds: IBrowserViewBounds; readonly visible: boolean } {
 		const rect = this.wrapper.getBoundingClientRect();
 		const zoomFactor = getZoomFactor(this.window);
 		const snap = (value: number) => Math.floor(value * zoomFactor) / zoomFactor;
-		const x = snap(rect.left);
-		const y = snap(rect.top);
-		const width = snap(rect.width);
-		const height = snap(rect.height);
+		const bounds = { x: snap(rect.left), y: snap(rect.top), width: snap(rect.width), height: snap(rect.height), windowId: this.group.windowId, zoomFactor, cornerRadius: 0 };
 		const visible = this.editorVisible.get()
-			&& width > 0
-			&& height > 0
+			&& bounds.width > 0
+			&& bounds.height > 0
 			&& rect.right > 0
 			&& rect.bottom > 0
 			&& rect.left < this.window.innerWidth
 			&& rect.top < this.window.innerHeight;
-		this.presentationVisible.set(visible, undefined);
-		this.host.setVisible(visible);
-		this.container.style.left = `${x - rect.left}px`;
-		this.container.style.top = `${y - rect.top}px`;
-		this.container.style.width = `${width}px`;
-		this.container.style.height = `${height}px`;
-		void this.model.layout({ x, y, width, height, windowId: this.group.windowId, zoomFactor, cornerRadius: 0 })
-			.catch(error => this.logService.error('[CanvasEditor] Failed to layout canvas', error));
-		this.host.layout();
+		return { rect, bounds, visible };
 	}
 
 	protected override setEditorVisible(visible: boolean): void {
 		this.editorVisible.set(visible, undefined);
-		if (!visible) {
-			this.presentationVisible.set(false, undefined);
-		}
-		this.host?.setVisible(visible);
 		this.pendingVisibleLayout.clear();
-		if (visible) {
-			this.pendingVisibleLayout.value = scheduleAtNextAnimationFrame(this.window, () => {
-				if (this.editorVisible.get()) {
-					this.layout();
-				}
-			});
+		if (!visible) {
+			this.layoutSequence++;
+			this.presentationVisible.set(false, undefined);
+			this.host?.setVisible(false);
+			return;
 		}
+		// A pane can be told it is visible inside a hidden editor part, so only `layout` reveals it.
+		this.pendingVisibleLayout.value = scheduleAtNextAnimationFrame(this.window, () => {
+			if (this.editorVisible.get()) {
+				this.layout();
+			}
+		});
 	}
 
 	override focus(): void {

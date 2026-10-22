@@ -145,6 +145,8 @@ import { IEnvironmentVariableService } from '../../contrib/terminal/common/envir
 import { EnvironmentVariableService } from '../../contrib/terminal/common/environmentVariableService.js';
 import { IRegisterContributedProfileArgs, IShellLaunchConfigResolveOptions, ITerminalProfileProvider, ITerminalProfileResolverService, ITerminalProfileService, type ITerminalConfiguration } from '../../contrib/terminal/common/terminal.js';
 import { IChatEntitlementService } from '../../services/chat/common/chatEntitlementService.js';
+import { ChatSideChatService, IChatSideChatService } from '../../contrib/chat/common/chatSideChatService.js';
+import { ChatRequestOriginService, IChatRequestOriginService } from '../../contrib/chat/common/chatRequestOrigin.js';
 import { IManagedSettingsService, NullManagedSettingsService } from '../../../platform/policy/common/copilotManagedSettings.js';
 import { AccountPolicyGateState, IAccountPolicyGateService } from '../../services/policies/common/accountPolicyService.js';
 import { IDecoration, IDecorationData, IDecorationsProvider, IDecorationsService, IResourceDecorationChangeEvent } from '../../services/decorations/common/decorations.js';
@@ -390,6 +392,8 @@ export function workbenchInstantiationService(
 	instantiationService.stub(ICustomEditorLabelService, disposables.add(new CustomEditorLabelService(configService, workspaceContextService)));
 	instantiationService.stub(IHoverService, NullHoverService);
 	instantiationService.stub(IChatEntitlementService, new TestChatEntitlementService());
+	instantiationService.stub(IChatSideChatService, disposables.add(new ChatSideChatService()));
+	instantiationService.stub(IChatRequestOriginService, disposables.add(new ChatRequestOriginService()));
 	instantiationService.stub(IAgentHostConnectionsService, { resolveSessionResourceIdentity: () => undefined });
 	instantiationService.stub(IManagedSettingsService, new NullManagedSettingsService());
 	instantiationService.stub(IAccountPolicyGateService, { _serviceBrand: undefined, gateInfo: { state: AccountPolicyGateState.Inactive }, onDidChangeGateInfo: Event.None, whenInitialized: async () => { } });

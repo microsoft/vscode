@@ -29,6 +29,7 @@ import { AgentSession, AuthenticateParams, AuthenticateResult, CODEX_AGENT_PROVI
 import { AgentMergeSessionOverrides, AgentMergeSessionState, readAgentMergeFolderState, readAgentMergeFolderStates } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { readAgentSdkSetupInfos } from '../../../../../platform/agentHost/common/agentSdkSetup.js';
 import { AgentHostPrewarmSessionsSettingId, type IAgentCanvasInfo, IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import { readSessionArtifacts } from '../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { fromAgentHostUri, type AgentHostUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import type { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AgentHostTransportFailureReason } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
@@ -93,6 +94,9 @@ import { USE_WORKTREE_SETTING, isSessionConfigComplete } from '../../../../commo
 import { linkKey } from '../../../../common/sessionLinks.js';
 import { ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionOwnedGitHubPullRequestRefs, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, isActiveSessionStatus, ISession, ISessionAgentRef, ISessionApplication, ISessionEnvironment, ISessionArtifact, ISessionCanvas, ISessionCanvasDefinition, ISessionCapabilities, ISessionChangesSummary, ISessionChatCustomization, ISessionChangeset, ISessionCreationReference, ISessionFileChange, ISessionPreparationProgress, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, sessionWorkspaceEqual, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus, SessionTypeAuthRequirement, toSessionId, type SessionCanvasDefinitionSnapshot } from '../../../../services/sessions/common/session.js';
 import { dedupeLinks, partitionSessionArtifacts, type IRecordedGitHubReference } from './agentHostSessionArtifacts.js';
+import { AgentHostArtifactIntegrations, mapArtifactModelChats } from './agentHostArtifactIntegrations.js';
+import { createGitHubPullRequestArtifactWorkspaceConfigurationSynchronizer } from './githubPullRequestArtifactWorkspaceConfiguration.js';
+import { IArtifactModel } from '../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import type { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
@@ -1233,11 +1237,6 @@ class AdditionalChat extends Disposable {
 		return this._workingDirectories.get();
 	}
 
-	/** {@link ownWorkingDirectories}, tracked by `reader`. */
-	readOwnWorkingDirectories(reader: IReader | undefined): readonly string[] | undefined {
-		return this._workingDirectories.read(reader);
-	}
-
 	toMetadata(): IAgentSessionChatMetadata {
 		const changes = this._changesSummary.get();
 		const workingDirectories = this._workingDirectories.get();
@@ -1788,6 +1787,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			return {
 				supportsRemoveArtifacts: !!connection?.removeSessionArtifact && supportsAgentHostArtifactRemoval(connection.initializeResult.read(reader)),
 				supportsImport: this.isExternal.read(reader) && !!connection?.importSession && supportsAgentHostSessionImport(connection.initializeResult.read(reader)),
+				...(connection?.artifactIntegrationTransport ? { supportsArtifactIntegrations: true } : {}),
 				supportsCanvases: this._options.supportsCanvasPresentation?.(this.agentProvider) === true,
 				supportsMultipleChats: agentCapabilities?.multipleChats !== undefined,
 				supportsIndependentChatReadState: this._supportsChatReadState.read(reader),
@@ -2304,38 +2304,19 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	}
 
 	/**
-	 * The folders a new nested chat may work in: the session folder (the default chat's first folder that is not a
-	 * host scratch folder; `undefined` in a workspace-less session) and the non-scratch folders of all its chats,
-	 * session folder first, deduped. Reads cached summaries only, tracked by `reader`.
+	 * The session folder a new nested chat works in by default: the default chat's first folder that is not a host
+	 * scratch folder; `undefined` in a workspace-less session. Reads cached summaries only, tracked by `reader`.
 	 */
-	getNestedChatFolders(reader: IReader | undefined): { readonly sessionFolder: URI | undefined; readonly folders: readonly URI[] } {
-		// The chat catalog and the session workspace change with the chats and session folders read below.
-		this._chatsObs.read(reader);
+	getNestedChatSessionFolder(reader: IReader | undefined): URI | undefined {
+		// The session workspace changes with the session folders read below.
 		this.workspace.read(reader);
-		const scratch = this._scratchFolders.read(reader);
-		const isQuickChat = this.isQuickChat.read(reader);
-		const defaultChatWorkingDirectories = this._defaultChatWorkingDirectories.read(reader);
-		// A chat without folders of its own works in its session's: only the scratch primary of a quick chat.
-		const foldersOf = (directories: readonly string[] | undefined): readonly URI[] => directories
-			? directories.map(directory => this._mapWorkingDirectory(URI.parse(directory)))
-			: isQuickChat ? this.workingDirectories.slice(0, 1) : this.workingDirectories;
-		// A quick chat's primary folder is the host's scratch folder for it, published or not: it is
-		// never offered, so a chat can only get a scratch folder of its own through "No Workspace".
-		const quickChatPrimary = isQuickChat ? this.workingDirectories[0] : undefined;
-		const isScratch = (folder: URI) => !!scratch?.has(folder) || (!!quickChatPrimary && isEqual(folder, quickChatPrimary));
-		const folders = new ResourceSet();
-		for (const directories of [defaultChatWorkingDirectories, ...[...this._additionalChats.values()].map(chat => chat.readOwnWorkingDirectories(reader))]) {
-			for (const folder of foldersOf(directories)) {
-				if (!isScratch(folder)) {
-					folders.add(folder);
-				}
-			}
+		if (this.isQuickChat.read(reader)) {
+			return undefined;
 		}
-		const sessionFolder = isQuickChat ? undefined : foldersOf(defaultChatWorkingDirectories).find(folder => !scratch?.has(folder));
-		return {
-			sessionFolder,
-			folders: sessionFolder ? [sessionFolder, ...[...folders].filter(folder => !isEqual(folder, sessionFolder))] : [...folders],
-		};
+		const scratch = this._scratchFolders.read(reader);
+		const directories = this._defaultChatWorkingDirectories.read(reader);
+		const folders = directories ? directories.map(directory => this._mapWorkingDirectory(URI.parse(directory))) : this.workingDirectories;
+		return folders.find(folder => !scratch?.has(folder));
 	}
 
 	/** Whether `chat` is one of the backend chats this session's catalog lists. */
@@ -4554,6 +4535,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * the next successful refresh.
 	 */
 	private readonly _sessionRefreshRetry = this._register(new MutableDisposable());
+	private readonly _artifactIntegrations = this._register(new MutableDisposable<AgentHostArtifactIntegrations>());
 
 	/** Current backoff delay (ms) for the session-refresh retry. */
 	private _sessionRefreshRetryDelay = BaseAgentHostSessionsProvider.SESSION_REFRESH_RETRY_MIN_MS;
@@ -4615,6 +4597,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._syncActiveChatConfigPins(reader, this._sessionsService.visibleSessions.read(reader));
 		}));
 		this._register(this._onDidChangeSessionsImmediately(() => {
+			if (this.connection?.connectionAvailable) {
+				this._getArtifactIntegrations().setConnection(this.connection);
+			}
 			for (const sessionId of this._observedAgentMergeSessionStates.keys()) {
 				this._keepAgentMergeSessionStateAlive(sessionId);
 			}
@@ -7444,6 +7429,54 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		await connection.removeSessionArtifact(cached.backendUri, artifactId);
 	}
 
+	private _getArtifactIntegrations(): AgentHostArtifactIntegrations {
+		if (!this._artifactIntegrations.value) {
+			const provider: IAgentHostSessionsProvider = this;
+			this._artifactIntegrations.value = this._instantiationService.createInstance(
+				AgentHostArtifactIntegrations,
+				this.id,
+				provider.remoteAddress,
+				undefined,
+				createGitHubPullRequestArtifactWorkspaceConfigurationSynchronizer(this._baseConfigurationService),
+			);
+		}
+		return this._artifactIntegrations.value;
+	}
+
+	async acquireArtifactIntegration(sessionId: string, artifactId: string): Promise<IReference<IArtifactModel>> {
+		const rawId = this._sessionKeyFromChatId(sessionId);
+		const session = rawId ? this._sessionCache.get(rawId) : undefined;
+		if (!session) {
+			throw new Error(localize('artifactIntegrationSessionMissing', "The artifact's session is unavailable."));
+		}
+		const integrations = this._getArtifactIntegrations();
+		integrations.setConnection(this.connection);
+		const workspace = derived(reader => {
+			const artifact = session.artifacts.read(reader).find(artifact => artifact.id === artifactId);
+			if (!artifact?.isArtifact) {
+				return undefined;
+			}
+			const state = this._lastSessionStates.get(session.sessionId);
+			const recorded = readSessionArtifacts(state?._meta).find(artifact => artifact.id === artifactId);
+			const origin = recorded?.origin?.chat ?? state?.defaultChat;
+			const chat = state && session.chats.read(reader).find(chat => getSessionChatResource(state, chat.resource.fragment || DEFAULT_CHAT_ID, state.defaultChat) === origin);
+			const folder = chat?.workspace.read(reader)?.folders[0];
+			return folder && origin ? { chat: origin, workingDirectory: fromAgentHostUri(folder.workingDirectory).toString(), resource: folder.root } : undefined;
+		});
+		const reference = await integrations.acquireArtifact(session.backendUri.toString(), artifactId, workspace);
+		const chats = derived(reader => {
+			const state = this._lastSessionStates.get(session.sessionId);
+			return session.chats.read(reader).map(chat => ({
+				client: chat.resource,
+				backend: state && getSessionChatResource(state, chat.resource.fragment || DEFAULT_CHAT_ID, state.defaultChat),
+			}));
+		});
+		return {
+			object: mapArtifactModelChats(reference.object, chats, (first, second) => this._uriIdentityService.extUri.isEqual(first, second)),
+			dispose: () => reference.dispose(),
+		};
+	}
+
 	async deleteChat(sessionId: string, chatUri: URI, options?: IDeleteChatOptions): Promise<boolean> {
 		this._assertSessionAvailable(sessionId);
 		const chatId = chatUri.fragment;
@@ -7507,10 +7540,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!cached) {
 			return undefined;
 		}
-		const { sessionFolder, folders } = cached.getNestedChatFolders(reader);
 		return {
-			sessionFolder,
-			sessionFolders: folders,
+			sessionFolder: cached.getNestedChatSessionFolder(reader),
 			multipleFolders: !!this._agentCapabilities.read(reader)?.get(cached.agentProvider)?.multipleWorkingDirectories,
 			browseActions: this.browseActions,
 		};

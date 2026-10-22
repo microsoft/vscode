@@ -118,7 +118,7 @@ describe('createGptLiveSession', () => {
 				json: {
 					session: {
 						model: 'configured-live-model',
-						instructions: expect.stringContaining('Handle session awareness and session navigation yourself with the client session tools'),
+						instructions: expect.stringContaining('Generate <|SpawnThinking|> before acknowledging any request that needs backend work.'),
 						delegation: { type: 'client' },
 					},
 					transport: {
@@ -128,6 +128,14 @@ describe('createGptLiveSession', () => {
 				},
 			},
 		});
+		for (const instruction of [
+			'Backend tools: The client starts coding sessions, creates or edits files, runs commands, answers coding questions, handles session awareness and navigation, and applies replies to pending questions or approvals.',
+			'new-session input when no session exists',
+			'Wait for the client result before saying the request was accepted or an action succeeded.',
+			'Do not generate <|SpawnThinking|> when:',
+		]) {
+			expect(fetcher.fetch.mock.calls[0][1].json).toMatchObject({ session: { instructions: expect.stringContaining(instruction) } });
+		}
 		expect(JSON.stringify(result)).not.toContain('secret-key');
 	});
 

@@ -38,7 +38,7 @@
 
 .chat-system-notification-disclosure-header {
 	display: flex;
-	align-items: center;
+	align-items: flex-start;
 	gap: var(--vscode-spacing-size40);
 	width: fit-content;
 	color: inherit;
@@ -47,6 +47,11 @@
 
 .chat-system-notification-disclosure-header.monaco-button {
 	padding: 0;
+}
+
+.chat-system-notification-disclosure-header > .codicon {
+	flex-shrink: 0;
+	line-height: inherit;
 }
 
 .chat-system-notification-disclosure-header:hover {
