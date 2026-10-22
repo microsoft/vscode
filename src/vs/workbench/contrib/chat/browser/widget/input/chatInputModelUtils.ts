@@ -71,7 +71,7 @@ export function filterModelsForSession(
 
 		const byokScoped = models.filter(entry =>
 			!entry.metadata?.targetChatSessionType &&
-			isByokModel(entry.metadata) &&
+			entry.metadata !== undefined && isByokModel(entry.metadata) &&
 			entry.metadata?.isUserSelectable !== false &&
 			isModelSupportedForMode(entry, currentModeKind) &&
 			isModelSupportedForInlineChat(entry, location)
