@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICustomizationHarnessService } from '../../customizationHarnessService.js';
+import { ICustomizationHarnessService, type IHarnessDescriptor } from '../../customizationHarnessService.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
 import { Target } from '../promptTypes.js';
 
@@ -23,10 +23,7 @@ export function resolveAgentFileModels(
 	harnessService: ICustomizationHarnessService,
 	languageModelsService: ILanguageModelsService,
 ): IAgentFileModelCatalogue {
-	const activeDescriptor = harnessService.getActiveDescriptor();
-	const descriptors = activeDescriptor.customAgentTarget === target
-		? [activeDescriptor]
-		: harnessService.availableHarnesses.get().filter(descriptor => descriptor.customAgentTarget === target);
+	const descriptors = resolveMatchingAgentFileHarnesses(target, harnessService);
 	const harnessIds = new Set(descriptors.map(descriptor => descriptor.id));
 	const models: IAgentFileModel[] = [];
 
@@ -36,6 +33,7 @@ export function resolveAgentFileModels(
 		if (!metadata || !harnessId || !harnessIds.has(harnessId) || metadata.isUserSelectable === false) {
 			continue;
 		}
+
 		models.push({ id: metadata.id, metadata, harnessId });
 	}
 
@@ -43,6 +41,13 @@ export function resolveAgentFileModels(
 		models,
 		isResolved: descriptors.length > 0 && descriptors.every(descriptor => descriptor.modelCatalogueStatus?.get() === 'ready'),
 	};
+}
+
+export function resolveMatchingAgentFileHarnesses(target: Target, harnessService: ICustomizationHarnessService): readonly IHarnessDescriptor[] {
+	const activeDescriptor = harnessService.getActiveDescriptor();
+	return activeDescriptor.customAgentTarget === target
+		? [activeDescriptor]
+		: harnessService.availableHarnesses.get().filter(descriptor => descriptor.customAgentTarget === target);
 }
 
 export function getAgentFileModelReasoningEfforts(model: IAgentFileModel): readonly string[] {

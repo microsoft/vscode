@@ -548,12 +548,12 @@ suite('Changes View Actions', () => {
 		concurrent.picker.dispose();
 	});
 
-	test('collapse all diffs is contributed to the editor header layout overflow menu', () => {
-		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout)
+	test('collapse all diffs is contributed to the tab-level editor overflow menu', () => {
+		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorTitle)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'workbench.action.agentSessions.collapseAllDiffs');
 
-		assert.ok(item, 'expected collapse all diffs action in the editor header layout overflow menu');
+		assert.ok(item, 'expected collapse all diffs action in the tab-level editor overflow menu');
 		const when = item.when?.serialize() ?? '';
 		assert.deepStrictEqual({
 			group: item.group,
@@ -564,7 +564,7 @@ suite('Changes View Actions', () => {
 			hasDesktopLayoutGate: when.includes(DesktopLayoutContext.key),
 			hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
 		}, {
-			group: 'secondary/1_diff',
+			group: '1_diff',
 			order: 10,
 			icon: Codicon.collapseAll.id,
 			hasSessionsWindowGate: true,
@@ -574,12 +574,12 @@ suite('Changes View Actions', () => {
 		});
 	});
 
-	test('expand all diffs is contributed to the editor header layout overflow menu', () => {
-		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout)
+	test('expand all diffs is contributed to the tab-level editor overflow menu', () => {
+		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorTitle)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'workbench.action.agentSessions.expandAllDiffs');
 
-		assert.ok(item, 'expected expand all diffs action in the editor header layout overflow menu');
+		assert.ok(item, 'expected expand all diffs action in the tab-level editor overflow menu');
 		const when = item.when?.serialize() ?? '';
 		assert.deepStrictEqual({
 			group: item.group,
@@ -591,7 +591,7 @@ suite('Changes View Actions', () => {
 			hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
 			hasAllCollapsedGate: when.includes(EditorContextKeys.multiDiffEditorAllCollapsed.key),
 		}, {
-			group: 'secondary/1_diff',
+			group: '1_diff',
 			order: 10,
 			icon: Codicon.expandAll.id,
 			hasSessionsWindowGate: true,
@@ -873,78 +873,145 @@ suite('Changes View Actions', () => {
 		assert.strictEqual(getChangesAccessibilityHelp().includes('Use Word Wrap in the editor title area\'s More Actions menu'), true);
 	});
 
-	test('view mode toggles are in the editor title overflow for non-text single-file diffs', () => {
-		const getItems = (menuId: MenuId) => MenuRegistry.getMenuItems(menuId)
+	test('Changes accessibility help describes Files View and its selection state', () => {
+		const content = getChangesAccessibilityHelp();
+		assert.deepStrictEqual({
+			hasMenuLocation: content.includes('Use Files View in the editor title area\'s More Actions menu'),
+			hasSelectionState: content.includes('Files View shows both options and marks the active one as selected'),
+		}, {
+			hasMenuLocation: true,
+			hasSelectionState: true,
+		});
+	});
+
+	test('Changes accessibility help describes tab-level actions and the final Files View group', () => {
+		const content = getChangesAccessibilityHelp();
+		assert.deepStrictEqual({
+			hasToolbarLocation: content.includes('toolbar beside the editor tabs, before the separator and layout actions'),
+			hasFilesViewGroup: content.includes('Files View submenu in the final group'),
+		}, {
+			hasToolbarLocation: true,
+			hasFilesViewGroup: true,
+		});
+	});
+
+	test('Changes header layout actions move to the tab-level overflow with Files View in its own final group', () => {
+		const getGroups = (menuId: MenuId) => [...new Set(MenuRegistry.getMenuItems(menuId).flatMap(item => item.group ? [item.group] : []))].sort();
+		const overflowGroups = getGroups(Menus.SessionsEditorTitle).filter(group => group !== 'navigation');
+		assert.deepStrictEqual({
+			oldHeaderItems: MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout)
+				.map(item => isIMenuItem(item) ? item.command.id : item.submenu.id),
+			lastOverflowGroup: overflowGroups.at(-1),
+			filesViewGroupItems: MenuRegistry.getMenuItems(Menus.SessionsEditorTitle)
+				.filter(item => item.group === 'z_filesView')
+				.map(item => isIMenuItem(item) ? item.command.id : item.submenu.id),
+		}, {
+			oldHeaderItems: [],
+			lastOverflowGroup: 'z_filesView',
+			filesViewGroupItems: [Menus.ChangesFilesView.id],
+		});
+	});
+
+	test('Files View submenu preserves editor title overflow visibility for Changes and single-file diffs', () => {
+		const submenu = MenuRegistry.getMenuItems(Menus.SessionsEditorTitle)
+			.filter(isISubmenuItem)
+			.find(item => item.submenu === Menus.ChangesFilesView);
+		assert.ok(submenu);
+
+		const isVisible = (overrides: Record<string, string | boolean>) => {
+			const context = new Context(1, null);
+			for (const [key, value] of Object.entries({
+				[IsSessionsWindowContext.key]: true,
+				[DesktopDiffEditorInputActiveContext.key]: true,
+				[DesktopLayoutContext.key]: true,
+				[IsAuxiliaryWindowContext.key]: false,
+				[IsTopRightEditorGroupContext.key]: true,
+				[AuxiliaryBarVisibleContext.key]: true,
+				...overrides,
+			})) {
+				context.setValue(key, value);
+			}
+			return submenu.when?.evaluate(context) ?? true;
+		};
+		const getDirectViewModeItems = (menuId: MenuId) => MenuRegistry.getMenuItems(menuId)
 			.filter(isIMenuItem)
 			.filter(item => item.command.id === 'workbench.action.agentSessions.setChangesListViewMode' || item.command.id === 'workbench.action.agentSessions.setChangesTreeViewMode')
+			.map(item => item.command.id);
+
+		assert.deepStrictEqual({
+			title: typeof submenu.title === 'string' ? submenu.title : submenu.title.value,
+			group: submenu.group,
+			order: submenu.order,
+			visibleInListMode: isVisible({ [ChangesContextKeys.ViewMode.key]: ChangesViewMode.List }),
+			visibleInTreeMode: isVisible({ [ChangesContextKeys.ViewMode.key]: ChangesViewMode.Tree }),
+			visibleForChangesEditor: isVisible({ [DesktopDiffEditorInputActiveContext.key]: false, [ActiveEditorContext.key]: SessionChangesEditor.ID }),
+			visibleForUnrelatedEditor: isVisible({ [DesktopDiffEditorInputActiveContext.key]: false }),
+			visibleOutsideSessions: isVisible({ [IsSessionsWindowContext.key]: false }),
+			visibleInMobileLayout: isVisible({ [DesktopLayoutContext.key]: false }),
+			visibleInAuxiliaryWindow: isVisible({ [IsAuxiliaryWindowContext.key]: true }),
+			visibleInOtherGroup: isVisible({ [IsTopRightEditorGroupContext.key]: false }),
+			visibleWithoutChangesPane: isVisible({ [AuxiliaryBarVisibleContext.key]: false }),
+			headerLayoutItems: getDirectViewModeItems(Menus.SessionsEditorHeaderLayout),
+			editorTitleItems: getDirectViewModeItems(Menus.SessionsEditorTitle),
+		}, {
+			title: 'Files View',
+			group: 'z_filesView',
+			order: 20,
+			visibleInListMode: true,
+			visibleInTreeMode: true,
+			visibleForChangesEditor: true,
+			visibleForUnrelatedEditor: false,
+			visibleOutsideSessions: false,
+			visibleInMobileLayout: false,
+			visibleInAuxiliaryWindow: false,
+			visibleInOtherGroup: false,
+			visibleWithoutChangesPane: false,
+			headerLayoutItems: [],
+			editorTitleItems: [],
+		});
+	});
+
+	test('Files View shows both modes and selects only the active mode', () => {
+		const items = MenuRegistry.getMenuItems(Menus.ChangesFilesView)
+			.filter(isIMenuItem)
 			.map(item => {
-				const when = item.when?.serialize() ?? '';
-				const context = new Context(1, null);
-				context.setValue(IsSessionsWindowContext.key, true);
-				context.setValue(DesktopDiffEditorInputActiveContext.key, true);
-				context.setValue(DesktopLayoutContext.key, true);
-				context.setValue(IsAuxiliaryWindowContext.key, false);
-				context.setValue(IsTopRightEditorGroupContext.key, true);
-				context.setValue(AuxiliaryBarVisibleContext.key, true);
-				context.setValue(
-					ChangesContextKeys.ViewMode.key,
-					item.command.id === 'workbench.action.agentSessions.setChangesListViewMode' ? ChangesViewMode.Tree : ChangesViewMode.List
-				);
+				const getState = (mode: ChangesViewMode) => {
+					const context = new Context(1, null);
+					context.setValue(ChangesContextKeys.ViewMode.key, mode);
+					return {
+						visible: item.when?.evaluate(context) ?? true,
+						selected: getToggledExpression(item.command.toggled)?.evaluate(context) ?? false,
+					};
+				};
 				return {
 					id: item.command.id,
 					title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
 					group: item.group,
 					order: item.order,
 					icon: ThemeIcon.isThemeIcon(item.command.icon) ? item.command.icon.id : undefined,
-					hasSessionsWindowGate: when.includes(IsSessionsWindowContext.key),
-					hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditor.ID),
-					hasDiffEditorInputGate: when.includes(DesktopDiffEditorInputActiveContext.key),
-					hasDesktopLayoutGate: when.includes(DesktopLayoutContext.key),
-					hasAuxBarVisibleGate: when.includes(AuxiliaryBarVisibleContext.key),
-					hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
-					hasViewModeGate: when.includes(ChangesContextKeys.ViewMode.key),
-					matchesSingleFileDiffContext: item.when?.evaluate(context) ?? false,
+					inListMode: getState(ChangesViewMode.List),
+					inTreeMode: getState(ChangesViewMode.Tree),
 				};
 			})
 			.sort((a, b) => a.id.localeCompare(b.id));
 
-		const expectedItems = (group: string) => [{
+		assert.deepStrictEqual(items, [{
 			id: 'workbench.action.agentSessions.setChangesListViewMode',
 			title: 'View as List',
-			group,
-			order: 20,
+			group: '1_viewMode',
+			order: 1,
 			icon: Codicon.listFlat.id,
-			hasSessionsWindowGate: true,
-			hasActiveEditorGate: true,
-			hasDiffEditorInputGate: true,
-			hasDesktopLayoutGate: true,
-			hasAuxBarVisibleGate: true,
-			hasEditorAreaVisibleGate: false,
-			hasViewModeGate: true,
-			matchesSingleFileDiffContext: true,
+			inListMode: { visible: true, selected: true },
+			inTreeMode: { visible: true, selected: false },
 		}, {
 			id: 'workbench.action.agentSessions.setChangesTreeViewMode',
 			title: 'View as Tree',
-			group,
-			order: 20,
+			group: '1_viewMode',
+			order: 2,
 			icon: Codicon.listTree.id,
-			hasSessionsWindowGate: true,
-			hasActiveEditorGate: true,
-			hasDiffEditorInputGate: true,
-			hasDesktopLayoutGate: true,
-			hasAuxBarVisibleGate: true,
-			hasEditorAreaVisibleGate: false,
-			hasViewModeGate: true,
-			matchesSingleFileDiffContext: true,
-		}];
-
-		assert.deepStrictEqual({
-			headerLayout: getItems(Menus.SessionsEditorHeaderLayout),
-			editorTitleOverflow: getItems(Menus.SessionsEditorTitle),
-		}, {
-			headerLayout: [],
-			editorTitleOverflow: expectedItems('2_viewMode'),
-		});
+			inListMode: { visible: true, selected: false },
+			inTreeMode: { visible: true, selected: true },
+		}]);
 	});
 
 	test('Files View & Position is in the editor title overflow for multi diff editors with a file list', () => {

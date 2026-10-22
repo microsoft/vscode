@@ -174,13 +174,18 @@ function getCustomAgentHooks(md: MarkdownNode): CustomAgentConfig['hooks'] {
  * Each agent file is read and (when present) its YAML frontmatter is parsed:
  *  - `name` falls back to the agent's resource name (filename stem).
  *  - `description` is forwarded verbatim.
- *  - `tools` is forwarded as the SDK's allow-list; an empty / missing array
- *    becomes `null` so the SDK grants the agent access to all tools.
+ *  - Extension-qualified `tools` references are translated to their SDK registration names;
+ *    an empty / missing array becomes `null` so the SDK grants the agent access to all tools.
  *  - `reasoning-effort` is forwarded when it is a supported runtime value.
  *  - `prompt` is the markdown body that follows the frontmatter (or the
  *    full file content when there is no frontmatter).
  */
-export async function toSdkCustomAgents(agents: readonly INamedPluginResource[], fileService: IFileService, availableModelIds?: ReadonlySet<string>): Promise<ICopilotCustomAgentConfig[]> {
+export async function toSdkCustomAgents(
+	agents: readonly INamedPluginResource[],
+	fileService: IFileService,
+	availableModelIds?: ReadonlySet<string>,
+	clientToolNames?: ReadonlyMap<string, string>,
+): Promise<ICopilotCustomAgentConfig[]> {
 	const configs: ICopilotCustomAgentConfig[] = [];
 	for (const agent of agents) {
 		try {
@@ -217,7 +222,7 @@ export async function toSdkCustomAgents(agents: readonly INamedPluginResource[],
 					...(description ? { description } : {}),
 					...(model ? { model } : {}),
 					...(isCustomAgentReasoningEffort(reasoningEffort) ? { reasoningEffort } : {}),
-					tools: tools && tools.length > 0 ? tools : null,
+					tools: tools && tools.length > 0 ? tools.map(tool => clientToolNames?.get(tool) ?? tool) : null,
 					...(skills !== undefined ? { skills } : {}),
 					...(hooks ? { hooks } : {}),
 					...(infer !== undefined ? { infer } : {}),
@@ -249,8 +254,9 @@ export async function toSdkSessionCustomAgents(
 	plugins: readonly IPluginAgentsForSdk[],
 	fileService: IFileService,
 	availableModelIds?: ReadonlySet<string>,
+	clientToolNames?: ReadonlyMap<string, string>,
 ): Promise<ICopilotCustomAgentConfig[]> {
-	return toSdkCustomAgents(plugins.flatMap(plugin => plugin.agents), fileService, availableModelIds);
+	return toSdkCustomAgents(plugins.flatMap(plugin => plugin.agents), fileService, availableModelIds, clientToolNames);
 }
 
 /**
