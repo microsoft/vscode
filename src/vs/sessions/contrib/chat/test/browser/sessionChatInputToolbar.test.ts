@@ -11,7 +11,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ImmortalReference, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable, derived, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, observableValue } from '../../../../../base/common/observable.js';
 import { SubmenuAction, type IAction } from '../../../../../base/common/actions.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -26,8 +26,11 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ArtifactIntegrationsSettingId, ArtifactSnapshot, IArtifactModel } from '../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import type { IChatPillEntry } from '../../../../../workbench/browser/chatPills.js';
 import { IBrowserViewWorkbenchService } from '../../../../../workbench/contrib/browserView/common/browserView.js';
@@ -39,6 +42,10 @@ import { workbenchInstantiationService } from '../../../../../workbench/test/bro
 import { ChatPillHoverCache } from '../../../../../workbench/browser/chatPillHover.js';
 import { ChatDropdownPillActionViewItem } from '../../../../../workbench/browser/chatDropdownPill.js';
 import { IWorkbenchGitHubService } from '../../../../../workbench/services/github/common/githubService.js';
+import { IExternalUriOpener, IExternalUriOpenerService } from '../../../../../workbench/contrib/externalUriOpener/common/externalUriOpenerService.js';
+import { IExtensionService } from '../../../../../workbench/services/extensions/common/extensions.js';
+import { externalUriOpenersSettingId } from '../../../../../workbench/contrib/externalUriOpener/common/configuration.js';
+import { SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -61,9 +68,9 @@ import { buildSessionArtifactSections, type ISessionArtifactActions } from '../.
 suite('SessionChatInputToolbar', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createServices(artifactIntegrationsEnabled = false) {
+	function createServices(artifactIntegrationsEnabled = false, gitHubActionsEnabled = true) {
 		const instantiationService = workbenchInstantiationService(undefined, store);
-		const configuration = new TestConfigurationService({ [ArtifactIntegrationsSettingId]: artifactIntegrationsEnabled });
+		const configuration = new TestConfigurationService({ [ArtifactIntegrationsSettingId]: artifactIntegrationsEnabled, [SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_SETTING]: gitHubActionsEnabled });
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		instantiationService.stub(IConfigurationService, configuration);
 		instantiationService.stub(IChatService, upcastPartial<IChatService>({
@@ -82,11 +89,321 @@ suite('SessionChatInputToolbar', () => {
 		instantiationService.stub(ISessionChangesStatsCache, upcastPartial<ISessionChangesStatsCache>({ get: () => undefined }));
 		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({ getProvider: () => undefined }));
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({}));
+		instantiationService.stub(IExternalUriOpenerService, upcastPartial<IExternalUriOpenerService>({
+			getOpener: async () => upcastPartial<IExternalUriOpener>({ id: 'test-opener' }),
+		}));
 		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({
 			visibleSessions: constObservable([]),
 			activeSession: constObservable(undefined),
 		}));
 		return { instantiationService, visibility, configuration };
+	}
+
+	async function createGitHubActivityBar(kind: SessionArtifactKind.PullRequest | SessionArtifactKind.Issue, providerId: string, getOpener?: IExternalUriOpenerService['getOpener'], gitHubActionsEnabled = true) {
+		const services = createServices(false, gitHubActionsEnabled);
+		const { instantiationService } = services;
+		const extensionsChanged = store.add(new Emitter<{ added: []; removed: [] }>());
+		instantiationService.stub(IExtensionService, 'onDidChangeExtensions', extensionsChanged.event);
+		if (getOpener) {
+			instantiationService.stub(IExternalUriOpenerService, 'getOpener', getOpener);
+		}
+		const sentiment = observableValue('sentiment', { hidden: false });
+		instantiationService.stub(IChatEntitlementService, {
+			sentimentObs: sentiment,
+			get sentiment() { return sentiment.get(); },
+		});
+		const main = upcastPartial<IChat>({ resource: URI.parse('chat:main'), title: constObservable('Main'), status: constObservable(SessionStatus.Completed) });
+		const peer = upcastPartial<IChat>({ resource: URI.parse('chat:peer'), title: constObservable('Peer'), status: constObservable(SessionStatus.Completed) });
+		const artifact = (number: number, chat: IChat, isArtifact = true): ISessionArtifact => ({
+			id: `artifact-${number}`, kind, label: `Item ${number}`, isArtifact, isGitHub: true, chat: chat.resource,
+			link: URI.parse(`https://github.com/owner/repo/${kind === SessionArtifactKind.PullRequest ? 'pull' : 'issues'}/${number}`),
+		});
+		const artifacts = observableValue<readonly ISessionArtifact[]>('artifacts', [artifact(1, main), artifact(2, peer), artifact(3, main, false)]);
+		const session = upcastPartial<IActiveSession>({
+			providerId, sessionId: 'session', resource: URI.parse('session:1'), artifacts,
+			loading: constObservable(false), capabilities: constObservable({ supportsMultipleChats: true }),
+			chats: constObservable([main, peer]), mainChat: constObservable(main), workspace: constObservable(undefined),
+		});
+		const pullRequest = observableValue<IGitHubPullRequest | undefined>('pull request', undefined);
+		instantiationService.stub(IGitHubService, upcastPartial<IGitHubService>({
+			createPullRequestModelReference: () => new ImmortalReference(upcastPartial<GitHubPullRequestModel>({ pullRequest })),
+			createIssueModelReference: () => new ImmortalReference(upcastPartial<GitHubIssueModel>({
+				issue: constObservable(undefined), refresh: async () => { }, startPolling: () => toDisposable(() => { }),
+			})),
+		}));
+		const opened: { command: string; number: number | undefined }[] = [];
+		instantiationService.stub(ISessionsService, 'setActive', (target: IActiveSession) => assert.strictEqual(target, session));
+		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({
+			executeCommand: async (command, context: { pullRequest?: IGitHubPullRequestRef; issue?: IGitHubIssueRef }) => {
+				opened.push({ command, number: (context.pullRequest ?? context.issue)?.number });
+				return undefined;
+			},
+		}));
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+		toolbar.setSession(session, main);
+		store.add(autorun(reader => toolbar.activityBarActions.read(reader)));
+		await timeout(0);
+		return { ...services, toolbar, session, main, peer, artifacts, artifact, opened, sentiment, pullRequest, extensionsChanged };
+	}
+
+	for (const kind of [SessionArtifactKind.PullRequest, SessionArtifactKind.Issue] as const) {
+		test(`activity bar opts ${kind} actions in without changing composer pills`, async () => {
+			let lookups = 0;
+			const { toolbar, configuration, opened } = await createGitHubActivityBar(kind, LOCAL_AGENT_HOST_PROVIDER_ID,
+				async () => {
+					lookups++;
+					return upcastPartial<IExternalUriOpener>({ id: 'supported' });
+				}, false);
+			const setEnabled = async (enabled: boolean | undefined) => {
+				await configuration.setUserConfiguration(SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_SETTING, enabled);
+				configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+					affectsConfiguration: key => key === SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_SETTING,
+				}));
+				await timeout(0);
+			};
+			await setEnabled(undefined);
+			const before = { actions: toolbar.activityBarActions.get().length, lookups, pill: toolbar.element.querySelector('.chat-dropdown-pill-button')?.getAttribute('aria-label') };
+			await setEnabled(true);
+			const enabled = toolbar.activityBarActions.get().length;
+			const stale = toolbar.activityBarActions.get()[0];
+			await setEnabled(false);
+			await stale.run();
+			assert.deepStrictEqual({
+				before, enabled, disabled: toolbar.activityBarActions.get().length,
+				composerUnchanged: toolbar.element.querySelector('.chat-dropdown-pill-button')?.getAttribute('aria-label') === before.pill, opened,
+			}, {
+				before: { actions: 0, lookups: 0, pill: `Open ${kind === SessionArtifactKind.PullRequest ? 'Pull Request' : 'Issue'} #1: Item 1` },
+				enabled: 1, disabled: 0, composerUnchanged: true, opened: [],
+			});
+		});
+	}
+
+	for (const kind of [SessionArtifactKind.PullRequest, SessionArtifactKind.Issue] as const) {
+		test(`activity bar hides ${kind} without a contributed opener and preserves its composer pill`, async () => {
+			const { toolbar } = await createGitHubActivityBar(kind, LOCAL_AGENT_HOST_PROVIDER_ID, async () => undefined);
+			assert.deepStrictEqual({
+				activityActions: toolbar.activityBarActions.get().length,
+				composerLabel: toolbar.element.querySelector('.chat-dropdown-pill-button')?.getAttribute('aria-label'),
+			}, {
+				activityActions: 0,
+				composerLabel: `Open ${kind === SessionArtifactKind.PullRequest ? 'Pull Request' : 'Issue'} #1: Item 1`,
+			});
+		});
+
+		test(`activity bar filters ${kind} picker entries by opener support`, async () => {
+			const { instantiationService, toolbar, artifacts, artifact, main, opened } = await createGitHubActivityBar(kind, LOCAL_AGENT_HOST_PROVIDER_ID,
+				async uri => uri.path.endsWith('/5') ? undefined : upcastPartial<IExternalUriOpener>({ id: 'supported' }));
+			artifacts.set([...artifacts.get(), artifact(4, main), artifact(5, main)], undefined);
+			await timeout(0);
+			let labels: string[] = [];
+			instantiationService.stub(IQuickInputService, 'pick', async (picks: IQuickPickItem[]) => {
+				labels = picks.map(pick => pick.label);
+				return picks[1];
+			});
+			await toolbar.activityBarActions.get()[0].run();
+			assert.deepStrictEqual({
+				label: toolbar.activityBarActions.get()[0].label,
+				numbers: labels.map(label => label.match(/#\d+/)?.[0]),
+				opened: opened.map(entry => entry.number),
+			}, { label: `Open ${kind === SessionArtifactKind.PullRequest ? 'Pull Request' : 'Issue'} (2)`, numbers: ['#1', '#4'], opened: [4] });
+		});
+	}
+
+	test('activity bar refreshes opener support after extension and opener-configuration changes', async () => {
+		let available = false;
+		const { toolbar, extensionsChanged, configuration, opened } = await createGitHubActivityBar(SessionArtifactKind.Issue, LOCAL_AGENT_HOST_PROVIDER_ID,
+			async () => available ? upcastPartial<IExternalUriOpener>({ id: 'supported' }) : undefined);
+		const absent = toolbar.activityBarActions.get().length;
+		available = true;
+		extensionsChanged.fire({ added: [], removed: [] });
+		await timeout(0);
+		const added = toolbar.activityBarActions.get().length;
+		const stale = toolbar.activityBarActions.get()[0];
+		available = false;
+		configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+			affectsConfiguration: key => key === externalUriOpenersSettingId,
+		}));
+		await stale.run();
+		await timeout(0);
+		assert.deepStrictEqual({ absent, added, removed: toolbar.activityBarActions.get().length, opened }, { absent: 0, added: 1, removed: 0, opened: [] });
+	});
+
+	test('activity bar logs opener lookup failures and hides unsupported actions', async () => {
+		const { toolbar, instantiationService, extensionsChanged } = await createGitHubActivityBar(SessionArtifactKind.Issue, LOCAL_AGENT_HOST_PROVIDER_ID);
+		const error = new Error('Opener lookup failed');
+		const errors: Error[] = [];
+		instantiationService.stub(ILogService, 'error', (_message: string, reported: Error) => errors.push(reported));
+		instantiationService.stub(IExternalUriOpenerService, 'getOpener', async () => { throw error; });
+		extensionsChanged.fire({ added: [], removed: [] });
+		await timeout(0);
+		assert.deepStrictEqual({ errors, actions: toolbar.activityBarActions.get().length }, { errors: [error], actions: 0 });
+	});
+
+	test('activity bar cancels pending opener checks on chat switches and disposal', async () => {
+		const pending: { token: CancellationToken; resolve: (opener: IExternalUriOpener) => void }[] = [];
+		const { toolbar, session, peer } = await createGitHubActivityBar(SessionArtifactKind.Issue, LOCAL_AGENT_HOST_PROVIDER_ID,
+			(_uri, _context, token) => new Promise(resolve => pending.push({ token, resolve })));
+		const before = toolbar.activityBarActions.get().length;
+		toolbar.setSession(session, peer);
+		const old = pending[0];
+		old.resolve(upcastPartial<IExternalUriOpener>({ id: 'old-chat' }));
+		await timeout(0);
+		const afterSwitch = toolbar.activityBarActions.get().length;
+		toolbar.dispose();
+		pending[1].resolve(upcastPartial<IExternalUriOpener>({ id: 'disposed' }));
+		await timeout(0);
+		assert.deepStrictEqual({ before, afterSwitch, cancelled: pending.map(check => check.token.isCancellationRequested) }, {
+			before: 0, afterSwitch: 0, cancelled: [true, true],
+		});
+	});
+
+	test('disabling GitHub activity actions cancels pending checks and ignores late results', async () => {
+		const pending: { token: CancellationToken; resolve: (opener: IExternalUriOpener) => void }[] = [];
+		const { toolbar, configuration } = await createGitHubActivityBar(SessionArtifactKind.Issue, LOCAL_AGENT_HOST_PROVIDER_ID,
+			(_uri, _context, token) => new Promise(resolve => pending.push({ token, resolve })));
+		await configuration.setUserConfiguration(SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_SETTING, false);
+		configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+			affectsConfiguration: key => key === SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_SETTING,
+		}));
+		pending[0].resolve(upcastPartial<IExternalUriOpener>({ id: 'late' }));
+		await timeout(0);
+		assert.deepStrictEqual({
+			actions: toolbar.activityBarActions.get().length, checks: pending.length, cancelled: pending[0].token.isCancellationRequested,
+		}, { actions: 0, checks: 1, cancelled: true });
+	});
+
+	test('activity bar follows PR state filtering without changing independent pill visibility', async () => {
+		const { toolbar, visibility, pullRequest } = await createGitHubActivityBar(SessionArtifactKind.PullRequest, LOCAL_AGENT_HOST_PROVIDER_ID);
+		const all = toolbar.activityBarActions.get().length;
+		pullRequest.set(upcastPartial<IGitHubPullRequest>({ state: GitHubPullRequestState.Closed, isDraft: false }), undefined);
+		visibility.pullRequests.setShowAll(false);
+		const filtered = toolbar.activityBarActions.get().length;
+		visibility.pullRequests.setShowAll(true);
+		const restored = toolbar.activityBarActions.get().length;
+		visibility.hide(SessionChatPillKind.PullRequests);
+		const independentlyVisible = toolbar.activityBarActions.get().length;
+		assert.deepStrictEqual({ all, filtered, restored, independentlyVisible }, { all: 1, filtered: 0, restored: 1, independentlyVisible: 1 });
+	});
+
+	for (const cancelled of [false, true]) {
+		test(`activity bar reports picker failures only without cancellation (${cancelled})`, async () => {
+			const { instantiationService, toolbar, artifacts, artifact, main, opened } = await createGitHubActivityBar(SessionArtifactKind.Issue, LOCAL_AGENT_HOST_PROVIDER_ID);
+			artifacts.set([...artifacts.get(), artifact(4, main)], undefined);
+			await timeout(0);
+			const error = new Error('picker unavailable');
+			const errors: Error[] = [];
+			instantiationService.stub(IQuickInputService, 'pick', async () => {
+				if (cancelled) {
+					toolbar.dispose();
+				}
+				throw error;
+			});
+			instantiationService.stub(INotificationService, 'error', (reported: Error) => errors.push(reported));
+			await toolbar.activityBarActions.get()[0].run();
+			assert.deepStrictEqual({ errors, opened }, { errors: cancelled ? [] : [error], opened: [] });
+		});
+	}
+
+	test('activity bar removes AI-hidden actions and rejects stale invocations after hiding or disposal', async () => {
+		const { toolbar, sentiment, opened } = await createGitHubActivityBar(SessionArtifactKind.Issue, LOCAL_AGENT_HOST_PROVIDER_ID);
+		const action = toolbar.activityBarActions.get()[0];
+		sentiment.set({ hidden: true }, undefined);
+		const hidden = toolbar.activityBarActions.get().length;
+		await action.run();
+		sentiment.set({ hidden: false }, undefined);
+		await timeout(0);
+		const restored = toolbar.activityBarActions.get().length;
+		toolbar.dispose();
+		await action.run();
+		assert.deepStrictEqual({ hidden, restored, opened }, { hidden: 0, restored: 1, opened: [] });
+	});
+
+	for (const providerId of [LOCAL_AGENT_HOST_PROVIDER_ID, `${REMOTE_AGENT_HOST_PROVIDER_PREFIX}test-host`]) {
+		for (const kind of [SessionArtifactKind.PullRequest, SessionArtifactKind.Issue] as const) {
+			test(`activity bar opens the single ${kind} of its own chat on ${providerId}`, async () => {
+				const { toolbar, session, main, peer, artifacts, opened } = await createGitHubActivityBar(kind, providerId);
+				const first = toolbar.activityBarActions.get()[0];
+				await first.run();
+				toolbar.setSession(session, peer);
+				await first.run();
+				await timeout(0);
+				await toolbar.activityBarActions.get()[0].run();
+				const peerLabel = toolbar.activityBarActions.get()[0].label;
+				toolbar.setSession(session, { ...peer, origin: { kind: ChatOriginKind.Tool, parentChat: main.resource } });
+				const toolChat = toolbar.activityBarActions.get().length;
+				toolbar.setSession(session, main);
+				artifacts.set([], undefined);
+
+				assert.deepStrictEqual({
+					opened, peerLabel, toolChat, afterRemoval: toolbar.activityBarActions.get().length,
+				}, {
+					opened: [1, 2].map(number => ({ command: kind === SessionArtifactKind.PullRequest ? OPEN_PULL_REQUEST_ACTION_ID : OPEN_ISSUE_ACTION_ID, number })),
+					peerLabel: `Open ${kind === SessionArtifactKind.PullRequest ? 'Pull Request' : 'Issue'} #2: Item 2`,
+					toolChat: 0, afterRemoval: 0,
+				});
+			});
+
+			test(`activity bar picks among current-chat ${kind} entries on ${providerId}`, async () => {
+				const { instantiationService, toolbar, artifacts, artifact, main, opened } = await createGitHubActivityBar(kind, providerId);
+				artifacts.set([...artifacts.get(), artifact(4, main)], undefined);
+				await timeout(0);
+				let labels: string[] = [];
+				instantiationService.stub(IQuickInputService, 'pick', async (picks: IQuickPickItem[]) => {
+					labels = picks.map(pick => pick.label);
+					return picks[1];
+				});
+				await toolbar.activityBarActions.get()[0].run();
+
+				assert.deepStrictEqual({
+					label: toolbar.activityBarActions.get()[0].label,
+					picks: labels.map(label => label.replace(/^\$\([^)]+\) /, '')),
+					opened,
+				}, {
+					label: `Open ${kind === SessionArtifactKind.PullRequest ? 'Pull Request' : 'Issue'} (2)`,
+					picks: ['#1 Item 1', '#4 Item 4'],
+					opened: [{ command: kind === SessionArtifactKind.PullRequest ? OPEN_PULL_REQUEST_ACTION_ID : OPEN_ISSUE_ACTION_ID, number: 4 }],
+				});
+			});
+		}
+	}
+
+	for (const transition of ['switch', 'dispose', 'cancel', 'remove', 'remove-one', 'hide', 'opener', 'disable'] as const) {
+		test(`activity bar does not open a stale issue after picker ${transition}`, async () => {
+			let openerAvailable = true;
+			const { instantiationService, toolbar, session, peer, artifacts, artifact, main, opened, configuration, sentiment, extensionsChanged } = await createGitHubActivityBar(
+				SessionArtifactKind.Issue, LOCAL_AGENT_HOST_PROVIDER_ID,
+				async () => openerAvailable ? upcastPartial<IExternalUriOpener>({ id: 'test-opener' }) : undefined,
+			);
+			artifacts.set([...artifacts.get(), artifact(4, main)], undefined);
+			await timeout(0);
+			let cancelled = false;
+			instantiationService.stub(IQuickInputService, 'pick', async (picks: IQuickPickItem[], _options: object, token: CancellationToken) => {
+				if (transition === 'switch') {
+					toolbar.setSession(session, peer);
+				} else if (transition === 'dispose') {
+					toolbar.dispose();
+				} else if (transition === 'remove') {
+					artifacts.set([], undefined);
+				} else if (transition === 'remove-one') {
+					artifacts.set(artifacts.get().filter(entry => entry.id !== 'artifact-4'), undefined);
+				} else if (transition === 'hide') {
+					sentiment.set({ hidden: true }, undefined);
+				} else if (transition === 'opener') {
+					openerAvailable = false;
+					extensionsChanged.fire({ added: [], removed: [] });
+					await timeout(0);
+				} else if (transition === 'disable') {
+					await configuration.setUserConfiguration(SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_SETTING, false);
+					configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+						affectsConfiguration: key => key === SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_SETTING,
+					}));
+				}
+				cancelled = token.isCancellationRequested;
+				return transition === 'cancel' ? undefined : picks[1];
+			});
+			await toolbar.activityBarActions.get()[0].run();
+			assert.deepStrictEqual({ opened, cancelled }, { opened: [], cancelled: transition !== 'cancel' });
+		});
 	}
 
 	test('keeps copied feedback stable across section refreshes', async () => {
@@ -1492,10 +1809,10 @@ suite('SessionChatInputToolbar', () => {
 		const dashboardEntry = entries.find(entry => entry.label === dashboard.title);
 		assert.ok(dashboardEntry);
 		dashboardEntry.select();
-		const closeActionLabels = entries.flatMap(entry => entry.toolbarActions.map(action => action.label));
-		await dashboardEntry.toolbarActions[0]?.run();
+		const rowActionLabels = entries.flatMap(entry => entry.toolbarActions.map(action => action.label));
+		await dashboardEntry.toolbarActions.find(action => action.label === 'Close Canvas Dashboard')?.run();
 
-		assert.deepStrictEqual({ single, multiple, commandCalls, closeActionLabels, closeCalls }, {
+		assert.deepStrictEqual({ single, multiple, commandCalls, rowActionLabels, closeCalls }, {
 			single: { label: 'Preview', ariaLabel: 'Open canvas Preview', closeLabel: 'Close Canvas Preview' },
 			multiple: { label: '2 Canvases', ariaLabel: 'Show 2 canvases', closeLabel: undefined },
 			commandCalls: [
@@ -1518,7 +1835,7 @@ suite('SessionChatInputToolbar', () => {
 					},
 				},
 			],
-			closeActionLabels: ['Close Canvas Preview', 'Close Canvas Dashboard'],
+			rowActionLabels: ['Pin Preview', 'Close Canvas Preview', 'Pin Dashboard', 'Close Canvas Dashboard'],
 			closeCalls: [
 				{ session: session.sessionId, chat: chat.resource.toString(), canvas: preview.resource.toString() },
 				{ session: session.sessionId, chat: chat.resource.toString(), canvas: dashboard.resource.toString() },
@@ -2224,16 +2541,18 @@ suite('SessionChatInputToolbar', () => {
 		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({ executeCommand: async () => { opened++; return undefined; } }));
 		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
 		toolbar.setSession(session, chat);
+		store.add(autorun(reader => toolbar.activityBarActions.read(reader)));
 		await timeout(0);
 		const labels = () => [...toolbar.element.querySelectorAll('.artifact-integration-pill .chat-pill-label')].map(element => element.textContent);
 		const initial = labels();
 		const contribution = snapshot.get().contributions[0];
 		snapshot.set({ ...snapshot.get(), contributions: [{ ...contribution, view: { ...contribution.view, sections: [contribution.view.sections[0]] } }] }, undefined);
 		toolbar.element.querySelector<HTMLElement>('.artifact-integration-pill .chat-dropdown-pill-button')!.click();
+		await toolbar.activityBarActions.get()[0].run();
 		assert.deepStrictEqual({
 			initial, updated: labels(), integratedPills: toolbar.element.querySelectorAll('.artifact-integration-pill').length, opened,
 			referencesPresent: !!toolbar.element.querySelector('.chat-dropdown-pill-button[aria-label="Show 1 reference"]'),
-		}, { initial: ['#42', '3/5', '2'], updated: ['#42', '3/5'], integratedPills: 1, opened: 0, referencesPresent: true });
+		}, { initial: ['#42', '3/5', '2'], updated: ['#42', '3/5'], integratedPills: 1, opened: 1, referencesPresent: true });
 	});
 	for (const providerId of [LOCAL_AGENT_HOST_PROVIDER_ID, `${REMOTE_AGENT_HOST_PROVIDER_PREFIX}custom-host`]) {
 		test(`renders the explicitly selected PR above the main input with automatic association disabled on ${providerId}`, () => {
@@ -2295,7 +2614,7 @@ suite('SessionChatInputToolbar', () => {
 			});
 		});
 
-		test(`PR pills follow chat ownership and react to automatic association on ${providerId}`, () => {
+		test(`PR pills follow chat ownership and react to automatic association on ${providerId}`, async () => {
 			const { instantiationService } = createServices();
 			const onDidChangeRootConfig = store.add(new Emitter<void>());
 			const schema: RootConfigState['schema'] = {
@@ -2339,34 +2658,46 @@ suite('SessionChatInputToolbar', () => {
 				capabilities: constObservable({ supportsMultipleChats: true }),
 			});
 			const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
-			const pill = () => toolbar.element.querySelector('.chat-dropdown-pill-button[aria-label^="Open Pull Request"]')?.getAttribute('aria-label') ?? null;
+			store.add(autorun(reader => toolbar.activityBarActions.read(reader)));
+			const activityBarLabels: (string | null)[] = [];
+			const pill = () => {
+				activityBarLabels.push(toolbar.activityBarActions.get().find(action => action.id === OPEN_PULL_REQUEST_ACTION_ID)?.label ?? null);
+				return toolbar.element.querySelector('.chat-dropdown-pill-button[aria-label^="Open Pull Request"]')?.getAttribute('aria-label') ?? null;
+			};
 			toolbar.setSession(session, main);
+			await timeout(0);
 			const restrictedMain = pill();
 			toolbar.setSession(session, peer);
+			await timeout(0);
 			const restrictedPeer = pill();
 			toolbar.setSession(session, main);
 			config = { schema, values: { [AgentHostAutoAttachPullRequestsConfigKey]: true } };
 			onDidChangeRootConfig.fire();
+			await timeout(0);
 			const automaticMain = pill();
 			config = { schema, values: { [AgentHostAutoAttachPullRequestsConfigKey]: false } };
 			onDidChangeRootConfig.fire();
+			await timeout(0);
 			const restrictedAgain = pill();
 			config = {
 				schema: { ...schema, properties: { [AgentHostAutoAttachPullRequestsConfigKey]: { type: 'boolean', title: 'Automatic Pull Request Association', default: false } } },
 				values: {},
 			};
 			onDidChangeRootConfig.fire();
+			await timeout(0);
 			const restrictedDefault = pill();
 			config = undefined;
 			onDidChangeRootConfig.fire();
+			await timeout(0);
 			const absentExtension = pill();
-			assert.deepStrictEqual({ restrictedMain, restrictedPeer, automaticMain, restrictedAgain, restrictedDefault, absentExtension }, {
+			assert.deepStrictEqual({ restrictedMain, restrictedPeer, automaticMain, restrictedAgain, restrictedDefault, absentExtension, activityBarLabels }, {
 				restrictedMain: null,
 				restrictedPeer: 'Open Pull Request #42: Peer PR',
 				automaticMain: 'Open Pull Request #42',
 				restrictedAgain: null,
 				restrictedDefault: null,
 				absentExtension: 'Open Pull Request #42',
+				activityBarLabels: [null, 'Open Pull Request #42: Peer PR', 'Open Pull Request #42', null, null, 'Open Pull Request #42'],
 			});
 		});
 	}

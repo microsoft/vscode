@@ -5,8 +5,9 @@
 
 import { Dimension } from '../../../../../base/browser/dom.js';
 import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { IObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
 
 export interface IAICustomizationManagementSectionWidget extends IDisposable {
@@ -24,6 +25,12 @@ export interface IAICustomizationManagementSectionContribution {
 	/** At least one of these boolean settings must be enabled to show or instantiate the section. */
 	readonly enablementSettings?: readonly string[];
 	readonly supportsHarness: (harnessId: string) => boolean;
+	/**
+	 * Describes why the section's navigation entry shows a badge, for example because the section has suggestions
+	 * to review, or `undefined` when it shows no badge. The description is the entry's hover and part of its
+	 * accessible name. The editor reads it while it is open.
+	 */
+	readonly getBadge?: (accessor: ServicesAccessor) => IObservable<string | undefined>;
 	create(instantiationService: IInstantiationService, container: HTMLElement): IAICustomizationManagementSectionWidget;
 }
 

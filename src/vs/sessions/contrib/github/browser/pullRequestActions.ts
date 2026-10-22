@@ -5,20 +5,55 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { URI } from '../../../../base/common/uri.js';
-import { localize2 } from '../../../../nls.js';
-import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { Action2, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { Menus } from '../../../browser/menus.js';
+import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
-import { SessionHasPullRequestContext } from '../../../common/contextkeys.js';
+import { DesktopLayoutContext, sessionActivityBarChatActionContext, SessionHasPullRequestContext } from '../../../common/contextkeys.js';
+import { SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../../common/sessionConfig.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { getGitHubPullRequestRefs, IGitHubPullRequestRef, ISession } from '../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { OPEN_PULL_REQUEST_ACTION_ID, OPEN_PULL_REQUEST_CHANGES_ACTION_ID } from '../common/types.js';
 import { createPullRequestChangesEditorInput } from './pullRequestChangesMultiDiffSourceResolver.js';
+
+export const TOGGLE_SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_COMMAND_ID = 'workbench.action.agentSessions.toggleSessionActivityBarGitHubActions';
+
+registerAction2(class ToggleSessionActivityBarGitHubActionsAction extends Action2 {
+	constructor() {
+		super({
+			id: TOGGLE_SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_COMMAND_ID,
+			title: localize2('toggleSessionActivityBarGitHubActions', "Toggle Pull Request and Issue Actions in Session Activity Bar"),
+			category: Categories.View,
+			f1: true,
+			precondition: ContextKeyExpr.and(DesktopLayoutContext, ChatContextKeys.enabled, ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_SETTING}`, true)),
+			toggled: ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_SETTING}`, true),
+		});
+	}
+
+	override run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+		return configurationService.updateValue(SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_SETTING, !configurationService.getValue<boolean>(SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_SETTING));
+	}
+});
+
+MenuRegistry.appendMenuItem(Menus.SessionActivityBarContext, {
+	command: {
+		id: TOGGLE_SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_COMMAND_ID,
+		title: localize('showSessionActivityBarGitHubActions', "Show Pull Request and Issue Actions"),
+		toggled: ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_SETTING}`, true),
+	},
+	group: '1_configuration',
+	when: ChatContextKeys.enabled,
+});
 
 class PullRequestActionContext {
 	constructor(readonly pullRequest: IGitHubPullRequestRef) { }
@@ -51,6 +86,11 @@ class OpenPullRequestAction extends Action2 {
 				group: '2_pullRequest',
 				order: 0,
 				when: SessionHasPullRequestContext
+			}, {
+				id: Menus.SessionActivityBar,
+				group: SessionActivityBarGroup.GitHub,
+				order: 0,
+				when: sessionActivityBarChatActionContext(OpenPullRequestAction.ID)
 			}],
 		});
 	}
