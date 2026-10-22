@@ -92,7 +92,7 @@ import { toListedSessionSummary } from '../../node/protocolServerHandler.js';
 import { mintPeerChatUri, subagentChatUri } from '../../common/agentHostChatMinting.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { CompatibleAgentHostDatabase } from '../../node/compatibleAgentHostDatabase.js';
-import { AgentHostDatabase, type AgentHostDatabaseChatV2WriteResult, AgentHostDatabaseSessionChatCatalogReplaceResult, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabase, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSession, IAgentHostDatabaseSessionChat, IAgentHostDatabaseSessionChatCatalog, IAgentHostDatabaseSessionListCatalog, IAgentHostDatabaseSessionsV2Exclusion, IAgentHostDatabaseSessionsV2ExclusionExpectation, IAgentHostDatabaseSessionOptions, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Envelope, IAgentHostDatabaseSessionV2Receipt } from '../../node/agentHostDatabase.js';
+import { AgentHostDatabase, type AgentHostDatabaseChatV2WriteResult, AgentHostDatabaseSessionChatCatalogReplaceResult, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabase, IAgentHostDatabaseCatalogSnapshotEntry, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSession, IAgentHostDatabaseSessionChat, IAgentHostDatabaseSessionChatCatalog, IAgentHostDatabaseSessionListCatalog, IAgentHostDatabaseSessionsV2Exclusion, IAgentHostDatabaseSessionsV2ExclusionExpectation, IAgentHostDatabaseSessionOptions, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Envelope, IAgentHostDatabaseSessionV2Receipt } from '../../node/agentHostDatabase.js';
 import { CHAT_INHERITED_TURN_METADATA_KEY, CHAT_ORIGIN_METADATA_KEY, CHAT_PROVIDER_DATA_METADATA_KEY, CHAT_WORKING_DIRECTORIES_METADATA_KEY, PEER_CHATS_METADATA_KEY, type AgentHostPeerChatStore, type IImportedOlderBuildChatEdit, type IOlderBuildEditsImport, type IPersistedPeerChat } from '../../node/agentHostPeerChatStore.js';
 import { AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT, AGENT_HOST_CATALOG_MIGRATABLE_PAYLOAD_VERSIONS, AGENT_HOST_CATALOG_PAYLOAD_VERSION, AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT, decodeAgentHostCatalogPayload, encodeAgentHostCatalogPayload, hashAgentHostCatalogPayload, type AgentHostCatalogData } from '../../node/agentHostCatalogProjection.js';
 import type { IAgentHostStorageService } from '../../node/agentHostStorageService.js';
@@ -13847,6 +13847,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		class CentralCatalogDatabase extends TestAgentHostOrchestratorDatabase {
 			private readonly _catalogs = new Map<string, IAgentHostDatabaseSessionV2Envelope>();
+			private readonly _snapshots = new Map<string, IAgentHostDatabaseCatalogSnapshotEntry>();
 
 			setCatalog(session: URI, data: AgentHostCatalogData, payloadVersion = AGENT_HOST_CATALOG_PAYLOAD_VERSION): void {
 				const envelope = catalogEnvelope(session, data);
@@ -13866,6 +13867,10 @@ suite('AgentService (node dispatcher)', () => {
 				});
 			}
 
+			setSnapshot(snapshot: IAgentHostDatabaseCatalogSnapshotEntry): void {
+				this._snapshots.set(snapshot.session, snapshot);
+			}
+
 			override async getSessionV2(session: string): Promise<IAgentHostDatabaseSessionV2 | undefined> {
 				const envelope = this._catalogs.get(session);
 				const registered = await this.getSessionV2Registration(session);
@@ -13879,6 +13884,17 @@ suite('AgentService (node dispatcher)', () => {
 				const catalogSessions = sessions ?? [...this._catalogs.keys()];
 				const rows = await Promise.all(catalogSessions.map(session => this.getSessionV2(session)));
 				return rows.filter((row): row is IAgentHostDatabaseSessionV2 => row !== undefined);
+			}
+
+			override async readCatalogSnapshot(sessions?: readonly string[]): Promise<readonly IAgentHostDatabaseCatalogSnapshotEntry[]> {
+				if (this._snapshots.size === 0) {
+					return super.readCatalogSnapshot(sessions);
+				}
+				const selected = sessions ?? [...this._snapshots.keys()];
+				return selected.flatMap(session => {
+					const snapshot = this._snapshots.get(session);
+					return snapshot ? [snapshot] : [];
+				});
 			}
 		}
 
@@ -16466,12 +16482,13 @@ suite('AgentService (node dispatcher)', () => {
 					startTime: 10,
 					source: 'explicit',
 				}, { checkTombstone: false });
-				orchestratorDatabase.setCatalog(session, {
+				const data = {
 					...centralData(session, 40, 'Available centrally'),
 					isRead: true,
 					isArchived: true,
 					_meta: { [SESSION_META_MULTI_ROOT_KEY]: { workspaceFile: 'file:///workspace/project.code-workspace' } },
-				}, payloadVersion);
+				};
+				orchestratorDatabase.setCatalog(session, data, payloadVersion);
 				let databaseOpens = 0;
 				const svc = createCentralCatalogService({
 					...createSessionDataService(),
@@ -16482,8 +16499,14 @@ suite('AgentService (node dispatcher)', () => {
 				}, orchestratorDatabase);
 				await svc.whenCatalogReconciliationIdle();
 				databaseOpens = 0;
+				const internal = svc as unknown as { _isRegisteredAdoptableSession: AgentService['_isRegisteredAdoptableSession'] };
 
 				const listed = await svc.listSessions();
+				orchestratorDatabase.setCatalog(session, {
+					...data,
+					_meta: { ...data._meta, [SESSION_META_EHCLI_ADOPTABLE_KEY]: true },
+				}, payloadVersion);
+				const adoptable = await internal._isRegisteredAdoptableSession(session);
 
 				assert.deepStrictEqual({
 					sessions: listed.map(metadata => ({
@@ -16492,6 +16515,7 @@ suite('AgentService (node dispatcher)', () => {
 						status: metadata.status,
 						multiRoot: readSessionMultiRootMetadata(metadata._meta),
 					})),
+					adoptable,
 					databaseOpens,
 				}, {
 					sessions: [{
@@ -16500,7 +16524,79 @@ suite('AgentService (node dispatcher)', () => {
 						status: SessionStatus.Idle | SessionStatus.IsRead | SessionStatus.IsArchived,
 						multiRoot: { workspaceFile: 'file:///workspace/project.code-workspace' },
 					}],
+					adoptable: true,
 					databaseOpens: 0,
+				});
+			});
+		}
+
+		for (const payloadVersion of AGENT_HOST_CATALOG_MIGRATABLE_PAYLOAD_VERSIONS) {
+			test(`normalized reconciliation preserves payload version ${payloadVersion} aggregate and authoritative chats without provider storage`, async () => {
+				const orchestratorDatabase = new CentralCatalogDatabase();
+				const session = AgentSession.uri('copilot', `normalized-v${payloadVersion}`);
+				const registered: IRegisteredSession = {
+					session,
+					provider: 'copilot',
+					startTime: 10,
+					modifiedTime: 40,
+					external: false,
+					source: 'explicit',
+				};
+				await orchestratorDatabase.registerSessionV2(session.toString(), {
+					provider: registered.provider,
+					startTime: registered.startTime,
+					source: registered.source,
+				}, { checkTombstone: false });
+				orchestratorDatabase.setCatalog(session, {
+					...centralData(session, 40, 'Available centrally'),
+					isRead: true,
+					isArchived: true,
+				}, payloadVersion);
+				const normalizedChat = URI.parse(`ahp-chat:/normalized-v${payloadVersion}`);
+				orchestratorDatabase.setSnapshot({
+					session: session.toString(),
+					authorityVersion: 2,
+					identity: { ...registered, session: session.toString() },
+					isChatBacking: false,
+					provisional: false,
+					header: {
+						session: session.toString(),
+						revision: 1,
+						authorityVersion: 2,
+						defaultChatUri: normalizedChat.toString(),
+						sessionGeneration: 'test-generation',
+					},
+					chats: [{
+						chat: normalizedChat.toString(),
+						order: 0,
+						ownerSession: session.toString(),
+						originSession: session.toString(),
+						ownershipRevision: 1,
+						metadataRevision: 1,
+					}],
+				});
+				const svc = createCentralCatalogService({
+					...createSessionDataService(),
+					tryOpenDatabase: async () => undefined,
+				}, orchestratorDatabase);
+				const internal = svc as unknown as { _resolveCatalogReconciliationSource: AgentService['_resolveCatalogReconciliationSource'] };
+
+				const result = await internal._resolveCatalogReconciliationSource(registered, undefined);
+
+				assert.deepStrictEqual(result.status === 'available' ? {
+					status: result.status,
+					summary: result.request.data.summary,
+					isRead: result.request.data.isRead,
+					isArchived: result.request.data.isArchived,
+					chats: result.request.data.chats.map(chat => chat.uri),
+					chatCatalogRevision: result.request.chatCatalogRevision,
+				} : result, {
+					status: 'available',
+					summary: 'Available centrally',
+					isRead: true,
+					isArchived: true,
+					chats: [normalizedChat.toString()],
+					chatCatalogRevision: 1,
 				});
 			});
 		}
