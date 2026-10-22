@@ -341,6 +341,7 @@ const nlsMultiSelectionRange = localize('multiSelectionRange', "{0} selections (
 const nlsMultiSelection = localize('multiSelection', "{0} selections");
 const nlsEOLLF = localize('endOfLineLineFeed', "LF");
 const nlsEOLCRLF = localize('endOfLineCarriageReturnLineFeed', "CRLF");
+const nlsEOLCR = localize('endOfLineCarriageReturn', "CR");
 
 class EditorStatus extends Disposable {
 
@@ -645,7 +646,7 @@ class EditorStatus extends Disposable {
 		this.updateIndentationElement(this.state.indentation);
 		this.updateSelectionElement(this.state.selectionStatus);
 		this.updateEncodingElement(this.state.encoding);
-		this.updateEOLElement(this.state.EOL ? this.state.EOL === '\r\n' ? nlsEOLCRLF : nlsEOLLF : undefined);
+		this.updateEOLElement(this.state.EOL ? this.state.EOL === '\r\n' ? nlsEOLCRLF : this.state.EOL === '\r' ? nlsEOLCR : nlsEOLLF : undefined);
 		this.updateLanguageIdElement(this.state.languageId);
 		this.updateMetadataElement(this.state.metadata);
 	}
@@ -1408,9 +1409,11 @@ export class ChangeEOLAction extends Action2 {
 		const EOLOptions: IChangeEOLEntry[] = [
 			{ label: nlsEOLLF, eol: EndOfLineSequence.LF },
 			{ label: nlsEOLCRLF, eol: EndOfLineSequence.CRLF },
+			{ label: nlsEOLCR, eol: EndOfLineSequence.CR },
 		];
 
-		const selectedIndex = (textModel?.getEOL() === '\n') ? 0 : 1;
+		const currentEOL = textModel?.getEOL();
+		const selectedIndex = currentEOL === '\r\n' ? 1 : currentEOL === '\r' ? 2 : 0;
 
 		const eol = await quickInputService.pick(EOLOptions, { placeHolder: localize('pickEndOfLine', "Select End of Line Sequence"), activeItem: EOLOptions[selectedIndex] });
 		if (eol) {
