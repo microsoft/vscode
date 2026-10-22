@@ -389,6 +389,9 @@ export class SessionActivityBarActionViewItem extends MenuEntryActionViewItem {
 
 	private badgeElement: HTMLElement | undefined;
 
+	/** The command that hides what the entry shows when checked, resolved from the entry's group in the menu, which its action does not carry. */
+	private readonly hideCommand: string | undefined;
+
 	constructor(
 		action: MenuItemAction,
 		options: IMenuEntryActionViewItemOptions | undefined,
@@ -402,6 +405,11 @@ export class SessionActivityBarActionViewItem extends MenuEntryActionViewItem {
 		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(action, options, keybindingService, notificationService, contextKeyService, themeService, contextMenuService, accessibilityService);
+
+		const group = MenuRegistry.getMenuItems(Menus.SessionActivityBar).find(item => isIMenuItem(item) && item.command.id === action.id)?.group;
+		const hideCommand = group === SessionActivityBarGroup.SidePanel ? TOGGLE_SIDE_PANEL_COMMAND_ID : group === SessionActivityBarGroup.Panel ? TogglePanelAction.ID : undefined;
+		// The side panel and panel toggles are entries of these groups themselves.
+		this.hideCommand = hideCommand !== action.id ? hideCommand : undefined;
 
 		this._register(activityService.onDidChangeActivity(commandId => {
 			if (commandId === this._menuItemAction.id) {
@@ -428,12 +436,7 @@ export class SessionActivityBarActionViewItem extends MenuEntryActionViewItem {
 	 * entries that open its tabs, and the panel for the terminal. `undefined` for unchecked entries and the toggles.
 	 */
 	private getHideCommand(): string | undefined {
-		if (!this._menuItemAction.enabled || !this._menuItemAction.checked) {
-			return undefined;
-		}
-		const group = MenuRegistry.getMenuItems(Menus.SessionActivityBar).find(item => isIMenuItem(item) && item.command.id === this._menuItemAction.id)?.group;
-		const command = group === SessionActivityBarGroup.SidePanel ? TOGGLE_SIDE_PANEL_COMMAND_ID : group === SessionActivityBarGroup.Panel ? TogglePanelAction.ID : undefined;
-		return command !== this._menuItemAction.id ? command : undefined;
+		return this._menuItemAction.enabled && this._menuItemAction.checked ? this.hideCommand : undefined;
 	}
 
 	override getActionToRun(event: EventLike & { readonly altKey?: boolean; readonly shiftKey?: boolean }): IAction {
