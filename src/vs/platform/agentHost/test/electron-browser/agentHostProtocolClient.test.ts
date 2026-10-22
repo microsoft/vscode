@@ -4945,7 +4945,7 @@ suite('AgentHostProtocolClient', () => {
 		 * client plus a `transports` array recording each transport handed
 		 * out, so tests can drive handshake/reconnect interactions.
 		 */
-		function createFactoryClient(permissionService = createPermissionService(), clientInfo?: Implementation, telemetryService: ITelemetryService = NullTelemetryService, reconnectPolicy?: IRemoteAgentHostReconnectPolicy, loadEstimator?: { hasHighLoad(): boolean }, prepareReconnect?: () => Promise<void>, authentication?: Pick<IAgentHostProtocolClientOptions, 'prepareAuthentication' | 'resolveInitialAuthentication' | 'resolveAdvertisedAuthentication'>, power?: { onDidSuspend: Event<void>; onDidResume: Event<void> }, connectionKind?: AgentHostClientConnectionKind): { client: AgentHostProtocolClient; transports: TestClientProtocolTransport[]; configurationService: TestConfigurationService } {
+		function createFactoryClient(permissionService = createPermissionService(), clientInfo?: Implementation, telemetryService: ITelemetryService = NullTelemetryService, reconnectPolicy?: IRemoteAgentHostReconnectPolicy, loadEstimator?: { hasHighLoad(): boolean }, prepareReconnect?: () => Promise<void>, authentication?: Pick<IAgentHostProtocolClientOptions, 'prepareAuthentication' | 'resolveInitialAuthentication' | 'resolveAdvertisedAuthentication' | 'sealAuthenticationToken'>, power?: { onDidSuspend: Event<void>; onDidResume: Event<void> }, connectionKind?: AgentHostClientConnectionKind): { client: AgentHostProtocolClient; transports: TestClientProtocolTransport[]; configurationService: TestConfigurationService } {
 			const transports: TestClientProtocolTransport[] = [];
 			const factory = () => {
 				const t = disposables.add(new TestClientProtocolTransport(connectionKind));
@@ -4992,6 +4992,43 @@ suite('AgentHostProtocolClient', () => {
 					_meta: handshakeMeta,
 					snapshots: [{ resource: ROOT_STATE_URI, fromSeq: 0, state: { agents, activeSessions: 1, _meta: rootMeta } }],
 				},
+			});
+		}
+
+		for (const encryption of ['mcp-key', 'missing-key', 'provider-key-only'] as const) {
+			test(`untargeted non-GitHub MCP credentials require trusted relay encryption: ${encryption}`, async () => {
+				const sealed: IMissionControlCredentialSealingRequest[] = [];
+				const { client, transports } = createFactoryClient(undefined, undefined, undefined, undefined, undefined, undefined, {
+					sealAuthenticationToken: async request => {
+						sealed.push(request);
+						return 'copilot-sealed.v1.key.ciphertext';
+					},
+				}, undefined, AgentHostClientConnectionKind.MissionControl);
+				const key = { keyId: 'key', publicKey: 'public-key', algorithm: 'x25519-sealedbox', use: encryption === 'mcp-key' ? 'mcp-auth-token' : 'auth-token' };
+				const connecting = client.connect();
+				await initializeAdvertised(transports[0], { 'copilot.encryptionKeys': encryption === 'missing-key' ? [] : [key] });
+				await connecting;
+				const resource = 'https://mcp.example.test';
+				const authenticating = client.authenticate({ resource, scopes: ['read'], token: 'mcp-token' });
+				if (encryption === 'mcp-key') {
+					const request = await waitForRequestAtWithin(transports[0], 'authenticate', 0);
+					transports[0].fireMessage({ jsonrpc: '2.0', id: request.id, result: {} });
+					const subscription = await waitForRequestAtWithin(transports[0], 'subscribe', 0);
+					transports[0].fireMessage({ jsonrpc: '2.0', id: subscription.id, result: { snapshot: { resource: ROOT_STATE_URI, fromSeq: 0, state: client.rootState.value } } });
+					await authenticating;
+					assert.deepStrictEqual({
+						sealed: sealed.map(request => [request.token, request.resource, request.key.use]),
+						params: request.params,
+					}, {
+						sealed: [['mcp-token', resource, 'mcp-auth-token']],
+						params: { channel: ROOT_STATE_URI, resource, scopes: ['read'], token: 'copilot-sealed.v1.key.ciphertext' },
+					});
+				} else {
+					await assert.rejects(authenticating, /no supported credential encryption key/);
+					assert.deepStrictEqual({
+						sealed, authenticationSent: transports[0].sentMessages.some(message => hasKey(message, { method: true }) && message.method === 'authenticate'),
+					}, { sealed: [], authenticationSent: false });
+				}
 			});
 		}
 
@@ -5090,6 +5127,75 @@ suite('AgentHostProtocolClient', () => {
 				replacement.fireMessage({ jsonrpc: '2.0', id: restored.id, result: {} });
 				await waitForConnectedWithin(client);
 				assert.deepStrictEqual(challenges, [firstChallenge, nextChallenge]);
+			});
+		}
+
+		for (const recovery of ['replay', 'snapshot', 'fresh initialize'] as const) {
+			test(`Mission Control ${recovery} reseals provider and targeted MCP credentials with the current challenge`, async function () {
+				this.timeout(20_000);
+				const resource = advertisedAgent.protectedResources[0].resource;
+				const sealed: IMissionControlCredentialSealingRequest[] = [];
+				const { client, transports } = createFactoryClient(undefined, undefined, undefined, immediateReconnectPolicy, undefined, undefined, {
+					resolveInitialAuthentication: async () => ({ resource, token: 'identity-token' }),
+					sealAuthenticationToken: async request => {
+						sealed.push(request);
+						return `copilot-sealed.v1.${request.key.key_id}.ciphertext`;
+					},
+				}, undefined, AgentHostClientConnectionKind.MissionControl);
+				const firstChallenge = '0123456789abcdef0123456789abcdef';
+				const nextChallenge = 'abcdef0123456789abcdef0123456789';
+				const metadata = (challenge: string) => ({ 'copilot.encryptionRequired': ['auth-token', 'mcp-auth-token'], 'copilot.authChallenge': { challenge, required: true } });
+				const rootMeta = { 'copilot.encryptionKeys': ['auth-token', 'mcp-auth-token'].map(use => ({ keyId: use, publicKey: 'public-key', use, algorithm: 'x25519-sealedbox' })) };
+				const root = { agents: [advertisedAgent], activeSessions: 0, _meta: rootMeta };
+				const acknowledgeRoot = async (transport: TestClientProtocolTransport, index: number) => {
+					const subscription = await waitForRequestAtWithin(transport, 'subscribe', index);
+					transport.fireMessage({ jsonrpc: '2.0', id: subscription.id, result: { snapshot: { resource: ROOT_STATE_URI, fromSeq: 0, state: root } } });
+				};
+				const connecting = client.connect();
+				await initializeAdvertised(transports[0], rootMeta, metadata(firstChallenge));
+				const first = await waitForRequestAtWithin(transports[0], 'authenticate', 0);
+				transports[0].fireMessage({ jsonrpc: '2.0', id: first.id, result: {} });
+				await acknowledgeRoot(transports[0], 0);
+				await connecting;
+				const target = { kind: AuthenticateTargetKind.McpServer, session: 'opaque-session://tenant/id', customizationId: 'mcp/server' };
+				const authenticatingMcp = client.authenticate({ resource, target, token: 'mcp-token' });
+				const mcp = await waitForRequestAtWithin(transports[0], 'authenticate', 1);
+				transports[0].fireMessage({ jsonrpc: '2.0', id: mcp.id, result: {} });
+				await acknowledgeRoot(transports[0], 1);
+				await authenticatingMcp;
+				transports[0].fireClose();
+				const replacement = await waitForTransport(transports, 1);
+				replacement.connectDeferred.complete();
+				const reconnect = await waitForRequestAtWithin(replacement, 'reconnect', 0);
+				if (recovery === 'fresh initialize') {
+					replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, error: { code: AhpErrorCodes.NotFound, message: 'Host restarted' } });
+					const initialize = await waitForRequestAtWithin(replacement, 'initialize', 0);
+					replacement.fireMessage({ jsonrpc: '2.0', id: initialize.id, result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, _meta: metadata(nextChallenge), snapshots: [{ resource: ROOT_STATE_URI, fromSeq: 0, state: root }] } });
+				} else {
+					replacement.fireMessage({
+						jsonrpc: '2.0', id: reconnect.id,
+						result: recovery === 'replay'
+							? { type: ReconnectResultType.Replay, actions: [], missing: [], _meta: metadata(nextChallenge) }
+							: { type: ReconnectResultType.Snapshot, snapshots: [{ resource: ROOT_STATE_URI, fromSeq: 0, state: root }], _meta: metadata(nextChallenge) },
+					});
+				}
+				const provider = await waitForRequestAtWithin(replacement, 'authenticate', 0);
+				assert.strictEqual(replacement.sentMessages.filter(message => hasKey(message, { method: true }) && message.method === 'authenticate').length, 1);
+				replacement.fireMessage({ jsonrpc: '2.0', id: provider.id, result: {} });
+				const restoredMcp = await waitForRequestAtWithin(replacement, 'authenticate', 1);
+				replacement.fireMessage({ jsonrpc: '2.0', id: restoredMcp.id, result: {} });
+				await acknowledgeRoot(replacement, 0);
+				await waitForConnectedWithin(client);
+				assert.deepStrictEqual({
+					sealed: sealed.map(request => [request.token, request.key.use, request.challenge]),
+					target: (restoredMcp.params as AuthenticateParams).target,
+				}, {
+					sealed: [
+						['identity-token', 'auth-token', firstChallenge], ['mcp-token', 'mcp-auth-token', firstChallenge],
+						['identity-token', 'auth-token', nextChallenge], ['mcp-token', 'mcp-auth-token', nextChallenge],
+					],
+					target,
+				});
 			});
 		}
 
