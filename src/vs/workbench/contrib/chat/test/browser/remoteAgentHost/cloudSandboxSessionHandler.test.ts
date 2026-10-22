@@ -19,7 +19,7 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/virtualSc
 import { CloudSandboxRequestError, ICloudSandboxApiService } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { createActiveTurn, createChatState, createDefaultChatSummary, createSessionState, MessageKind, ResponsePartKind, SessionStatus, TurnState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { createActiveTurn, createChatState, createDefaultChatSummary, createSessionState, MessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IReplayedTaskHistory } from '../../../../../../platform/agentHost/common/taskEventReplay.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -1042,6 +1042,40 @@ suite('CloudSandboxSessionHandler', () => {
 			peer: toAgentHostUri(URI.file('/sandbox/peer/images/robot.png'), 'test').toString(),
 			external: 'https://github.com/image.png',
 			relativeLink: 'images/robot.png',
+		});
+	});
+
+	test('restores tool-result image bytes without connecting and releases them with the session', async () => {
+		const history = recordedHistory();
+		history.sessions[0].chats.get(history.sessions[0].defaultChat)!.turns[0].responseParts.push({
+			kind: ResponsePartKind.ToolCall, toolCall: {
+				toolCallId: 'view', toolName: 'view', displayName: 'View', invocationMessage: 'View', pastTenseMessage: 'Viewed',
+				status: ToolCallStatus.Completed, success: true, confirmed: ToolCallConfirmationReason.NotNeeded,
+				toolInput: '{"path":"/tmp/result.png"}',
+				content: [{ type: ToolResultContentType.EmbeddedResource, contentType: 'image/png', data: 'aW1hZ2U=' }],
+			},
+		});
+		const handler = createHandler(async () => history);
+		const first = await handler.provideChatSessionContent(resource, CancellationToken.None);
+		const replacement = await handler.provideChatSessionContent(resource, CancellationToken.None);
+		first.dispose();
+		const restored = handler.resolveChatResponseUri(resource, '/tmp/result.png', 'image');
+		const peer = handler.resolveChatResponseUri(resource.with({ fragment: peerChat }), '/tmp/result.png', 'image');
+		const live = new DeferredPromise<IChatSession>();
+		handler.setLiveProvider({
+			provideChatSessionContent: () => live.p,
+			resolveChatResponseUri: (_resource, href) => toAgentHostUri(URI.file(href), 'test').toString(),
+		});
+		const connecting = handler.resolveChatResponseUri(resource, '/tmp/result.png', 'image');
+		replacement.dispose();
+		await live.complete(store.add(new LiveSession()));
+		assert.deepStrictEqual({
+			restored, connecting, peer, released: handler.resolveChatResponseUri(resource, '/tmp/result.png', 'image'),
+		}, {
+			restored: 'data:image/png;base64,aW1hZ2U=',
+			connecting: 'data:image/png;base64,aW1hZ2U=',
+			peer: toAgentHostUri(URI.file('/tmp/result.png'), 'test').toString(),
+			released: toAgentHostUri(URI.file('/tmp/result.png'), 'test').toString(),
 		});
 	});
 });
