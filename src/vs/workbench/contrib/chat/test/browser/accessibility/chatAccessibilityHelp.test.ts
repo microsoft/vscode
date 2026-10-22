@@ -87,6 +87,19 @@ suite('Chat Accessibility Help', () => {
 		].map(help => help.includes('changes across the whole session instead of showing a Changes pill') || help.includes('press Tab to reach its Keep button')), [false, false, false, false]);
 	});
 
+	test('explains the context menu and read-only actions when Keep and Undo is hidden', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true, false, false, true, false, ChatSessionArchiveActionWording.Archive, false, false, undefined, true, true, false);
+		assert.deepStrictEqual({
+			contextMenu: help.includes('Shift+F10 or the Context Menu key'),
+			toggle: help.includes('toggle it to show or hide review controls in both the working set and open editors'),
+			hidden: help.includes('Keep and Undo are hidden in both'),
+			diff: help.includes('View All Edits remains available'),
+			pill: help.includes('Show Pill replaces the working set'),
+			restore: help.includes('Show Working Set to restore it'),
+			noKeepButton: !help.includes('press Tab to reach its Keep button'),
+		}, { contextMenu: true, toggle: true, hidden: true, diff: true, pill: true, restore: true, noKeepButton: true });
+	});
+
 	for (const type of ['panelChat', 'agentView', 'editsView', 'inlineChat', 'quickChat'] as const) {
 		test(`documents the sharing toggle and backend selection (${type})`, () => {
 			const help = getAccessibilityHelpText(type, new MockKeybindingService(), false);

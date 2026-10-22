@@ -29,6 +29,7 @@ import { IWorkbenchEnvironmentService } from '../../../../../../services/environ
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { ChatInputPart } from '../../../../browser/widget/input/chatInputPart.js';
 import { ChatSessionWorkingSetKeptChanges } from '../../../../browser/widget/input/chatSessionWorkingSet.js';
+import { ChatSessionReviewPreferencesService, IChatSessionReviewPreferencesService } from '../../../../common/editing/chatSessionReviewPreferences.js';
 import { CollapsibleListPool } from '../../../../browser/widget/chatContentParts/chatReferencesContentPart.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
 import { IChatSessionFileChange2, IChatSessionsService, SessionType } from '../../../../common/chatSessionsService.js';
@@ -182,6 +183,7 @@ suite('ChatInputPart', () => {
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IChatSessionReviewPreferencesService, store.add(instantiationService.createInstance(ChatSessionReviewPreferencesService)));
 		const contextKeyService = store.add(instantiationService.createInstance(ContextKeyService));
 		instantiationService.stub(IContextKeyService, contextKeyService);
 		// Runs the commands of the session working set's rows.
