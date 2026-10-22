@@ -141,6 +141,12 @@ suite('MultiSelectDropdown', () => {
 		});
 	});
 
+	test('required selection keeps the last selected item checked', () => {
+		const { row, changes } = create({ selectedIds: ['mon'], allowEmptySelection: false });
+		row('Monday').click();
+		assert.deepStrictEqual({ changes, checked: row('Monday').getAttribute('aria-checked') }, { changes: [], checked: 'true' });
+	});
+
 	test('double click toggles exactly twice', async () => {
 		const { dropdown, changes, row } = create();
 		const click = (detail: number) => {
@@ -186,6 +192,36 @@ suite('MultiSelectDropdown', () => {
 			changes, visible: dropdown.isVisible, focused: document.activeElement === anchor,
 			expanded: anchor.getAttribute('aria-expanded'), hides: hides(),
 		}, { changes: [['fri'], ['wed', 'fri'], ['wed', 'fri', 'sat']], visible: false, focused: true, expanded: 'false', hides: 1 });
+	});
+
+	test('optional keyboard acceptance toggles and closes without changing pointer behavior', async () => {
+		const { dropdown, service, changes, row, anchor, hides } = create({ closeOnAccept: true });
+		row('Wednesday').click();
+		await Promise.resolve();
+		service.acceptSelected();
+		await Promise.resolve();
+		assert.deepStrictEqual({
+			changes, visible: dropdown.isVisible, focused: document.activeElement === anchor, hides: hides(),
+		}, {
+			changes: [['mon', 'wed', 'fri'], ['mon', 'fri']],
+			visible: false,
+			focused: true,
+			hides: 1,
+		});
+	});
+
+	test('searchable filter placeholder is the combobox accessible name', () => {
+		const { container } = create({ searchable: true, filterPlaceholder: 'Filter days' });
+		const input = container.querySelector('input')!;
+		assert.deepStrictEqual({
+			placeholder: input.getAttribute('placeholder'),
+			role: input.getAttribute('role'),
+			ariaLabel: input.getAttribute('aria-label'),
+		}, {
+			placeholder: 'Filter days',
+			role: 'combobox',
+			ariaLabel: 'Filter days',
+		});
 	});
 
 	test('search follows ActionList header filtering and retains selection across no results', () => {
@@ -303,6 +339,35 @@ suite('MultiSelectDropdown', () => {
 			initialTop, scrollPreserved: container.querySelector<HTMLElement>('.monaco-list-rows')!.style.top === beforeToggle,
 			scrolled: parseFloat(beforeToggle) < 0, virtualized: rows().length < 60, changes, visible: dropdown.isVisible,
 		}, { initialTop: '0px', scrollPreserved: true, scrolled: true, virtualized: true, changes: [['55']], visible: true });
+	});
+
+	test('long lists cap actionable rows while headers add height and filtered results shrink', () => {
+		const { container, key, filter } = create({
+			sections: [
+				{ label: 'First', items: Array.from({ length: 4 }, (_, i) => ({ id: `first-${i}`, label: `First ${i}` })) },
+				{ label: 'Second', items: Array.from({ length: 20 }, (_, i) => ({ id: `second-${i}`, label: `Second ${i}` })) },
+			],
+			selectedIds: [],
+			searchable: true,
+			maxVisibleItems: 8,
+		});
+		const list = container.querySelector<HTMLElement>('.monaco-list')!;
+		const initialHeight = list.clientHeight;
+		for (let i = 0; i < 12; i++) {
+			key('ArrowDown', 40, container.querySelector('input')!);
+		}
+		const focusedTop = container.querySelector<HTMLElement>('.monaco-list-rows')!.style.top;
+		filter('Second 19');
+
+		assert.deepStrictEqual({
+			initialHeight,
+			scrolledToFocusedItem: parseFloat(focusedTop) < 0,
+			filteredHeight: list.clientHeight,
+		}, {
+			initialHeight: 248,
+			scrolledToFocusedItem: true,
+			filteredHeight: 24,
+		});
 	});
 
 	test('invalid identities fail before replacing the open popup', () => {

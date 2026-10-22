@@ -54,6 +54,7 @@ const removeToolbarActionId = 'actionList.remove';
 export interface IActionListDelegate<T> {
 	onHide(didCancel?: boolean): void;
 	onSelect(action: T, preview?: boolean): void;
+	onDidAccept?(): void;
 	onFilter?(filter: string, cancellationToken: CancellationToken): Promise<readonly IActionListItem<T>[]>;
 	onHover?(action: T, cancellationToken: CancellationToken): Promise<{ canPreview: boolean } | void>;
 	onFocus?(action: T | undefined): void;
@@ -2525,6 +2526,9 @@ export class ActionListWidget<T> extends Disposable {
 		if (element.item && this.focusCondition(element)) {
 			const isPreviewEvent = e.browserEvent instanceof PreviewSelectedEvent;
 			this._delegate.onSelect(element.item, isPreviewEvent && this._supportsPreview);
+			if (!isPointerActivation) {
+				this._delegate.onDidAccept?.();
+			}
 		} else {
 			this._list.setSelection([]);
 		}

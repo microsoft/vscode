@@ -35,6 +35,12 @@ export interface IMultiSelectDropdownOptions {
 	readonly searchable?: boolean;
 	readonly filterPlaceholder?: string;
 	readonly width?: number;
+	/** Maximum number of action rows shown before the list scrolls. Headers may add height. */
+	readonly maxVisibleItems?: number;
+	/** Whether the final selected item can be deselected. Defaults to true. */
+	readonly allowEmptySelection?: boolean;
+	/** Whether keyboard acceptance closes the dropdown after toggling. Defaults to false. */
+	readonly closeOnAccept?: boolean;
 	/** Use a higher layer when opening inside another context view, such as a dialog. */
 	readonly contextViewLayer?: number;
 }
@@ -91,6 +97,9 @@ export class MultiSelectDropdown extends Disposable {
 		this.actionWidgetService.show('multiSelectDropdown', false, buildItems(), {
 			onSelect: item => {
 				if (selected.has(item.id)) {
+					if (options.allowEmptySelection === false && selected.size === 1) {
+						return;
+					}
 					selected.delete(item.id);
 				} else {
 					selected.add(item.id);
@@ -99,6 +108,7 @@ export class MultiSelectDropdown extends Disposable {
 				this.actionWidgetService.updateItems(buildItems(), focusItemId, { preserveScrollPosition: true });
 				this._onDidChangeSelection.fire(allItems.filter(item => selected.has(item.id)).map(item => item.id));
 			},
+			onDidAccept: options.closeOnAccept ? () => this.actionWidgetService.hide() : undefined,
 			onHide: () => {
 				if (this.opening !== opening) {
 					return;
@@ -139,6 +149,7 @@ export class MultiSelectDropdown extends Disposable {
 			suppressDoubleClickActivation: true,
 			minWidth: options.width ?? 280,
 			maxWidth: options.width ?? 280,
+			maxVisibleItems: options.maxVisibleItems,
 			hideDefaultKeybindingTooltip: true,
 			preferredAnchorPosition: AnchorPosition.BELOW,
 			widgetClassName: 'multi-select-dropdown',

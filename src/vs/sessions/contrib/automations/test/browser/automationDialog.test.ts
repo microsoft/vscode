@@ -25,7 +25,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { Context as SuggestContext } from '../../../../../editor/contrib/suggest/browser/suggest.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
-import { IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../../platform/actionWidget/browser/actionList.js';
+import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IAnchor } from '../../../../../base/browser/ui/contextview/contextview.js';
 import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/listWidget.js';
 import { IMenuService, isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
@@ -211,10 +211,17 @@ suite('Automation dialog creation', () => {
 		return {
 			result, saveButton, cancelButton, nameInput, container, providers, actionWidgetService,
 			openEventPicker: () => {
-				container.querySelector<HTMLElement>('.automation-event-button')!.click();
-				const tree = quickInputService.trees.at(-1);
-				assert.ok(tree?.visible);
-				return tree;
+				const button = container.querySelector<HTMLElement>('.automation-event-button')!;
+				button.focus();
+				button.click();
+				assert.ok(actionWidgetService.isVisible);
+				return {
+					leaves: actionWidgetService.actionLabels.map(label => ({ label })),
+					toggle: (label: string) => actionWidgetService.select(label),
+					accept: () => actionWidgetService.hide(),
+					hide: () => actionWidgetService.hide(),
+					listOptions: actionWidgetService.listOptions,
+				};
 			},
 			openToolsPicker: () => {
 				const button = container.querySelector<HTMLElement>('.automation-provider-tools .monaco-button');
@@ -432,7 +439,6 @@ suite('Automation dialog creation', () => {
 		family.dispatchEvent(new (DOM.getWindow(family).Event)('change', { bubbles: true }));
 		const picker = dialog.openEventPicker();
 		picker.toggle('Pull request opened');
-		assert.deepStrictEqual(picker.checkedLeafItems.map(item => item.label), ['Pull request opened']);
 		const oneEvent = dialog.container.querySelector<HTMLElement>('.automation-event-button')!.textContent;
 		picker.toggle('Timeline comment');
 		const twoEvents = dialog.container.querySelector<HTMLElement>('.automation-event-button')!.textContent;
@@ -512,7 +518,7 @@ suite('Automation dialog creation', () => {
 		});
 	});
 
-	test('PR Event button uses the existing Quick Pick and restores focus without changing saved triggers', async () => {
+	test('PR Event button uses the reusable bounded dropdown and restores focus without changing saved triggers', async () => {
 		const dialog = openDialog({ existing: eventAutomation({ pull_request_comment: { types: ['review_comment', 'timeline_comment'], body_substring: ' /review ', opaque: true } }) },
 			{ ...eventConfiguration(), triggers: constObservable({ kind: 'ready', definitions: prCatalog }) });
 		const picker = dialog.openEventPicker();
@@ -522,8 +528,9 @@ suite('Automation dialog creation', () => {
 		const closed = { focused: DOM.getActiveElement() === button, dialogOpen: !!dialog.container.querySelector('.automation-dialog'), customPopup: !!dialog.container.querySelector('.automation-event-options') };
 		dialog.saveButton.click();
 		const result = await dialog.result;
-		assert.deepStrictEqual({ options, closed, patch: result?.value.cloudTrigger }, {
+		assert.deepStrictEqual({ options, maxVisibleItems: picker.listOptions?.maxVisibleItems, closed, patch: result?.value.cloudTrigger }, {
 			options: ['Pull request opened', 'Timeline comment', 'Review comment', 'Review submitted'],
+			maxVisibleItems: 8,
 			closed: { focused: true, dialogOpen: true, customPopup: false }, patch: undefined,
 		});
 	});
@@ -2902,8 +2909,10 @@ class RecordingQuickInputService extends mock<IQuickInputService>() {
 class RecordingActionWidgetService extends mock<IActionWidgetService>() {
 	override isVisible = false;
 	labels: readonly string[] = [];
+	actionLabels: readonly string[] = [];
 	details: ReadonlyArray<IActionListItem<unknown>['detail']> = [];
 	ariaLabels: readonly string[] = [];
+	listOptions: IActionListOptions | undefined;
 	private selectItem: ((label: string) => void) | undefined;
 	private hideWidget: ((didCancel?: boolean) => void) | undefined;
 
@@ -2916,11 +2925,13 @@ class RecordingActionWidgetService extends mock<IActionWidgetService>() {
 		_container: HTMLElement | undefined,
 		_actionBarActions: readonly IAction[],
 		accessibilityProvider?: Partial<IListAccessibilityProvider<IActionListItem<T>>>,
-		_listOptions?: IActionListOptions,
+		listOptions?: IActionListOptions,
 	): void {
 		this.isVisible = true;
 		this.labels = items.map(item => item.label ?? '');
+		this.actionLabels = items.filter(item => item.kind === ActionListItemKind.Action).map(item => item.label ?? '');
 		this.details = items.map(item => item.detail);
+		this.listOptions = listOptions;
 		this.ariaLabels = items.map(item => {
 			const label = accessibilityProvider?.getAriaLabel?.(item);
 			return typeof label === 'string' ? label : label?.get() ?? '';

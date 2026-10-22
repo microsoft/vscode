@@ -8,14 +8,14 @@ import { Button } from '../../../../base/browser/ui/button/button.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { ISelectBoxOptions, SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
 import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { MultiSelectDropdown } from '../../../../platform/actionWidget/browser/multiSelectDropdown.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { Link } from '../../../../platform/opener/browser/link.js';
-import { IQuickInputService, IQuickTreeItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IAutomationCloudTrigger } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationTriggerCatalog } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
@@ -32,7 +32,7 @@ export class AutomationTriggerEditor extends Disposable {
 	private readonly controls = this._register(new DisposableStore());
 	private readonly requiredFieldControls = this._register(new DisposableStore());
 	private readonly fieldControls = this._register(new DisposableStore());
-	private readonly eventPicker = this._register(new MutableDisposable<DisposableStore>());
+	private readonly eventPicker: MultiSelectDropdown;
 	private catalog: AutomationTriggerCatalog | undefined;
 	private choices: readonly IAutomationTriggerChoice[] = [];
 	private cloud = false;
@@ -54,9 +54,9 @@ export class AutomationTriggerEditor extends Disposable {
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IHoverService private readonly hoverService: IHoverService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
 	) {
 		super();
+		this.eventPicker = this._register(this.instantiationService.createInstance(MultiSelectDropdown));
 	}
 
 	update(catalog: AutomationTriggerCatalog | undefined, cloud: boolean): void {
@@ -94,7 +94,7 @@ export class AutomationTriggerEditor extends Disposable {
 	}
 
 	private render(): void {
-		this.eventPicker.clear();
+		this.eventPicker.hide();
 		this.controls.clear();
 		this.requiredFieldControls.clear();
 		this.fieldControls.clear();
@@ -154,6 +154,14 @@ export class AutomationTriggerEditor extends Disposable {
 				content: automationTriggerSummary(this.state.cloudTrigger!.triggers) ?? '',
 			})));
 			this.controls.add(button.onDidClick(() => this.pickEvents(choices)));
+			this.controls.add(this.eventPicker.onDidChangeSelection(selectedIds => {
+				const choicesById = new Map(choices.map(choice => [this.eventId(choice), choice]));
+				const selected = selectedIds.map(id => choicesById.get(id)!);
+				this.state.cloudTrigger = { ...this.state.cloudTrigger!, triggers: selectAutomationTriggerEvents(this.state.cloudTrigger!.triggers, selected) };
+				this.updateEventLabel();
+				this.renderSelectedFields(choices);
+				this.changed();
+			}));
 		} else {
 			const selected = choices.findIndex(choice => this.state.cloudTrigger?.triggers[choice.name]?.types?.includes(choice.type));
 			const picker = this.controls.add(new SelectBox(choices.map(choice => ({ text: choice.label })), selected, this.contextViewService, defaultSelectBoxStyles, { ...this.selectOptions, ariaLabel: localize('automation.trigger.event', "Event") }));
@@ -200,37 +208,25 @@ export class AutomationTriggerEditor extends Disposable {
 	}
 
 	private pickEvents(choices: readonly IAutomationTriggerChoice[]): void {
-		const store = new DisposableStore();
-		this.eventPicker.value = store;
-		let disposing = false;
-		store.add(toDisposable(() => { disposing = true; }));
-		const picker = store.add(this.quickInputService.createQuickTree<IQuickTreeItem>());
-		picker.title = localize('automation.trigger.selectEvents', "Pull Request Events");
-		picker.placeholder = localize('automation.trigger.selectEventsPlaceholder', "Select at least one event");
-		picker.sortByLabel = false;
-		const items = () => choices.map((choice, index) => ({
-			id: String(index), label: choice.label, checked: this.state.cloudTrigger?.triggers[choice.name]?.types?.includes(choice.type) ?? false,
-		}));
-		picker.setItemTree(items());
-		store.add(picker.onDidChangeCheckedLeafItems(selected => {
-			if (!selected.length) {
-				picker.setItemTree(items());
-				return;
-			}
-			this.state.cloudTrigger = { ...this.state.cloudTrigger!, triggers: selectAutomationTriggerEvents(this.state.cloudTrigger!.triggers, selected.map(item => choices[Number(item.id)])) };
-			this.updateEventLabel();
-			this.renderSelectedFields(choices);
-			this.changed();
-		}));
-		store.add(picker.onDidAccept(() => picker.hide()));
-		store.add(picker.onDidHide(() => {
-			if (disposing) {
-				return;
-			}
-			this.eventPicker.clear();
-			this.eventsButton?.focus();
-		}));
-		picker.show();
+		const label = localize('automation.trigger.selectEvents', "Pull Request Events");
+		this.eventPicker.show({
+			anchor: this.eventsButton!.element,
+			ariaLabel: label,
+			sections: [{
+				label,
+				items: choices.map(choice => ({ id: this.eventId(choice), label: choice.label })),
+			}],
+			selectedIds: choices.filter(choice => this.state.cloudTrigger?.triggers[choice.name]?.types?.includes(choice.type)).map(choice => this.eventId(choice)),
+			searchable: true,
+			filterPlaceholder: localize('automation.trigger.filterEventsPlaceholder', "Filter pull request events"),
+			maxVisibleItems: 8,
+			allowEmptySelection: false,
+			closeOnAccept: true,
+		});
+	}
+
+	private eventId(choice: IAutomationTriggerChoice): string {
+		return JSON.stringify([choice.name, choice.type]);
 	}
 
 	private renderField(field: IAutomationTriggerFieldGroup, target: HTMLElement, controls: DisposableStore): void {
