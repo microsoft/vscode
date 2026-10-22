@@ -7891,14 +7891,8 @@ export class AgentService extends Disposable implements IAgentService {
 						restoreScratchRow = recorded;
 					}
 				}
-				const config = this._movedChatConfig(sourceKey, targetKey, chatKey, this._movedAgentMergeInto(sourceKey, targetKey, moved, sessionMove)?.elevated.has(chatKey));
-				if (Object.keys(config).length > 0) {
-					// Persisted before the commit, in the chat's own database: its values in the source don't change by it, and
-					// a crash after the commit keeps them. A refused move restores the chat's previous values.
-					const previousConfig = this._stateManager.getChatConfig(chatKey)?.values ?? {};
-					await this._sessionStateStore.chatRows.setChatConfig(session, chat, { ...previousConfig, ...config });
-					restoreConfig = () => this._sessionStateStore.chatRows.setChatConfig(session, chat, previousConfig);
-				}
+				let config: Record<string, unknown> = {};
+				let previousConfig: Record<string, unknown> | undefined;
 				// Artifacts recorded meanwhile wait for the move, so the moved chats' artifacts are carried from their current lists.
 				artifactsHold = await SessionArtifacts.hold(this._stateManager, [sourceKey, targetKey]);
 				movedArtifacts = this._movedChatArtifacts(sourceKey, targetKey, chatKey, moved, sessionMove);
@@ -7910,10 +7904,21 @@ export class AgentService extends Disposable implements IAgentService {
 				const commit = async () => {
 					// The Agent Merge of the moved chats moves in the same transaction, so no restart finds it in both sessions or in neither.
 					const agentMerge = this._movedAgentMergeInto(sourceKey, targetKey, moved, sessionMove);
-					const agentMergeValues = agentMerge && {
-						source: agentMerge.source ? { configValues: await this._persistedConfigValuesWith(sourceKey, agentMerge.source) } : {},
-						target: Object.keys(agentMerge.target).length > 0 ? { configValues: await this._persistedConfigValuesWith(targetKey, agentMerge.target) } : {},
-					};
+					// The chat keeps Agent Merge's elevation only if it runs it on in the target, as this commit decides.
+					config = this._movedChatConfig(sourceKey, targetKey, chatKey, agentMerge?.elevated.has(chatKey));
+					if (Object.keys(config).length > 0) {
+						// Persisted before the commit, in the chat's own database: its values in the source don't change by it, and
+						// a crash after the commit keeps them. A refused move restores the chat's previous values.
+						const previous = previousConfig ??= this._stateManager.getChatConfig(chatKey)?.values ?? {};
+						await this._sessionStateStore.chatRows.setChatConfig(session, chat, { ...previous, ...config });
+						restoreConfig = () => this._sessionStateStore.chatRows.setChatConfig(session, chat, previous);
+					}
+					// A session that ends keeps no copy of its Agent Merge for older builds: writing the target's values drops it.
+					const endsWithAgentMerge = sessionMove && AGENT_MERGE_SESSION_CONFIG_KEYS.some(key => this._stateManager.getSessionState(sourceKey)?.config?.values[key] !== undefined);
+					const agentMergeValues = agentMerge || endsWithAgentMerge ? {
+						source: agentMerge?.source ? { configValues: await this._persistedConfigValuesWith(sourceKey, agentMerge.source) } : {},
+						target: (agentMerge && Object.keys(agentMerge.target).length > 0) || endsWithAgentMerge ? { configValues: await this._persistedConfigValuesWith(targetKey, agentMerge?.target ?? {}) } : {},
+					} : undefined;
 					if (agentMerge?.folders.length) {
 						// Indexed first, so a restart right after the commit resumes monitoring it; a refused move drops it again.
 						indexedTarget = true;
@@ -8157,6 +8162,8 @@ export class AgentService extends Disposable implements IAgentService {
 		const sessionValues = withoutAgentMergeElevation(sourceValues, readAgentMergeInjectedConfiguration(sourceValues));
 		const values = { ...withoutAgentMergeElevation(this._configurationService.getChatConfigValues({ session: source, chat }) ?? {}, readAgentMergeInjectedConfiguration(sourceValues)) };
 		const elevation = keepsElevation ? undefined : readAgentMergeChatInjectedConfigurations(sourceValues).get(chat);
+		// The values are applied over the chat's own: one it had none of before elevation is removed explicitly.
+		const removed: Record<string, undefined> = {};
 		for (const [key, applied] of Object.entries(elevation?.applied ?? {})) {
 			if (!equals(values[key], applied)) {
 				continue;
@@ -8165,11 +8172,12 @@ export class AgentService extends Disposable implements IAgentService {
 			const previous = Object.hasOwn(elevation!.previous, key) ? elevation!.previous[key] : sessionValues[key];
 			if (previous === undefined) {
 				delete values[key];
+				removed[key] = undefined;
 			} else {
 				values[key] = previous;
 			}
 		}
-		return Object.fromEntries(Object.entries(filterChatConfigValues(schema, values)).filter(([key]) => schema?.properties[key]?.readOnly !== true));
+		return { ...Object.fromEntries(Object.entries(filterChatConfigValues(schema, values)).filter(([key]) => schema?.properties[key]?.readOnly !== true)), ...removed };
 	}
 
 	/**
@@ -8416,6 +8424,7 @@ export class AgentService extends Disposable implements IAgentService {
 			let worktreePlan: IWorktreeMoveDecisions;
 			const withholdings: IWorktreeWithholding[] = [];
 			let movedArtifacts: IMovedChatArtifacts | undefined;
+			let indexedTarget = false;
 			const sourceConfig = this._stateManager.getSessionState(sourceKey)?.config;
 			const promotedAgentMerge = () => this._movedAgentMerge(sourceKey, { values: undefined, sessionFolderKey: chatFolders[0] === undefined ? undefined : getWorkingDirectoryKey(chatFolders[0]) }, moved, false);
 			// The chat's own values become the new session's: its future chats start from them. So does the Agent Merge it runs.
@@ -8471,6 +8480,12 @@ export class AgentService extends Disposable implements IAgentService {
 					values[SESSION_ARTIFACTS_KEY] = stringifySessionArtifacts(movedArtifacts.target);
 				}
 				const artifactSourceValues = movedArtifacts && { [SESSION_ARTIFACTS_KEY]: movedArtifacts.source.length > 0 ? stringifySessionArtifacts(movedArtifacts.source) : null };
+				if (promotedAgentMerge()?.folders.length) {
+					// Indexed first, so a restart right after the commit resumes monitoring it; a refused promotion drops it again.
+					indexedTarget = true;
+					this._writeAgentMergeIndex(target, true);
+					await this._agentMergeIndexWrites;
+				}
 				const commit = async () => {
 					// The Agent Merge of the promoted chats leaves the source in the same transaction.
 					const agentMergeSource = promotedAgentMerge()?.source;
@@ -8516,6 +8531,9 @@ export class AgentService extends Disposable implements IAgentService {
 				committed = result.moved;
 				withholdings.forEach(withholding => withholding.done());
 			} catch (error) {
+				if (indexedTarget) {
+					this._writeAgentMergeIndex(target, false);
+				}
 				await this._undoWorktreeMovePreparation(withholdings, undefined, chatKey);
 				if (error instanceof SessionStateDeletedError) {
 					refuse(AgentChatMoveRefusal.SessionNotReady, error.message);

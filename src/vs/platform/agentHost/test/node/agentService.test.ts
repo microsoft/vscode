@@ -35438,11 +35438,11 @@ suite('AgentService (node dispatcher)', () => {
 			 * Turns Agent Merge on, with its provider elevating approvals, for `folder` of `session`, owned by `chat` and
 			 * bound to pull request `number`; `sessions` start with default approvals.
 			 */
-			async function enableAgentMerge(service: AgentService, agent: IAgent, sessions: readonly URI[], session: URI, chat: string, folder: URI, number: number): Promise<Record<string, unknown>> {
+			async function enableAgentMerge(service: AgentService, agent: IAgent, sessions: readonly URI[], session: URI, chat: string, folder: URI, number: number, sessionValues: Record<string, unknown> = { autoApprove: 'default' }): Promise<Record<string, unknown>> {
 				agent.getAutonomousSessionConfig = () => ({ autoApprove: 'autoApprove' });
 				getConfigurationService(service).updateRootConfig({ [AgentMergeConfigKey.Enabled]: true });
 				for (const candidate of sessions) {
-					getStateManager(service).setSessionConfig(candidate.toString(), { schema: approvalSchema, values: { autoApprove: 'default' } });
+					getStateManager(service).setSessionConfig(candidate.toString(), { schema: approvalSchema, values: sessionValues });
 				}
 				const values = agentMergeConfigValues(chat, folder, number);
 				getConfigurationService(service).updateSessionConfig(session.toString(), values);
@@ -36934,30 +36934,37 @@ suite('AgentService (node dispatcher)', () => {
 				});
 			});
 
-			test('a chat that runs Agent Merge moving into a session that already runs it for the folder keeps the destination\'s, and its own turns off with a notice', async () => {
-				const { service, agent, source, target, peer, folder } = await setupMove();
-				const stateManager = getStateManager(service);
-				const theirs = agentMergeConfigValues(buildDefaultChatUri(target), folder, 2);
-				await enableAgentMerge(service, agent, [source, target], source, peer.toString(), folder, 1);
-				getConfigurationService(service).updateSessionConfig(target.toString(), theirs);
-				await timeout(0);
+			test('a chat that runs Agent Merge moving into a session that already runs it for the folder keeps the destination\'s, and its own turns off with a notice and without its elevation', async () => {
+				const outcomes: Record<string, unknown> = {};
+				const expected: Record<string, unknown> = {};
+				// With approvals the sessions choose, and without: then the chat had none before Agent Merge elevated it.
+				for (const [name, sessionValues] of Object.entries({ sessionApprovals: { autoApprove: 'default' }, noApprovals: {} })) {
+					const { service, agent, source, target, peer, folder } = await setupMove();
+					const stateManager = getStateManager(service);
+					const theirs = agentMergeConfigValues(buildDefaultChatUri(target), folder, 2);
+					await enableAgentMerge(service, agent, [source, target], source, peer.toString(), folder, 1, sessionValues);
+					getConfigurationService(service).updateSessionConfig(target.toString(), theirs);
+					await timeout(0);
 
-				await service.moveChat(source, peer, { kind: 'session', session: target, after: undefined });
-				await timeout(0);
-				const folders = (values: Readonly<Record<string, unknown>> | undefined) => ({ folders: values?.[SessionConfigKey.AgentMergeFolders], controller: values?.[SessionConfigKey.AgentMergeControllerFolders] });
-				const notices = stateManager.getChatState(peer.toString())?.turns.flatMap(turn => turn.responseParts).filter(part => part.kind === ResponsePartKind.SystemNotification).map(part => part.kind === ResponsePartKind.SystemNotification ? part.content : undefined);
+					await service.moveChat(source, peer, { kind: 'session', session: target, after: undefined });
+					await timeout(0);
+					const folders = (values: Readonly<Record<string, unknown>> | undefined) => ({ folders: values?.[SessionConfigKey.AgentMergeFolders], controller: values?.[SessionConfigKey.AgentMergeControllerFolders] });
+					const notices = stateManager.getChatState(peer.toString())?.turns.flatMap(turn => turn.responseParts).filter(part => part.kind === ResponsePartKind.SystemNotification).map(part => part.kind === ResponsePartKind.SystemNotification ? part.content : undefined);
+					outcomes[name] = {
+						target: folders(stateManager.getSessionState(target.toString())?.config?.values),
+						source: folders(stateManager.getSessionState(source.toString())?.config?.values),
+						approvals: getConfigurationService(service).getChatConfigValues({ session: target.toString(), chat: peer.toString() })?.autoApprove,
+						notice: notices?.at(-1),
+					};
+					expected[name] = {
+						target: folders(theirs),
+						source: { folders: { [getWorkingDirectoryKey(folder.toString())]: { enabled: false } }, controller: {} },
+						approvals: sessionValues.autoApprove,
+						notice: 'Agent Merge was turned off for this chat: another chat in this session already runs it for this pull request.',
+					};
+				}
 
-				assert.deepStrictEqual({
-					target: folders(stateManager.getSessionState(target.toString())?.config?.values),
-					source: folders(stateManager.getSessionState(source.toString())?.config?.values),
-					approvals: getConfigurationService(service).getChatConfigValues({ session: target.toString(), chat: peer.toString() })?.autoApprove,
-					notice: notices?.at(-1),
-				}, {
-					target: folders(theirs),
-					source: { folders: { [getWorkingDirectoryKey(folder.toString())]: { enabled: false } }, controller: {} },
-					approvals: 'default',
-					notice: 'Agent Merge was turned off for this chat: another chat in this session already runs it for this pull request.',
-				});
+				assert.deepStrictEqual(outcomes, expected);
 			});
 
 			test('a chat that runs Agent Merge promoted to its own session takes it along, keeping its elevation its own', async () => {
@@ -37007,10 +37014,10 @@ suite('AgentService (node dispatcher)', () => {
 					outcomes[kind] = {
 						destination: bound(await persistedConfigValues(service, destination)),
 						source: bound(await persistedConfigValues(service, source)),
-						indexed: kind === 'move' ? await agentMergeIndexOf(service, { source, target }) : undefined,
+						indexed: await agentMergeIndexOf(service, { source, target, destination }),
 					};
 					// Indexed before the commit; the source's flag clears on the restore that finds nothing on.
-					expected[kind] = { destination: bound(agentMerge), source: off, indexed: kind === 'move' ? ['source', 'target'] : undefined };
+					expected[kind] = { destination: bound(agentMerge), source: off, indexed: kind === 'move' ? ['source', 'target'] : ['destination', 'source'] };
 				}
 
 				assert.deepStrictEqual(outcomes, expected);
@@ -37871,6 +37878,31 @@ suite('AgentService (node dispatcher)', () => {
 						undone: { promoted: bound, target: { [SessionConfigKey.AgentMergeFolders]: { [getWorkingDirectoryKey(folder.toString())]: { enabled: false } }, [SessionConfigKey.AgentMergeControllerFolders]: undefined }, indexed: ['promoted'] },
 						// The destination isn't monitored any more, so nothing restores it.
 						undoneAfterRestart: { promoted: bound, indexed: ['promoted'], targetLoaded: false },
+					});
+				});
+
+				test('a session that runs Agent Merge nested under one that already runs it for its pull request keeps no copy of it for older builds', async () => {
+					const { agent, service, source, target, chat } = await setupSessionMove();
+					const folder = URI.file('/repo');
+					await enableAgentMerge(service, agent, [source, target], source, chat.toString(), folder, 1);
+					const theirs = agentMergeConfigValues(getStateManager(service).getSessionState(target.toString())!.defaultChat!, folder, 1);
+					getConfigurationService(service).updateSessionConfig(target.toString(), theirs);
+					await timeout(0);
+					await getTestSessionStateStore(service).whenIdle(undefined);
+					const sourceDatabase = (service as unknown as { _sessionDataService: ISessionDataService })._sessionDataService.openDatabase(source);
+					const before = await sourceDatabase.object.getMetadata('configValues') !== undefined;
+
+					await service.moveSession(source, target, undefined);
+					await timeout(0);
+					await getTestSessionStateStore(service).whenIdle(undefined);
+					const endedSessionCopy = await sourceDatabase.object.getMetadata('configValues');
+					sourceDatabase.dispose();
+					const values = getStateManager(service).getSessionState(target.toString())?.config?.values;
+
+					assert.deepStrictEqual({ before, endedSessionCopy, target: { [SessionConfigKey.AgentMergeFolders]: values?.[SessionConfigKey.AgentMergeFolders], [SessionConfigKey.AgentMergeControllerFolders]: values?.[SessionConfigKey.AgentMergeControllerFolders] } }, {
+						before: true,
+						endedSessionCopy: undefined,
+						target: theirs,
 					});
 				});
 
