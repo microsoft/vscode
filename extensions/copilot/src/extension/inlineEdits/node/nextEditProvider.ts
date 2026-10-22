@@ -9,7 +9,7 @@ import { ConfigKey, IConfigurationService } from '../../../platform/configuratio
 import { DocumentId } from '../../../platform/inlineEdits/common/dataTypes/documentId';
 import { Edits, RootedEdit } from '../../../platform/inlineEdits/common/dataTypes/edit';
 import { RootedLineEdit } from '../../../platform/inlineEdits/common/dataTypes/rootedLineEdit';
-import { isRejectedEditMemoryEnabled, SpeculativeRequestsAutoExpandEditWindowLines, SpeculativeRequestsCursorPlacement, SpeculativeRequestsEnablement } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { isRejectedEditMemoryEnabled, RejectedEditsCacheScope, SpeculativeRequestsAutoExpandEditWindowLines, SpeculativeRequestsCursorPlacement, SpeculativeRequestsEnablement } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { InlineEditRequestLogContext, type MarkdownLoggable } from '../../../platform/inlineEdits/common/inlineEditLogContext';
 import { IInlineEditsModelService } from '../../../platform/inlineEdits/common/inlineEditsModelService';
 import { resolveModelConfigValue } from '../../../platform/inlineEdits/common/modelConfigurationResolution';
@@ -1609,10 +1609,16 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 			// we can argue that the user had the time to review this
 			// so it wasn't an accidental rejection
 			this._rejectionCollector.reject(docId, suggestion.result.edit);
-			if (this._isRejectedEditMemoryEnabled()) {
+			const modelConfiguration = this._modelService.selectedModelConfiguration();
+			const rejectedEditMemoryEnabled = isRejectedEditMemoryEnabled(modelConfiguration);
+			if (rejectedEditMemoryEnabled) {
 				this._xtabHistoryTracker.recordRejectedEdit(suggestion.result.targetDocumentId ?? docId, suggestion.result.documentBeforeEdits, suggestion.result.edit);
 			}
-			this._nextEditCache.rejectedNextEdit(suggestion.source.headerRequestId);
+			const cacheScope = rejectedEditMemoryEnabled ? modelConfiguration.memory?.rejectedEditsCacheScope : undefined;
+			if (cacheScope !== RejectedEditsCacheScope.None) {
+				const onlyRejectedEntry = cacheScope === RejectedEditsCacheScope.Edit ? suggestion.result.cacheEntry : undefined;
+				this._nextEditCache.rejectedNextEdit(suggestion.source.headerRequestId, onlyRejectedEntry);
+			}
 		}
 
 		this._lastRejectionTime = Date.now();
@@ -1646,10 +1652,6 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 			return;
 		}
 		this._snippyService.handlePostInsertion(docId.toUri(), suggestion.result.documentBeforeEdits, suggestion.result.edit);
-	}
-
-	private _isRejectedEditMemoryEnabled(): boolean {
-		return isRejectedEditMemoryEnabled(this._modelService.selectedModelConfiguration());
 	}
 
 	private _addLiveLogContextEntry(logContext: InlineEditRequestLogContext, debugNameOverride?: string): void {
