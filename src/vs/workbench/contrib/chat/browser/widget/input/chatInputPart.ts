@@ -390,7 +390,11 @@ export interface IChatInputHostModelSelection extends IChatInputNotificationMode
  * session provider, takes part in submitting the input.
  */
 export interface IChatInputHostSubmit {
-	/** Whether the host currently allows submitting, in addition to the input's own checks. */
+	/**
+	 * Whether the host currently allows submitting, in addition to the input's own
+	 * checks. The host also decides whether its session's options are valid, so
+	 * the input does not check them.
+	 */
 	readonly canSubmit: IObservable<boolean>;
 	/** Whether the host has content to send even when the input is empty, such as feedback it sends along. */
 	readonly hasContent?: IObservable<boolean>;
@@ -2831,7 +2835,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return [];
 		}
 
-		const allOptionsValid = sessionResource ? this.areAllOptionsValid(sessionResource, visibleOptionGroups) : true;
+		// A host that submits for itself decides whether its session's options are valid.
+		const allOptionsValid = this.options.hostSubmit || !sessionResource ? true : this.areAllOptionsValid(sessionResource, visibleOptionGroups);
 
 		this.chatSessionHasOptions.set(true);
 		this.chatSessionOptionsValid.set(allOptionsValid);

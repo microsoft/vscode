@@ -166,6 +166,12 @@ export class NewChatView extends AbstractChatView {
 		return { type: NewChatView.TYPE };
 	}
 
+	override setChat(chat: IChat): void {
+		if (this._widget instanceof NewChatInSessionWidget) {
+			this._widget.setChat(chat);
+		}
+	}
+
 	override get preserveOnSessionClear(): boolean {
 		return this._widget instanceof NewChatWidget && this._widget.preserveOnSessionClear;
 	}

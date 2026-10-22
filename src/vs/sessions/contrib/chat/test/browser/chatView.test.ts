@@ -18,7 +18,7 @@ import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { autorun, constObservable, derived, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
 import { Selection } from '../../../../../editor/common/core/selection.js';
@@ -2262,7 +2262,7 @@ suite('Sessions - Chat View', () => {
 		assert.strictEqual(isVisible.get(), false);
 	});
 
-	test('configures the peer chat composer with its own repository controls and pet platform', () => {
+	test('configures the peer chat composer with its own chat, repository controls and pet platform', () => {
 		let inputOptions: INewChatComposerInputOptions | undefined;
 		const repositoryControls = { visible: constObservable(true), dispose: () => { } };
 		const petPlatform = dom.$('a.action-label');
@@ -2277,10 +2277,12 @@ suite('Sessions - Chat View', () => {
 				return input;
 			}) as IInstantiationService['createInstance'];
 		}();
+		// Another chat of the session is active, such as one open in another group.
+		const activeChat = upcastPartial<IChat>({ resource: URI.parse('chat:/active-elsewhere') });
 		const sessionsService = new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable<IActiveSession | undefined>(undefined);
+			override readonly activeSession = constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ sessionId: 'session', activeChat: constObservable(activeChat) }));
 		}();
-		disposables.add(new NewChatInSessionWidget(
+		const widget = disposables.add(new NewChatInSessionWidget(
 			{},
 			new TestConfigurationService(),
 			instantiationService,
@@ -2294,12 +2296,18 @@ suite('Sessions - Chat View', () => {
 			disposables.add(new InMemoryStorageService()),
 			new TestAccessibilityService(),
 		));
+		const beforeChat = inputOptions?.chat?.get();
+		const view: NewChatView = Object.assign(Object.create(NewChatView.prototype), { _widget: widget });
+		const viewChat = upcastPartial<IChat>({ resource: URI.parse('chat:/composer') });
+		view.setChat(viewChat);
 
 		const renderRepositoryControls = inputOptions?.renderRepositoryControls;
 		assert.deepStrictEqual({
+			beforeChat,
+			chat: inputOptions?.chat?.get()?.resource.toString(),
 			repositoryControls: typeof renderRepositoryControls === 'function' ? renderRepositoryControls(dom.$('div')) : renderRepositoryControls,
 			petPlatform: inputOptions?.getChatPetPlatformElements?.(),
-		}, { repositoryControls, petPlatform: [petPlatform] });
+		}, { beforeChat: undefined, chat: 'chat:/composer', repositoryControls, petPlatform: [petPlatform] });
 	});
 
 	test('positions peer chat content for centered attachment growth', () => {
