@@ -12,7 +12,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { autorun, derived, ISettableObservable, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { mock } from '../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
@@ -40,7 +40,7 @@ import { IMicCaptureService } from '../../../browser/voiceClient/micCaptureServi
 import { ITtsPlaybackService } from '../../../browser/voiceClient/ttsPlaybackService.js';
 import { isVoiceSessionActiveForInput, VoiceNewSessionPreparationResult, VoiceSessionController } from '../../../browser/voiceClient/voiceSessionController.js';
 import { IVoiceToolDispatchDelegate, IVoiceToolDispatchService } from '../../../browser/voiceClient/voiceToolDispatchService.js';
-import { ChatSendResult, ConfirmedReason, ElicitationState, IChatConfirmation, IChatModelReference, IChatSendRequestOptions, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ChatSendResult, ConfirmedReason, ElicitationState, IChatConfirmation, IChatModelReference, IChatSendRequestOptions, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { derivePendingId, isPendingIdResolved, IVoiceAudioResponse, IVoiceBargeIn, IVoiceCheckpointNarrationMetadata, IVoiceClientService, IVoiceDispatchResult, IVoiceFatalDisconnect, IVoiceNarrationAck, IVoiceNarrationSignal, IVoicePttStartOptions, IVoiceSessionContext, IVoiceSpeechStarted, IVoiceToolCall, IVoiceTranscription, markPendingIdResolved, peekPendingId, VoiceConfirmationType, VoiceNarrationKind, VOICE_AGENT_PROGRESS_SETTING } from '../../../common/voiceClient/voiceClientService.js';
 import { IChatModel, IChatProgressResponseContent, IChatResponseModel } from '../../../common/model/chatModel.js';
@@ -578,6 +578,7 @@ class NonVisibleTargetChatService extends mock<IChatService>() {
 	} as unknown as IChatResponseModel;
 	private readonly _model = {
 		sessionResource: this._resource,
+		requestInProgress: observableValue('requestInProgress', true),
 		onDidChange: Event.None,
 		lastRequest: { id: 'held-request', response: this.response },
 		getRequests: () => [{ id: 'held-request', response: this.response }],
@@ -756,12 +757,18 @@ class MaterializingChatWidget extends mock<IChatWidget>() {
 
 	constructor(resource: URI) {
 		super();
-		this.viewModel = { sessionResource: resource } as IChatWidget['viewModel'];
+		this.viewModel = upcastPartial<NonNullable<IChatWidget['viewModel']>>({
+			sessionResource: resource,
+			model: upcastPartial<IChatModel>({ requestInProgress: observableValue('requestInProgress', false) }),
+		});
 	}
 
 	materialize(resource: URI): void {
 		const previousSessionResource = this.viewModel?.sessionResource;
-		this.viewModel = { sessionResource: resource } as IChatWidget['viewModel'];
+		this.viewModel = upcastPartial<NonNullable<IChatWidget['viewModel']>>({
+			sessionResource: resource,
+			model: upcastPartial<IChatModel>({ requestInProgress: observableValue('requestInProgress', false) }),
+		});
 		this._onDidChangeViewModel.fire({ previousSessionResource, currentSessionResource: resource });
 	}
 
@@ -3454,6 +3461,28 @@ suite('VoiceSessionController', () => {
 		});
 	});
 
+	for (const inProgress of [false, true]) {
+		test(`direct voice requests ${inProgress ? 'steer ongoing work' : 'send normally when idle'}`, async () => {
+			const chatService = new class extends TestChatService {
+				override getSession(): IChatModel {
+					return upcastPartial<IChatModel>({
+						requestInProgress: observableValue('requestInProgress', inProgress),
+					});
+				}
+			}();
+			const controller = createController(
+				new TestVoiceClientService(), undefined, undefined, undefined, undefined,
+				new TestConfigurationService({ 'agents.voice.handsFree': false }), chatService,
+			);
+			const sendVoiceRequest = Reflect.get(controller, '_sendVoiceRequest') as (resource: URI, text: string) => Promise<ChatSendResult | undefined>;
+			await sendVoiceRequest.call(controller, URI.parse('chat-session:/target'), 'Use TypeScript instead.');
+			assert.deepStrictEqual(chatService.sendRequestOptions, [{
+				isVoiceModeInput: false,
+				...(inProgress ? { queue: ChatRequestQueueKind.Steering } : {}),
+			}]);
+		});
+	}
+
 	test('delays, coalesces, and preserves throttled voice progress for the shown request', () => {
 		const voiceClientService = new TestVoiceClientService();
 		const ttsPlaybackService = new TestTtsPlaybackService();
@@ -5144,6 +5173,35 @@ suite('VoiceSessionController', () => {
 		assert.strictEqual(buildPendingPayload.call(controller, pendingPartsModel({ kind: 'questionCarousel', isUsed: true, questions })), undefined);
 		assert.strictEqual(buildPendingPayload.call(controller, pendingPartsModel({ kind: 'questionCarousel', answeredExternally: true, questions })), undefined);
 		assert.strictEqual(buildPendingPayload.call(controller, pendingPartsModel({ kind: 'questionCarousel', questions: [] })), undefined);
+	});
+
+	test('narrates the carousel-level question as well as the field title and choices', () => {
+		const controller = createController(new TestVoiceClientService());
+		const questionNarratable = Reflect.get(controller, '_questionNarratable') as (model: IChatModel) => { text: string } | undefined;
+		const carousel = new ChatQuestionCarouselData([{
+			id: 'behavior',
+			type: 'singleSelect',
+			title: 'Function behavior',
+			options: [
+				{ id: 'name', label: 'Accept a name and return { name }, like createTurtle', value: 'name' },
+				{ id: 'empty', label: 'Leave the function empty for now', value: 'empty' },
+			],
+		}], false, undefined, undefined, undefined, new MarkdownString('What should candyFactory do?'));
+
+		assert.strictEqual(questionNarratable.call(controller, pendingPartsModel(carousel))?.text,
+			'What should candyFactory do? Function behavior Options: 1, Accept a name and return { name }, like createTurtle. 2, Leave the function empty for now. You can also give your own answer.');
+	});
+
+	test('narrates only the first numbered field when the carousel asks multiple questions', () => {
+		const controller = createController(new TestVoiceClientService());
+		const questionNarratable = Reflect.get(controller, '_questionNarratable') as (model: IChatModel) => { text: string } | undefined;
+		const carousel = new ChatQuestionCarouselData([
+			{ id: 'filename', type: 'text', title: 'File name' },
+			{ id: 'contents', type: 'text', title: 'File contents' },
+		], false, undefined, undefined, undefined, new MarkdownString('What should the new file be named, and what should it contain?'));
+
+		assert.strictEqual(questionNarratable.call(controller, pendingPartsModel(carousel))?.text,
+			'Please answer one question at a time. Question 1 of 2: File name');
 	});
 
 	test('selects the oldest still-open pending part, not the newest', () => {

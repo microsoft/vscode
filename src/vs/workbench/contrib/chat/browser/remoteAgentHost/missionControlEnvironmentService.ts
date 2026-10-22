@@ -259,7 +259,10 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 				this._requireHost(id);
 			}
 			connecting = true;
-			await raceCancellationError(this._connections.connect({ environmentId: id, name: host.name, environmentKind: 'user-local' }, source.token), source.token);
+			await raceCancellationError(this._connections.connect({
+				environmentId: id, name: host.name, environmentKind: 'user-local',
+				...(environment.encryption_keys ? { trustedEncryptionKeys: environment.encryption_keys } : {}),
+			}, source.token), source.token);
 			this._checkGeneration(generation, source.token);
 			this._requireHost(id);
 		} catch (error) {

@@ -55,7 +55,7 @@ import { SessionComparisonModelSelection } from '../../browser/sessionComparison
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { SessionView } from '../../../../browser/parts/sessionView.js';
 import { createSessionViewTestServices, createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
-import { ISessionCreationEnvironment } from '../../browser/sessionEnvironmentPicker.js';
+import { getDefaultSessionCreationEnvironment, ISessionCreationEnvironment } from '../../browser/sessionEnvironmentPicker.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 
 /** The part of the active session `_recreateOnProviderChange` actually reads. */
@@ -567,6 +567,62 @@ suite('NewChatWidget', () => {
 		const cloud: ISessionCreationEnvironment = { id: 'cloud', kind: 'cloud', label: 'Cloud', icon: Codicon.cloud, providerIds: ['cloud'] };
 		const container: ISessionCreationEnvironment = { ...local, id: 'container:local', kind: 'container' };
 		const folder = URI.file('/project');
+
+		test('automatic workspace restoration does not pin Cloud before This Computer registers', async () => {
+			const environments = observableValue<readonly ISessionCreationEnvironment[]>('environments', [cloud]);
+			const picked = observableValue<ISessionCreationEnvironment | undefined>('pickedEnvironment', undefined);
+			const environment = derived(reader => picked.read(reader)
+				?? getDefaultSessionCreationEnvironment(environments.read(reader), folder, 'cloud'));
+			const widget = Object.assign(Object.create(NewChatWidget.prototype), {
+				_environment: environment,
+				_environments: environments,
+				_pickedEnvironment: picked,
+				_environmentPickerBeforeWorkspace: constObservable(false),
+				_workspaceOptOutEnabled: constObservable(false),
+				uriIdentityService: { extUri },
+				_workspacePicker: {
+					selectedResolved: { providerId: 'cloud' },
+					getEnvironmentWorkspace: () => undefined,
+				},
+				_isCurrentWorkspaceSelection: () => false,
+				_onWorkspaceSelected: async () => { },
+				_newChatInput: { focus: () => { } },
+			});
+			const initialEnvironment = environment.get()?.id;
+
+			await handleWorkspaceSelection.call(widget, folder);
+			environments.set([cloud, local], undefined);
+
+			assert.deepStrictEqual({ initialEnvironment, selected: environment.get()?.id, picked: picked.get()?.id }, {
+				initialEnvironment: 'cloud',
+				selected: 'local',
+				picked: undefined,
+			});
+		});
+
+		test('refreshes an explicit environment selection when its metadata changes without changing its id', async () => {
+			const updatedCloud: ISessionCreationEnvironment = { ...cloud, label: 'Updated Cloud', providerIds: ['new-cloud-provider'] };
+			const picked = observableValue<ISessionCreationEnvironment | undefined>('pickedEnvironment', cloud);
+			const widget = Object.assign(Object.create(NewChatWidget.prototype), {
+				_environment: constObservable(cloud),
+				_environments: constObservable([updatedCloud]),
+				_pickedEnvironment: picked,
+				_environmentPickerBeforeWorkspace: constObservable(false),
+				_workspaceOptOutEnabled: constObservable(false),
+				uriIdentityService: { extUri },
+				_workspacePicker: {
+					selectedResolved: { providerId: 'new-cloud-provider' },
+					getEnvironmentWorkspace: () => undefined,
+				},
+				_isCurrentWorkspaceSelection: () => false,
+				_onWorkspaceSelected: async () => { },
+				_newChatInput: { focus: () => { } },
+			});
+
+			await handleWorkspaceSelection.call(widget, folder);
+
+			assert.strictEqual(picked.get(), updatedCloud);
+		});
 
 		function createHarness(compatible: boolean, onSelect: () => Promise<void> = async () => { }) {
 			const calls: string[] = [];

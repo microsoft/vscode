@@ -65,10 +65,22 @@ const openChangesHoverLabel = localize('sessionChatPills.openChanges', "Open Cha
 const copyFeedbackDuration = 1200;
 
 /** Fake artifacts for the pill debug overlay. */
-function buildDebugArtifactSections(debugData: ISessionChatPillsDebugData): readonly IChatPillSection[] {
+function buildDebugArtifactSections(debugData: ISessionChatPillsDebugData, copy: (value: string) => void): readonly IChatPillSection[] {
 	const entries = debugData.markdownFiles.map(name => {
 		const resource = URI.from({ scheme: 'session-chat-pills-debug', path: `/${name}` });
-		return { id: name, label: name, resource, ...sessionArtifactLocation(resource.path, name), open: () => { } };
+		return {
+			id: name,
+			label: name,
+			resource,
+			toolbarActions: [toAction({
+				id: `sessions.debug.chatPills.copyArtifactPath.${name}`,
+				label: localize('sessions.debug.chatPills.copyArtifactPath', "Copy Path"),
+				class: ThemeIcon.asClassName(Codicon.copy),
+				run: () => copy(resource.path),
+			})],
+			...sessionArtifactLocation(resource.path, name),
+			open: () => { },
+		};
 	});
 	return entries.length ? [{ title: localize('sessionArtifacts.files', "Files"), entries }] : [];
 }
@@ -483,7 +495,7 @@ export class SessionChatInputToolbar extends Disposable {
 		const sessionArtifacts = this._register(instantiationService.createInstance(SessionArtifacts, this._session, this._chat, this._browsers.urls, gitHubReferences, detailsHost));
 		this._artifactSections = derived(this, reader => {
 			const debugData = this._debugData.read(reader);
-			return debugData ? buildDebugArtifactSections(debugData) : sessionArtifacts.sections.read(reader);
+			return debugData ? buildDebugArtifactSections(debugData, value => clipboardService.writeText(value)) : sessionArtifacts.sections.read(reader);
 		});
 		this._referenceSections = sessionArtifacts.referenceSections;
 		const sessionCustomizations = this._register(instantiationService.createInstance(SessionCustomizations,
@@ -636,7 +648,11 @@ export class SessionChatInputToolbar extends Disposable {
 			browsers: { sections: this._browsers.sections },
 			subagents: this._backgroundActivities,
 			backgroundShells,
-		}, SESSION_CHAT_PILL_KINDS));
+		}, SESSION_CHAT_PILL_KINDS, derived(this, reader => {
+			const session = this._session.read(reader);
+			const chat = this._chat.read(reader);
+			return session && chat ? JSON.stringify([session.providerId, session.resource.toString(), chat.resource.toString()]) : undefined;
+		})));
 		const actionRunner = this._register(new SessionActivatingActionRunner(() => this._session.get(), this._sessionsService));
 		this._inputPills = this._register(instantiationService.createInstance(ChatInputPills, undefined, {
 			debugName: 'SessionChatInputToolbar.content',

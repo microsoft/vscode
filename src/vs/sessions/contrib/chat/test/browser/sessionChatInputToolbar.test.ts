@@ -1492,10 +1492,10 @@ suite('SessionChatInputToolbar', () => {
 		const dashboardEntry = entries.find(entry => entry.label === dashboard.title);
 		assert.ok(dashboardEntry);
 		dashboardEntry.select();
-		const closeActionLabels = entries.flatMap(entry => entry.toolbarActions.map(action => action.label));
-		await dashboardEntry.toolbarActions[0]?.run();
+		const rowActionLabels = entries.flatMap(entry => entry.toolbarActions.map(action => action.label));
+		await dashboardEntry.toolbarActions.find(action => action.label === 'Close Canvas Dashboard')?.run();
 
-		assert.deepStrictEqual({ single, multiple, commandCalls, closeActionLabels, closeCalls }, {
+		assert.deepStrictEqual({ single, multiple, commandCalls, rowActionLabels, closeCalls }, {
 			single: { label: 'Preview', ariaLabel: 'Open canvas Preview', closeLabel: 'Close Canvas Preview' },
 			multiple: { label: '2 Canvases', ariaLabel: 'Show 2 canvases', closeLabel: undefined },
 			commandCalls: [
@@ -1518,7 +1518,7 @@ suite('SessionChatInputToolbar', () => {
 					},
 				},
 			],
-			closeActionLabels: ['Close Canvas Preview', 'Close Canvas Dashboard'],
+			rowActionLabels: ['Pin Preview', 'Close Canvas Preview', 'Pin Dashboard', 'Close Canvas Dashboard'],
 			closeCalls: [
 				{ session: session.sessionId, chat: chat.resource.toString(), canvas: preview.resource.toString() },
 				{ session: session.sessionId, chat: chat.resource.toString(), canvas: dashboard.resource.toString() },

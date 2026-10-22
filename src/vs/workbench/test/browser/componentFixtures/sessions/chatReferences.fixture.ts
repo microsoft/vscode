@@ -174,7 +174,7 @@ async function renderReferences(ctx: ComponentFixtureContext, scenario: Scenario
 	});
 	let finishHoverConstruction: (() => void) | undefined;
 	try {
-		renderPills(ctx, session, {
+		await renderPills(ctx, session, {
 			height: referenceList ? '420px' : resourcePreview ? '600px' : dedicatedCollection ? '280px' : '420px',
 			width: referenceList ? '700px' : scenario === 'single' ? '660px' : '1200px',
 			popupPlacement: 'above',
@@ -349,7 +349,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	'Pull Request Collection': defineComponentFixture({
 		virtualTime: { enabled: false },
 		render: ctx => renderReferences(ctx, 'pullRequests'),
-		expectedVisualDescriptions: ['The open Pull Requests collection uses the same leading number, resolving-title slot, and trailing copy/remove actions as the Issues and References collections.'],
+		expectedVisualDescriptions: ['The open Pull Requests collection uses the same leading number and resolving-title slot as the Issues and References collections. Its trailing actions appear as Open Changes, Copy, Pin, then Remove, with the destructive X right-most.'],
 	}),
 	'Copied Feedback': defineComponentFixture({
 		virtualTime: { enabled: false },
