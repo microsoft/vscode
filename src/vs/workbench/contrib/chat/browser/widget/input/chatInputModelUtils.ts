@@ -23,8 +23,28 @@ function isOwnModel(model: ILanguageModelChatMetadataAndIdentifier): boolean {
 }
 
 /**
+ * Whether a session type scopes the model pool to models targeting it. The local session
+ * type is the general-purpose pool and is never scoped, not even when a model targets it.
+ */
+function isSessionScoped(sessionType: string | undefined): sessionType is string {
+	return !!sessionType && sessionType !== localChatSessionType;
+}
+
+/**
+ * Whether `allModels` is a pool scoped to `sessionType` rather than the general-purpose one.
+ * Shared by the picker filter and the session-validity check so both agree on which models
+ * a session can use.
+ */
+function hasSessionScopedModels(
+	allModels: ILanguageModelChatMetadataAndIdentifier[],
+	sessionType: string | undefined,
+): boolean {
+	return isSessionScoped(sessionType) && hasModelsTargetingSession(allModels, sessionType);
+}
+
+/**
  * Filter models based on session type.
- * When a session has a specific type (and it's not 'local'), models targeting that
+ * When a session has a scoped model pool (see {@link hasSessionScopedModels}), models targeting that
  * session type are returned first, followed by unscoped BYOK (custom endpoint) models.
  * Otherwise, general-purpose models are returned.
  *
@@ -41,7 +61,7 @@ export function filterModelsForSession(
 	currentModeKind: ChatModeKind,
 	location: ChatAgentLocation,
 ): ILanguageModelChatMetadataAndIdentifier[] {
-	if (sessionType && sessionType !== 'local' && hasModelsTargetingSession(models, sessionType)) {
+	if (hasSessionScopedModels(models, sessionType)) {
 		const sessionScoped = models.filter(entry =>
 			entry.metadata?.targetChatSessionType === sessionType &&
 			entry.metadata?.isUserSelectable !== false &&
@@ -109,16 +129,17 @@ export function hasModelsTargetingSession(
 
 /**
  * Check if a model is valid for the current session's model pool.
- * If the session has targeted models, the model must target that session type,
- * or be an unscoped BYOK (custom endpoint) model, which is offered alongside them.
- * If no models target this session, the model must not be session-specific.
+ * If the session has a scoped pool (see {@link hasSessionScopedModels}), the model must target
+ * that session type, or be an unscoped BYOK (custom endpoint) model, which is offered alongside
+ * them. If the pool is not scoped, the model must not be session-specific — so the local session
+ * type always accepts general-purpose models, matching {@link filterModelsForSession}.
  */
 export function isModelValidForSession(
 	model: ILanguageModelChatMetadataAndIdentifier,
 	allModels: ILanguageModelChatMetadataAndIdentifier[],
 	sessionType: string | undefined,
 ): boolean {
-	if (hasModelsTargetingSession(allModels, sessionType)) {
+	if (hasSessionScopedModels(allModels, sessionType)) {
 		return model.metadata.targetChatSessionType === sessionType
 			|| (!model.metadata.targetChatSessionType && isByokModel(model.metadata));
 	}
