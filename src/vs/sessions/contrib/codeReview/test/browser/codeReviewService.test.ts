@@ -691,7 +691,8 @@ suite('Code Review Contributions', () => {
 		assert.deepStrictEqual({
 			oldHeaderActions: MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout)
 				.filter(isIMenuItem)
-				.filter(item => item.command.id === 'sessions.codeReview.run'),
+				.filter(item => item.command.id === 'sessions.codeReview.run')
+				.map(item => item.command.id),
 			group: headerItem.group,
 			order: headerItem.order,
 			enabledFromSessionChanges,

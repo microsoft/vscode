@@ -896,9 +896,10 @@ suite('Changes View Actions', () => {
 	});
 
 	test('Changes header layout actions move to the tab-level overflow with Files View in its own final group', () => {
-		const getGroups = (menuId: MenuId) => [...new Set(MenuRegistry.getMenuItems(menuId).map(item => item.group))].sort();
+		const getGroups = (menuId: MenuId) => [...new Set(MenuRegistry.getMenuItems(menuId).flatMap(item => item.group ? [item.group] : []))].sort();
 		assert.deepStrictEqual({
-			oldHeaderItems: MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout),
+			oldHeaderItems: MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout)
+				.map(item => isIMenuItem(item) ? item.command.id : item.submenu.id),
 			overflowGroups: getGroups(Menus.SessionsEditorTitle).filter(group => group !== 'navigation'),
 			filesViewGroupItems: MenuRegistry.getMenuItems(Menus.SessionsEditorTitle)
 				.filter(item => item.group === 'z_filesView')
@@ -991,7 +992,8 @@ suite('Changes View Actions', () => {
 					inListMode: getState(ChangesViewMode.List),
 					inTreeMode: getState(ChangesViewMode.Tree),
 				};
-			});
+			})
+			.sort((a, b) => a.id.localeCompare(b.id));
 
 		assert.deepStrictEqual(items, [{
 			id: 'workbench.action.agentSessions.setChangesListViewMode',
