@@ -95,6 +95,9 @@ export const Menus = {
 	SessionsEditorTabsBarAddTab: new MenuId('SessionsEditorTabsBarAddTab'),
 	SessionsEditorTabsBarAddTabCanvas: new MenuId('SessionsEditorTabsBarAddTabCanvas'),
 	EmptyFileEditorActions: new MenuId('SessionsEmptyFileEditorActions'),
+	EmptySearchEditorActions: new MenuId('SessionsEmptySearchEditorActions'),
+	EmptyBrowserEditorActions: new MenuId('SessionsEmptyBrowserEditorActions'),
+	EmptyChangesActions: new MenuId('SessionsEmptyChangesActions'),
 	/**
 	 * The Add Tab actions listed in place of the watermark in an empty editor
 	 * group. A subset of {@link SessionsEditorTabsBarAddTab}, which still backs

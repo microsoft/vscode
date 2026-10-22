@@ -23834,7 +23834,7 @@ Use the attached image as context.
 			mockSession.fire('tool.execution_start', { toolCallId: 'tc-window', toolName: 'get_window_state', mcpServerName: 'computer-use' });
 			const first = permissionPrompt(runtime);
 			const setupId = configuration.status?.setups[0]?.id ?? '';
-			configuration.send({ setupId, round: 1, action: 'request', permission: 'accessibility' });
+			configuration.send({ setupId, round: 1, action: 'allow', permission: 'accessibility' });
 			const firstResult = await first;
 			const second = permissionPrompt(runtime, ['screenRecording']);
 			configuration.send({ setupId, round: 2, action: 'recheck' });
@@ -23923,7 +23923,7 @@ Use the attached image as context.
 				permissions: configuration.status?.permissions.map(permission => permission.state),
 				actions: inputActions(signals).map(action => action.type === 'requested' ? action.setup : action.response),
 			}, {
-				setup: [{ state: 'ended', error: 'unsupportedPrompt' }],
+				setup: [{ state: 'ended', error: undefined }],
 				permissions: ['granted', 'notGranted'],
 				actions: [true, ChatInputResponseKind.Cancel, false],
 			});
@@ -23936,7 +23936,7 @@ Use the attached image as context.
 				await session[cancellation]();
 				assert.deepStrictEqual({ result: await result, setup: configuration.status?.setups.map(candidate => ({ state: candidate.state, error: candidate.error?.code })) }, {
 					result: { action: 'cancel' },
-					setup: [{ state: 'ended', error: 'notWaiting' }],
+					setup: [{ state: 'ended', error: undefined }],
 				});
 			});
 		}
