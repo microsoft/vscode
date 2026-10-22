@@ -187,6 +187,13 @@ describe('MODEL_CONFIGURATION_VALIDATOR', () => {
 		expect(result.content?.memory?.rejectedEdits).toBe(RejectedEditsMemoryMode.AppliedThenUndone);
 	});
 
+	it('accepts the rejected-edit experiment options in the model configuration', () => {
+		const memory = { rejectedEdits: RejectedEditsMemoryMode.AppliedThenUndone, rejectedEditsMaxEditsAfter: 6 };
+		const result = MODEL_CONFIGURATION_VALIDATOR.validate(baseConfig({ memory }));
+		expect(result.error).toBeUndefined();
+		expect(result.content?.memory).toEqual(memory);
+	});
+
 	it('accepts a config with allowImportChanges', () => {
 		const result = MODEL_CONFIGURATION_VALIDATOR.validate(baseConfig({ allowImportChanges: ImportChanges.All }));
 		expect(result.error).toBeUndefined();

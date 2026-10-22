@@ -77,7 +77,7 @@ export function getUserPrompt(promptPieces: PromptPieces): UserPromptResult {
 	let editDiffHistory: string;
 	let nDiffsInPrompt: number;
 	const rejectedEditsMode = opts.memory?.rejectedEdits;
-	const rejectedEditHistory = selectRejectedEditsForPrompt(opts.memory, promptPieces.rejectedEditHistory, activeDoc);
+	const rejectedEditHistory = selectRejectedEditsForPrompt(opts.memory, promptPieces.rejectedEditHistory, xtabHistory, activeDoc);
 
 	if (opts.globalBudget !== undefined) {
 		// Reuse a cascade the caller already ran (the provider runs it first so it can

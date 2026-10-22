@@ -5,7 +5,7 @@
 
 import { DocumentId } from '../../../platform/inlineEdits/common/dataTypes/documentId';
 import { RootedEdit } from '../../../platform/inlineEdits/common/dataTypes/edit';
-import { DiffHistoryOptions, PromptMemoryOptions, RejectedEditsMemoryMode } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { DEFAULT_REJECTED_EDITS_MAX_EDITS_AFTER, DiffHistoryOptions, PromptMemoryOptions, RejectedEditsMemoryMode } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { StatelessNextEditDocument } from '../../../platform/inlineEdits/common/statelessNextEditProvider';
 import { IXtabHistoryDiffHunk, IXtabHistoryEditEntry, IXtabHistoryEntry, IXtabHistoryRejectedEditEntry } from '../../../platform/inlineEdits/common/workspaceEditTracker/nesXtabHistoryTracker';
 import { groupAdjacentBy, pushMany } from '../../../util/vs/base/common/arrays';
@@ -14,22 +14,27 @@ import { toUniquePath } from './promptCraftingUtils';
 export const REJECTED_EDIT_TAG = '<|rejected/|>';
 
 /**
- * Picks the rejections that go into the prompt: in {@link RejectedEditsMemoryMode.AppliedThenUndone} mode only those in
- * the active document.
+ * Picks the rejections that go into the prompt: those followed by at most `memory.rejectedEditsMaxEditsAfter` edit-history
+ * entries (every mode), and in {@link RejectedEditsMemoryMode.AppliedThenUndone} mode only those in the active document.
  *
  * Like every other history entry, a rejection keeps the line numbers it had when it happened.
  */
 export function selectRejectedEditsForPrompt(
 	memory: PromptMemoryOptions | undefined,
 	rejectedEditHistory: readonly IXtabHistoryRejectedEditEntry[],
+	xtabHistory: readonly IXtabHistoryEntry[],
 	activeDoc: StatelessNextEditDocument,
 ): readonly IXtabHistoryRejectedEditEntry[] {
 	const mode = memory?.rejectedEdits;
 	if (mode === undefined) {
 		return [];
 	}
+	const maxEditsAfter = memory?.rejectedEditsMaxEditsAfter ?? DEFAULT_REJECTED_EDITS_MAX_EDITS_AFTER;
 	const activeDocOnly = mode === RejectedEditsMemoryMode.AppliedThenUndone;
-	return rejectedEditHistory.filter(entry => !activeDocOnly || entry.docId === activeDoc.id);
+	return rejectedEditHistory.filter(entry =>
+		(!activeDocOnly || entry.docId === activeDoc.id)
+		&& xtabHistory.filter(h => h.kind === 'edit' && h.ordinal > entry.ordinal).length <= maxEditsAfter
+	);
 }
 
 export interface EditDiffHistoryResult {

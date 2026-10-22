@@ -298,7 +298,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 				return Result.error(new NoNextEditReason.GotCancelled('afterNeighborSnippetsAwait'));
 			}
 
-			const rejectedEditHistory = selectRejectedEditsForPrompt(promptOptions.memory, request.xtabRejectedEditHistory, activeDocument);
+			const rejectedEditHistory = selectRejectedEditsForPrompt(promptOptions.memory, request.xtabRejectedEditHistory, request.xtabEditHistory, activeDocument);
 			const cascade = runGlobalBudgetCascade(activeDocument, request.xtabEditHistory, langCtx, XtabProvider.computeTokens, promptOptions, neighborSnippets, globalBudget, rejectedEditHistory);
 			const currentFileBudget = xtabPromptOptions.GlobalBudgetOptions.currentFileBudget(globalBudget);
 

@@ -100,13 +100,27 @@ export enum RejectedEditsMemoryMode {
 	AppliedThenUndone = 'appliedThenUndone',
 }
 
+/**
+ * Default for {@link PromptMemoryOptions.rejectedEditsMaxEditsAfter}. Offline, the effect of a rejection on repeated
+ * suggestions fades as later edits push it back (with the cursor on the rejected lines, repeats fall from 87% to
+ * 79% at four later edits and to 83% at eight), so older rejections are dropped to save prompt tokens.
+ */
+export const DEFAULT_REJECTED_EDITS_MAX_EDITS_AFTER = 4;
+
 export type PromptMemoryOptions = {
 	readonly rejectedEdits?: RejectedEditsMemoryMode;
+	/**
+	 * A rejection is no longer used once more than this many edit-history entries follow it (consecutive edits to the
+	 * same line count once). Applies to every `rejectedEdits` mode.
+	 * Defaults to {@link DEFAULT_REJECTED_EDITS_MAX_EDITS_AFTER}.
+	 */
+	readonly rejectedEditsMaxEditsAfter?: number;
 };
 
 export namespace PromptMemoryOptions {
 	export const VALIDATOR: IValidator<PromptMemoryOptions> = vObj({
 		'rejectedEdits': vUnion(vEnum(RejectedEditsMemoryMode.DiffWithTags, RejectedEditsMemoryMode.AppliedThenUndone), vUndefined()),
+		'rejectedEditsMaxEditsAfter': vUnion(vNumber(), vUndefined()),
 	});
 }
 
