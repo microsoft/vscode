@@ -1078,20 +1078,7 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 			};
 			this.extensionInventories.set(candidateOwnerKey, { ...inventory, extensions });
 		}
-		this.extensions = this.extensions.map(candidate => {
-			if ((candidate.extension?.id ?? candidate.extensionId) !== extensionId || canvasOwnerKey(candidate.context.owner) !== ownerKey) {
-				return candidate;
-			}
-			const extension = candidate.extension ? {
-				...candidate.extension,
-				status: enabled ? 'starting' as const : 'disabled' as const,
-			} : undefined;
-			return {
-				...candidate,
-				extension,
-				canvases: candidate.canvases.map(canvas => ({ ...canvas, extension })),
-			};
-		});
+		this.extensionInventoriesChanged.trigger(undefined);
 	}
 
 	private showExtensionMenu(item: ICopilotCanvasExtensionItem, anchor: ReturnType<IContextMenuDelegate['getAnchor']>): void {

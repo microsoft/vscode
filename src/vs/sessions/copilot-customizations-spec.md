@@ -349,10 +349,6 @@ The session-level `session.canvas.list` RPC returns declarations only after the 
 
 Canvas declarations are session-scoped because project extensions, launch-scoped plugins, and runtime admission can differ by working directory and session. Static filesystem inspection cannot determine the registry without executing extension code.
 
-### 9.2 Management
-
-Clients may present the live Canvas registry as a capability inventory. In VS Code, shared Canvas context and presentation services own that registry, opening, restoration, and rendering, while the shared definition store owns refresh ordering and last-good-result retention. Canvas owners stay opaque; the context service maps an owner to its frontend session when management navigation or extension enablement needs it. Management composes those stores for visible chats, observes the shared presentation enablement, groups every supported extension by User, Workspace, Plugin, or Other source, and presents any Canvas declarations beneath it. Session-scoped extensions are excluded from the first-version management surface. Extensions with no reported Canvases remain visible. Enablement is exposed only on the extension parent because all child Canvases share that lifecycle. Last-known authoritative declarations are persisted by scoped extension identity and labeled as last known; when disabling withdraws the runtime declarations, the parent and cached children remain visible across editor or window recreation so the extension can be enabled again.
-
 ---
 
 ## Appendix A: XDG Base Directory Compliance
