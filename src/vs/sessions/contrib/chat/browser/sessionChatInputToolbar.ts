@@ -657,7 +657,13 @@ export class SessionChatInputToolbar extends Disposable {
 						store.add(toDisposable(() => cancellation.dispose(true)));
 						try {
 							store.add(autorun(reader => {
-								if (!gitHubActionsEnabled.read(reader) || this._chat.read(reader) !== chat || this._session.read(reader) !== session) {
+								if (!gitHubActionsEnabled.read(reader) || !pillsVisible.read(reader) || this._debugData.read(reader) || entitlementService.sentimentObs.read(reader).hidden || this._chat.read(reader) !== chat || this._session.read(reader) !== session) {
+									cancellation.cancel();
+									return;
+								}
+								const supported = activityBarOpeners.read(reader).read(reader);
+								const entries = getChatPillEntries(sections.read(reader)).filter(entry => supported.has(entry.id));
+								if (entries.length !== currentEntries.length || entries.some((entry, index) => entry.id !== currentEntries[index].id)) {
 									cancellation.cancel();
 								}
 							}));

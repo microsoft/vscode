@@ -360,9 +360,13 @@ suite('SessionChatInputToolbar', () => {
 		}
 	}
 
-	for (const transition of ['switch', 'dispose', 'cancel', 'remove', 'disable'] as const) {
+	for (const transition of ['switch', 'dispose', 'cancel', 'remove', 'remove-one', 'hide', 'opener', 'disable'] as const) {
 		test(`activity bar does not open a stale issue after picker ${transition}`, async () => {
-			const { instantiationService, toolbar, session, peer, artifacts, artifact, main, opened, configuration } = await createGitHubActivityBar(SessionArtifactKind.Issue, LOCAL_AGENT_HOST_PROVIDER_ID);
+			let openerAvailable = true;
+			const { instantiationService, toolbar, session, peer, artifacts, artifact, main, opened, configuration, sentiment, extensionsChanged } = await createGitHubActivityBar(
+				SessionArtifactKind.Issue, LOCAL_AGENT_HOST_PROVIDER_ID,
+				async () => openerAvailable ? upcastPartial<IExternalUriOpener>({ id: 'test-opener' }) : undefined,
+			);
 			artifacts.set([...artifacts.get(), artifact(4, main)], undefined);
 			await timeout(0);
 			let cancelled = false;
@@ -373,6 +377,14 @@ suite('SessionChatInputToolbar', () => {
 					toolbar.dispose();
 				} else if (transition === 'remove') {
 					artifacts.set([], undefined);
+				} else if (transition === 'remove-one') {
+					artifacts.set(artifacts.get().filter(entry => entry.id !== 'artifact-4'), undefined);
+				} else if (transition === 'hide') {
+					sentiment.set({ hidden: true }, undefined);
+				} else if (transition === 'opener') {
+					openerAvailable = false;
+					extensionsChanged.fire({ added: [], removed: [] });
+					await timeout(0);
 				} else if (transition === 'disable') {
 					await configuration.setUserConfiguration(SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_SETTING, false);
 					configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
@@ -383,7 +395,7 @@ suite('SessionChatInputToolbar', () => {
 				return transition === 'cancel' ? undefined : picks[1];
 			});
 			await toolbar.activityBarActions.get()[0].run();
-			assert.deepStrictEqual({ opened, cancelled }, { opened: [], cancelled: transition === 'switch' || transition === 'dispose' || transition === 'disable' });
+			assert.deepStrictEqual({ opened, cancelled }, { opened: [], cancelled: transition !== 'cancel' });
 		});
 	}
 

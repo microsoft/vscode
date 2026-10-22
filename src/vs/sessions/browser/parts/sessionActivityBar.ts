@@ -133,7 +133,8 @@ export class SessionActivityBar extends Disposable {
 			for (const action of actions) {
 				let rendered = renderedChatActions.get(action.id);
 				if (!rendered) {
-					rendered = new Action(action.id, action.label, action.class, action.enabled, context => actionsById.get(action.id)?.run(context));
+					const id = action.id;
+					rendered = new Action(id, action.label, action.class, action.enabled, context => actionsById.get(id)?.run(context));
 					renderedChatActions.set(action.id, rendered);
 				}
 				rendered.label = action.label;

@@ -213,11 +213,15 @@ suite('Sessions - Session Activity Bar', () => {
 		const second = createActivityBar(store, [browser, entry]);
 		const opened: number[] = [];
 		const action = (number: number) => toAction({ id, label: `Open Pull Request #${number}`, class: ThemeIcon.asClassName(Codicon.gitPullRequest), run: () => { opened.push(number); } });
-		const actions = observableValue('actions', [action(1)]);
+		const original = action(1);
+		let originalIdReads = 0;
+		Object.defineProperty(original, 'id', { get: () => { originalIdReads++; return id; } });
+		const actions = observableValue('actions', [original]);
 		first.activityBar.setChatActions(actions);
 		first.label('Open Pull Request').click();
 		key(first.label('Open Pull Request'), 35, 'End');
 		actions.set([action(2)], undefined);
+		originalIdReads = 0;
 		const focusPreserved = getActiveElement() === first.label('Open Pull Request');
 		key(first.label('Open Pull Request'), 13, 'Enter');
 		first.label('Open Pull Request').dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
@@ -231,8 +235,8 @@ suite('Sessions - Session Activity Bar', () => {
 		first.activityBar.setChatActions(undefined);
 		await timeout(0);
 
-		assert.deepStrictEqual({ opened, updated, otherBar, restored, focusPreserved, cleared: !!first.label('Open Pull Request'), commands: first.ran }, {
-			opened: [1, 2, 2], updated: 'Open Pull Request #2', otherBar: false, restored: true, focusPreserved: true, cleared: false, commands: [],
+		assert.deepStrictEqual({ opened, originalIdReads, updated, otherBar, restored, focusPreserved, cleared: !!first.label('Open Pull Request'), commands: first.ran }, {
+			opened: [1, 2, 2], originalIdReads: 0, updated: 'Open Pull Request #2', otherBar: false, restored: true, focusPreserved: true, cleared: false, commands: [],
 		});
 	});
 
