@@ -49,8 +49,15 @@ export class IconPicker extends Disposable {
 			disposables.add(focus.onDidFocus(() => picker.activeItems = []));
 			disposables.add(focus.onDidBlur(() => picker.focus(QuickPickFocus.First)));
 			return await new Promise<ThemeIcon | null | undefined>(resolve => {
-				disposables.add(picker.onDidHide(() => resolve(undefined)));
-				disposables.add(grid.onDidSelect(icon => resolve(icon)));
+				let settled = false;
+				const complete = (result: ThemeIcon | null | undefined) => {
+					if (!settled) {
+						settled = true;
+						resolve(result);
+					}
+				};
+				disposables.add(picker.onDidHide(() => complete(undefined)));
+				disposables.add(grid.onDidSelect(icon => complete(icon)));
 				disposables.add(picker.onWillAccept(event => {
 					const activeElement = getActiveElement();
 					if (activeElement && grid.domNode.contains(activeElement)) {
@@ -61,7 +68,7 @@ export class IconPicker extends Disposable {
 						}
 					}
 				}));
-				disposables.add(picker.onDidAccept(() => resolve(null)));
+				disposables.add(picker.onDidAccept(() => complete(null)));
 				picker.show();
 				const container = grid.domNode.parentElement;
 				if (!container) {

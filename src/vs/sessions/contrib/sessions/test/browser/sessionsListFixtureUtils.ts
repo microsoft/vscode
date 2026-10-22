@@ -42,6 +42,7 @@ import { MockKeybindingService } from '../../../../../platform/keybinding/test/c
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { defaultMenuStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -58,6 +59,7 @@ import { IWorkbenchAssignmentService } from '../../../../../workbench/services/a
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { ComponentFixtureContext, ComponentFixtureOptions, createEditorServices, defineComponentFixture, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { TestProductService } from '../../../../../workbench/test/common/workbenchTestServices.js';
+import { TestQuickInputService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { Menus } from '../../../../browser/menus.js';
 import { IsPhoneLayoutContext, SessionsListRearrangeContext } from '../../../../common/contextkeys.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
@@ -608,6 +610,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 		colorTheme: context.theme,
 		additionalServices: reg => {
 			registerWorkbenchServices(reg);
+			reg.defineInstance(IQuickInputService, new TestQuickInputService());
 			reg.defineInstance(IStorageService, disposableStore.add(new InMemoryStorageService()));
 			reg.define(IContextKeyService, ContextKeyService);
 			reg.define(IMenuService, SessionsListFixtureMenuService);

@@ -26,7 +26,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { backButton, QuickPick } from '../../browser/quickInput.js';
-import { IQuickInputService, IQuickPickItem, ItemActivation, isKeyModified, NO_KEY_MODS } from '../../common/quickInput.js';
+import { IQuickInput, IQuickInputService, IQuickPickItem, ItemActivation, isKeyModified, NO_KEY_MODS } from '../../common/quickInput.js';
 import { CommandsRegistry } from '../../../commands/common/commands.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { IThemeService } from '../../../theme/common/themeService.js';
@@ -145,7 +145,8 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		const content = mainWindow.document.createElement('div');
 		const input = mainWindow.document.createElement('input');
 		content.append(input);
-		picker.widget = content;
+		const quickInput: IQuickInput = picker;
+		quickInput.widget = content;
 		picker.hideInput = true;
 		picker.items = [{ label: 'Reset to default' }];
 		picker.show();

@@ -75,6 +75,8 @@ suite('Shared IconPicker', () => {
 			} else {
 				harness.grid().querySelector<HTMLElement>('.icon-container[title="rocket"]')!.click();
 			}
+			harness.hidden.fire({ reason: QuickInputHideReason.Other });
+			harness.accepted.fire({ inBackground: false });
 			const selected = await result;
 			assert.deepStrictEqual({ selected: selected ? { id: selected.id } : selected, disposed: harness.disposed() }, {
 				selected: action === 'cancel' ? undefined : action === 'reset' ? null : { id: 'rocket' },

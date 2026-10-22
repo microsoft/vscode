@@ -358,11 +358,21 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 		override readonly onDidChange = appearanceChanges.event;
 		override getSectionAppearance(sectionId: string) { return sectionAppearances.get(sectionId); }
 		override setSectionIcon(sectionId: string, icon: string | undefined) {
-			sectionAppearances.set(sectionId, { ...sectionAppearances.get(sectionId), icon });
-			appearanceChanges.fire({ groupsChanged: false, membershipChanged: new Set() });
+			this.setSectionAppearance(sectionId, { ...sectionAppearances.get(sectionId), icon });
 		}
 		override setSectionColor(sectionId: string, color: string | undefined) {
-			sectionAppearances.set(sectionId, { ...sectionAppearances.get(sectionId), color });
+			this.setSectionAppearance(sectionId, { ...sectionAppearances.get(sectionId), color });
+		}
+		private setSectionAppearance(sectionId: string, appearance: ISessionGroupAppearance): void {
+			const previous = sectionAppearances.get(sectionId);
+			if (previous?.icon === appearance.icon && previous?.color === appearance.color) {
+				return;
+			}
+			if (appearance.icon === undefined && appearance.color === undefined) {
+				sectionAppearances.delete(sectionId);
+			} else {
+				sectionAppearances.set(sectionId, appearance);
+			}
 			appearanceChanges.fire({ groupsChanged: false, membershipChanged: new Set() });
 		}
 		override getGroups() { return [...groups]; }

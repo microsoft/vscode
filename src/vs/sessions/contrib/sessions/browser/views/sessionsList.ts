@@ -2813,12 +2813,10 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 
 		const isComparison = element.comparison !== undefined;
 		template.container.classList.toggle('session-comparison-group', isComparison);
-		template.icon.className = 'session-section-icon';
 		const groupIcon: ThemeIcon = isComparison ? Codicon.layers : {
 			id: element.group.icon ?? Codicon.folderLibrary.id,
 			color: element.group.color ? themeColorFromId(element.group.color) : undefined,
 		};
-		template.icon.classList.add(...ThemeIcon.asClassNameArray(groupIcon));
 		template.label.textContent = element.comparison?.title ?? element.group.name;
 		const comparison = element.comparison;
 		if (comparison) {
