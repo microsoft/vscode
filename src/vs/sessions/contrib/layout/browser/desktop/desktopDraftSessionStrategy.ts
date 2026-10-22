@@ -349,7 +349,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 		const editorVisible = this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow);
 		const ownerKey = this._quickChatVisibilityOwnerKey(activeSession);
 		if (ownerKey) {
-			this._quickChatSidePaneVisibility.set(ownerKey, editorVisible);
+			this._quickChatSidePaneVisibility.set(ownerKey, this._layoutService.isSidePaneVisible());
 		}
 		this._visibilityStore.set(SessionVisibilityProfile.Existing, {
 			editorVisible,
@@ -371,7 +371,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 	 * chat-specific layout mode.
 	 */
 	private _quickChatVisibilityOwnerKey(session: IActiveSession): URI | undefined {
-		return this._ctx.chatLayoutActive() && !this._ctx.sharedChatLayout ? this._ctx.ownerKeyFor(session) : undefined;
+		return session.isQuickChat?.get() && this._ctx.chatLayoutActive() && !this._ctx.sharedChatLayout ? this._ctx.ownerKeyFor(session) : undefined;
 	}
 
 	/**

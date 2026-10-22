@@ -1281,7 +1281,7 @@ suite('Desktop layout strategies', () => {
 
 	for (const mode of ['session-shared', 'chat-shared', 'chat'] as const) {
 		for (const leftOpen of [true, false]) {
-			test(`Quick Chat ${mode === 'chat' ? 'restores its own' : 'follows the shared profile instead of its own'} ${leftOpen ? 'open' : 'closed'} side pane after visiting a session with the opposite state in ${mode} mode`, () => {
+			test(`Quick Chat side pane left ${leftOpen ? 'open' : 'closed'} is ${mode === 'chat' ? 'restored' : 'shared'} (${mode})`, () => {
 				harness = createTestHarness(store);
 				const { ctx: baseCtx, state } = createStrategyTestContext(store, harness);
 				const ctx: IDesktopLayoutContext = {
