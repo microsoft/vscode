@@ -901,18 +901,27 @@ suite('CloudSandboxApiService session feed', () => {
 		{ url: 'wss://user:password@feed.example.test/' },
 		{ url: 'wss://feed.example.test/#secret' },
 		{ reconnect_after: new Date(0).toISOString() },
-		{ reconnect_after: new Date(Date.now() + 20 * 60_000).toISOString() },
 		{ frame_schema_version: 2 },
 		{ subprotocol: 'json.reliable.webpubsub.azure.v1' },
 		{ group: '' },
 	]) {
-		test(`rejects malformed feed metadata (${Object.keys(invalid)[0]}: ${Object.values(invalid)[0]}) without disclosing it`, async () => {
-			const { service } = createService(store, {
-				tasks: [], repositories: new Map(), onRequest: () => jsonResponse({ ...feedConnection(), ...invalid }),
-			});
-			await assert.rejects(service.connectSessionFeed(CancellationToken.None), error => {
-				return error instanceof Error && !error.message.includes('secret') && !error.message.includes('password');
-			});
+		test(`rejects malformed feed metadata (${Object.keys(invalid)[0]}: ${Object.values(invalid)[0]}) without disclosing it`, () => {
+			return assertRejectsFeedMetadata({ ...feedConnection(), ...invalid });
+		});
+	}
+
+	// Computed when the test runs, not when it is collected, so it stays later than `expires_at`.
+	test('rejects malformed feed metadata (reconnect_after: later than expires_at) without disclosing it', () => {
+		const connection = feedConnection();
+		return assertRejectsFeedMetadata({ ...connection, reconnect_after: new Date(Date.parse(connection.expires_at) + 10 * 60_000).toISOString() });
+	});
+
+	async function assertRejectsFeedMetadata(metadata: object) {
+		const { service } = createService(store, {
+			tasks: [], repositories: new Map(), onRequest: () => jsonResponse(metadata),
+		});
+		await assert.rejects(service.connectSessionFeed(CancellationToken.None), error => {
+			return error instanceof Error && !error.message.includes('secret') && !error.message.includes('password');
 		});
 	}
 
