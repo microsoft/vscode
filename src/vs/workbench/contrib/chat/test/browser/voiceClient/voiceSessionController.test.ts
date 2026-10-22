@@ -12,7 +12,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { autorun, derived, ISettableObservable, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { mock } from '../../../../../../base/test/common/mock.js';
+import { mock, upcastDeepPartial } from '../../../../../../base/test/common/mock.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
@@ -43,7 +43,7 @@ import { IVoiceToolDispatchDelegate, IVoiceToolDispatchService } from '../../../
 import { ChatSendResult, ConfirmedReason, ElicitationState, IChatConfirmation, IChatModelReference, IChatSendRequestOptions, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { derivePendingId, isPendingIdResolved, IVoiceAudioResponse, IVoiceBargeIn, IVoiceCheckpointNarrationMetadata, IVoiceClientService, IVoiceDispatchResult, IVoiceFatalDisconnect, IVoiceNarrationAck, IVoiceNarrationSignal, IVoicePttStartOptions, IVoiceSessionContext, IVoiceSpeechStarted, IVoiceToolCall, IVoiceTranscription, markPendingIdResolved, peekPendingId, VoiceConfirmationType, VoiceNarrationKind, VOICE_AGENT_PROGRESS_SETTING } from '../../../common/voiceClient/voiceClientService.js';
-import { IChatModel, IChatProgressResponseContent, IChatResponseModel } from '../../../common/model/chatModel.js';
+import { IChatModel, IChatProgressResponseContent, IChatRequestModel, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chatPlanReviewData.js';
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
@@ -2360,6 +2360,58 @@ suite('VoiceSessionController', () => {
 			},
 			containsHiddenMetadata: false,
 		});
+	});
+
+	test('includes active recent conversation and accurate background waiting state only for aware GPT Live', () => {
+		const results = [];
+		for (const [gptLive, awareness] of [[true, true], [true, false], [false, true]]) {
+			const chatService = new ControllableChatService();
+			const controller = createController(new TestVoiceClientService(), undefined, undefined, undefined, undefined,
+				new TestConfigurationService({ [AgentsVoiceSettingId.SessionAwareness]: awareness }), chatService);
+			const resource = URI.parse('chat-session:/recent-context');
+			const request = upcastDeepPartial<IChatRequestModel>({
+				id: 'request-context',
+				message: { text: 'Where were we?' },
+				response: {
+					isComplete: true,
+					isPendingConfirmation: observableValue('pending', undefined),
+					isIncomplete: observableValue('incomplete', false),
+					response: {
+						value: [{ kind: 'markdownContent', content: new MarkdownString('Added a briefing.') }],
+						getMarkdown: () => 'Added a briefing.',
+						getFinalResponse: () => 'Added a briefing.',
+					},
+				},
+			});
+			const model = new class extends mock<IChatModel>() {
+				override readonly sessionResource = resource;
+				override readonly title = 'Context';
+				override readonly lastMessageDate = Date.now();
+				override readonly lastRequestObs = observableValue('lastRequest', request);
+				override getRequests(): IChatRequestModel[] { return [request]; }
+			}();
+			controller.setActiveSessionShown(resource);
+			chatService.setModels([model]);
+			Reflect.set(controller, '_usingGptLiveByok', gptLive);
+			const buildContext = Reflect.get(controller, '_buildSessionContext') as () => IVoiceSessionContext;
+			const reportState = Reflect.get(controller, '_reportedAgentState') as (state: string, active: boolean) => { state: string; hideConfirmationDetail: boolean };
+			results.push({
+				gptLive, awareness,
+				turns: buildContext.call(controller).sessions[0].recent_turns,
+				background: reportState.call(controller, 'waiting_for_confirmation', false),
+			});
+		}
+		assert.deepStrictEqual(results, [{
+			gptLive: true, awareness: true,
+			turns: [{ user: 'Where were we?', assistant: 'Added a briefing.' }],
+			background: { state: 'waiting_for_confirmation', hideConfirmationDetail: false },
+		}, {
+			gptLive: true, awareness: false, turns: undefined,
+			background: { state: 'thinking', hideConfirmationDetail: true },
+		}, {
+			gptLive: false, awareness: true, turns: undefined,
+			background: { state: 'thinking', hideConfirmationDetail: true },
+		}]);
 	});
 
 	test('carries questionnaire type in session context and clears it when resolved', () => {
