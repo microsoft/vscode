@@ -173,12 +173,15 @@ suite('Sessions - Sessions list tools', () => {
 		const before = outline((await read()).tree);
 		await organize({ action: 'moveSessions', sessions: ['Oldest'], before: 'Newest' });
 		const anchored = outline((await read()).tree);
-		await organize({ action: 'moveSessions', sessions: ['Oldest'], to: 'group:release', position: 'bottom' });
+		await organize({ action: 'moveSessions', sessions: ['Middle'], to: 'group:release', position: 'top' });
+		const topAfterManualOrder = outline((await read()).tree);
+		await organize({ action: 'moveSessions', sessions: ['Middle'], to: 'group:release', position: 'bottom' });
 
-		assert.deepStrictEqual({ before, anchored, bottom: outline((await read()).tree) }, {
+		assert.deepStrictEqual({ before, anchored, topAfterManualOrder, bottom: outline((await read()).tree) }, {
 			before: [{ 'Release': ['Newest', 'Middle', 'Oldest'] }],
 			anchored: [{ 'Release': ['Oldest', 'Newest', 'Middle'] }],
-			bottom: [{ 'Release': ['Newest', 'Middle', 'Oldest'] }],
+			topAfterManualOrder: [{ 'Release': ['Middle', 'Oldest', 'Newest'] }],
+			bottom: [{ 'Release': ['Oldest', 'Newest', 'Middle'] }],
 		});
 	});
 

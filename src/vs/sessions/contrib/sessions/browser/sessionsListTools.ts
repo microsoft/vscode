@@ -14,6 +14,7 @@ import { ConfigurationTarget, IConfigurationService } from '../../../../platform
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
+import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
@@ -29,7 +30,7 @@ import { SessionsView, SessionsViewId } from './views/sessionsView.js';
 export const ReadSessionsListToolId = 'vscode_readSessionsList';
 export const OrganizeSessionsListToolId = 'vscode_organizeSessionsList';
 
-const sessionsListToolsWhen = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals(`config.${SESSIONS_LIST_AGENT_TOOLS_SETTING}`, true));
+const sessionsListToolsWhen = ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, ContextKeyExpr.equals(`config.${SESSIONS_LIST_AGENT_TOOLS_SETTING}`, true));
 
 /** How many sessions each header lists when the whole list is read. */
 const MAX_SESSIONS_PER_HEADER = 25;
@@ -44,6 +45,8 @@ const sessionStatusNames: Record<SessionStatus, string> = {
 
 const sessionsListActions = ['setView', 'createGroup', 'renameGroup', 'deleteGroup', 'moveSessions', 'moveHeader', 'setCollapsed'] as const;
 type SessionsListAction = typeof sessionsListActions[number];
+/** Actions that resolve their targets against the composed list rather than only the list's state services. */
+const listReadingActions: ReadonlySet<string> = new Set<SessionsListAction>(['createGroup', 'moveSessions', 'moveHeader', 'setCollapsed']);
 
 type SessionsListNodeOutput =
 	| {
@@ -239,11 +242,17 @@ Placement follows the list's precedence: archived > pinned > custom group > ungr
 
 		const keys = new Map<string, string>();
 		const results: ISessionsListOperationResult[] = [];
+		// A hidden list does not render state changes, so recompose it only before operations that read it, and once at the end.
+		let stale = false;
 		for (const operation of operations) {
 			if (token.isCancellationRequested) {
 				break;
 			}
 			const action = isObject(operation) && typeof operation.action === 'string' ? operation.action : '';
+			if (stale && listReadingActions.has(action)) {
+				view.sessionsControl.update();
+				stale = false;
+			}
 			try {
 				const id = await this.applyOperation(view, operation, keys);
 				results.push(id ? { action, ok: true, id } : { action, ok: true });
@@ -251,8 +260,11 @@ Placement follows the list's precedence: archived > pinned > custom group > ungr
 				results.push({ action, ok: false, error: error instanceof Error ? error.message : String(error) });
 				break;
 			} finally {
-				view.sessionsControl.update();
+				stale = true;
 			}
+		}
+		if (stale) {
+			view.sessionsControl.update();
 		}
 
 		const failed = results.some(result => !result.ok);
@@ -504,7 +516,7 @@ const organizeInputSchema: IJSONSchema & { type: 'object' } = {
 							required: ['kind', 'id', 'included'],
 						},
 					},
-					resetFilters: { type: 'boolean', description: 'Return every filter and display option to its default before applying the others; the user can undo it (setView).' },
+					resetFilters: { type: 'boolean', description: 'Before applying the other options, reset the filters, archived visibility, sessions per section, and each section\'s show more or show less choice to their defaults; grouping, sorting, compact, and externalSection are unaffected. The user can undo it (setView).' },
 					showArchived: { type: 'boolean', description: 'Show archived (Done) sessions (setView).' },
 					sessionsPerSection: { type: 'string', enum: ['recent', 'all'], description: 'Cap workspace, repository, and environment sections to recent sessions, or show all (setView).' },
 					compact: { type: 'boolean', description: 'Use compact rows (setView).' },

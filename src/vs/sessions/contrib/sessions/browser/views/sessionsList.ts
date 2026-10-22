@@ -6952,21 +6952,25 @@ export class SessionsList extends Disposable implements ISessionsList {
 		return group ? { kind: 'group', groupId: group.id } : { kind: 'section', sectionId: this.getUngroupedSectionIds(session)[0] };
 	}
 
-	/** The anchor that places sessions first or last among the other sessions of the placement. */
+	/** The anchor that places sessions first or last among the other sessions the list composes into the placement. */
 	private getEdgeAnchor(sessions: readonly ISession[], placement: SessionListPlacement, edge: 'top' | 'bottom'): ISessionDropAnchor | undefined {
 		const movedIds = new Set(sessions.map(session => session.sessionId));
-		let candidates: readonly ISession[];
-		if (isDateSectionPlacement(placement)) {
-			candidates = this.getDateSections()?.find(section => placement.kind === 'section' && section.id === placement.sectionId)?.sessions ?? [];
-		} else {
-			const mode = sortingToMode(this.options.sorting());
-			candidates = this.sessions
-				.filter(session => !isAutomationSession(session) && this.getReorderScope(session) !== undefined && isSamePlacement(this.getSessionPlacement(session), placement))
-				.sort((a, b) => this._sessionsListModelService.getSortKey(b, mode) - this._sessionsListModelService.getSortKey(a, mode));
-		}
-		candidates = candidates.filter(session => !movedIds.has(session.sessionId));
+		const candidates = this.getComposedPlacementSessions(placement).filter(session => !movedIds.has(session.sessionId) && this.getReorderScope(session) !== undefined);
 		const anchorSession = edge === 'top' ? candidates.at(0) : candidates.at(-1);
 		return anchorSession && { session: anchorSession, position: edge === 'top' ? 'before' : 'after', staysInSection: isDateSectionPlacement(placement) };
+	}
+
+	/**
+	 * The sessions the list composes into the placement, in display order and
+	 * including those that capping hides. A section also lists the members of
+	 * comparison groups nested in it, which belong to their group's placement.
+	 */
+	private getComposedPlacementSessions(placement: SessionListPlacement): readonly ISession[] {
+		const header = placement.kind === 'group'
+			? this.findTreeElement((element): element is ISessionGroupItem => isSessionGroupItem(element) && element.group.id === placement.groupId)
+			: this.findTreeElement((element): element is ISessionSection => isSessionSection(element) && element.id === getPlacementHeader(placement).id)
+			?? this.hiddenGroupingSections.find(section => section.id === getPlacementHeader(placement).id);
+		return (header?.sessions ?? []).filter(session => isSamePlacement(this.getSessionPlacement(session), placement));
 	}
 
 	/**
