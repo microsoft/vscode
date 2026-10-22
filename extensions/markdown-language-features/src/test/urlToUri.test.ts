@@ -36,4 +36,18 @@ suite('urlToUri', () => {
 			Uri.parse('http://example.org/%C3%A4')
 		);
 	});
+
+	test('UNC file path', () => {
+		deepStrictEqual(
+			urlToUri('file:////server/share/file.txt', Uri.parse('file:///usr/home/')),
+			Uri.parse('file:////server/share/file.txt')
+		);
+	});
+
+	test('UNC file path with host only', () => {
+		deepStrictEqual(
+			urlToUri('file:////server/share/folder/readme.md', Uri.parse('file:///usr/home/')),
+			Uri.parse('file:////server/share/folder/readme.md')
+		);
+	});
 });
