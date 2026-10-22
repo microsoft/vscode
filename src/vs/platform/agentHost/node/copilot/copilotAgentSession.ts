@@ -140,6 +140,7 @@ import { renderCopilotSlashCommandOutput, type RuntimeSlashCommandInfo } from '.
 import { CopilotSandboxPolicyDisplay } from './copilotSandboxPolicyDisplay.js';
 import { toSlashCommandResourceMeta } from '../../common/meta/agentSlashCommandOutputMeta.js';
 import { createCopilotFailureCorrelation, reportCopilotModelCallFailure, reportCopilotSdkSessionError } from './copilotFailureTelemetry.js';
+import { reportCopilotFusionPhase } from './copilotFusionPhaseTelemetry.js';
 import { reportCopilotTodoStoreOperation } from './copilotTodoStoreTelemetry.js';
 import { ModelCallTurnCorrelation } from './modelCallTurnCorrelation.js';
 import { CopilotSubagentTracking } from './copilotSubagentTracking.js';
@@ -11169,6 +11170,13 @@ export class CopilotAgentSession extends Disposable {
 		const update = this._fusionProgress.accept(event);
 		if (update) {
 			this._emitFusionProgress(update);
+		}
+		// `accept` drops repeated phase records and records for a finished workflow, so report only phases it accepted.
+		if (update?.phase && (event.type === 'assistant.fusion_phase_completed' || event.type === 'assistant.fusion_phase_failed')) {
+			reportCopilotFusionPhase(this._telemetryService, event, {
+				syntheticModel: this._fusionProgress.syntheticModel,
+				pattern: this._fusionProgress.getPattern(event.data.fusionId),
+			}, createCopilotFailureCorrelation(this.resourceUri, this._chatChannelUri, turn.id, this.sessionId, turn.clientContext));
 		}
 		if (update?.phase && event.type === 'assistant.fusion_phase_completed' && event.data.conversationScope === 'review') {
 			this._emitFusionReviewContent(event.data);
