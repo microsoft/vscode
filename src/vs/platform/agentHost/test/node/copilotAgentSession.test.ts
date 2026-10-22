@@ -275,8 +275,6 @@ class MockCopilotSession {
 		apiVersion: 1, availability: 'enabled', runtimeServers: [], pendingConnections: 0,
 	};
 	readonly connectorReconcileCalls: Parameters<CopilotSession['rpc']['connectors']['reconcile']>[0][] = [];
-	connectorCatalog: Awaited<ReturnType<CopilotSession['rpc']['connectors']['refresh']>> = { revision: 1, refreshedAtMs: 1, connectors: [] };
-	readonly connectorCatalogRefreshCalls: Parameters<CopilotSession['rpc']['connectors']['refresh']>[0][] = [];
 	onConnectorReconcile: (() => Promise<void>) | undefined;
 	onConnectorCapabilities: (() => Promise<void>) | undefined;
 	onMcpAuthenticationStateChanged: (() => void) | undefined;
@@ -770,10 +768,6 @@ class MockCopilotSession {
 			},
 			getAccount: async () => this.connectorAccount,
 			getStatus: async () => this.connectorStatus,
-			refresh: async (request: Parameters<CopilotSession['rpc']['connectors']['refresh']>[0]) => {
-				this.connectorCatalogRefreshCalls.push(request);
-				return this.connectorCatalog;
-			},
 			reconcile: async (request: Parameters<CopilotSession['rpc']['connectors']['reconcile']>[0]) => {
 				this.connectorReconcileCalls.push(request);
 				await this.onConnectorReconcile?.();
@@ -29118,6 +29112,7 @@ Use the attached image as context.
 				const { session, mockSession } = await createAgentSession(disposables, { rootValues });
 				const status = mockSession.rpc.connectors.getStatus;
 				mockSession.rpc.connectors.getStatus = async () => { throw new Error('status unavailable'); };
+				mockSession.onConnectorReconcile = async () => { throw new Error('reconcile unavailable'); };
 				session.markConnectorConfigurationChanged();
 				await session.refreshConnectors();
 				const statusFailed = { pending: session.hasPendingConnectorRefresh, reconciles: mockSession.connectorReconcileCalls.length };
@@ -29131,7 +29126,7 @@ Use the attached image as context.
 				assert.deepStrictEqual({
 					statusFailed, publicationFailed, pendingAfterRetry: session.hasPendingConnectorRefresh, disconnected: mockSession.disconnectCalls,
 				}, {
-					statusFailed: { pending: true, reconciles: 0 }, publicationFailed: { pending: true, reconciles: 1 },
+					statusFailed: { pending: true, reconciles: 1 }, publicationFailed: { pending: true, reconciles: 2 },
 					pendingAfterRetry: false, disconnected: 0,
 				});
 			});
@@ -29274,75 +29269,38 @@ Use the attached image as context.
 				}, { calls: [{ accountId: 'session-account', refreshCatalog: true }], pending: true });
 			});
 
-			for (const status of ['stopped', 'not_configured', 'disabled'] as const) {
-				test(`defers unsafe Connector refresh while preserving ${status} intent and permits safe reconciliation`, async () => {
-					const { session, mockSession } = await createAgentSession(disposables, { rootValues });
-					mockSession.connectorStatus.runtimeServers = [{ connectorName: 'calendar', runtimeServerId: 'calendar-id', status }];
-					session.markConnectorConfigurationChanged();
-					session.markConnectorConfigurationChanged('calendar');
-					session.markConnectorConfigurationChanged('mail');
-					await session.refreshConnectors();
-					assert.deepStrictEqual({
-						calls: mockSession.connectorReconcileCalls, pending: session.hasPendingConnectorRefresh,
-						enable: mockSession.mcpEnableCalls, start: mockSession.mcpStartServerCalls,
-					}, {
-						calls: [
-							// Ordinary reconciliation keeps disabled servers disabled, so only a disabled target defers.
-							...status === 'disabled' ? [{ accountId: 'session-account', refreshCatalog: true }] : [],
-							{ accountId: 'session-account', refreshCatalog: true, forceConnectorName: 'mail' },
-						],
-						pending: true, enable: [], start: [],
-					});
-				});
-			}
-
-			test('adds newly connected Connectors while another Connector is stopped, keeping ordinary reconciliation deferred', async () => {
+			test('holds a stopped Connector server disabled through reconciliation and enablement until Start', async () => {
 				const { session, mockSession } = await createAgentSession(disposables, { rootValues });
-				const calendar = { connectorName: 'calendar', runtimeServerId: 'calendar-id', status: 'stopped' } as const;
-				mockSession.connectorStatus.runtimeServers = [calendar];
-				mockSession.connectorCatalog = {
-					revision: 2, refreshedAtMs: 2, connectors: [
-						{ name: 'calendar', displayName: 'Calendar', status: 'connected', runtimeServerIds: ['calendar-id'] },
-						{ name: 'drive', displayName: 'Drive', status: 'not_connected', runtimeServerIds: [] },
-						{ name: 'slack', displayName: 'Slack', status: 'connected', runtimeServerIds: [] },
-						{ name: 'teams', displayName: 'Teams', status: 'connected', runtimeServerIds: [] },
-					],
-				};
+				mockSession.mcpListResult = { servers: [{ name: 'connector-mail', status: 'connected', source: 'managed' }] };
 				mockSession.onConnectorReconcile = async () => {
-					// A targeted reconcile projects only its target.
-					const runtimeServerId = `${mockSession.connectorReconcileCalls.at(-1)?.forceConnectorName}-id`;
 					mockSession.connectorStatus = {
 						...mockSession.connectorStatus,
-						catalog: mockSession.connectorCatalog,
-						runtimeServers: [...mockSession.connectorStatus.runtimeServers, { connectorName: runtimeServerId.slice(0, -3), runtimeServerId, status: 'connected' }],
+						catalog: { revision: 1, refreshedAtMs: 1, connectors: [{ name: 'mail', displayName: 'Work Mail', status: 'connected', runtimeServerIds: ['connector-mail'] }] },
+						runtimeServers: [{ connectorName: 'mail', runtimeServerId: 'connector-mail', status: 'connected' }],
 					};
-					mockSession.mcpListResult = { servers: [...mockSession.mcpListResult.servers, { name: runtimeServerId, status: 'connected', source: 'managed' }] };
 				};
-				mockSession.mcpListResult = { servers: [{ name: 'calendar-id', status: 'stopped', source: 'managed' }] };
-				const progress = () => ({
-					catalogRefreshes: mockSession.connectorCatalogRefreshCalls.length,
-					calls: mockSession.connectorReconcileCalls.length,
-					pending: session.hasPendingConnectorRefresh,
-				});
 				session.markConnectorConfigurationChanged();
 				await session.refreshConnectors();
-				const added = { ...progress(), servers: session.topLevelMcpCustomizations().map(server => readMcpServerDisplayName(server)) };
-				await session.refreshConnectors();
-				const retried = progress();
+				const id = session.topLevelMcpCustomizations()[0].id;
+				const state = () => session.topLevelMcpCustomizations()[0].state.kind;
+
+				await session.stopMcpServer(id);
+				const stopped = state();
 				session.markConnectorConfigurationChanged();
 				await session.refreshConnectors();
+				const afterRefresh = { state: state(), pending: session.hasPendingConnectorRefresh, reconciles: mockSession.connectorReconcileCalls.length };
+				await session.startMcpServer(id);
+
 				assert.deepStrictEqual({
-					added, retried, changedAgain: progress(), calls: mockSession.connectorReconcileCalls,
-					enable: mockSession.mcpEnableCalls, start: mockSession.mcpStartServerCalls,
+					stopped, afterRefresh, enabled: isCustomizationEnabled(session.topLevelMcpCustomizations()[0]),
+					disable: mockSession.mcpDisableCalls, enable: mockSession.mcpEnableCalls,
+					stopServer: mockSession.mcpStopServerCalls, startServer: mockSession.mcpStartServerCalls,
 				}, {
-					added: { catalogRefreshes: 1, calls: 2, pending: true, servers: ['Calendar', 'Slack', 'Teams'] },
-					retried: { catalogRefreshes: 1, calls: 2, pending: true },
-					changedAgain: { catalogRefreshes: 2, calls: 2, pending: true },
-					calls: [
-						{ accountId: 'session-account', refreshCatalog: false, forceConnectorName: 'slack' },
-						{ accountId: 'session-account', refreshCatalog: false, forceConnectorName: 'teams' },
-					],
-					enable: [], start: [],
+					stopped: McpServerStatus.Stopped,
+					afterRefresh: { state: McpServerStatus.Stopped, pending: false, reconciles: 2 },
+					enabled: true,
+					disable: [{ serverName: 'connector-mail' }], enable: [{ serverName: 'connector-mail' }],
+					stopServer: [], startServer: [],
 				});
 			});
 
