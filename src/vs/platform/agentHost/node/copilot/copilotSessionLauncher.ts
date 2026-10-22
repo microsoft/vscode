@@ -98,9 +98,9 @@ const catalogInstallationFeatureFlags = {
 const ReasoningEfforts = reasoningEffortLevels;
 type AgentHostReasoningEffort = ReasoningEffortLevel;
 
-// Every create and resume config states both image generation options, so finalizing a session reads them without defaults.
+// Every create and resume config states the image generation options, so finalizing a session reads them without defaults.
 interface ICopilotSessionConfig extends ResumeSessionConfig {
-	imageGeneration: { enabled: boolean; watermark: boolean };
+	imageGeneration: { enabled: boolean; watermark: boolean; saveToDisk: false };
 }
 
 function disabledMcpServersSessionOption(plugins: readonly ICopilotPluginInfo[], disabledRootMcpServers: readonly string[] | undefined, additionalDisabledMcpServers: readonly string[] | undefined): Partial<SessionConfig> {
@@ -957,7 +957,6 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			infiniteSessions: { enabled: false },
 			memory: { enabled: false },
 			enableHostGitOperations: false,
-			remoteSession: 'off',
 			mcpOAuthTokenStorage: 'in-memory',
 			disabledMcpServers,
 			availableTools: [],
@@ -1151,6 +1150,14 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// TODO: Remove this post-launch update once the SDK exposes verbosity in SessionConfig.
 		if (isGpt56Model(modelId)) {
 			await this._applyVerbosity(raw, 'medium', plan.sessionId);
+		}
+		if (!plan.isEphemeral && this._configurationService.getRootValue(platformRootSchema, AgentHostSessionSyncEnabledConfigKey) === true) {
+			try {
+				// The SDK no longer accepts remote options at startup; opt into history export, never steering.
+				await raw.rpc.remote.enable({ mode: 'export' });
+			} catch (err) {
+				this._logService.warn(`[Copilot:${plan.sessionId}] Failed to enable session history export`, err);
+			}
 		}
 		return new CopilotSessionWrapper(raw, config.requestCanvasRenderer === true, { providers: config.providers, models: config.models }, config.imageGeneration.enabled, config.imageGeneration.watermark, trustWorkingDirectory, this._logService);
 	}
@@ -1490,6 +1497,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			imageGeneration: {
 				enabled: this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ImageGeneration) === true,
 				watermark: this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ImageGenerationWatermark) === true,
+				// VS Code saves validated image bytes and adds their paths in its post-tool-use hook.
+				saveToDisk: false,
 			},
 			...(hydraFusionEnabled ? { enableExperimentalMode: true } : {}),
 			interactiveUser: true,
@@ -1556,11 +1565,6 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			// Always explicit so the VS Code opt-in gates memory instead of the runtime default.
 			// The runtime still applies the user's GitHub Copilot Memory settings and policies.
 			memory: { enabled: memoryEnabled },
-			// Per-session remote export: the client-level `--remote` flag
-			// (enableRemoteSessions) enables the CLI capability, but each
-			// session must opt in via `remoteSession` to actually export
-			// events. Without this, sessions default to "off".
-			remoteSession: this._configurationService.getRootValue(platformRootSchema, AgentHostSessionSyncEnabledConfigKey) === true ? 'export' : undefined,
 			enableManagedSettings: true,
 		};
 		return { config, modelPolicy: resolved };
