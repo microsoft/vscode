@@ -3703,7 +3703,7 @@ suite('AgentHostProtocolClient', () => {
 		assert.strictEqual(transport.sentMessages.length, 0);
 	});
 
-	test('rejects invalid Copilot extension inventory resources', async () => {
+	test('skips invalid Copilot extension inventory items and preserves unknown statuses', async () => {
 		const { client, transport } = createClient();
 		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, false, false, false, false, false, false, true));
 		transport.sentMessages.length = 0;
@@ -3715,16 +3715,87 @@ suite('AgentHostProtocolClient', () => {
 			result: {
 				mode: 'load_and_augment',
 				extensions: [{
+					id: 'user:future',
+					name: 'Future',
+					resource: 'file:///home/test/.copilot/extensions/future/extension.mjs',
+					source: 'user',
+					status: 'paused',
+				}, {
 					id: 'user:preview',
 					name: 'Preview',
 					resource: 'https://example.test/extension.mjs',
 					source: 'user',
 					status: 'running',
+				}, {
+					id: 'session:preview',
+					name: 'Session Preview',
+					source: 'session',
+					status: 'running',
+				}, {
+					id: 'user:malformed',
+					name: '',
+					source: 'user',
+					status: 'running',
+				}, {
+					id: 'plugin:dashboard',
+					name: 'Dashboard',
+					source: 'plugin',
+					status: 'disabled',
+					pluginName: 'dashboard',
 				}],
 			},
 		});
 
-		await assert.rejects(inventory, /invalid extension resource/);
+		const result = await inventory;
+		assert.deepStrictEqual({
+			mode: result.mode,
+			extensions: result.extensions.map(extension => ({
+				id: extension.id,
+				name: extension.name,
+				resourceScheme: extension.resource?.scheme,
+				resourcePath: extension.resource?.path,
+				source: extension.source,
+				status: extension.status,
+				pluginName: extension.pluginName,
+			})),
+		}, {
+			mode: 'load_and_augment',
+			extensions: [{
+				id: 'user:future',
+				name: 'Future',
+				resourceScheme: 'vscode-agent-host',
+				resourcePath: '/home/test/.copilot/extensions/future/extension.mjs',
+				source: 'user',
+				status: 'unknown',
+				pluginName: undefined,
+			}, {
+				id: 'plugin:dashboard',
+				name: 'Dashboard',
+				resourceScheme: undefined,
+				resourcePath: undefined,
+				source: 'plugin',
+				status: 'disabled',
+				pluginName: 'dashboard',
+			}],
+		});
+	});
+
+	test('rejects invalid top-level Copilot extension inventory responses', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, false, false, false, false, false, false, true));
+		transport.sentMessages.length = 0;
+
+		const inventory = client.listAgentExtensions();
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: 2,
+			result: {
+				mode: 'load_and_augment',
+				extensions: {},
+			},
+		});
+
+		await assert.rejects(inventory, /invalid extension inventory/);
 	});
 
 	test('removeSessionArtifact sends the VS Code extension request', async () => {

@@ -57,7 +57,7 @@ import { hasCopilotManagedAutoPreference, omitCopilotManagedModelDefaults, proje
 import { buildCopilotBuiltinAgentsContainer, COPILOT_BUILTIN_AGENT_NAMES_BY_URI, CopilotBuiltinAgentsStore } from './copilotBuiltinAgents.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
-import { type AgentCanvasDefinitionSnapshot, AgentChatOperationContext, AgentSession, fixedChatOwnerRef, type IAgentChatOwnerRef, resolveSessionBackedStorage, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatSessionSettings, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationApplyResult, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDescriptor, IAgentDiscoveredChat, type IAgentExtensionInventory, IAgentListedChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, type IAgentManagedPluginRetryEntry, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginInstallRequest, type IAgentPluginMarketplace, type IAgentPluginMarketplaceItem, type IAgentPluginMarketplaceRefreshResult, type IAgentPluginMarketplaceRemoveResult, type IAgentPluginUninstallRequest, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage, type IAgentChatSessionEvent } from '../../common/agent.js';
+import { type AgentCanvasDefinitionSnapshot, AgentChatOperationContext, AgentSession, fixedChatOwnerRef, type IAgentChatOwnerRef, resolveSessionBackedStorage, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatSessionSettings, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationApplyResult, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDescriptor, IAgentDiscoveredChat, type IAgentExtensionInfo, type IAgentExtensionInventory, IAgentListedChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, type IAgentManagedPluginRetryEntry, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginInstallRequest, type IAgentPluginMarketplace, type IAgentPluginMarketplaceItem, type IAgentPluginMarketplaceRefreshResult, type IAgentPluginMarketplaceRemoveResult, type IAgentPluginUninstallRequest, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage, type IAgentChatSessionEvent } from '../../common/agent.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
 import { autoModeTiers, defaultAutoModeTier, DynamicAutoTiersFeatureFlag, getAutoModeTierDescription, getAutoModeTierLabel, getFusionAutoModeTierLabel, setAdvertisedAutoModeTiers } from '../../common/autoModeTiers.js';
 import { AUTO_MODEL_ID, isAutoModel } from './modelIdentifiers.js';
@@ -2855,35 +2855,45 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	async listAgentExtensions(session?: URI, chat?: URI): Promise<IAgentExtensionInventory> {
 		const inventory = await this._retryAfterClosedConnection('listExtensions', client => client.rpc.extensions.discover());
+		if (!inventory || typeof inventory !== 'object' || typeof inventory.mode !== 'string' || !Array.isArray(inventory.extensions)) {
+			throw new Error('Copilot returned an invalid extension inventory.');
+		}
+		const extensions: IAgentExtensionInfo[] = inventory.extensions.flatMap((extension, index) => {
+			if (!extension || typeof extension !== 'object'
+				|| typeof extension.id !== 'string' || !extension.id
+				|| typeof extension.name !== 'string' || !extension.name
+				|| typeof extension.path !== 'string' || !isAbsolute(extension.path)
+				|| typeof extension.source !== 'string'
+				|| typeof extension.enabled !== 'boolean'
+				|| extension.plugin !== undefined && (!extension.plugin || typeof extension.plugin !== 'object' || typeof extension.plugin.name !== 'string' || !extension.plugin.name)) {
+				this._logService.warn(`[Copilot] Ignoring invalid persisted extension inventory entry at index ${index}`);
+				return [];
+			}
+			if (extension.source !== 'user' && extension.source !== 'plugin') {
+				this._logService.warn(`[Copilot] Ignoring persisted extension inventory entry with unsupported source '${extension.source}'`);
+				return [];
+			}
+			return [{
+				id: extension.id,
+				name: extension.name,
+				resource: URI.file(extension.path),
+				source: extension.source,
+				status: extension.enabled ? 'unknown' : 'disabled',
+				...(extension.plugin?.name ? { pluginName: extension.plugin.name } : {}),
+			}];
+		});
 		const persisted: IAgentExtensionInventory = {
 			mode: inventory.mode === 'disabled' || inventory.mode === 'load_only' || inventory.mode === 'load_and_augment'
 				? inventory.mode
 				: 'unknown',
-			extensions: inventory.extensions.map(extension => {
-				if (typeof extension.id !== 'string' || !extension.id
-					|| typeof extension.name !== 'string' || !extension.name
-					|| typeof extension.path !== 'string' || !isAbsolute(extension.path)
-					|| extension.source !== 'user' && extension.source !== 'plugin'
-					|| typeof extension.enabled !== 'boolean'
-					|| extension.plugin?.name !== undefined && typeof extension.plugin.name !== 'string') {
-					throw new Error(`Copilot returned an invalid extension inventory entry '${extension.id || extension.name || '<unknown>'}'.`);
-				}
-				return {
-					id: extension.id,
-					name: extension.name,
-					resource: URI.file(extension.path),
-					source: extension.source,
-					status: extension.enabled ? 'running' : 'disabled',
-					...(extension.plugin?.name ? { pluginName: extension.plugin.name } : {}),
-				};
-			}),
+			extensions,
 		};
 		if (!session) {
 			return persisted;
 		}
 		const liveSession = this._findPluginOperationSession(session, chat);
 		if (!liveSession) {
-			throw new Error('The selected chat is not running, so its extensions cannot be listed.');
+			return persisted;
 		}
 		const persistedById = new Map(persisted.extensions.map(extension => [extension.id, extension]));
 		const liveExtensions = await liveSession.listExtensions();
@@ -2913,17 +2923,23 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (!extensionId) {
 			throw new Error('Extension id is required.');
 		}
-		const separator = extensionId.indexOf(':');
-		const source = separator === -1 ? '' : extensionId.slice(0, separator);
-		if (source === 'project') {
+		const inventory = await this.listAgentExtensions(session, chat);
+		const extension = inventory.extensions.find(extension => extension.id === extensionId);
+		if (!extension) {
+			throw new Error(`Extension '${extensionId}' is not available or cannot be managed.`);
+		}
+		if (extension.source === 'project') {
+			if (enabled && inventory.mode !== 'load_and_augment') {
+				throw new Error(`Extension '${extensionId}' cannot be enabled while extension management mode is '${inventory.mode}'.`);
+			}
 			const liveSession = session ? this._findPluginOperationSession(session, chat) : undefined;
 			if (!liveSession) {
 				throw new Error('The selected chat is not running, so this extension cannot be changed.');
 			}
-			await liveSession.setExtensionEnabled(extensionId, enabled);
+			await this._queueChat(liveSession.sessionId, liveSession.sessionId, 'setExtensionEnabled', () => liveSession.setExtensionEnabled(extensionId, enabled));
 			return;
 		}
-		if (source !== 'user' && source !== 'plugin') {
+		if (extension.source !== 'user' && extension.source !== 'plugin') {
 			throw new Error(`Extension '${extensionId}' does not have a manageable source.`);
 		}
 		await this._retryAfterClosedConnection('setExtensionEnabled', client => enabled
@@ -2936,7 +2952,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		try {
 			await this._queueChat(liveSession.sessionId, liveSession.sessionId, 'reconcileExtensions', () => liveSession.reconcileExtensions());
 		} catch (error) {
-			throw new Error(`The extension preference was saved, but the selected chat could not be updated: ${getErrorMessage(error)}`);
+			throw new Error(localize('copilot.extensionReconcileFailed', "The extension preference was saved, but the selected chat could not be updated: {0}", getErrorMessage(error)));
 		}
 	}
 

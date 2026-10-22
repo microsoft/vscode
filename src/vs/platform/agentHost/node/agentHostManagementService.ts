@@ -139,14 +139,14 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 
 	listAgentExtensions(session?: URI, chat?: URI): Promise<IAgentExtensionInventory> {
 		if (!this._agentService.listAgentExtensions) {
-			throw new Error('Copilot extension inventory is unavailable');
+			throw new Error('Copilot extension inventory is unavailable.');
 		}
 		return this._agentService.listAgentExtensions(session, chat);
 	}
 
 	setAgentExtensionEnabled(extensionId: string, enabled: boolean, session?: URI, chat?: URI): Promise<void> {
 		if (!this._agentService.setAgentExtensionEnabled) {
-			throw new Error('Copilot extension management is unavailable');
+			throw new Error('Copilot extension management is unavailable.');
 		}
 		return this._runMutation(() => this._agentService.setAgentExtensionEnabled!(extensionId, enabled, session, chat));
 	}

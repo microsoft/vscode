@@ -301,6 +301,7 @@ export interface IAgentExtensionInfo {
 	readonly name: string;
 	readonly resource?: URI;
 	readonly source: AgentExtensionSource;
+	/** Persisted enabled entries use `unknown`; only a live session can report `running`, `failed`, or `starting`. */
 	readonly status: AgentExtensionStatus;
 	readonly pluginName?: string;
 }
@@ -1772,7 +1773,10 @@ export interface IAgent {
 	/** Discover executable extensions from the provider's persisted inventory. */
 	listAgentExtensions?(session?: URI, chat?: URI): Promise<IAgentExtensionInventory>;
 
-	/** Persist extension enablement and reconcile one exact live chat when supplied. */
+	/**
+	 * Persist User/Plugin enablement and reconcile one exact live chat when supplied.
+	 * Project enablement is session-only and requires a live session in `load_and_augment` mode; Session extensions are unsupported.
+	 */
 	setAgentExtensionEnabled?(extensionId: string, enabled: boolean, session?: URI, chat?: URI): Promise<void>;
 
 	/** Capture the current account without allowing a later account to relabel an in-flight turn. */

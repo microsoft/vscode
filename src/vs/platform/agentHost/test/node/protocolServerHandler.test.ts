@@ -2105,6 +2105,105 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
+	test('rejects Copilot extension mutation from relay connections', async () => {
+		const relay = disposables.add(new MockProtocolServer());
+		const relayHandler = disposables.add(new ProtocolServerHandler(
+			agentService, stateManager, relay,
+			{ allowExtensionMethods: true },
+			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
+		));
+		const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'relay-client', false));
+		relay.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'relay-client' }));
+
+		const response = waitForResponse(transport, 20);
+		transport.simulateMessage(request(20, SetAgentExtensionEnabledExtensionMethod, {
+			extensionId: 'user:preview',
+			enabled: false,
+		}));
+		await relayHandler.whenIdle();
+
+		assert.deepStrictEqual({
+			response: await response,
+			setCalls: agentService.setAgentExtensionEnabledCalls,
+		}, {
+			response: {
+				jsonrpc: '2.0',
+				id: 20,
+				error: {
+					code: JsonRpcErrorCodes.InvalidRequest,
+					message: 'This connection is read-only. You can view sessions, but you cannot create sessions, send messages, or make changes.',
+				},
+			},
+			setCalls: [],
+		});
+	});
+
+	test('rejects empty Copilot extension scope parameters', async () => {
+		const transport = connectClient('client-copilot-extension-invalid-scope');
+		const requests = [
+			[20, request(20, ListAgentExtensionsExtensionMethod, { session: '' })],
+			[21, request(21, ListAgentExtensionsExtensionMethod, { chat: '' })],
+			[22, request(22, ListAgentExtensionsExtensionMethod, { chat: 'vendor-chat:/peer' })],
+			[23, request(23, SetAgentExtensionEnabledExtensionMethod, { extensionId: 'user:preview', enabled: false, session: '' })],
+			[24, request(24, SetAgentExtensionEnabledExtensionMethod, { extensionId: 'user:preview', enabled: false, chat: '' })],
+		] as const;
+		const responses = requests.map(([id, message]) => {
+			const response = waitForResponse(transport, id);
+			transport.simulateMessage(message);
+			return response;
+		});
+
+		assert.deepStrictEqual({
+			errorCodes: (await Promise.all(responses)).map(message => hasKey(message, { error: true }) ? message.error?.code : undefined),
+			listCalls: agentService.listAgentExtensionsCalls,
+			setCalls: agentService.setAgentExtensionEnabledCalls,
+		}, {
+			errorCodes: [
+				JsonRpcErrorCodes.InvalidParams,
+				JsonRpcErrorCodes.InvalidParams,
+				JsonRpcErrorCodes.InvalidParams,
+				JsonRpcErrorCodes.InvalidParams,
+				JsonRpcErrorCodes.InvalidParams,
+			],
+			listCalls: [],
+			setCalls: [],
+		});
+	});
+
+	test('does not advertise or route Copilot extension methods when host extension methods are disabled', async () => {
+		const disabledServer = disposables.add(new MockProtocolServer());
+		disposables.add(new ProtocolServerHandler(
+			agentService, stateManager, disabledServer,
+			{ allowExtensionMethods: false },
+			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
+		));
+		const transport = disposables.add(new MockProtocolTransport());
+		disabledServer.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'disabled-extension-methods' }));
+		const initialized = findResponse(transport.sent, 1);
+		assert.ok(initialized && hasKey(initialized, { result: true }));
+
+		const listResponse = waitForResponse(transport, 20);
+		transport.simulateMessage(request(20, ListAgentExtensionsExtensionMethod, {}));
+		const setResponse = waitForResponse(transport, 21);
+		transport.simulateMessage(request(21, SetAgentExtensionEnabledExtensionMethod, { extensionId: 'user:preview', enabled: false }));
+
+		assert.deepStrictEqual({
+			supported: supportsAgentHostCopilotExtensions(initialized.result as InitializeResult),
+			errorCodes: [await listResponse, await setResponse].map(message => hasKey(message, { error: true }) ? message.error?.code : undefined),
+			listCalls: agentService.listAgentExtensionsCalls,
+			setCalls: agentService.setAgentExtensionEnabledCalls,
+		}, {
+			supported: false,
+			errorCodes: [JsonRpcErrorCodes.MethodNotFound, JsonRpcErrorCodes.MethodNotFound],
+			listCalls: [],
+			setCalls: [],
+		});
+	});
+
 	test('rejects invalid session import params before routing', async () => {
 		const transport = connectClient('client-import-invalid');
 		for (const [index, params] of [

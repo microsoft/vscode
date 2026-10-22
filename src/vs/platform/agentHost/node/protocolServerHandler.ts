@@ -3498,6 +3498,22 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		return chat;
 	}
 
+	private _parseAgentExtensionScope(params: { readonly session?: string; readonly chat?: string }): { readonly session?: URI; readonly chat?: URI } {
+		if (params.session !== undefined && params.session.length === 0) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be a non-empty URI string');
+		}
+		if (params.chat !== undefined && params.chat.length === 0) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'chat must be a non-empty URI string');
+		}
+		if (params.chat !== undefined && params.session === undefined) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'chat requires session');
+		}
+		return {
+			...(params.session !== undefined ? { session: this._parseSessionUri(params.session) } : {}),
+			...(params.chat !== undefined ? { chat: this._parseChatUri(params.chat) } : {}),
+		};
+	}
+
 	/**
 	 * Handle VS Code extension methods that are not yet part of the typed
 	 * protocol. Returns a Promise if the method was recognized, undefined
@@ -3735,11 +3751,13 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				if (validated.error) {
 					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error.message));
 				}
-				const session = validated.content.session ? this._parseSessionUri(validated.content.session) : undefined;
-				if (validated.content.chat && !session) {
-					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'chat requires session'));
+				let session: URI | undefined;
+				let chat: URI | undefined;
+				try {
+					({ session, chat } = this._parseAgentExtensionScope(validated.content));
+				} catch (error) {
+					return Promise.reject(error);
 				}
-				const chat = validated.content.chat ? this._parseChatUri(validated.content.chat) : undefined;
 				return this._agentService.listAgentExtensions(session, chat).then(inventory => ({
 					mode: inventory.mode,
 					extensions: inventory.extensions.map(extension => ({
@@ -3753,6 +3771,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				}));
 			}
 			case SetAgentExtensionEnabledExtensionMethod: {
+				if (client.transport.relayClientId !== undefined || client.transport.relayPassive || this._config.relayRoots || this._config.relayRootMeta) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidRequest, readOnlyConnectionMessage));
+				}
 				if (!this._agentService.setAgentExtensionEnabled) {
 					return undefined;
 				}
@@ -3760,11 +3781,13 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				if (validated.error || !validated.content.extensionId) {
 					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error?.message ?? 'extensionId must be a non-empty string'));
 				}
-				const session = validated.content.session ? this._parseSessionUri(validated.content.session) : undefined;
-				if (validated.content.chat && !session) {
-					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'chat requires session'));
+				let session: URI | undefined;
+				let chat: URI | undefined;
+				try {
+					({ session, chat } = this._parseAgentExtensionScope(validated.content));
+				} catch (error) {
+					return Promise.reject(error);
 				}
-				const chat = validated.content.chat ? this._parseChatUri(validated.content.chat) : undefined;
 				return this._agentService.setAgentExtensionEnabled(validated.content.extensionId, validated.content.enabled, session, chat);
 			}
 			case GetAgentHostSessionStateFileExtensionMethod: {

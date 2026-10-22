@@ -104,8 +104,13 @@ function isAgentExtensionSource(value: unknown): value is AgentExtensionSource {
 	return value === 'user' || value === 'project' || value === 'plugin';
 }
 
-function isAgentExtensionStatus(value: unknown): value is AgentExtensionStatus {
-	return value === 'running' || value === 'disabled' || value === 'failed' || value === 'starting' || value === 'unknown';
+function toAgentExtensionStatus(value: unknown): AgentExtensionStatus | undefined {
+	if (typeof value !== 'string') {
+		return undefined;
+	}
+	return value === 'running' || value === 'disabled' || value === 'failed' || value === 'starting' || value === 'unknown'
+		? value
+		: 'unknown';
 }
 
 /**
@@ -2028,15 +2033,23 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		if (!isAgentExtensionMode(result.mode) || !Array.isArray(result.extensions)) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Agent Host returned an invalid extension inventory');
 		}
-		const extensions = result.extensions.map(extension => {
+		const extensions = result.extensions.flatMap((extension, index) => {
 			if (!extension || typeof extension !== 'object'
 				|| typeof extension.id !== 'string' || !extension.id
 				|| typeof extension.name !== 'string' || !extension.name
-				|| !isAgentExtensionSource(extension.source)
-				|| !isAgentExtensionStatus(extension.status)
 				|| extension.resource !== undefined && typeof extension.resource !== 'string'
 				|| extension.pluginName !== undefined && typeof extension.pluginName !== 'string') {
-				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Agent Host returned an invalid extension inventory item');
+				this._logService.warn(`[AgentHostProtocolClient] Ignoring invalid extension inventory item at index ${index}`);
+				return [];
+			}
+			if (!isAgentExtensionSource(extension.source)) {
+				this._logService.warn(`[AgentHostProtocolClient] Ignoring extension inventory item with unsupported source at index ${index}`);
+				return [];
+			}
+			const status = toAgentExtensionStatus(extension.status);
+			if (!status) {
+				this._logService.warn(`[AgentHostProtocolClient] Ignoring extension inventory item with invalid status at index ${index}`);
+				return [];
 			}
 			let resource: URI | undefined;
 			if (extension.resource) {
@@ -2047,17 +2060,18 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 					}
 					resource = this._toClientUri(hostResource);
 				} catch {
-					throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Agent Host returned an invalid extension resource');
+					this._logService.warn(`[AgentHostProtocolClient] Ignoring extension inventory item with invalid resource at index ${index}`);
+					return [];
 				}
 			}
-			return {
+			return [{
 				id: extension.id,
 				name: extension.name,
 				...(resource ? { resource } : {}),
 				source: extension.source,
-				status: extension.status,
+				status,
 				...(extension.pluginName ? { pluginName: extension.pluginName } : {}),
-			};
+			}];
 		});
 		return { mode: result.mode, extensions };
 	}

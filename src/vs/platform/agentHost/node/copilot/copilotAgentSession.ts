@@ -4350,20 +4350,31 @@ export class CopilotAgentSession extends Disposable {
 
 	async listExtensions(): Promise<readonly IAgentExtensionInfo[]> {
 		const result = await this._awaitControlPlaneRpc('rpc.extensions.list', this._wrapper.session.rpc.extensions.list());
-		return result.extensions.flatMap(extension => {
+		if (!result || !Array.isArray(result.extensions)) {
+			throw new Error('Copilot returned an invalid live extension inventory.');
+		}
+		return result.extensions.flatMap((extension, index) => {
+			if (!extension || typeof extension !== 'object'
+				|| typeof extension.id !== 'string' || !extension.id
+				|| typeof extension.name !== 'string' || !extension.name
+				|| typeof extension.source !== 'string'
+				|| typeof extension.status !== 'string') {
+				this._logService.warn(`[Copilot:${this.sessionId}] Ignoring invalid live extension inventory entry at index ${index}`);
+				return [];
+			}
 			const source = this._canvasExtensionSource(extension.source);
-			const status = this._extensionStatus(extension.status);
 			if (source === 'session') {
 				return [];
 			}
-			if (source === 'unknown' || status === 'unknown' || !extension.id || !extension.name) {
-				throw new Error(`Copilot returned an invalid live extension inventory entry '${extension.id || extension.name || '<unknown>'}'.`);
+			if (source === 'unknown') {
+				this._logService.warn(`[Copilot:${this.sessionId}] Ignoring live extension inventory entry with unsupported source '${extension.source}'`);
+				return [];
 			}
 			return [{
 				id: extension.id,
 				name: extension.name,
 				source,
-				status,
+				status: this._extensionStatus(extension.status),
 			}];
 		});
 	}

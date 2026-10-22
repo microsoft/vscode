@@ -2124,7 +2124,7 @@ suite('CopilotAgent', () => {
 				status: 'running',
 				enabled: true,
 			}, {
-				id: 'project:dashboard',
+				id: 'user:project-dashboard',
 				name: 'Project Dashboard',
 				source: 'project',
 				status: 'disabled',
@@ -2148,7 +2148,7 @@ suite('CopilotAgent', () => {
 			await agent.setAgentExtensionEnabled('user:preview', false);
 			await agent.setAgentExtensionEnabled('user:preview', true, session);
 			await agent.setAgentExtensionEnabled('plugin:dashboard', true, session, chat);
-			await agent.setAgentExtensionEnabled('project:dashboard', true, session, chat);
+			await agent.setAgentExtensionEnabled('user:project-dashboard', true, session, chat);
 
 			assert.deepStrictEqual({
 				inventory: {
@@ -2181,7 +2181,7 @@ suite('CopilotAgent', () => {
 						name: 'Preview',
 						resource: 'file:///home/test/.copilot/extensions/preview/extension.mjs',
 						source: 'user',
-						status: 'running',
+						status: 'unknown',
 						pluginName: undefined,
 					}, {
 						id: 'plugin:dashboard',
@@ -2195,7 +2195,7 @@ suite('CopilotAgent', () => {
 						name: 'microsoft-foundry',
 						resource: 'file:///home/test/.copilot/plugins/microsoft-foundry/extensions/microsoft-foundry/extension.mjs',
 						source: 'plugin',
-						status: 'running',
+						status: 'unknown',
 						pluginName: 'microsoft-foundry',
 					}],
 				},
@@ -2205,7 +2205,7 @@ suite('CopilotAgent', () => {
 					source: 'user',
 					status: 'running',
 				}, {
-					id: 'project:dashboard',
+					id: 'user:project-dashboard',
 					resource: undefined,
 					source: 'project',
 					status: 'disabled',
@@ -2223,9 +2223,225 @@ suite('CopilotAgent', () => {
 				enableRequests: [{ ids: ['user:preview'] }, { ids: ['plugin:dashboard'] }],
 				disableRequests: [{ ids: ['user:preview'] }],
 				reconcileCalls: 1,
-				queued: [{ lifetimeId: 'sdk-extension-peer', chatKey: 'sdk-extension-peer', operation: 'reconcileExtensions' }],
-				scopedExtensionChanges: [{ extensionId: 'project:dashboard', enabled: true }],
+				queued: [
+					{ lifetimeId: 'sdk-extension-peer', chatKey: 'sdk-extension-peer', operation: 'reconcileExtensions' },
+					{ lifetimeId: 'sdk-extension-peer', chatKey: 'sdk-extension-peer', operation: 'setExtensionEnabled' },
+				],
+				scopedExtensionChanges: [{ extensionId: 'user:project-dashboard', enabled: true }],
 			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('handles cold and forward-compatible extension inventory', async () => {
+		const client = new TestCopilotClient([]);
+		client.extensionInventory = {
+			mode: 'load_only',
+			extensions: [{
+				id: 'user:preview',
+				name: 'Preview',
+				path: '/home/test/.copilot/extensions/preview/extension.mjs',
+				source: 'user',
+				enabled: true,
+			}, {
+				id: 'plugin:dashboard',
+				name: 'Dashboard',
+				path: '/home/test/.copilot/plugins/dashboard/extensions/dashboard/extension.mjs',
+				source: 'plugin',
+				enabled: false,
+				plugin: { name: 'dashboard' },
+			}, {
+				id: 'project:unsupported',
+				name: 'Unsupported',
+				path: '/workspace/.github/extensions/unsupported/extension.mjs',
+				source: 'project' as never,
+				enabled: true,
+			}, {
+				id: 'user:malformed',
+				name: '',
+				path: '/home/test/.copilot/extensions/malformed/extension.mjs',
+				source: 'user',
+				enabled: true,
+			}],
+		};
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		const session = AgentSession.uri('copilotcli', 'forward-compatible-extensions');
+		const chat = URI.parse(buildChatUri(session, 'peer'));
+		const scopedExtensionChanges: { extensionId: string; enabled: boolean }[] = [];
+		setPeerChatStub(agent, chat, {
+			listExtensions: async () => [{
+				id: 'user:preview',
+				name: 'Preview',
+				source: 'user',
+				status: 'running',
+			}, {
+				id: 'user:project-preview',
+				name: 'Project Preview',
+				source: 'project',
+				status: 'unknown',
+			}],
+			setExtensionEnabled: async (extensionId: string, enabled: boolean) => {
+				scopedExtensionChanges.push({ extensionId, enabled });
+			},
+		}, 'sdk-forward-compatible-extensions');
+		const queued: string[] = [];
+		const internals = agent as unknown as {
+			_queueChat<T>(lifetimeId: string, chatKey: string, operation: string, task: (enterUnboundedPhase: () => void) => Promise<T>): Promise<T>;
+		};
+		internals._queueChat = async (_lifetimeId, _chatKey, operation, task) => {
+			queued.push(operation);
+			return task(() => { });
+		};
+		try {
+			const persisted = await agent.listAgentExtensions();
+			client.extensionInventory = { ...client.extensionInventory, mode: 'disabled' };
+			const disabled = await agent.listAgentExtensions();
+			client.extensionInventory = { ...client.extensionInventory, mode: 'load_only' };
+			const cold = await agent.listAgentExtensions(AgentSession.uri('copilotcli', 'cold-extensions'), URI.parse('vendor-chat:/cold'));
+			const live = await agent.listAgentExtensions(session, chat);
+			await agent.setAgentExtensionEnabled('user:project-preview', false, session, chat);
+			await assert.rejects(
+				agent.setAgentExtensionEnabled('user:project-preview', true, session, chat),
+				/cannot be enabled while extension management mode is 'load_only'/,
+			);
+			await assert.rejects(
+				agent.setAgentExtensionEnabled('session:preview', false, session, chat),
+				/not available or cannot be managed/,
+			);
+
+			const projectInventory = (inventory: Awaited<ReturnType<typeof agent.listAgentExtensions>>) => ({
+				mode: inventory.mode,
+				extensions: inventory.extensions.map(extension => ({
+					id: extension.id,
+					resource: extension.resource?.toString(),
+					source: extension.source,
+					status: extension.status,
+					pluginName: extension.pluginName,
+				})),
+			});
+			assert.deepStrictEqual({
+				persisted: projectInventory(persisted),
+				disabled: projectInventory(disabled),
+				cold: projectInventory(cold),
+				live: projectInventory(live),
+				scopedExtensionChanges,
+				queued,
+			}, {
+				persisted: {
+					mode: 'load_only',
+					extensions: [{
+						id: 'user:preview',
+						resource: 'file:///home/test/.copilot/extensions/preview/extension.mjs',
+						source: 'user',
+						status: 'unknown',
+						pluginName: undefined,
+					}, {
+						id: 'plugin:dashboard',
+						resource: 'file:///home/test/.copilot/plugins/dashboard/extensions/dashboard/extension.mjs',
+						source: 'plugin',
+						status: 'disabled',
+						pluginName: 'dashboard',
+					}],
+				},
+				disabled: {
+					mode: 'disabled',
+					extensions: [{
+						id: 'user:preview',
+						resource: 'file:///home/test/.copilot/extensions/preview/extension.mjs',
+						source: 'user',
+						status: 'unknown',
+						pluginName: undefined,
+					}, {
+						id: 'plugin:dashboard',
+						resource: 'file:///home/test/.copilot/plugins/dashboard/extensions/dashboard/extension.mjs',
+						source: 'plugin',
+						status: 'disabled',
+						pluginName: 'dashboard',
+					}],
+				},
+				cold: {
+					mode: 'load_only',
+					extensions: [{
+						id: 'user:preview',
+						resource: 'file:///home/test/.copilot/extensions/preview/extension.mjs',
+						source: 'user',
+						status: 'unknown',
+						pluginName: undefined,
+					}, {
+						id: 'plugin:dashboard',
+						resource: 'file:///home/test/.copilot/plugins/dashboard/extensions/dashboard/extension.mjs',
+						source: 'plugin',
+						status: 'disabled',
+						pluginName: 'dashboard',
+					}],
+				},
+				live: {
+					mode: 'load_only',
+					extensions: [{
+						id: 'user:preview',
+						resource: 'file:///home/test/.copilot/extensions/preview/extension.mjs',
+						source: 'user',
+						status: 'running',
+						pluginName: undefined,
+					}, {
+						id: 'user:project-preview',
+						resource: undefined,
+						source: 'project',
+						status: 'unknown',
+						pluginName: undefined,
+					}, {
+						id: 'plugin:dashboard',
+						resource: 'file:///home/test/.copilot/plugins/dashboard/extensions/dashboard/extension.mjs',
+						source: 'plugin',
+						status: 'disabled',
+						pluginName: 'dashboard',
+					}],
+				},
+				scopedExtensionChanges: [{ extensionId: 'user:project-preview', enabled: false }],
+				queued: ['setExtensionEnabled'],
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('localizes extension reconciliation failures', async () => {
+		const client = new TestCopilotClient([]);
+		client.extensionInventory = {
+			mode: 'load_and_augment',
+			extensions: [{
+				id: 'user:preview',
+				name: 'Preview',
+				path: '/home/test/.copilot/extensions/preview/extension.mjs',
+				source: 'user',
+				enabled: true,
+			}],
+		};
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		const session = AgentSession.uri('copilotcli', 'extension-reconcile-error');
+		const chat = URI.parse(buildChatUri(session, 'peer'));
+		setPeerChatStub(agent, chat, {
+			listExtensions: async () => [{
+				id: 'user:preview',
+				name: 'Preview',
+				source: 'user',
+				status: 'running',
+			}],
+			reconcileExtensions: async () => {
+				throw new Error('reconcile failed');
+			},
+		}, 'sdk-extension-reconcile-error');
+		const internals = agent as unknown as {
+			_queueChat<T>(lifetimeId: string, chatKey: string, operation: string, task: (enterUnboundedPhase: () => void) => Promise<T>): Promise<T>;
+		};
+		internals._queueChat = async (_lifetimeId, _chatKey, _operation, task) => task(() => { });
+		try {
+			await assert.rejects(
+				agent.setAgentExtensionEnabled('user:preview', false, session, chat),
+				error => error instanceof Error && error.message === 'The extension preference was saved, but the selected chat could not be updated: reconcile failed',
+			);
+			assert.deepStrictEqual(client.extensionDisableRequests, [{ ids: ['user:preview'] }]);
 		} finally {
 			await disposeAgent(agent);
 		}

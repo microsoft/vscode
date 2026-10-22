@@ -3662,6 +3662,10 @@ suite('CopilotAgentSession', () => {
 			configureMockSession: mock => {
 				mock.extensions.push(
 					{ id: 'project:preview', name: 'Preview extension', source: 'project', status: 'running' },
+					{ id: 'user:future', name: 'Future extension', source: 'user', status: 'paused' as never },
+					{ id: 'session:preview', name: 'Session extension', source: 'session', status: 'running' },
+					{ id: 'future:preview', name: 'Unsupported extension', source: 'future' as never, status: 'running' },
+					{ id: '', name: 'Malformed extension', source: 'project', status: 'running' },
 				);
 			},
 		});
@@ -3679,6 +3683,11 @@ suite('CopilotAgentSession', () => {
 				name: 'Preview extension',
 				source: 'project',
 				status: 'running',
+			}, {
+				id: 'user:future',
+				name: 'Future extension',
+				source: 'user',
+				status: 'unknown',
 			}],
 			enableCalls: [],
 			disableCalls: [{ id: 'project:preview' }],
