@@ -1686,6 +1686,9 @@ export interface IAgent {
 	/** Optional refresh for providers whose model catalog can change at runtime. */
 	refreshModels?(): Promise<void>;
 
+	/** Discovers models using only the requesting connection's credentials, without changing the shared catalog. */
+	getModelsForCredentials?(credentials: IAgentHostCredentialSource, token?: CancellationToken): Promise<readonly IAgentModelInfo[]>;
+
 	/** Refresh live Connector state, optionally reinitializing only the named Connector. */
 	refreshConnectorSessions?(forceConnectorName?: string): Promise<void>;
 
