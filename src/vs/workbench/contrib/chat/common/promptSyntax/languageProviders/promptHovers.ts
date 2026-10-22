@@ -20,7 +20,9 @@ import { ClaudeHeaderAttributes, getAttributeDefinition, getTarget, GithubPrompt
 import { getAgentHookMetadata } from '../hookTypes.js';
 import { HOOK_COMMAND_FIELD_DESCRIPTIONS } from '../hookSchema.js';
 import { ICustomizationHarnessService } from '../../customizationHarnessService.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { getAgentFileModelReasoningEfforts, resolveAgentFileModelIdentifier, resolveAgentFileModelIdentifiers, resolveAgentFileModels } from './promptModelResolver.js';
+import { getEffectiveAgentFileToolAvailability, resolveAgentFileToolIdentifiers, resolveAgentFileTools } from './promptToolResolver.js';
 
 export class PromptHoverProvider implements HoverProvider {
 	/**
@@ -34,6 +36,7 @@ export class PromptHoverProvider implements HoverProvider {
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@IChatModeService private readonly chatModeService: IChatModeService,
 		@ICustomizationHarnessService private readonly customizationHarnessService: ICustomizationHarnessService,
+		@ILogService private readonly logService: ILogService,
 	) {
 	}
 
@@ -56,15 +59,15 @@ export class PromptHoverProvider implements HoverProvider {
 		const target = getTarget(promptType, promptAST.header ?? model.uri, this.customizationHarnessService.getActiveDescriptor().customAgentTarget);
 
 		if (promptAST.header?.range.containsPosition(position)) {
-			return this.provideHeaderHover(position, promptType, promptAST.header, target);
+			return this.provideHeaderHover(position, promptType, promptAST.header, target, token);
 		}
 		if (promptAST.body?.range.containsPosition(position)) {
-			return this.provideBodyHover(position, promptAST.body, target);
+			return this.provideBodyHover(position, promptAST.body, target, token);
 		}
 		return undefined;
 	}
 
-	private async provideBodyHover(position: Position, body: PromptBody, target: Target): Promise<Hover | undefined> {
+	private async provideBodyHover(position: Position, body: PromptBody, target: Target, token: CancellationToken): Promise<Hover | undefined> {
 		if (target === Target.GitHubCopilot) {
 			for (const placeholder of body.placeholderReferences) {
 				if (placeholder.range.containsPosition(position)) {
@@ -94,13 +97,13 @@ export class PromptHoverProvider implements HoverProvider {
 			if (ref.range.containsPosition(position)) {
 				const toolName = ref.name;
 
-				return this.getToolHoverByName(toolName, ref.range, target);
+				return this.getToolHoverByName(toolName, ref.range, target, token);
 			}
 		}
 		return undefined;
 	}
 
-	private async provideHeaderHover(position: Position, promptType: PromptsType, header: PromptHeader, target: Target): Promise<Hover | undefined> {
+	private async provideHeaderHover(position: Position, promptType: PromptsType, header: PromptHeader, target: Target, token: CancellationToken): Promise<Hover | undefined> {
 		for (const attribute of header.attributes) {
 			if (attribute.range.containsPosition(position)) {
 				const description = getAttributeDefinition(attribute.key, promptType, target)?.description;
@@ -112,7 +115,7 @@ export class PromptHoverProvider implements HoverProvider {
 							return this.getReasoningEffortHover(attribute, description, header, target);
 						case PromptHeaderAttributes.tools:
 						case ClaudeHeaderAttributes.disallowedTools:
-							return this.getToolHover(attribute, position, description, target);
+							return this.getToolHover(attribute, position, description, target, token);
 						case PromptHeaderAttributes.agent:
 						case PromptHeaderAttributes.mode:
 							return this.getAgentHover(attribute, position, description);
@@ -147,7 +150,7 @@ export class PromptHoverProvider implements HoverProvider {
 		return undefined;
 	}
 
-	private getToolHover(node: IHeaderAttribute, position: Position, baseMessage: string, target: Target): Hover | undefined {
+	private async getToolHover(node: IHeaderAttribute, position: Position, baseMessage: string, target: Target, token: CancellationToken): Promise<Hover | undefined> {
 		let value = node.value;
 		if (value.type === 'scalar') {
 			value = parseCommaSeparatedList(value);
@@ -155,7 +158,7 @@ export class PromptHoverProvider implements HoverProvider {
 		if (value.type === 'sequence') {
 			for (const toolName of value.items) {
 				if (toolName.type === 'scalar' && toolName.range.containsPosition(position)) {
-					const description = this.getToolHoverByName(toolName.value, toolName.range, target);
+					const description = await this.getToolHoverByName(toolName.value, toolName.range, target, token);
 					if (description) {
 						return description;
 					}
@@ -165,7 +168,7 @@ export class PromptHoverProvider implements HoverProvider {
 		return this.createHover(baseMessage, node.range);
 	}
 
-	private getToolHoverByName(toolName: string, range: Range, target: Target): Hover | undefined {
+	private async getToolHoverByName(toolName: string, range: Range, target: Target, token: CancellationToken): Promise<Hover | undefined> {
 		if (target === Target.Claude) {
 			const description = knownClaudeTools.find(tool => tool.name === toolName)?.description;
 			if (description) {
@@ -174,6 +177,24 @@ export class PromptHoverProvider implements HoverProvider {
 			return undefined;
 		}
 		const tool = this.languageModelToolsService.getToolByFullReferenceName(toolName);
+		if (target === Target.GitHubCopilot) {
+			const catalogue = await resolveAgentFileTools(target, this.customizationHarnessService, this.logService, token);
+			const matches = resolveAgentFileToolIdentifiers(toolName, catalogue.tools);
+			const availability = getEffectiveAgentFileToolAvailability(matches);
+			if (matches.length > 0) {
+				const lines = [...new Set(matches.map(match => match.description).filter((description): description is string => !!description))];
+				if (availability === 'disabled') {
+					lines.push(localize('promptHeader.githubCopilot.toolDisabled', 'This tool is recognized but disabled for the matching GitHub Copilot harness.'));
+				} else if (availability === 'unavailable') {
+					lines.push(localize('promptHeader.githubCopilot.toolUnavailable', 'This tool is recognized but currently unavailable for the matching GitHub Copilot harness.'));
+				}
+				return this.createHover(lines.join('\n\n') || toolName, range);
+			}
+			if (catalogue.isResolved && tool && isToolSet(tool)) {
+				return this.createHover(localize('promptHeader.githubCopilot.toolSetUnsupported', 'Tool sets are not supported by the GitHub Copilot harness. List individual tools in the `tools` frontmatter attribute.'), range);
+			}
+			return undefined;
+		}
 		if (tool !== undefined) {
 			if (isToolSet(tool)) {
 				return this.getToolsetHover(tool, range);
