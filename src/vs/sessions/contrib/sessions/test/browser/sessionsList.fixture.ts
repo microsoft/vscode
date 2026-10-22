@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { $, getWindow } from '../../../../../base/browser/dom.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { ONBOARDING_TARGET_ATTR } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { SpotlightOverlay } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightOverlay.js';
@@ -854,7 +855,39 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		view: { compact: true, width: 340, height: 300 },
 	}, {
 		labels: { kind: 'screenshot', blocksCi: true },
-		deferPaint: true,
+		afterRender: ({ container }) => {
+			const targetWindow = getWindow(container);
+			const labels = [...container.querySelectorAll<HTMLElement>('.session-approval-row.visible .monaco-tokenized-source')];
+			const sample = $('span');
+			sample.textContent = 'MMMMMMMMMM';
+			sample.style.cssText = 'position: absolute; visibility: hidden; white-space: pre; font-size: 14px;';
+			container.appendChild(sample);
+			const widths = ['monospace', '"Liberation Mono"', '"DejaVu Sans Mono"', '"Droid Sans Mono"'].map(font => {
+				sample.style.fontFamily = font;
+				return { font, width: sample.getBoundingClientRect().width };
+			});
+			sample.remove();
+			console.warn('APPROVAL_FONT_DIAGNOSTIC', JSON.stringify({
+				widths,
+				labels: labels.map(label => {
+					const style = targetWindow.getComputedStyle(label);
+					const token = label.firstElementChild;
+					const tokenStyle = token ? targetWindow.getComputedStyle(token) : undefined;
+					return {
+						text: label.textContent,
+						inlineStyle: label.style.cssText,
+						font: style.font,
+						fontFamily: style.fontFamily,
+						fontSize: style.fontSize,
+						lineHeight: style.lineHeight,
+						bounds: label.getBoundingClientRect().toJSON(),
+						tokenFont: tokenStyle?.font,
+						tokenFontFamily: tokenStyle?.fontFamily,
+						tokenFontSize: tokenStyle?.fontSize,
+					};
+				}),
+			}));
+		},
 		expectedVisualDescriptions: ['A compact session and two of its three nested chats each show their own terminal approval and Allow button. Task B has no approval and remains a single compact row; the expanded approval rows do not overlap adjacent children.'],
 	}),
 
