@@ -8,6 +8,12 @@ parameters:
   - name: VSCODE_RUN_TESTS
     type: boolean
     default: false
+  # Whether to include the steps and jobs that need a privileged service
+  # connection (signing, CDN uploads, Copilot test setup). Only
+  # sdk-validation-build.yml sets this to false.
+  - name: VSCODE_PRIVILEGED_CONNECTIONS
+    type: boolean
+    default: true
 
 # Compile mixes in the CLI, publishes the unsigned client for the universal
 # build and publishes unpacked builds for the test and Sign jobs. Sign
@@ -42,6 +48,7 @@ jobs:
           VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
           VSCODE_CIBUILD: ${{ parameters.VSCODE_CIBUILD }}
           VSCODE_BUILD_ONLY: true
+          VSCODE_PRIVILEGED_CONNECTIONS: ${{ parameters.VSCODE_PRIVILEGED_CONNECTIONS }}
 
       - script: |
           set -e
@@ -63,7 +70,7 @@ jobs:
 
   # Signing needs the ESRP connection, which the SDK validation pipeline
   # (sdk-validation-build.yml) must not reference.
-  - ${{ if ne(variables['VSCODE_PRIVILEGED_CONNECTIONS'], 'false') }}:
+  - ${{ if eq(parameters.VSCODE_PRIVILEGED_CONNECTIONS, true) }}:
     - job: macOS_${{ parameters.VSCODE_ARCH }}_Sign
       displayName: macOS (${{ upper(parameters.VSCODE_ARCH) }}) - Sign
       dependsOn: macOS_${{ parameters.VSCODE_ARCH }}_Compile

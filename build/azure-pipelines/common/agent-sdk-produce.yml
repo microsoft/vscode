@@ -6,6 +6,12 @@ parameters:
       - linux
       - alpine
       - win32
+  # Whether to include the steps and jobs that need a privileged service
+  # connection (signing, CDN uploads, Copilot test setup). Only
+  # sdk-validation-build.yml sets this to false.
+  - name: VSCODE_PRIVILEGED_CONNECTIONS
+    type: boolean
+    default: true
 
 # Builds the agent SDK tarballs for ONE VS Code build, and (on real
 # publish runs) uploads them to the CDN, emits
@@ -65,7 +71,7 @@ steps:
 
   # The SDK validation pipeline (sdk-validation-build.yml) never publishes
   # and must not reference the vscode connection.
-  - ${{ if ne(variables['VSCODE_PRIVILEGED_CONNECTIONS'], 'false') }}:
+  - ${{ if eq(parameters.VSCODE_PRIVILEGED_CONNECTIONS, true) }}:
     - task: AzureCLI@2
       displayName: "Agent SDK: fetch CDN credentials"
       condition: and(succeeded(), eq(lower(variables['VSCODE_PUBLISH']), 'true'))

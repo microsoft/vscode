@@ -13,6 +13,12 @@ parameters:
   - name: VSCODE_RUN_TESTS
     type: boolean
     default: false
+  # Whether to include the steps and jobs that need a privileged service
+  # connection (signing, CDN uploads, Copilot test setup). Only
+  # sdk-validation-build.yml sets this to false.
+  - name: VSCODE_PRIVILEGED_CONNECTIONS
+    type: boolean
+    default: true
 
 # The product is built by Compile and Sign jobs in addition to the parallel CLI
 # job. The test jobs are declared next to this template (see
@@ -55,6 +61,7 @@ jobs:
           VSCODE_CIBUILD: false
           VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
           VSCODE_BUILD_ONLY: true
+          VSCODE_PRIVILEGED_CONNECTIONS: ${{ parameters.VSCODE_PRIVILEGED_CONNECTIONS }}
 
       - ${{ if eq(parameters.VSCODE_ARCH, 'armhf') }}:
         - script: |
@@ -85,7 +92,7 @@ jobs:
 
   # Signing needs the ESRP connection, which the SDK validation pipeline
   # (sdk-validation-build.yml) must not reference.
-  - ${{ if ne(variables['VSCODE_PRIVILEGED_CONNECTIONS'], 'false') }}:
+  - ${{ if eq(parameters.VSCODE_PRIVILEGED_CONNECTIONS, true) }}:
     - job: Linux_${{ parameters.VSCODE_ARCH }}_Sign
       displayName: Linux (${{ upper(parameters.VSCODE_ARCH) }}) - Sign
       dependsOn:

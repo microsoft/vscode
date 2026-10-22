@@ -10,6 +10,12 @@ parameters:
   - name: VSCODE_RUN_TESTS
     type: boolean
     default: false
+  # Whether to include the steps and jobs that need a privileged service
+  # connection (signing, CDN uploads, Copilot test setup). Only
+  # sdk-validation-build.yml sets this to false.
+  - name: VSCODE_PRIVILEGED_CONNECTIONS
+    type: boolean
+    default: true
 
 # The product is built by the following jobs, so that retrying a failed job
 # never repeats the work of the jobs that already succeeded:
@@ -57,6 +63,7 @@ jobs:
           VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
           VSCODE_CIBUILD: ${{ parameters.VSCODE_CIBUILD }}
           VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
+          VSCODE_PRIVILEGED_CONNECTIONS: ${{ parameters.VSCODE_PRIVILEGED_CONNECTIONS }}
 
       # See ./steps/product-build-win32-download-compilation.yml for the consumer
       - powershell: |
@@ -82,7 +89,7 @@ jobs:
 
   # Signing needs the ESRP connection, which the SDK validation pipeline
   # (sdk-validation-build.yml) must not reference.
-  - ${{ if ne(variables['VSCODE_PRIVILEGED_CONNECTIONS'], 'false') }}:
+  - ${{ if eq(parameters.VSCODE_PRIVILEGED_CONNECTIONS, true) }}:
     - job: Windows_${{ parameters.VSCODE_ARCH }}_Sign
       displayName: Windows (${{ upper(parameters.VSCODE_ARCH) }}) - Sign
       dependsOn:

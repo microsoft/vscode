@@ -11,8 +11,9 @@
 # `VS Code Development WIF`. Its definition is only authorized for the
 # connections it needs, so automation that queues it never gets access to the
 # signing, publishing or release credentials. The shared templates drop every
-# step and job that references one of those connections when
-# VSCODE_PRIVILEGED_CONNECTIONS is 'false', which only this pipeline sets:
+# step and job that references one of those connections when their
+# VSCODE_PRIVILEGED_CONNECTIONS parameter is false, which only this pipeline
+# passes:
 #
 #   git grep VSCODE_PRIVILEGED_CONNECTIONS -- build/azure-pipelines
 #
@@ -62,10 +63,6 @@ parameters:
     default: auto
 
 variables:
-  # Drops every step and job of the shared templates that references a
-  # privileged service connection (see the top of this file).
-  - name: VSCODE_PRIVILEGED_CONNECTIONS
-    value: 'false'
   - name: VSCODE_BUILD_TITLE_PREFIX
     ${{ if eq(parameters.VSCODE_BUILD_TITLE_PREFIX, 'none') }}:
       value: ""
@@ -195,6 +192,7 @@ extends:
               VSCODE_PUBLISH: false
               VSCODE_RELEASE: false
               VSCODE_UPLOAD_SOURCEMAPS: false
+              VSCODE_PRIVILEGED_CONNECTIONS: false
 
       - stage: Windows
         displayName: Windows X64
@@ -209,6 +207,7 @@ extends:
               VSCODE_CIBUILD: false
               VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
               VSCODE_RUN_TESTS: true
+              VSCODE_PRIVILEGED_CONNECTIONS: false
           - template: build/azure-pipelines/win32/product-build-win32-test.yml@self
             parameters:
               VSCODE_ARCH: x64
@@ -230,6 +229,7 @@ extends:
               VSCODE_ARCH: arm64
               VSCODE_CIBUILD: false
               VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+              VSCODE_PRIVILEGED_CONNECTIONS: false
 
       - stage: LinuxX64
         displayName: Linux X64
@@ -244,6 +244,7 @@ extends:
               VSCODE_ARCH: x64
               VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
               VSCODE_RUN_TESTS: true
+              VSCODE_PRIVILEGED_CONNECTIONS: false
           - template: build/azure-pipelines/linux/product-build-linux-test.yml@self
             parameters:
               NPM_ARCH: x64
@@ -265,6 +266,7 @@ extends:
               NPM_ARCH: arm64
               VSCODE_ARCH: arm64
               VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+              VSCODE_PRIVILEGED_CONNECTIONS: false
 
       - stage: LinuxARMHF
         displayName: Linux ARMHF
@@ -278,6 +280,7 @@ extends:
               NPM_ARCH: arm
               VSCODE_ARCH: armhf
               VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+              VSCODE_PRIVILEGED_CONNECTIONS: false
 
       # The macOS compile jobs mix in the unsigned CLI and Copilot shim built by
       # the CLI jobs, and verify the architecture of every Mach-O binary.
@@ -296,10 +299,12 @@ extends:
             parameters:
               VSCODE_ARCH: x64
               VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+              VSCODE_PRIVILEGED_CONNECTIONS: false
           - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
             parameters:
               VSCODE_ARCH: x64
               VSCODE_CIBUILD: false
+              VSCODE_PRIVILEGED_CONNECTIONS: false
 
       - stage: macOSARM64
         displayName: macOS ARM64
@@ -316,10 +321,12 @@ extends:
             parameters:
               VSCODE_ARCH: arm64
               VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+              VSCODE_PRIVILEGED_CONNECTIONS: false
           - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
             parameters:
               VSCODE_ARCH: arm64
               VSCODE_CIBUILD: false
+              VSCODE_PRIVILEGED_CONNECTIONS: false
           # Testing the product-compiled build needs the macOS developer
           # certificate, so this job builds and tests in CI mode instead.
           - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
@@ -329,3 +336,4 @@ extends:
               VSCODE_JOB_DISPLAY_NAME: Agent Host E2E Tests (Electron)
               VSCODE_TEST_IDS:
                 - integration-agent-host-e2e
+              VSCODE_PRIVILEGED_CONNECTIONS: false
