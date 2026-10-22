@@ -37,6 +37,7 @@ suite('CanvasEditor', () => {
 		const group = upcastPartial<IEditorGroup>({ id: 1, windowId: getWindow(parent).vscodeWindowId });
 		const visible: boolean[] = [];
 		const attached: (IBrowserViewModel | undefined)[] = [];
+		const log: string[] = [];
 		let disposed = 0;
 		let created = 0;
 		const openExternal = store.add(new Emitter<string>());
@@ -52,7 +53,7 @@ suite('CanvasEditor', () => {
 			onDidNavigate: Event.None,
 			onDidRequestOpenExternal: openExternal.event,
 			onWillDispose: Event.None,
-			layout: async () => { },
+			layout: async bounds => { log.push(`model.layout:${bounds.width}x${bounds.height}`); },
 			dispose: () => disposed++,
 		});
 		let view = Promise.resolve(model);
@@ -83,11 +84,12 @@ suite('CanvasEditor', () => {
 			onContainerCreated: () => { },
 			setModel: value => {
 				attached.push(value);
+				log.push(`host.model:${value ? 'attached' : 'none'}`);
 				if (value === model) {
 					modelAttached.complete();
 				}
 			},
-			setVisible: value => visible.push(value),
+			setVisible: value => { visible.push(value); log.push(`host.visible:${value}`); },
 			layout: () => { },
 			tryFocus: () => false,
 			dispose: () => { },
@@ -100,7 +102,7 @@ suite('CanvasEditor', () => {
 			resource: URI.parse('canvas:/preview'), instanceId: 'preview', title: 'Preview', source: URI.parse('https://example.test'),
 		}));
 		return {
-			editor, input, model, visible, attached, ownerVisible, openExternal, opened, modelAttached, openerCalled, warningLogged,
+			editor, input, model, visible, attached, ownerVisible, openExternal, opened, modelAttached, openerCalled, warningLogged, parent, log,
 			get disposed() { return disposed; },
 			get created() { return created; },
 			setView: (value: Promise<IBrowserViewModel>) => view = value,
@@ -116,6 +118,61 @@ suite('CanvasEditor', () => {
 		harness.editor.setVisible(false);
 		harness.editor.layout();
 		assert.deepStrictEqual({ attached: harness.attached.includes(harness.model), visible: harness.visible.at(-1) }, { attached: true, visible: false });
+	});
+
+	test('keeps an attached model hidden while its pane is visible inside a hidden editor part', async () => {
+		const harness = createHarness();
+		harness.parent.style.display = 'none';
+		harness.editor.setVisible(true);
+		await harness.open();
+		await timeout(0);
+		harness.editor.layout();
+		const whileHidden = [...harness.log];
+		harness.parent.style.display = '';
+		harness.editor.layout();
+		assert.deepStrictEqual({
+			attached: harness.attached.includes(harness.model),
+			shownWhileHidden: whileHidden.includes('host.visible:true'),
+			boundsWhileHidden: whileHidden.filter(entry => entry.startsWith('model.layout')),
+			reveal: harness.log.slice(whileHidden.length),
+		}, {
+			attached: true,
+			shownWhileHidden: false,
+			boundsWhileHidden: [],
+			reveal: ['model.layout:400x200', 'host.visible:true'],
+		});
+	});
+
+	test('sends native bounds before revealing an attached model', async () => {
+		const harness = createHarness();
+		harness.editor.setVisible(true);
+		await harness.open();
+		await timeout(0);
+		assert.deepStrictEqual(harness.log.slice(0, harness.log.indexOf('host.visible:true') + 1), [
+			'host.visible:false',
+			'host.model:attached',
+			'model.layout:400x200',
+			'host.visible:true',
+		]);
+	});
+
+	test('waits for layout before revealing an attached model when its pane becomes visible again', async () => {
+		const harness = createHarness();
+		harness.editor.setVisible(true);
+		await harness.open();
+		await timeout(0);
+		harness.editor.setVisible(false);
+		const showStart = harness.log.length;
+		harness.editor.setVisible(true);
+		const layoutStart = harness.log.length;
+		harness.editor.layout();
+		assert.deepStrictEqual({
+			afterShow: harness.log.slice(showStart, layoutStart),
+			afterLayout: harness.log.slice(layoutStart),
+		}, {
+			afterShow: [],
+			afterLayout: ['model.layout:400x200', 'host.visible:true'],
+		});
 	});
 
 	test('does not create a view while canvas state has no live source', async () => {

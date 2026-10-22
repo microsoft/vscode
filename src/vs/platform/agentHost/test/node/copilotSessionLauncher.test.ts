@@ -3415,6 +3415,40 @@ suite('CopilotSessionLauncher resume config', () => {
 		});
 	});
 
+	test('launches with the Computer Use activation tools the runtime offers, except for ephemeral chats', async () => {
+		const store = disposables.add(new DisposableStore());
+		const launcher = createLauncher(store, {});
+		const activationTool = { name: 'enable_computer_use', description: 'Ask the user to turn on Computer Use.', parameters: { type: 'object', properties: {} }, handler: async () => ({ textResultForLlm: '', resultType: 'success' as const }) };
+		let offers = 0;
+		const build = async (isEphemeral: boolean) => (await (launcher as unknown as { _buildSessionConfig(plan: unknown, runtime: unknown, onManagedSettingsResolved: () => void): Promise<{ config: ResumeSessionConfig }> })._buildSessionConfig({
+			kind: 'resume',
+			client: { rpc: { managedSettings: createUnmanagedCopilotSettings() }, createSession: async () => { throw new Error('unused'); }, resumeSession: async () => { throw new Error('unused'); } },
+			extensionSdkPath: '/copilot-sdk',
+			sessionId: 'sess-1',
+			workingDirectory: URI.file('/workspace'),
+			resolvedAgentName: undefined,
+			snapshot: { tools: [], plugins: [], mcpServers: {} },
+			activeClientToolSet: new ActiveClientToolSet(),
+			shellManager: undefined,
+			githubCredentials: CopilotGitHubSessionCredentials.fromToken('token'),
+			fallback: { model: { id: 'gpt-5' } },
+			isEphemeral,
+		}, {
+			createClientSdkTools: () => [],
+			createServerSdkTools: () => [],
+			createComputerUseActivationTools: async () => { offers++; return [activationTool]; },
+		}, () => { })).config;
+		assert.deepStrictEqual({
+			durable: (await build(false)).tools?.map(tool => tool.name),
+			ephemeral: (await build(true)).tools?.map(tool => tool.name),
+			offers,
+		}, {
+			durable: ['enable_computer_use'],
+			ephemeral: [],
+			offers: 1,
+		});
+	});
+
 	test('enables experimental mode with HydraFusion or dynamic Auto tiers opt-in', async () => {
 		const store = disposables.add(new DisposableStore());
 		const enabled = await buildResumeConfig(createLauncher(store, { hydraFusion: true }), { id: 'hydrafusion' });
