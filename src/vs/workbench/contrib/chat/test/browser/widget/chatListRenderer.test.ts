@@ -117,6 +117,8 @@ import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { IResourceMultiDiffEditorInput, isResourceMultiDiffEditorInput, IUntypedEditorInput } from '../../../../../common/editor.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
+import { ChatSideChatService, IChatSideChatOrigin, IChatSideChatService } from '../../../common/chatSideChatService.js';
 import { ChatWorkingProgressContentPart, pickWorkingLabel } from '../../../browser/widget/chatContentParts/chatProgressContentPart.js';
 import { IChatContentPartDiffData, IChatContentPartRenderContext } from '../../../browser/widget/chatContentParts/chatContentParts.js';
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
@@ -2328,7 +2330,102 @@ suite('ChatListRenderer', () => {
 		}
 	});
 
+	suite('request side-chat origins', () => {
+		for (const requestText of ['', ' ', 'Hello']) {
+			for (const withAttachment of [false, true]) {
+				test(`only renders a timestamp for request content (text=${JSON.stringify(requestText)}, attachment=${withAttachment})`, () => {
+					const { model, request, viewModel, renderer, template, node } = createPersistentProgressRenderer({ requestText });
+					if (withAttachment) {
+						model.updateRequest(request, {
+							variables: [{ kind: 'file', id: 'attachment', name: 'attachment.ts', value: URI.file('/test/attachment.ts') }],
+						});
+					}
+					const element = viewModel.getItems().find(isRequestVM)!;
+					renderer.renderElement({ ...node, element }, 0, template);
+
+					assert.deepStrictEqual({
+						hiddenOrigin: !!template.value.querySelector('.chat-request-origin.hidden'),
+						attachment: !!template.value.querySelector('.chat-request-file-attachments'),
+						timestamp: !!template.requestTimestampContainer.querySelector('time'),
+					}, {
+						hiddenOrigin: true,
+						attachment: withAttachment,
+						timestamp: !!requestText.trim() || withAttachment,
+					});
+				});
+			}
+		}
+
+		test('hydrates a quoted source on the first editor-window request without rerendering', () => {
+			const { disposables, instantiationService, viewModel, renderer, template, node } = createPersistentProgressRenderer();
+			const origin = observableValue<IChatSideChatOrigin | undefined>('origin', undefined);
+			const sideChatService = disposables.add(new ChatSideChatService());
+			disposables.add(sideChatService.registerProvider({
+				canAskInSideChat: () => false,
+				askInSideChat: async () => { },
+				observeSideChatOrigin: () => origin,
+				revealSideChatSource: async () => { },
+			}));
+			instantiationService.stub(IChatSideChatService, sideChatService);
+			const first = viewModel.getItems().find(isRequestVM)!;
+			renderer.renderElement({ ...node, element: first }, 0, template);
+			const hiddenBeforeHydration = !!template.value.querySelector('.chat-request-origin.hidden');
+			origin.set({
+				sourceSessionResource: URI.parse('agent-host-copilot:/source'),
+				sourceTurnId: 'source-turn',
+				sourceTitle: 'Original conversation',
+				selection: { text: 'An older assistant response' },
+			}, undefined);
+			assert.deepStrictEqual({
+				isSessionsWindow: !!instantiationService.get(IWorkbenchEnvironmentService).isSessionsWindow,
+				hiddenBeforeHydration,
+				visible: !!template.value.querySelector('.chat-request-origin:not(.hidden)'),
+				quote: template.value.querySelector('.chat-request-origin-quote')?.textContent,
+			}, { isSessionsWindow: false, hiddenBeforeHydration: true, visible: true, quote: 'An older assistant response' });
+		});
+
+		test('ordinary requests stay unannotated and side-chat followups and sticky rows do not repeat the origin', () => {
+			const { disposables, instantiationService, model, viewModel, request, renderer, template, node, container } = createPersistentProgressRenderer();
+			const origin = observableValue<IChatSideChatOrigin | undefined>('origin', undefined);
+			const sideChatService = disposables.add(new ChatSideChatService());
+			disposables.add(sideChatService.registerProvider({
+				canAskInSideChat: () => false,
+				askInSideChat: async () => { },
+				observeSideChatOrigin: () => origin,
+				revealSideChatSource: async () => { },
+			}));
+			instantiationService.stub(IChatSideChatService, sideChatService);
+			const first = viewModel.getItems().find(isRequestVM)!;
+			renderer.renderElement({ ...node, element: first }, 0, template);
+			const ordinaryVisibleOrigins = template.value.querySelectorAll('.chat-request-origin:not(.hidden)').length;
+			origin.set({ sourceSessionResource: URI.parse('agent-host-copilot:/source'), sourceTurnId: 'turn', sourceTitle: 'Source', selection: { text: 'Source excerpt' } }, undefined);
+			request.response?.complete();
+			model.addRequest({ text: 'Follow up', parts: [new ChatRequestTextPart(new OffsetRange(0, 9), new Range(1, 1, 1, 10), 'Follow up')] }, { variables: [] }, 0);
+			const followup = viewModel.getItems().filter(isRequestVM)[1];
+			renderer.renderElement({ ...node, element: followup }, 2, template);
+			const followupOrigins = template.value.querySelectorAll('.chat-request-origin').length;
+			container.classList.add('monaco-tree-sticky-row');
+			renderer.renderElement({ ...node, element: first }, 0, template);
+			assert.deepStrictEqual({
+				ordinaryVisibleOrigins, followupOrigins, stickyOrigins: template.value.querySelectorAll('.chat-request-origin').length,
+			}, { ordinaryVisibleOrigins: 0, followupOrigins: 0, stickyOrigins: 0 });
+		});
+	});
+
 	suite('request summaries', () => {
+		test('keeps the timestamp when only the summary has content', () => {
+			const { viewModel, renderer, template, node } = createPersistentProgressRenderer({
+				requestText: '', rendererOptions: { firstRequestSummary: 'Judge Instructions' },
+			});
+			const element = viewModel.getItems().find(isRequestVM)!;
+			renderer.renderElement({ ...node, element }, 0, template);
+
+			assert.deepStrictEqual({
+				summary: template.value.querySelector('summary')?.textContent,
+				timestamp: !!template.requestTimestampContainer.querySelector('time'),
+			}, { summary: 'Judge Instructions', timestamp: true });
+		});
+
 		for (const summary of ['Judge Instructions', 'Synthesis Instructions']) {
 			test(`collapses ${summary} without changing the full request and preserves expansion across rendering`, () => {
 				const prompt = 'Call #readAttemptComparison with the comparison ID, then inspect the attempt worktrees.';
@@ -9095,6 +9192,150 @@ suite('ChatListRenderer', () => {
 		renderer.renderElement(node, 0, template);
 	});
 
+	test('conversation progress collapses reasoning and tool calls into one section that reports how long it took', async () => {
+		const clock = sinon.useFakeTimers({ now: 1_000_000, toFake: ['Date'] });
+		try {
+			const { model, request, renderer, template, node } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent, progressVerbosity: ChatProgressVerbosity.Conversation });
+			const getSection = () => template.value.querySelector<HTMLElement>(':scope > .chat-thinking-conversation');
+			const getButton = () => getSection()?.querySelector<HTMLElement>(':scope > .chat-used-context-label .monaco-button');
+			const snapshot = () => ({
+				title: getButton()?.textContent?.trim(),
+				expanded: getButton()?.ariaExpanded,
+				order: [...template.value.children]
+					.filter(element => element.getClientRects().length > 0 && element.matches('.chat-thinking-box, .chat-tool-invocation-part, .chat-markdown-part, .chat-working-progress'))
+					.map(element => element.classList.contains('chat-thinking-conversation') ? 'section' : element.classList.contains('chat-thinking-box') ? 'other group' : element.classList.contains('chat-tool-invocation-part') ? 'tool' : element.classList.contains('chat-markdown-part') ? 'markdown' : 'progress'),
+			});
+
+			model.acceptResponseProgress(request, { kind: 'thinking', id: 'plan', value: '**Planning the fix**\nCheck the renderer.' });
+			renderer.renderElement(node, 0, template);
+			const thinking = snapshot();
+			clock.tick(1500);
+			// Providers mark the end of each reasoning block before the next tool call.
+			model.acceptResponseProgress(request, { kind: 'thinking', value: '', metadata: { vscodeReasoningDone: true } });
+			const tool = new ChatToolInvocation(
+				{ invocationMessage: 'Reading renderer.ts', pastTenseMessage: 'Read renderer.ts' },
+				{ id: 'read_file', displayName: 'Read file', modelDescription: 'Read file', source: ToolDataSource.Internal },
+				'read', undefined, {},
+			);
+			model.acceptResponseProgress(request, tool);
+			renderer.renderElement(node, 0, template);
+			const reading = snapshot();
+			clock.tick(500);
+			await tool.didExecuteTool(undefined);
+			clock.tick(1000);
+			model.acceptResponseProgress(request, { kind: 'thinking', id: 'compare', value: 'Compare the results.' });
+			renderer.renderElement(node, 0, template);
+			const thinkingAgain = snapshot();
+			clock.tick(1500);
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Updated the renderer.') });
+			renderer.renderElement(node, 0, template);
+			const finished = snapshot();
+			getButton()?.click();
+
+			assert.deepStrictEqual({
+				thinking,
+				reading,
+				thinkingAgain,
+				finished,
+				rows: [...getSection()?.querySelectorAll(':scope .chat-thinking-collapsible > *') ?? []].map(row => row.classList.contains('chat-thinking-tool-wrapper') ? 'tool' : 'reasoning'),
+				toolChains: template.value.querySelectorAll('.chat-tool-chain').length,
+			}, {
+				thinking: { title: 'Planning the fix', expanded: 'false', order: ['section', 'progress'] },
+				reading: { title: 'Reading renderer.ts', expanded: 'false', order: ['section', 'progress'] },
+				thinkingAgain: { title: 'Thinking', expanded: 'false', order: ['section', 'progress'] },
+				finished: { title: 'Finished thinking after 4s', expanded: 'false', order: ['section', 'markdown', 'progress'] },
+				rows: ['reasoning', 'tool', 'reasoning'],
+				toolChains: 0,
+			});
+			request.response?.complete();
+			renderer.renderElement(node, 0, template);
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('conversation progress restores a lone tool call to a standalone row when its section ends', async () => {
+		const { model, request, renderer, template, node } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent, progressVerbosity: ChatProgressVerbosity.Conversation });
+		const tool = new ChatToolInvocation(
+			{ invocationMessage: 'Reading renderer.ts', pastTenseMessage: 'Read renderer.ts' },
+			{ id: 'read_file', displayName: 'Read file', modelDescription: 'Read file', source: ToolDataSource.Internal },
+			'read', undefined, {},
+		);
+		model.acceptResponseProgress(request, tool);
+		renderer.renderElement(node, 0, template);
+		const section = template.value.querySelector<HTMLElement>(':scope > .chat-thinking-conversation');
+		const streamingTitle = section?.querySelector(':scope > .chat-used-context-label .monaco-button')?.textContent?.trim();
+		await tool.didExecuteTool(undefined);
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Read the renderer.') });
+		renderer.renderElement(node, 0, template);
+		const standalone = template.value.querySelector<HTMLElement>(':scope > .chat-tool-invocation-part');
+
+		assert.deepStrictEqual({
+			streamingTitle,
+			sectionVisible: !!section && section.getClientRects().length > 0,
+			standaloneVisible: !!standalone && standalone.getClientRects().length > 0,
+			standaloneIcon: !!standalone?.querySelector(':scope > .chat-tool-call-icon'),
+		}, {
+			streamingTitle: 'Reading renderer.ts',
+			sectionVisible: false,
+			standaloneVisible: true,
+			standaloneIcon: true,
+		});
+		request.response?.complete();
+		renderer.renderElement(node, 0, template);
+	});
+
+	test('conversation progress keeps reasoning that follows a lone tool call when they render together', async () => {
+		const { model, request, renderer, template, node } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent, progressVerbosity: ChatProgressVerbosity.Conversation });
+		const tool = new ChatToolInvocation(
+			{ invocationMessage: 'Reading renderer.ts', pastTenseMessage: 'Read renderer.ts' },
+			{ id: 'read_file', displayName: 'Read file', modelDescription: 'Read file', source: ToolDataSource.Internal },
+			'read', undefined, {},
+		);
+		model.acceptResponseProgress(request, tool);
+		await tool.didExecuteTool(undefined);
+		model.acceptResponseProgress(request, { kind: 'thinking', id: 'compare', value: 'Compare the results.' });
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Read the renderer.') });
+		renderer.renderElement(node, 0, template);
+		const section = template.value.querySelector<HTMLElement>(':scope > .chat-thinking-conversation');
+		section?.querySelector<HTMLElement>(':scope > .chat-used-context-label .monaco-button')?.click();
+
+		assert.deepStrictEqual({
+			sectionVisible: !!section && section.getClientRects().length > 0,
+			standaloneTools: template.value.querySelectorAll(':scope > .chat-tool-invocation-part').length,
+			rows: [...section?.querySelectorAll(':scope .chat-thinking-collapsible > *') ?? []].map(row => row.classList.contains('chat-thinking-tool-wrapper') ? 'tool' : 'reasoning'),
+		}, {
+			sectionVisible: true,
+			standaloneTools: 0,
+			rows: ['tool', 'reasoning'],
+		});
+		request.response?.complete();
+		renderer.renderElement(node, 0, template);
+	});
+
+	test('conversation progress keeps array-valued reasoning in the running section', () => {
+		const { model, request, renderer, template, node } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent, progressVerbosity: ChatProgressVerbosity.Conversation });
+		model.acceptResponseProgress(request, new ChatToolInvocation(
+			{ invocationMessage: 'Reading renderer.ts', pastTenseMessage: 'Read renderer.ts' },
+			{ id: 'read_file', displayName: 'Read file', modelDescription: 'Read file', source: ToolDataSource.Internal },
+			'read', undefined, {},
+		));
+		renderer.renderElement(node, 0, template);
+		model.acceptResponseProgress(request, { kind: 'thinking', id: 'compare', value: ['Compare ', 'the results.'] });
+		renderer.renderElement(node, 0, template);
+		const sections = [...template.value.querySelectorAll<HTMLElement>(':scope > .chat-thinking-conversation')];
+
+		assert.deepStrictEqual({
+			sections: sections.length,
+			title: sections[0]?.querySelector(':scope > .chat-used-context-label .monaco-button')?.textContent?.trim(),
+		}, {
+			sections: 1,
+			title: 'Thinking',
+		});
+		request.response?.complete();
+		renderer.renderElement(node, 0, template);
+	});
+
 	async function createExpandedPersistentPreview(source: 'thinking' | 'tools', options: { incremental?: boolean; reducedMotion?: boolean } = {}) {
 		const setup = createPersistentProgressRenderer({ progressVerbosity: ChatProgressVerbosity.Compact });
 		const { configurationService, container, model, request, renderer, template, node } = setup;
@@ -10374,13 +10615,14 @@ suite('ChatListRenderer', () => {
 		model.acceptResponseProgress(request, secondTool);
 		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Reviewed the renderer.') });
 		const snapshots = [];
-		for (const verbosity of [ChatProgressVerbosity.Verbose, ChatProgressVerbosity.Compact, ChatProgressVerbosity.Verbose]) {
+		for (const verbosity of [ChatProgressVerbosity.Verbose, ChatProgressVerbosity.Compact, ChatProgressVerbosity.Conversation, ChatProgressVerbosity.Verbose]) {
 			configurationService.setUserConfiguration(ChatConfiguration.PersistentProgressVerbosity, verbosity);
 			renderer.renderElement(node, 0, template);
 			const chain = template.value.querySelector('.chat-tool-chain');
 			snapshots.push({
 				collapsed: chain?.classList.contains('chat-used-context-collapsed'),
 				headers: chain?.querySelectorAll(':scope > .chat-used-context-label').length,
+				conversationSections: template.value.querySelectorAll('.chat-thinking-conversation.chat-used-context-collapsed').length,
 			});
 		}
 		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Off);
@@ -10394,9 +10636,10 @@ suite('ChatListRenderer', () => {
 			legacyToolChains: template.value.querySelectorAll('.chat-tool-chain').length,
 		}, {
 			snapshots: [
-				{ collapsed: false, headers: 0 },
-				{ collapsed: true, headers: 1 },
-				{ collapsed: false, headers: 0 },
+				{ collapsed: false, headers: 0, conversationSections: 0 },
+				{ collapsed: true, headers: 1, conversationSections: 0 },
+				{ collapsed: undefined, headers: undefined, conversationSections: 1 },
+				{ collapsed: false, headers: 0, conversationSections: 0 },
 			],
 			legacyPartsPreserved: true,
 			legacyToolChains: 0,

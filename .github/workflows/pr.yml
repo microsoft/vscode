@@ -35,15 +35,28 @@ jobs:
       unit-tests: ${{ steps.detect.outputs.unit-tests }}
       browser-integration: ${{ steps.detect.outputs.browser-integration }}
       product-tests: ${{ steps.detect.outputs.product-tests }}
+      agent-host-e2e: ${{ steps.detect-agent-host-e2e.outputs.affected }}
+      agent-host-test-profile: ${{ steps.detect-agent-host-e2e.outputs.profile }}
+      agent-host-test-profile-reason: ${{ steps.detect-agent-host-e2e.outputs.reason }}
+      # Linux and macOS run Agent Host E2E in the Electron integration tests job.
+      electron-tests: ${{ steps.detect.outputs.product-tests == 'true' || steps.detect-agent-host-e2e.outputs.affected == 'true' }}
     steps:
       - name: Checkout microsoft/vscode
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          sparse-checkout: .github/actions/detect-changes
+          sparse-checkout: |
+            .github/actions/detect-changes
+            .github/actions/detect-agent-host-e2e-changes
 
       - name: Detect changes
         id: detect
         uses: ./.github/actions/detect-changes
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Detect Agent Host E2E changes
+        id: detect-agent-host-e2e
+        uses: ./.github/actions/detect-agent-host-e2e-changes
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -181,13 +194,18 @@ jobs:
   linux-electron-tests:
     name: Linux (run)
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true') }}
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.electron-tests == 'true') }}
     uses: ./.github/workflows/pr-linux-test.yml
     with:
       job_name: Electron
       electron_tests: true
       unit_tests: false
       smoke_tests: false
+      # On Linux and macOS the job is short enough to also run Agent Host E2E.
+      agent_host_e2e_tests: ${{ needs.changes.result != 'success' || needs.changes.outputs.agent-host-e2e == 'true' }}
+      # The provider integration tests and the Agent Host E2E tests read the profile.
+      agent_host_test_profile: ${{ needs.changes.outputs.agent-host-test-profile || 'full' }}
+      agent_host_test_profile_reason: ${{ needs.changes.outputs.agent-host-test-profile-reason || 'Change detection unavailable' }}
 
   linux-electron-smoke-test-shards:
     name: Linux (shard ${{ matrix.shard }}/${{ strategy.job-total }})
@@ -250,13 +268,18 @@ jobs:
   macos-electron-tests:
     name: macOS (run)
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true') }}
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.electron-tests == 'true') }}
     uses: ./.github/workflows/pr-darwin-test.yml
     with:
       job_name: Electron
       electron_tests: true
       unit_tests: false
       smoke_tests: false
+      # On Linux and macOS the job is short enough to also run Agent Host E2E.
+      agent_host_e2e_tests: ${{ needs.changes.result != 'success' || needs.changes.outputs.agent-host-e2e == 'true' }}
+      # The provider integration tests and the Agent Host E2E tests read the profile.
+      agent_host_test_profile: ${{ needs.changes.outputs.agent-host-test-profile || 'full' }}
+      agent_host_test_profile_reason: ${{ needs.changes.outputs.agent-host-test-profile-reason || 'Change detection unavailable' }}
 
   macos-electron-smoke-test-shards:
     name: macOS (shard ${{ matrix.shard }}/${{ strategy.job-total }})
@@ -326,6 +349,27 @@ jobs:
       electron_tests: true
       unit_tests: false
       smoke_tests: false
+      # The provider integration tests and the Agent Host E2E tests read the profile.
+      agent_host_test_profile: ${{ needs.changes.outputs.agent-host-test-profile || 'full' }}
+      agent_host_test_profile_reason: ${{ needs.changes.outputs.agent-host-test-profile-reason || 'Change detection unavailable' }}
+
+  # On Windows, Agent Host E2E is the slowest part of the Electron job, so it runs in parallel
+  # with the integration tests on its own machine; reports as part of "Windows / Electron".
+  windows-agent-host-e2e-tests:
+    name: Windows (run)
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.agent-host-e2e == 'true') }}
+    uses: ./.github/workflows/pr-win32-test.yml
+    with:
+      job_name: Agent-Host-E2E
+      electron_tests: true
+      unit_tests: false
+      integration_tests: false
+      smoke_tests: false
+      agent_host_e2e_tests: true
+      # The provider integration tests and the Agent Host E2E tests read the profile.
+      agent_host_test_profile: ${{ needs.changes.outputs.agent-host-test-profile || 'full' }}
+      agent_host_test_profile_reason: ${{ needs.changes.outputs.agent-host-test-profile-reason || 'Change detection unavailable' }}
 
   windows-electron-smoke-test-shards:
     name: Windows (shard ${{ matrix.shard }}/${{ strategy.job-total }})
@@ -395,6 +439,7 @@ jobs:
       - macos-remote-tests
       - windows-electron-unit-tests
       - windows-electron-tests
+      - windows-agent-host-e2e-tests
       - windows-electron-smoke-test-shards
       - windows-browser-unit-tests
       - windows-browser-integration-tests
@@ -410,7 +455,7 @@ jobs:
               - { job: linux-electron-unit-tests, output: unit-tests }
           - check: Linux / Electron
             parts:
-              - { job: linux-electron-tests, output: product-tests }
+              - { job: linux-electron-tests, output: electron-tests }
           - check: Linux / Electron-Smoke
             parts:
               - { job: linux-electron-smoke-test-shards, output: product-tests }
@@ -426,7 +471,7 @@ jobs:
               - { job: macos-electron-unit-tests, output: unit-tests }
           - check: macOS / Electron
             parts:
-              - { job: macos-electron-tests, output: product-tests }
+              - { job: macos-electron-tests, output: electron-tests }
           - check: macOS / Electron-Smoke
             parts:
               - { job: macos-electron-smoke-test-shards, output: product-tests }
@@ -443,6 +488,7 @@ jobs:
           - check: Windows / Electron
             parts:
               - { job: windows-electron-tests, output: product-tests }
+              - { job: windows-agent-host-e2e-tests, output: agent-host-e2e }
           - check: Windows / Electron-Smoke
             parts:
               - { job: windows-electron-smoke-test-shards, output: product-tests }

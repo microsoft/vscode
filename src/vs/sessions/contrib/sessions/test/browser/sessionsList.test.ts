@@ -61,7 +61,6 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { SessionSummaryHoverWidget } from '../../../../../workbench/contrib/chat/browser/agentSessions/sessionSummaryHover.js';
 import { AICustomizationManagementEditorInput } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
-import { IPreferencesService, IOpenSettingsOptions } from '../../../../../workbench/services/preferences/common/preferences.js';
 import { SpotlightPresentation } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightPresentation.js';
 import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightTypes.js';
 import { OnboardingOutcome } from '../../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
@@ -70,7 +69,8 @@ import '../../../../../workbench/browser/actions/listCommands.js';
 import { AgentMergeSessionState } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { getSessionChatDragData, isSessionChatDrag, SessionsDataTransfers } from '../../../../browser/dnd.js';
 import { IsPhoneLayoutContext, SessionIsArchivedContext, SessionSupportsMultipleChatsContext } from '../../../../common/contextkeys.js';
-import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { getSessionApplication } from '../../../../common/sessionApplication.js';
 import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
@@ -1925,7 +1925,7 @@ suite('Sessions - SessionsList', () => {
 				});
 				const container = harness.createContainer();
 				harness.instantiationService.stub(IMenuService, harness.store.add(harness.instantiationService.createInstance(MenuService)));
-				renderSessionsHeader(container, false, harness.instantiationService, harness.store.add(new ContextKeyService(harness.instantiationService.get(IConfigurationService))), harness.store, () => list.reportArchivedFilterShown());
+				renderSessionsHeader(container, false, harness.instantiationService, harness.store.add(new ContextKeyService(harness.instantiationService.get(IConfigurationService))), harness.store, () => list.reportFilterMenuShown());
 				const filter = container.querySelector<HTMLElement>('a.action-label[aria-label="Filter Sessions"][aria-haspopup="true"]');
 				const beforeShow = [...triggers];
 				filter?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
@@ -2527,7 +2527,7 @@ suite('Sessions - SessionsList', () => {
 					onSessionOpen: () => { },
 				}));
 				list.layout(1400, 400);
-				const showMoreLabels = () => [...container.querySelectorAll<HTMLElement>('.session-show-more-label')];
+				const showMoreLabels = () => [...container.querySelectorAll<HTMLElement>('.monaco-list-rows .session-show-more-label')];
 				return {
 					list,
 					snapshot: () => {
@@ -2577,6 +2577,450 @@ suite('Sessions - SessionsList', () => {
 		});
 	});
 
+	suite('sticky show more and less', () => {
+		const group: ISessionGroup = { id: 'project', name: 'Project', createdAt: 1 };
+		const sessions = (count: number, prefix = 'session') => Array.from({ length: count }, (_, index) =>
+			createTestSession(`${prefix}-${index}`, {
+				workspaceResource: URI.parse(`file:///${prefix}`),
+				workspaceLabel: 'Project',
+				repository: 'owner/project',
+				createdAt: new Date(Date.now() - index * 1000),
+			}).session);
+
+		function createList(items: ISession[], options: IListHarnessOptions = {}, grouping = SessionsGrouping.Workspace, compact = false) {
+			const harness = createListHarness(disposables, items, options);
+			const container = harness.createContainer(400, 300);
+			const listHost = append(container, $('div'));
+			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, listHost, {
+				grouping: () => grouping,
+				sorting: () => SessionsSorting.Created,
+				compact: () => compact,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+			const footer = container.querySelector<HTMLElement>('.sessions-list-sticky-show-more')!;
+			const button = footer.querySelector<HTMLElement>('[role="button"]')!;
+			const snapshot = () => ({
+				hidden: footer.hidden,
+				label: button.textContent,
+				ariaLabel: button.getAttribute('aria-label'),
+			});
+			const clickMore = () => {
+				list.layout(600, 400);
+				const row = [...container.querySelectorAll<HTMLElement>('.monaco-list-rows .session-show-more-label')]
+					.find(label => label.textContent?.startsWith('+'))?.closest<HTMLElement>('.monaco-list-row');
+				assert.ok(row);
+				row.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+				row.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+				const immediatelyAfterExpansion = { ...snapshot(), scrollTop: list.scrollTop };
+				list.layout(300, 400);
+				return immediatelyAfterExpansion;
+			};
+			return { ...harness, container, list, footer, button, snapshot, clickMore };
+		}
+
+		for (const commandId of ['list.focusDown', 'list.focusPageDown']) {
+			for (const mode of ['more', 'less'] as const) {
+				test(`keeps compact rows above sticky ${mode} during repeated ${commandId}`, async () => {
+					const grouped = sessions(20);
+					const fixture = createList(grouped, {
+						groups: [group],
+						memberships: new Map(grouped.map(session => [session.sessionId, group.id])),
+						cappedGroupIds: mode === 'more' ? [group.id] : undefined,
+					}, SessionsGrouping.Workspace, true);
+					fixture.list.layout(120, 400);
+					fixture.list.setFocusedItem({ session: grouped[0].resource });
+					fixture.list.focus();
+					const samples = [];
+					for (let step = 0; step < (mode === 'more' ? 5 : 20); step++) {
+						await fixture.list.focusNextItem(commandId === 'list.focusPageDown');
+						const row = fixture.container.querySelector<HTMLElement>('.monaco-list-rows > .monaco-list-row.focused');
+						assert.ok(row, 'Expected keyboard focus to have a rendered row');
+						const rowBottom = row.getBoundingClientRect().bottom;
+						const visibleBottom = fixture.footer.hidden
+							? fixture.list.element.getBoundingClientRect().bottom
+							: fixture.footer.getBoundingClientRect().top;
+						samples.push({
+							unobscured: rowBottom <= visibleBottom,
+							footerVisible: !fixture.footer.hidden,
+							index: Number(row.dataset.index),
+						});
+					}
+
+					assert.deepStrictEqual({
+						allUnobscured: samples.every(sample => sample.unobscured),
+						withFooter: samples.some(sample => sample.footerVisible),
+						reachedNormalFooter: samples.some(sample => !sample.footerVisible),
+						advanced: samples.at(-1)!.index > samples[0].index,
+					}, {
+						allUnobscured: true,
+						withFooter: true,
+						reachedNormalFooter: true,
+						advanced: true,
+					}, JSON.stringify(samples));
+				});
+			}
+		}
+
+		test('keeps compact nested chats above the sticky footer without constraining manual scrolling', async () => {
+			const nested = buildTestSession({
+				id: 'nested',
+				title: 'Nested session',
+				workspace: 'Project',
+				chats: Array.from({ length: 12 }, (_, index) => ({ id: `chat-${index}`, title: `Chat ${index}` })),
+			});
+			const grouped = [nested.session, ...sessions(6)];
+			const fixture = createList(grouped, {
+				groups: [group],
+				memberships: new Map(grouped.map(session => [session.sessionId, group.id])),
+				cappedGroupIds: [group.id],
+			}, SessionsGrouping.Workspace, true);
+			fixture.list.layout(180, 400);
+			fixture.list.setItemCollapsed({ session: nested.session.resource }, false);
+			fixture.list.setFocusedItem({ session: nested.session.resource });
+			fixture.list.focus();
+			const samples = [];
+			for (let step = 0; step < 10; step++) {
+				await fixture.list.focusNextItem(false);
+				const row = fixture.container.querySelector<HTMLElement>('.monaco-list-rows > .monaco-list-row.focused');
+				assert.ok(row);
+				samples.push({
+					chat: !!row.querySelector('.session-chat-item'),
+					unobscured: row.getBoundingClientRect().bottom <= fixture.footer.getBoundingClientRect().top,
+				});
+			}
+			fixture.list.scrollTop = 0;
+
+			assert.deepStrictEqual({
+				nestedChatsVisible: samples.every(sample => sample.chat && sample.unobscured),
+				footerVisible: !fixture.footer.hidden,
+				manualScrollTop: fixture.list.scrollTop,
+			}, {
+				nestedChatsVisible: true,
+				footerVisible: true,
+				manualScrollTop: 0,
+			});
+		});
+
+		for (const grouping of [SessionsGrouping.Workspace, SessionsGrouping.Repository]) {
+			test(`pins an expanded ${grouping} section and hands off to its normal footer`, () => {
+				const fixture = createList(sessions(20), {}, grouping);
+				const capped = fixture.snapshot();
+				fixture.clickMore();
+				fixture.list.scrollTop = 200;
+				const scrolling = fixture.snapshot();
+				const pinnedToBottom = fixture.footer.getBoundingClientRect().bottom === fixture.list.element.getBoundingClientRect().top + 300;
+				fixture.list.scrollTop = 10000;
+				const atEnd = fixture.footer.hidden;
+				fixture.list.scrollTop = 200;
+				const scrollingBack = fixture.footer.hidden;
+				fixture.list.layout(2000, 400);
+				const fits = fixture.footer.hidden;
+				fixture.list.layout(300, 400);
+				const resized = fixture.footer.hidden;
+
+				assert.deepStrictEqual({ capped, scrolling, pinnedToBottom, atEnd, scrollingBack, fits, resized }, {
+					capped: { hidden: false, label: '+15 more', ariaLabel: `Show 15 more sessions in ${grouping === SessionsGrouping.Repository ? 'project' : 'Project'}` },
+					scrolling: { hidden: false, label: 'Show less', ariaLabel: `Show fewer sessions in ${grouping === SessionsGrouping.Repository ? 'project' : 'Project'}` },
+					pinnedToBottom: true,
+					atEnd: true,
+					scrollingBack: false,
+					fits: true,
+					resized: false,
+				});
+			});
+		}
+
+		for (const kind of ['show more', 'section header'] as const) {
+			test(`shows immediately after expanding a project via ${kind}, with another section above it`, () => {
+				const pinned = sessions(1, 'pinned')[0];
+				const fixture = createList([pinned, ...sessions(20)], {
+					pinnedSessionIds: new Set([pinned.sessionId]),
+				});
+				fixture.list.setItemCollapsed({ section: 'pinned' }, true);
+				let expanded = fixture.clickMore();
+				if (kind === 'section header') {
+					fixture.list.setItemCollapsed({ section: 'workspace:Project' }, true);
+					fixture.list.scrollTop = 0;
+					fixture.list.setItemCollapsed({ section: 'workspace:Project' }, false);
+					expanded = { ...fixture.snapshot(), scrollTop: fixture.list.scrollTop };
+				}
+
+				assert.deepStrictEqual({
+					firstSection: fixture.container.querySelector('.monaco-list-rows .session-section-label')?.textContent,
+					expanded,
+				}, {
+					firstSection: 'Pinned',
+					expanded: { hidden: false, label: 'Show less', ariaLabel: 'Show fewer sessions in Project', scrollTop: 0 },
+				});
+			});
+		}
+
+		for (const mode of ['more', 'less'] as const) {
+			test(`uses the original row's markup, typography, separators and insets for ${mode}`, () => {
+				const grouped = sessions(20);
+				const fixture = createList(grouped, {
+					groups: [group],
+					memberships: new Map(grouped.map(session => [session.sessionId, group.id])),
+					cappedGroupIds: mode === 'more' ? [group.id] : undefined,
+				});
+				fixture.container.style.setProperty('--vscode-spacing-size20', '2px');
+				fixture.container.style.setProperty('--vscode-spacing-size40', '4px');
+				const appearance = (element: HTMLElement) => {
+					const style = mainWindow.getComputedStyle(element);
+					const label = element.querySelector<HTMLElement>('.session-show-more-label')!;
+					const labelStyle = mainWindow.getComputedStyle(label);
+					const rect = element.getBoundingClientRect();
+					const separator = (pseudo: string) => {
+						const style = mainWindow.getComputedStyle(element, pseudo);
+						return { content: style.content, width: style.width, height: style.height, background: style.background, flex: style.flex };
+					};
+					return {
+						markup: element.innerHTML,
+						left: rect.left,
+						width: rect.width,
+						height: rect.height,
+						font: style.font,
+						padding: style.padding,
+						gap: style.gap,
+						border: style.border,
+						color: style.color,
+						labelPadding: labelStyle.padding,
+						before: separator('::before'),
+						after: separator('::after'),
+					};
+				};
+				const sticky = appearance(fixture.button);
+				fixture.list.scrollTop = 10000;
+				const original = [...fixture.container.querySelectorAll<HTMLElement>('.monaco-list-rows .session-show-more')]
+					.find(element => element.textContent === (mode === 'more' ? '+15 more' : 'Show less'));
+				assert.ok(original);
+				assert.deepStrictEqual({ height: sticky.height, original: appearance(original) }, { height: 26, original: sticky });
+			});
+		}
+
+		test('keeps more in its normal row when it fits and pins it again after resizing', () => {
+			const fixture = createList(sessions(6));
+			const overflow = fixture.snapshot();
+			fixture.list.layout(600, 400);
+			const fits = fixture.footer.hidden;
+			fixture.list.layout(300, 400);
+			const resized = fixture.snapshot();
+			fixture.list.scrollTop = 10000;
+			const atEnd = fixture.footer.hidden;
+			fixture.list.scrollTop = 0;
+			const atStart = fixture.snapshot();
+
+			assert.deepStrictEqual({ overflow, fits, resized, atEnd, atStart }, {
+				overflow: { hidden: false, label: '+1 more', ariaLabel: 'Show 1 more session in Project' },
+				fits: true,
+				resized: overflow,
+				atEnd: true,
+				atStart: overflow,
+			});
+		});
+
+		for (const activation of ['click', 'Enter', 'Space'] as const) {
+			test(`expands a capped project with ${activation} without jumping to its header`, () => {
+				const others = sessions(5);
+				const nested = buildTestSession({
+					id: 'nested',
+					title: 'Nested session',
+					workspace: 'Project',
+					chats: Array.from({ length: 12 }, (_, index) => ({ id: `chat-${index}`, title: `Chat ${index}` })),
+				});
+				const grouped = [nested.session, ...others];
+				const fixture = createList(grouped, {
+					groups: [group],
+					memberships: new Map(grouped.map(session => [session.sessionId, group.id])),
+					cappedGroupIds: [group.id],
+				});
+				fixture.list.setItemCollapsed({ session: nested.session.resource }, false);
+				fixture.list.scrollTop = 150;
+				const capped = { ...fixture.snapshot(), sessions: fixture.list.getVisibleSessions().length, scrollTop: fixture.list.scrollTop };
+				fixture.button.focus();
+				if (activation === 'click') {
+					fixture.button.click();
+				} else {
+					fixture.button.dispatchEvent(new KeyboardEvent('keydown', {
+						key: activation === 'Enter' ? 'Enter' : ' ',
+						keyCode: activation === 'Enter' ? 13 : 32,
+						bubbles: true,
+						cancelable: true,
+					}));
+				}
+
+				assert.deepStrictEqual({
+					capped,
+					expanded: { ...fixture.snapshot(), sessions: fixture.list.getVisibleSessions().length, scrollTop: fixture.list.scrollTop },
+					treeHasFocus: mainWindow.document.activeElement?.classList.contains('monaco-list'),
+					stored: fixture.instantiationService.get(IStorageService).get('sessionsListControl.sessionGroupExpansionState', StorageScope.PROFILE),
+				}, {
+					capped: { hidden: false, label: '+1 more', ariaLabel: 'Show 1 more session in Project', sessions: 5, scrollTop: 150 },
+					expanded: { hidden: false, label: 'Show less', ariaLabel: 'Show fewer sessions in Project', sessions: 6, scrollTop: 150 },
+					treeHasFocus: true,
+					stored: '{"group:project":true}',
+				});
+			});
+		}
+
+		test('uses one footer for the current section, switching between more and less', () => {
+			const first = sessions(20, 'first');
+			const second = sessions(6, 'second');
+			const otherGroup: ISessionGroup = { id: 'other', name: 'Other Project', createdAt: 2 };
+			const fixture = createList([...first, ...second], {
+				groups: [group, otherGroup],
+				memberships: new Map([...first.map(session => [session.sessionId, group.id] as const), ...second.map(session => [session.sessionId, otherGroup.id] as const)]),
+				cappedGroupIds: [otherGroup.id],
+			});
+			fixture.list.revealItem({ session: first[5].resource });
+			const expanded = fixture.snapshot();
+			fixture.list.revealItem({ session: second[0].resource });
+			const capped = fixture.snapshot();
+
+			assert.deepStrictEqual({
+				expanded,
+				capped,
+				footers: fixture.container.querySelectorAll('.sessions-list-sticky-show-more').length,
+			}, {
+				expanded: { hidden: false, label: 'Show less', ariaLabel: 'Show fewer sessions in Project' },
+				capped: { hidden: false, label: '+1 more', ariaLabel: 'Show 1 more session in Other Project' },
+				footers: 1,
+			});
+		});
+
+		test('preserves the viewport when expansion restores a previously hidden selection', () => {
+			const grouped = sessions(20);
+			const fixture = createList(grouped, {
+				groups: [group],
+				memberships: new Map(grouped.map(session => [session.sessionId, group.id])),
+				cappedGroupIds: [group.id],
+			});
+			fixture.list.scrollTop = 30;
+			fixture.store.add(fixture.list.onDidUpdate(() => {
+				fixture.list.reveal(grouped.at(-1)!.resource);
+			}));
+			fixture.button.click();
+
+			assert.deepStrictEqual({ scrollTop: fixture.list.scrollTop, footer: fixture.snapshot() }, {
+				scrollTop: 30,
+				footer: { hidden: false, label: 'Show less', ariaLabel: 'Show fewer sessions in Project' },
+			});
+		});
+
+		test('updates the remaining count and removes the footer when the project no longer needs capping', () => {
+			const fixture = createList(sessions(6));
+			const initial = fixture.snapshot();
+			fixture.managementService.sessions = sessions(8);
+			fixture.list.refresh();
+			const added = fixture.snapshot();
+			fixture.managementService.sessions = sessions(5);
+			fixture.list.refresh();
+
+			assert.deepStrictEqual({ initial, added, noHiddenSessions: fixture.footer.hidden }, {
+				initial: { hidden: false, label: '+1 more', ariaLabel: 'Show 1 more session in Project' },
+				added: { hidden: false, label: '+3 more', ariaLabel: 'Show 3 more sessions in Project' },
+				noHiddenSessions: true,
+			});
+		});
+
+		for (const activation of ['click', 'Enter', 'Space'] as const) {
+			test(`caps only its own project with ${activation} and returns focus to its header`, () => {
+				const grouped = sessions(20);
+				const others = sessions(3, 'other');
+				const fixture = createList([...grouped, ...others], {
+					groups: [group],
+					memberships: new Map(grouped.map(session => [session.sessionId, group.id])),
+				});
+				fixture.list.scrollTop = 200;
+				fixture.button.focus();
+				if (activation === 'click') {
+					fixture.button.click();
+				} else {
+					fixture.button.dispatchEvent(new KeyboardEvent('keydown', {
+						key: activation === 'Enter' ? 'Enter' : ' ',
+						keyCode: activation === 'Enter' ? 13 : 32,
+						bubbles: true,
+						cancelable: true,
+					}));
+				}
+				const visible = fixture.list.getVisibleSessions();
+				assert.deepStrictEqual({
+					footer: fixture.snapshot(),
+					grouped: visible.filter(session => grouped.includes(session)).length,
+					others: visible.filter(session => others.includes(session)).length,
+					focused: fixture.container.querySelector('.monaco-list-row.focused .session-section-label')?.textContent,
+					treeHasFocus: mainWindow.document.activeElement?.classList.contains('monaco-list'),
+					stored: fixture.instantiationService.get(IStorageService).get('sessionsListControl.sessionGroupExpansionState', StorageScope.PROFILE),
+				}, {
+					footer: { hidden: false, label: '+15 more', ariaLabel: 'Show 15 more sessions in Project' },
+					grouped: 5,
+					others: 3,
+					focused: 'Project',
+					treeHasFocus: true,
+					stored: '{"group:project":false}',
+				});
+			});
+		}
+
+		test('updates on section collapse, capping, and empty or very small layouts', () => {
+			const grouped = sessions(20);
+			const fixture = createList(grouped, {
+				groups: [group],
+				memberships: new Map(grouped.map(session => [session.sessionId, group.id])),
+			});
+			const expanded = fixture.footer.hidden;
+			fixture.list.setItemCollapsed({ group: group.id }, true);
+			const collapsed = fixture.footer.hidden;
+			fixture.list.setItemCollapsed({ group: group.id }, false);
+			const reopened = fixture.footer.hidden;
+			fixture.list.layout(0, 400);
+			const zeroHeight = fixture.footer.hidden;
+			fixture.list.layout(50, 400);
+			const small = fixture.footer.hidden;
+			fixture.list.layout(300, 400);
+			fixture.list.setWorkspaceGroupCapped(false);
+			const uncapped = fixture.footer.hidden;
+			fixture.list.setWorkspaceGroupCapped(true);
+			fixture.managementService.sessions = [];
+			fixture.list.refresh();
+
+			assert.deepStrictEqual({ expanded, collapsed, reopened, zeroHeight, small, uncapped, empty: fixture.footer.hidden }, {
+				expanded: false,
+				collapsed: true,
+				reopened: false,
+				zeroHeight: true,
+				small: true,
+				uncapped: true,
+				empty: true,
+			});
+		});
+
+		test('follows the section being browsed and releases focus when scrolled away', () => {
+			const first = sessions(20, 'first');
+			const second = sessions(20, 'second');
+			const otherGroup: ISessionGroup = { id: 'other', name: 'Other Project', createdAt: 2 };
+			const fixture = createList([...first, ...second], {
+				groups: [group, otherGroup],
+				memberships: new Map([...first.map(session => [session.sessionId, group.id] as const), ...second.map(session => [session.sessionId, otherGroup.id] as const)]),
+			});
+			fixture.list.revealItem({ session: first[5].resource });
+			const firstLabel = fixture.button.getAttribute('aria-label');
+			fixture.button.focus();
+			fixture.list.revealItem({ session: second[5].resource });
+			const secondLabel = fixture.button.getAttribute('aria-label');
+			const focusReturned = mainWindow.document.activeElement?.classList.contains('monaco-list');
+			fixture.list.scrollTop = 10000;
+
+			assert.deepStrictEqual({ firstLabel, secondLabel, focusReturned, atEnd: fixture.footer.hidden }, {
+				firstLabel: 'Show fewer sessions in Project',
+				secondLabel: 'Show fewer sessions in Other Project',
+				focusReturned: true,
+				atEnd: true,
+			});
+		});
+	});
+
 	suite('reset filters', () => {
 		function createList(sessions: ISession[], options: IListHarnessOptions = {}, showArchivedByDefault = false) {
 			const harness = createListHarness(disposables, sessions, options);
@@ -2605,7 +3049,7 @@ suite('Sessions - SessionsList', () => {
 				createTestSession('claude', { workspaceLabel: 'Recent', harness: 'claude', createdAt: new Date(now - 20_000) }).session,
 				createTestSession('old', { workspaceLabel: 'Old', createdAt: new Date(now - 10 * 24 * 60 * 60 * 1000) }).session,
 			], { groups: [group], memberships: new Map(grouped.map(session => [session.sessionId, group.id])) });
-			const showMoreLabels = () => [...container.querySelectorAll<HTMLElement>('.session-show-more-label')];
+			const showMoreLabels = () => [...container.querySelectorAll<HTMLElement>('.monaco-list-rows .session-show-more-label')];
 			const click = (label: string) => {
 				const row = showMoreLabels().find(element => element.textContent === label)?.closest<HTMLElement>('.monaco-list-row');
 				assert.ok(row, `Expected a "${label}" row`);
@@ -2973,7 +3417,6 @@ suite('Sessions - SessionsList', () => {
 			},
 			new class extends mock<IOpenerService>() { },
 			new class extends mock<ILabelService>() { },
-			new class extends mock<IPreferencesService>() { },
 			{
 				title: 'Creator session',
 				onOpen,
@@ -3014,7 +3457,6 @@ suite('Sessions - SessionsList', () => {
 			providersService,
 			upcastPartial<IOpenerService>({}),
 			upcastPartial<ILabelService>({}),
-			upcastPartial<IPreferencesService>({}),
 		);
 		const remoteData = createHoverData(remoteSession);
 		const titleLine = new SessionSummaryHoverWidget(remoteData).domNode.querySelector('.session-summary-hover-title')?.textContent;
@@ -3023,7 +3465,6 @@ suite('Sessions - SessionsList', () => {
 			createProvidersService({ ...provider, sessionTypes: [] }),
 			upcastPartial<IOpenerService>({}),
 			upcastPartial<ILabelService>({}),
-			upcastPartial<IPreferencesService>({}),
 		);
 		const disconnectedTitleLine = new SessionSummaryHoverWidget(disconnectedData).domNode.querySelector('.session-summary-hover-title')?.textContent;
 
@@ -3040,33 +3481,72 @@ suite('Sessions - SessionsList', () => {
 		});
 	});
 
-	test('external session hover leads to the setting that governs external sessions', () => {
-		const queries: (string | undefined)[] = [];
-		const hoverFor = (isExternal: boolean) => getSessionSummaryHoverData(
-			createSession(isExternal ? 'External' : 'Local', { workspaceLabel: 'Workspace', isExternal }),
+	test('external session hover without application provenance omits external status', () => {
+		const data = getSessionSummaryHoverData(
+			createSession('External', { isExternal: true }),
 			new class extends mock<ISessionsProvidersService>() {
 				override getProvider() { return undefined; }
 			},
 			new class extends mock<IOpenerService>() { },
 			new class extends mock<ILabelService>() { },
-			new class extends mock<IPreferencesService>() {
-				override async openSettings(options?: IOpenSettingsOptions): Promise<undefined> {
-					queries.push(options?.query);
-					return undefined;
-				}
-			},
 		);
-		const externalHover = hoverFor(true);
-		externalHover.externalSession?.onOpen();
+		const widget = new SessionSummaryHoverWidget(data);
 
 		assert.deepStrictEqual({
-			external: !!externalHover.externalSession,
-			local: !!hoverFor(false).externalSession,
-			queries,
+			buttons: [...widget.domNode.querySelectorAll('button')].map(button => button.textContent),
+			hasExternalStatus: widget.domNode.textContent?.includes('External Session'),
+			applicationHidden: widget.domNode.querySelector('.session-summary-hover-application')?.classList.contains('hidden'),
 		}, {
-			external: true,
-			local: false,
-			queries: ['@id:chat.agentSessions.showExternal'],
+			buttons: [],
+			hasExternalStatus: false,
+			applicationHidden: true,
+		});
+	});
+
+	test('session and chat hovers show non-VS Code applications without external status and open application filters', () => {
+		const opened: { uri: string; options: OpenInternalOptions | OpenExternalOptions | undefined }[] = [];
+		const services = [
+			upcastPartial<ISessionsProvidersService>({ getProvider: () => undefined }),
+			upcastPartial<IOpenerService>({
+				open: async (uri, options) => {
+					opened.push({ uri: uri.toString(), options });
+					return true;
+				},
+			}),
+			upcastPartial<ILabelService>({}),
+		] as const;
+		const session = {
+			...createSession('External', { isExternal: true }),
+			isExternal: observableValue('external', true),
+			application: observableValue('application', getSessionApplication('copilot-cli')),
+		};
+		const chat = {
+			...session.mainChat.get(),
+			title: constObservable('Nested chat'),
+			workspace: constObservable(undefined),
+		};
+		const snapshots = [getSessionSummaryHoverData(session, ...services), getChatSummaryHoverData(session, chat, ...services)].map(data => {
+			const widget = new SessionSummaryHoverWidget(data);
+			const button = widget.domNode.querySelector<HTMLButtonElement>('.session-summary-hover-application button');
+			button?.click();
+			return {
+				buttonType: button?.type,
+				rows: [...widget.domNode.querySelectorAll('button')].map(row => row.textContent),
+			};
+		});
+		session.application.set(getSessionApplication('vscode'), undefined);
+		const vscodeApplication = getSessionSummaryHoverData(session, ...services).application;
+		session.application.set(getSessionApplication('custom_client', 'Custom Client'), undefined);
+		const customApplication = getSessionSummaryHoverData(session, ...services).application?.label;
+		session.isExternal.set(false, undefined);
+		const adoptedApplication = getSessionSummaryHoverData(session, ...services).application?.label;
+
+		assert.deepStrictEqual({ snapshots, opened, vscodeApplication, customApplication, adoptedApplication }, {
+			snapshots: Array(2).fill({ buttonType: 'button', rows: ['Created in · Copilot CLI'] }),
+			opened: Array(2).fill({ uri: `command:${SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID}`, options: { allowCommands: true } }),
+			vscodeApplication: undefined,
+			customApplication: 'Custom Client',
+			adoptedApplication: 'Custom Client',
 		});
 	});
 
@@ -3123,7 +3603,6 @@ suite('Sessions - SessionsList', () => {
 			new class extends mock<ILabelService>() {
 				override getUriLabel(resource: URI): string { return resource.path; }
 			},
-			new class extends mock<IPreferencesService>() { },
 		);
 		hover.pullRequests?.forEach(pullRequest => pullRequest.onOpen?.());
 
@@ -3307,12 +3786,14 @@ suite('Sessions - SessionsList', () => {
 		});
 	});
 
-	suite('External session hover', () => {
+	suite('Application session hover', () => {
 		for (const flat of [false, true]) {
-			test(`updates ${flat ? 'flat' : 'grouped'} external session hovers while visible and when reopened`, async () => {
+			test(`updates ${flat ? 'flat' : 'grouped'} application session hovers while visible and when reopened`, async () => {
 				const external = createTestSession('External', { isExternal: true });
+				const application = observableValue('application', getSessionApplication('vscode'));
+				const session = { ...external.session, application };
 				const hovers = new Map<HTMLElement, () => IDelayedHoverOptions>();
-				const harness = createListHarness(disposables, [external.session], instantiationService => {
+				const harness = createListHarness(disposables, [session], instantiationService => {
 					instantiationService.stub(IHoverService, {
 						...NullHoverService,
 						setupDelayedHover: (target, options) => {
@@ -3324,7 +3805,7 @@ suite('Sessions - SessionsList', () => {
 				const container = harness.createContainer();
 				if (flat) {
 					const list = harness.store.add(harness.instantiationService.createInstance(SessionsFlatList, container, { onSessionOpen: () => { } }));
-					list.setSessions([external.session]);
+					list.setSessions([session]);
 					list.layout(300, 400);
 				} else {
 					const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
@@ -3341,33 +3822,44 @@ suite('Sessions - SessionsList', () => {
 				const content = hover.content;
 				assert.ok(content instanceof HTMLElement);
 				harness.store.add(toDisposable(() => hover.onDidHide?.()));
-				const hasExternal = () => !!content.querySelector('.session-summary-hover-external-session:not(.hidden)');
+				const applicationLabel = () => content.querySelector('.session-summary-hover-application button')?.textContent;
 				const title = content.querySelector('.session-summary-hover-title-text');
 				hover.onDidShow?.();
-				const initial = hasExternal();
+				const initialApplication = applicationLabel();
+				application.set(getSessionApplication('copilot-cli'), undefined);
+				const hydratedApplication = applicationLabel();
 				external.isExternal.set(false, undefined);
-				const adopted = hasExternal();
+				const adoptedApplication = applicationLabel();
 				await timeout(0);
 				const titlePreserved = content.querySelector('.session-summary-hover-title-text') === title;
 				hover.onDidHide?.();
 				external.isExternal.set(true, undefined);
-				const hidden = hasExternal();
+				application.set(getSessionApplication('claude'), undefined);
+				const hiddenApplication = applicationLabel();
 				hover.onDidShow?.();
-				const reopened = hasExternal();
+				const reopenedApplication = applicationLabel();
 				hover.onDidHide?.();
 				external.isExternal.set(false, undefined);
+				application.set(getSessionApplication('vscode'), undefined);
 				hover.onDidShow?.();
-				const reopenedAfterAdoption = hasExternal();
+				const provenanceHidden = content.querySelector('.session-summary-hover-application')?.classList.contains('hidden');
 				harness.store.dispose();
-				external.isExternal.set(true, undefined);
+				application.set(getSessionApplication('copilot-cli'), undefined);
 				assert.deepStrictEqual({
-					initial, adopted, titlePreserved, hidden, reopened, reopenedAfterAdoption,
-					disposed: hasExternal(),
+					titlePreserved,
+					disposedApplication: applicationLabel(),
 					remainingHovers: hovers.size,
+					initialApplication, hydratedApplication, adoptedApplication, hiddenApplication, reopenedApplication, provenanceHidden,
 				}, {
-					initial: true, adopted: false, titlePreserved: true, hidden: false, reopened: true, reopenedAfterAdoption: false,
-					disposed: false,
+					titlePreserved: true,
+					disposedApplication: undefined,
 					remainingHovers: 0,
+					initialApplication: undefined,
+					hydratedApplication: 'Created in · Copilot CLI',
+					adoptedApplication: 'Created in · Copilot CLI',
+					hiddenApplication: 'Created in · Copilot CLI',
+					reopenedApplication: 'Created in · Claude',
+					provenanceHidden: true,
 				});
 			});
 		}
@@ -3972,6 +4464,7 @@ suite('Sessions - SessionsList', () => {
 				onDidReplaceSession: Event.None,
 				onDidStartSession: Event.None,
 				onDidDiscardNewSession: Event.None,
+				onDidMoveChat: Event.None,
 				getSessions: () => sessions,
 				getInFlightNewSessionRequests: () => [],
 				getSession: () => undefined,
@@ -5225,6 +5718,48 @@ suite('Sessions - SessionsList', () => {
 	});
 
 	suite('session title animations', () => {
+		for (const reducedMotion of [false, true]) {
+			test(`needs-input rows stay static after running${reducedMotion ? ' with reduced motion' : ''}`, () => {
+				const session = createTestSession('Waiting', { status: SessionStatus.InProgress });
+				const harness = createListHarness(disposables, [session.session]);
+				harness.instantiationService.stub(ISessionsListModelService, 'getStatusIcon', SessionsListModelService.prototype.getStatusIcon);
+				harness.instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+					override isMotionReduced(): boolean { return reducedMotion; }
+				}());
+				const container = harness.createContainer();
+				container.classList.toggle('monaco-reduce-motion', reducedMotion);
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+					grouping: () => SessionsGrouping.Date,
+					sorting: () => SessionsSorting.Created,
+					onSessionOpen: () => { },
+				}));
+				list.layout(300, 400);
+
+				session.status.set(SessionStatus.NeedsInput, undefined);
+
+				const item = container.querySelector<HTMLElement>('.session-item.needs-input')!;
+				const row = item.closest<HTMLElement>('.monaco-list-row')!;
+				const title = item.querySelector<HTMLElement>('.session-title')!;
+				const icon = item.querySelector<HTMLElement>('.session-icon > .codicon:not([data-icon-fading-out])')!;
+				const titleStyle = mainWindow.getComputedStyle(title);
+				assert.deepStrictEqual({
+					animations: [row, item, title, icon.parentElement!, icon].map(element => mainWindow.getComputedStyle(element).animationName),
+					solidTitle: titleStyle.webkitTextFillColor === titleStyle.color,
+					inProgress: item.classList.contains('in-progress'),
+					warningIcon: icon.classList.contains('codicon-report-question'),
+					color: icon.style.color,
+					ariaLabel: row.getAttribute('aria-label'),
+				}, {
+					animations: ['none', 'none', 'none', 'none', 'none'],
+					solidTitle: true,
+					inProgress: false,
+					warningIcon: true,
+					color: 'var(--vscode-list-warningForeground)',
+					ariaLabel: 'Waiting, updated now, State: Attention Needed',
+				});
+			});
+		}
+
 		function renderProgressTitles() {
 			const sessions = [
 				createTestSession('First', { status: SessionStatus.InProgress }).session,
@@ -5507,7 +6042,7 @@ suite('Sessions - SessionsList', () => {
 				list.layout(1000, 400);
 				const snapshot = () => ({
 					sessions: list.getVisibleSessions().map(session => session.title.get()),
-					showMore: [...container.querySelectorAll('.session-show-more-label')].map(label => label.textContent),
+					showMore: [...container.querySelectorAll('.monaco-list-rows .session-show-more-label')].map(label => label.textContent),
 				});
 				const before = snapshot();
 				const target = harness.store.add(list.revealSessionForOnboarding(sessions[9]));
@@ -6759,7 +7294,6 @@ suite('Sessions - SessionsList', () => {
 				upcastPartial<ISessionsProvidersService>({ getProvider: () => undefined }),
 				upcastPartial<IOpenerService>({ open: () => Promise.resolve(true) }),
 				upcastPartial<ILabelService>({ getUriLabel: resource => resource.path }),
-				upcastPartial<IPreferencesService>({}),
 			);
 
 			assert.deepStrictEqual({
@@ -6800,7 +7334,6 @@ suite('Sessions - SessionsList', () => {
 				upcastPartial<ISessionsProvidersService>({ getProvider: () => undefined }),
 				upcastPartial<IOpenerService>({ open: () => Promise.resolve(true) }),
 				upcastPartial<ILabelService>({ getUriLabel: resource => resource.path }),
-				upcastPartial<IPreferencesService>({}),
 			] as const;
 			const sessionData = getSessionSummaryHoverData(session, ...services);
 
@@ -6839,7 +7372,6 @@ suite('Sessions - SessionsList', () => {
 				upcastPartial<ISessionsProvidersService>({ getProvider: () => undefined }),
 				upcastPartial<IOpenerService>({ open: () => Promise.resolve(true) }),
 				upcastPartial<ILabelService>({ getUriLabel: resource => resource.path }),
-				upcastPartial<IPreferencesService>({}),
 			);
 
 			assert.deepStrictEqual({ changes: data.location?.changes, changesetReads }, {
@@ -6884,7 +7416,6 @@ suite('Sessions - SessionsList', () => {
 					upcastPartial<ISessionsProvidersService>({ getProvider: () => undefined }),
 					upcastPartial<IOpenerService>({ open: () => Promise.resolve(true) }),
 					upcastPartial<ILabelService>({ getUriLabel: resource => resource.path }),
-					upcastPartial<IPreferencesService>({}),
 				);
 				return {
 					pullRequests: data.pullRequests?.map(pullRequest => pullRequest.title),
@@ -6931,7 +7462,7 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('shows non-main chats and excludes side chats, subagents, and hidden chats', () => {
+		test('shows non-main chats including side chats and excludes subagents and hidden chats', () => {
 			const main = createChat('Main chat');
 			const peer = createChat('Peer chat', ChatOriginKind.User);
 			const fork = createChat('Forked chat', ChatOriginKind.Fork);
@@ -6955,7 +7486,8 @@ suite('Sessions - SessionsList', () => {
 				})),
 				[
 					{ title: 'Peer chat', last: false },
-					{ title: 'Forked chat', last: true },
+					{ title: 'Forked chat', last: false },
+					{ title: 'Side chat', last: true },
 				]
 			);
 		});
@@ -7562,6 +8094,43 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		for (const aggregateStatus of [SessionStatus.InProgress, SessionStatus.NeedsInput, SessionStatus.Error]) {
+			test(`collapsed parent uses aggregate status ${aggregateStatus} without inspecting peer status`, () => {
+				const main = createChat('Main chat', undefined, ChatInteractivity.Full, SessionStatus.InProgress);
+				const peer = createChat('Peer chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.InProgress);
+				const status = observableValue('aggregate-status', aggregateStatus);
+				const session: ISession = {
+					...createTestSession('Session').session,
+					status,
+					chats: constObservable([main, peer]),
+					mainChat: constObservable(main),
+					capabilities: constObservable({ supportsMultipleChats: true }),
+				};
+				const { container } = renderSessionChatsList(session, undefined, true);
+				setSessionChatsExpanded(container, false);
+				const snapshot = () => ({
+					...sessionRowSnapshot(container),
+					hasProgress: !!container.querySelector('.session-item .session-icon > .monaco-pixel-spinner:not([data-icon-fading-out])'),
+				});
+				const collapsed = snapshot();
+				setSessionChatsExpanded(container, true);
+				const expanded = snapshot();
+				setSessionChatsExpanded(container, false);
+				status.set(SessionStatus.Completed, undefined);
+
+				assert.deepStrictEqual({ collapsed, expanded, afterComplete: snapshot() }, {
+					collapsed: {
+						inProgress: aggregateStatus === SessionStatus.InProgress,
+						needsInput: aggregateStatus === SessionStatus.NeedsInput,
+						ariaLabel: `Session, State: ${aggregateStatus === SessionStatus.InProgress ? 'In Progress' : aggregateStatus === SessionStatus.NeedsInput ? 'Attention Needed' : 'Failed, in Workspace'}`,
+						hasProgress: aggregateStatus === SessionStatus.InProgress,
+					},
+					expanded: { inProgress: true, needsInput: false, ariaLabel: 'Session, State: In Progress', hasProgress: true },
+					afterComplete: { inProgress: false, needsInput: false, ariaLabel: 'Session, State: Completed, in Workspace', hasProgress: false },
+				});
+			});
+		}
+
 		test('keeps child progress on the parent when a filtered session is reinserted collapsed', () => {
 			const main = createChat('Main chat');
 			const active = createChat('Active chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.InProgress);
@@ -7595,7 +8164,7 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('needs-input chat row gets the same accent-pulse feedback class as a needs-input session row', () => {
+		test('needs-input chat row keeps its attention indicator without looping animations', () => {
 			const main = createChat('Main chat');
 			const waiting = createChat('Waiting chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.NeedsInput);
 			const base = createTestSession('Session').session;
@@ -7606,13 +8175,25 @@ suite('Sessions - SessionsList', () => {
 				capabilities: constObservable({ supportsMultipleChats: true }),
 			};
 
-			const container = renderSessionChats(session);
+			const { container } = renderSessionChatsList(session, undefined, true, true, false, instantiationService => {
+				instantiationService.stub(ISessionsListModelService, 'getStatusIcon', SessionsListModelService.prototype.getStatusIcon);
+			});
 
 			const waitingRow = [...container.querySelectorAll<HTMLElement>('.session-chat-item')]
 				.find(element => element.textContent?.includes('Waiting chat'));
 			assert.ok(waitingRow);
 
-			assert.strictEqual(waitingRow.classList.contains('needs-input'), true);
+			const icon = waitingRow.querySelector<HTMLElement>('.session-chat-icon > .codicon')!;
+			const title = waitingRow.querySelector<HTMLElement>('.session-chat-title')!;
+			assert.deepStrictEqual({
+				needsInput: waitingRow.classList.contains('needs-input'),
+				warningIcon: icon.classList.contains('codicon-report-question'),
+				animations: [waitingRow.closest<HTMLElement>('.monaco-list-row')!, waitingRow, title, icon].map(element => mainWindow.getComputedStyle(element).animationName),
+			}, {
+				needsInput: true,
+				warningIcon: true,
+				animations: ['none', 'none', 'none', 'none'],
+			});
 		});
 
 		function sessionRowSnapshot(container: HTMLElement) {
@@ -7655,7 +8236,7 @@ suite('Sessions - SessionsList', () => {
 		});
 
 		for (const { expanded, withPeer } of [{ expanded: true, withPeer: true }, { expanded: false, withPeer: true }, { expanded: true, withPeer: false }]) {
-			test(`parent session row reflects side chat activity ${withPeer ? `with peer chats ${expanded ? 'expanded' : 'collapsed'}` : 'without peer chats'}`, () => {
+			test(`side chat activity has its own row when expanded and aggregates when collapsed ${withPeer ? 'with peers' : 'without peers'} (expanded=${expanded})`, () => {
 				const mainStatus = observableValue('main-status', SessionStatus.Completed);
 				const main = { ...createChat('Main chat'), status: mainStatus };
 				const peers = withPeer ? [createChat('Peer chat', ChatOriginKind.User)] : [];
@@ -7722,14 +8303,16 @@ suite('Sessions - SessionsList', () => {
 				const workingWithoutTime = { inProgress: true, needsInput: false, ariaLabel: 'Session, State: In Progress' };
 				const waitingWithoutTime = { inProgress: false, needsInput: true, ariaLabel: 'Session, State: Attention Needed' };
 				assert.deepStrictEqual({ snapshots, chats: chatRowTitles(container) }, {
-					snapshots: [completed, working, waiting, waitingWithoutTime, workingWithoutTime, completed, completed, working, completed, working, completed, waiting, completed, completed],
+					snapshots: !expanded
+						? [completed, working, waiting, waitingWithoutTime, workingWithoutTime, completed, working, working, working, working, waiting, waiting, waiting, completed]
+						: [completed, completed, completed, workingWithoutTime, workingWithoutTime, completed, completed, completed, completed, completed, completed, completed, completed, completed],
 					chats: expanded && withPeer ? ['Peer chat'] : [],
 				});
 			});
 		}
 
 		for (const exclusion of ['archived', 'hidden'] as const) {
-			test(`collapsed parent keeps peer progress while excluding an ${exclusion} side chat`, () => {
+			test(`collapsed parent uses aggregate progress including an ${exclusion} side chat`, () => {
 				const main = createChat('Main chat');
 				const peerStatus = observableValue('peer-status', SessionStatus.Completed);
 				const peer = { ...createChat('Peer chat', ChatOriginKind.User), status: peerStatus };
@@ -7760,7 +8343,7 @@ suite('Sessions - SessionsList', () => {
 
 				const completed = { inProgress: false, needsInput: false, ariaLabel: 'Session, updated now, State: Completed, in Workspace' };
 				const working = { inProgress: true, needsInput: false, ariaLabel: 'Session, updated now, State: In Progress' };
-				assert.deepStrictEqual(snapshots, [completed, working, completed, completed]);
+				assert.deepStrictEqual(snapshots, [working, working, working, completed]);
 			});
 		}
 
@@ -8082,8 +8665,6 @@ suite('Sessions - SessionsList', () => {
 			const selectedChat = container.querySelector('.monaco-list-row.selected .session-chat-title')?.textContent;
 			activeChat.set(side, undefined);
 			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
-			// Side chats are not shown as nested rows, so activating one falls
-			// back to selecting the parent session rather than a chat row.
 			const selectedSideChat = container.querySelector('.monaco-list-row.selected .session-chat-title')?.textContent;
 			const parentDuringSideChat = container.querySelector('.monaco-list-row.selected .session-title')?.textContent;
 			activeChat.set(main, undefined);
@@ -8121,8 +8702,8 @@ suite('Sessions - SessionsList', () => {
 				selectionBeforeFrame: undefined,
 				parentBeforeFrame: undefined,
 				selectedChat: 'Second chat',
-				selectedSideChat: undefined,
-				parentDuringSideChat: 'Session',
+				selectedSideChat: 'Side chat',
+				parentDuringSideChat: undefined,
 				mainSelection: 'Session',
 				expanded: 'true',
 				activeElement: focusTarget,
@@ -9148,6 +9729,33 @@ suite('Sessions - SessionsList', () => {
 					ariaLabel: 'Investigate failure, chat, updated now, unread',
 				},
 			});
+		});
+
+		test('shows the details external application badge next to the title of compact quick-chat rows, which have no details row', () => {
+			const results = ([true, false] as const).map(useCompactQuickChatRows => {
+				const quickChat = createTestSession('External chat', { isQuickChat: true, isExternal: true, application: 'github/cli', environment: 'cloud' }).session;
+				const harness = createListHarness(disposables, [quickChat], instantiationService => {
+					(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, ExternalSessionApplicationBadgeMode.Details);
+				});
+				const container = harness.createContainer();
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsFlatList, container, {
+					showSessionHover: false,
+					useCompactQuickChatRows,
+					onSessionOpen: () => { },
+				}));
+				list.setSessions([quickChat]);
+				list.layout(list.getContentHeight(), 400);
+				return {
+					useCompactQuickChatRows,
+					titleBadge: container.querySelector('.session-external-application-badge-title.visible')?.textContent ?? undefined,
+					detailsBadge: container.querySelector('.session-external-application-badge-details')?.textContent ?? undefined,
+				};
+			});
+
+			assert.deepStrictEqual(results, [
+				{ useCompactQuickChatRows: true, titleBadge: 'From Copilot CLI', detailsBadge: undefined },
+				{ useCompactQuickChatRows: false, titleBadge: undefined, detailsBadge: 'From Copilot CLI' },
+			]);
 		});
 
 		function createChat(id: string): IChat {

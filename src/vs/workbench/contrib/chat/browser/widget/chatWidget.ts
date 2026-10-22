@@ -117,7 +117,7 @@ import { getChatSessionType } from '../../common/model/chatUri.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { CHAT_READ_ONLY_BANNER_HEIGHT, ChatReadOnlyBanner } from './chatReadOnlyBanner.js';
 import { IChatSubmitRequestHandlerService } from '../chatSubmitRequestHandlerService.js';
-import { getChatPetListPadding } from './chatPetWidget.js';
+import { getChatPetListPadding, IChatPetPlatformOccupation } from './chatPetWidget.js';
 import { IChatPetWidgetService } from './chatPetWidgetService.js';
 import { IChatPetService } from '../chatPetService.js';
 import { ChatPetAchievementIds, hasChatPetImageAttachment } from '../chatPetAchievements.js';
@@ -505,6 +505,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	/** The session resource the {@link _chatAgentHostFolderPickerVisibleContextKey} value currently reflects, so a transient `undefined` decision during provisional recreation retains the value instead of flashing the chip. */
 	private _folderPickerDecisionSessionResource: URI | undefined;
 	private readonly _chatSessionSupportsForkContextKey: IContextKey<boolean>;
+	private readonly _chatSessionSupportsSideChatContextKey: IContextKey<boolean>;
 	private readonly _chatSessionSupportsRenameContextKey: IContextKey<boolean>;
 	private readonly _agentSupportsAttachmentsContextKey: IContextKey<boolean>;
 	private readonly _sessionIsEmptyContextKey: IContextKey<boolean>;
@@ -670,6 +671,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._chatAgentHostHasImmutablePrimaryWorkingDirectoryContextKey = ChatContextKeys.chatAgentHostHasImmutablePrimaryWorkingDirectory.bindTo(this.contextKeyService);
 		this._chatAgentHostFolderPickerVisibleContextKey = ChatContextKeys.chatAgentHostFolderPickerVisible.bindTo(this.contextKeyService);
 		this._chatSessionSupportsForkContextKey = ChatContextKeys.chatSessionSupportsFork.bindTo(this.contextKeyService);
+		this._chatSessionSupportsSideChatContextKey = ChatContextKeys.chatSessionSupportsSideChat.bindTo(this.contextKeyService);
 		this._chatSessionSupportsRenameContextKey = ChatContextKeys.chatSessionSupportsRename.bindTo(this.contextKeyService);
 		this._agentSupportsAttachmentsContextKey = ChatContextKeys.agentSupportsAttachments.bindTo(this.contextKeyService);
 		this._sessionIsEmptyContextKey = ChatContextKeys.chatSessionIsEmpty.bindTo(this.contextKeyService);
@@ -1117,6 +1119,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return this.listWidget.domNode;
 	}
 
+	get scrollDownButtonDomNode(): HTMLElement {
+		return this.listWidget.scrollDownButtonDomNode;
+	}
+
 	get stickyScrollDomNode(): HTMLElement | undefined {
 		return this.listWidget.stickyScrollDomNode;
 	}
@@ -1136,7 +1142,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return this.input.attachmentModel;
 	}
 
-	render(parent: HTMLElement, petMovementBounds?: HTMLElement, preferredPetHost?: IObservable<boolean>): void {
+	render(parent: HTMLElement, petMovementBounds?: HTMLElement, preferredPetHost?: IObservable<boolean>, setPetPlatformOccupation?: (occupation: IChatPetPlatformOccupation | undefined) => void): void {
 		const viewId = isIChatViewViewContext(this.viewContext) ? this.viewContext.viewId : undefined;
 		this.editorOptions = this._register(this.instantiationService.createInstance(ChatEditorOptions, viewId, this.styles.listForeground, this.styles.inputEditorBackground, this.styles.resultEditorBackground));
 		const renderInputOnTop = this.viewOptions.renderInputOnTop ?? false;
@@ -1204,7 +1210,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				hasInput: inputHasContent,
 				inputChanged: this.inputEditor.onDidChangeModelContent,
 				getPlatformTop: petCenterX => this.inputPart.getChatPetPlatformTop(petCenterX),
+				getPlatforms: () => this.inputPart.getChatPetPlatforms(),
 				onDidChangePlatform: this.inputPart.onDidChangeChatPetHorizontalPlatforms,
+				setPlatformOccupation: setPetPlatformOccupation,
 			}, preferredPetHost));
 			const chatPetListPadding = derived(this, reader => getChatPetListPadding(this.chatPetService.enabled.read(reader), this._visible.read(reader), this.chatPetService.scale.read(reader)));
 			this._register(autorun(reader => {
@@ -2798,9 +2806,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					if (!sessionResource) {
 						return undefined;
 					}
+					const workspace = this.viewOptions.customizationMigrationNotice!.workspace.read(reader);
 					return {
 						sessionResource,
-						workspace: this.viewOptions.customizationMigrationNotice!.workspace.read(reader),
+						workspace,
+						projectRoot: workspace,
 					};
 				});
 				noticeStore.add(this.instantiationService.createInstance(
@@ -3204,7 +3214,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private bindSessionCapabilities(model: IChatModel): IDisposable {
 		const sessionType = getChatSessionType(model.sessionResource);
-		return Event.runAndSubscribe(this.chatSessionsService.onDidChangeAvailability, () => {
+		const store = new DisposableStore();
+		store.add(Event.runAndSubscribe(this.chatSessionsService.onDidChangeAvailability, () => {
 			// Saved history can bind before its live session contribution registers.
 			if (sessionType !== localChatSessionType && !this._lockedAgent) {
 				const contribution = this.chatSessionsService.getChatSessionContribution(sessionType);
@@ -3214,11 +3225,19 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 			const supportsFork = this.chatSessionsService.sessionSupportsFork(model.sessionResource);
 			this._chatSessionSupportsForkContextKey.set(supportsFork);
+			if (!this.viewOptions.supportsSideChat) {
+				this._chatSessionSupportsSideChatContextKey.set(this.chatSessionsService.sessionSupportsSideChat(model.sessionResource));
+			}
 			const supportsRename = sessionType === localChatSessionType
 				|| this.chatSessionsService.sessionSupportsRename(model.sessionResource);
 			this._chatSessionSupportsRenameContextKey.set(supportsRename);
 			this.listWidget?.updateRendererOptions({ supportsFork });
-		});
+		}));
+		const supportsSideChat = this.viewOptions.supportsSideChat;
+		if (supportsSideChat) {
+			store.add(autorun(reader => this._chatSessionSupportsSideChatContextKey.set(supportsSideChat.read(reader))));
+		}
+		return store;
 	}
 
 	setLoading(isLoading: boolean): void {
@@ -3320,6 +3339,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._chatAgentHostFolderPickerVisibleContextKey.set(false);
 		this._folderPickerDecisionSessionResource = undefined;
 		this._chatSessionSupportsForkContextKey.set(false);
+		this._chatSessionSupportsSideChatContextKey.set(false);
 		this._chatSessionSupportsRenameContextKey.set(false);
 		this._updateAgentCapabilitiesContextKeys(undefined);
 

@@ -9,6 +9,8 @@ import { EditorInputCapabilities } from '../../../common/editor.js';
 import { ConfirmResult, IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IssueReporterData } from '../common/issue.js';
 import { IScreenshot } from './issueReporterOverlay.js';
+import { IIssueReporterVideo } from './issueReporterMedia.js';
+import { DisposableMap, IDisposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
@@ -32,7 +34,31 @@ export class IssueReporterEditorInput extends EditorInput {
 	 * Agents Window (which rebuilds the wizard).
 	 */
 	savedScreenshots: readonly IScreenshot[] | undefined;
-	savedRecordings: readonly { filePath: string; durationMs: number; thumbnailDataUrl?: string }[] | undefined;
+	private recordings: readonly IIssueReporterVideo[] | undefined;
+	private readonly importedFiles = this._register(new DisposableMap<string>());
+
+	get savedRecordings(): readonly IIssueReporterVideo[] | undefined {
+		return this.recordings;
+	}
+
+	set savedRecordings(recordings: readonly IIssueReporterVideo[] | undefined) {
+		this.recordings = recordings;
+		const paths = new Set(recordings?.map(recording => recording.filePath));
+		for (const path of this.importedFiles.keys()) {
+			if (!paths.has(path)) {
+				this.importedFiles.deleteAndDispose(path);
+			}
+		}
+	}
+
+	/** Keep reporter-owned copies alive across pane moves, until removal or input disposal. */
+	registerImportedFile(filePath: string, cleanup: IDisposable): void {
+		if (this.isDisposed() || !this.recordings?.some(recording => recording.filePath === filePath)) {
+			cleanup.dispose();
+			return;
+		}
+		this.importedFiles.set(filePath, cleanup);
+	}
 
 	override readonly closeHandler: IEditorCloseHandler;
 

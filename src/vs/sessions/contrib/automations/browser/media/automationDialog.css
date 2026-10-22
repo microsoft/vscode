@@ -90,6 +90,7 @@
  * itself (not an ancestor), so we attach the rule directly here.
  */
 .monaco-dialog-box.automation-dialog {
+	--vscode-editorWidget-background: var(--vscode-agentsPanel-background);
 	width: min(640px, 92vw);
 	min-width: min(520px, 92vw);
 	max-width: 92vw;
@@ -98,6 +99,10 @@
 	color: var(--vscode-editorWidget-foreground);
 	/* Anchor for the absolutely-positioned close-X (see below). */
 	position: relative;
+}
+
+.monaco-workbench.agent-sessions-workbench.automation-dialog-open.modern-ui-frosted-glass:not(.hc-black):not(.hc-light) {
+	--modern-ui-solid-dialog-background: var(--vscode-agentsPanel-background);
 }
 
 .monaco-workbench .monaco-dialog-box.automation-dialog:focus:not(:focus-visible) {

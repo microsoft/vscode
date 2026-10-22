@@ -34,6 +34,8 @@ export class EditorRemoteAgentHostTransport extends Disposable implements IClien
 	/** Reports the physical transport wrapped by this URI-mapping adapter. */
 	get transportKind() { return this._transport.transportKind; }
 
+	get bufferedAmount() { return this._transport.bufferedAmount; }
+
 	/** Owns the underlying transport and translates incoming messages before exposing them to the protocol client. */
 	constructor(
 		private readonly _transport: IClientTransport,

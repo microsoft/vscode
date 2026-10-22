@@ -21,9 +21,10 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileContent, IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { GitHubCommit } from '../../../../../platform/github/common/githubQueryService.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
@@ -111,6 +112,7 @@ suite('Session Artifacts', () => {
 			chat,
 			constObservable(new Set<string>()),
 			derived(reader => getSessionGitHubReferences(session.read(reader), reader, fromChat ? upcastPartial<IChat>({ resource: URI.parse('ahp-chat://peer/session'), workspace }) : undefined)),
+			{ id: 'test-artifact-details', selected: constObservable(undefined), toggle() { }, release() { } },
 			new class extends mock<IClipboardService>() { }(),
 			configurationService,
 			new class extends mock<ILabelService>() {
@@ -124,6 +126,8 @@ suite('Session Artifacts', () => {
 				override async open(resource: URI): Promise<boolean> { openedResources.push(resource); return true; }
 			}(),
 			new class extends mock<ISessionsManagementService>() {
+				override readonly onDidChangeSessions = Event.None;
+				override async acquireArtifactIntegration() { return undefined; }
 				override async removeSessionArtifact(_session: IActiveSession, artifactId: string): Promise<void> {
 					removed.push(artifactId);
 					if (removalError) {
@@ -136,6 +140,7 @@ suite('Session Artifacts', () => {
 				override readonly onDidChangeWorkspaceFolders = Event.None;
 			}(),
 			upcastPartial<ISessionsGitHubService>({ getCommit: getCommit ?? (() => commit ? Promise.resolve(commit) : new Promise(() => { })) }),
+			new class extends mock<IInstantiationService>() { }(),
 			workbenchGitHubService ?? upcastPartial<IWorkbenchGitHubService>({ onDidChangeDefaultClient: Event.None, acquireDefaultAccountClient: () => new Promise(() => { }) }),
 			new NullLogService(),
 			new class extends mock<ITelemetryService>() {
@@ -886,6 +891,7 @@ suite('Session Artifacts', () => {
 
 		assert.deepStrictEqual({
 			entries: entries.map(entry => [entry.label, entry.toolbarActions?.map(action => action.label) ?? []]),
+			footerLabels: entries.filter(entry => entry.label !== 'index.ts').map(entry => entry.toolbarActions?.[0].hoverLabel),
 			copied,
 		}, {
 			entries: [
@@ -896,6 +902,7 @@ suite('Session Artifacts', () => {
 				['index.ts', ['Copy Path']],
 				['Chat settings', ['Copy URI']],
 			],
+			footerLabels: ['Copy URL', 'Copy URL', 'Copy URL', 'Copy URL', 'Copy URL'],
 			copied: [
 				pullRequestLink.toString(true),
 				issueLink.toString(true),

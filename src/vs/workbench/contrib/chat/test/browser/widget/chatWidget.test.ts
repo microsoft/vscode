@@ -2349,6 +2349,7 @@ suite('ChatWidget - acceptInput submission', () => {
 			_chatAgentHostProviderIdContextKey: { value: ChatContextKeys.chatAgentHostProviderId.bindTo(fixture.contextKeyService) },
 			_agentSupportsAttachmentsContextKey: { value: fixture.contextKeyService.createKey('test.agentSupportsAttachments', false) },
 			_chatSessionSupportsForkContextKey: { value: fixture.contextKeyService.createKey('test.sessionSupportsFork', false) },
+			_chatSessionSupportsSideChatContextKey: { value: ChatContextKeys.chatSessionSupportsSideChat.bindTo(fixture.contextKeyService) },
 			_chatSessionSupportsRenameContextKey: { value: fixture.contextKeyService.createKey('test.sessionSupportsRename', false) },
 			chatAgentService: { value: mockObject<IChatAgentService>()() },
 			_updateAgentHostWorkingDirectoryContextKeys: { value: () => { } },
@@ -2367,6 +2368,36 @@ suite('ChatWidget - acceptInput submission', () => {
 		};
 		return { ...fixture, availabilityChanged, contributions, registerContribution, bindSession };
 	}
+
+	test('updates side-chat visibility from the loaded session capability', () => {
+		const fixture = createSessionBindingFixture();
+		fixture.chatSessionsService.sessionSupportsSideChat.returns(true);
+		fixture.bindSession(fixture.original.model);
+		const supported = fixture.contextKeyService.getContextKeyValue(ChatContextKeys.chatSessionSupportsSideChat.key);
+		fixture.chatSessionsService.sessionSupportsSideChat.returns(false);
+		fixture.availabilityChanged.fire();
+		assert.deepStrictEqual({
+			supported,
+			unsupported: fixture.contextKeyService.getContextKeyValue(ChatContextKeys.chatSessionSupportsSideChat.key),
+		}, { supported: true, unsupported: false });
+	});
+
+	test('uses the host side-chat capability and disposes its observation when unbound', () => {
+		const fixture = createSessionBindingFixture();
+		const supportsSideChat = observableValue('supportsSideChat', true);
+		fixture.viewOptions.supportsSideChat = supportsSideChat;
+		const binding = fixture.bindSession(fixture.original.model);
+		const values = [fixture.contextKeyService.getContextKeyValue(ChatContextKeys.chatSessionSupportsSideChat.key)];
+		supportsSideChat.set(false, undefined);
+		values.push(fixture.contextKeyService.getContextKeyValue(ChatContextKeys.chatSessionSupportsSideChat.key));
+		fixture.chatSessionsService.sessionSupportsSideChat.returns(true);
+		fixture.availabilityChanged.fire();
+		values.push(fixture.contextKeyService.getContextKeyValue(ChatContextKeys.chatSessionSupportsSideChat.key));
+		binding.dispose();
+		supportsSideChat.set(true, undefined);
+		values.push(fixture.contextKeyService.getContextKeyValue(ChatContextKeys.chatSessionSupportsSideChat.key));
+		assert.deepStrictEqual(values, [true, false, false, false]);
+	});
 
 	for (const pickerMatchesSession of [true, false]) {
 		test(`binds a history session to its late live contribution with ${pickerMatchesSession ? 'matching' : 'stale'} model selection`, async () => {

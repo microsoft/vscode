@@ -92,6 +92,8 @@ export interface IChatPillEntry {
 	readonly tooltip?: string;
 	/** Rich hover content for the pill when this is the only entry. */
 	readonly pillHover?: IManagedHoverContent;
+	/** Optional structured rendering when this entry is the only item. The entry's owner owns its lifetime. */
+	readonly inlinePill?: IChatPill;
 	/** Starts resolving metadata for this entry without opening it. */
 	readonly prefetch?: () => void;
 	open(): void;
@@ -635,6 +637,22 @@ class ChatPillsToolBar extends ToolBar {
 /** Opaque base so a pill never shows the content it floats over; `chatPills.css` tints it. */
 const chatPillBackground = asCssVariableWithDefault('chat.list.background', asCssVariable(buttonSecondaryBackground));
 
+/** Creates a shared chat pill button. The caller owns its lifetime. */
+export function createChatPillButton(container: HTMLElement, options?: { readonly supportIcons?: boolean }): Button {
+	const button = new Button(container, {
+		secondary: true,
+		small: true,
+		...options,
+		...defaultButtonStyles,
+		// Keep border sizing in CSS so joined segments can share edges without overriding inline styles.
+		buttonSecondaryBorder: undefined,
+		buttonSecondaryBackground: chatPillBackground,
+		buttonSecondaryHoverBackground: chatPillBackground,
+	});
+	button.element.classList.add('monaco-text-button', 'chat-pill-button');
+	return button;
+}
+
 /**
  * Shared plumbing for every chat pill: the button, click routing, enabled
  * state, and the roving-focus hooks the toolbar drives. Subclasses own only
@@ -665,16 +683,7 @@ export abstract class ChatPillActionViewItemBase extends BaseActionViewItem {
 			container.classList.add(this.itemModifierClass);
 		}
 
-		// Hover uses the same opaque base; CSS layers the hover tint on top.
-		const button = this.button = this._register(new Button(container, {
-			secondary: true,
-			small: true,
-			...this.buttonOptions,
-			...defaultButtonStyles,
-			buttonSecondaryBackground: chatPillBackground,
-			buttonSecondaryHoverBackground: chatPillBackground,
-		}));
-		button.element.classList.add('monaco-text-button', 'chat-pill-button');
+		const button = this.button = this._register(createChatPillButton(container, this.buttonOptions));
 		if (this.buttonModifierClass) {
 			button.element.classList.add(this.buttonModifierClass);
 		}

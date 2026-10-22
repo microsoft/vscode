@@ -322,7 +322,7 @@ export class ModelCard extends DisposableStore {
 		}
 		// Without tiers to sit below, Auto's discount follows its description.
 		if (isAuto && !effort && metadata.autoModelDiscountPercent !== undefined) {
-			this._renderDescription(ILanguageModelChatMetadata.getAutoModelDiscountDescription(metadata.autoModelDiscountPercent, undefined, !!metadata.autoModelFusion));
+			this._renderDescription(ILanguageModelChatMetadata.getAutoModelDiscountDescription(metadata.autoModelDiscountPercent));
 		}
 
 		if (!isAuto) {
@@ -588,7 +588,7 @@ export class ModelCard extends DisposableStore {
 			const discountPercent = isAuto && group === MODEL_CONFIG_GROUP_EFFORT
 				? ILanguageModelChatMetadata.getAutoTierDiscountPercent(this._options.model.metadata, choice?.value)
 				: undefined;
-			return discountPercent === undefined ? undefined : ILanguageModelChatMetadata.getAutoModelDiscountDescription(discountPercent, choice?.label, fusion);
+			return discountPercent === undefined ? undefined : ILanguageModelChatMetadata.getAutoModelDiscountDescription(discountPercent, choice?.label);
 		};
 		let tierDescription: HTMLElement | undefined;
 		let tierDescriptionText: string | undefined;
@@ -735,17 +735,14 @@ export class ModelCard extends DisposableStore {
 			.flatMap(choice => {
 				const promotion = ILanguageModelChatMetadata.getAutoTierPromotion(metadata, choice.value, now);
 				return promotion && !shown.has(promotion.id) && shown.add(promotion.id) ? [promotion] : [];
-			})
-			.sort((a, b) => Number(ILanguageModelChatMetadata.isAutoTierPromotionUpcoming(a, now)) - Number(ILanguageModelChatMetadata.isAutoTierPromotionUpcoming(b, now)));
-		for (const { message, ...promotion } of promotions) {
-			// A discount-only promotion shows only in the discount line.
+			});
+		for (const { message } of promotions) {
+			// A discount-only promotion shows only in the badge.
 			if (!message) {
 				continue;
 			}
-			const when = ILanguageModelChatMetadata.isAutoTierPromotionUpcoming(promotion, now)
-				? ILanguageModelChatMetadata.getPromoStartsAtLabel(promotion.startsAt)
-				: ILanguageModelChatMetadata.getPromoEndsAtLabel(promotion.endsAt);
-			const banner = createMessageBanner(when ? `${message} ${when}` : message, 'chat-model-hover-promo-text', Codicon.info, this._contentDisposables, this._options.openerService);
+			// The service's message already says when the promotion runs.
+			const banner = createMessageBanner(message, 'chat-model-hover-promo-text', Codicon.info, this._contentDisposables, this._options.openerService);
 			banner.classList.add('chat-model-card-tier-promotion');
 			this.element.appendChild(banner);
 		}

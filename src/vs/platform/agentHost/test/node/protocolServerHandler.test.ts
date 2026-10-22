@@ -41,11 +41,13 @@ import { FileType } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
-import { AgentPolicyError, type IAgent, type IAgentCreateChatRequestOptions, type IAgentCreateChatWorkspace, type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
+import { AgentPolicyError, type IAgent, type IAgentCreateChatRequestOptions, type IAgentCreateChatWorkspace, type IAgentCreateSessionConfig, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentCreateChatInitialMessageContext, type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
-import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, StopBackgroundWorkExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest } from '../../common/agentHostExtensionProtocol.js';
+import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, StopBackgroundWorkExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
 import { supportsAgentHostSavedChat, supportsAgentHostSavedChatContinuation } from '../../common/meta/agentHostSavedChatMeta.js';
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult, ResourceType } from '../../common/state/protocol/commands.js';
+import type { IArtifactIntegrationAccess } from '../../../artifactIntegrations/common/artifactIntegration.js';
+import type { IClientArtifactIntegrationRegistry, IClientArtifactIntegrations } from '../../common/clientArtifactIntegrations.js';
 import type { AutomationCapabilities, Implementation } from '../../common/state/protocol/common/commands.js';
 import type { InvokeChangesetOperationParams } from '../../common/state/protocol/channels-changeset/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../../common/state/protocol/channels-automation/commands.js';
@@ -267,6 +269,8 @@ class MockAgentService extends Disposable implements IAgentService {
 	afterListSessionsSnapshot: (() => void) | undefined;
 	readonly automationRunRequests: RunAutomationParams[] = [];
 	automationRunResult: RunAutomationResult | undefined;
+	artifactIntegrations: IArtifactIntegrationAccess | undefined;
+	artifactIntegrationClients: IClientArtifactIntegrationRegistry | undefined;
 
 	private readonly _onDidAction = new Emitter<import('../../common/state/sessionActions.js').ActionEnvelope>();
 	readonly onDidAction = this._onDidAction.event;
@@ -434,6 +438,7 @@ class MockAgentService extends Disposable implements IAgentService {
 	}
 	async cancelDebugLogs(_progressToken: string): Promise<void> { }
 	async authenticate(_params: AuthenticateParams): Promise<AuthenticateResult> { return { authenticated: true }; }
+	async getModelsForCredentials(_provider: string, _credentials: IAgentHostCredentialSource, _token?: CancellationToken): Promise<readonly IAgentModelInfo[]> { return []; }
 	async resourceWrite(_params: ResourceWriteParams): Promise<ResourceWriteResult> { return {}; }
 	async resourceList(uri: URI): Promise<ResourceListResult> {
 		this.browsedUris.push(uri);
@@ -894,6 +899,34 @@ suite('ProtocolServerHandler', () => {
 		await assert.rejects(trustPromise, /disconnected/);
 	});
 
+	test('stops relaying a client\'s artifact integrations without messaging its closed connection', async () => {
+		let registered: IClientArtifactIntegrations | undefined;
+		agentService.artifactIntegrations = { acquireArtifact: async () => { throw new Error('The host\'s own integrations are not used by this test.'); } };
+		agentService.artifactIntegrationClients = {
+			register: (_clientId, integrations) => {
+				registered = integrations;
+				return toDisposable(() => registered = undefined);
+			},
+		};
+		const transport = connectClient('client-1');
+		transport.simulateMessage(request(2, RegisterClientArtifactIntegrationsExtensionMethod, { integrations: [{ id: 'exp', label: 'ExP', automationOptions: [] }] }));
+		await handler.whenIdle();
+		const acquiring = registered!.access.acquireArtifact(sessionUri, 'experiment');
+		const sentBeforeClose = transport.sent.length;
+		transport.simulateClose();
+		const failure = await acquiring.then(() => 'acquired', (error: Error) => error.message);
+
+		assert.deepStrictEqual({
+			sentAfterClose: transport.sent.slice(sentBeforeClose),
+			failure,
+			withdrawn: registered === undefined,
+		}, {
+			sentAfterClose: [],
+			failure: 'Client client-1 disconnected',
+			withdrawn: true,
+		});
+	});
+
 	test('handshake advertises only implemented automation capabilities', () => {
 		agentService.automationCapabilities = { create: {}, runCancellation: {} };
 		const transport = connectClient('automation-client');
@@ -1333,9 +1366,13 @@ suite('ProtocolServerHandler', () => {
 		assert.strictEqual(action?.channel, AUTOMATION_CATALOG_URI);
 	});
 
-	for (const clientInfo of [editorWindowAgentHostClientInfo, agentsWindowAgentHostClientInfo, { name: 'mobile-client' }, undefined]) {
-		test(`automation model options are adapted at the boundary for ${clientInfo?.name ?? 'unmarked peer'}`, async () => {
-			const config = { reasoningEffort: 'high', autoTier: 'intelligence' };
+	const automationModelConfigs: Record<string, JsonPrimitive>[] = [
+		{ reasoningEffort: 'high', autoTier: 'intelligence' },
+		{ thinkingLevel: 'high', tier: 'intelligence' },
+		{ thinkingLevel: 'high', reasoningEffort: 'low', tier: 'intelligence', autoTier: 'efficiency' },
+	];
+	for (const { clientInfo, config } of [editorWindowAgentHostClientInfo, agentsWindowAgentHostClientInfo, { name: 'mobile-client' }, undefined].flatMap(clientInfo => automationModelConfigs.map(config => ({ clientInfo, config })))) {
+		test(`automation model options are adapted at the boundary for ${clientInfo?.name ?? 'unmarked peer'} from ${JSON.stringify(config)}`, async () => {
 			const entries: AutomationEntry[] = ['copilotcli', 'claude', undefined].map((provider, index) => ({
 				resource: `ahp-automation:/${index}`,
 				definition: {
@@ -1391,12 +1428,13 @@ suite('ProtocolServerHandler', () => {
 			const subscription = await subscribed;
 			assert.ok(hasKey(subscription, { result: true }));
 			const vscode = clientInfo?.name === editorWindowAgentHostClientInfo.name || clientInfo?.name === agentsWindowAgentHostClientInfo.name;
-			const expected = entries.map(entry => !vscode || entry.definition.session.provider !== 'copilotcli' ? entry : {
+			const expectedConfig = vscode ? { thinkingLevel: 'high', tier: 'intelligence' } : { reasoningEffort: 'high', autoTier: 'intelligence' };
+			const expected = entries.map(entry => entry.definition.session.provider !== 'copilotcli' ? entry : {
 				...entry,
 				definition: {
 					...entry.definition,
-					message: { ...entry.definition.message, model: { id: 'model', config: { thinkingLevel: 'high', tier: 'intelligence' } } },
-					session: { ...entry.definition.session, model: { id: 'model', config: { thinkingLevel: 'high', tier: 'intelligence' } } },
+					message: { ...entry.definition.message, model: { id: 'model', config: expectedConfig } },
+					session: { ...entry.definition.session, model: { id: 'model', config: expectedConfig } },
 				},
 			});
 			assert.deepStrictEqual({
@@ -1505,7 +1543,7 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
-	test('TCP connections remain unadvertised and unsupported after protocol sync', async () => {
+	test('unauthenticated transports do not advertise or open TCP connections', async () => {
 		const transport = connectClient('client-tcp');
 		const initialize = findResponse(transport.sent, 1);
 		assert.ok(initialize && hasKey(initialize, { result: true }));
@@ -1517,7 +1555,7 @@ suite('ProtocolServerHandler', () => {
 			response: await response,
 		}, {
 			capability: undefined,
-			response: { jsonrpc: '2.0', id: 2, error: { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found: createTcpConnection' } },
+			response: { jsonrpc: '2.0', id: 2, error: { code: AhpErrorCodes.PermissionDenied, message: 'TCP requires an authenticated owner of this host' } },
 		});
 	});
 
@@ -3791,7 +3829,7 @@ suite('ProtocolServerHandler', () => {
 	suite('scoped relay credentials', () => {
 		const resource = 'https://api.github.com';
 
-		async function fixture(extension?: IProtocolServerExtension, resolveRelayCredentials?: IProtocolServerConfig['resolveRelayCredentials']) {
+		async function fixture(extension?: IProtocolServerExtension, resolveRelayCredentials?: IProtocolServerConfig['resolveRelayCredentials'], withHostCredential = true) {
 			const authentication = disposables.add(new AgentHostAuthenticationService(new NullLogService()));
 			const providerTokens: string[] = [];
 			const handledTokens: string[] = [];
@@ -3809,7 +3847,9 @@ suite('ProtocolServerHandler', () => {
 				}
 			}();
 			disposables.add(authentication.onDidChangeAuthToken(event => changedTokens.push(event.token)));
-			await authentication.authenticate({ resource, token: 'desktop-token' }, [provider]);
+			if (withHostCredential) {
+				await authentication.authenticate({ resource, token: 'desktop-token' }, [provider]);
+			}
 			agentService.authenticate = async (params, scope?: IAgentHostAuthenticationScope) => {
 				authentications.push({ params, scope });
 				return authentication.authenticate(params, [provider], scope);
@@ -3820,13 +3860,14 @@ suite('ProtocolServerHandler', () => {
 				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
 				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 			));
-			const connect = (clientId: string, passive = false, owner = '123') => {
+			const connect = (clientId: string, passive = false, owner = '123', expiry?: Event<void>) => {
 				const transport = disposables.add(new class extends MockProtocolTransport {
 					override get relayAuthentication(): IProtocolTransport['relayAuthentication'] {
 						return { resource, owner, authenticated: this.relayAuthenticated === true };
 					}
 				}(AgentHostTransportKind.WebSocket, clientId, passive));
 				transport.relayAuthenticated = false;
+				transport.onDidRelayAuthenticationExpire = expiry;
 				transport.relayAuthenticate = async params => {
 					if (params.resource === resource) {
 						transport.relayAuthenticated = true;
@@ -3871,6 +3912,157 @@ suite('ProtocolServerHandler', () => {
 				handledTokens: ['desktop-token', 'desktop-token'],
 				changedTokens: ['desktop-token'],
 			});
+		});
+
+		test('authenticated CLI-host lanes receive isolated model catalogs in snapshots and live updates', async () => {
+			const f = await fixture(undefined, undefined, false);
+			const agents: AgentInfo[] = [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] }];
+			stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootAgentsChanged, agents });
+			agentService.getModelsForCredentials = async (provider, credentials) => {
+				const token = credentials.getCredential({ resource })?.token;
+				return token ? [{ provider, id: token, name: token, supportsVision: false }] : [];
+			};
+			const first = f.connect('first-model-client');
+			const second = f.connect('second-model-client');
+			first.simulateMessage(request(3, 'subscribe', { channel: ROOT_STATE_URI }));
+			second.simulateMessage(request(3, 'subscribe', { channel: ROOT_STATE_URI }));
+			await f.authenticate(first, 'first-model');
+			await f.authenticate(second, 'second-model');
+			first.simulateMessage(request(4, 'subscribe', { channel: ROOT_STATE_URI }));
+			second.simulateMessage(request(4, 'subscribe', { channel: ROOT_STATE_URI }));
+			await f.scopedHandler.whenIdle();
+			const snapshotModels = (transport: MockProtocolTransport) => {
+				const response = findResponse(transport.sent, 4);
+				assert.ok(response && hasKey(response, { result: true }));
+				const snapshot = (response.result as SubscribeResult).snapshot;
+				assert.ok(snapshot);
+				return (snapshot.state as RootState).agents.flatMap(agent => agent.models.map(model => model.id));
+			};
+			const liveModels = (transport: MockProtocolTransport) => {
+				const envelopes = transport.sent.filter(isJsonRpcNotification)
+					.filter(message => message.method === 'action')
+					.map(message => message.params as ActionEnvelope);
+				const latest = envelopes.findLast(envelope => envelope.action.type === ActionType.RootAgentsChanged);
+				return latest?.action.type === ActionType.RootAgentsChanged ? latest.action.agents.flatMap(agent => agent.models.map(model => model.id)) : [];
+			};
+			assert.deepStrictEqual({
+				snapshots: [snapshotModels(first), snapshotModels(second)],
+				live: [liveModels(first), liveModels(second)],
+				shared: stateManager.rootState.agents,
+				providerTokens: f.providerTokens,
+			}, {
+				snapshots: [['first-model'], ['second-model']],
+				live: [['first-model'], ['second-model']],
+				shared: agents,
+				providerTokens: [],
+			});
+		});
+
+		test('model discovery failure is logged without failing authentication or borrowing the host catalog', async () => {
+			const f = await fixture();
+			stateManager.dispatchServerAction(ROOT_STATE_URI, {
+				type: ActionType.RootAgentsChanged,
+				agents: [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [{ provider: 'copilotcli', id: 'host-model', name: 'Host Model' }] }],
+			});
+			agentService.getModelsForCredentials = async () => { throw new Error('model discovery failed'); };
+			const transport = f.connect('failed-model-client');
+			await f.authenticate(transport, 'caller-token');
+			transport.simulateMessage(request(4, 'subscribe', { channel: ROOT_STATE_URI }));
+			await f.scopedHandler.whenIdle();
+			const response = findResponse(transport.sent, 4);
+			assert.ok(response && hasKey(response, { result: true }));
+			const snapshot = (response.result as SubscribeResult).snapshot;
+			assert.ok(snapshot);
+			assert.deepStrictEqual({
+				models: (snapshot.state as RootState).agents.flatMap(agent => agent.models),
+				errors: logService.errors,
+				hostToken: f.authentication.getAuthToken({ resource }),
+			}, {
+				models: [],
+				errors: ['[ProtocolServer] Failed to discover connection-scoped models'],
+				hostToken: 'desktop-token',
+			});
+		});
+
+		test('disconnect cancels pending model discovery and drops its eventual result', async () => {
+			const f = await fixture();
+			stateManager.dispatchServerAction(ROOT_STATE_URI, {
+				type: ActionType.RootAgentsChanged,
+				agents: [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] }],
+			});
+			const gate = new DeferredPromise<readonly IAgentModelInfo[]>();
+			let cancellation: CancellationToken | undefined;
+			agentService.getModelsForCredentials = async (_provider, _source, token) => {
+				cancellation = token;
+				return gate.p;
+			};
+			const transport = f.connect('disconnected-model-client');
+			const authenticated = waitForResponse(transport, 4);
+			transport.simulateMessage(request(4, 'authenticate', { resource, token: 'caller-token' }));
+			await authenticated;
+			const before = transport.sent.length;
+			transport.simulateClose();
+			gate.complete([{ provider: 'copilotcli', id: 'late-model', name: 'Late Model', supportsVision: false }]);
+			await f.scopedHandler.whenIdle();
+			assert.deepStrictEqual({ cancelled: cancellation?.isCancellationRequested, additionalMessages: transport.sent.length - before, errors: logService.errors }, {
+				cancelled: true, additionalMessages: 0, errors: [],
+			});
+		});
+
+		test('relay identity expiry withdraws the connection model catalog', async () => {
+			const f = await fixture();
+			const expiry = disposables.add(new Emitter<void>());
+			stateManager.dispatchServerAction(ROOT_STATE_URI, {
+				type: ActionType.RootAgentsChanged,
+				agents: [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] }],
+			});
+			agentService.getModelsForCredentials = async () => [{ provider: 'copilotcli', id: 'caller-model', name: 'Caller Model', supportsVision: false }];
+			const transport = f.connect('expired-model-client', false, '123', expiry.event);
+			transport.simulateMessage(request(3, 'subscribe', { channel: ROOT_STATE_URI }));
+			await f.authenticate(transport, 'caller-token');
+			transport.relayAuthenticated = false;
+			expiry.fire();
+			const catalogs = transport.sent.filter(isJsonRpcNotification)
+				.filter(message => message.method === 'action')
+				.map(message => (message.params as ActionEnvelope).action)
+				.filter(action => action.type === ActionType.RootAgentsChanged)
+				.map(action => action.agents.flatMap(agent => agent.models.map(model => model.id)));
+			assert.deepStrictEqual(catalogs, [['caller-model'], []]);
+		});
+
+		test('a rotated credential cannot publish a superseded model request', async () => {
+			const f = await fixture();
+			stateManager.dispatchServerAction(ROOT_STATE_URI, {
+				type: ActionType.RootAgentsChanged,
+				agents: [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] }],
+			});
+			const oldModels = new DeferredPromise<readonly IAgentModelInfo[]>();
+			agentService.getModelsForCredentials = async (provider, credentials) => {
+				const token = credentials.getCredential({ resource })?.token;
+				return token === 'old-token' ? oldModels.p : [{ provider, id: 'new-model', name: 'New Model', supportsVision: false }];
+			};
+			const transport = f.connect('rotated-model-client');
+			transport.simulateMessage(request(3, 'subscribe', { channel: ROOT_STATE_URI }));
+			const oldAuthenticated = waitForResponse(transport, 4);
+			transport.simulateMessage(request(4, 'authenticate', { resource, token: 'old-token' }));
+			await oldAuthenticated;
+			const newModels = Event.toPromise(Event.filter(transport.onDidSend, message => {
+				if (!isJsonRpcNotification(message) || message.method !== 'action') {
+					return false;
+				}
+				const { action } = message.params as ActionEnvelope;
+				return action.type === ActionType.RootAgentsChanged && action.agents.some(agent => agent.models.some(model => model.id === 'new-model'));
+			}));
+			transport.simulateMessage(request(5, 'authenticate', { resource, token: 'new-token' }));
+			await newModels;
+			oldModels.complete([{ provider: 'copilotcli', id: 'old-model', name: 'Old Model', supportsVision: false }]);
+			await f.scopedHandler.whenIdle();
+			const catalogs = transport.sent.filter(isJsonRpcNotification)
+				.filter(message => message.method === 'action')
+				.map(message => (message.params as ActionEnvelope).action)
+				.filter(action => action.type === ActionType.RootAgentsChanged)
+				.map(action => action.agents.flatMap(agent => agent.models.map(model => model.id)));
+			assert.deepStrictEqual(catalogs, [['new-model']]);
 		});
 
 		test('only listener configuration can delegate execution to a local credential source', async () => {
@@ -4556,19 +4748,30 @@ suite('ProtocolServerHandler', () => {
 	}
 
 	for (const scenario of [
-		{ name: 'older editor', clientInfo: { ...editorWindowAgentHostClientInfo, version: '1.142.0' }, vscode: true },
-		{ name: 'current editor', clientInfo: { ...editorWindowAgentHostClientInfo, version: '1.143.0' }, vscode: true },
-		{ name: 'mobile', clientInfo: { name: 'mobile-client' }, vscode: false },
+		{ name: 'older editor', clientInfo: { ...editorWindowAgentHostClientInfo, version: '1.142.0' }, vscode: true, provider: 'copilotcli' },
+		{ name: 'current editor', clientInfo: { ...editorWindowAgentHostClientInfo, version: '1.143.0' }, vscode: true, provider: 'copilotcli' },
+		{ name: 'Agents window', clientInfo: agentsWindowAgentHostClientInfo, vscode: true, provider: 'copilotcli' },
+		{ name: 'mobile', clientInfo: { name: 'mobile-client' }, vscode: false, provider: 'copilotcli' },
+		{ name: 'unmarked peer', clientInfo: undefined, vscode: false, provider: 'copilotcli' },
+		{ name: 'Claude in VS Code', clientInfo: editorWindowAgentHostClientInfo, vscode: true, provider: 'claude' },
+		{ name: 'Claude on mobile', clientInfo: { name: 'mobile-client' }, vscode: false, provider: 'claude' },
 	]) {
-		const selections: { id: string; config: Record<string, JsonPrimitive>; legacy: Record<string, JsonPrimitive> }[] = [
-			{ id: 'model', config: { reasoningEffort: 'high' }, legacy: { thinkingLevel: 'high' } },
-			{ id: 'auto', config: { autoTier: 'intelligence' }, legacy: { tier: 'intelligence' } },
+		const selections: { id: string; config: Record<string, JsonPrimitive>; legacy: Record<string, JsonPrimitive>; conflicting: Record<string, JsonPrimitive> }[] = [
+			{ id: 'model', config: { reasoningEffort: 'max' }, legacy: { thinkingLevel: 'max' }, conflicting: { reasoningEffort: 'low' } },
+			{ id: 'auto', config: { autoTier: 'intelligence' }, legacy: { tier: 'intelligence' }, conflicting: { autoTier: 'efficiency' } },
+			{ id: 'unconfigured', config: {}, legacy: {}, conflicting: {} },
 		];
-		for (const selection of selections) {
-			test(`${scenario.name} preserves shared ${selection.id} options through snapshots, updates and replay`, async () => {
-				const summary = { ...makeSessionSummary(), provider: 'copilotcli' };
+		for (const selection of selections.flatMap(selection => [
+			{ ...selection, source: 'canonical', input: selection.config },
+			{ ...selection, source: 'VS Code', input: selection.legacy },
+			{ ...selection, source: 'conflicting', input: { ...selection.conflicting, ...selection.legacy } },
+		])) {
+			test(`${scenario.name} preserves shared ${selection.id} options from ${selection.source} through snapshots, updates and replay`, async () => {
+				const summary = { ...makeSessionSummary(), provider: scenario.provider };
 				const chat = summary.defaultChat;
-				const message: Message = { text: 'Shared draft', origin: { kind: MessageKind.User }, model: { id: selection.id, config: selection.config } };
+				const sharedConfig = { contextSize: 200_000, customOption: 'preserved' };
+				const config = { ...sharedConfig, ...selection.input };
+				const message: Message = { text: 'Shared draft', origin: { kind: MessageKind.User }, model: { id: selection.id, config } };
 				const history: Turn = { id: 'history', message, responseParts: [], state: TurnState.Complete, usage: undefined };
 				stateManager.restoreSession(summary, [history], creationTimeChatStorageResource, { draft: message });
 				const actions: ChatAction[] = [
@@ -4637,7 +4840,7 @@ suite('ProtocolServerHandler', () => {
 				const subscription = await subscribed;
 				assert.ok(hasKey(subscription, { result: true }));
 				const restored = (subscription.result as SubscribeResult).snapshot;
-				const expected = scenario.vscode ? selection.legacy : selection.config;
+				const expected = scenario.provider === 'copilotcli' ? { ...sharedConfig, ...scenario.vscode ? selection.legacy : selection.config } : config;
 				assert.deepStrictEqual({
 					initial: snapshotConfigs(initial),
 					live,
@@ -4650,10 +4853,44 @@ suite('ProtocolServerHandler', () => {
 					live: Array.from({ length: 5 }, () => expected),
 					replayed: Array.from({ length: 5 }, () => expected),
 					restored: Array.from({ length: 7 }, () => expected),
-					authoritative: Array.from({ length: 7 }, () => selection.config),
+					authoritative: Array.from({ length: 7 }, () => config),
 				});
 			});
 		}
+	}
+
+	for (const clientInfo of [editorWindowAgentHostClientInfo, agentsWindowAgentHostClientInfo]) {
+		test(`${clientInfo.name} and mobile can change the shared effort without retaining a stale alias`, async () => {
+			const summary = { ...makeSessionSummary(), provider: 'copilotcli' };
+			const chat = summary.defaultChat;
+			stateManager.restoreSession(summary, [], creationTimeChatStorageResource);
+			const editor = disposables.add(connectClient('editor', [ROOT_STATE_URI, chat], clientInfo));
+			const mobile = disposables.add(connectClient('mobile', [ROOT_STATE_URI, chat], { name: 'mobile-client' }));
+			await handler.whenIdle();
+			const readDraftConfig = (transport: MockProtocolTransport) => {
+				const action = findNotifications(transport.sent, 'action').map(notification => (notification.params as ActionEnvelope).action).findLast(action => action.type === ActionType.ChatDraftChanged);
+				assert.ok(action?.type === ActionType.ChatDraftChanged);
+				return action.draft?.model?.config;
+			};
+			const changeEffort = async (transport: MockProtocolTransport, config: Record<string, JsonPrimitive>, clientSeq: number) => {
+				transport.simulateMessage(notification('dispatchAction', {
+					channel: chat, clientSeq,
+					action: {
+						type: ActionType.ChatDraftChanged,
+						draft: { text: '', origin: { kind: MessageKind.User }, model: { id: 'model', config } },
+					},
+				}));
+				await handler.whenIdle();
+				return { editor: readDraftConfig(editor), mobile: readDraftConfig(mobile) };
+			};
+			const fromEditor = await changeEffort(editor, { thinkingLevel: 'max', contextSize: 200_000 }, 1);
+			const fromMobile = await changeEffort(mobile, { ...fromEditor.mobile, reasoningEffort: 'high' }, 1);
+			const backToEditor = await changeEffort(editor, { ...fromMobile.editor, thinkingLevel: 'low' }, 2);
+			assert.deepStrictEqual([fromEditor, fromMobile, backToEditor], ['max', 'high', 'low'].map(effort => ({
+				editor: { thinkingLevel: effort, contextSize: 200_000 },
+				mobile: { reasoningEffort: effort, contextSize: 200_000 },
+			})));
+		});
 	}
 
 	for (const initiallyAuthenticated of [false, true]) {
