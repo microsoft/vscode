@@ -12,6 +12,7 @@ import { IListStyles } from '../../../../../base/browser/ui/list/listWidget.js';
 import { IObjectTreeElement, ITreeNode, ITreeRenderer, ITreeContextMenuEvent, ObjectTreeElementCollapseState, ITreeDragAndDrop, ITreeDragOverReaction, TreeDragOverBubble } from '../../../../../base/browser/ui/tree/tree.js';
 import { LabelFuzzyScore, RenderIndentGuides, TreeFindMode } from '../../../../../base/browser/ui/tree/abstractTree.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { groupByMap } from '../../../../../base/common/collections.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
@@ -3307,6 +3308,12 @@ function getSectionPlacement(sectionId: string): SessionListPlacement | undefine
 	return isShortcutSection(sectionId) ? undefined : { kind: 'section', sectionId };
 }
 
+function isSamePlacement(a: SessionListPlacement, b: SessionListPlacement): boolean {
+	const header = getPlacementHeader(a);
+	const other = getPlacementHeader(b);
+	return header.kind === other.kind && header.id === other.id;
+}
+
 function getPlacementHeader(placement: SessionListPlacement): ISessionDropTargetHeader {
 	switch (placement.kind) {
 		case 'archived':
@@ -3956,6 +3963,46 @@ export interface ISessionsList {
 	getGroupsInDisplayOrder(): ISessionGroup[];
 }
 
+/**
+ * A node of {@link SessionsList.getTreeSnapshot}: a section or custom group
+ * header with its rows, or a session row. Headers are identified by their
+ * section id, such as `pinned`, `workspace:<label>`, or `group:<groupId>`.
+ */
+export type SessionsListSnapshotNode =
+	| {
+		readonly type: 'section' | 'group';
+		readonly id: string;
+		readonly label: string;
+		readonly collapsed: boolean;
+		/** Capping hides the header behind the "+N more" row. */
+		readonly hidden?: boolean;
+		/** A comparison group, which owns its membership and position. */
+		readonly comparison?: boolean;
+		readonly children: readonly SessionsListSnapshotNode[];
+	}
+	| {
+		readonly type: 'session';
+		readonly session: ISession;
+		/** Capping hides the row behind its section's "Show more" row. */
+		readonly hidden?: boolean;
+	};
+
+/** Where {@link SessionsList.moveSessionsTo} positions sessions within their placement. */
+export type SessionsListSessionPosition =
+	| 'top'
+	| 'bottom'
+	| { readonly session: ISession; readonly position: 'before' | 'after' };
+
+/** Where {@link SessionsList.moveHeaderTo} positions a header among its new siblings. */
+export interface ISessionsListHeaderPosition {
+	/** The section id of a sibling header. */
+	readonly siblingId: string;
+	readonly position: 'before' | 'after';
+}
+
+/** The placement of the section a session renders in when it is neither archived, pinned, nor grouped. */
+export const SESSIONS_LIST_UNGROUPED_PLACEMENT = 'ungrouped';
+
 /** The resettable state of a single value, which Reset Filters sets to `defaultValue`. */
 function resettableValue<T>(read: () => T, write: (value: T) => void, defaultValue: T): ISessionsListResettableState {
 	return {
@@ -4083,6 +4130,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 	/** How many groups each rendered custom group is nested in, by group id. */
 	private readonly groupDepths = new Map<string, number>();
 	private expandedMoreFolders = false;
+	/** The grouping sections that capping currently hides behind the "+N more" row. */
+	private hiddenGroupingSections: readonly ISessionSection[] = [];
 	private openWindowSourceFolder: URI | undefined;
 	private hasFindPattern = false;
 	private suspendCollapseStatePersistence = false;
@@ -5404,6 +5453,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		};
 
+		this.hiddenGroupingSections = [];
 		if (grouping === SessionsGrouping.Date) {
 			// Groups form a contiguous, fully user-ordered block right below the
 			// Pinned section. They no longer interleave with the date sections by
@@ -5466,6 +5516,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 						element: { showMore: true as const, kind, mode: 'less' as const, sectionId: SHOW_MORE_FOLDERS_LABEL, stateId: SHOW_MORE_FOLDERS_LABEL, sectionLabel: SHOW_MORE_FOLDERS_LABEL, remainingCount: 0 },
 					});
 				} else {
+					this.hiddenGroupingSections = moreFolderSections;
 					children.push({
 						element: { showMore: true as const, kind, mode: 'more' as const, sectionId: SHOW_MORE_FOLDERS_LABEL, stateId: SHOW_MORE_FOLDERS_LABEL, sectionLabel: SHOW_MORE_FOLDERS_LABEL, remainingCount: moreFolderSections.length },
 					});
@@ -6682,7 +6733,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * top-level headers, which include grouping sections.
 	 */
 	private moveHeader(header: IDraggedHeader, drop: SessionHeaderDrop): void {
-		const groupId = header.group?.group.id;
+		this.applyHeaderDrop(header.id, header.group?.group.id, drop);
+	}
+
+	/** Moves the header with the given section id, the header of `groupId` when it is a group, to where `drop` says. */
+	private applyHeaderDrop(headerId: string, groupId: string | undefined, drop: SessionHeaderDrop): void {
 		if (drop.kind !== 'topLevel') {
 			const parentId = drop.kind === 'into' ? drop.groupId : drop.parentId;
 			if (groupId === undefined ? !this.canHoldSubgroups(parentId) : !this.canNestGroup(groupId, parentId)) {
@@ -6695,14 +6750,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 				if (groupId !== undefined) {
 					this._sessionGroupsService.moveGroup(groupId, drop.groupId);
 				} else {
-					this._sessionGroupsService.moveSection(this.getSectionGroupKey(header.id), drop.groupId);
+					this._sessionGroupsService.moveSection(this.getSectionGroupKey(headerId), drop.groupId);
 				}
 				return;
 			case 'subgroup':
 				if (groupId !== undefined) {
 					this._sessionGroupsService.moveGroup(groupId, drop.parentId, drop.placement);
 				} else {
-					this._sessionGroupsService.moveSection(this.getSectionGroupKey(header.id), drop.parentId, drop.placement);
+					this._sessionGroupsService.moveSection(this.getSectionGroupKey(headerId), drop.parentId, drop.placement);
 				}
 				return;
 			case 'topLevel': {
@@ -6710,10 +6765,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 				if (groupId !== undefined) {
 					this._sessionGroupsService.moveGroup(groupId, undefined);
 				} else {
-					this._sessionGroupsService.moveSection(this.getSectionGroupKey(header.id), undefined);
+					this._sessionGroupsService.moveSection(this.getSectionGroupKey(headerId), undefined);
 				}
 				// A moved grouping section is promoted so it stays visible (escapes the "+N more" capping).
-				this._sessionSectionOrderService.reorder(topLevelOrder, header.id, drop.targetId, drop.position, groupId === undefined ? header.id : undefined);
+				this._sessionSectionOrderService.reorder(topLevelOrder, headerId, drop.targetId, drop.position, groupId === undefined ? headerId : undefined);
 				return;
 			}
 		}
@@ -6763,6 +6818,280 @@ export class SessionsList extends Disposable implements ISessionsList {
 		};
 		append(groupTree.getSubgroups(undefined));
 		return result;
+	}
+
+	// -- Programmatic organization --
+
+	/**
+	 * The list as it is composed, independent of scrolling, collapsing, and the
+	 * find filter, including the sections and session rows that capping hides.
+	 * Shortcut sections and nested chat rows are omitted.
+	 */
+	getTreeSnapshot(): SessionsListSnapshotNode[] {
+		const toSessionNodes = (sessions: readonly ISession[], hidden: boolean): SessionsListSnapshotNode[] =>
+			sessions.map(session => hidden ? { type: 'session', session, hidden } : { type: 'session', session });
+		const collectSessionIds = (nodes: readonly SessionsListSnapshotNode[], ids: Set<string>): Set<string> => {
+			for (const node of nodes) {
+				if (node.type === 'session') {
+					ids.add(node.session.sessionId);
+				} else {
+					collectSessionIds(node.children, ids);
+				}
+			}
+			return ids;
+		};
+		const visitRows = (node: ITreeNode<SessionListItem | null, FuzzyScore>, sessions: readonly ISession[]): SessionsListSnapshotNode[] => {
+			const rows = visit(node.children);
+			if (node.children.some(child => child.element && isSessionShowMore(child.element) && child.element.kind === 'sessions' && child.element.mode === 'more')) {
+				const shown = collectSessionIds(rows, new Set());
+				rows.push(...toSessionNodes(sessions.filter(session => !shown.has(session.sessionId)), true));
+			}
+			return rows;
+		};
+		const visit = (nodes: readonly ITreeNode<SessionListItem | null, FuzzyScore>[]): SessionsListSnapshotNode[] => nodes.flatMap((node): SessionsListSnapshotNode[] => {
+			const element = node.element;
+			if (!element) {
+				return [];
+			}
+			if (isSessionGroupItem(element)) {
+				return [{
+					type: 'group',
+					id: getSessionGroupSectionId(element.group.id),
+					label: element.group.name,
+					collapsed: node.collapsed,
+					...(element.comparison ? { comparison: true } : {}),
+					children: visitRows(node, element.sessions),
+				}];
+			}
+			if (isSessionSection(element)) {
+				return isShortcutSection(element.id) ? [] : [{ type: 'section', id: element.id, label: element.label, collapsed: node.collapsed, children: visitRows(node, element.sessions) }];
+			}
+			if (isSessionShowMore(element)) {
+				return element.kind !== 'sessions' && element.mode === 'more'
+					? this.hiddenGroupingSections.map(section => ({ type: 'section', id: section.id, label: section.label, collapsed: true, hidden: true, children: toSessionNodes(section.sessions, true) }))
+					: [];
+			}
+			return isSessionItem(element) ? [{ type: 'session', session: element }] : [];
+		});
+		return visit(this.tree.getNode().children);
+	}
+
+	/**
+	 * Moves sessions as dropping them does: into a placement, which is `pinned`,
+	 * `archived`, {@link SESSIONS_LIST_UNGROUPED_PLACEMENT}, or the section id of
+	 * a custom group or an ungrouped section, and optionally to a position among
+	 * the sessions there. Without a placement, the sessions move to the placement
+	 * of the session they are positioned against.
+	 * @throws when the sessions cannot move there.
+	 */
+	async moveSessionsTo(sessions: readonly ISession[], placementId: string | undefined, position: SessionsListSessionPosition | undefined): Promise<void> {
+		const anchorSession = typeof position === 'object' ? position.session : undefined;
+		if (anchorSession && sessions.some(session => session.sessionId === anchorSession.sessionId)) {
+			throw new Error(`Session "${anchorSession.sessionId}" cannot be positioned relative to itself.`);
+		}
+		if (placementId === undefined && !anchorSession) {
+			throw new Error('Provide a destination, a session to position against, or both.');
+		}
+		if (placementId === SESSIONS_LIST_UNGROUPED_PLACEMENT && !anchorSession) {
+			// Each session has its own ungrouped section.
+			for (const [sectionId, sectionSessions] of groupByMap([...sessions], session => this.getUngroupedSectionId(session))) {
+				await this.moveSessionsToPlacement(sectionSessions, { kind: 'section', sectionId }, position);
+			}
+			return;
+		}
+		const placement = placementId === undefined || placementId === SESSIONS_LIST_UNGROUPED_PLACEMENT
+			? this.getSessionPlacement(anchorSession!)
+			: getSectionPlacement(placementId);
+		if (!placement || (placement.kind === 'group' && !this._sessionGroupsService.getGroup(placement.groupId))) {
+			throw new Error(`"${placementId}" is not a placement that holds sessions.`);
+		}
+		if (placementId === SESSIONS_LIST_UNGROUPED_PLACEMENT && placement.kind !== 'section') {
+			throw new Error(`Session "${anchorSession!.sessionId}" is not in an ungrouped section.`);
+		}
+		if (anchorSession && !isSamePlacement(this.getSessionPlacement(anchorSession), placement)) {
+			throw new Error(`Session "${anchorSession.sessionId}" is not in "${placementId}".`);
+		}
+		await this.moveSessionsToPlacement(sessions, placement, position);
+	}
+
+	private async moveSessionsToPlacement(sessions: readonly ISession[], placement: SessionListPlacement, position: SessionsListSessionPosition | undefined): Promise<void> {
+		// Archived sessions keep a fixed order.
+		const anchor = placement.kind === 'archived' || position === undefined ? undefined
+			: typeof position === 'object' ? { session: position.session, position: position.position, staysInSection: isDateSectionPlacement(placement) }
+				: this.getEdgeAnchor(sessions, placement, position);
+		const destination: ISessionDropDestination = { placement, anchor, restoresArchived: true };
+		if (!anchor && !sessions.some(session => this.changesPlacement(session, placement))) {
+			return;
+		}
+		if (!this.getSessionDropEffect(sessions, destination)) {
+			const target = placement.kind === 'group' ? getSessionGroupSectionId(placement.groupId) : getPlacementHeader(placement).id;
+			throw new Error(`The sessions cannot move to "${target}"${anchor ? ' at that position' : ''}: comparison groups own their membership, an ungrouped section only takes the sessions that render in it, and date sections only take sessions that their sort order places there.`);
+		}
+		await this.moveSessions(sessions, destination);
+	}
+
+	/** The section a session renders in when it is neither archived, pinned, nor grouped. */
+	private getUngroupedSectionId(session: ISession): string {
+		const sectionIds = this.getUngroupedSectionIds(session);
+		return sectionIds.find(sectionId => this.getSessionDropEffect([session], { placement: { kind: 'section', sectionId }, restoresArchived: true }) !== undefined) ?? sectionIds[0];
+	}
+
+	/** Where a session renders: its row's placement, or for a row that capping hides, the placement its state selects. */
+	private getSessionPlacement(session: ISession): SessionListPlacement {
+		const rowPlacement = this.getRowPlacement(session);
+		if (rowPlacement) {
+			return rowPlacement;
+		}
+		if (session.isArchived.get()) {
+			return { kind: 'archived' };
+		}
+		if (this.isSessionPinned(session)) {
+			return { kind: 'pinned' };
+		}
+		const group = this.getRenderedSessionGroup(session);
+		return group ? { kind: 'group', groupId: group.id } : { kind: 'section', sectionId: this.getUngroupedSectionIds(session)[0] };
+	}
+
+	/** The anchor that places sessions first or last among the other sessions the list composes into the placement. */
+	private getEdgeAnchor(sessions: readonly ISession[], placement: SessionListPlacement, edge: 'top' | 'bottom'): ISessionDropAnchor | undefined {
+		const movedIds = new Set(sessions.map(session => session.sessionId));
+		const candidates = this.getComposedPlacementSessions(placement).filter(session => !movedIds.has(session.sessionId) && this.getReorderScope(session) !== undefined);
+		const anchorSession = edge === 'top' ? candidates.at(0) : candidates.at(-1);
+		return anchorSession && { session: anchorSession, position: edge === 'top' ? 'before' : 'after', staysInSection: isDateSectionPlacement(placement) };
+	}
+
+	/**
+	 * The sessions the list composes into the placement, in display order and
+	 * including those that capping hides. A section also lists the members of
+	 * comparison groups nested in it, which belong to their group's placement.
+	 */
+	private getComposedPlacementSessions(placement: SessionListPlacement): readonly ISession[] {
+		const header = placement.kind === 'group'
+			? this.findTreeElement((element): element is ISessionGroupItem => isSessionGroupItem(element) && element.group.id === placement.groupId)
+			: this.findTreeElement((element): element is ISessionSection => isSessionSection(element) && element.id === getPlacementHeader(placement).id)
+			?? this.hiddenGroupingSections.find(section => section.id === getPlacementHeader(placement).id);
+		return (header?.sessions ?? []).filter(session => isSamePlacement(this.getSessionPlacement(session), placement));
+	}
+
+	/**
+	 * Moves a custom group or a workspace, repository, or environment section as
+	 * dragging its header does: into the custom group with section id
+	 * `parentId`, or to the top level when it is `undefined`, optionally next to
+	 * one of its new siblings. A group nested without a sibling becomes the first
+	 * child of its parent.
+	 * @throws when the header cannot move there.
+	 */
+	moveHeaderTo(headerId: string, parentId: string | undefined, sibling: ISessionsListHeaderPosition | undefined): void {
+		const groupId = getSessionGroupIdOfSection(headerId);
+		if (groupId !== undefined) {
+			if (!this._sessionGroupsService.getGroup(groupId)) {
+				throw new Error(`Group "${headerId}" does not exist.`);
+			}
+			if (this.isComparisonGroup(groupId) && this.options.grouping() !== SessionsGrouping.Date) {
+				throw new Error(`Comparison group "${headerId}" keeps its place inside its grouping section.`);
+			}
+		} else if (!isSessionGroupingSection(headerId) || this.options.grouping() === SessionsGrouping.Date) {
+			throw new Error(`"${headerId}" cannot move: only custom groups and workspace, repository, or environment sections of the current grouping move.`);
+		}
+		if (sibling?.siblingId === headerId) {
+			throw new Error(`"${headerId}" cannot be positioned relative to itself.`);
+		}
+
+		let drop: SessionHeaderDrop;
+		if (parentId === undefined) {
+			if (!sibling) {
+				// The list arranges a top-level header among the others.
+				if (groupId !== undefined) {
+					this._sessionGroupsService.moveGroup(groupId, undefined);
+				} else {
+					this._sessionGroupsService.moveSection(this.getSectionGroupKey(headerId), undefined);
+				}
+				return;
+			}
+			if (!this._topLevelOrder.includes(sibling.siblingId)) {
+				throw new Error(`"${sibling.siblingId}" is not a top-level header that can be ordered.`);
+			}
+			drop = { kind: 'topLevel', targetId: sibling.siblingId, position: sibling.position };
+		} else {
+			const parentGroupId = getSessionGroupIdOfSection(parentId);
+			if (parentGroupId === undefined || !this.canHoldSubgroups(parentGroupId)) {
+				throw new Error(`"${parentId}" is not a custom group that can hold groups and sections.`);
+			}
+			if (groupId !== undefined && !this.canNestGroup(groupId, parentGroupId)) {
+				throw new Error(`"${headerId}" cannot move into "${parentId}": a group never moves into itself or one of its subgroups.`);
+			}
+			if (sibling) {
+				const siblingKey = getSessionGroupIdOfSection(sibling.siblingId) ?? this.getSectionGroupKey(sibling.siblingId);
+				if (!this._sessionGroupsService.getChildIds(parentGroupId).includes(siblingKey)) {
+					throw new Error(`"${sibling.siblingId}" is not a group or section nested directly in "${parentId}".`);
+				}
+				drop = { kind: 'subgroup', parentId: parentGroupId, depth: 0, placement: { siblingId: siblingKey, position: sibling.position } };
+			} else {
+				drop = { kind: 'into', groupId: parentGroupId };
+			}
+		}
+		this.applyHeaderDrop(headerId, groupId, drop);
+	}
+
+	/**
+	 * Collapses or expands the section or group header with the given section id.
+	 * @throws when the list does not show the header.
+	 */
+	setHeaderCollapsed(headerId: string, collapsed: boolean): void {
+		const header = this.findTreeElement((element): element is ISessionSection | ISessionGroupItem =>
+			isSessionGroupItem(element) ? getSessionGroupSectionId(element.group.id) === headerId : isSessionSection(element) && element.id === headerId && !isShortcutSection(element.id));
+		if (!header) {
+			throw new Error(`The list does not show a section or group "${headerId}".`);
+		}
+		if (collapsed) {
+			this.tree.collapse(header);
+		} else {
+			this.tree.expand(header);
+		}
+	}
+
+	/**
+	 * Creates an empty custom group, nested first in the custom group with
+	 * section id `parentId` when given.
+	 * @throws when the parent cannot hold groups.
+	 */
+	addGroup(name: string, parentId: string | undefined): ISessionGroup {
+		const parentGroupId = parentId === undefined ? undefined : getSessionGroupIdOfSection(parentId);
+		if (parentId !== undefined && (parentGroupId === undefined || !this.canHoldSubgroups(parentGroupId))) {
+			throw new Error(`"${parentId}" is not a custom group that can hold groups.`);
+		}
+		if (parentGroupId !== undefined) {
+			this.saveSectionCollapseState(getSessionGroupSectionId(parentGroupId), false);
+		}
+		return this._sessionGroupsService.createGroup(name, [], parentGroupId);
+	}
+
+	/**
+	 * Renames the custom group with the given section id.
+	 * @throws when the group does not exist or is a comparison group.
+	 */
+	renameGroup(headerId: string, name: string): void {
+		this._sessionGroupsService.renameGroup(this.getEditableGroupId(headerId), name);
+	}
+
+	/**
+	 * Deletes the custom group with the given section id as its Delete Group
+	 * action does, offering Undo when subgroups or nested sections are affected.
+	 * @throws when the group does not exist or is a comparison group.
+	 */
+	async deleteGroup(headerId: string): Promise<void> {
+		await this.commandService.executeCommand(DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID, this.getEditableGroupId(headerId));
+	}
+
+	private getEditableGroupId(headerId: string): string {
+		const groupId = getSessionGroupIdOfSection(headerId);
+		if (groupId === undefined || !this._sessionGroupsService.getGroup(groupId)) {
+			throw new Error(`Group "${headerId}" does not exist.`);
+		}
+		if (this.isComparisonGroup(groupId)) {
+			throw new Error(`Comparison group "${headerId}" is managed by its comparison.`);
+		}
+		return groupId;
 	}
 
 	/**
