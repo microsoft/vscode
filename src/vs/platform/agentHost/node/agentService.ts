@@ -7917,6 +7917,7 @@ export class AgentService extends Disposable implements IAgentService {
 				await this._reloadAfterFailedMove([sourceKey, targetKey]);
 			}
 			artifactsHold?.dispose();
+			artifactsHold = undefined;
 			await this._completeMovedWorktrees(session, target, worktreePlan, handOver, sessionMove);
 			// The target lists the chat now, so the folders prepared for it are in use rather than reserved.
 			this._consumePreparedChatWorkingDirectories(target, chatFolders);
@@ -8314,6 +8315,7 @@ export class AgentService extends Disposable implements IAgentService {
 				await this._reloadAfterFailedMove([sourceKey, targetKey]);
 			}
 			artifactsHold?.dispose();
+			artifactsHold = undefined;
 			await this._persistPromotedSessionTitle(target, chatKey, renamed);
 			await this._completeMovedWorktrees(session, target, worktreePlan, undefined, false);
 			// The new session is created with the chat's folders, so none were in transit; the source lets go of those no other chat uses.

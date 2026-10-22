@@ -657,8 +657,12 @@ suite('Session Artifact Removal', () => {
 		const { session, stateManager, artifactAccessor } = await createFixture(database);
 		const events: string[] = [];
 		const finishPersisting = new DeferredPromise<void>();
+		const beforePersisting = new DeferredPromise<void>();
 		const artifactsOf = (label: string) => new SessionArtifacts(stateManager, session.toString(), buildDefaultChatUri(session), async (target, entries) => {
 			events.push(`${label} persisting`);
+			if (label === 'before') {
+				beforePersisting.complete();
+			}
 			await finishPersisting.p;
 			await artifactAccessor.persist(target, entries);
 		});
@@ -666,16 +670,16 @@ suite('Session Artifact Removal', () => {
 			.then(() => events.push(`${label} recorded`));
 
 		const inProgress = add('before');
-		await timeout(0);
+		await beforePersisting.p;
 		const hold = SessionArtifacts.hold(stateManager, [session.toString(), 'ahp-session:/other']).then(held => {
 			events.push('held');
 			return held;
 		});
-		await timeout(0);
 		events.push('persisted');
 		finishPersisting.complete();
 		const held = await hold;
 		const later = add('during');
+		// The held change must not start: everything it would run before persisting is microtasks, which one macrotask drains.
 		await timeout(0);
 		events.push('released');
 		held.dispose();
