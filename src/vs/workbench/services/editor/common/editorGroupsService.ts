@@ -562,9 +562,13 @@ export interface IFloatingEditorPartOptions {
 	/**
 	 * A menu whose actions show in the header of the part after those of
 	 * {@link titleMenu}. Unlike those, the user can show or hide each of them
-	 * from the context menu of its buttons; see `IMenuItem.isHiddenByDefault`.
+	 * from the context menu of its buttons, except `alwaysShownItems`; see
+	 * `IMenuItem.isHiddenByDefault` and `IWorkbenchToolBarOptions.alwaysShownItems`.
 	 */
-	readonly customizableTitleMenu?: MenuId;
+	readonly customizableTitleMenu?: {
+		readonly menu: MenuId;
+		readonly alwaysShownItems?: readonly string[];
+	};
 
 	/**
 	 * The size of the part. It is kept within the main window.

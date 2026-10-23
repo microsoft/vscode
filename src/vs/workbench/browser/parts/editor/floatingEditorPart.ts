@@ -110,8 +110,9 @@ export class FloatingEditorPart {
 			}));
 		}
 		if (options.customizableTitleMenu) {
-			disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, append(actionsContainer, $('.floating-editor-title-menu')), options.customizableTitleMenu, {
+			disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, append(actionsContainer, $('.floating-editor-title-menu')), options.customizableTitleMenu.menu, {
 				hiddenItemStrategy: HiddenItemStrategy.Ignore,
+				alwaysShownItems: options.customizableTitleMenu.alwaysShownItems,
 			}));
 		}
 		const closeActionBar = disposables.add(new ActionBar(append(actionsContainer, $('.floating-editor-close'))));
