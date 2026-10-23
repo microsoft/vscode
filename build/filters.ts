@@ -27,6 +27,7 @@ export const all = Object.freeze<string[]>([
 	'!extensions/**/out*/**',
 	'!extensions/**/*-out/**',
 	'!test/**/out/**',
+	'!build/ripple/target/**',
 	'!**/node_modules/**',
 	'!**/*.js.map',
 	'!**/*.tsbuildinfo',

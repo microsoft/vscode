@@ -37,6 +37,7 @@ jobs:
       cli: ${{ steps.detect.outputs.cli }}
       copilot-shim: ${{ steps.detect.outputs.copilot-shim }}
       copilot: ${{ steps.detect.outputs.copilot }}
+      ripple: ${{ steps.detect.outputs.ripple }}
       unit-tests: ${{ steps.detect.outputs.unit-tests }}
       browser-integration: ${{ steps.detect.outputs.browser-integration }}
       product-tests: ${{ steps.detect.outputs.product-tests }}
@@ -241,6 +242,16 @@ jobs:
       locked: true
       all_targets: true
       affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.copilot-shim == 'true' }}
+
+  # The planning in Detect Changes never fails the job. This job fails when ripple's tests fail or
+  # it cannot plan the pull request.
+  ripple:
+    name: Ripple
+    needs: changes
+    if: ${{ !cancelled() }}
+    uses: ./.github/workflows/pr-ripple.yml
+    with:
+      affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.ripple == 'true' }}
 
   # The test jobs below report "<OS> (<part>) / <job>" checks and skip when the
   # changes cannot affect them. required-checks reports the required

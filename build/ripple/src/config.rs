@@ -66,6 +66,8 @@ struct Tests {
 	unit: Vec<String>,
 	#[serde(default)]
 	integration: Vec<String>,
+	#[serde(default)]
+	runners: Vec<String>,
 }
 
 #[derive(Default, Deserialize)]
@@ -124,6 +126,8 @@ pub struct Config {
 	modules: Patterns,
 	unit_tests: Patterns,
 	integration_tests: Patterns,
+	/// The scripts that run the tests.
+	test_runners: Patterns,
 	/// Path aliases as (prefix, replacement), longest prefix first.
 	aliases: Vec<(String, String)>,
 	run_everything: Vec<(String, Patterns)>,
@@ -157,6 +161,7 @@ impl Config {
 			modules: Patterns::new(&file.modules)?,
 			unit_tests: Patterns::new(&file.tests.unit)?,
 			integration_tests: Patterns::new(&file.tests.integration)?,
+			test_runners: Patterns::new(&file.tests.runners)?,
 			aliases,
 			run_everything: file
 				.run_everything
@@ -193,6 +198,16 @@ impl Config {
 			.iter()
 			.find(|(_, patterns)| patterns.matches(path))
 			.map(|(reason, _)| reason.as_str())
+	}
+
+	/// Whether a file is a script that runs the tests.
+	pub fn is_test_runner(&self, path: &str) -> bool {
+		self.test_runners.matches(path)
+	}
+
+	/// The prefixes of the path aliases, such as `vs/`.
+	pub fn alias_prefixes(&self) -> impl Iterator<Item = &str> {
+		self.aliases.iter().map(|(prefix, _)| prefix.as_str())
 	}
 
 	/// The repository path a non-relative module specifier names through a path alias.
@@ -292,7 +307,7 @@ pub fn for_tests() -> &'static Config {
 			r#"{
 				"modules": ["src/**/*.ts"],
 				"pathAliases": { "lib/": "src/lib/" },
-				"tests": { "unit": ["src/**/test/**/*.test.ts"], "integration": ["src/**/*.integrationTest.ts"] },
+				"tests": { "unit": ["src/**/test/**/*.test.ts"], "integration": ["src/**/*.integrationTest.ts"], "runners": ["test/**/*.js"] },
 				"runEverything": { "test runner": ["test/**", "!test/**/*.md"] },
 				"packages": { "toolchain": ["mocha"], "testScripts": ["install", "test"], "ignoredFields": ["build"] },
 				"injectedGlobals": { "_PACKAGE": "package.json", "_PRODUCT": "product.json" },

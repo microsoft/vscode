@@ -7,7 +7,7 @@
 //! its initializer. Edges point from a node to what it depends on: the declarations it references
 //! (resolved through re-export chains), and for initializers, the modules they load.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::ops::Range;
 use std::sync::Arc;
 
@@ -40,6 +40,23 @@ impl Snapshot {
 	pub fn role(&self, path: &str) -> Role {
 		self.find(path)
 			.map_or(Role::Asset, |i| self.entries[i as usize].role)
+	}
+
+	/// The file that a module path names, such as `src/a.ts` for `src/a.js`, if it exists.
+	pub fn resolve_file(&self, p: &str) -> Option<u32> {
+		let candidates: Vec<String> = if let Some(stem) = p.strip_suffix(".js") {
+			vec![format!("{stem}.ts"), format!("{stem}.tsx"), p.to_owned()]
+		} else if let Some(stem) = p.strip_suffix(".mjs") {
+			vec![format!("{stem}.mts"), p.to_owned()]
+		} else {
+			vec![
+				p.to_owned(),
+				format!("{p}.ts"),
+				format!("{p}/index.ts"),
+				format!("{p}.js"),
+			]
+		};
+		candidates.iter().find_map(|c| self.find(c))
 	}
 
 	/// Entries inside a directory.
@@ -119,6 +136,14 @@ pub fn package_name(spec: &str) -> Option<String> {
 	(!BUILTINS.contains(&name.as_str())).then_some(name)
 }
 
+/// Something a module loads when it is evaluated.
+#[derive(Clone, PartialEq, Eq)]
+pub enum Load {
+	File(u32),
+	/// An npm package module, by specifier: `pkg/one` and `pkg/two` are different modules.
+	Package(Box<str>),
+}
+
 /// A computed path: the directory it starts in, and the static start and end of the path in it.
 type DataPattern = (Box<str>, Box<str>, Box<str>);
 
@@ -184,6 +209,8 @@ struct Linker<'s> {
 	base: &'s [u32],
 	res: Vec<Option<Box<[Res]>>>,
 	memo: HashMap<(u32, Box<str>), Vec<u32>>,
+	/// The nodes that a reference to a whole module depends on, by module.
+	surfaces: HashMap<u32, Vec<u32>>,
 	packages: HashMap<String, u32>,
 	globals: HashMap<String, u32>,
 	dirs: Vec<Box<str>>,
@@ -247,22 +274,8 @@ impl<'s> Linker<'s> {
 	}
 
 	fn resolve_path(&mut self, p: &str) -> Res {
-		let candidates: Vec<String> = if let Some(stem) = p.strip_suffix(".js") {
-			vec![format!("{stem}.ts"), format!("{stem}.tsx"), p.to_owned()]
-		} else if let Some(stem) = p.strip_suffix(".mjs") {
-			vec![format!("{stem}.mts"), p.to_owned()]
-		} else {
-			vec![
-				p.to_owned(),
-				format!("{p}.ts"),
-				format!("{p}/index.ts"),
-				format!("{p}.js"),
-			]
-		};
-		for c in candidates {
-			if let Some(i) = self.snap.find(&c) {
-				return Res::File(i);
-			}
+		if let Some(i) = self.snap.resolve_file(p) {
+			return Res::File(i);
 		}
 		let p = p.trim_end_matches('/');
 		let range = self.snap.under(p);
@@ -392,7 +405,7 @@ impl<'s> Linker<'s> {
 					_ => {}
 				},
 				ExportTarget::Namespace(spec) => match self.spec_res(f, *spec) {
-					Res::File(t) => out.extend(self.all_nodes(t)),
+					Res::File(t) => out.extend(self.surface(t, depth + 1)),
 					Res::Pkg(p) => out.push(p),
 					_ => {}
 				},
@@ -414,6 +427,41 @@ impl<'s> Linker<'s> {
 			out.push(self.base[f as usize] + e);
 		}
 		self.memo.insert((f, name.into()), out.clone());
+		out
+	}
+
+	/// The nodes that a reference to a whole module depends on, such as a dynamic import or a
+	/// namespace import used as a value: the module's own nodes and what its exports bind to,
+	/// through re-exports (`export { x } from`, `export * from`, `export * as ns from`).
+	fn surface(&mut self, f: u32, depth: u32) -> Vec<u32> {
+		if let Some(v) = self.surfaces.get(&f) {
+			return v.clone();
+		}
+		let mut out: Vec<u32> = self.all_nodes(f).collect();
+		let snap = self.snap;
+		let Some(facts) = snap.entries[f as usize].facts.as_deref() else {
+			return out;
+		};
+		if depth > 24 {
+			return out;
+		}
+		// Re-exports in a cycle see the module's own nodes.
+		self.surfaces.insert(f, out.clone());
+		for (name, target) in &facts.exports {
+			if !matches!(target, ExportTarget::Local(_)) {
+				out.extend(self.resolve_export(f, name, depth + 1));
+			}
+		}
+		for &star in &facts.stars {
+			match self.spec_res(f, star) {
+				Res::File(t) => out.extend(self.surface(t, depth + 1)),
+				Res::Pkg(p) => out.push(p),
+				_ => {}
+			}
+		}
+		out.sort_unstable();
+		out.dedup();
+		self.surfaces.insert(f, out.clone());
 		out
 	}
 
@@ -445,7 +493,7 @@ impl<'s> Linker<'s> {
 						.map(|m| self.resolve_export(t, m, depth))
 						.unwrap_or_default();
 					if r.is_empty() {
-						self.all_nodes(t).collect()
+						self.surface(t, depth + 1)
 					} else {
 						r
 					}
@@ -552,8 +600,8 @@ pub struct Graph {
 	pub globals: HashMap<String, u32>,
 	/// Modules loaded by each entry's initializer.
 	pub loads: Vec<Box<[u32]>>,
-	/// npm packages loaded by each entry's initializer, in load order.
-	pub package_loads: Vec<Box<[Box<str>]>>,
+	/// The modules and npm packages loaded by each entry's initializer, in load order.
+	load_order: Vec<Box<[Load]>>,
 	/// Loading the entry has effects outside of it, directly or through modules it loads.
 	pub effectful: Vec<bool>,
 	/// Name ids of the methods code calls without naming them (see `IMPLICIT_METHODS`).
@@ -577,6 +625,7 @@ impl Graph {
 			base: &base,
 			res: vec![None; n],
 			memo: HashMap::new(),
+			surfaces: HashMap::new(),
 			packages: HashMap::new(),
 			globals: HashMap::new(),
 			dirs: Vec::new(),
@@ -587,7 +636,7 @@ impl Graph {
 			next,
 		};
 		let mut loads: Vec<Box<[u32]>> = vec![Box::new([]); n];
-		let mut package_loads: Vec<Box<[Box<str>]>> = vec![Box::new([]); n];
+		let mut load_order: Vec<Box<[Load]>> = vec![Box::new([]); n];
 		let mut load_edges: Vec<(u32, u32)> = Vec::new();
 		let mut dir_refs: Vec<(u32, u32, u32)> = Vec::new();
 		let mut data_dir_refs: Vec<(u32, u32, u32)> = Vec::new();
@@ -639,13 +688,15 @@ impl Graph {
 											facts.specs[binding.spec as usize].specifier
 										);
 									}
-									edges.extend(linker.all_nodes(t).map(|v| (u, v)));
+									edges.extend(linker.surface(t, 0).into_iter().map(|v| (u, v)));
 								}
 							}
 							edges.extend(targets.into_iter().map(|v| (u, v)));
 						}
 						Ref::All(spec) => match linker.spec_res(f, *spec) {
-							Res::File(t) => edges.extend(linker.all_nodes(t).map(|v| (u, v))),
+							Res::File(t) => {
+								edges.extend(linker.surface(t, 0).into_iter().map(|v| (u, v)))
+							}
 							Res::Dir(d) => dir_refs.push((d, u, f)),
 							Res::DataDir(d) => data_dir_refs.push((d, u, f)),
 							Res::Pkg(p) => edges.push((u, p)),
@@ -659,23 +710,26 @@ impl Graph {
 				}
 			}
 			let mut targets = Vec::new();
-			let mut packages = Vec::new();
+			let mut order = Vec::new();
 			for &spec in &facts.loads {
 				match linker.spec_res(f, spec) {
 					Res::File(t) => {
 						edges.push((b, base[t as usize]));
 						targets.push(t);
 						load_edges.push((f, t));
+						order.push(Load::File(t));
 					}
 					Res::Pkg(p) => {
 						edges.push((b, p));
-						packages.extend(package_name(&facts.specs[spec as usize].specifier));
+						order.push(Load::Package(
+							facts.specs[spec as usize].specifier.as_str().into(),
+						));
 					}
 					_ => {}
 				}
 			}
 			loads[f as usize] = targets.into_boxed_slice();
-			package_loads[f as usize] = packages.into_iter().map(String::into_boxed_str).collect();
+			load_order[f as usize] = order.into_boxed_slice();
 		}
 		// Modules that load a module, transitively, by the module they load.
 		let loaders = Csr::reverse(n, &load_edges);
@@ -702,7 +756,9 @@ impl Graph {
 		// analyzed, so loading one counts as an effect.
 		let roots = (0..n as u32).filter(|&f| {
 			let e = &snap.entries[f as usize];
-			!package_loads[f as usize].is_empty()
+			load_order[f as usize]
+				.iter()
+				.any(|l| matches!(l, Load::Package(_)))
 				|| e.facts
 					.as_ref()
 					.map_or(e.path.ends_with(".css"), |facts| facts.global_effects)
@@ -762,7 +818,7 @@ impl Graph {
 			data_dirs,
 			globals,
 			loads,
-			package_loads,
+			load_order,
 			effectful,
 			implicit: IMPLICIT_METHODS
 				.iter()
@@ -812,23 +868,65 @@ impl Graph {
 		(files, gated)
 	}
 
-	/// Entries a module loads when it is evaluated, transitively, excluding the module itself
-	/// unless it is part of a cycle.
-	pub fn load_closure(&self, f: u32) -> Vec<bool> {
+	/// What evaluating a module runs that can have effects outside the modules, in order: the
+	/// modules with global load-time effects (and style sheets) and the npm packages that it loads,
+	/// transitively, each as (is a package, path or specifier). A module evaluates the modules it
+	/// loads depth-first in source order, each once, and then itself.
+	pub fn effect_sequence<'a>(&'a self, snap: &'a Snapshot, f: u32) -> Vec<(bool, &'a str)> {
 		let mut seen = vec![false; self.base.len()];
-		let mut stack: Vec<u32> = self.loads[f as usize].to_vec();
-		while let Some(t) = stack.pop() {
-			if !seen[t as usize] {
-				seen[t as usize] = true;
-				stack.extend_from_slice(&self.loads[t as usize]);
+		let mut packages: HashSet<&str> = HashSet::new();
+		let mut out = Vec::new();
+		// Modules being evaluated, with the position of the next load of each.
+		let mut stack: Vec<(u32, usize)> = vec![(f, 0)];
+		seen[f as usize] = true;
+		while let Some(&(m, i)) = stack.last() {
+			let order = &self.load_order[m as usize];
+			if i == order.len() {
+				stack.pop();
+				let e = &snap.entries[m as usize];
+				let effects = e
+					.facts
+					.as_ref()
+					.map_or(e.path.ends_with(".css"), |facts| facts.global_effects);
+				if effects {
+					out.push((false, &*e.path));
+				}
+				continue;
+			}
+			stack.last_mut().unwrap().1 += 1;
+			match &order[i] {
+				Load::File(t) => {
+					if !seen[*t as usize] {
+						seen[*t as usize] = true;
+						stack.push((*t, 0));
+					}
+				}
+				Load::Package(spec) => {
+					if packages.insert(spec) {
+						out.push((true, spec));
+					}
+				}
 			}
 		}
-		seen
+		out
 	}
 
 	/// Whether the code of an entry can reach a target node, opening an instance method only once
 	/// the closure uses its name. Reaching a class does not reach its methods by itself.
 	pub fn reaches(&self, file: u32, targets: &[bool], scratch: &mut Scratch) -> bool {
+		let roots: Vec<u32> = self.file_nodes(file as usize).collect();
+		self.reaches_from(&roots, &[], targets, scratch)
+	}
+
+	/// Whether code that starts at `roots` and also uses the method names `names` (as name ids)
+	/// can reach a target node, opening an instance method only once the closure uses its name.
+	pub fn reaches_from(
+		&self,
+		roots: &[u32],
+		names: &[u64],
+		targets: &[bool],
+		scratch: &mut Scratch,
+	) -> bool {
 		scratch.stamp += 1;
 		if scratch.visited.len() < self.node_file.len() {
 			scratch.visited.resize(self.node_file.len(), 0);
@@ -836,8 +934,9 @@ impl Graph {
 		let stamp = scratch.stamp;
 		scratch.used.clear();
 		scratch.used.extend(self.implicit.iter().copied());
+		scratch.used.extend(names.iter().copied());
 		scratch.pending.clear();
-		let mut stack: Vec<u32> = self.file_nodes(file as usize).collect();
+		let mut stack: Vec<u32> = roots.to_vec();
 		for &n in &stack {
 			scratch.visited[n as usize] = stamp;
 		}

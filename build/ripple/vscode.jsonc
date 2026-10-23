@@ -28,15 +28,24 @@
 		],
 		"integration": [
 			"src/**/*.integrationTest.ts"
+		],
+		// The scripts that run the unit tests. The modules they name by a path alias run in every
+		// test run, or serve requests of the tests, such as `'vs/workbench/test/common/utils'` and
+		// `` `${outDir}/vs/platform/protocol/electron-main/protocolMainService.js` ``: a change that
+		// reaches one of them runs every unit test.
+		"runners": [
+			"test/unit/**/*.js"
 		]
 	},
 
 	// Files outside the module graph that every unit test depends on, by the reason the plan reports:
 	// changing one of them runs every unit test.
 	"runEverything": {
+		// remote/.npmrc has the Node.js version that the node.js test runner requires.
 		"runtime version": [
 			".npmrc",
 			".nvmrc",
+			"remote/.npmrc",
 			"build/checksums/electron.txt",
 			"build/lib/electron.ts"
 		],
@@ -67,8 +76,14 @@
 		"compiler options": [
 			"src/tsconfig*"
 		],
+		// How the test jobs install dependencies, and the key of their node_modules cache (see
+		// .github/actions/restore-node-modules).
 		"dependency installation": [
-			"build/npm/**"
+			"build/npm/**",
+			"build/.npmrc",
+			"build/.cachesalt",
+			"build/azure-pipelines/common/computeNodeModulesCacheKey.ts",
+			"build/azure-pipelines/common/cacheKeys.ts"
 		],
 		// The macOS and Windows unit test jobs and the actions they use.
 		"test job definition": [

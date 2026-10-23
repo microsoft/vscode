@@ -66,6 +66,15 @@ const rules: readonly IChangeRule[] = [
 		],
 	},
 	{
+		// The planning in Detect Changes falls back to every unit test when ripple fails, so a
+		// separate job checks ripple and its configuration.
+		output: 'ripple',
+		paths: [
+			'build/ripple/',
+			'.github/workflows/pr-ripple.yml',
+		],
+	},
+	{
 		// The Copilot tests run against a downloaded VS Code build and chat-lib is extracted from the extension;
 		// neither uses the core sources in the pull request.
 		output: 'copilot',

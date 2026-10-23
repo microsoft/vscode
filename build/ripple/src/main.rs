@@ -21,7 +21,7 @@ use std::time::Instant;
 use anyhow::{Context, Result, bail};
 
 use crate::config::{Config, Role};
-use crate::engine::{Engine, changed_nodes, select};
+use crate::engine::{Engine, blob_texts, changed_nodes, select};
 use crate::graph::{Graph, Snapshot};
 
 const USAGE: &str = "usage: ripple <command> --config FILE [--repo PATH] [options]\n\
@@ -251,6 +251,7 @@ fn stats(config: &Config, repo: PathBuf, rev: &str) -> Result<()> {
 
 fn affected(config: &Config, repo: PathBuf, base: &str, head: &str) -> Result<()> {
 	let mut engine = Engine::new(repo.clone(), config);
+	let mut blobs = blob_texts(&repo)?;
 	let t = Instant::now();
 	let bs = engine.snapshot(base)?;
 	let hs = engine.snapshot(head)?;
@@ -294,7 +295,7 @@ fn affected(config: &Config, repo: PathBuf, base: &str, head: &str) -> Result<()
 			(None, None) => {}
 		}
 	}
-	let sel = select(config, &repo, &bs, &bg, &hs, &hg, &changes)?;
+	let sel = select(config, &mut blobs, &bs, &bg, &hs, &hg, &changes)?;
 	let mut files: Vec<&Arc<str>> = if sel.run_all.is_some() {
 		hs.entries
 			.iter()
@@ -340,11 +341,12 @@ fn plan(
 	out_dir: Option<&str>,
 ) -> Result<()> {
 	let mut engine = Engine::new(repo.clone(), config);
+	let mut blobs = blob_texts(&repo)?;
 	let bs = engine.snapshot(base)?;
 	let hs = engine.snapshot(head)?;
 	let (bg, hg) = (Graph::build(&bs, config), Graph::build(&hs, config));
 	let changes = git::diff_tree(&repo, base, head)?;
-	let sel = select(config, &repo, &bs, &bg, &hs, &hg, &changes)?;
+	let sel = select(config, &mut blobs, &bs, &bg, &hs, &hg, &changes)?;
 
 	let all: Vec<&str> = hs
 		.entries
@@ -463,6 +465,7 @@ fn blame(config: &Config, repo: PathBuf, test: &str, since: &str, until: &str) -
 	};
 	let t = Instant::now();
 	let mut engine = Engine::new(repo.clone(), config);
+	let mut blobs = blob_texts(&repo)?;
 	let mut base = engine.snapshot(&first.1)?;
 	let mut bg = Graph::build(&base, config);
 	let mut hits = 0;
@@ -470,7 +473,7 @@ fn blame(config: &Config, repo: PathBuf, test: &str, since: &str, until: &str) -
 		let changes = git::diff_tree(&repo, parent, sha)?;
 		let head = engine.apply(&base, &changes)?;
 		let hg = Graph::build(&head, config);
-		let sel = select(config, &repo, &base, &bg, &head, &hg, &changes)?;
+		let sel = select(config, &mut blobs, &base, &bg, &head, &hg, &changes)?;
 		if sel.run_all.is_some() || sel.decl.iter().any(|p| &**p == test) {
 			hits += 1;
 			println!(
@@ -514,6 +517,7 @@ fn replay(
 	};
 
 	let mut engine = Engine::new(repo.clone(), config);
+	let mut blobs = blob_texts(&repo)?;
 	let t = Instant::now();
 	let mut base = engine.snapshot(&first.1)?;
 	let mut bg = Graph::build(&base, config);
@@ -535,7 +539,7 @@ fn replay(
 		let changes = git::diff_tree(&repo, parent, sha)?;
 		let head = engine.apply(&base, &changes)?;
 		let hg = Graph::build(&head, config);
-		let sel = select(config, &repo, &base, &bg, &head, &hg, &changes)?;
+		let sel = select(config, &mut blobs, &base, &bg, &head, &hg, &changes)?;
 		step_ms += t.elapsed().as_millis();
 		let touches_modules = changes.iter().any(|c| config.role(&c.path).is_module());
 		module_commits += touches_modules as usize;

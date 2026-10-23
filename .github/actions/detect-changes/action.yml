@@ -16,6 +16,9 @@ outputs:
   copilot:
     description: "'true' when the Copilot extension checks in extensions/copilot/ need to run."
     value: ${{ steps.detect.outputs.copilot }}
+  ripple:
+    description: "'true' when the checks of the unit test planner in build/ripple/ need to run."
+    value: ${{ steps.detect.outputs.ripple }}
   unit-tests:
     description: "'true' when the Electron, node.js and browser unit tests need to run."
     value: ${{ steps.detect.outputs.unit-tests }}

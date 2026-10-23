@@ -12,16 +12,25 @@ use std::sync::Arc;
 use anyhow::Result;
 use rayon::prelude::*;
 
-use crate::analyze::{FileFacts, analyze};
+use crate::analyze::{ExportTarget, FileFacts, analyze, name_id};
 use crate::config::Config;
 use crate::deps::DepImpact;
 use crate::git::{BlobReader, Change, ls_tree};
 use crate::graph::{Entry, Graph, Scratch, Snapshot, package_name};
 
+/// Reads text blobs of a repository by object id.
+pub type ReadBlob<'r> = dyn FnMut(&str) -> Result<String> + 'r;
+
+/// Reads text blobs of the repository at `repo`.
+pub fn blob_texts(repo: &Path) -> Result<impl FnMut(&str) -> Result<String>> {
+	let mut reader = BlobReader::new(repo)?;
+	Ok(move |oid: &str| Ok(String::from_utf8(reader.read(oid)?)?))
+}
+
 /// The impact of `package.json` and `package-lock.json` changes, if any.
 pub fn dependency_impact(
 	config: &Config,
-	repo: &Path,
+	read: &mut ReadBlob,
 	head: &Snapshot,
 	changes: &[Change],
 ) -> Result<Option<DepImpact>> {
@@ -33,12 +42,10 @@ pub fn dependency_impact(
 	if manifests.is_empty() {
 		return Ok(None);
 	}
-	let mut reader = BlobReader::new(repo)?;
-	let mut read = |oid: &str| -> Result<String> { Ok(String::from_utf8(reader.read(oid)?)?) };
 	let mut impact = DepImpact::default();
 	for c in &manifests {
-		let before = c.old.as_deref().map(&mut read).transpose()?;
-		let after = c.new.as_deref().map(&mut read).transpose()?;
+		let before = c.old.as_deref().map(&mut *read).transpose()?;
+		let after = c.new.as_deref().map(&mut *read).transpose()?;
 		if c.path == "package.json" {
 			impact.add_package_json(config, before.as_deref(), after.as_deref());
 		} else {
@@ -54,7 +61,7 @@ pub fn dependency_impact(
 			impact.add_unchanged_lockfile(&read(&head.entries[i as usize].oid)?);
 		}
 	}
-	let runners = runner_packages(config, head, &mut read)?;
+	let runners = runner_packages(config, head, read)?;
 	if std::env::var_os("RIPPLE_DEBUG").is_some() {
 		let mut reasons: Vec<&String> = runners.values().collect();
 		reasons.sort();
@@ -72,7 +79,7 @@ pub fn dependency_impact(
 fn runner_packages(
 	config: &Config,
 	snap: &Snapshot,
-	read: &mut impl FnMut(&str) -> Result<String>,
+	read: &mut ReadBlob,
 ) -> Result<HashMap<String, String>> {
 	let mut packages = HashMap::new();
 	for e in &snap.entries {
@@ -102,6 +109,133 @@ fn runner_packages(
 		}
 	}
 	Ok(packages)
+}
+
+/// A module that the test runners load into every test run, or that serves requests of the
+/// tests.
+struct Harness {
+	file: usize,
+	/// The reason to report when a change reaches it.
+	reason: String,
+	/// The names that the code of the runners that load it uses, as name ids.
+	names: Vec<u64>,
+}
+
+impl Harness {
+	/// What the runners use of the module: the exports whose names their code uses, or, when it
+	/// uses none, the module's initializer, which runs its load-time effects.
+	fn roots(&self, snap: &Snapshot, graph: &Graph) -> Vec<u32> {
+		let b = graph.base[self.file];
+		let Some(facts) = snap.entries[self.file].facts.as_deref() else {
+			return graph.file_nodes(self.file).collect();
+		};
+		let mut roots = Vec::new();
+		for (name, target) in &facts.exports {
+			if self.names.contains(&name_id(name)) {
+				match target {
+					ExportTarget::Local(d) => roots.push(b + d),
+					_ => return graph.file_nodes(self.file).collect(),
+				}
+			}
+		}
+		if roots.is_empty() {
+			roots.push(b);
+		}
+		roots
+	}
+}
+
+/// The modules that the test runners load into every test run, or that serve requests of the
+/// tests: those that their code names by a path alias, such as `'vs/workbench/test/common/utils'`
+/// or `` `${out}/vs/base/common/uri.js` ``. No test imports them.
+fn harness_modules(config: &Config, snap: &Snapshot, read: &mut ReadBlob) -> Result<Vec<Harness>> {
+	let mut modules: Vec<Harness> = Vec::new();
+	for e in snap
+		.entries
+		.iter()
+		.filter(|e| config.is_test_runner(&e.path))
+	{
+		let source = read(&e.oid)?;
+		let facts = analyze(&e.path, &source, config);
+		if facts.error {
+			anyhow::bail!("{}: cannot find the modules it loads", e.path);
+		}
+		let names: Vec<u64> = facts
+			.decls
+			.iter()
+			.flat_map(|d| d.uses.iter().copied())
+			.collect();
+		for path in alias_paths(&source, config) {
+			let Some(i) = config
+				.resolve_alias(path)
+				.and_then(|p| snap.resolve_file(&p))
+			else {
+				continue;
+			};
+			let (i, m) = (i as usize, &snap.entries[i as usize]);
+			if !m.role.is_module() || m.role.is_test() {
+				continue;
+			}
+			match modules.iter_mut().find(|h| h.file == i) {
+				Some(h) => h.names.extend(&names),
+				None => modules.push(Harness {
+					file: i,
+					reason: format!("test harness ({} loads {})", e.path, m.path),
+					names: names.clone(),
+				}),
+			}
+		}
+	}
+	Ok(modules)
+}
+
+/// The reason to run every unit test when a seed reaches what the test runners use of the modules
+/// they load. Tests do not import these modules, so they cannot depend on the change.
+fn harness_reached(
+	config: &Config,
+	snap: &Snapshot,
+	graph: &Graph,
+	seeds: &[u32],
+	read: &mut ReadBlob,
+) -> Result<Option<String>> {
+	if seeds.is_empty() {
+		return Ok(None);
+	}
+	let harness = harness_modules(config, snap, read)?;
+	let (candidates, _) = graph.dependent_files(seeds.iter().copied());
+	let mut targets = vec![false; graph.node_count()];
+	for &s in seeds {
+		targets[s as usize] = true;
+	}
+	let mut scratch = Scratch::default();
+	Ok(harness
+		.into_iter()
+		.filter(|h| candidates[h.file])
+		.find(|h| graph.reaches_from(&h.roots(snap, graph), &h.names, &targets, &mut scratch))
+		.map(|h| h.reason))
+}
+
+/// The paths in a text that start with a path alias at the start of a path segment, such as
+/// `vs/base/common/uri.js` in `` `${out}/vs/base/common/uri.js` ``.
+fn alias_paths<'a>(text: &'a str, config: &Config) -> Vec<&'a str> {
+	let is_path = |c: char| c.is_ascii_alphanumeric() || "_-./@".contains(c);
+	let mut out = Vec::new();
+	for prefix in config.alias_prefixes() {
+		for (i, _) in text.match_indices(prefix) {
+			if text[..i]
+				.chars()
+				.next_back()
+				.is_some_and(|c| c != '/' && is_path(c))
+			{
+				continue;
+			}
+			let end = text[i..]
+				.find(|c: char| !is_path(c))
+				.map_or(text.len(), |n| i + n);
+			out.push(text[i..end].trim_end_matches(['.', '/']));
+		}
+	}
+	out
 }
 
 pub struct Engine<'c> {
@@ -249,85 +383,21 @@ pub fn changed_nodes(
 						base_seeds.push(bg.base[bi] + i as u32);
 					}
 				}
-				// A newly loaded (or no longer loaded) module only matters if loading it has effects.
-				let base_loads: HashSet<&str> = bg.loads[bi]
-					.iter()
-					.map(|&t| &*base.entries[t as usize].path)
-					.collect();
-				let head_loads: HashSet<&str> = hg.loads[hi]
-					.iter()
-					.map(|&t| &*head.entries[t as usize].path)
-					.collect();
-				let added: Vec<&str> = hg.loads[hi]
-					.iter()
-					.filter(|&&t| hg.effectful[t as usize])
-					.map(|&t| &*head.entries[t as usize].path)
-					.filter(|p| !base_loads.contains(p))
-					.collect();
-				if !added.is_empty() {
-					let before = bg.load_closure(bi as u32);
-					let new: Vec<&&str> = added
-						.iter()
-						.filter(|p| base.find(p).is_none_or(|t| !before[t as usize]))
-						.collect();
-					if !new.is_empty() {
-						if std::env::var_os("RIPPLE_DEBUG").is_some() {
-							eprintln!(
-								"{path}: now loads effectful {}",
-								new.iter()
-									.map(|p| p.to_string())
-									.collect::<Vec<_>>()
-									.join(", ")
-							);
-						}
-						head_seeds.push(hg.base[hi]);
-					}
-				}
-				let removed: Vec<&str> = bg.loads[bi]
-					.iter()
-					.filter(|&&t| bg.effectful[t as usize])
-					.map(|&t| &*base.entries[t as usize].path)
-					.filter(|p| !head_loads.contains(p))
-					.collect();
-				if !removed.is_empty() {
-					let after = hg.load_closure(hi as u32);
-					if removed
-						.iter()
-						.any(|p| head.find(p).is_none_or(|t| !after[t as usize]))
-					{
-						base_seeds.push(bg.base[bi]);
-					}
-				}
 				// Module evaluation order: statements that kept their content but moved relative to
-				// each other, and effectful modules that are now loaded in a different order.
+				// each other.
 				let (moved_base, moved_head) = reordered(&bf.order, &hf.order);
 				base_seeds.extend(moved_base.into_iter().map(|d| bg.base[bi] + d));
 				head_seeds.extend(moved_head.into_iter().map(|d| hg.base[hi] + d));
-				let effectful_loads =
-					|snap: &Snapshot, graph: &Graph, f: usize| -> Vec<(u64, u32)> {
-						graph.loads[f]
-							.iter()
-							.filter(|&&t| graph.effectful[t as usize])
-							.map(|&t| {
-								(
-									xxhash_rust::xxh3::xxh3_64(
-										snap.entries[t as usize].path.as_bytes(),
-									),
-									0,
-								)
-							})
-							.collect()
-					};
-				let (loads_base, loads_head) = reordered(
-					&effectful_loads(base, bg, bi),
-					&effectful_loads(head, hg, hi),
+				// What loading the module runs: other modules or packages with effects outside
+				// themselves, or the same ones in another order, change what loading it does.
+				let (before, after) = (
+					bg.effect_sequence(base, bi as u32),
+					hg.effect_sequence(head, hi as u32),
 				);
-				// npm packages are not analyzed: loading another one, or the same ones in another order,
-				// changes what loading the module does.
-				if !loads_base.is_empty()
-					|| !loads_head.is_empty()
-					|| bg.package_loads[bi] != hg.package_loads[hi]
-				{
+				if before != after {
+					if std::env::var_os("RIPPLE_DEBUG").is_some() {
+						eprintln!("{path}: loads modules or packages with effects differently");
+					}
 					base_seeds.push(bg.base[bi]);
 					head_seeds.push(hg.base[hi]);
 				}
@@ -400,33 +470,36 @@ fn collect(snap: &Snapshot, marks: &[bool], out: &mut HashSet<Arc<str>>) {
 	}
 }
 
-/// Tests that depend on a seed: candidates from the reverse closure, confirmed by a forward
-/// closure that only reaches instance methods whose names the test's code uses.
-fn dependent_tests(snap: &Snapshot, graph: &Graph, seeds: &[u32], out: &mut HashSet<Arc<str>>) {
+/// The files among `roots` whose code depends on a seed: candidates from the reverse closure,
+/// confirmed by a forward closure that only reaches instance methods whose names the file's code
+/// uses.
+fn dependents(graph: &Graph, seeds: &[u32], roots: impl Fn(usize) -> bool) -> Vec<usize> {
 	if seeds.is_empty() {
-		return;
+		return Vec::new();
 	}
 	let (candidates, gated) = graph.dependent_files(seeds.iter().copied());
-	if !gated {
-		collect(snap, &candidates, out);
-		return;
-	}
 	let mut targets = vec![false; graph.node_count()];
 	for &s in seeds {
 		targets[s as usize] = true;
 	}
 	let mut scratch = Scratch::default();
-	for (i, c) in candidates.iter().enumerate() {
-		let e = &snap.entries[i];
-		if *c && e.role.is_test() && graph.reaches(i as u32, &targets, &mut scratch) {
-			out.insert(e.path.clone());
-		}
+	(0..candidates.len())
+		.filter(|&i| {
+			candidates[i] && roots(i) && (!gated || graph.reaches(i as u32, &targets, &mut scratch))
+		})
+		.collect()
+}
+
+/// Tests that depend on a seed.
+fn dependent_tests(snap: &Snapshot, graph: &Graph, seeds: &[u32], out: &mut HashSet<Arc<str>>) {
+	for i in dependents(graph, seeds, |i| snap.entries[i].role.is_test()) {
+		out.insert(snap.entries[i].path.clone());
 	}
 }
 
 pub fn select(
 	config: &Config,
-	repo: &Path,
+	read: &mut ReadBlob,
 	base: &Snapshot,
 	bg: &Graph,
 	head: &Snapshot,
@@ -440,7 +513,15 @@ pub fn select(
 			.run_everything(p)
 			.map(|reason| format!("{reason} ({p})"))
 	});
-	let deps = dependency_impact(config, repo, head, changes)?;
+	// A module that does not parse has no dependencies, so its tests would miss changes.
+	run_all = run_all.or_else(|| {
+		head.entries
+			.iter()
+			.chain(&base.entries)
+			.find(|e| e.facts.as_ref().is_some_and(|facts| facts.error))
+			.map(|e| format!("parse error ({})", e.path))
+	});
+	let deps = dependency_impact(config, read, head, changes)?;
 	let mut packages = 0;
 	if let Some(deps) = &deps {
 		run_all = run_all.or_else(|| deps.run_all.clone());
@@ -462,6 +543,12 @@ pub fn select(
 			head_seeds.extend(hg.globals.get(name));
 			base_seeds.extend(bg.globals.get(name));
 		}
+	}
+	if run_all.is_none() {
+		run_all = harness_reached(config, head, hg, &head_seeds, read)?;
+	}
+	if run_all.is_none() {
+		run_all = harness_reached(config, base, bg, &base_seeds, read)?;
 	}
 	let mut sel = Selection {
 		file_all: HashSet::new(),
@@ -568,7 +655,13 @@ mod tests {
 				})
 			})
 			.collect();
-		select(config, Path::new("."), &bs, &bg, &hs, &hg, &changes).unwrap()
+		let contents: HashMap<String, String> = base
+			.iter()
+			.chain(head)
+			.map(|(_, c)| (format!("{:016x}", xxh3_64(c.as_bytes())), (*c).to_owned()))
+			.collect();
+		let mut read = |oid: &str| -> Result<String> { Ok(contents[oid].clone()) };
+		select(config, &mut read, &bs, &bg, &hs, &hg, &changes).unwrap()
 	}
 
 	/// The test files selected for the change from `base` to `head`.
@@ -580,6 +673,11 @@ mod tests {
 			.collect();
 		tests.sort();
 		tests
+	}
+
+	/// Files with owned contents as (path, content) references.
+	fn refs<'a>(files: &'a [(&'a str, String)]) -> Vec<(&'a str, &'a str)> {
+		files.iter().map(|(p, c)| (*p, c.as_str())).collect()
 	}
 
 	const TEST_A: (&str, &str) = (
@@ -652,10 +750,8 @@ mod tests {
 			.iter()
 			.map(|(_, c)| (format!("{:016x}", xxh3_64(c.as_bytes())), *c))
 			.collect();
-		let packages = runner_packages(for_tests(), &snapshot(&files), &mut |oid| {
-			Ok(contents[oid].to_owned())
-		})
-		.unwrap();
+		let mut read = |oid: &str| -> Result<String> { Ok(contents[oid].to_owned()) };
+		let packages = runner_packages(for_tests(), &snapshot(&files), &mut read).unwrap();
 		let mut packages: Vec<(String, String)> = packages.into_iter().collect();
 		packages.sort();
 		let reason = |p: &str| {
@@ -692,6 +788,218 @@ mod tests {
 				case("import 'polyfill';\n", "import 'polyfill';\n// comment\n"),
 			),
 			(a(), a(), a(), a(), vec![])
+		);
+	}
+
+	#[test]
+	fn changes_in_the_evaluation_order_of_effects_select_the_importers() {
+		let effect =
+			|name: &str| format!("globalThis.order = (globalThis.order ?? '') + '{name}';\n");
+		let (first, target) = (effect("first"), effect("target"));
+		let case = |before: &str, after: &str| -> Vec<String> {
+			let lib = |imports: &str| format!("{imports}export const a = 1;\n");
+			let (before, after) = (lib(before), lib(after));
+			let files = |lib: &str| -> Vec<(&str, String)> {
+				vec![
+					("src/app/lib.ts", lib.to_owned()),
+					("src/app/first.ts", first.clone()),
+					("src/app/target.ts", target.clone()),
+					(
+						"src/app/parent.ts",
+						"import './target.js';\nexport const p = 1;\n".to_owned(),
+					),
+					("src/app/pure.ts", "export const q = 1;\n".to_owned()),
+					(TEST_A.0, TEST_A.1.to_owned()),
+				]
+			};
+			let (b, h) = (files(&before), files(&after));
+			selected(&refs(&b), &refs(&h))
+		};
+		let a = || vec!["src/app/test/a.test.ts".to_owned()];
+		let (both, direct) = (
+			"import './first.js';\nimport './parent.js';\n",
+			"import './target.js';\nimport './first.js';\nimport './parent.js';\n",
+		);
+		assert_eq!(
+			(
+				// Loading target.ts directly runs it before first.ts, not after it through parent.ts.
+				case(both, direct),
+				case(direct, both),
+				// Modules and packages run in one order.
+				case(
+					"import './first.js';\nimport 'polyfill';\n",
+					"import 'polyfill';\nimport './first.js';\n"
+				),
+				// Subpaths of a package are different modules.
+				case("import 'pkg/one';\n", "import 'pkg/two';\n"),
+				// What runs does not change: a module without effects, or one that already ran.
+				case(
+					"import './first.js';\n",
+					"import './first.js';\nimport './pure.js';\n"
+				),
+				case(
+					"import './parent.js';\n",
+					"import './parent.js';\nimport './target.js';\n"
+				),
+			),
+			(a(), a(), a(), a(), vec![], vec![])
+		);
+	}
+
+	#[test]
+	fn whole_module_references_reach_re_exported_declarations() {
+		let case = |barrel: &str, test: &str| -> Vec<String> {
+			let files = |value: &str| -> Vec<(&str, String)> {
+				vec![
+					(
+						"src/app/impl.ts",
+						format!("export const value = {value};\nexport const other = 1;\n"),
+					),
+					("src/app/barrel.ts", barrel.to_owned()),
+					(
+						"src/app/outer.ts",
+						"export * as inner from './barrel.js';\n".to_owned(),
+					),
+					("src/app/test/a.test.ts", test.to_owned()),
+				]
+			};
+			let (b, h) = (files("1"), files("2"));
+			selected(&refs(&b), &refs(&h))
+		};
+		let named = "export { value, other } from './impl.js';\n";
+		let star = "export * from './impl.js';\n";
+		let dynamic = "test('a', async () => (await import('../barrel.js')).value);\n";
+		let a = || vec!["src/app/test/a.test.ts".to_owned()];
+		assert_eq!(
+			(
+				case(named, dynamic),
+				case(star, dynamic),
+				case(
+					named,
+					"import * as ns from '../barrel.js';\ntest('a', () => Object.keys(ns));\n"
+				),
+				case(
+					star,
+					"import { inner } from '../outer.js';\ntest('a', () => inner);\n"
+				),
+				// A named import through a barrel still depends on that name only.
+				case(
+					star,
+					"import { other } from '../barrel.js';\ntest('a', () => other);\n"
+				),
+			),
+			(a(), a(), a(), a(), vec![])
+		);
+	}
+
+	#[test]
+	fn a_module_that_does_not_parse_runs_everything() {
+		let lib = |value: &str| ("src/app/lib.ts", format!("export const a = {value};\n"));
+		let broken = ("src/app/broken.ts", "export const = {;\n");
+		let (before, after) = (lib("1"), lib("2"));
+		let sel = selection(
+			&[(before.0, &before.1), broken, TEST_A],
+			&[(after.0, &after.1), broken, TEST_A],
+		);
+		assert_eq!(
+			sel.run_all.as_deref(),
+			Some("parse error (src/app/broken.ts)")
+		);
+	}
+
+	#[test]
+	fn changes_that_reach_what_the_test_runners_use_run_everything() {
+		// The runner loads lib/harness.ts into every run and calls assertClean, and serves
+		// requests with lib/server.ts.
+		let files = [
+			(
+				"test/runner.js",
+				"const { assertClean } = await loadFn('lib/harness');\nconst { Server } = await import(`${out}/lib/server.js`);\nnew Server().serve();\nawait loadFn('lib/setup');\n// Not loaded: lib/test/a.test.js and lib/missing.js.\n",
+			),
+			// Loaded for its load-time effects only.
+			("src/lib/setup.ts", "globalThis.y = 1;\n"),
+			(
+				"src/lib/harness.ts",
+				"import { check } from './helper.js';\nimport './effects.js';\nexport function assertClean() { return check(); }\nexport function unrelated() { return 1; }\n",
+			),
+			(
+				"src/lib/helper.ts",
+				"export function check() { return 1; }\nexport function unused() { return 1; }\n",
+			),
+			("src/lib/effects.ts", "globalThis.x = 1;\n"),
+			(
+				"src/lib/server.ts",
+				"export class Server {\n\tserve() { return 1; }\n\tother() { return 1; }\n}\n",
+			),
+			("src/lib/other.ts", "export const o = 1;\n"),
+			("src/lib/test/a.test.ts", "test('a', () => 1);\n"),
+		];
+		let case = |path: &str, old: &str, new: &str| -> Option<String> {
+			let head: Vec<(&str, String)> = files
+				.iter()
+				.map(|&(p, c)| {
+					let c = if p == path {
+						assert!(c.contains(old), "{p}");
+						c.replacen(old, new, 1)
+					} else {
+						c.to_owned()
+					};
+					(p, c)
+				})
+				.collect();
+			selection(&files, &refs(&head)).run_all
+		};
+		let harness = |m: &str| Some(format!("test harness (test/runner.js loads {m})"));
+		assert_eq!(
+			(
+				case(
+					"src/lib/harness.ts",
+					"return check();",
+					"return check() + 1;"
+				),
+				case(
+					"src/lib/helper.ts",
+					"check() { return 1;",
+					"check() { return 2;"
+				),
+				// Load-time state of the modules it loads, like state that tests leave behind.
+				case("src/lib/effects.ts", "= 1", "= 2"),
+				case(
+					"src/lib/server.ts",
+					"serve() { return 1;",
+					"serve() { return 2;"
+				),
+				case("src/lib/setup.ts", "= 1", "= 2"),
+				case(
+					"src/lib/harness.ts",
+					"unrelated() { return 1;",
+					"unrelated() { return 2;"
+				),
+				case(
+					"src/lib/helper.ts",
+					"unused() { return 1;",
+					"unused() { return 2;"
+				),
+				case(
+					"src/lib/server.ts",
+					"other() { return 1;",
+					"other() { return 2;"
+				),
+				case("src/lib/other.ts", "= 1", "= 2"),
+				case("src/lib/test/a.test.ts", "=> 1", "=> 2"),
+			),
+			(
+				harness("src/lib/harness.ts"),
+				harness("src/lib/harness.ts"),
+				None,
+				harness("src/lib/server.ts"),
+				harness("src/lib/setup.ts"),
+				None,
+				None,
+				None,
+				None,
+				None
+			)
 		);
 	}
 
