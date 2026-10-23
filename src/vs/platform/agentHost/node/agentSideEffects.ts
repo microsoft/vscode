@@ -104,7 +104,6 @@ import { targetForMcpServer, targetForPlugin } from './shared/customizationEnabl
 import { IAgentHostWorktreeIsolation } from './shared/worktreeIsolation.js';
 import { IAgentHostWorktreeCleanupService } from './agentHostWorktreeCleanupService.js';
 import { IAgentHostChatOwnershipService, mintSubagentChatUri } from './agentHostChatOwnershipService.js';
-import { isServerToolConfirmation } from './shared/serverToolConfirmation.js';
 
 /**
  * Options for constructing an {@link AgentSideEffects} instance.
@@ -1900,10 +1899,6 @@ export class AgentSideEffects extends Disposable {
 			case ActionType.ChatInputCompleted: {
 				if (!chatChannel) {
 					throw new Error(`ChatInputCompleted must be handled on an AHP chat channel: ${channel}`);
-				}
-				// A server tool's own confirmation is answered to the host, not to the provider.
-				if (isServerToolConfirmation(this._stateManager.getChatState(channel), action.requestId)) {
-					break;
 				}
 				const agent = this._options.getAgent(sessionChannel);
 				agent?.respondToUserInputRequest(action.requestId, action.response, action.answers);
