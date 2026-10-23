@@ -1779,14 +1779,28 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 class AuthAttemptsTestService extends SSHRemoteAgentHostMainService {
 
 	agentSock: string | undefined = undefined;
+	platform: NodeJS.Platform = 'linux';
+	existingAgentEndpoints = new Set<string>();
 	keyFiles: Map<string, Buffer> = new Map();
 
 	async testBuildAuthAttempts(config: ISSHAgentHostConfig): Promise<SSHAuthAttempt[]> {
 		return this._buildAuthAttempts(config);
 	}
 
-	protected override _isAgentAvailable(): string | undefined {
+	async testGetAgentSocket(config: ISSHAgentHostConfig): Promise<string | undefined> {
+		return this._getAgentSocket(config);
+	}
+
+	protected override _getSSHAuthSock(): string | undefined {
 		return this.agentSock;
+	}
+
+	protected override get _platform(): NodeJS.Platform {
+		return this.platform;
+	}
+
+	protected override async _agentEndpointExists(endpoint: string): Promise<boolean> {
+		return this.existingAgentEndpoints.has(endpoint);
 	}
 
 	protected override async _readKeyFileIfExists(keyPath: string): Promise<Buffer | undefined> {
@@ -2189,6 +2203,50 @@ suite('SSHRemoteAgentHostMainService - _buildAuthAttempts', () => {
 		assert.deepStrictEqual(attempts, [
 			{ type: 'password', username: 'testuser', password: 'pw' },
 		]);
+	});
+
+	const WINDOWS_AGENT_PIPE = '\\\\.\\pipe\\openssh-ssh-agent';
+
+	test('Windows without SSH_AUTH_SOCK falls back to the OpenSSH agent pipe', async () => {
+		service.platform = 'win32';
+		service.existingAgentEndpoints.add(WINDOWS_AGENT_PIPE);
+
+		const attempts = await service.testBuildAuthAttempts(makeConfig({ authMethod: SSHAuthMethod.Agent }));
+
+		assert.deepStrictEqual(attempts, [
+			{ type: 'agent', username: 'testuser', agent: WINDOWS_AGENT_PIPE },
+			{ type: 'keyboard-interactive', username: 'testuser' },
+		]);
+	});
+
+	test('Windows agent pipe fallback is skipped when the pipe does not exist', async () => {
+		service.platform = 'win32';
+
+		assert.strictEqual(await service.testGetAgentSocket(makeConfig()), undefined);
+	});
+
+	test('Windows agent pipe fallback only applies on win32', async () => {
+		service.platform = 'linux';
+		service.existingAgentEndpoints.add(WINDOWS_AGENT_PIPE);
+
+		assert.strictEqual(await service.testGetAgentSocket(makeConfig()), undefined);
+	});
+
+	test('SSH_AUTH_SOCK takes precedence over the Windows agent pipe', async () => {
+		service.platform = 'win32';
+		service.agentSock = '\\\\.\\pipe\\custom-agent';
+		service.existingAgentEndpoints.add(WINDOWS_AGENT_PIPE);
+
+		assert.strictEqual(await service.testGetAgentSocket(makeConfig()), '\\\\.\\pipe\\custom-agent');
+	});
+
+	test('IdentityAgent takes precedence over the Windows agent pipe', async () => {
+		service.platform = 'win32';
+		service.existingAgentEndpoints.add(WINDOWS_AGENT_PIPE);
+
+		assert.strictEqual(await service.testGetAgentSocket(makeConfig({ identityAgent: '//./pipe/pageant.user.1234' })), '//./pipe/pageant.user.1234');
+		assert.strictEqual(await service.testGetAgentSocket(makeConfig({ identityAgent: 'none' })), undefined);
+		assert.strictEqual(await service.testGetAgentSocket(makeConfig({ identityAgent: 'SSH_AUTH_SOCK' })), WINDOWS_AGENT_PIPE);
 	});
 });
 

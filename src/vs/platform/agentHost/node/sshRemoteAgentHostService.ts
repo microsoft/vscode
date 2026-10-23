@@ -1603,7 +1603,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		};
 
 		if (config.agentForward) {
-			const agentSock = this._getAgentSocket(config);
+			const agentSock = await this._getAgentSocket(config);
 			if (agentSock) {
 				// ssh2 needs `connectConfig.agent` set so it knows which local
 				// agent socket to forward to. Without it, agent forwarding is a
@@ -1814,7 +1814,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				// matches OpenSSH's IdentityAgent semantics and avoids an
 				// unnecessary passphrase prompt when an encrypted key file is
 				// configured but the agent already holds its unlocked copy.
-				const agentSock = this._getAgentSocket(config);
+				const agentSock = await this._getAgentSocket(config);
 				if (agentSock) {
 					attempts.push({ type: 'agent', username, agent: agentSock });
 				}
@@ -1886,31 +1886,80 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		return SSHRemoteAgentHostMainService._defaultKeyPaths.some(p => SSHRemoteAgentHostMainService._normalizeKeyPath(p) === normalized);
 	}
 
-	/** Test seam: returns the SSH agent socket path, or undefined when no agent is available. */
-	protected _isAgentAvailable(): string | undefined {
-		return process.env['SSH_AUTH_SOCK'];
+	/** Named pipe used by the Windows OpenSSH agent service when `SSH_AUTH_SOCK` is unset. */
+	private static readonly _windowsOpenSSHAgentPipe = '\\\\.\\pipe\\openssh-ssh-agent';
+
+	/** Test seam: the value of `SSH_AUTH_SOCK`. */
+	protected _getSSHAuthSock(): string | undefined {
+		return process.env['SSH_AUTH_SOCK'] || undefined;
 	}
 
-	protected _getAgentSocket(config: ISSHAgentHostConfig): string | undefined {
+	/** Test seam: the host platform. */
+	protected get _platform(): NodeJS.Platform {
+		return process.platform;
+	}
+
+	/** Test seam: whether a local agent endpoint (socket or named pipe) exists. */
+	protected async _agentEndpointExists(endpoint: string): Promise<boolean> {
+		try {
+			await fsp.stat(endpoint);
+			return true;
+		} catch (err) {
+			const code = (err as NodeJS.ErrnoException).code;
+			// A busy pipe still exists; only treat "not found" as absent.
+			return code !== 'ENOENT' && code !== 'ENOTDIR';
+		}
+	}
+
+	/**
+	 * Returns the default SSH agent endpoint, or undefined when no agent is
+	 * available: `SSH_AUTH_SOCK` when set, otherwise (on Windows) the
+	 * OpenSSH agent service's named pipe, mirroring OpenSSH for Windows.
+	 */
+	protected async _isAgentAvailable(): Promise<string | undefined> {
+		const authSock = this._getSSHAuthSock();
+		if (authSock) {
+			this._logService.trace(`${LOG_PREFIX} Using SSH agent from SSH_AUTH_SOCK: ${authSock}`);
+			return authSock;
+		}
+		if (this._platform === 'win32') {
+			const pipe = SSHRemoteAgentHostMainService._windowsOpenSSHAgentPipe;
+			if (await this._agentEndpointExists(pipe)) {
+				this._logService.info(`${LOG_PREFIX} SSH_AUTH_SOCK is not set; using Windows OpenSSH agent pipe ${pipe}`);
+				return pipe;
+			}
+			this._logService.info(`${LOG_PREFIX} SSH_AUTH_SOCK is not set and Windows OpenSSH agent pipe ${pipe} was not found; skipping agent auth`);
+			return undefined;
+		}
+		this._logService.trace(`${LOG_PREFIX} SSH_AUTH_SOCK is not set; skipping agent auth`);
+		return undefined;
+	}
+
+	protected async _getAgentSocket(config: ISSHAgentHostConfig): Promise<string | undefined> {
 		if (config.identityAgent !== undefined) {
 			return this._resolveIdentityAgent(config.identityAgent);
 		}
 		return this._isAgentAvailable();
 	}
 
-	private _resolveIdentityAgent(identityAgent: string): string | undefined {
+	private async _resolveIdentityAgent(identityAgent: string): Promise<string | undefined> {
 		const trimmed = identityAgent.trim();
 		if (!trimmed || trimmed.toLowerCase() === 'none') {
+			this._logService.trace(`${LOG_PREFIX} IdentityAgent is none; skipping agent auth`);
 			return undefined;
 		}
 		if (trimmed === 'SSH_AUTH_SOCK') {
 			return this._isAgentAvailable();
 		}
+		let resolved: string | undefined;
 		if (trimmed.startsWith('$')) {
 			const envMatch = /^\$\{(?<braced>[A-Za-z_][A-Za-z0-9_]*)\}$|^\$(?<plain>[A-Za-z_][A-Za-z0-9_]*)$/.exec(trimmed);
-			return envMatch?.groups ? process.env[envMatch.groups.braced ?? envMatch.groups.plain] || undefined : undefined;
+			resolved = envMatch?.groups ? process.env[envMatch.groups.braced ?? envMatch.groups.plain] || undefined : undefined;
+		} else {
+			resolved = trimmed.replace(/^~/, os.homedir());
 		}
-		return trimmed.replace(/^~/, os.homedir());
+		this._logService.trace(`${LOG_PREFIX} Using SSH agent from IdentityAgent ${trimmed}: ${resolved ?? '(unset)'}`);
+		return resolved;
 	}
 
 	/**
