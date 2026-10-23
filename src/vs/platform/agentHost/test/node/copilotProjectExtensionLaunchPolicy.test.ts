@@ -314,10 +314,57 @@ suite('CopilotProjectExtensionLaunchPolicy', () => {
 				unrelatedRemoved: { expanded: false, revoked: [] },
 				repoBRemoved: { expanded: false, revoked: ['alias', 'doomed'] },
 				relaunchRefused: false,
-				afterRefusedRelaunch: ['alias'],
+				// A refused relaunch says nothing about instances already running, so their records stay.
+				afterRefusedRelaunch: ['alias', 'doomed'],
 				afterSessionEnded: [],
 			});
 		} finally {
+			await fs.rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('keeps revoking an extension one session runs while another session\'s launch of it is refused', async () => {
+		const root = await fs.mkdtemp(`${os.tmpdir()}/copilot-extension-shared-`);
+		const workspace = join(root, 'workspace');
+		const modulePath = join(workspace, '.github', 'extensions', 'shared', 'extension.mjs');
+		await fs.mkdir(join(modulePath, '..'), { recursive: true });
+		await fs.writeFile(modulePath, '');
+		const realpathStarted = new DeferredPromise<void>();
+		const releaseRealpath = new DeferredPromise<void>();
+		let delayModule = false;
+		const { configurationService, policy } = createPolicy(async path => {
+			if (delayModule && isEqual(URI.file(path), URI.file(modulePath))) {
+				realpathStarted.complete();
+				await releaseRealpath.p;
+			}
+			return fs.realpath(path);
+		});
+		const trust = (folders: string[]) => {
+			configurationService.updateRootConfig({ [AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: folders.map(folder => URI.file(folder).toString()) } });
+			return policy.updateTrust() ?? { expanded: false, contracted: false };
+		};
+		try {
+			// Two chats of the workspace: A runs the extension, then B asks to launch it while trust is revoked.
+			disposables.add(await policy.acquireAdmission([URI.file(workspace)], undefined));
+			disposables.add(await policy.acquireAdmission([URI.file(workspace)], undefined));
+			trust([workspace]);
+			const launchedForA = !!(await policy.resolveLaunch(modulePath, 'project', '/copilot-sdk/extension-bootstrap.mjs')).launch;
+			delayModule = true;
+			const launchForB = policy.resolveLaunch(modulePath, 'project', '/copilot-sdk/extension-bootstrap.mjs');
+			await realpathStarted.p;
+			const revokedWhileBDecides = [...(await policy.reconciliationFor(trust([]))).revokedExtensionNames];
+			releaseRealpath.complete();
+			const launchedForB = !!(await launchForB).launch;
+			const revokedAfterBRefused = [...(await policy.reconciliationFor({ expanded: false, contracted: true })).revokedExtensionNames];
+
+			assert.deepStrictEqual({ launchedForA, revokedWhileBDecides, launchedForB, revokedAfterBRefused }, {
+				launchedForA: true,
+				revokedWhileBDecides: ['shared'],
+				launchedForB: false,
+				revokedAfterBRefused: ['shared'],
+			});
+		} finally {
+			releaseRealpath.complete();
 			await fs.rm(root, { recursive: true, force: true });
 		}
 	});
