@@ -19,8 +19,6 @@ import { PolicyCategory } from '../../../../base/common/policy.js';
 import { registerEditorFeature } from '../../../../editor/common/editorFeatures.js';
 import * as nls from '../../../../nls.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
-import { AccessibleViewType } from '../../../../platform/accessibility/browser/accessibleView.js';
-import { ChatPetJumpGameAccessibleView } from './accessibility/chatPetJumpGameAccessibleView.js';
 import { registerAction2 } from '../../../../platform/actions/common/actions.js';
 import '../../../../platform/agentHost/browser/agentHostEnablementService.js';
 import '../../../../platform/agentHost/common/agentHostEnablementService.js';
@@ -3349,8 +3347,6 @@ AccessibleViewRegistry.register(new EditsChatAccessibilityHelp());
 AccessibleViewRegistry.register(new AgentChatAccessibilityHelp());
 AccessibleViewRegistry.register(new ChatFindAccessibilityHelp());
 AccessibleViewRegistry.register(new ChatPetAchievementsAccessibilityHelp());
-AccessibleViewRegistry.register(new ChatPetJumpGameAccessibleView(AccessibleViewType.Help));
-AccessibleViewRegistry.register(new ChatPetJumpGameAccessibleView(AccessibleViewType.View));
 
 registerEditorFeature(ChatInputBoxContentProvider);
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(ChatEditorInput.TypeID, ChatEditorInputSerializer);

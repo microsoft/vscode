@@ -141,7 +141,6 @@ export interface INewChatComposerInputOptions {
 	readonly petHostPreferred?: IObservable<boolean>;
 	readonly getChatPetPlatformElements?: () => readonly HTMLElement[];
 	readonly getChatPetBasePlatformElement?: () => HTMLElement | undefined;
-	readonly getChatPetJumpGameElement?: () => HTMLElement | undefined;
 	readonly onDidChangeChatPetPlatform?: Event<void>;
 	readonly setChatPetPlatformOccupation?: (occupation: IChatPetPlatformOccupation | undefined) => void;
 	/**

@@ -355,7 +355,6 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			onDidChange: Event.any(this.options.onDidChangeChatPetPlatform ?? Event.None, this.sessionTypePicker.onDidChangeChatPetPlatform),
 			getElements: () => [...(this.options.getChatPetPlatformElements?.() ?? []), ...this.sessionTypePicker.getChatPetPlatformElements()],
 			getBaseElement: this.options.getChatPetBasePlatformElement,
-			getJumpGameElement: this.options.getChatPetJumpGameElement,
 		}));
 
 		this._renderSessionControls(parent);

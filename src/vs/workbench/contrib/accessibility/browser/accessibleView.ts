@@ -308,9 +308,6 @@ export class AccessibleView extends Disposable {
 		if (!provider) {
 			return;
 		}
-		if (provider === this._currentProvider && provider instanceof AccessibleContentProvider && provider.onDispose) {
-			provider = this._updateLastProvider(true)!;
-		}
 		const showDisposables = new DisposableStore();
 		this._showDisposables.value = showDisposables;
 		const onOpenDisposable = provider.onOpen?.();
@@ -339,8 +336,6 @@ export class AccessibleView extends Disposable {
 					this._currentProvider?.dispose();
 					this._currentProvider = undefined;
 					this._resetContextKeys();
-				} else {
-					provider.dispose();
 				}
 			}
 		};
@@ -819,7 +814,7 @@ export class AccessibleView extends Disposable {
 		return this._currentProvider.options.type === AccessibleViewType.Help || this._currentProvider.options.language === 'markdown' || this._currentProvider.options.language === undefined || (this._currentProvider instanceof AccessibleContentProvider && !!this._currentProvider.getSymbols?.());
 	}
 
-	private _updateLastProvider(transferDisposal = false): AccesibleViewContentProvider | undefined {
+	private _updateLastProvider(): AccesibleViewContentProvider | undefined {
 		const provider = this._currentProvider;
 		if (!provider) {
 			return;
@@ -849,15 +844,11 @@ export class AccessibleView extends Disposable {
 			provider.actions,
 			provider.onDidChangeContent?.bind(provider),
 		);
-		if (transferDisposal && provider instanceof AccessibleContentProvider && lastProvider instanceof AccessibleContentProvider) {
-			lastProvider.onDispose = provider.onDispose?.bind(provider);
-			provider.onDispose = undefined;
-		}
 		return lastProvider;
 	}
 
 	public showAccessibleViewHelp(): void {
-		const lastProvider = this._updateLastProvider(true);
+		const lastProvider = this._updateLastProvider();
 		if (!lastProvider) {
 			return;
 		}
@@ -868,9 +859,7 @@ export class AccessibleView extends Disposable {
 				clearRequested = true;
 			}
 		}) : undefined;
-		let restoringLastProvider = false;
 		const restoreLastProvider = () => {
-			restoringLastProvider = true;
 			this._helpClearListener.clear();
 			this._contextViewService.hideContextView();
 			if (clearRequested) {
@@ -889,12 +878,6 @@ export class AccessibleView extends Disposable {
 				restoreLastProvider,
 				lastProvider.verbositySettingKey
 			);
-			accessibleViewHelpProvider.onDispose = () => {
-				this._helpClearListener.clear();
-				if (!restoringLastProvider) {
-					lastProvider.dispose();
-				}
-			};
 		} else {
 			accessibleViewHelpProvider = new ExtensionContentProvider(
 				lastProvider.id,

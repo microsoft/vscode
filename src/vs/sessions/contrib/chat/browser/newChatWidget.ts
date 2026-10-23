@@ -566,7 +566,6 @@ export class NewChatWidget extends Disposable {
 				...this._workspacePicker.getChatPetPlatformElements(),
 			],
 			getChatPetBasePlatformElement: () => this._workspacePickerRow?.classList.contains('new-chat-session-options') ? this._workspacePickerRow : undefined,
-			getChatPetJumpGameElement: () => this._welcomeMessageTitle,
 			onDidChangeChatPetPlatform: Event.any(this._workspacePicker.onDidChangeChatPetPlatform, this._onDidChangeChatPetPlatform.event),
 			setChatPetPlatformOccupation: occupation => this._setChatPetPlatformOccupation(occupation),
 			sessionTypePickerOptions: {
