@@ -7,7 +7,7 @@ import { Dimension, h } from '../../../../base/browser/dom.js';
 import { arrayEqualsC } from '../../../../base/common/equals.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, IReader, ITransaction, autorun, autorunWithStore, constObservable, derived, derivedOpts, mapObservableArrayCached, observableValue, transaction } from '../../../../base/common/observable.js';
+import { IObservable, IReader, ITransaction, autorun, autorunWithStore, constObservable, derived, derivedOpts, mapObservableArrayCached, observableValue, runOnChange, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ContextKeyValue, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -23,6 +23,7 @@ import { IDiffEditor } from '../../../common/editorCommon.js';
 import { IMultiDiffResourceId } from '../../../common/multiDiffEditor.js';
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
 import { ICodeEditor } from '../../editorBrowser.js';
+import { DiffEditorWidthBasedLayout } from '../diffEditor/diffEditorOptions.js';
 import { CompressedVirtualizedScrollView, ICompressedVirtualizedScrollItem, ICompressedVirtualizedScrollItemContext } from './compressedVirtualizedScrollView.js';
 import { ICompressedVirtualizedScrollLayout } from './compressedVirtualizedScrollLayout.js';
 import { binaryFilePlaceholderContentHeight, DiffEditorItemBinding, DiffEditorItemTemplate } from './diffEditorItemTemplate.js';
@@ -41,6 +42,12 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 	private readonly _elements;
 
 	private readonly _optionsOverride: IObservable<IDiffEditorOptions>;
+
+	/**
+	 * Shared by the diff editors of all items, so that all items use the same layout,
+	 * including items that get bound to a (reused) diff editor while scrolling.
+	 */
+	private readonly _widthBasedLayout = observableValue<DiffEditorWidthBasedLayout>(this, 'auto');
 
 	public readonly scrollTop;
 	public readonly scrollLeft;
@@ -88,6 +95,13 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		this._optionsOverride = derived(this, reader => {
 			return { ...this._diffEditorOptions, ...this._diffLayoutOptions.read(reader) };
 		});
+		// Diff editors reset the shared width based layout when these options change, but only while they show a diff.
+		// Reset it here as well, so that a change applies to files that are shown later (e.g. when no file is shown).
+		const widthBasedLayoutOptions = derivedOpts<readonly unknown[]>({ owner: this, equalsFn: arrayEqualsC() }, reader => {
+			const options = this._optionsOverride.read(reader);
+			return [options.renderSideBySide, options.useInlineViewWhenSpaceIsLimited, options.renderSideBySideInlineBreakpoint];
+		});
+		this._register(runOnChange(widthBasedLayoutOptions, () => this.resetWidthBasedLayout()));
 		this._spaceBetweenPx = observableValue(this, 0);
 		const paddingBottomItem = this._paddingBottomPx.map<ICompressedVirtualizedScrollItem>(this, size => ({
 			size: constObservable(size),
@@ -126,6 +140,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 						this._workbenchUIElementFactory,
 						this._variantConfiguration,
 						this._optionsOverride,
+						this._widthBasedLayout,
 					),
 					onDidBind: binding => {
 						const selections = binding.item.lastTemplateData.get().selections;
@@ -434,10 +449,8 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		return this._instantiationService;
 	}
 
-	public resetWidthBasedLayout(): void {
-		for (const item of this._viewItemsInfo.get().items) {
-			item.template.get()?.editor.resetWidthBasedLayout();
-		}
+	public resetWidthBasedLayout(tx?: ITransaction): void {
+		this._widthBasedLayout.set('auto', tx);
 	}
 
 	public reveal(resource: IMultiDiffResourceId, options?: RevealOptions): void {

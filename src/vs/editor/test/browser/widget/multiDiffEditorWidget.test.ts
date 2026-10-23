@@ -7,6 +7,7 @@ import assert from 'assert';
 import sinon from 'sinon';
 import { Dimension } from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 import { Emitter, Event, ValueWithChangeEvent } from '../../../../base/common/event.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, waitForState } from '../../../../base/common/observable.js';
@@ -596,6 +597,161 @@ suite('MultiDiffEditorWidget', () => {
 			viewModel.dispose();
 			widget.dispose();
 			documentItem.dispose();
+		}
+	});
+
+	test('keeps the same layout for all files when scrolling after a deliberate enlargement', async () => {
+		const services = new ServiceCollection();
+		// Real (not simulated) editor focus, so scrolled-away items release their templates.
+		services.set(IUserInteractionService, new MockUserInteractionService(false));
+		services.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() { }());
+		services.set(IActionViewItemService, new NullActionViewItemService());
+		services.set(IEditorProgressService, new class extends mock<IEditorProgressService>() {
+			override show() { return emptyProgressRunner; }
+		}());
+		services.set(IDiffProviderFactoryService, new TestDiffProviderFactoryService());
+		services.set(IStorageService, disposables.add(new InMemoryStorageService()));
+		services.set(IMenuService, new class extends mock<IMenuService>() {
+			override createMenu(): IMenu {
+				return new class extends mock<IMenu>() {
+					override readonly onDidChange = Event.None;
+					override getActions() { return []; }
+					override dispose(): void { }
+				}();
+			}
+		}());
+		const instantiationService = createCodeEditorServices(disposables, services);
+		const lines = Array.from({ length: 20 }, (_, i) => `const value${i} = ${i};`);
+		const documentItems = ['first', 'second', 'third'].map(name => {
+			const originalUri = URI.parse(`inmemory://original/${name}.ts`);
+			const modifiedUri = URI.parse(`inmemory://modified/${name}.ts`);
+			const original = disposables.add(instantiateTextModel(instantiationService, lines.join('\n'), undefined, undefined, originalUri));
+			const modified = disposables.add(instantiateTextModel(instantiationService, lines.map(line => `${line} // ${name}`).join('\n'), undefined, undefined, modifiedUri));
+			return disposables.add(RefCounted.createOfNonDisposable<IDocumentDiffItem>({
+				original: new DiffItemSource(originalUri, original),
+				modified: new DiffItemSource(modifiedUri, modified),
+			}, { dispose() { } }));
+		});
+		const container = document.createElement('div');
+		const widget = disposables.add(instantiationService.createInstance(
+			MultiDiffEditorWidget,
+			container,
+			{} satisfies IWorkbenchUIElementFactory,
+			{ variant: 'noCardsNonCompact' },
+		));
+		widget.setViewMode('automatic');
+		widget.layout(new Dimension(800, 200));
+		const viewModel = disposables.add(widget.createViewModel({ documents: ValueWithChangeEvent.const(documentItems) }));
+		await waitForState(viewModel.items, items => items.length === documentItems.length);
+		widget.setViewModel(viewModel);
+		await waitForState(viewModel.isLoading, isLoading => !isLoading);
+
+		const visibleLayouts = () => widget.visibleDiffItems.get().map(item => {
+			const diffEditor = widget.tryGetCodeEditor(item.modifiedUri!)?.diffEditor;
+			const layout = diffEditor instanceof DiffEditorWidget ? (diffEditor.renderSideBySide ? 'side by side' : 'inline') : 'no diff editor';
+			return `${item.modifiedUri!.path}: ${layout}`;
+		});
+		const scrollTo = (index: number) => widget.reveal({ original: documentItems[index].object.original!.uri, modified: documentItems[index].object.modified!.uri }, { highlight: false });
+
+		try {
+			const narrow = visibleLayouts();
+			// Enlarge beyond the inline breakpoint by dragging a sash.
+			mainWindow.dispatchEvent(new MouseEvent('mousedown'));
+			widget.layout(new Dimension(1200, 200));
+			mainWindow.dispatchEvent(new MouseEvent('mouseup'));
+			const enlarged = visibleLayouts();
+			scrollTo(2);
+			const scrolledDown = visibleLayouts();
+			scrollTo(0);
+			const scrolledBackUp = visibleLayouts();
+			widget.resetWidthBasedLayout();
+			const reset = visibleLayouts();
+			scrollTo(2);
+			const scrolledDownAfterReset = visibleLayouts();
+
+			assert.deepStrictEqual({ narrow, enlarged, scrolledDown, scrolledBackUp, reset, scrolledDownAfterReset }, {
+				narrow: ['/first.ts: inline'],
+				enlarged: ['/first.ts: inline'],
+				scrolledDown: ['/third.ts: inline'],
+				scrolledBackUp: ['/first.ts: inline'],
+				reset: ['/first.ts: side by side'],
+				scrolledDownAfterReset: ['/third.ts: side by side'],
+			});
+		} finally {
+			widget.setViewModel(undefined);
+		}
+	});
+
+	test('applies a layout mode chosen while no file is shown to files shown later', async () => {
+		const services = new ServiceCollection();
+		services.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() { }());
+		services.set(IActionViewItemService, new NullActionViewItemService());
+		services.set(IEditorProgressService, new class extends mock<IEditorProgressService>() {
+			override show() { return emptyProgressRunner; }
+		}());
+		services.set(IDiffProviderFactoryService, new TestDiffProviderFactoryService());
+		services.set(IStorageService, disposables.add(new InMemoryStorageService()));
+		services.set(IMenuService, new class extends mock<IMenuService>() {
+			override createMenu(): IMenu {
+				return new class extends mock<IMenu>() {
+					override readonly onDidChange = Event.None;
+					override getActions() { return []; }
+					override dispose(): void { }
+				}();
+			}
+		}());
+		const instantiationService = createCodeEditorServices(disposables, services);
+		const createDocumentItem = (name: string) => {
+			const originalUri = URI.parse(`inmemory://original/${name}.ts`);
+			const modifiedUri = URI.parse(`inmemory://modified/${name}.ts`);
+			const original = disposables.add(instantiateTextModel(instantiationService, 'const value = 1;', undefined, undefined, originalUri));
+			const modified = disposables.add(instantiateTextModel(instantiationService, 'const value = 2;', undefined, undefined, modifiedUri));
+			return disposables.add(RefCounted.createOfNonDisposable<IDocumentDiffItem>({
+				original: new DiffItemSource(originalUri, original),
+				modified: new DiffItemSource(modifiedUri, modified),
+			}, { dispose() { } }));
+		};
+		const documents = new ValueWithChangeEvent<readonly RefCounted<IDocumentDiffItem>[]>([createDocumentItem('first')]);
+		const container = document.createElement('div');
+		const widget = disposables.add(instantiationService.createInstance(
+			MultiDiffEditorWidget,
+			container,
+			{} satisfies IWorkbenchUIElementFactory,
+			{ variant: 'noCardsNonCompact' },
+		));
+		widget.setViewMode('automatic');
+		widget.layout(new Dimension(800, 200));
+		const viewModel = disposables.add(widget.createViewModel({ documents }));
+		await waitForState(viewModel.items, items => items.length === 1);
+		widget.setViewModel(viewModel);
+		await waitForState(viewModel.isLoading, isLoading => !isLoading);
+
+		const activeLayout = () => {
+			const diffEditor = widget.getActiveControl();
+			return diffEditor ? (diffEditor.renderSideBySide ? 'side by side' : 'inline') : 'no diff editor';
+		};
+
+		try {
+			// Enlarge beyond the inline breakpoint by dragging a sash.
+			mainWindow.dispatchEvent(new MouseEvent('mousedown'));
+			widget.layout(new Dimension(1200, 200));
+			mainWindow.dispatchEvent(new MouseEvent('mouseup'));
+			const enlarged = activeLayout();
+			documents.value = [];
+			await waitForState(viewModel.items, items => items.length === 0);
+			widget.setViewMode('sideBySide');
+			const second = createDocumentItem('second');
+			documents.value = [second];
+			await waitForState(viewModel.items, items => items.length === 1);
+			await waitForState(viewModel.isLoading, isLoading => !isLoading);
+			widget.reveal({ original: second.object.original!.uri, modified: second.object.modified!.uri }, { highlight: false });
+
+			assert.deepStrictEqual({ enlarged, afterChoosingSideBySideWhileEmpty: activeLayout() }, {
+				enlarged: 'inline',
+				afterChoosingSideBySideWhileEmpty: 'side by side',
+			});
+		} finally {
+			widget.setViewModel(undefined);
 		}
 	});
 
