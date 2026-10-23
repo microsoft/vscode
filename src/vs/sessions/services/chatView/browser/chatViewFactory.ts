@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { AbstractChatView, IChatViewOptions } from '../../../browser/parts/chatView.js';
+import { AbstractChatView, IChatViewInputOptions, IChatViewOptions } from '../../../browser/parts/chatView.js';
 
 export const IChatViewFactory = createDecorator<IChatViewFactory>('chatViewFactory');
 
@@ -25,7 +25,7 @@ export interface IChatViewFactory {
 	createNewChatView(isNewChatInSession: boolean, options: IChatViewOptions, instantiationService?: IInstantiationService): AbstractChatView;
 
 	/**
-	 * Creates a chat view that hosts a chat widget for an active session.
+	 * Creates a chat view that hosts a chat widget for an active session, with the given options for its input.
 	 */
-	createChatView(instantiationService?: IInstantiationService): AbstractChatView;
+	createChatView(instantiationService?: IInstantiationService, inputOptions?: IChatViewInputOptions): AbstractChatView;
 }
