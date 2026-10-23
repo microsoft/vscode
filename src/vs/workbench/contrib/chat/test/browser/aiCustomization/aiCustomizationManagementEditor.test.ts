@@ -217,6 +217,115 @@ suite('aiCustomizationManagementEditor', () => {
 		});
 	});
 
+	for (const section of [
+		AICustomizationManagementSection.Agents,
+		AICustomizationManagementSection.Skills,
+		AICustomizationManagementSection.Instructions,
+		AICustomizationManagementSection.Prompts,
+		AICustomizationManagementSection.Plugins,
+		AICustomizationManagementSection.McpServers,
+	]) {
+		test(`Discover creation reuses ${section} page actions`, async () => {
+			const calls: string[] = [];
+			const actions = ['Generate with AI', 'New (Workspace)', 'New (User)'].map(label => ({
+				label,
+				enabled: true,
+				run: () => { calls.push(label); },
+			}));
+			const editor = {
+				selectedSection: undefined as AICustomizationManagementSection | undefined,
+				configurationService: { getValue: () => undefined },
+				listWidgetSectionLoad: Promise.resolve(),
+				selectSection: (value: AICustomizationManagementSection) => {
+					editor.selectedSection = value;
+					calls.push(`section:${value}`);
+				},
+				listWidget: { getCreateActions: () => { calls.push('promptActions'); return actions; } },
+				pluginListWidget: { getAddActions: () => { calls.push('pluginActions'); return actions; } },
+				mcpListWidget: { addServer: async () => { calls.push('addServer'); } },
+				quickInputService: {
+					pick: async (items: { label: string; action: typeof actions[number] }[]) => {
+						calls.push(`pick:${items.map(item => item.label).join(',')}`);
+						return items[1];
+					},
+				},
+			};
+			const createCustomization = Reflect.get(AICustomizationManagementEditor.prototype, 'createCustomization') as (
+				this: typeof editor, section: AICustomizationManagementSection,
+			) => Promise<void>;
+
+			await createCustomization.call(editor, section);
+
+			assert.deepStrictEqual(calls, section === AICustomizationManagementSection.McpServers
+				? [`section:${section}`, 'addServer']
+				: [`section:${section}`, section === AICustomizationManagementSection.Plugins ? 'pluginActions' : 'promptActions', 'pick:Generate with AI,New (Workspace),New (User)', 'New (Workspace)']);
+		});
+	}
+
+	for (const outcome of ['single', 'cancel', 'disabled', 'superseded', 'failed'] as const) {
+		test(`Discover creation handles ${outcome} actions`, async () => {
+			const calls: string[] = [];
+			const section = AICustomizationManagementSection.Plugins;
+			const action = {
+				label: 'Install from Source',
+				enabled: outcome !== 'disabled',
+				run: async () => {
+					calls.push('install');
+					if (outcome === 'failed') {
+						throw new Error('Install failed');
+					}
+				},
+			};
+			const editor = {
+				selectedSection: section as AICustomizationManagementSection,
+				configurationService: { getValue: () => undefined },
+				listWidgetSectionLoad: Promise.resolve(),
+				selectSection() { },
+				pluginListWidget: { getAddActions: () => outcome === 'single' || outcome === 'failed' ? [action] : [action, action] },
+				quickInputService: {
+					pick: async (items: { disabled: boolean; action: typeof action }[]) => {
+						calls.push(`pick:${items[0].disabled}`);
+						if (outcome === 'superseded') {
+							editor.selectedSection = AICustomizationManagementSection.Skills;
+						}
+						return outcome === 'cancel' ? undefined : items[0];
+					},
+				},
+			};
+			const createCustomization = Reflect.get(AICustomizationManagementEditor.prototype, 'createCustomization') as (
+				this: typeof editor, section: AICustomizationManagementSection,
+			) => Promise<void>;
+
+			if (outcome === 'failed') {
+				await assert.rejects(createCustomization.call(editor, section), /Install failed/);
+			} else {
+				await createCustomization.call(editor, section);
+			}
+
+			assert.deepStrictEqual(calls, outcome === 'single' || outcome === 'failed' ? ['install'] : [`pick:${outcome === 'disabled'}`]);
+		});
+	}
+
+	for (const [section, value] of [
+		[AICustomizationManagementSection.Plugins, false],
+		[AICustomizationManagementSection.McpServers, 'none'],
+	] as const) {
+		test(`Discover creation shows the ${section} disabled explanation without starting creation`, async () => {
+			const calls: AICustomizationManagementSection[] = [];
+			const editor = {
+				selectSection: (section: AICustomizationManagementSection) => calls.push(section),
+				configurationService: { getValue: () => value },
+			};
+			const createCustomization = Reflect.get(AICustomizationManagementEditor.prototype, 'createCustomization') as (
+				this: typeof editor, section: AICustomizationManagementSection,
+			) => Promise<void>;
+
+			await createCustomization.call(editor, section);
+
+			assert.deepStrictEqual(calls, [section]);
+		});
+	}
+
 	test('marks an MCP detail migratable from the authoritative candidate', () => {
 		const editor = createTestEditor();
 		const sourceUri = URI.file('/workspace/.vscode/mcp.json');

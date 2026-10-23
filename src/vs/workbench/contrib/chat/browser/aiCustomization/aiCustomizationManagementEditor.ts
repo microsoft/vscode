@@ -55,6 +55,7 @@ import { IAICustomizationListItem } from './aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel, ITEMS_MODEL_SECTIONS } from './aiCustomizationItemsModel.js';
 import { renderCustomizationMarketplaceIcon } from './aiCustomizationPresentation.js';
 import { McpListWidget } from './mcpListWidget.js';
+import { mcpAccessConfig, McpAccessValue } from '../../../../../platform/mcp/common/mcpManagement.js';
 import { PluginListWidget } from './pluginListWidget.js';
 import { ToolsListWidget } from './toolsListWidget.js';
 import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE } from '../agentSessions/agentHost/agentHostToolSetEnablementService.js';
@@ -1045,6 +1046,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.workspaceService.welcomePageFeatures,
 			{
 				selectSection: (section) => this.selectSection(section),
+				createCustomization: section => this.createCustomization(section),
 				selectSectionWithMarketplace: (section) => this.selectSection(section, { showMarketplace: true }),
 				openInstalled: target => void this.revealInstalledCustomization(target),
 				openMarketplaceItem: (resource, origin) => {
@@ -3595,6 +3597,34 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.updateContentVisibility();
 		this.ensureSectionsListReflectsActiveSection(undefined);
 		this.welcomePage?.focus();
+	}
+
+	private async createCustomization(section: AICustomizationManagementSection): Promise<void> {
+		this.selectSection(section);
+		// Keep the section's disabled-state explanation visible instead of opening its creation flow.
+		if (section === AICustomizationManagementSection.Plugins && this.configurationService.getValue(ChatConfiguration.PluginsEnabled) === false
+			|| section === AICustomizationManagementSection.McpServers && this.configurationService.getValue(mcpAccessConfig) === McpAccessValue.None) {
+			return;
+		}
+		if (section === AICustomizationManagementSection.McpServers) {
+			await this.mcpListWidget?.addServer();
+			return;
+		}
+
+		await this.listWidgetSectionLoad;
+		if (this.selectedSection !== section) {
+			return;
+		}
+		const actions = section === AICustomizationManagementSection.Plugins
+			? this.pluginListWidget?.getAddActions() ?? []
+			: this.listWidget.getCreateActions();
+		const action = actions.length === 1 && actions[0].enabled !== false ? actions[0] : (await this.quickInputService.pick(
+			actions.map(action => ({ label: action.label, disabled: action.enabled === false, action })),
+			{ placeHolder: localize('chooseCustomizationCreationAction', "Choose how to add a customization") },
+		))?.action;
+		if (action && action.enabled !== false && this.selectedSection === section) {
+			await action.run();
+		}
 	}
 
 	private selectSection(section: AICustomizationManagementSection, options?: { showMarketplace?: boolean; marketplaceSourceId?: string }): void {
