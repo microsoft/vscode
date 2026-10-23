@@ -142,6 +142,20 @@
 	color: var(--vscode-editorWarning-foreground);
 }
 
+.remotes-widget .remotes-connection-info {
+	display: flex;
+	flex-shrink: 0;
+}
+
+.remotes-widget .remotes-connection-info .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.remotes-widget .remotes-connection-info:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+}
+
 .remotes-widget .remotes-gutter-column,
 .remotes-widget .remotes-actions-column {
 	padding-inline: var(--vscode-spacing-size40);
@@ -160,6 +174,7 @@
 
 .remotes-widget .remotes-group-count[hidden],
 .remotes-widget .remotes-refresh-warning[hidden],
+.remotes-widget .remotes-connection-info[hidden],
 .remotes-widget .remotes-empty-actions[hidden] {
 	display: none;
 }

@@ -243,7 +243,7 @@ suite('SessionsListFilters', () => {
 			{ id: 'vscode', label: 'VS Code' },
 			{ id: 'github/cli', label: 'Copilot CLI' },
 			{ id: 'github/autopilot', label: 'Copilot App' },
-			{ id: 'issues_agent_assignment', label: 'Issues Assignment' },
+			{ id: 'copilot-web', label: 'GitHub' },
 			{ id: 'CUSTOM_EVENT', label: 'Custom Event' },
 			{ id: 'custom_cloud_APPLICATION', label: 'Custom Cloud Application' },
 			{ id: 'another cloud application', label: 'Another Cloud Application' },

@@ -86,7 +86,7 @@ import { IActiveSession, ISessionsManagementService } from '../../../../services
 import { ISessionChangeEvent, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { computeReorderSortChanges, groupByDate, groupByEnvironment, groupByRepository, groupByWorkspace, groupSessionsForList, ISessionChatItem, ISessionSection, limitSessionsForList, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { computeReorderSortChanges, groupByDate, groupByEnvironment, groupByRepository, groupByWorkspace, groupSessionsForList, ISessionChatItem, ISessionSection, limitSessionsForList, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, QUICK_CHATS_SECTION_ID, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IChatService, IChatToolInvocation } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -2236,8 +2236,8 @@ suite('Sessions - SessionsList', () => {
 
 				const hidden = { titleBadge: undefined, detailsBadge: undefined, ariaIncludesApplication: false };
 				const cliBadge = {
-					titleBadge: mode === ExternalSessionApplicationBadgeMode.Title ? 'From Copilot CLI' : undefined,
-					detailsBadge: mode === ExternalSessionApplicationBadgeMode.Details ? 'From Copilot CLI' : undefined,
+					titleBadge: mode === ExternalSessionApplicationBadgeMode.Title ? 'Copilot CLI' : undefined,
+					detailsBadge: mode === ExternalSessionApplicationBadgeMode.Details ? 'Copilot CLI' : undefined,
 					ariaIncludesApplication: mode !== ExternalSessionApplicationBadgeMode.Off,
 				};
 				assert.deepStrictEqual({ vscode, unknownApplications, external, continued, vscodeAgentsWindow, otherApplication }, {
@@ -2247,8 +2247,8 @@ suite('Sessions - SessionsList', () => {
 					continued: cliBadge,
 					vscodeAgentsWindow: hidden,
 					otherApplication: {
-						titleBadge: mode === ExternalSessionApplicationBadgeMode.Title ? 'From Slack' : undefined,
-						detailsBadge: mode === ExternalSessionApplicationBadgeMode.Details ? 'From Slack' : undefined,
+						titleBadge: mode === ExternalSessionApplicationBadgeMode.Title ? 'Slack' : undefined,
+						detailsBadge: mode === ExternalSessionApplicationBadgeMode.Details ? 'Slack' : undefined,
 						ariaIncludesApplication: mode !== ExternalSessionApplicationBadgeMode.Off,
 					},
 				});
@@ -2978,7 +2978,7 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		for (const grouping of [SessionsGrouping.Workspace, SessionsGrouping.Date]) {
+		for (const grouping of [SessionsGrouping.Workspace, SessionsGrouping.Repository]) {
 			test(`caps the Chats section like a workspace until the user chooses otherwise (${grouping})`, () => {
 				const harness = createListHarness(disposables, Array.from({ length: 8 }, (_, index) =>
 					createTestSession(`chat-${index}`, { isQuickChat: true, createdAt: new Date(Date.now() - index * 1000) }).session));
@@ -10887,11 +10887,43 @@ suite('Sessions - SessionsList', () => {
 			}));
 
 			assert.deepStrictEqual(results, [
-				{ isExternal: true, useCompactQuickChatRows: true, titleBadge: 'From Copilot CLI', detailsBadge: undefined },
-				{ isExternal: true, useCompactQuickChatRows: false, titleBadge: undefined, detailsBadge: 'From Copilot CLI' },
-				{ isExternal: false, useCompactQuickChatRows: true, titleBadge: 'From Copilot CLI', detailsBadge: undefined },
-				{ isExternal: false, useCompactQuickChatRows: false, titleBadge: undefined, detailsBadge: 'From Copilot CLI' },
+				{ isExternal: true, useCompactQuickChatRows: true, titleBadge: 'Copilot CLI', detailsBadge: undefined },
+				{ isExternal: true, useCompactQuickChatRows: false, titleBadge: undefined, detailsBadge: 'Copilot CLI' },
+				{ isExternal: false, useCompactQuickChatRows: true, titleBadge: 'Copilot CLI', detailsBadge: undefined },
+				{ isExternal: false, useCompactQuickChatRows: false, titleBadge: undefined, detailsBadge: 'Copilot CLI' },
 			]);
+		});
+
+		test('keeps compact quick-chat rows the same height whether or not the title application badge is shown', () => {
+			const quickChat = createTestSession('External chat', { isQuickChat: true, application: 'github/cli', environment: 'cloud' }).session;
+			const harness = createListHarness(disposables, [quickChat], instantiationService => {
+				(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, ExternalSessionApplicationBadgeMode.Title);
+			});
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsFlatList, container, {
+				showSessionHover: false,
+				useCompactQuickChatRows: true,
+				onSessionOpen: () => { },
+			}));
+			list.setSessions([quickChat]);
+			list.layout(list.getContentHeight(), 400);
+
+			const row = container.querySelector<HTMLElement>('.monaco-list-row');
+			const titleRow = container.querySelector<HTMLElement>('.session-title-row');
+			const badge = container.querySelector<HTMLElement>('.session-external-application-badge-title.visible');
+			assert.ok(row && titleRow && badge);
+			const measure = () => ({
+				badgeShown: mainWindow.getComputedStyle(badge).display !== 'none',
+				titleRowHeight: titleRow.getBoundingClientRect().height,
+			});
+			const atRest = measure();
+			row.classList.add('hovered');
+			const hovered = measure();
+
+			assert.deepStrictEqual({ atRest, hovered }, {
+				atRest: { badgeShown: true, titleRowHeight: 16 },
+				hovered: { badgeShown: false, titleRowHeight: 16 },
+			});
 		});
 
 		function createChat(id: string): IChat {

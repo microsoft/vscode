@@ -13,6 +13,38 @@ import { SessionsEmptyStateLayout } from '../../browser/parts/sessionsEmptyState
 suite('Sessions - Empty state layout', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('does not translate content before its container and reference have a height', () => {
+		class TestResizeObserver implements ResizeObserver {
+			observe(): void { }
+			unobserve(): void { }
+			disconnect(): void { }
+		}
+		const results = [true, false].map(referenceReady => {
+			const group = append(mainWindow.document.body, $('.editor-group-container'));
+			group.style.cssText = `height: ${referenceReady ? 400 : 0}px; width: 400px;`;
+			store.add(toDisposable(() => group.remove()));
+			const container = append(group, $('div'));
+			container.style.cssText = `display: flex; align-items: center; justify-content: center; height: ${referenceReady ? 0 : 400}px;`;
+			const content = append(container, $('div'));
+			content.style.cssText = 'height: 90px; width: 320px;';
+			const anchor = append(content, $('div'));
+			anchor.style.cssText = 'position: relative; top: 34px; height: 56px;';
+			const layout = store.add(new SessionsEmptyStateLayout(container, [content], anchor, TestResizeObserver));
+			const initialTranslate = content.style.translate;
+			group.style.height = container.style.height = '400px';
+			layout.layout();
+			const bounds = group.getBoundingClientRect();
+			return {
+				initialTranslate,
+				alignedAfterLayout: Math.abs(anchor.getBoundingClientRect().top - (bounds.top + bounds.bottom) / 2 + 42) < 1,
+			};
+		});
+		assert.deepStrictEqual(results, [true, false].map(() => ({
+			initialTranslate: '',
+			alignedAfterLayout: true,
+		})));
+	});
+
 	test('aligns the first button with search fields and status text above it', () => {
 		const observers: TestResizeObserver[] = [];
 		class TestResizeObserver implements ResizeObserver {

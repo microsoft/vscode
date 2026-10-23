@@ -21,6 +21,7 @@ import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE } from '../../../../platform/extensions/common/extensions.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -110,14 +111,23 @@ function getGroupLabel(group: AgentsWindowExtensionGroup): string {
 	}
 }
 
-function getGroupDescription(group: AgentsWindowExtensionGroup): string {
-	switch (group) {
+/**
+ * Describes a group. Extensions in the Suggested and Other Extensions groups are disabled by default, unless they are
+ * enabled automatically, which leaves their global state.
+ */
+function getGroupDescription(group: IAgentsWindowExtensionsGroup): string {
+	const hasAutomaticallyEnabled = group.entries.some(entry => entry.extension.enablementState === EnablementState.EnabledGlobally);
+	switch (group.group) {
 		case AgentsWindowExtensionGroup.Suggested:
-			return localize('agentsWindowExtensions.suggestedGroupDescription', "Extensions that could be useful in the Agents window, for example because they add tools, MCP servers, or syntax highlighting. They haven't declared support for the Agents window, so they are disabled by default and might not work as expected.");
+			return hasAutomaticallyEnabled
+				? localize('agentsWindowExtensions.suggestedGroupDescriptionAutoEnabled', "Extensions that could be useful in the Agents window, for example because they add tools, MCP servers, or syntax highlighting. They haven't declared support for the Agents window, so they might not work as expected. Those that don't rely on views, debugging, or other features that the Agents window doesn't have are enabled automatically.")
+				: localize('agentsWindowExtensions.suggestedGroupDescription', "Extensions that could be useful in the Agents window, for example because they add tools, MCP servers, or syntax highlighting. They haven't declared support for the Agents window, so they are disabled by default and might not work as expected.");
 		case AgentsWindowExtensionGroup.Supported:
 			return localize('agentsWindowExtensions.supportedGroupDescription', "Extensions that support the Agents window. They are enabled by default.");
 		case AgentsWindowExtensionGroup.Other:
-			return localize('agentsWindowExtensions.otherGroupDescription', "Extensions that haven't declared support for the Agents window. They are disabled by default and might not work as expected.");
+			return hasAutomaticallyEnabled
+				? localize('agentsWindowExtensions.otherGroupDescriptionAutoEnabled', "Extensions that haven't declared support for the Agents window. They might not work as expected. Those that could be useful in the Agents window and don't rely on views, debugging, or other features that it doesn't have are enabled automatically. The others are disabled by default.")
+				: localize('agentsWindowExtensions.otherGroupDescription', "Extensions that haven't declared support for the Agents window. They are disabled by default and might not work as expected.");
 	}
 }
 
@@ -228,6 +238,7 @@ export class AgentsWindowExtensionsWidget extends Disposable implements IAICusto
 
 	private readonly element: HTMLElement;
 	private readonly runtimeActionButton: Button;
+	private readonly description: HTMLElement;
 	private readonly searchInput: InputBox;
 	private readonly treeContainer: HTMLElement;
 	private readonly tree: WorkbenchObjectTree<AgentsWindowExtensionsTreeEntry>;
@@ -265,7 +276,8 @@ export class AgentsWindowExtensionsWidget extends Disposable implements IAICusto
 		DOM.append(titleRow, $('h2.agents-window-extensions-title')).textContent = localize('agentsWindowExtensions.title', "Extensions");
 		this.runtimeActionButton = this._register(new Button(titleRow, { ...defaultButtonStyles, secondary: true, small: true }));
 		this._register(this.runtimeActionButton.onDidClick(() => this.runRuntimeAction()));
-		DOM.append(header, $('p.agents-window-extensions-description')).textContent = localize('agentsWindowExtensions.description', "Choose which installed extensions run in the Agents window. Extensions that haven't declared support for the Agents window are disabled by default and might not work as expected. Changes only apply to the Agents window.");
+		this.description = DOM.append(header, $('p.agents-window-extensions-description'));
+		this.updateDescription();
 
 		const searchContainer = DOM.append(this.element, $('.agents-window-extensions-search'));
 		this.searchInput = this._register(new InputBox(searchContainer, contextViewService, {
@@ -347,6 +359,9 @@ export class AgentsWindowExtensionsWidget extends Disposable implements IAICusto
 			if (e.affectsConfiguration(AccessibilityVerbositySettingId.AgentsWindowExtensions)) {
 				this.updateSearchAriaLabel();
 			}
+			if (e.affectsConfiguration(EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE)) {
+				this.updateDescription();
+			}
 		}));
 		this._register(this.keybindingService.onDidUpdateKeybindings(() => this.updateSearchAriaLabel()));
 	}
@@ -419,7 +434,8 @@ export class AgentsWindowExtensionsWidget extends Disposable implements IAICusto
 				id: `agents-window-extensions-group-${group.group}`,
 				group: group.group,
 				label: getGroupLabel(group.group),
-				description: getGroupDescription(group.group),
+				// Describes all installed extensions in the group, so the description doesn't change while searching.
+				description: getGroupDescription(installed.find(installedGroup => installedGroup.group === group.group) ?? group),
 				icon: Codicon.extensions,
 				count: group.entries.length,
 				isFirst: false,
@@ -493,6 +509,12 @@ export class AgentsWindowExtensionsWidget extends Disposable implements IAICusto
 		} catch (error) {
 			this.notificationService.error(error);
 		}
+	}
+
+	private updateDescription(): void {
+		this.description.textContent = this.configurationService.getValue<boolean>(EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE) === true
+			? localize('agentsWindowExtensions.descriptionAutoEnabled', "Choose which installed extensions run in the Agents window. Extensions that haven't declared support for the Agents window might not work as expected. They are disabled by default, unless they could be useful there and don't rely on features that the Agents window doesn't have. Changes only apply to the Agents window.")
+			: localize('agentsWindowExtensions.description', "Choose which installed extensions run in the Agents window. Extensions that haven't declared support for the Agents window are disabled by default and might not work as expected. Changes only apply to the Agents window.");
 	}
 
 	private updateSearchAriaLabel(): void {
