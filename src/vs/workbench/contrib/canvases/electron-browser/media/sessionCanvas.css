@@ -31,3 +31,50 @@
 .session-canvas-editor .session-canvas-message:empty {
 	display: none;
 }
+
+.session-canvas-editor .session-canvas-detached {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: var(--vscode-spacing-size100);
+	padding: var(--vscode-spacing-size240);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body1);
+	text-align: center;
+}
+
+.session-canvas-editor .session-canvas-detached[hidden] {
+	display: none;
+}
+
+.session-canvas-editor .session-canvas-detached > .codicon {
+	font-size: var(--vscode-codiconFontSize);
+}
+
+.session-canvas-editor .session-canvas-detached-actions {
+	display: flex;
+	gap: var(--vscode-spacing-size80);
+}
+
+.session-canvas-editor .session-canvas-detached-actions .monaco-button {
+	width: auto;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size120);
+}
+
+.monaco-workbench .monaco-icon-label.canvas-detached .label-name {
+	font-style: italic;
+}
+
+.monaco-workbench .monaco-icon-label.canvas-detached .label-name::after {
+	content: '';
+	display: inline-block;
+	width: 6px;
+	height: 6px;
+	margin-left: var(--vscode-spacing-size60);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background: var(--vscode-focusBorder);
+	vertical-align: middle;
+}

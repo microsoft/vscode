@@ -5,6 +5,8 @@
 
 import '../../../../workbench/contrib/canvases/electron-browser/canvases.contribution.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { localize } from '../../../../nls.js';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IMenuService } from '../../../../platform/actions/common/actions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
@@ -13,15 +15,32 @@ import { EditorExtensions, IEditorFactoryRegistry } from '../../../../workbench/
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IChatContextPickService } from '../../../../workbench/contrib/chat/browser/attachments/chatContextPickService.js';
 import { registerCanvasContextPicker } from '../../../../workbench/contrib/canvases/browser/canvasContextPicker.js';
-import { CanvasInput, ICanvasContextService, ICanvasService } from '../../../../workbench/contrib/canvases/common/canvas.js';
+import { CanvasInput, CanvasPictureInPictureEnabledSettingId, ICanvasContextService, ICanvasService } from '../../../../workbench/contrib/canvases/common/canvas.js';
 import { Menus } from '../../../browser/menus.js';
 import { ISessionCanvasRegistryService } from '../common/sessionCanvas.js';
 import { registerSessionCanvasActions } from './sessionCanvasActions.js';
 import { SessionCanvasContextService, SessionCanvasRegistryService } from './sessionCanvasService.js';
 import { SessionCanvasSerializer } from './sessionCanvasSerializer.js';
+import { ISessionCanvasPictureInPictureService, SessionCanvasPictureInPictureService } from './sessionCanvasPictureInPicture.js';
+import { registerCanvasPictureInPictureActions } from './sessionCanvasPictureInPictureActions.js';
 
 registerSingleton(ICanvasContextService, SessionCanvasContextService, InstantiationType.Delayed);
 registerSingleton(ISessionCanvasRegistryService, SessionCanvasRegistryService, InstantiationType.Delayed);
+registerSingleton(ISessionCanvasPictureInPictureService, SessionCanvasPictureInPictureService, InstantiationType.Delayed);
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	id: 'chat',
+	properties: {
+		[CanvasPictureInPictureEnabledSettingId]: {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.WINDOW,
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+			description: localize('canvas.pipSetting', "Enables floating canvases in the Agents Window. Drag a canvas tab out to float it above the window, toss it into a corner, or tuck it away at either side. No separate window is opened."),
+		},
+	},
+});
 
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(CanvasInput.ID, SessionCanvasSerializer);
 
@@ -35,10 +54,12 @@ class SessionCanvasAddTabContribution extends Disposable implements IWorkbenchCo
 		@IChatContextPickService contextPickService: IChatContextPickService,
 		@IMenuService menuService: IMenuService,
 		@INotificationService notificationService: INotificationService,
+		@ISessionCanvasPictureInPictureService _pictureInPicture: ISessionCanvasPictureInPictureService,
 	) {
 		super();
 		this._register(registerSessionCanvasActions(canvasService, registryService, contextService));
 		this._register(registerCanvasContextPicker(contextPickService, menuService, notificationService, Menus.SessionsEditorTabsBarAddTabCanvas));
+		this._register(registerCanvasPictureInPictureActions());
 	}
 }
 

@@ -316,4 +316,50 @@ suite('CanvasService', () => {
 			reopenable: harness.service.reopenableCanvases.get().length,
 		}, { openCalls: 1, moves: ['1->2'], groups: [2], disposed: false, reopenable: 0 });
 	});
+
+	test('reveals a floating presentation without opening or moving the editor', async () => {
+		const harness = createHarness();
+		harness.canvases.set([harness.canvas], undefined);
+		await timeout(0);
+		const input = harness.opened[0];
+		const reveals: (boolean | undefined)[] = [];
+		input.setPresentation({ reveal: options => reveals.push(options?.focus), dock: () => { } });
+		await harness.service.revealCanvas(input.reference);
+		assert.deepStrictEqual({ reveals, moves: harness.moves, openCalls: harness.opened.length }, { reveals: [true], moves: [], openCalls: 1 });
+	});
+
+	test('starts tabs created while a canvas floats as placeholders until the presentation is released', async () => {
+		const harness = createHarness();
+		harness.canvases.set([harness.canvas], undefined);
+		await timeout(0);
+		const first = harness.opened[0];
+		const reveals: (boolean | undefined)[] = [];
+		const handle = harness.service.presentDetached(first.reference, { reveal: options => reveals.push(options?.focus), dock: () => { } });
+		const existing = !!first.presentation.get();
+		first.dispose();
+		// A tab created while the canvas floats reveals the presentation instead of taking the page.
+		await harness.service.revealCanvas(first.reference);
+		const whileFloating = { reveals: [...reveals], opened: harness.opened.length };
+		handle.dispose();
+		await harness.service.revealCanvas(first.reference);
+		assert.deepStrictEqual({ existing, whileFloating, afterRelease: { opened: harness.opened.length, detached: !!harness.opened[1]?.presentation.get() } }, {
+			existing: true,
+			whileFloating: { reveals: [true], opened: 1 },
+			afterRelease: { opened: 2, detached: false },
+		});
+	});
+
+	test('shows a floating canvas without focusing it when its agent opens it again', async () => {
+		const harness = createHarness();
+		harness.canvases.set([harness.canvas], undefined);
+		await timeout(0);
+		const input = harness.opened[0];
+		const reveals: (boolean | undefined)[] = [];
+		input.setPresentation({ reveal: options => reveals.push(options?.focus), dock: () => { } });
+		harness.openRequests.set(new Map([['preview', { id: 'again', succeeded: false }]]), undefined);
+		harness.openRequests.set(new Map([['preview', { id: 'again', succeeded: true }]]), undefined);
+		harness.openRequests.set(new Map([['preview', { id: 'again', succeeded: true }]]), undefined);
+		await timeout(0);
+		assert.deepStrictEqual({ reveals, moves: harness.moves, openCalls: harness.opened.length }, { reveals: [false], moves: [], openCalls: 1 });
+	});
 });

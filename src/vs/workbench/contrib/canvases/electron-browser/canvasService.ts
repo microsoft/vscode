@@ -22,7 +22,7 @@ import { IChatEntitlementService } from '../../../services/chat/common/chatEntit
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../browserView/common/browserView.js';
-import { CanvasInput, canvasOwnerKey, getCanvasReferenceKey, ICanvas, ICanvasContextService, ICanvasModelResolution, ICanvasOwner, ICanvasReference, ICanvasReopenTarget, ICanvasService, ICanvasWorkingSetOwner, ICanvasWorkingSetState, isCanvasOwner } from '../common/canvas.js';
+import { CanvasInput, canvasOwnerKey, getCanvasReferenceKey, ICanvas, ICanvasContextService, ICanvasDetachedPresentation, ICanvasModelResolution, ICanvasOwner, ICanvasReference, ICanvasReopenTarget, ICanvasService, ICanvasWorkingSetOwner, ICanvasWorkingSetState, isCanvasOwner } from '../common/canvas.js';
 
 interface ICanvasPresentation {
 	readonly reference: ICanvasReference;
@@ -61,6 +61,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 	private readonly opening = new Map<CanvasInput, { readonly value: Promise<void>; readonly restoreFallback: boolean }>();
 	private readonly programmaticCloses = new Set<CanvasInput>();
 	private readonly workingSetSuspensions = new Set<CanvasInput>();
+	private readonly detachedPresentations = new Map<string, ICanvasDetachedPresentation>();
 	private readonly dismissedChanged = observableSignal(this);
 	private readonly presentationsChanged = observableSignal(this);
 	private readonly workingSetState: IObservable<ICanvasWorkingSetState>;
@@ -166,6 +167,15 @@ export class CanvasService extends Disposable implements ICanvasService {
 						continue;
 					}
 					this.deleteDismissed(key);
+					// Untracked: returning a floating canvas to its tab must not re-trigger an agent open.
+					const detached = input.presentation.read(undefined);
+					if (detached && presentation?.opened) {
+						presentation.requestId = requestId;
+						if (request?.succeeded) {
+							detached.reveal({ focus: false });
+						}
+						continue;
+					}
 					if (presentation?.opened && request?.succeeded && this.editorService.isVisible(input)) {
 						presentation.requestId = requestId;
 						continue;
@@ -220,6 +230,11 @@ export class CanvasService extends Disposable implements ICanvasService {
 		}
 		const input = this.getOrCreateInput(reference, canvas);
 		input.setCanvas(canvas);
+		const presentation = input.presentation.get();
+		if (presentation) {
+			presentation.reveal({ focus: true });
+			return;
+		}
 		await this.openInput(key, input);
 	}
 
@@ -255,6 +270,18 @@ export class CanvasService extends Disposable implements ICanvasService {
 		input.setSerializationId(serializationId);
 		presentation.opened = true;
 		return input;
+	}
+
+	presentDetached(reference: ICanvasReference, presentation: ICanvasDetachedPresentation): IDisposable {
+		const key = getCanvasReferenceKey(reference);
+		this.detachedPresentations.set(key, presentation);
+		this.inputs.get(key)?.setPresentation(presentation);
+		return toDisposable(() => {
+			if (this.detachedPresentations.get(key) === presentation) {
+				this.detachedPresentations.delete(key);
+				this.inputs.get(key)?.setPresentation(undefined);
+			}
+		});
 	}
 
 	resolveCanvasModel(reference: ICanvasReference, source: URI): Promise<ICanvasModelResolution> {
@@ -387,6 +414,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 			input.setSerializationId(presentation.serializationId);
 		}
 		this.inputs.set(key, input);
+		input.setPresentation(this.detachedPresentations.get(key));
 		const lifetime = new DisposableStore();
 		this.inputLifetimes.set(key, lifetime);
 		if (this.contextService.workingSets) {

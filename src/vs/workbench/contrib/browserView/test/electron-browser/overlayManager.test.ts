@@ -62,6 +62,15 @@ suite('BrowserOverlayManager', () => {
 		assert.deepStrictEqual(overlays, []);
 	});
 
+	test('a canvas overlay obscures other native pages but not its own content', () => {
+		const behind = addElement('browser-container', { position: 'absolute', left: '0px', top: '0px', width: '300px', height: '300px' });
+		const overlay = addElement('canvas-picture-in-picture', { position: 'absolute', left: '0px', top: '0px', width: '300px', height: '300px', zIndex: '100' });
+		const inside = addElement('browser-container', { width: '100%', height: '100%' }, overlay);
+		assert.deepStrictEqual({ behind: manager.getOverlappingOverlays(behind).map(value => value.type), inside: manager.getOverlappingOverlays(inside) }, {
+			behind: [BrowserOverlayType.Unknown], inside: [],
+		});
+	});
+
 	test('detects a spotlight overlay covering the browser container', () => {
 		const browserContainer = addElement('browser-container', {
 			position: 'absolute', left: '0px', top: '0px', width: '300px', height: '300px'

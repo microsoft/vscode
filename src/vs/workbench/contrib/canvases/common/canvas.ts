@@ -22,6 +22,9 @@ import type { IBrowserViewModel } from '../../browserView/common/browserView.js'
 /** Reveals a live canvas beside its owning chat, reopening its closed tab. Takes an {@link ICanvasReference}. */
 export const REVEAL_CANVAS_COMMAND_ID = 'workbench.action.agentSessions.revealCanvas';
 
+/** Enables floating canvases above the Agents Window. Registered only by the Agents Window. */
+export const CanvasPictureInPictureEnabledSettingId = 'chat.canvases.pictureInPicture.enabled';
+
 export interface ICanvas {
 	readonly resource: URI;
 	readonly instanceId: string | undefined;
@@ -94,6 +97,13 @@ export interface ICanvasModelResolution {
 	readonly reused: boolean;
 }
 
+/** Shows a canvas outside its tab, which remains its anchor and placeholder. */
+export interface ICanvasDetachedPresentation {
+	reveal(options?: { readonly focus?: boolean }): void;
+	/** Returns the canvas to its tab without reloading it. */
+	dock(): void;
+}
+
 /**
  * The owner of an editor working set: a whole session, or a single chat of it
  * when the window scopes its layout to chats.
@@ -161,6 +171,12 @@ export interface ICanvasService {
 	restoreCanvasInput(serializationId: string): CanvasInput | undefined;
 	/** Resolves the live browser model retained for this presentation, creating it once when needed. */
 	resolveCanvasModel(reference: ICanvasReference, source: URI): Promise<ICanvasModelResolution>;
+	/**
+	 * Presents a canvas outside its tab until the returned handle is disposed. Tabs
+	 * created meanwhile, such as those restored when its conversation is shown again,
+	 * start as placeholders so they never take the live page from the presentation.
+	 */
+	presentDetached(reference: ICanvasReference, presentation: ICanvasDetachedPresentation): IDisposable;
 }
 
 export function canvasOwnerKey(owner: ICanvasOwner): string {
@@ -308,6 +324,8 @@ export class CanvasInput extends EditorInput {
 	readonly resource: URI;
 	readonly canvas = observableValue<ICanvas | undefined>(this, undefined);
 	readonly membershipPending = observableValue(this, false);
+	private readonly _presentation = observableValue<ICanvasDetachedPresentation | undefined>(this, undefined);
+	readonly presentation: IObservable<ICanvasDetachedPresentation | undefined> = this._presentation;
 	private _serializationId: string | undefined;
 
 	constructor(
@@ -333,7 +351,20 @@ export class CanvasInput extends EditorInput {
 	}
 	override getIcon(): ThemeIcon { return Codicon.preview; }
 	override getTitle(_verbosity?: Verbosity): string { return this.getName(); }
+	override getLabelExtraClasses(): string[] { return this._presentation.get() ? ['canvas-detached'] : []; }
+	override getAriaLabel(): string {
+		return this._presentation.get()
+			? localize('canvas.detachedAriaLabel', "{0}, floating", this.getName())
+			: this.getName();
+	}
 	override canReopen(): boolean { return false; }
+
+	setPresentation(presentation: ICanvasDetachedPresentation | undefined): void {
+		if (this._presentation.get() !== presentation) {
+			this._presentation.set(presentation, undefined);
+			this._onDidChangeLabel.fire();
+		}
+	}
 
 	override canMove(_sourceGroup: GroupIdentifier, targetGroup: GroupIdentifier): true | string {
 		return this.editorGroupsService.getGroup(targetGroup)?.windowId === this.editorGroupsService.mainPart.windowId
