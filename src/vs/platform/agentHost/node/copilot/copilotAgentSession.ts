@@ -87,7 +87,7 @@ import { allowCopilotSdkExecution, restoreDeferredCopilotSdkExecution } from './
 import { getCopilotSdkToolResourceUri } from './copilotSdkMeta.js';
 import { isAutoModel } from './modelIdentifiers.js';
 import { clientToolNamesFromSnapshot, composeByokSessionConfig, findLocalModelDirectFamily, getCopilotWorkingDirectoryTrust, isMcpServerExplicitlyProjected, resolveCopilotSessionManagedSettings, toSessionConfigMcpServers, type CopilotChatSurface, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotClientToolConfiguration, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
-import type { ICopilotProjectExtensionTrustReconciliation } from './copilotProjectExtensionLaunchPolicy.js';
+import type { ICopilotCreatedWorktree, ICopilotProjectExtensionTrustReconciliation } from './copilotProjectExtensionLaunchPolicy.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, NON_DEFERRED_CLIENT_TOOL_NAMES, RUNTIME_TOOL_SEARCH_TOOL_NAME, searchToolsWithoutClient } from './toolSearchDeferral.js';
 import { ActiveClientToolSet, structuralToolsEqual } from '../activeClientState.js';
 import { AgentHostTelemetryReporter, toInitiatorTelemetry, type IAgentHostEventClassification, type IAgentHostEventTelemetry, type ICanvasExtensionsReadyEvent } from '../agentHostTelemetryReporter.js';
@@ -4051,9 +4051,10 @@ export class CopilotAgentSession extends Disposable {
 		return this._launchPlan.workspaceless ? this._launchPlan.workingDirectory : undefined;
 	}
 
-	/** The repository whose trust this session's working directory inherits, when it is the worktree the host created for it. */
-	get worktreeRepository(): URI | undefined {
-		return this._launchPlan.worktreeRepository;
+	/** The worktree the host created as this session's working directory, with the repository whose trust it inherits. */
+	get createdWorktree(): ICopilotCreatedWorktree | undefined {
+		const { workingDirectory, worktreeRepository } = this._launchPlan;
+		return workingDirectory && worktreeRepository ? { worktree: workingDirectory, repository: worktreeRepository } : undefined;
 	}
 
 	get canvasRuntimeEnabled(): boolean {
