@@ -27,10 +27,10 @@
 			}
 		},
 		"strictPluginOnlyCustomization": {
-			"description": "Customization lockdown baseline. When set, prevents standalone user and workspace/project customizations from the named surfaces; those customizations may then originate only from plugins or managed settings. It does NOT mean managed-plugin-only — eligible plugin-provided customizations are still permitted (use `allowManagedMcpServersOnly` / `allowManagedHooksOnly` for the stricter managed-only overlays). `true` locks all four surfaces (skills, agents, hooks, MCP servers); an array locks only the named surfaces. Unset preserves existing behavior.",
+			"description": "Customization lockdown baseline. When set, prevents standalone user and workspace/project customizations from the named surfaces; those customizations may then originate only from plugins or managed settings. For executable Copilot extensions, also blocks session-state extension directories. It does NOT mean managed-plugin-only — eligible plugin-provided customizations are still permitted (use `allowManagedMcpServersOnly` / `allowManagedHooksOnly` for the stricter managed-only overlays). `true` locks all five surfaces (skills, agents, hooks, MCP servers, extensions); an array locks only the named surfaces. Unset or false preserves existing behavior.",
 			"oneOf": [
 				{
-					"description": "true locks all four surfaces (skills, agents, hooks, MCP servers); false preserves existing behavior.",
+					"description": "true locks all five surfaces (skills, agents, hooks, MCP servers, extensions); false preserves existing behavior.",
 					"type": "boolean"
 				},
 				{
@@ -42,7 +42,8 @@
 							"skills",
 							"agents",
 							"hooks",
-							"mcp"
+							"mcp",
+							"extensions"
 						]
 					},
 					"uniqueItems": true
