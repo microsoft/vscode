@@ -4399,11 +4399,28 @@ export class CopilotAgentSession extends Disposable {
 		if (!wrapper.canvasRuntimeEnabled) {
 			throw new Error('Canvases are disabled for this session.');
 		}
-		const canvas = await this._awaitControlPlaneRpc('rpc.canvas.open', wrapper.session.rpc.canvas.open(request));
-		if (this._wrapper === wrapper && !this._store.isDisposed && this._canvasPhase === 'live'
-			&& this._ignoredRestoredCanvasInstanceIds.delete(canvas.instanceId)) {
-			// The opened event may already have been suppressed before the RPC returned its live snapshot.
-			this._projectOpenedCanvas(canvas);
+		const wasIgnored = this._ignoredRestoredCanvasInstanceIds.has(request.instanceId);
+		let latestEvent: SessionEventPayload<'session.canvas.opened' | 'session.canvas.closed' | 'session.canvas.unavailable'> | undefined;
+		const listener = wasIgnored ? wrapper.onEvent(event => {
+			if (!event.agentId
+				&& (event.type === 'session.canvas.opened' || event.type === 'session.canvas.closed' || event.type === 'session.canvas.unavailable')
+				&& event.data.instanceId === request.instanceId) {
+				latestEvent = event;
+			}
+		}) : undefined;
+		try {
+			const canvas = await this._awaitControlPlaneRpc('rpc.canvas.open', wrapper.session.rpc.canvas.open(request));
+			if (!wasIgnored || this._wrapper !== wrapper || this._store.isDisposed || this._canvasPhase !== 'live'
+				|| this._canvasByInstanceId.has(request.instanceId)) {
+				return;
+			}
+			this._ignoredRestoredCanvasInstanceIds.delete(request.instanceId);
+			// Events observed during the request supersede its snapshot, even while restoration suppression hides them.
+			if (!latestEvent || latestEvent.type === 'session.canvas.opened') {
+				this._projectOpenedCanvas(latestEvent?.data ?? canvas);
+			}
+		} finally {
+			listener?.dispose();
 		}
 	}
 

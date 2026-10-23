@@ -4001,6 +4001,8 @@ suite('CopilotAgentSession', () => {
 				if (eventOrder === 'before response') {
 					mockSession.fire('session.canvas.opened', live);
 				}
+				mockSession.fire('session.canvas.closed', preview, { agentId: 'subagent' });
+				mockSession.fire('session.canvas.unavailable', other);
 				const whilePending = summarizeCanvasSignals(signals);
 				response.complete(live);
 				await opening;
@@ -4086,6 +4088,103 @@ suite('CopilotAgentSession', () => {
 			await opening;
 			assert.deepStrictEqual(signals.filter(signal => signal.kind === 'canvas').map(signal => signal.state), [newer]);
 		});
+
+		for (const openedEvent of [false, true]) {
+			test(`publishes a successful reopen after a user message clears suppression (${openedEvent ? 'suppressed opened event' : 'no opened event'})`, async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables, {
+					resume: true,
+					configureMockSession: mock => mock.openCanvases.push(restored),
+				});
+				const response = new DeferredPromise<typeof live>();
+				mockSession.rpc.canvas.open = async () => response.p;
+				const opening = session.openCanvas(preview);
+				if (openedEvent) {
+					mockSession.fire('session.canvas.opened', live);
+				}
+				mockSession.fire('user.message', { content: 'Continue', messageId: 'message-1' } as SessionEventPayload<'user.message'>['data']);
+				response.complete(live);
+				await opening;
+				const states = signals.filter(signal => signal.kind === 'canvas');
+				assert.deepStrictEqual({
+					states: states.map(signal => signal.state),
+					membership: summarizeCanvasSignals(signals).membership,
+				}, {
+					states: [live],
+					membership: [[states[0]?.resource.toString()]],
+				});
+			});
+		}
+
+		for (const eventType of ['session.canvas.closed', 'session.canvas.unavailable'] as const) {
+			test(`does not publish a delayed open response after ${eventType}`, async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables, {
+					resume: true,
+					configureMockSession: mock => mock.openCanvases.push(restored),
+				});
+				const response = new DeferredPromise<typeof live>();
+				mockSession.rpc.canvas.open = async () => response.p;
+				const opening = session.openCanvas(preview);
+				mockSession.fire('session.canvas.opened', live);
+				mockSession.fire(eventType, preview);
+				response.complete(live);
+				await opening;
+				const afterResponse = summarizeCanvasSignals(signals);
+				const reopened = { ...live, url: 'https://example.test/reopened' };
+				mockSession.fire('session.canvas.opened', reopened);
+				assert.deepStrictEqual({
+					afterResponse,
+					states: signals.filter(signal => signal.kind === 'canvas').map(signal => signal.state),
+				}, {
+					afterResponse: { states: [], membership: [] },
+					states: [reopened],
+				});
+			});
+		}
+
+		test('uses the latest suppressed opened event instead of an older response', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables, {
+				resume: true,
+				configureMockSession: mock => mock.openCanvases.push(restored),
+			});
+			const response = new DeferredPromise<typeof live>();
+			mockSession.rpc.canvas.open = async () => response.p;
+			const opening = session.openCanvas(preview);
+			mockSession.fire('session.canvas.opened', live);
+			const newer = { ...live, title: 'Updated preview', url: 'https://example.test/newer' };
+			mockSession.fire('session.canvas.opened', newer);
+			response.complete(live);
+			await opening;
+			assert.deepStrictEqual(signals.filter(signal => signal.kind === 'canvas').map(signal => signal.state), [newer]);
+		});
+
+		for (const firstResponse of [0, 1]) {
+			test(`does not resurrect a canvas closed between concurrent open responses (response ${firstResponse} first)`, async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables, {
+					resume: true,
+					configureMockSession: mock => mock.openCanvases.push(restored),
+				});
+				const responses = [new DeferredPromise<typeof live>(), new DeferredPromise<typeof live>()];
+				let calls = 0;
+				mockSession.rpc.canvas.open = async () => responses[calls++].p;
+				const openings = [session.openCanvas(preview), session.openCanvas(preview)];
+				mockSession.fire('session.canvas.opened', live);
+				const newer = { ...live, title: 'Updated preview', url: 'https://example.test/newer' };
+				mockSession.fire('session.canvas.opened', newer);
+				responses[firstResponse].complete(live);
+				await openings[firstResponse];
+				mockSession.fire('session.canvas.closed', preview);
+				responses[1 - firstResponse].complete(live);
+				await openings[1 - firstResponse];
+				const states = signals.filter(signal => signal.kind === 'canvas');
+				assert.deepStrictEqual({
+					states: states.map(signal => signal.state),
+					membership: summarizeCanvasSignals(signals).membership,
+				}, {
+					states: [newer],
+					membership: [[states[0]?.resource.toString()], []],
+				});
+			});
+		}
 	});
 
 	suite('canvas handoff', () => {
