@@ -71,6 +71,7 @@ suite('Sessions - Bulk archive undo', () => {
 			override readonly onDidReplaceNewDraftSession = Event.None;
 			override readonly onDidStartSession = Event.None;
 			override readonly onDidDiscardNewSession = Event.None;
+			override readonly onDidMoveChat = Event.None;
 			override getSessions() { return sessions.map(entry => entry.session); }
 			override getInFlightNewSessionRequests() { return []; }
 			override getSession(resource: URI) {
@@ -127,7 +128,7 @@ suite('Sessions - Bulk archive undo', () => {
 		const notification = new class extends mock<SessionsListNotification>() {
 			override show(notice: ISessionsListNotice) {
 				state.message = notice.message;
-				state.undo = () => notice.undo();
+				state.undo = () => notice.undo!();
 				state.notices++;
 			}
 		};
@@ -447,6 +448,7 @@ suite('Sessions - Delete group undo', () => {
 			override readonly onDidReplaceNewDraftSession = Event.None;
 			override readonly onDidStartSession = Event.None;
 			override readonly onDidDiscardNewSession = Event.None;
+			override readonly onDidMoveChat = Event.None;
 			override getSessions() { return sessions; }
 			override getInFlightNewSessionRequests() { return []; }
 		});
@@ -483,14 +485,31 @@ suite('Sessions - Delete group undo', () => {
 
 		deleteGroup(lone.id);
 		const noticesForSingleGroup = notices.length;
+		const sectionParent = groupsService.createGroup('Section parent');
+		groupsService.moveSection('environment:local', sectionParent.id);
+		deleteGroup(sectionParent.id);
+		const sectionNotice = notices.pop()!;
+		const releasedSection = groupsService.getGroupOfSection('environment:local');
+		assert.ok(sectionNotice.undo);
+		await sectionNotice.undo();
+		const restoredSection = groupsService.getGroupOfSection('environment:local');
+		deleteGroup(sectionParent.id);
+		notices.pop();
 		deleteGroup(release.id);
 		// The sessions list drops the positions of deleted groups.
 		orderService.retain(topLevelIds());
 		const afterDelete = describe();
-		await notices[0].undo();
+		await notices[0].undo!();
 
-		assert.deepStrictEqual({ noticesForSingleGroup, message: notices[0].message, afterDelete, restored: describe() }, {
+		assert.deepStrictEqual({
+			noticesForSingleGroup,
+			sectionUndo: { message: sectionNotice.message, releasedSection, restoredSection },
+			message: notices[0].message,
+			afterDelete,
+			restored: describe(),
+		}, {
 			noticesForSingleGroup: 0,
+			sectionUndo: { message: 'Group deleted', releasedSection: undefined, restoredSection: sectionParent.id },
 			message: '3 groups deleted',
 			afterDelete: { groups: ['Other'], membership: { ship: null, fix: null, other: 'Other' } },
 			restored: {

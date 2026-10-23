@@ -18,7 +18,7 @@ import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../../
 import { SESSIONS_LAYOUT_SCOPE_SETTING, ChatLayoutPresentation } from '../../../../common/chatLayout.js';
 import { SessionsLayoutContribution } from '../../browser/sessions.layout.contribution.js';
 import { ConfigurationMigration, Extensions as WorkbenchConfigurationExtensions, IConfigurationMigrationRegistry } from '../../../../../workbench/common/configuration.js';
-import { LEGACY_SESSION_TOOLBAR_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../../../common/sessionConfig.js';
+import { LEGACY_SESSION_TOOLBAR_SETTING, SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../../../common/sessionConfig.js';
 
 // Capture registration before configuration tests reset the shared registry.
 const registeredProperties = { ...Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties() };
@@ -36,6 +36,13 @@ suite('Sessions chat layout configuration', () => {
 
 	test('does not register the unreleased former settings', () => {
 		assert.deepStrictEqual(['sessions.experimental.chatSpecificLayout', 'sessions.layout.mode'].map(key => registeredProperties[key]), [undefined, undefined]);
+	});
+
+	test('registers GitHub activity actions as one opt-in setting', () => {
+		const property = registeredProperties[SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_SETTING];
+		assert.deepStrictEqual({
+			key: SESSION_ACTIVITY_BAR_GITHUB_ACTIONS_SETTING, type: property.type, default: property.default,
+		}, { key: 'sessions.sessionActivityBar.showGitHubActions', type: 'boolean', default: false });
 	});
 
 	test('migrates the Session Toolbar setting to the Session Activity Bar setting unless that is already set', async () => {

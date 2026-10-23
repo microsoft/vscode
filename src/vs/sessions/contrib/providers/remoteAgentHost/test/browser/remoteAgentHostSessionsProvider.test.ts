@@ -4697,7 +4697,12 @@ suite('CloudSandboxSessionsProvider discovery metadata', () => {
 		});
 	});
 
-	for (const [application, label] of [['slack', 'Slack'], ['CUSTOM_cloud_app', 'Custom Cloud App']]) {
+	for (const [application, id, label] of [
+		['slack', 'slack', 'Slack'],
+		['CUSTOM_cloud_app', 'CUSTOM_cloud_app', 'Custom Cloud App'],
+		['agent_tasks_api', 'unknown', 'Unknown'],
+		['unknown', 'unknown', 'Unknown'],
+	]) {
 		for (const discoveredFirst of [true, false]) {
 			test(`preserves the discovery application ${application} through host hydration and reload (discovery first: ${discoveredFirst})`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 				const storageService = disposables.add(new InMemoryStorageService());
@@ -4731,9 +4736,9 @@ suite('CloudSandboxSessionsProvider discovery metadata', () => {
 				applications.push(restored.getSessions()[0].application.get());
 
 				assert.deepStrictEqual(applications, [
-					{ id: application, label },
-					{ id: application, label },
-					{ id: application, label },
+					{ id, label },
+					{ id, label },
+					{ id, label },
 					{ id: 'teams', label: 'Teams' },
 				]);
 			}));

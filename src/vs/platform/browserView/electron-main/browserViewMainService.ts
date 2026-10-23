@@ -123,9 +123,9 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		if (!hostWindow) {
 			throw new Error(`Host window with ID ${hostWindowId} not found`);
 		}
-		// The window's workspace storage belongs to the window's own network.
-		if (selector.scope === BrowserViewStorageScope.Workspace && selector.network && selector.network.authority !== hostWindow.remoteAuthority) {
-			throw new Error(`Workspace storage cannot use network '${selector.network.authority}'`);
+		// The window's own workspace storage belongs to the window's own network; other networks use a partition of it.
+		if (selector.scope === BrowserViewStorageScope.Workspace && selector.network && selector.affinity === undefined && selector.network.authority !== hostWindow.remoteAuthority) {
+			throw new Error(`Workspace storage for network '${selector.network.authority}' requires an affinity`);
 		}
 
 		const browserSession = BrowserSession.getOrCreate(
@@ -339,13 +339,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 	}
 
 	async clearWorkspaceStorage(workspaceId: string): Promise<void> {
-		const browserSession = BrowserSession.getOrCreateWorkspace(
-			this.instantiationService,
-			workspaceId,
-			this.environmentMainService.workspaceStorageHome
-		);
-		browserSession.connectStorage(this.applicationStorageMainService);
-		await browserSession.clearData();
+		await BrowserSession.clearWorkspace(this.instantiationService, workspaceId, this.environmentMainService.workspaceStorageHome, this.applicationStorageMainService);
 	}
 
 	async getConsoleLogs(id: string): Promise<string> {
@@ -541,6 +535,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 			onDidChangeAudiences: view.onDidChangeAudiences,
 			onDidRequestPermission: view.onDidRequestPermission,
 			onDidChangePermissions: view.onDidChangePermissions,
+			onDidRequestOpenExternal: view.onDidRequestOpenExternal,
 		};
 		const forward = <K extends keyof BrowserViewEventMap>(event: K) => {
 			listeners.add(events[event](data => {

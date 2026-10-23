@@ -7,7 +7,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, IObservable } from '../../../../base/common/observable.js';
+import { autorun, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { ActionListItemKind, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
@@ -16,17 +16,33 @@ import { IMenuService, MenuItemAction } from '../../../../platform/actions/commo
 import { RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpression, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { Menus } from '../../../browser/menus.js';
 import { getAgentHostConnectionStatusLabel, isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { SessionWorkspacePickerGroupContext } from '../../../common/contextkeys.js';
-import { SESSION_WORKSPACE_GROUP_REMOTE } from '../../../services/sessions/common/session.js';
+import { ISessionWorkspace, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { OPEN_REMOTES_EDITOR_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { registerPickerKeybindingPresentation } from './newChatPickerKeybinding.js';
+import { createSessionPickerToolbar } from './sessionPickerToolbar.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { isWeb } from '../../../../base/common/platform.js';
+import { ENVIRONMENT_PICKER_LOCAL_ISOLATION_SETTING, ENVIRONMENT_PICKER_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
+
+export function isEnvironmentPickerLocalIsolationEnabled(configurationService: IConfigurationService): boolean {
+	return !isWeb
+		&& configurationService.getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING) === true
+		&& configurationService.getValue<boolean>(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING) === true
+		&& configurationService.getValue<boolean>(ENVIRONMENT_PICKER_SETTING) === true
+		&& configurationService.getValue<boolean>(ENVIRONMENT_PICKER_LOCAL_ISOLATION_SETTING) === true;
+}
 
 export interface ISessionCreationEnvironment {
 	readonly id: string;
@@ -35,16 +51,25 @@ export interface ISessionCreationEnvironment {
 	readonly icon: ThemeIcon;
 	readonly providerIds: readonly string[];
 	readonly description?: string;
+	readonly isolation?: 'folder' | 'worktree';
 }
 
-export function getSessionCreationEnvironments(providers: readonly ISessionsProvider[]): ISessionCreationEnvironment[] {
+export function getSessionCreationEnvironments(providers: readonly ISessionsProvider[], localIsolation = false): ISessionCreationEnvironment[] {
 	const visible = providers.filter(provider => provider.supportsWorkspaceSelection !== false
 		&& (!isAgentHostProvider(provider) || provider.isVisibleInEnvironmentPicker?.get() !== false));
 	const local = visible.filter(provider => provider.environment.id === 'local');
 	const cloud = visible.filter(provider => provider.environment.id === 'cloud' && !isAgentHostProvider(provider));
 	const environments: ISessionCreationEnvironment[] = [];
 	if (local.length) {
-		environments.push({ id: 'local', kind: 'local', label: localize('environmentPicker.local', "This Computer"), icon: Codicon.deviceDesktop, providerIds: local.map(provider => provider.id) });
+		if (localIsolation) {
+			environments.push({ id: 'local:folder', kind: 'local', isolation: 'folder', label: localize('environmentPicker.localFolder', "Local Folder"), icon: Codicon.folder, providerIds: local.map(provider => provider.id) });
+			const worktreeProviders = local.filter(provider => provider.setIsolationMode);
+			if (worktreeProviders.length) {
+				environments.push({ id: 'local:worktree', kind: 'local', isolation: 'worktree', label: localize('environmentPicker.localWorktree', "New Worktree"), icon: Codicon.worktree, providerIds: worktreeProviders.map(provider => provider.id) });
+			}
+		} else {
+			environments.push({ id: 'local', kind: 'local', label: localize('environmentPicker.local', "This Computer"), icon: Codicon.deviceDesktop, providerIds: local.map(provider => provider.id) });
+		}
 	}
 	if (cloud.length) {
 		environments.push({ id: 'cloud', kind: 'cloud', label: localize('environmentPicker.cloud', "Cloud"), icon: Codicon.cloud, providerIds: cloud.map(provider => provider.id) });
@@ -61,11 +86,33 @@ export function getSessionCreationEnvironments(providers: readonly ISessionsProv
 }
 
 export function getEnvironmentWorkspaceProvider(environment: ISessionCreationEnvironment, providers: readonly ISessionsProvider[], folderUri: URI): ISessionsProvider | undefined {
-	return providers.find(provider => environment.providerIds.includes(provider.id)
-		&& provider.supportsWorkspaceSelection !== false
-		&& (!isAgentHostProvider(provider) || provider.isVisibleInEnvironmentPicker?.get() !== false)
-		&& provider.resolveWorkspace(folderUri)
-		&& (environment.kind !== 'cloud' || provider.getSessionTypes(folderUri).length > 0));
+	return resolveEnvironmentWorkspace(environment, providers, folderUri)?.provider;
+}
+
+export function resolveEnvironmentWorkspace(environment: ISessionCreationEnvironment, providers: readonly ISessionsProvider[], folderUri: URI): { readonly provider: ISessionsProvider; readonly workspace: ISessionWorkspace } | undefined {
+	for (const provider of providers) {
+		if (!environment.providerIds.includes(provider.id)
+			|| provider.supportsWorkspaceSelection === false
+			|| isAgentHostProvider(provider) && provider.isVisibleInEnvironmentPicker?.get() === false) {
+			continue;
+		}
+		const workspace = provider.resolveWorkspace(folderUri);
+		if (environment.isolation === 'worktree' && !provider.getSessionTypes(folderUri).some(type => type.supportsWorktreeConfiguration)) {
+			continue;
+		}
+		if (workspace && (environment.kind !== 'cloud' || provider.getSessionTypes(folderUri).length > 0)) {
+			return { provider, workspace };
+		}
+	}
+	return undefined;
+}
+
+export function getDefaultSessionCreationEnvironment(environments: readonly ISessionCreationEnvironment[], folderUri: URI | undefined, providerId: string | undefined, containerRequested = false): ISessionCreationEnvironment | undefined {
+	const local = environments.find(environment => environment.kind === 'local');
+	if (folderUri?.scheme === Schemas.file && !containerRequested && local) {
+		return local;
+	}
+	return environments.find(environment => (environment.kind === 'container') === containerRequested && environment.providerIds.includes(providerId ?? '')) ?? local;
 }
 
 interface IEnvironmentPickerItem {
@@ -73,7 +120,16 @@ interface IEnvironmentPickerItem {
 	readonly checked?: boolean;
 }
 
+export interface IEnvironmentPickerRenderOptions {
+	readonly focusCommand?: { readonly id: string; readonly when: ContextKeyExpression; readonly enabled: IObservable<boolean> };
+	readonly hoverDelegate?: IHoverDelegate;
+}
+
 export class SessionEnvironmentPicker extends Disposable {
+	private readonly _isVisible = observableValue(this, false);
+	readonly isVisible: IObservable<boolean> = this._isVisible;
+	private _trigger: HTMLElement | undefined;
+
 	constructor(
 		private readonly environments: IObservable<readonly ISessionCreationEnvironment[]>,
 		private readonly selected: IObservable<ISessionCreationEnvironment | undefined>,
@@ -82,18 +138,30 @@ export class SessionEnvironmentPicker extends Disposable {
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IHoverService private readonly hoverService: IHoverService,
+		@IHoverService _hoverService: IHoverService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 	}
 
-	render(container: HTMLElement): IDisposable & { readonly element: HTMLElement } {
+	render(container: HTMLElement, options?: IEnvironmentPickerRenderOptions): IDisposable & { readonly element: HTMLElement } {
 		const store = new DisposableStore();
+		this._isVisible.set(true, undefined);
+		store.add({
+			dispose: () => {
+				this._isVisible.set(false, undefined);
+			}
+		});
 		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot.sessions-workspace-category-picker-slot'));
 		container.prepend(slot);
-		const trigger = dom.append(slot, dom.$('a.action-label'));
+		const { trigger, action } = createSessionPickerToolbar(store, slot, this.instantiationService,
+			options?.focusCommand?.id ?? 'sessions.environmentPicker', localize('environmentPicker.chooseEnvironment', "Choose Environment"),
+			() => this.showPicker(), options?.hoverDelegate);
+		this._trigger = trigger;
 		trigger.role = 'button';
 		trigger.tabIndex = 0;
 		trigger.setAttribute('aria-haspopup', 'listbox');
@@ -104,9 +172,11 @@ export class SessionEnvironmentPicker extends Disposable {
 					this.actionWidgetService.hide();
 				}
 				slot.remove();
+				if (this._trigger === trigger) {
+					this._trigger = undefined;
+				}
 			}
 		});
-		const tooltip = store.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), trigger, ''));
 		store.add(autorun(reader => {
 			const environment = this.selected.read(reader);
 			dom.clearNode(trigger);
@@ -115,21 +185,35 @@ export class SessionEnvironmentPicker extends Disposable {
 			label.textContent = environment?.label ?? localize('environmentPicker.choose', "Environment");
 			const accessibleLabel = localize('environmentPicker.trigger', "Choose Environment, {0}", label.textContent);
 			trigger.setAttribute('aria-label', accessibleLabel);
-			tooltip.update(accessibleLabel);
+			if (options?.focusCommand) {
+				registerPickerKeybindingPresentation(
+					reader.store,
+					trigger,
+					accessibleLabel,
+					options.focusCommand.id,
+					options.focusCommand.when,
+					options.focusCommand.enabled,
+					this.commandService,
+					this.contextMenuService,
+					action,
+					this.keybindingService,
+				);
+			} else {
+				action.tooltip = accessibleLabel;
+			}
 		}));
-		const open = () => this.showPicker(trigger);
-		store.add(dom.addDisposableListener(trigger, dom.EventType.CLICK, open));
 		store.add(dom.addDisposableListener(trigger, dom.EventType.KEY_DOWN, event => {
 			if (event.key === 'Enter' || event.key === ' ' || event.key === 'ArrowDown') {
 				dom.EventHelper.stop(event, true);
-				open();
+				this.showPicker();
 			}
 		}));
 		return { element: slot, dispose: () => store.dispose() };
 	}
 
-	private showPicker(trigger: HTMLElement): void {
-		if (this.actionWidgetService.isVisible) {
+	showPicker(): void {
+		const trigger = this._trigger;
+		if (!trigger || this.actionWidgetService.isVisible) {
 			return;
 		}
 		const items: IActionListItem<IEnvironmentPickerItem>[] = this.environments.get().map(environment => ({

@@ -21,6 +21,36 @@ export interface IMcpServerMatcher {
 }
 
 /**
+ * Maps strings in the allow/deny lists to those same strings with environment variables filled in by the host that runs or connects to the server.
+ * Before starting a server or sending a request, use these values in place of the original policy strings and check the actual command or URL against the lists: a matching deny blocks it, a configured allowlist must admit it, and a missing required value blocks it.
+ *
+ * @example
+ * ```ts
+ * // Policy: allow ["${NODE}", "${SCRIPT_DIR}/approved.js"]
+ * //         deny  ["${NODE}", "${SCRIPT_DIR}/blocked.js"]
+ * // Each command/argument string containing variables gets its own entry, not the array
+ * const policyValues = {
+ *     '${NODE}': '/usr/bin/node',
+ *     '${SCRIPT_DIR}/approved.js': '/opt/scripts/approved.js',
+ *     '${SCRIPT_DIR}/blocked.js': '/opt/scripts/blocked.js',
+ * };
+ *
+ * // Replace each policy array element using its entry, leaving literal elements unchanged
+ * // Then compare the resulting array with the actual [command, ...args], in order
+ * // ["/usr/bin/node", "/opt/scripts/approved.js"] -> allowed
+ * // ["/usr/bin/node", "/opt/scripts/blocked.js"]  -> denied
+ * // ["/usr/bin/node", "/opt/scripts/other.js"]    -> not allowed
+ * // Missing policyValues["${NODE}"] -> blocked before execution
+ *
+ * // A URL policy works the same way
+ * // Policy: allow "https://${HOST}/mcp", with HOST=trusted.example
+ * // policyValues: { "https://${HOST}/mcp": "https://trusted.example/mcp" }
+ * // A request to https://other.example/mcp is still blocked, including redirects
+ * ```
+ */
+export type McpServerPolicyValues = Readonly<Record<string, string>>;
+
+/**
  * Normalized identity of an MCP server used for allowlist matching. Both the install-time and the
  * runtime enforcement paths reduce their server representation to this shape: `url` is set for
  * remote (HTTP/SSE) servers and `command` (the full `[command, ...args]` invocation) for local
@@ -30,6 +60,8 @@ export interface IMcpServerIdentity {
 	readonly name: string;
 	readonly url?: string;
 	readonly command?: readonly string[];
+	/** Values to substitute into the allow/deny lists, not into this server's command or URL. Providing them does not mean the server is allowed; the allowed-servers service must check it before execution. */
+	readonly policyValues?: McpServerPolicyValues;
 }
 
 /**
@@ -75,32 +107,35 @@ function isValidMatcher(entry: unknown): entry is IMcpServerMatcher {
  * matcher list matches nothing.
  */
 export function isMcpServerMatched(matchers: readonly IMcpServerMatcher[] | undefined, identity: IMcpServerIdentity): boolean {
-	return !!matchers && matchers.some(matcher => matchesMatcher(matcher, identity));
+	return !!matchers && matchers.some(matcher => matchesMatcher(matcher, identity, value => identity.policyValues?.[value] ?? value));
 }
 
 /**
- * Evaluates an MCP server against the allow and deny lists. Deny always takes precedence; an unset
- * (`undefined`) allowlist imposes no restriction, while a configured allowlist requires a match.
+ * Evaluates one allowlist layer using the runtime's transport-specific name fallback; deny entries
+ * remain additive. An unset allowlist imposes no restriction, while an empty allowlist admits none.
  */
 export function checkMcpServerAllowed(allowlist: readonly IMcpServerMatcher[] | undefined, denylist: readonly IMcpServerMatcher[] | undefined, identity: IMcpServerIdentity): McpServerAllowResult {
 	if (isMcpServerMatched(denylist, identity)) {
 		return McpServerAllowResult.Denied;
 	}
-	if (allowlist !== undefined && !isMcpServerMatched(allowlist, identity)) {
+	const transportMatchers = identity.url !== undefined
+		? allowlist?.filter(matcher => isString(matcher.serverUrl))
+		: identity.command !== undefined ? allowlist?.filter(matcher => Array.isArray(matcher.serverCommand)) : undefined;
+	if (allowlist !== undefined && !isMcpServerMatched(transportMatchers?.length ? transportMatchers : allowlist, identity)) {
 		return McpServerAllowResult.NotAllowed;
 	}
 	return McpServerAllowResult.Allowed;
 }
 
-function matchesMatcher(matcher: IMcpServerMatcher, identity: IMcpServerIdentity): boolean {
+function matchesMatcher(matcher: IMcpServerMatcher, identity: IMcpServerIdentity, resolve: (value: string) => string): boolean {
 	if (isString(matcher.serverName)) {
 		return matcher.serverName === identity.name;
 	}
 	if (isString(matcher.serverUrl)) {
-		return identity.url !== undefined && matchesUrlPattern(matcher.serverUrl, identity.url);
+		return identity.url !== undefined && matchesUrlPattern(resolve(matcher.serverUrl), identity.url);
 	}
 	if (Array.isArray(matcher.serverCommand)) {
-		return identity.command !== undefined && equals(matcher.serverCommand, identity.command);
+		return identity.command !== undefined && equals(matcher.serverCommand.map(resolve), identity.command);
 	}
 	return false;
 }
@@ -114,16 +149,18 @@ function matchesUrlPattern(pattern: string, url: string): boolean {
 	if (destination === undefined) {
 		return false;
 	}
-	if (!pattern.includes('*')) {
+	const schemeSeparator = pattern.indexOf('://');
+	const originOnly = schemeSeparator >= 0 && findAuthorityEnd(pattern, schemeSeparator + 3) === pattern.length;
+	if (!pattern.includes('*') && !originOnly) {
 		const expected = toNetworkDestinationUrl(pattern);
-		return expected !== undefined && expected.toLowerCase() === destination.toLowerCase();
+		return expected !== undefined && expected === destination;
 	}
-	const normalizedPattern = toNetworkDestinationPattern(pattern);
+	const normalizedPattern = toNetworkDestinationPattern(originOnly ? `${pattern}/*` : pattern);
 	if (normalizedPattern === undefined) {
 		return false;
 	}
 	try {
-		return new RegExp(buildUrlPatternRegexSource(normalizedPattern), 'i').test(destination);
+		return new RegExp(buildUrlPatternRegexSource(normalizedPattern)).test(destination);
 	} catch {
 		return false;
 	}
@@ -138,7 +175,7 @@ function toNetworkDestinationUrl(url: string): string | undefined {
 		if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
 			return parsed.origin + parsed.pathname + parsed.search;
 		}
-		return url;
+		return toNetworkDestinationPattern(url);
 	} catch {
 		return undefined;
 	}
@@ -150,12 +187,12 @@ function toNetworkDestinationPattern(pattern: string): string | undefined {
 		return pattern;
 	}
 	const scheme = pattern.slice(0, schemeSeparator).toLowerCase();
-	if (scheme !== 'http' && scheme !== 'https') {
-		return pattern;
-	}
-
 	const rest = pattern.slice(schemeSeparator + 3);
 	const authorityEnd = findAuthorityEnd(rest, 0);
+	if (scheme !== 'http' && scheme !== 'https') {
+		return `${scheme}://${rest.slice(0, authorityEnd).toLowerCase()}${rest.slice(authorityEnd)}`;
+	}
+
 	let authority = rest.slice(0, authorityEnd);
 	const userinfoEnd = authority.lastIndexOf('@');
 	if (userinfoEnd >= 0) {
@@ -180,7 +217,7 @@ function toNetworkDestinationPattern(pattern: string): string | undefined {
 		afterAuthority = `/${afterAuthority}`;
 	}
 
-	return `${scheme}://${hostAndPort.host}${port !== undefined ? `:${port}` : ''}${afterAuthority}`;
+	return `${scheme}://${hostAndPort.host.toLowerCase()}${port !== undefined ? `:${port}` : ''}${afterAuthority}`;
 }
 
 function splitHostAndPort(authority: string): { host: string; port: string | undefined } | undefined {

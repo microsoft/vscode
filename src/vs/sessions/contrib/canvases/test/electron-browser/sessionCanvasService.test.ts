@@ -153,7 +153,7 @@ suite('SessionCanvasService', () => {
 		const setFindEditorsHandler = (handler: (resource: URI) => readonly IEditorIdentifier[]) => findEditorsHandler = handler;
 		const setCloseEditorsHandler = (handler: () => Promise<void>) => closeEditorsHandler = handler;
 		const setCreateBrowserModelHandler = (handler: (url: string, openSource: string | undefined) => Promise<IBrowserViewModel>) => createBrowserModelHandler = handler;
-		return { activeChat, activeSession, canvas, canvasService, canvases, chat, chatDeleted, chats, closeSettled, editorWorkingSetService, isArchived, opened, openOptions, openSettled, session, sessionChanges, get closeCount() { return closeCount; }, setCanvasesEnabled, setCloseEditorsHandler, setCreateBrowserModelHandler, setFindEditorsHandler, setOpenEditorHandler };
+		return { activeChat, activeSession, canvas, canvasService, canvases, chat, chatDeleted, chats, closeSettled, contextService, editorWorkingSetService, isArchived, opened, openOptions, openSettled, session, sessionChanges, get closeCount() { return closeCount; }, setCanvasesEnabled, setCloseEditorsHandler, setCreateBrowserModelHandler, setFindEditorsHandler, setOpenEditorHandler };
 	}
 
 	function owner(session: IActiveSession, chatResource?: URI): ISessionEditorWorkingSetOwner {
@@ -550,8 +550,8 @@ suite('SessionCanvasService', () => {
 			{ resource: URI.parse('agent-host-canvas:/logs-numbered'), instanceId: undefined, title: 'Logs', source: URI.parse('https://example.test/logs-numbered') },
 			{ resource: URI.parse('agent-host-canvas:/logs-semantic'), instanceId: '1', title: 'Logs', source: URI.parse('https://example.test/logs-semantic') },
 		];
-		const { canvasService, canvases: canvasStates, opened } = createHarness(true, canvases);
-		const registration = store.add(registerSessionCanvasActions(canvasService, emptyRegistryService));
+		const { canvasService, canvases: canvasStates, contextService, opened } = createHarness(true, canvases);
+		const registration = store.add(registerSessionCanvasActions(canvasService, emptyRegistryService, contextService));
 		for (const input of [...opened]) {
 			input.dispose();
 		}
@@ -567,7 +567,7 @@ suite('SessionCanvasService', () => {
 			.filter(item => item.submenu === Menus.SessionsEditorTabsBarAddTabCanvas);
 		const getActivityBarSubmenus = () => MenuRegistry.getMenuItems(Menus.SessionActivityBar)
 			.filter(isISubmenuItem)
-			.filter(item => item.submenu === Menus.SessionsEditorTabsBarAddTabCanvas);
+			.filter(item => item.submenu === Menus.SessionActivityBarCanvas);
 		const items = getItems();
 		const submenus = getSubmenus();
 		const activityBarSubmenus = getActivityBarSubmenus();
@@ -680,6 +680,27 @@ suite('SessionCanvasService', () => {
 		const { canvas, canvases, opened } = createHarness();
 		canvases.set([{ ...canvas, title: 'Updated', source: URI.parse('https://example.test/replacement') }], undefined);
 		assert.strictEqual(opened.length, 1);
+	});
+
+	test('recovers an open canvas source after its provider reconnects without reopening it', () => {
+		const { canvas, canvases, opened } = createHarness();
+		const input = opened[0];
+		canvases.set([{ ...canvas, source: undefined }], undefined);
+		const whileDisconnected = input.canvas.get()?.source;
+		const recoveredSource = URI.parse('https://example.test/reconnected');
+		canvases.set([{ ...canvas, source: recoveredSource }], undefined);
+
+		assert.deepStrictEqual({
+			opened: opened.length,
+			sameInput: opened[0] === input,
+			whileDisconnected,
+			recoveredSource: input.canvas.get()?.source?.toString(),
+		}, {
+			opened: 1,
+			sameInput: true,
+			whileDisconnected: undefined,
+			recoveredSource: recoveredSource.toString(),
+		});
 	});
 
 	test('temporary membership and canvas hydration do not forget dismissal', () => {

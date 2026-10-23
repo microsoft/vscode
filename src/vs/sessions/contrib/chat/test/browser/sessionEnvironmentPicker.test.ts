@@ -17,16 +17,19 @@ import { RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } fro
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { MockContextKeyService, MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
-import { getEnvironmentWorkspaceProvider, getSessionCreationEnvironments, ISessionCreationEnvironment, SessionEnvironmentPicker } from '../../browser/sessionEnvironmentPicker.js';
 import { OPEN_REMOTES_EDITOR_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { getDefaultSessionCreationEnvironment, getEnvironmentWorkspaceProvider, getSessionCreationEnvironments, isEnvironmentPickerLocalIsolationEnabled, ISessionCreationEnvironment, SessionEnvironmentPicker } from '../../browser/sessionEnvironmentPicker.js';
+import { ENVIRONMENT_PICKER_LOCAL_ISOLATION_SETTING, ENVIRONMENT_PICKER_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
+import { isWeb } from '../../../../../base/common/platform.js';
 
 suite('SessionEnvironmentPicker', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -43,6 +46,20 @@ suite('SessionEnvironmentPicker', () => {
 			...options,
 		});
 	}
+
+	test('defaults local folders to This Computer even when Cloud resolves the recent workspace first', () => {
+		const remote: ISessionCreationEnvironment = { id: 'remote', kind: 'remote', label: 'Remote', icon: Codicon.remote, providerIds: ['remote'] };
+		const container: ISessionCreationEnvironment = { ...local, id: 'container:local', kind: 'container' };
+		const environments = [cloud, local, remote, container];
+		assert.deepStrictEqual([
+			getDefaultSessionCreationEnvironment(environments, folder, 'cloud')?.id,
+			getDefaultSessionCreationEnvironment(environments, undefined, undefined)?.id,
+			getDefaultSessionCreationEnvironment(environments, URI.parse('vscode-agent-host://host/project'), 'remote')?.id,
+			getDefaultSessionCreationEnvironment(environments, URI.parse('github:/owner/repo'), 'cloud')?.id,
+			getDefaultSessionCreationEnvironment(environments, folder, LOCAL_AGENT_HOST_PROVIDER_ID, true)?.id,
+			getDefaultSessionCreationEnvironment([cloud], folder, 'cloud')?.id,
+		], ['local', 'local', 'remote', 'cloud', 'container:local', 'cloud']);
+	});
 
 	test('groups logical local and cloud destinations and excludes hidden hosts and internal backends', () => {
 		const providers = [
@@ -65,6 +82,7 @@ suite('SessionEnvironmentPicker', () => {
 			{ id: 'cloud', kind: 'cloud', providerIds: ['cloud'], description: undefined },
 			{ id: 'agenthost-remote-visible', kind: 'remote', providerIds: ['agenthost-remote-visible'], description: 'Connected' },
 		]);
+		assert.deepStrictEqual(getSessionCreationEnvironments(providers, false), getSessionCreationEnvironments(providers));
 	});
 
 	test('Cloud requires a supported session type, not merely a resolvable local folder', () => {
@@ -95,6 +113,44 @@ suite('SessionEnvironmentPicker', () => {
 		]);
 	});
 
+	test('local isolation is opt-in and requires the desktop environment picker', () => {
+		const settings = [UNIFIED_WORKSPACE_PICKER_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, ENVIRONMENT_PICKER_SETTING, ENVIRONMENT_PICKER_LOCAL_ISOLATION_SETTING];
+		const enabled = Object.fromEntries(settings.map(setting => [setting, true]));
+		const configurations = [enabled, ...settings.map(setting => ({ ...enabled, [setting]: false }))];
+		assert.deepStrictEqual(configurations.map(values => {
+			const configuration = new TestConfigurationService(values);
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			return isEnvironmentPickerLocalIsolationEnabled(configuration);
+		}), [!isWeb, false, false, false, false]);
+	});
+
+	test('splits local environments without changing cloud and remote destinations', () => {
+		const providers = [
+			provider(LOCAL_AGENT_HOST_PROVIDER_ID, 'local', { setIsolationMode: async () => { } }),
+			provider('folder-only', 'local'),
+			provider('cloud', 'cloud'),
+		];
+		assert.deepStrictEqual(getSessionCreationEnvironments(providers, true).map(({ id, label, isolation, providerIds }) => ({ id, label, isolation, providerIds })), [
+			{ id: 'local:folder', label: 'Local Folder', isolation: 'folder', providerIds: [LOCAL_AGENT_HOST_PROVIDER_ID, 'folder-only'] },
+			{ id: 'local:worktree', label: 'New Worktree', isolation: 'worktree', providerIds: [LOCAL_AGENT_HOST_PROVIDER_ID] },
+			{ id: 'cloud', label: 'Cloud', isolation: undefined, providerIds: ['cloud'] },
+		]);
+	});
+
+	test('New Worktree requires worktree support for the chosen workspace', () => {
+		const environments = getSessionCreationEnvironments([provider(LOCAL_AGENT_HOST_PROVIDER_ID, 'local', { setIsolationMode: async () => { } })], true);
+		const worktree = environments.find(environment => environment.isolation === 'worktree')!;
+		const unsupported = provider(LOCAL_AGENT_HOST_PROVIDER_ID, 'local');
+		const supported = provider(LOCAL_AGENT_HOST_PROVIDER_ID, 'local', {
+			getSessionTypes: () => [{ id: 'copilot', label: 'Copilot', icon: Codicon.copilot, authRequirement: SessionTypeAuthRequirement.GitHub, supportsWorktreeConfiguration: true }],
+		});
+		assert.deepStrictEqual([
+			getEnvironmentWorkspaceProvider(worktree, [unsupported], folder)?.id,
+			getEnvironmentWorkspaceProvider(worktree, [supported], folder)?.id,
+			getDefaultSessionCreationEnvironment(environments, folder, LOCAL_AGENT_HOST_PROVIDER_ID)?.id,
+		], [undefined, LOCAL_AGENT_HOST_PROVIDER_ID, 'local:folder']);
+	});
+
 	test('an explicitly selected host never resolves through another host or a hidden provider', () => {
 		const remote: ISessionCreationEnvironment = { id: 'remote', kind: 'remote', label: 'Remote', icon: Codicon.remote, providerIds: ['agenthost-remote-selected'] };
 		const selected = upcastPartial<IAgentHostSessionsProvider>({
@@ -110,6 +166,7 @@ suite('SessionEnvironmentPicker', () => {
 		let accept: ((index: number) => void) | undefined;
 		let labels: (string | undefined)[] = [];
 		const selected = observableValue<ISessionCreationEnvironment | undefined>('environment', local);
+		const tooltipLabels: string[] = [];
 		instantiation.stub(IActionWidgetService, upcastPartial<IActionWidgetService>({
 			isVisible: false,
 			hide: () => hide?.(),
@@ -121,6 +178,12 @@ suite('SessionEnvironmentPicker', () => {
 		}));
 		instantiation.stub(IMenuService, { getMenuActions: () => [] });
 		instantiation.stub(IContextKeyService, new MockContextKeyService());
+		instantiation.stub(IKeybindingService, new class extends MockKeybindingService {
+			override appendKeybinding(label: string): string {
+				tooltipLabels.push(label);
+				return `${label} (Ctrl+K Ctrl+E)`;
+			}
+		}());
 		instantiation.stub(IHoverService, NullHoverService);
 		instantiation.stub(ICommandService, {});
 		const configuration = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: false });
@@ -129,9 +192,11 @@ suite('SessionEnvironmentPicker', () => {
 		const picker = store.add(instantiation.createInstance(SessionEnvironmentPicker, constObservable([local, cloud]), selected, async environment => selected.set(environment, undefined), () => []));
 		const container = dom.$('div');
 		dom.append(container, dom.$('span', undefined, 'Repository'));
-		store.add(picker.render(container));
+		store.add(picker.render(container, {
+			focusCommand: { id: 'sessions.focusEnvironmentPicker', when: ContextKeyExpr.true(), enabled: constObservable(true) },
+		}));
 		const trigger = container.querySelector<HTMLElement>('[role="button"]')!;
-		trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+		picker.showPicker();
 		accept?.(1);
 		await Promise.resolve();
 		assert.deepStrictEqual({
@@ -140,8 +205,11 @@ suite('SessionEnvironmentPicker', () => {
 			selected: selected.get()?.id,
 			ariaLabel: trigger.getAttribute('aria-label'),
 			expanded: trigger.getAttribute('aria-expanded'),
+			toolbar: !!trigger.closest('.monaco-toolbar'),
+			tooltipLabels,
 		}, {
-			order: 'CloudRepository', labels: ['This Computer', 'Cloud'], selected: 'cloud', ariaLabel: 'Choose Environment, Cloud', expanded: 'false',
+			order: 'CloudRepository', labels: ['This Computer', 'Cloud'], selected: 'cloud', ariaLabel: 'Choose Environment, Cloud', expanded: 'false', toolbar: true,
+			tooltipLabels: ['Choose Environment, This Computer', 'Choose Environment, Cloud'],
 		});
 	});
 
@@ -153,6 +221,7 @@ suite('SessionEnvironmentPicker', () => {
 			instantiation.stub(IConfigurationService, configuration);
 			instantiation.stub(IContextKeyService, new MockContextKeyService());
 			instantiation.stub(IHoverService, NullHoverService);
+			instantiation.stub(IKeybindingService, new MockKeybindingService());
 			const calls: string[] = [];
 			instantiation.stub(ICommandService, {
 				executeCommand: async (id, ...args) => {

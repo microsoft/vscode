@@ -178,6 +178,7 @@ const requestSchema = Adapt.object<IChatRequestModel, ISerializableChatRequestDa
 	modeInfo: Adapt.v(m => m.modeInfo, objectsEqual),
 	isSystemInitiated: Adapt.v(m => m.isSystemInitiated),
 	requestSource: Adapt.v(m => m.requestSource),
+	artifactRequest: Adapt.v(m => m.artifactRequest, objectsEqual),
 	systemInitiatedLabel: Adapt.v(m => m.systemInitiatedLabel),
 	terminalExecutionId: Adapt.v(m => m.terminalExecutionId),
 	origin: Adapt.v(m => m.origin ? serializeChatRequestOrigin(m.origin) : undefined, objectsEqual),

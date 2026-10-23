@@ -7,7 +7,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { ISettableObservable } from '../../../../../base/common/observable.js';
+import { ISettableObservable, observableFromEvent } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import * as nls from '../../../../../nls.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
@@ -33,6 +33,7 @@ import { IAgentHostActiveClientService } from '../agentSessions/agentHost/agentH
 import { IAgentHostSessionWorkingDirectoryResolver, RequestedWorkingDirectory } from '../agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { AgentCustomizationItemProvider } from '../agentSessions/agentHost/agentCustomizationItemProvider.js';
 import { Target } from '../../common/promptSyntax/promptTypes.js';
+import { readAgentModelCatalogStatus } from '../../../../../platform/agentHost/common/agentModelCatalogStatus.js';
 import { ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { ILanguageModelsService } from '../../common/languageModels.js';
@@ -41,11 +42,11 @@ import { AuthenticationSession, IAuthenticationService } from '../../../../servi
 import { findRemoteAgentHostSessionTypeAuthority, isRemoteAgentHostSessionType, remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { createRemoteAgentHarnessDescriptor, RemoteAgentPluginController } from './remoteAgentHostCustomizationHarness.js';
 import { RemoteAgentHostLogForwarder } from './remoteAgentHostLogForwarder.js';
-import { IRemoteAgentHostConnectionCustomizationService, RemoteAgentHostSessionPreparation } from './remoteAgentHostConnectionCustomization.js';
+import { authenticateWithConnectionCustomization, IRemoteAgentHostConnectionCustomizationService, RemoteAgentHostSessionPreparation } from './remoteAgentHostConnectionCustomization.js';
 import { IAgentHostTerminalService } from '../../../terminal/browser/agentHostTerminalService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { isCloudSandboxConnectionAddress } from './cloudSandboxConnectionCustomization.js';
+import { CLOUD_SANDBOX_INPUT_PLACEHOLDER, isCloudSandboxConnectionAddress } from './cloudSandboxConnectionCustomization.js';
 import { IRemoteAgentHostAuthenticationService } from './remoteAgentHostAuthentication.js';
 import { CloudSandboxModels } from './cloudSandboxModels.js';
 import { CLOUD_SANDBOX_AGENT_PROVIDER } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
@@ -424,6 +425,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			name: agentId,
 			displayName,
 			description: agent.description,
+			inputPlaceholder: isCloudSandboxConnectionAddress(address) && agent.provider === CLOUD_SANDBOX_AGENT_PROVIDER ? CLOUD_SANDBOX_INPUT_PLACEHOLDER : undefined,
 			hideFromSessionTypePicker: !this._isSessionsWindow && isCloudSandboxConnectionAddress(address),
 			canDelegate: true,
 			requiresCustomModels: true,
@@ -469,6 +471,8 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		));
 		itemProvider.setDraftCustomAgents(ambientScope.customAgents);
 		itemProvider.setDraftCustomizations(ambientScope.customizations);
+		const modelCatalogueStatus = observableFromEvent(this, connection.rootState.onDidChange, () =>
+			readAgentModelCatalogStatus(connection.rootState.value, agent.provider));
 
 		const harnessDescriptor = createRemoteAgentHarnessDescriptor(
 			sessionType,
@@ -477,6 +481,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			itemProvider,
 			syncProvider,
 			agent.provider === 'copilotcli' ? Target.GitHubCopilot : undefined,
+			modelCatalogueStatus,
 		);
 		agentStore.add(this._customizationHarnessService.registerExternalHarness(harnessDescriptor));
 
@@ -507,6 +512,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			resolveInitialSessionConfig: customization?.resolveInitialSessionConfig,
 			modelIdentifierAliases: customization?.modelIdentifierAliases,
 			isSessionTitlePlaceholder: customization?.isSessionTitlePlaceholder,
+			useSessionTitleForDefaultChat: customization?.useSessionTitleForDefaultChat,
 			onSessionMaterialized: sessionResource => this._chatSessionsService.notifySessionMaterialized?.(sessionResource),
 			resolveAuthentication: (resources) => this._resolveAuthenticationInteractively(address, connection, resources),
 		}));
@@ -640,28 +646,9 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	 * envelope. The transform owns fail-closed validation, so a raw token can never reach the host.
 	 */
 	private _authenticateCallback(address: string, connection: IAgentConnection, reason?: AuthRequiredReason): (request: AuthenticateParams) => Promise<AuthenticateResult> {
-		const transform = this._connectionCustomizations.get(address)?.authenticate;
-		if (!transform) {
-			return request => connection.authenticate(request);
-		}
+		const customization = this._connectionCustomizations.get(address);
 		const connState = this._connections.get(address);
-		return async request => {
-			if (this._connections.get(address) !== connState) {
-				throw new CancellationError();
-			}
-			// An empty token is the protocol's revocation sentinel, not a credential.
-			// Token transforms substitute a live credential for an unsealed one, which
-			// would turn a sign-out into a re-authentication and leave the remote host
-			// holding a credential the user just revoked.
-			if (!request.token) {
-				return connection.authenticate(request);
-			}
-			const transformed = await transform(request, reason);
-			if (this._connections.get(address) !== connState) {
-				throw new CancellationError();
-			}
-			return connection.authenticate(transformed);
-		};
+		return request => authenticateWithConnectionCustomization(connection, request, customization, () => this._connections.get(address) === connState, reason);
 	}
 
 	/**

@@ -9,7 +9,7 @@ import { Categories } from '../../../../platform/action/common/actionCommonCateg
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IProcessService } from '../../../../platform/process/common/process.js';
@@ -36,6 +36,7 @@ import { IGitHubUploadService } from '../browser/githubUploadService.js';
 import { NativeGitHubUploadService } from './nativeGitHubUploadService.js';
 import { IssueReporterEditorPane } from './issueReporterEditorPane.js';
 import { IssueReporterEditorInput } from '../browser/issueReporterEditorInput.js';
+import { issueReporterAdditionalRepositoriesSettingId, issueReporterRepositoryPattern } from '../common/issueReporterTarget.js';
 
 //#region Issue Contribution
 registerSingleton(IWorkbenchIssueService, NativeIssueService, InstantiationType.Delayed);
@@ -50,6 +51,18 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	title: localize('issueReporterConfigurationTitle', "Issue Reporter"),
 	type: 'object',
 	properties: {
+		[issueReporterAdditionalRepositoriesSettingId]: {
+			type: 'array',
+			items: {
+				type: 'string',
+				pattern: issueReporterRepositoryPattern,
+				patternErrorMessage: localize('issueReporter.repositoryFormat', "Use a GitHub repository in owner/repo format, not a URL."),
+			},
+			default: [],
+			scope: ConfigurationScope.APPLICATION,
+			description: localize('issueReporter.additionalRepositories', "Additional GitHub repositories offered in the issue reporter wizard for VS Code and Agents Window reports, in owner/repo format. The default repository remains selected initially. GitHub manages repository access. Similar issue search is disabled for repositories whose public visibility is not known."),
+			experiment: { mode: 'auto' }
+		},
 		'issueReporter.wizard.enabled': {
 			type: 'boolean',
 			default: false,

@@ -18,7 +18,7 @@ import { IChatModel } from '../../common/model/chatModel.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../common/languageModels.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
-import { IVoiceDispatchResult, IVoiceModelReference, IVoiceToolCall, markPendingIdResolved, peekPendingId } from '../../common/voiceClient/voiceClientService.js';
+import { IVoiceDispatchResult, IVoiceModelReference, IVoiceToolCall, getVoiceRecentTurns, markPendingIdResolved, peekPendingId } from '../../common/voiceClient/voiceClientService.js';
 import { getVoiceConfirmationType } from '../../common/voiceClient/voiceConfirmation.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { isExplicitFileOrImageVariableEntry } from '../../common/attachments/chatVariableEntries.js';
@@ -727,19 +727,7 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 			});
 		}
 
-		const reqs = model.getRequests().slice(-lastN);
-		const turns = reqs.map(req => {
-			const userText = req.message.text || '';
-			const assistantText = req.response?.response.value
-				.filter(p => p.kind === 'markdownContent')
-				.map(p => (p as { content: { value: string } }).content.value)
-				.join(' ')
-				.slice(0, 600) || '';
-			return {
-				user: userText.slice(0, 400),
-				assistant: assistantText,
-			};
-		});
+		const turns = getVoiceRecentTurns(model, lastN);
 
 		return JSON.stringify({
 			session_id: session.resource.toString(),

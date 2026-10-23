@@ -36,7 +36,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../../
 import { StateType } from '../../../../../../../platform/update/common/update.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
-import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, isUserProvidedModel } from '../../../../common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, isUserProvidedModel } from '../../../../common/languageModels.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
 import { getModelConfigDescription, getModelConfigProperty, getModelConfigSummary, IModelConfigurationAccess, MODEL_CONFIG_GROUP_EFFORT, ModelConfigChangeListener } from './modelPickerModelConfig.js';
 import { IModelCardOptions, IPricingDisclosure, ModelCard } from './modelPickerCard.js';
@@ -44,13 +44,14 @@ import { getPreferredSpeedVariant, IModelSpeedVariants } from './modelPickerVari
 import { getModelBadge, getOrganizationDefaultDescription, getOrganizationDefaultModel, organizationDefaultLabel } from './modelPickerBadges.js';
 import { buildModelToProviderGroupMap, createModelAction, createUnavailableModelItem, getUnavailableReason, IProviderGroupInfo, requiresNewerVSCode } from './modelPickerItemPrimitives.js';
 import { getModelPickerAccessibilityProvider, getModelPickerControlModels } from './modelPickerItems.js';
-import { filterModelPickerControlModelsForEntitlement, filterModelPickerModelsForEntitlement, getFusionTierLabel, getHydraFusionTierLabel, getRoutingModelBadge, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly } from './modelPickerPresentation.js';
+import { filterModelPickerControlModelsForEntitlement, filterModelPickerModelsForEntitlement, getFusionDiscountPercent, getFusionTierLabel, getHydraFusionTierLabel, getRoutingModelBadge, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly } from './modelPickerPresentation.js';
 import { buildModelPickerDestinations, buildModelPickerSections, getModelProviderLabel, hasPromotedModels, IModelPickerDestination, IModelPickerProviderPlaceholder, IModelPickerSections, IModelPickerUnavailableEntry, MODEL_PICKER_BUILT_IN_DESTINATION, MODEL_PICKER_ON_DEVICE_DESTINATION } from './modelPickerTabs.js';
 import { ModelPickerWelcome } from './modelPickerWelcome.js';
 import { createMessageBanner } from './modelPickerHover.js';
 import { createLocalModelDetailsAction, isLocalModelDirectRow, LOCAL_MODEL_DETAILS_ACTION_ID, LOCAL_MODEL_PICKER_ITEM_PREFIX, type ILocalModelDetails, type IModelPickerLocalModels } from './modelPickerLocalModelItems.js';
 import { LocalModelCard } from './modelPickerLocalModelCard.js';
 import { IModelPickerComparison, ModelComparisonAvailableContext, ModelComparisonPickerFocusedContext } from './modelPickerComparison.js';
+import './modelPickerColors.js'; // Register the Copilot Fusion badge's theme colors
 
 /** The collapsible section holding models that are neither pinned, recommended nor recent. */
 const OTHER_MODELS_SECTION = 'other';
@@ -78,6 +79,8 @@ export interface ITabbedModelPickerContext {
 	/** Whether the account is billed by credits, which is when cost numbers are shown. */
 	readonly isUBB: boolean;
 	readonly showManageModels: boolean;
+	/** When set, the Add Models action is shown disabled with this reason as its tooltip. */
+	readonly manageModelsDisabledReason?: string;
 	/**
 	 * What it takes to unlock a curated model the user cannot select yet, used to
 	 * offer the upgrade, admin or update path instead of simply omitting the model.
@@ -646,7 +649,7 @@ export class TabbedModelPicker extends Disposable {
 	/**
 	 * The HydraFusion routing models this build can run, HydraFusion before HydraFusion Max.
 	 * The host only offers HydraFusion Max with HydraFusion v2, and Fusion only offers
-	 * HydraFusion as its High.
+	 * HydraFusion as one of the provider's tiers.
 	 */
 	private _hydraFusionModels(context: ITabbedModelPickerContext): readonly ILanguageModelChatMetadataAndIdentifier[] {
 		const derived = this._derived(context);
@@ -831,6 +834,7 @@ export class TabbedModelPicker extends Disposable {
 				id: 'addProvider',
 				icon: Codicon.add,
 				tooltip: localize('chat.modelPicker.addProvider', "Add Models..."),
+				disabledReason: context.manageModelsDisabledReason,
 				run: () => {
 					this._widget.hide();
 					context.onManageModels();
@@ -1160,7 +1164,11 @@ export class TabbedModelPicker extends Disposable {
 		const items: IActionListItem<IActionWidgetDropdownAction>[] = [];
 		const auto = this._autoModel(context);
 		if (auto) {
-			items.push(this._createModelItem(auto, context));
+			const item = this._createModelItem(auto, context);
+			// Copilot Fusion leads the list at twice the height of the other rows, so it stands out.
+			items.push(auto.metadata.autoModelFusion
+				? { ...item, heightInLines: 2, className: [item.className, 'chat-model-picker-featured'].filter(Boolean).join(' ') }
+				: item);
 		}
 		if (this._hostsHydraFusion(context)) {
 			return items;
@@ -1232,12 +1240,21 @@ export class TabbedModelPicker extends Disposable {
 		const modelBadge = getModelBadge(model, { providerLabel });
 		// A routing model's detail, e.g. Auto's discount, is its badge when nothing outranks it.
 		// Auto with its HydraFusion tier shows HydraFusion's instead, and Copilot Fusion its saved effort level's.
+		const effort = !modelBadge && routingModel && !hydraFusionTier
+			? getModelConfigProperty(model, context.configurationAccess, MODEL_CONFIG_GROUP_EFFORT, useModelConfigurationSchema)?.value
+			: undefined;
 		const routingBadge = !modelBadge && routingModel
 			? hydraFusionTier
 				? hydraFusionTier.metadata.detail
-				: getRoutingModelBadge(model.metadata, getModelConfigProperty(model, context.configurationAccess, MODEL_CONFIG_GROUP_EFFORT, useModelConfigurationSchema)?.value)
+				: getRoutingModelBadge(model.metadata, effort)
 			: undefined;
-		const badgeClassName = modelBadge ? `chat-model-picker-badge-${modelBadge.tone}` : routingBadge ? 'chat-model-picker-badge-preview' : undefined;
+		// Copilot Fusion's discount takes the Copilot brand gradient to stand out.
+		const fusionDiscountBadge = !modelBadge && !hydraFusionTier && getFusionDiscountPercent(model.metadata, effort) !== undefined;
+		const badgeClassName = modelBadge
+			? `chat-model-picker-badge-${modelBadge.tone}`
+			: fusionDiscountBadge
+				? 'chat-model-picker-badge-fusion-discount'
+				: routingBadge ? 'chat-model-picker-badge-preview' : undefined;
 		const hydraFusionTierLabel = hydraFusionTier && this._getHydraFusionTier(hydraFusionTier, context).label;
 		const localDirect = context.localModels?.getDirectModel(model, context.configurationAccess);
 		// HydraFusion with tiers of its own is shown as HydraFusion, with its tier as the readout.
@@ -1292,7 +1309,9 @@ export class TabbedModelPicker extends Disposable {
 					? [createLocalModelDetailsAction(rowLabel, () => this._showLocalModelDetails(localDirect.familyId), summary)]
 					: [this._createDetailsAction(model, rowLabel, summary)],
 			toolbarDialogActionIds: [MODEL_DETAILS_ACTION_ID, LOCAL_MODEL_DETAILS_ACTION_ID],
-			tooltip: [rowLabel, summary, defaultDescription].filter(Boolean).join(' \u00b7 '),
+			tooltip: isAutoModel(model) && model.metadata.autoModelFusion
+				? [ILanguageModelChatMetadata.getFusionSummary(), defaultDescription].filter(Boolean).join('\n')
+				: [rowLabel, summary, defaultDescription].filter(Boolean).join(' \u00b7 '),
 		};
 	}
 

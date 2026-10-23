@@ -58,8 +58,9 @@ import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } 
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
-import { TestWorkspaceTrustManagementService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
+import { TestLifecycleService, TestWorkspaceTrustManagementService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
 import { IHostService } from '../../../../../../workbench/services/host/browser/host.js';
+import { ILifecycleService } from '../../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { IChatEntitlementService, IChatSentiment } from '../../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSessionContentProvider, IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatService } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -489,7 +490,8 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 			};
 		}
 	}());
-	const providersService = store.add(new SessionsProvidersService());
+	instantiationService.stub(ILifecycleService, store.add(new TestLifecycleService()));
+	const providersService = store.add(instantiationService.createInstance(SessionsProvidersService));
 	store.add(providersService.registerProvider(upcastPartial<ISessionsProvider>({
 		id: isWeb ? CLOUD_SANDBOX_CREATION_PROVIDER_ID : COPILOT_PROVIDER_ID,
 		label: 'Cloud',

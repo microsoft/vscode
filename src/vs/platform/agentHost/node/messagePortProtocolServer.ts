@@ -8,7 +8,8 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { AgentHostTransportKind } from '../common/agentHostTelemetry.js';
 import { JSON_RPC_PARSE_ERROR, type AhpServerNotification, type JsonRpcNotification, type JsonRpcParseErrorResponse, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../common/state/sessionProtocol.js';
-import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
+import { parseProtocolMessage, type IProtocolServer, type IProtocolTransport } from '../common/state/sessionTransport.js';
+import { authenticateAgentHostTransport } from './agentHostTransportAuthentication.js';
 
 /**
  * Adapts MessagePort IPC clients to Agent Host Protocol transports.
@@ -96,6 +97,7 @@ export class MessagePortProtocolServer<TContext> extends Disposable implements I
 		let transport = this._transports.get(ctx);
 		if (!transport) {
 			transport = new MessagePortProtocolTransport();
+			authenticateAgentHostTransport(transport);
 			this._transports.set(ctx, transport);
 
 			const onClose = transport.onClose(() => {
@@ -140,7 +142,7 @@ class MessagePortProtocolTransport extends Disposable implements IProtocolTransp
 
 	acceptFrame(frame: string): void {
 		try {
-			this._onMessage.fire(JSON.parse(frame) as ProtocolMessage);
+			this._onMessage.fire(parseProtocolMessage(frame));
 		} catch {
 			this.send({ jsonrpc: '2.0', id: null, error: { code: JSON_RPC_PARSE_ERROR, message: 'Parse error' } });
 		}

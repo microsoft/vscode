@@ -21,6 +21,8 @@ import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/c
 import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE, countEnabledCustomizationTools, IAgentHostToolSetEnablementService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import { Menus } from '../../../browser/menus.js';
 import { agentIcon, instructionsIcon, mcpServerIcon, pluginIcon, skillIcon, hookIcon, toolsIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
+import { extensionsViewIcon } from '../../../../workbench/contrib/extensions/browser/extensionsIcons.js';
+import { EXTENSIONS_AGENTS_WINDOW_MANAGEMENT } from '../../../../platform/extensions/common/extensions.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { $, append } from '../../../../base/browser/dom.js';
@@ -36,6 +38,8 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 import { SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IAICustomizationMcpServerCountService } from './customizationMcpServerCount.js';
 import { OPEN_AI_CUSTOMIZATIONS_COMMAND_ID } from './customizationsConstants.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { getExtensionSuggestionsBadgeDescription, IAgentsWindowExtensionSuggestionsService } from '../../extensions/browser/agentsWindowExtensionSuggestions.js';
 
 export interface ICustomizationItemConfig {
 	readonly id: string;
@@ -47,6 +51,8 @@ export interface ICustomizationItemConfig {
 	readonly isMcp?: boolean;
 	readonly isPlugins?: boolean;
 	readonly isTools?: boolean;
+	/** If set, a badge signals installed extensions that can be enabled in the Agents window. */
+	readonly showsExtensionSuggestions?: boolean;
 	/** Additional `when` clause beyond the standard harness-visibility gate. */
 	readonly when?: ContextKeyExpression;
 }
@@ -163,6 +169,14 @@ export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		isTools: true,
 	},
 	{
+		id: 'sessions.customization.extensions',
+		label: localize('extensions', "Extensions"),
+		icon: extensionsViewIcon,
+		section: AICustomizationManagementSection.Extensions,
+		showsExtensionSuggestions: true,
+		when: ContextKeyExpr.equals(`config.${EXTENSIONS_AGENTS_WINDOW_MANAGEMENT}`, true),
+	},
+	{
 		id: 'sessions.customization.harnessSettings',
 		label: localize('harnessSettings', "Codex"),
 		icon: Codicon.openai,
@@ -218,6 +232,8 @@ export class CustomizationLinkViewItem extends BaseActionViewItem {
 		@IAICustomizationMcpServerCountService private readonly _mcpServerCountService: IAICustomizationMcpServerCountService,
 		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
 		@IAgentHostToolSetEnablementService private readonly _toolEnablementService: IAgentHostToolSetEnablementService,
+		@IAgentsWindowExtensionSuggestionsService private readonly _extensionSuggestionsService: IAgentsWindowExtensionSuggestionsService,
+		@IHoverService private readonly _hoverService: IHoverService,
 	) {
 		super(undefined, action, options);
 		this._viewItemDisposables = this._register(new DisposableStore());
@@ -259,6 +275,22 @@ export class CustomizationLinkViewItem extends BaseActionViewItem {
 			const count = readCustomizationCount(this._config, reader, this._itemsModel, this._mcpServerCountService, this._toolsService, this._toolEnablementService);
 			if (this._countContainer) {
 				this._renderTotalCount(this._countContainer, count);
+			}
+		}));
+
+		if (this._config.showsExtensionSuggestions) {
+			this._renderExtensionSuggestionsBadge(this._button);
+		}
+	}
+
+	private _renderExtensionSuggestionsBadge(button: Button): void {
+		const description = getExtensionSuggestionsBadgeDescription();
+		const badge = append(button.element, $('span.ai-customization-suggestion-badge.hidden', { role: 'img', 'aria-label': description }));
+		this._viewItemDisposables.add(autorun(reader => {
+			const visible = this._extensionSuggestionsService.showBadge.read(reader);
+			badge.classList.toggle('hidden', !visible);
+			if (visible) {
+				reader.store.add(this._hoverService.setupDelayedHover(button.element, { content: description }));
 			}
 		}));
 	}
