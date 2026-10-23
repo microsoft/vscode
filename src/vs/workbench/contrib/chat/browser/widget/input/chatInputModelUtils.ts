@@ -45,13 +45,12 @@ function hasSessionScopedModels(
 
 /**
  * Filter models based on session type.
- * When a session has a scoped model pool (see {@link hasSessionScopedModels}), models targeting that
- * session type are returned first, followed by unscoped BYOK (custom endpoint) models.
+ * When a session has a scoped model pool (see {@link hasSessionScopedModels}), only models
+ * targeting that session type are returned. A session host dispatches models by its own
+ * identifiers, so a BYOK (custom endpoint) model reaches such a session only through the copy
+ * the host publishes as session-targeted; the unscoped original keeps its extension identifier,
+ * which the host drops when the request is sent.
  * Otherwise, general-purpose models are returned.
- *
- * Unscoped BYOK models are registered by extensions and carry no session type, so a
- * session-targeted pool would otherwise hide them even though they are selectable
- * everywhere else.
  *
  * Every branch applies the same eligibility rules — metadata present, user-selectable, and
  * supported in the current mode and location — through {@link getEligibleMetadata}.
@@ -66,22 +65,10 @@ export function filterModelsForSession(
 	location: ChatAgentLocation,
 ): ILanguageModelChatMetadataAndIdentifier[] {
 	if (hasSessionScopedModels(models, sessionType)) {
-		// One pass: fetch eligible metadata once, then partition so session-targeted models come first.
-		const sessionScoped: ILanguageModelChatMetadataAndIdentifier[] = [];
-		const unscopedByok: ILanguageModelChatMetadataAndIdentifier[] = [];
-		for (const entry of models) {
+		return models.filter(entry => {
 			const metadata = getEligibleMetadata(entry, currentModeKind, location);
-			if (!metadata) {
-				continue;
-			}
-
-			if (metadata.targetChatSessionType === sessionType) {
-				sessionScoped.push(entry);
-			} else if (!metadata.targetChatSessionType && isByokModel(metadata)) {
-				unscopedByok.push(entry);
-			}
-		}
-		return [...sessionScoped, ...unscopedByok];
+			return !!metadata && metadata.targetChatSessionType === sessionType;
+		});
 	}
 
 	return models.filter(entry => {
@@ -159,9 +146,10 @@ export function hasModelsTargetingSession(
 /**
  * Check if a model belongs to the current session's model pool.
  * If the session has a scoped pool (see {@link hasSessionScopedModels}), the model must target
- * that session type, or be an unscoped BYOK (custom endpoint) model, which is offered alongside
- * them. If the pool is not scoped, the model must not be session-specific — so the local session
- * type always accepts general-purpose models, as {@link filterModelsForSession} does.
+ * that session type: a session host dispatches by its own identifiers, so only the session-targeted
+ * copy of a BYOK model is routable, and the unscoped original is rejected. If the pool is not scoped,
+ * the model must not be session-specific — so the local session type always accepts general-purpose
+ * models, as {@link filterModelsForSession} does.
  *
  * A non-selectable model (an explicit `isUserSelectable: false`) is never valid: it is hidden
  * from the picker, so a restored selection must not be treated as usable either.
@@ -188,8 +176,7 @@ export function isModelValidForSession(
 	}
 
 	if (hasSessionScopedModels(allModels, sessionType)) {
-		return metadata.targetChatSessionType === sessionType
-			|| (!metadata.targetChatSessionType && isByokModel(metadata));
+		return metadata.targetChatSessionType === sessionType;
 	}
 	return !metadata.targetChatSessionType;
 }
