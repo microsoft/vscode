@@ -29,7 +29,7 @@ import { IViewsService } from '../../../../workbench/services/views/common/views
 import { ICustomViewService } from '../../../services/customView/browser/customViewService.js';
 import { ISessionsRecentWorkspacesService } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
+import { ISession, isChatpadSession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { SessionChangesEditorInput } from '../../changes/browser/sessionChangesEditorInput.js';
 import { IChangesViewService } from '../../changes/common/changesViewService.js';
@@ -137,7 +137,7 @@ export class GetStartedTourRunner extends Disposable {
 
 	private async _createContext(item: GetStartedItemId, store: DisposableStore): Promise<IGetStartedTourContext> {
 		const sessions = this._sessionsManagementService.getSessions()
-			.filter(session => !session.isArchived.get() && !session.isAutomation?.get() && session.status.get() !== SessionStatus.Untitled)
+			.filter(session => !session.isArchived.get() && !session.isAutomation?.get() && !isChatpadSession(session, undefined) && session.status.get() !== SessionStatus.Untitled)
 			.sort((a, b) => b.updatedAt.get().getTime() - a.updatedAt.get().getTime());
 		const sessionWithChanges = item === GetStartedItemId.KeepChanges ? this._findSessionWithChanges(sessions) : undefined;
 		const navigation: IGetStartedTourNavigation = {

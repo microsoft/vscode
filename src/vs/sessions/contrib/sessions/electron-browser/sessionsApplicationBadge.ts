@@ -18,7 +18,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IColorTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND } from '../../../../workbench/common/theme.js';
-import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
+import { ISession, isChatpadSession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { BlockedSessions } from '../../blockedSessions/browser/blockedSessions.js';
 
@@ -79,7 +79,7 @@ export class SessionsApplicationBadge extends Disposable implements IWorkbenchCo
 				: undefined;
 			let count = 0;
 			for (const session of this._sessions.read(reader)) {
-				if (session.isArchived.read(reader)) {
+				if (session.isArchived.read(reader) || isChatpadSession(session, reader)) {
 					continue;
 				}
 

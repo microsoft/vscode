@@ -18,7 +18,7 @@ import { ChatNotificationKind, getChatNotificationDedupeKey } from '../../../../
 import { ChatConfiguration, ChatNotificationMode } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
+import { ISession, isChatpadSession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionComparisonService } from '../../../services/sessions/common/sessionComparison.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 
@@ -95,7 +95,7 @@ export class SessionsWindowNotifier extends Disposable implements IWorkbenchCont
 	}
 
 	private async _notify(session: ISession, status: SessionStatus): Promise<void> {
-		if (session.status.get() !== status) {
+		if (session.status.get() !== status || isChatpadSession(session, undefined)) {
 			return;
 		}
 		const setting = status === SessionStatus.NeedsInput
