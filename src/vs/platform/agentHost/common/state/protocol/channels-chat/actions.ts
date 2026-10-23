@@ -887,10 +887,10 @@ export interface ChatIsArchivedChangedAction {
  * Config values set on a chat changed.
  *
  * Merges `config` into the chat's
- * {@link ChatConfigState | `ChatState.config`} overlay, or replaces the
- * overlay when `replace` is `true`. Only properties with `chatMutable: true`
- * in the session's config schema may be set. To reset a property to the
- * session's value, replace the overlay with one that omits the property.
+ * {@link ChatConfigState | `ChatState.config`} values, or sets the complete
+ * values when `replace` is `true`; keys missing after a replace take the
+ * effective schema's `default`. Only properties with `chatMutable: true` in
+ * the effective schema may be set.
  *
  * @category Chat Actions
  * @version 1

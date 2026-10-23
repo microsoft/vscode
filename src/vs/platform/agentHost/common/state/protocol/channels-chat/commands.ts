@@ -210,6 +210,11 @@ export type ChatMoveDestination =
  * destination, a move they cannot support, such as one that changes whether
  * the chat's agent matches its session's.
  *
+ * A moved chat's `config.values` move with it unchanged. If a move changes
+ * whether the chat needs its own `config.schema`, the host either sets or
+ * clears it, and clients SHOULD resubscribe to the chat since no action
+ * carries a schema change, or refuses the move as an unsupported destination.
+ *
  * On success every moved chat keeps its URI, state, and immutable
  * `ChatOrigin`. The host commits ownership and catalog order before publishing
  * `session/chatRemoved`, `session/chatAdded`, `session/chatsReordered`, and

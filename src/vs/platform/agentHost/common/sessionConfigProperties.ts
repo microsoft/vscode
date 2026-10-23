@@ -200,15 +200,53 @@ export function toOwnChatConfig(agentConfig: SessionConfigState, existing?: Read
 }
 
 /**
- * A chat's effective config: `base` with the chat's own values applied over it
- * (see {@link applyChatConfigLayers}), restricted to `base`'s `chatMutable`
- * properties. `base` is the session's config for a chat on its session's
- * agent, and the resolved config of the chat's agent (`resolveSessionConfig`
- * for the chat's `provider`) for a chat whose agent differs from its session's.
+ * The config schema of a chat: its own (`ChatConfigState.schema`, set for a
+ * chat whose agent differs from its session's), else its session's.
  */
-export function getEffectiveChatConfig(base: SessionConfigState, chat: ChatConfigState | undefined): SessionConfigState {
-	const own = filterChatConfigValues(base.schema, chat?.values);
-	return Object.keys(own).length === 0 ? base : { schema: base.schema, values: applyChatConfigLayers(base.values, [own]) };
+export function getChatConfigSchema(session: SessionConfigState | undefined, chat: ChatConfigState | undefined): SessionConfigSchema | undefined {
+	return chat?.schema ?? session?.schema;
+}
+
+/**
+ * The values a chat is created with, or that an older build's overlay of a
+ * chat's own values completes to: the `chatMutable` properties of the session's
+ * effective `values`, with `overlay` (the chat's own values) applied over them.
+ * Properties that are not `chatMutable` stay session-wide, and `readOnly` ones
+ * are host-reported, so neither is copied from the session.
+ */
+export function getCompleteChatConfigValues(session: SessionConfigState, overlay?: Readonly<Record<string, unknown>>): Record<string, unknown> {
+	const inherited = Object.entries(filterChatConfigValues(session.schema, session.values)).filter(([key]) => session.schema.properties[key]?.readOnly !== true);
+	return { ...Object.fromEntries(inherited), ...filterChatConfigValues(session.schema, overlay) };
+}
+
+/**
+ * A chat's effective config. A chat's `values` are its complete config: the
+ * session's config never changes them. A chat with its own `schema` (its agent
+ * differs from its session's) is that schema with its values over the schema's
+ * defaults. Any other chat uses the session's schema: its `chatMutable`
+ * properties come from the chat's values, falling back to the schema's
+ * `default`, and the other, session-wide properties from the session. A chat
+ * without config is the session's.
+ */
+export function getEffectiveChatConfig(session: SessionConfigState, chat: ChatConfigState | undefined): SessionConfigState {
+	if (chat?.schema) {
+		return { schema: chat.schema, values: withChatSchemaDefaults(chat.schema, chat.values) };
+	}
+	if (!chat) {
+		return session;
+	}
+	const values: Record<string, unknown> = {};
+	for (const [key, value] of Object.entries(session.values)) {
+		if (!isChatConfigProperty(session.schema, key)) {
+			values[key] = value;
+		}
+	}
+	for (const [key, property] of Object.entries(session.schema.properties)) {
+		if (property.chatMutable === true && property.default !== undefined) {
+			values[key] = property.default;
+		}
+	}
+	return { schema: session.schema, values: { ...values, ...filterChatConfigValues(session.schema, chat.values) } };
 }
 
 const APPROVAL_KEYS: readonly string[] = [SessionConfigKey.AutoApprove, 'approvalMode'];
@@ -261,10 +299,14 @@ export function getChatConfigWriteTarget(chats: readonly Pick<ChatSummary, 'reso
 	return getChatConfigChain(chats, chat).at(-1)!;
 }
 
-/** The own config values of a chat chain (innermost first) as one chat's (see {@link applyChatConfigLayers}). */
+/**
+ * The config of a chat chain (innermost first) as one chat's (see {@link applyChatConfigLayers}), keeping the
+ * innermost own `schema`: a subagent has no config of its own and uses the chat that spawned it.
+ */
 export function mergeChatConfigChain(configs: readonly (ChatConfigState | undefined)[]): ChatConfigState | undefined {
 	const present = configs.filter((config): config is ChatConfigState => config !== undefined);
-	return present.length === 0 ? undefined : { values: applyChatConfigLayers({}, present.map(config => config.values)) };
+	const schema = present.find(config => config.schema !== undefined)?.schema;
+	return present.length === 0 ? undefined : { ...(schema ? { schema } : {}), values: applyChatConfigLayers({}, present.map(config => config.values)) };
 }
 
 /** Splits a config patch into the values a chat sets for itself and the values set on the session. */

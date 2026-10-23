@@ -17,7 +17,7 @@ import { resolveAgentHostSession } from '../common/agentHostSubscriptionService.
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, defaultAgentHostCustomizationConfigValues } from '../common/agentHostCustomizationConfig.js';
 import { getAgentCustomizationSettingsEntries, getProviderBackedRootConfigKeys, withAgentCustomizationSettings, type IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { copilotCliConfigSchema } from '../common/copilotCliConfig.js';
-import { agentMergeRootConfigSchema } from '../common/agentMerge.js';
+import { agentMergeRootConfigSchema, readAgentMergeInjectedConfiguration, withoutAgentMergeElevation } from '../common/agentMerge.js';
 import { chatMoveRootConfigSchema } from '../common/agentHostChatMove.js';
 import { chatProvidersRootConfigSchema } from '../common/agentHostChatProviders.js';
 import { automationRootConfigSchema } from '../common/automationConfig.js';
@@ -28,7 +28,7 @@ import { ActionType, type ActionOrigin } from '../common/state/sessionActions.js
 import type { ChatConfigChangedAction, SessionConfigChangedAction } from '../common/state/protocol/actions.js';
 import type { SessionConfigSchema } from '../common/state/protocol/commands.js';
 import { ChatOriginKind, isAhpChatChannel, parseSubagentSessionUri, readSessionWorkspaceless, ROOT_STATE_URI, type SessionConfigState, type URI as ProtocolURI } from '../common/state/sessionState.js';
-import { applyChatConfigLayers, filterChatConfigValues, splitChatConfigPatch, withChatSchemaDefaults } from '../common/sessionConfigProperties.js';
+import { applyChatConfigLayers, filterChatConfigValues, getCompleteChatConfigValues, getEffectiveChatConfig, isChatConfigProperty, splitChatConfigPatch, withChatSchemaDefaults } from '../common/sessionConfigProperties.js';
 import { inheritedChatFolders } from './agentChatContext.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
@@ -125,6 +125,17 @@ export interface IAgentChatConfigurationChangeEvent {
 }
 
 /** The config values a chat being created starts with, live until the chat is registered. */
+/**
+ * The `ChatConfigChanged` actions the host dispatches to complete a chat's values, or to publish what a session's
+ * default chat takes from its session: they change no chat's effective config.
+ */
+const chatConfigCompletionActions = new WeakSet<object>();
+
+/** Whether `action` only completes a chat's values or publishes what a default chat takes from its session. */
+export function isChatConfigCompletion(action: object): boolean {
+	return chatConfigCompletionActions.has(action);
+}
+
 export interface IAgentChatConfigurationSeed extends IDisposable {
 	/** The chat's own values, including changes made while it was being created. */
 	readonly values: Readonly<Record<string, unknown>>;
@@ -228,6 +239,24 @@ export interface IAgentConfigurationService {
 	 */
 	seedChatConfig(chat: ProtocolURI, values: Readonly<Record<string, unknown>>, schema?: SessionConfigSchema): IAgentChatConfigurationSeed;
 
+	/**
+	 * Gives the chats of `session` that were registered before its config was known their complete values (a chat's
+	 * values are its complete config: the session's config never changes them).
+	 */
+	completeChatConfigs(session: ProtocolURI): void;
+
+	/**
+	 * The complete values of a chat of `session` whose own values are `own`: the session's values of the properties a
+	 * chat may set (without Agent Merge's elevation and host-reported read-only ones), with `own` over them.
+	 */
+	getCompleteChatConfigValues(session: ProtocolURI, own: Readonly<Record<string, unknown>>): Record<string, unknown>;
+
+	/**
+	 * The values of a chat to persist: its published values, except a session's default chat's that its session gives
+	 * it (which follow the session).
+	 */
+	getChatPersistedConfigValues(chat: ProtocolURI): Readonly<Record<string, unknown>> | undefined;
+
 	/** Returns all effective session roots, including inherited parent-session roots. */
 	getEffectiveWorkingDirectories(session: ProtocolURI): readonly string[] | undefined;
 
@@ -327,6 +356,20 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 	readonly onDidSessionConfigChange: Event<IAgentSessionConfigurationChangeEvent> = this._onDidSessionConfigChange.event;
 	private readonly _onDidChatConfigChange = this._register(new Emitter<IAgentChatConfigurationChangeEvent>());
 	readonly onDidChatConfigChange: Event<IAgentChatConfigurationChangeEvent> = this._onDidChatConfigChange.event;
+	/**
+	 * Chats whose `ChatState.config` values are their complete config. A chat registered before its session has config,
+	 * or restored from an older build's overlay, is completed once its session's config is known (see
+	 * {@link _completeChatConfig}); until then its values apply over the session's, as older builds read them.
+	 */
+	private readonly _completedChats = new Set<ProtocolURI>();
+	/**
+	 * The properties a session's default chat publishes from its session rather than sets itself. The session's config
+	 * is its default chat's, as older clients and the session-level pickers and policies write it: the default chat
+	 * takes the session's values of the properties it has not set, and publishes them so its values are complete.
+	 */
+	private readonly _inheritedChatKeys = new Map<ProtocolURI, Set<string>>();
+	/** A default chat's own values, by its published values. */
+	private readonly _ownValues = new WeakMap<object, Record<string, unknown>>();
 	/** How many live seeds carry their own schema. */
 	private _chatSchemaSeeds = 0;
 	private readonly _chatConfigSeeds = new Map<ProtocolURI, { values: Record<string, unknown>; readonly schema?: SessionConfigSchema }>();
@@ -372,7 +415,17 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		// Reduction precedes the envelope and knows the previous values, so a replacement's removed keys are known too.
 		this._register(this._stateManager.onDidChangeSessionConfig(event => this._reducedChanges.set(event.session.toString(), changedConfigKeys(event.previous?.values, event.current?.values))));
 		this._register(this._stateManager.onDidChangeChatConfig(event => this._reducedChanges.set(event.chat.toString(), changedConfigKeys(event.previous?.values, event.current?.values))));
+		this._register(this._stateManager.onDidRegisterChat(({ chat, session }) => {
+			// After the registration: the chat is announced with the values it was registered with.
+			queueMicrotask(() => {
+				if (!this._store.isDisposed && this._stateManager.getChatOwner(chat) === session) {
+					this._completeChatConfig(session, chat);
+				}
+			});
+		}));
 		this._register(this._stateManager.onDidUnregisterChat(({ chat }) => {
+			this._completedChats.delete(chat);
+			this._inheritedChatKeys.delete(chat);
 			this._chatValues.delete(chat);
 			this._chatSandboxChanges.delete(chat);
 			this._chatSandboxUserSelections.delete(chat);
@@ -401,14 +454,35 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 				if (Object.hasOwn(envelope.action.config, SessionConfigKey.SandboxEnabled)) {
 					this._recordSandboxChanges(envelope.channel, undefined);
 				}
+				const changedKeys = this._changedKeys(envelope.channel, envelope.action.config);
+				// The session may have just got its config: the chats registered before it take theirs now.
+				this.completeChatConfigs(envelope.channel);
 				this._fireSessionConfigChange({
 					session: envelope.channel,
 					config: envelope.action.config,
 					origin: envelope.origin,
-				}, this._changedKeys(envelope.channel, envelope.action.config));
+				}, changedKeys);
+				this._syncDefaultChatConfig(envelope.channel);
 			} else if (envelope.action.type === ActionType.ChatConfigChanged) {
 				const session = this._stateManager.getChatOwner(envelope.channel);
-				if (session !== undefined) {
+				if (chatConfigCompletionActions.has(envelope.action)) {
+					// Completing a chat's values changes none of its effective values.
+					this._changedKeys(envelope.channel, envelope.action.config);
+				} else if (session !== undefined) {
+					const inherited = this._inheritedChatKeys.get(envelope.channel);
+					if (inherited) {
+						// What a default chat sets is its own from here on; a replacement leaves it only what it sets.
+						for (const key of envelope.action.replace ? [...inherited] : Object.keys(envelope.action.config)) {
+							inherited.delete(key);
+						}
+						if (envelope.action.replace) {
+							queueMicrotask(() => {
+								if (!this._store.isDisposed) {
+									this._syncDefaultChatConfig(session);
+								}
+							});
+						}
+					}
 					if (Object.hasOwn(envelope.action.config, SessionConfigKey.SandboxEnabled)) {
 						if (!this._sandboxRollbackActions.has(envelope.action)) {
 							const changed = envelope.channel;
@@ -461,7 +535,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		schema: ISchema<D>,
 		key: K,
 	): SchemaValue<D[K]> | undefined {
-		return this._firstValid(this._chatChain(target), schema, key, target.chat);
+		return this._firstValid(this._chatChain(target, key), schema, key, target.chat);
 	}
 
 	getChatConfigState(target: IAgentChatConfigurationTarget): SessionConfigState | undefined {
@@ -491,13 +565,20 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		if (!session) {
 			return undefined;
 		}
-		const inputs = [target.session, session, ...[...this._chatAncestry(target.chat)].map(chat => this._ownChatValues(chat))];
+		const complete = this._isChatConfigComplete(target.chat);
+		const inputs = [target.session, session, complete, ...[...this._chatAncestry(target.chat)].map(chat => this._ownChatValues(chat))];
 		const cached = this._chatValues.get(target.chat);
 		if (cached && cached.inputs.length === inputs.length && cached.inputs.every((input, index) => input === inputs[index])) {
 			return cached.values;
 		}
-		const layers = [...this._chatLayers(target)];
-		const values = layers.length === 0 ? session.values : applyChatConfigLayers(session.values, layers);
+		let values: Record<string, unknown>;
+		if (complete) {
+			// The chat's values are its complete config; only session-wide properties come from the session.
+			values = getEffectiveChatConfig(session, { values: this._ownChatValues(this._configurableChat(target.chat)) ?? {} }).values;
+		} else {
+			const layers = [...this._chatLayers(target)];
+			values = layers.length === 0 ? session.values : applyChatConfigLayers(session.values, layers);
+		}
 		this._chatValues.set(target.chat, { inputs, values });
 		return values;
 	}
@@ -558,7 +639,22 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 
 	/** The chat's own values, from its seed while it is being created. */
 	private _ownChatValues(chat: ProtocolURI): Readonly<Record<string, unknown>> | undefined {
-		return this._chatConfigSeeds.get(chat)?.values ?? this._stateManager.getChatConfig(chat)?.values;
+		const seed = this._chatConfigSeeds.get(chat)?.values;
+		if (seed) {
+			return seed;
+		}
+		const values = this._stateManager.getChatConfig(chat)?.values;
+		const inherited = this._inheritedChatKeys.get(chat);
+		if (!values || !inherited || inherited.size === 0) {
+			return values;
+		}
+		const cached = this._ownValues.get(values);
+		if (cached) {
+			return cached;
+		}
+		const own = Object.fromEntries(Object.entries(values).filter(([key]) => !inherited.has(key)));
+		this._ownValues.set(values, own);
+		return own;
 	}
 
 	/** The chat whose own values `chat` uses: the chat itself, or for a subagent the nearest ancestor that is not one. */
@@ -606,21 +702,129 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 	}
 
 	/**
-	 * The value bags of a chat's effective config in precedence order: its layers, the session, the host. A chat with
-	 * its own agent takes its schema's defaults instead of the session's values.
+	 * The value bags of a chat's effective config for `key`, in precedence order. A chat's values are its complete
+	 * config, so a property it may set comes from its values, its schema's default and the host, never the session; a
+	 * session-wide property comes from the session and the host. A chat with its own agent takes everything from its
+	 * own values and schema. A chat whose values are not complete yet still applies them over the session's.
 	 */
-	private *_chatChain(target: IAgentChatConfigurationTarget): Iterable<Record<string, unknown>> {
-		yield* this._chatLayers(target);
+	private *_chatChain(target: IAgentChatConfigurationTarget, key: string): Iterable<Record<string, unknown>> {
+		const host = this._stateManager.rootState.config?.values;
 		const own = this._ownChatSchema(target.chat);
 		if (own) {
+			yield* this._chatLayers(target);
 			yield withChatSchemaDefaults(own.schema, undefined);
-			const host = this._stateManager.rootState.config?.values;
 			if (host) {
 				yield host;
 			}
 			return;
 		}
-		yield* this._effectiveChain(target.session);
+		if (!this._isChatConfigComplete(target.chat)) {
+			yield* this._chatLayers(target);
+			yield* this._effectiveChain(target.session);
+			return;
+		}
+		const schema = this._stateManager.getSessionState(target.session)?.config?.schema;
+		if (!isChatConfigProperty(schema, key)) {
+			yield* this._effectiveChain(target.session);
+			return;
+		}
+		yield filterChatConfigValues(schema, this._ownChatValues(this._configurableChat(target.chat)));
+		yield withChatSchemaDefaults({ type: 'object', properties: { [key]: schema!.properties[key] } }, undefined);
+		if (host) {
+			yield host;
+		}
+	}
+
+	/** Whether the chat `chat` takes its config from has complete values (always so for a chat with its own agent). */
+	private _isChatConfigComplete(chat: ProtocolURI): boolean {
+		const configurable = this._configurableChat(chat);
+		if (this._ownChatSchema(configurable) !== undefined) {
+			return true;
+		}
+		// A session's default chat follows its session for what it has not set itself, also one a move promoted.
+		const owner = this._stateManager.getChatOwner(configurable);
+		return this._completedChats.has(configurable) && (owner === undefined || this._stateManager.getDefaultChat(owner) !== configurable);
+	}
+
+	/**
+	 * Completes the values of the chats of `session` registered before its config was known, or restored from an
+	 * older build's overlay (see {@link _completeChatConfig}).
+	 */
+	completeChatConfigs(session: ProtocolURI): void {
+		for (const chat of this._stateManager.getSessionState(session)?.chats ?? []) {
+			this._completeChatConfig(session, chat.resource);
+		}
+	}
+
+	/**
+	 * Makes a chat's values its complete config, once, as soon as its session has config: the session's values of the
+	 * properties a chat may set, with the chat's own values over them. A chat created with complete values, or one
+	 * completed by an earlier run, changes at most by properties its session's schema gained since. Subagents have no
+	 * values of their own, and a chat with its own agent is complete from its creation.
+	 */
+	private _completeChatConfig(session: ProtocolURI, chat: ProtocolURI): void {
+		if (this._stateManager.getDefaultChat(session) === chat) {
+			this._syncDefaultChatConfig(session);
+			return;
+		}
+		if (this._completedChats.has(chat) || this._stateManager.getChatOrigin(chat)?.kind === ChatOriginKind.Tool || this._ownChatSchema(chat)) {
+			return;
+		}
+		const config = this._stateManager.getSessionState(session)?.config;
+		if (!config) {
+			return;
+		}
+		this._completedChats.add(chat);
+		if (this._chatConfigSeeds.has(chat)) {
+			// A chat being created is registered with the complete values it was seeded with.
+			return;
+		}
+		const own = this._ownChatValues(chat) ?? {};
+		const complete = this.getCompleteChatConfigValues(session, own);
+		const patch = Object.fromEntries(Object.entries(complete).filter(([key, value]) => !Object.hasOwn(own, key) || !equals(own[key], value)));
+		// Every chat of a session with config publishes its config, even with no values.
+		if (Object.keys(patch).length === 0 && this._stateManager.getChatConfig(chat) !== undefined) {
+			return;
+		}
+		const action = { type: ActionType.ChatConfigChanged as const, config: patch };
+		chatConfigCompletionActions.add(action);
+		this._stateManager.dispatchServerAction(chat, action);
+	}
+
+	getChatPersistedConfigValues(chat: ProtocolURI): Readonly<Record<string, unknown>> | undefined {
+		return this._chatConfigSeeds.has(chat) ? this._stateManager.getChatConfig(chat)?.values : this._ownChatValues(chat);
+	}
+
+	getCompleteChatConfigValues(session: ProtocolURI, own: Readonly<Record<string, unknown>>): Record<string, unknown> {
+		const config = this._stateManager.getSessionState(session)?.config;
+		if (!config) {
+			return { ...own };
+		}
+		// Agent Merge's elevation belongs to the session, not to a copy in a chat.
+		const values = withoutAgentMergeElevation(config.values, readAgentMergeInjectedConfiguration(config.values));
+		return getCompleteChatConfigValues({ schema: config.schema, values: { ...values } }, own);
+	}
+
+	/**
+	 * Publishes a session's default chat's complete values: the session's values of the properties a chat may set that
+	 * the default chat has not set itself, with its own over them (see {@link _inheritedChatKeys}).
+	 */
+	private _syncDefaultChatConfig(session: ProtocolURI): void {
+		const chat = this._stateManager.getDefaultChat(session);
+		if (chat === undefined || !this._stateManager.getSessionState(session)?.config || this._stateManager.getChatOwner(chat) === undefined || this._ownChatSchema(chat)) {
+			return;
+		}
+		const own = this._ownChatValues(chat) ?? {};
+		const inheritedValues = Object.fromEntries(Object.entries(this.getCompleteChatConfigValues(session, {})).filter(([key]) => !Object.hasOwn(own, key)));
+		const next = { ...inheritedValues, ...own };
+		const current = this._stateManager.getChatConfig(chat)?.values;
+		this._inheritedChatKeys.set(chat, new Set(Object.keys(inheritedValues)));
+		if (current && equals(current, next)) {
+			return;
+		}
+		const action = { type: ActionType.ChatConfigChanged as const, config: next, replace: true };
+		chatConfigCompletionActions.add(action);
+		this._stateManager.dispatchServerAction(chat, action);
 	}
 
 	/**
@@ -667,8 +871,11 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 				// A chat with its own agent does not take the session's values.
 				continue;
 			}
-			const overridden = new Set([...this._chatLayers(target)].flatMap(layer => Object.keys(layer)));
-			const changed = keys.filter(key => !overridden.has(key));
+			// A chat with complete values takes only the session-wide properties from its session.
+			const schema = this._stateManager.getSessionState(event.session)?.config?.schema;
+			const changed = this._isChatConfigComplete(chat.resource)
+				? keys.filter(key => !isChatConfigProperty(schema, key))
+				: (overridden => keys.filter(key => !overridden.has(key)))(new Set([...this._chatLayers(target)].flatMap(layer => Object.keys(layer))));
 			if (changed.length > 0) {
 				this._onDidChatConfigChange.fire({ ...target, config: this._effectiveValuesOf(target, changed), origin: event.origin });
 			}
@@ -713,6 +920,8 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 	/** Reconciles restored selections with current policy before notifying live provider runtimes. */
 	restoreSessionConfig(session: ProtocolURI, config: SessionConfigState): void {
 		this._stateManager.setSessionConfig(session, config);
+		// Chats restored from an older build's overlay of their own values take their complete values now.
+		this.completeChatConfigs(session);
 		this._clearSandboxRejectedSelections(session, () => true, true);
 		if (!this._publishSessionSandboxPolicy(session)) {
 			this._fireSessionConfigChange({
@@ -767,7 +976,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 			const target = { session, chat: chat.resource };
 			const preserveChatSelection = !policyChanged && this._chatSandboxUserSelections.has(chat.resource) && policy?.allowBypass === true;
 			if (!policy?.failClosed && !preserveChatSelection && this._stateManager.getChatOrigin(chat.resource)?.kind !== ChatOriginKind.Tool
-				&& this._stateManager.getChatConfig(chat.resource)?.values[SessionConfigKey.SandboxEnabled] === 'off'
+				&& this._ownChatValues(chat.resource)?.[SessionConfigKey.SandboxEnabled] === 'off'
 				&& getSessionSandboxOverrides(this, target).enabled === AgentSandboxEnabledValue.On) {
 				this.updateChatConfig(target, { [SessionConfigKey.SandboxEnabled]: AgentSandboxEnabledValue.On });
 			}
@@ -786,7 +995,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 
 	getSessionSandboxEnabled(session: ProtocolURI): boolean | undefined {
 		const defaultChat = this._stateManager.getDefaultChat(session);
-		if (defaultChat !== undefined && !Object.hasOwn(this._stateManager.getChatConfig(defaultChat)?.values ?? {}, SessionConfigKey.SandboxEnabled)) {
+		if (defaultChat !== undefined && !Object.hasOwn(this._ownChatValues(defaultChat) ?? {}, SessionConfigKey.SandboxEnabled)) {
 			return readSessionSandboxState(this._stateManager.getSessionState(session))?.enabled;
 		}
 		const selection = this.getSessionConfigValues(session)?.[SessionConfigKey.SandboxEnabled];

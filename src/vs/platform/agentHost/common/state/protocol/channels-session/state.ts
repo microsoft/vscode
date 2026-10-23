@@ -612,8 +612,8 @@ export interface SessionConfigPropertySchema extends ConfigPropertySchema {
 	/** When `true`, the user may change this property after session creation */
 	sessionMutable?: boolean;
 	/**
-	 * When `true`, the property may be set per chat with `chat/configChanged`.
-	 * The chat's value overrides the session's value for that chat only.
+	 * When `true`, the property may be changed per chat with
+	 * `chat/configChanged`, affecting only that chat.
 	 */
 	chatMutable?: boolean;
 }

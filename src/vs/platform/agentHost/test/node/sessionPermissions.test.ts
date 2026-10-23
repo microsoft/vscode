@@ -822,7 +822,8 @@ suite('SessionPermissionManager', () => {
 			peerToolInDefaultChat: await permissions.getAutoApproval({ ...outsideWrite, toolCallId: 'tc-default' }, defaultChat),
 		}, {
 			approvals: { defaultChat: undefined, allowAll: ToolCallConfirmationReason.Setting, allowAllSubagent: ToolCallConfirmationReason.Setting },
-			peer: { [SessionConfigKey.Permissions]: { allow: ['peerTool', 'subagentTool'], deny: [] } },
+			// A chat's values are its complete config: the session's approvals when it was registered, and what it allowed.
+			peer: { [SessionConfigKey.AutoApprove]: 'default', [SessionConfigKey.Permissions]: { allow: ['peerTool', 'subagentTool'], deny: [] } },
 			peerSubagent: undefined,
 			sessionPermissions: undefined,
 			peerToolInPeer: ToolCallConfirmationReason.Setting,

@@ -231,10 +231,14 @@ suite('AgentConfigurationService', () => {
 			});
 		});
 
-		test('a malformed own value falls back to the session', () => {
+		test('a malformed own value falls back to the schema\'s default and the host, not the session', async () => {
 			setUpSession({ level: 'low' });
+			// A chat registered with its session's config takes its complete values once registered.
+			await Promise.resolve();
 			manager.dispatchServerAction(peer, { type: ActionType.ChatConfigChanged, config: { level: 'bogus' } });
-			assert.strictEqual(effective(peer), 'low');
+			const withoutHost = effective(peer);
+			seedRootConfig({ level: 'high' });
+			assert.deepStrictEqual([withoutHost, effective(peer)], [undefined, 'high']);
 		});
 
 		test('updates route settable properties to the chat (a subagent\'s to its spawning chat) and the rest to the session', () => {
@@ -256,7 +260,7 @@ suite('AgentConfigurationService', () => {
 			});
 		});
 
-		test('fires chat changes for the changed chat and its subagents, and session changes for chats that do not set the key', () => {
+		test('fires chat changes for the changed chat and its subagents, and session changes only of session-wide properties to other chats: their values are their complete config', () => {
 			setUpSession({ level: 'low', limit: 1 });
 			const events: string[] = [];
 			disposables.add(service.onDidChatConfigChange(e => events.push(`${e.chat.substring(session.length)} ${JSON.stringify(e.config)}`)));
@@ -266,15 +270,16 @@ suite('AgentConfigurationService', () => {
 				`${peer.substring(session.length)} {"level":"low"}`,
 				`${subagent.substring(session.length)} {"level":"low"}`,
 				`${nested.substring(session.length)} {"level":"low"}`,
+				// The session's config is its default chat's for what that chat has not set itself.
 				`${defaultChat.substring(session.length)} {"level":"high","limit":3}`,
 				`${peer.substring(session.length)} {"limit":3}`,
 				`${subagent.substring(session.length)} {"limit":3}`,
 				`${nested.substring(session.length)} {"limit":3}`,
-				`${lookalike.substring(session.length)} {"level":"high","limit":3}`,
+				`${lookalike.substring(session.length)} {"limit":3}`,
 			]);
 		});
 
-		test('a replacement fans out the keys it removed, from the session and from a chat', () => {
+		test('a replacement fans out the keys it removed, from the session (only session-wide ones reach chats other than the default chat) and from a chat', () => {
 			setUpSession({ level: 'low', limit: 1 });
 			const events: string[] = [];
 			disposables.add(service.onDidChatConfigChange(e => {

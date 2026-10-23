@@ -339,6 +339,8 @@ suite('Session sandbox configuration', () => {
 			updates: [
 				{ type: ActionType.SessionMetaChanged, value: 'off', error: 'SDK rejected update' },
 				{ type: ActionType.SessionConfigChanged, value: 'on', error: 'SDK rejected update' },
+				// The default chat publishes the session's value it follows.
+				{ type: ActionType.ChatConfigChanged, value: 'on', error: 'SDK rejected update' },
 			],
 			values: { sandboxEnabled: 'on', mode: 'interactive' },
 			state: { enabled: true, rejectedSelection: true, error: { clientId: 'client', clientSeq: 1, message: 'SDK rejected update' } },

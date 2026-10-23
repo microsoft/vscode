@@ -84,7 +84,7 @@ import { AgentHostInputRequestTracker } from './agentHostInputRequestTracker.js'
 import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { IAgentHostSessionTitleController } from './agentHostSessionTitleController.js';
 import { AgentHostStateManager, resolveChatStateForUri } from './agentHostStateManager.js';
-import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { IAgentConfigurationService, isChatConfigCompletion } from './agentConfigurationService.js';
 import { IAgentHostSessionStateStore } from '../common/agentHostSessionStateStore.js';
 import { createAgentChatContext, getSessionChatsForFanOut } from './agentChatContext.js';
 import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
@@ -361,6 +361,11 @@ export class AgentSideEffects extends Disposable {
 			const currentMode = getConfiguredSessionMode(sessionConfig && getEffectiveChatConfig(sessionConfig, e.current));
 			const agent = this._options.getAgent(e.session, e.chat);
 			if (!previousMode || !currentMode || previousMode === currentMode || !agent) {
+				return;
+			}
+			if (isChatConfigCompletion(e.action)) {
+				// Completing a chat's values, or publishing what a default chat takes from its session (whose change is
+				// reported for the session), changes no mode.
 				return;
 			}
 			this._telemetryReporter.executionModeChanged(agent.id, e.session, previousMode, currentMode, this._stateManager.getChatState(e.chat)?.turns.length ?? 0, e.clientContext);
