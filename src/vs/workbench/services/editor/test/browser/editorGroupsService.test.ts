@@ -24,6 +24,7 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { CloseAllEditorGroupsAction } from '../../../../browser/parts/editor/editorActions.js';
 import { IWorkbenchLayoutService, Parts, Position } from '../../../layout/browser/layoutService.js';
+import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 
 suite('EditorGroupsService', () => {
 
@@ -2305,6 +2306,28 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(group2ContextKeyValue, group2.id);
 		assert.strictEqual(group3ContextKeyValue, group3.id);
 
+		disposables.dispose();
+	});
+
+	test('group context keys follow a group restored with the id of the group it replaces', async function () {
+		const disposables = new DisposableStore();
+		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+		const parts = await createEditorParts(instantiationService, disposables);
+
+		await parts.activeGroup.openEditor(createTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID), { pinned: true });
+		const groupBefore = parts.activeGroup;
+		// Restoring the state, as applying a working set does, creates a new group with the same id.
+		await parts.testMainPart.applyState(parts.testMainPart.createState());
+		const groupAfter = parts.activeGroup;
+		await groupAfter.openEditor(createTestFileEditorInput(URI.file('foo/bar2'), TEST_EDITOR_INPUT_ID), { pinned: true });
+
+		assert.deepStrictEqual({
+			replaced: groupAfter !== groupBefore,
+			sameId: groupAfter.id === groupBefore.id,
+			activeEditor: groupAfter.scopedContextKeyService.getContextKeyValue(ActiveEditorContext.key),
+		}, { replaced: true, sameId: true, activeEditor: TEST_EDITOR_ID });
+
+		await groupAfter.closeAllEditors();
 		disposables.dispose();
 	});
 
