@@ -337,6 +337,21 @@ suite('ChatInputModelUtils', () => {
 			assert.deepStrictEqual(result.map(m => m.identifier), [cloudModel.identifier, hostCopy.identifier]);
 		});
 
+		test('hides an unscoped BYOK endpoint that has no session-targeted copy', () => {
+			// The host publishes a copy only for the endpoints it can route. Without one the endpoint
+			// has no routable identifier, so it stays hidden until the copy appears rather than being
+			// offered and dropped when the request is sent.
+			const byok = createVendorModel('openai-compatible', 'my-endpoint', 'My Endpoint');
+			const result = filterModelsForSession(
+				[cloudModel, byok],
+				'cloud',
+				ChatModeKind.Ask,
+				ChatAgentLocation.Chat,
+			);
+			assert.deepStrictEqual(result.map(m => m.identifier), [cloudModel.identifier]);
+			assert.strictEqual(isModelValidForSession(byok, [cloudModel, byok], 'cloud'), false);
+		});
+
 		test('excludes non-BYOK general models from a session-targeted pool', () => {
 			const result = filterModelsForSession(
 				[gpt4o, claude, cloudModel],

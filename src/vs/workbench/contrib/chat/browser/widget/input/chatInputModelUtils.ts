@@ -49,7 +49,8 @@ function hasSessionScopedModels(
  * targeting that session type are returned. A session host dispatches models by its own
  * identifiers, so a BYOK (custom endpoint) model reaches such a session only through the copy
  * the host publishes as session-targeted; the unscoped original keeps its extension identifier,
- * which the host drops when the request is sent.
+ * which the host drops when the request is sent. An endpoint the host has not published a copy
+ * for therefore stays hidden until one appears — offering it would send a request with no model.
  * Otherwise, general-purpose models are returned.
  *
  * Every branch applies the same eligibility rules — metadata present, user-selectable, and
