@@ -102,6 +102,8 @@ import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js'
 import { createTestAgentService, getTestAgentStateManager, getTestSessionStateStore, registerTestAgentProvider } from './agentServiceTestUtils.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
+import { IAgentHostChatpadService } from '../../node/agentHostChatpadService.js';
+import { createTestChatpadService } from './chatpadTestUtils.js';
 
 // ---- Tests ------------------------------------------------------------------
 
@@ -312,6 +314,7 @@ function createTestSideEffects(
 	services.set(IAgentHostProviderService, providerService);
 	const chatOwnership = createTestChatOwnershipService(stateManager);
 	services.set(IAgentHostChatOwnershipService, chatOwnership);
+	services.set(IAgentHostChatpadService, createTestChatpadService());
 	services.set(IAgentHostSessionStateStore, sessionStateStore);
 	services.set(IAgentHostChatInputService, disposables.add(new AgentHostChatInputService(stateManager, providerService, disposables.add(new AgentHostSubscriptionService(chatOwnership)), chatOwnership, authenticationService, sessionStateStore)));
 	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));

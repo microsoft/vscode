@@ -28,6 +28,7 @@ import { AgentHostCreateChatWorkspaceCapabilityMetaKey, chatWorkspaceValueValida
 import { AgentHostCreateSessionImportCapabilityMetaKey, StageCreateSessionImportChunkExtensionMethod, stageCreateSessionImportChunkParamsValidator, supportsAgentHostCreateSessionImport } from './meta/agentHostCreateSessionImportMeta.js';
 import { InstallSandboxCertificateExtensionMethod, RemoveSandboxCertificateExtensionMethod, RotateSandboxCertificateExtensionMethod, sandboxCertificateParamsValidator } from './sandboxCertificateProtocol.js';
 import { AgentHostArtifactIntegrationsCapabilityMetaKey, AgentHostArtifactNoticesCapabilityMetaKey } from './meta/agentHostArtifactIntegrationMeta.js';
+import { AgentHostChatpadCapabilityMetaKey } from './meta/agentHostChatpadMeta.js';
 import type { ArtifactIntegrationRequest, ArtifactIntegrationResponse, ArtifactIntegrationUpdate } from '../../artifactIntegrations/common/artifactIntegrationProtocol.js';
 import type { ArtifactIntegrationDescriptor } from '../../artifactIntegrations/common/artifactIntegration.js';
 import { AgentHostCopilotExtensionsCapabilityMetaKey } from './meta/agentHostCopilotExtensionsMeta.js';
@@ -36,6 +37,7 @@ export { supportsAgentHostArtifactRemoval } from './meta/agentHostArtifactRemova
 export { StageCreateSessionImportChunkExtensionMethod, stageCreateSessionImportChunkParamsValidator, supportsAgentHostCreateSessionImport };
 export { supportsAgentHostDevContainers } from './meta/agentHostDevContainersMeta.js';
 export { supportsAgentHostSessionMove } from './meta/agentHostSessionMoveMeta.js';
+export { supportsAgentHostChatpad } from './meta/agentHostChatpadMeta.js';
 
 export const DevContainerIsDockerAvailableExtensionMethod = 'vscode/devContainers/isDockerAvailable';
 export const DevContainerConnectExtensionMethod = 'vscode/devContainers/connect';
@@ -91,6 +93,19 @@ export const MoveAgentHostSessionExtensionMethod = 'vscode/moveSession';
  * `createChat` does with `vscode.chatWorkspace`; gated by the same `vscode.createChatWorkspace` capability.
  */
 export const SetChatWorkspaceExtensionMethod = 'vscode/setChatWorkspace';
+/**
+ * Returns the host's Chatpad: its Markdown note, which the host creates on first use, and its chat when one exists.
+ * Before its first request, clients may not list that chat yet. A workspace-less session created with the
+ * `vscode.chatpadSession` `createSession` flag becomes that chat. Advertised by `vscode.chatpad`.
+ */
+export const GetChatpadExtensionMethod = 'vscode/getChatpad';
+/**
+ * Appends text to the Chatpad note as typed, without running a turn. The text must not be blank or longer than
+ * {@link AppendToChatpadMaxTextLength}. Advertised by `vscode.chatpad`.
+ */
+export const AppendToChatpadExtensionMethod = 'vscode/appendToChatpad';
+/** The longest text, in UTF-16 code units, that {@link AppendToChatpadExtensionMethod} appends at once. */
+export const AppendToChatpadMaxTextLength = 64 * 1024;
 export const ReadSavedChatExtensionMethod = 'vscode/readSavedChat';
 export const CompleteSavedChatContinuationExtensionMethod = 'vscode/completeSavedChatContinuation';
 export const ReportAgentHostFirstResponseExtensionMethod = 'vscode/reportAgentHostFirstResponse';
@@ -134,6 +149,8 @@ export interface IAgentHostExtensionInitializeResultMeta extends Record<string, 
 	readonly [AgentHostCopilotExtensionsCapabilityMetaKey]?: true;
 	/** Present when Automation execution does not require a client activation or migration handshake. */
 	readonly [AgentHostAutonomousAutomationsCapabilityMetaKey]?: true;
+	/** Present when the host owns a Chatpad; see {@link GetChatpadExtensionMethod}. */
+	readonly [AgentHostChatpadCapabilityMetaKey]?: true;
 }
 
 /** Standard AHP initialize response with typed VS Code-specific capability metadata. */
@@ -141,7 +158,7 @@ export interface IAgentHostExtensionInitializeResult extends InitializeResult {
 	readonly _meta?: IAgentHostExtensionInitializeResultMeta;
 }
 
-export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true, devContainers = false, timing = false, sessionImport = false, savedChat = false, savedChatContinuation = false, sessionMove = false, artifactIntegrations = false, copilotExtensions = false): IAgentHostExtensionInitializeResultMeta {
+export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true, devContainers = false, timing = false, sessionImport = false, savedChat = false, savedChatContinuation = false, sessionMove = false, artifactIntegrations = false, copilotExtensions = false, chatpad = false): IAgentHostExtensionInitializeResultMeta {
 	return {
 		[AgentHostDebugLogsCancellationCapabilityMetaKey]: true,
 		[AgentHostSessionUrisCapabilityMetaKey]: true,
@@ -162,6 +179,7 @@ export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true
 		...(timing ? { [ChatUserInteractionCapability]: true as const } : {}),
 		...(artifactIntegrations ? { [AgentHostArtifactIntegrationsCapabilityMetaKey]: 1 as const, [AgentHostArtifactNoticesCapabilityMetaKey]: 1 as const } : {}),
 		[AgentHostCopilotExtensionsCapabilityMetaKey]: copilotExtensions ? true : undefined,
+		...(chatpad ? { [AgentHostChatpadCapabilityMetaKey]: true as const } : {}),
 	};
 }
 
@@ -228,6 +246,15 @@ export class AgentHostSessionMoveUnsupportedError extends Error {
 		this.name = 'AgentHostSessionMoveUnsupportedError';
 	}
 }
+export const appendToChatpadParamsValidator = vObj({ text: vString() });
+
+/** The Chatpad: its note, a host file URI, and its chat together, or neither when there is no Chatpad chat. */
+export interface IAgentHostChatpadDto {
+	readonly note?: string;
+	readonly session?: string;
+	/** The agent provider of the Chatpad chat, when known. */
+	readonly provider?: string;
+}
 export const readSavedChatParamsValidator = vObj({ session: vString(), chat: vOptionalProp(vString()) });
 export const completeSavedChatContinuationParamsValidator = vObj({ session: vString(), chat: vString(), identity: vString(), destination: vString() });
 export const listAgentExtensionsParamsValidator = vObj({
@@ -270,6 +297,8 @@ export interface IAgentHostExtensionCommandMap {
 	[CompleteSavedChatContinuationExtensionMethod]: { params: ValidatorType<typeof completeSavedChatContinuationParamsValidator>; result: IAgentHostSavedChatContinuationResult };
 	[StageCreateSessionImportChunkExtensionMethod]: { params: ValidatorType<typeof stageCreateSessionImportChunkParamsValidator>; result: void };
 	[ImportSessionExtensionMethod]: { params: ValidatorType<typeof importSessionParamsValidator>; result: void };
+	[GetChatpadExtensionMethod]: { params: undefined; result: IAgentHostChatpadDto };
+	[AppendToChatpadExtensionMethod]: { params: ValidatorType<typeof appendToChatpadParamsValidator>; result: void };
 	[MoveAgentHostSessionExtensionMethod]: { params: ValidatorType<typeof moveSessionParamsValidator>; result: { session: string } };
 	[SetChatWorkspaceExtensionMethod]: { params: ValidatorType<typeof setChatWorkspaceParamsValidator>; result: void };
 	[ReportAgentHostFirstResponseExtensionMethod]: { params: IAgentHostFirstResponseDiagnostic; result: void };

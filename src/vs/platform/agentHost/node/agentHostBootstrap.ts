@@ -170,6 +170,7 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 		services.set(IByokLmBridgeRegistry, byokBridgeRegistry);
 		registerAgentHostCoreServices(services, {
 			storageResource: agentServiceOptions.storageResource,
+			userHome: environmentService.userHome,
 			rootConfigResource: agentServiceOptions.rootConfigResource,
 			orchestratorDatabase,
 			fetchFn,

@@ -165,6 +165,21 @@ const createSessionWithSharedWorkspaceInputSchema: ToolDefinition['inputSchema']
 
 const createSessionWithSharedWorkspaceDescription = 'Create delegated work and start it with an initial prompt, either in a new chat sharing the current session\'s workspace, lifecycle, and aggregate diff, or in an independent session. Only supply `worktree` when the user explicitly requests working with or without a new worktree; never combine it with `currentSession`.';
 
+/**
+ * `create_session` as offered to a session that cannot host chats (see `ISessionServerToolAccessor.canHostNestedChats`):
+ * every session it creates is independent. The relationship is still sent, so the tool shows what it creates.
+ */
+const createIndependentSessionInputSchema: ToolDefinition['inputSchema'] = {
+	...createSessionInputSchema,
+	properties: {
+		...createSessionInputSchema.properties,
+		relationship: { type: 'string', enum: ['independent'], description: 'Always `independent`: this chat creates sessions of their own.' },
+	},
+	required: ['relationship', 'prompt', 'title'],
+};
+
+const createIndependentSessionDescription = 'Create a new independent session for delegated work, in a workspace or without one, and start it with an initial prompt. It shows in the user\'s sessions list.';
+
 /** The sentences of `list_sessions` and `get_current_session` that describe a session's `chats`, by tool. */
 const listSessionsChatsSentence = 'A session with nested sessions also lists `chats`: its main session (`main: true`) and its nested sessions in order, each with a `title` and an `openLink` that names that chat in `send_message`, `get_session_context` and `rename_chat`.';
 const getCurrentSessionChatsSentence = 'Get metadata and the open link for the session this conversation is running in, with its nested sessions in `chats` like `list_sessions`.';
@@ -382,6 +397,11 @@ export interface IAgentServiceSessionServerToolAccessor {
 	readonly getCredentialSource: (chat: URI) => IAgentHostCredentialSource | undefined;
 	readonly getAutomaticTitleGenerationStrategy: (session?: ProtocolURI) => AutomaticTitleGenerationStrategy;
 	readonly isWorkspaceless: (session: URI) => boolean;
+	/**
+	 * Whether chats can be added to `session` from server tools. A session that is not listed, such as the Chatpad's,
+	 * creates independent sessions instead, so that what it creates shows. Absent means they can.
+	 */
+	readonly canHostNestedChats?: (session: URI) => boolean;
 	readonly canConvertWorkspace: (session: URI) => boolean;
 	/**
 	 * Whether the session's provider supports multiple working directories, so a
@@ -1085,6 +1105,13 @@ export function isChatWorkspacelessInSession(metadata: IAgentSessionMetadata | u
 export async function applyCreateSessionTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, source?: URI, sourceTurnId?: string, enforceSpawnDepthLimit = true): Promise<ICreateSessionResult> {
 	const credentials = source ? accessor.getCredentialSource(source) : undefined;
 	const currentSession = source ? currentSessionUri(accessor, source.toString()) : undefined;
+	if (currentSession && accessor.canHostNestedChats?.(currentSession) === false) {
+		// Work started from a session that cannot host chats is its own session.
+		if ((rawArgs as ICreateSessionArgs | undefined)?.relationship === 'currentSession') {
+			throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: this chat cannot create chats in its own session; omit relationship to create an independent session.`);
+		}
+		rawArgs = { ...(rawArgs as object | undefined), relationship: 'independent' };
+	}
 	const supportsChatWorkingDirectories = currentSession === undefined || accessor.supportsChatWorkingDirectories(currentSession);
 	const sessions = await getCreateSessionCatalog(accessor, rawArgs, supportsChatWorkingDirectories);
 	const defaults = source ? accessor.getCreationDefaults(source) : undefined;
@@ -1294,7 +1321,11 @@ async function createChat(accessor: ISessionServerToolAccessor, args: IResolvedC
 export async function applyCreateChatTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, source?: URI, sourceTurnId?: string): Promise<ICreateChatResult> {
 	const sessions = await accessor.listSessions();
 	const currentSession = source ? currentSessionUri(accessor, source.toString()) : undefined;
-	return createChat(accessor, getCreateChatArgs(rawArgs, sessions, accessor.getModels(), currentSession), source, sourceTurnId);
+	const args = getCreateChatArgs(rawArgs, sessions, accessor.getModels(), currentSession);
+	if (accessor.canHostNestedChats?.(args.session) === false) {
+		throw new Error(`Invalid ${SessionServerToolName.CreateChat} input: chats cannot be created in this session; use ${SessionServerToolName.CreateSession} to start an independent session.`);
+	}
+	return createChat(accessor, args, source, sourceTurnId);
 }
 
 /** Builds the model-facing `create_chat` result. */
@@ -2051,6 +2082,9 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 			}
 			if (definition.name === SessionServerToolName.SetWorkspace && accessor?.isWorkspaceless(URI.parse(sessionUri)) === true) {
 				return { ...definition, deferLoading: false };
+			}
+			if (definition.name === SessionServerToolName.CreateSession && accessor?.canHostNestedChats?.(URI.parse(sessionUri)) === false) {
+				return { ...definition, description: createIndependentSessionDescription, inputSchema: createIndependentSessionInputSchema };
 			}
 			if (definition.name === SessionServerToolName.CreateSession) {
 				// Without multi-root support a current-session chat cannot get its own folder.
