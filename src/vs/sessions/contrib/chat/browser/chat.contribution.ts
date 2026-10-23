@@ -776,7 +776,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			default: false,
 			scope: ConfigurationScope.WINDOW,
-			description: localize('sessions.chat.experimental.environmentPickerLocalIsolation', "Controls whether the Environment picker offers Local Folder and Local Worktree instead of This Computer, replacing the separate Branch or New Worktree isolation picker for new local sessions. Requires the unified workspace picker, experimental new-session composer layout, and Environment picker. Branch selection remains available."),
+			description: localize('sessions.chat.experimental.environmentPickerLocalIsolation', "Controls whether the Environment picker offers Local Folder and New Worktree instead of This Computer, replacing the separate Branch or New Worktree isolation picker for new local sessions. Requires the unified workspace picker, experimental new-session composer layout, and Environment picker. Branch selection remains available."),
 			tags: ['experimental'],
 		},
 		[ENVIRONMENT_PICKER_BEFORE_WORKSPACE_SETTING]: {

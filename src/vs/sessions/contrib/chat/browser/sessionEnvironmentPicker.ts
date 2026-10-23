@@ -63,7 +63,7 @@ export function getSessionCreationEnvironments(providers: readonly ISessionsProv
 			environments.push({ id: 'local:folder', kind: 'local', isolation: 'folder', label: localize('environmentPicker.localFolder', "Local Folder"), icon: Codicon.folder, providerIds: local.map(provider => provider.id) });
 			const worktreeProviders = local.filter(provider => provider.setIsolationMode);
 			if (worktreeProviders.length) {
-				environments.push({ id: 'local:worktree', kind: 'local', isolation: 'worktree', label: localize('environmentPicker.localWorktree', "Local Worktree"), icon: Codicon.worktree, providerIds: worktreeProviders.map(provider => provider.id) });
+				environments.push({ id: 'local:worktree', kind: 'local', isolation: 'worktree', label: localize('environmentPicker.localWorktree', "New Worktree"), icon: Codicon.worktree, providerIds: worktreeProviders.map(provider => provider.id) });
 			}
 		} else {
 			environments.push({ id: 'local', kind: 'local', label: localize('environmentPicker.local', "This Computer"), icon: Codicon.deviceDesktop, providerIds: local.map(provider => provider.id) });

@@ -381,8 +381,8 @@ export class NewChatWidget extends Disposable {
 			const selected = useLocalIsolation && (!picked || picked.kind === 'local') && !containerRequested && provider?.environment.id === 'local' && isolation
 				? environments.find(environment => environment.kind === 'local' && environment.isolation === isolation)
 				: picked
-				? environments.find(environment => environment.id === picked.id) ?? (picked.isolation ? getDefaultSessionCreationEnvironment(environments, this._workspacePicker?.selectedFolderUri, providerId, !!containerRequested) : picked)
-				: getDefaultSessionCreationEnvironment(environments, this._workspacePicker?.selectedFolderUri, providerId, !!containerRequested);
+					? environments.find(environment => environment.id === picked.id) ?? (picked.isolation ? getDefaultSessionCreationEnvironment(environments, this._workspacePicker?.selectedFolderUri, providerId, !!containerRequested) : picked)
+					: getDefaultSessionCreationEnvironment(environments, this._workspacePicker?.selectedFolderUri, providerId, !!containerRequested);
 			return selected && previous?.id === selected.id && previous.label === selected.label
 				&& previous.providerIds.length === selected.providerIds.length && previous.providerIds.every((id, index) => id === selected.providerIds[index])
 				? previous : selected;

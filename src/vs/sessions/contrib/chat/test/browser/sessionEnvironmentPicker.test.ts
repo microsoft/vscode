@@ -114,12 +114,12 @@ suite('SessionEnvironmentPicker', () => {
 		];
 		assert.deepStrictEqual(getSessionCreationEnvironments(providers, true).map(({ id, label, isolation, providerIds }) => ({ id, label, isolation, providerIds })), [
 			{ id: 'local:folder', label: 'Local Folder', isolation: 'folder', providerIds: [LOCAL_AGENT_HOST_PROVIDER_ID, 'folder-only'] },
-			{ id: 'local:worktree', label: 'Local Worktree', isolation: 'worktree', providerIds: [LOCAL_AGENT_HOST_PROVIDER_ID] },
+			{ id: 'local:worktree', label: 'New Worktree', isolation: 'worktree', providerIds: [LOCAL_AGENT_HOST_PROVIDER_ID] },
 			{ id: 'cloud', label: 'Cloud', isolation: undefined, providerIds: ['cloud'] },
 		]);
 	});
 
-	test('Local Worktree requires worktree support for the chosen workspace', () => {
+	test('New Worktree requires worktree support for the chosen workspace', () => {
 		const environments = getSessionCreationEnvironments([provider(LOCAL_AGENT_HOST_PROVIDER_ID, 'local', { setIsolationMode: async () => { } })], true);
 		const worktree = environments.find(environment => environment.isolation === 'worktree')!;
 		const unsupported = provider(LOCAL_AGENT_HOST_PROVIDER_ID, 'local');

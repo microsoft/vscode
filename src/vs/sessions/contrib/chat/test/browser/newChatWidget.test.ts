@@ -722,11 +722,11 @@ suite('NewChatWidget', () => {
 
 		test('switches local isolation without replacing the draft or workspace', async () => {
 			const { harness, calls, select } = createHarness(true);
-			await select({ ...local, id: 'local:worktree', label: 'Local Worktree', isolation: 'worktree' });
+			await select({ ...local, id: 'local:worktree', label: 'New Worktree', isolation: 'worktree' });
 			await select({ ...local, id: 'local:folder', label: 'Local Folder', isolation: 'folder' });
 			assert.deepStrictEqual({ environment: harness._pickedEnvironment.get()?.id, calls }, {
 				environment: 'local:folder',
-				calls: ['isolation:worktree', 'Environment: Local Worktree', 'isolation:workspace', 'Environment: Local Folder'],
+				calls: ['isolation:worktree', 'Environment: New Worktree', 'isolation:workspace', 'Environment: Local Folder'],
 			});
 		});
 
