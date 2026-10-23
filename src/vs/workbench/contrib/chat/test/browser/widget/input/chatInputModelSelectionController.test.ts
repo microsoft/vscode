@@ -211,6 +211,94 @@ suite('ChatInputModelSelectionController', () => {
 		}, { identifier: remote.identifier, vendor, sessionType: state.sessionType, selectable: false });
 	});
 
+	for (const chooseAnotherModel of [false, true]) {
+		test(`reclaims only the exact returning source unless the user chose another model (${chooseAnotherModel})`, () => {
+			const namespace = 'agent-host-copilotcli';
+			const changes = disposables.add(new Emitter<string>());
+			const [first, second] = ['a', 'b'].map(modelSourceId => {
+				const base = hostModel(getSourceQualifiedModelIdentifier(namespace, modelSourceId, 'shared'));
+				return { ...base, metadata: { ...base.metadata, id: 'shared', name: 'Shared', modelSourceId, isUserSelectable: true } };
+			});
+			const otherHost = {
+				identifier: getSourceQualifiedModelIdentifier('other-host', 'b', 'shared'),
+				metadata: { ...second.metadata, vendor: 'other-host' },
+			};
+			const state: IRuntimeState = { models: [first, second], sessionType: namespace, isEmpty: false };
+			const applied: string[] = [];
+			const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, changes, applied)));
+			const snapshot = () => ({
+				identifier: controller.currentModel.get()?.identifier,
+				available: controller.currentModel.get()?.metadata.isUserSelectable,
+				awaiting: controller.isAwaitingRememberedModel(),
+			});
+			controller.syncFromConversationState(second, undefined, namespace, 'chat:one');
+			state.models = [first, otherHost];
+			changes.fire(namespace);
+			controller.ensureCurrentModelSupported();
+			const removed = snapshot();
+			controller.revalidateForSessionType(() => controller.initialize(second.identifier));
+			const rebound = snapshot();
+			if (chooseAnotherModel) {
+				controller.applySelection(first, () => applied.push(first.identifier), true);
+			}
+			const returning = { ...second, metadata: { ...second.metadata, name: 'Renamed source model', maxInputTokens: 256000 } };
+			state.models = [first, returning];
+			changes.fire(namespace);
+			assert.deepStrictEqual({
+				removed, rebound, returned: snapshot(),
+				name: controller.currentModel.get()?.metadata.name,
+				tokens: controller.currentModel.get()?.metadata.maxInputTokens,
+				applied: [...new Set(applied)],
+			}, {
+				removed: { identifier: second.identifier, available: false, awaiting: true },
+				rebound: { identifier: second.identifier, available: false, awaiting: true },
+				returned: { identifier: chooseAnotherModel ? first.identifier : second.identifier, available: true, awaiting: false },
+				name: chooseAnotherModel ? first.metadata.name : returning.metadata.name,
+				tokens: chooseAnotherModel ? first.metadata.maxInputTokens : returning.metadata.maxInputTokens,
+				applied: chooseAnotherModel ? [second.identifier, first.identifier] : [second.identifier],
+			});
+		});
+	}
+
+	for (const qualified of [false, true]) {
+		for (const conclusivelyAbsent of [false, true]) {
+			test(`reloads a saved ${qualified ? 'source-qualified' : 'legacy'} selection with conclusive absence ${conclusivelyAbsent}`, () => {
+				const namespace = 'agent-host-copilotcli';
+				const first = hostModel(`${namespace}:first`);
+				const base = hostModel(qualified ? getSourceQualifiedModelIdentifier(namespace, 'saved-source', 'shared') : `${namespace}:shared`);
+				const saved = { ...base, metadata: { ...base.metadata, id: 'shared', ...(qualified ? { modelSourceId: 'saved-source' } : {}), isUserSelectable: true } };
+				const changes = disposables.add(new Emitter<string>());
+				const state: IRuntimeState = {
+					models: [first], sessionType: namespace, isEmpty: false,
+					goneModelIds: new Set(conclusivelyAbsent ? [saved.identifier] : []),
+				};
+				const applied: string[] = [];
+				const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, changes, applied)));
+				controller.initialize(saved.identifier);
+				controller.ensureCurrentModelSupported();
+				changes.fire(namespace);
+				const beforeReturn = {
+					identifier: controller.currentModel.get()?.identifier,
+					unavailable: controller.currentModel.get()?.metadata.isUserSelectable === false,
+					awaiting: controller.isAwaitingRememberedModel(),
+				};
+				state.models = [first, saved];
+				changes.fire(namespace);
+				assert.deepStrictEqual({
+					beforeReturn,
+					restored: controller.currentModel.get(),
+					awaitingAfterReturn: controller.isAwaitingRememberedModel(),
+					substituted: applied.includes(first.identifier),
+				}, {
+					beforeReturn: { identifier: qualified ? saved.identifier : first.identifier, unavailable: qualified, awaiting: true },
+					restored: saved,
+					awaitingAfterReturn: false,
+					substituted: !qualified,
+				});
+			});
+		}
+	}
+
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
