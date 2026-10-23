@@ -27,7 +27,11 @@ export const SESSIONS_LIST_AGENT_TOOLS_SETTING = 'sessions.list.agentTools.enabl
 
 export const SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING = 'sessions.list.externalApplicationBadge';
 
-export const SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING = 'sessions.list.externalApplicationBadge.showFrom';
+/**
+ * Not nested under {@link SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING}: a setting cannot also be
+ * the parent of another setting, so the configuration model would ignore the nested value.
+ */
+export const SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING = 'sessions.list.externalApplicationBadgeShowFrom';
 
 export const enum ExternalSessionApplicationBadgeMode {
 	Off = 'off',
