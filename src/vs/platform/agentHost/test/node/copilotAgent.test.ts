@@ -4251,6 +4251,49 @@ suite('CopilotAgent', () => {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 			}
 		});
+
+		test('lets the worktree the host created for a session inherit its repository\'s trust for project extensions', async () => {
+			const root = URI.file(await fs.mkdtemp(`${os.tmpdir()}/trust-worktree-`));
+			const repository = URI.joinPath(root, 'repo');
+			const worktree = URI.joinPath(root, 'repo.worktrees', 'task');
+			const { agent } = createTestAgentContext(disposables, {
+				copilotClient: new TestCopilotClient([]),
+				rootConfig: { [AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [repository.toString()] } },
+			});
+			const internals = agent as unknown as {
+				_projectExtensionLaunchPolicy: CopilotProjectExtensionLaunchPolicy;
+				_acquireProjectExtensionLaunchAdmission(session: CopilotAgentSession): Promise<ICopilotProjectExtensionLaunchAdmission>;
+			};
+			const modulePath = URI.joinPath(worktree, '.github', 'extensions', 'preview', 'extension.mjs');
+			await fs.mkdir(dirname(modulePath.fsPath), { recursive: true });
+			await fs.mkdir(repository.fsPath, { recursive: true });
+			await fs.writeFile(modulePath.fsPath, '');
+			const launches = async (worktreeRepository: URI | undefined) => {
+				const admission = await internals._acquireProjectExtensionLaunchAdmission({
+					workspacelessFolder: undefined,
+					worktreeRepository,
+					extensionLaunchDirectories: [worktree],
+				} as unknown as CopilotAgentSession);
+				try {
+					return !!(await internals._projectExtensionLaunchPolicy.resolveLaunch(modulePath.fsPath, 'project', '/copilot-sdk/extension-bootstrap.mjs')).launch;
+				} finally {
+					admission.dispose();
+				}
+			};
+
+			try {
+				assert.deepStrictEqual({
+					hostCreatedWorktree: await launches(repository),
+					worktreeWithoutInheritance: await launches(undefined),
+				}, {
+					hostCreatedWorktree: true,
+					worktreeWithoutInheritance: false,
+				});
+			} finally {
+				await disposeAgent(agent);
+				await fs.rm(root.fsPath, { recursive: true, force: true });
+			}
+		});
 	});
 
 	test('selects provider-native autonomous session config, preserves allow all, and respects policy', async () => {
