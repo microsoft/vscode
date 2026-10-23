@@ -21,6 +21,10 @@ export interface IAgentCustomizationMeta {
 	 * explicit `false` hides the agent from direct user invocation.
 	 */
 	readonly userInvocable?: boolean;
+	/** Ordered model preferences from the agent file's frontmatter `model`; the first available one applies. */
+	readonly models?: readonly string[];
+	/** The agent file's frontmatter `reasoning-effort`. */
+	readonly reasoningEffort?: string;
 }
 
 /**
@@ -37,6 +41,13 @@ export function readAgentCustomizationMeta(agent: AgentCustomization): IAgentCus
 		result.userInvocable = false;
 	} else if (typeof meta?.userInvocable === 'boolean') {
 		result.userInvocable = meta.userInvocable;
+	}
+	const models = meta?.models;
+	if (Array.isArray(models) && models.length > 0 && models.every(model => typeof model === 'string')) {
+		result.models = models;
+	}
+	if (typeof meta?.reasoningEffort === 'string' && meta.reasoningEffort) {
+		result.reasoningEffort = meta.reasoningEffort;
 	}
 	return result;
 }

@@ -1430,15 +1430,20 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _modePreferredModelPending = false;
 
 	private applyModePreferredModel(models = this._currentModeObservable.get().model?.get(), reasoningEffort = this._currentModeObservable.get().reasoningEffort?.get()): void {
-		if (this.options.suppressModePreferredModel || this.options.hostModelSelection || !models?.length) {
+		if (this.options.suppressModePreferredModel || this.options.hostModelSelection) {
 			this._modePreferredModelPending = false;
 			return;
 		}
-		const switched = this.switchModelByQualifiedName(models);
-		this._modePreferredModelPending = !switched;
-		if (switched && reasoningEffort) {
-			this._presentModeReasoningEffort(models, reasoningEffort);
+		let model: ILanguageModelChatMetadataAndIdentifier | undefined;
+		if (models?.length) {
+			model = this._switchModelByQualifiedName(models);
+			this._modePreferredModelPending = !model;
+		} else {
+			this._modePreferredModelPending = false;
+			// An effort-only pin applies to whichever model is already selected.
+			model = reasoningEffort ? this._currentLanguageModel.get() : undefined;
 		}
+		this._presentModeReasoningEffort(model, reasoningEffort);
 	}
 
 	private setImplicitContextEnablement() {
@@ -1516,13 +1521,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	public switchModelByQualifiedName(qualifiedModelNames: readonly string[]): boolean {
+		return !!this._switchModelByQualifiedName(qualifiedModelNames);
+	}
+
+	private _switchModelByQualifiedName(qualifiedModelNames: readonly string[]): ILanguageModelChatMetadataAndIdentifier | undefined {
 		const model = this._findModelByQualifiedName(qualifiedModelNames);
 		if (model) {
 			this._applyProgrammaticLanguageModel(model);
-			return true;
+			return model;
 		}
 		this.logService.warn(`[chat] Node of the models "${qualifiedModelNames.join(', ')}" not found. Use format "<name> (<vendor>)", e.g. "GPT-4o (copilot)".`);
-		return false;
+		return undefined;
 	}
 
 	/**
@@ -1554,18 +1563,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	/**
-	 * Agent-host harnesses read reasoning effort from the picker's model configuration,
-	 * so present the agent's `reasoning-effort` there for this session without persisting it.
+	 * Agent-host harnesses read reasoning effort from the picker's model configuration, so overlay the
+	 * agent's `reasoning-effort` there for this conversation only; anything else clears the overlay.
 	 */
-	private _presentModeReasoningEffort(qualifiedModelNames: readonly string[], reasoningEffort: string): void {
-		const model = this._findModelByQualifiedName(qualifiedModelNames);
-		if (!model?.metadata.targetChatSessionType) {
-			return;
-		}
-		const properties = model.metadata.configurationSchema?.properties;
-		const key = ['reasoningEffort', 'thinkingLevel'].find(key => properties?.[key]?.enum?.includes(reasoningEffort));
-		if (key) {
-			this._modelConfigStore.presentModelConfiguration(model.identifier, { [key]: reasoningEffort });
+	private _presentModeReasoningEffort(model: ILanguageModelChatMetadataAndIdentifier | undefined, reasoningEffort: string | undefined): void {
+		const properties = model?.metadata.targetChatSessionType ? model.metadata.configurationSchema?.properties : undefined;
+		const key = reasoningEffort ? ['reasoningEffort', 'thinkingLevel'].find(key => properties?.[key]?.enum?.includes(reasoningEffort)) : undefined;
+		if (model && key) {
+			this._modelConfigStore.setPresentedConfiguration(model.identifier, { [key]: reasoningEffort });
+		} else {
+			this._modelConfigStore.setPresentedConfiguration(undefined);
 		}
 	}
 
@@ -2041,12 +2048,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// Sync mode
 			if (state) {
 				const currentMode = this._currentModeObservable.get();
-				const modeChanged = currentMode.id !== state.mode.id;
-				if (modeChanged) {
+				if (currentMode.id !== state.mode.id) {
 					this.setChatMode(state.mode.id, false);
 				}
-				// Restoring a model can clobber the agent's pin; keep a model the user deliberately picked in this mode.
-				reapplyModePin = modeChanged || state.selectedModelReason !== ModelSelectionReason.UserSelection;
+				// Judged on the incoming conversation alone: a model chosen in it (including one restored
+				// from an earlier pass) outranks the agent's pin, whatever mode the widget showed before.
+				reapplyModePin = state.selectedModelReason !== ModelSelectionReason.UserSelection
+					&& state.selectedModelReason !== ModelSelectionReason.RestoredChoice;
 			}
 
 			// Sync selected model - validate it belongs to the current session's model pool
@@ -2060,6 +2068,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					conversation: forSessionResource.toString(),
 					currentModel: this._currentLanguageModel.get()?.identifier,
 				});
+			}
+			if (state && !reapplyModePin) {
+				// Switching modes above may have queued a retry for an unresolved pin; the restored choice wins.
+				this._modePreferredModelPending = false;
 			}
 
 			// Sync attachments
@@ -2140,6 +2152,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	public setCurrentLanguageModel(model: ILanguageModelChatMetadataAndIdentifier, isUserAction = false, storeSelection: boolean = isUserAction) {
+		if (isUserAction) {
+			// An explicit choice outranks an agent pin still waiting for its model to register.
+			this._modePreferredModelPending = false;
+		}
 		const persistSelection = isUserAction && storeSelection;
 		this._modelSelectionDiagnostics.report('set-model', {
 			model: model.identifier,

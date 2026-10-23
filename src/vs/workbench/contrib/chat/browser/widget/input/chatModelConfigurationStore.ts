@@ -44,6 +44,8 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 	private _managedFusionTier = false;
 	private _autoTierSchema: { original: ILanguageModelConfigurationSchema; tier: string; effective: ILanguageModelConfigurationSchema } | undefined;
 	private _sessionConfiguration: IAgentModelConfigurationReport | undefined;
+	/** Values applied for the current conversation only (e.g. a custom agent's reasoning effort); never stored as preferences. */
+	private _presented: { readonly modelId: string; readonly values: IStringDictionary<unknown> } | undefined;
 
 	private readonly _onDidChange = this._register(new Emitter<string>());
 	readonly onDidChange: Event<string> = this._onDidChange.event;
@@ -113,6 +115,13 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 	 * The merged result is cached so subsequent reads are O(1).
 	 */
 	getModelConfiguration(modelId: string): IStringDictionary<unknown> | undefined {
+		const effective = this._getStoredConfiguration(modelId);
+		const presented = this._presented?.modelId === modelId ? { ...effective, ...this._presented.values } : effective;
+		return Object.keys(presented).length > 0 ? presented : undefined;
+	}
+
+	/** The configuration without the presented overlay, for internal callers that feed it back into `_overrides`. */
+	private _getStoredConfiguration(modelId: string): IStringDictionary<unknown> {
 		let override = this._overrides.get(modelId);
 		if (!override) {
 			const bucketEntry = this._readBucket()[modelId];
@@ -122,17 +131,53 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 			override = this._resolveConfiguration(modelId, schemaDefaults, bucketEntry ?? globalConfig);
 			this._overrides.set(modelId, override);
 		}
-		const effective = this._applyRuntimeValues(modelId, override);
-		return Object.keys(effective).length > 0 ? effective : undefined;
+		return this._applyRuntimeValues(modelId, override);
+	}
+
+	/**
+	 * Overlays values for this conversation only, replacing any previous overlay. They are applied
+	 * when the configuration is read and never reach preferences or storage, so a later edit to an
+	 * unrelated option can't turn them into a durable default. Pass `undefined` to clear.
+	 */
+	setPresentedConfiguration(modelId: string | undefined, values?: IStringDictionary<unknown>): void {
+		const previous = this._presented;
+		this._presented = modelId && values && Object.keys(values).length > 0 ? { modelId, values: { ...values } } : undefined;
+		if (equals(previous, this._presented)) {
+			return;
+		}
+		for (const changed of new Set([previous?.modelId, this._presented?.modelId])) {
+			if (changed) {
+				this._onDidChange.fire(changed);
+			}
+		}
+	}
+
+	/** An explicit choice for a key supersedes the overlay; restored copies of overlay values are not preferences. */
+	private _withoutPresented(modelId: string, values: IStringDictionary<unknown>, supersede: boolean): IStringDictionary<unknown> {
+		const presented = this._presented?.modelId === modelId ? this._presented.values : undefined;
+		if (!presented) {
+			return values;
+		}
+		if (supersede) {
+			const remaining = Object.fromEntries(Object.entries(presented).filter(([key]) => !Object.hasOwn(values, key)));
+			this._presented = Object.keys(remaining).length > 0 ? { modelId, values: remaining } : undefined;
+			return values;
+		}
+		return Object.fromEntries(Object.entries(values).filter(([key, value]) => !Object.hasOwn(presented, key) || !equals(presented[key], value)));
 	}
 
 	async setModelConfiguration(modelId: string, values: IStringDictionary<unknown>): Promise<void> {
 		assertModelConfigurationWritable(values, this.getModelConfigurationSchema(modelId));
+		const presentedBefore = this._presented;
+		this._withoutPresented(modelId, values, true);
 		if (Object.hasOwn(values, 'tier')) {
 			this._explicitAutoTiers.add(modelId);
 			this._sessionAutoTiers.delete(modelId);
 		}
 		const changed = this._applyLocalModelConfiguration(modelId, values);
+		if (!changed && presentedBefore !== this._presented) {
+			this._onDidChange.fire(modelId);
+		}
 		this._onDidSelectConfiguration.fire(modelId);
 		if (!changed) {
 			// No-op (e.g. re-selecting the already-current value): skip the global
@@ -174,7 +219,7 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 	 */
 	private _applyLocalModelConfiguration(modelId: string, values: IStringDictionary<unknown>, persist = true, restoredDefaults?: IStringDictionary<unknown>): boolean {
 		const schemaDefaults = this._schemaDefaults(modelId);
-		this.getModelConfiguration(modelId);
+		this._getStoredConfiguration(modelId);
 		const ownKeys = this._ownKeys.get(modelId) ?? new Set<string>();
 		const inheritedTier = this.isEmpty() && isInheritedAutoTier(values);
 		for (const key of Object.keys(values)) {
@@ -290,7 +335,7 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 		this._sessionConfiguration = report;
 		const modelIds = new Set([...this._overrides.keys(), ...Object.keys(report?.models ?? {})]);
 		for (const modelId of modelIds) {
-			const previous = this.getModelConfiguration(modelId) ?? {};
+			const previous = this._getStoredConfiguration(modelId);
 			const preferences = this._preferences.get(modelId);
 			const defaults = this._schemaDefaults(modelId);
 			let next = this.isEmpty() ? this._resolveConfiguration(modelId, defaults, preferences)
@@ -350,6 +395,7 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 	 * as-is; a later sync re-validates them once the schema loads. See #320393.
 	 */
 	restoreModelConfiguration(modelId: string, values: IStringDictionary<unknown>, persist = true): void {
+		values = this._withoutPresented(modelId, values, false);
 		const metadata = this.languageModelsService.lookupLanguageModel(modelId);
 		const preferences = modelConfigurationPreferences(values);
 		const filtered = metadata
@@ -422,6 +468,7 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 		this._explicitAutoTiers.clear();
 		this._sessionAutoTiers.clear();
 		this._autoTierSchema = undefined;
+		this._presented = undefined;
 	}
 
 	private _resolveConfiguration(modelId: string, defaults: IStringDictionary<unknown>, preferences: IStringDictionary<unknown> | undefined): IStringDictionary<unknown> {

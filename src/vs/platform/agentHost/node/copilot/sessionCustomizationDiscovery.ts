@@ -22,7 +22,7 @@ import { ChildCustomizationType } from '../../common/state/protocol/state.js';
 import { toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
 import { withSkillArgumentHintMeta } from '../../common/meta/skillCustomizationMeta.js';
 import { raceCancellationError } from '../../../../base/common/async.js';
-import { toChildCustomizations } from './copilotPluginConverters.js';
+import { toChildCustomizations, parseAgentFileModelPins } from './copilotPluginConverters.js';
 
 type AgentsDiscoverRequest = Parameters<CopilotClient['rpc']['agents']['discover']>[0];
 type InstructionSource = Awaited<ReturnType<CopilotClient['rpc']['instructions']['discover']>>['sources'][number];
@@ -594,10 +594,29 @@ export class SessionCustomizationDiscovery extends Disposable {
 				if (agent.source === 'builtin') {
 					continue;
 				}
-				agents.push({ type: CustomizationType.Agent, uri: uri.toString(), id: agent.id, name: agent.name, description: agent.description, _meta: toAgentCustomizationMeta({ userInvocable: agent.userInvocable }) });
+				const pins = await this._readAgentFileModelPins(uri);
+				agents.push({
+					type: CustomizationType.Agent,
+					uri: uri.toString(),
+					id: agent.id,
+					name: agent.name,
+					description: agent.description,
+					...(pins.models ? { model: pins.models[0] } : {}),
+					_meta: toAgentCustomizationMeta({ userInvocable: agent.userInvocable, models: pins.models, reasoningEffort: pins.reasoningEffort }),
+				});
 			}
 		}
 		return agents;
+	}
+
+	/** Model pins are surfaced so clients can select the agent's model and effort when it's picked. */
+	private async _readAgentFileModelPins(uri: URI): Promise<ReturnType<typeof parseAgentFileModelPins>> {
+		try {
+			return parseAgentFileModelPins((await this._fileService.readFile(uri)).value.toString());
+		} catch (err) {
+			this._logService.trace(`[SessionCustomizationDiscovery] Could not read agent file for model pins: ${uri.toString()}: ${err instanceof Error ? err.message : String(err)}`);
+			return {};
+		}
 	}
 
 	private async discoverRules(discoveryRequest: AgentsDiscoverRequest, client: CopilotClient, pluginFiles: ResourceSet, discoveredDirectories: readonly IDiscoveredDirectory[], token: CancellationToken): Promise<RuleCustomization[]> {

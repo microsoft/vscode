@@ -1418,6 +1418,57 @@ suite('ChatModelConfigurationStore', () => {
 		assert.deepStrictEqual(editorC.getModelConfiguration(MODEL), { thinkingEffort: 'medium', contextSize: 200_000 });
 	});
 
+	test('a presented value overlays the configuration without becoming a durable preference', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const editor = createStore(storage, createMultiKeyService());
+		editor.setModelConfiguration(MODEL, { thinkingEffort: 'low' });
+
+		editor.setPresentedConfiguration(MODEL, { thinkingEffort: 'high' });
+		const presented = editor.getModelConfiguration(MODEL);
+		// An unrelated edit, and a restore of a state captured while the overlay was shown.
+		editor.setModelConfiguration(MODEL, { contextSize: 1_000_000 });
+		editor.restoreModelConfiguration(MODEL, { thinkingEffort: 'high', contextSize: 1_000_000 });
+		const afterEdits = editor.getModelConfiguration(MODEL);
+		const newEditor = createStore(storage, createMultiKeyService()).getModelConfiguration(MODEL);
+		editor.setPresentedConfiguration(undefined);
+
+		assert.deepStrictEqual({ presented, afterEdits, newEditor, cleared: editor.getModelConfiguration(MODEL) }, {
+			presented: { thinkingEffort: 'high', contextSize: 200_000 },
+			afterEdits: { thinkingEffort: 'high', contextSize: 1_000_000 },
+			newEditor: { thinkingEffort: 'low', contextSize: 1_000_000 },
+			cleared: { thinkingEffort: 'low', contextSize: 1_000_000 },
+		});
+	});
+
+	test('a host session report does not absorb a presented value', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const editor = createStore(storage, createMultiKeyService(), () => false);
+		editor.setModelConfiguration(MODEL, { thinkingEffort: 'low' });
+		editor.setPresentedConfiguration(MODEL, { thinkingEffort: 'high' });
+
+		editor.setSessionModelConfiguration({ models: {} });
+		const reported = editor.getModelConfiguration(MODEL)?.thinkingEffort;
+		editor.setPresentedConfiguration(undefined);
+
+		assert.deepStrictEqual({ reported, cleared: editor.getModelConfiguration(MODEL)?.thinkingEffort }, { reported: 'high', cleared: 'low' });
+	});
+
+	test('an explicit choice supersedes a presented value', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const editor = createStore(storage, createMultiKeyService());
+		editor.setModelConfiguration(MODEL, { thinkingEffort: 'low' });
+		editor.setPresentedConfiguration(MODEL, { thinkingEffort: 'high' });
+		let changes = 0;
+		store.add(editor.onDidChange(() => changes++));
+
+		editor.setModelConfiguration(MODEL, { thinkingEffort: 'low' });
+
+		assert.deepStrictEqual({ configuration: editor.getModelConfiguration(MODEL), changes }, {
+			configuration: { thinkingEffort: 'low', contextSize: 200_000 },
+			changes: 1,
+		});
+	});
+
 	test('healing does not reset a user-chosen full-window contextSize back to the default', () => {
 		// The mirror image of the 200K regression: a user who explicitly picked the
 		// full 1M window must NOT have it silently reset to the default tier when the

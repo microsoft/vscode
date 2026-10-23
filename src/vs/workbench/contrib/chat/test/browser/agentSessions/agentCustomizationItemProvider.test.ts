@@ -102,6 +102,30 @@ suite('AgentCustomizationItemProvider', () => {
 		]);
 	});
 
+	test('carries host-published model and reasoning-effort pins into custom chat modes', async () => {
+		const agents: AgentCustomization[] = [
+			{ type: CustomizationType.Agent, id: 'pinned', uri: 'other-host:/agents/pinned.agent.md', name: 'Pinned', model: 'claude-sonnet-4.5', _meta: { models: ['claude-sonnet-4.5', 'Claude Sonnet 4.5 (copilot)'], reasoningEffort: 'high' } },
+			{ type: CustomizationType.Agent, id: 'plugin', uri: 'other-host:/plugin/agents/plugin.agent.md', name: 'Plugin', model: 'gpt-6-luna' },
+			{ type: CustomizationType.Agent, id: 'unpinned', uri: 'other-host:/agents/unpinned.agent.md', name: 'Unpinned' },
+		];
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			override getCustomAgents(): readonly AgentCustomization[] {
+				return agents;
+			}
+		}
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			'remote', undefined, undefined, upcastPartial<IFileService>({}),
+			new NullLogService(), new TestCustomizationService(), makePromptsService(),
+		));
+		const modes = (await provider.provideCustomAgents(URI.parse('remote-agent-host-test-copilot:/session'), CancellationToken.None)).map(agent => new CustomChatMode(agent));
+
+		assert.deepStrictEqual(modes.map(mode => ({ name: mode.name.get(), model: mode.model.get(), reasoningEffort: mode.reasoningEffort.get() })), [
+			{ name: 'Pinned', model: ['claude-sonnet-4.5', 'Claude Sonnet 4.5 (copilot)'], reasoningEffort: 'high' },
+			{ name: 'Plugin', model: ['gpt-6-luna'], reasoningEffort: undefined },
+			{ name: 'Unpinned', model: undefined, reasoningEffort: undefined },
+		]);
+	});
+
 	test('surfaces draft bundle agents skills and instructions before session state exists', async () => {
 		const bundleUri = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/bundle' });
 		const workspaceAgentUri = URI.file('/workspace/.github/agents/reviewer.agent.md');
