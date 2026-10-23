@@ -31,6 +31,7 @@ import { readAgentSdkSetupInfos } from '../../../../../platform/agentHost/common
 import { AgentHostPrewarmSessionsSettingId, type IAgentCanvasInfo, IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { readSessionArtifacts } from '../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { fromAgentHostUri, type AgentHostUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { isCopilotAgentHostProvider } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import type { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AgentHostTransportFailureReason } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { supportsAgentHostArtifactRemoval, supportsAgentHostCreateChatWorkspace } from '../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
@@ -4246,7 +4247,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	protected readonly _onDidChangeSessions = this._register(new Emitter<ISessionChangeEvent>());
 	private readonly _onDidChangeSessionsFromNotifications = this._register(new Emitter<ISessionChangeEvent>());
 	protected readonly _onDidChangeSessionsImmediately = Event.any(this._onDidChangeSessions.event, this._onDidChangeSessionsFromNotifications.event);
-	readonly onDidChangeSessions = debounceSessionChangeEvents(this._onDidChangeSessionsFromNotifications.event, this._onDidChangeSessions.event, this._store);
+	readonly onDidChangeSessions: Event<ISessionChangeEvent> = Event.map(
+		debounceSessionChangeEvents(this._onDidChangeSessionsFromNotifications.event, this._onDidChangeSessions.event, this._store),
+		change => ({
+			added: change.added.filter(session => !this._isUnpublishedDraft(session)),
+			removed: change.removed,
+			changed: change.changed.filter(session => !this._isUnpublishedDraft(session)),
+		}),
+	);
 	protected readonly _onDidChangeDraftSessions = this._register(new Emitter<void>());
 
 	protected readonly _onDidReplaceSession = this._register(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
@@ -4354,10 +4362,16 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * the provider itself is disposed.
 	 */
 	private readonly _newSessions = this._register(new DisposableMap<string, NewSession>());
+	/** Keep abandoned drafts hidden until their backend removal is confirmed. */
+	private readonly _unpublishedDraftSessions = new ResourceSet();
 
 	/** The in-flight new session with the given id, if any. */
 	protected _getNewSession(sessionId: string): NewSession | undefined {
 		return this._newSessions.get(sessionId);
+	}
+
+	private _isUnpublishedDraft(session: ISession): boolean {
+		return this._unpublishedDraftSessions.has(session.resource) && !this._pendingSessions.has(session.sessionId);
 	}
 
 	getBackendSessionResource(sessionId: string): URI | undefined {
@@ -4942,7 +4956,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * `undefined` when the provider is not recognised.
 	 */
 	private iconForAgentProvider(provider: string): ThemeIcon | undefined {
-		if (provider === CopilotCLISessionType.id) {
+		if (isCopilotAgentHostProvider(provider)) {
 			return CopilotCLISessionType.icon;
 		}
 
@@ -5094,6 +5108,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const pendingSessions = [...this._pendingSessions.values()];
 		const sessions: ISession[] = [];
 		for (const cached of this._sessionCache.values()) {
+			if (this._isUnpublishedDraft(cached)) {
+				continue;
+			}
 			if (pendingSessions.some(pendingSession => isEqual(cached.resource, pendingSession.resource))) {
 				continue;
 			}
@@ -5439,6 +5456,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			throw err;
 		}
 		this._newSessions.set(newSession.sessionId, newSession);
+		this._unpublishedDraftSessions.add(newSession.session.resource);
 		this._onDidChangeDraftSessions.fire();
 		newSession.observeClientCustomAgents(activeClientScope.customAgents, () => {
 			this._onDidChangeCustomAgents.fire();
@@ -8111,6 +8129,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			throw new Error(`[${this.id}] sendRequest rejected: ${result.reason}`);
 		}
 
+		this._unpublishedDraftSessions.delete(newSession.session.resource);
 		if (newSession.workspaceUri && !newSession.getInitialSessionTemplate()) {
 			const config = newSession.getConfig();
 			const isolation = config && getSessionWorkspaceProperties(config.schema).isolation;
@@ -9006,6 +9025,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		const entries: ISerializedSessionMetadata[] = [];
 		for (const [rawId, adapter] of this._sessionCache) {
+			if (this._isUnpublishedDraft(adapter)) {
+				continue;
+			}
 			const base = this._metadataBySession.get(rawId);
 			if (!base) {
 				continue;
@@ -9162,6 +9184,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 						continue;
 					}
 					this._sessionCache.delete(key);
+					this._unpublishedDraftSessions.delete(cached.resource);
 					this._backendSessionsChanged.trigger(undefined);
 					this._runningSessionConfigs.delete(cached.sessionId);
 					this._runningSessionConfigResolveSeq.delete(cached.sessionId);
@@ -9414,6 +9437,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._lastPublishedActiveClients.delete(stateOwner.backendUri.toString());
 		if (cached) {
 			this._sessionCache.delete(rawId);
+			this._unpublishedDraftSessions.delete(cached.resource);
 			this._backendSessionsChanged.trigger(undefined);
 		}
 		this._sessionKeysByResource.delete(stateOwner.resource.with({ fragment: '' }));
