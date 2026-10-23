@@ -10,13 +10,13 @@ import { CancellationError } from '../../../../../base/common/errors.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { autorun, observableValue } from '../../../../../base/common/observable.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
-import { AgentHostRemoteConnectionsBackend, AgentHostRemoteConnectionsSettingId, IMissionControlSharingService, isGitHubEnvironmentBackend, MissionControlUseLocalCredentialsSettingId } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { AgentHostRemoteConnectionsBackend, AgentHostRemoteConnectionsSettingId, GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, IMissionControlSharingService, isGitHubEnvironmentBackend, MissionControlUseLocalCredentialsSettingId } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../../platform/files/common/files.js';
@@ -63,15 +63,28 @@ export class MissionControlSharingService extends Disposable implements IMission
 		@IPathService private readonly _pathService: IPathService,
 		@IFileService private readonly _fileService: IFileService,
 		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
+		@IMissionControlAvailabilityService private readonly _availabilityService: IMissionControlAvailabilityService,
 	) {
 		super();
 		this.environmentName.set(this._storage.get(environmentNameStorageKey, StorageScope.APPLICATION), undefined);
 		if (!this._agentHost.configureMissionControl) {
 			return;
 		}
-		this._enabled = this._usesMissionControl() && this._storage.getBoolean(sharingStorageKey, StorageScope.APPLICATION, false);
+		this._enabled = this._usesMissionControl() && this._configuration.getValue<boolean>(GitHubEnvironmentsEnabledSettingId) === true && this._storage.getBoolean(sharingStorageKey, StorageScope.APPLICATION, false);
+		let available = this._availabilityService.available.get();
+		this._register(autorun(reader => {
+			const next = this._availabilityService.available.read(reader);
+			if (next !== available) {
+				available = next;
+				if (!next) {
+					void this._withdraw().catch(error => this._reportWithdrawalError(error));
+				}
+				this._update.schedule();
+			}
+		}));
 		this._register(this._configuration.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(AgentHostRemoteConnectionsSettingId)) {
+			if (e.affectsConfiguration(AgentHostRemoteConnectionsSettingId)
+				|| e.affectsConfiguration(GitHubEnvironmentsEnabledSettingId) && !this._configuration.getValue<boolean>(GitHubEnvironmentsEnabledSettingId)) {
 				void this.setEnabled(false).catch(error => this._reportWithdrawalError(error));
 			} else if (e.affectsConfiguration(missionControlIgnoreRemoteControlPolicy) || e.affectsConfiguration(MissionControlUseLocalCredentialsSettingId)) {
 				void this._withdraw().catch(error => this._reportWithdrawalError(error));
@@ -166,7 +179,7 @@ export class MissionControlSharingService extends Disposable implements IMission
 	}
 
 	async setEnabled(enabled: boolean): Promise<void> {
-		if (enabled && (!this._agentHost.configureMissionControl || !this._usesMissionControl() || this._entitlement.sentiment.hidden)) {
+		if (enabled && (!this._availabilityService.available.get() || !this._agentHost.configureMissionControl || !this._usesMissionControl() || !this._configuration.getValue<boolean>(GitHubEnvironmentsEnabledSettingId) || this._entitlement.sentiment.hidden)) {
 			throw new Error(localize('missionControlSharing.unavailable', "GitHub environment sharing is unavailable."));
 		}
 		this._enabled = enabled;
@@ -257,7 +270,8 @@ export class MissionControlSharingService extends Disposable implements IMission
 
 	private async _configure(interactive = false): Promise<void> {
 		const generation = this._generation;
-		if (!this._enabled || !this._usesMissionControl() || this._entitlement.sentiment.hidden) {
+		await this._availabilityService.whenReady;
+		if (generation !== this._generation || !this._availabilityService.available.get() || !this._enabled || !this._usesMissionControl() || !this._configuration.getValue<boolean>(GitHubEnvironmentsEnabledSettingId) || this._entitlement.sentiment.hidden) {
 			return;
 		}
 		if (!this._configured) {
@@ -333,8 +347,7 @@ export class MissionControlSharingService extends Disposable implements IMission
 			}
 			this._accountId = sessions[0].account.id;
 			this._accountSessionIds = new Set(sessions.map(session => session.id));
-			const localCredentialSetting = this._configuration.inspect<boolean>(MissionControlUseLocalCredentialsSettingId);
-			const useLocalCredentials = (localCredentialSetting.userLocalValue ?? localCredentialSetting.applicationValue) === true;
+			const useLocalCredentials = this._configuration.getValue<boolean>(MissionControlUseLocalCredentialsSettingId) === true;
 			if (useLocalCredentials) {
 				this._logService.warn('[Mission Control] Local credential delegation enabled: same-owner remote clients will run Copilot work with the desktop credential and its permissions');
 			}

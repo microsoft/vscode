@@ -8,6 +8,7 @@ import { restore, stub } from 'sinon';
 import * as dom from '../../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { Action } from '../../../../../base/common/actions.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
@@ -27,7 +28,7 @@ import { ILogService, NullLogService } from '../../../../../platform/log/common/
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { TestConfigurationService as TestBackendConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { AgentHostRemoteConnectionsBackend, AgentHostRemoteConnectionsSettingId, IMissionControlSharingService } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { AgentHostRemoteConnectionsBackend, AgentHostRemoteConnectionsSettingId, GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, IMissionControlSharingService } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -159,7 +160,9 @@ suite('RemoteConnectionsActionViewItem', () => {
 
 	function fixture(backend: AgentHostRemoteConnectionsBackend = 'devTunnel', options: { quality?: IProductService['quality']; isChatInput?: boolean; precedingAction?: boolean } = { quality: 'insider' }) {
 		const instantiation = store.add(new TestInstantiationService());
-		const configuration = new TestRemoteConnectionsConfigurationService({ [AgentHostRemoteConnectionsSettingId]: backend });
+		const availability = observableValue('availability', true);
+		instantiation.stub(IMissionControlAvailabilityService, { available: availability, whenReady: Promise.resolve() });
+		const configuration = new TestRemoteConnectionsConfigurationService({ [AgentHostRemoteConnectionsSettingId]: backend, [GitHubEnvironmentsEnabledSettingId]: true });
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const update = stub(configuration, 'updateValue').callThrough();
 		const remoteTunnel = store.add(new TestRemoteTunnelService());
@@ -232,7 +235,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 		}
 		actionBar.push(action);
 		const primary = container.querySelector<HTMLElement>('.tunnel-host-toggle');
-		const dropdown = options.quality === 'stable' ? null : primary;
+		const dropdown = primary;
 		assert.ok(primary);
 		const openMenu = () => {
 			assert.ok(dropdown);
@@ -240,7 +243,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 			return menuActions;
 		};
 
-		return { configuration, update, remoteTunnel, sharing, quickInput, notifications, executeCommand, run, action, viewItem, container, primary, dropdown, openMenu, closeMenu: () => actionWidget.hide(), menuActions: () => menuActions, menuItems: () => menuItems, listOptions: () => listOptions };
+		return { configuration, update, remoteTunnel, sharing, quickInput, notifications, executeCommand, run, action, viewItem, container, primary, dropdown, availability, openMenu, closeMenu: () => actionWidget.hide(), menuActions: () => menuActions, menuItems: () => menuItems, listOptions: () => listOptions };
 	}
 
 	test('shows explanatory second lines and marks GitHub Environments as preview', () => {
@@ -260,6 +263,47 @@ suite('RemoteConnectionsActionViewItem', () => {
 			{ id: 'remoteConnections.devTunnel', hover: undefined },
 			{ id: 'remoteConnections.githubEnvironment', hover: undefined },
 		]);
+	});
+
+	test('disabled availability hides GitHub Environments and rejects a stale menu action', async () => {
+		const { configuration, openMenu, closeMenu, update, sharing, notifications } = fixture();
+		const notificationError = stub(notifications, 'error');
+		const staleAction = openMenu().find(action => action.id === 'remoteConnections.githubEnvironment')!;
+		closeMenu();
+		await configuration.updateValue(GitHubEnvironmentsEnabledSettingId, false);
+		await staleAction.run();
+		assert.deepStrictEqual({
+			actions: openMenu().map(action => action.id),
+			updates: update.getCalls().map(call => call.args),
+			sharing: sharing.calls,
+			message: notificationError.firstCall?.args[0],
+		}, {
+			actions: ['remoteConnections.off', 'remoteConnections.devTunnel'],
+			updates: [[GitHubEnvironmentsEnabledSettingId, false]],
+			sharing: [],
+			message: new Error('GitHub Environments are disabled by your settings or organization policy.'),
+		});
+	});
+
+	test('policy-disabled GitHub Environments remain discoverable with an explanation', async () => {
+		const { configuration, openMenu } = fixture();
+		await configuration.updateValue(GitHubEnvironmentsEnabledSettingId, false);
+		stub(configuration, 'inspect').callThrough().withArgs(GitHubEnvironmentsEnabledSettingId).returns({ value: false, policyValue: false });
+		const action = openMenu().find(action => action.id === 'remoteConnections.githubEnvironment')!;
+		assert.deepStrictEqual({ enabled: action.enabled, detail: action.detail, icon: action.labelIcon }, {
+			enabled: false,
+			detail: 'Disabled by your organization. Contact your administrator to enable GitHub Environments.',
+			icon: Codicon.briefcase,
+		});
+	});
+
+	test('hard experiment disablement hides GitHub Environments despite user enablement', () => {
+		const { availability, configuration, openMenu } = fixture();
+		availability.set(false, undefined);
+		assert.deepStrictEqual({
+			enabledSetting: configuration.getValue(GitHubEnvironmentsEnabledSettingId),
+			actions: openMenu().map(action => action.id),
+		}, { enabledSetting: true, actions: ['remoteConnections.off', 'remoteConnections.devTunnel'] });
 	});
 
 	test('shows distinct method icons without adding an icon to Off', () => {
@@ -303,18 +347,18 @@ suite('RemoteConnectionsActionViewItem', () => {
 			action.enabled = true;
 			states.push(tabStops());
 			assert.deepStrictEqual(states, [
-				{ primary: 0, dropdown: quality === 'stable' ? undefined : 0 },
-				{ primary: 0, dropdown: quality === 'stable' ? undefined : 0 },
-				{ primary: 0, dropdown: quality === 'stable' ? undefined : 0 },
-				{ primary: -1, dropdown: quality === 'stable' ? undefined : -1 },
-				{ primary: 0, dropdown: quality === 'stable' ? undefined : 0 },
+				{ primary: 0, dropdown: 0 },
+				{ primary: 0, dropdown: 0 },
+				{ primary: 0, dropdown: 0 },
+				{ primary: -1, dropdown: -1 },
+				{ primary: 0, dropdown: 0 },
 			]);
 		});
 
-		test(`shows the dropdown outside Stable: ${quality ?? 'OSS'}`, () => {
+		test(`shows the dropdown on every quality: ${quality ?? 'OSS'}`, () => {
 			const { container, primary, dropdown, viewItem, run, update } = fixture('devTunnel', { quality });
 			viewItem.focus(true);
-			const focusMatchesQuality = document.activeElement === (quality !== 'stable' ? dropdown : primary);
+			const focusMatchesQuality = document.activeElement === dropdown;
 			primary.click();
 			viewItem.blur();
 			viewItem.setFocusable(false);
@@ -329,12 +373,12 @@ suite('RemoteConnectionsActionViewItem', () => {
 				toggles: run.callCount,
 				updates: update.callCount,
 			}, {
-				dropdownVisible: quality !== 'stable',
+				dropdownVisible: true,
 				buttons: 1,
 				focusMatchesQuality: true,
 				disabledTabIndex: -1,
 				enabledTabIndex: 0,
-				toggles: quality === 'stable' ? 1 : 0,
+				toggles: 0,
 				updates: 0,
 			});
 		});

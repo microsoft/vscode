@@ -20,7 +20,7 @@ import { IActionListOptions } from '../../../../platform/actionWidget/browser/ac
 import { IActionWidgetDropdownAction } from '../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { AgentHostRemoteConnectionsBackend, AgentHostRemoteConnectionsSettingId, IMissionControlSharingService, isGitHubEnvironmentBackend } from '../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { AgentHostRemoteConnectionsBackend, AgentHostRemoteConnectionsSettingId, GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, IMissionControlSharingService, isGitHubEnvironmentBackend } from '../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
@@ -74,18 +74,15 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@INotificationService private readonly _notificationService: INotificationService,
-		@IProductService productService: IProductService,
 		@IRemoteTunnelService private readonly _remoteTunnelService: IRemoteTunnelService,
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 		@IMissionControlSharingService private readonly _missionControlSharingService: IMissionControlSharingService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
+		@IMissionControlAvailabilityService private readonly _availabilityService: IMissionControlAvailabilityService,
 	) {
 		super(undefined, action);
 
 		this._primaryAction = this._register(instantiationService.createInstance(ToggleRemoteConnectionsActionViewItem, action));
-		if (productService.quality === 'stable') {
-			return;
-		}
 		const dropdownAction = this._register(new Action('remoteConnections.selectMethod', localize('remoteConnections.label', "Remote Connections")));
 		this._dropdown = this._register(instantiationService.createInstance(RemoteConnectionsDropdownActionViewItem,
 			dropdownAction,
@@ -272,6 +269,8 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 	}
 
 	private _getConnectionMethods(): IActionWidgetDropdownAction[] {
+		const environmentsEnabled = this._availabilityService.available.get() && this._configurationService.getValue<boolean>(GitHubEnvironmentsEnabledSettingId) === true;
+		const policyDisabled = this._availabilityService.available.get() && this._configurationService.inspect<boolean>(GitHubEnvironmentsEnabledSettingId).policyValue === false;
 		const usesGitHubEnvironment = isGitHubEnvironmentBackend(this._configurationService.getValue<AgentHostRemoteConnectionsBackend>(AgentHostRemoteConnectionsSettingId));
 		const state = this._primaryAction.getState();
 		const enabled = state.isSharing || state.isConnecting;
@@ -296,14 +295,17 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 				...toAction({
 					id: 'remoteConnections.githubEnvironment',
 					label: localize('remoteConnections.githubEnvironment', "GitHub Environments"),
+					enabled: environmentsEnabled,
 					checked: enabled && usesGitHubEnvironment,
 					run: () => this._selectConnectionMethod('githubEnvironment'),
 				}),
-				labelIcon: Codicon.github,
-				detail: localize('remoteConnections.githubEnvironment.detail', "Access agents on this machine from VS Code, vscode.dev/agents, GitHub apps, or github.com/copilot."),
+				labelIcon: policyDisabled ? Codicon.briefcase : Codicon.github,
+				detail: policyDisabled
+					? localize('remoteConnections.githubEnvironment.policyDisabled', "Disabled by your organization. Contact your administrator to enable GitHub Environments.")
+					: localize('remoteConnections.githubEnvironment.detail', "Access agents on this machine from VS Code, vscode.dev/agents, GitHub apps, or github.com/copilot."),
 				badge: localize('remoteConnections.preview', "Preview"),
 			},
-		];
+		].filter(action => action.id !== 'remoteConnections.githubEnvironment' || environmentsEnabled || policyDisabled);
 	}
 
 	private async _selectConnectionMethod(backend: 'off' | 'devTunnel' | 'githubEnvironment'): Promise<void> {
@@ -314,6 +316,12 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 		const state = this._primaryAction.getState();
 		const enabled = state.isSharing || state.isConnecting;
 		try {
+			if (backend === 'githubEnvironment' && !this._availabilityService.available.get()) {
+				throw new Error(localize('remoteConnections.githubEnvironment.unavailable', "GitHub Environments are currently unavailable."));
+			}
+			if (backend === 'githubEnvironment' && this._configurationService.getValue<boolean>(GitHubEnvironmentsEnabledSettingId) !== true) {
+				throw new Error(localize('remoteConnections.githubEnvironment.disabled', "GitHub Environments are disabled by your settings or organization policy."));
+			}
 			if (backend === 'off') {
 				if (enabled) {
 					await this.action.run(this._context);

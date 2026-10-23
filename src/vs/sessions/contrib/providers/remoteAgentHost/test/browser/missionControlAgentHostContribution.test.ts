@@ -13,7 +13,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
-import { IMissionControlEnvironmentService, IMissionControlHost, IMissionControlSharingService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { GitHubEnvironmentsAvailableContext, GitHubEnvironmentsEnabledSettingId, IMissionControlEnvironmentService, IMissionControlHost, IMissionControlSharingService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -72,13 +72,14 @@ suite('Mission Control native provider inventory', () => {
 		assert.deepStrictEqual(labels, ['Environments', 'Connect to Environment...']);
 	});
 
-	for (const { name, quality, development, hostsEnabled, chatEnabled, aiDisabled, available } of [
+	for (const { name, quality, development, hostsEnabled, environmentsEnabled = true, chatEnabled, aiDisabled, available } of [
 		{ name: 'source', quality: '', development: true, hostsEnabled: true, chatEnabled: true, aiDisabled: false, available: true },
 		{ name: 'built OSS', quality: '', development: false, hostsEnabled: true, chatEnabled: true, aiDisabled: false, available: true },
 		{ name: 'Insiders', quality: 'insider', development: false, hostsEnabled: true, chatEnabled: true, aiDisabled: false, available: true },
 		{ name: 'Stable', quality: 'stable', development: false, hostsEnabled: true, chatEnabled: true, aiDisabled: false, available: true },
 		{ name: 'Stable in development mode', quality: 'stable', development: true, hostsEnabled: true, chatEnabled: true, aiDisabled: false, available: true },
 		{ name: 'remote hosts disabled', quality: 'insider', development: false, hostsEnabled: false, chatEnabled: true, aiDisabled: false, available: false },
+		{ name: 'GitHub Environments disabled', quality: 'stable', development: false, hostsEnabled: true, environmentsEnabled: false, chatEnabled: true, aiDisabled: false, available: false },
 		{ name: 'chat disabled', quality: 'insider', development: false, hostsEnabled: true, chatEnabled: false, aiDisabled: false, available: false },
 		{ name: 'AI master setting disabled', quality: 'insider', development: false, hostsEnabled: true, chatEnabled: true, aiDisabled: true, available: false },
 	]) {
@@ -88,6 +89,8 @@ suite('Mission Control native provider inventory', () => {
 			context.setValue(ProductQualityContext.key, quality);
 			context.setValue(ChatContextKeys.enabled.key, chatEnabled);
 			context.setValue(`config.${RemoteAgentHostsEnabledSettingId}`, hostsEnabled);
+			context.setValue(`config.${GitHubEnvironmentsEnabledSettingId}`, environmentsEnabled);
+			context.setValue(GitHubEnvironmentsAvailableContext.key, true);
 			context.setValue('config.chat.disableAIFeatures', aiDisabled);
 			const availability = [
 				{ menu: MenuId.CommandPalette, command: ConnectMissionControlEnvironmentCommand },
@@ -97,7 +100,7 @@ suite('Mission Control native provider inventory', () => {
 				assert.ok(item);
 				return (item.when?.evaluate(context) ?? true) && (item.command.precondition?.evaluate(context) ?? true);
 			});
-			assert.deepStrictEqual(availability, [available, available && quality !== 'stable']);
+			assert.deepStrictEqual(availability, [available, available]);
 		});
 	}
 
