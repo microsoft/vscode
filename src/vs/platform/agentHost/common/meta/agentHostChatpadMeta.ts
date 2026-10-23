@@ -3,4 +3,4 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export { AgentHostChatpadCapabilityMetaKey, AgentHostChatpadSessionMetaKey, readChatpadSessionMeta, supportsAgentHostChatpad, withChatpadSessionMeta } from './vscode/agentHostChatpadMeta.js';
+export { AgentHostChatpadCapabilityMetaKey, AgentHostChatpadSessionMetaKey, readChatpadSessionMeta, supportsAgentHostChatpad, withChatpadSessionMeta, withoutChatpadSessionMeta } from './vscode/agentHostChatpadMeta.js';

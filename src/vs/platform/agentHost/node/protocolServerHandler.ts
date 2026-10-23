@@ -41,8 +41,8 @@ import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings
 import { isAnnotationsUri } from '../common/annotationsUri.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { type IAgentService } from '../common/agentService.js';
-import { CancelWorktreeDiskUsageExtensionMethod, cancelWorktreeDiskUsageParamsValidator, MeasureWorktreeDiskUsageExtensionMethod, measureWorktreeDiskUsageParamsValidator, MoveAgentHostSessionExtensionMethod, moveSessionParamsValidator, SetChatWorkspaceExtensionMethod, setChatWorkspaceParamsValidator, CompleteSavedChatContinuationExtensionMethod, completeSavedChatContinuationParamsValidator, CancelAgentHostDebugLogsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, importSessionParamsValidator, GetChatpadExtensionMethod, AppendToChatpadExtensionMethod, appendToChatpadParamsValidator, type IAgentHostChatpadDto, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, StopBackgroundWorkExtensionMethod, stopBackgroundWorkParamsValidator, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, type IAgentHostWorkspaceTrustRequest, ReadSavedChatExtensionMethod, readSavedChatParamsValidator, ArtifactIntegrationExtensionMethod, ArtifactIntegrationUpdateNotification, ClientArtifactIntegrationExtensionMethod, ListAgentExtensionsExtensionMethod, listAgentExtensionsParamsValidator, SetAgentExtensionEnabledExtensionMethod, setAgentExtensionEnabledParamsValidator } from '../common/agentHostExtensionProtocol.js';
-import { readChatpadSessionMeta } from '../common/meta/agentHostChatpadMeta.js';
+import { CancelWorktreeDiskUsageExtensionMethod, cancelWorktreeDiskUsageParamsValidator, MeasureWorktreeDiskUsageExtensionMethod, measureWorktreeDiskUsageParamsValidator, MoveAgentHostSessionExtensionMethod, moveSessionParamsValidator, SetChatWorkspaceExtensionMethod, setChatWorkspaceParamsValidator, CompleteSavedChatContinuationExtensionMethod, completeSavedChatContinuationParamsValidator, CancelAgentHostDebugLogsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, importSessionParamsValidator, GetChatpadExtensionMethod, AppendToChatpadExtensionMethod, appendToChatpadParamsValidator, AppendToChatpadMaxTextLength, type IAgentHostChatpadDto, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, StopBackgroundWorkExtensionMethod, stopBackgroundWorkParamsValidator, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, type IAgentHostWorkspaceTrustRequest, ReadSavedChatExtensionMethod, readSavedChatParamsValidator, ArtifactIntegrationExtensionMethod, ArtifactIntegrationUpdateNotification, ClientArtifactIntegrationExtensionMethod, ListAgentExtensionsExtensionMethod, listAgentExtensionsParamsValidator, SetAgentExtensionEnabledExtensionMethod, setAgentExtensionEnabledParamsValidator } from '../common/agentHostExtensionProtocol.js';
+import { readChatpadSessionMeta, withoutChatpadSessionMeta } from '../common/meta/agentHostChatpadMeta.js';
 import { savedChatToDto } from '../common/agentHostSavedChat.js';
 import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { agentHostFirstResponseValidator } from '../common/otel/agentHostTiming.js';
@@ -2146,7 +2146,8 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			if (importConversation === 'invalid') {
 				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Invalid createSession importConversation metadata');
 			}
-			const meta = withoutCreateSessionImportMeta(params._meta);
+			// Only a successful claim types a session as the Chatpad chat (it publishes the type itself).
+			const meta = withoutChatpadSessionMeta(withoutCreateSessionImportMeta(params._meta));
 			try {
 				createdSession = await this._agentService.createSession({
 					legacyChatUris: _client.legacyChatUris,
@@ -3500,6 +3501,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		}
 		if (!validated.content.text.trim()) {
 			return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'text must not be empty'));
+		}
+		if (validated.content.text.length > AppendToChatpadMaxTextLength) {
+			return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, `text must not be longer than ${AppendToChatpadMaxTextLength} characters`));
 		}
 		return this._agentService.appendToChatpad!(validated.content.text);
 	}

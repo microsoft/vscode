@@ -19,7 +19,7 @@ import { supportsAgentHostTiming } from '../../common/meta/agentHostTimingMeta.j
 import { withCreateChatWorkspaceMeta } from '../../common/meta/agentHostCreateChatWorkspaceMeta.js';
 import { AgentHostCreateSessionImportMetaKey, serializeCreateSessionImport, splitCreateSessionImportChunks, StageCreateSessionImportChunkExtensionMethod, supportsAgentHostCreateSessionImport, withCreateSessionImportMeta, withStagedCreateSessionImportMeta } from '../../common/meta/agentHostCreateSessionImportMeta.js';
 import { supportsAgentHostSessionImport } from '../../common/meta/agentHostSessionImportMeta.js';
-import { supportsAgentHostChatpad, withChatpadSessionMeta } from '../../common/meta/agentHostChatpadMeta.js';
+import { readChatpadSessionMeta, supportsAgentHostChatpad, withChatpadSessionMeta } from '../../common/meta/agentHostChatpadMeta.js';
 import { readAgentHostAhpLogDirectory } from '../../common/meta/agentHostDebugLogsMeta.js';
 import { supportsAgentHostSessionMove } from '../../common/meta/agentHostSessionMoveMeta.js';
 import { readChatInputState, withChatInputState } from '../../common/meta/agentHostChatInputState.js';
@@ -2293,6 +2293,100 @@ suite('ProtocolServerHandler', () => {
 			created: [true, true, true],
 			appended: ['buy milk'],
 			claimed: ['ahp-session:/pad'],
+		});
+	});
+
+	test('validates appended Chatpad text and types a session as the Chatpad only through a claim', async () => {
+		const service: IAgentService = agentService;
+		const appended: number[] = [];
+		const claimed: string[] = [];
+		service.getChatpad = async () => undefined;
+		service.appendToChatpad = async text => { appended.push(text.length); };
+		service.claimChatpad = async session => { claimed.push(session.toString()); return false; };
+		const transport = connectClient('client-chatpad-validation');
+		const errorCode = (message: ProtocolMessage) => hasKey(message, { error: true }) ? message.error?.code : 'ok';
+		const send = (id: number, method: string, params: unknown) => {
+			const response = waitForResponse(transport, id);
+			transport.simulateMessage(request(id, method, params));
+			return response.then(errorCode);
+		};
+
+		const texts = await Promise.all([
+			send(20, 'vscode/appendToChatpad', {}),
+			send(21, 'vscode/appendToChatpad', { text: 42 }),
+			send(22, 'vscode/appendToChatpad', { text: 'x'.repeat(64 * 1024 + 1) }),
+			send(23, 'vscode/appendToChatpad', { text: 'x'.repeat(64 * 1024) }),
+		]);
+		const created = await Promise.all([
+			send(24, 'createSession', { channel: 'ahp-session:/second-pad', provider: 'copilot', _meta: withChatpadSessionMeta({ kept: true }) }),
+			send(25, 'createSession', { channel: 'ahp-session:/folder', provider: 'copilot', workingDirectories: [URI.file('/workspace').toString()], _meta: withChatpadSessionMeta(undefined) }),
+		]);
+
+		assert.deepStrictEqual({
+			texts,
+			appended,
+			created,
+			claimed,
+			forwardedChatpadType: agentService.createSessionConfigs.map(config => readChatpadSessionMeta(config?._meta)),
+			forwardedOtherMeta: agentService.createSessionConfigs[0]?._meta?.kept,
+		}, {
+			texts: [JsonRpcErrorCodes.InvalidParams, JsonRpcErrorCodes.InvalidParams, JsonRpcErrorCodes.InvalidParams, 'ok'],
+			appended: [64 * 1024],
+			created: ['ok', 'ok'],
+			claimed: ['ahp-session:/second-pad'],
+			forwardedChatpadType: [false, false],
+			forwardedOtherMeta: true,
+		});
+	});
+
+	test('does not offer the Chatpad to relay clients or on hosts with relay roots', async () => {
+		const service: IAgentService = agentService;
+		const claimed: string[] = [];
+		service.getChatpad = async () => ({ note: URI.file('/home/.copilot/chats/pad/chatpad.md'), session: URI.parse('ahp-session:/pad'), provider: 'copilot' });
+		service.appendToChatpad = async () => { };
+		service.claimChatpad = async session => { claimed.push(session.toString()); return true; };
+		const relayRootsServer = disposables.add(new MockProtocolServer());
+		disposables.add(new ProtocolServerHandler(
+			agentService, stateManager, relayRootsServer,
+			{ relayRoots: [process.cwd()] },
+			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
+		));
+		const connect = (target: MockProtocolServer, transport: MockProtocolTransport, clientId: string) => {
+			target.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId }));
+			return transport;
+		};
+		const relayClient = connect(server, new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'relay-lane', false), 'relay-lane');
+		const onRelayHost = connect(relayRootsServer, new MockProtocolTransport(AgentHostTransportKind.WebSocket), 'local-on-relay-host');
+		const observe = async (transport: MockProtocolTransport) => {
+			const initialized = findResponse(transport.sent, 1);
+			const get = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, 'vscode/getChatpad'));
+			const append = waitForResponse(transport, 3);
+			transport.simulateMessage(request(3, 'vscode/appendToChatpad', { text: 'buy milk' }));
+			const errorCode = (message: ProtocolMessage) => hasKey(message, { error: true }) ? message.error?.code : 'ok';
+			return {
+				supported: !!initialized && hasKey(initialized, { result: true }) && supportsAgentHostChatpad(initialized.result as InitializeResult),
+				get: errorCode(await get),
+				append: errorCode(await append),
+			};
+		};
+		const relayCreate = waitForResponse(relayClient, 4);
+		relayClient.simulateMessage(request(4, 'createSession', { channel: 'ahp-session:/relay-pad', provider: 'copilot', _meta: withChatpadSessionMeta(undefined) }));
+		await relayCreate;
+
+		const notOffered = { supported: false, get: JsonRpcErrorCodes.MethodNotFound, append: JsonRpcErrorCodes.MethodNotFound };
+		assert.deepStrictEqual({
+			relayClient: await observe(relayClient),
+			onRelayHost: await observe(onRelayHost),
+			claimed,
+			forwardedChatpadType: agentService.createSessionConfigs.map(config => readChatpadSessionMeta(config?._meta)),
+		}, {
+			relayClient: notOffered,
+			onRelayHost: notOffered,
+			claimed: [],
+			forwardedChatpadType: [false],
 		});
 	});
 
