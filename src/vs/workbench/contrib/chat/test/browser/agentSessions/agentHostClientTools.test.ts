@@ -34,6 +34,7 @@ import { CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME, CLIENT_SEMANTIC_SEARCH_TOOL_ID, 
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/toolSearchConstants.js';
 import { agentSandboxDiagnosticsMetaKey } from '../../../../../../platform/agentHost/common/meta/agentSandboxDiagnostics.js';
 import { readAgentPermissionResponseMeta } from '../../../../../../platform/agentHost/common/meta/agentPermissionResponseMeta.js';
+import { readAgentToolFullReferenceName } from '../../../../../../platform/agentHost/common/meta/agentToolDefinitionMeta.js';
 import { isChatAction, isSessionAction, type ActionEnvelope, type ChatAction, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, createChatState, createDefaultChatSummary, ChatInputResponseKind, MessageKind, SessionLifecycle, SessionStatus, createSessionState, StateComponents, ToolCallCancellationReason, type ChatState, type ComponentToState, type SessionState, type SessionSummary, type RootState, type ToolInput } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { chatReducer, sessionReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
@@ -118,6 +119,7 @@ suite('AgentHostClientTools', () => {
 		toolSets: IObservable<Iterable<IToolSet>> = constObservable([]),
 		mcpOptions?: { remoteAuthority?: string; servers: readonly IMcpServer[] },
 		registeredTools?: readonly IToolData[],
+		fullReferenceNames?: ReadonlyMap<string, string>,
 	) {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IFileService, TestFileService);
@@ -165,6 +167,7 @@ suite('AgentHostClientTools', () => {
 			observeTools: () => tools,
 			toolSets,
 			getTool: id => (registeredTools ?? tools.get()).find(tool => tool.id === id),
+			getFullReferenceName: tool => fullReferenceNames?.get(tool.id) ?? tool.id,
 		} as Partial<ILanguageModelToolsService> as ILanguageModelToolsService);
 		instantiationService.stub(IAgentHostToolSetEnablementService, {
 			observe: () => constObservable<IToolEnablementState>({ toolSets: new Map(), tools: new Map() }),
@@ -262,6 +265,70 @@ suite('AgentHostClientTools', () => {
 			afterMove: { source: ['session_tool'], target: ['session_tool'], other: [] },
 			afterClear: { source: [], target: [] },
 		});
+	});
+
+	test('publishes canonical full references for VS Code client tools', () => {
+		const browserTool: IToolData = {
+			id: 'vscode.clickElement',
+			toolReferenceName: 'clickElement',
+			displayName: 'Click Element',
+			modelDescription: 'Clicks an element',
+			source: ToolDataSource.Internal,
+		};
+		const notebookTool: IToolData = {
+			id: 'vscode.createJupyterNotebook',
+			toolReferenceName: 'createJupyterNotebook',
+			displayName: 'Create Jupyter Notebook',
+			modelDescription: 'Creates a notebook',
+			source: ToolDataSource.Internal,
+		};
+		const vscodeTool: IToolData = {
+			id: 'vscode.problems',
+			toolReferenceName: 'problems',
+			displayName: 'Problems',
+			modelDescription: 'Gets workspace problems',
+			source: ToolDataSource.Internal,
+		};
+		const extensionTool: IToolData = {
+			id: 'publisher.extension.tool',
+			toolReferenceName: 'tool',
+			displayName: 'Extension Tool',
+			modelDescription: 'Runs an extension tool',
+			source: { type: 'extension', label: 'Extension', extensionId: new ExtensionIdentifier('Publisher.Extension') },
+		};
+		const { service } = createActiveClientService(
+			constObservable([]),
+			undefined,
+			undefined,
+			[browserTool, notebookTool, vscodeTool, extensionTool],
+			new Map([
+				[browserTool.id, 'legacyBrowser/clickElement'],
+				[notebookTool.id, 'edit/createJupyterNotebook'],
+				[vscodeTool.id, 'tasks/problems'],
+				[extensionTool.id, 'publisher.extension/tool'],
+			]),
+		);
+		const session = URI.parse('agent-host-test:/session');
+		const sessionTools = disposables.add(service.acquireSessionTools(session));
+
+		service.setSessionTools(session, [browserTool.id, notebookTool.id, vscodeTool.id, extensionTool.id]);
+
+		assert.deepStrictEqual(sessionTools.object.get().map(definition => ({
+			name: definition.name,
+			fullReferenceName: readAgentToolFullReferenceName(definition),
+		})), [{
+			name: 'clickElement',
+			fullReferenceName: 'browser/clickElement',
+		}, {
+			name: 'createJupyterNotebook',
+			fullReferenceName: 'notebook/createJupyterNotebook',
+		}, {
+			name: 'problems',
+			fullReferenceName: 'vscode/problems',
+		}, {
+			name: 'tool',
+			fullReferenceName: 'publisher.extension/tool',
+		}]);
 	});
 
 	test('releases empty session tool observations', () => {
@@ -490,6 +557,23 @@ suite('AgentHostClientTools', () => {
 						files: { type: 'array', items: { type: 'string' } },
 					},
 				},
+			});
+		});
+
+		test('preserves the extension-qualified agent-file reference separately from the runtime name', () => {
+			const tool: IToolData = {
+				id: 'publisher.extension.tool',
+				toolReferenceName: 'tool',
+				displayName: 'Tool',
+				modelDescription: 'Extension tool',
+				source: { type: 'extension', label: 'Extension', extensionId: new ExtensionIdentifier('Publisher.Extension') },
+			};
+
+			assert.deepStrictEqual(toolDataToDefinition(tool, 'publisher.extension/tool'), {
+				name: 'tool',
+				title: 'Tool',
+				description: 'Extension tool',
+				_meta: { 'vscode.chat.fullReferenceName': 'publisher.extension/tool' },
 			});
 		});
 

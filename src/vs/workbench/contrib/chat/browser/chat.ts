@@ -34,6 +34,7 @@ import { ChatInputPart, IChatInputHostModelSelection, IChatInputHostSubmit } fro
 import { IChatWidgetContrib } from './widget/chatWidget.js';
 import { ICodeBlockActionContext, ICodeBlockRenderOptions } from './widget/chatContentParts/codeBlockPart.js';
 import { AgentSessionTarget } from './agentSessions/agentSessions.js';
+import type { IResolvedResponseSelection } from './responseSelectionResolver.js';
 
 export { ChatOutline } from './chatOutline.js';
 
@@ -242,6 +243,7 @@ export interface IChatContextMenuActionContext {
 	readonly $chatContextMenu: true;
 	readonly item: ChatTreeItem | null;
 	readonly linkTarget?: string;
+	readonly responseSelection?: IResolvedResponseSelection;
 }
 
 export function isChatContextMenuActionContext(context: unknown): context is IChatContextMenuActionContext {
@@ -333,6 +335,8 @@ export interface IChatWidgetViewOptions {
 	enableImplicitContext?: boolean;
 	enableWorkingSet?: 'explicit' | 'implicit';
 	supportsChangingModes?: boolean;
+	/** Side chat capability supplied by hosts that own their session model. */
+	supportsSideChat?: IObservable<boolean>;
 	dndContainer?: HTMLElement;
 	inputEditorMinLines?: number;
 	/** Vertical padding of the input editor. Defaults to the render style's padding. */

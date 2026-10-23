@@ -11,7 +11,7 @@ import { onboardingScenarioRegistry } from '../../../../../workbench/contrib/onb
 import { IOnboardingScenario } from '../../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
 import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightTypes.js';
 import { localize } from '../../../../../nls.js';
-import { NewSessionOnboardingHandoffContext } from '../../../../common/contextkeys.js';
+import { NewSessionOnboardingHandoffContext, SessionsWelcomeVisibleContext } from '../../../../common/contextkeys.js';
 
 /**
  * Spotlight steps shown after the user presses the pulsing "New Session"
@@ -77,13 +77,18 @@ const newSessionPayload: ISpotlightPayload = {
  * {@link NewSessionTourContribution}, which flips it after the eligible user
  * presses the pulsing New Session button.
  * `ChatContextKeys.enabled` keeps the tour hidden when AI features are disabled.
- * The modal-editor gate keeps the tour hidden while a modal editor is showing.
+ * Modal-editor and welcome gates keep the tour hidden while either is showing.
  */
 export function createNewSessionTour(signal: IObservable<boolean>): IOnboardingScenario<ISpotlightPayload> {
 	return {
 		id: NEW_SESSION_TOUR_ID,
 		seenKey: NEW_SESSION_ONBOARDING_SEEN_KEY,
-		when: ContextKeyExpr.and(ChatContextKeys.enabled, EditorPartModalContext.toNegated(), NewSessionOnboardingHandoffContext.toNegated()),
+		when: ContextKeyExpr.and(
+			ChatContextKeys.enabled,
+			EditorPartModalContext.toNegated(),
+			NewSessionOnboardingHandoffContext.toNegated(),
+			SessionsWelcomeVisibleContext.toNegated(),
+		),
 		trigger: { kind: 'observable', signal },
 		priority: 100,
 		experiment: NEW_SESSION_EXPERIMENT,

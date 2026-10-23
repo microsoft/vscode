@@ -22,14 +22,8 @@ import { ClaudeSdkMessageRouter } from './claudeSdkMessageRouter.js';
 import type { SubagentRegistry } from './claudeSubagentRegistry.js';
 
 /**
- * Callback the agent supplies via {@link ClaudeSdkPipeline.attachRematerializer}
- * so the pipeline can rebuild its underlying {@link WarmQuery} /
- * {@link AbortController} on abort or crash recovery without depending on
- * the materializer service directly. The callback MUST start the SDK in
- * `resume` mode (i.e. pass `Options.resume = sessionId` instead of
- * `Options.sessionId`) and MUST NOT re-fire the agent's
- * `onDidMaterializeChat` event — that event is once-per-provisional
- * promotion (see `claudeAgent.ts` materialize path).
+ * Rebuilds the SDK subprocess without re-firing `onDidMaterializeChat`.
+ * Use resume mode only for an existing conversation, not a fresh chat rebuilt before its first send.
  */
 export interface IRematerializer {
 	(reason: 'restart' | 'recover'): Promise<{ readonly warm: WarmQuery; readonly abortController: AbortController }>;
@@ -589,7 +583,7 @@ export class ClaudeSdkPipeline extends Disposable {
 
 	/**
 	 * Dispose the dead SDK plumbing and rebuild via the agent-supplied
-	 * rematerializer in `resume` mode. Re-applies the current model /
+	 * rematerializer. Re-applies the current model /
 	 * effort / permission mode to the fresh Query.
 	 */
 	private async _rebindQuery(reason: 'restart' | 'recover'): Promise<void> {

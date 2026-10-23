@@ -8,6 +8,7 @@ All unit tests are run inside a Electron renderer environment which access to DO
 
 - use the `--dev` to see an electron window with dev tools which allows for debugging
 - to run only a subset of tests use the `--run` or `--glob` options
+- use `--rerun-failed-files <count>` to rerun the test files that failed, each time in a fresh window, up to `<count>` more times. The run passes when every file passes in one of the attempts, and files that only passed on a rerun are reported as flaky. Pull request CI uses `--rerun-failed-files 2`. Failures are not rerun when a failure does not belong to a test file
 - use `npm run watch` to automatically compile changes
 
 For instance, `./scripts/test.sh --debug --glob **/extHost*.test.js` runs all tests from `extHost`-files and enables you to debug them.

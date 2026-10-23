@@ -53,6 +53,7 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 
 	readonly managementSections: readonly AICustomizationManagementSection[] = [
 		AICustomizationManagementSection.Plugins,
+		AICustomizationManagementSection.Canvases,
 		AICustomizationManagementSection.McpServers,
 		AICustomizationManagementSection.Skills,
 		AICustomizationManagementSection.Instructions,
@@ -73,12 +74,14 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 	setOverrideProjectRoot(_root: URI): void { }
 	clearOverrideProjectRoot(): void { }
 
-	async commitFiles(_projectRoot: URI, _fileUris: URI[]): Promise<void> {
+	async commitFiles(_projectRoot: URI, _fileUris: URI[]): Promise<boolean> {
 		// No-op in core VS Code.
+		return true;
 	}
 
-	async deleteFiles(_projectRoot: URI, _fileUris: URI[]): Promise<void> {
+	async deleteFiles(_projectRoot: URI, _fileUris: URI[]): Promise<boolean> {
 		// No-op in core VS Code.
+		return true;
 	}
 
 	async generateCustomization(type: PromptsType, workspaceFolder?: URI): Promise<void> {

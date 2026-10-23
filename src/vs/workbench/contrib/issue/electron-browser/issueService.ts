@@ -6,15 +6,23 @@
 import { getZoomLevel } from '../../../../base/browser/browser.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IExtensionManagementService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { ExtensionType } from '../../../../platform/extensions/common/extensions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { logSettingExperimentTrigger } from '../../../../platform/telemetry/common/experimentTrigger.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { buttonBackground, buttonForeground, buttonHoverBackground, foreground, inputActiveOptionBorder, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, scrollbarSliderActiveBackground, scrollbarSliderHoverBackground, textLinkActiveForeground, textLinkForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IColorTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { SIDE_BAR_BACKGROUND } from '../../../common/theme.js';
-import { IIssueFormService, IssueReporterData, IssueReporterExtensionData, IssueReporterStyles, IWorkbenchIssueService } from '../common/issue.js';
+import { IIssueFormService, IssueReporterData, IssueReporterExtensionData, IssueReporterStyles, IssueSource, IWorkbenchIssueService } from '../common/issue.js';
+import { isPublicVSCodeIssueUrl, issueReporterAdditionalRepositoriesSettingId, parseIssueReporterRepositories } from '../common/issueReporterTarget.js';
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
 import { IAuthenticationService } from '../../../services/authentication/common/authentication.js';
 import { IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
@@ -35,10 +43,25 @@ export class NativeIssueService implements IWorkbenchIssueService {
 		@IIntegrityService private readonly integrityService: IIntegrityService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IProductService private readonly productService: IProductService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ILogService private readonly logService: ILogService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) { }
 
 	async openReporter(dataOverrides: Partial<IssueReporterData> = {}): Promise<void> {
 		const useWizard = this.configurationService.getValue<boolean>('issueReporter.wizard.enabled');
+		if (useWizard && !dataOverrides.extensionId && dataOverrides.issueSource !== IssueSource.Extension && dataOverrides.issueSource !== IssueSource.Marketplace
+			&& isPublicVSCodeIssueUrl(URI.revive(dataOverrides.uri)?.toString() ?? this.productService.reportIssueUrl)) {
+			logSettingExperimentTrigger(this.telemetryService, issueReporterAdditionalRepositoriesSettingId);
+			try {
+				dataOverrides = { ...dataOverrides, additionalRepositories: parseIssueReporterRepositories(this.configurationService.getValue<unknown>(issueReporterAdditionalRepositoriesSettingId)) };
+			} catch (error) {
+				this.logService.error('[IssueReporter] Invalid additional repositories setting.', error);
+				this.notificationService.warn(localize('invalidAdditionalRepositories', "The issueReporter.additionalRepositories setting must be an array of GitHub repositories in owner/repo format. Additional destinations were not loaded."));
+				dataOverrides = { ...dataOverrides, additionalRepositories: [] };
+			}
+		}
 
 		if (useWizard) {
 			// New wizard: show UI immediately, load data in background
@@ -155,6 +178,7 @@ export class NativeIssueService implements IWorkbenchIssueService {
 				const manifestKeys = manifest.contributes ? Object.keys(manifest.contributes) : [];
 				const isTheme = !manifest.main && !manifest.browser && manifestKeys.length === 1 && manifestKeys[0] === 'themes';
 				const isBuiltin = extension.type === ExtensionType.System;
+				const isSelectedExtension = extension.identifier.id.toLowerCase() === dataOverrides.extensionId?.toLowerCase();
 				return {
 					name: manifest.name,
 					publisher: manifest.publisher,
@@ -163,8 +187,9 @@ export class NativeIssueService implements IWorkbenchIssueService {
 					bugsUrl: manifest.bugs && manifest.bugs.url,
 					displayName: manifest.displayName,
 					id: extension.identifier.id,
-					data: dataOverrides.data,
-					uri: dataOverrides.uri,
+					data: isSelectedExtension ? dataOverrides.data : undefined,
+					uri: isSelectedExtension ? dataOverrides.uri : undefined,
+					privateUri: isSelectedExtension ? dataOverrides.privateUri : undefined,
 					isTheme,
 					isBuiltin,
 					extensionData: 'Extensions data loading',

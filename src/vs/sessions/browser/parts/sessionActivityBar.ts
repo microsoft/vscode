@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/sessionActivityBar.css';
-import { $, addDisposableListener, append, EventHelper, EventLike, EventType, getWindow } from '../../../base/browser/dom.js';
+import { $, addDisposableListener, AnimationFrameScheduler, append, EventHelper, EventLike, EventType, getWindow } from '../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { GlobalPointerMoveMonitor } from '../../../base/browser/globalPointerMoveMonitor.js';
 import { ActionsOrientation } from '../../../base/browser/ui/actionbar/actionbar.js';
@@ -13,22 +13,35 @@ import { AnchorAlignment } from '../../../base/browser/ui/contextview/contextvie
 import { HoverPosition } from '../../../base/browser/ui/hover/hoverWidget.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { KeyCode } from '../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { clamp } from '../../../base/common/numbers.js';
 import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue, transaction } from '../../../base/common/observable.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
+import { Action, IAction, toAction } from '../../../base/common/actions.js';
 import { localize } from '../../../nls.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
-import { SubmenuItemAction } from '../../../platform/actions/common/actions.js';
+import { IMenuEntryActionViewItemOptions, MenuEntryActionViewItem } from '../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { isIMenuItem, MenuItemAction, MenuRegistry, SubmenuItemAction } from '../../../platform/actions/common/actions.js';
+import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
+import { INotificationService } from '../../../platform/notification/common/notification.js';
+import { IThemeService } from '../../../platform/theme/common/themeService.js';
+import { IBadge, NumberBadge } from '../../../workbench/services/activity/common/activity.js';
+import { TogglePanelAction } from '../../../workbench/browser/parts/panel/panelActions.js';
+import { ISessionActivityBarActivityService } from '../../services/activity/common/sessionActivityBarActivityService.js';
+import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
-import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
+import { IContextKey, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
 import { IHoverService, WorkbenchHoverDelegate } from '../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../platform/instantiation/common/serviceCollection.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
-import { Menus } from '../menus.js';
+import { Menus, SessionActivityBarGroup } from '../menus.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../workbench.js';
 import { AGENTS_CONTENT_HORIZONTAL_PADDING } from '../../common/layoutConstants.js';
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../common/sessionConfig.js';
+import { TOGGLE_SIDE_PANEL_COMMAND_ID } from '../../common/sessionCommands.js';
+import { sessionActivityBarChatActionContext } from '../../common/contextkeys.js';
 import { isPhoneLayout } from './mobile/mobileLayout.js';
 import { SubmenuFlyout } from './submenuFlyout.js';
 
@@ -50,6 +63,8 @@ export class SessionActivityBar extends Disposable {
 	/** The number of entries, which determines the strip's height. */
 	readonly itemCount: IObservable<number> = this._itemCount;
 
+	private readonly chatActions = observableValue<IObservable<readonly IAction[]> | undefined>(this, undefined);
+
 	constructor(
 		container: HTMLElement,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -60,9 +75,14 @@ export class SessionActivityBar extends Disposable {
 		super();
 
 		this.element = append(container, $('.session-activity-bar'));
+		const scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));
+		const scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])));
+		let actionsById = new Map<string, IAction>();
+		const renderedChatActions = this._register(new DisposableMap<string, Action>());
 
-		const hoverDelegate = this._register(instantiationService.createInstance(WorkbenchHoverDelegate, 'element', undefined, { position: { hoverPosition: HoverPosition.LEFT } }));
-		const toolbar = this._register(instantiationService.createInstance(MenuWorkbenchToolBar, this.element, Menus.SessionActivityBar, {
+		// Like the workbench activity bar, once an entry's hover has shown, moving to another entry shows its hover instantly.
+		const hoverDelegate = this._register(instantiationService.createInstance(WorkbenchHoverDelegate, 'element', { instantHover: true }, { position: { hoverPosition: HoverPosition.LEFT } }));
+		const toolbar = this._register(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, this.element, Menus.SessionActivityBar, {
 			orientation: ActionsOrientation.VERTICAL,
 			ariaLabel: localize('sessionActivityBar', "Session Activity Bar"),
 			telemetrySource: 'sessionActivityBar',
@@ -71,11 +91,21 @@ export class SessionActivityBar extends Disposable {
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			contextMenu: Menus.SessionActivityBarContext,
 			menuOptions: { shouldForwardArgs: true },
-			// Every group shows in the strip: the tab entries, then the layout toggles.
+			// Every group shows in the strip: the side panel toggle and tab entries, then the terminal and panel toggle.
 			toolbarOptions: { primaryGroup: () => true, useSeparatorsInPrimaryActions: true },
-			actionViewItemProvider: (action, options) => action instanceof SubmenuItemAction
-				? instantiationService.createInstance(SessionActivityBarSubmenuViewItem, action, { ...options, icon: true, label: false })
-				: undefined,
+			actionViewItemProvider: (action, options) => {
+				const chatAction = renderedChatActions.get(action.id);
+				if (chatAction) {
+					return new ActionViewItem(undefined, chatAction, { ...options, icon: true, label: false });
+				}
+				if (action instanceof SubmenuItemAction) {
+					return scopedInstantiationService.createInstance(SessionActivityBarSubmenuViewItem, action, { ...options, icon: true, label: false });
+				}
+				if (action instanceof MenuItemAction) {
+					return instantiationService.createInstance(SessionActivityBarActionViewItem, action, options);
+				}
+				return undefined;
+			},
 		}));
 
 		const update = () => {
@@ -89,6 +119,51 @@ export class SessionActivityBar extends Disposable {
 		};
 		update();
 		this._register(toolbar.onDidChangeMenuItems(update));
+		const keys = new Map<string, IContextKey<boolean>>();
+		const enabled = observableFromEvent(this, this.configurationService.onDidChangeConfiguration, () => !!this.configurationService.getValue<boolean>(SESSION_ACTIVITY_BAR_SETTING));
+		this._register(autorun(reader => {
+			const actions = enabled.read(reader) ? this.chatActions.read(reader)?.read(reader) ?? [] : [];
+			actionsById = new Map(actions.map(action => [action.id, action]));
+			const changed = actions.length !== renderedChatActions.size || actions.some(action => !renderedChatActions.has(action.id));
+			for (const [id] of renderedChatActions) {
+				if (!actionsById.has(id)) {
+					renderedChatActions.deleteAndDispose(id);
+				}
+			}
+			for (const action of actions) {
+				let rendered = renderedChatActions.get(action.id);
+				if (!rendered) {
+					const id = action.id;
+					rendered = new Action(id, action.label, action.class, action.enabled, context => actionsById.get(id)?.run(context));
+					renderedChatActions.set(action.id, rendered);
+				}
+				rendered.label = action.label;
+				rendered.class = action.class ?? '';
+				rendered.enabled = action.enabled;
+				rendered.tooltip = action.tooltip;
+				rendered.checked = action.checked;
+			}
+			scopedContextKeyService.bufferChangeEvents(() => {
+				for (const [id, key] of keys) {
+					if (!actionsById.has(id)) {
+						key.reset();
+						keys.delete(id);
+					}
+				}
+				for (const action of actions) {
+					if (!keys.has(action.id)) {
+						keys.set(action.id, sessionActivityBarChatActionContext(action.id).bindTo(scopedContextKeyService));
+					}
+				}
+				for (const [id, key] of keys) {
+					key.set(actionsById.has(id));
+				}
+			});
+			if (changed) {
+				toolbar.refresh();
+			}
+			update();
+		}));
 		// Entries show the toolbar's own context menu, which appends these actions; this covers the rest of the strip.
 		this._register(addDisposableListener(this.element, EventType.CONTEXT_MENU, (e: MouseEvent) => {
 			EventHelper.stop(e, true);
@@ -103,6 +178,10 @@ export class SessionActivityBar extends Disposable {
 				update();
 			}
 		}));
+	}
+
+	setChatActions(actions: IObservable<readonly IAction[]> | undefined): void {
+		this.chatActions.set(actions, undefined);
 	}
 }
 
@@ -143,6 +222,8 @@ export class ChatViewSessionActivityBar extends Disposable {
 	 */
 	static readonly RESERVED_WIDTH = COLUMN_WIDTH + CONTENT_GAP - AGENTS_CONTENT_HORIZONTAL_PADDING;
 
+	static readonly SCROLL_DOWN_BUTTON_GAP = 8;
+
 	/**
 	 * The width hosts keep free at the right of the chat for the strip. Reserved in every
 	 * chat view while the strip is enabled, not only the active one, so focusing another
@@ -156,6 +237,10 @@ export class ChatViewSessionActivityBar extends Disposable {
 	private active = false;
 	/** The measured height of the strip, cached so layout passes do not force a reflow. */
 	private height: number | undefined;
+	private scrollDownButton: HTMLElement | undefined;
+	private scrollDownButtonOffset = { x: 0, y: 0 };
+	private scrollDownButtonScheduler: AnimationFrameScheduler | undefined;
+	private readonly scrollDownButtonObserver = this._register(new MutableDisposable<IDisposable>());
 
 	/** The strip, or `undefined` outside the desktop layout. */
 	get element(): HTMLElement | undefined {
@@ -193,11 +278,43 @@ export class ChatViewSessionActivityBar extends Disposable {
 
 		this._register(autorun(reader => {
 			activityBar.itemCount.read(reader);
-			if (activityBar.visible.read(reader)) {
-				this.height = undefined;
-				this.applyPosition();
-			}
+			activityBar.visible.read(reader);
+			this.height = undefined;
+			this.applyPosition();
 		}));
+	}
+
+	setScrollDownButton(button: HTMLElement | undefined): void {
+		if (this.scrollDownButton === button) {
+			return;
+		}
+		this.scrollDownButtonObserver.clear();
+		this.scrollDownButtonScheduler = undefined;
+		this.scrollDownButton = button;
+		this.scrollDownButtonOffset = { x: 0, y: 0 };
+		if (!button) {
+			return;
+		}
+
+		const targetWindow = getWindow(button);
+		const store = new DisposableStore();
+		this.scrollDownButtonObserver.value = store;
+		const scheduler = this.scrollDownButtonScheduler = store.add(new AnimationFrameScheduler(button, () => this.updateScrollDownButtonPosition()));
+		const resizeObserver = new targetWindow.ResizeObserver(() => scheduler.schedule());
+		const mutationObserver = new targetWindow.MutationObserver(() => scheduler.schedule());
+		store.add(toDisposable(() => {
+			resizeObserver.disconnect();
+			mutationObserver.disconnect();
+			button.style.removeProperty('translate');
+		}));
+		resizeObserver.observe(button);
+		if (button.parentElement) {
+			resizeObserver.observe(button.parentElement);
+			if (button.parentElement.parentElement) {
+				mutationObserver.observe(button.parentElement.parentElement, { attributes: true, attributeFilter: ['style', 'class'] });
+			}
+		}
+		scheduler.schedule();
 	}
 
 	setActive(active: boolean): void {
@@ -207,6 +324,10 @@ export class ChatViewSessionActivityBar extends Disposable {
 		this.active = active;
 		this.element?.classList.toggle('inactive', !active);
 		this.applyPosition();
+	}
+
+	setChatActions(actions: IObservable<readonly IAction[]> | undefined): void {
+		this.activityBar?.setChatActions(actions);
 	}
 
 	/** Positions the strip within the chat area at `top` with the given `height` in the host. */
@@ -239,8 +360,49 @@ export class ChatViewSessionActivityBar extends Disposable {
 	}
 
 	private applyPosition(): void {
-		if (this.element && this.active && this.activityBar?.visible.get()) {
+		if (this.element?.isConnected && this.active && this.activityBar?.visible.get()) {
 			this.element.style.top = `${this.area.top + this.getOffset()}px`;
+		}
+		this.scrollDownButtonScheduler?.schedule();
+	}
+
+	private updateScrollDownButtonPosition(): void {
+		const button = this.scrollDownButton;
+		if (!button?.parentElement) {
+			return;
+		}
+		if (!button.isConnected || !this.active || !this.activityBar?.visible.get() || this.reservedWidth.get() === 0 || button.style.display === 'none') {
+			this.scrollDownButtonOffset = { x: 0, y: 0 };
+			button.style.removeProperty('translate');
+			return;
+		}
+		const buttonBounds = button.getBoundingClientRect();
+		const viewportBounds = button.parentElement.getBoundingClientRect();
+		const barBounds = this.element?.getBoundingClientRect();
+		const originalLeft = buttonBounds.left - this.scrollDownButtonOffset.x;
+		const originalTop = buttonBounds.top - this.scrollDownButtonOffset.y;
+		let left = originalLeft;
+		let top = clamp(originalTop, viewportBounds.top, Math.max(viewportBounds.top, viewportBounds.bottom - buttonBounds.height));
+		const gap = ChatViewSessionActivityBar.SCROLL_DOWN_BUTTON_GAP;
+		const overlaps = this.active && barBounds && barBounds.height > 0 && buttonBounds.height > 0
+			&& left < barBounds.right && left + buttonBounds.width > barBounds.left
+			&& top < barBounds.bottom + gap && top + buttonBounds.height > barBounds.top - gap;
+		if (overlaps) {
+			const above = barBounds.top - gap - buttonBounds.height;
+			const below = barBounds.bottom + gap;
+			if (above >= viewportBounds.top) {
+				top = above;
+			} else if (below + buttonBounds.height <= viewportBounds.bottom) {
+				top = below;
+			} else {
+				left = Math.max(viewportBounds.left, barBounds.left - gap - buttonBounds.width);
+			}
+		}
+		const x = left - originalLeft;
+		const y = buttonBounds.height > 0 ? top - originalTop : 0;
+		if (x !== this.scrollDownButtonOffset.x || y !== this.scrollDownButtonOffset.y) {
+			this.scrollDownButtonOffset = { x, y };
+			button.style.translate = x !== 0 || y !== 0 ? `${x}px ${y}px` : '';
 		}
 	}
 
@@ -249,6 +411,7 @@ export class ChatViewSessionActivityBar extends Disposable {
 		const monitor = store.add(new GlobalPointerMoveMonitor());
 		store.add(this.hoverService.setupDelayedHover(dragHandle, {
 			content: localize('sessionActivityBar.dragHandle', "Drag to move. Double-click to reset the position."),
+			appearance: { showPointer: true },
 			position: { hoverPosition: HoverPosition.LEFT },
 		}));
 		store.add(addDisposableListener(dragHandle, EventType.DBLCLICK, () => {
@@ -276,6 +439,116 @@ export class ChatViewSessionActivityBar extends Disposable {
 			});
 		}));
 		return store;
+	}
+}
+
+/**
+ * An entry of the strip that shows the activity reported for its command through
+ * {@link ISessionActivityBarActivityService}, using the most recent activity: a count
+ * for a number badge, and a dot for other badges since the strip's entries are too
+ * small to carry an icon. The badge description is appended to the entry's hover and
+ * accessible label.
+ * Contributions that customize an entry with `IActionViewItemService` can extend
+ * this to keep its activity.
+ */
+export class SessionActivityBarActionViewItem extends MenuEntryActionViewItem {
+
+	private badgeElement: HTMLElement | undefined;
+
+	/** The command that hides what the entry shows when checked, resolved from the entry's group in the menu, which its action does not carry. */
+	private readonly hideCommand: string | undefined;
+
+	constructor(
+		action: MenuItemAction,
+		options: IMenuEntryActionViewItemOptions | undefined,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@INotificationService notificationService: INotificationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IThemeService themeService: IThemeService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IAccessibilityService accessibilityService: IAccessibilityService,
+		@ISessionActivityBarActivityService private readonly activityService: ISessionActivityBarActivityService,
+		@ICommandService private readonly commandService: ICommandService,
+	) {
+		super(action, options, keybindingService, notificationService, contextKeyService, themeService, contextMenuService, accessibilityService);
+
+		const group = MenuRegistry.getMenuItems(Menus.SessionActivityBar).find(item => isIMenuItem(item) && item.command.id === action.id)?.group;
+		const hideCommand = group === SessionActivityBarGroup.SidePanel ? TOGGLE_SIDE_PANEL_COMMAND_ID : group === SessionActivityBarGroup.Panel ? TogglePanelAction.ID : undefined;
+		// The side panel and panel toggles are entries of these groups themselves.
+		this.hideCommand = hideCommand !== action.id ? hideCommand : undefined;
+
+		this._register(activityService.onDidChangeActivity(commandId => {
+			if (commandId === this._menuItemAction.id) {
+				this.updateActivity();
+			}
+		}));
+		this._register(themeService.onDidColorThemeChange(() => this.updateActivity()));
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+		// The entry's label and tooltip announce the activity.
+		this.badgeElement = append(container, $('.session-activity-bar-badge', { 'aria-hidden': 'true' }));
+		this.updateActivity();
+	}
+
+	/** The badge of the most recent activity reported for the entry's command, which the entry shows. */
+	protected getBadge(): IBadge | undefined {
+		return this.activityService.getActivity(this._menuItemAction.id).at(-1)?.badge;
+	}
+
+	/**
+	 * The command that hides what a checked entry shows, like the workbench activity bar: the side pane for the
+	 * entries that open its tabs, and the panel for the terminal. `undefined` for unchecked entries and the toggles.
+	 */
+	private getHideCommand(): string | undefined {
+		return this._menuItemAction.enabled && this._menuItemAction.checked ? this.hideCommand : undefined;
+	}
+
+	override getActionToRun(event: EventLike & { readonly altKey?: boolean; readonly shiftKey?: boolean }): IAction {
+		const command = this.getHideCommand();
+		if (command) {
+			return toAction({ id: command, label: this._menuItemAction.label, run: () => this.commandService.executeCommand(command) });
+		}
+		return super.getActionToRun(event);
+	}
+
+	override async onClick(event: MouseEvent): Promise<void> {
+		if (!this.getHideCommand()) {
+			return super.onClick(event);
+		}
+		EventHelper.stop(event, true);
+		try {
+			await this.actionRunner.run(this.getActionToRun(event), this._context);
+		} catch (error) {
+			this._notificationService.error(error);
+		}
+	}
+
+	protected override getTooltip(): string {
+		const title = super.getTooltip();
+		const description = this.getBadge()?.getDescription();
+		return description ? localize('sessionActivityBar.titleWithActivity', "{0} - {1}", title, description) : title;
+	}
+
+	private updateActivity(): void {
+		const badgeElement = this.badgeElement;
+		if (!badgeElement) {
+			return;
+		}
+
+		const badge = this.getBadge();
+		const count = badge instanceof NumberBadge ? badge.number : 0;
+		badgeElement.classList.toggle('visible', !!badge && (!(badge instanceof NumberBadge) || count > 0));
+		badgeElement.classList.toggle('count', count > 0);
+		badgeElement.textContent = count > 99 ? '99+' : count > 0 ? `${count}` : '';
+
+		const colors = badge?.getColors(this._themeService.getColorTheme());
+		badgeElement.style.backgroundColor = colors?.badgeBackground?.toString() ?? '';
+		badgeElement.style.color = colors?.badgeForeground?.toString() ?? '';
+		badgeElement.style.borderColor = colors?.badgeBorder?.toString() ?? '';
+
+		this.updateTooltip();
 	}
 }
 

@@ -41,6 +41,7 @@ suite('LocalModelSetupService', () => {
 			getConfigurationValue: () => undefined,
 			resolveProxy: async () => undefined,
 			fetch: () => Promise.reject(new Error('not used')),
+			createWebSocket: () => { throw new Error('not used'); },
 		};
 		const service = store.add(new LocalModelSetupService(
 			configurationService,
