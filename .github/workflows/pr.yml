@@ -114,11 +114,11 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # ESLint runs first so that lint errors fail the job within about a minute, and on its own
-      # so that its worker memory doesn't overlap the parallel compilation checks. Hygiene fails
-      # just as quickly inside Compile & Hygiene, which stops all its checks when one fails.
-      - name: ESLint
-        run: npm run eslint -- --changed-since "$PR_BASE_SHA"
+      # Hygiene and ESLint run first so that their errors fail the job within about a minute.
+      # --continue-on-error reports both when both fail. ESLint stays out of the compilation
+      # checks so that its worker memory doesn't overlap theirs.
+      - name: Hygiene & ESLint
+        run: npm exec -- npm-run-all2 -lp --continue-on-error "hygiene -- --changed-since $PR_BASE_SHA" "eslint -- --changed-since $PR_BASE_SHA"
 
       - name: Prepare Electron types
         run: node build/npm/electronTypes.ts
@@ -152,8 +152,8 @@ jobs:
           npm --prefix extensions/markdown-language-features run test-markdown-editor-clipboard
 
       # core-ci-pr skips the minified bundles that only the product build uses.
-      - name: Compile & Hygiene
-        run: npm exec -- npm-run-all2 -lp core-ci-pr "hygiene -- --changed-since $PR_BASE_SHA" valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
+      - name: Compile
+        run: npm exec -- npm-run-all2 -lp core-ci-pr valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
