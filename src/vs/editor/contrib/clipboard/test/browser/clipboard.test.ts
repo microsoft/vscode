@@ -18,6 +18,7 @@ import { CommandsRegistry, ICommandService } from '../../../../../platform/comma
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IProgressService } from '../../../../../platform/progress/common/progress.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { CopyOptions, InMemoryClipboardMetadataManager } from '../../../../browser/controller/editContext/clipboardUtils.js';
@@ -185,34 +186,44 @@ suite('Editor clipboard commands', () => {
 			editor.setSelection(new Selection(1, 1, 1, 6));
 			const written = new DeferredPromise<void>();
 			sinon.stub(clipboard, 'writeData').returns(written.p);
+			const cutCommand = sinon.spy(editor, 'trigger').withArgs('keyboard', Handler.Cut, undefined);
 			let cuts = 0;
 			let copies = 0;
 			disposables.add(editor.onWillCut(() => ++cuts));
 			disposables.add(editor.onWillCopy(() => ++copies));
 
 			const cut = run(CutAction);
-			const beforeWrite = editor.getValue();
+			const beforeWrite = { text: editor.getValue(), cutCommands: cutCommand.callCount };
 			written.complete();
 			await cut;
 			const afterWrite = editor.getValue();
 			await editor.getModel().undo();
-			assert.deepStrictEqual({ beforeWrite, afterWrite, afterUndo: editor.getValue(), cuts, copies }, {
-				beforeWrite: 'hello world',
+			assert.deepStrictEqual({ beforeWrite, afterWrite, afterUndo: editor.getValue(), cuts, copies, cutCommands: cutCommand.callCount }, {
+				beforeWrite: { text: 'hello world', cutCommands: 0 },
 				afterWrite: ' world',
 				afterUndo: 'hello world',
 				cuts: 1,
 				copies: 0,
+				cutCommands: 1,
 			});
 		});
 	});
 
 	test('a failed clipboard write never deletes the selection', async () => {
-		await withClipboardEditor('keep this text', {}, async ({ editor, clipboard, run }) => {
+		await withClipboardEditor('keep this text', {}, async ({ editor, clipboard, instantiationService, run }) => {
 			editor.setSelection(new Selection(1, 1, 1, 5));
 			const error = new Error('Clipboard write failed');
 			sinon.stub(clipboard, 'writeData').rejects(error);
-			await assert.rejects(run(CutAction), err => err === error);
-			assert.strictEqual(editor.getValue(), 'keep this text');
+			const writeText = sinon.spy(clipboard, 'writeText');
+			const cutCommand = sinon.spy(editor, 'trigger').withArgs('keyboard', Handler.Cut, undefined);
+			const logError = sinon.spy(instantiationService.get(ILogService), 'error');
+			await run(CutAction);
+			assert.deepStrictEqual({ text: editor.getValue(), textWrites: writeText.callCount, cutCommands: cutCommand.callCount, loggedErrors: logError.args }, {
+				text: 'keep this text',
+				textWrites: 0,
+				cutCommands: 0,
+				loggedErrors: [['Unable to write to the clipboard.', error]],
+			});
 		});
 	});
 
@@ -508,19 +519,120 @@ suite('Editor clipboard commands', () => {
 	});
 
 	if (isNative) {
-		test('uses the native text clipboard only when Clipboard API writes are unavailable', async () => {
+		test('uses the native text clipboard when Clipboard API writes are unsupported', async () => {
+			for (const isCut of [false, true]) {
+				await withClipboardEditor('copy this', {}, async ({ editor, clipboard, run }) => {
+					editor.setSelection(new Selection(1, 1, 1, 5));
+					sinon.stub(clipboard, 'supportsClipboardData').value(false);
+					const writeData = sinon.spy(clipboard, 'writeData');
+					const writeText = sinon.spy(clipboard, 'writeText');
+					await run(isCut ? CutAction : CopyAction);
+					assert.deepStrictEqual({
+						text: editor.getValue(),
+						clipboard: await clipboard.readText(),
+						richWrites: writeData.callCount,
+						nativeWrites: writeText.callCount,
+					}, {
+						text: isCut ? ' this' : 'copy this',
+						clipboard: 'copy',
+						richWrites: 0,
+						nativeWrites: 1,
+					});
+				});
+			}
+		});
+
+		test('waits for the native text clipboard write before cutting', async () => {
 			await withClipboardEditor('copy this', {}, async ({ editor, clipboard, run }) => {
 				editor.setSelection(new Selection(1, 1, 1, 5));
-				sinon.stub(clipboard, 'writeData').rejects(new DOMException('Document is not focused', 'NotAllowedError'));
+				sinon.stub(clipboard, 'supportsClipboardData').value(false);
+				const cutCommand = sinon.spy(editor, 'trigger').withArgs('keyboard', Handler.Cut, undefined);
+				const writeStarted = new DeferredPromise<void>();
+				const written = new DeferredPromise<void>();
+				sinon.stub(clipboard, 'writeText').callsFake(() => {
+					writeStarted.complete();
+					return written.p;
+				});
+				let cutFinished = false;
+				const cut = run(CutAction).then(() => { cutFinished = true; });
+				try {
+					await Promise.race([writeStarted.p, cut.then(() => { throw new Error('Cut completed without starting the native text write'); })]);
+					const beforeWrite = { text: editor.getValue(), cutFinished, cutCommands: cutCommand.callCount };
+					written.complete();
+					await cut;
+					const afterWrite = editor.getValue();
+					await editor.getModel().undo();
+					assert.deepStrictEqual({ beforeWrite, afterWrite, afterUndo: editor.getValue(), cutFinished, cutCommands: cutCommand.callCount }, {
+						beforeWrite: { text: 'copy this', cutFinished: false, cutCommands: 0 },
+						afterWrite: ' this',
+						afterUndo: 'copy this',
+						cutFinished: true,
+						cutCommands: 1,
+					});
+				} finally {
+					if (!written.isSettled) {
+						written.complete();
+					}
+					await cut;
+				}
+			});
+		});
+
+		test('logs native text clipboard failures without deleting the selection', async () => {
+			for (const isCut of [false, true]) {
+				await withClipboardEditor('copy this', {}, async ({ editor, clipboard, instantiationService, run }) => {
+					await clipboard.writeText('previous clipboard');
+					editor.setSelection(new Selection(1, 1, 1, 5));
+					sinon.stub(clipboard, 'supportsClipboardData').value(false);
+					const error = new Error('Native clipboard write failed');
+					const writeText = sinon.stub(clipboard, 'writeText').rejects(error);
+					const cutCommand = sinon.spy(editor, 'trigger').withArgs('keyboard', Handler.Cut, undefined);
+					const logError = sinon.spy(instantiationService.get(ILogService), 'error');
+					await run(isCut ? CutAction : CopyAction);
+					assert.deepStrictEqual({
+						text: editor.getValue(),
+						clipboard: await clipboard.readText(),
+						nativeWrites: writeText.callCount,
+						cutCommands: cutCommand.callCount,
+						loggedErrors: logError.args,
+					}, {
+						text: 'copy this',
+						clipboard: 'previous clipboard',
+						nativeWrites: 1,
+						cutCommands: 0,
+						loggedErrors: [['Unable to write to the clipboard.', error]],
+					});
+				});
+			}
+		});
+
+		test('does not cut when Clipboard API access is denied', async () => {
+			await withClipboardEditor('copy this', {}, async ({ editor, clipboard, run }) => {
+				editor.setSelection(new Selection(1, 1, 1, 5));
+				const error = new DOMException('Document is not focused', 'NotAllowedError');
+				sinon.stub(clipboard, 'writeData').rejects(error);
 				const writeText = sinon.spy(clipboard, 'writeText');
+				const cutCommand = sinon.spy(editor, 'trigger').withArgs('keyboard', Handler.Cut, undefined);
 				await run(CutAction);
-				assert.deepStrictEqual({
-					text: editor.getValue(),
-					clipboard: await clipboard.readText(),
-					nativeWrites: writeText.callCount,
-				}, {
-					text: ' this',
-					clipboard: 'copy',
+				assert.deepStrictEqual({ text: editor.getValue(), textWrites: writeText.callCount, cutCommands: cutCommand.callCount }, {
+					text: 'copy this',
+					textWrites: 0,
+					cutCommands: 0,
+				});
+			});
+		});
+
+		test('does not retry a failed native text write when Clipboard API writes are unsupported', async () => {
+			await withClipboardEditor('copy this', {}, async ({ editor, clipboard, run }) => {
+				editor.setSelection(new Selection(1, 1, 1, 5));
+				sinon.stub(clipboard, 'supportsClipboardData').value(false);
+				const writeData = sinon.spy(clipboard, 'writeData');
+				const error = new DOMException('Native clipboard access denied', 'NotAllowedError');
+				const writeText = sinon.stub(clipboard, 'writeText').rejects(error);
+				await run(CutAction);
+				assert.deepStrictEqual({ text: editor.getValue(), richWrites: writeData.callCount, nativeWrites: writeText.callCount }, {
+					text: 'copy this',
+					richWrites: 0,
 					nativeWrites: 1,
 				});
 			});

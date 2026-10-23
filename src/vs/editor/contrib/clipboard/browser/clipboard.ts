@@ -30,10 +30,7 @@ const CLIPBOARD_CONTEXT_MENU_GROUP = '9_cutcopypaste';
 
 const supportsCut = (platform.isNative || typeof navigator.clipboard !== 'undefined' || (document.queryCommandSupported && document.queryCommandSupported('cut')));
 const supportsCopy = (platform.isNative || typeof navigator.clipboard !== 'undefined' || (document.queryCommandSupported && document.queryCommandSupported('copy')));
-// Firefox only supports navigator.clipboard.readText() in browser extensions.
-// See https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/readText#Browser_compatibility
-// When loading over http, navigator.clipboard can be undefined. See https://github.com/microsoft/monaco-editor/issues/2313
-const supportsPaste = (typeof navigator.clipboard === 'undefined' || browser.isFirefox);
+const supportsPaste = (typeof navigator.clipboard !== 'undefined');
 
 function registerCommand<T extends Command>(command: T): T {
 	command.register();
@@ -213,12 +210,14 @@ async function executeClipboardCopy(editor: IActiveCodeEditor, clipboardService:
 	// Fires onWillCopy/onWillCut, so listeners can modify the data before the clipboard write.
 	editor.triggerOnWillCopyOrCut(event);
 	event.ensureClipboardGetsEditorData();
+	let copySucceeded = false;
 	try {
 		if (clipboardService.supportsClipboardData) {
 			await clipboardService.writeData(toVSDataTransfer(data));
 		} else {
 			await clipboardService.writeText(event.dataToCopy.text);
 		}
+		copySucceeded = true;
 	} catch (error) {
 		if (platform.isWeb) {
 			logService.warn('Clipboard API write unavailable; falling back to a clipboard event.', error);
@@ -231,8 +230,9 @@ async function executeClipboardCopy(editor: IActiveCodeEditor, clipboardService:
 			}
 			return;
 		}
+		logService.error('Unable to write to the clipboard.', error);
 	}
-	if (isCut) {
+	if (isCut && copySucceeded) {
 		editor.trigger('keyboard', Handler.Cut, undefined);
 	}
 }
