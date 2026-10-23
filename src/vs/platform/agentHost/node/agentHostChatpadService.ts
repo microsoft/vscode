@@ -49,8 +49,8 @@ export interface IAgentHostChatpadService {
 	/** Returns the Chatpad, creating its note when missing; `undefined` when there is no Chatpad chat. */
 	getChatpad(sessions: IAgentHostChatpadSessions): Promise<IAgentHostChatpad | undefined>;
 	/**
-	 * Makes `session` the Chatpad chat unless another Chatpad chat exists, in which case `session` stays an
-	 * ordinary chat. Resolves to whether `session` is the Chatpad chat.
+	 * Makes `session` the Chatpad chat unless another Chatpad chat exists, or its id is not a single path segment, in
+	 * which case `session` stays an ordinary chat. Resolves to whether `session` is the Chatpad chat.
 	 */
 	claim(session: URI, sessions: IAgentHostChatpadSessions): Promise<boolean>;
 	/** Appends `text` to the note as its own line(s), creating the note when missing. Fails without a Chatpad chat. */
@@ -60,9 +60,24 @@ export interface IAgentHostChatpadService {
 const CHATPAD_SESSION_STORAGE_KEY = 'chatpad.session';
 const NOTE_TEMPLATE = '# Chatpad\n\n';
 
-/** The note of the Chatpad chat `session` on a host whose user home is `userHome`: a file in the chat's scratch folder. */
+/**
+ * Whether `id` is a single path segment, so that the scratch folder of its session, and the note in it, is a direct
+ * child of the chats root. Clients choose session ids, and the note is approved for writing without consent.
+ */
+function isSafeSessionId(id: string): boolean {
+	return id.length > 0 && id !== '.' && id !== '..' && !/[\\/]/.test(id);
+}
+
+/**
+ * The note of the Chatpad chat `session` on a host whose user home is `userHome`: a file in the chat's scratch folder.
+ * Throws when the session's id is not a single path segment.
+ */
 export function getChatpadNote(userHome: URI, session: URI | string): URI {
-	return joinPath(workspacelessScratchDir(userHome, AgentSession.id(session)), 'chatpad.md');
+	const id = AgentSession.id(session);
+	if (!isSafeSessionId(id)) {
+		throw new Error(`The session ${session.toString()} has no Chatpad note: its id is not a single path segment.`);
+	}
+	return joinPath(workspacelessScratchDir(userHome, id), 'chatpad.md');
 }
 
 export class AgentHostChatpadService extends Disposable implements IAgentHostChatpadService {
@@ -81,7 +96,7 @@ export class AgentHostChatpadService extends Disposable implements IAgentHostCha
 
 	get session(): string | undefined {
 		const value = this._storageService.get<unknown>(CHATPAD_SESSION_STORAGE_KEY);
-		return typeof value === 'string' && value.length > 0 ? value : undefined;
+		return typeof value === 'string' && value.length > 0 && isSafeSessionId(AgentSession.id(value)) ? value : undefined;
 	}
 
 	isChatpad(session: string): boolean {
@@ -111,6 +126,10 @@ export class AgentHostChatpadService extends Disposable implements IAgentHostCha
 	}
 
 	claim(session: URI, sessions: IAgentHostChatpadSessions): Promise<boolean> {
+		if (!isSafeSessionId(AgentSession.id(session))) {
+			this._logService.warn(`[AgentHostChatpad] ${session.toString()} stays an ordinary chat: its id is not a single path segment`);
+			return Promise.resolve(false);
+		}
 		return this._sequencer.queue(async () => {
 			const key = session.toString();
 			const current = this.session;
