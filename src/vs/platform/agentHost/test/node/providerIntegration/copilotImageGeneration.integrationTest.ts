@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { createHash } from 'crypto';
 import { mkdir, readFile, rm } from 'fs/promises';
 import type { Server } from 'http';
 import { tmpdir } from 'os';
@@ -240,7 +241,8 @@ suite('Agent Host Provider Integration — Copilot image generation', function (
 
 		assert.deepStrictEqual({
 			response: completed.responseText.trim(),
-			toolResult: resultText.replace(/sha256:[0-9a-f]{64}/, 'sha256:<id>').replaceAll(path ?? '<no path>', '<path>'),
+			// Pin the complete normalized result without publishing runtime-owned guidance text.
+			toolResultSha256: createHash('sha256').update(resultText.replace(/sha256:[0-9a-f]{64}/, 'sha256:<id>').replaceAll(path ?? '<no path>', '<path>')).digest('hex'),
 			missingPresentationGuidance: [
 				'already displayed in the chat',
 				'listed as artifacts',
@@ -253,7 +255,7 @@ suite('Agent Host Provider Integration — Copilot image generation', function (
 			unexpectedRequests,
 		}, {
 			response: 'IMAGE_SAVED',
-			toolResult: 'Image generated successfully.\nimage_id: sha256:<id>\npath: <path>\nsaved_to: <path>',
+			toolResultSha256: 'd0658e695d859181ad24aa6ff02b4507893e0dcb269b0efe554945c93d85812b',
 			missingPresentationGuidance: [],
 			location: { insideHome: true, folder: ['session-state', 'images'], fileName: 'image-dc2f9147f39d1c93.png' },
 			savedImage: true,
