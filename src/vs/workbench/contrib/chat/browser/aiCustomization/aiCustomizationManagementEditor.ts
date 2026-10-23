@@ -145,6 +145,22 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { showNoFoldersDialog } from '../promptSyntax/pickers/askForPromptSourceFolder.js';
 
 const $ = DOM.$;
+
+/**
+ * Whether a detail page's primary action can receive focus: it exists, is enabled, and is shown.
+ */
+function isFocusablePrimaryAction(button: Button | undefined): button is Button {
+	return !!button && button.enabled && button.element.checkVisibility();
+}
+
+/**
+ * Whether a keyboard event target is a control in a detail page header. Header controls are buttons
+ * that do not use arrow keys, so the page can use them to scroll its content.
+ */
+function isHeaderControl(header: HTMLElement, target: EventTarget | null): boolean {
+	return DOM.isHTMLElement(target) && header.contains(target);
+}
+
 //#region Telemetry
 
 type CustomizationEditorOpenedEvent = {
@@ -397,6 +413,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private embeddedEditorContainer: HTMLElement | undefined;
 	private embeddedEditor: CodeEditorWidget | undefined;
 	private editorActionButton!: HTMLButtonElement;
+	private editorActionButtonHover: IManagedHover | undefined;
 	private editorActionButtonIcon!: HTMLElement;
 	private editorModeButton: HTMLButtonElement | undefined;
 	private editorMigrationDetailActions: IMigrationDetailActions | undefined;
@@ -461,11 +478,13 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private connectorDetailContainer: HTMLElement | undefined;
 	private embeddedConnectorDetail: EmbeddedConnectorDetail | undefined;
 	private connectorDetailBackButton: HTMLButtonElement | undefined;
+	private connectorDetailBackHover: IManagedHover | undefined;
 
 	private marketplaceDetailContainer: HTMLElement | undefined;
 	private marketplaceDetailScrollable: DomScrollableElement | undefined;
 	private embeddedMarketplaceDetail: EmbeddedMarketplaceDetail | undefined;
 	private marketplaceDetailBackButton: HTMLButtonElement | undefined;
+	private marketplaceDetailBackHover: IManagedHover | undefined;
 	private marketplaceDetailOrigin: ICustomizationMarketplaceOrigin | undefined;
 	private marketplaceDetailResource: ICustomizationMarketplaceResource | undefined;
 	private readonly marketplaceDetailScrollUpdate = this._register(new MutableDisposable());
@@ -632,9 +651,21 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.contributedSectionWidgets.clear();
 		this.contributedSectionWidgetDisposables.clear();
 		this.container = DOM.append(parent, $('.ai-customization-management-editor'));
+		this.trackPointerFocus(this.container);
 
 		this.createSplitView();
 		this.updateStyles();
+	}
+
+	/**
+	 * Marks the editor while the latest input was a pointer. Monaco lists focus themselves from script
+	 * on mouse down, so controls focused after clicking a row still match `:focus-visible`. Detail page
+	 * header controls use this marker to show their focus ring only for keyboard navigation.
+	 */
+	private trackPointerFocus(container: HTMLElement): void {
+		const targetWindow = DOM.getWindow(container);
+		this.editorDisposables.add(DOM.addDisposableListener(targetWindow, DOM.EventType.POINTER_DOWN, () => container.classList.add('pointer-focus'), true));
+		this.editorDisposables.add(DOM.addDisposableListener(targetWindow, DOM.EventType.KEY_DOWN, () => container.classList.remove('pointer-focus'), true));
 	}
 
 	private createSplitView(): void {
@@ -3926,24 +3957,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	override focus(): void {
 		super.focus();
-		if (this.viewMode === 'marketplaceDetail') {
-			this.marketplaceDetailBackButton?.focus();
-			return;
-		}
-		if (this.viewMode === 'editor') {
-			if (this.editorDisplayMode === 'raw') {
-				this.embeddedEditor?.focus();
-			} else {
-				this.editorModeButton?.focus();
-			}
+		if (this.focusDetailPage()) {
 			return;
 		}
 		if (this.viewMode === 'migration') {
 			this.migrationDashboard?.focus();
-			return;
-		}
-		if (this.viewMode === 'connectorDetail') {
-			this.connectorDetailBackButton?.focus();
 			return;
 		}
 		if (this.selectedSection === undefined) {
@@ -3962,6 +3980,64 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.ensureContributedSectionWidget(this.selectedSection)?.focus?.();
 		} else {
 			this.listWidget?.focusSearch();
+		}
+	}
+
+	/**
+	 * Moves focus into the visible detail page, if any. Showing a detail hides the element that had
+	 * focus, so focus must land inside the page to keep the modal's Escape handling, Tab order, and
+	 * screen reader context. Prefers the page's enabled primary action, then a visible editor, then
+	 * the back button. Focus arrives programmatically, so the back button's tooltip is suppressed.
+	 * @returns Whether a detail page is visible.
+	 */
+	private focusDetailPage(): boolean {
+		const page = this.getVisibleDetailPage();
+		if (!page) {
+			return false;
+		}
+		const primaryAction = page.primaryAction;
+		if (isFocusablePrimaryAction(primaryAction)) {
+			primaryAction.focus();
+			return true;
+		}
+		if (page.focusEditor()) {
+			return true;
+		}
+		page.backButton?.focus();
+		page.backHover?.hide();
+		return true;
+	}
+
+	private getVisibleDetailPage(): { readonly primaryAction: Button | undefined; readonly backButton: HTMLElement | undefined; readonly backHover: IManagedHover | undefined; focusEditor(): boolean } | undefined {
+		switch (this.viewMode) {
+			case 'editor':
+				return {
+					primaryAction: this.editorMigrationDetailActions?.migrate,
+					backButton: this.editorActionButton,
+					backHover: this.editorActionButtonHover,
+					focusEditor: () => {
+						if (!this.embeddedEditor || this.embeddedEditorContainer?.style.display === 'none') {
+							return false;
+						}
+						this.embeddedEditor.focus();
+						return true;
+					},
+				};
+			case 'mcpDetail':
+				return {
+					primaryAction: this.mcpMigrationDetailActions?.migrate,
+					backButton: this.mcpDetailBackButton,
+					backHover: this.mcpDetailBackHover,
+					focusEditor: () => this.embeddedMcpDetail?.focusDefinitionEditor() ?? false,
+				};
+			case 'marketplaceDetail':
+				return { primaryAction: this.embeddedMarketplaceDetail?.primaryAction, backButton: this.marketplaceDetailBackButton, backHover: this.marketplaceDetailBackHover, focusEditor: () => false };
+			case 'connectorDetail':
+				return { primaryAction: this.embeddedConnectorDetail?.primaryAction, backButton: this.connectorDetailBackButton, backHover: this.connectorDetailBackHover, focusEditor: () => false };
+			case 'pluginDetail':
+				return { primaryAction: this.embeddedPluginDetail?.primaryAction, backButton: this.pluginDetailBackButton, backHover: this.pluginDetailBackHover, focusEditor: () => false };
+			default:
+				return undefined;
 		}
 	}
 
@@ -4195,7 +4271,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		this.editorActionButton = DOM.append(editorHeader, $('button.editor-back-button'));
 		this.editorActionButton.setAttribute('aria-label', localize('backToList', "Back to list"));
-		this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this.editorActionButton, localize('backToListTooltip', "Back to list")));
+		this.editorActionButtonHover = this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this.editorActionButton, localize('backToListTooltip', "Back to list")));
 		this.editorActionButtonIcon = DOM.append(this.editorActionButton, $(`.codicon.codicon-${Codicon.arrowLeft.id}.editor-action-button-icon`));
 		this.editorActionButtonIcon.setAttribute('aria-hidden', 'true');
 		this.editorDisposables.add(DOM.addDisposableListener(this.editorActionButton, 'click', () => {
@@ -4319,7 +4395,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			if (this.dimension) {
 				this.layout(this.dimension);
 			}
-			this.editorItemPathElement.focus();
+			this.focusDetailPage();
 		} catch (error) {
 			console.error('Failed to load customization details:', error);
 			if (isEqual(this.currentEditingUri, uri)) {
@@ -4344,11 +4420,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			if (this.dimension) {
 				this.layout(this.dimension);
 			}
-			if (this.editorDisplayMode === 'raw') {
-				this.embeddedEditor!.focus();
-			} else {
-				this.editorModeButton?.focus();
-			}
+			this.focusDetailPage();
 		} catch (error) {
 			console.error('Failed to load model for embedded editor:', error);
 			if (isEqual(this.currentEditingUri, uri)) {
@@ -5239,10 +5311,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.marketplaceDetailBackButton = backButton;
 		backButton.type = 'button';
 		backButton.setAttribute('aria-label', localize('backToCustomizationDiscovery', "Back to Browse"));
-		this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), backButton, localize('backToCustomizationDiscoveryTooltip', "Back to Browse")));
+		this.marketplaceDetailBackHover = this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), backButton, localize('backToCustomizationDiscoveryTooltip', "Back to Browse")));
 		const backIcon = DOM.append(backButton, $(`.codicon.codicon-${Codicon.arrowLeft.id}.editor-action-button-icon`));
 		backIcon.setAttribute('aria-hidden', 'true');
 		this.editorDisposables.add(DOM.addDisposableListener(backButton, DOM.EventType.CLICK, () => this.goBackFromMarketplaceDetail()));
+		const marketplaceHeader = this.embeddedMarketplaceDetail.headerElement;
 		this.editorDisposables.add(DOM.addDisposableListener(detailBody, DOM.EventType.KEY_DOWN, event => {
 			const keyboardEvent = new StandardKeyboardEvent(event);
 			if (keyboardEvent.keyCode === KeyCode.Escape && !event.defaultPrevented) {
@@ -5252,7 +5325,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 				return;
 			}
 			const isArrowKey = keyboardEvent.keyCode === KeyCode.UpArrow || keyboardEvent.keyCode === KeyCode.DownArrow;
-			if (event.defaultPrevented || (isArrowKey && event.target !== backButton) || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
+			if (event.defaultPrevented || (isArrowKey && !isHeaderControl(marketplaceHeader, event.target)) || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
 				return;
 			}
 			const scrollable = this.marketplaceDetailScrollable;
@@ -5316,7 +5389,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (this.dimension) {
 			this.layout(this.dimension);
 		}
-		this.marketplaceDetailBackButton?.focus();
+		this.focusDetailPage();
 	}
 
 	private goBackFromMarketplaceDetail(): void {
@@ -5423,7 +5496,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (this.dimension) {
 			this.layout(this.dimension);
 		}
-		this.mcpDetailBackButton?.focus();
+		this.focusDetailPage();
 	}
 
 	private goBackFromMcpDetail(): void {
@@ -5570,7 +5643,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.connectorDetailBackButton = backButton;
 		backButton.type = 'button';
 		backButton.setAttribute('aria-label', localize('backToMcpServersList', "Back to MCP servers"));
-		this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), backButton, localize('backToMcpServersListTooltip', "Back to MCP servers")));
+		this.connectorDetailBackHover = this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), backButton, localize('backToMcpServersListTooltip', "Back to MCP servers")));
 		const backIcon = DOM.append(backButton, $(`.codicon.codicon-${Codicon.arrowLeft.id}`));
 		backIcon.setAttribute('aria-hidden', 'true');
 		this.editorDisposables.add(DOM.addDisposableListener(backButton, 'click', () => this.goBackFromConnectorDetail()));
@@ -5586,7 +5659,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (this.dimension) {
 			this.layout(this.dimension);
 		}
-		this.connectorDetailBackButton?.focus();
+		this.focusDetailPage();
 	}
 
 	private goBackFromConnectorDetail(): void {
@@ -5652,6 +5725,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.editorDisposables.add(DOM.addDisposableListener(backButton, 'click', () => {
 			this.goBackFromPluginDetail();
 		}));
+		const pluginHeader = this.embeddedPluginDetail.headerElement;
 		this.editorDisposables.add(DOM.addDisposableListener(detailBody, DOM.EventType.KEY_DOWN, event => {
 			const keyboardEvent = new StandardKeyboardEvent(event);
 			if (keyboardEvent.keyCode === KeyCode.Escape && !event.defaultPrevented) {
@@ -5661,7 +5735,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 				return;
 			}
 			const isArrowKey = keyboardEvent.keyCode === KeyCode.UpArrow || keyboardEvent.keyCode === KeyCode.DownArrow;
-			if (event.defaultPrevented || (isArrowKey && event.target !== backButton) || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
+			if (event.defaultPrevented || (isArrowKey && !isHeaderControl(pluginHeader, event.target)) || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
 				return;
 			}
 
@@ -5719,6 +5793,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (this.dimension) {
 			this.layout(this.dimension);
 		}
+		this.focusDetailPage();
 	}
 
 	private updatePluginDetailBackButton(): void {

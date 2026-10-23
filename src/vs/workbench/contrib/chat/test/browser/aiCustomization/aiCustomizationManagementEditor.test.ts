@@ -1726,6 +1726,78 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.editorPreviewDisposables.dispose();
 	});
 
+	test('detail pages focus their primary action, then an editor, then the back button without its tooltip', () => {
+		const container = $('div');
+		document.body.appendChild(container);
+		const outside = $('button');
+		const header = $('div');
+		const backButton = $('button');
+		container.append(outside, header);
+		const action = (label: string, options: { enabled?: boolean; hidden?: boolean } = {}) => {
+			const element = $('a', { tabindex: 0 }, label);
+			if (options.hidden) {
+				element.style.display = 'none';
+			}
+			return { element, enabled: options.enabled ?? true, focus: () => element.focus() };
+		};
+		const primary = action('Migrate');
+		const editorContainer = $('div');
+		let focusedEditor: string | undefined;
+		let hiddenTooltips = 0;
+		const backHover = { hide: () => { hiddenTooltips++; } };
+		const editor = Object.assign(createTestEditor(), {
+			editorMigrationDetailActions: { migrate: undefined as ReturnType<typeof action> | undefined },
+			editorActionButton: backButton,
+			editorActionButtonHover: backHover,
+			embeddedEditor: { focus: () => { focusedEditor = 'embeddedEditor'; } },
+			embeddedEditorContainer: editorContainer,
+			mcpMigrationDetailActions: { migrate: undefined as ReturnType<typeof action> | undefined },
+			embeddedMcpDetail: {
+				focusDefinitionEditor: () => { focusedEditor = 'definitionEditor'; return true; },
+				setMigratable: () => { },
+				setManualReviewReason: () => { },
+			},
+			mcpDetailBackButton: backButton,
+			mcpDetailBackHover: backHover,
+			embeddedPluginDetail: { primaryAction: undefined as ReturnType<typeof action> | undefined },
+			pluginDetailBackButton: backButton,
+			pluginDetailBackHover: backHover,
+		});
+		const focusFor = (viewMode: TestableEditor['viewMode'], primaryAction: ReturnType<typeof action> | undefined, editorVisible = false) => {
+			header.replaceChildren(backButton, ...(primaryAction ? [primaryAction.element] : []));
+			editor.editorMigrationDetailActions.migrate = primaryAction;
+			editor.mcpMigrationDetailActions.migrate = primaryAction;
+			editor.embeddedPluginDetail.primaryAction = primaryAction;
+			editorContainer.style.display = editorVisible ? '' : 'none';
+			editor.viewMode = viewMode;
+			outside.focus();
+			focusedEditor = undefined;
+			hiddenTooltips = 0;
+			editor.focus();
+			const active = document.activeElement;
+			return { focused: focusedEditor ?? (active === backButton ? 'backButton' : active?.textContent), hiddenTooltips };
+		};
+
+		try {
+			assert.deepStrictEqual({
+				migrationDetail: focusFor('editor', primary),
+				hiddenMigrateWithRawEditor: focusFor('editor', action('Hidden', { hidden: true }), true),
+				disabledMigrateInPreview: focusFor('editor', action('Disabled', { enabled: false })),
+				mcpDetailWithoutPrimaryAction: focusFor('mcpDetail', undefined),
+				pluginDetailWithoutPrimaryAction: focusFor('pluginDetail', undefined),
+			}, {
+				migrationDetail: { focused: 'Migrate', hiddenTooltips: 0 },
+				hiddenMigrateWithRawEditor: { focused: 'embeddedEditor', hiddenTooltips: 0 },
+				disabledMigrateInPreview: { focused: 'backButton', hiddenTooltips: 1 },
+				mcpDetailWithoutPrimaryAction: { focused: 'definitionEditor', hiddenTooltips: 0 },
+				pluginDetailWithoutPrimaryAction: { focused: 'backButton', hiddenTooltips: 1 },
+			});
+		} finally {
+			container.remove();
+			editor.editorPreviewDisposables.dispose();
+		}
+	});
+
 	test('uses view-raw copy for true read-only extension content', () => {
 		const editor = createTestEditor();
 		editor.currentEditingPromptType = PromptsType.agent;
