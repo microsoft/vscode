@@ -68,6 +68,7 @@ aiCustomizationManagementSectionRegistry.register({
 	icon: extensionsViewIcon,
 	description: localize('agentsWindowExtensions.navigationDescription', "Choose which installed extensions run in the Agents window."),
 	enablementSettings: [EXTENSIONS_AGENTS_WINDOW_MANAGEMENT],
+	separatorBefore: true,
 	supportsHarness: () => true,
 	getBadge: accessor => accessor.get(IAgentsWindowExtensionSuggestionsService).showBadge.map(show => show ? getExtensionSuggestionsBadgeDescription() : undefined),
 	create: (instantiationService, container) => instantiationService.createInstance(AgentsWindowExtensionsWidget, container),

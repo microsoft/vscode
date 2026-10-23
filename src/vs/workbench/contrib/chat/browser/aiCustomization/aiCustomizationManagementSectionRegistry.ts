@@ -31,6 +31,8 @@ export interface IAICustomizationManagementSectionContribution {
 	readonly enablementSettings?: readonly string[];
 	/** Instantiate while hidden so sidebar metadata such as item counts is available before first navigation. */
 	readonly initializeOnEditorOpen?: boolean;
+	/** Visually separates this section from the preceding customization sections in the navigation list. */
+	readonly separatorBefore?: boolean;
 	readonly supportsHarness: (harnessId: string) => boolean;
 	/**
 	 * Describes why the section's navigation entry shows a badge, for example because the section has suggestions

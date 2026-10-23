@@ -552,7 +552,7 @@ suite('Sessions - SessionsList', () => {
 				withMigrations: {
 					hover: 'Some customizations need an update to keep working.',
 					hasDot: true,
-					iconColor: 'var(--vscode-activityWarningBadge-background)',
+					iconColor: 'var(--vscode-activityBarBadge-background)',
 				},
 				withoutSignals: {
 					hover: 'Customizations',
@@ -1004,7 +1004,7 @@ suite('Sessions - SessionsList', () => {
 					hasTotalCountBadge: false,
 					hasMigrationIcon: true,
 					hasExtensionsIcon: false,
-					iconColor: 'var(--vscode-activityWarningBadge-background)',
+					iconColor: 'var(--vscode-activityBarBadge-background)',
 				},
 				customizationsPresentationWithoutMigration: {
 					hasMigrationIcon: false,
