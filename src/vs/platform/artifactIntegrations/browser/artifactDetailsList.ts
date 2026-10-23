@@ -5,9 +5,13 @@
 
 import { $, append, reset } from '../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../base/browser/markdownRenderer.js';
+import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
+import { IHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegate.js';
 import { renderIcon } from '../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IListRenderer } from '../../../base/browser/ui/list/list.js';
+import { IAction } from '../../../base/common/actions.js';
 import { Codicon } from '../../../base/common/codicons.js';
+import { Event } from '../../../base/common/event.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { MarkdownString } from '../../../base/common/htmlContent.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
@@ -15,7 +19,7 @@ import { localize } from '../../../nls.js';
 import { IHoverService } from '../../hover/browser/hover.js';
 import { asCssVariable, getColorRegistry } from '../../theme/common/colorUtils.js';
 import { getIconRegistry } from '../../theme/common/iconRegistry.js';
-import { ArtifactDetails, ArtifactIcon } from '../common/artifactIntegration.js';
+import { ArtifactDetails, ArtifactDetailsItem, ArtifactIcon } from '../common/artifactIntegration.js';
 import './media/artifactDetailsList.css';
 
 export function getArtifactThemeIcon(value: ArtifactIcon): ThemeIcon {
@@ -39,7 +43,7 @@ export function renderArtifactIcon(value: ThemeIcon, iconClass?: string): HTMLEl
 	return container;
 }
 
-export type ArtifactDetailsItem = ArtifactDetails['items'][number];
+export type { ArtifactDetailsItem };
 
 export function getArtifactDetailsDescription(details: ArtifactDetails): string {
 	return details.descriptionFormat === 'markdown'
@@ -47,11 +51,21 @@ export function getArtifactDetailsDescription(details: ArtifactDetails): string 
 		: details.description?.trim() ?? '';
 }
 
+/** Supplies the actions shown at the end of a details item row while the row is hovered, focused, or selected. */
+export interface IArtifactDetailsItemActionProvider {
+	/** Shared by every row, so moving between rows' actions shows their hovers without another delay. */
+	readonly hoverDelegate: IHoverDelegate;
+	/** Fires when the actions of rendered items changed, so rows update in place and keep keyboard focus. */
+	readonly onDidChange: Event<void>;
+	getActions(item: ArtifactDetailsItem): readonly IAction[];
+}
+
 interface IArtifactDetailsItemTemplate {
 	readonly row: HTMLElement;
 	readonly icon: HTMLElement;
 	readonly label: HTMLElement;
 	readonly description?: HTMLElement;
+	readonly actionBar?: ActionBar;
 	readonly store: DisposableStore;
 	item?: ArtifactDetailsItem;
 }
@@ -61,7 +75,7 @@ export class ArtifactDetailsItemRenderer implements IListRenderer<ArtifactDetail
 	readonly templateId = 'artifactDetailsItem';
 	readonly rowHeight: number;
 
-	constructor(private readonly hoverService: IHoverService, private readonly showDescription = false) {
+	constructor(private readonly hoverService: IHoverService, private readonly showDescription = false, private readonly actionProvider?: IArtifactDetailsItemActionProvider) {
 		this.rowHeight = showDescription ? 40 : ArtifactDetailsItemRenderer.rowHeight;
 	}
 
@@ -73,8 +87,19 @@ export class ArtifactDetailsItemRenderer implements IListRenderer<ArtifactDetail
 		const template: IArtifactDetailsItemTemplate = {
 			row, icon, label: append(labels, $('span.artifact-details-item-label')), store,
 			description: this.showDescription ? append(labels, $('span.artifact-details-item-description')) : undefined,
+			actionBar: this.actionProvider ? store.add(new ActionBar(append(row, $('.artifact-details-item-actions')), { hoverDelegate: this.actionProvider.hoverDelegate })) : undefined,
 		};
-		store.add(this.hoverService.setupDelayedHover(row, () => ({
+		const { actionBar } = template;
+		const actionProvider = this.actionProvider;
+		if (actionBar && actionProvider) {
+			store.add(actionProvider.onDidChange(() => {
+				if (template.item) {
+					this.renderActions(actionBar, actionProvider.getActions(template.item), template.item, row);
+				}
+			}));
+		}
+		// Anchored to the labels so the item hover does not compete with the row actions' hovers.
+		store.add(this.hoverService.setupDelayedHover(labels, () => ({
 			content: template.item ? getArtifactDetailsItemLabel(template.item) : '',
 		})));
 		return template;
@@ -87,6 +112,25 @@ export class ArtifactDetailsItemRenderer implements IListRenderer<ArtifactDetail
 		if (template.description) {
 			template.description.textContent = item.description ?? '';
 			template.description.hidden = !item.description;
+		}
+		if (template.actionBar && this.actionProvider) {
+			this.renderActions(template.actionBar, this.actionProvider.getActions(item), item, template.row);
+		}
+	}
+
+	private renderActions(actionBar: ActionBar, actions: readonly IAction[], item: ArtifactDetailsItem, row: HTMLElement): void {
+		// Re-rendering replaces the action items; keep keyboard focus on the same position, or return it to the list.
+		const focused = actionBar.isFocused() ? actionBar.viewItems.findIndex((_item, index) => actionBar.isFocused(index)) : -1;
+		actionBar.clear();
+		actionBar.push(actions, { icon: true, label: false });
+		actionBar.setAriaLabel(localize('artifactItemActions', "Actions for {0}", item.label));
+		row.classList.toggle('has-actions', actions.length > 0);
+		if (focused >= 0) {
+			if (actions.length) {
+				actionBar.focus(Math.min(focused, actions.length - 1));
+			} else {
+				row.closest<HTMLElement>('.monaco-list')?.focus();
+			}
 		}
 	}
 
