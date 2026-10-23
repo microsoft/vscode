@@ -11,7 +11,7 @@ import { InstantiationType, registerSingleton } from '../../instantiation/common
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { IMcpGalleryManifestService } from '../../mcp/common/mcpGalleryManifest.js';
 import { IPlatformCustomizationMarketplaceService } from '../common/platformCustomizationMarketplaceService.js';
-import { CustomizationMarketplaceService, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceService } from '../common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceQueryProgressCallback, CustomizationMarketplaceService, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceService } from '../common/customizationMarketplaceService.js';
 import { queryEnabledCustomizationMarketplaceSources } from '../common/customizationMarketplaceSources.js';
 import { createMcpGalleryMarketplaceProviders, getAllMcpGalleryMarketplaceSourceInfos, getCustomizationMarketplaceSourceInfos } from '../common/mcpGalleryMarketplaceProvider.js';
 
@@ -34,10 +34,11 @@ export class NativeCustomizationMarketplaceService implements ICustomizationMark
 		]));
 	}
 
-	query(options: ICustomizationMarketplaceQuery, token: CancellationToken): Promise<ICustomizationMarketplacePage> {
+	query(options: ICustomizationMarketplaceQuery, token: CancellationToken, onProgress?: CustomizationMarketplaceQueryProgressCallback): Promise<ICustomizationMarketplacePage> {
 		return queryEnabledCustomizationMarketplaceSources(
 			this.configurationService, this.sources, options, token,
-			(request, token) => this.service.value.query(request, token),
+			(request, token, onProgress) => this.service.value.query(request, token, onProgress),
+			onProgress,
 		);
 	}
 }

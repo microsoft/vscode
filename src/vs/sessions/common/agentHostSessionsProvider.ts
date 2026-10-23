@@ -9,6 +9,7 @@ import { IObservable, IReader } from '../../base/common/observable.js';
 import { equals } from '../../base/common/objects.js';
 import { ThemeIcon } from '../../base/common/themables.js';
 import { URI } from '../../base/common/uri.js';
+import { localize } from '../../nls.js';
 import { AuthenticateParams, AuthenticateResult, IAgentConnection } from '../../platform/agentHost/common/agentService.js';
 import { RemoteAgentHostConnectionStatus } from '../../platform/agentHost/common/remoteAgentHostService.js';
 import { ResolveSessionConfigResult, SessionConfigValueItem } from '../../platform/agentHost/common/state/protocol/commands.js';
@@ -62,6 +63,12 @@ export interface IAgentHostConnectionLabels {
 	reconnectingIn(seconds: number): string;
 	readonly incompatibleTitle: string;
 	readonly incompatible: string;
+}
+
+export function getAgentHostConnectionStatusLabel(status: RemoteAgentHostConnectionStatus): string {
+	return status.kind === 'connected' ? localize('agentHost.connected', "Connected")
+		: status.kind === 'connecting' ? localize('agentHost.connecting', "Connecting")
+			: localize('agentHost.disconnected', "Disconnected");
 }
 
 /**
@@ -436,6 +443,9 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 * the chat-reference payload.
 	 */
 	getBackendChatResource(chatResource: URI): URI | undefined;
+
+	/** Returns the host-advertised session URI owning this session's customizations. */
+	getBackendSessionResource(sessionId: string): URI | undefined;
 
 }
 

@@ -278,13 +278,23 @@
 	position: absolute;
 	top: 0px;
 	right: 0px;
+	left: 0px;
 	height: 35px;
 	flex-direction: row;
 	align-items: center;
+	justify-content: flex-end;
+	box-sizing: border-box;
+	cursor: grab;
 	padding: 0 4px;
 	border-bottom: none;
 	background: transparent;
 	container-type: unset;
+}
+
+.chat-composite-bar-toolbar-floating > .chat-composite-bar-toolbar {
+	cursor: default;
+	position: relative;
+	z-index: 2;
 }
 
 /* The shared modern editor-tab hooks own tab geometry, typography, and states.
@@ -396,11 +406,8 @@
 	padding: 0 4px;
 }
 
-/* Indicator: rendered inline after the label and beneath the overlaid close action.
-	Shows a small blue dot for unread, a yellow dot when input is needed,
-	or a spinner for in-progress.
-	Only one mode is set on the element at a time (mutually exclusive in JS). */
-.chat-composite-bar-tab-indicator {
+/* Status indicators precede the lock and title; close actions remain trailing. */
+.session-chat-tabs-bar .chat-composite-bar-tab-indicator {
 	display: none;
 	width: 16px;
 	height: 16px;
@@ -408,7 +415,7 @@
 	justify-content: center;
 	pointer-events: none;
 	flex-shrink: 0;
-	margin-left: 4px;
+	margin-inline-end: var(--vscode-spacing-size40);
 }
 
 .chat-composite-bar-tab.unread .chat-composite-bar-tab-indicator,
@@ -439,9 +446,6 @@
 	background-color: var(--vscode-list-warningForeground);
 }
 
-/* Include the tab-strip owner to outrank
- * `.monaco-workbench .codicon[class*='codicon-']` and keep the in-progress
- * indicator at the compact 12px size. */
 .session-chat-tabs-bar .chat-composite-bar-tab.in-progress .chat-composite-bar-tab-indicator-icon {
 	font-size: var(--vscode-codiconFontSize-compact, 12px);
 }
@@ -612,7 +616,7 @@
 	overflow: hidden;
 }
 
-.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .session-view > .session-view-content {
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .session-view > .session-view-content:not(.standalone-chat) {
 	/* Keep sticky-scroll and other transcript overlays below the session frame. */
 	isolation: isolate;
 }

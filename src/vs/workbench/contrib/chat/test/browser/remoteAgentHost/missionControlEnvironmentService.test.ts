@@ -8,10 +8,12 @@ import { DeferredPromise, raceCancellationError, timeout } from '../../../../../
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../../base/common/event.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { ICloudSandboxAgentHostService, ICloudSandboxApiService, ICloudSandboxConnectOptions, ICloudSandboxEnvironment, IMissionControlEnvironment } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IRemoteAgentHostService, IRemoteAgentHostConnectionInfo, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -35,12 +37,25 @@ function host(id: string, name = 'Machine', status = 'online'): IMissionControlE
 suite('Mission Control inventory', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('passes independently authenticated recipient keys to connection admission', async () => {
+		const context = fixture();
+		const keys = [{ key_id: 'key', public_key: 'public', use: 'auth-token', algorithm: 'x25519-sealedbox' }];
+		context.setEnvironment(Promise.resolve({ id: 'remote', status: 'online', encryption_keys: keys }));
+		await context.service.refresh(CancellationToken.None);
+		await context.service.connect('remote', CancellationToken.None);
+		assert.deepStrictEqual(context.calls.connects, [{
+			environmentId: 'remote', name: 'Machine', environmentKind: 'user-local', trustedEncryptionKeys: keys,
+		}]);
+	});
+
 	function fixture(storage = store.add(new InMemoryStorageService()), initialAccount: string | undefined = firstAccount, built = true, extensionDevelopment = false) {
 		const instantiation = store.add(new TestInstantiationService());
+		const availability = observableValue('availability', true);
+		instantiation.stub(IMissionControlAvailabilityService, { available: availability });
 		const accountChanged = store.add(new Emitter<string | undefined>());
 		const authenticationChanged = store.add(new Emitter<{ providerId: string; label: string; event: AuthenticationSessionsChangeEvent }>());
 		const sentimentChanged = store.add(new Emitter<void>());
-		const configuration = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true });
+		const configuration = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true, [GitHubEnvironmentsEnabledSettingId]: true });
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const calls = { lists: 0, lookups: [] as string[], connects: [] as ICloudSandboxConnectOptions[], disconnects: [] as string[], waits: [] as string[] };
 		const events: { eventName: string; data: ITelemetryData | undefined }[] = [];
@@ -48,6 +63,7 @@ suite('Mission Control inventory', () => {
 		let hidden = false;
 		let own = 'own';
 		let list: Promise<readonly IMissionControlEnvironment[]> = Promise.resolve([host('remote'), host('own'), { ...host('managed'), kind: 'managed-sandbox' }]);
+		let discoveryToken: CancellationToken | undefined;
 		let listed = new DeferredPromise<void>();
 		let environment: Promise<ICloudSandboxEnvironment> = Promise.resolve({ id: 'remote', status: 'online' });
 		let connecting: Promise<void> = Promise.resolve();
@@ -73,7 +89,7 @@ suite('Mission Control inventory', () => {
 		instantiation.stub(ICloudSandboxApiService, new class extends mock<ICloudSandboxApiService>() {
 			override readonly onDidChangeAccount = accountChanged.event;
 			override async getAccountKey() { return account; }
-			override async listEnvironments() { calls.lists++; void listed.complete(); return list; }
+			override async listEnvironments(token: CancellationToken) { discoveryToken = token; calls.lists++; void listed.complete(); return list; }
 			override async getEnvironment(id: string) { calls.lookups.push(id); return environment; }
 		}());
 		instantiation.stub(ICloudSandboxAgentHostService, new class extends mock<ICloudSandboxAgentHostService>() {
@@ -103,7 +119,8 @@ suite('Mission Control inventory', () => {
 		}());
 		const service = store.add(instantiation.createInstance(MissionControlEnvironmentService));
 		return {
-			service, storage, calls, configuration, authenticationChanged, events,
+			service, storage, calls, configuration, authenticationChanged, events, availability,
+			get discoveryToken() { return discoveryToken; },
 			setList: (result: Promise<readonly IMissionControlEnvironment[]>) => { list = result; listed = new DeferredPromise<void>(); return listed.p; },
 			setEnvironment: (result: Promise<ICloudSandboxEnvironment>) => { environment = result; },
 			setConnecting: (result: Promise<void>) => { connecting = result; },
@@ -145,6 +162,33 @@ suite('Mission Control inventory', () => {
 			calls: { lists: 1, lookups: [], connects: [], disconnects: [], waits: [] },
 		});
 	});
+
+	for (const gate of ['setting', 'experiment', 'disposal'] as const) {
+		test(`${gate} disablement cancels discovery without waiting for the server`, async () => {
+			const context = fixture();
+			const response = new DeferredPromise<readonly IMissionControlEnvironment[]>();
+			const listed = context.setList(response.p);
+			const refresh = context.service.refresh(CancellationToken.None);
+			const rejected = assert.rejects(refresh, CancellationError);
+			await listed;
+			if (gate === 'experiment') {
+				context.availability.set(false, undefined);
+			} else if (gate === 'disposal') {
+				context.service.dispose();
+			} else {
+				await context.configuration.setUserConfiguration(GitHubEnvironmentsEnabledSettingId, false);
+				context.configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+					override affectsConfiguration(section: string) { return section === GitHubEnvironmentsEnabledSettingId; }
+				}());
+			}
+			await rejected;
+			assert.deepStrictEqual({
+				cancelled: context.discoveryToken?.isCancellationRequested,
+				hosts: context.service.hosts.get(),
+			}, { cancelled: true, hosts: [] });
+			await response.complete([host('late')]);
+		});
+	}
 
 	test('excludes a native host whose registration becomes ready during discovery', async () => {
 		const { service, setList, setOwn, calls } = fixture();
@@ -375,12 +419,13 @@ suite('Mission Control inventory', () => {
 		});
 	});
 
-	test('offline hosts never mint credentials, wake compute or create sessions', async () => {
+	test('offline hosts never mint credentials, wake compute or create sessions, and stop being listed as online', async () => {
 		const { service, calls, setEnvironment } = fixture();
 		await service.refresh(CancellationToken.None);
 		setEnvironment(Promise.resolve({ id: 'remote', status: 'offline' }));
 		await assert.rejects(service.connect('remote', CancellationToken.None), /Start its owning application/);
-		assert.deepStrictEqual({ lookups: calls.lookups, connects: calls.connects }, { lookups: ['remote'], connects: [] });
+		assert.deepStrictEqual({ lookups: calls.lookups, connects: calls.connects, statuses: service.hosts.get().map(host => host.status) },
+			{ lookups: ['remote'], connects: [], statuses: ['offline'] });
 	});
 
 	test('local display names never replace the remote default name on connection', async () => {
@@ -569,7 +614,7 @@ suite('Mission Control inventory', () => {
 		}, { hosts: [], disconnects: ['remote'] });
 	});
 
-	for (const boundary of ['account-switch', 'AI-disabled', 'remote-disabled', 'disposed', 'disconnect'] as const) {
+	for (const boundary of ['account-switch', 'AI-disabled', 'remote-disabled', 'environments-disabled', 'disposed', 'disconnect'] as const) {
 		test(`${boundary} during live availability lookup never mints relay credentials`, async () => {
 			const context = fixture();
 			await context.service.refresh(CancellationToken.None);
@@ -584,7 +629,8 @@ suite('Mission Control inventory', () => {
 				case 'account-switch': context.changeAccount(secondAccount); break;
 				case 'AI-disabled': context.disableAI(); break;
 				case 'remote-disabled':
-					await context.configuration.setUserConfiguration(RemoteAgentHostsEnabledSettingId, false);
+				case 'environments-disabled':
+					await context.configuration.setUserConfiguration(boundary === 'remote-disabled' ? RemoteAgentHostsEnabledSettingId : GitHubEnvironmentsEnabledSettingId, false);
 					context.configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
 						override affectsConfiguration() { return true; }
 					}());
@@ -600,11 +646,13 @@ suite('Mission Control inventory', () => {
 		});
 	}
 
-	for (const gate of ['remote-disabled', 'AI-disabled', 'AI-master-setting'] as const) {
+	for (const gate of ['remote-disabled', 'environments-disabled', 'AI-disabled', 'AI-master-setting'] as const) {
 		test(`${gate} never discovers or connects hosts`, async () => {
 			const { service, calls, configuration, disableAI } = fixture();
 			if (gate === 'remote-disabled') {
 				await configuration.setUserConfiguration(RemoteAgentHostsEnabledSettingId, false);
+			} else if (gate === 'environments-disabled') {
+				await configuration.setUserConfiguration(GitHubEnvironmentsEnabledSettingId, false);
 			} else if (gate === 'AI-disabled') {
 				disableAI();
 			} else {

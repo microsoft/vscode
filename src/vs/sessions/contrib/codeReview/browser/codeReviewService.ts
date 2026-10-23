@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { equalsIgnoreCase } from '../../../../base/common/strings.js';
 import { arrayEquals } from '../../../../base/common/equals.js';
 import { autorun, derivedOpts, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
 import { isEqual, isEqualOrParent, relativePath } from '../../../../base/common/resources.js';
@@ -317,8 +318,9 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 			const pullRequests = workspace?.folders
 				.flatMap(folder => getGitHubPullRequestRefs(folder.gitRepository?.gitHubInfo.get()))
 				.filter(pullRequest =>
-					pullRequest.owner === pullRequestContent.owner
-					&& pullRequest.repo === pullRequestContent.repo
+					// GitHub owner and repository names are case-insensitive, and pull request changes editors lowercase them.
+					equalsIgnoreCase(pullRequest.owner, pullRequestContent.owner)
+					&& equalsIgnoreCase(pullRequest.repo, pullRequestContent.repo)
 					&& pullRequest.number === pullRequestContent.prNumber
 				) ?? [];
 			return {

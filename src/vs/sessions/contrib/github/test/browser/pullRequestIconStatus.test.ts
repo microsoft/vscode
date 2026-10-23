@@ -12,9 +12,10 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IGitHubService } from '../../browser/githubService.js';
 import { GitHubPullRequestModel } from '../../browser/models/githubPullRequestModel.js';
-import { IPullRequestIconCache } from '../../browser/pullRequestIconCache.js';
+import { IPullRequestIconCache, PullRequestIconCache } from '../../browser/pullRequestIconCache.js';
 import { computePullRequestRefPresentation, SessionPullRequestPresentationModel } from '../../browser/pullRequestIconStatus.js';
-import { GitHubPullRequestState, IGitHubPullRequest } from '../../common/types.js';
+import { computePullRequestIcon, GitHubPullRequestState, IGitHubPullRequest } from '../../common/types.js';
+import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 
 suite('Pull request presentation origin isolation', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -34,6 +35,8 @@ suite('Pull request presentation origin isolation', () => {
 				}();
 				const cache = new class extends mock<IPullRequestIconCache>() {
 					override get = () => undefined;
+					override getState = () => undefined;
+					override getEntry = () => undefined;
 				}();
 				const ref = {
 					owner: 'owner', repo: 'repo', number: 42, title: 'Host draft',
@@ -58,6 +61,68 @@ suite('Pull request presentation origin isolation', () => {
 
 suite('Pull request presentation state', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('restores the cached icon and state with one combined lookup', () => {
+		const calls: string[] = [];
+		const icon = computePullRequestIcon(GitHubPullRequestState.Open);
+		const cache = new class extends mock<IPullRequestIconCache>() {
+			override getEntry(link: string) {
+				calls.push(link);
+				return { icon, pullRequest: { state: GitHubPullRequestState.Open, isDraft: false, lastChecked: 1 } };
+			}
+			override get = () => assert.fail('Expected a combined cache lookup');
+			override getState = () => assert.fail('Expected a combined cache lookup');
+		}();
+		const service = new class extends mock<IGitHubService>() {
+			override readonly enterpriseHost = undefined;
+			override createPullRequestModelReference = () => new ImmortalReference(new class extends mock<GitHubPullRequestModel>() {
+				override readonly pullRequest = constObservable(undefined);
+			}());
+		}();
+		const ref = { owner: 'owner', repo: 'repo', number: 42, uri: URI.parse('https://github.com/owner/repo/pull/42') };
+		const result = derived(reader => computePullRequestRefPresentation(reader, service, cache, ref)).get();
+		assert.deepStrictEqual({ result, calls }, {
+			result: { icon, title: undefined, liveState: GitHubPullRequestState.Open }, calls: [ref.uri.toString()],
+		});
+	});
+
+	test('restores an observed merge before the live model resolves after restart', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const ref = {
+			owner: 'owner', repo: 'repo', number: 42, title: 'Merged pull request',
+			uri: URI.parse('https://github.com/owner/repo/pull/42'), icon: Codicon.gitPullRequest,
+		};
+		new PullRequestIconCache(storage).set(ref.uri.toString(), computePullRequestIcon(GitHubPullRequestState.Merged));
+		const service = new class extends mock<IGitHubService>() {
+			override readonly enterpriseHost = undefined;
+			override createPullRequestModelReference = () => new ImmortalReference(new class extends mock<GitHubPullRequestModel>() {
+				override readonly pullRequest = constObservable(undefined);
+			}());
+		}();
+
+		const result = derived(reader => computePullRequestRefPresentation(reader, service, new PullRequestIconCache(storage), ref)).get();
+
+		assert.deepStrictEqual(result, { icon: computePullRequestIcon(GitHubPullRequestState.Merged), title: ref.title, liveState: GitHubPullRequestState.Merged });
+	});
+
+	test('does not replace a host-observed merge with an older open cache entry', () => {
+		const cache = new PullRequestIconCache(store.add(new InMemoryStorageService()));
+		const ref = {
+			owner: 'owner', repo: 'repo', number: 42, title: 'Merged pull request',
+			uri: URI.parse('https://github.com/owner/repo/pull/42'), state: GitHubPullRequestState.Merged,
+		};
+		cache.setState(ref.uri.toString(), { state: GitHubPullRequestState.Open, isDraft: false });
+		const service = new class extends mock<IGitHubService>() {
+			override readonly enterpriseHost = undefined;
+			override createPullRequestModelReference = () => new ImmortalReference(new class extends mock<GitHubPullRequestModel>() {
+				override readonly pullRequest = constObservable(undefined);
+			}());
+		}();
+		const result = derived(reader => computePullRequestRefPresentation(reader, service, cache, ref)).get();
+		assert.deepStrictEqual(result, {
+			icon: computePullRequestIcon(GitHubPullRequestState.Merged), title: ref.title, liveState: GitHubPullRequestState.Merged,
+		});
+	});
 
 	test('presents a closed draft pull request as closed', () => {
 		const livePullRequest: IGitHubPullRequest = {

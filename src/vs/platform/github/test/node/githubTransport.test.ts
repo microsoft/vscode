@@ -937,6 +937,38 @@ suite('GitHubTransport', () => {
 		});
 	}
 
+	test('keeps response byte limits independent in concurrent and cached reads', async () => {
+		const response = new DeferredPromise<void>();
+		let calls = 0;
+		const transport = disposables.add(new GitHubTransport(async () => {
+			calls++;
+			await response.p;
+			return new Response('12345678', { headers: { etag: '"eight-bytes"' } });
+		}, undefined, false, undefined, { maximumResponseBytes: 8 }));
+		const request: GitHubRestTextRequest = { method: 'GET', url: 'https://github.example.test/repos/o/r', responseBody: 'text' };
+		const normal = transport.restText(accountA, 'token', request, signal());
+		const limited = assert.rejects(transport.restText(accountA, 'token', { ...request, maximumResponseBytes: 4 }, signal()), { kind: 'responseTooLarge' });
+		await response.complete();
+		const body = (await normal).data;
+		await limited;
+		await assert.rejects(transport.restText(accountA, 'token', { ...request, maximumResponseBytes: 4 }, signal()), { kind: 'responseTooLarge' });
+		assert.deepStrictEqual({ body, calls }, { body: '12345678', calls: 3 });
+	});
+
+	test('a per-request byte limit cannot raise the transport limit', async () => {
+		let calls = 0;
+		const transport = disposables.add(new GitHubTransport(async () => {
+			calls++;
+			return new Response('12345');
+		}, undefined, false, undefined, { maximumResponseBytes: 4 }));
+		const request: GitHubRestTextRequest = { method: 'GET', url: 'https://github.example.test/repos/o/r', responseBody: 'text' };
+		await assert.rejects(transport.restText(accountA, 'token', { ...request, maximumResponseBytes: 8 }, signal()), { kind: 'responseTooLarge' });
+		for (const maximumResponseBytes of [0, -1, Infinity, 1.5]) {
+			await assert.rejects(transport.restText(accountA, 'token', { ...request, maximumResponseBytes }, signal()), { kind: 'validation' });
+		}
+		assert.strictEqual(calls, 1);
+	});
+
 	for (const kind of ['responseTooLarge', 'malformedResponse'] as const) {
 		test(`does not reclassify or retry ${kind} body validation failures`, async () => {
 			let attempts = 0;

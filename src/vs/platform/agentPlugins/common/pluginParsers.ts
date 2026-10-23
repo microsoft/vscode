@@ -255,6 +255,14 @@ const PLUGIN_FORMAT_CONFIGS: Readonly<Record<PluginFormat, IPluginFormatConfig>>
 	[PluginFormat.AgentPlugin]: AGENT_PLUGIN_FORMAT,
 };
 
+export const PLUGIN_MANIFEST_PATHS: readonly string[] = Object.freeze([
+	...new Set([GITHUB_COPILOT_FORMAT, ...Object.values(PLUGIN_FORMAT_CONFIGS)].map(format => format.manifestPath)),
+].sort((first, second) => second.length - first.length));
+
+export function normalizePluginPath(path: string | undefined): string {
+	return path?.replace(/^\/+|\/+$/g, '') ?? '';
+}
+
 async function detectManifestPluginFormat(pluginUri: URI, fileService: IFileService): Promise<IPluginFormatConfig | undefined> {
 	if (await readAgentPluginManifest(pluginUri, fileService)) {
 		return AGENT_PLUGIN_FORMAT;

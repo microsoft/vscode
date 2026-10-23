@@ -1,0 +1,210 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.artifact-integration-pill.artifact-pill-selected .monaco-button.chat-pill-button {
+	border-color: var(--vscode-focusBorder);
+}
+
+.artifact-details-context-view {
+	box-sizing: border-box;
+	border: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border);
+	border-radius: var(--vscode-cornerRadius-large);
+	background: var(--vscode-editorWidget-background);
+	color: var(--vscode-editorWidget-foreground);
+	box-shadow: var(--vscode-shadow-lg);
+	overflow: hidden;
+}
+
+.hc-black .artifact-details-context-view,
+.hc-light .artifact-details-context-view {
+	border-color: var(--vscode-contrastBorder);
+	box-shadow: none;
+}
+
+.artifact-integration-panel {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size120);
+	box-sizing: border-box;
+	font-size: var(--vscode-fontSize-body1);
+	overflow-wrap: anywhere;
+	min-width: 0;
+}
+
+.monaco-workbench .artifact-details-context-view > .artifact-integration-panel:focus {
+	outline: none;
+}
+
+.artifact-details-header {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size120);
+	flex-shrink: 0;
+}
+
+.artifact-details-title-icon {
+	display: flex;
+	flex-shrink: 0;
+	padding-top: var(--vscode-spacing-size20);
+}
+
+.artifact-details-title-icon .codicon {
+	font-size: var(--vscode-codiconFontSize);
+}
+
+.artifact-details-header .artifact-details-title {
+	margin: 0;
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	line-height: 1.5;
+	min-width: 0;
+	flex: 1;
+}
+
+.artifact-details-title-link {
+	color: inherit;
+	text-decoration: none;
+}
+
+.artifact-details-title-link:is(:hover, .hovered, :focus-visible) {
+	color: var(--vscode-textLink-activeForeground);
+}
+
+.artifact-header-actions {
+	flex-shrink: 0;
+	max-width: 50%;
+	justify-content: flex-end;
+}
+
+.artifact-details-scrollable {
+	min-height: 0;
+	flex: 1 1 auto;
+}
+
+.artifact-details-body {
+	overflow: hidden;
+	min-width: 0;
+}
+
+.artifact-details-description-content {
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.5;
+	white-space: normal;
+	overflow: clip;
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 3;
+}
+
+.artifact-details-availability {
+	white-space: pre-wrap;
+	color: var(--vscode-descriptionForeground);
+	margin: 0;
+}
+
+.artifact-details-lower-scrollable {
+	min-height: 0;
+	flex-shrink: 0;
+}
+
+.artifact-details-lower-content {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size120);
+	overflow: hidden;
+}
+
+.artifact-controls {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size40);
+	min-width: 0;
+}
+
+.artifact-general-actions {
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+	padding-top: var(--vscode-spacing-size60);
+	flex-shrink: 0;
+}
+
+.artifact-button-label {
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	min-width: 0;
+}
+
+.artifact-integration-panel .artifact-controls .monaco-button {
+	width: auto;
+	max-width: 100%;
+	gap: var(--vscode-spacing-size40);
+}
+
+.artifact-integration-panel .artifact-general-actions .monaco-button {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.artifact-details-title-link:focus-visible,
+.artifact-integration-panel .artifact-controls .monaco-button:focus-visible,
+.artifact-card-disclosure:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.artifact-details-card {
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, var(--vscode-dropdown-border, var(--vscode-widget-border)));
+	border-radius: var(--vscode-cornerRadius-medium);
+	background: var(--vscode-dropdown-background, var(--vscode-editorWidget-background));
+	color: var(--vscode-dropdown-foreground, var(--vscode-editorWidget-foreground));
+	min-width: 0;
+	flex-shrink: 0;
+}
+
+.artifact-card-heading {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
+	min-width: 0;
+}
+
+.artifact-card-title {
+	margin: 0;
+	min-width: 0;
+}
+
+.artifact-card-summary {
+	margin-left: auto;
+	font-size: var(--vscode-fontSize-body2);
+	color: var(--vscode-descriptionForeground);
+}
+
+.artifact-card-title .artifact-card-disclosure {
+	width: auto;
+	min-width: 0;
+	max-width: 100%;
+	padding: 0;
+	gap: var(--vscode-spacing-size40);
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.artifact-card-disclosure .monaco-button-mdlabel {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	min-width: 0;
+}
+
+.artifact-card-content {
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, var(--vscode-dropdown-border, var(--vscode-widget-border)));
+}
+
+.artifact-integration-panel [hidden] {
+	display: none;
+}

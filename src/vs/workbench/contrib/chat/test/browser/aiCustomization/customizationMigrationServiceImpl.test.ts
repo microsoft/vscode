@@ -737,6 +737,77 @@ suite('CustomizationMigrationService', () => {
 		});
 	});
 
+	test('excludes ignored migration groups from hints', async () => {
+		const promptsService = store.add(new TestPromptsService([
+			{
+				uri: URI.file('/workspace/.github/prompts/workspace.prompt.md'),
+				storage: PromptsStorage.local,
+				type: PromptsType.prompt,
+				source: PromptFileSource.GitHubWorkspace,
+			},
+			{
+				uri: URI.file('/user-data/prompts/user.prompt.md'),
+				storage: PromptsStorage.user,
+				type: PromptsType.prompt,
+				source: PromptFileSource.UserData,
+			},
+		]));
+		const harnessService = new TestCustomizationHarnessService();
+		const agents = new TestMigrationChatAgentService();
+		agents.agents = [new class extends mock<IChatAgentData>() {
+			override readonly id = 'review';
+			override readonly name = 'review';
+			override readonly extensionId = new ExtensionIdentifier('example.review');
+		}()];
+		const tools = new TestMigrationToolsService();
+		tools.toolSets.set([{
+			id: 'review-tools',
+			referenceName: 'review-tools',
+			source: { type: 'user', label: 'review.toolsets.jsonc', file: URI.file('/profile/prompts/review.toolsets.jsonc') },
+			icon: Codicon.tools,
+			getTools: () => [],
+		}], undefined);
+		const service = store.add(new class extends BaseCustomizationMigrationService {
+			protected override generateMigrationFlowId(): string {
+				return 'test-migration-flow-id';
+			}
+		}(
+			promptsService,
+			harnessService,
+			store.add(createMigrationConfiguration()),
+			new TestMcpService(),
+			agents,
+			tools,
+			migrationProductService,
+		));
+		const sessionResource = harnessService.activeSessionResource.get();
+		const guidanceIgnored = [
+			{ type: CustomizationMigrationType.ToolSets, storage: PromptsStorage.user },
+			{ type: CustomizationMigrationType.ChatParticipants, storage: PromptsStorage.extension },
+		];
+		const workspaceIgnored = await service.computeMigrationHint(sessionResource, undefined, [
+			{ type: CustomizationMigrationType.PromptFiles, storage: PromptsStorage.local },
+			...guidanceIgnored,
+		]);
+		const allIgnored = await service.computeMigrationHint(sessionResource, undefined, [
+			{ type: CustomizationMigrationType.PromptFiles, storage: PromptsStorage.local },
+			{ type: CustomizationMigrationType.PromptFiles, storage: PromptsStorage.user },
+			...guidanceIgnored,
+		]);
+
+		assert.deepStrictEqual({
+			workspaceIgnored,
+			allIgnored,
+		}, {
+			workspaceIgnored: {
+				migrationFlowId: 'test-migration-flow-id',
+				message: '1 user customization needs an update to keep working.',
+				counts: [{ type: CustomizationMigrationType.PromptFiles, count: 1 }],
+			},
+			allIgnored: undefined,
+		});
+	});
+
 	test('computes file and MCP migration candidates for Agent Host sessions', async () => {
 		const root = URI.file('/workspace');
 		const promptsService = store.add(new TestPromptsService([

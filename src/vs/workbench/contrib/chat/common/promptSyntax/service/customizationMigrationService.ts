@@ -335,6 +335,11 @@ export interface ICustomizationMigrationCount {
 	readonly count: number;
 }
 
+export interface ICustomizationMigrationIgnoredGroup {
+	readonly type: CustomizationMigrationType;
+	readonly storage: PromptsStorage;
+}
+
 export interface ICustomizationMigrationService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChangeCustomizations: Event<void>;
@@ -347,5 +352,5 @@ export interface ICustomizationMigrationService {
 	migrateMcpServers(sessionResource: URI, candidates: readonly IMcpServerCustomizationMigrationCandidate[]): Promise<IMcpServerCustomizationMigrationResult>;
 	migratePluginMarketplaces(sessionResource: URI, candidates: readonly IPluginMarketplaceCustomizationMigrationCandidate[]): Promise<IPluginMarketplaceCustomizationMigrationResult>;
 	computeMigrations(sessionResource: URI, token?: CancellationToken): Promise<CustomizationMigration[]>;
-	computeMigrationHint(sessionResource: URI, token?: CancellationToken): Promise<ICustomizationMigrationHint | undefined>;
+	computeMigrationHint(sessionResource: URI, token?: CancellationToken, ignoredGroups?: readonly ICustomizationMigrationIgnoredGroup[]): Promise<ICustomizationMigrationHint | undefined>;
 }

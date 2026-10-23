@@ -142,7 +142,7 @@ suite('GitHub anonymous IPC clients', () => {
 		const acquisition = new AbortController();
 		const client = store.add(await remote.acquireAnonymousClient(acquisition.signal));
 		acquisition.abort();
-		const content = await client.content.resolveRef('o', 'r', 'main', signal());
+		const content = await client.content.resolveRef({ owner: 'o', repo: 'r' }, 'main', signal());
 		const result = await client.gist.get('gist-id', signal());
 		const search = await client.search.issues('repo:o/r', signal());
 		assert.deepStrictEqual({
@@ -235,8 +235,8 @@ suite('GitHub anonymous IPC clients', () => {
 			return new Response(requests.length === 1 ? expectedSha : 'content');
 		});
 		const client = store.add(await connect().remote.acquireAnonymousClient(signal()));
-		const sha = await client.content.resolveRef('o', 'r', 'main', signal());
-		const content = await client.content.getRawFile('o', 'r', sha, 'file.txt', signal());
+		const sha = await client.content.resolveRef({ owner: 'o', repo: 'r' }, 'main', signal());
+		const content = await client.content.getRawFile({ owner: 'o', repo: 'r' }, sha, 'file.txt', signal());
 		assert.deepStrictEqual({ sha, content, requests }, {
 			sha: expectedSha, content: 'content',
 			requests: ['https://api.github.com/repos/o/r/commits/main', `https://raw.githubusercontent.com/o/r/${expectedSha}/file.txt`],
@@ -251,8 +251,8 @@ suite('GitHub anonymous IPC clients', () => {
 			return new Response(requests.length === 1 ? commitSha : content);
 		});
 		const client = store.add(await connect().remote.acquireAnonymousClient(signal()));
-		const sha = await client.content.resolveRef('o', 'r', 'main', signal());
-		const result = await client.content.getRawFile('o', 'r', sha, 'folder/file %.json', signal());
+		const sha = await client.content.resolveRef({ owner: 'o', repo: 'r' }, 'main', signal());
+		const result = await client.content.getRawFile({ owner: 'o', repo: 'r' }, sha, 'folder/file %.json', signal());
 		assert.deepStrictEqual({
 			sha, result, urls: requests.map(request => request.url),
 			credentials: requests.map(request => request.credentials),
@@ -270,7 +270,7 @@ suite('GitHub anonymous IPC clients', () => {
 			const content = '\u00e9'.repeat(size / 2);
 			const { connect } = setup(async () => new Response(content));
 			const client = store.add(await connect().remote.acquireAnonymousClient(signal()));
-			assert.strictEqual(await client.content.getRawFile('o', 'r', commitSha, 'file', signal()), content);
+			assert.strictEqual(await client.content.getRawFile({ owner: 'o', repo: 'r' }, commitSha, 'file', signal()), content);
 		});
 	}
 
@@ -281,7 +281,7 @@ suite('GitHub anonymous IPC clients', () => {
 			cancel: () => { void cancelled.complete(); },
 		})));
 		const client = store.add(await connect().remote.acquireAnonymousClient(signal()));
-		await assert.rejects(client.content.getRawFile('o', 'r', commitSha, 'file', signal()), { kind: 'responseTooLarge' });
+		await assert.rejects(client.content.getRawFile({ owner: 'o', repo: 'r' }, commitSha, 'file', signal()), { kind: 'responseTooLarge' });
 		await cancelled.p;
 	});
 
@@ -289,7 +289,7 @@ suite('GitHub anonymous IPC clients', () => {
 		test(`preserves raw HTTP status ${status} across IPC`, async () => {
 			const { connect } = setup(async () => new Response('raw body', { status }));
 			const client = store.add(await connect().remote.acquireAnonymousClient(signal()));
-			await assert.rejects(client.content.getRawFile('o', 'r', commitSha, 'file', signal()), {
+			await assert.rejects(client.content.getRawFile({ owner: 'o', repo: 'r' }, commitSha, 'file', signal()), {
 				kind: status === 202 ? 'malformedResponse' : 'notFound', statusCode: status,
 			});
 		});
@@ -325,6 +325,42 @@ suite('GitHub anonymous IPC clients', () => {
 		}, { calls: 0, errors: cases.map(entry => entry.kind) });
 	});
 
+	test('extra raw wire options cannot override the URL, response limit, or timeout', async () => {
+		const requests: string[] = [];
+		let oversized = false;
+		const { connect } = setup(async input => {
+			requests.push(String(input));
+			return new Response(oversized ? 'x'.repeat(1024 * 1024 + 1) : 'contents');
+		});
+		const { connection } = connect();
+		await acquireProvider(connection);
+		const path = `/o/r/${commitSha}/file`;
+		const options = {
+			caller: 'test.raw',
+			url: `https://raw.githubusercontent.com/o/r/${commitSha}/other`,
+			maximumBytes: 2 * 1024 * 1024,
+			timeout: 0,
+		};
+		const request: ApiRequest = { method: 'GET', path, expectedStatus: 200, responseBody: 'text', options };
+		const read = () => connection.channel.call<ApiResponseMessage>('request', [
+			{ clientId: 'client', target: 'rawContent', request }, undefined,
+		]);
+		const contents = await read();
+		oversized = true;
+		const [failure] = await read();
+		assert.deepStrictEqual({
+			status: contents[0].type,
+			contents: contents[1],
+			error: failure.type === 'error' && failure.error.type === 'request' ? failure.error.kind : undefined,
+			requests,
+		}, {
+			status: 'success',
+			contents: 'contents',
+			error: 'responseTooLarge',
+			requests: [`https://raw.githubusercontent.com${path}`, `https://raw.githubusercontent.com${path}`],
+		});
+	});
+
 	for (const location of [`https://elsewhere.example/o/r/${commitSha}/file`, `/o/r/${'b'.repeat(40)}/file`]) {
 		test(`rejects a raw redirect outside the pinned origin and revision: ${location}`, async () => {
 			let calls = 0;
@@ -333,7 +369,7 @@ suite('GitHub anonymous IPC clients', () => {
 				return new Response(null, { status: 302, headers: { location } });
 			});
 			const client = store.add(await connect().remote.acquireAnonymousClient(signal()));
-			await assert.rejects(client.content.getRawFile('o', 'r', commitSha, 'file', signal()), { kind: 'authorization', statusCode: 302 });
+			await assert.rejects(client.content.getRawFile({ owner: 'o', repo: 'r' }, commitSha, 'file', signal()), { kind: 'authorization', statusCode: 302 });
 			assert.strictEqual(calls, 1);
 		});
 	}
@@ -560,7 +596,7 @@ suite('GitHub anonymous IPC clients', () => {
 			const client = await remote.acquireAnonymousClient(signal());
 			client.dispose();
 			client.dispose();
-			await assert.rejects(client.content.resolveRef('o', 'r', 'main', signal()), isCancellationError);
+			await assert.rejects(client.content.resolveRef({ owner: 'o', repo: 'r' }, 'main', signal()), isCancellationError);
 		}
 		await connection.flush();
 		assert.deepStrictEqual({ calls, acquisitions: service.acquisitions, releases: service.releases }, {
@@ -581,8 +617,8 @@ suite('GitHub anonymous IPC clients', () => {
 				const { remote, connection } = connect();
 				const client = store.add(await remote.acquireAnonymousClient(signal()));
 				const pending = target === 'rest'
-					? client.content.resolveRef('o', 'r', 'main', signal())
-					: client.content.getRawFile('o', 'r', commitSha, 'file', signal());
+					? client.content.resolveRef({ owner: 'o', repo: 'r' }, 'main', signal())
+					: client.content.getRawFile({ owner: 'o', repo: 'r' }, commitSha, 'file', signal());
 				const rejected = assert.rejects(pending, isCancellationError);
 				const fetchSignal = await started.p;
 				if (release === 'dispose') {
@@ -615,14 +651,14 @@ suite('GitHub anonymous IPC clients', () => {
 		const { remote, connection } = connect();
 		const client = store.add(await remote.acquireAnonymousClient(signal()));
 		const controller = new AbortController();
-		const pending = client.content.resolveRef('o', 'r', 'main', controller.signal);
+		const pending = client.content.resolveRef({ owner: 'o', repo: 'r' }, 'main', controller.signal);
 		const rejected = assert.rejects(pending, isCancellationError);
 		const fetchSignal = await started.p;
 		controller.abort(new CancellationError());
 		await rejected;
 		await connection.flush();
 		await response.complete(new Response('cancelled'));
-		const next = await client.content.resolveRef('o', 'r', 'next', signal());
+		const next = await client.content.resolveRef({ owner: 'o', repo: 'r' }, 'next', signal());
 		assert.deepStrictEqual({ next, aborted: fetchSignal.aborted, releases: service.releases }, { next: commitSha, aborted: true, releases: 0 });
 	});
 
@@ -640,9 +676,9 @@ suite('GitHub anonymous IPC clients', () => {
 		const second = connect('window:2');
 		const firstClient = store.add(await first.remote.acquireAnonymousClient(signal()));
 		const secondClient = store.add(await second.remote.acquireAnonymousClient(signal()));
-		const pending = firstClient.content.resolveRef('o', 'r', 'main', signal());
+		const pending = firstClient.content.resolveRef({ owner: 'o', repo: 'r' }, 'main', signal());
 		const rejected = assert.rejects(pending, isCancellationError);
-		const remaining = secondClient.content.resolveRef('o', 'r', 'main', signal());
+		const remaining = secondClient.content.resolveRef({ owner: 'o', repo: 'r' }, 'main', signal());
 		const fetchSignal = await started.p;
 		await second.connection.flush();
 		firstClient.dispose();
@@ -748,12 +784,12 @@ suite('GitHub authenticated IPC clients', () => {
 			});
 			const { remote } = connect();
 			const client = store.add(await remote.acquireClient(authorization, signal()));
-			const repository = { owner: 'o', name: 'r' };
+			const repository = { owner: 'o', repo: 'r' };
 			for (const operation of [
 				() => client.pullRequests.listForCommit(repository, 'head', signal()),
 				() => client.repositories.getCommit(repository, 'head', signal()),
 				() => client.checks.listRuns(repository, 'head', signal()),
-				() => client.content.resolveRef('o', 'r', 'head', signal()),
+				() => client.content.resolveRef(repository, 'head', signal()),
 			]) {
 				await assert.rejects(operation(), error => {
 					assert.ok(error instanceof GitHubRequestError);
@@ -862,7 +898,7 @@ suite('GitHub authenticated IPC clients', () => {
 		await client.notifications.list(signal(), { priority: 'background' });
 		await client.reviews.listThreadSummaries('PR_1', signal(), { priority: 'visible' });
 		await client.tasks.list(signal(), { priority: 'enrichment' });
-		await client.content.getRawFile('o', 'r', 'a'.repeat(40), 'README.md', signal(), { priority: 'mergeGate' });
+		await client.content.getRawFile({ owner: 'o', repo: 'r' }, 'a'.repeat(40), 'README.md', signal(), { priority: 'mergeGate' });
 		await client.tasks.list(signal());
 		await client.notifications.markRead('42', signal());
 		const released = Event.toPromise(service.onDidReleaseClient.event);
@@ -905,7 +941,7 @@ suite('GitHub authenticated IPC clients', () => {
 			const client = store.add(await (authenticated ? remote.acquireClient(authorization, signal()) : remote.acquireAnonymousClient(signal())));
 			const nodes: string[] = [];
 			for (const noCache of [true, undefined, false, true, undefined]) {
-				nodes.push((await client.content.getBlob('o', 'r', sha, signal(), { noCache })).node_id);
+				nodes.push((await client.content.getBlob({ owner: 'o', repo: 'r' }, sha, signal(), { noCache })).node_id);
 			}
 			assert.deepStrictEqual({ nodes, validators }, {
 				nodes: ['blob-1', 'blob-2', 'blob-2', 'blob-3', 'blob-2'], validators: [null, null, '"2"', null, '"2"'],
@@ -1129,7 +1165,7 @@ suite('GitHub authenticated IPC clients', () => {
 		const abortedForUnrelatedSession = fetchSignal.aborted;
 		first.broker.grants.fire(grantChange);
 		await rejected;
-		await assert.rejects(one.content.getRawFile('o', 'r', 'a'.repeat(40), 'file', signal()), { kind: 'authentication' });
+		await assert.rejects(one.content.getRawFile({ owner: 'o', repo: 'r' }, 'a'.repeat(40), 'file', signal()), { kind: 'authentication' });
 		await response.complete(Response.json([]));
 		assert.deepStrictEqual({ abortedForUnrelatedSession, aborted: fetchSignal.aborted, other: await two.notifications.list(signal()) }, {
 			abortedForUnrelatedSession: false, aborted: true, other: [],
@@ -1180,7 +1216,7 @@ suite('GitHub authenticated IPC clients', () => {
 			const { connect } = setup(async input => new URL(String(input)).pathname === '/user'
 				? Response.json({ id: 101 }) : Response.json(reaction, { status }));
 			const client = store.add(await connect().remote.acquireClient(authorization, signal()));
-			assert.deepStrictEqual(await client.issues.createReaction({ owner: 'o', name: 'r' }, { kind: 'issue', number: 1 }, '+1', signal()), reaction);
+			assert.deepStrictEqual(await client.issues.createReaction({ owner: 'o', repo: 'r' }, { kind: 'issue', number: 1 }, '+1', signal()), reaction);
 		});
 	}
 
@@ -1195,9 +1231,9 @@ suite('GitHub authenticated IPC clients', () => {
 		});
 		const { remote, broker } = connect();
 		const client = store.add(await remote.acquireClient(authorization, signal()));
-		const file = await client.content.getRawFile('o', 'r', 'a'.repeat(40), 'file', signal());
+		const file = await client.content.getRawFile({ owner: 'o', repo: 'r' }, 'a'.repeat(40), 'file', signal());
 		const rawTokenRequests = broker.tokenRequests.length;
-		const redirect = await client.actions.getJobLogRedirect({ owner: 'o', name: 'r' }, 42, signal());
+		const redirect = await client.actions.getJobLogRedirect({ owner: 'o', repo: 'r' }, 42, signal());
 		assert.deepStrictEqual({ file, rawTokenRequests, redirect, requests }, {
 			file: 'file', rawTokenRequests: 0, redirect: { url: 'https://objects.example.test/log?signature=opaque' },
 			requests: [
@@ -1577,7 +1613,7 @@ suite('GitHub authenticated IPC clients', () => {
 			return Response.json({ data: { repository: { pullRequests: queries.length === 1 ? firstPage : secondPage } } });
 		});
 		const client = store.add(await connect().remote.acquireClient(authorization, signal()));
-		const repository = { owner: 'o', name: 'r' };
+		const repository = { owner: 'o', repo: 'r' };
 		const first = await client.pullRequests.listConnection(repository, signal());
 		const second = await client.pullRequests.listConnection(repository, signal(), {
 			caller: 'test.pullRequests', deadline: Date.now() + 10_000,
@@ -1628,7 +1664,7 @@ suite('GitHub authenticated IPC clients', () => {
 			return Response.json({ data });
 		});
 		const client = store.add(await connect().remote.acquireClient(authorization, signal()));
-		const repository = { owner: 'o', name: 'r' };
+		const repository = { owner: 'o', repo: 'r' };
 		assert.deepStrictEqual([
 			await client.pullRequests.listConnection(repository, signal()),
 			await client.pullRequests.listConnection(repository, signal()),
@@ -1640,18 +1676,19 @@ suite('GitHub authenticated IPC clients', () => {
 
 	test('batches closing PR linkage counts and includes closed PRs', async () => {
 		const numbers = [...Array.from({ length: 50 }, (_, index) => index + 1), 2_147_483_647];
-		const batches: { numbers: number[]; variables: { owner: string; name: string }; selections: string[] }[] = [];
+		const batches: { numbers: number[]; variables: { owner: string; repo: string }; selections: string[] }[] = [];
 		const { connect } = setup(async (input, init) => {
 			if (new URL(String(input)).pathname === '/user') {
 				return Response.json({ id: 101 });
 			}
 			const { query, variables } = parseGraphQLRequest(JSON.parse(String(init?.body)));
 			assert.ok(variables);
+			assert.match(query, /query IssueClosingPullRequestCounts\(\$owner: String!, \$repo: String!\) \{\s*repository\(owner: \$owner, name: \$repo\)/);
 			const selections = [...query.matchAll(/issue(?<number>\d+): issue\(number: \d+\) \{\s*closedByPullRequestsReferences\(first: 1, includeClosedPrs: true\) \{ totalCount \}\s*\}/g)];
 			const numbers = selections.map(match => Number(match.groups!.number));
 			batches.push({
 				numbers,
-				variables: parse.object({ owner: parse.string, name: parse.string })(variables),
+				variables: parse.object({ owner: parse.string, repo: parse.string })(variables),
 				selections: selections.map(match => match[0].replace(/\s+/g, ' ')),
 			});
 			return Response.json({
@@ -1663,12 +1700,12 @@ suite('GitHub authenticated IPC clients', () => {
 			});
 		});
 		const client = store.add(await connect().remote.acquireClient(authorization, signal()));
-		const counts = await client.issues.getClosingPullRequestCounts({ owner: 'o', name: 'r' }, [...numbers, 1], signal());
+		const counts = await client.issues.getClosingPullRequestCounts({ owner: 'o', repo: 'r' }, [...numbers, 1], signal());
 		assert.deepStrictEqual({ counts, batches }, {
 			counts: Object.fromEntries(numbers.map(number => [number, number === 3 || number === 4 ? null : number % 3])),
 			batches: [numbers.slice(0, 50), numbers.slice(50)].map(numbers => ({
 				numbers,
-				variables: { owner: 'o', name: 'r' },
+				variables: { owner: 'o', repo: 'r' },
 				selections: numbers.map(number => `issue${number}: issue(number: ${number}) { closedByPullRequestsReferences(first: 1, includeClosedPrs: true) { totalCount } }`),
 			})),
 		});
@@ -1677,7 +1714,7 @@ suite('GitHub authenticated IPC clients', () => {
 	test('skips empty closing PR linkage reads and validates all numbers before dispatch', async () => {
 		const { connect } = setup(async () => assert.fail('No fetch expected'));
 		const client = store.add(await connect().remote.acquireClient(authorization, signal()));
-		const repository = { owner: 'o', name: 'r' };
+		const repository = { owner: 'o', repo: 'r' };
 		assert.deepStrictEqual(await client.issues.getClosingPullRequestCounts(repository, [], signal()), {});
 		for (const invalid of [0, -1, 1.5, NaN, Infinity, 2_147_483_648]) {
 			await assert.rejects(client.issues.getClosingPullRequestCounts(repository, [
@@ -1708,7 +1745,7 @@ suite('GitHub authenticated IPC clients', () => {
 			return Response.json({ data });
 		});
 		const client = store.add(await connect().remote.acquireClient(authorization, signal()));
-		const repository = { owner: 'o', name: 'r' };
+		const repository = { owner: 'o', repo: 'r' };
 		assert.deepStrictEqual([
 			await client.issues.getClosingPullRequestCounts(repository, [1], signal()),
 			await client.issues.getClosingPullRequestCounts(repository, [1], signal()),
@@ -1737,7 +1774,7 @@ suite('GitHub authenticated IPC clients', () => {
 			});
 		});
 		const client = store.add(await connect().remote.acquireClient(authorization, signal()));
-		await assert.rejects(client.issues.getClosingPullRequestCounts({ owner: 'o', name: 'r' },
+		await assert.rejects(client.issues.getClosingPullRequestCounts({ owner: 'o', repo: 'r' },
 			Array.from({ length: 51 }, (_, index) => index + 1), signal()), { kind: 'authorization', graphQLErrors: errors });
 		assert.strictEqual(calls, 2);
 	});
@@ -1864,7 +1901,7 @@ suite('GitHub authenticated IPC clients', () => {
 	test('validates PR listing, search, and review summary page sizes and deadlines before dispatch', async () => {
 		const { connect } = setup(async () => assert.fail('No fetch expected'));
 		const client = store.add(await connect().remote.acquireClient(authorization, signal()));
-		const repository = { owner: 'o', name: 'r' };
+		const repository = { owner: 'o', repo: 'r' };
 		for (const first of [0, 101, 1.5]) {
 			await assert.rejects(client.pullRequests.listConnection(repository, signal(), { query: { first } }), { kind: 'validation' });
 			await assert.rejects(client.search.pullRequests('repo:o/r', signal(), { query: { first } }), { kind: 'validation' });
@@ -2242,10 +2279,14 @@ suite('GitHub authenticated IPC clients', () => {
 	}
 
 	suite('Mission Control', () => {
-		const repository = { owner: 'o', name: 'r' };
+		const repository = { owner: 'o', repo: 'r' };
 		const date = '2026-01-01T00:00:00Z';
 		const definition = { id: 'automation-1', name: 'Test', description: '', prompt: 'Do work', created_by: { id: 101 }, created_at: date, updated_at: date };
 		const task = { id: 'task-1', automation_id: definition.id, state: 'queued', created_at: date, remote_steerable: true };
+		const configuration = {
+			automations_enabled: true, can_manage_automations: false,
+			allow_read_access_triggers: false, require_trigger_scoped_writes: true,
+		};
 		const options = {
 			endpoint: { apiBaseUri: 'https://api.githubcopilot.com/agents', integrationId: 'test-integration' },
 		};
@@ -2259,11 +2300,37 @@ suite('GitHub authenticated IPC clients', () => {
 			return { ...server, ...peer, client };
 		}
 
+		test('task feed connections omit unused credentials after parsing the IPC response', async () => {
+			const feed = {
+				url: 'wss://relay.example.test/?access_token=feed-secret',
+				subprotocol: 'json.webpubsub.azure.v1', group: 'opaque-group',
+				expires_at: date, reconnect_after: date, frame_schema_version: 1,
+			};
+			const { connect } = setup(async input => {
+				const path = new URL(String(input)).pathname;
+				if (path === '/user') {
+					return Response.json({ id: 101 });
+				}
+				assert.strictEqual(path, '/cmc_internal/api/agents/feed/connect');
+				return Response.json({ ...feed, access_token: 'unused-secret', hub: 'unused-hub', wps_endpoint: 'wss://unused.example.test/' });
+			});
+			const { broker, remote } = connect();
+			broker.options = {
+				...broker.options,
+				missionControl: {
+					endpoint: { ...options.endpoint, feedApiBaseUri: 'https://api.github.com/cmc_internal/api/agents' },
+				},
+			};
+			const client = store.add(await remote.acquireClient(authorization, signal()));
+			assert.deepStrictEqual(await client.tasks.connectFeed(signal()), feed);
+		});
+
 		test('executes automation, task, and environment operations through the approved Mission Control IPC profile', async () => {
 			const paths: string[] = [];
 			const headers: { integration: string | null; apiVersion: string | null; credentials: RequestCredentials | undefined }[] = [];
 			const responses = [
 				Response.json({ automations: [definition], total_count: 1 }, { headers: { link: '<https://api.githubcopilot.com/agents/repos/o/r/automations/v2?page=2>; rel="next"', date: 'Thu, 01 Jan 2026 00:00:00 GMT' } }),
+				Response.json(configuration),
 				Response.json(definition), Response.json(definition, { status: 201 }), Response.json(definition),
 				new Response(null, { status: 204 }), Response.json({ automation_id: definition.id }, { status: 202 }),
 				Response.json({ tasks: [task] }), Response.json([]), Response.json([]),
@@ -2283,6 +2350,7 @@ suite('GitHub authenticated IPC clients', () => {
 				return response;
 			});
 			const page = await client.automations.list(repository, signal());
+			const repositoryConfiguration = await client.automations.getConfiguration(repository, signal());
 			await client.automations.get(repository, definition.id, signal());
 			await client.automations.create(repository, definition, signal());
 			await client.automations.update(repository, definition.id, { disabled: true }, signal());
@@ -2305,9 +2373,10 @@ suite('GitHub authenticated IPC clients', () => {
 			await client.environments.get('env', signal());
 			const waking = await client.environments.connect('env', signal());
 			await client.environments.reconnect('env', 'client', signal());
-			assert.deepStrictEqual({ paths, metadata: { nextLink: page.nextLink, serverDate: page.serverDate }, waking, headers, remaining: responses.length }, {
+			assert.deepStrictEqual({ paths, repositoryConfiguration, metadata: { nextLink: page.nextLink, serverDate: page.serverDate }, waking, headers, remaining: responses.length }, {
 				paths: [
-					'GET /agents/repos/o/r/automations/v2', 'GET /agents/repos/o/r/automations/automation-1', 'POST /agents/repos/o/r/automations',
+					'GET /agents/repos/o/r/automations/v2', 'GET /agents/repos/o/r/automations/configuration',
+					'GET /agents/repos/o/r/automations/automation-1', 'POST /agents/repos/o/r/automations',
 					'PATCH /agents/repos/o/r/automations/automation-1', 'DELETE /agents/repos/o/r/automations/automation-1', 'POST /agents/repos/o/r/automations/automation-1/tasks',
 					'GET /agents/automations/automation-1/tasks', 'GET /agents/automations/tools', 'GET /agents/automations/triggers',
 					'GET /agents/tasks', 'GET /agents/tasks/task-1', 'POST /agents/tasks', 'PATCH /agents/tasks/task-1',
@@ -2315,11 +2384,46 @@ suite('GitHub authenticated IPC clients', () => {
 					'GET /agents/tasks/task-1/events', 'GET /agents/tasks/task-1/events', 'GET /agents/environments', 'GET /agents/environments/env',
 					'GET /agents/environments/env/connect', 'GET /agents/environments/env/reconnect',
 				],
+				repositoryConfiguration: configuration,
 				metadata: { nextLink: 'https://api.githubcopilot.com/agents/repos/o/r/automations/v2?page=2', serverDate: 'Thu, 01 Jan 2026 00:00:00 GMT' },
 				waking: { status: 202, data: { environment_status: 'waking' }, retryAfterSeconds: 2 },
-				headers: Array.from({ length: 23 }, () => ({ integration: 'test-integration', apiVersion: null, credentials: 'omit' })),
+				headers: Array.from({ length: 24 }, () => ({ integration: 'test-integration', apiVersion: null, credentials: 'omit' })),
 				remaining: 0,
 			});
+		});
+
+		test('configuration reads stay uncached and preserve disabled flags through IPC', async () => {
+			const validators: (string | null)[] = [];
+			const disabled = {
+				automations_enabled: false, can_manage_automations: false,
+				allow_read_access_triggers: true, require_trigger_scoped_writes: false,
+			};
+			const { client } = await acquire(async (_input, init) => {
+				validators.push(new Headers(init?.headers).get('If-None-Match'));
+				return Response.json(validators.length === 1 ? configuration : disabled, { headers: { etag: '"configuration"', 'cache-control': 'private, no-store' } });
+			});
+			const values = [
+				await client.automations.getConfiguration(repository, signal()),
+				await client.automations.getConfiguration(repository, signal(), { noCache: false }),
+			];
+			assert.deepStrictEqual({ values, validators }, { values: [configuration, disabled], validators: [null, null] });
+		});
+
+		test('configuration parsing and service failures remain errors through IPC', async () => {
+			const responses = [
+				Response.json({ ...configuration, can_manage_automations: 'false' }),
+				Response.json(configuration, { status: 202 }),
+				Response.json({ message: 'Configuration unavailable', documentation_url: 'https://docs.github.com' }, { status: 503, headers: { 'Retry-After': '30' } }),
+			];
+			const { client } = await acquire(async () => {
+				const response = responses.shift();
+				assert.ok(response);
+				return response;
+			});
+			await assert.rejects(client.automations.getConfiguration(repository, signal()), SchemaError);
+			await assert.rejects(client.automations.getConfiguration(repository, signal()), { kind: 'malformedResponse', statusCode: 202 });
+			await assert.rejects(client.automations.getConfiguration(repository, signal()), error =>
+				error instanceof ApiRequestError && error.statusCode === 503 && error.outcome === undefined);
 		});
 
 		test('serializes mutation bodies once before IPC and parses responses at the caller', async () => {

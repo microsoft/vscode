@@ -112,12 +112,81 @@
 	font-size: 12px;
 }
 
-/* Card Grid — wraps into new rows */
+/* Ownership sections */
 .automations-cards-grid {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size120);
+}
+
+.automations-ownership-section {
+	min-width: 0;
+}
+
+.automations-ownership-summary {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	width: fit-content;
+	margin-bottom: var(--vscode-spacing-size80);
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	list-style: none;
+}
+
+.automations-ownership-summary::-webkit-details-marker {
+	display: none;
+}
+
+.automations-ownership-summary:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-strokeThickness);
+}
+
+.automations-ownership-chevron,
+.automations-ownership-info {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 auto;
+}
+
+.automations-ownership-chevron {
+	width: var(--vscode-codiconFontSize);
+	height: var(--vscode-codiconFontSize);
+	font-size: var(--vscode-codiconFontSize);
+	transform-origin: center;
+}
+
+.automations-ownership-section[open] .automations-ownership-chevron {
+	transform: rotate(90deg);
+}
+
+.automations-ownership-title {
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.automations-ownership-summary .codicon.automations-ownership-info {
+	width: var(--vscode-codiconFontSize-compact);
+	height: var(--vscode-codiconFontSize-compact);
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--vscode-descriptionForeground);
+	cursor: default;
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.automations-ownership-grid {
 	display: grid;
 	grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
-	grid-auto-rows: 1fr;
-	gap: 12px;
+	grid-auto-rows: auto;
+	gap: var(--vscode-spacing-size120);
+}
+
+.automations-ownership-empty {
+	box-sizing: border-box;
+	width: 100%;
 }
 
 /* Card Wrapper */

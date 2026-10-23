@@ -16,7 +16,7 @@ import { isAgentHostSessionResource } from '../../common/chatSessionsService.js'
 import { ICustomizationHarnessService, ICustomizationMarketplaceManagementProvider, ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
-import { CustomizationMigration, CustomizationMigrationType, FileCustomizationMigration, FileCustomizationMigrationType, getCustomizationMigrationTargetType, GuidanceCustomizationMigration, GuidanceCustomizationMigrationType, ICustomizationMigrationHint, ICustomizationMigrationService, IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationResult, IPluginMarketplaceCustomizationMigrationCandidate, IPluginMarketplaceCustomizationMigrationResult, isConfiguredLocationMigrationCandidate, isPromptFileMigrationCandidate, isUserDataMigrationCandidate, McpServerCustomizationMigration, McpServerCustomizationMigrationFailureReason, MigratableConfiguration, PluginMarketplaceCustomizationMigration, PluginMarketplaceCustomizationMigrationFailureReason } from '../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigration, CustomizationMigrationType, FileCustomizationMigration, FileCustomizationMigrationType, getCustomizationMigrationTargetType, GuidanceCustomizationMigration, GuidanceCustomizationMigrationType, ICustomizationMigrationHint, ICustomizationMigrationIgnoredGroup, ICustomizationMigrationService, IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationResult, IPluginMarketplaceCustomizationMigrationCandidate, IPluginMarketplaceCustomizationMigrationResult, isConfiguredLocationMigrationCandidate, isPromptFileMigrationCandidate, isUserDataMigrationCandidate, McpServerCustomizationMigration, McpServerCustomizationMigrationFailureReason, MigratableConfiguration, PluginMarketplaceCustomizationMigration, PluginMarketplaceCustomizationMigrationFailureReason } from '../../common/promptSyntax/service/customizationMigrationService.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { IMcpService } from '../../../mcp/common/mcpTypes.js';
@@ -226,7 +226,7 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 		return { migratedCount: copiedCount, failures };
 	}
 
-	async computeMigrationHint(sessionResource: URI, token = CancellationToken.None): Promise<ICustomizationMigrationHint | undefined> {
+	async computeMigrationHint(sessionResource: URI, token = CancellationToken.None, ignoredGroups: readonly ICustomizationMigrationIgnoredGroup[] = []): Promise<ICustomizationMigrationHint | undefined> {
 		const harness = this.customizationHarnessService.findHarnessById(getChatSessionType(sessionResource));
 		if (!harness) {
 			return undefined;
@@ -242,18 +242,27 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 			this.computeMigration(sessionResource, CustomizationMigrationType.ChatParticipants, token),
 			this.computeMigration(sessionResource, CustomizationMigrationType.ToolSets, token),
 		]);
-		const fileCandidates = [userDataMigration, promptFilesMigration, configuredLocationsMigration]
-			.filter(() => this.isMigrationEnabled())
-			.flatMap(migration => migration.candidates);
-		const migratableMcpServerCount = mcpServerMigration.candidates.length;
+		const isIgnored = (type: CustomizationMigrationType, storage: PromptsStorage) =>
+			ignoredGroups.some(group => group.type === type && group.storage === storage);
+		const userDataCandidates = userDataMigration.candidates.filter(candidate => !isIgnored(CustomizationMigrationType.UserData, candidate.storage));
+		const promptFileCandidates = promptFilesMigration.candidates.filter(candidate => !isIgnored(CustomizationMigrationType.PromptFiles, candidate.storage));
+		const configuredLocationCandidates = configuredLocationsMigration.candidates.filter(candidate => !isIgnored(CustomizationMigrationType.ConfiguredLocations, candidate.storage));
+		const mcpServerCandidates = mcpServerMigration.candidates.filter(candidate => !isIgnored(CustomizationMigrationType.McpServers, candidate.storage));
+		const pluginMarketplaceCandidates = pluginMarketplacesMigration.candidates.filter(candidate => !isIgnored(CustomizationMigrationType.PluginMarketplaces, candidate.storage));
+		const fileCandidates = this.isMigrationEnabled()
+			? [...userDataCandidates, ...promptFileCandidates, ...configuredLocationCandidates]
+			: [];
+		const migratableMcpServerCount = mcpServerCandidates.length;
 		const workspaceCount = fileCandidates.filter(candidate => candidate.storage === PromptsStorage.local).length
-			+ mcpServerMigration.candidates.filter(candidate => candidate.storage === PromptsStorage.local).length;
-		const userGuidanceCount = toolSetsMigration.items.filter(item => item.storage === PromptsStorage.user).length;
-		const extensionGuidanceCount = chatParticipantsMigration.items.length
-			+ toolSetsMigration.items.filter(item => item.storage === PromptsStorage.extension).length;
+			+ mcpServerCandidates.filter(candidate => candidate.storage === PromptsStorage.local).length;
+		const chatParticipantItems = chatParticipantsMigration.items.filter(item => !isIgnored(CustomizationMigrationType.ChatParticipants, item.storage));
+		const toolSetItems = toolSetsMigration.items.filter(item => !isIgnored(CustomizationMigrationType.ToolSets, item.storage));
+		const userGuidanceCount = toolSetItems.filter(item => item.storage === PromptsStorage.user).length;
+		const extensionGuidanceCount = chatParticipantItems.length
+			+ toolSetItems.filter(item => item.storage === PromptsStorage.extension).length;
 		const userCount = fileCandidates.filter(candidate => candidate.storage === PromptsStorage.user).length
-			+ mcpServerMigration.candidates.filter(candidate => candidate.storage === PromptsStorage.user).length
-			+ pluginMarketplacesMigration.candidates.length
+			+ mcpServerCandidates.filter(candidate => candidate.storage === PromptsStorage.user).length
+			+ pluginMarketplaceCandidates.length
 			+ userGuidanceCount;
 		const totalCount = workspaceCount + userCount + extensionGuidanceCount;
 		return totalCount > 0 ? {
@@ -262,13 +271,13 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 				? this.getGenericMigrationHintMessage(totalCount)
 				: this.getMigrationHintMessage(workspaceCount, userCount),
 			counts: [
-				{ type: CustomizationMigrationType.UserData, count: userDataMigration.files.length },
-				{ type: CustomizationMigrationType.PromptFiles, count: promptFilesMigration.files.length },
-				{ type: CustomizationMigrationType.ConfiguredLocations, count: configuredLocationsMigration.files.length },
+				{ type: CustomizationMigrationType.UserData, count: userDataCandidates.length },
+				{ type: CustomizationMigrationType.PromptFiles, count: promptFileCandidates.length },
+				{ type: CustomizationMigrationType.ConfiguredLocations, count: configuredLocationCandidates.length },
 				{ type: CustomizationMigrationType.McpServers, count: migratableMcpServerCount },
-				{ type: CustomizationMigrationType.PluginMarketplaces, count: pluginMarketplacesMigration.candidates.length },
-				{ type: CustomizationMigrationType.ChatParticipants, count: chatParticipantsMigration.items.length },
-				{ type: CustomizationMigrationType.ToolSets, count: toolSetsMigration.items.length },
+				{ type: CustomizationMigrationType.PluginMarketplaces, count: pluginMarketplaceCandidates.length },
+				{ type: CustomizationMigrationType.ChatParticipants, count: chatParticipantItems.length },
+				{ type: CustomizationMigrationType.ToolSets, count: toolSetItems.length },
 			].filter(({ count }) => count > 0),
 		} : undefined;
 	}
