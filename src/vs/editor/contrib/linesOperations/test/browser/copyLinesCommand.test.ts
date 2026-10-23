@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Selection } from '../../../../common/core/selection.js';
 import { CopyLinesCommand } from '../../browser/copyLinesCommand.js';
-import { DuplicateSelectionAction } from '../../browser/linesOperations.js';
+import { CopyLinesDownAction, CopyLinesUpAction, DuplicateSelectionAction } from '../../browser/linesOperations.js';
 import { withTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
 import { testCommand } from '../../../../test/browser/testCommand.js';
 
@@ -199,6 +199,83 @@ suite('Editor Contrib - Copy Lines Command', () => {
 			],
 			new Selection(2, 1, 1, 1)
 		);
+	});
+});
+
+suite('Editor Contrib - Copy Lines Actions', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('issue #309282: copy line down preserves three multi-cursors on the same line', function () {
+		withTestCodeEditor(['foo bar baz'], {}, (editor) => {
+			editor.setSelections([
+				new Selection(1, 5, 1, 5),
+				new Selection(1, 9, 1, 9),
+				new Selection(1, 12, 1, 12),
+			]);
+			const action = new CopyLinesDownAction();
+			action.run(null!, editor);
+			assert.deepStrictEqual(editor.getValue(), 'foo bar baz\nfoo bar baz');
+			assert.deepStrictEqual(editor.getSelections()!.map(s => s.toString()), [
+				new Selection(2, 5, 2, 5),
+				new Selection(2, 9, 2, 9),
+				new Selection(2, 12, 2, 12),
+			].map(s => s.toString()));
+		});
+	});
+
+	test('issue #309282: copy line up preserves three multi-cursors on the same line', function () {
+		withTestCodeEditor(['foo bar baz'], {}, (editor) => {
+			editor.setSelections([
+				new Selection(1, 5, 1, 5),
+				new Selection(1, 9, 1, 9),
+				new Selection(1, 12, 1, 12),
+			]);
+			const action = new CopyLinesUpAction();
+			action.run(null!, editor);
+			assert.deepStrictEqual(editor.getValue(), 'foo bar baz\nfoo bar baz');
+			assert.deepStrictEqual(editor.getSelections()!.map(s => s.toString()), [
+				new Selection(1, 5, 1, 5),
+				new Selection(1, 9, 1, 9),
+				new Selection(1, 12, 1, 12),
+			].map(s => s.toString()));
+		});
+	});
+
+	test('issue #309282: copy line down preserves four multi-cursors on the same line', function () {
+		withTestCodeEditor(['foo bar baz qux'], {}, (editor) => {
+			editor.setSelections([
+				new Selection(1, 5, 1, 5),
+				new Selection(1, 9, 1, 9),
+				new Selection(1, 13, 1, 13),
+				new Selection(1, 16, 1, 16),
+			]);
+			const action = new CopyLinesDownAction();
+			action.run(null!, editor);
+			assert.deepStrictEqual(editor.getValue(), 'foo bar baz qux\nfoo bar baz qux');
+			assert.deepStrictEqual(editor.getSelections()!.map(s => s.toString()), [
+				new Selection(2, 5, 2, 5),
+				new Selection(2, 9, 2, 9),
+				new Selection(2, 13, 2, 13),
+				new Selection(2, 16, 2, 16),
+			].map(s => s.toString()));
+		});
+	});
+
+	test('copy line down with two cursors on same line still works', function () {
+		withTestCodeEditor(['foo bar baz'], {}, (editor) => {
+			editor.setSelections([
+				new Selection(1, 5, 1, 5),
+				new Selection(1, 9, 1, 9),
+			]);
+			const action = new CopyLinesDownAction();
+			action.run(null!, editor);
+			assert.deepStrictEqual(editor.getValue(), 'foo bar baz\nfoo bar baz');
+			assert.deepStrictEqual(editor.getSelections()!.map(s => s.toString()), [
+				new Selection(2, 5, 2, 5),
+				new Selection(2, 9, 2, 9),
+			].map(s => s.toString()));
+		});
 	});
 });
 
