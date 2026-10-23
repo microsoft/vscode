@@ -21,9 +21,9 @@ suite('sessionActionTarget', () => {
 		return upcastPartial<IActiveSession>({ sessionId: name, resource: URI.parse(`test:///${name}`) });
 	}
 
-	function resolve(arg: unknown, active: IActiveSession | undefined) {
+	function resolve(arg: unknown, active: IActiveSession | undefined, visible: readonly (IActiveSession | undefined)[] = []) {
 		const instantiationService = store.add(new TestInstantiationService());
-		instantiationService.stub(ISessionsService, { activeSession: constObservable(active) });
+		instantiationService.stub(ISessionsService, { activeSession: constObservable(active), visibleSessions: constObservable(visible) });
 		return instantiationService.invokeFunction(accessor => resolveSessionActionTarget(accessor, arg));
 	}
 
@@ -43,9 +43,11 @@ suite('sessionActionTarget', () => {
 		assert.strictEqual(resolve({ session: undefined }, createSession('active')), undefined);
 	});
 
-	test('resolves the active session resource only', () => {
+	test('resolves the resource of the active or a visible session only', () => {
 		const active = createSession('active');
 		assert.strictEqual(resolve(active.resource, active), active);
-		assert.strictEqual(resolve(URI.parse('test:///other'), active), undefined);
+		const visible = createSession('visible');
+		assert.strictEqual(resolve(visible.resource, active, [undefined, visible]), visible);
+		assert.strictEqual(resolve(URI.parse('test:///other'), active, [visible]), undefined);
 	});
 });

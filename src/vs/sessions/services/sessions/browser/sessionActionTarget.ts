@@ -15,18 +15,28 @@ function isSession(value: unknown): value is IActiveSession {
 }
 
 /**
+ * Finds the session shown for `resource`: the active session first, then the
+ * other visible sessions. The one place to extend when more hosts show sessions.
+ */
+function findSessionByResource(sessionsService: ISessionsService, resource: URI): IActiveSession | undefined {
+	const key = resource.toString();
+	return [sessionsService.activeSession.get(), ...sessionsService.visibleSessions.get()].find(session => session?.resource.toString() === key);
+}
+
+/**
  * Resolves the session a session action operates on from the argument the
  * action was invoked with: a session, a `{ session }` context, or the resource
- * of the active session. Without an argument the action falls back to the
+ * of a visible session. Without an argument the action falls back to the
  * active session, which is what keybindings and the command palette provide.
  */
 export function resolveSessionActionTarget(accessor: ServicesAccessor, arg?: unknown): IActiveSession | undefined {
 	if (isSession(arg)) {
 		return arg;
 	}
-	const activeSession = accessor.get(ISessionsService).activeSession.get();
+	const sessionsService = accessor.get(ISessionsService);
+	const activeSession = sessionsService.activeSession.get();
 	if (arg instanceof URI) {
-		return activeSession?.resource.toString() === arg.toString() ? activeSession : undefined;
+		return findSessionByResource(sessionsService, arg);
 	}
 	if (arg && typeof arg === 'object' && hasKey(arg as { readonly session?: IActiveSession }, { session: true })) {
 		return (arg as { readonly session: IActiveSession | undefined }).session;
