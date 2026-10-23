@@ -875,7 +875,7 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 			DOM.clearNode(template.compactHoverDescription);
 			if (folderLabel) {
 				const badge = DOM.append(template.compactHoverDescription, $('span.session-badge', undefined, folderLabel));
-				reader.store.add(this.hoverService.setupDelayedHover(badge, { content: folderLabel }, { groupId: 'sessions-list' }));
+				reader.store.add(this.hoverService.setupDelayedHoverAtMouse(badge, { content: folderLabel }));
 			}
 
 			const showDetailsRow = !this.compact();
@@ -894,14 +894,14 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 				} else {
 					descriptionDisposable.value = this.markdownRendererService.render(statusMessage, { sanitizerConfig: { replaceWithPlaintext: true } }, statusElement);
 				}
-				reader.store.add(this.hoverService.setupDelayedHover(statusElement, { content: statusDescription }, { groupId: 'sessions-list' }));
+				reader.store.add(this.hoverService.setupDelayedHoverAtMouse(statusElement, { content: statusDescription }));
 			} else if (showDetailsRow && folderLabel && chatWorkspace) {
 				const kind = getSessionWorkspaceKind(chatWorkspace, false);
 				const icon = kind === SessionWorkspaceKind.Worktree ? Codicon.worktreeCompact : Codicon.folderCompact;
 				const iconContainer = DOM.append(template.folderRow, $('span.session-chat-folder-icon'));
 				DOM.append(iconContainer, $(`span${ThemeIcon.asCSSSelector(icon)}`));
 				const label = DOM.append(template.folderRow, $('span.session-chat-folder-label', undefined, folderLabel));
-				reader.store.add(this.hoverService.setupDelayedHover(label, { content: folderLabel }, { groupId: 'sessions-list' }));
+				reader.store.add(this.hoverService.setupDelayedHoverAtMouse(label, { content: folderLabel }));
 			}
 			const hasLeadingDetail = statusMessage !== undefined || !!folderLabel;
 			if (showDetailsRow && diffStats) {
@@ -1637,7 +1637,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore |
 		const pendingVoiceResource = element.resource;
 		template.pendingVoiceIndicator.className = 'session-pending-voice-indicator ' + ThemeIcon.asClassName(Codicon.unmute);
 		template.elementDisposables.add(this.hoverService.setupManagedHover(
-			getDefaultHoverDelegate('mouse'),
+			getDefaultHoverDelegate('element'),
 			template.pendingVoiceIndicator,
 			localize('pendingVoiceResponse', "Voice response ready"),
 		));
@@ -1803,7 +1803,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore |
 			);
 			template.externalApplicationBadgeLabel.textContent = badgeLabel;
 			if (showInTitle) {
-				reader.store.add(this.hoverService.setupDelayedHover(template.externalApplicationBadge, { content: badgeLabel }, { groupId: 'sessions-list' }));
+				reader.store.add(this.hoverService.setupDelayedHoverAtMouse(template.externalApplicationBadge, { content: badgeLabel }));
 			}
 		}));
 		template.elementDisposables.add(autorun(reader => {
@@ -1874,7 +1874,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore |
 					this.options.externalApplicationBadgeShowFrom?.read(reader) ?? true,
 				);
 				DOM.append(badgeEl, $('span.session-external-application-badge-label', undefined, badgeLabel));
-				reader.store.add(this.hoverService.setupDelayedHover(badgeEl, { content: badgeLabel }, { groupId: 'sessions-list' }));
+				reader.store.add(this.hoverService.setupDelayedHoverAtMouse(badgeEl, { content: badgeLabel }));
 				parts.push(badgeEl);
 			}
 
@@ -1986,8 +1986,8 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore |
 					contentStore.add(this.hoverService.setupDelayedHover(template.inputNeededLabel, {
 						content: message,
 						style: HoverStyle.Pointer,
-						position: { hoverPosition: HoverPosition.BELOW },
-					}));
+						position: { hoverPosition: HoverPosition.RIGHT },
+					}, { groupId: 'sessions-list' }));
 				}
 			}
 
@@ -2161,6 +2161,10 @@ export function getSessionArchiveOnboardingTargetId(session: ISession): string {
 
 export function getSessionOnboardingTargetId(session: ISession): string {
 	return `sessions.session.${session.sessionId}`;
+}
+
+function getWorkspaceSectionOnboardingTargetId(sectionId: string): string {
+	return `sessions.section.${sectionId}`;
 }
 
 /**
@@ -2562,6 +2566,9 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		} else {
 			renderSessionHeaderToolbar(template, element, this.select);
 		}
+		if (element.id.startsWith('workspace:')) {
+			template.elementDisposables.add(markOnboardingTarget(template.container, getWorkspaceSectionOnboardingTargetId(element.id)));
+		}
 		if (element.id === NEW_SESSION_SECTION_ID) {
 			template.container.classList.add('session-section-new-session');
 			template.elementDisposables.add(markOnboardingTarget(template.container, 'sessions.newSession.button', {
@@ -2600,6 +2607,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		this.updateChevron(template, collapsible, collapsed);
 
 		if (element.id === AUTOMATIONS_SECTION_ID) {
+			template.elementDisposables.add(markOnboardingTarget(template.container, 'sessions.automations.entry'));
 			DOM.clearNode(template.icon);
 			template.icon.style.display = '';
 			template.elementDisposables.add(autorun(reader => {
@@ -3408,6 +3416,8 @@ interface ISessionsListDndDelegate {
 	setDropTargetHeader(header: ISessionDropTargetHeader | undefined): void;
 	/** Where a dragged header lands when dropped on the target in the given quarter of its row, or `undefined` when it can't land there. */
 	getHeaderDrop(header: IDraggedHeader, target: SessionListItem, sector: ListViewTargetSector | undefined): SessionHeaderDrop | undefined;
+	/** How many rows the element renders: its own row and those of its visible descendants. */
+	getRenderedRowCount(element: SessionListItem): number;
 	/** Move a dragged header to where it lands. */
 	moveHeader(header: IDraggedHeader, drop: SessionHeaderDrop): void;
 	/** Steps the insertion line of a header drop in to the depth where the header lands, or resets it. */
@@ -3583,7 +3593,7 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 		const elements = this.draggedElements(data);
 		const header = this.draggedHeader(elements);
 		if (header) {
-			return this.resolveHeaderDrop(header, target, sector);
+			return this.resolveHeaderDrop(header, target, targetIndex, sector);
 		}
 		if (elements.length > 0 && elements.every(isSessionChatItem)) {
 			// Only the provider orders nested chats: a chat it can't move, or several chats, can't be dropped.
@@ -3613,21 +3623,26 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 	/**
 	 * A header lands next to another header, shown by an insertion line, or inside
 	 * a group, shown by highlighting the group's header (and its row, when it is
-	 * the hovered row).
+	 * the hovered row). A header landing after an expanded header lands below
+	 * that header's rows, so the line is drawn below them.
 	 */
-	private resolveHeaderDrop(header: IDraggedHeader, target: SessionListItem | undefined, sector: ListViewTargetSector | undefined): ISessionsListDropOperation | undefined {
+	private resolveHeaderDrop(header: IDraggedHeader, target: SessionListItem | undefined, targetIndex: number | undefined, sector: ListViewTargetSector | undefined): ISessionsListDropOperation | undefined {
 		const drop = target && this.delegate.getHeaderDrop(header, target, sector);
-		if (!drop) {
+		if (!target || !drop) {
 			return undefined;
 		}
 		const run = () => this.delegate.moveHeader(header, drop);
+		const insertionFeedback = (position: 'before' | 'after'): ISessionDropFeedback => ({
+			position: toEffectPosition(position),
+			index: position === 'after' && targetIndex !== undefined ? targetIndex + this.delegate.getRenderedRowCount(target) - 1 : undefined,
+		});
 		if (drop.kind === 'topLevel') {
-			return { reaction: toDropReaction({ position: toEffectPosition(drop.position) }), insertionDepth: 0, run };
+			return { reaction: toDropReaction(insertionFeedback(drop.position)), insertionDepth: 0, run };
 		}
 		if (drop.kind === 'subgroup') {
-			return { reaction: toDropReaction({ position: toEffectPosition(drop.placement.position) }), insertionDepth: drop.depth, run };
+			return { reaction: toDropReaction(insertionFeedback(drop.placement.position)), insertionDepth: drop.depth, run };
 		}
-		const isHeaderRow = !!target && isSessionGroupItem(target) && target.group.id === drop.groupId;
+		const isHeaderRow = isSessionGroupItem(target) && target.group.id === drop.groupId;
 		return {
 			reaction: toDropReaction(isHeaderRow ? { position: ListDragOverEffectPosition.Over } : undefined),
 			header: { kind: 'group', id: drop.groupId },
@@ -3822,6 +3837,17 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 
 function isDateSectionPlacement(placement: SessionListPlacement): boolean {
 	return placement.kind === 'section' && DATE_SECTION_IDS.includes(placement.sectionId);
+}
+
+/**
+ * Puts the date sections of a top-level order back in their fixed relative
+ * order, within the positions they hold. A reorder in another grouping mode
+ * carries them along with the headers they follow, which can swap them.
+ */
+function keepDateSectionOrder(order: readonly string[]): string[] {
+	const dateSectionIds = DATE_SECTION_IDS.filter(id => order.includes(id));
+	let next = 0;
+	return order.map(id => DATE_SECTION_IDS.includes(id) ? dateSectionIds[next++] : id);
 }
 
 function sectorToPosition(sector: ListViewTargetSector | undefined): 'before' | 'after' {
@@ -4555,6 +4581,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					isHeaderReorderable: element => this.isHeaderReorderable(element),
 					setDropTargetHeader: header => this.setDropTargetHeader(header),
 					getHeaderDrop: (header, target, sector) => this.getHeaderDrop(header, target, sector),
+					getRenderedRowCount: element => this.tree.hasElement(element) ? this.tree.getListRenderCount(element) : 1,
 					moveHeader: (header, drop) => this.moveHeader(header, drop),
 					getMovableDraggedChat: item => this.getMovableDraggedChat(item),
 					canMoveSessionUnder: session => this.isChatMoveDndEnabled() && this._sessionsManagementService.canMoveSessionUnder(session),
@@ -5157,7 +5184,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					?? comparison.participants.map(participant => this._sessionsProvidersService.getProvider(participant.harness.providerId)?.environment.id).find(isDefined)
 					: undefined;
 				const environment = environmentId ? environments.find(environment => environment.id === environmentId) ?? { id: environmentId, label: environmentId } : undefined;
-				if (grouping === SessionsGrouping.Environment && comparison.workspace && !environment) {
+				if (grouping === SessionsGrouping.Environment && !environment) {
 					continue;
 				}
 				const repository = grouping === SessionsGrouping.Repository && comparison.workspace
@@ -5167,7 +5194,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					? comparisonSessions.map(sessionWorkspaceLabel).find(label => label !== localize('unknown', "Unknown"))
 					?? this.labelService.getWorkspaceLabel(comparison.workspace)
 					: localize('chatsSection', "Chats");
-				const sectionId = !comparison.workspace ? QUICK_CHATS_SECTION_ID : environment ? `${ENVIRONMENT_SECTION_PREFIX}${environment.id}` : repository ? getRepositorySectionId(repository) : `workspace:${workspaceLabel}`;
+				const sectionId = environment ? `${ENVIRONMENT_SECTION_PREFIX}${environment.id}` : !comparison.workspace ? QUICK_CHATS_SECTION_ID : repository ? getRepositorySectionId(repository) : `workspace:${workspaceLabel}`;
 				this.comparisonSectionIds.set(group.id, sectionId);
 				let workspaceGroups = comparisonGroupsBySectionId.get(sectionId);
 				if (!workspaceGroups) {
@@ -5177,7 +5204,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				workspaceGroups.push(group);
 				let workspaceSection = sections.find(section => section.id === sectionId);
 				if (!workspaceSection) {
-					workspaceSection = environment && comparison.workspace
+					workspaceSection = environment
 						? { id: sectionId, label: environment.label, environment, sessions: [] }
 						: repository
 							? { id: sectionId, label: repository.name, repository, sessions: [] }
@@ -5268,8 +5295,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		// Keep the "Chats" section always visible (even with no quick chats) so its
 		// header — leading chat icon, label, and the "+" create action — is always
-		// reachable. Only when a provider can actually serve quick chats.
-		if (showEmptyDefaultGroups && this._someProviderSupportsQuickChats() && !sections.some(s => s.id === QUICK_CHATS_SECTION_ID)) {
+		// reachable. Only when the grouping lists quick chats there and a provider
+		// can actually serve quick chats.
+		if (showEmptyDefaultGroups && groupingHasQuickChatsSection(grouping) && this._someProviderSupportsQuickChats() && !sections.some(s => s.id === QUICK_CHATS_SECTION_ID)) {
 			sections.push({ id: QUICK_CHATS_SECTION_ID, label: localize('chatsSection', "Chats"), sessions: [] });
 		}
 
@@ -5379,8 +5407,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 				};
 			}
 
-			const isWorkspaceGroup = grouping !== SessionsGrouping.Date
-				&& isSessionGroupingSection(section.id);
+			// The "Chats" section is capped like a workspace section in every grouping mode.
+			const isWorkspaceGroup = section.id === QUICK_CHATS_SECTION_ID
+				|| (grouping !== SessionsGrouping.Date && isSessionGroupingSection(section.id));
 			const limitSessions = isWorkspaceGroup
 				&& !this.hasFindPattern
 				&& this.workspaceGroupCapped;
@@ -5506,10 +5535,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 
 		// Quick chats render as a single "Chats" entry directly below Pinned (above
-		// the workspace/repository/date groups) in every grouping mode.
+		// the workspace/repository groups) when the grouping lists them there.
 		const quickChatsSection = sections.find(s => s.id === QUICK_CHATS_SECTION_ID);
 		if (quickChatsSection) {
-			children.push(grouping !== SessionsGrouping.Date ? renderWorkspaceSection(quickChatsSection) : renderSection(quickChatsSection));
+			children.push(renderWorkspaceSection(quickChatsSection));
 		}
 
 		const renderGroupById = (groupId: string): void => {
@@ -5521,19 +5550,24 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		this.hiddenGroupingSections = [];
 		if (grouping === SessionsGrouping.Date) {
-			// Groups form a contiguous, fully user-ordered block right below the
-			// Pinned section. They no longer interleave with the date sections by
-			// recency and never mix into Today/Yesterday/etc. Pinned stays at the
-			// top, Done (archived) stays at the bottom.
-			this._topLevelOrder = topLevelGroupIds;
-			for (const group of topLevelGroups) {
-				renderGroupById(group.id);
-			}
-			for (const section of sections) {
-				if (section.id === 'pinned' || section.id === 'archived' || section.id === QUICK_CHATS_SECTION_ID || section.id === EXTERNAL_SESSIONS_SECTION_ID) {
-					continue;
+			// Groups and the date sections share one user-managed order right
+			// below Pinned and Chats. The date sections keep their fixed relative
+			// order and never drag; groups default above them and can move between
+			// and below them. Pinned stays at the top, Done (archived) at the bottom.
+			// Date sections stay in the order even while empty so that a group
+			// keeps its place relative to them when they come and go.
+			const resolvedIds = keepDateSectionOrder(this._sessionSectionOrderService.resolveOrder([...topLevelGroupIds, ...DATE_SECTION_IDS]));
+			this._topLevelOrder = resolvedIds;
+			for (const id of resolvedIds) {
+				const groupId = getSessionGroupIdOfSection(id);
+				if (groupId !== undefined) {
+					renderGroupById(groupId);
+				} else {
+					const section = sections.find(s => s.id === id);
+					if (section) {
+						children.push(renderSection(section));
+					}
 				}
-				children.push(renderSection(section));
 			}
 		} else {
 			// Groups and primary grouping sections share one freely-reorderable, user-managed order
@@ -5912,6 +5946,23 @@ export class SessionsList extends Disposable implements ISessionsList {
 		return this.revealOnboardingTarget(session, false);
 	}
 
+	/**
+	 * Keeps a session visible like {@link revealSessionForOnboarding}, and targets the header of the
+	 * workspace section that contains it. Targets the session row when it is not in a workspace section,
+	 * for example when the list is grouped by date.
+	 */
+	revealSessionWorkspaceForOnboarding(session: ISession): IDisposable & { readonly targetId: string } {
+		const reveal = this.revealOnboardingTarget(session, false);
+		const section = this.tree.hasElement(session) ? this.tree.getParentElement(session) : undefined;
+		if (!section || !isSessionSection(section) || !section.id.startsWith('workspace:')) {
+			return reveal;
+		}
+		if (this.tree.getRelativeTop(section) === null) {
+			this.tree.reveal(section);
+		}
+		return { targetId: getWorkspaceSectionOnboardingTargetId(section.id), dispose: () => reveal.dispose() };
+	}
+
 	private revealOnboardingTarget(session: ISession, archiveAction: boolean): IDisposable & { readonly targetId: string } {
 		this.customViewService.hideCustomView();
 		this.closeFind();
@@ -6125,10 +6176,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (this.groupExternalSessions && session.isExternal?.get()) {
 			return [EXTERNAL_SESSIONS_SECTION_ID];
 		}
-		if (isQuickChatSession(session)) {
+		const grouping = this.options.grouping();
+		if (groupingHasQuickChatsSection(grouping) && isQuickChatSession(session)) {
 			return [QUICK_CHATS_SECTION_ID];
 		}
-		const grouping = this.options.grouping();
 		if (grouping !== SessionsGrouping.Date) {
 			return [getSessionGroupingSectionId(session, grouping)];
 		}
@@ -6778,7 +6829,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 				: undefined;
 		}
 		if (isSessionSection(target)) {
-			if (!isSessionGroupingSection(target.id) || target.id === header.id) {
+			// Date sections keep their fixed order, but headers can move between and around them.
+			if (!(isSessionGroupingSection(target.id) || DATE_SECTION_IDS.includes(target.id)) || target.id === header.id) {
 				return undefined;
 			}
 			const parentId = this.getSectionParentId(target.id);
@@ -7170,7 +7222,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * list is not visible.
 	 */
 	private liveSectionOrderIds(): Set<string> {
-		const ids = new Set<string>();
+		// The date sections stay ordered while empty or in another grouping mode.
+		const ids = new Set<string>(DATE_SECTION_IDS);
 		for (const group of this._sessionGroupsService.getTree().getSubgroups(undefined)) {
 			ids.add(getSessionGroupSectionId(group.id));
 		}
@@ -8304,6 +8357,15 @@ export function isQuickChatSession(session: ISession): boolean {
 	return session.isQuickChat?.get() ?? false;
 }
 
+/**
+ * Whether the grouping lists quick chats in the dedicated "Chats" section. Only
+ * workspace and repository grouping do; other groupings list quick chats with
+ * the other sessions.
+ */
+function groupingHasQuickChatsSection(grouping: SessionsGrouping): boolean {
+	return grouping === SessionsGrouping.Workspace || grouping === SessionsGrouping.Repository;
+}
+
 /** Whether a session is associated with an automation run. */
 export function isAutomationSession(session: ISession): boolean {
 	return session.isAutomation?.get() ?? false;
@@ -8327,6 +8389,7 @@ export function groupSessionsForList(
 	const external: ISession[] = [];
 	const quickChats: ISession[] = [];
 	const regular: ISession[] = [];
+	const hasQuickChatsSection = groupingHasQuickChatsSection(grouping);
 	for (const session of sorted) {
 		if (session.isArchived.get()) {
 			archived.push(session);
@@ -8334,7 +8397,7 @@ export function groupSessionsForList(
 			pinned.push(session);
 		} else if (groupExternalSessions && session.isExternal?.get()) {
 			external.push(session);
-		} else if (isQuickChatSession(session)) {
+		} else if (hasQuickChatsSection && isQuickChatSession(session)) {
 			quickChats.push(session);
 		} else {
 			regular.push(session);
@@ -8347,7 +8410,7 @@ export function groupSessionsForList(
 	}
 
 	// Quick chats render as a single "Chats" entry directly below Pinned (above
-	// the workspace/date groups), regardless of grouping mode.
+	// the workspace/repository groups).
 	if (quickChats.length > 0) {
 		sections.push({ id: QUICK_CHATS_SECTION_ID, label: localize('chatsSection', "Chats"), sessions: quickChats });
 	}

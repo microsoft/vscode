@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from '../../../base/common/buffer.js';
 import { Event } from '../../../base/common/event.js';
 import { IProcessEnvironment, OperatingSystem } from '../../../base/common/platform.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
@@ -98,6 +99,7 @@ export const enum TerminalSettingId {
 	ShowExitAlert = 'terminal.integrated.showExitAlert',
 	SplitCwd = 'terminal.integrated.splitCwd',
 	WindowsUseConptyDll = 'terminal.integrated.windowsUseConptyDll',
+	WindowsReparentConsoleWindow = 'terminal.integrated.windowsReparentConsoleWindow',
 	WordSeparators = 'terminal.integrated.wordSeparators',
 	EnableFileLinks = 'terminal.integrated.enableFileLinks',
 	AllowedLinkSchemes = 'terminal.integrated.allowedLinkSchemes',
@@ -355,6 +357,10 @@ export interface IPtyService {
 	sendSignal(id: number, signal: string): Promise<void>;
 	resize(id: number, cols: number, rows: number, pixelWidth?: number, pixelHeight?: number): Promise<void>;
 	clearBuffer(id: number): Promise<void>;
+	/**
+	 * Sets the native handle (HWND) of the window hosting the terminal (Windows with conpty.dll only).
+	 */
+	setParentWindow(id: number, handle: VSBuffer): Promise<void>;
 	getInitialCwd(id: number): Promise<string>;
 	getCwd(id: number): Promise<string>;
 	acknowledgeDataEvent(id: number, charCount: number): Promise<void>;
@@ -840,6 +846,11 @@ export interface ITerminalChildProcess {
 	processBinary(data: string): Promise<void>;
 	resize(cols: number, rows: number, pixelWidth?: number, pixelHeight?: number): void;
 	clearBuffer(): void | Promise<void>;
+
+	/**
+	 * Sets the native handle (HWND) of the window hosting the terminal (Windows with conpty.dll only).
+	 */
+	setParentWindow?(handle: VSBuffer): void | Promise<void>;
 
 	/**
 	 * Acknowledge a data event has been parsed by the terminal, this is used to implement flow

@@ -7,6 +7,8 @@ import * as dom from '../../../../base/browser/dom.js';
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
+import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
@@ -19,6 +21,7 @@ import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ISessionWorkspaceBrowseAction } from '../../../services/sessions/common/session.js';
 import { INestedChatFolderInfo, INestedChatWorkspace, INestedChatWorkspaceSupport } from '../../../services/sessions/common/sessionsProvider.js';
@@ -167,6 +170,7 @@ export class NestedChatWorkspaceControls extends Disposable {
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILabelService private readonly _labelService: ILabelService,
+		@IHoverService private readonly _hoverService: IHoverService,
 	) {
 		super();
 		this._register(toDisposable(() => {
@@ -281,11 +285,13 @@ export class NestedChatWorkspaceControls extends Disposable {
 	 * Renders the folder picker into the options row of the composer, styled like the New Session
 	 * workspace picker.
 	 */
-	renderFolderPicker(row: HTMLElement): void {
+	renderFolderPicker(row: HTMLElement, hoverDelegate?: IHoverDelegate): void {
 		this._folderRenderStore.clear();
 		const slot = dom.append(row, dom.$('.sessions-chat-picker-slot.sessions-workspace-category-picker-slot.sessions-workspace-picker-trigger.nested-chat-folder-picker'));
 		this._folderRenderStore.add(toDisposable(() => slot.remove()));
 		const trigger = this._folderTrigger = dom.append(slot, dom.$('a.action-label.selected'));
+		let tooltip = '';
+		this._folderRenderStore.add(this._hoverService.setupManagedHover(hoverDelegate ?? this._folderRenderStore.add(createInstantHoverDelegate()), trigger, () => tooltip));
 		this._folderRenderStore.add(toDisposable(() => this._folderTrigger = undefined));
 		this._folderRenderStore.add(Gesture.addTarget(trigger));
 		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
@@ -331,7 +337,7 @@ export class NestedChatWorkspaceControls extends Disposable {
 				? localize('nestedChat.folder.sessionFolderMissing', "The session's folder {0} no longer exists.", this._labelService.getUriBasenameLabel(support.sessionFolder))
 				: undefined;
 			if (canOpen) {
-				trigger.title = missingNote ? localize('nestedChat.folder.titleWithNote', "{0}. {1}", label, missingNote) : label;
+				tooltip = missingNote ? localize('nestedChat.folder.titleWithNote', "{0}. {1}", label, missingNote) : label;
 				trigger.setAttribute('role', 'button');
 				trigger.setAttribute('aria-haspopup', 'listbox');
 				trigger.setAttribute('aria-expanded', String(this._isOpen));
@@ -339,7 +345,7 @@ export class NestedChatWorkspaceControls extends Disposable {
 			} else {
 				// The only choice: plain text rather than a control, read with its visible label.
 				const staticLabel = localize('nestedChat.folder.staticAriaLabel', "Folder for the Nested Session, {0}", label);
-				trigger.title = staticLabel;
+				tooltip = staticLabel;
 				trigger.setAttribute('role', 'note');
 				trigger.setAttribute('aria-label', staticLabel);
 				trigger.removeAttribute('aria-haspopup');
@@ -364,13 +370,15 @@ export class NestedChatWorkspaceControls extends Disposable {
 	 * composer places like the New Session ones: in the options row or below the input. The isolation
 	 * picker is New Session's (Branch or New Worktree); the branch picker only applies to a worktree.
 	 */
-	renderRepositoryControls(container: HTMLElement): IComposerRepositoryControls {
+	renderRepositoryControls(container: HTMLElement, hoverDelegate?: IHoverDelegate): IComposerRepositoryControls {
 		const store = new DisposableStore();
 		const element = dom.append(container, dom.$('.nested-chat-repository-controls'));
 		store.add(toDisposable(() => element.remove()));
+		hoverDelegate ??= store.add(createInstantHoverDelegate());
 
 		const isolationPicker = store.add(this._instantiationService.createInstance(IsolationPicker, {
 			user: 'NestedChatIsolationPicker',
+			hoverDelegate,
 			onSelect: isolation => this._setWorktree(isolation === 'worktree'),
 		}));
 		isolationPicker.render(element);
@@ -380,6 +388,7 @@ export class NestedChatWorkspaceControls extends Disposable {
 		const branchSlot = dom.append(element, dom.$('.nested-chat-branch-picker'));
 		const branchPicker = store.add(this._instantiationService.createInstance(BranchPicker, {
 			user: 'NestedChatBranchPicker',
+			hoverDelegate,
 			onSelectBranch: branch => this._branch.set(branch, undefined),
 			onRetry: () => this._loadBranches(),
 		}));
