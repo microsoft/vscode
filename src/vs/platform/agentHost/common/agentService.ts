@@ -264,6 +264,9 @@ export const AgentHostSessionResidencyLimitEnvVar = 'VSCODE_AGENT_HOST_SESSION_R
 /** Overrides the retry delay after a provider temporarily vetoes session release. Primarily used by integration tests. */
 export const AgentHostSessionReleaseRetryMsEnvVar = 'VSCODE_AGENT_HOST_SESSION_RELEASE_RETRY_MS';
 
+/** Overrides how long a changeset read waits for the file snapshots of a running Codex turn. Primarily used by integration tests. */
+export const AgentHostCodexTurnEditsWaitMsEnvVar = 'VSCODE_AGENT_HOST_CODEX_TURN_EDITS_WAIT_MS';
+
 /**
  * Resolves the effective enable state for a Claude/Codex provider from the
  * env-var value forwarded by the starter. Recognized values (case- and
