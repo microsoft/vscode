@@ -200,6 +200,7 @@ suite('Automation dialog creation', () => {
 					detailedReasons: [], detailedReasonsChangeLengths: [],
 				})),
 				getValue: () => promptInput.value,
+				getContribution: () => null,
 			}),
 			layout: () => { },
 			dispose: () => { },
@@ -900,6 +901,22 @@ suite('Automation dialog creation', () => {
 			if (outcome === 'allowed') {
 				ownerOptions[1].click();
 			}
+			const ownerInfo = dialog.container.querySelector<HTMLElement>('.automation-owner-info')!;
+			const toolsButton = dialog.container.querySelector<HTMLElement>('.automation-provider-tools .monaco-button')!;
+			const triggerSelect = dialog.container.querySelector<HTMLElement>('select[aria-label="Trigger"]')!;
+			const keyboardExplanation = outcome === 'allowed' ? undefined : (() => {
+				toolsButton.focus();
+				dispatchKey(toolsButton, 'keydown', 'Tab');
+				const forward = DOM.getActiveElement() === ownerInfo;
+				triggerSelect.focus();
+				dispatchKey(triggerSelect, 'keydown', 'Tab', true);
+				return {
+					forward,
+					backward: DOM.getActiveElement() === ownerInfo,
+					label: ownerInfo.getAttribute('aria-label'),
+					tooltip: dialog.getTooltip(ownerInfo),
+				};
+			})();
 			const message = dialog.container.querySelector<HTMLElement>('.automation-dialog-notification-center:not([aria-hidden="true"])');
 			assert.deepStrictEqual({
 				pending,
@@ -912,6 +929,7 @@ suite('Automation dialog creation', () => {
 					ownerDisabled: Array.from(ownerOptions, option => option.getAttribute('aria-disabled')),
 					repositoryTooltip: dialog.getTooltip(ownerOptions[1]),
 				},
+				keyboardExplanation,
 				draft: { name: dialog.nameInput.value, prompt: dialog.container.querySelector<HTMLTextAreaElement>('textarea')?.value },
 			}, {
 				pending: {
@@ -942,6 +960,12 @@ suite('Automation dialog creation', () => {
 						ownerDisabled: ['true', 'true'],
 						repositoryTooltip: outcome === 'denied' ? 'Repository owned automations are not supported for this repository.' : 'Unable to verify repository ownership. Try again.',
 					},
+				keyboardExplanation: outcome === 'allowed' ? undefined : {
+					forward: true,
+					backward: true,
+					label: outcome === 'denied' ? 'Repository owned automations are not supported for this repository.' : 'Unable to verify repository ownership. Try again.',
+					tooltip: outcome === 'denied' ? 'Repository owned automations are not supported for this repository.' : 'Unable to verify repository ownership. Try again.',
+				},
 				draft: { name: 'Ownership review', prompt: 'Review repository changes' },
 			});
 			dialog.cancelButton.click();

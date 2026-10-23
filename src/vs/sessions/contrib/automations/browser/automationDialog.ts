@@ -2013,6 +2013,7 @@ export function renderForm(
 	const ownerInfo = DOM.append(ownerLabel, renderIcon(Codicon.info));
 	ownerInfo.classList.add('automation-owner-info');
 	ownerInfo.setAttribute('aria-hidden', 'true');
+	ownerInfo.tabIndex = -1;
 	const ownerLabels = [localize('automation.owner.user', "Only me"), localize('automation.owner.repository', "Repository")];
 	const ownerDescriptions = [
 		localize('automation.owner.userDescription', "Only you can see and edit it. Runs act as you."),
@@ -2024,12 +2025,14 @@ export function renderForm(
 	];
 	const ownerIndex = state.ownership === 'repository' ? 1 : 0;
 	const ownerInfoHover = disposables.add(new MutableDisposable<IDisposable>());
+	let repositoryOwnerExplanation: string | undefined;
 	const updateOwnerInfo = (index: number) => {
 		const description = ownerActionDescriptions[index];
 		ownerRow.setAttribute('aria-description', description);
-		ownerInfoHover.clear();
-		ownerInfoHover.value = customizations?.hoverService.setupDelayedHover(ownerInfo, { content: description });
 	};
+	ownerInfoHover.value = customizations?.hoverService.setupDelayedHover(ownerInfo, () => ({
+		content: repositoryOwnerExplanation ?? ownerActionDescriptions[state.ownership === 'repository' ? 1 : 0],
+	}), { setupKeyboardEvents: true });
 	updateOwnerInfo(ownerIndex);
 	const ownerControl = DOM.append(ownerRow, $('.automation-owner-control'));
 	const ownerRadio = disposables.add(new Radio({
@@ -2048,6 +2051,17 @@ export function renderForm(
 		repositoryOwnerDescription = description;
 		ownerRadio.setEnabled(enabled && !isEdit);
 		ownerRadio.optionElements[1].setAttribute('aria-description', description);
+		repositoryOwnerExplanation = !enabled && description !== ownerDescriptions[1] && description !== ownerLoadingMessage ? description : undefined;
+		ownerInfo.tabIndex = repositoryOwnerExplanation ? 0 : -1;
+		if (repositoryOwnerExplanation) {
+			ownerInfo.removeAttribute('aria-hidden');
+			ownerInfo.setAttribute('role', 'note');
+			ownerInfo.setAttribute('aria-label', repositoryOwnerExplanation);
+		} else {
+			ownerInfo.setAttribute('aria-hidden', 'true');
+			ownerInfo.removeAttribute('role');
+			ownerInfo.removeAttribute('aria-label');
+		}
 	};
 	recheckRepositoryOwnership = () => {
 		const generation = ++ownershipEligibilityGeneration;

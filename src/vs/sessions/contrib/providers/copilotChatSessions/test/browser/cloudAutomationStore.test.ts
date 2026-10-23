@@ -1025,6 +1025,17 @@ suite('CloudAutomationStore', () => {
 			{ automation: undefined, canCreate: false, state: 'unavailable' });
 	});
 
+	test('repository ownership check rejects asynchronously after account loss', async () => {
+		const { provider, accounts, changed, set } = setup();
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		accounts.currentDefaultAccount = null;
+		changed.fire(null);
+
+		const check = provider.configuration.checkRepositoryOwnership!(workspace, CancellationToken.None);
+		await assert.rejects(check, /Sign in to GitHub.com and enable cloud automations before continuing/);
+	});
+
 	for (const previousDefinitionError of [false, true]) {
 		test(`history failure preserves a ready catalogue${previousDefinitionError ? ' after a definition failure' : ''}`, async () => {
 			const { provider, api, set } = setup();

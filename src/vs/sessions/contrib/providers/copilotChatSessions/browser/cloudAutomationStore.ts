@@ -112,7 +112,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 			getWorkspaceTarget: workspace => derived(reader => this.store.read(reader)?.getWorkspaceTarget(workspace).read(reader)
 				?? { disabledReason: localize('cloudAutomations.targetUnavailable', "Cloud automations are unavailable.") }),
 			repositoryOwnershipInvalidation: observableSignalFromEvent(this, Event.any(defaultAccountService.onDidChangeDefaultAccount, workbenchGitHubService.onDidChangeDefaultClient)),
-			checkRepositoryOwnership: (workspace, token) => this.requireStore().checkRepositoryOwnership(workspace, token),
+			checkRepositoryOwnership: async (workspace, token) => this.requireStore().checkRepositoryOwnership(workspace, token),
 		};
 		const configurationChanged = observableSignalFromEvent(this, configurationService.onDidChangeConfiguration);
 		const sentimentChanged = observableSignalFromEvent(this, entitlementService.onDidChangeSentiment);
