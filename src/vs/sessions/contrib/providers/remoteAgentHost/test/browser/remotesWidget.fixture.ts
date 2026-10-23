@@ -11,7 +11,11 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ISSHRemoteAgentHostService } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { HoverService } from '../../../../../../platform/hover/browser/hoverService.js';
+import { ILayoutService } from '../../../../../../platform/layout/browser/layoutService.js';
 import { IListService, ListService } from '../../../../../../platform/list/browser/listService.js';
+import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IEditorService } from '../../../../../../workbench/services/editor/common/editorService.js';
 import { IPreferencesService } from '../../../../../../workbench/services/preferences/common/preferences.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureCondition } from '../../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
@@ -40,6 +44,9 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 		colorTheme: theme,
 		additionalServices: reg => {
 			registerWorkbenchServices(reg);
+			reg.define(IHoverService, HoverService);
+			reg.definePartialInstance(ILayoutService, { getContainer: () => container });
+			reg.define(IMarkdownRendererService, MarkdownRendererService);
 			reg.define(IListService, ListService);
 			reg.defineInstance(ISSHRemoteAgentHostService, new class extends mock<ISSHRemoteAgentHostService>() {
 				override async ensureUserSSHConfig() { return URI.file('/home/user/.ssh/config'); }
