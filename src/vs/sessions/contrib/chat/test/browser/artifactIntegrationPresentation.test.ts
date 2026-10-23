@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { $, append, getActiveElement } from '../../../../../base/browser/dom.js';
 import { BaseActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { IDelayedHoverOptions, IHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
+import { HoverStyle, IDelayedHoverOptions, IHoverLifecycleOptions, IHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Action } from '../../../../../base/common/actions.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
@@ -20,6 +20,7 @@ import { constObservable, derived, observableValue, transaction } from '../../..
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { ArtifactDetails, ArtifactRun, ArtifactSnapshot, artifactBindingId, IArtifactDetailsModel, IArtifactModel } from '../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
@@ -30,6 +31,7 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { ContextViewService } from '../../../../../platform/contextview/browser/contextViewService.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { HoverService } from '../../../../../platform/hover/browser/hoverService.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
@@ -107,11 +109,19 @@ suite('Artifact Integration Presentation', () => {
 			override readonly sentimentObs = sentiment;
 		}());
 		const hovers = new Map<HTMLElement, IDelayedHoverOptions | (() => IDelayedHoverOptions)>();
+		const hoverGroups = new Map<HTMLElement, string | undefined>();
 		const shownHovers: IHoverOptions[] = [];
 		instantiation.stub(IHoverService, new class extends mock<IHoverService>() {
-			override setupDelayedHover(target: HTMLElement, options: IDelayedHoverOptions | (() => IDelayedHoverOptions)) {
+			override setupDelayedHover(target: HTMLElement, options: IDelayedHoverOptions | (() => IDelayedHoverOptions), lifecycleOptions?: IHoverLifecycleOptions) {
 				hovers.set(target, options);
-				return toDisposable(() => hovers.delete(target));
+				hoverGroups.set(target, lifecycleOptions?.groupId);
+				return toDisposable(() => {
+					hovers.delete(target);
+					hoverGroups.delete(target);
+				});
+			}
+			override setupDelayedHoverAtMouse(target: HTMLElement, options: Parameters<IHoverService['setupDelayedHoverAtMouse']>[1], lifecycleOptions?: IHoverLifecycleOptions) {
+				return this.setupDelayedHover(target, options, lifecycleOptions);
 			}
 			override hideHover(): void { }
 			override showInstantHover(options: IHoverOptions) {
@@ -356,7 +366,7 @@ suite('Artifact Integration Presentation', () => {
 			};
 		}
 		return {
-			host, row, input, controller, contextView, hovers, shownHovers, sentiment, configuration, errors, openedItems, artifact, instantiation, keybindingService,
+			host, row, input, controller, contextView, hovers, hoverGroups, shownHovers, sentiment, configuration, errors, openedItems, artifact, instantiation, keybindingService,
 			openedChats, revealedActivities, focusedActivities, registerActivityChat, activeSession,
 			setOpenChatResult: (result: Promise<void>) => { openChatResult = result; },
 			contextShows: () => contextShows,
@@ -855,6 +865,50 @@ suite('Artifact Integration Presentation', () => {
 			popup: a.main.getAttribute('aria-haspopup'), expanded: a.main.getAttribute('aria-expanded'),
 		}, { hover: 'Open: compact status', acquired: [], inline: true, labels: ['#42', '1/2', '1'], popup: 'dialog', expanded: 'false' });
 	});
+
+	test('an integration pill shares pointer hovers across its adjacent section buttons', () => {
+		const f = fixture();
+		const first = f.artifact();
+		const second = f.artifact('other');
+		const presentation = (container: HTMLElement) => Array.from(f.hovers)
+			.filter(([target]) => container.contains(target))
+			.map(([target, options]) => ({
+				style: (typeof options === 'function' ? options() : options).style,
+				groupId: f.hoverGroups.get(target),
+			}));
+		const firstHovers = presentation(first.container);
+		const secondHovers = presentation(second.container);
+
+		assert.deepStrictEqual({
+			styles: firstHovers.map(hover => hover.style),
+			grouped: !!firstHovers[0].groupId && firstHovers.every(hover => hover.groupId === firstHovers[0].groupId),
+			independent: firstHovers[0].groupId !== secondHovers[0].groupId,
+		}, { styles: [HoverStyle.Pointer, HoverStyle.Pointer, HoverStyle.Pointer], grouped: true, independent: true });
+	});
+
+	test('an integration pill waits for the first hover and shows adjacent section hovers without another delay', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const f = fixture();
+		f.configuration.setUserConfiguration('workbench.hover.delay', 500);
+		const hoverService = store.add(f.instantiation.createInstance(HoverService));
+		store.add(toDisposable(() => hoverService.hideHover(true)));
+		f.instantiation.stub(IHoverService, hoverService);
+		const artifact = f.artifact();
+		const section = artifact.container.querySelector<HTMLElement>('.chat-pill-sections .chat-pill-button')!;
+		const hoverText = () => f.host.querySelector('.monaco-hover')?.textContent;
+		artifact.main.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		await timeout(499);
+		const beforeDelay = hoverText();
+		await timeout(1);
+		const initialHover = hoverText();
+		section.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			beforeDelay,
+			firstShown: initialHover?.includes('Open: compact status'),
+			sectionShownImmediately: !!hoverText() && hoverText() !== initialHover,
+		}, { beforeDelay: undefined, firstShown: true, sectionShownImmediately: true });
+	}));
 
 	test('main click opens full details; the title navigates and shell actions remain available', async () => {
 		const f = fixture();

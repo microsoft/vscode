@@ -108,6 +108,8 @@ export interface IWSLRemoteAgentHostService {
 	 * themselves live in-memory, mirroring how tunnels are handled.
 	 */
 	getCachedDistros(): readonly IWSLCachedDistro[];
+	/** Register a distro for the location picker without explicitly connecting. */
+	cacheDistro(distro: IWSLCachedDistro): void;
 }
 
 export const IWSLRemoteAgentHostMainService = createDecorator<IWSLRemoteAgentHostMainService>('wslRemoteAgentHostMainService');
