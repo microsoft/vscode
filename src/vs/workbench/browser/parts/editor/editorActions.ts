@@ -32,7 +32,7 @@ import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { IKeybindingRule, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
-import { ActiveEditorAvailableEditorIdsContext, ActiveEditorCannotCloseContext, ActiveEditorContext, ActiveEditorGroupEmptyContext, AuxiliaryBarVisibleContext, EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext, InAutomationContext, IsAuxiliaryWindowFocusedContext, MultipleEditorGroupsContext, SideBarVisibleContext } from '../../../common/contextkeys.js';
+import { ActiveEditorAvailableEditorIdsContext, ActiveEditorCannotCloseContext, ActiveEditorContext, ActiveEditorGroupEmptyContext, AuxiliaryBarVisibleContext, EditorPartFixedGroupsContext, EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext, InAutomationContext, IsAuxiliaryWindowFocusedContext, MultipleEditorGroupsContext, SideBarVisibleContext } from '../../../common/contextkeys.js';
 import { getActiveDocument } from '../../../../base/browser/dom.js';
 import { ICommandActionTitle } from '../../../../platform/action/common/action.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
@@ -1101,7 +1101,7 @@ export class MinimizeOtherGroupsAction extends Action2 {
 			title: localize2('minimizeOtherEditorGroups', 'Expand Editor Group'),
 			f1: true,
 			category: Categories.View,
-			precondition: MultipleEditorGroupsContext
+			precondition: ContextKeyExpr.and(MultipleEditorGroupsContext, EditorPartFixedGroupsContext.toNegated())
 		});
 	}
 
@@ -1120,7 +1120,7 @@ export class MinimizeOtherGroupsHideSidebarAction extends Action2 {
 			title: localize2('minimizeOtherEditorGroupsHideSidebar', 'Expand Editor Group and Hide Side Bars'),
 			f1: true,
 			category: Categories.View,
-			precondition: ContextKeyExpr.or(MultipleEditorGroupsContext, SideBarVisibleContext, AuxiliaryBarVisibleContext)
+			precondition: ContextKeyExpr.and(ContextKeyExpr.or(MultipleEditorGroupsContext, SideBarVisibleContext, AuxiliaryBarVisibleContext), EditorPartFixedGroupsContext.toNegated())
 		});
 	}
 
@@ -1141,7 +1141,8 @@ export class ResetGroupSizesAction extends Action2 {
 			id: 'workbench.action.evenEditorWidths',
 			title: localize2('evenEditorGroups', 'Reset Editor Group Sizes'),
 			f1: true,
-			category: Categories.View
+			category: Categories.View,
+			precondition: EditorPartFixedGroupsContext.toNegated()
 		});
 	}
 
@@ -1159,7 +1160,8 @@ export class ToggleGroupSizesAction extends Action2 {
 			id: 'workbench.action.toggleEditorWidths',
 			title: localize2('toggleEditorWidths', 'Toggle Editor Group Sizes'),
 			f1: true,
-			category: Categories.View
+			category: Categories.View,
+			precondition: EditorPartFixedGroupsContext.toNegated()
 		});
 	}
 
@@ -1178,7 +1180,7 @@ export class MaximizeGroupHideSidebarAction extends Action2 {
 			title: localize2('maximizeEditorHideSidebar', 'Maximize Editor Group and Hide Side Bars'),
 			f1: true,
 			category: Categories.View,
-			precondition: ContextKeyExpr.or(ContextKeyExpr.and(EditorPartMaximizedEditorGroupContext.negate(), EditorPartMultipleEditorGroupsContext), SideBarVisibleContext, AuxiliaryBarVisibleContext)
+			precondition: ContextKeyExpr.and(ContextKeyExpr.or(ContextKeyExpr.and(EditorPartMaximizedEditorGroupContext.negate(), EditorPartMultipleEditorGroupsContext), SideBarVisibleContext, AuxiliaryBarVisibleContext), EditorPartFixedGroupsContext.toNegated())
 		});
 	}
 
@@ -1203,7 +1205,8 @@ export class ToggleMaximizeEditorGroupAction extends Action2 {
 			title: localize2('toggleMaximizeEditorGroup', 'Toggle Maximize Editor Group'),
 			f1: true,
 			category: Categories.View,
-			precondition: ContextKeyExpr.or(EditorPartMultipleEditorGroupsContext, EditorPartMaximizedEditorGroupContext),
+			// Not for parts whose owner arranges their groups, as it would undo the arrangement
+			precondition: ContextKeyExpr.and(ContextKeyExpr.or(EditorPartMultipleEditorGroupsContext, EditorPartMaximizedEditorGroupContext), EditorPartFixedGroupsContext.toNegated()),
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyM),
@@ -1212,13 +1215,13 @@ export class ToggleMaximizeEditorGroupAction extends Action2 {
 				id: MenuId.EditorTitle,
 				order: -10000, // towards the front
 				group: 'navigation',
-				when: EditorPartMaximizedEditorGroupContext
+				when: ContextKeyExpr.and(EditorPartMaximizedEditorGroupContext, EditorPartFixedGroupsContext.toNegated())
 			},
 			{
 				id: MenuId.EmptyEditorGroup,
 				order: -10000, // towards the front
 				group: 'navigation',
-				when: EditorPartMaximizedEditorGroupContext
+				when: ContextKeyExpr.and(EditorPartMaximizedEditorGroupContext, EditorPartFixedGroupsContext.toNegated())
 			}],
 			icon: Codicon.screenFull,
 			toggled: {
