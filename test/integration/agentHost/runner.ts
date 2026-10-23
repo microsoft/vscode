@@ -42,6 +42,11 @@ interface ISuite {
 	readonly file: string;
 }
 
+interface IShard {
+	readonly index: number;
+	readonly total: number;
+}
+
 interface IRunResult {
 	readonly suite: ISuite;
 	readonly succeeded: boolean;
@@ -93,15 +98,24 @@ async function main(): Promise<void> {
 	validateEnvironment();
 	const { getAgentHostTestProfile } = await import('../../../src/vs/platform/agentHost/test/node/agentHostTestProfile.ts');
 	console.log(`Agent Host test profile: ${getAgentHostTestProfile()} (${process.env['AGENT_HOST_TEST_PROFILE_REASON'] ?? 'default'})`);
-	const { jobs, storage, runList, forwardedArgs } = parseArguments(process.argv.slice(2));
-	const selectedSuites = runList === undefined ? suites : listedSuites(runList);
-	if (selectedSuites.length === 0) {
+	const { jobs, storage, runList, shard, forwardedArgs } = parseArguments(process.argv.slice(2));
+	const listed = runList === undefined ? suites : listedSuites(runList);
+	if (listed.length === 0) {
 		console.log(`None of the ${suites.length} Agent Host E2E suites is listed in ${runList}.`);
 		return;
 	}
+	// Shards take the listed suites in turn, so a short list can leave a shard without suites.
+	const selectedSuites = shard ? listed.filter((_, index) => index % shard.total === shard.index - 1) : listed;
+	if (shard) {
+		if (selectedSuites.length === 0) {
+			console.log(`Agent Host E2E shard ${shard.index}/${shard.total} has none of the ${listed.length} selected suites.`);
+			return;
+		}
+		console.log(`Agent Host E2E shard ${shard.index}/${shard.total}: ${selectedSuites.map(suite => suite.label).join(', ')}`);
+	}
 	await prepareTestRuntime();
 	if (storage !== 'disk') {
-		runStoragePasses(storage, jobs, runList === undefined ? forwardedArgs : [...forwardedArgs, '--runList', runList]);
+		runStoragePasses(storage, jobs, shard, runList === undefined ? forwardedArgs : [...forwardedArgs, '--runList', runList]);
 		return;
 	}
 	const storageBacking = process.env['AGENT_HOST_E2E_STORAGE_BACKING'] ?? 'disk';
@@ -152,10 +166,10 @@ async function main(): Promise<void> {
 	}
 }
 
-function runStoragePasses(storage: 'tmpfs' | 'split', jobs: number, args: readonly string[]): void {
+function runStoragePasses(storage: 'tmpfs' | 'split', jobs: number, shard: IShard | undefined, args: readonly string[]): void {
 	const environment: NodeJS.ProcessEnv = { ...process.env, VSCODE_SKIP_PRELAUNCH: '1' };
 	delete environment.ELECTRON_RUN_AS_NODE;
-	const runnerArgs = [__filename, '--storage', 'disk', '--jobs', String(jobs)];
+	const runnerArgs = [__filename, '--storage', 'disk', '--jobs', String(jobs), ...(shard ? ['--shard', `${shard.index}/${shard.total}`] : [])];
 	const failedPasses: string[] = [];
 	const tmpfs = spawnSync('bash', [
 		join(__dirname, 'tmpfs.sh'),
@@ -250,9 +264,10 @@ function validateEnvironment(): void {
 	}
 }
 
-function parseArguments(args: readonly string[]): { jobs: number; storage: StorageMode; runList: string | undefined; forwardedArgs: readonly string[] } {
+function parseArguments(args: readonly string[]): { jobs: number; storage: StorageMode; runList: string | undefined; shard: IShard | undefined; forwardedArgs: readonly string[] } {
 	const forwardedArgs: string[] = [];
 	let requestedJobs: string | undefined = process.env['AGENT_HOST_E2E_JOBS'];
+	let requestedShard: string | undefined;
 	const linuxCI = process.platform === 'linux' && (process.env['CI'] === 'true' || process.env['TF_BUILD']?.toLowerCase() === 'true');
 	let requestedStorage = process.env['AGENT_HOST_E2E_STORAGE'] ?? (linuxCI ? 'split' : 'disk');
 	let runList: string | undefined;
@@ -277,6 +292,13 @@ function parseArguments(args: readonly string[]): { jobs: number; storage: Stora
 			}
 		} else if (argument.startsWith('--runList=')) {
 			runList = argument.slice('--runList='.length);
+		} else if (argument === '--shard') {
+			requestedShard = args[++index];
+			if (!requestedShard) {
+				throw new Error('--shard requires a value');
+			}
+		} else if (argument.startsWith('--shard=')) {
+			requestedShard = argument.slice('--shard='.length);
 		} else {
 			forwardedArgs.push(argument);
 		}
@@ -299,7 +321,7 @@ function parseArguments(args: readonly string[]): { jobs: number; storage: Stora
 	if (requestedStorage !== 'disk' && process.platform !== 'linux') {
 		throw new Error('Agent Host tmpfs storage requires Linux');
 	}
-	return { jobs: Math.min(jobs, suites.length), storage: requestedStorage, runList: runList === undefined ? undefined : resolve(runList), forwardedArgs };
+	return { jobs: Math.min(jobs, suites.length), storage: requestedStorage, runList: runList === undefined ? undefined : resolve(runList), shard: requestedShard === undefined ? undefined : parseShard(requestedShard), forwardedArgs };
 }
 
 /**
@@ -314,6 +336,19 @@ function listedSuites(runList: string): readonly ISuite[] {
 		console.log(`Running the ${selected.length} of ${suites.length} Agent Host E2E suites listed in ${runList}: ${selected.map(suite => suite.label).join(', ')}`);
 	}
 	return selected;
+}
+
+/**
+ * Parses a `--shard` value of the form `<index>/<total>`, e.g. `1/2`. Shards take the suites in turn.
+ */
+function parseShard(value: string): IShard {
+	const match = /^(?<index>\d+)\/(?<total>\d+)$/.exec(value.trim());
+	const index = Number(match?.groups?.index);
+	const total = Number(match?.groups?.total);
+	if (!match || index < 1 || index > total || total > suites.length) {
+		throw new Error(`Invalid Agent Host E2E shard: ${value}. Expected <index>/<total> with 1 <= index <= total <= ${suites.length}, for example 1/2.`);
+	}
+	return { index, total };
 }
 
 async function prepareTestRuntime(): Promise<void> {
