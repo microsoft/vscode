@@ -16,7 +16,7 @@ suite('Request Service - Electron redirects', () => {
 	let servers: http.Server[];
 	let origin: string;
 	let otherOrigin: string;
-	let captured: { path: string | undefined; method: string | undefined; body: string; authorization: string | undefined; cookie: string | undefined }[];
+	let captured: { path: string | undefined; method: string | undefined; body: string; authorization: string | undefined; cookie: string | undefined; headers: http.IncomingHttpHeaders }[];
 
 	setup(async () => {
 		const http = await import('http');
@@ -27,12 +27,23 @@ suite('Request Service - Electron redirects', () => {
 				const chunks: Buffer[] = [];
 				req.on('data', chunk => chunks.push(chunk));
 				req.on('end', () => {
-					captured.push({ path: req.url, method: req.method, body: Buffer.concat(chunks).toString(), authorization: req.headers.authorization, cookie: req.headers.cookie });
+					captured.push({ path: req.url, method: req.method, body: Buffer.concat(chunks).toString(), authorization: req.headers.authorization, cookie: req.headers.cookie, headers: req.headers });
 					let location: string;
+					let statusCode = 302;
 					switch (req.url) {
 						case '/same':
-						case '/post':
 							location = '/final';
+							break;
+						case '/post/301':
+						case '/post/302':
+						case '/post/303':
+						case '/post/307':
+						case '/post/308':
+							location = '/final';
+							statusCode = Number(req.url.slice('/post/'.length));
+							break;
+						case '/double-slash':
+							location = `${origin}//bucket/asset%2Fsegment?sig=a%2Fb&empty=`;
 							break;
 						case '/cross':
 							location = `${otherOrigin}/final`;
@@ -55,7 +66,7 @@ suite('Request Service - Electron redirects', () => {
 							res.end('ok');
 							return;
 					}
-					res.writeHead(req.url === '/post' ? 303 : 302, { location });
+					res.writeHead(statusCode, { location });
 					res.end();
 				});
 			});
@@ -112,13 +123,43 @@ suite('Request Service - Electron redirects', () => {
 		});
 	}
 
-	test('preserves Chromium method changes without resending the request body', async () => {
-		const response = await request('/post', { type: 'POST', data: 'request body' });
-		assert.deepStrictEqual({ response, requests: captured.map(({ method, body }) => ({ method, body })) }, {
+	test('preserves redirect paths starting with two slashes and their query', async () => {
+		const response = await request('/double-slash');
+		assert.deepStrictEqual({ response, paths: captured.map(request => request.path) }, {
 			response: { statusCode: 200, body: 'ok' },
-			requests: [{ method: 'POST', body: 'request body' }, { method: 'GET', body: '' }]
+			paths: ['/double-slash', '//bucket/asset%2Fsegment?sig=a%2Fb&empty=']
 		});
 	});
+
+	for (const statusCode of [301, 302, 303, 307, 308]) {
+		test(`preserves Chromium method, body and header handling for ${statusCode}`, async () => {
+			const requestHeaders = Object.freeze({
+				'cOnTeNt-TyPe': 'application/octet-stream',
+				'CoNtEnT-eNcOdInG': 'gzip',
+				'cOnTeNt-LaNgUaGe': 'en',
+				'CoNtEnT-LoCaTiOn': '/body',
+				oRiGiN: origin,
+				'X-Other': 'keep'
+			});
+			const normalizedHeaders = Object.fromEntries(Object.entries(requestHeaders).map(([name, value]) => [name.toLowerCase(), value]));
+			const changesMethod = statusCode < 307;
+			const response = await request(`/post/${statusCode}`, { type: 'POST', data: 'request body', headers: requestHeaders });
+			assert.deepStrictEqual({
+				response,
+				requests: captured.map(({ method, body, headers }) => ({
+					method,
+					body,
+					headers: Object.fromEntries(Object.entries(headers).filter(([name]) => Object.hasOwn(normalizedHeaders, name)))
+				}))
+			}, {
+				response: { statusCode: 200, body: 'ok' },
+				requests: [
+					{ method: 'POST', body: 'request body', headers: normalizedHeaders },
+					{ method: changesMethod ? 'GET' : 'POST', body: changesMethod ? '' : 'request body', headers: changesMethod ? { 'x-other': 'keep' } : normalizedHeaders }
+				]
+			});
+		});
+	}
 
 	test('cancels while following a redirect', async () => {
 		await assert.rejects(request('/cancel', {}, true), /Canceled/);

@@ -284,6 +284,9 @@ app.on('ready', async () => {
 		]);
 		const source = new CancellationTokenSource();
 		try {
+			if (options.headers) {
+				Object.freeze(options.headers);
+			}
 			const context = await nodeRequest({
 				...options,
 				isChromiumNetwork: true,
