@@ -1,0 +1,159 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { onUnexpectedError } from '../../../../../../base/common/errors.js';
+import { Disposable, DisposableMap, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../../base/common/observable.js';
+import { affectsAgentHostProviderPreference, getPolicyUnavailableLocalAgentHostProviders, isLocalAgentHostProviderDisabledByPolicy, IAgentHostService, shouldSurfaceLocalAgentHostProvider, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { type AgentInfo, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IWorkbenchContribution } from '../../../../../common/contributions.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
+import { IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
+import { AgentHostSessionListController } from './agentHostSessionListController.js';
+import { MovedChatEditorRetargeter } from './agentHostChatMoveEditors.js';
+import { AgentHostSessionListStore } from './agentHostSessionListStore.js';
+
+export class AgentHostSessionListContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.agentHostSessionListContribution';
+
+	private readonly _agentRegistrations = this._register(new DisposableMap<AgentProvider, DisposableStore>());
+
+	private readonly _historyRegistrations = this._register(new DisposableMap<AgentProvider, DisposableStore>());
+
+	private readonly _isSessionsWindow: boolean;
+	private readonly _movedChatEditors: MovedChatEditorRetargeter;
+	private _initialized = false;
+	private _sessionListStore: AgentHostSessionListStore | undefined;
+
+	constructor(
+		@IAgentHostService private readonly _agentHostService: IAgentHostService,
+		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IAgentHostSessionWorkingDirectoryResolver private readonly _workingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver,
+		@IAgentHostEnablementService private readonly _agentHostEnablementService: IAgentHostEnablementService,
+		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
+		@IEditorService editorService: IEditorService,
+	) {
+		super();
+		this._movedChatEditors = new MovedChatEditorRetargeter(editorGroupsService, editorService);
+
+		this._isSessionsWindow = environmentService.isSessionsWindow;
+
+		if (this._isSessionsWindow) {
+			return;
+		}
+		this._register(autorun(reader => {
+			if (this._agentHostEnablementService.enabled.read(reader)) {
+				const wasInitialized = this._initialized;
+				this._initialize();
+				const current = this._agentHostService.rootState.value;
+				if (wasInitialized && this._sessionListStore) {
+					this._handleRootStateChange(current, this._sessionListStore);
+				}
+			} else {
+				this._agentRegistrations.clearAndDisposeAll();
+				this._historyRegistrations.clearAndDisposeAll();
+			}
+		}));
+	}
+
+	private _initialize(): void {
+		if (this._initialized) {
+			return;
+		}
+		this._initialized = true;
+		const sessionListStore = this._register(this._instantiationService.createInstance(AgentHostSessionListStore, this._agentHostService, { retainUnlistedProvider: provider => isLocalAgentHostProviderDisabledByPolicy(provider, this._configurationService) }));
+		this._sessionListStore = sessionListStore;
+
+		this._register(this._agentHostService.rootState.onDidChange(rootState => {
+			this._handleRootStateChange(rootState, sessionListStore);
+		}));
+
+		this._register(this._agentHostService.onAgentHostStart(() => {
+			sessionListStore.resetCache();
+			void sessionListStore.refresh(CancellationToken.None);
+		}));
+
+		const initialRootState = this._agentHostService.rootState.value;
+		this._handleRootStateChange(initialRootState, sessionListStore);
+
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (!affectsAgentHostProviderPreference(e, this._isSessionsWindow)) {
+				return;
+			}
+			const current = this._agentHostService.rootState.value;
+			this._handleRootStateChange(current, sessionListStore);
+		}));
+	}
+
+	private _shouldRegisterAgent(provider: AgentProvider): boolean {
+		return shouldSurfaceLocalAgentHostProvider(provider, this._configurationService, this._isSessionsWindow);
+	}
+
+	private _handleRootStateChange(rootState: RootState | Error | undefined, sessionListStore: AgentHostSessionListStore): void {
+		if (!this._agentHostEnablementService.enabled.get()) {
+			return;
+		}
+		const allowed = rootState && !(rootState instanceof Error) ? rootState.agents.filter(agent => this._shouldRegisterAgent(agent.provider)) : undefined;
+		const incoming = allowed ? new Set(allowed.map(agent => agent.provider)) : undefined;
+
+		for (const [provider] of this._agentRegistrations) {
+			if (!this._shouldRegisterAgent(provider) || incoming?.has(provider) === false) {
+				this._agentRegistrations.deleteAndDispose(provider);
+			}
+		}
+
+		const unavailable = new Set(getPolicyUnavailableLocalAgentHostProviders(this._configurationService, this._isSessionsWindow));
+		for (const [provider] of this._historyRegistrations) {
+			if (!unavailable.has(provider)) {
+				this._historyRegistrations.deleteAndDispose(provider);
+			}
+		}
+		for (const provider of unavailable) {
+			if (!this._historyRegistrations.has(provider)) {
+				const store = new DisposableStore();
+				this._historyRegistrations.set(provider, store);
+				const sessionType = `agent-host-${provider}`;
+				const controller = store.add(this._instantiationService.createInstance(AgentHostSessionListController, sessionType, provider, sessionListStore, undefined, 'local', false));
+				store.add(this._chatSessionsService.registerChatSessionItemController(sessionType, {
+					onDidChangeChatSessionItems: controller.onDidChangeChatSessionItems,
+					get items() { return controller.items; },
+					refresh: token => controller.refresh(token),
+				}));
+			}
+		}
+		if (!allowed) {
+			return;
+		}
+
+		for (const agent of allowed) {
+			if (!this._agentRegistrations.has(agent.provider)) {
+				this._registerAgent(agent, sessionListStore);
+			}
+		}
+	}
+
+	private _registerAgent(agent: AgentInfo, sessionListStore: AgentHostSessionListStore): void {
+		const store = new DisposableStore();
+		this._agentRegistrations.set(agent.provider, store);
+
+		const sessionType = `agent-host-${agent.provider}`;
+		const listController = store.add(this._instantiationService.createInstance(AgentHostSessionListController, sessionType, agent.provider, sessionListStore, undefined, 'local', false));
+
+		store.add(this._chatSessionsService.registerChatSessionItemController(sessionType, listController));
+		store.add(listController.onDidMoveChat(({ from, to }) => this._movedChatEditors.retarget(from.chat, to.chat).catch(onUnexpectedError)));
+		store.add(this._workingDirectoryResolver.registerResolver(sessionType, _sessionResource => undefined, sessionResource => listController.isNewSession(sessionResource)));
+	}
+}

@@ -3,6 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { computePullRequestIcon, getPullRequestDisplayState, type ChatPullRequestState, type IPullRequestIconStatus } from '../../../../workbench/common/chatPullRequest.js';
+
+export { computePullRequestIcon, getPullRequestDisplayState, type IPullRequestIconStatus };
+export { computeAggregateIssueIcon, computeIssueIcon } from '../../../../workbench/common/chatIssue.js';
+
+export const OPEN_PULL_REQUEST_ACTION_ID = 'workbench.agentSessions.action.openPullRequest';
+export const OPEN_PULL_REQUEST_CHANGES_ACTION_ID = 'workbench.agentSessions.action.openPullRequestChanges';
+export const OPEN_ISSUE_ACTION_ID = 'workbench.agentSessions.action.openIssue';
+
 //#region Session Context
 
 /**
@@ -28,9 +39,33 @@ export interface IGitHubRepository {
 	readonly description: string;
 }
 
+export interface IGitHubChangedFile {
+	readonly filename: string;
+	readonly previous_filename: string | undefined;
+	readonly status: 'added' | 'removed' | 'modified' | 'renamed' | 'copied' | 'changed' | 'unchanged';
+	readonly additions: number;
+	readonly deletions: number;
+	readonly patch?: string;
+}
+
 //#endregion
 
 //#region Pull Request
+
+/**
+ * The files changed by a pull request, along with its current title and the
+ * commits bounding its diff.
+ */
+export interface IGitHubPullRequestChanges {
+	readonly title: string;
+	readonly baseRef: string;
+	/** The merge base of the pull request's base and head commits (the original side of the diff). */
+	readonly baseSha: string;
+	/** The pull request's head commit (the modified side of the diff). */
+	readonly headSha: string;
+	readonly totalFileCount: number;
+	readonly files: readonly IGitHubChangedFile[];
+}
 
 export const enum GitHubPullRequestState {
 	Open = 'open',
@@ -56,8 +91,57 @@ export interface IGitHubPullRequest {
 	readonly createdAt: string;
 	readonly updatedAt: string;
 	readonly mergedAt: string | undefined;
+	readonly closedAt?: string;
 	readonly mergeable: boolean | undefined;
 	readonly mergeableState: string;
+}
+
+export interface IGitHubPullRequestSummary {
+	readonly number: number;
+	readonly title: string;
+	readonly author: IGitHubUser;
+	readonly headRef: string;
+	readonly checkoutRef: string;
+	readonly isCrossRepository: boolean;
+	readonly isDraft: boolean;
+	readonly updatedAt: string;
+	readonly additions: number;
+	readonly deletions: number;
+	readonly reviewRequestedFromViewer: boolean;
+	readonly assignedToViewer: boolean;
+}
+
+export interface IGitHubPullRequestsPage {
+	readonly pullRequests: readonly IGitHubPullRequestSummary[];
+	readonly cursor: string | undefined;
+	readonly hasNextPage: boolean;
+}
+
+export interface IGitHubPullRequestContextComment {
+	readonly kind: 'issue' | 'review';
+	readonly author: string;
+	readonly body: string;
+	readonly createdAt: string;
+	readonly updatedAt: string;
+	readonly path?: string;
+	readonly line?: number;
+}
+
+export interface IGitHubPullRequestContext {
+	readonly owner: string;
+	readonly repo: string;
+	readonly number: number;
+	readonly url: string;
+	readonly title: string;
+	readonly description: string;
+	readonly author: string;
+	readonly isDraft: boolean;
+	readonly baseRef: string;
+	readonly branchName: string;
+	readonly headRef: string;
+	readonly updatedAt: string;
+	readonly patch: string;
+	readonly comments: readonly IGitHubPullRequestContextComment[];
 }
 
 export const enum MergeBlockerKind {
@@ -77,6 +161,68 @@ export interface IMergeBlocker {
 export interface IGitHubPullRequestMergeability {
 	readonly canMerge: boolean;
 	readonly blockers: readonly IMergeBlocker[];
+}
+
+export interface IGitHubPullRequestReview {
+	readonly id: number;
+	readonly nodeId: string;
+	readonly author: IGitHubUser;
+	readonly state: string;
+	readonly submittedAt: string | undefined;
+}
+
+/** Coarse pull request state, recoverable from the icon carried on session GitHub info. */
+export type PullRequestStatus = ChatPullRequestState;
+
+/**
+ * Inverse of {@link computePullRequestIcon}: recovers the coarse pull request
+ * status from an icon. Returns `undefined` when the icon is missing or is not
+ * one of the known pull request icons (i.e. the state was never resolved).
+ */
+export function getPullRequestStatusFromIcon(icon: ThemeIcon | undefined): PullRequestStatus | undefined {
+	switch (icon?.id) {
+		case Codicon.gitPullRequestDone.id:
+			return 'merged';
+		case Codicon.gitPullRequestClosed.id:
+			return 'closed';
+		case Codicon.gitPullRequestDraft.id:
+			return 'draft';
+		case Codicon.gitPullRequest.id:
+		case Codicon.gitPullRequestError.id:
+		case Codicon.gitPullRequestComment.id:
+			return 'open';
+		default:
+			return undefined;
+	}
+}
+
+//#endregion
+
+//#region Issues
+
+export const enum GitHubIssueState {
+	Open = 'open',
+	Closed = 'closed',
+}
+
+/** Why an issue was closed (GitHub's `state_reason` on the REST issue payload). */
+export const enum GitHubIssueStateReason {
+	Completed = 'completed',
+	NotPlanned = 'not_planned',
+	Duplicate = 'duplicate',
+	Reopened = 'reopened',
+}
+
+export interface IGitHubIssue {
+	readonly number: number;
+	readonly title: string;
+	readonly body: string;
+	readonly state: GitHubIssueState;
+	readonly stateReason: GitHubIssueStateReason | undefined;
+	readonly author: IGitHubUser;
+	readonly createdAt: string;
+	readonly updatedAt: string;
+	readonly closedAt: string | undefined;
 }
 
 //#endregion
@@ -99,10 +245,11 @@ export interface IGitHubPRComment {
 	readonly inReplyToId: number | undefined;
 }
 
-export interface IGitHubPRReviewThread {
+export interface IGitHubPullRequestReviewThread {
 	readonly id: string;
 	readonly isResolved: boolean;
 	readonly path: string;
+	readonly startLine: number | undefined;
 	readonly line: number | undefined;
 	readonly comments: readonly IGitHubPRComment[];
 }

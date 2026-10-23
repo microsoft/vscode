@@ -49,9 +49,13 @@ suite('PromptFileParser', () => {
 			{ range: new Range(7, 140, 7, 155), content: './reference2.md', isMarkdownLink: true }
 		]);
 		assert.deepEqual(result.body.variableReferences, [
-			{ range: new Range(7, 17, 7, 22), name: 'tool1', offset: 108 },
-			{ range: new Range(7, 79, 7, 85), name: 'tool-2', offset: 170 }
+			{ range: new Range(7, 17, 7, 22), name: 'tool1', offset: 108, fullLength: 11 },
+			{ range: new Range(7, 79, 7, 85), name: 'tool-2', offset: 170, fullLength: 12 }
 		]);
+		const [ref1, ref2] = result.body.variableReferences;
+		assert.equal(content.substring(ref1.offset, ref1.offset + ref1.fullLength), '#tool:tool1');
+		assert.equal(content.substring(ref2.offset, ref2.offset + ref2.fullLength), '#tool:tool-2');
+
 		assert.deepEqual(result.header.description, 'Agent test');
 		assert.deepEqual(result.header.model, ['GPT 4.1']);
 		assert.ok(result.header.tools);
@@ -251,7 +255,7 @@ suite('PromptFileParser', () => {
 			{ range: new Range(7, 64, 7, 88), content: 'https://example.com/docs', isMarkdownLink: true },
 		]);
 		assert.deepEqual(result.body.variableReferences, [
-			{ range: new Range(7, 46, 7, 52), name: 'search', offset: 153 }
+			{ range: new Range(7, 46, 7, 52), name: 'search', offset: 153, fullLength: 12 }
 		]);
 		assert.deepEqual(result.header.description, 'General purpose coding assistant');
 		assert.deepEqual(result.header.agent, 'agent');

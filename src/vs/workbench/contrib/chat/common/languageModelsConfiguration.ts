@@ -14,6 +14,7 @@ export const ILanguageModelsConfigurationService = createDecorator<ILanguageMode
 export interface ConfigureLanguageModelsOptions {
 	group: ILanguageModelsProviderGroup;
 	snippet?: string;
+	snippetTarget?: 'group' | 'models';
 }
 
 export interface ILanguageModelsConfigurationService {
@@ -22,6 +23,9 @@ export interface ILanguageModelsConfigurationService {
 	readonly configurationFile: URI;
 
 	readonly onDidChangeLanguageModelGroups: Event<readonly ILanguageModelsProviderGroup[]>;
+
+	/** Resolves after the first config-file load attempt (success or failure), so callers can distinguish empty from not-yet-loaded. Never rejects. */
+	readonly whenReady: Promise<void>;
 
 	getLanguageModelsProviderGroups(): readonly ILanguageModelsProviderGroup[];
 
@@ -38,5 +42,6 @@ export interface ILanguageModelsProviderGroup extends IStringDictionary<unknown>
 	readonly name: string;
 	readonly vendor: string;
 	readonly range?: IRange;
+	readonly modelsRange?: IRange;
 	readonly settings?: IStringDictionary<IStringDictionary<unknown>>;
 }

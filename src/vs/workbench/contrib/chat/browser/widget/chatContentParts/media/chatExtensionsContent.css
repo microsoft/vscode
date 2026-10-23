@@ -25,3 +25,7 @@
 .chat-extensions-content-part .loading-extensions-element .loading-message {
 	padding-left: 4px;
 }
+
+.chat-extensions-content-part .loading-extensions-element > .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+}

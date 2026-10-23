@@ -1,0 +1,62 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { equals } from '../../../../base/common/objects.js';
+import type { IAgentHostManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
+import { DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
+
+export class CopilotAgentStartupConfig {
+	constructor(
+		readonly rubberDuck: boolean,
+		readonly claudeAdvisor: boolean,
+		readonly tgrep: boolean,
+		readonly hydraFusion: boolean,
+		readonly hydraFusionV2: boolean,
+		readonly hydraFusionMultiRoot: boolean,
+		readonly localMemory: boolean,
+		readonly skillCharBudget: number,
+		readonly copilotSdkLogLevel: CopilotSdkLogLevelSetting,
+		readonly runtimePath: string | undefined,
+		readonly enterpriseHost: string | undefined,
+		readonly systemProxy: boolean,
+		readonly githubMcpServer: boolean,
+		readonly copilotConnectors: boolean,
+		readonly managedSettingsPermissions: IAgentHostManagedSettingsPermissions,
+		readonly localIndexEnabled: boolean,
+		readonly legacyApprovalRestricted = false,
+		readonly searchSubagentModel = '',
+		/** `chat.copilot.localModel.enabled`: the request handler can only be installed when the client starts. */
+		readonly localModel = false,
+		readonly executionSubagent = false,
+		readonly executionSubagentModel = DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL,
+		readonly dynamicAutoTiers = false,
+		/** `chat.agentHost.computerUse.enabled`: built-in plugins can only be registered before any session exists. */
+		readonly computerUse = false,
+	) { }
+
+	equals(other: CopilotAgentStartupConfig): boolean {
+		return this.changedKeysFrom(other).length === 0;
+	}
+
+	proxyTargetChangedFrom(other: CopilotAgentStartupConfig): boolean {
+		return this.enterpriseHost !== other.enterpriseHost || this.systemProxy !== other.systemProxy;
+	}
+
+	describeChangesFrom(other: CopilotAgentStartupConfig): string {
+		const values = new Map(Object.entries(this));
+		return this.changedKeysFrom(other)
+			.map(key => key === 'managedSettingsPermissions' ? key : `${key}=${String(values.get(key))}`)
+			.join(', ');
+	}
+
+	private changedKeysFrom(other: CopilotAgentStartupConfig): string[] {
+		const otherEntries = new Map(Object.entries(other));
+		return Object.entries(this)
+			.filter(([key, value]) => key === 'managedSettingsPermissions'
+				? !equals(value, otherEntries.get(key))
+				: value !== otherEntries.get(key))
+			.map(([key]) => key);
+	}
+}

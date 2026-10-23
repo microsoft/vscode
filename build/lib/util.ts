@@ -5,8 +5,7 @@
 
 import es from 'event-stream';
 import _debounce from 'debounce';
-import _filter from 'gulp-filter';
-import rename from 'gulp-rename';
+import { filter as _filter, rename } from './gulp/facade.ts';
 import path from 'path';
 import fs from 'fs';
 import _rimraf from 'rimraf';
@@ -303,7 +302,7 @@ export function rimraf(dir: string): () => Promise<void> {
 					return c();
 				}
 
-				if (err.code === 'ENOTEMPTY' && ++retries < 5) {
+				if ((err.code === 'ENOTEMPTY' || err.code === 'EBUSY' || err.code === 'EPERM') && ++retries < 5) {
 					return setTimeout(() => retry(), 10);
 				}
 
@@ -372,13 +371,6 @@ export function streamToPromise(stream: NodeJS.ReadWriteStream): Promise<void> {
 		stream.on('error', err => e(err));
 		stream.on('end', () => c());
 	});
-}
-
-export function getElectronVersion(): Record<string, string> {
-	const npmrc = fs.readFileSync(path.join(root, '.npmrc'), 'utf8');
-	const electronVersion = /^target="(.*)"$/m.exec(npmrc)![1];
-	const msBuildId = /^ms_build_id="(.*)"$/m.exec(npmrc)![1];
-	return { electronVersion, msBuildId };
 }
 
 export function getVersionedResourcesFolder(platform: string, commit: string): string {

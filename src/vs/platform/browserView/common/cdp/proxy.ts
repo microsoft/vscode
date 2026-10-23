@@ -3,10 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { ICDPTarget, CDPRequest, CDPResponse, CDPEvent, CDPError, CDPErrorCode, CDPServerError, CDPMethodNotFoundError, CDPInvalidParamsError, ICDPConnection, CDPTargetInfo, ICDPBrowserTarget } from './types.js';
+import { ICDPTarget, CDPRequest, CDPResponse, CDPEvent, CDPError, CDPErrorCode, CDPServerError, CDPMethodNotFoundError, CDPInvalidParamsError, ICDPConnection, ICDPBrowserTarget } from './types.js';
+
+/** The id of the connection's implicit root session, which needs no attach. */
+const ROOT_SESSION_ID = '';
+
+/** Per-browser-session subscription state. */
+interface IBrowserSessionState {
+	/** Session on which this browser session's lifecycle events are delivered. */
+	lifecycleSessionId: string | undefined;
+	/** Whether the session subscribed to target discovery. */
+	discover: boolean;
+	/**
+	 * The attachments made to satisfy the session's auto-attach subscription,
+	 * keyed by target, or `undefined` if it did not subscribe.
+	 */
+	autoAttachments: Map<ICDPTarget, Promise<ICDPConnection>> | undefined;
+	/** Target sessions created through this browser session. */
+	sessionIds: Set<string>;
+}
 
 /**
  * CDP protocol handler for browser-level connections.
@@ -14,20 +32,37 @@ import { ICDPTarget, CDPRequest, CDPResponse, CDPEvent, CDPError, CDPErrorCode, 
  * to the appropriate attached session by sessionId.
  */
 export class CDPBrowserProxy extends Disposable implements ICDPConnection {
-	readonly sessionId = `browser-session-${generateUuid()}`;
+	readonly sessionId = ROOT_SESSION_ID;
+	get targetId() {
+		return this.browserTarget.targetInfo.targetId;
+	}
 
-	// Browser session state
-	private _isAttachedToBrowserTarget = false;
-	private _autoAttach = false;
-	private _discover = false;
+	/**
+	 * Browser-level sessions, keyed by session ID.
+	 *
+	 * `Target.setAutoAttach` and `Target.setDiscoverTargets` are per-session in
+	 * CDP, and a client observes events on the session it subscribed from, so
+	 * each session's subscriptions are tracked separately. The root session is
+	 * always present: it is the connection itself, which needs no attach.
+	 */
+	private readonly _browserSessions = new Map<string, IBrowserSessionState>([
+		[ROOT_SESSION_ID, { lifecycleSessionId: undefined, discover: false, autoAttachments: undefined, sessionIds: new Set() }]
+	]);
 
-	private readonly _targets = this._register(new TargetManager());
-
-	// sessionId -> ICDPConnection (keyed by real session ID from target)
+	/**
+	 * All sessions known to this proxy, keyed by sessionId.
+	 * Includes sessions from explicit attach, proxy auto-attach,
+	 * and client auto-attach children.
+	 */
 	private readonly _sessions = this._register(new DisposableMap<string, ICDPConnection>());
-	private readonly _sessionTargetIds = new WeakMap<ICDPConnection, string>();
-	// Only auto-attach once per target.
-	private readonly _autoAttachments = new WeakMap<ICDPTarget, Promise<ICDPConnection>>();
+	private readonly _targets = this._register(new DisposableMap<string, ICDPTarget>());
+
+	/**
+	 * Listeners on targets and sessions, which the proxy observes but does not
+	 * own. Scoped to how long the proxy tracks each one.
+	 */
+	private readonly _targetListeners = this._register(new DisposableMap<string, DisposableStore>());
+	private readonly _sessionListeners = this._register(new DisposableMap<string, DisposableStore>());
 
 	// CDP method handlers map
 	private readonly _handlers = new Map<string, (params: unknown, sessionId?: string) => Promise<object> | object>([
@@ -42,7 +77,7 @@ export class CDPBrowserProxy extends Disposable implements ICDPConnection {
 		['Browser.setWindowBounds', () => ({})],
 		// Target.* methods (https://chromedevtools.github.io/devtools-protocol/tot/Target/)
 		['Target.activateTarget', (p) => this.handleTargetActivateTarget(p as { targetId: string })],
-		['Target.attachToTarget', (p) => this.handleTargetAttachToTarget(p as { targetId: string; flatten?: boolean })],
+		['Target.attachToTarget', (p, s) => this.handleTargetAttachToTarget(p as { targetId: string; flatten?: boolean }, s)],
 		['Target.closeTarget', (p) => this.handleTargetCloseTarget(p as { targetId: string })],
 		['Target.createBrowserContext', () => this.handleTargetCreateBrowserContext()],
 		['Target.createTarget', (p) => this.handleTargetCreateTarget(p as { url?: string; browserContextId?: string })],
@@ -50,56 +85,155 @@ export class CDPBrowserProxy extends Disposable implements ICDPConnection {
 		['Target.disposeBrowserContext', (p) => this.handleTargetDisposeBrowserContext(p as { browserContextId: string })],
 		['Target.getBrowserContexts', () => this.handleTargetGetBrowserContexts()],
 		['Target.getTargets', () => this.handleTargetGetTargets()],
-		['Target.setAutoAttach', (p) => this.handleTargetSetAutoAttach(p as { autoAttach?: boolean; flatten?: boolean })],
-		['Target.setDiscoverTargets', (p) => this.handleTargetSetDiscoverTargets(p as { discover?: boolean })],
-		['Target.attachToBrowserTarget', () => this.handleTargetAttachToBrowserTarget()],
-		['Target.getTargetInfo', (p) => this.handleTargetGetTargetInfo(p as { targetId?: string } | undefined)],
+		['Target.setAutoAttach', (p, s) => this.handleTargetSetAutoAttach(p as { autoAttach?: boolean; flatten?: boolean }, s)],
+		['Target.setDiscoverTargets', (p, s) => this.handleTargetSetDiscoverTargets(p as { discover?: boolean }, s)],
+		['Target.attachToBrowserTarget', (_p, s) => this.handleTargetAttachToBrowserTarget(s)],
+		['Target.getTargetInfo', (p, s) => this.handleTargetGetTargetInfo(p as { targetId?: string } | undefined, s)],
 	]);
 
 	constructor(
 		private readonly browserTarget: ICDPBrowserTarget,
 	) {
 		super();
+	}
 
-		this._targets.onDidRegisterTarget(async ({ targetInfo }) => {
-			if (this._discover) {
-				this.sendBrowserEvent('Target.targetCreated', { targetInfo });
-			}
-			if (this._autoAttach) {
-				await this.attachToTarget(targetInfo.targetId, true);
-			}
-		});
-		this._targets.onDidUnregisterTarget(({ targetInfo }) => {
-			// Close any sessions attached to the destroyed target. Snapshot first
-			// to avoid mutating _sessions while iterating (onClose fires synchronously).
-			const toDispose: ICDPConnection[] = [];
-			for (const [, connection] of this._sessions) {
-				if (this._sessionTargetIds.get(connection) === targetInfo.targetId) {
-					toDispose.push(connection);
+	registerTarget(target: ICDPTarget): void {
+		const targetInfo = target.targetInfo;
+		if (this._targets.has(targetInfo.targetId)) {
+			return;
+		}
+		this._targets.set(targetInfo.targetId, target);
+
+		const listeners = new DisposableStore();
+		this._targetListeners.set(targetInfo.targetId, listeners);
+
+		listeners.add(target.onClose(() => {
+			for (const [sessionId, state] of this._browserSessions) {
+				state.autoAttachments?.delete(target);
+				if (state.discover) {
+					this.sendEvent('Target.targetDestroyed', { targetId: targetInfo.targetId }, sessionId);
 				}
 			}
-			for (const connection of toDispose) {
-				connection.dispose();
+			this._targets.deleteAndDispose(targetInfo.targetId);
+			this._targetListeners.deleteAndDispose(targetInfo.targetId);
+		}));
+
+		listeners.add(target.onTargetInfoChanged(info => {
+			for (const [sessionId, state] of this._browserSessions) {
+				if (state.discover) {
+					this.sendEvent('Target.targetInfoChanged', { targetInfo: info }, sessionId);
+				}
 			}
+		}));
 
-			if (this._discover) {
-				this.sendBrowserEvent('Target.targetDestroyed', { targetId: targetInfo.targetId });
+		for (const [, session] of target.sessions) {
+			this.registerSession(session, false);
+		}
+		listeners.add(target.onSessionCreated(({ session, waitingForDebugger, requesterSessionId }) => {
+			this.registerSession(session, waitingForDebugger, requesterSessionId);
+		}));
+
+		// Announce and attach only once the listeners are in place, so a session
+		// created synchronously by the attach is still correlated to its requester.
+		for (const [sessionId, state] of this._browserSessions) {
+			if (state.discover) {
+				this.sendEvent('Target.targetCreated', { targetInfo: target.targetInfo }, sessionId);
 			}
-		});
+			if (state.autoAttachments) {
+				void this.autoAttachTarget(target, sessionId).catch(() => { /* surfaced to the client as a failed attach */ });
+			}
+		}
+	}
 
-		// Subscribe to browser target events
-		this._register(this.browserTarget.onTargetCreated(target => this._targets.register(target)));
-		this._register(this.browserTarget.onTargetDestroyed(target => this._targets.unregister(target)));
+	notifySessionCreated(session: ICDPConnection, waitingForDebugger: boolean): void {
+		if (this._sessions.has(session.sessionId)) {
+			return; // We already know about it.
+		}
+		if (!session.parentSessionId) {
+			return; // Created globally -- we don't care about it.
+		}
+		if (!this._sessions.has(session.parentSessionId)) {
+			return; // Not from one of our sessions -- ignore it.
+		}
+		const target = this._targets.get(session.targetId);
+		if (!target) {
+			return; // Target isn't known -- ignore it.
+		}
+		target.notifySessionCreated(session, waitingForDebugger);
+	}
 
-		// Register existing targets
-		for (const target of this.browserTarget.getTargets()) {
-			void this._targets.register(target);
+	private registerSession(session: ICDPConnection, waitingForDebugger: boolean, requesterSessionId?: string): void {
+		if (this._sessions.has(session.sessionId)) {
+			return;
 		}
 
-		// Mirror typed events to the onMessage channel
-		this._register(this._onEvent.event(event => {
-			this._onMessage.fire(event);
+		const target = this._targets.get(session.targetId);
+		if (!target) {
+			throw new CDPServerError(`Unable to resolve target for session ${session.sessionId}`);
+		}
+
+		const lifecycleSessionId = requesterSessionId ?? session.parentSessionId;
+		const ownerSessionId = this.resolveBrowserSessionId(lifecycleSessionId);
+		this._browserSessions.get(ownerSessionId)!.sessionIds.add(session.sessionId);
+		this._sessions.set(session.sessionId, session);
+
+		const listeners = new DisposableStore();
+		this._sessionListeners.set(session.sessionId, listeners);
+
+		// Forward non-Target events from the session to the external client.
+		// Target domain events are suppressed — the proxy emits its own
+		// lifecycle events (attachedToTarget, detachedFromTarget, etc.)
+		// via registerSession / onClose / sendEvent.
+		listeners.add(session.onEvent(event => {
+			if (event.method.startsWith('Target.')) {
+				return;
+			}
+			this.sendEvent(event.method, event.params, event.sessionId || session.sessionId);
 		}));
+
+		listeners.add(session.onClose(() => {
+			this._browserSessions.get(ownerSessionId)?.sessionIds.delete(session.sessionId);
+			this._sessions.deleteAndDispose(session.sessionId);
+
+			this.sendEvent('Target.detachedFromTarget', {
+				sessionId: session.sessionId,
+				targetId: session.targetId
+			}, lifecycleSessionId);
+			this._sessionListeners.deleteAndDispose(session.sessionId);
+		}));
+
+		this.sendEvent('Target.attachedToTarget', {
+			sessionId: session.sessionId,
+			targetInfo: target.targetInfo,
+			waitingForDebugger
+		}, lifecycleSessionId);
+	}
+
+	private resolveBrowserSessionId(sessionId: string | undefined): string {
+		if (this._browserSessions.has(sessionId ?? ROOT_SESSION_ID)) {
+			return sessionId ?? ROOT_SESSION_ID;
+		}
+		if (sessionId) {
+			for (const [browserSessionId, state] of this._browserSessions) {
+				if (state.sessionIds.has(sessionId)) {
+					return browserSessionId;
+				}
+			}
+		}
+		return ROOT_SESSION_ID;
+	}
+
+	/**
+	 * Send an event to the client.
+	 *
+	 * `sessionId` is always explicit: events belong to whichever session the
+	 * client subscribed from, so there is no single "current" destination to
+	 * fall back on.
+	 */
+	private sendEvent(method: string, params: unknown, sessionId: string | undefined): void {
+		const externalSessionId = sessionId === ROOT_SESSION_ID ? undefined : sessionId;
+		this._onMessage.fire({ method, params, sessionId: externalSessionId });
+		this._onEvent.fire({ method, params, sessionId: externalSessionId });
 	}
 
 	// #region Public API
@@ -119,10 +253,13 @@ export class CDPBrowserProxy extends Disposable implements ICDPConnection {
 	 */
 	async sendCommand(method: string, params: unknown = {}, sessionId?: string): Promise<unknown> {
 		try {
+			if (sessionId !== undefined && !this._browserSessions.has(sessionId) && !this._sessions.has(sessionId)) {
+				throw new CDPServerError(`Session not found: ${sessionId}`);
+			}
+
 			// Browser-level command handling
 			if (
-				!sessionId ||
-				sessionId === this.sessionId ||
+				this._browserSessions.has(sessionId ?? ROOT_SESSION_ID) ||
 				method.startsWith('Browser.') ||
 				method.startsWith('Target.')
 			) {
@@ -133,7 +270,7 @@ export class CDPBrowserProxy extends Disposable implements ICDPConnection {
 				return await handler(params, sessionId);
 			}
 
-			const connection = this._sessions.get(sessionId);
+			const connection = sessionId ? this._sessions.get(sessionId) : undefined;
 			if (!connection) {
 				throw new CDPServerError(`Session not found: ${sessionId}`);
 			}
@@ -174,12 +311,16 @@ export class CDPBrowserProxy extends Disposable implements ICDPConnection {
 	// #region CDP Commands
 
 	private handleBrowserGetWindowForTarget({ targetId }: { targetId?: string }, sessionId?: string) {
-		const resolvedTargetId = (sessionId && this.findTargetIdForSession(sessionId)) ?? targetId;
+		const resolvedTargetId = (sessionId && this._sessions.get(sessionId)?.targetId) ?? targetId;
 		if (!resolvedTargetId) {
 			throw new CDPServerError('Unable to resolve target');
 		}
 
-		const target = this._targets.getById(resolvedTargetId);
+		const target = this._targets.get(resolvedTargetId);
+		if (!target) {
+			throw new CDPServerError('Unable to resolve target');
+		}
+
 		return this.browserTarget.getWindowForTarget(target);
 	}
 
@@ -197,35 +338,95 @@ export class CDPBrowserProxy extends Disposable implements ICDPConnection {
 		return {};
 	}
 
-	private handleTargetAttachToBrowserTarget() {
-		this._isAttachedToBrowserTarget = true;
-		return { sessionId: this.sessionId };
+	private handleTargetAttachToBrowserTarget(sessionId?: string) {
+		if (sessionId !== undefined && sessionId !== ROOT_SESSION_ID) {
+			throw new CDPInvalidParamsError('This implementation only supports attachToBrowserTarget from the root session');
+		}
+
+		// Each attach is its own session, per CDP: subscriptions and detach are
+		// per-session, so returning a shared ID would let one client's state and
+		// teardown clobber another's.
+		const browserSessionId = `browser-session-${generateUuid()}`;
+		this._browserSessions.set(browserSessionId, { lifecycleSessionId: sessionId, discover: false, autoAttachments: undefined, sessionIds: new Set() });
+
+		// Announce on the session that requested the attach, like any other attach.
+		this.sendEvent('Target.attachedToTarget', {
+			sessionId: browserSessionId,
+			targetInfo: this.browserTarget.targetInfo,
+			waitingForDebugger: false
+		}, sessionId);
+		return { sessionId: browserSessionId };
 	}
 
 	private handleTargetActivateTarget({ targetId }: { targetId: string }) {
-		const target = this._targets.getById(targetId);
+		const target = this._targets.get(targetId);
+		if (!target) {
+			throw new CDPServerError('Unable to resolve target');
+		}
 		return this.browserTarget.activateTarget(target);
 	}
 
-	private async handleTargetSetAutoAttach({ autoAttach = false, flatten }: { autoAttach?: boolean; flatten?: boolean }) {
-		if (!flatten) {
+	private async handleTargetSetAutoAttach(params: { autoAttach?: boolean; flatten?: boolean }, sessionId?: string) {
+		const browserSession = this._browserSessions.get(sessionId ?? ROOT_SESSION_ID);
+		if (!browserSession) {
+			const connection = this._sessions.get(sessionId!);
+			if (!connection) {
+				throw new CDPServerError(`Session not found: ${sessionId}`);
+			}
+			return connection.sendCommand('Target.setAutoAttach', params);
+		}
+
+		if (!params.flatten) {
 			throw new CDPInvalidParamsError('This implementation only supports auto-attach with flatten=true');
 		}
 
-		// Note: auto-attach only attaches to new targets, not to existing ones.
-		this._autoAttach = autoAttach;
+		// Proxy-level auto-attach: attach to new targets as they are registered.
+		if (params.autoAttach) {
+			browserSession.autoAttachments ??= new Map();
+			await Promise.all([...this._targets.values()].map(target => this.autoAttachTarget(target, sessionId ?? ROOT_SESSION_ID)));
+		} else {
+			const attachments = [...(browserSession.autoAttachments?.values() ?? [])];
+			browserSession.autoAttachments = undefined;
+			await Promise.all(attachments.map(async attachment => (await attachment).dispose()));
+		}
 
 		return {};
 	}
 
-	private async handleTargetSetDiscoverTargets({ discover = false }: { discover?: boolean }) {
-		if (discover !== this._discover) {
-			this._discover = discover;
+	private autoAttachTarget(target: ICDPTarget, browserSessionId: string): Promise<ICDPConnection> {
+		const attachments = this._browserSessions.get(browserSessionId)?.autoAttachments;
+		if (!attachments) {
+			throw new CDPServerError(`Auto-attach is not enabled for session ${browserSessionId}`);
+		}
 
-			if (this._discover) {
+		const existing = attachments.get(target);
+		if (existing) {
+			return existing;
+		}
+
+		const attachment = target.attach(browserSessionId).catch(error => {
+			if (attachments.get(target) === attachment) {
+				attachments.delete(target);
+			}
+			throw error;
+		});
+		attachments.set(target, attachment);
+		return attachment;
+	}
+
+	private async handleTargetSetDiscoverTargets({ discover = false }: { discover?: boolean }, sessionId?: string) {
+		const browserSession = this._browserSessions.get(sessionId ?? ROOT_SESSION_ID);
+		if (!browserSession) {
+			throw new CDPServerError(`Session not found: ${sessionId}`);
+		}
+
+		if (discover !== browserSession.discover) {
+			browserSession.discover = discover;
+
+			if (discover) {
 				// Announce all existing targets
-				for (const targetInfo of this._targets.getAllInfos()) {
-					this.sendBrowserEvent('Target.targetCreated', { targetInfo });
+				for (const target of this._targets.values()) {
+					this.sendEvent('Target.targetCreated', { targetInfo: target.targetInfo }, sessionId);
 				}
 			}
 		}
@@ -234,29 +435,52 @@ export class CDPBrowserProxy extends Disposable implements ICDPConnection {
 	}
 
 	private async handleTargetGetTargets() {
-		return { targetInfos: Array.from(this._targets.getAllInfos()) };
+		return { targetInfos: Array.from(this._targets.values()).map(target => target.targetInfo) };
 	}
 
-	private async handleTargetGetTargetInfo({ targetId }: { targetId?: string } = {}) {
+	private async handleTargetGetTargetInfo({ targetId }: { targetId?: string } = {}, sessionId?: string) {
+		targetId ??= sessionId ? this._sessions.get(sessionId)?.targetId : undefined;
 		if (!targetId) {
 			// No targetId specified -- return info about the browser target itself
-			return { targetInfo: await this.browserTarget.getTargetInfo() };
+			return { targetInfo: this.browserTarget.targetInfo };
 		}
 
-		const target = this._targets.getById(targetId);
-		return { targetInfo: await target.getTargetInfo() };
+		const target = this._targets.get(targetId);
+		if (!target) {
+			throw new CDPServerError('Unable to resolve target');
+		}
+		return { targetInfo: target.targetInfo };
 	}
 
-	private async handleTargetAttachToTarget({ targetId, flatten }: { targetId: string; flatten?: boolean }) {
+	private async handleTargetAttachToTarget({ targetId, flatten }: { targetId: string; flatten?: boolean }, sessionId?: string) {
 		if (!flatten) {
 			throw new CDPInvalidParamsError('This implementation only supports attachToTarget with flatten=true');
 		}
 
-		const connection = await this.attachToTarget(targetId, false);
+		const target = this._targets.get(targetId);
+		if (!target) {
+			throw new CDPServerError('Unable to resolve target');
+		}
+		const connection = await target.attach(sessionId);
 		return { sessionId: connection.sessionId };
 	}
 
 	private async handleTargetDetachFromTarget({ sessionId }: { sessionId: string }) {
+		const browserSession = this._browserSessions.get(sessionId);
+		if (browserSession && sessionId !== ROOT_SESSION_ID) {
+			const attachments = [...(browserSession.autoAttachments?.values() ?? [])];
+			await Promise.all(attachments.map(async attachment => (await attachment).dispose()));
+			for (const ownedSessionId of [...browserSession.sessionIds]) {
+				this._sessions.get(ownedSessionId)?.dispose();
+			}
+			this.sendEvent('Target.detachedFromTarget', {
+				sessionId,
+				targetId: this.targetId
+			}, browserSession.lifecycleSessionId);
+			this._browserSessions.delete(sessionId);
+			return {};
+		}
+
 		const connection = this._sessions.get(sessionId);
 		if (!connection) {
 			throw new CDPServerError(`Session not found: ${sessionId}`);
@@ -268,19 +492,23 @@ export class CDPBrowserProxy extends Disposable implements ICDPConnection {
 
 	private async handleTargetCreateTarget({ url, browserContextId }: { url?: string; browserContextId?: string }) {
 		const target = await this.browserTarget.createTarget(url || 'about:blank', browserContextId);
-		const targetInfo = await this._targets.register(target);
+		this.registerTarget(target);
 
 		// Playwright expects the attachment to happen before createTarget returns.
-		if (this._autoAttach) {
-			await this.attachToTarget(targetInfo.targetId, true);
-		}
+		await Promise.all([...this._browserSessions]
+			.filter(([, state]) => state.autoAttachments)
+			.map(([browserSessionId]) => this.autoAttachTarget(target, browserSessionId)));
 
-		return { targetId: targetInfo.targetId };
+		return { targetId: target.targetInfo.targetId };
 	}
 
 	private async handleTargetCloseTarget({ targetId }: { targetId: string }) {
 		try {
-			await this.browserTarget.closeTarget(this._targets.getById(targetId));
+			const target = this._targets.get(targetId);
+			if (!target) {
+				throw new CDPServerError('Unable to resolve target');
+			}
+			await this.browserTarget.closeTarget(target);
 			return { success: true };
 		} catch {
 			return { success: false };
@@ -288,152 +516,4 @@ export class CDPBrowserProxy extends Disposable implements ICDPConnection {
 	}
 
 	// #endregion
-
-	// #region Internal Helpers
-
-	/** Find the targetId for a given sessionId */
-	private findTargetIdForSession(sessionId: string): string | undefined {
-		const connection = this._sessions.get(sessionId);
-		if (!connection) {
-			return undefined;
-		}
-		return this._sessionTargetIds.get(connection);
-	}
-
-	/** Send a browser-level event to the client */
-	private sendBrowserEvent(method: string, params: unknown): void {
-		const sessionId = this._isAttachedToBrowserTarget ? this.sessionId : undefined;
-		this._onEvent.fire({ method, params, sessionId });
-	}
-
-	/** Attach to a target, creating a named session */
-	private async attachToTarget(targetId: string, isAutoAttach: boolean): Promise<ICDPConnection> {
-		const target = this._targets.getById(targetId);
-		if (isAutoAttach) {
-			if (this._autoAttachments.has(target)) {
-				return this._autoAttachments.get(target)!;
-			}
-		}
-
-		const attachmentPromise = (async () => {
-			const connection = await target.attach();
-			const sessionId = connection.sessionId;
-
-			this._sessions.set(sessionId, connection);
-			this._sessionTargetIds.set(connection, targetId);
-
-			const targetInfo = await target.getTargetInfo();
-
-			// Forward non-Target.* events to the external client, tagged with the sessionId.
-			connection.onEvent(event => {
-				if (!event.method.startsWith('Target.')) {
-					this._onEvent.fire({
-						method: event.method,
-						params: event.params,
-						sessionId
-					});
-				}
-			});
-			connection.onClose(() => {
-				this.sendBrowserEvent('Target.detachedFromTarget', { sessionId, targetId });
-				this._sessions.deleteAndDispose(sessionId);
-				this._sessionTargetIds.delete(connection);
-
-				if (this._autoAttachments.get(target) === attachmentPromise) {
-					this._autoAttachments.delete(target);
-				}
-			});
-
-			this.sendBrowserEvent('Target.attachedToTarget', {
-				sessionId,
-				targetInfo: { ...targetInfo, attached: true },
-
-				// Normally this would be configured by the client in `Target.setAutoAttach`,
-				// but Electron doesn't allow us to control this, so we hardcode it to false.
-				waitingForDebugger: false
-			});
-
-			return connection;
-		})();
-
-		if (isAutoAttach) {
-			this._autoAttachments.set(target, attachmentPromise);
-		}
-
-		return attachmentPromise;
-	}
-
-	// #endregion
-}
-
-/**
- * Getting target info is an asynchronous operation, but we want to avoid emitting duplicate events
- * if the same target object is registered multiple times before getTargetInfo resolves.
- *
- * This class manages that deduplication and maintains the mapping between target objects and their resolved target info.
- */
-class TargetManager extends Disposable {
-	// Synchronous dedup: tracks target objects we have already started processing.
-	private readonly _knownTargets = new WeakSet<ICDPTarget>();
-	// target object -> targetInfo (populated async after getTargetInfo)
-	private readonly _targetInfos = new WeakMap<ICDPTarget, CDPTargetInfo>();
-	// targetId -> target object (reverse lookup, populated alongside _targetInfos)
-	private readonly _targetsByID = new Map<string, ICDPTarget>();
-
-	private readonly _onDidRegisterTarget = this._register(new Emitter<{ target: ICDPTarget; targetInfo: CDPTargetInfo }>());
-	readonly onDidRegisterTarget: Event<{ target: ICDPTarget; targetInfo: CDPTargetInfo }> = this._onDidRegisterTarget.event;
-	private readonly _onDidUnregisterTarget = this._register(new Emitter<{ target: ICDPTarget; targetInfo: CDPTargetInfo }>());
-	readonly onDidUnregisterTarget: Event<{ target: ICDPTarget; targetInfo: CDPTargetInfo }> = this._onDidUnregisterTarget.event;
-
-	getById(targetId: string): ICDPTarget {
-		const target = this._targetsByID.get(targetId);
-		if (!target) {
-			throw new CDPServerError(`Unknown targetId: ${targetId}`);
-		}
-		return target;
-	}
-
-	*getAllInfos(): IterableIterator<CDPTargetInfo> {
-		for (const target of this._targetsByID.values()) {
-			yield this._targetInfos.get(target)!;
-		}
-	}
-
-	async register(target: ICDPTarget): Promise<CDPTargetInfo> {
-		// Synchronous dedup - if this target object was already seen, just
-		// return its info without emitting duplicate events.
-		if (this._knownTargets.has(target)) {
-			return target.getTargetInfo();
-		}
-		this._knownTargets.add(target);
-
-		// Resolve the targetId asynchronously
-		const targetInfo = await target.getTargetInfo();
-		if (!this._knownTargets.has(target)) {
-			// Target was unregistered before getTargetInfo resolved. Don't register or emit events.
-			return targetInfo;
-		}
-
-		this._targetInfos.set(target, targetInfo);
-		this._targetsByID.set(targetInfo.targetId, target);
-
-		// Emit creation event
-		this._onDidRegisterTarget.fire({ target, targetInfo });
-
-		return targetInfo;
-	}
-
-	async unregister(target: ICDPTarget): Promise<void> {
-		if (!this._knownTargets.has(target)) {
-			return;
-		}
-		this._knownTargets.delete(target);
-
-		const targetInfo = this._targetInfos.get(target);
-		if (targetInfo) {
-			this._targetInfos.delete(target);
-			this._targetsByID.delete(targetInfo.targetId);
-			this._onDidUnregisterTarget.fire({ target, targetInfo });
-		}
-	}
 }

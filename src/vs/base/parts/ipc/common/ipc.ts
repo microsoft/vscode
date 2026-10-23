@@ -221,7 +221,7 @@ export class BufferReader implements IReader {
 	}
 }
 
-export class BufferWriter implements IWriter {
+export class BufferWriter implements IWriter, IDisposable {
 
 	private buffers: VSBuffer[] = [];
 
@@ -231,6 +231,11 @@ export class BufferWriter implements IWriter {
 
 	write(buffer: VSBuffer): void {
 		this.buffers.push(buffer);
+	}
+
+	dispose(): void {
+		// Release the buffers so a thrown serialization error's stack can't pin them.
+		this.buffers.length = 0;
 	}
 }
 
@@ -367,9 +372,13 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
 
 	private send(header: unknown, body: any = undefined): number {
 		const writer = new BufferWriter();
-		serialize(writer, header);
-		serialize(writer, body);
-		return this.sendBuffer(writer.buffer);
+		try {
+			serialize(writer, header);
+			serialize(writer, body);
+			return this.sendBuffer(writer.buffer);
+		} finally {
+			writer.dispose();
+		}
 	}
 
 	private sendBuffer(message: VSBuffer): number {
@@ -609,7 +618,18 @@ export class ChannelClient implements IChannelClient, IDisposable {
 				};
 
 				this.handlers.set(id, handler);
-				this.sendRequest(request);
+
+				try {
+					this.sendRequest(request);
+				} catch (err) {
+					// `sendRequest` can throw synchronously while serializing the
+					// request (e.g. an oversized argument). The handler was just
+					// registered but no request went out and it's only removed on a
+					// response, so without this it would leak (along with the rejected
+					// promise and error it retains). Clean up and reject.
+					this.handlers.delete(id);
+					e(err);
+				}
 			};
 
 			let uninitializedPromise: CancelablePromise<void> | null = null;
@@ -620,7 +640,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 				uninitializedPromise.then(() => {
 					uninitializedPromise = null;
 					doRequest();
-				});
+				}, () => { });
 			}
 
 			const cancel = () => {
@@ -660,6 +680,8 @@ export class ChannelClient implements IChannelClient, IDisposable {
 
 		const emitter = new Emitter<any>({
 			onWillAddFirstListener: () => {
+				const handler: IHandler = (res: IRawResponse) => emitter.fire((res as IRawEventFireResponse).data);
+				this.handlers.set(id, handler);
 				const doRequest = () => {
 					this.activeRequests.add(emitter);
 					this.sendRequest(request);
@@ -671,7 +693,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 					uninitializedPromise.then(() => {
 						uninitializedPromise = null;
 						doRequest();
-					});
+					}, () => { });
 				}
 			},
 			onDidRemoveLastListener: () => {
@@ -685,9 +707,6 @@ export class ChannelClient implements IChannelClient, IDisposable {
 				this.handlers.delete(id);
 			}
 		});
-
-		const handler: IHandler = (res: IRawResponse) => emitter.fire((res as IRawEventFireResponse).data);
-		this.handlers.set(id, handler);
 
 		return emitter.event;
 	}
@@ -712,9 +731,13 @@ export class ChannelClient implements IChannelClient, IDisposable {
 
 	private send(header: unknown, body: any = undefined): number {
 		const writer = new BufferWriter();
-		serialize(writer, header);
-		serialize(writer, body);
-		return this.sendBuffer(writer.buffer);
+		try {
+			serialize(writer, header);
+			serialize(writer, body);
+			return this.sendBuffer(writer.buffer);
+		} finally {
+			writer.dispose();
+		}
 	}
 
 	private sendBuffer(message: VSBuffer): number {
@@ -825,7 +848,9 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 		this.disposables.add(onDidClientConnect(({ protocol, onDidClientDisconnect }) => {
 			const onFirstMessage = Event.once(protocol.onMessage);
 
-			this.disposables.add(onFirstMessage(msg => {
+			const connectionDisposables = new DisposableStore();
+
+			const onFirstMessageDisposable = onFirstMessage(msg => {
 				const reader = new BufferReader(msg);
 				const ctx = deserialize(reader) as TContext;
 
@@ -838,13 +863,18 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 				this._connections.add(connection);
 				this._onDidAddConnection.fire(connection);
 
-				this.disposables.add(onDidClientDisconnect(() => {
+				connectionDisposables.add(onDidClientDisconnect(() => {
 					channelServer.dispose();
 					channelClient.dispose();
 					this._connections.delete(connection);
 					this._onDidRemoveConnection.fire(connection);
+					this.disposables.delete(connectionDisposables);
+					connectionDisposables.dispose();
 				}));
-			}));
+			});
+
+			connectionDisposables.add(onFirstMessageDisposable);
+			this.disposables.add(connectionDisposables);
 		}));
 	}
 
@@ -989,8 +1019,12 @@ export class IPCClient<TContext = string> implements IChannelClient, IChannelSer
 
 	constructor(protocol: IMessagePassingProtocol, ctx: TContext, ipcLogger: IIPCLogger | null = null) {
 		const writer = new BufferWriter();
-		serialize(writer, ctx);
-		protocol.send(writer.buffer);
+		try {
+			serialize(writer, ctx);
+			protocol.send(writer.buffer);
+		} finally {
+			writer.dispose();
+		}
 
 		this.channelClient = new ChannelClient(protocol, ipcLogger);
 		this.channelServer = new ChannelServer(protocol, ctx, ipcLogger);
@@ -1019,7 +1053,10 @@ export function getDelayedChannel<T extends IChannel>(promise: Promise<T>): T {
 
 		listen<T>(event: string, arg?: any): Event<T> {
 			const relay = new Relay<any>();
-			promise.then(c => relay.input = c.listen(event, arg));
+			void promise.then(
+				c => relay.input = c.listen(event, arg),
+				() => relay.dispose(),
+			);
 			return relay.event;
 		}
 	} as T;
@@ -1104,11 +1141,18 @@ export namespace ProxyChannel {
 		disableMarshalling?: boolean;
 	}
 
-	export interface ICreateServiceChannelOptions extends IProxyOptions { }
+	export interface ICreateServiceChannelOptions extends IProxyOptions {
+
+		/**
+		 * Events that should subscribe lazily and not replay emissions before the first IPC listener.
+		 */
+		unbufferedEvents?: readonly string[];
+	}
 
 	export function fromService<TContext>(service: unknown, disposables: DisposableStore, options?: ICreateServiceChannelOptions): IServerChannel<TContext> {
 		const handler = service as { [key: string]: unknown };
 		const disableMarshalling = options?.disableMarshalling;
+		const unbufferedEvents = options?.unbufferedEvents ? new Set(options.unbufferedEvents) : undefined;
 
 		// Buffer any event that should be supported by
 		// iterating over all property keys and finding them
@@ -1117,7 +1161,7 @@ export namespace ProxyChannel {
 		// still need to check later (see below).
 		const mapEventNameToEvent = new Map<string, Event<unknown>>();
 		for (const key in handler) {
-			if (propertyIsEvent(key)) {
+			if (propertyIsEvent(key) && !unbufferedEvents?.has(key)) {
 				mapEventNameToEvent.set(key, Event.buffer(handler[key] as Event<unknown>, key, true, undefined, disposables));
 			}
 		}
@@ -1137,6 +1181,10 @@ export namespace ProxyChannel {
 					}
 
 					if (propertyIsEvent(event)) {
+						if (unbufferedEvents?.has(event)) {
+							return handler[event] as Event<T>;
+						}
+
 						mapEventNameToEvent.set(event, Event.buffer(handler[event] as Event<unknown>, event, true, undefined, disposables));
 
 						return mapEventNameToEvent.get(event) as Event<T>;
@@ -1194,6 +1242,11 @@ export namespace ProxyChannel {
 					// Check for predefined values
 					if (options?.properties?.has(propKey)) {
 						return options.properties.get(propKey);
+					}
+
+					// Answering `then` makes this proxy a thenable, so `await` would forward it and never settle.
+					if (propKey === 'then') {
+						return undefined;
 					}
 
 					// Dynamic Event

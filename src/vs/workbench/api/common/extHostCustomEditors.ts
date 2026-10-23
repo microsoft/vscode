@@ -4,9 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { CancellationToken } from '../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { isCancellationError, onUnexpectedError } from '../../../base/common/errors.js';
 import { hash } from '../../../base/common/hash.js';
-import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { IRange } from '../../../editor/common/core/range.js';
+import { ISelection } from '../../../editor/common/core/selection.js';
 import { Schemas } from '../../../base/common/network.js';
 import { joinPath } from '../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
@@ -21,6 +24,15 @@ import type * as vscode from 'vscode';
 import { Cache } from './cache.js';
 import * as extHostProtocol from './extHost.protocol.js';
 import * as extHostTypes from './extHostTypes.js';
+import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
+
+interface CustomTextEditorNavigationEntry {
+	readonly viewType: string;
+	readonly disposables: DisposableStore;
+	readonly states: Map<number, unknown>;
+	readonly pendingStates: Set<number>;
+	controller?: vscode.CustomTextEditorNavigation;
+}
 
 
 class CustomDocumentStoreEntry {
@@ -162,6 +174,7 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 	private readonly _editorProviders = new EditorProviderStore();
 
 	private readonly _documents = new CustomDocumentStore();
+	private readonly _navigation = new Map<extHostProtocol.WebviewHandle, CustomTextEditorNavigationEntry>();
 
 	constructor(
 		mainContext: extHostProtocol.IMainContext,
@@ -179,14 +192,21 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 		provider: vscode.CustomReadonlyEditorProvider | vscode.CustomTextEditorProvider,
 		options: { webviewOptions?: vscode.WebviewPanelOptions; supportsMultipleEditorsPerDocument?: boolean },
 	): vscode.Disposable {
+		if (isCustomTextEditorProvider(provider) && provider.resolveCustomTextEditorNavigation) {
+			checkProposedApiEnabled(extension, 'customTextEditorNavigation');
+		}
 		const disposables = new DisposableStore();
 		if (isCustomTextEditorProvider(provider)) {
 			disposables.add(this._editorProviders.addTextProvider(viewType, extension, provider));
 			this._proxy.$registerTextEditorProvider(toExtensionData(extension), viewType, options.webviewOptions || {}, {
 				supportsMove: !!provider.moveCustomTextEditor,
+				supportsNavigation: !!provider.resolveCustomTextEditorNavigation,
+				supportsInlineDiff: isProposedApiEnabled(extension, 'customEditorDiffs') && isCustomTextEditorProviderWithInlineDiffCapability(provider),
+				supportsSideBySideDiff: isProposedApiEnabled(extension, 'customEditorDiffs') && isCustomTextEditorProviderWithSideBySideDiffCapability(provider),
 			}, shouldSerializeBuffersForPostMessage(extension));
 		} else {
 			disposables.add(this._editorProviders.addCustomProvider(viewType, extension, provider));
+			const supportsCustomEditorDiffs = isProposedApiEnabled(extension, 'customEditorDiffs');
 
 			if (isCustomEditorProviderWithEditingCapability(provider)) {
 				disposables.add(provider.onDidChangeCustomDocument(e => {
@@ -200,8 +220,19 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 				}));
 			}
 
-			this._proxy.$registerCustomEditorProvider(toExtensionData(extension), viewType, options.webviewOptions || {}, !!options.supportsMultipleEditorsPerDocument, shouldSerializeBuffersForPostMessage(extension));
+			this._proxy.$registerCustomEditorProvider(toExtensionData(extension), viewType, options.webviewOptions || {}, {
+				supportsInlineDiff: supportsCustomEditorDiffs && isCustomEditorProviderWithInlineDiffCapability(provider),
+				supportsSideBySideDiff: supportsCustomEditorDiffs && isCustomEditorProviderWithSideBySideDiffCapability(provider),
+			}, !!options.supportsMultipleEditorsPerDocument, shouldSerializeBuffersForPostMessage(extension));
 		}
+
+		disposables.add(toDisposable(() => {
+			for (const [handle, entry] of this._navigation) {
+				if (entry.viewType === viewType) {
+					this.$disposeCustomTextEditorNavigation(handle);
+				}
+			}
+		}));
 
 		return extHostTypes.Disposable.from(
 			disposables,
@@ -233,15 +264,7 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 	}
 
 	async $disposeCustomDocument(resource: UriComponents, viewType: string): Promise<void> {
-		const entry = this._editorProviders.get(viewType);
-		if (!entry) {
-			throw new Error(`No provider found for '${viewType}'`);
-		}
-
-		if (entry.type !== CustomEditorType.Custom) {
-			throw new Error(`Invalid provider type for '${viewType}'`);
-		}
-
+		// Unregistering a provider disposes its models, so the provider may already be gone.
 		const revivedResource = URI.revive(resource);
 		const { document } = this.getCustomDocumentEntry(viewType, revivedResource);
 		// Pass the resource we used to look up the document, not document.uri,
@@ -271,6 +294,11 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 		const viewColumn = typeConverters.ViewColumn.to(position);
 
 		const webview = this._extHostWebview.createNewWebview(handle, initData.contentOptions, entry.extension);
+		// The main thread starts the custom editor's webview with empty content
+		// options. Ensure `localResourceRoots` defaults to the workspace folders
+		// and the providing extension's install directory, as documented on
+		// `WebviewOptions.localResourceRoots`.
+		this._extHostWebview.ensureDefaultContentOptions(handle, initData.contentOptions, entry.extension);
 		const panel = this._extHostWebviewPanels.createNewWebviewPanel(handle, viewType, initData.title, viewColumn, initData.options, webview, initData.active);
 
 		const revivedResource = URI.revive(resource);
@@ -288,6 +316,173 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 				throw new Error('Unknown webview provider type');
 			}
 		}
+	}
+
+	async $resolveCustomTextEditorNavigation(handle: extHostProtocol.WebviewHandle, viewType: string, resource: UriComponents, token: CancellationToken): Promise<{ selection: ISelection | undefined } | undefined> {
+		const provider = this._editorProviders.get(viewType);
+		const panel = this._extHostWebviewPanels.getWebviewPanel(handle);
+		if (provider?.type !== CustomEditorType.Text || !provider.provider.resolveCustomTextEditorNavigation || !panel || token.isCancellationRequested) {
+			return undefined;
+		}
+		checkProposedApiEnabled(provider.extension, 'customTextEditorNavigation');
+		this.$disposeCustomTextEditorNavigation(handle);
+		const entry: CustomTextEditorNavigationEntry = { viewType, disposables: new DisposableStore(), states: new Map(), pendingStates: new Set() };
+		this._navigation.set(handle, entry);
+		const cancellation = new CancellationTokenSource(token);
+		entry.disposables.add(toDisposable(() => cancellation.dispose(true)));
+		entry.disposables.add(panel.onDidDispose(() => this.$disposeCustomTextEditorNavigation(handle)));
+		try {
+			const controller = await provider.provider.resolveCustomTextEditorNavigation(this._extHostDocuments.getDocument(URI.revive(resource)), panel, cancellation.token);
+			if (cancellation.token.isCancellationRequested || this._navigation.get(handle) !== entry) {
+				controller.dispose();
+				this.$disposeCustomTextEditorNavigation(handle);
+				return undefined;
+			}
+			entry.controller = controller;
+			entry.disposables.add(controller);
+			entry.disposables.add(controller.onDidChangeSelection(selection => {
+				this._proxy.$onDidChangeCustomTextEditorSelection(handle, selection && typeConverters.Selection.from(selection));
+			}));
+			return { selection: controller.selection && typeConverters.Selection.from(controller.selection) };
+		} catch (error) {
+			this.$disposeCustomTextEditorNavigation(handle);
+			if (!isCancellationError(error)) {
+				onUnexpectedError(error);
+			}
+			return undefined;
+		}
+	}
+
+	$disposeCustomTextEditorNavigation(handle: extHostProtocol.WebviewHandle): void {
+		const entry = this._navigation.get(handle);
+		if (entry) {
+			this._navigation.delete(handle);
+			entry.states.clear();
+			entry.pendingStates.clear();
+			entry.disposables.dispose();
+		}
+	}
+
+	async $revealCustomTextEditorRange(handle: extHostProtocol.WebviewHandle, range: IRange, selection: ISelection | undefined, preserveFocus: boolean, token: CancellationToken): Promise<void> {
+		const controller = this._navigation.get(handle)?.controller;
+		if (controller && !token.isCancellationRequested) {
+			await controller.revealRange(typeConverters.Range.to(range), { selection: selection && typeConverters.Selection.to(selection), preserveFocus }, token);
+		}
+	}
+
+	async $captureCustomTextEditorViewState(handle: extHostProtocol.WebviewHandle, stateId: number): Promise<void> {
+		const entry = this._navigation.get(handle);
+		if (entry?.controller) {
+			entry.pendingStates.add(stateId);
+			try {
+				const state = await entry.controller.captureViewState();
+				if (this._navigation.get(handle) === entry && entry.pendingStates.delete(stateId)) {
+					entry.states.set(stateId, state);
+				}
+			} finally {
+				entry.pendingStates.delete(stateId);
+			}
+		}
+	}
+
+	async $restoreCustomTextEditorViewState(handle: extHostProtocol.WebviewHandle, stateId: number, token: CancellationToken): Promise<void> {
+		const entry = this._navigation.get(handle);
+		if (entry?.controller && entry.states.has(stateId)) {
+			const state = entry.states.get(stateId);
+			entry.states.delete(stateId);
+			if (!token.isCancellationRequested) {
+				await entry.controller.restoreViewState(state, token);
+			}
+		}
+	}
+
+	$releaseCustomTextEditorViewState(handle: extHostProtocol.WebviewHandle, stateId: number): void {
+		const entry = this._navigation.get(handle);
+		entry?.states.delete(stateId);
+		entry?.pendingStates.delete(stateId);
+	}
+
+	async $resolveCustomEditorInlineDiff(
+		originalResource: UriComponents,
+		modifiedResource: UriComponents,
+		handle: extHostProtocol.WebviewHandle,
+		viewType: string,
+		initData: extHostProtocol.CustomEditorDiffInitData,
+		position: EditorGroupColumn,
+		cancellation: CancellationToken,
+	): Promise<void> {
+		const { entry, panel } = this.createCustomEditorDiffPanel(handle, viewType, initData, position);
+		const revivedOriginalResource = URI.revive(originalResource);
+		const revivedModifiedResource = URI.revive(modifiedResource);
+
+		if (entry.type === CustomEditorType.Text) {
+			if (!isCustomTextEditorProviderWithInlineDiffCapability(entry.provider)) {
+				throw new Error(`Provider for '${viewType}' does not support inline custom text editor diffs`);
+			}
+
+			const originalDocument = this._extHostDocuments.getDocument(revivedOriginalResource);
+			const modifiedDocument = this._extHostDocuments.getDocument(revivedModifiedResource);
+			return entry.provider.resolveCustomTextEditorInlineDiff({ original: originalDocument, modified: modifiedDocument }, panel, cancellation);
+		}
+
+		if (!isCustomEditorProviderWithInlineDiffCapability(entry.provider)) {
+			throw new Error(`Provider for '${viewType}' does not support inline custom editor diffs`);
+		}
+
+		const { document: originalDocument } = this.getCustomDocumentEntry(viewType, revivedOriginalResource);
+		const { document: modifiedDocument } = this.getCustomDocumentEntry(viewType, revivedModifiedResource);
+		return entry.provider.resolveCustomEditorInlineDiff({ original: originalDocument, modified: modifiedDocument }, panel, cancellation);
+	}
+
+	async $resolveCustomEditorSideBySideDiff(
+		originalResource: UriComponents,
+		modifiedResource: UriComponents,
+		webviewHandles: extHostProtocol.CustomEditorSideBySideDiffWebviewHandles,
+		viewType: string,
+		initData: extHostProtocol.CustomEditorSideBySideDiffInitData,
+		position: EditorGroupColumn,
+		cancellation: CancellationToken,
+	): Promise<void> {
+		const { entry, panel: originalPanel } = this.createCustomEditorDiffPanel(webviewHandles.original, viewType, initData.original, position);
+		const { panel: modifiedPanel } = this.createCustomEditorDiffPanel(webviewHandles.modified, viewType, initData.modified, position);
+		const revivedOriginalResource = URI.revive(originalResource);
+		const revivedModifiedResource = URI.revive(modifiedResource);
+
+		if (entry.type === CustomEditorType.Text) {
+			if (!isCustomTextEditorProviderWithSideBySideDiffCapability(entry.provider)) {
+				throw new Error(`Provider for '${viewType}' does not support side by side custom text editor diffs`);
+			}
+
+			const originalDocument = this._extHostDocuments.getDocument(revivedOriginalResource);
+			const modifiedDocument = this._extHostDocuments.getDocument(revivedModifiedResource);
+			return entry.provider.resolveCustomTextEditorSideBySideDiff({ original: originalDocument, modified: modifiedDocument }, { original: originalPanel, modified: modifiedPanel }, cancellation);
+		}
+
+		if (!isCustomEditorProviderWithSideBySideDiffCapability(entry.provider)) {
+			throw new Error(`Provider for '${viewType}' does not support side by side custom editor diffs`);
+		}
+
+		const { document: originalDocument } = this.getCustomDocumentEntry(viewType, revivedOriginalResource);
+		const { document: modifiedDocument } = this.getCustomDocumentEntry(viewType, revivedModifiedResource);
+		return entry.provider.resolveCustomEditorSideBySideDiff({ original: originalDocument, modified: modifiedDocument }, { original: originalPanel, modified: modifiedPanel }, cancellation);
+	}
+
+	private createCustomEditorDiffPanel(
+		handle: extHostProtocol.WebviewHandle,
+		viewType: string,
+		initData: extHostProtocol.CustomEditorDiffInitData,
+		position: EditorGroupColumn,
+	): { entry: ProviderEntry; panel: vscode.WebviewPanel } {
+		const entry = this._editorProviders.get(viewType);
+		if (!entry) {
+			throw new Error(`No provider found for '${viewType}'`);
+		}
+
+		const viewColumn = typeConverters.ViewColumn.to(position);
+		const webview = this._extHostWebview.createNewWebview(handle, initData.contentOptions, entry.extension);
+		this._extHostWebview.ensureDefaultContentOptions(handle, initData.contentOptions, entry.extension);
+		const panel = this._extHostWebviewPanels.createNewWebviewPanel(handle, viewType, initData.title, viewColumn, initData.options, webview, initData.active);
+		return { entry, panel };
 	}
 
 	$disposeEdits(resourceComponents: UriComponents, viewType: string, editIds: number[]): void {
@@ -380,6 +575,22 @@ function isCustomEditorProviderWithEditingCapability(provider: vscode.CustomText
 
 function isCustomTextEditorProvider(provider: vscode.CustomReadonlyEditorProvider<vscode.CustomDocument> | vscode.CustomTextEditorProvider): provider is vscode.CustomTextEditorProvider {
 	return typeof (provider as vscode.CustomTextEditorProvider).resolveCustomTextEditor === 'function';
+}
+
+function isCustomTextEditorProviderWithInlineDiffCapability(provider: vscode.CustomTextEditorProvider): provider is vscode.CustomTextEditorProvider & Required<Pick<vscode.CustomTextEditorProvider, 'resolveCustomTextEditorInlineDiff'>> {
+	return typeof provider.resolveCustomTextEditorInlineDiff === 'function';
+}
+
+function isCustomTextEditorProviderWithSideBySideDiffCapability(provider: vscode.CustomTextEditorProvider): provider is vscode.CustomTextEditorProvider & Required<Pick<vscode.CustomTextEditorProvider, 'resolveCustomTextEditorSideBySideDiff'>> {
+	return typeof provider.resolveCustomTextEditorSideBySideDiff === 'function';
+}
+
+function isCustomEditorProviderWithInlineDiffCapability(provider: vscode.CustomReadonlyEditorProvider): provider is vscode.CustomReadonlyEditorProvider & Required<Pick<vscode.CustomReadonlyEditorProvider, 'resolveCustomEditorInlineDiff'>> {
+	return typeof provider.resolveCustomEditorInlineDiff === 'function';
+}
+
+function isCustomEditorProviderWithSideBySideDiffCapability(provider: vscode.CustomReadonlyEditorProvider): provider is vscode.CustomReadonlyEditorProvider & Required<Pick<vscode.CustomReadonlyEditorProvider, 'resolveCustomEditorSideBySideDiff'>> {
+	return typeof provider.resolveCustomEditorSideBySideDiff === 'function';
 }
 
 function isEditEvent(e: vscode.CustomDocumentContentChangeEvent | vscode.CustomDocumentEditEvent): e is vscode.CustomDocumentEditEvent {

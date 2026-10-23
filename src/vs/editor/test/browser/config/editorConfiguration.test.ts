@@ -16,6 +16,11 @@ suite('Common Editor Config', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	// The editor zoom level is global, so restore it for the tests that run later
+	let zoomLevel: number;
+	setup(() => zoomLevel = EditorZoom.getZoomLevel());
+	teardown(() => EditorZoom.setZoomLevel(zoomLevel));
+
 	test('Zoom Level', () => {
 
 		//Zoom levels are defined to go between -5, 20 inclusive
@@ -232,7 +237,7 @@ suite('Common Editor Config', () => {
 		const config = new TestConfiguration({ quickSuggestions: null! });
 		const actual = <Readonly<Required<IQuickSuggestionsOptions>>>config.options.get(EditorOption.quickSuggestions);
 		assert.deepStrictEqual(actual, {
-			other: 'on',
+			other: 'offWhenInlineCompletions',
 			comments: 'off',
 			strings: 'off'
 		});
@@ -244,7 +249,7 @@ suite('Common Editor Config', () => {
 		config.updateOptions({ quickSuggestions: { strings: true } });
 		const actual = <Readonly<Required<IQuickSuggestionsOptions>>>config.options.get(EditorOption.quickSuggestions);
 		assert.deepStrictEqual(actual, {
-			other: 'on',
+			other: 'offWhenInlineCompletions',
 			comments: 'off',
 			strings: 'on'
 		});

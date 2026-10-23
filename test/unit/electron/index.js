@@ -10,10 +10,13 @@
 // come before any mocha imports.
 process.env.MOCHA_COLORS = '1';
 
-const { app, BrowserWindow, ipcMain, crashReporter, session } = require('electron');
+const { app, BrowserWindow, WebContentsView, ipcMain, crashReporter, net: electronNet, protocol, session } = require('electron');
+// A renderer's execPath points at the helper executable on macOS.
+process.env.VSCODE_TEST_ELECTRON_PATH = process.execPath;
 const product = require('../../../product.json');
 const { tmpdir } = require('os');
 const { existsSync, mkdirSync, promises } = require('fs');
+const http = require('http');
 const path = require('path');
 const mocha = require('mocha');
 const events = require('events');
@@ -25,12 +28,24 @@ const { applyReporter, importMochaReporter } = require('../reporter');
 
 const minimist = require('minimist');
 
+protocol.registerSchemesAsPrivileged([
+	{
+		scheme: 'vscode-file',
+		privileges: { secure: true, standard: true, supportFetchAPI: true, corsEnabled: true }
+	},
+	{
+		scheme: 'vscode-remote-resource',
+		privileges: { secure: true, supportFetchAPI: true, corsEnabled: true }
+	}
+]);
+
 /**
  * @type {{
  * _: string[];
  * grep: string;
  * run: string | string[];
  * runGlob: string;
+ * excludeRunGlob: string;
  * testSplit: string;
  * dev: boolean;
  * reporter: string;
@@ -44,11 +59,12 @@ const minimist = require('minimist');
  * coveragePath: string;
  * coverageFormats: string | string[];
  * 'per-test-coverage': boolean;
+ * 'rerun-failed-files': string;
  * help: boolean;
  * }}
  */
 const args = minimist(process.argv.slice(2), {
-	string: ['grep', 'run', 'runGlob', 'reporter', 'reporter-options', 'waitServer', 'timeout', 'crash-reporter-directory', 'tfs', 'coveragePath', 'coverageFormats', 'testSplit'],
+	string: ['grep', 'run', 'runGlob', 'excludeRunGlob', 'reporter', 'reporter-options', 'waitServer', 'timeout', 'crash-reporter-directory', 'tfs', 'coveragePath', 'coverageFormats', 'testSplit', 'rerun-failed-files'],
 	boolean: ['build', 'coverage', 'help', 'dev', 'per-test-coverage'],
 	alias: {
 		'grep': ['g', 'f'],
@@ -62,6 +78,8 @@ const args = minimist(process.argv.slice(2), {
 	}
 });
 
+const isCI = !!process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || !!process.env.GITHUB_WORKSPACE;
+
 if (args.help) {
 	console.log(`Usage: node ${process.argv[1]} [options] [file...]
 
@@ -72,6 +90,7 @@ Options:
 --grep, -g, -f <pattern>      only run tests matching <pattern>
 --run <file>                  only run tests from <file>
 --runGlob, --glob, --runGrep <file_pattern> only run tests matching <file_pattern>
+--excludeRunGlob <file_pattern> exclude tests matching <file_pattern> from --runGlob
 --testSplit <i>/<n>           split tests into <n> parts and run the <i>th part
 --build                       run with build output (out-build)
 --coverage                    generate coverage report
@@ -82,6 +101,7 @@ Options:
 --waitServer <port>           port to connect to and wait before running tests
 --timeout <ms>                timeout for tests
 --crash-reporter-directory <path> crash reporter directory
+--rerun-failed-files <count>  rerun the test files that failed, each time in a fresh window, up to <count> more times
 --tfs <url>                   TFS server URL
 --help, -h                    show the help`);
 	process.exit(0);
@@ -120,14 +140,14 @@ if (crashReporterDirectory) {
 
 	crashReporter.start({
 		companyName: 'Microsoft',
-		productName: process.env['VSCODE_DEV'] ? `${product.nameShort} Dev` : product.nameShort,
+		productName: process.env.VSCODE_DEV ? `${product.nameShort} Dev` : product.nameShort,
 		uploadToServer: false,
 		compress: true
 	});
 }
 
 if (!args.dev) {
-	app.setPath('userData', path.join(tmpdir(), `vscode-tests-${Date.now()}`));
+	app.setPath('userData', path.join(tmpdir(), `vscode-tests-${Date.now()}-${process.pid}`));
 }
 
 function deserializeSuite(suite) {
@@ -154,7 +174,8 @@ function deserializeRunnable(runnable) {
 		slow: () => runnable.slow,
 		speed: runnable.speed,
 		duration: runnable.duration,
-		currentRetry: () => runnable.currentRetry
+		currentRetry: () => runnable.currentRetry,
+		file: runnable.file
 	};
 }
 
@@ -174,6 +195,10 @@ function deserializeError(err) {
 	return err;
 }
 
+/**
+ * Relays the mocha events of the test run in one window to the reporters in the
+ * main process, and records which test files had failures.
+ */
 class IPCRunner extends events.EventEmitter {
 
 	constructor(win) {
@@ -181,6 +206,11 @@ class IPCRunner extends events.EventEmitter {
 
 		this.didFail = false;
 		this.didEnd = false;
+
+		/** @type {Set<string>} test files with a failing test or hook */
+		this.failedFiles = new Set();
+		/** @type {string[]} failures that do not belong to a test file, such as root-level hooks */
+		this.unattributedFailures = [];
 
 		ipcMain.on('start', () => this.emit('start'));
 		ipcMain.on('end', () => {
@@ -196,9 +226,15 @@ class IPCRunner extends events.EventEmitter {
 		ipcMain.on('pass', (e, test) => this.emit('pass', deserializeRunnable(test)));
 		ipcMain.on('fail', (e, test, err) => {
 			this.didFail = true;
+			if (test.file) {
+				this.failedFiles.add(test.file);
+			} else {
+				this.unattributedFailures.push(test.fullTitle);
+			}
 			this.emit('fail', deserializeRunnable(test), deserializeError(err));
 		});
 		ipcMain.on('pending', (e, test) => this.emit('pending', deserializeRunnable(test)));
+		ipcMain.on('all done', () => this.emit('all done'));
 
 		ipcMain.handle('startCoverage', async () => {
 			win.webContents.debugger.attach();
@@ -228,14 +264,136 @@ class IPCRunner extends events.EventEmitter {
 			}
 		});
 	}
+
+	dispose() {
+		for (const channel of ['start', 'end', 'suite', 'suite end', 'test', 'test end', 'hook', 'hook end', 'pass', 'fail', 'pending', 'all done']) {
+			ipcMain.removeAllListeners(channel);
+		}
+		ipcMain.removeHandler('startCoverage');
+		ipcMain.removeHandler('snapshotCoverage');
+	}
 }
 
-app.on('ready', () => {
+app.on('ready', async () => {
+	session.defaultSession.setSpellCheckerLanguages([]);
+	session.defaultSession.setSpellCheckerEnabled(false);
+	const outDir = args.build ? 'out-build' : 'out';
+	const [{ createRemoteResourceRequestHandler }, { getRemoteResourceResponseHeaders }] = await Promise.all([
+		import(url.pathToFileURL(path.join(__dirname, `../../../${outDir}/vs/platform/protocol/electron-main/remoteResourceProtocol.js`)).href),
+		import(url.pathToFileURL(path.join(__dirname, `../../../${outDir}/vs/server/node/remoteResourceResponse.js`)).href),
+	]);
+	/** @type {import('http').IncomingHttpHeaders | undefined} */
+	let remoteResourceRequestHeaders;
+	const remoteResourceServer = http.createServer((request, response) => {
+		remoteResourceRequestHeaders = request.headers;
+		response.writeHead(200, {
+			...getRemoteResourceResponseHeaders(request.headers.origin, () => false),
+			'Content-Type': 'image/svg+xml',
+		});
+		response.write('<svg xmlns="http://www.w3.org/2000/svg">');
+		setTimeout(() => response.end('</svg>'), 10);
+	});
+	await new Promise((resolve, reject) => {
+		remoteResourceServer.once('error', reject);
+		remoteResourceServer.listen(0, '127.0.0.1', () => resolve());
+	});
+	const remoteResourceServerAddress = remoteResourceServer.address();
+	if (!remoteResourceServerAddress || typeof remoteResourceServerAddress === 'string') {
+		throw new Error('Remote resource test server did not bind to a TCP port');
+	}
+	protocol.handle('vscode-remote-resource', createRemoteResourceRequestHandler({ warn() { } }));
+	// A second view lets tests blur the page without stealing desktop focus.
+	/** @type {Map<number, import('electron').WebContentsView>} */
+	const focusTestViews = new Map();
+	ipcMain.handle('vscode:test-set-web-contents-focus', async (event, focused) => {
+		const window = BrowserWindow.fromWebContents(event.sender);
+		if (!window) {
+			throw new Error('Focus test requires a BrowserWindow');
+		}
+		if (focused) {
+			event.sender.focus();
+			const view = focusTestViews.get(event.sender.id);
+			if (view) {
+				window.contentView.removeChildView(view);
+				view.webContents.close();
+				focusTestViews.delete(event.sender.id);
+			}
+		} else {
+			const view = new WebContentsView();
+			focusTestViews.set(event.sender.id, view);
+			window.contentView.addChildView(view);
+			await view.webContents.loadURL('about:blank');
+			view.webContents.focus();
+		}
+	});
+	ipcMain.handle('vscode:test-remote-resource', async () => {
+		const remoteResourceTestWindow = new BrowserWindow({ show: false });
+		try {
+			const pagePath = url.pathToFileURL(path.join(__dirname, 'fixtures/remote-resource.html')).pathname;
+			await remoteResourceTestWindow.loadURL(`vscode-file://vscode-app${pagePath}`);
+
+			const remoteResourceUrl = `vscode-remote-resource://127.0.0.1:${remoteResourceServerAddress.port}/vscode-remote-resource`;
+			await remoteResourceTestWindow.webContents.executeJavaScript(`
+				new Promise((resolve, reject) => {
+					const image = new Image();
+					image.crossOrigin = 'anonymous';
+					image.onload = resolve;
+					image.onerror = () => reject(new Error('Remote resource image failed to load'));
+					image.src = ${JSON.stringify(remoteResourceUrl)};
+					document.body.append(image);
+				})
+			`);
+			return {
+				loaded: true,
+				requestHeaders: {
+					origin: remoteResourceRequestHeaders?.origin,
+					secFetchMode: remoteResourceRequestHeaders?.['sec-fetch-mode'],
+				},
+			};
+		} finally {
+			remoteResourceTestWindow.close();
+		}
+	});
+
+	ipcMain.handle('vscode:test-file-resource', async (_event, requestUrl, roots) => {
+		const [{ ProtocolMainService }, { URI }] = await Promise.all([
+			import(url.pathToFileURL(path.join(__dirname, `../../../${outDir}/vs/platform/protocol/electron-main/protocolMainService.js`)).href),
+			import(url.pathToFileURL(path.join(__dirname, `../../../${outDir}/vs/base/common/uri.js`)).href),
+		]);
+		// Preserve the production root registration and guard; replace only protocol registration and file transport.
+		class TestProtocolMainService extends ProtocolMainService {
+			handleProtocols() { }
+			async createFileResponse(_request, filePath) {
+				return new Response(filePath);
+			}
+		}
+		/** @type {string[]} */
+		const errors = [];
+		const service = new TestProtocolMainService(
+			{ ...roots, workspaceStorageHome: URI.file(roots.workspaceStorageHome), isBuilt: true },
+			{ defaultProfile: { globalStorageHome: URI.file(roots.globalStorageHome) } },
+			{ error: message => errors.push(message) },
+		);
+		try {
+			const response = await service.handleResourceRequest(new Request(requestUrl));
+			return { status: response.status, path: response.ok ? await response.text() : undefined, errors };
+		} finally {
+			service.dispose();
+		}
+	});
 
 	// needed when loading resources from the renderer, e.g xterm.js or the encoding lib
-	session.defaultSession.protocol.registerFileProtocol('vscode-file', (request, callback) => {
-		const path = new URL(request.url).pathname;
-		callback({ path });
+	session.defaultSession.protocol.handle('vscode-file', request => {
+		const fileUrl = new URL(request.url.replace(/^vscode-file:/, 'file:'));
+		if (fileUrl.hostname === 'vscode-app') {
+			fileUrl.hostname = '';
+		}
+
+		return electronNet.fetch(fileUrl, {
+			method: request.method,
+			headers: request.headers,
+			bypassCustomProtocolHandlers: true
+		}).catch(() => Response.error());
 	});
 
 	ipcMain.on('error', (_, err) => {
@@ -320,32 +478,91 @@ app.on('ready', () => {
 		}
 	});
 
-	const win = new BrowserWindow({
-		height: 600,
-		width: 800,
-		show: false,
-		webPreferences: {
-			preload: path.join(__dirname, 'preload.js'), // ensure similar environment as VSCode as tests may depend on this
-			additionalArguments: [`--vscode-window-config=vscode:test-vscode-window-config`],
-			nodeIntegration: true,
-			contextIsolation: false,
-			enableWebSQL: false,
-			spellcheck: false
-		}
-	});
+	/**
+	 * Runs the tests selected by `runArgs` in a new window, and so in a new renderer
+	 * process. `done` resolves with the runner once the tests finished and the
+	 * reporters are drained.
+	 * @param {typeof args} runArgs
+	 * @param {number} attempt
+	 */
+	function runInWindow(runArgs, attempt) {
+		const win = new BrowserWindow({
+			height: 600,
+			width: 800,
+			show: false,
+			webPreferences: {
+				preload: path.join(__dirname, 'preload.js'), // ensure similar environment as VSCode as tests may depend on this
+				additionalArguments: [`--vscode-window-config=vscode:test-vscode-window-config`],
+				nodeIntegration: true,
+				contextIsolation: false,
+				backgroundThrottling: false,
+				spellcheck: false
+			}
+		});
 
-	win.webContents.on('did-finish-load', () => {
-		if (args.dev) {
-			win.show();
-			win.webContents.openDevTools();
+		if (isCI) {
+			// Hidden windows throttle requestAnimationFrame on Windows even when background throttling is disabled.
+			win.showInactive();
 		}
 
-		if (args.waitServer) {
-			waitForServer(Number(args.waitServer)).then(sendRun);
-		} else {
-			sendRun();
+		win.webContents.on('did-finish-load', () => {
+			if (runArgs.dev) {
+				win.show();
+				win.webContents.openDevTools();
+			}
+
+			const sendRun = () => win.webContents.send('run', runArgs);
+			if (runArgs.waitServer) {
+				waitForServer(Number(runArgs.waitServer)).then(sendRun);
+			} else {
+				sendRun();
+			}
+		});
+
+		const target = url.pathToFileURL(path.join(__dirname, 'renderer.html'));
+		target.searchParams.set('argv', JSON.stringify(runArgs));
+		win.loadURL(target.href);
+
+		const runner = new IPCRunner(win);
+		createStatsCollector(runner);
+
+		// Handle renderer crashes, #117068
+		win.webContents.on('render-process-gone', (evt, details) => {
+			if (!runner.didEnd) {
+				console.error(`Renderer process crashed with: ${JSON.stringify(details)}`);
+				app.exit(1);
+			}
+		});
+
+		const reporters = createReporters(runner, attempt);
+
+		/** @type {Promise<IPCRunner>} */
+		const done = new Promise(resolve => runner.once('all done', async () => {
+			await Promise.all(reporters.map(r => r.drain?.()));
+			resolve(runner);
+		}));
+
+		return { win, done };
+	}
+
+	function createReporters(runner, attempt) {
+		if (!args.tfs) {
+			return [applyReporter(runner, args)];
 		}
-	});
+
+		// every attempt writes its own results file, so that reruns do not overwrite earlier failures
+		const attemptSuffix = attempt > 1 ? `-attempt-${attempt}` : '';
+		const testResultsRoot = process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || process.env.GITHUB_WORKSPACE;
+		return [
+			new mocha.reporters.Spec(runner),
+			new MochaJUnitReporter(runner, {
+				reporterOptions: {
+					testsuitesTitle: `${args.tfs} ${process.platform}${attempt > 1 ? ` (attempt ${attempt})` : ''}`,
+					mochaFile: testResultsRoot ? path.join(testResultsRoot, `test-results/${process.platform}-${process.arch}-${args.tfs.toLowerCase().replace(/[^\w]/g, '-')}${attemptSuffix}-results.xml`) : undefined
+				}
+			}),
+		];
+	}
 
 	async function waitForServer(port) {
 		let timeout;
@@ -374,56 +591,96 @@ app.on('ready', () => {
 		});
 	}
 
-	function sendRun() {
-		win.webContents.send('run', args);
-	}
-
-	const target = url.pathToFileURL(path.join(__dirname, 'renderer.html'));
-	target.searchParams.set('argv', JSON.stringify(args));
-	win.loadURL(target.href);
-
-	const runner = new IPCRunner(win);
-	createStatsCollector(runner);
-
-	// Handle renderer crashes, #117068
-	win.webContents.on('render-process-gone', (evt, details) => {
-		if (!runner.didEnd) {
-			console.error(`Renderer process crashed with: ${JSON.stringify(details)}`);
-			app.exit(1);
-		}
-	});
-
-	const reporters = [];
-
-	if (args.tfs) {
-		const testResultsRoot = process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || process.env.GITHUB_WORKSPACE;
-		reporters.push(
-			new mocha.reporters.Spec(runner),
-			new MochaJUnitReporter(runner, {
-				reporterOptions: {
-					testsuitesTitle: `${args.tfs} ${process.platform}`,
-					mochaFile: testResultsRoot ? path.join(testResultsRoot, `test-results/${process.platform}-${process.arch}-${args.tfs.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`) : undefined
-				}
-			}),
-		);
-	} else {
-		// mocha patches symbols to use windows escape codes, but it seems like
-		// Electron mangles these in its output.
-		if (process.platform === 'win32') {
-			Object.assign(importMochaReporter('base').symbols, {
-				ok: '+',
-				err: 'X',
-				dot: '.',
-			});
-		}
-
-		reporters.push(applyReporter(runner, args));
-	}
-
-	if (!args.dev) {
-		ipcMain.on('all done', async () => {
-			await Promise.all(reporters.map(r => r.drain?.()));
-			app.exit(runner.didFail ? 1 : 0);
+	// mocha patches symbols to use windows escape codes, but it seems like
+	// Electron mangles these in its output.
+	if (!args.tfs && process.platform === 'win32') {
+		Object.assign(importMochaReporter('base').symbols, {
+			ok: '+',
+			err: 'X',
+			dot: '.',
 		});
 	}
+
+	if (args.dev) {
+		// keep the window open for debugging
+		runInWindow(args, 1);
+		return;
+	}
+
+	// Coverage is collected from the first window only
+	const maxReruns = args.coverage || args['per-test-coverage'] ? 0 : Math.max(0, Number(args['rerun-failed-files']) || 0);
+
+	/** @type {Map<string, number>} test file -> the last attempt in which it failed */
+	const lastFailedAttempt = new Map();
+	/** @type {Set<string>} */
+	let stillFailingFiles = new Set();
+	let runArgs = args;
+	let previousWindow;
+	let exitCode = 0;
+
+	for (let attempt = 1; ; attempt++) {
+		const { win, done } = runInWindow(runArgs, attempt);
+		previousWindow?.destroy();
+		previousWindow = win;
+
+		const runner = await done;
+		runner.dispose();
+
+		if (!runner.didFail) {
+			break;
+		}
+
+		for (const file of runner.failedFiles) {
+			lastFailedAttempt.set(file, attempt);
+		}
+
+		const failedFiles = [...runner.failedFiles];
+		if (attempt > maxReruns) {
+			if (maxReruns > 0) {
+				console.error(`\n${failedFiles.length} test file(s) still failed after ${attempt} attempts:\n${failedFiles.map(file => `  ${file}`).join('\n')}`);
+			}
+		} else if (runner.unattributedFailures.length > 0) {
+			console.error(`\nNot rerunning failed tests: ${runner.unattributedFailures.length} failure(s) do not belong to a test file:\n${runner.unattributedFailures.map(title => `  ${title}`).join('\n')}`);
+		} else {
+			console.log(`\nRerunning ${failedFiles.length} test file(s) with failures in a fresh window (attempt ${attempt + 1} of ${maxReruns + 1}):\n${failedFiles.map(file => `  ${file}`).join('\n')}\n`);
+			runArgs = { ...args, run: failedFiles, runGlob: undefined, excludeRunGlob: undefined, testSplit: undefined, waitServer: undefined };
+			continue;
+		}
+
+		// An interrupted retry does not establish that its remaining files passed.
+		stillFailingFiles = runner.unattributedFailures.length > 0 && Array.isArray(runArgs.run)
+			? new Set([...runArgs.run, ...runner.failedFiles])
+			: runner.failedFiles;
+		exitCode = 1;
+		break;
+	}
+
+	reportRescuedFiles(lastFailedAttempt, stillFailingFiles);
+
+	await new Promise(resolve => remoteResourceServer.close(resolve));
+	app.exit(exitCode);
 });
+
+/**
+ * Reports the test files that failed and then passed when they were rerun, as warnings
+ * in CI, so that flaky tests stay visible whether or not the run passed.
+ * @param {Map<string, number>} lastFailedAttempt
+ * @param {Set<string>} stillFailingFiles
+ */
+function reportRescuedFiles(lastFailedAttempt, stillFailingFiles) {
+	const rescued = [...lastFailedAttempt].filter(([file]) => !stillFailingFiles.has(file));
+	if (rescued.length === 0) {
+		return;
+	}
+
+	console.log(`\n${rescued.length} test file(s) failed and then passed when rerun in a fresh window. Their tests are flaky:`);
+	for (const [file, attempt] of rescued) {
+		const message = `${file} failed in ${attempt === 1 ? 'attempt 1' : `attempts 1 to ${attempt}`} and passed in attempt ${attempt + 1}`;
+		console.log(`  ${message}`);
+		if (process.env.GITHUB_ACTIONS) {
+			console.log(`::warning title=Flaky unit test file::${message}`);
+		} else if (process.env.TF_BUILD) {
+			console.log(`##vso[task.logissue type=warning]Flaky unit test file: ${message}`);
+		}
+	}
+}

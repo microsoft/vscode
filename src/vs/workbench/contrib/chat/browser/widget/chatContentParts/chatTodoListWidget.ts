@@ -19,6 +19,7 @@ import { WorkbenchList } from '../../../../../../platform/list/browser/listServi
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { IChatTodo, IChatTodoListService } from '../../../common/tools/chatTodoListService.js';
+import { ChatInputStackSlot, setChatInputStackSlot } from '../input/chatInputStack.js';
 
 class TodoListDelegate implements IListVirtualDelegate<IChatTodo> {
 	getHeight(element: IChatTodo): number {
@@ -113,6 +114,8 @@ class TodoListRenderer implements IListRenderer<IChatTodo, ITodoListTemplate> {
 
 export class ChatTodoListWidget extends Disposable {
 	public readonly domNode: HTMLElement;
+	private _slot: HTMLElement | undefined;
+	private _visible = false;
 
 	private _isExpanded: boolean = false;
 	private _userManuallyExpanded: boolean = false;
@@ -156,7 +159,21 @@ export class ChatTodoListWidget extends Disposable {
 	}
 
 	private hideWidget(): void {
-		this.domNode.style.display = 'none';
+		this.setVisible(false);
+	}
+
+	/** Add the list to its slot in the chat input stack. */
+	attachTo(slot: HTMLElement): void {
+		this._slot = slot;
+		slot.appendChild(this.domNode);
+		setChatInputStackSlot(slot, this._visible ? ChatInputStackSlot.Docked : ChatInputStackSlot.Empty);
+	}
+
+	/** Show or hide the list, and report the same to the stack. */
+	private setVisible(visible: boolean): void {
+		this._visible = visible;
+		this.domNode.style.display = visible ? 'block' : 'none';
+		setChatInputStackSlot(this._slot, visible ? ChatInputStackSlot.Docked : ChatInputStackSlot.Empty);
 	}
 
 	private createChatTodoWidget(): HTMLElement {
@@ -287,12 +304,13 @@ export class ChatTodoListWidget extends Disposable {
 
 		if (!shouldShow) {
 			this.domNode.classList.remove('has-todos');
+			this.hideWidget();
 			return;
 		}
 
 		this.domNode.classList.add('has-todos');
 		this.renderTodoList(todoList);
-		this.domNode.style.display = 'block';
+		this.setVisible(true);
 	}
 
 	private renderTodoList(todoList: IChatTodo[]): void {

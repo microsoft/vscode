@@ -14,8 +14,8 @@ import { ExtensionIdentifier } from '../../../../../../../platform/extensions/co
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
-import { IMarkerData, MarkerSeverity } from '../../../../../../../platform/markers/common/markers.js';
-import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
+import { IMarkerData, MarkerSeverity, MarkerTag } from '../../../../../../../platform/markers/common/markers.js';
+import { TestPathService, workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { LanguageModelToolsService } from '../../../../browser/tools/languageModelToolsService.js';
 import { ChatMode, CustomChatMode, IChatModeService } from '../../../../common/chatModes.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../../common/constants.js';
@@ -28,26 +28,42 @@ import { PromptFileParser } from '../../../../common/promptSyntax/promptFilePars
 import { ICustomAgent, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
 import { MockChatModeService } from '../../../common/mockChatModeService.js';
 import { MockPromptsService } from '../../../common/promptSyntax/service/mockPromptsService.js';
-import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
+import { createVSCodeHarnessDescriptor, ICustomizationHarnessService, type IAgentFileToolInventoryEntry, type ICustomizationItem } from '../../../../common/customizationHarnessService.js';
+import { constObservable, ISettableObservable, observableValue } from '../../../../../../../base/common/observable.js';
+import type { AgentModelCatalogStatus } from '../../../../../../../platform/agentHost/common/agentModelCatalogStatus.js';
+import { Event } from '../../../../../../../base/common/event.js';
+import { AICustomizationSources } from '../../../../common/aiCustomizationWorkspaceService.js';
 
 suite('PromptValidator', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let instaService: TestInstantiationService;
 	let testConfigService: TestConfigurationService;
+	let activeTarget: Target;
+	let modelCatalogueStatus: ISettableObservable<AgentModelCatalogStatus | undefined>;
+	let copilotToolInventory: readonly IAgentFileToolInventoryEntry[] | Error | undefined;
+	let otherCopilotToolInventory: readonly IAgentFileToolInventoryEntry[] | Error | undefined;
+	let copilotSkillInventory: ICustomizationItem[] | Error | undefined;
+	let otherCopilotSkillInventory: ICustomizationItem[] | Error | undefined;
 
 	const existingRef1 = URI.parse('myFs://test/reference1.md');
 	const existingRef2 = URI.parse('myFs://test/reference2.md');
+	const existingHomeRef = URI.parse('myFs://test/home/work/vscode/');
 
 	setup(async () => {
+		activeTarget = Target.Undefined;
+		modelCatalogueStatus = observableValue('modelCatalogueStatus', 'pending');
+		copilotToolInventory = undefined;
+		otherCopilotToolInventory = undefined;
+		copilotSkillInventory = undefined;
+		otherCopilotSkillInventory = undefined;
 
 		testConfigService = new TestConfigurationService();
 		testConfigService.setUserConfiguration(ChatConfiguration.ExtensionToolsEnabled, true);
-		testConfigService.setUserConfiguration(PromptsConfig.USE_CUSTOM_AGENT_HOOKS, true);
-		testConfigService.setUserConfiguration(ChatConfiguration.SubagentToolCustomAgents, true);
 		instaService = workbenchInstantiationService({
 			contextKeyService: () => disposables.add(new ContextKeyService(testConfigService)),
-			configurationService: () => testConfigService
+			configurationService: () => testConfigService,
+			pathService: () => new TestPathService(URI.parse('myFs://test/home')),
 		}, disposables);
 		instaService.stub(ILabelService, { getUriLabel: (resource) => resource.path });
 
@@ -122,13 +138,16 @@ suite('PromptValidator', () => {
 		instaService.set(ILanguageModelToolsService, toolService);
 
 		const testModels: ILanguageModelChatMetadata[] = [
-			{ id: 'mae-4', name: 'MAE 4', vendor: 'olama', version: '1.0', family: 'mae', modelPickerCategory: undefined, extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: { [ChatAgentLocation.Chat]: true } } satisfies ILanguageModelChatMetadata,
-			{ id: 'mae-4.1', name: 'MAE 4.1', vendor: 'copilot', version: '1.0', family: 'mae', modelPickerCategory: undefined, extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: { [ChatAgentLocation.Chat]: true } } satisfies ILanguageModelChatMetadata,
-			{ id: 'mae-3.5-turbo', name: 'MAE 3.5 Turbo', vendor: 'copilot', version: '1.0', family: 'mae', modelPickerCategory: undefined, extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, isDefaultForLocation: { [ChatAgentLocation.Chat]: true } } satisfies ILanguageModelChatMetadata
+			{ id: 'mae-4', name: 'MAE 4', vendor: 'olama', version: '1.0', family: 'mae', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: { [ChatAgentLocation.Chat]: true } } satisfies ILanguageModelChatMetadata,
+			{ id: 'mae-4.1', name: 'MAE 4.1', vendor: 'copilot', version: '1.0', family: 'mae', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: { [ChatAgentLocation.Chat]: true } } satisfies ILanguageModelChatMetadata,
+			{ id: 'mae-3.5-turbo', name: 'MAE 3.5 Turbo', vendor: 'copilot', version: '1.0', family: 'mae', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, isDefaultForLocation: { [ChatAgentLocation.Chat]: true } } satisfies ILanguageModelChatMetadata,
+			{ id: 'copilot-model', name: 'Copilot Model', vendor: 'copilot-test', version: '1.0', family: 'copilot', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: {}, targetChatSessionType: 'copilot-test', configurationSchema: { type: 'object', properties: { reasoningEffort: { type: 'string', enum: ['low', 'high'] } } } } satisfies ILanguageModelChatMetadata,
+			{ id: 'gemini/Google/models/gemini-flash', name: 'Private Model', vendor: 'copilot-test', version: '1.0', family: 'private', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, byokModelIdentifier: 'gemini/Google/models/gemini-flash', maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: {}, targetChatSessionType: 'copilot-test' } satisfies ILanguageModelChatMetadata,
 		];
 
 		instaService.stub(ILanguageModelsService, {
 			getLanguageModelIds() { return testModels.map(m => m.id); },
+			lookupLanguageModel(id: string) { return testModels.find(model => model.id === id); },
 			lookupLanguageModelByQualifiedName(qualifiedName: string) {
 				for (const metadata of testModels) {
 					if (ILanguageModelChatMetadata.matchesQualifiedName(qualifiedName, metadata)) {
@@ -136,21 +155,24 @@ suite('PromptValidator', () => {
 					}
 				}
 				return undefined;
-			}
+			},
+			hasResolvedVendor: () => true,
 		});
 
 		const customChatMode = new CustomChatMode({
+			id: 'beast-mode',
 			uri: URI.parse('myFs://test/test/chatmode.md'),
 			name: 'BeastMode',
 			agentInstructions: { content: 'Beast mode instructions', toolReferences: [] },
 			source: { storage: PromptsStorage.local },
 			target: Target.Undefined,
-			visibility: { userInvocable: true, agentInvocable: true }
+			visibility: { userInvocable: true, agentInvocable: true },
+			enabled: true
 		});
 		instaService.stub(IChatModeService, new MockChatModeService({ builtin: [ChatMode.Agent, ChatMode.Ask, ChatMode.Edit], custom: [customChatMode] }));
 
 
-		const existingFiles = new ResourceSet([existingRef1, existingRef2]);
+		const existingFiles = new ResourceSet([existingRef1, existingRef2, existingHomeRef]);
 		instaService.stub(IFileService, {
 			exists(uri: URI) {
 				return Promise.resolve(existingFiles.has(uri));
@@ -158,6 +180,7 @@ suite('PromptValidator', () => {
 		});
 		const promptsService = new MockPromptsService();
 		const customMode: ICustomAgent = {
+			id: 'custom-mode',
 			uri: URI.parse('file:///test/custom-mode.md'),
 			name: 'Plan',
 			description: 'A test custom mode',
@@ -165,10 +188,60 @@ suite('PromptValidator', () => {
 			agentInstructions: { content: 'Custom mode body', toolReferences: [] },
 			source: { storage: PromptsStorage.local },
 			target: Target.Undefined,
-			visibility: { userInvocable: true, agentInvocable: true }
+			visibility: { userInvocable: true, agentInvocable: true },
+			enabled: true
 		};
 		promptsService.setCustomModes([customMode]);
 		instaService.stub(IPromptsService, promptsService);
+		const localDescriptor = createVSCodeHarnessDescriptor();
+		const copilotDescriptor = {
+			...localDescriptor,
+			id: 'copilot-test',
+			customAgentTarget: Target.GitHubCopilot,
+			modelCatalogueStatus,
+			itemProvider: {
+				onDidChange: Event.None,
+				provideChatSessionCustomizations: async () => {
+					if (copilotSkillInventory instanceof Error) {
+						throw copilotSkillInventory;
+					}
+					return copilotSkillInventory;
+				},
+				provideAgentFileTools: async () => {
+					if (copilotToolInventory instanceof Error) {
+						throw copilotToolInventory;
+					}
+					return copilotToolInventory;
+				},
+			},
+		};
+		const otherCopilotDescriptor = {
+			...localDescriptor,
+			id: 'other-copilot-test',
+			customAgentTarget: Target.GitHubCopilot,
+			modelCatalogueStatus,
+			itemProvider: {
+				onDidChange: Event.None,
+				provideChatSessionCustomizations: async () => {
+					if (otherCopilotSkillInventory instanceof Error) {
+						throw otherCopilotSkillInventory;
+					}
+					return otherCopilotSkillInventory;
+				},
+				provideAgentFileTools: async () => {
+					if (otherCopilotToolInventory instanceof Error) {
+						throw otherCopilotToolInventory;
+					}
+					return otherCopilotToolInventory;
+				},
+			},
+		};
+		instaService.stub(ICustomizationHarnessService, {
+			activeHarness: constObservable('copilot-test'),
+			availableHarnesses: constObservable([localDescriptor, copilotDescriptor, otherCopilotDescriptor]),
+			getActiveDescriptor: () => activeTarget === Target.GitHubCopilot ? copilotDescriptor : localDescriptor,
+			getSessionResourceForHarness: harnessId => URI.parse(`test:/${harnessId}`),
+		});
 	});
 
 	async function validate(code: string, promptType: PromptsType, uri?: URI): Promise<IMarkerData[]> {
@@ -182,6 +255,40 @@ suite('PromptValidator', () => {
 		return markers;
 	}
 	suite('agents', () => {
+		test('uses active harness target when target is not specified', async () => {
+			activeTarget = Target.GitHubCopilot;
+			const content = [
+				'---',
+				'description: "Test"',
+				'argument-hint: "test hint"',
+				'---',
+			].join('\n');
+
+			const markers = await validate(content, PromptsType.agent);
+
+			assert.deepStrictEqual(markers.map(marker => ({
+				severity: marker.severity,
+				tags: marker.tags,
+				message: marker.message,
+			})), [{
+				severity: MarkerSeverity.Hint,
+				tags: [MarkerTag.Unnecessary],
+				message: `Attribute 'argument-hint' is not supported in custom GitHub Copilot agent files. Supported: deferred-tool-loading, description, disable-model-invocation, github, hooks, include-custom-instructions, infer, mcp-servers, model, model-policy, name, reasoning-effort, skills, strict-tools-list, target, tools, user-invocable.`,
+			}]);
+		});
+
+		test('explicit target overrides active harness target', async () => {
+			activeTarget = Target.GitHubCopilot;
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: vscode',
+				'argument-hint: "test hint"',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual(await validate(content, PromptsType.agent), []);
+		});
 
 		test('correct agent', async () => {
 			const content = [
@@ -208,11 +315,11 @@ suite('PromptValidator', () => {
 			].join('\n');
 			const markers = await validate(content, PromptsType.agent);
 			assert.deepStrictEqual(
-				markers.map(m => ({ severity: m.severity, message: m.message })),
+				markers.map(m => ({ severity: m.severity, message: m.message, tags: m.tags })),
 				[
-					{ severity: MarkerSeverity.Error, message: `The 'description' attribute should not be empty.` },
-					{ severity: MarkerSeverity.Warning, message: `Unknown tool 'tool4'.` },
-					{ severity: MarkerSeverity.Warning, message: `Unknown model 'MAE 4.2'.` },
+					{ severity: MarkerSeverity.Error, message: `The 'description' attribute should not be empty.`, tags: undefined },
+					{ severity: MarkerSeverity.Hint, message: `Unknown tool 'tool4' will be ignored.`, tags: [MarkerTag.Unnecessary] },
+					{ severity: MarkerSeverity.Hint, message: `Unknown model 'MAE 4.2' will be ignored.`, tags: [MarkerTag.Unnecessary] },
 				]
 			);
 		});
@@ -239,7 +346,7 @@ suite('PromptValidator', () => {
 			assert.deepStrictEqual(markers, []);
 		});
 
-		test('model as string array - unknown model', async () => {
+		test('model as string array - unknown model is ignored', async () => {
 			const content = [
 				'---',
 				'description: "Test with model array"',
@@ -248,8 +355,9 @@ suite('PromptValidator', () => {
 			].join('\n');
 			const markers = await validate(content, PromptsType.agent);
 			assert.strictEqual(markers.length, 1);
-			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
-			assert.strictEqual(markers[0].message, `Unknown model 'Unknown Model'.`);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Hint);
+			assert.deepStrictEqual(markers[0].tags, [MarkerTag.Unnecessary]);
+			assert.strictEqual(markers[0].message, `Unknown model 'Unknown Model' will be ignored.`);
 		});
 
 		test('model as string array - unsuitable model', async () => {
@@ -544,6 +652,17 @@ suite('PromptValidator', () => {
 			);
 		});
 
+		test('reasoning effort is supported in agent file', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'reasoning-effort: low',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(markers, []);
+		});
+
 		test('unknown attribute in agent file', async () => {
 			const content = [
 				'---',
@@ -553,9 +672,9 @@ suite('PromptValidator', () => {
 			].join('\n');
 			const markers = await validate(content, PromptsType.agent);
 			assert.deepStrictEqual(
-				markers.map(m => ({ severity: m.severity, message: m.message })),
+				markers.map(m => ({ severity: m.severity, message: m.message, tags: m.tags })),
 				[
-					{ severity: MarkerSeverity.Warning, message: `Attribute 'applyTo' is not supported in VS Code agent files. Supported: agents, argument-hint, description, disable-model-invocation, github, handoffs, hooks, model, name, target, tools, user-invocable.` },
+					{ severity: MarkerSeverity.Hint, message: `Attribute 'applyTo' is not supported in VS Code agent files. Supported: agents, argument-hint, description, disable-model-invocation, github, handoffs, hooks, model, name, reasoning-effort, target, tools, user-invocable.`, tags: [MarkerTag.Unnecessary] },
 				]
 			);
 		});
@@ -694,8 +813,9 @@ suite('PromptValidator', () => {
 				'name: "GitHub_Copilot_Custom_Agent"',
 				'description: "GitHub Copilot agent"',
 				'target: github-copilot',
+				'model: ["MAE 4.1 (copilot)", "MAE 4 (olama)"]',
 				`tools: ['shell', 'edit', 'search', 'custom-agent']`,
-				'mcp-servers: []',
+				'mcp-servers: {}',
 				'---',
 				'Body with #search and #edit references',
 			].join('\n');
@@ -703,13 +823,527 @@ suite('PromptValidator', () => {
 			assert.deepStrictEqual(markers, [], 'Expected no validation issues for github-copilot target');
 		});
 
-		test('github-copilot agent warns about model and handoffs attributes', async () => {
+		test('github-copilot agent supports the complete schema', async () => {
+			const content = [
+				'---',
+				'name: reviewer',
+				'description: Reviews code',
+				'target: github-copilot',
+				'model: [model-a, model-b]',
+				'model-policy: preferred',
+				'reasoning-effort: custom-effort',
+				'tools: [execute, read]',
+				'mcp-servers: null',
+				'disable-model-invocation: false',
+				'user-invocable: true',
+				'github:',
+				'  toolsets: [repos, issues]',
+				'  permissions:',
+				'    issues: write',
+				'skills: [review, testing]',
+				'deferred-tool-loading: true',
+				'strict-tools-list: false',
+				'include-custom-instructions: true',
+				'hooks:',
+				'  sessionStart:',
+				'    - type: command',
+				'      bash: echo ready',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual(await validate(content, PromptsType.agent), []);
+		});
+
+		test('github-copilot agent validates models after catalogue resolution', async () => {
+			activeTarget = Target.GitHubCopilot;
+			modelCatalogueStatus.set('ready', undefined);
+			const content = [
+				'---',
+				'description: Test',
+				'model: [copilot-model, unavailable-model]',
+				'---',
+			].join('\n');
+
+			const markers = await validate(content, PromptsType.agent);
+
+			assert.deepStrictEqual(markers.map(marker => ({
+				message: marker.message,
+				tags: marker.tags,
+			})), [{
+				message: `Model 'unavailable-model' is not available for the GitHub Copilot harness.`,
+				tags: [MarkerTag.Unnecessary],
+			}]);
+		});
+
+		test('github-copilot agent accepts runtime model identifiers and aliases', async () => {
+			activeTarget = Target.GitHubCopilot;
+			modelCatalogueStatus.set('ready', undefined);
+			const content = [
+				'---',
+				'description: Test',
+				'model:',
+				'  - copilot-model',
+				'  - Copilot Model',
+				'  - Copilot Model (copilot)',
+				'  - copilot-model:defaultReasoningEffort=high',
+				'  - gemini/Google/models/gemini-flash',
+				'  - gemini/Google/models/gemini-flash:defaultReasoningEffort=high',
+				'  - Private Model',
+				'  - Copilot Model (agent-host-copilotcli)',
+				'---',
+			].join('\n');
+
+			const markers = await validate(content, PromptsType.agent);
+
+			assert.deepStrictEqual(markers.map(marker => marker.message), [
+				`Model 'Private Model' is not available for the GitHub Copilot harness.`,
+				`Model 'Copilot Model (agent-host-copilotcli)' is not available for the GitHub Copilot harness.`,
+			]);
+		});
+
+		test('github-copilot agent does not validate models while catalogue is pending', async () => {
+			activeTarget = Target.GitHubCopilot;
+			const content = [
+				'---',
+				'description: Test',
+				'model: unavailable-model',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual(await validate(content, PromptsType.agent), []);
+		});
+
+		test('github-copilot agent does not validate models after catalogue failure', async () => {
+			activeTarget = Target.GitHubCopilot;
+			modelCatalogueStatus.set('error', undefined);
+			const content = [
+				'---',
+				'description: Test',
+				'model: unavailable-model',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual(await validate(content, PromptsType.agent), []);
+		});
+
+		test('github-copilot agent does not validate models without a host readiness extension', async () => {
+			activeTarget = Target.GitHubCopilot;
+			modelCatalogueStatus.set(undefined, undefined);
+			const content = [
+				'---',
+				'description: Test',
+				'model: unavailable-model',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual(await validate(content, PromptsType.agent), []);
+		});
+
+		test('github-copilot agent validates model-specific reasoning effort', async () => {
+			activeTarget = Target.GitHubCopilot;
+			modelCatalogueStatus.set('ready', undefined);
+			const content = [
+				'---',
+				'description: Test',
+				'model: copilot-model',
+				'reasoning-effort: unsupported',
+				'---',
+			].join('\n');
+
+			const markers = await validate(content, PromptsType.agent);
+
+			assert.deepStrictEqual(markers.map(marker => ({
+				message: marker.message,
+				tags: marker.tags,
+			})), [{
+				message: `Reasoning effort 'unsupported' is not supported by the selected model.`,
+				tags: [MarkerTag.Unnecessary],
+			}]);
+		});
+
+		test('github-copilot agent supports all canonical hook events and aliases', async () => {
+			const canonicalEvents = [
+				'sessionStart',
+				'sessionEnd',
+				'userPromptSubmitted',
+				'userPromptTransformed',
+				'preToolUse',
+				'preMcpToolCall',
+				'postToolUse',
+				'postToolUseFailure',
+				'errorOccurred',
+				'agentStop',
+				'subagentStart',
+				'subagentStop',
+				'preCompact',
+				'permissionRequest',
+				'notification',
+			];
+			const content = [
+				'---',
+				'target: github-copilot',
+				'description: Test',
+				'hooks:',
+				...canonicalEvents.flatMap(event => [`  ${event}:`, '    - command: echo hook']),
+				'  PreMcpToolCall:',
+				'    - command: echo alias',
+				'  Notification:',
+				'    - command: echo alias',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual(await validate(content, PromptsType.agent), []);
+		});
+
+		test('github-copilot agent supports command, HTTP, and startup prompt hook actions', async () => {
+			const content = [
+				'---',
+				'target: github-copilot',
+				'description: Test',
+				'hooks:',
+				'  sessionStart:',
+				'    - type: prompt',
+				'      prompt: Check repository status',
+				'    - type: command',
+				'      exec: node',
+				'      args: [script.js]',
+				'      timeout: 2.5',
+				'  preToolUse:',
+				'    - type: http',
+				'      url: https://example.com/approve',
+				'      headers:',
+				'        X-Source: agent',
+				'      allowedEnvVars: [TOKEN]',
+				'      matcher: shell|bash',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual(await validate(content, PromptsType.agent), []);
+		});
+
+		test('github-copilot agent rejects invalid hook action combinations', async () => {
+			const content = [
+				'---',
+				'target: github-copilot',
+				'description: Test',
+				'hooks:',
+				'  agentStop:',
+				'    - type: prompt',
+				'      prompt: Not allowed here',
+				'    - type: command',
+				'      command: echo shell',
+				'      exec: node',
+				'    - type: http',
+				'    - type: unknown',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual((await validate(content, PromptsType.agent)).map(marker => marker.message), [
+				`Prompt hook actions are only supported for 'sessionStart'.`,
+				`Hook command must specify either a shell command or 'exec', but not both.`,
+				`HTTP hook action requires the 'url' property.`,
+				`Unknown hook action type 'unknown'. Supported: command, http, prompt.`,
+			]);
+		});
+
+		test('github-copilot agent requires a description', async () => {
+			const content = [
+				'---',
+				'target: github-copilot',
+				'name: reviewer',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual((await validate(content, PromptsType.agent)).map(marker => marker.message), [
+				`The 'description' attribute is required.`,
+			]);
+		});
+
+		test('github-copilot agent validates schema value types', async () => {
+			const content = [
+				'---',
+				'target: github-copilot',
+				'description: []',
+				'model-policy: sometimes',
+				'skills: review',
+				'deferred-tool-loading: "true"',
+				'github: invalid',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual((await validate(content, PromptsType.agent)).map(marker => marker.message), [
+				`The 'description' attribute must be a scalar value.`,
+				`The 'model-policy' attribute must be one of: preferred, required.`,
+				`The 'skills' attribute must be an array.`,
+				`The 'deferred-tool-loading' attribute must be true or false.`,
+				`The 'github' attribute must be an object.`,
+			]);
+		});
+
+		test('github-copilot agent rejects quoted boolean values', async () => {
+			const content = [
+				'---',
+				'target: github-copilot',
+				'description: Test',
+				'infer: "false"',
+				'disable-model-invocation: "true"',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual((await validate(content, PromptsType.agent)).map(marker => marker.message), [
+				`The 'infer' attribute must be true or false.`,
+				`The 'disable-model-invocation' attribute must be true or false.`,
+				`The 'infer' attribute is legacy. Use 'disable-model-invocation' instead.`,
+			]);
+		});
+
+		test('github-copilot agent validates non-empty name and description', async () => {
+			const content = [
+				'---',
+				'target: github-copilot',
+				'name: "   "',
+				'description: ""',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual((await validate(content, PromptsType.agent)).map(marker => marker.message), [
+				`The 'name' attribute must not be empty.`,
+				`The 'description' attribute should not be empty.`,
+			]);
+		});
+
+		test('github-copilot unsupported prototype property does not crash validation', async () => {
+			const content = [
+				'---',
+				'target: github-copilot',
+				'description: Test',
+				'constructor: example',
+				'---',
+			].join('\n');
+
+			const markers = await validate(content, PromptsType.agent);
+
+			assert.deepStrictEqual(markers.map(marker => marker.message), [
+				`Attribute 'constructor' is not supported in custom GitHub Copilot agent files. Supported: deferred-tool-loading, description, disable-model-invocation, github, hooks, include-custom-instructions, infer, mcp-servers, model, model-policy, name, reasoning-effort, skills, strict-tools-list, target, tools, user-invocable.`,
+			]);
+		});
+
+		test('github-copilot required model policy needs a model', async () => {
+			const content = [
+				'---',
+				'target: github-copilot',
+				'description: Test',
+				'model-policy: required',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual((await validate(content, PromptsType.agent)).map(marker => marker.message), [
+				`The 'model-policy' attribute has no effect when 'model' is not specified.`,
+			]);
+		});
+
+		test('validates github-copilot tools from authoritative matching inventories', async () => {
+			copilotToolInventory = [
+				{ name: 'publisher.extension/client-tool', availability: 'available' },
+				{ name: 'disabled', availability: 'disabled' },
+				{ name: 'unavailable', availability: 'unavailable' },
+			];
+			otherCopilotToolInventory = [{ name: 'other.extension/remote-client-tool', availability: 'available' }];
+			const content = [
+				'---',
+				'description: Test',
+				'target: github-copilot',
+				'tools: [web, todo, publisher.extension/client-tool, other.extension/remote-client-tool, disabled, unavailable, missing, newToolSetRef]',
+				'---',
+			].join('\n');
+
+			const markers = await validate(content, PromptsType.agent);
+
+			assert.deepStrictEqual(markers.map(marker => ({ message: marker.message, tags: marker.tags })), [
+				{ message: `Tool 'disabled' is recognized but disabled for the matching GitHub Copilot harness.`, tags: [MarkerTag.Unnecessary] },
+				{ message: `Tool 'unavailable' is recognized but currently unavailable for the matching GitHub Copilot harness.`, tags: [MarkerTag.Unnecessary] },
+				{ message: `Tool 'missing' is not recognized by the matching GitHub Copilot harness.`, tags: [MarkerTag.Unnecessary] },
+				{ message: `Tool set 'newToolSetRef' is not supported by the GitHub Copilot harness. List individual tools instead.`, tags: [MarkerTag.Unnecessary] },
+			]);
+		});
+
+		test('github-copilot tool validation remains fail-open until every inventory is ready', async () => {
+			const content = [
+				'---',
+				'description: Test',
+				'target: github-copilot',
+				'tools: [missing]',
+				'---',
+			].join('\n');
+			const states: (readonly IAgentFileToolInventoryEntry[] | Error | undefined)[] = [undefined, new Error('inventory failed')];
+			const results: string[][] = [];
+			for (const state of states) {
+				copilotToolInventory = state;
+				otherCopilotToolInventory = [];
+				results.push((await validate(content, PromptsType.agent)).map(marker => marker.message));
+			}
+
+			assert.deepStrictEqual(results, [[], []]);
+		});
+
+		test('github-copilot tool validation refreshes when the inventory changes', async () => {
+			const content = [
+				'---',
+				'description: Test',
+				'target: github-copilot',
+				'tools: [appearing-tool]',
+				'---',
+			].join('\n');
+			copilotToolInventory = [];
+			otherCopilotToolInventory = [];
+			const before = (await validate(content, PromptsType.agent)).map(marker => marker.message);
+			copilotToolInventory = [{ name: 'appearing-tool', availability: 'available' }];
+			const after = (await validate(content, PromptsType.agent)).map(marker => marker.message);
+
+			assert.deepStrictEqual({ before, after }, {
+				before: [`Tool 'appearing-tool' is not recognized by the matching GitHub Copilot harness.`],
+				after: [],
+			});
+		});
+
+		test('validates github-copilot skills from authoritative matching inventories', async () => {
+			copilotSkillInventory = [
+				createSkill('review'),
+				createSkill('disabled', { enabled: false }),
+				createSkill('unavailable', { status: 'error' }),
+			];
+			otherCopilotSkillInventory = [createSkill('testing', { source: AICustomizationSources.plugin })];
+			const content = [
+				'---',
+				'description: Test',
+				'target: github-copilot',
+				'skills: [review, testing, disabled, unavailable, missing]',
+				'---',
+			].join('\n');
+
+			const markers = await validate(content, PromptsType.agent);
+
+			assert.deepStrictEqual(markers.map(marker => ({ message: marker.message, tags: marker.tags })), [
+				{ message: `Skill 'disabled' is recognized but disabled for the matching GitHub Copilot harness.`, tags: [MarkerTag.Unnecessary] },
+				{ message: `Skill 'unavailable' is recognized but currently unavailable for the matching GitHub Copilot harness.`, tags: [MarkerTag.Unnecessary] },
+				{ message: `Skill 'missing' is not recognized by the matching GitHub Copilot harness.`, tags: [MarkerTag.Unnecessary] },
+			]);
+		});
+
+		test('github-copilot skill validation remains fail-open until every inventory is ready', async () => {
+			const content = [
+				'---',
+				'description: Test',
+				'target: github-copilot',
+				'skills: [missing]',
+				'---',
+			].join('\n');
+			const states: (ICustomizationItem[] | Error | undefined)[] = [undefined, new Error('inventory failed')];
+			const results: string[][] = [];
+			for (const state of states) {
+				copilotSkillInventory = state;
+				otherCopilotSkillInventory = [];
+				results.push((await validate(content, PromptsType.agent)).map(marker => marker.message));
+			}
+
+			assert.deepStrictEqual(results, [[], []]);
+		});
+
+		test('github-copilot infer is accepted as legacy', async () => {
+			const content = [
+				'---',
+				'target: github-copilot',
+				'description: Test',
+				'infer: false',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual((await validate(content, PromptsType.agent)).map(marker => ({
+				message: marker.message,
+				severity: marker.severity,
+				tags: marker.tags,
+			})), [{
+				message: `The 'infer' attribute is legacy. Use 'disable-model-invocation' instead.`,
+				severity: MarkerSeverity.Warning,
+				tags: [MarkerTag.Deprecated],
+			}]);
+		});
+
+		function createSkill(name: string, overrides: Partial<ICustomizationItem> = {}): ICustomizationItem {
+			return {
+				uri: URI.parse(`test:/skills/${name}/SKILL.md`),
+				type: PromptsType.skill,
+				name,
+				source: AICustomizationSources.local,
+				extensionId: undefined,
+				pluginUri: undefined,
+				enabled: true,
+				...overrides,
+			};
+		}
+
+		test('github-copilot validates local and remote MCP servers', async () => {
+			const content = [
+				'---',
+				'target: github-copilot',
+				'description: Test',
+				'mcp-servers:',
+				'  local:',
+				'    command: node',
+				'    args: [server.js]',
+				'    tools: [search]',
+				'    env:',
+				'      MODE: test',
+				'    timeout: 10',
+				'    deferTools: auto',
+				'  remote:',
+				'    type: http',
+				'    url: https://example.com/mcp',
+				'    tools: [fetch]',
+				'    headers:',
+				'      Authorization: token',
+				'    deferTools: never',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual(await validate(content, PromptsType.agent), []);
+		});
+
+		test('github-copilot reports invalid MCP server definitions', async () => {
+			const content = [
+				'---',
+				'target: github-copilot',
+				'description: Test',
+				'mcp-servers:',
+				'  local:',
+				'    command: [node]',
+				'    args: value',
+				'    tools: []',
+				'    timeout: 0',
+				'    unknown: value',
+				'  remote:',
+				'    type: http',
+				'    tools: [fetch]',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual((await validate(content, PromptsType.agent)).map(marker => marker.message), [
+				`The 'command' property for MCP server 'local' must be a string.`,
+				`The 'args' property for MCP server 'local' must be an array of strings.`,
+				`The 'timeout' property for MCP server 'local' must be a positive integer.`,
+				`Unknown property 'unknown' in MCP server 'local'.`,
+				`MCP server 'remote' requires the 'url' property.`,
+			]);
+		});
+
+		test('github-copilot agent warns about handoffs attribute', async () => {
 			const content = [
 				'---',
 				'name: "GitHubAgent"',
 				'description: "GitHub Copilot agent"',
 				'target: github-copilot',
 				'model: MAE 4.1',
+				'reasoning-effort: high',
 				`tools: ['shell', 'edit']`,
 				`handoffs:`,
 				'  - label: Test',
@@ -721,9 +1355,8 @@ suite('PromptValidator', () => {
 			const markers = await validate(content, PromptsType.agent);
 			const messages = markers.map(m => m.message);
 			assert.deepStrictEqual(messages, [
-				'Attribute \'model\' is not supported in custom GitHub Copilot agent files. Supported: description, github, infer, mcp-servers, name, target, tools.',
-				'Attribute \'handoffs\' is not supported in custom GitHub Copilot agent files. Supported: description, github, infer, mcp-servers, name, target, tools.',
-			], 'Model and handoffs are not validated for github-copilot target');
+				'Attribute \'handoffs\' is not supported in custom GitHub Copilot agent files. Supported: deferred-tool-loading, description, disable-model-invocation, github, hooks, include-custom-instructions, infer, mcp-servers, model, model-policy, name, reasoning-effort, skills, strict-tools-list, target, tools, user-invocable.',
+			], 'Only handoffs is unsupported for github-copilot target, model and reasoning-effort are supported');
 		});
 
 		test('github-copilot agent does not validate variable references', async () => {
@@ -738,7 +1371,38 @@ suite('PromptValidator', () => {
 			].join('\n');
 			const markers = await validate(content, PromptsType.agent);
 			// Variable references should not be validated for github-copilot target
-			assert.deepStrictEqual(markers, [], 'Variable references are not validated for github-copilot target');
+			assert.deepStrictEqual(markers, []);
+		});
+
+		test('github-copilot agent validates body syntax', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'---',
+				'Work in {{cwd}} and {{unknownPlaceholder}}.',
+				'Use #file:README.md and #tool:newToolSetRef',
+			].join('\n');
+
+			const markers = await validate(content, PromptsType.agent);
+
+			assert.deepStrictEqual(markers.map(marker => ({
+				message: marker.message,
+				tags: marker.tags,
+			})), [
+				{
+					message: `Local '#file:' references are not expanded by the GitHub Copilot harness.`,
+					tags: [MarkerTag.Unnecessary],
+				},
+				{
+					message: `Unknown GitHub Copilot placeholder '{{unknownPlaceholder}}'.`,
+					tags: [MarkerTag.Unnecessary],
+				},
+				{
+					message: `Tool set 'newToolSetRef' is not supported by the GitHub Copilot harness. List individual tools in the 'tools' frontmatter attribute.`,
+					tags: [MarkerTag.Unnecessary],
+				},
+			]);
 		});
 
 		test('github-copilot agent rejects unsupported attributes', async () => {
@@ -754,8 +1418,9 @@ suite('PromptValidator', () => {
 			].join('\n');
 			const markers = await validate(content, PromptsType.agent);
 			assert.strictEqual(markers.length, 1);
-			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
-			assert.ok(markers[0].message.includes(`Attribute 'argument-hint' is not supported`), 'Expected warning about unsupported attribute');
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Hint);
+			assert.deepStrictEqual(markers[0].tags, [MarkerTag.Unnecessary]);
+			assert.ok(markers[0].message.includes(`Attribute 'argument-hint' is not supported`), 'Expected hint about unsupported attribute');
 		});
 
 		test('github-copilot agent with valid permissions', async () => {
@@ -925,7 +1590,7 @@ suite('PromptValidator', () => {
 			assert.deepStrictEqual(markers, [], 'VS Code target should validate normally');
 		});
 
-		test('vscode target agent warns about unknown tools', async () => {
+		test('vscode target agent marks unknown tools as unnecessary hints', async () => {
 			const content = [
 				'---',
 				'description: "VS Code agent"',
@@ -936,8 +1601,9 @@ suite('PromptValidator', () => {
 			].join('\n');
 			const markers = await validate(content, PromptsType.agent);
 			assert.strictEqual(markers.length, 1);
-			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
-			assert.strictEqual(markers[0].message, `Unknown tool 'unknownTool'.`);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Hint);
+			assert.deepStrictEqual(markers[0].tags, [MarkerTag.Unnecessary]);
+			assert.strictEqual(markers[0].message, `Unknown tool 'unknownTool' will be ignored.`);
 		});
 
 		test('vscode target agent with mcp-servers and github-tools', async () => {
@@ -954,7 +1620,7 @@ suite('PromptValidator', () => {
 			const messages = markers.map(m => m.message);
 			assert.deepStrictEqual(messages, [
 				'Attribute \'mcp-servers\' is ignored when running locally in VS Code.',
-				'Unknown tool \'edit\'.',
+				'Unknown tool \'edit\' will be ignored.',
 			]);
 		});
 
@@ -1101,7 +1767,6 @@ suite('PromptValidator', () => {
 
 			// Valid infer: true (maps to 'all') - shows deprecation warning
 			{
-				testConfigService.setUserConfiguration(ChatConfiguration.SubagentToolCustomAgents, true);
 				const content = [
 					'---',
 					'name: "TestAgent"',
@@ -1162,28 +1827,8 @@ suite('PromptValidator', () => {
 			}
 		});
 
-		test('disable-model-invocation: false warns when customAgentInSubagent.enabled is disabled', async () => {
-			testConfigService.setUserConfiguration(ChatConfiguration.SubagentToolCustomAgents, false);
-
-			// disable-model-invocation: false should warn when config is disabled
-			{
-				const content = [
-					'---',
-					'name: "TestAgent"',
-					'description: "Test agent"',
-					'disable-model-invocation: false',
-					'---',
-					'Body',
-				].join('\n');
-				const markers = await validate(content, PromptsType.agent);
-				assert.strictEqual(markers.length, 1);
-				assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
-				assert.strictEqual(markers[0].message, `For agents to be used as subagent you also need to enable the 'chat.customAgentInSubagent.enabled' setting.`);
-			}
-		});
 
 		test('agents attribute must be an array', async () => {
-			testConfigService.setUserConfiguration(ChatConfiguration.SubagentToolCustomAgents, true);
 			const content = [
 				'---',
 				'description: "Test"',
@@ -1195,7 +1840,6 @@ suite('PromptValidator', () => {
 		});
 
 		test('each agent name in agents attribute must be a string', async () => {
-			testConfigService.setUserConfiguration(ChatConfiguration.SubagentToolCustomAgents, true);
 			const content = [
 				'---',
 				'description: "Test"',
@@ -1207,7 +1851,7 @@ suite('PromptValidator', () => {
 			assert.deepStrictEqual(markers.map(m => m.message), [`Each agent name in the 'agents' attribute must be a string.`]);
 		});
 
-		test('unknown agent in agents attribute shows warning', async () => {
+		test('unknown agent in agents attribute shows unnecessary hint', async () => {
 			const content = [
 				'---',
 				'description: "Test"',
@@ -1217,12 +1861,12 @@ suite('PromptValidator', () => {
 			].join('\n');
 			const markers = await validate(content, PromptsType.agent);
 			assert.strictEqual(markers.length, 1);
-			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
-			assert.strictEqual(markers[0].message, `Unknown agent 'UnknownAgent'. Available agents: Plan, agent.`);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Hint);
+			assert.deepStrictEqual(markers[0].tags, [MarkerTag.Unnecessary]);
+			assert.strictEqual(markers[0].message, `Unknown agent 'UnknownAgent' will be ignored. Available agents: Plan, agent.`);
 		});
 
 		test('agents attribute with non-empty value requires agent tool 1', async () => {
-			testConfigService.setUserConfiguration(ChatConfiguration.SubagentToolCustomAgents, true);
 			const content = [
 				'---',
 				'description: "Test"',
@@ -1234,7 +1878,6 @@ suite('PromptValidator', () => {
 		});
 
 		test('agents attribute with non-empty value requires agent tool 2', async () => {
-			testConfigService.setUserConfiguration(ChatConfiguration.SubagentToolCustomAgents, true);
 			const content = [
 				'---',
 				'description: "Test"',
@@ -1247,7 +1890,6 @@ suite('PromptValidator', () => {
 		});
 
 		test('agents attribute with non-empty value requires agent tool 3', async () => {
-			testConfigService.setUserConfiguration(ChatConfiguration.SubagentToolCustomAgents, true);
 			const content = [
 				'---',
 				'description: "Test"',
@@ -1260,7 +1902,6 @@ suite('PromptValidator', () => {
 		});
 
 		test('agents attribute with non-empty value requires agent tool 4', async () => {
-			testConfigService.setUserConfiguration(ChatConfiguration.SubagentToolCustomAgents, true);
 			const content = [
 				'---',
 				'description: "Test"',
@@ -1273,7 +1914,6 @@ suite('PromptValidator', () => {
 		});
 
 		test('agents attribute with empty array does not require agent tool', async () => {
-			testConfigService.setUserConfiguration(ChatConfiguration.SubagentToolCustomAgents, true);
 			const content = [
 				'---',
 				'description: "Test"',
@@ -1357,9 +1997,10 @@ suite('PromptValidator', () => {
 			].join('\n');
 			const markers = await validate(content, PromptsType.agent);
 			assert.strictEqual(markers.length, 1, 'user-invokable should produce exactly one diagnostic');
-			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
-			assert.ok(markers[0].message.includes('user-invokable'), 'warning should mention the attribute name');
-			assert.ok(markers[0].message.includes('not supported'), 'warning should say attribute is not supported');
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Hint);
+			assert.deepStrictEqual(markers[0].tags, [MarkerTag.Unnecessary]);
+			assert.ok(markers[0].message.includes('user-invokable'), 'hint should mention the attribute name');
+			assert.ok(markers[0].message.includes('not supported'), 'hint should say attribute is not supported');
 		});
 
 		test('disable-model-invocation attribute validation', async () => {
@@ -1812,8 +2453,9 @@ suite('PromptValidator', () => {
 			].join('\n');
 			const markers = await validate(content, PromptsType.instructions);
 			assert.strictEqual(markers.length, 2);
-			// Order: unknown attribute warnings first (attribute iteration) then applyTo validation
-			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+			// Order: unknown attribute hints first (attribute iteration) then applyTo validation
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Hint);
+			assert.deepStrictEqual(markers[0].tags, [MarkerTag.Unnecessary]);
 			assert.ok(markers[0].message.startsWith(`Attribute 'model' is not supported in instructions files.`));
 			assert.strictEqual(markers[1].message, `The 'applyTo' attribute must be a valid glob pattern.`);
 		});
@@ -2007,7 +2649,8 @@ suite('PromptValidator', () => {
 				'---',
 				'description: "Refs"',
 				'---',
-				'Here is a #file:./reference1.md and a markdown [reference](./reference2.md) plus variables #tool1 and #tool2'
+				'Here is a #file:./reference1.md and a markdown [reference](./reference2.md) plus variables #tool1 and #tool2',
+				'User home references also work: #file:~/work/vscode/ and [home reference](~/work/vscode/).'
 			].join('\n');
 			const markers = await validate(content, PromptsType.prompt);
 			assert.deepStrictEqual(markers, [], 'Expected no validation issues');
@@ -2055,7 +2698,7 @@ suite('PromptValidator', () => {
 			]);
 		});
 
-		test('body with unknown tool variable reference warns', async () => {
+		test('body with unknown tool variable reference is an unnecessary hint', async () => {
 			const content = [
 				'---',
 				'description: "Unknown tool var"',
@@ -2063,8 +2706,9 @@ suite('PromptValidator', () => {
 				'This line references known #tool:tool1 and unknown #tool:toolX'
 			].join('\n');
 			const markers = await validate(content, PromptsType.prompt);
-			assert.strictEqual(markers.length, 1, 'Expected one warning for unknown tool variable');
-			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+			assert.strictEqual(markers.length, 1, 'Expected one diagnostic for unknown tool variable');
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Hint);
+			assert.deepStrictEqual(markers[0].tags, [MarkerTag.Unnecessary]);
 			assert.strictEqual(markers[0].message, `Unknown tool or toolset 'toolX'.`);
 		});
 
@@ -2081,7 +2725,7 @@ suite('PromptValidator', () => {
 			const markers = await validate(content, PromptsType.prompt);
 			const actual = markers.sort((a, b) => a.startLineNumber - b.startLineNumber).map(m => ({ message: m.message, startColumn: m.startColumn, endColumn: m.endColumn }));
 			assert.deepEqual(actual, [
-				{ message: `Unknown tool or toolset 'ms-azuretools.vscode-azure-github-copilot/azure_recommend_custom_modes'.`, startColumn: 7, endColumn: 77 },
+				{ message: `Unknown extension tool 'ms-azuretools.vscode-azure-github-copilot/azure_recommend_custom_modes'. It is likely to be a missing extension, please ensure it is installed and enabled.`, startColumn: 7, endColumn: 77 },
 				{ message: `Tool or toolset 'github.vscode-pull-request-github/suggest-fix' also needs to be enabled in the header.`, startColumn: 7, endColumn: 52 },
 				{ message: `Tool or toolset 'openSimpleBrowser' has been renamed, use 'vscode/openIntegratedBrowser' instead.`, startColumn: 7, endColumn: 24 },
 			]);
@@ -2117,7 +2761,7 @@ suite('PromptValidator', () => {
 			assert.strictEqual(markers[0].message, `The skill name 'different-name' should match the folder name 'my-skill'.`);
 		});
 
-		test('skill without name attribute should error', async () => {
+		test('skill without name attribute should warn', async () => {
 			const content = [
 				'---',
 				'description: Test Skill',
@@ -2126,8 +2770,14 @@ suite('PromptValidator', () => {
 			].join('\n');
 			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
 			assert.strictEqual(markers.length, 1);
-			assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
-			assert.strictEqual(markers[0].message, `Skill must provide a name.`);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+			assert.strictEqual(markers[0].message, 'Skill should provide a name.');
+		});
+
+		test('skill without frontmatter should not warn about missing name or description', async () => {
+			const content = 'This is a skill without any frontmatter.';
+			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+			assert.deepStrictEqual(markers, []);
 		});
 
 		test('skill with empty name should error', async () => {
@@ -2144,7 +2794,7 @@ suite('PromptValidator', () => {
 			assert.strictEqual(markers[0].message, `The 'name' attribute must not be empty.`);
 		});
 
-		test('skill without description attribute should error', async () => {
+		test('skill without description attribute should warn', async () => {
 			const content = [
 				'---',
 				'name: my-skill',
@@ -2153,8 +2803,40 @@ suite('PromptValidator', () => {
 			].join('\n');
 			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
 			assert.strictEqual(markers.length, 1);
-			assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
-			assert.strictEqual(markers[0].message, `Skill must provide a description.`);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+			assert.strictEqual(markers[0].message, 'Skill should provide a description.');
+		});
+
+		test('skill without description but with user-invocable false should error on that attribute', async () => {
+			const content = [
+				'---',
+				'name: my-skill',
+				'user-invocable: false',
+				'---',
+				'This is a skill.'
+			].join('\n');
+			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+			assert.strictEqual(markers.length, 2);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+			assert.strictEqual(markers[0].message, 'Skill should provide a description.');
+			assert.strictEqual(markers[1].severity, MarkerSeverity.Error);
+			assert.ok(markers[1].message.includes('description is required when user-invocable is false'));
+		});
+
+		test('skill without description but with disable-model-invocation false should error on that attribute', async () => {
+			const content = [
+				'---',
+				'name: my-skill',
+				'disable-model-invocation: false',
+				'---',
+				'This is a skill.'
+			].join('\n');
+			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+			assert.strictEqual(markers.length, 2);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+			assert.strictEqual(markers[0].message, 'Skill should provide a description.');
+			assert.strictEqual(markers[1].severity, MarkerSeverity.Error);
+			assert.ok(markers[1].message.includes('description is required when model invocation is enabled'));
 		});
 
 		test('skill with empty description should error', async () => {
@@ -2265,7 +2947,7 @@ suite('PromptValidator', () => {
 			assert.ok(!markers.some(m => m.message.includes('should match the folder name')), 'Should not validate folder names for agents');
 		});
 
-		test('skill with unknown attributes shows warning', async () => {
+		test('skill with unknown attributes shows unnecessary hints', async () => {
 			const content = [
 				'---',
 				'name: my-skill',
@@ -2277,7 +2959,8 @@ suite('PromptValidator', () => {
 			].join('\n');
 			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
 			assert.strictEqual(markers.length, 2);
-			assert.ok(markers.every(m => m.severity === MarkerSeverity.Warning));
+			assert.ok(markers.every(m => m.severity === MarkerSeverity.Hint));
+			assert.ok(markers.every(m => JSON.stringify(m.tags) === JSON.stringify([MarkerTag.Unnecessary])));
 			assert.ok(markers.some(m => m.message.includes('unknownAttr')));
 			assert.ok(markers.some(m => m.message.includes('anotherUnknown')));
 			assert.ok(markers.every(m => m.message.includes('Supported: ')));
@@ -2416,7 +3099,7 @@ suite('PromptValidator', () => {
 			assert.deepStrictEqual(markers, [], 'argument-hint should be valid for skills');
 		});
 
-		test('skill with empty argument-hint shows error', async () => {
+		test('skill with empty argument-hint shows warning', async () => {
 			const content = [
 				'---',
 				'name: my-skill',
@@ -2427,7 +3110,7 @@ suite('PromptValidator', () => {
 			].join('\n');
 			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
 			assert.strictEqual(markers.length, 1);
-			assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
 			assert.strictEqual(markers[0].message, `The 'argument-hint' attribute should not be empty.`);
 		});
 
@@ -2504,7 +3187,7 @@ suite('PromptValidator', () => {
 			assert.strictEqual(markers[0].message, `The 'paths' attribute must be an array of glob patterns.`);
 		});
 
-		test('claude rules with unknown attribute shows warning', async () => {
+		test('claude rules with unknown attribute shows unnecessary hint', async () => {
 			const content = [
 				'---',
 				'description: "Rules"',
@@ -2513,8 +3196,9 @@ suite('PromptValidator', () => {
 			].join('\n');
 			const markers = await validate(content, PromptsType.instructions, claudeRulesUri);
 			assert.strictEqual(markers.length, 1);
-			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
-			assert.ok(markers[0].message.includes(`Attribute 'applyTo' is not supported in rules files.`));
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Hint);
+			assert.deepStrictEqual(markers[0].tags, [MarkerTag.Unnecessary]);
+			assert.ok(markers[0].message.includes(`Attribute 'applyTo' is not supported in rules files by VS Code agents.`));
 		});
 
 		test('claude rules with multiple validation errors', async () => {

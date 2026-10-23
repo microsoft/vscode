@@ -11,7 +11,7 @@ import { ILayoutService } from '../../layout/browser/layoutService.js';
 import { IOpenerService } from '../../opener/common/opener.js';
 import { QuickAccessController } from './quickAccess.js';
 import { IQuickAccessController } from '../common/quickAccess.js';
-import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInputButton, IQuickInputService, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickTree, IQuickTreeItem, IQuickWidget, QuickInputHideReason, QuickPickInput } from '../common/quickInput.js';
+import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInput, IQuickInputButton, IQuickInputService, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickTree, IQuickTreeItem, IQuickWidget, QuickInputAlignment, QuickInputHideReason, QuickPickInput } from '../common/quickInput.js';
 import { defaultButtonStyles, defaultCountBadgeStyles, defaultInputBoxStyles, defaultKeybindingLabelStyles, defaultProgressBarStyles, defaultToggleStyles, getListStyles } from '../../theme/browser/defaultStyles.js';
 import { activeContrastBorder, asCssVariable, pickerGroupBorder, pickerGroupForeground, quickInputBackground, quickInputForeground, quickInputListFocusBackground, quickInputListFocusForeground, quickInputListFocusIconForeground, quickInputTitleBackground, widgetBorder, widgetShadow } from '../../theme/common/colorRegistry.js';
 import { IThemeService, Themable } from '../../theme/common/themeService.js';
@@ -19,12 +19,16 @@ import { IQuickInputOptions, IQuickInputStyles, QuickInputHoverDelegate } from '
 import { QuickInputController, IQuickInputControllerHost } from './quickInputController.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { getWindow } from '../../../base/browser/dom.js';
+import { IObservable, autorun, observableValue } from '../../../base/common/observable.js';
 
 export class QuickInputService extends Themable implements IQuickInputService {
 
 	declare readonly _serviceBrand: undefined;
 
 	get backButton(): IQuickInputButton { return this.controller.backButton; }
+
+	private readonly _alignment = observableValue<QuickInputAlignment>(this, 'top');
+	readonly alignment: IObservable<QuickInputAlignment> = this._alignment;
 
 	private readonly _onShow = this._register(new Emitter<void>());
 	readonly onShow = this._onShow.event;
@@ -61,6 +65,7 @@ export class QuickInputService extends Themable implements IQuickInputService {
 		@IThemeService themeService: IThemeService,
 		@ILayoutService protected readonly layoutService: ILayoutService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
+		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super(themeService);
 	}
@@ -73,11 +78,7 @@ export class QuickInputService extends Themable implements IQuickInputService {
 			backKeybindingLabel: () => undefined,
 			setContextKey: (id?: string) => this.setContextKey(id),
 			linkOpenerDelegate: (content) => {
-				// HACK: https://github.com/microsoft/vscode/issues/173691
-				this.instantiationService.invokeFunction(accessor => {
-					const openerService = accessor.get(IOpenerService);
-					openerService.open(content, { allowCommands: true, fromUserGesture: true });
-				});
+				this.openerService.open(content, { allowCommands: true, fromUserGesture: true });
 			},
 			returnFocus: () => host.focus(),
 			styles: this.computeStyles(),
@@ -118,6 +119,11 @@ export class QuickInputService extends Themable implements IQuickInputService {
 			this._onHide.fire();
 		}));
 
+		// Mirror alignment from controller
+		this._register(autorun(reader => {
+			this._alignment.set(controller.alignment.read(reader), undefined);
+		}));
+
 		return controller;
 	}
 
@@ -147,6 +153,10 @@ export class QuickInputService extends Themable implements IQuickInputService {
 				context.reset();
 			}
 		});
+	}
+
+	withQuickInputAnchor<T>(anchor: IQuickInput['anchor'], anchorPosition: IQuickInput['anchorPosition'], operation: () => Promise<T>): Promise<T> {
+		return this.controller.withQuickInputAnchor(anchor, anchorPosition, operation);
 	}
 
 	pick<T extends IQuickPickItem, O extends IPickOptions<T>>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: O, token: CancellationToken = CancellationToken.None): Promise<(O extends { canPickMany: true } ? T[] : T) | undefined> {

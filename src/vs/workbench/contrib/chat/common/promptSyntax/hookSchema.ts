@@ -10,27 +10,18 @@ import { joinPath } from '../../../../../base/common/resources.js';
 import { isAbsolute } from '../../../../../base/common/path.js';
 import { untildify } from '../../../../../base/common/labels.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
+import { interpolateHookCommandPluginRoot, IParsedHookCommand, PluginFormat } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { HookType, HOOKS_BY_TARGET, HOOK_METADATA } from './hookTypes.js';
 import { Target } from './promptTypes.js';
 import { IValue, IMapValue } from './promptFileParser.js';
 
 /**
  * A single hook command configuration.
+ * Extends the platform-layer {@link IParsedHookCommand} with editor-specific
+ * metadata used for UI display and field highlighting.
  */
-export interface IHookCommand {
+export interface IHookCommand extends IParsedHookCommand {
 	readonly type: 'command';
-	/** Cross-platform command to execute. */
-	readonly command?: string;
-	/** Windows-specific command override. */
-	readonly windows?: string;
-	/** Linux-specific command override. */
-	readonly linux?: string;
-	/** macOS-specific command override. */
-	readonly osx?: string;
-	/** Resolved working directory URI. */
-	readonly cwd?: URI;
-	readonly env?: Record<string, string>;
-	readonly timeout?: number;
 	/** Original JSON field name that provided the windows command. */
 	readonly windowsSource?: 'windows' | 'powershell';
 	/** Original JSON field name that provided the linux command. */
@@ -44,8 +35,34 @@ export interface IHookCommand {
  * This is passed to the extension host so it knows what hooks are available.
  */
 export type ChatRequestHooks = {
-	readonly [K in HookType]?: readonly IHookCommand[];
+	readonly [K in HookType]?: readonly IParsedHookCommand[];
 };
+
+export namespace ChatRequestHooks {
+	export function isEquals(a: ChatRequestHooks | undefined, b: ChatRequestHooks | undefined): boolean {
+		if (a === b) {
+			return true;
+		}
+		if (!a || !b) {
+			return false;
+		}
+		for (const hookType of Object.values(HookType)) {
+			const aArr = a[hookType];
+			const bArr = b[hookType];
+			if (aArr?.length !== bArr?.length) {
+				return false;
+			}
+			if (aArr && bArr) {
+				for (let i = 0; i < aArr.length; i++) {
+					if (!IParsedHookCommand.isEquals(aArr[i], bArr[i])) {
+						return false;
+					}
+				}
+			}
+		}
+		return true;
+	}
+}
 
 /**
  * Merges two sets of hooks by concatenating the command arrays for each hook type.
@@ -56,7 +73,7 @@ export function mergeHooks(base: ChatRequestHooks | undefined, additional: ChatR
 		return additional;
 	}
 
-	const result: Partial<Record<HookType, readonly IHookCommand[]>> = { ...base };
+	const result: Partial<Record<HookType, readonly IParsedHookCommand[]>> = { ...base };
 	for (const hookType of Object.values(HookType)) {
 		const baseArr = base[hookType];
 		const additionalArr = additional[hookType];
@@ -71,17 +88,24 @@ export function mergeHooks(base: ChatRequestHooks | undefined, additional: ChatR
  * Descriptions for hook command fields, used by both the JSON schema and the hover provider.
  */
 export const HOOK_COMMAND_FIELD_DESCRIPTIONS: Record<string, string> = {
-	type: nls.localize('hook.type', 'Must be "command".'),
+	type: nls.localize('hook.type', 'Hook action type. Supported values depend on the active harness.'),
 	command: nls.localize('hook.command', 'The command to execute. This is the default cross-platform command.'),
 	windows: nls.localize('hook.windows', 'Windows-specific command. If specified and running on Windows, this overrides the "command" field.'),
 	linux: nls.localize('hook.linux', 'Linux-specific command. If specified and running on Linux, this overrides the "command" field.'),
 	osx: nls.localize('hook.osx', 'macOS-specific command. If specified and running on macOS, this overrides the "command" field.'),
 	bash: nls.localize('hook.bash', 'Bash command for Linux and macOS.'),
 	powershell: nls.localize('hook.powershell', 'PowerShell command for Windows.'),
+	exec: nls.localize('hook.exec', 'Native executable path. Cannot be combined with a shell command.'),
+	args: nls.localize('hook.args', 'Arguments passed to the native executable.'),
 	cwd: nls.localize('hook.cwd', 'Working directory for the script (relative to repository root).'),
 	env: nls.localize('hook.env', 'Additional environment variables that are merged with the existing environment.'),
 	timeout: nls.localize('hook.timeout', 'Maximum execution time in seconds (default: 30).'),
 	timeoutSec: nls.localize('hook.timeoutSec', 'Maximum execution time in seconds (default: 10).'),
+	matcher: nls.localize('hook.matcher', 'Regular expression selecting matching tools or events.'),
+	url: nls.localize('hook.url', 'HTTP or HTTPS URL invoked by the hook.'),
+	headers: nls.localize('hook.headers', 'HTTP headers sent with the request.'),
+	allowedEnvVars: nls.localize('hook.allowedEnvVars', 'Environment variable names whose values may be exposed to the HTTP hook.'),
+	prompt: nls.localize('hook.prompt', 'Prompt text added when the session starts.'),
 };
 
 /**
@@ -366,7 +390,7 @@ export function getPlatformLabel(os: OperatingSystem): string {
  * This applies OS-specific overrides (windows, linux, osx) to get the actual command that will be executed.
  * Similar to how launch.json handles platform-specific configurations in debugAdapter.ts.
  */
-export function resolveEffectiveCommand(hook: IHookCommand, os: OperatingSystem): string | undefined {
+export function resolveEffectiveCommand(hook: IParsedHookCommand, os: OperatingSystem): string | undefined {
 	// Select the platform-specific override based on the OS
 	if (os === OperatingSystem.Windows && hook.windows) {
 		return hook.windows;
@@ -383,7 +407,7 @@ export function resolveEffectiveCommand(hook: IHookCommand, os: OperatingSystem)
 /**
  * Checks if the hook is using a platform-specific command override.
  */
-export function isUsingPlatformOverride(hook: IHookCommand, os: OperatingSystem): boolean {
+export function isUsingPlatformOverride(hook: IParsedHookCommand, os: OperatingSystem): boolean {
 	if (os === OperatingSystem.Windows && hook.windows) {
 		return true;
 	} else if (os === OperatingSystem.Macintosh && hook.osx) {
@@ -416,13 +440,14 @@ export function getEffectiveCommandSource(hook: IHookCommand, os: OperatingSyste
  * Returns the actual field name from the JSON (e.g., 'bash' instead of 'osx' if bash was used).
  * This is used for editor focus to highlight the correct field.
  */
-export function getEffectiveCommandFieldKey(hook: IHookCommand, os: OperatingSystem): string {
+export function getEffectiveCommandFieldKey(hook: IHookCommand | IParsedHookCommand, os: OperatingSystem): string {
+	const h = hook as Partial<IHookCommand>;
 	if (os === OperatingSystem.Windows && hook.windows) {
-		return hook.windowsSource ?? 'windows';
+		return h.windowsSource ?? 'windows';
 	} else if (os === OperatingSystem.Macintosh && hook.osx) {
-		return hook.osxSource ?? 'osx';
+		return h.osxSource ?? 'osx';
 	} else if (os === OperatingSystem.Linux && hook.linux) {
-		return hook.linuxSource ?? 'linux';
+		return h.linuxSource ?? 'linux';
 	}
 	return 'command';
 }
@@ -432,7 +457,7 @@ export function getEffectiveCommandFieldKey(hook: IHookCommand, os: OperatingSys
  * Resolves OS-specific overrides to show the effective command for the given platform.
  * If using a platform-specific override, includes the platform as a prefix badge.
  */
-export function formatHookCommandLabel(hook: IHookCommand, os: OperatingSystem): string {
+export function formatHookCommandLabel(hook: IParsedHookCommand, os: OperatingSystem): string {
 	const command = resolveEffectiveCommand(hook, os);
 	if (!command) {
 		return '';
@@ -494,7 +519,8 @@ export function resolveHookCommand(raw: Record<string, unknown>, workspaceRootUr
 export function extractHookCommandsFromItem(
 	item: unknown,
 	workspaceRootUri: URI | undefined,
-	userHome: string
+	userHome: string,
+	plugin?: { readonly uri: URI; readonly format: PluginFormat },
 ): IHookCommand[] {
 	if (!item || typeof item !== 'object') {
 		return [];
@@ -510,7 +536,8 @@ export function extractHookCommandsFromItem(
 			if (!nestedHook || typeof nestedHook !== 'object') {
 				continue;
 			}
-			const normalized = normalizeForResolve(nestedHook as Record<string, unknown>);
+			const raw = nestedHook as Record<string, unknown>;
+			const normalized = normalizeForResolve(plugin ? interpolateHookCommandPluginRoot(raw, plugin.uri, plugin.format) : raw);
 			const resolved = resolveHookCommand(normalized, workspaceRootUri, userHome);
 			if (resolved) {
 				commands.push(resolved);
@@ -518,7 +545,7 @@ export function extractHookCommandsFromItem(
 		}
 	} else {
 		// Direct command object
-		const normalized = normalizeForResolve(itemObj);
+		const normalized = normalizeForResolve(plugin ? interpolateHookCommandPluginRoot(itemObj, plugin.uri, plugin.format) : itemObj);
 		const resolved = resolveHookCommand(normalized, workspaceRootUri, userHome);
 		if (resolved) {
 			commands.push(resolved);
@@ -588,6 +615,7 @@ function yamlValueToPlain(value: IValue): unknown {
  * @param workspaceRootUri Workspace root for resolving relative `cwd` paths.
  * @param userHome User home directory path for tilde expansion.
  * @param target The agent's target, used to resolve hook type names correctly.
+ * @param plugin The contributing plugin, used to resolve format-specific plugin-root variables.
  * @returns Resolved hooks organized by hook type, ready for use in {@link ChatRequestHooks}.
  */
 export function parseSubagentHooksFromYaml(
@@ -595,6 +623,7 @@ export function parseSubagentHooksFromYaml(
 	workspaceRootUri: URI | undefined,
 	userHome: string,
 	target: Target = Target.Undefined,
+	plugin?: { readonly uri: URI; readonly format: PluginFormat },
 ): ChatRequestHooks {
 	const result: Record<string, IHookCommand[]> = {};
 	const targetHookMap = HOOKS_BY_TARGET[target] ?? HOOKS_BY_TARGET[Target.Undefined];
@@ -620,7 +649,7 @@ export function parseSubagentHooksFromYaml(
 			// extractHookCommandsFromItem helper can handle both direct
 			// commands and nested matcher structures.
 			const plainItem = yamlValueToPlain(item);
-			const extracted = extractHookCommandsFromItem(plainItem, workspaceRootUri, userHome);
+			const extracted = extractHookCommandsFromItem(plainItem, workspaceRootUri, userHome, plugin);
 			commands.push(...extracted);
 		}
 

@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { raceCancellation } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
@@ -17,7 +19,6 @@ import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '.
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import product from '../../../../../platform/product/common/product.js';
-import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
@@ -27,15 +28,18 @@ import { ILifecycleService } from '../../../../services/lifecycle/common/lifecyc
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementRequests, isProUser } from '../../../../services/chat/common/chatEntitlementService.js';
 import { CHAT_OPEN_ACTION_ID } from '../actions/chatActions.js';
-import { ChatViewId, ChatViewContainerId } from '../chat.js';
-import { ChatSetupAnonymous, ChatSetupStep, ChatSetupResultValue, InstallChatEvent, InstallChatClassification, refreshTokens, maybeEnableAuthExtension } from './chatSetup.js';
+import { ChatViewContainerId, ChatViewId } from '../chat.js';
+import { ChatSetupAnonymous, ChatSetupError, ChatSetupStep, ChatSetupResultValue, InstallChatEvent, InstallChatClassification, refreshTokens, maybeEnableAuthExtension } from './chatSetup.js';
 import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { addGitHubEnterpriseUri, getConfiguredGitHubEnterpriseUris, GheParseResultKind, gitHubEnterpriseUrisSetting, isValidGitHubEnterpriseUri, parseGheInstanceInput } from '../../../../services/accounts/common/githubEnterprise.js';
+import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 
 const defaultChat = {
 	chatExtensionId: product.defaultChatAgent?.chatExtensionId ?? '',
-	provider: product.defaultChatAgent?.provider ?? { default: { id: '', name: '' }, enterprise: { id: '', name: '' }, apple: { id: '', name: '' }, google: { id: '', name: '' } },
-	providerUriSetting: product.defaultChatAgent?.providerUriSetting ?? '',
+	provider: product.defaultChatAgent?.provider ?? { default: { id: '', name: '' }, enterprise: { id: '', name: '' }, apple: { id: '', name: '' }, google: { id: '', name: '' }, microsoft: { id: '', name: '' } },
+	providerUriSetting: product.defaultChatAgent?.providerUriSetting ?? 'github-enterprise.uri',
 	completionsAdvancedSetting: product.defaultChatAgent?.completionsAdvancedSetting ?? '',
 };
 
@@ -45,6 +49,7 @@ export interface IChatSetupControllerOptions {
 	readonly useEnterpriseProvider?: boolean;
 	readonly additionalScopes?: readonly string[];
 	readonly forceAnonymous?: ChatSetupAnonymous;
+	readonly cancellationToken?: CancellationToken;
 }
 
 export class ChatSetupController extends Disposable {
@@ -60,7 +65,6 @@ export class ChatSetupController extends Disposable {
 		private readonly requests: ChatEntitlementRequests,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IProductService private readonly productService: IProductService,
 		@ILogService private readonly logService: ILogService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IActivityService private readonly activityService: IActivityService,
@@ -70,6 +74,8 @@ export class ChatSetupController extends Disposable {
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
+		@IProductService private readonly productService: IProductService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 		super();
 
@@ -108,6 +114,10 @@ export class ChatSetupController extends Disposable {
 	}
 
 	private async doSetup(options: IChatSetupControllerOptions, watch: StopWatch): Promise<ChatSetupResultValue> {
+		if (options.cancellationToken?.isCancellationRequested) {
+			return undefined;
+		}
+
 		this.context.suspend();  // reduces flicker
 
 		let success: ChatSetupResultValue = false;
@@ -130,15 +140,20 @@ export class ChatSetupController extends Disposable {
 			if (signIn) {
 				this.setStep(ChatSetupStep.SigningIn);
 				const result = await this.signIn(options);
+				if (!result) {
+					return undefined;
+				}
 				if (!result.defaultAccount) {
-					this.doInstall(); // still install the extension in the background to remind the user to sign-in eventually
-
 					const provider = options.useSocialProvider ?? (options.useEnterpriseProvider ? defaultChat.provider.enterprise.id : defaultChat.provider.default.id);
 					this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedNotSignedIn', installDuration: watch.elapsed(), signUpErrorCode: undefined, provider });
 					return undefined; // treat as cancelled because signing in already triggers an error dialog
 				}
 
 				entitlement = result.entitlement;
+			}
+
+			if (options.cancellationToken?.isCancellationRequested) {
+				return undefined;
 			}
 
 			// Await Install
@@ -152,18 +167,31 @@ export class ChatSetupController extends Disposable {
 		return success;
 	}
 
-	private async signIn(options: IChatSetupControllerOptions): Promise<{ defaultAccount: IDefaultAccount | undefined; entitlement: ChatEntitlement | undefined }> {
+	private async signIn(options: IChatSetupControllerOptions): Promise<{ defaultAccount: IDefaultAccount | undefined; entitlement: ChatEntitlement | undefined } | undefined> {
 		const authExtensionReEnabled = await maybeEnableAuthExtension(this.extensionsWorkbenchService, this.logService);
 		if (authExtensionReEnabled) {
 			refreshTokens(this.commandService);
 		}
+		if (options.cancellationToken?.isCancellationRequested) {
+			return undefined;
+		}
 
 		let entitlements;
 		let defaultAccount;
+		let signInError: Error | undefined;
 		try {
-			({ defaultAccount, entitlements } = await this.requests.signIn(options));
+			const result = await raceCancellation(this.requests.signIn(options), options.cancellationToken ?? CancellationToken.None);
+			if (!result) {
+				return undefined;
+			}
+			({ defaultAccount, entitlements } = result);
 		} catch (e) {
 			this.logService.error(`[chat setup] signIn: error ${e}`);
+			signInError = e instanceof Error ? e : new Error(String(e));
+		}
+
+		if (options.cancellationToken?.isCancellationRequested) {
+			return undefined;
 		}
 
 		if (!defaultAccount && !this.lifecycleService.willShutdown) {
@@ -178,12 +206,15 @@ export class ChatSetupController extends Disposable {
 				return this.signIn(options);
 			}
 		}
+		if (signInError) {
+			throw new ChatSetupError(signInError, true);
+		}
 
 		return { defaultAccount, entitlement: entitlements?.entitlement };
 	}
 
 	private async install(entitlement: ChatEntitlement, watch: StopWatch, options: IChatSetupControllerOptions): Promise<ChatSetupResultValue> {
-		const wasRunning = this.context.state.installed && !this.context.state.disabled;
+		const wasRunning = this.context.state.completed && !this.context.state.disabled;
 		let signUpResult: boolean | { errorCode: number } | undefined = undefined;
 
 		let provider: string;
@@ -272,6 +303,10 @@ export class ChatSetupController extends Disposable {
 	}
 
 	async setupWithProvider(options: IChatSetupControllerOptions): Promise<ChatSetupResultValue> {
+		if (options.cancellationToken?.isCancellationRequested) {
+			return undefined;
+		}
+
 		const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 		registry.registerConfiguration({
 			'id': 'copilot.setup',
@@ -287,16 +322,24 @@ export class ChatSetupController extends Disposable {
 				},
 				[defaultChat.providerUriSetting]: {
 					'type': 'string'
+				},
+				[gitHubEnterpriseUrisSetting]: {
+					'type': 'array',
+					'items': { 'type': 'string' },
+					'restricted': true
 				}
 			}
 		});
 
 		if (options.useEnterpriseProvider) {
-			const success = await this.handleEnterpriseInstance();
+			const success = await this.handleEnterpriseInstance(options.cancellationToken);
 			if (!success) {
 				this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedEnterpriseSetup', installDuration: 0, signUpErrorCode: undefined, provider: undefined });
 				return success; // not properly configured, abort
 			}
+		}
+		if (options.cancellationToken?.isCancellationRequested) {
+			return undefined;
 		}
 
 		let existingAdvancedSetting = this.configurationService.inspect(defaultChat.completionsAdvancedSetting).user?.value;
@@ -319,61 +362,47 @@ export class ChatSetupController extends Disposable {
 		return this.setup({ ...options, forceSignIn: true });
 	}
 
-	private async handleEnterpriseInstance(): Promise<ChatSetupResultValue> {
-		const domainRegEx = /^[a-zA-Z\-_]+$/;
-		const fullUriRegEx = /^(https:\/\/)?([a-zA-Z0-9-]+\.)*[a-zA-Z0-9-]+\.ghe\.com\/?$/;
+	private async handleEnterpriseInstance(cancellationToken?: CancellationToken): Promise<ChatSetupResultValue> {
+		while (!cancellationToken?.isCancellationRequested) {
+			const uris = getConfiguredGitHubEnterpriseUris(this.configurationService, this.workspaceTrustManagementService.isWorkspaceTrusted(), defaultChat.providerUriSetting);
+			const invalidUri = uris.find(uri => !isValidGitHubEnterpriseUri(uri));
+			const hasCloudInstance = uris.some(uri => parseGheInstanceInput(uri).kind === GheParseResultKind.FullUri);
+			if (hasCloudInstance && invalidUri === undefined) {
+				return true;
+			}
 
-		const uri = this.configurationService.getValue<string>(defaultChat.providerUriSetting);
-		if (typeof uri === 'string' && fullUriRegEx.test(uri)) {
-			return true; // already setup with a valid URI
-		}
-
-		let isSingleWord = false;
-		const result = await this.quickInputService.input({
-			prompt: localize('enterpriseInstance', "What is your {0} instance?", defaultChat.provider.enterprise.name),
-			placeHolder: localize('enterpriseInstancePlaceholder', 'i.e. "octocat" or "https://octocat.ghe.com"...'),
-			ignoreFocusLost: true,
-			value: uri,
-			validateInput: async value => {
-				isSingleWord = false;
-				if (!value) {
+			const result = await this.quickInputService.input({
+				prompt: localize('enterpriseInstance', "What is your {0} instance?", defaultChat.provider.enterprise.name),
+				placeHolder: localize('enterpriseInstancePlaceholder', 'i.e. "octocat" or "https://octocat.ghe.com"...'),
+				ignoreFocusLost: true,
+				value: invalidUri,
+				validateInput: async value => {
+					const parsed = parseGheInstanceInput(value);
+					if (parsed.kind === GheParseResultKind.SingleWord) {
+						return {
+							content: localize('willResolveTo', "Will resolve to {0}", parsed.resolvedUri),
+							severity: Severity.Info
+						};
+					}
+					if (parsed.kind === GheParseResultKind.Invalid) {
+						return {
+							content: localize('invalidEnterpriseInstance', "Enter a GHE.com instance name or HTTPS URL."),
+							severity: Severity.Error
+						};
+					}
 					return undefined;
 				}
+			}, cancellationToken);
 
-				if (domainRegEx.test(value)) {
-					isSingleWord = true;
-					return {
-						content: localize('willResolveTo', "Will resolve to {0}", `https://${value}.ghe.com`),
-						severity: Severity.Info
-					};
-				} if (!fullUriRegEx.test(value)) {
-					return {
-						content: localize('invalidEnterpriseInstance', 'You must enter a valid {0} instance (i.e. "octocat" or "https://octocat.ghe.com")', defaultChat.provider.enterprise.name),
-						severity: Severity.Error
-					};
-				}
-
+			if (!result || cancellationToken?.isCancellationRequested) {
 				return undefined;
 			}
-		});
-
-		if (!result) {
-			return undefined; // canceled
-		}
-
-		let resolvedUri = result;
-		if (isSingleWord) {
-			resolvedUri = `https://${resolvedUri}.ghe.com`;
-		} else {
-			const normalizedUri = result.toLowerCase();
-			const hasHttps = normalizedUri.startsWith('https://');
-			if (!hasHttps) {
-				resolvedUri = `https://${result}`;
+			const parsed = parseGheInstanceInput(result);
+			if (parsed.kind === GheParseResultKind.Empty || parsed.kind === GheParseResultKind.Invalid) {
+				throw new Error(localize('invalidEnterpriseInstance', "Enter a GHE.com instance name or HTTPS URL."));
 			}
+			await addGitHubEnterpriseUri(this.configurationService, parsed.resolvedUri, this.workspaceTrustManagementService.isWorkspaceTrusted(), defaultChat.providerUriSetting, invalidUri);
 		}
-
-		await this.configurationService.updateValue(defaultChat.providerUriSetting, resolvedUri, ConfigurationTarget.USER);
-
-		return true;
+		return undefined;
 	}
 }

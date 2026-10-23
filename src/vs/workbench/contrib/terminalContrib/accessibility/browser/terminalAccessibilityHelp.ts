@@ -21,6 +21,8 @@ import { accessibleViewIsShown, accessibleViewCurrentProviderId, AccessibilityVe
 import { TerminalHistoryCommandId } from '../../history/common/terminal.history.js';
 import { TerminalSuggestCommandId } from '../../suggest/common/terminal.suggest.js';
 import { TerminalSuggestSettingId } from '../../suggest/common/terminalSuggestConfiguration.js';
+import { HasSpeechProvider } from '../../../speech/common/speechService.js';
+import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 
 export const enum ClassName {
 	Active = 'active',
@@ -62,6 +64,7 @@ export class TerminalAccessibilityHelpProvider extends Disposable implements IAc
 			localize('openDetectedLink', 'The Open Detected Link command<keybinding:{0}> enables screen readers to easily open links found in the terminal.', TerminalLinksCommandId.OpenDetectedLink),
 			localize('newWithProfile', 'The Create New Terminal (With Profile) command<keybinding:{0}> allows for easy terminal creation using a specific profile.', TerminalCommandId.NewWithProfile),
 			localize('focusAfterRun', 'Configure what gets focused after running selected text in the terminal with `{0}`.', TerminalSettingId.FocusAfterRun),
+			localize('iconPicker', "Change Icon opens a searchable icon grid. Enter a name to filter, then press Down Arrow to enter the grid. Arrow keys move between icons, Home and End move to the first and last icon, and Up Arrow from the top row returns to search. Tab and Shift+Tab move between search, the grid, and Reset to default. Press Enter to choose an icon or reset the default terminal icon without changing its color. Escape cancels without changing the icon."),
 		];
 
 		if (!this._configurationService.getValue(TerminalAccessibilitySettingId.AccessibleViewFocusOnCommandExecution)) {
@@ -79,6 +82,11 @@ export class TerminalAccessibilityHelpProvider extends Disposable implements IAc
 
 		if (this._instance.shellType === WindowsShellType.CommandPrompt) {
 			content.push(localize('commandPromptMigration', "Consider using powershell instead of command prompt for an improved experience"));
+		}
+
+		if (HasSpeechProvider.getValue(this._contextKeyService) ||
+			(ChatContextKeys.enabled.getValue(this._contextKeyService) && ChatContextKeys.speechToTextConfigured.getValue(this._contextKeyService))) {
+			content.push(localize('terminalDictation', 'Start or stop dictation in the terminal<keybinding:{0}>.', TerminalCommandId.StartVoice));
 		}
 
 		if (this._hasShellIntegration) {

@@ -6,10 +6,9 @@
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { isEqualOrParent } from '../../../../base/common/resources.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { PromptsType } from './promptSyntax/promptTypes.js';
-import { IChatPromptSlashCommand, PromptsStorage } from './promptSyntax/service/promptsService.js';
+import { IChatPromptSlashCommand } from './promptSyntax/service/promptsService.js';
 
 export const IAICustomizationWorkspaceService = createDecorator<IAICustomizationWorkspaceService>('aiCustomizationWorkspaceService');
 
@@ -17,62 +16,77 @@ export const IAICustomizationWorkspaceService = createDecorator<IAICustomization
  * Extended storage type for AI Customization that includes built-in prompts
  * shipped with the application, alongside the core `PromptsStorage` values.
  */
-export type AICustomizationPromptsStorage = PromptsStorage | 'builtin';
+export type AICustomizationSource = 'local' | 'user' | 'extension' | 'plugin' | 'builtin';
+
+export namespace AICustomizationSources {
+	export const local: AICustomizationSource = 'local';
+	export const user: AICustomizationSource = 'user';
+	export const extension: AICustomizationSource = 'extension';
+	export const plugin: AICustomizationSource = 'plugin';
+	export const builtin: AICustomizationSource = 'builtin';
+	export const all: AICustomizationSource[] = [local, user, extension, plugin, builtin];
+}
 
 /**
  * Storage type discriminator for built-in customizations shipped with the application.
  */
-export const BUILTIN_STORAGE: AICustomizationPromptsStorage = 'builtin';
+export const BUILTIN_STORAGE = AICustomizationSources.builtin;
 
 /**
  * Possible section IDs for the AI Customization Management Editor sidebar.
  */
 export const AICustomizationManagementSection = {
+	Marketplace: 'marketplace',
 	Agents: 'agents',
 	Skills: 'skills',
 	Instructions: 'instructions',
 	Prompts: 'prompts',
 	Hooks: 'hooks',
+	Automations: 'automations',
 	McpServers: 'mcpServers',
 	Plugins: 'plugins',
+	Canvases: 'canvases',
 	Models: 'models',
+	Tools: 'tools',
+	Extensions: 'extensions',
+	HarnessSettings: 'harnessSettings',
 } as const;
 
 export type AICustomizationManagementSection = typeof AICustomizationManagementSection[keyof typeof AICustomizationManagementSection];
 
-/**
- * Per-type filter policy controlling which storage sources and user file
- * roots are visible for a given customization type.
- */
-export interface IStorageSourceFilter {
-	/**
-	 * Which storage groups to display (e.g. workspace, user, extension, builtin).
-	 */
-	readonly sources: readonly string[];
+export interface IAICustomizationMarketplaceOpenTarget {
+	readonly section: AICustomizationManagementSection;
+	readonly sourceId?: string;
+	readonly searchQuery?: string;
+	readonly connectorName?: string;
+	readonly connectorDisplayName?: string;
+}
 
-	/**
-	 * If set, only user files under these roots are shown (allowlist).
-	 * If `undefined`, all user file roots are included.
-	 */
-	readonly includedUserFileRoots?: readonly URI[];
+/** Command IDs for the AI Customizations Management Editor. */
+export const AICustomizationManagementCommands = {
+	OpenEditor: 'aiCustomization.openManagementEditor',
+	ShowPlugin: 'aiCustomizationManagement.showPlugin',
+	OpenMarketplace: 'aiCustomization.openMarketplace',
+	CreateNewAgent: 'aiCustomization.createNewAgent',
+	CreateNewSkill: 'aiCustomization.createNewSkill',
+	CreateNewInstructions: 'aiCustomization.createNewInstructions',
+	CreateNewPrompt: 'aiCustomization.createNewPrompt',
+	GenerateDebugReport: 'aiCustomization.generateDebugReport',
+	DismissMigrationHint: 'aiCustomization.dismissMigrationHint',
+} as const;
+
+/** Returns the workspace storage key for a harness-specific migration hint dismissal. */
+export function getCustomizationMigrationHintDismissedStorageKey(sessionType: string): string {
+	return `chat.customizationMigrationHint.dismissed.${sessionType}`;
 }
 
 /**
- * Applies a storage source filter to an array of items that have uri and storage.
- * Removes items whose storage is not in the filter's source list,
- * and for user-storage items, removes those not under an allowed root.
+ * Per-type filter policy controlling which storage sources are visible
+ * for a given customization type.
  */
-export function applyStorageSourceFilter<T extends { readonly uri: URI; readonly storage: string }>(items: readonly T[], filter: IStorageSourceFilter): readonly T[] {
-	const sourceSet = new Set(filter.sources);
-	return items.filter(item => {
-		if (!sourceSet.has(item.storage)) {
-			return false;
-		}
-		if (item.storage === PromptsStorage.user && filter.includedUserFileRoots) {
-			return filter.includedUserFileRoots.some(root => isEqualOrParent(item.uri, root));
-		}
-		return true;
-	});
+export interface IWelcomePageFeatures {
+	/** Show the "Configure Your AI" getting-started banner. */
+	readonly showGettingStartedBanner: boolean;
 }
 
 /**
@@ -87,6 +101,11 @@ export interface IAICustomizationWorkspaceService {
 	readonly activeProjectRoot: IObservable<URI | undefined>;
 
 	/**
+	 * Display label for the active project.
+	 */
+	readonly activeProjectLabel: IObservable<string | undefined>;
+
+	/**
 	 * Returns the current active project root, if any.
 	 */
 	getActiveProjectRoot(): URI | undefined;
@@ -97,20 +116,23 @@ export interface IAICustomizationWorkspaceService {
 	readonly managementSections: readonly AICustomizationManagementSection[];
 
 	/**
-	 * Returns the storage source filter for a given customization type.
-	 * Controls which storage groups and user file roots are visible.
-	 */
-	getStorageSourceFilter(type: PromptsType): IStorageSourceFilter;
-
-	/**
 	 * Whether this is a sessions window (vs core VS Code).
 	 */
 	readonly isSessionsWindow: boolean;
 
 	/**
-	 * Commits files in the active project.
+	 * Controls which features are displayed on the welcome page.
 	 */
-	commitFiles(projectRoot: URI, fileUris: URI[]): Promise<void>;
+	readonly welcomePageFeatures: IWelcomePageFeatures;
+
+	/**
+	 * Commits files in the active project.
+	 *
+	 * @returns `false` when a commit failed (the failure has already been reported to
+	 * the user) so callers can keep the change pending, otherwise `true`, including
+	 * when there was nothing to commit.
+	 */
+	commitFiles(projectRoot: URI, fileUris: URI[]): Promise<boolean>;
 
 	/**
 	 * Commits the deletion of resources that have already been removed from disk.
@@ -118,13 +140,17 @@ export interface IAICustomizationWorkspaceService {
 	 * deleting a skill, the entire customization folder is removed). Implementations
 	 * should ensure that directory deletions are handled recursively as needed.
 	 * In sessions this stages and commits the removal in the relevant repositories.
+	 *
+	 * @returns `false` when a commit failed (the failure has already been reported to
+	 * the user), otherwise `true`, including when there was nothing to commit.
 	 */
-	deleteFiles(projectRoot: URI, fileUris: URI[]): Promise<void>;
+	deleteFiles(projectRoot: URI, fileUris: URI[]): Promise<boolean>;
 
 	/**
-	 * Launches the AI-guided creation flow for the given customization type.
+	 * Launches the AI-guided creation flow for the given customization type,
+	 * optionally scoped to a workspace folder.
 	 */
-	generateCustomization(type: PromptsType): Promise<void>;
+	generateCustomization(type: PromptsType, workspaceFolder?: URI): Promise<void>;
 
 	/**
 	 * Whether a transient project root override is currently active.

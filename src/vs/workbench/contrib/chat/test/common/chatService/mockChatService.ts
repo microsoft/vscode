@@ -8,18 +8,21 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { ChatRequestQueueKind, ChatSendResult, IChatDetail, IChatModelReference, IChatProgress, IChatSendRequestOptions, IChatService, IChatSessionContext, IChatSessionStartOptions, IChatUserActionEvent } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ChatSendResult, IChatDetail, IChatModelReference, IChatProgress, IChatSendRequestOptions, IChatService, IChatSessionStartOptions, IChatUserActionEvent, IRemotePendingRequest } from '../../../common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
 import { IChatModel, IChatRequestModel, IExportableChatData, ISerializableChatData } from '../../../common/model/chatModel.js';
+import type { IChatModelReferenceDebugSnapshot } from '../../../common/model/chatModelStore.js';
 
 export class MockChatService implements IChatService {
 	private readonly _chatModels: ISettableObservable<Iterable<IChatModel>> = observableValue('chatModels', []);
 	readonly chatModels = this._chatModels;
 	requestInProgressObs = observableValue('name', false);
+	getPendingRequestSessionTypes(): readonly string[] { return []; }
 	_serviceBrand: undefined;
 	editingSessions = [];
 	transferredSessionResource = undefined;
 	readonly onDidSubmitRequest = Event.None;
+	readonly onDidAcceptRequest = Event.None;
 
 	private readonly _onDidCreateModel = new Emitter<IChatModel>();
 	readonly onDidCreateModel = this._onDidCreateModel.event;
@@ -28,11 +31,11 @@ export class MockChatService implements IChatService {
 	private liveSessionItems: IChatDetail[] = [];
 	private historySessionItems: IChatDetail[] = [];
 
-	private readonly _onDidDisposeSession = new Emitter<{ sessionResources: URI[]; reason: 'cleared' }>();
+	private readonly _onDidDisposeSession = new Emitter<{ sessionResources: URI[]; reason: 'cleared' | 'disposed' }>();
 	readonly onDidDisposeSession = this._onDidDisposeSession.event;
 
-	fireDidDisposeSession(sessionResources: URI[]): void {
-		this._onDidDisposeSession.fire({ sessionResources, reason: 'cleared' });
+	fireDidDisposeSession(sessionResources: URI[], reason: 'cleared' | 'disposed' = 'cleared'): void {
+		this._onDidDisposeSession.fire({ sessionResources, reason });
 	}
 
 	setSaveModelsEnabled(enabled: boolean): void {
@@ -96,15 +99,19 @@ export class MockChatService implements IChatService {
 		return undefined;
 	}
 
-	loadSessionFromData(data: IExportableChatData | ISerializableChatData): IChatModelReference {
+	loadSessionFromData(data: IExportableChatData | ISerializableChatData, _debugOwner?: string): IChatModelReference {
 		throw new Error('Method not implemented.');
 	}
 
-	acquireOrLoadSession(_resource: URI, _position: ChatAgentLocation, _token: CancellationToken): Promise<IChatModelReference | undefined> {
+	getChatModelReferenceDebugInfo(): IChatModelReferenceDebugSnapshot {
+		return { totalModels: 0, totalReferences: 0, models: [] };
+	}
+
+	acquireOrLoadSession(_resource: URI, _position: ChatAgentLocation, _token: CancellationToken, _debugOwner?: string): Promise<IChatModelReference | undefined> {
 		throw new Error('Method not implemented.');
 	}
 
-	acquireExistingSession(_sessionResource: URI): IChatModelReference | undefined {
+	acquireExistingSession(_sessionResource: URI, _debugOwner?: string): IChatModelReference | undefined {
 		return undefined;
 	}
 
@@ -116,7 +123,7 @@ export class MockChatService implements IChatService {
 		throw new Error('Method not implemented.');
 	}
 
-	resendRequest(_request: IChatRequestModel, _options?: IChatSendRequestOptions): Promise<void> {
+	resendRequest(_request: IChatRequestModel, _options?: IChatSendRequestOptions, _preserveRequestId?: boolean): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
 
@@ -137,6 +144,12 @@ export class MockChatService implements IChatService {
 	removePendingRequest(_sessionResource: URI, _requestId: string): void { }
 
 	setPendingRequests(_sessionResource: URI, _requests: readonly { requestId: string; kind: ChatRequestQueueKind }[]): void { }
+
+	syncPendingRequestsFromRemote(_sessionResource: URI, _requests: readonly IRemotePendingRequest[]): void { }
+
+	sendPendingRequestImmediately(_sessionResource: URI, _requestId: string): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
 
 	addCompleteRequest(): void { }
 
@@ -174,10 +187,6 @@ export class MockChatService implements IChatService {
 		return Promise.resolve();
 	}
 
-	getChatSessionFromInternalUri(_sessionResource: URI): IChatSessionContext | undefined {
-		return undefined;
-	}
-
 	async getLiveSessionItems(): Promise<IChatDetail[]> {
 		return this.liveSessionItems;
 	}
@@ -191,6 +200,6 @@ export class MockChatService implements IChatService {
 	}
 
 	getMetadataForSession(sessionResource: URI): Promise<IChatDetail | undefined> {
-		throw new Error('Method not implemented.');
+		return Promise.resolve(this.liveSessionItems.find(item => item.sessionResource.toString() === sessionResource.toString()));
 	}
 }

@@ -5,34 +5,180 @@
 
 import assert from 'assert';
 import { tmpdir } from 'os';
-import { randomUUID } from 'crypto';
-import { mkdirSync, rmSync } from 'fs';
+import * as fs from 'fs/promises';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { SessionDatabase, type ISessionDatabaseMigration } from '../../node/sessionDatabase.js';
+import { SessionDatabase, runMigrations, sessionDatabaseMigrations, type ISessionDatabaseMigration } from '../../node/sessionDatabase.js';
+import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, FileEditKind, MessageKind } from '../../common/state/sessionState.js';
+import { MAX_TERMINAL_OUTPUT_BYTES, MAX_TOOL_RESULT_RESOURCE_BYTES, type IReviewedFileRecord, type ISessionCatalogSyncPendingSnapshot, type IToolResultResource } from '../../common/sessionDataService.js';
+import type { Database } from '@vscode/sqlite3';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { join } from '../../../../base/common/path.js';
+import { URI } from '../../../../base/common/uri.js';
+import { getPersistedSessionConfigValues } from '../../common/sessionConfigKeys.js';
 
 suite('SessionDatabase', () => {
 
 	const disposables = new DisposableStore();
-	let testDir: string;
 	let db: SessionDatabase | undefined;
 	let db2: SessionDatabase | undefined;
-
-	setup(() => {
-		testDir = join(tmpdir(), `vscode-session-db-test-${randomUUID()}`);
-		mkdirSync(testDir, { recursive: true });
-	});
 
 	teardown(async () => {
 		disposables.clear();
 		await Promise.all([db?.close(), db2?.close()]);
-		rmSync(testDir, { recursive: true, force: true });
 	});
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function dbPath(name = 'session.db'): string {
-		return join(testDir, name);
+	suite('initialization', () => {
+
+		test('retries after a transient initialization failure', async () => {
+			const tempRoot = await fs.mkdtemp(join(tmpdir(), 'session-db-retry-' + generateUuid()));
+			try {
+				const databaseDir = join(tempRoot, 'blocked');
+				const databasePath = join(databaseDir, 'session.db');
+				await fs.writeFile(databaseDir, '');
+				const database = new SessionDatabase(databasePath);
+				try {
+					await assert.rejects(() => database.setMetadata('key', 'first'), { code: 'EEXIST' });
+					await fs.rm(databaseDir);
+
+					await database.setMetadata('key', 'second');
+
+					assert.strictEqual(await database.getMetadata('key'), 'second');
+				} finally {
+					await database.close();
+				}
+			} finally {
+				await fs.rm(tempRoot, { recursive: true, force: true });
+			}
+		}).timeout(10_000);
+	});
+
+	/**
+	 * Extends SessionDatabase to allow ejecting/injecting the raw sqlite3
+	 * Database instance, enabling reopen tests with :memory: databases.
+	 */
+	class TestableSessionDatabase extends SessionDatabase {
+		private nextMutationGate: { readonly started: DeferredPromise<void>; readonly release: DeferredPromise<void> } | undefined;
+		private nextMetadataAndTurnUsageMutationGate: { readonly started: DeferredPromise<void>; readonly release: DeferredPromise<void> } | undefined;
+
+		static override async open(path: string, migrations: readonly ISessionDatabaseMigration[] = sessionDatabaseMigrations): Promise<TestableSessionDatabase> {
+			const inst = new TestableSessionDatabase(path, migrations);
+			await inst._ensureDb();
+			return inst;
+		}
+
+		async setRawChatDraft(chat: URI, draft: string): Promise<void> {
+			const rawDb = await this._ensureDb();
+			await new Promise<void>((resolve, reject) => {
+				rawDb.run('INSERT OR REPLACE INTO chat_drafts (chat_uri, draft) VALUES (?, ?)', [chat.toString(), draft], err => err ? reject(err) : resolve());
+			});
+		}
+
+		/** Records the SQL of every statement run on the connection from now on. */
+		async recordStatements(): Promise<string[]> {
+			const rawDb = await this._ensureDb();
+			const methods = rawDb as unknown as Record<'get' | 'all' | 'run' | 'exec', (sql: string, ...args: unknown[]) => Database>;
+			const statements: string[] = [];
+			for (const method of ['get', 'all', 'run', 'exec'] as const) {
+				const original = methods[method];
+				methods[method] = (sql, ...args) => {
+					statements.push(sql);
+					return original.call(rawDb, sql, ...args);
+				};
+			}
+			return statements;
+		}
+
+		async runRaw(sql: string): Promise<void> {
+			const rawDb = await this._ensureDb();
+			await new Promise<void>((resolve, reject) => {
+				rawDb.exec(sql, err => err ? reject(err) : resolve());
+			});
+		}
+
+		async getRaw(sql: string): Promise<Record<string, unknown> | undefined> {
+			const rawDb = await this._ensureDb();
+			return new Promise((resolve, reject) => {
+				rawDb.get(sql, (err: Error | null, row: Record<string, unknown> | undefined) => err ? reject(err) : resolve(row));
+			});
+		}
+
+		async waitForRaw(): Promise<void> {
+			const rawDb = await this._ensureDb();
+			await new Promise<void>(resolve => rawDb.wait(() => resolve()));
+		}
+
+		async hasRawTurn(turnId: string): Promise<boolean> {
+			const rawDb = await this._ensureDb();
+			return new Promise<boolean>((resolve, reject) => {
+				rawDb.get('SELECT 1 AS present FROM turns WHERE id = ?', [turnId], (err: Error | null, row: Record<string, unknown> | undefined) => {
+					if (err) {
+						reject(err);
+						return;
+					}
+					resolve(row?.present === 1);
+				});
+			});
+		}
+
+		blockNextMutation(): { readonly started: DeferredPromise<void>; readonly release: DeferredPromise<void> } {
+			const gate = {
+				started: new DeferredPromise<void>(),
+				release: new DeferredPromise<void>(),
+			};
+			this.nextMutationGate = gate;
+			return gate;
+		}
+
+		protected override _queueMutation<T>(operation: (db: Database) => Promise<T>): Promise<T> {
+			const gate = this.nextMutationGate;
+			this.nextMutationGate = undefined;
+			return super._queueMutation(gate ? async db => {
+				gate.started.complete();
+				await gate.release.p;
+				return operation(db);
+			} : operation);
+		}
+
+		blockNextMetadataAndTurnUsageMutation(): { readonly started: DeferredPromise<void>; readonly release: DeferredPromise<void> } {
+			const gate = {
+				started: new DeferredPromise<void>(),
+				release: new DeferredPromise<void>(),
+			};
+			this.nextMetadataAndTurnUsageMutationGate = gate;
+			return gate;
+		}
+
+		protected override _mutateMetadataAndTurnUsage(operation: (db: Database) => Promise<void>): Promise<void> {
+			const gate = this.nextMetadataAndTurnUsageMutationGate;
+			this.nextMetadataAndTurnUsageMutationGate = undefined;
+			return super._mutateMetadataAndTurnUsage(gate ? async db => {
+				gate.started.complete();
+				await gate.release.p;
+				await operation(db);
+			} : operation);
+		}
+
+		/** Extract the raw db connection; this instance becomes inert. */
+		async ejectDb(): Promise<Database> {
+			const rawDb = await this._ensureDb();
+			this._dbPromise = undefined;
+			this._closed = true;
+			return rawDb;
+		}
+
+		/** Create a TestableSessionDatabase wrapping an existing raw db. */
+		static async fromDb(
+			rawDb: Database,
+			migrations: readonly ISessionDatabaseMigration[] = sessionDatabaseMigrations,
+		): Promise<TestableSessionDatabase> {
+			await runMigrations(rawDb, migrations);
+			const inst = new TestableSessionDatabase(':memory:', migrations);
+			inst._dbPromise = Promise.resolve(rawDb);
+			return inst;
+		}
 	}
 
 	// ---- Migration system -----------------------------------------------
@@ -45,7 +191,7 @@ suite('SessionDatabase', () => {
 				{ version: 2, sql: 'CREATE TABLE t2 (id INTEGER PRIMARY KEY)' },
 			];
 
-			db = disposables.add(await SessionDatabase.open(dbPath(), migrations));
+			db = disposables.add(await SessionDatabase.open(':memory:', migrations));
 
 			const tables = (await db.getAllTables()).sort();
 			assert.deepStrictEqual(tables, ['t1', 't2']);
@@ -56,11 +202,11 @@ suite('SessionDatabase', () => {
 				{ version: 1, sql: 'CREATE TABLE t1 (id INTEGER PRIMARY KEY)' },
 			];
 
-			const db1 = await SessionDatabase.open(dbPath(), migrations);
-			await db1.close();
+			const db1 = await TestableSessionDatabase.open(':memory:', migrations);
+			const rawDb = await db1.ejectDb();
 
 			// Reopen — should not throw (table already exists, migration skipped)
-			db2 = disposables.add(await SessionDatabase.open(dbPath(), migrations));
+			db2 = disposables.add(await TestableSessionDatabase.fromDb(rawDb, migrations));
 			assert.deepStrictEqual(await db2.getAllTables(), ['t1']);
 		});
 
@@ -68,14 +214,14 @@ suite('SessionDatabase', () => {
 			const v1: ISessionDatabaseMigration[] = [
 				{ version: 1, sql: 'CREATE TABLE t1 (id INTEGER PRIMARY KEY)' },
 			];
-			const db1 = await SessionDatabase.open(dbPath(), v1);
-			await db1.close();
+			const db1 = await TestableSessionDatabase.open(':memory:', v1);
+			const rawDb = await db1.ejectDb();
 
 			const v2: ISessionDatabaseMigration[] = [
 				...v1,
 				{ version: 2, sql: 'CREATE TABLE t2 (id INTEGER PRIMARY KEY)' },
 			];
-			db2 = disposables.add(await SessionDatabase.open(dbPath(), v2));
+			db2 = disposables.add(await TestableSessionDatabase.fromDb(rawDb, v2));
 
 			const tables = (await db2.getAllTables()).sort();
 			assert.deepStrictEqual(tables, ['t1', 't2']);
@@ -87,11 +233,10 @@ suite('SessionDatabase', () => {
 				{ version: 2, sql: 'THIS IS INVALID SQL' },
 			];
 
-			await assert.rejects(() => SessionDatabase.open(dbPath(), migrations));
+			await assert.rejects(() => SessionDatabase.open(':memory:', migrations));
 
-			// Reopen with only v1 — t1 should not exist because the whole
-			// transaction was rolled back
-			db = disposables.add(await SessionDatabase.open(dbPath(), [
+			// A fresh :memory: open with valid migrations succeeds
+			db = disposables.add(await SessionDatabase.open(':memory:', [
 				{ version: 1, sql: 'CREATE TABLE t1 (id INTEGER PRIMARY KEY)' },
 			]));
 			assert.deepStrictEqual(await db.getAllTables(), ['t1']);
@@ -103,12 +248,13 @@ suite('SessionDatabase', () => {
 	suite('file edits', () => {
 
 		test('store and retrieve a file edit', async () => {
-			db = disposables.add(await SessionDatabase.open(dbPath()));
+			db = disposables.add(await SessionDatabase.open(':memory:'));
 
 			await db.createTurn('turn-1');
 			await db.storeFileEdit({
 				turnId: 'turn-1',
 				toolCallId: 'tc-1',
+				kind: FileEditKind.Edit,
 				filePath: '/workspace/file.ts',
 				beforeContent: new TextEncoder().encode('before'),
 				afterContent: new TextEncoder().encode('after'),
@@ -120,19 +266,79 @@ suite('SessionDatabase', () => {
 			assert.deepStrictEqual(edits, [{
 				turnId: 'turn-1',
 				toolCallId: 'tc-1',
+				kind: FileEditKind.Edit,
 				filePath: '/workspace/file.ts',
+				originalPath: undefined,
 				addedLines: 5,
 				removedLines: 2,
 			}]);
 		});
 
+		test('retrieve file edits by the turn event ID', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+
+			await db.createTurn('request-1');
+			await db.setTurnEventId('request-1', 'event-1');
+			await db.storeFileEdit({
+				turnId: 'request-1',
+				toolCallId: 'tc-1',
+				kind: FileEditKind.Edit,
+				filePath: '/workspace/file.ts',
+				beforeContent: new TextEncoder().encode('before'),
+				afterContent: new TextEncoder().encode('after'),
+				addedLines: 1,
+				removedLines: 1,
+			});
+
+			assert.deepStrictEqual(
+				await db.getFileEditsByTurn('event-1'),
+				await db.getFileEditsByTurn('request-1'),
+			);
+		});
+
+		test('provider truncation removes every mapped segment while preserving local and foreign turns', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			for (const [id, eventId] of [
+				['kept', 'native-kept'], ['first-segment', 'native-removed'], ['second-segment', 'native-removed'],
+				['foreign', 'native-removed'], ['failed-local', 'native-removed'], ['native-direct', 'native-direct'],
+			]) {
+				await db.setTurnEventId(id, eventId);
+				await db.storeFileEdit({ turnId: id, toolCallId: id, filePath: `/${id}.ts`, kind: FileEditKind.Edit, addedLines: 1, removedLines: 1 });
+			}
+			await db.setForeignRows('chat:owner', ['foreign']);
+			await db.insertPersistedTurn({ kind: 'failed', turnId: 'failed-local', chatUri: 'chat:owner', anchorTurnId: undefined, payload: '{}' });
+			await db.insertPersistedTurn({ kind: 'local', turnId: 'bang-command', chatUri: 'chat:owner', anchorTurnId: undefined, payload: '{}' });
+			await db.deleteProviderTurns(['native-removed', 'native-direct', 'absent']);
+			assert.deepStrictEqual({
+				edits: (await db.getAllFileEdits()).map(edit => edit.turnId),
+				local: (await db.getPersistedTurns()).map(turn => turn.turnId),
+			}, { edits: ['kept', 'foreign', 'failed-local'], local: ['failed-local', 'bang-command'] });
+		});
+
+		test('truncating host segments of one native turn keeps local, foreign, and other native rows', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			for (const id of ['first', 'failed-local', 'steering', 'foreign', 'other-native']) {
+				await db.setTurnEventId(id, id === 'other-native' ? 'native-2' : 'native-1');
+				await db.storeFileEdit({ turnId: id, toolCallId: id, filePath: `/${id}.ts`, kind: FileEditKind.Edit, addedLines: 1, removedLines: 1 });
+			}
+			await db.setForeignRows('chat:owner', ['foreign']);
+			await db.insertPersistedTurn({ kind: 'failed', turnId: 'failed-local', chatUri: 'chat:owner', anchorTurnId: undefined, payload: '{}' });
+			await db.insertPersistedTurn({ kind: 'local', turnId: 'bang', chatUri: 'chat:owner', anchorTurnId: 'first', payload: '{}' });
+			await db.deleteProviderTurns([], 'first');
+			assert.deepStrictEqual({
+				edits: (await db.getAllFileEdits()).map(edit => edit.turnId),
+				local: (await db.getPersistedTurns()).map(turn => turn.turnId),
+			}, { edits: ['first', 'failed-local', 'foreign', 'other-native'], local: ['failed-local', 'bang'] });
+		});
+
 		test('retrieve multiple edits for a single tool call', async () => {
-			db = disposables.add(await SessionDatabase.open(dbPath()));
+			db = disposables.add(await SessionDatabase.open(':memory:'));
 
 			await db.createTurn('turn-1');
 			await db.storeFileEdit({
 				turnId: 'turn-1',
 				toolCallId: 'tc-1',
+				kind: FileEditKind.Edit,
 				filePath: '/workspace/a.ts',
 				beforeContent: new TextEncoder().encode('a-before'),
 				afterContent: new TextEncoder().encode('a-after'),
@@ -142,6 +348,7 @@ suite('SessionDatabase', () => {
 			await db.storeFileEdit({
 				turnId: 'turn-1',
 				toolCallId: 'tc-1',
+				kind: FileEditKind.Edit,
 				filePath: '/workspace/b.ts',
 				beforeContent: new TextEncoder().encode('b-before'),
 				afterContent: new TextEncoder().encode('b-after'),
@@ -156,12 +363,13 @@ suite('SessionDatabase', () => {
 		});
 
 		test('retrieve edits across multiple tool calls', async () => {
-			db = disposables.add(await SessionDatabase.open(dbPath()));
+			db = disposables.add(await SessionDatabase.open(':memory:'));
 
 			await db.createTurn('turn-1');
 			await db.storeFileEdit({
 				turnId: 'turn-1',
 				toolCallId: 'tc-1',
+				kind: FileEditKind.Edit,
 				filePath: '/workspace/a.ts',
 				beforeContent: new Uint8Array(0),
 				afterContent: new TextEncoder().encode('hello'),
@@ -171,6 +379,7 @@ suite('SessionDatabase', () => {
 			await db.storeFileEdit({
 				turnId: 'turn-1',
 				toolCallId: 'tc-2',
+				kind: FileEditKind.Edit,
 				filePath: '/workspace/b.ts',
 				beforeContent: new Uint8Array(0),
 				afterContent: new TextEncoder().encode('world'),
@@ -188,24 +397,25 @@ suite('SessionDatabase', () => {
 		});
 
 		test('returns empty array for unknown tool call IDs', async () => {
-			db = disposables.add(await SessionDatabase.open(dbPath()));
+			db = disposables.add(await SessionDatabase.open(':memory:'));
 			const edits = await db.getFileEdits(['nonexistent']);
 			assert.deepStrictEqual(edits, []);
 		});
 
-		test.skip('returns empty array when given empty array' /* Flaky https://github.com/microsoft/vscode/issues/306057 */, async () => {
-			db = disposables.add(await SessionDatabase.open(dbPath()));
+		test('returns empty array when given empty array' /* Regression test for https://github.com/microsoft/vscode/issues/306057 */, async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
 			const edits = await db.getFileEdits([]);
 			assert.deepStrictEqual(edits, []);
 		});
 
 		test('replace on conflict (same toolCallId + filePath)', async () => {
-			db = disposables.add(await SessionDatabase.open(dbPath()));
+			db = disposables.add(await SessionDatabase.open(':memory:'));
 
 			await db.createTurn('turn-1');
 			await db.storeFileEdit({
 				turnId: 'turn-1',
 				toolCallId: 'tc-1',
+				kind: FileEditKind.Edit,
 				filePath: '/workspace/file.ts',
 				beforeContent: new TextEncoder().encode('v1'),
 				afterContent: new TextEncoder().encode('v1-after'),
@@ -215,6 +425,7 @@ suite('SessionDatabase', () => {
 			await db.storeFileEdit({
 				turnId: 'turn-1',
 				toolCallId: 'tc-1',
+				kind: FileEditKind.Edit,
 				filePath: '/workspace/file.ts',
 				beforeContent: new TextEncoder().encode('v2'),
 				afterContent: new TextEncoder().encode('v2-after'),
@@ -232,12 +443,13 @@ suite('SessionDatabase', () => {
 		});
 
 		test('readFileEditContent returns content on demand', async () => {
-			db = disposables.add(await SessionDatabase.open(dbPath()));
+			db = disposables.add(await SessionDatabase.open(':memory:'));
 
 			await db.createTurn('turn-1');
 			await db.storeFileEdit({
 				turnId: 'turn-1',
 				toolCallId: 'tc-1',
+				kind: FileEditKind.Edit,
 				filePath: '/workspace/file.ts',
 				beforeContent: new TextEncoder().encode('before'),
 				afterContent: new TextEncoder().encode('after'),
@@ -252,19 +464,20 @@ suite('SessionDatabase', () => {
 		});
 
 		test('readFileEditContent returns undefined for missing edit', async () => {
-			db = disposables.add(await SessionDatabase.open(dbPath()));
+			db = disposables.add(await SessionDatabase.open(':memory:'));
 			const content = await db.readFileEditContent('tc-missing', '/no/such/file');
 			assert.strictEqual(content, undefined);
 		});
 
 		test('persists binary content correctly', async () => {
-			db = disposables.add(await SessionDatabase.open(dbPath()));
+			db = disposables.add(await SessionDatabase.open(':memory:'));
 			const binary = new Uint8Array([0, 1, 2, 255, 128, 64]);
 
 			await db.createTurn('turn-1');
 			await db.storeFileEdit({
 				turnId: 'turn-1',
 				toolCallId: 'tc-bin',
+				kind: FileEditKind.Edit,
 				filePath: '/workspace/image.png',
 				beforeContent: new Uint8Array(0),
 				afterContent: binary,
@@ -278,12 +491,13 @@ suite('SessionDatabase', () => {
 		});
 
 		test('auto-creates turn if it does not exist', async () => {
-			db = disposables.add(await SessionDatabase.open(dbPath()));
+			db = disposables.add(await SessionDatabase.open(':memory:'));
 
 			// storeFileEdit should succeed even without a prior createTurn call
 			await db.storeFileEdit({
 				turnId: 'auto-turn',
 				toolCallId: 'tc-1',
+				kind: FileEditKind.Edit,
 				filePath: '/x',
 				beforeContent: new Uint8Array(0),
 				afterContent: new Uint8Array(0),
@@ -297,23 +511,392 @@ suite('SessionDatabase', () => {
 		});
 	});
 
+	suite('tool result resources', () => {
+
+		test('stores metadata in ordinal order and reads embedded content without persisting link content', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('turn-1');
+			const content = new Uint8Array([0, 1, 255]);
+			const embedded: IToolResultResource = { ordinal: 1, kind: 'embedded', name: 'a\\b', uri: 'demo:/a\\b', mimeType: 'application/octet-stream', size: 3 };
+			const link: IToolResultResource = { ordinal: 3, kind: 'link', name: 'Linked.txt', uri: 'demo:/linked', mimeType: undefined, size: undefined };
+			await db.storeToolResultResources('turn-1', 'tool-1', [{ ...link, content }, { ...embedded, content }]);
+			await db.storeToolResultResources('turn-1', 'tool-2', [{ ...embedded, content: new Uint8Array() }]);
+
+			assert.deepStrictEqual({
+				resources: await db.getToolResultResources(['tool-1', 'tool-2', 'missing']),
+				content: await db.readToolResultResourceContent('tool-1', 1),
+				empty: await db.readToolResultResourceContent('tool-2', 1),
+				link: await db.readToolResultResourceContent('tool-1', 3),
+				missing: await db.readToolResultResourceContent('missing', 0),
+				tables: (await db.getAllTables()).includes('tool_result_resources'),
+			}, {
+				resources: new Map([['tool-1', [embedded, link]], ['tool-2', [embedded]]]),
+				content: { content, mimeType: 'application/octet-stream' },
+				empty: { content: new Uint8Array(), mimeType: 'application/octet-stream' },
+				link: undefined,
+				missing: undefined,
+				tables: true,
+			});
+		});
+
+		test('replaces a batch atomically and rejects resources for missing turns', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('turn-1');
+			const first: IToolResultResource = { ordinal: 0, kind: 'embedded', name: 'first', uri: 'demo:/first', mimeType: 'text/plain', size: 1 };
+			const replacement: IToolResultResource = { ...first, ordinal: 2, name: 'replacement' };
+			await db.storeToolResultResources('turn-1', 'tool-1', [{ ...first, content: new Uint8Array([1]) }]);
+			await assert.rejects(db.storeToolResultResources('missing', 'tool-1', []), /missing turn/);
+			await assert.rejects(db.storeToolResultResources('turn-1', 'tool-1', [replacement, replacement]), /UNIQUE constraint/);
+			const afterFailure = await db.getToolResultResources(['tool-1']);
+			await db.storeToolResultResources('turn-1', 'tool-1', [{ ...replacement, content: new Uint8Array([2]) }]);
+
+			assert.deepStrictEqual({ afterFailure, replaced: await db.getToolResultResources(['tool-1']), content: await db.readToolResultResourceContent('tool-1', 2) }, {
+				afterFailure: new Map([['tool-1', [first]]]),
+				replaced: new Map([['tool-1', [replacement]]]),
+				content: { content: new Uint8Array([2]), mimeType: 'text/plain' },
+			});
+		});
+
+		test('turn deletion cascades and fork remapping retains only surviving resources', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			const resource: IToolResultResource = { ordinal: 0, kind: 'embedded', name: 'resource', uri: 'demo:/resource', mimeType: 'text/plain', size: 1 };
+			for (const turnId of ['old-1', 'old-2', 'deleted']) {
+				await db.createTurn(turnId);
+				await db.storeToolResultResources(turnId, turnId, [{ ...resource, content: new Uint8Array([1]) }]);
+			}
+			await db.deleteTurn('deleted');
+			await db.remapTurnIds(new Map([['old-1', 'new-1']]));
+			const retained = await db.getToolResultResources(['old-1', 'old-2', 'deleted']);
+			await db.deleteTurn('new-1');
+
+			assert.deepStrictEqual({ retained, afterDelete: await db.getToolResultResources(['old-1']), content: await db.readToolResultResourceContent('old-1', 0) }, {
+				retained: new Map([['old-1', [resource]]]),
+				afterDelete: new Map(),
+				content: undefined,
+			});
+		});
+
+		test('bounds embedded content writes and reads', async () => {
+			const database = disposables.add(await TestableSessionDatabase.open(':memory:'));
+			db = database;
+			await database.createTurn('turn-1');
+			const resource: IToolResultResource = { ordinal: 0, kind: 'embedded', name: 'resource', uri: 'demo:/resource' };
+			await assert.rejects(database.storeToolResultResources('turn-1', 'oversized', [{ ...resource, content: new Uint8Array(MAX_TOOL_RESULT_RESOURCE_BYTES + 1) }]), /exceeds/);
+			await database.runRaw(`INSERT INTO tool_result_resources (tool_call_id, ordinal, turn_id, kind, name, uri, content)
+				VALUES ('malformed', 0, 'turn-1', 'embedded', 'resource', 'demo:/resource', zeroblob(${MAX_TOOL_RESULT_RESOURCE_BYTES + 1}))`);
+			await assert.rejects(database.readToolResultResourceContent('malformed', 0), /exceeds/);
+			assert.deepStrictEqual(await database.getToolResultResources(['oversized']), new Map());
+		});
+	});
+
+	// ---- Terminal outputs ----------------------------------------------
+
+	suite('terminal outputs', () => {
+
+		test('persists byte-exact output and reports byte sizes for multiple tool calls', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			const first = new TextEncoder().encode('hello 世界 👋');
+			const second = new Uint8Array([0, 1, 2, 255, 128, 64]);
+			await db.createTurn('turn-1');
+
+			await db.storeTerminalOutput('turn-1', 'tool-1', first);
+			await db.storeTerminalOutput('turn-1', 'tool-2', second);
+
+			assert.deepStrictEqual({
+				firstSize: await db.getTerminalOutputSize('tool-1'),
+				first: await db.readTerminalOutput('tool-1'),
+				secondSize: await db.getTerminalOutputSize('tool-2'),
+				second: await db.readTerminalOutput('tool-2'),
+			}, {
+				firstSize: first.byteLength,
+				first,
+				secondSize: second.byteLength,
+				second,
+			});
+		});
+
+		test('returns undefined for missing output', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+
+			assert.deepStrictEqual({
+				size: await db.getTerminalOutputSize('missing'),
+				content: await db.readTerminalOutput('missing'),
+			}, {
+				size: undefined,
+				content: undefined,
+			});
+		});
+
+		test('repeated writes replace output without creating duplicate records', async () => {
+			const database = disposables.add(await TestableSessionDatabase.open(':memory:'));
+			db = database;
+			await database.createTurn('turn-1');
+			await database.storeTerminalOutput('turn-1', 'tool-1', new TextEncoder().encode('first'));
+			const replacement = new TextEncoder().encode('replacement');
+
+			await database.storeTerminalOutput('turn-1', 'tool-1', replacement);
+			await database.storeTerminalOutput('turn-1', 'tool-1', replacement);
+
+			assert.deepStrictEqual({
+				count: await database.getRaw(`SELECT count(*) AS count FROM terminal_outputs WHERE tool_call_id = 'tool-1'`),
+				content: await database.readTerminalOutput('tool-1'),
+			}, {
+				count: { count: 1 },
+				content: replacement,
+			});
+		});
+
+		test('deletes unpublished output without affecting other tool calls', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('turn-1');
+			await db.storeTerminalOutput('turn-1', 'tool-1', new Uint8Array([1]));
+			await db.storeTerminalOutput('turn-1', 'tool-2', new Uint8Array([2]));
+
+			await db.deleteTerminalOutput('tool-1');
+			await db.deleteTerminalOutput('missing');
+
+			assert.deepStrictEqual({
+				deleted: await db.readTerminalOutput('tool-1'),
+				retained: await db.readTerminalOutput('tool-2'),
+			}, {
+				deleted: undefined,
+				retained: new Uint8Array([2]),
+			});
+		});
+
+		test('reads and whenIdle wait for an earlier output write', async () => {
+			const database = disposables.add(await TestableSessionDatabase.open(':memory:'));
+			db = database;
+			await database.createTurn('turn-1');
+			const content = new TextEncoder().encode('sequenced');
+			const gate = database.blockNextMutation();
+			const write = database.storeTerminalOutput('turn-1', 'tool-1', content);
+			await gate.started.p;
+
+			const sizeRead = database.getTerminalOutputSize('tool-1');
+			const contentRead = database.readTerminalOutput('tool-1');
+			const idle = database.whenIdle();
+			let readSettled = false;
+			let idleSettled = false;
+			void Promise.all([sizeRead, contentRead]).then(() => readSettled = true, () => readSettled = true);
+			void idle.then(() => idleSettled = true, () => idleSettled = true);
+			await Promise.resolve();
+			await database.waitForRaw();
+			await Promise.resolve();
+			const settledBeforeWrite = { read: readSettled, idle: idleSettled };
+
+			gate.release.complete();
+			const [, size, storedContent] = await Promise.all([write, sizeRead, contentRead, idle]);
+
+			assert.deepStrictEqual({
+				settledBeforeWrite,
+				size,
+				content: storedContent,
+			}, {
+				settledBeforeWrite: { read: false, idle: false },
+				size: content.byteLength,
+				content,
+			});
+		});
+
+		test('missing or deleted turns cannot be resurrected by output writes', async () => {
+			const database = disposables.add(await TestableSessionDatabase.open(':memory:'));
+			db = database;
+
+			await assert.rejects(
+				() => database.storeTerminalOutput('missing-turn', 'tool-1', new Uint8Array([1])),
+				/Cannot store terminal output for missing turn 'missing-turn'/,
+			);
+			await database.createTurn('deleted-turn');
+			await database.deleteTurn('deleted-turn');
+			await assert.rejects(
+				() => database.storeTerminalOutput('deleted-turn', 'tool-2', new Uint8Array([2])),
+				/Cannot store terminal output for missing turn 'deleted-turn'/,
+			);
+
+			assert.deepStrictEqual({
+				missingTurn: await database.hasRawTurn('missing-turn'),
+				deletedTurn: await database.hasRawTurn('deleted-turn'),
+			}, {
+				missingTurn: false,
+				deletedTurn: false,
+			});
+		});
+
+		test('turn deletion and truncation cascade to output', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('turn-1');
+			await db.createTurn('turn-2');
+			await db.createTurn('turn-3');
+			await db.storeTerminalOutput('turn-1', 'tool-1', new Uint8Array([1]));
+			await db.storeTerminalOutput('turn-2', 'tool-2', new Uint8Array([2]));
+			await db.storeTerminalOutput('turn-3', 'tool-3', new Uint8Array([3]));
+
+			await db.deleteTurn('turn-1');
+			await db.deleteTurnsAfter('turn-2');
+			const afterDeleteAndTruncate = await Promise.all([
+				db.readTerminalOutput('tool-1'),
+				db.readTerminalOutput('tool-2'),
+				db.readTerminalOutput('tool-3'),
+			]);
+			await db.deleteAllTurns();
+
+			assert.deepStrictEqual({
+				afterDeleteAndTruncate,
+				afterDeleteAll: await db.readTerminalOutput('tool-2'),
+			}, {
+				afterDeleteAndTruncate: [undefined, new Uint8Array([2]), undefined],
+				afterDeleteAll: undefined,
+			});
+		});
+
+		test('truncateFromTurn removes output starting at the boundary', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('turn-1');
+			await db.createTurn('turn-2');
+			await db.storeTerminalOutput('turn-1', 'tool-1', new Uint8Array([1]));
+			await db.storeTerminalOutput('turn-2', 'tool-2', new Uint8Array([2]));
+
+			await db.truncateFromTurn('turn-2');
+
+			assert.deepStrictEqual(await Promise.all([
+				db.readTerminalOutput('tool-1'),
+				db.readTerminalOutput('tool-2'),
+			]), [new Uint8Array([1]), undefined]);
+		});
+
+		test('remapTurnIds keeps forked output and prunes output beyond the fork', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('old-1');
+			await db.createTurn('old-2');
+			await db.storeTerminalOutput('old-1', 'tool-1', new Uint8Array([1]));
+			await db.storeTerminalOutput('old-2', 'tool-2', new Uint8Array([2]));
+
+			await db.remapTurnIds(new Map([['old-1', 'new-1']]));
+			await db.deleteTurnsAfter('new-1');
+
+			assert.deepStrictEqual(await Promise.all([
+				db.readTerminalOutput('tool-1'),
+				db.readTerminalOutput('tool-2'),
+			]), [new Uint8Array([1]), undefined]);
+		});
+
+		test('remapTurnIds keeps persisted failed turns internally consistent', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.insertPersistedTurn({
+				kind: 'failed',
+				turnId: 'old-2',
+				chatUri: 'chat',
+				anchorTurnId: 'old-1',
+				payload: '{"id":"old-2"}',
+			});
+			await db.createTurn('old-1');
+
+			await db.remapTurnIds(new Map([
+				['old-1', 'new-1'],
+				['old-2', 'new-2'],
+			]));
+
+			assert.deepStrictEqual((await db.getPersistedTurns()).filter(record => record.kind === 'failed'), [{
+				kind: 'failed',
+				turnId: 'new-2',
+				chatUri: 'chat',
+				anchorTurnId: 'new-1',
+				seq: 1,
+				payload: '{"id":"new-2"}',
+			}]);
+		});
+
+		test('remapTurnIds rejects corrupt persisted turn payloads without discarding history', async () => {
+			const database = disposables.add(await SessionDatabase.open(':memory:'));
+			db = database;
+			await db.insertPersistedTurn({
+				kind: 'failed',
+				turnId: 'old-1',
+				chatUri: 'chat',
+				anchorTurnId: undefined,
+				payload: '{"id":"different"}',
+			});
+
+			await assert.rejects(() => database.remapTurnIds(new Map([['old-1', 'new-1']])), /payload id does not match record id/);
+			assert.deepStrictEqual((await db.getPersistedTurns()).filter(record => record.kind === 'failed').map(record => record.turnId), ['old-1']);
+		});
+
+		test('output survives closing and reopening a disk database', async () => {
+			const tempRoot = await fs.mkdtemp(join(tmpdir(), 'session-db-terminal-output-' + generateUuid()));
+			const databasePath = join(tempRoot, 'session.db');
+			const content = new TextEncoder().encode('persisted ✓');
+			const database = await SessionDatabase.open(databasePath);
+			try {
+				await database.createTurn('turn-1');
+				await database.storeTerminalOutput('turn-1', 'tool-1', content);
+				await database.close();
+
+				const reopenedDatabase = await SessionDatabase.open(databasePath);
+				try {
+					assert.deepStrictEqual(await reopenedDatabase.readTerminalOutput('tool-1'), content);
+				} finally {
+					await reopenedDatabase.close();
+				}
+			} finally {
+				await database.close();
+				await fs.rm(tempRoot, { recursive: true, force: true });
+			}
+		});
+
+		test('enforces the shared size limit on writes and before reading malformed rows', async () => {
+			const database = disposables.add(await TestableSessionDatabase.open(':memory:'));
+			db = database;
+			await database.createTurn('turn-1');
+			const content = new Uint8Array(MAX_TERMINAL_OUTPUT_BYTES + 1);
+
+			await database.storeTerminalOutput('turn-1', 'at-limit', content.subarray(0, MAX_TERMINAL_OUTPUT_BYTES));
+			await assert.rejects(
+				() => database.storeTerminalOutput('turn-1', 'above-limit', content),
+				new RegExp(`Terminal output exceeds the ${MAX_TERMINAL_OUTPUT_BYTES}-byte limit`),
+			);
+			await database.runRaw(`INSERT INTO terminal_outputs (tool_call_id, turn_id, output)
+				VALUES ('malformed', 'turn-1', zeroblob(${MAX_TERMINAL_OUTPUT_BYTES + 1}))`);
+
+			assert.deepStrictEqual({
+				atLimitSize: await database.getTerminalOutputSize('at-limit'),
+				atLimitContentSize: (await database.readTerminalOutput('at-limit'))?.byteLength,
+				malformedSize: await database.getTerminalOutputSize('malformed'),
+			}, {
+				atLimitSize: MAX_TERMINAL_OUTPUT_BYTES,
+				atLimitContentSize: MAX_TERMINAL_OUTPUT_BYTES,
+				malformedSize: MAX_TERMINAL_OUTPUT_BYTES + 1,
+			});
+			await assert.rejects(
+				() => database.readTerminalOutput('malformed'),
+				new RegExp(`Stored terminal output exceeds the ${MAX_TERMINAL_OUTPUT_BYTES}-byte limit`),
+			);
+		});
+
+		test('migration v14 creates the terminal_outputs table', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			assert.ok((await db.getAllTables()).includes('terminal_outputs'));
+		});
+	});
+
 	// ---- Turns ----------------------------------------------------------
 
 	suite('turns', () => {
 
 		test('createTurn is idempotent', async () => {
-			db = disposables.add(await SessionDatabase.open(dbPath()));
+			db = disposables.add(await SessionDatabase.open(':memory:'));
 			await db.createTurn('turn-1');
 			await db.createTurn('turn-1'); // should not throw
 		});
 
 		test('deleteTurn cascades to file edits', async () => {
-			db = disposables.add(await SessionDatabase.open(dbPath()));
+			db = disposables.add(await SessionDatabase.open(':memory:'));
 
 			await db.createTurn('turn-1');
 			await db.storeFileEdit({
 				turnId: 'turn-1',
 				toolCallId: 'tc-1',
+				kind: FileEditKind.Edit,
 				filePath: '/workspace/a.ts',
 				beforeContent: new TextEncoder().encode('before'),
 				afterContent: new TextEncoder().encode('after'),
@@ -330,13 +913,14 @@ suite('SessionDatabase', () => {
 		});
 
 		test('deleteTurn only removes its own edits', async () => {
-			db = disposables.add(await SessionDatabase.open(dbPath()));
+			db = disposables.add(await SessionDatabase.open(':memory:'));
 
 			await db.createTurn('turn-1');
 			await db.createTurn('turn-2');
 			await db.storeFileEdit({
 				turnId: 'turn-1',
 				toolCallId: 'tc-1',
+				kind: FileEditKind.Edit,
 				filePath: '/workspace/a.ts',
 				beforeContent: new Uint8Array(0),
 				afterContent: new TextEncoder().encode('a'),
@@ -346,6 +930,7 @@ suite('SessionDatabase', () => {
 			await db.storeFileEdit({
 				turnId: 'turn-2',
 				toolCallId: 'tc-2',
+				kind: FileEditKind.Edit,
 				filePath: '/workspace/b.ts',
 				beforeContent: new Uint8Array(0),
 				afterContent: new TextEncoder().encode('b'),
@@ -360,8 +945,738 @@ suite('SessionDatabase', () => {
 		});
 
 		test('deleteTurn is a no-op for unknown turn', async () => {
-			db = disposables.add(await SessionDatabase.open(dbPath()));
+			db = disposables.add(await SessionDatabase.open(':memory:'));
 			await db.deleteTurn('nonexistent'); // should not throw
+		});
+
+		test('hasConversationTurns tracks persisted and local turns', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+
+			const empty = await db.hasConversationTurns();
+			await db.createTurn('turn-1');
+			const afterTurn = await db.hasConversationTurns();
+			await db.deleteAllTurns();
+			const afterDeleteAll = await db.hasConversationTurns();
+			await db.insertPersistedTurn({ kind: 'local', turnId: 'local-1', chatUri: 'chat', anchorTurnId: undefined, seq: 0, payload: '{}' });
+			const afterLocalTurn = await db.hasConversationTurns();
+
+			assert.deepStrictEqual({ empty, afterTurn, afterDeleteAll, afterLocalTurn }, {
+				empty: false,
+				afterTurn: true,
+				afterDeleteAll: false,
+				afterLocalTurn: true,
+			});
+		});
+
+		test('persists failed provider turns and treats them as conversation history', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+
+			const empty = await db.hasConversationTurns();
+			await db.insertPersistedTurn({ kind: 'failed', turnId: 'failed-1', chatUri: 'chat', anchorTurnId: undefined, payload: '{"id":"failed-1"}' });
+			const afterFailedTurn = await db.hasConversationTurns();
+			const failedTurns = (await db.getPersistedTurns()).filter(record => record.kind === 'failed');
+			await db.deleteAllTurns();
+			const afterDeleteAll = await db.hasConversationTurns();
+
+			assert.deepStrictEqual({ empty, afterFailedTurn, failedTurns, afterDeleteAll }, {
+				empty: false,
+				afterFailedTurn: true,
+				failedTurns: [{ kind: 'failed', turnId: 'failed-1', chatUri: 'chat', anchorTurnId: undefined, seq: 1, payload: '{"id":"failed-1"}' }],
+				afterDeleteAll: false,
+			});
+		});
+
+		test('preserves existing local turns when adding persisted turn kinds', async () => {
+			const legacy = await TestableSessionDatabase.open(':memory:', sessionDatabaseMigrations.slice(0, 14));
+			await legacy.runRaw(`INSERT INTO local_turns (turn_id, chat_uri, anchor_turn_id, seq, payload)
+				VALUES ('local-1', 'chat', NULL, 1, '{"id":"local-1"}')`);
+			const rawDatabase = await legacy.ejectDb();
+
+			db = disposables.add(await TestableSessionDatabase.fromDb(rawDatabase));
+
+			assert.deepStrictEqual({
+				tables: await db.getAllTables(),
+				records: await db.getPersistedTurns(),
+			}, {
+				tables: ['catalog_sync_snapshot', 'chat_drafts', 'file_edits', 'local_turns', 'reviewed_files', 'session_metadata', 'terminal_outputs', 'tool_result_resources', 'turn_delegation', 'turn_usage', 'turn_workspace_transition', 'turns'],
+				records: [{ kind: 'local', turnId: 'local-1', chatUri: 'chat', anchorTurnId: undefined, seq: 1, payload: '{"id":"local-1"}' }],
+			});
+		});
+
+		test('prunes failed records with their persisted turn boundaries', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.insertPersistedTurn({ kind: 'failed', turnId: 'failed-1', chatUri: 'chat', anchorTurnId: undefined, payload: '{"id":"failed-1"}' });
+			await db.insertPersistedTurn({ kind: 'failed', turnId: 'failed-2', chatUri: 'chat', anchorTurnId: 'failed-1', payload: '{"id":"failed-2"}' });
+
+			await db.deleteTurnsAfter('failed-1');
+
+			assert.deepStrictEqual((await db.getPersistedTurns()).map(record => record.turnId), ['failed-1']);
+		});
+	});
+
+	// ---- Turn event ids -------------------------------------------------
+
+	suite('turn event ids', () => {
+
+		test('getTurnEventId resolves protocol and restored SDK turn IDs', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('turn-1');
+			await db.setTurnEventId('turn-1', 'evt-1');
+
+			assert.deepStrictEqual({
+				protocol: await db.getTurnEventId('turn-1'),
+				restored: await db.getTurnEventId('evt-1'),
+			}, {
+				protocol: 'evt-1',
+				restored: 'evt-1',
+			});
+		});
+
+		test('getNextTurnEventId returns the next turn\'s event id by `turns.id`', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('turn-1');
+			await db.createTurn('turn-2');
+			await db.setTurnEventId('turn-1', 'evt-1');
+			await db.setTurnEventId('turn-2', 'evt-2');
+
+			assert.strictEqual(await db.getNextTurnEventId('turn-1'), 'evt-2');
+		});
+
+		test('getNextTurnEventId waits for a preceding event id write', async () => {
+			const testDb = disposables.add(await TestableSessionDatabase.open(':memory:'));
+			db = testDb;
+			await testDb.createTurn('turn-1');
+			await testDb.setTurnEventId('turn-1', 'evt-1');
+			await testDb.createTurn('turn-2');
+
+			const gate = testDb.blockNextMutation();
+			const write = testDb.setTurnEventId('turn-2', 'evt-2');
+			await gate.started.p;
+			const read = testDb.getNextTurnEventId('turn-1');
+			let readSettled = false;
+			void read.then(() => readSettled = true, () => readSettled = true);
+			await Promise.resolve();
+			await testDb.waitForRaw();
+			await Promise.resolve();
+			const readSettledBeforeWrite = readSettled;
+
+			gate.release.complete();
+			const [, eventId] = await Promise.all([write, read]);
+
+			assert.deepStrictEqual({ readSettledBeforeWrite, eventId }, {
+				readSettledBeforeWrite: false,
+				eventId: 'evt-2',
+			});
+		});
+
+		test('getNextTurnEventId falls back to `event_id` when the key is the SDK event id', async () => {
+			// Sessions restored from disk surface SDK envelope ids as the
+			// protocol turn id (see mapSessionEvents.ts), but `turns.id`
+			// was populated live with the client-side `request_xxx` id.
+			// The fallback lets fork / truncate resolve the boundary
+			// without forcing every caller to translate.
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('request_aaa');
+			await db.createTurn('request_bbb');
+			await db.setTurnEventId('request_aaa', 'sdk-evt-1');
+			await db.setTurnEventId('request_bbb', 'sdk-evt-2');
+
+			assert.strictEqual(await db.getNextTurnEventId('sdk-evt-1'), 'sdk-evt-2');
+		});
+
+		test('getNextTurnEventId returns undefined for the last turn', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('turn-1');
+			await db.setTurnEventId('turn-1', 'evt-1');
+
+			assert.strictEqual(await db.getNextTurnEventId('turn-1'), undefined);
+			assert.strictEqual(await db.getNextTurnEventId('evt-1'), undefined);
+		});
+
+		test('getNextTurnEventId returns undefined for an unknown key', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('turn-1');
+			await db.setTurnEventId('turn-1', 'evt-1');
+
+			assert.strictEqual(await db.getNextTurnEventId('does-not-exist'), undefined);
+		});
+	});
+
+	// ---- Turn usage ------------------------------------------------------
+
+	suite('turn usage', () => {
+
+		test('getTurnUsages indexes the last usage by both turn id and SDK event id', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('request_aaa');
+			await db.createTurn('request_bbb');
+			await db.setTurnEventId('request_aaa', 'sdk-evt-1');
+			await db.setTurnUsage('request_aaa', '{"inputTokens":1}');
+			await db.setTurnUsage('request_aaa', '{"inputTokens":2}');
+
+			assert.deepStrictEqual([...(await db.getTurnUsages()).entries()], [
+				['request_aaa', '{"inputTokens":2}'],
+				['sdk-evt-1', '{"inputTokens":2}'],
+			]);
+		});
+
+		test('records usage for a turn with no `turns` row, creating one so it can be pruned', async () => {
+			// A turn can report usage without otherwise touching the DB (e.g. a
+			// Claude turn that edits no files). The parent row is created so the
+			// usage is reachable by the cascade; without it the row would survive
+			// every prune path and the table would grow for the life of the
+			// session. Creating it cannot disturb the turn ordering that
+			// `getNextTurnEventId` / checkpoint resolution rely on, because a
+			// turn's usage is always reported before the next turn begins.
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('turn-1');
+			await db.setTurnEventId('turn-1', 'evt-1');
+			await db.createTurn('turn-2');
+			await db.setTurnEventId('turn-2', 'evt-2');
+
+			await db.setTurnUsage('usage-only-turn', '{"inputTokens":9}');
+
+			assert.deepStrictEqual({
+				usage: (await db.getTurnUsages()).get('usage-only-turn'),
+				// Ordering is untouched: turn-1's successor is still turn-2.
+				next: await db.getNextTurnEventId('turn-1'),
+				first: await db.getFirstTurnEventId(),
+			}, {
+				usage: '{"inputTokens":9}',
+				next: 'evt-2',
+				first: 'evt-1',
+			});
+		});
+
+		test('truncation prunes usage for turns that have no other DB rows', async () => {
+			// The unbounded-growth case: turns whose only DB footprint is their
+			// usage row. They must be pruned by a rewind like any other turn.
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('turn-1');
+			await db.setTurnUsage('turn-1', '{"inputTokens":1}');
+			await db.setTurnUsage('usage-only-2', '{"inputTokens":2}');
+			await db.setTurnUsage('usage-only-3', '{"inputTokens":3}');
+
+			await db.deleteTurnsAfter('turn-1');
+
+			assert.deepStrictEqual([...(await db.getTurnUsages()).entries()], [['turn-1', '{"inputTokens":1}']]);
+		});
+
+		test('deleting a session\'s turns leaves no usage behind', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setTurnUsage('usage-only-1', '{"inputTokens":1}');
+			await db.setTurnUsage('usage-only-2', '{"inputTokens":2}');
+
+			await db.deleteAllTurns();
+
+			assert.deepStrictEqual([...(await db.getTurnUsages()).entries()], []);
+		});
+
+		test('reads see a fire-and-forget write submitted before them', async () => {
+			// `setTurnUsage` is deliberately fire-and-forget and sqlite3 runs parallelized, so the
+			// restore read must queue behind prior writes. Without that ordering a reconnect can
+			// read first and permanently rebuild the turn without its cost.
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('turn-1');
+
+			const write = db.setTurnUsage('turn-1', '{"inputTokens":7}');
+			const usages = await db.getTurnUsages();
+			await write;
+
+			assert.deepStrictEqual([...usages.entries()], [['turn-1', '{"inputTokens":7}']]);
+		});
+
+		test('truncation prunes the usage of removed turns', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('turn-1');
+			await db.createTurn('turn-2');
+			await db.setTurnUsage('turn-1', '{"inputTokens":1}');
+			await db.setTurnUsage('turn-2', '{"inputTokens":2}');
+
+			await db.deleteTurnsAfter('turn-1');
+
+			assert.deepStrictEqual([...(await db.getTurnUsages()).entries()], [['turn-1', '{"inputTokens":1}']]);
+		});
+
+		test('remapTurnIds carries usage and replaces event IDs on imported forks', async () => {
+			// Fork file-copies the source database then remaps turn ids. Without
+			// remapping `turn_usage` the forked session restores with no gauge
+			// and zero cost, and rows past the fork point leak permanently
+			// (every prune path joins through `turns`).
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('old-1');
+			await db.createTurn('old-2');
+			await db.setTurnEventId('old-1', 'old-event-1');
+			await db.setTurnEventId('old-2', 'old-event-2');
+			await db.setTurnUsage('old-1', '{"inputTokens":1}');
+			await db.setTurnUsage('old-2', '{"inputTokens":2}');
+
+			// Fork keeping only `old-1`, remapped to a fresh id.
+			await db.remapTurnIds(
+				new Map([['old-1', 'new-1']]),
+				new Map([['new-1', 'new-event-1']]),
+			);
+
+			assert.deepStrictEqual({
+				usages: [...(await db.getTurnUsages()).entries()],
+				eventId: await db.getTurnEventId('new-1'),
+			}, {
+				usages: [
+					['new-1', '{"inputTokens":1}'],
+					['new-event-1', '{"inputTokens":1}'],
+				],
+				eventId: 'new-event-1',
+			});
+		});
+	});
+
+	// ---- Turn delegation -------------------------------------------------
+
+	suite('turn delegation', () => {
+
+		test('restores delegation by host or provider turn id', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setTurnDelegation('host-turn', '{"sourceSession":"copilot:/source"}');
+			await db.setTurnEventId('host-turn', 'provider-turn');
+
+			assert.deepStrictEqual([...(await db.getTurnDelegations()).entries()], [
+				['host-turn', '{"sourceSession":"copilot:/source"}'],
+				['provider-turn', '{"sourceSession":"copilot:/source"}'],
+			]);
+		});
+
+		test('truncation and remapping follow the owning turn', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setTurnDelegation('old-1', '{"sourceSession":"copilot:/one"}');
+			await db.setTurnDelegation('old-2', '{"sourceSession":"copilot:/two"}');
+
+			await db.remapTurnIds(new Map([['old-1', 'new-1']]));
+			await db.deleteTurnsAfter('new-1');
+
+			assert.deepStrictEqual([...(await db.getTurnDelegations()).entries()], [
+				['new-1', '{"sourceSession":"copilot:/one"}'],
+			]);
+		});
+	});
+
+	// ---- Workspace transitions -----------------------------------------
+
+	suite('workspace transitions', () => {
+
+		test('restores transitions by host or provider turn id', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setTurnWorkspaceTransition('host-turn', '{"content":"Now working in vscode"}');
+			await db.setTurnEventId('host-turn', 'provider-turn');
+
+			assert.deepStrictEqual({
+				transitions: [...(await db.getTurnWorkspaceTransitions()).entries()],
+				hasTransitions: await db.getMetadata(AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY),
+			}, {
+				transitions: [
+					['host-turn', '{"content":"Now working in vscode"}'],
+					['provider-turn', '{"content":"Now working in vscode"}'],
+				],
+				hasTransitions: 'true',
+			});
+		});
+
+		test('transition reads wait for earlier turn event ID mappings', async () => {
+			const testDatabase = disposables.add(await TestableSessionDatabase.open(':memory:'));
+			await testDatabase.setTurnWorkspaceTransition('host-turn', '{"content":"Now working in vscode"}');
+			const gate = testDatabase.blockNextMutation();
+			const eventIdWrite = testDatabase.setTurnEventId('host-turn', 'provider-turn');
+			await gate.started.p;
+
+			const transitionsRead = testDatabase.getTurnWorkspaceTransitions();
+			let readSettled = false;
+			void transitionsRead.then(
+				() => readSettled = true,
+				() => readSettled = true,
+			);
+			await new Promise<void>(resolve => setImmediate(resolve));
+			await testDatabase.waitForRaw();
+			const readSettledBeforeWrite = readSettled;
+			gate.release.complete();
+			const transitions = await transitionsRead;
+			await eventIdWrite;
+
+			assert.deepStrictEqual({
+				readSettledBeforeWrite,
+				transitions: [...transitions.entries()],
+			}, {
+				readSettledBeforeWrite: false,
+				transitions: [
+					['host-turn', '{"content":"Now working in vscode"}'],
+					['provider-turn', '{"content":"Now working in vscode"}'],
+				],
+			});
+		});
+
+		test('truncation and remapping bound transitions to their owning turns', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setTurnWorkspaceTransition('old-1', '{"content":"Now working in one"}');
+			await db.setTurnWorkspaceTransition('old-2', '{"content":"Now working in two"}');
+
+			await db.remapTurnIds(new Map([['old-1', 'new-1']]));
+			await db.deleteTurnsAfter('new-1');
+
+			assert.deepStrictEqual([...(await db.getTurnWorkspaceTransitions()).entries()], [
+				['new-1', '{"content":"Now working in one"}'],
+			]);
+		});
+
+		test('migration v11 creates the workspace transition table', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			const tables = await db.getAllTables();
+			assert.ok(tables.includes('turn_workspace_transition'));
+		});
+
+		test('migration v12 backfills the transition history marker', async () => {
+			const v11Migrations = sessionDatabaseMigrations.filter(migration => migration.version <= 11);
+			const v11Database = await TestableSessionDatabase.open(':memory:', v11Migrations);
+			await v11Database.setTurnWorkspaceTransition('turn-1', '{"content":"Now working in vscode"}');
+			await v11Database.deleteMetadata([AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY]);
+			const rawDb = await v11Database.ejectDb();
+
+			db = disposables.add(await TestableSessionDatabase.fromDb(rawDb));
+
+			assert.strictEqual(await db.getMetadata(AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY), 'true');
+		});
+
+		test('deleting the last transition clears the history marker', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setTurnWorkspaceTransition('turn-1', '{"content":"Now working in vscode"}');
+
+			await db.deleteTurn('turn-1');
+
+			assert.deepStrictEqual({
+				transitions: [...(await db.getTurnWorkspaceTransitions()).entries()],
+				hasTransitions: await db.getMetadata(AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY),
+			}, {
+				transitions: [],
+				hasTransitions: undefined,
+			});
+		});
+
+		test('workspace conversion metadata rolls back when transition persistence fails', async () => {
+			const testDatabase = disposables.add(await TestableSessionDatabase.open(':memory:'));
+			await testDatabase.runRaw(`CREATE TRIGGER fail_workspace_transition_insert
+				BEFORE INSERT ON turn_workspace_transition
+				BEGIN
+					SELECT RAISE(ABORT, 'transition write failed');
+				END`);
+
+			await assert.rejects(() => testDatabase.setWorkspaceConversion(
+				'turn-1',
+				'{"content":"Now working in vscode"}',
+				{ [AH_META_WORKSPACELESS_DB_KEY]: 'false' },
+			), /transition write failed/);
+
+			assert.deepStrictEqual({
+				transitions: [...(await testDatabase.getTurnWorkspaceTransitions()).entries()],
+				hasTransitions: await testDatabase.getMetadata(AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY),
+				workspaceless: await testDatabase.getMetadata(AH_META_WORKSPACELESS_DB_KEY),
+			}, {
+				transitions: [],
+				hasTransitions: undefined,
+				workspaceless: undefined,
+			});
+		});
+
+		test('failed workspace conversion excludes concurrent unrelated mutations', async () => {
+			const testDatabase = disposables.add(await TestableSessionDatabase.open(':memory:'));
+			await testDatabase.runRaw(`CREATE TRIGGER fail_workspace_transition_insert
+				BEFORE INSERT ON turn_workspace_transition
+				BEGIN
+					SELECT RAISE(ABORT, 'transition write failed');
+				END`);
+			const gate = testDatabase.blockNextMetadataAndTurnUsageMutation();
+			const conversionFailure = assert.rejects(() => testDatabase.setWorkspaceConversion(
+				'turn-1',
+				'{"content":"Now working in vscode"}',
+				{ [AH_META_WORKSPACELESS_DB_KEY]: 'false' },
+			), /transition write failed/);
+			await gate.started.p;
+
+			const unrelatedTurnWrite = testDatabase.createTurn('unrelated-turn');
+			const unrelatedMetadataWrite = testDatabase.setMetadata('unrelated', 'persists');
+			let unrelatedTurnSettled = false;
+			let unrelatedMetadataSettled = false;
+			void unrelatedTurnWrite.then(
+				() => unrelatedTurnSettled = true,
+				() => unrelatedTurnSettled = true,
+			);
+			void unrelatedMetadataWrite.then(
+				() => unrelatedMetadataSettled = true,
+				() => unrelatedMetadataSettled = true,
+			);
+			await new Promise<void>(resolve => setImmediate(resolve));
+			await testDatabase.waitForRaw();
+			const unrelatedTurnInsideConversion = await testDatabase.hasRawTurn('unrelated-turn');
+			const unrelatedInsideConversion = await testDatabase.getMetadata('unrelated');
+			const unrelatedTurnSettledInsideConversion = unrelatedTurnSettled;
+			const unrelatedMetadataSettledInsideConversion = unrelatedMetadataSettled;
+			gate.release.complete();
+			await Promise.all([conversionFailure, unrelatedTurnWrite, unrelatedMetadataWrite]);
+
+			assert.deepStrictEqual({
+				unrelatedTurnSettledInsideConversion,
+				unrelatedMetadataSettledInsideConversion,
+				unrelatedTurnInsideConversion,
+				unrelatedInsideConversion,
+				unrelatedTurn: await testDatabase.hasRawTurn('unrelated-turn'),
+				unrelated: await testDatabase.getMetadata('unrelated'),
+				workspaceless: await testDatabase.getMetadata(AH_META_WORKSPACELESS_DB_KEY),
+				hasTransitions: await testDatabase.getMetadata(AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY),
+			}, {
+				unrelatedTurnSettledInsideConversion: false,
+				unrelatedMetadataSettledInsideConversion: false,
+				unrelatedTurnInsideConversion: false,
+				unrelatedInsideConversion: undefined,
+				unrelatedTurn: true,
+				unrelated: 'persists',
+				workspaceless: undefined,
+				hasTransitions: undefined,
+			});
+		});
+
+		test('marker cleanup failure rolls back turn deletion', async () => {
+			const testDatabase = disposables.add(await TestableSessionDatabase.open(':memory:'));
+			await testDatabase.setTurnWorkspaceTransition('turn-1', '{"content":"Now working in vscode"}');
+			await testDatabase.runRaw(`CREATE TRIGGER fail_workspace_transition_marker_delete
+				BEFORE DELETE ON session_metadata
+				WHEN OLD.key = '${AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY}'
+				BEGIN
+					SELECT RAISE(ABORT, 'marker cleanup failed');
+				END`);
+
+			await assert.rejects(() => testDatabase.deleteTurn('turn-1'), /marker cleanup failed/);
+
+			assert.deepStrictEqual({
+				transitions: [...(await testDatabase.getTurnWorkspaceTransitions()).entries()],
+				hasTransitions: await testDatabase.getMetadata(AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY),
+			}, {
+				transitions: [['turn-1', '{"content":"Now working in vscode"}']],
+				hasTransitions: 'true',
+			});
+		});
+	});
+
+	// ---- Turn checkpoint refs -------------------------------------------
+
+	suite('turn checkpoint refs', () => {
+
+		test('getTurnCheckpointRef falls back to `event_id` when the key is the SDK event id', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('request_aaa');
+			await db.setTurnEventId('request_aaa', 'sdk-evt-1');
+			await db.setTurnCheckpointRef('request_aaa', 'ref-1');
+
+			assert.strictEqual(await db.getTurnCheckpointRef('sdk-evt-1'), 'ref-1');
+		});
+
+		test('getPreviousCheckpointRef falls back to `event_id` when the key is the SDK event id', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('request_aaa');
+			await db.createTurn('request_bbb');
+			await db.setTurnEventId('request_aaa', 'sdk-evt-1');
+			await db.setTurnEventId('request_bbb', 'sdk-evt-2');
+			await db.setTurnCheckpointRef('request_aaa', 'ref-1');
+			await db.setTurnCheckpointRef('request_bbb', 'ref-2');
+
+			assert.strictEqual(await db.getPreviousCheckpointRef('sdk-evt-2'), 'ref-1');
+		});
+	});
+
+	// ---- Foreign rows ---------------------------------------------------
+
+	suite('foreign rows', () => {
+
+		const defaultChat = 'ahp-chat://default/c2Vzc2lvbg';
+		const peerChat = 'ahp-chat://peer/c2Vzc2lvbg';
+
+		/**
+		 * The session database as an older build leaves it for a session with a peer: the
+		 * peer's checkpoint rows (`p*`, no event id) interleave with the default chat's,
+		 * and both chats' host-persisted turns share `local_turns`.
+		 */
+		async function populate(database: SessionDatabase, markForeign = true): Promise<void> {
+			for (const [turnId, eventId, ref] of [
+				['p0', undefined, 'turn/1'],
+				['d1', 'e1', 'turn/2'],
+				['p1', undefined, 'turn/3'],
+				['d2', 'e2', 'turn/4'],
+				['d3', 'e3', 'turn/5'],
+			] as const) {
+				await database.createTurn(turnId);
+				if (eventId) {
+					await database.setTurnEventId(turnId, eventId);
+				}
+				await database.setTurnCheckpointRef(turnId, ref);
+			}
+			await database.insertPersistedTurn({ kind: 'local', turnId: 'local-d', chatUri: defaultChat, anchorTurnId: 'd2', payload: '{}' });
+			await database.insertPersistedTurn({ kind: 'local', turnId: 'local-p', chatUri: peerChat, anchorTurnId: 'p1', payload: '{}' });
+			if (markForeign) {
+				await database.setForeignRows(defaultChat, ['p0', 'p1']);
+			}
+		}
+
+		async function rows(database: SessionDatabase) {
+			return {
+				turns: (await database.getTurnsWithCheckpointRefs()).map(turn => turn.foreign ? `${turn.turnId}*` : turn.turnId),
+				persisted: (await database.getPersistedTurns()).map(turn => turn.turnId),
+			};
+		}
+
+		test('turn scans ignore foreign rows while every checkpoint ref stays enumerable', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await populate(db);
+			assert.deepStrictEqual({
+				first: await db.getFirstTurnEventId(),
+				next: await db.getNextTurnEventId('d1'),
+				previous: await db.getPreviousCheckpointRef('d2'),
+				previousOfForeign: await db.getPreviousCheckpointRef('p1'),
+				allRefs: await db.getAllCheckpointRefs(),
+				turns: await db.getTurnsWithCheckpointRefs(),
+				maxRowid: await db.getMaxTurnRowid(),
+				ownerTurns: (await db.getPersistedTurnsForChat(defaultChat)).map(turn => turn.turnId),
+			}, {
+				first: 'e1',
+				next: 'e2',
+				previous: 'turn/2',
+				previousOfForeign: undefined,
+				allRefs: ['turn/1', 'turn/2', 'turn/3', 'turn/4', 'turn/5'],
+				turns: [
+					{ turnId: 'p0', eventId: undefined, checkpointRef: 'turn/1', foreign: true },
+					{ turnId: 'd1', eventId: 'e1', checkpointRef: 'turn/2', foreign: false },
+					{ turnId: 'p1', eventId: undefined, checkpointRef: 'turn/3', foreign: true },
+					{ turnId: 'd2', eventId: 'e2', checkpointRef: 'turn/4', foreign: false },
+					{ turnId: 'd3', eventId: 'e3', checkpointRef: 'turn/5', foreign: false },
+				],
+				maxRowid: 5,
+				ownerTurns: ['local-d'],
+			});
+		});
+
+		test('the rows watermark reads the turn watermark and every draft together, also without turns or drafts', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			const empty = await db.getRowsWatermark();
+			await populate(db);
+			await db.setChatDraft(URI.parse('ahp-chat://peer'), { text: 'Peer draft', origin: { kind: MessageKind.User } });
+			const populated = await db.getRowsWatermark();
+			assert.deepStrictEqual({
+				empty: { maxTurnRowid: empty.maxTurnRowid, drafts: [...empty.drafts] },
+				populated: { maxTurnRowid: populated.maxTurnRowid, drafts: [...populated.drafts] },
+			}, {
+				empty: { maxTurnRowid: 0, drafts: [] },
+				populated: { maxTurnRowid: 5, drafts: [['ahp-chat://peer', { text: 'Peer draft', origin: { kind: MessageKind.User } }]] },
+			});
+		});
+
+		test('without foreign rows recorded the scans see every row, as older builds do', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await populate(db, false);
+			assert.deepStrictEqual({
+				first: await db.getFirstTurnEventId(),
+				next: await db.getNextTurnEventId('d1'),
+				previous: await db.getPreviousCheckpointRef('d2'),
+			}, { first: undefined, next: undefined, previous: 'turn/3' });
+		});
+
+		test('conversation check ignores foreign rows and other chats\' persisted turns', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('p0');
+			await db.insertPersistedTurn({ kind: 'local', turnId: 'local-p', chatUri: peerChat, anchorTurnId: 'p0', payload: '{}' });
+			const before = await db.hasConversationTurns();
+			await db.setForeignRows(defaultChat, ['p0']);
+			assert.deepStrictEqual({ before, after: await db.hasConversationTurns() }, { before: true, after: false });
+		});
+
+		for (const [operation, run, expected] of [
+			['truncateFromTurn', (database: SessionDatabase) => database.truncateFromTurn('d2'), { turns: ['p0*', 'd1', 'p1*'], persisted: ['local-p'] }],
+			['deleteTurnsAfter', (database: SessionDatabase) => database.deleteTurnsAfter('d1'), { turns: ['p0*', 'd1', 'p1*'], persisted: ['local-p'] }],
+			['deleteAllTurns', (database: SessionDatabase) => database.deleteAllTurns(), { turns: ['p0*', 'p1*'], persisted: ['local-p'] }],
+			['truncateFromTurn of a foreign turn', (database: SessionDatabase) => database.truncateFromTurn('p0'), { turns: ['p0*', 'd1', 'p1*', 'd2', 'd3'], persisted: ['local-d', 'local-p'] }],
+		] as const) {
+			test(`${operation} keeps foreign rows and other chats' persisted turns`, async () => {
+				db = disposables.add(await SessionDatabase.open(':memory:'));
+				await populate(db);
+				// Persisted turns are pruned through their `turns` row; place the owner's after the truncation point.
+				await db.createTurn('local-d');
+				await run(db);
+				assert.deepStrictEqual(await rows(db), expected);
+			});
+		}
+
+		test('file edits of foreign turns survive the default chat\'s truncation', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await populate(db);
+			await db.storeFileEdit({ turnId: 'p1', toolCallId: 'peer-edit', filePath: '/peer.ts', kind: FileEditKind.Edit, addedLines: 1, removedLines: 0 });
+			await db.storeFileEdit({ turnId: 'd2', toolCallId: 'default-edit', filePath: '/default.ts', kind: FileEditKind.Edit, addedLines: 1, removedLines: 0 });
+			await db.deleteTurnsAfter('d1');
+			assert.deepStrictEqual((await db.getAllFileEdits()).map(edit => edit.toolCallId), ['peer-edit']);
+		});
+
+		test('fork remap of a copy drops foreign rows, other chats\' persisted turns and the row owner', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await populate(db);
+			await db.remapTurnIds(new Map([['d1', 'n1'], ['d2', 'n2'], ['local-d', 'local-n']]));
+			assert.deepStrictEqual({
+				...await rows(db),
+				owner: await db.getMetadata('agentHost.rowOwnerChat'),
+				foreign: await db.getMetadata('agentHost.foreignTurnIds'),
+			}, { turns: ['n1', 'n2'], persisted: ['local-n'], owner: undefined, foreign: undefined });
+		});
+
+		test('a database observes foreign rows it records, also while recording them, and after reopening', async () => {
+			const directory = await fs.mkdtemp(join(tmpdir(), 'session-db-foreign-'));
+			try {
+				const path = join(directory, 'session.db');
+				const writer = disposables.add(await SessionDatabase.open(path));
+				await populate(writer, false);
+				const beforeImport = await writer.getFirstTurnEventId();
+				const imported = writer.setForeignRows(defaultChat, ['p0', 'p1']);
+				const duringImport = writer.getFirstTurnEventId();
+				await imported;
+				const afterImport = await writer.getFirstTurnEventId();
+				await writer.deleteAllTurns();
+				await writer.close();
+				const reopened = disposables.add(await SessionDatabase.open(path));
+				assert.deepStrictEqual({
+					beforeImport,
+					duringImport: [undefined, 'e1'].includes(await duringImport),
+					afterImport,
+					reopened: await rows(reopened),
+				}, { beforeImport: undefined, duringImport: true, afterImport: 'e1', reopened: { turns: ['p0*', 'p1*'], persisted: ['local-p'] } });
+				await reopened.close();
+			} finally {
+				await fs.rm(directory, { recursive: true, force: true });
+			}
+		});
+
+		test('a database without foreign rows runs its turn statements without the foreign-row filter', async () => {
+			const recorded = disposables.add(await TestableSessionDatabase.open(':memory:'));
+			await populate(recorded, false);
+			const statements = await recorded.recordStatements();
+			const scan = async () => {
+				statements.length = 0;
+				await recorded.getTurnCheckpointRef('d2');
+				await recorded.getPreviousCheckpointRef('d2');
+				await recorded.getNextTurnEventId('d1');
+				await recorded.getFirstTurnEventId();
+				await recorded.hasConversationTurns();
+				await recorded.getTurnsWithCheckpointRefs();
+				return statements.filter(sql => /\bturns\b/.test(sql)).map(sql => sql.includes('json_each'));
+			};
+			const without = await scan();
+			await recorded.setForeignRows(defaultChat, ['p0']);
+			const withForeign = await scan();
+			await recorded.setForeignRows(defaultChat, []);
+			assert.deepStrictEqual({ without, withForeign, cleared: await scan() }, {
+				without: [false, false, false, false, false, false],
+				withForeign: [true, true, true, true, true, true],
+				cleared: [false, false, false, false, false, false],
+			});
 		});
 	});
 
@@ -370,7 +1685,7 @@ suite('SessionDatabase', () => {
 	suite('dispose', () => {
 
 		test('methods throw after dispose', async () => {
-			db = await SessionDatabase.open(dbPath());
+			db = await SessionDatabase.open(':memory:');
 			db.close();
 
 			await assert.rejects(
@@ -380,7 +1695,7 @@ suite('SessionDatabase', () => {
 		});
 
 		test('double dispose is safe', async () => {
-			db = await SessionDatabase.open(dbPath());
+			db = await SessionDatabase.open(':memory:');
 			await db.close();
 			await db.close(); // should not throw
 		});
@@ -391,22 +1706,20 @@ suite('SessionDatabase', () => {
 	suite('lazy open', () => {
 
 		test('constructor does not open the database', () => {
-			// Should not throw even if path does not exist yet
-			db = new SessionDatabase(join(testDir, 'lazy', 'session.db'));
+			db = new SessionDatabase(':memory:');
 			disposables.add(db);
 			// No error — the database is not opened until first use
 		});
 
 		test('first async call opens and migrates the database', async () => {
-			db = disposables.add(new SessionDatabase(dbPath()));
-			// Database file may not exist yet — first call triggers open
+			db = disposables.add(new SessionDatabase(':memory:'));
 			await db.createTurn('turn-1');
 			const edits = await db.getFileEdits(['nonexistent']);
 			assert.deepStrictEqual(edits, []);
 		});
 
 		test('multiple concurrent calls share the same open promise', async () => {
-			db = disposables.add(new SessionDatabase(dbPath()));
+			db = disposables.add(new SessionDatabase(':memory:'));
 			// Fire multiple calls concurrently — all should succeed
 			await Promise.all([
 				db.createTurn('turn-1'),
@@ -416,9 +1729,777 @@ suite('SessionDatabase', () => {
 		});
 
 		test('dispose during open rejects subsequent calls', async () => {
-			db = new SessionDatabase(dbPath());
+			db = new SessionDatabase(':memory:');
 			await db.close();
 			await assert.rejects(() => db!.createTurn('turn-1'), /disposed/);
+		});
+	});
+
+	// ---- Session metadata -----------------------------------------------
+
+	suite('session metadata', () => {
+
+		test('getMetadata returns undefined for missing key', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			assert.strictEqual(await db.getMetadata('nonexistent'), undefined);
+		});
+
+		test('setMetadata and getMetadata round-trip', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setMetadata('customTitle', 'My Session');
+			assert.strictEqual(await db.getMetadata('customTitle'), 'My Session');
+		});
+
+		test('setMetadata overwrites existing value', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setMetadata('customTitle', 'First');
+			await db.setMetadata('customTitle', 'Second');
+			assert.strictEqual(await db.getMetadata('customTitle'), 'Second');
+		});
+
+		test('updateMetadata serializes read-modify-write with other metadata writes', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.updateMetadata('key', previous => previous ?? 'initial');
+			await Promise.all([
+				db.setMetadata('key', 'replacement'),
+				db.updateMetadata('key', previous => `${previous}:first`),
+				db.updateMetadata('key', previous => `${previous}:second`),
+			]);
+			assert.strictEqual(await db.getMetadata('key'), 'replacement:first:second');
+		});
+
+		test('sandbox config fallback observes a preceding runtime confirmation', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setMetadata('configValues', JSON.stringify({ sandboxEnabled: 'on', stale: true }));
+			await Promise.all([
+				db.updateMetadata('configValues', previous => JSON.stringify(getPersistedSessionConfigValues({ sandboxEnabled: 'off', mode: 'interactive' }, false, previous))),
+				db.updateMetadata('configValues', previous => JSON.stringify(getPersistedSessionConfigValues({ sandboxEnabled: 'on', mode: 'plan', shellInitScripts: [] }, undefined, previous))),
+			]);
+			assert.deepStrictEqual(JSON.parse((await db.getMetadata('configValues'))!), { sandboxEnabled: 'off', mode: 'plan' });
+		});
+
+		for (const previous of ['{}', '{"sandboxEnabled":"default"}']) {
+			test(`sandbox config does not persist an unconfirmed selection over ${previous}`, async () => {
+				db = disposables.add(await SessionDatabase.open(':memory:'));
+				await db.setMetadata('configValues', previous);
+				await db.updateMetadata('configValues', stored => JSON.stringify(getPersistedSessionConfigValues({ sandboxEnabled: 'off', mode: 'plan' }, undefined, stored)));
+				assert.deepStrictEqual(JSON.parse((await db.getMetadata('configValues'))!), { mode: 'plan' });
+			});
+		}
+
+		for (const previous of ['invalid JSON', 'null', '{"sandboxEnabled":false}']) {
+			test(`sandbox config reports invalid persisted values and rolls back: ${previous}`, async () => {
+				db = disposables.add(await SessionDatabase.open(':memory:'));
+				await db.setMetadata('configValues', previous);
+				await assert.rejects(db.updateMetadata('configValues', stored => JSON.stringify(getPersistedSessionConfigValues({ mode: 'plan' }, undefined, stored))));
+				const afterFailure = await db.getMetadata('configValues');
+				await db.updateMetadata('configValues', stored => JSON.stringify(getPersistedSessionConfigValues({ mode: 'plan' }, true, stored)));
+				assert.deepStrictEqual({
+					afterFailure,
+					afterConfirmation: JSON.parse((await db.getMetadata('configValues'))!),
+				}, { afterFailure: previous, afterConfirmation: { mode: 'plan', sandboxEnabled: 'on' } });
+			});
+		}
+
+		test('deleteMetadata removes only the requested keys', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setMetadataValues({
+				customTitle: 'Title',
+				customTitleSource: 'user',
+				unrelated: 'preserved',
+			});
+
+			await db.deleteMetadata(['customTitle', 'customTitleSource']);
+
+			assert.deepStrictEqual(await db.getMetadataObject({
+				customTitle: true,
+				customTitleSource: true,
+				unrelated: true,
+			}), {
+				customTitle: undefined,
+				customTitleSource: undefined,
+				unrelated: 'preserved',
+			});
+		});
+
+		test('setMetadataValues rolls back every key when one write fails', async () => {
+			const database = disposables.add(await TestableSessionDatabase.open(':memory:'));
+			db = database;
+			await database.setMetadata('customTitle', 'Original title');
+			await database.setMetadata('customTitleSource', 'user');
+			await database.runRaw(`CREATE TRIGGER fail_title_source BEFORE INSERT ON session_metadata
+				WHEN NEW.key = 'customTitleSource' BEGIN SELECT RAISE(ABORT, 'source write failed'); END`);
+
+			await assert.rejects(() => database.setMetadataValues({
+				customTitle: 'Replacement title',
+				customTitleSource: 'agent',
+			}), /source write failed/);
+
+			assert.deepStrictEqual(await database.getMetadataObject({
+				customTitle: true,
+				customTitleSource: true,
+			}), {
+				customTitle: 'Original title',
+				customTitleSource: 'user',
+			});
+		});
+
+		test('setMetadataValuesIfAbsent atomically copies source metadata', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setMetadata('customTitleSource', 'auto');
+
+			const stored = await db.setMetadataValuesIfAbsent('customChatTitle:default', {
+				'customChatTitle:default': 'Inherited title',
+			}, {
+				'customChatTitleSource:default': 'customTitleSource',
+			});
+
+			assert.deepStrictEqual({
+				stored,
+				metadata: await db.getMetadataObject({
+					'customChatTitle:default': true,
+					'customChatTitleSource:default': true,
+				}),
+			}, {
+				stored: true,
+				metadata: {
+					'customChatTitle:default': 'Inherited title',
+					'customChatTitleSource:default': 'auto',
+				},
+			});
+		});
+
+		test('setMetadataValuesIfAbsent preserves existing metadata', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setMetadataValues({
+				'customChatTitle:default': 'Existing title',
+				'customChatTitleSource:default': 'user',
+				customTitleSource: 'auto',
+			});
+
+			const stored = await db.setMetadataValuesIfAbsent('customChatTitle:default', {
+				'customChatTitle:default': 'Replacement title',
+			}, {
+				'customChatTitleSource:default': 'customTitleSource',
+			});
+
+			assert.deepStrictEqual({
+				stored,
+				metadata: await db.getMetadataObject({
+					'customChatTitle:default': true,
+					'customChatTitleSource:default': true,
+				}),
+			}, {
+				stored: false,
+				metadata: {
+					'customChatTitle:default': 'Existing title',
+					'customChatTitleSource:default': 'user',
+				},
+			});
+		});
+
+		test('setMetadataValues serializes with turn ID remapping transactions', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('old-1');
+			await db.setTurnUsage('old-1', '{"inputTokens":1}');
+
+			await Promise.all([
+				db.setMetadataValues({
+					customTitle: 'Concurrent title',
+					customTitleSource: 'agent',
+				}),
+				db.remapTurnIds(new Map([['old-1', 'new-1']])),
+			]);
+
+			assert.deepStrictEqual({
+				metadata: await db.getMetadataObject({ customTitle: true, customTitleSource: true }),
+				usages: [...(await db.getTurnUsages()).entries()],
+			}, {
+				metadata: { customTitle: 'Concurrent title', customTitleSource: 'agent' },
+				usages: [['new-1', '{"inputTokens":1}']],
+			});
+		});
+
+		test('metadata persists across reopen', async () => {
+			const db1 = disposables.add(await TestableSessionDatabase.open(':memory:'));
+			await db1.setMetadata('customTitle', 'Persistent Title');
+			const rawDb = await db1.ejectDb();
+
+			db = disposables.add(await TestableSessionDatabase.fromDb(rawDb));
+			assert.strictEqual(await db.getMetadata('customTitle'), 'Persistent Title');
+		});
+
+		test('migration v2 creates session_metadata table', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			const tables = await db.getAllTables();
+			assert.ok(tables.includes('session_metadata'));
+		});
+	});
+
+	suite('catalog sync snapshot', () => {
+		const snapshot = (sourceRevision: number, overrides: Partial<ISessionCatalogSyncPendingSnapshot> = {}): ISessionCatalogSyncPendingSnapshot => ({
+			sessionGeneration: 'generation-1',
+			sourceRevision,
+			projectionVersion: 1,
+			payload: `{"revision":${sourceRevision}}`,
+			payloadHash: `hash-${sourceRevision}`,
+			acknowledgedHash: undefined,
+			state: 'pending',
+			...overrides,
+		});
+
+		const acknowledgedSnapshot = (sourceRevision: number) => ({
+			sessionGeneration: 'generation-1',
+			sourceRevision,
+			projectionVersion: 1,
+			payload: undefined,
+			payloadHash: `hash-${sourceRevision}`,
+			acknowledgedHash: `hash-${sourceRevision}`,
+			state: 'acknowledged',
+		} as const);
+
+		test('migration v13 creates the snapshot table on fresh databases', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+
+			assert.ok((await db.getAllTables()).includes('catalog_sync_snapshot'));
+		});
+
+		test('migration v13 upgrades a v9 database', async () => {
+			const v9Database = await TestableSessionDatabase.open(':memory:', sessionDatabaseMigrations.slice(0, 9));
+			await v9Database.setMetadata('customTitle', 'Before upgrade');
+			const rawDatabase = await v9Database.ejectDb();
+
+			db = disposables.add(await TestableSessionDatabase.fromDb(rawDatabase));
+			await db.setMetadataValuesAndCatalogSyncSnapshot({ customTitle: 'After upgrade' }, snapshot(1));
+
+			assert.deepStrictEqual({
+				tables: await db.getAllTables(),
+				title: await db.getMetadata('customTitle'),
+				snapshot: await db.getCatalogSyncSnapshot(),
+			}, {
+				tables: ['catalog_sync_snapshot', 'chat_drafts', 'file_edits', 'local_turns', 'reviewed_files', 'session_metadata', 'terminal_outputs', 'tool_result_resources', 'turn_delegation', 'turn_usage', 'turn_workspace_transition', 'turns'],
+				title: 'After upgrade',
+				snapshot: snapshot(1),
+			});
+		});
+
+		test('migration v13 converges a pre-release catalog-only v10 database', async () => {
+			const catalogV10 = await TestableSessionDatabase.open(':memory:', sessionDatabaseMigrations.slice(0, 9));
+			await catalogV10.runRaw(`CREATE TABLE catalog_sync_snapshot (
+				singleton_id       INTEGER PRIMARY KEY NOT NULL CHECK (singleton_id = 1),
+				session_generation TEXT NOT NULL CHECK (length(session_generation) > 0),
+				source_revision    INTEGER NOT NULL CHECK (source_revision >= 0),
+				projection_version INTEGER NOT NULL CHECK (projection_version >= 0),
+				acknowledged_hash  TEXT,
+				pending_hash       TEXT,
+				pending_payload    TEXT
+			)`);
+			await catalogV10.runRaw('PRAGMA user_version = 10');
+			await catalogV10.setMetadataValuesAndCatalogSyncSnapshot({}, snapshot(1));
+			const rawDatabase = await catalogV10.ejectDb();
+
+			const upgraded = disposables.add(await TestableSessionDatabase.fromDb(rawDatabase));
+
+			assert.deepStrictEqual({
+				tables: await upgraded.getAllTables(),
+				snapshot: await upgraded.getCatalogSyncSnapshot(),
+			}, {
+				tables: ['catalog_sync_snapshot', 'chat_drafts', 'file_edits', 'local_turns', 'reviewed_files', 'session_metadata', 'terminal_outputs', 'tool_result_resources', 'turn_delegation', 'turn_usage', 'turn_workspace_transition', 'turns'],
+				snapshot: snapshot(1),
+			});
+		});
+
+		test('migration v13 upgrades every published v1 through v9 schema', async () => {
+			const results: object[] = [];
+			for (let version = 1; version <= 9; version++) {
+				const priorDatabase = await TestableSessionDatabase.open(':memory:', sessionDatabaseMigrations.slice(0, version));
+				const rawDatabase = await priorDatabase.ejectDb();
+				const upgraded = await TestableSessionDatabase.fromDb(rawDatabase);
+				try {
+					results.push({
+						version,
+						hasReceipt: (await upgraded.getAllTables()).includes('catalog_sync_snapshot'),
+						snapshot: await upgraded.getCatalogSyncSnapshot(),
+					});
+				} finally {
+					await upgraded.close();
+				}
+			}
+
+			assert.deepStrictEqual(results, Array.from({ length: 9 }, (_, index) => ({
+				version: index + 1,
+				hasReceipt: true,
+				snapshot: undefined,
+			})));
+		});
+
+		test('atomically commits metadata and the snapshot', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+
+			const result = await db.setMetadataValuesAndCatalogSyncSnapshot({
+				customTitle: 'Catalog title',
+				isRead: 'true',
+			}, snapshot(1));
+
+			assert.deepStrictEqual({
+				result,
+				metadata: await db.getMetadataObject({ customTitle: true, isRead: true }),
+				snapshot: await db.getCatalogSyncSnapshot(),
+			}, {
+				result: 'applied',
+				metadata: { customTitle: 'Catalog title', isRead: 'true' },
+				snapshot: snapshot(1),
+			});
+		});
+
+		test('rolls back metadata and snapshot together', async () => {
+			const database = disposables.add(await TestableSessionDatabase.open(':memory:'));
+			db = database;
+			await database.setMetadataValuesAndCatalogSyncSnapshot({ customTitle: 'Original title' }, snapshot(1));
+			await database.runRaw(`CREATE TRIGGER fail_catalog_sync BEFORE UPDATE ON catalog_sync_snapshot
+				BEGIN SELECT RAISE(ABORT, 'snapshot write failed'); END`);
+
+			await assert.rejects(() => database.setMetadataValuesAndCatalogSyncSnapshot({
+				customTitle: 'Replacement title',
+			}, snapshot(2)), /snapshot write failed/);
+
+			assert.deepStrictEqual({
+				title: await database.getMetadata('customTitle'),
+				snapshot: await database.getCatalogSyncSnapshot(),
+			}, {
+				title: 'Original title',
+				snapshot: snapshot(1),
+			});
+		});
+
+		test('treats an exact same-revision replay as idempotent', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setMetadataValuesAndCatalogSyncSnapshot({ customTitle: 'Title' }, snapshot(1));
+			await db.acknowledgeCatalogSyncSnapshot({
+				sessionGeneration: 'generation-1',
+				sourceRevision: 1,
+				projectionVersion: 1,
+				payloadHash: 'hash-1',
+			});
+
+			const result = await db.setMetadataValuesAndCatalogSyncSnapshot({ customTitle: 'Different title' }, snapshot(1));
+
+			assert.deepStrictEqual({
+				result,
+				title: await db.getMetadata('customTitle'),
+				snapshot: await db.getCatalogSyncSnapshot(),
+			}, {
+				result: 'replayed',
+				title: 'Title',
+				snapshot: acknowledgedSnapshot(1),
+			});
+		});
+
+		test('transitions to a new generation with a lower revision through compare-and-swap', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setMetadataValuesAndCatalogSyncSnapshot({ customTitle: 'Old generation' }, snapshot(100));
+			const nextGeneration = snapshot(0, {
+				sessionGeneration: 'generation-2',
+				payload: '{"revision":0}',
+				payloadHash: 'generation-2-hash-0',
+			});
+
+			await assert.rejects(
+				() => db!.setMetadataValuesAndCatalogSyncSnapshot({ customTitle: 'Unguarded generation' }, nextGeneration),
+				/does not match stored generation/,
+			);
+			const transitioned = await db.transitionMetadataValuesAndCatalogSyncSnapshot(
+				{ customTitle: 'New generation' },
+				'generation-1',
+				nextGeneration,
+			);
+
+			assert.deepStrictEqual({
+				transitioned,
+				title: await db.getMetadata('customTitle'),
+				snapshot: await db.getCatalogSyncSnapshot(),
+			}, {
+				transitioned: 'applied',
+				title: 'New generation',
+				snapshot: nextGeneration,
+			});
+		});
+
+		test('rejects a generation transition with the wrong expected generation', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setMetadataValuesAndCatalogSyncSnapshot({ customTitle: 'Current generation' }, snapshot(100));
+			const nextGeneration = snapshot(0, {
+				sessionGeneration: 'generation-2',
+				payload: '{"revision":0}',
+				payloadHash: 'generation-2-hash-0',
+			});
+
+			const transitioned = await db.transitionMetadataValuesAndCatalogSyncSnapshot(
+				{ customTitle: 'Wrong transition' },
+				'unknown-generation',
+				nextGeneration,
+			);
+
+			assert.deepStrictEqual({
+				transitioned,
+				title: await db.getMetadata('customTitle'),
+				snapshot: await db.getCatalogSyncSnapshot(),
+			}, {
+				transitioned: 'generationMismatch',
+				title: 'Current generation',
+				snapshot: snapshot(100),
+			});
+		});
+
+		test('delayed normal writes from an old generation cannot replace a transitioned generation', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setMetadataValuesAndCatalogSyncSnapshot({ customTitle: 'Old generation' }, snapshot(100));
+			const nextGeneration = snapshot(0, {
+				sessionGeneration: 'generation-2',
+				payload: '{"revision":0}',
+				payloadHash: 'generation-2-hash-0',
+			});
+			await db.transitionMetadataValuesAndCatalogSyncSnapshot({ customTitle: 'New generation' }, 'generation-1', nextGeneration);
+
+			await assert.rejects(
+				() => db!.setMetadataValuesAndCatalogSyncSnapshot({ customTitle: 'Delayed old write' }, snapshot(101)),
+				/does not match stored generation/,
+			);
+
+			assert.deepStrictEqual({
+				title: await db.getMetadata('customTitle'),
+				snapshot: await db.getCatalogSyncSnapshot(),
+			}, {
+				title: 'New generation',
+				snapshot: nextGeneration,
+			});
+		});
+
+		test('rejects stale and conflicting updates without changing metadata', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setMetadataValuesAndCatalogSyncSnapshot({ customTitle: 'Current title' }, snapshot(2));
+
+			await assert.rejects(
+				() => db!.setMetadataValuesAndCatalogSyncSnapshot({ customTitle: 'Stale title' }, snapshot(1)),
+				/stale/,
+			);
+			for (const conflicting of [
+				snapshot(2, { projectionVersion: 2 }),
+				snapshot(2, { payload: '{"different":true}' }),
+				snapshot(2, { payloadHash: 'different-hash' }),
+			]) {
+				await assert.rejects(
+					() => db!.setMetadataValuesAndCatalogSyncSnapshot({ customTitle: 'Conflicting title' }, conflicting),
+					/conflicts/,
+				);
+			}
+
+			assert.deepStrictEqual({
+				title: await db.getMetadata('customTitle'),
+				snapshot: await db.getCatalogSyncSnapshot(),
+			}, {
+				title: 'Current title',
+				snapshot: snapshot(2),
+			});
+		});
+
+		test('acknowledges only the matching snapshot', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setMetadataValuesAndCatalogSyncSnapshot({}, snapshot(1));
+
+			const acknowledged = await db.acknowledgeCatalogSyncSnapshot({
+				sessionGeneration: 'generation-1',
+				sourceRevision: 1,
+				projectionVersion: 1,
+				payloadHash: 'hash-1',
+			});
+
+			assert.deepStrictEqual({
+				acknowledged,
+				snapshot: await db.getCatalogSyncSnapshot(),
+			}, {
+				acknowledged: true,
+				snapshot: acknowledgedSnapshot(1),
+			});
+		});
+
+		test('acknowledgement clears the pending payload and retains a compact hash receipt', async () => {
+			const database = disposables.add(await TestableSessionDatabase.open(':memory:'));
+			db = database;
+			const payload = 'x'.repeat(1024 * 1024);
+			await database.setMetadataValuesAndCatalogSyncSnapshot({}, snapshot(1, { payload }));
+
+			await database.acknowledgeCatalogSyncSnapshot({
+				sessionGeneration: 'generation-1',
+				sourceRevision: 1,
+				projectionVersion: 1,
+				payloadHash: 'hash-1',
+			});
+
+			assert.deepStrictEqual({
+				snapshot: await database.getCatalogSyncSnapshot(),
+				storage: await database.getRaw(`SELECT acknowledged_hash, pending_hash, pending_payload, length(COALESCE(pending_payload, '')) AS pending_size
+					FROM catalog_sync_snapshot WHERE singleton_id = 1`),
+			}, {
+				snapshot: acknowledgedSnapshot(1),
+				storage: {
+					acknowledged_hash: 'hash-1',
+					pending_hash: null,
+					pending_payload: null,
+					pending_size: 0,
+				},
+			});
+		});
+
+		test('legacy metadata mutation can be compared with the acknowledged hash', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setMetadataValuesAndCatalogSyncSnapshot({ catalogHash: 'hash-1' }, snapshot(1));
+			await db.acknowledgeCatalogSyncSnapshot({
+				sessionGeneration: 'generation-1',
+				sourceRevision: 1,
+				projectionVersion: 1,
+				payloadHash: 'hash-1',
+			});
+
+			await db.setMetadata('catalogHash', 'old-build-hash');
+			const receipt = await db.getCatalogSyncSnapshot();
+
+			assert.deepStrictEqual({
+				legacyHash: await db.getMetadata('catalogHash'),
+				acknowledgedHash: receipt?.acknowledgedHash,
+			}, {
+				legacyHash: 'old-build-hash',
+				acknowledgedHash: 'hash-1',
+			});
+		});
+
+		test('a stale acknowledgement cannot clear newer pending work', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setMetadataValuesAndCatalogSyncSnapshot({}, snapshot(1));
+			await db.setMetadataValuesAndCatalogSyncSnapshot({}, snapshot(2));
+
+			const acknowledged = await db.acknowledgeCatalogSyncSnapshot({
+				sessionGeneration: 'generation-1',
+				sourceRevision: 1,
+				projectionVersion: 1,
+				payloadHash: 'hash-1',
+			});
+
+			assert.deepStrictEqual({
+				acknowledged,
+				snapshot: await db.getCatalogSyncSnapshot(),
+			}, {
+				acknowledged: false,
+				snapshot: snapshot(2),
+			});
+		});
+
+		test('snapshot persists across a database restart', async () => {
+			const tempRoot = await fs.mkdtemp(join(tmpdir(), 'session-db-catalog-sync-' + generateUuid()));
+			const databasePath = join(tempRoot, 'session.db');
+			try {
+				db = await SessionDatabase.open(databasePath);
+				await db.setMetadataValuesAndCatalogSyncSnapshot({}, snapshot(1));
+				await db.close();
+				db = await SessionDatabase.open(databasePath);
+
+				assert.deepStrictEqual(await db.getCatalogSyncSnapshot(), snapshot(1));
+			} finally {
+				await db?.close();
+				db = undefined;
+				await fs.rm(tempRoot, { recursive: true, force: true });
+			}
+		}).timeout(10_000);
+
+		test('the latest snapshot remains pending when relay is interrupted', async () => {
+			const tempRoot = await fs.mkdtemp(join(tmpdir(), 'session-db-catalog-pending-' + generateUuid()));
+			const databasePath = join(tempRoot, 'session.db');
+			try {
+				db = await SessionDatabase.open(databasePath);
+				await db.setMetadataValuesAndCatalogSyncSnapshot({}, snapshot(1));
+				await db.acknowledgeCatalogSyncSnapshot({
+					sessionGeneration: 'generation-1',
+					sourceRevision: 1,
+					projectionVersion: 1,
+					payloadHash: 'hash-1',
+				});
+				await db.setMetadataValuesAndCatalogSyncSnapshot({}, snapshot(2));
+				await db.close();
+				db = await SessionDatabase.open(databasePath);
+
+				assert.deepStrictEqual(await db.getCatalogSyncSnapshot(), snapshot(2, { acknowledgedHash: 'hash-1' }));
+			} finally {
+				await db?.close();
+				db = undefined;
+				await fs.rm(tempRoot, { recursive: true, force: true });
+			}
+		}).timeout(10_000);
+
+		test('validates snapshot and acknowledgement boundaries', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+
+			await assert.rejects(() => db!.setMetadataValuesAndCatalogSyncSnapshot({}, snapshot(Number.MAX_SAFE_INTEGER + 1)), /safe integer/);
+			await assert.rejects(() => db!.setMetadataValuesAndCatalogSyncSnapshot({}, snapshot(1, { sessionGeneration: '' })), /sessionGeneration/);
+			await assert.rejects(() => db!.setMetadataValuesAndCatalogSyncSnapshot({}, snapshot(1, { payloadHash: '' })), /payloadHash/);
+			await assert.rejects(() => db!.acknowledgeCatalogSyncSnapshot({
+				sessionGeneration: 'generation-1',
+				sourceRevision: -1,
+				projectionVersion: 1,
+				payloadHash: 'hash-1',
+			}), /safe integer/);
+		});
+	});
+
+	suite('chat drafts', () => {
+		const chat = URI.parse('ahp-chat://default/Y29waWxvdDovLy9zZXNzaW9uLTE');
+
+		test('setChatDraft and getChatDraft round-trip', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			const draft = {
+				text: 'draft',
+				origin: { kind: MessageKind.User },
+				model: { id: 'opus' },
+				agent: { uri: 'agent://reviewer' },
+			};
+
+			await db.setChatDraft(chat, draft);
+
+			assert.deepStrictEqual(await db.getChatDraft(chat), draft);
+		});
+
+		test('setChatDraft undefined clears a draft', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			const draft = { text: 'draft', origin: { kind: MessageKind.User } };
+
+			await db.setChatDraft(chat, draft);
+			await db.setChatDraft(chat, undefined);
+
+			assert.strictEqual(await db.getChatDraft(chat), undefined);
+		});
+
+		test('getChatDraft returns undefined for corrupt draft rows', async () => {
+			const testDb = disposables.add(await TestableSessionDatabase.open(':memory:'));
+			db = testDb;
+
+			await testDb.setRawChatDraft(chat, '{');
+
+			assert.strictEqual(await db.getChatDraft(chat), undefined);
+		});
+
+		test('migration v6 creates chat draft tables', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			const tables = await db.getAllTables();
+			assert.ok(tables.includes('chat_drafts'));
+		});
+	});
+
+	// ---- reviewed files -------------------------------------------------
+
+	suite('reviewed files', () => {
+		const uriA = URI.parse('file:///workspace/a.ts');
+		const uriB = URI.parse('file:///workspace/b.ts');
+
+		const normalize = (records: readonly IReviewedFileRecord[]) => records.map(r => ({ uri: r.uri.toString(), nonce: r.nonce }));
+
+		test('markFileReviewed and isFileReviewed discriminate by uri and nonce', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+
+			await db.markFileReviewed(uriA, 'n1');
+
+			assert.deepStrictEqual(
+				await Promise.all([
+					db.isFileReviewed(uriA, 'n1'),
+					db.isFileReviewed(uriA, 'n2'),
+					db.isFileReviewed(uriB, 'n1'),
+				]),
+				[true, false, false],
+			);
+		});
+
+		test('getReviewedFiles returns all entries in insertion order', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+
+			await db.markFileReviewed(uriA, 'n1');
+			await db.markFileReviewed(uriB, 'n2');
+			await db.markFileReviewed(uriA, 'n3');
+
+			assert.deepStrictEqual(normalize(await db.getReviewedFiles()), [
+				{ uri: uriA.toString(), nonce: 'n1' },
+				{ uri: uriB.toString(), nonce: 'n2' },
+				{ uri: uriA.toString(), nonce: 'n3' },
+			]);
+		});
+
+		test('getReviewedFilesForUri returns only the given uri', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+
+			await db.markFileReviewed(uriA, 'n1');
+			await db.markFileReviewed(uriB, 'n2');
+			await db.markFileReviewed(uriA, 'n3');
+
+			assert.deepStrictEqual(normalize(await db.getReviewedFilesForUri(uriA)), [
+				{ uri: uriA.toString(), nonce: 'n1' },
+				{ uri: uriA.toString(), nonce: 'n3' },
+			]);
+		});
+
+		test('unmarkFileReviewed removes an entry and is a no-op when absent', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+
+			await db.markFileReviewed(uriA, 'n1');
+			await db.unmarkFileReviewed(uriA, 'n1');
+			await db.unmarkFileReviewed(uriA, 'n1'); // no-op, must not throw
+
+			assert.deepStrictEqual(
+				await Promise.all([db.isFileReviewed(uriA, 'n1'), db.getReviewedFiles()]),
+				[false, []],
+			);
+		});
+
+		test('marking the same (uri, nonce) twice keeps a single entry', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+
+			await db.markFileReviewed(uriA, 'n1');
+			await db.markFileReviewed(uriA, 'n1');
+
+			assert.deepStrictEqual(normalize(await db.getReviewedFiles()), [{ uri: uriA.toString(), nonce: 'n1' }]);
+		});
+
+		test('migration v7 creates the reviewed_files table', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			const tables = await db.getAllTables();
+			assert.ok(tables.includes('reviewed_files'));
+		});
+	});
+
+	// ---- vacuumInto -----------------------------------------------------
+
+	suite('vacuumInto', () => {
+
+		let tmpDir: string;
+
+		setup(async () => {
+			tmpDir = await fs.mkdtemp(join(tmpdir(), 'session-db-test-' + generateUuid()));
+		});
+
+		teardown(async () => {
+			await Promise.all([db?.close(), db2?.close()]);
+			db = db2 = undefined;
+			await fs.rm(tmpDir, { recursive: true, force: true });
+		});
+
+		test('produces a copy with the same data', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('turn-1');
+			await db.setTurnEventId('turn-1', 'evt-1');
+			await db.setMetadata('key', 'value');
+
+			const targetPath = join(tmpDir, 'copy.db');
+			await db.vacuumInto(targetPath);
+
+			db2 = disposables.add(await SessionDatabase.open(targetPath));
+			assert.strictEqual(await db2.getTurnEventId('turn-1'), 'evt-1');
+			assert.strictEqual(await db2.getMetadata('key'), 'value');
 		});
 	});
 });

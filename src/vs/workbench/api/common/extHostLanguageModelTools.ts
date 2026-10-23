@@ -20,6 +20,7 @@ import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/ex
 import { Dto, SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
 import { ExtHostLanguageModelToolsShape, IMainContext, IToolDataDto, IToolDefinitionDto, MainContext, MainThreadLanguageModelToolsShape } from './extHost.protocol.js';
 import { ExtHostLanguageModels } from './extHostLanguageModels.js';
+import { LanguageModelError } from './extHostTypes.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import { URI } from '../../../base/common/uri.js';
 
@@ -49,6 +50,7 @@ class Tool {
 				name: this._data.id,
 				description: this._data.modelDescription,
 				inputSchema: this._data.inputSchema,
+				fullReferenceName: this._data.fullReferenceName,
 				tags: this._data.tags ?? [],
 				source: undefined
 			});
@@ -130,6 +132,8 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 				subAgentInvocationId: isProposedApiEnabled(extension, 'chatParticipantPrivate') ? options.subAgentInvocationId : undefined,
 				chatStreamToolCallId: isProposedApiEnabled(extension, 'chatParticipantAdditions') ? options.chatStreamToolCallId : undefined,
 				preToolUseResult: isProposedApiEnabled(extension, 'chatParticipantPrivate') ? options.preToolUseResult : undefined,
+				traceparent: isProposedApiEnabled(extension, 'chatParticipantPrivate') ? options.traceparent : undefined,
+				tracestate: isProposedApiEnabled(extension, 'chatParticipantPrivate') ? options.tracestate : undefined,
 			}, token);
 
 			const dto: Dto<IToolResult> = result instanceof SerializableObjectWithBuffers ? result.value : result;
@@ -190,11 +194,25 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			options.chatRequestId = dto.chatRequestId;
 			options.chatInteractionId = dto.chatInteractionId;
 			options.chatSessionResource = URI.revive(dto.context?.sessionResource);
+			options.workingDirectory = URI.revive(dto.context?.workingDirectory);
 			options.subAgentInvocationId = dto.subAgentInvocationId;
+			options.traceparent = dto.traceparent;
+			options.tracestate = dto.tracestate;
 		}
 
 		if (isProposedApiEnabled(item.extension, 'chatParticipantAdditions') && dto.modelId) {
-			options.model = await this.getModel(dto.modelId, item.extension);
+			try {
+				options.model = await this._languageModels.getLanguageModelForRequest(item.extension, dto.modelId);
+			} catch (error) {
+				if (!(error instanceof LanguageModelError) || error.code !== LanguageModelError.NotFound.name) {
+					throw error;
+				}
+				// Model-independent tools can run even when the selected model belongs to an external agent runtime.
+				Object.defineProperty(options, 'model', {
+					enumerable: true,
+					get: () => { throw error; },
+				});
+			}
 		}
 		if (isProposedApiEnabled(item.extension, 'chatParticipantAdditions') && dto.chatStreamToolCallId) {
 			options.chatStreamToolCallId = dto.chatStreamToolCallId;
@@ -233,21 +251,6 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		}
 
 		return typeConvert.LanguageModelToolResult.from(extensionResult, item.extension);
-	}
-
-	private async getModel(modelId: string, extension: IExtensionDescription): Promise<vscode.LanguageModelChat> {
-		let model: vscode.LanguageModelChat | undefined;
-		if (modelId) {
-			model = await this._languageModels.getLanguageModelByIdentifier(extension, modelId);
-		}
-		if (!model) {
-			model = await this._languageModels.getDefaultLanguageModel(extension);
-			if (!model) {
-				throw new Error('Language model unavailable');
-			}
-		}
-
-		return model;
 	}
 
 	async $handleToolStream(toolId: string, context: IToolInvocationStreamContext, token: CancellationToken): Promise<IStreamedToolInvocation | undefined> {
@@ -292,6 +295,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			chatRequestId: context.chatRequestId,
 			chatSessionResource: context.chatSessionResource,
 			chatInteractionId: context.chatInteractionId,
+			workingDirectory: URI.revive(context.workingDirectory),
 			forceConfirmationReason: context.forceConfirmationReason
 		};
 		if (context.forceConfirmationReason) {
@@ -311,8 +315,9 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 				checkProposedApiEnabled(item.extension, 'toolInvocationApproveCombination');
 			}
 
-			const approveCombinationLabel = result.confirmationMessages?.approveCombination
-				? typeConvert.MarkdownString.fromStrict(result.confirmationMessages.approveCombination)
+			const approveCombination = result.confirmationMessages?.approveCombination;
+			const approveCombinationLabel = approveCombination
+				? typeConvert.MarkdownString.fromStrict(approveCombination.message)
 				: undefined;
 			const approveCombinationKey = approveCombinationLabel
 				? await computeCombinationKey(toolId, context.parameters)
@@ -322,7 +327,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 				confirmationMessages: result.confirmationMessages ? {
 					title: typeof result.confirmationMessages.title === 'string' ? result.confirmationMessages.title : typeConvert.MarkdownString.from(result.confirmationMessages.title),
 					message: typeof result.confirmationMessages.message === 'string' ? result.confirmationMessages.message : typeConvert.MarkdownString.from(result.confirmationMessages.message),
-					approveCombination: approveCombinationLabel && approveCombinationKey ? { label: approveCombinationLabel, key: approveCombinationKey } : undefined,
+					approveCombination: approveCombinationLabel && approveCombinationKey ? { label: approveCombinationLabel, key: approveCombinationKey, arguments: approveCombination!.arguments } : undefined,
 				} : undefined,
 				invocationMessage: typeConvert.MarkdownString.fromStrict(result.invocationMessage),
 				pastTenseMessage: typeConvert.MarkdownString.fromStrict(result.pastTenseMessage),
@@ -364,6 +369,8 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			icon: typeConvert.IconPath.from(definition.icon),
 			models: definition.models,
 			toolSet: definition.toolSet,
+			tags: definition.tags,
+			fullReferenceName: undefined, // will be filled in on the main thread based on the extension ID and tool reference name
 		};
 
 		this._registeredTools.set(id, { extension, tool });

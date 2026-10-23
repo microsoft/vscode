@@ -4,10 +4,36 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable, IReference } from '../../../base/common/lifecycle.js';
+import { extUriBiasedIgnorePathCase, normalizePath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { Event } from '../../../base/common/event.js';
+import { getLargeFileConfirmationLimit } from '../../files/common/files.js';
+import type { FileEditKind, Message } from './state/sessionState.js';
 
 export const ISessionDataService = createDecorator<ISessionDataService>('sessionDataService');
+
+/** Filename of the per-session SQLite database. */
+export const SESSION_DB_FILENAME = 'session.db';
+
+export const MAX_TERMINAL_OUTPUT_BYTES = getLargeFileConfirmationLimit('agent-host');
+
+export const MAX_TOOL_RESULT_RESOURCE_BYTES = 8 * 1024 * 1024;
+
+/**
+ * Subdirectory under a session's data directory that holds snapshotted
+ * user-message attachments (e.g. pasted content, fetched file references).
+ * The agent host writes these on dispatch so large blobs stay out of the
+ * in-memory state tree, and reads of files under this directory are
+ * auto-approved by the agent's permission flow.
+ */
+export const SESSION_ATTACHMENTS_DIRNAME = 'attachments';
+
+export function isSessionAttachmentPath(sessionDataService: ISessionDataService, session: URI, filePath: string): boolean {
+	const attachmentsDir = normalizePath(URI.joinPath(sessionDataService.getSessionDataDir(session), SESSION_ATTACHMENTS_DIRNAME));
+	const fileUri = normalizePath(URI.file(filePath));
+	return extUriBiasedIgnorePathCase.isEqualOrParent(fileUri, attachmentsDir);
+}
 
 // ---- File-edit types ----------------------------------------------------
 
@@ -18,10 +44,14 @@ export const ISessionDataService = createDecorator<ISessionDataService>('session
 export interface IFileEditRecord {
 	/** The turn that owns this file edit. */
 	turnId: string;
-	/** The tool call that produced this edit. */
+	/** The tool call or cumulative provider turn snapshot that produced this edit. */
 	toolCallId: string;
-	/** Absolute file path that was edited. */
+	/** Primary file path (after-path for edits/creates/renames, before-path for deletes). */
 	filePath: string;
+	/** The kind of file operation. */
+	kind: FileEditKind;
+	/** For renames, the original file path before the move. */
+	originalPath?: string;
 	/** Number of lines added (informational, for diff metadata). */
 	addedLines: number | undefined;
 	/** Number of lines removed (informational, for diff metadata). */
@@ -31,15 +61,133 @@ export interface IFileEditRecord {
 /**
  * The before/after content blobs for a single file edit.
  * Retrieved on demand via {@link ISessionDatabase.readFileEditContent}.
+ *
+ * For creates, `beforeContent` is absent.
+ * For deletes, `afterContent` is absent.
  */
 export interface IFileEditContent {
-	/** File content before the edit (may be empty for newly created files). */
-	beforeContent: Uint8Array;
-	/** File content after the edit. */
-	afterContent: Uint8Array;
+	/** File content before the edit. Absent for file creations. */
+	beforeContent?: Uint8Array;
+	/** File content after the edit. Absent for file deletions. */
+	afterContent?: Uint8Array;
+}
+
+/** Metadata for an MCP tool result resource, without its embedded content. */
+export interface IToolResultResource {
+	ordinal: number;
+	kind: 'embedded' | 'link';
+	name: string;
+	mimeType?: string;
+	uri: string;
+	size?: number;
+}
+
+// ---- Reviewed-file types ------------------------------------------------
+
+/**
+ * A record of a file having been reviewed by the user at a specific content
+ * nonce. Returned by {@link ISessionDatabase.getReviewedFiles} and
+ * {@link ISessionDatabase.getReviewedFilesForUri}.
+ */
+export interface IReviewedFileRecord {
+	/** The reviewed file. */
+	uri: URI;
+	/** Content version/hash captured at review time. */
+	nonce: string;
 }
 
 // ---- Session database ---------------------------------------------------
+
+/** A host-persisted turn that is absent from the provider transcript. */
+export interface IPersistedTurnRecord {
+	/** Whether this is host-local or a provider turn that failed before persistence. */
+	kind: 'local' | 'failed';
+	/** The turn's id (matches the payload `Turn.id`). */
+	turnId: string;
+	/** The chat this turn belongs to (its channel URI string). */
+	chatUri: string;
+	/**
+	 * Id of the preceding concrete (SDK-backed) turn this local turn is
+	 * anchored after, or `undefined` when it precedes any real turn.
+	 */
+	anchorTurnId: string | undefined;
+	/** Monotonic ordering among host-persisted turns (used to restore them). */
+	seq?: number;
+	/** JSON-serialized protocol `Turn`. */
+	payload: string;
+}
+
+interface ISessionCatalogSyncIdentity {
+	readonly sessionGeneration: string;
+	readonly sourceRevision: number;
+	readonly projectionVersion: number;
+}
+
+/**
+ * Metadata key holding the recorded default chat (storage spelling) whose rows the
+ * database at a session's URI holds. Written once a newer build imported the session's
+ * state; host-persisted turns of other chats in that database are then ignored by its
+ * own-chat scans and deletions.
+ */
+export const SESSION_ROW_OWNER_CHAT_METADATA_KEY = 'agentHost.rowOwnerChat';
+
+/**
+ * Metadata key holding the JSON array of turn ids an older build recorded in the
+ * database at a session's URI on behalf of other chats. Those `turns` rows stay
+ * for older builds, but this build's turn scans and deletions ignore them.
+ */
+export const SESSION_FOREIGN_TURN_IDS_METADATA_KEY = 'agentHost.foreignTurnIds';
+
+/**
+ * Metadata key holding the JSON array of the repository roots (URI strings) in which the
+ * chat whose rows a database holds created turn checkpoint refs, appended at capture.
+ * Deleting the database deletes its rows' refs in exactly those repositories.
+ */
+export const SESSION_CHECKPOINT_REPOSITORIES_METADATA_KEY = 'agentHost.checkpointRepositories';
+
+/** A `turns` row that carries a checkpoint ref. */
+export interface ITurnCheckpointRecord {
+	readonly turnId: string;
+	readonly eventId: string | undefined;
+	readonly checkpointRef: string;
+	/** Whether the row is one of the {@link SESSION_FOREIGN_TURN_IDS_METADATA_KEY foreign rows}. */
+	readonly foreign: boolean;
+}
+
+/** Durable canonical catalog projection awaiting central acknowledgement. */
+export interface ISessionCatalogSyncPendingSnapshot extends ISessionCatalogSyncIdentity {
+	readonly payload: string;
+	readonly payloadHash: string;
+	readonly acknowledgedHash?: string;
+	readonly state: 'pending';
+}
+
+/** Compact receipt retained after the pending payload has been acknowledged. */
+export interface ISessionCatalogSyncAcknowledgedSnapshot extends ISessionCatalogSyncIdentity {
+	readonly payload: undefined;
+	readonly payloadHash: string;
+	readonly acknowledgedHash: string;
+	readonly state: 'acknowledged';
+}
+
+export type ISessionCatalogSyncSnapshot = ISessionCatalogSyncPendingSnapshot | ISessionCatalogSyncAcknowledgedSnapshot;
+
+/** Identity fields required to acknowledge exactly one catalog synchronization snapshot. */
+export interface ISessionCatalogSyncAcknowledgement {
+	readonly sessionGeneration: string;
+	readonly sourceRevision: number;
+	readonly projectionVersion: number;
+	readonly payloadHash: string;
+}
+
+/** Outcome of atomically storing metadata with a catalog synchronization snapshot. */
+export type SessionCatalogSyncWriteResult = 'applied' | 'replayed' | 'cancelled';
+
+/** Outcome of atomically transitioning catalog synchronization generations. */
+export type SessionCatalogSyncTransitionResult = 'applied' | 'generationMismatch' | 'cancelled';
+
+/** Synchronous lifetime check evaluated at catalog receipt write boundaries. */
+export type SessionCatalogSyncWriteValidator = () => boolean;
 
 /**
  * A disposable handle to a per-session SQLite database backed by
@@ -48,6 +196,12 @@ export interface IFileEditContent {
  * Callers obtain an instance via {@link ISessionDataService.openDatabase} and
  * **must** dispose it when finished to close the underlying database connection.
  */
+/** See {@link ISessionDatabase.getRowsWatermark}. */
+export interface ISessionRowsWatermark {
+	readonly maxTurnRowid: number;
+	readonly drafts: ReadonlyMap<string, Message>;
+}
+
 export interface ISessionDatabase extends IDisposable {
 	/**
 	 * Create a turn record. Must be called before storing file edits that
@@ -61,13 +215,198 @@ export interface ISessionDatabase extends IDisposable {
 	deleteTurn(turnId: string): Promise<void>;
 
 	/**
+	 * Associates a provider history ID with a host turn: a Copilot user-message
+	 * event ID or a Codex native turn ID. Used to resolve restored history and
+	 * provider truncation and fork boundaries.
+	 */
+	setTurnEventId(turnId: string, eventId: string): Promise<void>;
+
+	/**
+	 * Retrieves the SDK event ID previously stored for a turn.
+	 * Returns `undefined` if no event ID has been set.
+	 * Observes event ID writes submitted before this read.
+	 */
+	getTurnEventId(turnId: string): Promise<string | undefined>;
+
+	/**
+	 * Returns the SDK event ID of the turn inserted immediately after the
+	 * given turn, or `undefined` if the given turn is the last one.
+	 * Observes event ID writes submitted before this read.
+	 */
+	getNextTurnEventId(turnId: string): Promise<string | undefined>;
+
+	/**
+	 * Returns the SDK event ID of the earliest turn in insertion order,
+	 * or `undefined` if there are no turns.
+	 * Observes event ID writes submitted before this read.
+	 */
+	getFirstTurnEventId(): Promise<string | undefined>;
+
+	/**
+	 * Returns whether the session database contains any persisted conversation
+	 * turn, including host-injected local turns.
+	 */
+	hasConversationTurns(): Promise<boolean>;
+
+	/**
+	 * Persists the JSON-serialized {@link UsageInfo} reported for a turn.
+	 * Idempotent — last writer wins per turn.
+	 *
+	 * Providers do not durably record token/credit usage themselves (the
+	 * Copilot SDK's `assistant.usage` event is explicitly ephemeral), so the
+	 * host persists it here to keep the context-usage widget and the session
+	 * cost total accurate across a reload.
+	 */
+	setTurnUsage(turnId: string, usage: string): Promise<void>;
+
+	/**
+	 * Returns every persisted turn usage, keyed by both the turn's own id and
+	 * its SDK event id (when known) so restored turns — which are keyed by the
+	 * SDK envelope id — resolve as well as live ones.
+	 */
+	getTurnUsages(): Promise<Map<string, string>>;
+
+	/**
+	 * Persists the JSON-serialized delegation metadata for an agent-authored turn.
+	 * Idempotent — last writer wins per turn.
+	 */
+	setTurnDelegation(turnId: string, delegation: string): Promise<void>;
+
+	/**
+	 * Returns every persisted turn delegation, keyed by both the turn's own id
+	 * and its provider event id when one has been recorded.
+	 */
+	getTurnDelegations(): Promise<Map<string, string>>;
+
+	/**
+	 * Persists the JSON-serialized successful workspace transition for a turn.
+	 * Idempotent — last writer wins per turn.
+	 */
+	setTurnWorkspaceTransition(turnId: string, transition: string): Promise<void>;
+
+	/**
+	 * Atomically persists converted session metadata and the workspace
+	 * transition associated with its deferred continuation turn.
+	 */
+	setWorkspaceConversion(turnId: string, transition: string, metadata: Readonly<Record<string, string>>): Promise<void>;
+
+	/** Deletes a persisted workspace transition without deleting its owning turn. */
+	deleteTurnWorkspaceTransition(turnId: string): Promise<void>;
+
+	/**
+	 * Returns every persisted workspace transition, keyed by both the turn's
+	 * own id and its provider event id when one has been recorded.
+	 */
+	getTurnWorkspaceTransitions(): Promise<Map<string, string>>;
+
+	/**
+	 * Associates a git checkpoint ref (e.g. `refs/agents/<sid>/checkpoints/turn/N`)
+	 * with a turn. Idempotent — last writer wins per turn.
+	 */
+	setTurnCheckpointRef(turnId: string, ref: string): Promise<void>;
+
+	/**
+	 * Retrieves the checkpoint ref previously stored for a turn, or
+	 * `undefined` if none. Foreign rows ({@link setForeignRows}) are ignored.
+	 */
+	getTurnCheckpointRef(turnId: string): Promise<string | undefined>;
+
+	/**
+	 * Returns the checkpoint ref of the most recent turn (in insertion
+	 * order) prior to `turnId` that has a non-null `checkpoint_ref`.
+	 * Used to resolve the parent checkpoint for end-of-turn diffs without
+	 * persisting an explicit parent column.
+	 */
+	getPreviousCheckpointRef(turnId: string): Promise<string | undefined>;
+
+	/**
+	 * Returns every non-null `checkpoint_ref` recorded against any turn in
+	 * this session. Used by checkpoint cleanup to enumerate refs precisely
+	 * (rather than scanning `for-each-ref` on the underlying repo).
+	 */
+	getAllCheckpointRefs(): Promise<string[]>;
+
+	/**
+	 * Returns every turn with a checkpoint ref in insertion order, including
+	 * foreign rows, flagged as such.
+	 */
+	getTurnsWithCheckpointRefs(): Promise<ITurnCheckpointRecord[]>;
+
+	/** Returns the largest `turns` rowid, or `0` when there are no turns. */
+	getMaxTurnRowid(): Promise<number>;
+
+	/**
+	 * Returns, in one read, the largest `turns` rowid (`0` when there are no turns) and every chat draft by chat
+	 * URI: what tells whether another build changed the rows mirrored here.
+	 */
+	getRowsWatermark(): Promise<ISessionRowsWatermark>;
+
+	/**
+	 * Records the chat whose rows this database holds and the complete list of
+	 * turn ids kept for older builds on behalf of other chats. From then on
+	 * every turn scan and deletion of this database (event-id lookups,
+	 * conversation checks, checkpoint lookups, truncation, fork remap) ignores
+	 * those turns, and host-persisted turns of other chats. Both are kept.
+	 * {@link getAllCheckpointRefs} still returns their refs.
+	 */
+	setForeignRows(ownerChat: string, turnIds: readonly string[]): Promise<void>;
+
+	/**
+	 * Deletes the given turn and all turns inserted after it, along
+	 * with their associated file edits (cascade).
+	 */
+	truncateFromTurn(turnId: string): Promise<void>;
+
+	/**
+	 * Deletes all turns inserted after the given turn (but keeps the
+	 * given turn itself). Associated file edits cascade-delete.
+	 */
+	deleteTurnsAfter(turnId: string): Promise<void>;
+
+	/**
+	 * Deletes all turns and their associated file edits.
+	 */
+	deleteAllTurns(): Promise<void>;
+
+	/** Deletes provider turns and later host segments of a retained native turn, preserving host-persisted and foreign turns. */
+	deleteProviderTurns(providerTurnIds: readonly string[], afterHostTurnId?: string): Promise<void>;
+
+	// ---- Host-persisted turns --------------------------------------------
+
+	/**
+	 * Persist a host turn missing from the provider transcript.
+	 * Replaces any existing record with the same `turnId`.
+	 */
+	insertPersistedTurn(record: IPersistedTurnRecord): Promise<void>;
+
+	/**
+	 * Retrieve all host-persisted turns in this session, in `seq` order.
+	 * Callers filter by {@link IPersistedTurnRecord.chatUri} and `kind`.
+	 */
+	getPersistedTurns(): Promise<Array<IPersistedTurnRecord & { seq: number }>>;
+
+	/** Retrieve the host-persisted turns of one chat, in `seq` order. */
+	getPersistedTurnsForChat(chatUri: string): Promise<Array<IPersistedTurnRecord & { seq: number }>>;
+
+	/**
+	 * Delete host-persisted turns with the given ids. Ids not present are ignored.
+	 */
+	deletePersistedTurns(turnIds: readonly string[]): Promise<void>;
+
+	/**
 	 * Store a file-edit snapshot (metadata + content) for a tool invocation
-	 * within a turn.
+	 * or cumulative provider turn snapshot.
 	 *
 	 * If a record for the same `toolCallId` and `filePath` already exists
 	 * it is replaced.
 	 */
 	storeFileEdit(edit: IFileEditRecord & IFileEditContent): Promise<void>;
+
+	/**
+	 * Stores a single file's snapshots atomically and in order, rolling back if `beforeCommit` throws.
+	 * The callback runs after insertion; use its supplied content reader because the public reader waits for queued writes.
+	 */
+	storeFileEdits(edits: readonly (IFileEditRecord & IFileEditContent)[], beforeCommit?: (readContent: ISessionDatabase['readFileEditContent']) => Promise<void> | void): Promise<void>;
 
 	/**
 	 * Retrieve file-edit metadata for the given tool call IDs.
@@ -77,10 +416,181 @@ export interface ISessionDatabase extends IDisposable {
 	getFileEdits(toolCallIds: string[]): Promise<IFileEditRecord[]>;
 
 	/**
+	 * Retrieve file-edit metadata for all edits in this session.
+	 * Content blobs are **not** included — use {@link readFileEditContent}
+	 * to fetch them on demand. Results are returned in insertion order.
+	 */
+	getAllFileEdits(): Promise<IFileEditRecord[]>;
+
+	/**
+	 * Retrieve file-edit metadata for all edits belonging to a specific turn.
+	 * Content blobs are **not** included — use {@link readFileEditContent}
+	 * to fetch them on demand. Results are returned in insertion order.
+	 */
+	getFileEditsByTurn(turnId: string): Promise<IFileEditRecord[]>;
+
+	/**
 	 * Read the before/after content blobs for a single file edit.
 	 * Returns `undefined` if no edit exists for the given key.
 	 */
 	readFileEditContent(toolCallId: string, filePath: string): Promise<IFileEditContent | undefined>;
+
+	/**
+	 * Store terminal output for a tool invocation within an existing turn.
+	 * Replaces any output already stored for the same tool call.
+	 */
+	storeTerminalOutput(turnId: string, toolCallId: string, content: Uint8Array): Promise<void>;
+
+	/**
+	 * Delete terminal output for a tool invocation.
+	 */
+	deleteTerminalOutput(toolCallId: string): Promise<void>;
+
+	/**
+	 * Return the stored terminal output size in bytes without loading its content.
+	 */
+	getTerminalOutputSize(toolCallId: string): Promise<number | undefined>;
+
+	/**
+	 * Read terminal output for a tool invocation.
+	 * Returns `undefined` if no output exists for the given tool call.
+	 */
+	readTerminalOutput(toolCallId: string): Promise<Uint8Array | undefined>;
+
+	/** Atomically replaces the resources for a tool invocation within an existing turn. */
+	storeToolResultResources(turnId: string, toolCallId: string, rows: readonly (IToolResultResource & { content?: Uint8Array })[]): Promise<void>;
+
+	/** Retrieves resource metadata by tool call, ordered by ordinal, without loading content. */
+	getToolResultResources(toolCallIds: string[]): Promise<Map<string, IToolResultResource[]>>;
+
+	/** Reads one embedded resource's bytes and stored MIME type on demand. */
+	readToolResultResourceContent(toolCallId: string, ordinal: number): Promise<{ content: Uint8Array; mimeType?: string } | undefined>;
+
+	// ---- Session metadata ------------------------------------------------
+
+	/**
+	 * Read a metadata value by key.
+	 * Returns `undefined` if no value has been stored for the key.
+	 */
+	getMetadata(key: string): Promise<string | undefined>;
+
+	/**
+	 * Gets a bulk of metadata. For example `getMetadataObject({ foo: true }) ->  { foo: 'data' }`
+	 */
+	getMetadataObject<T extends Record<string, unknown>>(obj: T): Promise<{ [K in keyof T]: string | undefined }>;
+
+	/** Gets every metadata value whose key starts with `prefix`. */
+	getMetadataByPrefix(prefix: string): Promise<Record<string, string>>;
+
+	/** Sets `set` and deletes `remove` in one transaction. */
+	applyMetadataChanges(set: Readonly<Record<string, string>>, remove: readonly string[]): Promise<void>;
+
+	/**
+	 * Store a metadata key-value pair. Overwrites any existing value for the key.
+	 */
+	setMetadata(key: string, value: string): Promise<void>;
+
+	/** Atomically replaces a metadata value using its latest stored value. */
+	updateMetadata(key: string, update: (value: string | undefined) => string): Promise<void>;
+
+	/**
+	 * Atomically store multiple metadata key-value pairs.
+	 */
+	setMetadataValues(values: Readonly<Record<string, string>>): Promise<void>;
+
+	/**
+	 * Atomically delete metadata keys.
+	 */
+	deleteMetadata(keys: readonly string[]): Promise<void>;
+
+	/**
+	 * Atomically stores metadata values only when `key` is absent. Values named
+	 * by `copies` are read from their source keys and copied when present.
+	 */
+	setMetadataValuesIfAbsent(key: string, values: Readonly<Record<string, string>>, copies?: Readonly<Record<string, string>>): Promise<boolean>;
+
+	/**
+	 * Atomically stores metadata and advances the durable catalog relay snapshot.
+	 */
+	setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot, validate?: SessionCatalogSyncWriteValidator): Promise<SessionCatalogSyncWriteResult>;
+
+	/**
+	 * Atomically transitions to a new session generation when the stored generation matches.
+	 */
+	transitionMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, expectedSessionGeneration: string, snapshot: ISessionCatalogSyncPendingSnapshot, validate?: SessionCatalogSyncWriteValidator): Promise<SessionCatalogSyncTransitionResult>;
+
+	/**
+	 * Returns the durable catalog relay snapshot, if one has been stored.
+	 */
+	getCatalogSyncSnapshot(): Promise<ISessionCatalogSyncSnapshot | undefined>;
+
+	/**
+	 * Acknowledges the snapshot only when every supplied identity field still matches.
+	 */
+	acknowledgeCatalogSyncSnapshot(acknowledgement: ISessionCatalogSyncAcknowledgement): Promise<boolean>;
+
+	/**
+	 * Store or clear the draft for a chat in this session.
+	 */
+	setChatDraft(chat: URI, draft: Message | undefined): Promise<void>;
+
+	/**
+	 * Read the stored draft for a chat in this session.
+	 */
+	getChatDraft(chat: URI): Promise<Message | undefined>;
+
+	/**
+	 * Bulk-remaps turn IDs using the provided old→new mapping.
+	 * Used after copying a database file for a forked session. The copy is
+	 * another chat's database, so the source's foreign rows, other chats'
+	 * host-persisted turns and the row owner are dropped from it.
+	 * When provided, `eventIds` replaces the SDK event ID for each remapped
+	 * turn, keyed by the new turn ID.
+	 */
+	remapTurnIds(mapping: ReadonlyMap<string, string>, eventIds?: ReadonlyMap<string, string>): Promise<void>;
+
+	// ---- Reviewed files --------------------------------------------------
+
+	/**
+	 * Mark a file (identified by URI + content nonce) as reviewed by the user.
+	 * Idempotent — re-marking the same `(uri, nonce)` pair is a no-op.
+	 */
+	markFileReviewed(uri: URI, nonce: string): Promise<void>;
+
+	/**
+	 * Remove the reviewed-file entry for the given URI + content nonce.
+	 * No-op if no such entry exists.
+	 */
+	unmarkFileReviewed(uri: URI, nonce: string): Promise<void>;
+
+	/**
+	 * Return every reviewed-file entry in this session, in insertion order.
+	 */
+	getReviewedFiles(): Promise<IReviewedFileRecord[]>;
+
+	/**
+	 * Return all reviewed-file entries for a specific URI (one per reviewed
+	 * content nonce), in insertion order.
+	 */
+	getReviewedFilesForUri(uri: URI): Promise<IReviewedFileRecord[]>;
+
+	/**
+	 * Return whether the given file has been reviewed at the given content nonce.
+	 */
+	isFileReviewed(uri: URI, nonce: string): Promise<boolean>;
+
+	/**
+	 * Creates a safe, consistent copy of the database at the given path
+	 * using SQLite's `VACUUM INTO` command.
+	 */
+	vacuumInto(targetPath: string): Promise<void>;
+
+	/**
+	 * Resolves once all in-flight write operations on this database have
+	 * settled. Used by graceful shutdown to flush fire-and-forget writes
+	 * before the process exits.
+	 */
+	whenIdle(): Promise<void>;
 
 	/**
 	 * Close the database connection. After calling this method, the object is
@@ -114,6 +624,7 @@ export interface ISessionDataService {
 	 * Equivalent to {@link getSessionDataDir} but without requiring a full URI.
 	 */
 	getSessionDataDirById(sessionId: string): URI;
+	listSessionDataIds?(prefix: string): Promise<readonly string[]>;
 
 	/**
 	 * Opens (or creates) a per-session SQLite database. The database file is
@@ -127,13 +638,119 @@ export interface ISessionDataService {
 	openDatabase(session: URI): IReference<ISessionDatabase>;
 
 	/**
-	 * Recursively deletes the data directory for a session, if it exists.
+	 * Opens an existing per-session database **only if the database file
+	 * already exists on disk**. Returns `undefined` when no database has
+	 * been created yet, avoiding the side effect of materializing empty
+	 * database files during read-only operations like listing sessions.
+	 * Errors other than file-not-found are propagated.
 	 */
-	deleteSessionData(session: URI): Promise<void>;
+	tryOpenDatabase(session: URI): Promise<IReference<ISessionDatabase> | undefined>;
+
+	/**
+	 * Recursively deletes the data directory for a session, if it exists.
+	 *
+	 * `workingDirectories` is forwarded verbatim to
+	 * {@link IWillDeleteSessionDataEvent.workingDirectories}. Callers that
+	 * tear down live session state as part of disposal must resolve it
+	 * *before* doing so, otherwise subscribers cannot locate the
+	 * repositories they need to clean up.
+	 */
+	deleteSessionData(session: URI, workingDirectories?: readonly string[]): Promise<void>;
+
+	/**
+	 * Like {@link deleteSessionData}, but keeps the children of the session's
+	 * data directory named in `keep`: a deleted session keeps the attachments
+	 * that chats moved out of it still read. A later {@link deleteSessionData}
+	 * removes the rest.
+	 */
+	deleteSessionDataExcept(session: URI, keep: readonly string[], workingDirectories?: readonly string[]): Promise<void>;
+
+	/**
+	 * Fires immediately before a session's data directory (and the
+	 * SQLite database within it) is deleted by {@link deleteSessionData}.
+	 *
+	 * Subscribers can register asynchronous cleanup work via
+	 * {@link IWillDeleteSessionDataEvent.waitUntil}; the deletion is
+	 * blocked until all registered promises settle. Used by
+	 * `IAgentHostCheckpointService.deleteCheckpoints` to read the exact
+	 * list of checkpoint refs from the (still-readable) database and
+	 * delete them before the directory is removed.
+	 *
+	 * The repositories to clean up are identified by
+	 * {@link IWillDeleteSessionDataEvent.workingDirectories}, which the
+	 * caller resolves before tearing down live session state.
+	 *
+	 * Subscribers must own their own error handling — exceptions
+	 * propagated out of `waitUntil` promises are logged and ignored;
+	 * deletion proceeds regardless.
+	 */
+	readonly onWillDeleteSessionData: Event<IWillDeleteSessionDataEvent>;
 
 	/**
 	 * Deletes data directories that do not correspond to any known session.
 	 * Called at startup; safe to call multiple times.
 	 */
 	cleanupOrphanedData(knownSessionIds: Set<string>): Promise<void>;
+
+	/**
+	 * Resolves once all in-flight write operations across every currently
+	 * open per-session database have settled. Intended for graceful
+	 * shutdown — fire-and-forget writes (e.g. metadata persistence) would
+	 * otherwise be lost when the process exits.
+	 */
+	whenIdle(): Promise<void>;
+
+	/**
+	 * Cumulative per-session storage access counts for this host process, when
+	 * the implementation tracks them.
+	 *
+	 * Opening a session database is the dominant cost of any listing that
+	 * cannot be served from the catalog, and it is the one figure that
+	 * compares across machines — wall-clock timings do not, because per-file
+	 * costs differ by an order of magnitude between platforms (virus
+	 * scanning, filesystem). Diagnostics log these counts so a single log
+	 * export explains a slow session list without needing a custom build.
+	 *
+	 * Optional because it is diagnostics only: an implementation that does not
+	 * own real files (test doubles, in-memory fakes) has nothing to report.
+	 */
+	readonly storageAccessCounts?: ISessionStorageAccessCounts;
+}
+
+/**
+ * Cumulative counts of per-session storage accesses. See
+ * {@link ISessionDataService.storageAccessCounts}.
+ */
+export interface ISessionStorageAccessCounts {
+	/** Databases actually opened (cache misses), not reference acquisitions. */
+	readonly opens: number;
+	/** Existence probes performed by `tryOpenDatabase`. */
+	readonly stats: number;
+}
+
+/**
+ * Payload of {@link ISessionDataService.onWillDeleteSessionData}.
+ */
+export interface IWillDeleteSessionDataEvent {
+	readonly session: URI;
+	/**
+	 * The session's working directories (index 0 = primary), as resolved
+	 * by the caller of {@link ISessionDataService.deleteSessionData}
+	 * *before* any live session state was torn down.
+	 *
+	 * Subscribers that need to touch the session's repositories (deleting
+	 * checkpoint or reviewed refs) must use this rather than querying
+	 * session state themselves: by the time this event fires the session
+	 * has typically already been removed from the state manager, so a
+	 * live lookup returns `undefined` and the cleanup silently no-ops.
+	 *
+	 * `undefined` when the session had no working directories, or when
+	 * the caller did not supply them.
+	 */
+	readonly workingDirectories: readonly string[] | undefined;
+	/**
+	 * Register an asynchronous task that must settle before the session's
+	 * data directory is removed.
+	 */
+	waitUntil(promise: Promise<unknown>): void;
 }

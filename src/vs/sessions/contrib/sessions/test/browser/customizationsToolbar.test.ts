@@ -1,0 +1,378 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
+import { Action, IAction } from '../../../../../base/common/actions.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { isWeb } from '../../../../../base/common/platform.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IAICustomizationItemsModel } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
+import { CustomizationMigrationCategoryId } from '../../../../../workbench/contrib/chat/browser/aiCustomization/customizationMigrationCategories.js';
+import { getCustomizationMigrationGroupIgnoreKey, storeIgnoredCustomizationMigrationGroupKeys } from '../../../../../workbench/contrib/chat/browser/aiCustomization/customizationMigrationIgnoredGroups.js';
+import { IAgentHostToolSetEnablementService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
+import { AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
+import { CustomizationMigrationType, ICustomizationMigrationHint, ICustomizationMigrationIgnoredGroup, ICustomizationMigrationService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
+import { PromptsStorage } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
+import { ILanguageModelToolsService, IToolData, IToolSet } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IAICustomizationMcpServerCountService } from '../../browser/customizationMcpServerCount.js';
+import { CUSTOMIZATION_ITEMS, CustomizationLinkViewItem, readCustomizationCount } from '../../browser/customizationsToolbar.contribution.js';
+import { CustomizationsNavigationState } from '../../browser/customizationsNavigationState.js';
+import { IAgentsWindowExtensionSuggestionsService } from '../../../extensions/browser/agentsWindowExtensionSuggestions.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
+
+function createExtensionSuggestionsService(showBadge: IObservable<boolean>): IAgentsWindowExtensionSuggestionsService {
+	return new class extends mock<IAgentsWindowExtensionSuggestionsService>() {
+		override readonly showBadge = showBadge;
+	};
+}
+
+suite('Customizations toolbar', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('does not include standalone Remotes management in Customizations', () => {
+		assert.ok(CUSTOMIZATION_ITEMS.every(item => item.id !== 'sessions.customization.remotes'));
+	});
+
+	test('includes enabled Tools in customization totals', () => {
+		const toolSets = [
+			upcastPartial<IToolSet>({
+				id: 'builtin',
+				getTools: () => [
+					upcastPartial<IToolData>({ id: 'one' }),
+					upcastPartial<IToolData>({ id: 'two' }),
+				],
+			}),
+			upcastPartial<IToolSet>({
+				id: 'deprecated',
+				deprecated: true,
+				getTools: () => [upcastPartial<IToolData>({ id: 'ignored' })],
+			}),
+		];
+		const toolsService = new class extends mock<ILanguageModelToolsService>() {
+			override readonly toolSets = constObservable(toolSets);
+		};
+		const enablementService = new class extends mock<IAgentHostToolSetEnablementService>() {
+			override observe() {
+				return constObservable({
+					toolSets: new Map([['builtin', false]]),
+					tools: new Map([['one', true]]),
+				});
+			}
+		};
+
+		const count = derived(reader => readCustomizationCount(
+			{ id: 'tools', label: 'Tools', icon: Codicon.tools, isTools: true },
+			reader,
+			new class extends mock<IAICustomizationItemsModel>() { },
+			new class extends mock<IAICustomizationMcpServerCountService>() { },
+			toolsService,
+			enablementService,
+		)).get();
+
+		assert.strictEqual(count, 1);
+	});
+
+	test('gates Canvases on desktop and the shared enablement setting', () => {
+		const canvases = CUSTOMIZATION_ITEMS.find(item => item.section === AICustomizationManagementSection.Canvases);
+		const evaluate = (enabled: boolean) => canvases?.when?.evaluate({
+			getValue: <T>(key: string) => ({ 'config.chat.canvases.enabled': enabled }[key] as T | undefined),
+		}) ?? true;
+
+		assert.deepStrictEqual({
+			enabled: evaluate(true),
+			disabled: evaluate(false),
+		}, {
+			enabled: !isWeb,
+			disabled: false,
+		});
+	});
+
+	test('keeps Canvases separate from the VS Code Extensions section', () => {
+		const sections = CUSTOMIZATION_ITEMS
+			.filter(item => item.section === AICustomizationManagementSection.Extensions || item.section === AICustomizationManagementSection.Canvases)
+			.map(item => ({ id: item.id, label: item.label, section: item.section }));
+
+		assert.deepStrictEqual(sections, [{
+			id: 'sessions.customization.canvases',
+			label: 'Canvases',
+			section: AICustomizationManagementSection.Canvases,
+		}, {
+			id: 'sessions.customization.extensions',
+			label: 'Extensions',
+			section: AICustomizationManagementSection.Extensions,
+		}]);
+	});
+
+	test('tracks the active customization total and migration availability', async () => {
+		const enabled = observableValue(disposables, true);
+		const activeSession = observableValue<IActiveSession | undefined>(disposables, upcastPartial<IActiveSession>({
+			resource: URI.parse('agent-host-test:/session'),
+			workspace: constObservable(undefined),
+		}));
+		const itemsModel = new class extends mock<IAICustomizationItemsModel>() {
+			override getCount() { return constObservable(1); }
+			override getPluginCount() { return constObservable(2); }
+		};
+		const mcpServerCountService = new class extends mock<IAICustomizationMcpServerCountService>() {
+			override readonly count = constObservable(3);
+		};
+		const toolsService = new class extends mock<ILanguageModelToolsService>() {
+			override readonly toolSets = constObservable<readonly IToolSet[]>([]);
+		};
+		const toolEnablementService = new class extends mock<IAgentHostToolSetEnablementService>() {
+			override observe() {
+				return constObservable({ toolSets: new Map(), tools: new Map() });
+			}
+		};
+		const harnessDescriptor = upcastPartial<IHarnessDescriptor>({ id: 'agent-host-test', label: 'Test', icon: Codicon.extensions });
+		const harnessService = new class extends mock<ICustomizationHarnessService>() {
+			override readonly activeHarness = constObservable('agent-host-test');
+			override readonly availableHarnesses = constObservable([harnessDescriptor]);
+			override getActiveDescriptor() { return harnessDescriptor; }
+		};
+		const customizationsChanged = disposables.add(new Emitter<void>());
+		const refreshedHint = new DeferredPromise<ICustomizationMigrationHint | undefined>();
+		const removedHint = new DeferredPromise<ICustomizationMigrationHint | undefined>();
+		const migrationHint: ICustomizationMigrationHint = { migrationFlowId: 'flow', message: 'Migrations available', counts: [] };
+		const ignoredGroupsSeen: ICustomizationMigrationIgnoredGroup[][] = [];
+		const migrationResponses = [migrationHint, refreshedHint.p, removedHint.p];
+		const migrationService = new class extends mock<ICustomizationMigrationService>() {
+			override readonly onDidChangeCustomizations = customizationsChanged.event;
+			override computeMigrationHint(_resource: URI, _token?: CancellationToken, ignoredGroups: readonly ICustomizationMigrationIgnoredGroup[] = []): Promise<ICustomizationMigrationHint | undefined> {
+				ignoredGroupsSeen.push([...ignoredGroups]);
+				return Promise.resolve(migrationResponses.shift() ?? (ignoredGroups.length > 0 ? undefined : migrationHint));
+			}
+		};
+		const activeProjectRoot = constObservable(URI.file('/worktrees/one'));
+		const storageService = disposables.add(new InMemoryStorageService());
+		const showExtensionSuggestionsBadge = observableValue(disposables, true);
+		const state = disposables.add(new CustomizationsNavigationState(
+			enabled,
+			new class extends mock<ISessionsService>() {
+				override readonly activeSession = activeSession;
+			},
+			itemsModel,
+			mcpServerCountService,
+			toolsService,
+			toolEnablementService,
+			harnessService,
+			migrationService,
+			new class extends mock<IConfigurationService>() {
+				override readonly onDidChangeConfiguration = Event.None;
+			},
+			new class extends mock<IAICustomizationWorkspaceService>() {
+				override readonly activeProjectRoot = activeProjectRoot;
+			},
+			storageService,
+			new class extends mock<ILogService>() { },
+			createExtensionSuggestionsService(showExtensionSuggestionsBadge),
+		));
+		await Promise.resolve();
+
+		const enabledState = {
+			totalCount: state.totalCount.get(),
+			migrationAvailable: state.migrationAvailable.get(),
+			extensionSuggestionsAvailable: state.extensionSuggestionsAvailable.get(),
+		};
+		showExtensionSuggestionsBadge.set(false, undefined);
+		const seenSuggestionsState = state.extensionSuggestionsAvailable.get();
+		showExtensionSuggestionsBadge.set(true, undefined);
+		customizationsChanged.fire();
+		const refreshingState = state.migrationAvailable.get();
+		void refreshedHint.complete(migrationHint);
+		await refreshedHint.p;
+		await Promise.resolve();
+		const refreshedState = state.migrationAvailable.get();
+		customizationsChanged.fire();
+		const removingState = state.migrationAvailable.get();
+		void removedHint.complete(undefined);
+		await removedHint.p;
+		await Promise.resolve();
+		const removedState = state.migrationAvailable.get();
+		storeIgnoredCustomizationMigrationGroupKeys(storageService, new Set([
+			getCustomizationMigrationGroupIgnoreKey(
+				'agent-host-test',
+				CustomizationMigrationCategoryId.PromptFiles,
+				PromptsStorage.local,
+				activeProjectRoot.get(),
+			),
+		]));
+		await Promise.resolve();
+		const ignoredState = state.migrationAvailable.get();
+		storeIgnoredCustomizationMigrationGroupKeys(storageService, new Set());
+		await Promise.resolve();
+		const restoredState = state.migrationAvailable.get();
+		enabled.set(false, undefined);
+
+		assert.deepStrictEqual({
+			enabledState,
+			seenSuggestionsState,
+			refreshingState,
+			refreshedState,
+			removingState,
+			removedState,
+			ignoredState,
+			restoredState,
+			ignoredGroupsSeen,
+			disabledState: {
+				totalCount: state.totalCount.get(),
+				migrationAvailable: state.migrationAvailable.get(),
+				extensionSuggestionsAvailable: state.extensionSuggestionsAvailable.get(),
+			},
+		}, {
+			enabledState: {
+				totalCount: 9,
+				migrationAvailable: true,
+				extensionSuggestionsAvailable: true,
+			},
+			seenSuggestionsState: false,
+			refreshingState: true,
+			refreshedState: true,
+			removingState: true,
+			removedState: false,
+			ignoredState: false,
+			restoredState: true,
+			ignoredGroupsSeen: [
+				[],
+				[],
+				[],
+				[{ type: CustomizationMigrationType.PromptFiles, storage: PromptsStorage.local }],
+				[],
+			],
+			disabledState: {
+				totalCount: 0,
+				migrationAvailable: false,
+				extensionSuggestionsAvailable: false,
+			},
+		});
+	});
+
+	test('renders one focus target and runs its action once', async () => {
+		let runCount = 0;
+		const action = disposables.add(new Action('test.customization', 'Customization', undefined, true, () => {
+			runCount++;
+		}));
+		const item = disposables.add(new CustomizationLinkViewItem(
+			action,
+			{},
+			{ id: 'test.customization', label: 'Customization', icon: Codicon.settingsGear },
+			new class extends mock<IAICustomizationItemsModel>() { },
+			new class extends mock<IAICustomizationMcpServerCountService>() { },
+			new class extends mock<ILanguageModelToolsService>() { },
+			new class extends mock<IAgentHostToolSetEnablementService>() { },
+			createExtensionSuggestionsService(constObservable(false)),
+			NullHoverService,
+		));
+		const container = mainWindow.document.createElement('div');
+		item.render(container);
+		const button = container.querySelector<HTMLElement>('.customization-link-button');
+		button?.click();
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			buttonCount: container.querySelectorAll('.customization-link-button').length,
+			focusableCount: container.querySelectorAll('a, button').length,
+			runCount,
+		}, {
+			buttonCount: 1,
+			focusableCount: 1,
+			runCount: 1,
+		});
+	});
+
+	test('badges links that show extension suggestions while suggestions are unseen', () => {
+		const showBadge = observableValue(disposables, true);
+		const hovers = new Set<{ readonly content: unknown }>();
+		const hoverService = new class extends mock<IHoverService>() {
+			override setupDelayedHover(_target: HTMLElement, options: Parameters<IHoverService['setupDelayedHover']>[1]) {
+				const hover = { content: (typeof options === 'function' ? options() : options).content };
+				hovers.add(hover);
+				return toDisposable(() => hovers.delete(hover));
+			}
+		};
+		const item = disposables.add(new CustomizationLinkViewItem(
+			disposables.add(new Action('test.extensions', 'Extensions')),
+			{},
+			{ id: 'test.extensions', label: 'Extensions', icon: Codicon.extensions, showsExtensionSuggestions: true },
+			new class extends mock<IAICustomizationItemsModel>() { },
+			new class extends mock<IAICustomizationMcpServerCountService>() { },
+			new class extends mock<ILanguageModelToolsService>() { },
+			new class extends mock<IAgentHostToolSetEnablementService>() { },
+			createExtensionSuggestionsService(showBadge),
+			hoverService,
+		));
+		const container = mainWindow.document.createElement('div');
+		item.render(container);
+		const badge = container.querySelector<HTMLElement>('.customization-link-button .ai-customization-suggestion-badge');
+		const readState = () => ({
+			visible: badge?.classList.contains('hidden') === false,
+			hovers: [...hovers].map(hover => hover.content),
+		});
+		const unseenState = readState();
+		showBadge.set(false, undefined);
+
+		assert.deepStrictEqual({
+			role: badge?.getAttribute('role'),
+			ariaLabel: badge?.getAttribute('aria-label'),
+			unseenState,
+			seenState: readState(),
+		}, {
+			role: 'img',
+			ariaLabel: 'Some installed extensions can be enabled in the Agents window.',
+			unseenState: { visible: true, hovers: ['Some installed extensions can be enabled in the Agents window.'] },
+			seenState: { visible: false, hovers: [] },
+		});
+	});
+
+	test('forwards ActionBar roving focus to the nested button', () => {
+		const container = mainWindow.document.createElement('div');
+		const createViewItem = (action: IAction) => new CustomizationLinkViewItem(
+			action,
+			{},
+			{ id: action.id, label: action.label, icon: Codicon.settingsGear },
+			new class extends mock<IAICustomizationItemsModel>() { },
+			new class extends mock<IAICustomizationMcpServerCountService>() { },
+			new class extends mock<ILanguageModelToolsService>() { },
+			new class extends mock<IAgentHostToolSetEnablementService>() { },
+			createExtensionSuggestionsService(constObservable(false)),
+			NullHoverService,
+		);
+		const actionBar = disposables.add(new ActionBar(container, {
+			actionViewItemProvider: action => createViewItem(action),
+		}));
+		const actions = [
+			disposables.add(new Action('test.one', 'One')),
+			disposables.add(new Action('test.two', 'Two')),
+		];
+
+		actionBar.push(actions);
+
+		assert.deepStrictEqual({
+			itemTabIndexes: Array.from(container.querySelectorAll<HTMLElement>('li'), element => element.tabIndex),
+			buttonTabIndexes: Array.from(container.querySelectorAll<HTMLElement>('.customization-link-button'), element => element.tabIndex),
+			focusableElements: Array.from(container.querySelectorAll<HTMLElement>('li, a, button')).filter(element => element.tabIndex === 0).length,
+		}, {
+			itemTabIndexes: [-1, -1],
+			buttonTabIndexes: [0, -1],
+			focusableElements: 1,
+		});
+	});
+});

@@ -10,11 +10,13 @@ import { terminalAutoRepliesConfiguration } from '../terminalContrib/autoReplies
 import { TerminalChatCommandId, TerminalChatContextKeyStrings } from '../terminalContrib/chat/browser/terminalChat.js';
 import { terminalInitialHintConfiguration } from '../terminalContrib/inlineHint/common/terminalInitialHintConfiguration.js';
 import { terminalChatAgentToolsConfiguration, TerminalChatAgentToolsSettingId } from '../terminalContrib/chatAgentTools/common/terminalChatAgentToolsConfiguration.js';
+import { AgentSandboxSettingId } from '../../../platform/sandbox/common/settings.js';
 import { terminalCommandGuideConfiguration } from '../terminalContrib/commandGuide/common/terminalCommandGuideConfiguration.js';
 import { TerminalDeveloperCommandId } from '../terminalContrib/developer/common/terminal.developer.js';
 import { defaultTerminalFindCommandToSkipShell } from '../terminalContrib/find/common/terminal.find.js';
 import { defaultTerminalHistoryCommandsToSkipShell, terminalHistoryConfiguration } from '../terminalContrib/history/common/terminal.history.js';
 import { terminalOscNotificationsConfiguration } from '../terminalContrib/notification/common/terminalNotificationConfiguration.js';
+import { terminalResizeDimensionsOverlayConfiguration } from '../terminalContrib/resizeDimensionsOverlay/common/terminalResizeDimensionsOverlayConfiguration.js';
 import { TerminalStickyScrollSettingId, terminalStickyScrollConfiguration } from '../terminalContrib/stickyScroll/common/terminalStickyScrollConfiguration.js';
 import { defaultTerminalSuggestCommandsToSkipShell } from '../terminalContrib/suggest/common/terminal.suggest.js';
 import { TerminalSuggestSettingId, terminalSuggestConfiguration } from '../terminalContrib/suggest/common/terminalSuggestConfiguration.js';
@@ -44,17 +46,15 @@ export const enum TerminalContribSettingId {
 	SuggestEnabled = TerminalSuggestSettingId.Enabled,
 	AutoApprove = TerminalChatAgentToolsSettingId.AutoApprove,
 	EnableAutoApprove = TerminalChatAgentToolsSettingId.EnableAutoApprove,
+	AutoApproveWorkspaceNpmScripts = TerminalChatAgentToolsSettingId.AutoApproveWorkspaceNpmScripts,
+	IgnoreDefaultAutoApproveRules = TerminalChatAgentToolsSettingId.IgnoreDefaultAutoApproveRules,
+	BlockDetectedFileWrites = TerminalChatAgentToolsSettingId.BlockDetectedFileWrites,
 	ShellIntegrationTimeout = TerminalChatAgentToolsSettingId.ShellIntegrationTimeout,
 	OutputLocation = TerminalChatAgentToolsSettingId.OutputLocation,
-	AgentSandboxEnabled = TerminalChatAgentToolsSettingId.AgentSandboxEnabled,
-	DeprecatedTerminalSandboxNetwork = TerminalChatAgentToolsSettingId.DeprecatedTerminalSandboxNetwork,
-	DeprecatedTerminalSandboxEnabled = TerminalChatAgentToolsSettingId.DeprecatedTerminalSandboxEnabled,
-	DeprecatedTerminalSandboxNetworkAllowedDomains = TerminalChatAgentToolsSettingId.DeprecatedTerminalSandboxNetworkAllowedDomains,
-	DeprecatedTerminalSandboxNetworkDeniedDomains = TerminalChatAgentToolsSettingId.DeprecatedTerminalSandboxNetworkDeniedDomains,
-	DeprecatedTerminalSandboxLinuxFileSystem = TerminalChatAgentToolsSettingId.DeprecatedTerminalSandboxLinuxFileSystem,
-	DeprecatedTerminalSandboxMacFileSystem = TerminalChatAgentToolsSettingId.DeprecatedTerminalSandboxMacFileSystem,
-	AgentSandboxNetworkAllowedDomains = TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowedDomains,
-	AgentSandboxNetworkDeniedDomains = TerminalChatAgentToolsSettingId.AgentSandboxNetworkDeniedDomains,
+	AgentSandboxEnabled = AgentSandboxSettingId.AgentSandboxEnabled,
+	AgentSandboxAllowNetwork = AgentSandboxSettingId.AgentSandboxAllowNetwork,
+	AgentSandboxAllowUnsandboxedCommands = AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands,
+	AgentSandboxRetryWithAllowNetworkRequests = AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests,
 	AgentSandboxLinuxFileSystem = TerminalChatAgentToolsSettingId.AgentSandboxLinuxFileSystem,
 	AgentSandboxMacFileSystem = TerminalChatAgentToolsSettingId.AgentSandboxMacFileSystem,
 }
@@ -78,6 +78,7 @@ export const terminalContribConfiguration: IConfigurationNode['properties'] = {
 	...terminalCommandGuideConfiguration,
 	...terminalHistoryConfiguration,
 	...terminalOscNotificationsConfiguration,
+	...terminalResizeDimensionsOverlayConfiguration,
 	...terminalStickyScrollConfiguration,
 	...terminalSuggestConfiguration,
 	...terminalTypeAheadConfiguration,

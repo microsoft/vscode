@@ -1,0 +1,701 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import sinon from 'sinon';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { constObservable, autorun, observableValue } from '../../../../base/common/observable.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IChannel, IChannelClient, IChannelServer, IServerChannel, ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
+import { mock } from '../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from '../../../configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
+import { IEnvironmentService } from '../../../environment/common/environment.js';
+import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
+import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
+import { ILogService, NullLogService } from '../../../log/common/log.js';
+import { INotificationService } from '../../../notification/common/notification.js';
+import { TestNotificationService } from '../../../notification/test/common/testNotificationService.js';
+import { ITelemetryData } from '../../../telemetry/common/telemetry.js';
+import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
+import { AgentHostClientState, AgentHostProtocolClient } from '../../browser/agentHostProtocolClient.js';
+import { IMcpNotification, isFatalAgentHostStartError, toFatalAgentHostStartError } from '../../common/agent.js';
+import { AGENT_HOST_CLIENT_PROXY_CHANNEL } from '../../common/agentHostClientProxyChannel.js';
+import { AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, AgentHostClientByokLmChannel } from '../../common/agentHostClientByokLmChannel.js';
+import { AgentHostClientType, editorWindowAgentHostClientInfo } from '../../common/agentHostClientInfo.js';
+import { AgentHostStartupTelemetry } from '../../common/agentHostStartupTelemetry.js';
+import { AgentHostClientConnectionKind } from '../../common/agentHostTelemetry.js';
+import { AgentHostOTelEnabledSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelPolicyState, IAgentCreateChatRequestOptions, IAgentHostManagementService, IAgentHostOTelPolicyReadiness, IAgentHostOTelSettings } from '../../common/agentService.js';
+import { ActionEnvelope, ActionType, INotification, NotificationType } from '../../common/state/sessionActions.js';
+import { ProtocolError } from '../../common/state/sessionProtocol.js';
+import { MessageAttachmentKind, MessageKind, ROOT_STATE_URI } from '../../common/state/sessionState.js';
+import { LocalAgentHostManagementConnection, LocalAgentHostServiceClient, registerAgentHostClientChannels } from '../../electron-browser/localAgentHostService.js';
+
+class CapturingNotificationService extends TestNotificationService {
+	readonly errors: (string | Error)[] = [];
+
+	override error(error: string | Error) {
+		this.errors.push(error);
+		return super.error(error);
+	}
+}
+
+class TestTelemetryService extends NullTelemetryServiceShape {
+	readonly events: { eventName: string; data: ITelemetryData | undefined }[] = [];
+
+	override publicLog2(eventName?: string, data?: ITelemetryData): void {
+		if (eventName) {
+			this.events.push({ eventName, data });
+		}
+	}
+}
+
+suite('LocalAgentHostServiceClient events', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const action: ActionEnvelope = {
+		channel: ROOT_STATE_URI,
+		action: { type: ActionType.RootConfigChanged, config: {} },
+		serverSeq: 1,
+		origin: undefined,
+	};
+	const notification: INotification = { type: NotificationType.SessionRemoved, channel: ROOT_STATE_URI, session: 'copilotcli:/test' };
+	const mcpNotification: IMcpNotification = { channel: 'mcp:/test', method: 'notifications/tools/list_changed' };
+	const expected = [action, notification, mcpNotification];
+
+	function createService(
+		configurationService = new TestConfigurationService(),
+		readiness: IAgentHostOTelPolicyReadiness = { isReady: () => true, onDidChange: Event.None },
+		sendOTelPolicy?: (policy: IAgentHostOTelSettings, ready: boolean) => void,
+	) {
+		const onDidAction = disposables.add(new Emitter<ActionEnvelope>());
+		const onDidNotification = disposables.add(new Emitter<INotification>());
+		const onMcpNotification = disposables.add(new Emitter<IMcpNotification>());
+		const onDidChangeConnectionState = disposables.add(new Emitter<AgentHostClientState>());
+		const connectionAvailable = observableValue('test connection availability', false);
+		const createdChats: { session: URI; chat: URI; options?: IAgentCreateChatRequestOptions }[] = [];
+		let connectCount = 0;
+		const fire = () => {
+			onDidAction.fire(action);
+			onDidNotification.fire(notification);
+			onMcpNotification.fire(mcpNotification);
+		};
+		const protocolClient = {
+			connect: async () => { connectCount++; fire(); },
+			onDidAction: onDidAction.event,
+			onDidNotification: onDidNotification.event,
+			onMcpNotification: onMcpNotification.event,
+			onDidChangeConnectionState: onDidChangeConnectionState.event,
+			onDidFatalClose: Event.None,
+			connectionAvailable,
+			artifactIntegrationTransport: {
+				onDidUpdate: Event.None, onDidReset: Event.None, available: connectionAvailable,
+				request: async () => { throw new Error('Artifact requests are not used by this test.'); },
+			},
+			registerMcpAuthenticationHandler: () => Disposable.None,
+			createChat: async (session: URI, chat: URI, options?: IAgentCreateChatRequestOptions) => {
+				createdChats.push({ session, chat, options });
+			},
+			dispose: () => { },
+		};
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IConfigurationService, configurationService);
+		disposables.add(configurationService.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IEnvironmentService, { logsHome: URI.file('/logs') } as Partial<IEnvironmentService>);
+		instantiationService.stub(INotificationService, new TestNotificationService());
+		instantiationService.stubInstance(AgentHostProtocolClient, protocolClient);
+		instantiationService.stubInstance(AgentHostStartupTelemetry, {
+			protocolConnected: () => { },
+			connectionFailed: () => { },
+			dispose: () => { },
+		});
+		instantiationService.set(IInstantiationService, instantiationService);
+		const service = disposables.add(instantiationService.createInstance(LocalAgentHostServiceClient, editorWindowAgentHostClientInfo, readiness, sendOTelPolicy));
+		const received: (ActionEnvelope | INotification | IMcpNotification)[] = [];
+		const listen = () => {
+			const listeners = disposables.add(new DisposableStore());
+			listeners.add(service.onDidAction(event => received.push(event)));
+			listeners.add(service.onDidNotification(event => received.push(event)));
+			listeners.add(service.onMcpNotification(event => received.push(event)));
+			return listeners;
+		};
+		return {
+			service, received, listen, fire, onDidChangeConnectionState, createdChats,
+			setConnectionState: (state: AgentHostClientState) => {
+				connectionAvailable.set(state === AgentHostClientState.Connected, undefined);
+				onDidChangeConnectionState.fire(state);
+			},
+			connectCount: () => connectCount,
+			listening: () => [onDidAction.hasListeners(), onDidNotification.hasListeners(), onMcpNotification.hasListeners()],
+		};
+	}
+
+	teardown(() => sinon.restore());
+
+	test('exposes the local connection kind before the host starts', () => {
+		const { service } = createService();
+		const beforeStart = service.clientConnectionKind;
+		service.startAgentHost();
+		assert.deepStrictEqual([beforeStart, service.clientConnectionKind], [AgentHostClientConnectionKind.Local, AgentHostClientConnectionKind.Local]);
+	});
+
+	test('reads the environment display name from local host management', async () => {
+		const { service } = createService();
+		const managementService = new class extends mock<IAgentHostManagementService>() {
+			override async getMissionControlEnvironmentName() { return 'Host-owned name (VS Code Insiders)'; }
+		}();
+		sinon.stub(Object.getPrototypeOf(service), '_getManagementService').returns(managementService);
+		assert.strictEqual(await service.getMissionControlEnvironmentName(), 'Host-owned name (VS Code Insiders)');
+	});
+
+	test('routes title-only and prompt-bearing creation through AHP, while retaining legacy model management routing', async () => {
+		const { service, createdChats } = createService();
+		const managementChats: { session: URI; chat: URI; options: IAgentCreateChatRequestOptions }[] = [];
+		const managementService = new class extends mock<IAgentHostManagementService>() {
+			override async createChatWithExtensions(session: URI, chat: URI, options: IAgentCreateChatRequestOptions): Promise<void> {
+				managementChats.push({ session, chat, options });
+			}
+		}();
+		sinon.stub(Object.getPrototypeOf(service), '_getManagementService').returns(managementService);
+		service.startAgentHost();
+		const session = URI.parse('agent-session://test/session');
+		const titleOnlyChat = URI.parse('agent-chat://test/session/title-only');
+		const modelChat = URI.parse('agent-chat://test/session/model');
+		const promptChat = URI.parse('agent-chat://test/session/prompt');
+
+		await service.createChat(session, titleOnlyChat, { title: 'Title only' });
+		await service.createChat(session, modelChat, { title: 'Model title', model: { id: 'model-1' } });
+		await service.createChat(session, promptChat, {
+			title: 'Prompt title',
+			model: { id: 'model-2' },
+			agent: { uri: 'agent://test/reviewer' },
+			initialMessage: {
+				text: 'Review this image',
+				origin: { kind: MessageKind.User },
+				attachments: [{ type: MessageAttachmentKind.Resource, uri: 'file:///workspace/image.png', label: 'image.png' }],
+			},
+		});
+
+		assert.deepStrictEqual({
+			protocol: createdChats,
+			management: managementChats,
+		}, {
+			protocol: [{
+				session,
+				chat: titleOnlyChat,
+				options: { title: 'Title only' },
+			}, {
+				session,
+				chat: promptChat,
+				options: {
+					title: 'Prompt title',
+					model: { id: 'model-2' },
+					agent: { uri: 'agent://test/reviewer' },
+					initialMessage: {
+						text: 'Review this image',
+						origin: { kind: MessageKind.User },
+						attachments: [{ type: MessageAttachmentKind.Resource, uri: 'file:///workspace/image.png', label: 'image.png' }],
+					},
+				},
+			}],
+			management: [{
+				session,
+				chat: modelChat,
+				options: { title: 'Model title', model: { id: 'model-1' } },
+			}],
+		});
+	});
+
+	test('installs, rotates and removes sandbox certificates through Management rather than the disabled AHP extension route', async () => {
+		const { service } = createService();
+		const channels: string[] = [];
+		const calls: [string, string, string][] = [];
+		const channel = ProxyChannel.fromService({
+			installSandboxCertificate: async (chat: string, scopeId: string) => { calls.push(['install', chat, scopeId]); },
+			rotateSandboxCertificate: async (chat: string, scopeId: string) => { calls.push(['rotate', chat, scopeId]); },
+			removeSandboxCertificate: async (chat: string, scopeId: string) => { calls.push(['remove', chat, scopeId]); },
+		}, disposables.add(new DisposableStore()));
+		const client: IChannelClient = {
+			getChannel: <T extends IChannel>(name: string): T => {
+				channels.push(name);
+				const ipcChannel: IChannel = { call: (command, args) => channel.call(undefined, command, args), listen: () => Event.None };
+				return ipcChannel as T;
+			},
+		};
+		const managementClient = sinon.stub(LocalAgentHostManagementConnection.prototype, 'client').resolves(client);
+		disposables.add({ dispose: () => managementClient.restore() });
+		const chat = 'conversation://host/a%2Fb?revision%3D2#entry';
+		await service.installSandboxCertificate(chat, 'runtime');
+		await service.rotateSandboxCertificate(chat, 'runtime');
+		await service.removeSandboxCertificate(chat, 'runtime');
+		assert.deepStrictEqual({ supported: [service.sandboxCertificateInstallationSupported.get(), service.sandboxCertificateRotationSupported.get(), service.sandboxCertificateRemovalSupported.get()], channels, calls }, {
+			supported: [true, true, true], channels: ['agentHostManagement', 'agentHostManagement', 'agentHostManagement'],
+			calls: [['install', chat, 'runtime'], ['rotate', chat, 'runtime'], ['remove', chat, 'runtime']],
+		});
+	});
+
+	test('forwards readiness changes and keeps another window refresh from restarting the shared host', async () => {
+		class PolicyConfigurationService extends TestConfigurationService {
+			override inspect<T>(key: string): IConfigurationValue<T> {
+				const value = super.inspect<T>(key);
+				return { ...value, policyValue: value.value };
+			}
+
+			async setPolicy(enabled: boolean, endpoint: string): Promise<void> {
+				await this.setUserConfiguration(AgentHostOTelEnabledSettingId, enabled);
+				await this.setUserConfiguration(AgentHostOTelOtlpEndpointSettingId, endpoint);
+				const keys = [AgentHostOTelEnabledSettingId, AgentHostOTelOtlpEndpointSettingId];
+				this.onDidChangeConfigurationEmitter.fire({
+					source: ConfigurationTarget.DEFAULT,
+					affectedKeys: new Set(keys),
+					change: { keys, overrides: [] },
+					affectsConfiguration: section => keys.some(key => key.startsWith(section)),
+				});
+			}
+		}
+		const state = new AgentHostOTelPolicyState();
+		const forwarded: boolean[] = [];
+		const restartEndpoints: (string | undefined)[] = [];
+		let running = false;
+		const sendPolicy = (policy: IAgentHostOTelSettings, ready: boolean) => {
+			forwarded.push(ready);
+			if (state.update(policy, running, ready)) {
+				restartEndpoints.push(state.policy?.otlpEndpoint);
+				state.didStart();
+			}
+		};
+		const first = new PolicyConfigurationService();
+		createService(first, { isReady: () => true, onDidChange: Event.None }, sendPolicy);
+		await first.setPolicy(true, 'https://collector.example');
+		running = true;
+		state.didStart();
+
+		let ready = false;
+		const readinessChanged = disposables.add(new Emitter<void>());
+		const second = new PolicyConfigurationService();
+		createService(second, { isReady: () => ready, onDidChange: readinessChanged.event }, sendPolicy);
+		await second.setPolicy(false, '');
+		await second.setPolicy(true, 'https://collector.example');
+		ready = true;
+		readinessChanged.fire();
+		await second.setPolicy(true, 'https://collector.example');
+		await second.setPolicy(true, 'https://changed.example');
+
+		ready = false;
+		await second.setPolicy(false, '');
+		ready = true;
+		readinessChanged.fire(); // The refresh failed; identical values are now authoritative.
+		assert.deepStrictEqual({ forwarded, restartEndpoints }, {
+			forwarded: [true, false, false, true, true, false, true],
+			restartEndpoints: ['https://changed.example', ''],
+		});
+	});
+
+	test('forwards initial connection events to subscribers registered before start', () => {
+		const { service, received, listen } = createService();
+		listen();
+		service.startAgentHost();
+		assert.deepStrictEqual(received, expected);
+	});
+
+	test('artifact transport subscribed before startup follows connection and reconnect availability', () => {
+		const { service, setConnectionState } = createService();
+		const transport = service.artifactIntegrationTransport;
+		const availability: boolean[] = [];
+		disposables.add(autorun(reader => availability.push(transport.available.read(reader))));
+		service.startAgentHost();
+		setConnectionState(AgentHostClientState.Connected);
+		setConnectionState(AgentHostClientState.Reconnecting);
+		setConnectionState(AgentHostClientState.Connected);
+		service.startAgentHost();
+		setConnectionState(AgentHostClientState.Closed);
+		assert.deepStrictEqual({
+			stableTransport: service.artifactIntegrationTransport === transport,
+			availability,
+		}, { stableTransport: true, availability: [false, true, false, true, false] });
+	});
+
+	test('preserves subscriptions across reconnects and repeated start calls', () => {
+		const { service, received, listen, fire, onDidChangeConnectionState, connectCount } = createService();
+		listen();
+		service.startAgentHost();
+		onDidChangeConnectionState.fire(AgentHostClientState.Connected);
+		onDidChangeConnectionState.fire(AgentHostClientState.Reconnecting);
+		onDidChangeConnectionState.fire(AgentHostClientState.Connected);
+		service.startAgentHost();
+		fire();
+		assert.deepStrictEqual({ received, connectCount: connectCount() }, {
+			received: [...expected, ...expected],
+			connectCount: 1,
+		});
+	});
+
+	test('detaches disposed listeners and accepts new listeners after start', () => {
+		const { service, received, listen, fire, listening } = createService();
+		const listeners = listen();
+		service.startAgentHost();
+		listeners.dispose();
+		fire();
+		const detached = listening();
+		listen();
+		fire();
+		assert.deepStrictEqual({ received, detached, listening: listening() }, {
+			received: [...expected, ...expected],
+			detached: [false, false, false],
+			listening: [true, true, true],
+		});
+	});
+
+	test('service disposal detaches all forwarded events', () => {
+		const { service, received, listen, fire, listening } = createService();
+		listen();
+		service.startAgentHost();
+		service.dispose();
+		fire();
+		assert.deepStrictEqual({ received, listening: listening() }, {
+			received: expected,
+			listening: [false, false, false],
+		});
+	});
+});
+
+/**
+ * Regression coverage for the renderer reverse-RPC channel registration. The
+ * BYOK language-model bridge depends on `IAgentHostByokLmHandler`, registered by
+ * the chat contribution of every window that backs BYOK (the main workbench and
+ * the Agents app). The registration must still degrade gracefully should a
+ * window ever connect without binding the handler — `createInstance` then throws,
+ * and that must NOT abort the rest of `_connect` (client completion,
+ * action/notification wiring, root-state subscription), or the whole window loses
+ * its agent host.
+ */
+suite('registerAgentHostClientChannels', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function fakeChannelServer(): { server: IChannelServer; registered: string[] } {
+		const registered: string[] = [];
+		const server: IChannelServer = {
+			registerChannel: (name: string, _channel: IServerChannel) => { registered.push(name); },
+		};
+		return { server, registered };
+	}
+
+	/**
+	 * Minimal {@link IInstantiationService} whose `createInstance` throws for the
+	 * BYOK channel when `byokHandlerMissing`, mirroring the strict "UNKNOWN
+	 * service agentHostByokLmHandler" failure in windows without the handler.
+	 */
+	function fakeInstantiationService(byokHandlerMissing: boolean): IInstantiationService {
+		return {
+			createInstance: (ctor: unknown) => {
+				if (ctor === AgentHostClientByokLmChannel && byokHandlerMissing) {
+					throw new Error('[createInstance] AgentHostClientByokLmChannel depends on UNKNOWN service agentHostByokLmHandler.');
+				}
+				return {};
+			},
+		} as unknown as IInstantiationService;
+	}
+
+	test('registers both channels when the BYOK handler is available', () => {
+		const { server, registered } = fakeChannelServer();
+		registerAgentHostClientChannels(server, fakeInstantiationService(false), new NullLogService());
+		assert.deepStrictEqual(registered, [AGENT_HOST_CLIENT_PROXY_CHANNEL, AGENT_HOST_CLIENT_BYOK_LM_CHANNEL]);
+	});
+
+	test('classifies only utility process validation errors as fatal', () => {
+		const originalError = new TypeError('Invalid value for args');
+		originalError.stack = 'original stack';
+		const fatalError = toFatalAgentHostStartError(originalError);
+
+		assert.deepStrictEqual({
+			classification: [
+				isFatalAgentHostStartError(originalError),
+				isFatalAgentHostStartError(new TypeError('unrelated')),
+				isFatalAgentHostStartError(new Error('Invalid value for args')),
+			],
+			fatal: fatalError.fatal,
+			name: fatalError.name,
+			stack: fatalError.stack,
+		}, {
+			classification: [true, false, false],
+			fatal: true,
+			name: 'TypeError',
+			stack: 'original stack',
+		});
+	});
+
+	test('surfaces fatal startup only before the initial connection', () => {
+		const notifications = new CapturingNotificationService();
+		const onDidChangeConnectionState = disposables.add(new Emitter<AgentHostClientState>());
+		const onDidFatalClose = disposables.add(new Emitter<ProtocolError>());
+		const protocolClient = {
+			clientId: 'test-client',
+			connect: () => Promise.resolve(),
+			onDidChangeConnectionState: onDidChangeConnectionState.event,
+			onDidFatalClose: onDidFatalClose.event,
+			onDidAction: Event.None,
+			onDidNotification: Event.None,
+			onMcpNotification: Event.None,
+			artifactIntegrationTransport: {
+				onDidUpdate: Event.None, onDidReset: Event.None, available: constObservable(false),
+				request: async () => { throw new Error('Artifact requests are not used by this test.'); },
+			},
+			registerMcpAuthenticationHandler: () => Disposable.None,
+			initializeResult: constObservable(undefined),
+			rootState: {
+				value: undefined,
+				verifiedValue: undefined,
+				onDidChange: Event.None,
+				onWillApplyAction: Event.None,
+				onDidApplyAction: Event.None,
+			},
+			dispose: () => { },
+		};
+		const startupTelemetry = {
+			protocolConnected: () => { },
+			connectionFailed: () => { },
+			dispose: () => { },
+		};
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(IEnvironmentService, { logsHome: URI.file('/logs') } as Partial<IEnvironmentService>);
+		instantiationService.stub(INotificationService, notifications);
+		instantiationService.stubInstance(AgentHostProtocolClient, protocolClient);
+		instantiationService.stubInstance(AgentHostStartupTelemetry, startupTelemetry);
+		instantiationService.set(IInstantiationService, instantiationService);
+		const service = disposables.add(instantiationService.createInstance(LocalAgentHostServiceClient, editorWindowAgentHostClientInfo, { isReady: () => true, onDidChange: Event.None }, undefined));
+		service.startAgentHost();
+
+		onDidFatalClose.fire(new ProtocolError(-32000, 'fatal before connect'));
+		onDidChangeConnectionState.fire(AgentHostClientState.Connected);
+		onDidFatalClose.fire(new ProtocolError(-32000, 'fatal after connect'));
+
+		assert.deepStrictEqual(notifications.errors, [
+			'The Agent Host failed to start. Restart the application to try again. See the logs for details.',
+		]);
+	});
+
+	suite('LocalAgentHostManagementConnection', () => {
+
+		const client: IChannelClient = {
+			getChannel: () => { throw new Error('Not called by this test.'); },
+		};
+
+		test('rotates management generations across reconnect and close', async () => {
+			const connection = disposables.add(new LocalAgentHostManagementConnection());
+			const beforeReconnect = connection.client();
+
+			connection.reconnecting();
+			const duringReconnect = connection.client();
+			let connected = false;
+			void duringReconnect.then(() => connected = true);
+			await Promise.resolve();
+			const connectedBeforeAcquisition = connected;
+			await connection.acquire(Promise.resolve(client));
+			connection.connected();
+			const reconnectedClient = await duringReconnect;
+
+			connection.reconnecting();
+			const beforeClose = connection.client();
+			connection.closed('Local agent host protocol is incompatible.');
+
+			await assert.rejects(beforeReconnect, /reconnecting/);
+			await assert.rejects(beforeClose, /incompatible/);
+			assert.deepStrictEqual({
+				connectedBeforeAcquisition,
+				reconnectedClient,
+			}, {
+				connectedBeforeAcquisition: false,
+				reconnectedClient: client,
+			});
+		});
+	});
+
+	test('registers a null BYOK channel when the handler is missing', () => {
+		const { server, registered } = fakeChannelServer();
+		registerAgentHostClientChannels(server, fakeInstantiationService(true), new NullLogService());
+		assert.deepStrictEqual(registered, [AGENT_HOST_CLIENT_PROXY_CHANNEL, AGENT_HOST_CLIENT_BYOK_LM_CHANNEL]);
+	});
+});
+
+suite('AgentHostStartupTelemetry', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('reports the first successful session list with startup milestones and retry counts', () => {
+		let now = 0;
+		const telemetryService = new TestTelemetryService();
+		const tracker = store.add(new AgentHostStartupTelemetry(
+			AgentHostClientType.AgentsWindow,
+			AgentHostClientConnectionKind.Local,
+			() => ({ elapsed: () => now }),
+			() => ({ dispose() { } }),
+			telemetryService,
+		));
+
+		now = 10;
+		tracker.messagePortAcquired();
+		now = 20;
+		tracker.sessionListRequested();
+		now = 50;
+		tracker.protocolConnected();
+		now = 80;
+		tracker.authenticationSettled();
+		now = 85;
+		tracker.sessionListRequested();
+		now = 90;
+		tracker.sessionListFailed();
+		now = 120;
+		tracker.sessionListSucceeded();
+		tracker.connectionFailed();
+
+		assert.deepStrictEqual(telemetryService.events, [{
+			eventName: 'agentHost.startup',
+			data: {
+				clientType: 'agents_window',
+				connectionKind: 'local',
+				outcome: 'success',
+				failureStage: undefined,
+				timeToMessagePortMs: 10,
+				timeToProtocolConnectionMs: 50,
+				timeToAuthenticationSettledMs: 80,
+				timeToSessionListRequestMs: 20,
+				timeToSessionListCompleteMs: 120,
+				sessionListDurationMs: 100,
+				sessionListAttemptCount: 2,
+				sessionListFailureCount: 1,
+			},
+		}]);
+	});
+
+	test('reports a protocol connection failure once', () => {
+		let now = 30;
+		const telemetryService = new TestTelemetryService();
+		const tracker = store.add(new AgentHostStartupTelemetry(
+			AgentHostClientType.EditorWindow,
+			AgentHostClientConnectionKind.Local,
+			() => ({ elapsed: () => now }),
+			() => ({ dispose() { } }),
+			telemetryService,
+		));
+
+		tracker.connectionFailed();
+		now = 40;
+		tracker.sessionListRequested();
+		tracker.sessionListSucceeded();
+
+		assert.deepStrictEqual(telemetryService.events, [{
+			eventName: 'agentHost.startup',
+			data: {
+				clientType: 'editor_window',
+				connectionKind: 'local',
+				outcome: 'error',
+				failureStage: 'protocolConnection',
+				timeToMessagePortMs: undefined,
+				timeToProtocolConnectionMs: undefined,
+				timeToAuthenticationSettledMs: undefined,
+				timeToSessionListRequestMs: undefined,
+				timeToSessionListCompleteMs: undefined,
+				sessionListDurationMs: undefined,
+				sessionListAttemptCount: 0,
+				sessionListFailureCount: 0,
+			},
+		}]);
+	});
+
+	test('attributes a terminal connection failure after connecting to the session-list stage', () => {
+		let now = 50;
+		const telemetryService = new TestTelemetryService();
+		const tracker = store.add(new AgentHostStartupTelemetry(
+			AgentHostClientType.AgentsWindow,
+			AgentHostClientConnectionKind.Local,
+			() => ({ elapsed: () => now }),
+			() => ({ dispose() { } }),
+			telemetryService,
+		));
+
+		tracker.protocolConnected();
+		now = 70;
+		tracker.sessionListRequested();
+		now = 90;
+		tracker.connectionFailed();
+
+		assert.deepStrictEqual(telemetryService.events, [{
+			eventName: 'agentHost.startup',
+			data: {
+				clientType: 'agents_window',
+				connectionKind: 'local',
+				outcome: 'error',
+				failureStage: 'sessionList',
+				timeToMessagePortMs: undefined,
+				timeToProtocolConnectionMs: 50,
+				timeToAuthenticationSettledMs: undefined,
+				timeToSessionListRequestMs: 70,
+				timeToSessionListCompleteMs: undefined,
+				sessionListDurationMs: undefined,
+				sessionListAttemptCount: 1,
+				sessionListFailureCount: 0,
+			},
+		}]);
+	});
+
+	test('reports a session-list timeout after the protocol connected', () => {
+		let onTimeout = () => { };
+		const telemetryService = new TestTelemetryService();
+		const tracker = store.add(new AgentHostStartupTelemetry(
+			AgentHostClientType.AgentsWindow,
+			AgentHostClientConnectionKind.Local,
+			() => ({ elapsed: () => 120_000 }),
+			callback => {
+				onTimeout = callback;
+				return { dispose() { } };
+			},
+			telemetryService,
+		));
+
+		tracker.protocolConnected();
+		tracker.sessionListRequested();
+		tracker.sessionListFailed();
+		onTimeout();
+
+		assert.deepStrictEqual(telemetryService.events, [{
+			eventName: 'agentHost.startup',
+			data: {
+				clientType: 'agents_window',
+				connectionKind: 'local',
+				outcome: 'timeout',
+				failureStage: 'sessionList',
+				timeToMessagePortMs: undefined,
+				timeToProtocolConnectionMs: 120_000,
+				timeToAuthenticationSettledMs: undefined,
+				timeToSessionListRequestMs: 120_000,
+				timeToSessionListCompleteMs: undefined,
+				sessionListDurationMs: undefined,
+				sessionListAttemptCount: 1,
+				sessionListFailureCount: 1,
+			},
+		}]);
+	});
+
+	test('does not report a connection failure after disposal', () => {
+		const telemetryService = new TestTelemetryService();
+		const tracker = new AgentHostStartupTelemetry(
+			AgentHostClientType.EditorWindow,
+			AgentHostClientConnectionKind.Local,
+			() => ({ elapsed: () => 10 }),
+			() => ({ dispose() { } }),
+			telemetryService,
+		);
+
+		tracker.dispose();
+		tracker.connectionFailed();
+
+		assert.deepStrictEqual(telemetryService.events, []);
+	});
+});

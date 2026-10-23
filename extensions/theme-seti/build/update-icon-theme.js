@@ -8,7 +8,6 @@
 const path = require('path');
 const fs = require('fs');
 const https = require('https');
-const url = require('url');
 const minimatch = require('minimatch');
 
 // list of languagesId not shipped with VSCode. The information is used to associate an icon with a language association
@@ -97,10 +96,8 @@ function download(source) {
 		return readFile(source);
 	}
 	return new Promise((c, e) => {
-		const _url = url.parse(source);
-		const options = { host: _url.host, port: _url.port, path: _url.path, headers: { 'User-Agent': 'NodeJS' } };
 		let content = '';
-		https.get(options, function (response) {
+		https.get(new URL(source), { headers: { 'User-Agent': 'NodeJS' } }, function (response) {
 			response.on('data', function (data) {
 				content += data.toString();
 			}).on('end', function () {
@@ -235,7 +232,7 @@ function getLanguageMappings() {
 
 						if (existing) {
 							// multiple contributions to the same language
-							// give preference to the contribution wth the configuration
+							// give preference to the contribution with the configuration
 							if (languages[k].configuration) {
 								mergeMapping(mapping, existing, 'extensions');
 								mergeMapping(mapping, existing, 'fileNames');
@@ -390,7 +387,7 @@ exports.update = function () {
 				for (let i1 = 0; i1 < exts.length && !preferredDef; i1++) {
 					preferredDef = ext2Def[exts[i1]];
 				}
-				// use the first file name association for the preferred definition, if not availbale
+				// use the first file name association for the preferred definition, if not available
 				for (let i1 = 0; i1 < fileNames.length && !preferredDef; i1++) {
 					preferredDef = fileName2Def[fileNames[i1]];
 				}
@@ -472,6 +469,5 @@ exports.update = function () {
 if (path.basename(process.argv[1]) === 'update-icon-theme.js') {
 	exports.copyFont().then(() => exports.update());
 }
-
 
 

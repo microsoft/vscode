@@ -1,0 +1,217 @@
+# Contributing
+
+This extension provides language features for working with Markdown files in vscode. This include the Markdown Preview, as well as IntelliSense, link validation, and other language features.
+
+Almost all language features are implemented in the upstream [Markdown Language Service](https://github.com/microsoft/vscode-markdown-languageservice) and surfaced through the [Markdown Language Server](https://github.com/microsoft/vscode-markdown-languageserver), so many language feature changes belong in one of those repositories instead of this one.
+
+## Project Structure
+
+Here is a quick look at the important files in this project:
+
+```
+src/
+  extension.ts           Desktop (Node.js) entrypoint
+  extension.browser.ts   Web entrypoint
+  client/                Language client that talks to the Markdown language server
+  preview/               Built-in Markdown preview (custom editor + webview management)
+  markdownEngine.ts      markdown-it engine used to render previews
+  markdownExtensions.ts  Reads `markdown.*` contributions from other extensions
+
+preview-src/             Frontend code that runs inside the preview webview
+notebook/                Notebook Markdown renderer source
+media/                   Default Markdown preview styles and scripts
+```
+
+Build outputs are written to `out/` (desktop), `dist/` (web), and `notebook-out/` (notebook renderer).
+
+### Developing the Markdown editor
+
+1. **Know the repositories and integration points**
+
+   `@vscode/markdown-editor` lives in the sibling `microsoft/vscode-packages` checkout at `vscode-team-tools/packages/markdown-editor`. In this repo, the integration is in `extensions/markdown-language-features`, especially `markdown-editor-src`, `src/preview/markdownEditorProvider.ts`, and `esbuild.markdownEditor.mts`. These instructions assume `vscode` and `vscode-packages` are sibling folders.
+
+2. **Build the package first**
+
+   The package exports files from `dist`, so VS Code does not consume its TypeScript sources directly. Run `pnpm build` once in `vscode-packages/vscode-team-tools/packages/markdown-editor`. For ongoing work, keep `pnpm dev` running there so `dist` stays up to date.
+
+3. **Point the extension at your local package**
+
+   **A. Override the webview build without changing installed dependencies**
+
+   Set `VSCODE_MARKDOWN_EDITOR_PATH` to the built local package directory in the shell running extension build/watch and manifest-generation commands:
+
+   ```powershell
+   $env:VSCODE_MARKDOWN_EDITOR_PATH = 'D:\src\vscode-packages\vscode-team-tools\packages\markdown-editor'
+   npm run watch-markdown-editor
+   ```
+
+   This overrides esbuild resolution for the package and all its exported subpaths, including CSS. Command contribution generation uses the same package selection. The watcher follows the selected package directory, including built output and source assets, but excludes its `node_modules` and `.git` directories. The build prints the selected real directory as `Markdown editor package override: ...`; `node_modules` still contains the installed dependency. No symlink, dependency-manifest edit, or lockfile edit is needed. Relative paths resolve against the build process's working directory. Invalid overrides fail explicitly instead of falling back to the installed package. Unset the variable to use the installed dependency (`Remove-Item Env:VSCODE_MARKDOWN_EDITOR_PATH` in PowerShell).
+
+   This is a build-time override: standalone TypeScript checks and other tools still resolve types from the installed dependency. Use a dependency link instead if those tools must also consume unpublished local type changes. Generated command contributions may still update tracked manifests when the package's commands change.
+
+   Run the override regression tests with `node --test ./scripts/markdownEditorPackage.test.mts` from this extension directory.
+
+   **B. Use a `file:` dependency for a durable local setup**
+
+   Set the dependency in `extensions/markdown-language-features/package.json` to:
+
+   ```json
+   "@vscode/markdown-editor": "file:../../../vscode-packages/vscode-team-tools/packages/markdown-editor"
+   ```
+
+   Then run `npm install` in `extensions/markdown-language-features`. This updates `package.json` and `package-lock.json`, creates a local link, and survives later `npm install` runs. This is development-only; restore the dependency to a published version before submitting changes that should consume a release.
+
+   **C. Use `npm link` for a temporary setup**
+
+   In `vscode-packages/vscode-team-tools/packages/markdown-editor`, run:
+
+   ```bash
+   npm link
+   ```
+
+   In `vscode\extensions\markdown-language-features`, run:
+
+   ```bash
+   npm link @vscode/markdown-editor
+   ```
+
+   This leaves `package.json` and `package-lock.json` unchanged, but any later `npm install` in the extension replaces the link. If that happens, run `npm link @vscode/markdown-editor` again.
+
+   Verify the resolved package from `extensions/markdown-language-features`:
+
+   ```bash
+   node -e "console.log(require('node:fs').realpathSync('node_modules/@vscode/markdown-editor'))"
+   ```
+
+   The output should be the local `vscode-packages/vscode-team-tools/packages/markdown-editor` directory.
+
+4. **Rebuild and run VS Code**
+
+   Source-built VS Code does not load `@vscode/markdown-editor` dynamically from `node_modules`. `esbuild.markdownEditor.mts` bundles it into `markdown-editor-out`, so keep both the package `pnpm dev` watcher and VS Code's **Ext - Build** task running. For a one-time build, run `npm run build-markdown-editor` in `extensions/markdown-language-features` after the package build completes.
+
+   Launch VS Code with the **Run VS Code** task. After the Markdown editor bundle is rebuilt, reload the development window or close and reopen the Markdown custom editor.
+
+5. **Update editor commands**
+
+   Markdown editor commands and their default keybindings are defined in `vscode-packages/vscode-team-tools/packages/markdown-editor/src/editorCommands.ts`. Do not manually edit entries marked with `"$generated": true` in this extension's `package.json` or their titles in `package.nls.json`: `npm run build-markdown-editor` and `npm run watch-markdown-editor` regenerate them while preserving manual entries. Run `npm run check-markdown-editor-package-json` to verify that the checked-in manifests are current without modifying them.
+
+### Embedded code-block editor presentation
+
+`markdown.codeBlockEditorProviders` contributions and export-API resolve results
+accept optional `presentation: { resizable, fullWidth, fullView, minHeight }`.
+The Markdown editor owns these controls, including for static/uncooperative
+pages. Resolve-result properties override contribution defaults; explicit
+provider properties override guest-advertised preferences. Keep the contribution
+schema, descriptor validation, RPC schema, equality checks, and static/export-API
+paths in sync when extending this contract.
+
+Undefined resolve-result properties inherit the contribution defaults; explicit `false` still overrides them. The extension consumes the published `@vscode/markdown-editor` package, which implements the controls and mode notifications.
+
+The implementation and interaction fixtures live in the local Markdown editor
+package. See its README's **Embedded editor presentation** section for the
+optional mode-notification messages and sizing precedence.
+
+### Active block highlighting
+
+`markdown.editor.highlightActiveBlock` controls the rich editor's active-block
+background and glow, and defaults to enabled. Resource-specific changes are sent
+to the renderer without reloading the document or changing source-marker visibility.
+The webview reserves symmetric scrollbar gutters so the document remains centered.
+
+### Mermaid presentation
+
+Built-in Mermaid diagrams use the same iframe provider and host-owned resize,
+full-width, and full-view controls as contributed editors. The guest consumes
+source updates through `WebEditorClient`, renders errors visibly, and preserves
+the iframe across presentation changes. A contributed matching `mermaid` provider
+takes precedence over the built-in renderer. The Mermaid bundle loads lazily.
+Run `node --test scripts/mermaid.browser.test.mts` from this extension directory
+to verify rendering, live updates, error recovery, and presentation controls.
+
+### Rich editor diagnostics
+
+Built-in Markdown pull diagnostics use the language client's custom-editor tab tracking (provided by `vscode-languageclient` 9.0.1). A Markdown document opened only in the rich editor must receive diagnostics without a companion text-editor tab. Keep `diagnosticPullOptions.onTabs` and `onChange` enabled. When validating client upgrades, enable `markdown.validate.enabled`, open a broken link only in the rich editor, and verify that fixing it clears the diagnostic. The renderer continues to consume the existing VS Code diagnostic collections; no separate diagnostic provider is needed.
+
+### Outline and breadcrumbs
+
+The rich editor opts into `customTextEditorNavigation`. The workbench reuses the document's symbol providers for Outline and breadcrumbs; the extension reports each panel's source selection and routes reveal and view-state requests through the Markdown editor RPC bridge. Offset mapping uses the renderer's synchronized text, including when its line endings differ from the document.
+
+Keep navigation independent of editing mode. Breadcrumb previews must preserve focus and selection, canceled previews must not override newer navigation, and opening a symbol to the side must retain the custom editor type. Navigation regression coverage lives in `src/test/markdownEditorNavigation.test.ts` and `src/test/markdownEditorBridge.test.ts`, with workbench coverage in the custom-editor navigation and document-symbol Outline suites.
+
+Chat also consumes this per-panel navigation selection as implicit context, including in the Agents window. It attaches a range in the underlying Markdown document, not rendered HTML, and respects the existing implicit-context settings and ignored-file checks. A collapsed or cleared selection falls back to the document URI. No separate Markdown chat bridge is needed. Workbench regression coverage lives in `src/vs/workbench/contrib/chat/test/browser/attachments/chatImplicitContext.test.ts`.
+
+Selection, document, and webview changes share a 500 ms debounce before refreshing chat context, matching code-editor behavior. Navigation availability changes refresh immediately, and registering a chat widget refreshes existing widgets as well so a superseded asynchronous refresh cannot leave them stale.
+
+### Running tests
+
+You can run the VS Code extension tests by running the `Markdown Extension Tests` target in VS Code. This will run the tests under `./src/test`
+
+### Rich-link presentation lifetimes
+
+The Markdown editor webview shares one presentation observable per URL within a document. Unreferenced presentations remain cached for five minutes, with at most 256 inactive URLs retained in least-recently-used order. Active entries are never evicted.
+
+Reference-count transitions are coalesced in a microtask and sent as incremental subscriptions, not complete URL lists. A synchronous release/reacquire during rendering keeps both the observable and its subscription. Once an entry becomes inactive, its host watcher is released while its cached presentation remains available.
+
+Every new subscription receives the current presentation followed by changes through the existing extension API watcher. Updates carry a subscription ID so messages from a previous subscription or webview cannot overwrite current state. Reusing a cached entry displays its previous presentation while the new subscription resolves.
+
+Run the webview cache and subscription tests with `node --test ./scripts/linkPresentationProvider.test.mts` from this extension directory.
+
+### Updating the Markdown language service
+
+Language features such as IntelliSense, validation, document links, and rename are powered by a language server rather than being implemented directly in this extension. There are two packages for this:
+
+- [`vscode-markdown-languageservice`](https://github.com/microsoft/vscode-markdown-languageservice) — the library that implements the actual Markdown language intelligence. Almost all language feature bug fixes and additions should start here.
+
+- [`vscode-markdown-languageserver`](https://github.com/microsoft/vscode-markdown-languageserver) — a thin language server that wraps the language service and exposes it over the Language Server Protocol.
+
+This extension depends on `vscode-markdown-languageserver` and connects to it from `src/client/`. The code in `src/languageFeatures/` provides the VS Code-specific glue and the features that are not handled by the server.
+
+
+1. Update the language service **in the server**. The [server's contributing guide](https://github.com/microsoft/vscode-markdown-languageserver/blob/main/CONTRIBUTING.md) documents this, but in short you run the following in the `vscode-markdown-languageserver` repository and then publish a new server release:
+
+   ```bash
+   npm install vscode-markdown-languageservice@latest
+   ```
+
+2. Bump the server dependency in this extension to the newly published version:
+
+   ```bash
+   npm install vscode-markdown-languageserver@latest
+   ```
+
+### Testing unpublished versions locally
+
+You can use `npm link` to test local changes to the language service/server without publishing:
+
+```bash
+# First, in your vscode-markdown-languageservice checkout
+npm run compile
+npm link
+
+# In your vscode-markdown-languageserver checkout
+# Link in the language-service changes
+npm link vscode-markdown-languageservice
+npm run compile
+
+
+# And finally in vscode, link in the service
+cd extensions/markdown-language-features
+npm link vscode-markdown-languageserver
+```
+
+## Related Code
+
+Additional Markdown features in vscode are split across several built-in extensions. Depending on your change, the right place to make it may be one of these:
+
+- [`markdown-basics`](../markdown-basics) — Markdown language basics: the TextMate grammar, language configuration, and snippets. Change this for syntax highlighting and tokenization.
+
+- [`markdown-math`](../markdown-math) — KaTeX math rendering in the preview.
+
+- [`mermaid-markdown-features`](../mermaid-markdown-features) — Mermaid diagram rendering in the preview.
+
+The latter two extensions build on top of our Markdown extension api using the same mechanism is available to third-party extensions:
+
+- `markdown.markdownItPlugins` — register a [markdown-it](https://github.com/markdown-it/markdown-it) plugin to extend how Markdown is parsed and rendered.
+- `markdown.previewScripts` — add scripts that run inside the preview webview.
+- `markdown.previewStyles` — add stylesheets to the preview.
+- `markdown.codeBlockEditors` — register an extension-relative, self-contained HTML editor for a fenced code block language in the experimental Markdown editor. The HTML runs in a sandboxed iframe and exchanges content using the `web-editor/0.12` protocol.

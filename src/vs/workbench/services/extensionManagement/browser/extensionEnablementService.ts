@@ -6,14 +6,15 @@
 import { localize } from '../../../../nls.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IExtensionManagementService, IExtensionIdentifier, IGlobalExtensionEnablementService, ENABLED_EXTENSIONS_STORAGE_PATH, DISABLED_EXTENSIONS_STORAGE_PATH, InstallOperation, IAllowedExtensionsService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { IExtensionManagementService, IExtensionIdentifier, IGlobalExtensionEnablementService, ENABLED_EXTENSIONS_STORAGE_PATH, DISABLED_EXTENSIONS_STORAGE_PATH, InstallOperation, IAllowedExtensionsService, MaliciousExtensionInfo } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IWorkbenchExtensionManagementService, IExtensionManagementServer, ExtensionInstallLocation } from '../common/extensionManagement.js';
 import { areSameExtensions, BetterMergeId, getExtensionDependencies, isMalicious } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
-import { ExtensionType, IExtension, isAuthenticationProviderExtension, isLanguagePackExtension, isResolverExtension } from '../../../../platform/extensions/common/extensions.js';
+import { ExtensionType, EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE, EXTENSIONS_AGENTS_WINDOW_MANAGEMENT, IExtension, IExtensionManifest, isAuthenticationProviderExtension, isLanguagePackExtension, isResolverExtension } from '../../../../platform/extensions/common/extensions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { StorageManager } from '../../../../platform/extensionManagement/common/extensionEnablementService.js';
 import { webWorkerExtHostConfig, WebWorkerExtHostConfigValue } from '../../extensions/common/extensions.js';
@@ -21,6 +22,7 @@ import { IUserDataSyncAccountService } from '../../../../platform/userDataSync/c
 import { IUserDataSyncEnablementService } from '../../../../platform/userDataSync/common/userDataSync.js';
 import { ILifecycleService, LifecyclePhase } from '../../lifecycle/common/lifecycle.js';
 import { INotificationService, NotificationPriority, Severity } from '../../../../platform/notification/common/notification.js';
+import { NotificationTelemetryId, NotificationActionTelemetryId } from '../../../../platform/notification/common/notificationTelemetry.js';
 import { IHostService } from '../../host/browser/host.js';
 import { IExtensionBisectService } from './extensionBisect.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
@@ -33,12 +35,15 @@ import { isString } from '../../../../base/common/types.js';
 import { Delayer } from '../../../../base/common/async.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { isWeb } from '../../../../base/common/platform.js';
+import { ChatEntitlementService, IChatEntitlementService } from '../../chat/common/chatEntitlementService.js';
+import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 
 const SOURCE = 'IWorkbenchExtensionEnablementService';
 
 type WorkspaceType = { readonly virtual: boolean; readonly trusted: boolean };
 
 const EXTENSION_UNIFICATION_SETTING = 'chat.extensionUnification.enabled';
+const MALICIOUS_EXTENSIONS_STORAGE_KEY = 'extensionsEnablement/malicious';
 
 export class ExtensionEnablementService extends Disposable implements IWorkbenchExtensionEnablementService {
 
@@ -57,6 +62,8 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 	private readonly _chatExtensionId: string | undefined;
 	private _extensionUnificationEnabled: boolean;
 
+	private _maliciousExtensionsCache: ReadonlyArray<MaliciousExtensionInfo> | undefined;
+
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@IGlobalExtensionEnablementService protected readonly globalExtensionEnablementService: IGlobalExtensionEnablementService,
@@ -66,6 +73,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
+		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@IUserDataSyncAccountService private readonly userDataSyncAccountService: IUserDataSyncAccountService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -75,6 +83,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
+		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 		@IProductService productService: IProductService
@@ -98,6 +107,9 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		this._register(this.globalExtensionEnablementService.onDidChangeEnablement(({ extensions, source }) => this._onDidChangeGloballyDisabledExtensions(extensions, source)));
 		this._register(allowedExtensionsService.onDidChangeAllowedExtensionsConfigValue(() => this._onDidChangeExtensions([], [], false)));
 
+		// Invalidate the cached malicious extensions list when the stored value changes.
+		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, MALICIOUS_EXTENSIONS_STORAGE_KEY, this._store)(() => this._maliciousExtensionsCache = undefined));
+
 		// Extension unification
 		this._completionsExtensionId = productService.defaultChatAgent?.extensionId.toLowerCase();
 		this._chatExtensionId = productService.defaultChatAgent?.chatExtensionId.toLowerCase();
@@ -119,19 +131,68 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 					this._onEnablementChanged.fire(this.extensionsManager.extensions.filter(ext => unificationExtensions.includes(ext.identifier.id.toLowerCase())));
 				}
 			}
+			if (this.environmentService.isSessionsWindow && (e.affectsConfiguration(EXTENSIONS_AGENTS_WINDOW_MANAGEMENT) || e.affectsConfiguration(EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE))) {
+				// Start or stop the extensions whose state depends on Agents window management, and the extensions that depend on them.
+				const affected = this._withDependents(this.extensionsManager.extensions.filter(ext => !ext.isBuiltin && !this.extensionManifestPropertiesService.canExecuteOnSessionsWindow(ext.manifest, ext.isBuiltin)));
+				if (affected.length) {
+					this._onEnablementChanged.fire(affected);
+				}
+			}
 		}));
 
 		// delay notification for extensions disabled until workbench restored
 		if (this.allUserExtensionsDisabled) {
 			this.lifecycleService.when(LifecyclePhase.Eventually).then(() => {
 				this.notificationService.prompt(Severity.Info, localize('extensionsDisabled', "All installed extensions are temporarily disabled."), [{
+					telemetryId: NotificationActionTelemetryId.Reload,
 					label: localize('Reload', "Reload and Enable Extensions"),
 					run: () => hostService.reload({ disableExtensions: false })
 				}], {
+					telemetry: NotificationTelemetryId.ExtensionsDisabled,
 					sticky: true,
 					priority: NotificationPriority.URGENT
 				});
 			});
+		}
+
+		this.ensureChatExtensionInitialDisabledState();
+	}
+
+	private ensureChatExtensionInitialDisabledState(): void {
+		if (!this._chatExtensionId || this.environmentService.isSessionsWindow || this.environmentService.skipBuiltinExtensions?.some(id => id.toLowerCase() === this._chatExtensionId)) {
+			return;
+		}
+
+		const builtinChatExtensionEnablementMigrationKey = 'builtinChatExtensionEnablementMigration';
+		const builtinChatExtensionEnablementMigration = this.storageService.getBoolean(builtinChatExtensionEnablementMigrationKey, StorageScope.PROFILE) === true;
+		if (builtinChatExtensionEnablementMigration) {
+			return;
+		}
+
+		this.logService.debug('Running builtin chat extension enablement migration');
+		this.storageService.store(builtinChatExtensionEnablementMigrationKey, true, StorageScope.PROFILE, StorageTarget.MACHINE);
+		const context = (this.chatEntitlementService as ChatEntitlementService).context;
+		if (context) {
+			if (context.value.state.completed) {
+				// User has used chat features before
+				if (this._isDisabledGlobally({ id: this._chatExtensionId })) {
+					// User had specifically disabled the chat extension to disable AI features
+					if (this.configurationService.getValue(ChatAIDisabledSettingId) !== true) {
+						// Honor that choice by disabling AI features
+						this.logService.debug('Disabling AI features because builtin chat extension is disabled');
+						this.configurationService.updateValue(ChatAIDisabledSettingId, true)
+							.catch(err => this.logService.error('Failed to update chat.disableAIFeatures setting during builtin chat extension enablement migration', err));
+					}
+				}
+			} else {
+				try {
+					// User has not used chat features before so avoid activating the chat extension by disabling it
+					this.logService.debug('Disabling builtin chat extension as chat set up is not completed');
+					this._disableExtension({ id: this._chatExtensionId });
+				} catch (error) {
+					this.logService.error('Failed to disable builtin chat extension during enablement migration', error);
+				}
+			}
 		}
 	}
 
@@ -179,14 +240,31 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		}
 	}
 
+	private isDefaultOrSettingsSyncAuthProviderExtension(manifest: IExtensionManifest): boolean {
+		if (!isAuthenticationProviderExtension(manifest)) {
+			return false;
+		}
+
+		const defaultAccountAuthProvider = this.defaultAccountService.getDefaultAccountAuthenticationProvider();
+		if (manifest.contributes!.authentication!.some(a => a.id === defaultAccountAuthProvider.id)) {
+			return true;
+		}
+
+		if (this.userDataSyncEnablementService.isEnabled() && this.userDataSyncAccountService.account &&
+			manifest.contributes!.authentication!.some(a => a.id === this.userDataSyncAccountService.account!.authenticationProviderId)) {
+			return true;
+		}
+
+		return false;
+	}
+
 	private throwErrorIfCannotChangeEnablement(extension: IExtension, donotCheckDependencies?: boolean): void {
 		if (isLanguagePackExtension(extension.manifest)) {
 			throw new Error(localize('cannot disable language pack extension', "Cannot change enablement of {0} extension because it contributes language packs.", extension.manifest.displayName || extension.identifier.id));
 		}
 
-		if (this.userDataSyncEnablementService.isEnabled() && this.userDataSyncAccountService.account &&
-			isAuthenticationProviderExtension(extension.manifest) && extension.manifest.contributes!.authentication!.some(a => a.id === this.userDataSyncAccountService.account!.authenticationProviderId)) {
-			throw new Error(localize('cannot disable auth extension', "Cannot change enablement {0} extension because Settings Sync depends on it.", extension.manifest.displayName || extension.identifier.id));
+		if (this.isDefaultOrSettingsSyncAuthProviderExtension(extension.manifest)) {
+			throw new Error(localize('cannot disable settings sync auth extension', "Cannot change enablement of {0} extension because Settings Sync depends on it.", extension.manifest.displayName || extension.identifier.id));
 		}
 
 		if (this._isEnabledInEnv(extension)) {
@@ -228,8 +306,9 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		if (!this.hasWorkspace) {
 			throw new Error(localize('noWorkspace', "No workspace."));
 		}
-		if (isAuthenticationProviderExtension(extension.manifest)) {
-			throw new Error(localize('cannot disable auth extension in workspace', "Cannot change enablement of {0} extension in workspace because it contributes authentication providers", extension.manifest.displayName || extension.identifier.id));
+
+		if (this.isDefaultOrSettingsSyncAuthProviderExtension(extension.manifest)) {
+			throw new Error(localize('cannot disable settings sync auth extension in workspace', "Cannot change enablement of {0} extension in workspace because Settings Sync depends on it.", extension.manifest.displayName || extension.identifier.id));
 		}
 	}
 
@@ -378,10 +457,17 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 			return enablementState;
 		}
 
+		// Ensure the chat extension is disabled in fresh profiles where chat setup is not completed.
+		// This is called here (in addition to the constructor) because on profile switch the
+		// enablement service is not recreated, but the storage scope changes to the new profile.
+		if (extension.identifier.id.toLowerCase() === this._chatExtensionId) {
+			this.ensureChatExtensionInitialDisabledState();
+		}
+
 		enablementState = this._getUserEnablementState(extension.identifier);
 		const isEnabled = this.isEnabledEnablementState(enablementState);
 
-		if (isMalicious(extension.identifier, this.getMaliciousExtensions().map(e => ({ extensionOrPublisher: e })))) {
+		if (isMalicious(extension.identifier, this.getMaliciousExtensionsForCheck())) {
 			enablementState = EnablementState.DisabledByMalicious;
 		}
 
@@ -411,6 +497,10 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 
 		else if (this._isDisabledByExtensionKind(extension)) {
 			enablementState = EnablementState.DisabledByExtensionKind;
+		}
+
+		else if (this._isDisabledBySessionsWindow(extension, enablementState)) {
+			enablementState = this._getSessionsWindowDisabledState(extension, enablementState);
 		}
 
 		else if (isEnabled && this._isDisabledByExtensionDependency(extension, extensions, workspaceType, computedEnablementStates)) {
@@ -578,6 +668,66 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 
 	private _isDisabledByUnification(identifier: IExtensionIdentifier): boolean {
 		return this._extensionUnificationEnabled && identifier.id.toLowerCase() === this._completionsExtensionId;
+	}
+
+	private _isDisabledBySessionsWindow(extension: IExtension, userEnablementState: EnablementState): boolean {
+		if (!this.environmentService.isSessionsWindow) {
+			return false;
+		}
+
+		if (extension.isBuiltin && extension.identifier.id.toLowerCase() === this._chatExtensionId) {
+			return false;
+		}
+
+		if (!extension.isBuiltin && this._isSessionsWindowManagementEnabled()) {
+			// The sessions window has a dedicated workspace, so enabling an extension for it opts that extension into the sessions window only.
+			if (userEnablementState === EnablementState.EnabledWorkspace) {
+				return false;
+			}
+			// Extensions that users haven't enabled or disabled for the sessions window are enabled there automatically when they could be useful.
+			if (userEnablementState === EnablementState.EnabledGlobally && this._isSessionsWindowAutoEnablementEnabled() && this.extensionManifestPropertiesService.canAutoEnableOnSessionsWindow(extension.manifest)) {
+				return false;
+			}
+		}
+
+		return !this.extensionManifestPropertiesService.canExecuteOnSessionsWindow(extension.manifest, extension.isBuiltin);
+	}
+
+	/**
+	 * Built-in extensions that do not support the sessions window are curated by the product and cannot be enabled there.
+	 * Other extensions are disabled for the sessions window workspace by default, which lets users enable them for it,
+	 * unless sessions window extension management is turned off.
+	 */
+	private _getSessionsWindowDisabledState(extension: IExtension, userEnablementState: EnablementState): EnablementState {
+		if (extension.isBuiltin || !this._isSessionsWindowManagementEnabled()) {
+			return EnablementState.DisabledByEnvironment;
+		}
+		return this.isEnabledEnablementState(userEnablementState) ? EnablementState.DisabledWorkspace : userEnablementState;
+	}
+
+	private _isSessionsWindowManagementEnabled(): boolean {
+		return this.configurationService.getValue<boolean>(EXTENSIONS_AGENTS_WINDOW_MANAGEMENT) === true;
+	}
+
+	private _isSessionsWindowAutoEnablementEnabled(): boolean {
+		return this.configurationService.getValue<boolean>(EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE) === true;
+	}
+
+	/**
+	 * Returns the given extensions and the installed extensions that depend on them, directly or transitively, as
+	 * their {@link EnablementState.DisabledByExtensionDependency} state follows the state of their dependencies.
+	 */
+	private _withDependents(extensions: IExtension[]): IExtension[] {
+		const result = [...extensions];
+		for (let i = 0; i < result.length; i++) {
+			const extension = result[i];
+			for (const dependent of this.extensionsManager.extensions) {
+				if (!result.includes(dependent) && dependent.manifest.extensionDependencies?.some(id => areSameExtensions({ id }, extension.identifier))) {
+					result.push(dependent);
+				}
+			}
+		}
+		return result;
 	}
 
 	private _enableExtension(identifier: IExtensionIdentifier): Promise<boolean> {
@@ -767,7 +917,14 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 	}
 
 	private getMaliciousExtensions(): ReadonlyArray<IExtensionIdentifier | string> {
-		return this.storageService.getObject('extensionsEnablement/malicious', StorageScope.APPLICATION, []);
+		return this.storageService.getObject(MALICIOUS_EXTENSIONS_STORAGE_KEY, StorageScope.APPLICATION, []);
+	}
+
+	private getMaliciousExtensionsForCheck(): ReadonlyArray<MaliciousExtensionInfo> {
+		if (!this._maliciousExtensionsCache) {
+			this._maliciousExtensionsCache = this.getMaliciousExtensions().map(extensionOrPublisher => ({ extensionOrPublisher }));
+		}
+		return this._maliciousExtensionsCache;
 	}
 
 	private storeMaliciousExtensions(extensions: ReadonlyArray<IExtensionIdentifier | string>): boolean {
@@ -775,7 +932,8 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		if (equals(existing, extensions, (a, b) => !isString(a) && !isString(b) ? areSameExtensions(a, b) : a === b)) {
 			return false;
 		}
-		this.storageService.store('extensionsEnablement/malicious', JSON.stringify(extensions), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		this._maliciousExtensionsCache = undefined;
+		this.storageService.store(MALICIOUS_EXTENSIONS_STORAGE_KEY, JSON.stringify(extensions), StorageScope.APPLICATION, StorageTarget.MACHINE);
 		return true;
 	}
 }

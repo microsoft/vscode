@@ -83,6 +83,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/services/agentEditorComments",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/assignment",
 			"project": "vscode-workbench"
 		},
@@ -104,6 +108,10 @@
 		},
 		{
 			"name": "vs/workbench/contrib/folding",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/github",
 			"project": "vscode-workbench"
 		},
 		{
@@ -139,6 +147,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/mediaPreview",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/mergeEditor",
 			"project": "vscode-workbench"
 		},
@@ -148,6 +160,10 @@
 		},
 		{
 			"name": "vs/workbench/contrib/logs",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/opener",
 			"project": "vscode-workbench"
 		},
 		{
@@ -172,6 +188,10 @@
 		},
 		{
 			"name": "vs/workbench/contrib/imageCarousel",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/agentsVoice",
 			"project": "vscode-workbench"
 		},
 		{
@@ -224,6 +244,10 @@
 		},
 		{
 			"name": "vs/workbench/contrib/speech",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/modernUI",
 			"project": "vscode-workbench"
 		},
 		{
@@ -295,6 +319,14 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/welcomeOnboarding",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/onboarding",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/welcomePage",
 			"project": "vscode-workbench"
 		},
@@ -351,6 +383,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/services/agentHost",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/authToken",
 			"project": "vscode-workbench"
 		},
@@ -379,6 +415,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/services/dataChannel",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/dialogs",
 			"project": "vscode-workbench"
 		},
@@ -400,6 +440,10 @@
 		},
 		{
 			"name": "vs/workbench/services/filesConfiguration",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/github",
 			"project": "vscode-workbench"
 		},
 		{
@@ -428,6 +472,14 @@
 		},
 		{
 			"name": "vs/workbench/services/language",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/mcp",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/policies",
 			"project": "vscode-workbench"
 		},
 		{
@@ -571,6 +623,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/canvases",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/dropOrPasteInto",
 			"project": "vscode-workbench"
 		},
@@ -625,11 +681,27 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/sessions/contrib/automations",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/openAgentsWindow",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/accountMenu",
 			"project": "vscode-sessions"
 		},
 		{
 			"name": "vs/sessions/contrib/agentFeedback",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/providers",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/providers/agentHost",
 			"project": "vscode-sessions"
 		},
 		{
@@ -645,15 +717,27 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/sessions/contrib/canvases",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/chat",
 			"project": "vscode-sessions"
 		},
 		{
-			"name": "vs/sessions/contrib/copilotChatSessions",
+			"name": "vs/sessions/contrib/providers/copilotChatSessions",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/configuration",
 			"project": "vscode-sessions"
 		},
 		{
 			"name": "vs/sessions/contrib/codeReview",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/customViewTest",
 			"project": "vscode-sessions"
 		},
 		{
@@ -665,7 +749,27 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/sessions/contrib/search",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/sideChat",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/policyBlocked",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/git",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/github",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/layout",
 			"project": "vscode-sessions"
 		},
 		{
@@ -673,11 +777,23 @@
 			"project": "vscode-sessions"
 		},
 		{
-			"name": "vs/sessions/contrib/remoteAgentHost",
+			"name": "vs/sessions/contrib/providers/remoteAgentHost",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/remoteSessions",
 			"project": "vscode-sessions"
 		},
 		{
 			"name": "vs/sessions/contrib/sessions",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/sessionComparison",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/sessionInputBanners",
 			"project": "vscode-sessions"
 		},
 		{
@@ -689,7 +805,31 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/sessions/contrib/aquarium",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/chatDebug",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/tunnelHost",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/editor",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/extensions",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/onboardingTours",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/getStarted",
 			"project": "vscode-sessions"
 		}
 	]

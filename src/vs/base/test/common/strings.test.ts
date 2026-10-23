@@ -129,7 +129,7 @@ suite('Strings', () => {
 			let actual = strings.compareSubstringIgnoreCase(a, b, aStart, aEnd, bStart, bEnd);
 			actual = actual > 0 ? 1 : actual < 0 ? -1 : actual;
 
-			let expected = strings.compare(a.toLowerCase().substring(aStart, aEnd), b.toLowerCase().substring(bStart, bEnd));
+			let expected = strings.compare(a.substring(aStart, aEnd).toLowerCase(), b.substring(bStart, bEnd).toLowerCase());
 			expected = expected > 0 ? 1 : expected < 0 ? -1 : expected;
 			assert.strictEqual(actual, expected, `${a} <> ${b}`);
 
@@ -142,6 +142,7 @@ suite('Strings', () => {
 		assertCompareIgnoreCase('abc', 'ABC', 0, 1, 0, 1);
 		assertCompareIgnoreCase('abc', 'Aabc', 0, 3, 1, 4);
 		assertCompareIgnoreCase('abcABc', 'ABcd', 3, 6, 0, 4);
+		assertCompareIgnoreCase('fluentui', 'fluentu\u0130', 0, 8, 0, 8);
 	});
 
 	test('format', () => {
@@ -410,6 +411,12 @@ suite('Strings', () => {
 		assert.ok(strings.fuzzyContains('hello world', 'd'));
 		assert.ok(!strings.fuzzyContains('hello world', 'wh'));
 		assert.ok(!strings.fuzzyContains('d', 'dd'));
+		assert.ok(strings.fuzzyContains('hello world', 'H'));
+		assert.ok(strings.fuzzyContains('Explorer', 'E'));
+		assert.ok(strings.fuzzyContains('hello world', 'HW'));
+		// toLowerCase() can lengthen the query (İ -> i̇); every lowered code unit must still be matched
+		assert.ok(strings.fuzzyContains('\u0130ab', '\u0130b'));
+		assert.ok(!strings.fuzzyContains('\u0130ab', '\u0130x'));
 	});
 
 	test('startsWithUTF8BOM', () => {
@@ -498,6 +505,8 @@ suite('Strings', () => {
 	test('truncateMiddle', () => {
 		assert.strictEqual('hello world', strings.truncateMiddle('hello world', 100));
 		assert.strictEqual('he…ld', strings.truncateMiddle('hello world', 5));
+		assert.strictEqual('a…de', strings.truncateMiddle('a😀bcde', 5));
+		assert.strictEqual('ab…f', strings.truncateMiddle('abcde😀f', 5));
 	});
 
 	test('replaceAsync', async () => {

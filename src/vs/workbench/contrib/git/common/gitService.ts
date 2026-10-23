@@ -40,8 +40,16 @@ export interface GitDiffChange extends GitChange {
 	readonly deletions: number;
 }
 
+export interface GitRemote {
+	readonly name: string;
+	readonly fetchUrl?: string;
+	readonly pushUrl?: string;
+	readonly isReadOnly: boolean;
+}
+
 export interface GitRepositoryState {
 	readonly HEAD?: GitBranch;
+	readonly remotes: readonly GitRemote[];
 	readonly mergeChanges: readonly GitChange[];
 	readonly indexChanges: readonly GitChange[];
 	readonly workingTreeChanges: readonly GitChange[];
@@ -49,7 +57,6 @@ export interface GitRepositoryState {
 }
 
 export interface GitBranch extends GitRef {
-	readonly base?: GitBaseRef;
 	readonly upstream?: GitUpstreamRef;
 	readonly ahead?: number;
 	readonly behind?: number;
@@ -66,6 +73,13 @@ export interface GitUpstreamRef {
 	readonly commit?: string;
 }
 
+export interface GitCommitOptions {
+	/** Skips the pre-commit and commit-msg hooks. */
+	readonly noVerify?: boolean;
+	/** Overrides whether the commit is signed. Leaves the user's signing configuration in effect when undefined. */
+	readonly signCommit?: boolean;
+}
+
 export interface IGitRepository {
 	readonly rootUri: URI;
 
@@ -75,6 +89,12 @@ export interface IGitRepository {
 	getRefs(query: GitRefQuery, token?: CancellationToken): Promise<GitRef[]>;
 	diffBetweenWithStats(ref1: string, ref2: string, path?: string): Promise<GitDiffChange[]>;
 	diffBetweenWithStats2(ref: string, path?: string): Promise<GitDiffChange[]>;
+
+	/**
+	 * Stages the given files, including files that were deleted from disk, and commits the index.
+	 * Resolves without committing when there is nothing to commit.
+	 */
+	commitFiles(files: readonly URI[], message: string, options?: GitCommitOptions): Promise<void>;
 }
 
 export interface IGitExtensionDelegate {
@@ -84,6 +104,7 @@ export interface IGitExtensionDelegate {
 	getRefs(root: URI, query?: GitRefQuery, token?: CancellationToken): Promise<GitRef[]>;
 	diffBetweenWithStats(root: URI, ref1: string, ref2: string, path?: string): Promise<GitDiffChange[]>;
 	diffBetweenWithStats2(root: URI, ref: string, path?: string): Promise<GitDiffChange[]>;
+	commitFiles(root: URI, files: readonly URI[], message: string, options?: GitCommitOptions): Promise<void>;
 }
 
 export const IGitService = createDecorator<IGitService>('gitService');

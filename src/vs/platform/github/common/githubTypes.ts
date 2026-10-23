@@ -1,0 +1,163 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { Event } from '../../../base/common/event.js';
+import { scopesMatch } from '../../../base/common/oauth.js';
+import type { TelemetryLevel } from '../../telemetry/common/telemetry.js';
+import type { MissionControlClientOptions } from './missionControl/missionControlClient.js';
+import { RequestError, RequestErrorKind, RequestFetch } from './types.js';
+
+/** Allowlisted hosting environments for GitHub telemetry. */
+export type GitHubTelemetrySource = 'workbench' | 'web' | 'agentHost' | 'sharedProcess' | 'other';
+
+/** GitHub GraphQL error details retained for domain-specific interpretation. */
+export interface GitHubGraphQLError {
+	readonly message?: string;
+	readonly type?: string;
+	readonly path?: readonly (string | number)[];
+	readonly extensions?: {
+		readonly code?: string;
+	};
+}
+
+/** Response headers exposed by the server, which may be unavailable through browser CORS. */
+export interface GitHubResponseMetadata {
+	readonly serverDate?: string;
+	readonly requestId?: string;
+	readonly retryAfterSeconds?: number;
+}
+
+/** GitHub transport error preserving the service's established error and GraphQL payload contract. */
+export class GitHubRequestError extends RequestError {
+
+	constructor(
+		message: string,
+		kind: RequestErrorKind,
+		statusCode?: number,
+		responseBody?: string,
+		readonly graphQLErrors?: readonly GitHubGraphQLError[],
+		statusText?: string,
+		readonly responseMetadata?: GitHubResponseMetadata,
+	) {
+		super(message, kind, statusCode, responseBody, statusText);
+		this.name = 'GitHubRequestError';
+	}
+}
+
+/** GitHub REST reported that a commit reference could not be resolved. */
+export class MissingCommitError extends GitHubRequestError {
+	constructor(error: GitHubRequestError) {
+		super(error.message, error.kind, error.statusCode, error.responseBody, error.graphQLErrors, error.statusText, error.responseMetadata);
+		this.name = 'MissingCommitError';
+		this.cause = error;
+	}
+}
+
+/** GitHub deadline failure preserving whether the operation reached the network. */
+export class GitHubRequestTimeoutError extends GitHubRequestError {
+	constructor(readonly requestDispatched = false) {
+		super('GitHub request timed out', 'timeout');
+	}
+}
+
+/** GitHub bootstrap cooldown that exceeds the remaining caller deadline. */
+export class GitHubRequestRateLimitError extends GitHubRequestError {
+	constructor(readonly retryAfterMs: number) {
+		super('The server cooldown exceeds the remaining request budget', 'rateLimit', 429);
+	}
+}
+
+/** GitHub feature support observed for a credential's selected host. */
+export interface GitHubHostCapabilities {
+	readonly graphql: boolean;
+	readonly mergeQueue: boolean;
+	readonly reviewThreads: boolean;
+	readonly checkContextRequiredness: boolean;
+}
+
+/** GitHub REST/GraphQL endpoint selection owned by a hosting binding. */
+export interface IGitHubEndpointProvider {
+	readonly onDidChange: Event<void>;
+	getApiBaseUri(): string;
+	getGraphQlUri(): string;
+}
+
+/** Silent token access for one explicitly selected GitHub grant. */
+export interface IGitHubTokenProvider {
+	readonly onDidChangeToken?: Event<void>;
+	getToken(signal: AbortSignal): string | undefined | Promise<string | undefined>;
+	invalidateToken?(token: string): void;
+}
+
+/** Trusted identification supplied by the service binding, not request-provided headers. */
+export interface GitHubClientMetadata {
+	readonly application: string;
+	readonly source: string;
+	/** Describes the fetch implementation, including browser fetch in a desktop renderer. */
+	readonly egress: 'browser' | 'node';
+}
+
+/** Hosting dependencies and telemetry configuration for a GitHub request engine. */
+export interface GitHubServiceOptions {
+	readonly credentialProvider?: IGitHubCredentialProvider;
+	readonly fetch?: RequestFetch;
+	/** Browser bindings may follow opaque redirects for bodyless repository reads. */
+	readonly useBrowserRedirects?: boolean;
+	/** Product-owned endpoint for Connector catalog and management requests. */
+	readonly connectorsApiBaseUri?: string;
+	readonly telemetrySource?: GitHubTelemetrySource;
+	readonly clientMetadata?: GitHubClientMetadata;
+	readonly onDidChangeTelemetryLevel?: Event<TelemetryLevel>;
+}
+
+/** Identifies an authorization grant chosen by the hosting binding, never a raw token. */
+export interface GitHubAuthorizationContext {
+	readonly providerId: string;
+	readonly sessionId: string;
+	/** Opaque account provenance supplied by the binding; identity is still verified through GitHub. */
+	readonly accountId?: string;
+	readonly scopes: readonly string[];
+	readonly authorizationServer?: string;
+}
+
+/** Compares authorization grants, ignoring scope order but requiring identical account and issuer provenance. */
+export function isEqualAuthorization(first: GitHubAuthorizationContext, second: GitHubAuthorizationContext): boolean {
+	return first.providerId === second.providerId
+		&& first.sessionId === second.sessionId
+		&& first.accountId === second.accountId
+		&& first.authorizationServer === second.authorizationServer
+		&& scopesMatch(first.scopes, second.scopes);
+}
+
+/** Authorization and endpoints selected by the caller for one GitHub client. */
+export interface GitHubClientOptions {
+	readonly authorization: GitHubAuthorizationContext;
+	readonly apiBaseUri: string;
+	readonly graphQlUri: string;
+	/** Approved service endpoints; their absence disables only the Mission Control domains. */
+	readonly missionControl?: MissionControlClientOptions;
+}
+
+/** Internal, read-only bootstrap capability; account provenance affects quota accounting, not authorization. */
+export interface GitHubBootstrapClientOptions {
+	readonly apiBaseUri: string;
+	readonly token: string;
+	readonly accountId?: string;
+}
+
+/** Provider notification identifying grants whose cached credentials are obsolete. */
+export interface GitHubCredentialChange {
+	readonly providerId: string;
+	readonly sessionIds?: readonly string[];
+}
+
+/** Implemented by the host's authentication binding; token access must be silent and context-specific. */
+export interface IGitHubCredentialProvider {
+	readonly onDidChange: Event<GitHubCredentialChange>;
+	/** A new token for the same grant invalidates the generation, not its client leases. */
+	readonly onDidChangeToken?: Event<GitHubCredentialChange>;
+	getToken(context: GitHubAuthorizationContext, signal: AbortSignal): string | undefined | Promise<string | undefined>;
+	invalidateToken?(context: GitHubAuthorizationContext, token: string): void;
+}

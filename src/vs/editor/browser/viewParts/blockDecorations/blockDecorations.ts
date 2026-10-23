@@ -51,9 +51,6 @@ export class BlockDecorations extends ViewPart {
 		return didChange;
 	}
 
-	public override dispose(): void {
-		super.dispose();
-	}
 
 	// --- begin event handlers
 

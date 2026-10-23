@@ -63,6 +63,10 @@ export class EditTelemetryContribution extends Disposable {
 			if (addAICoAuthor.read(r) === 'off') {
 				return;
 			}
+			const aiDisabled = chatEntitlementService.sentimentObs.read(r).hidden;
+			if (aiDisabled) {
+				return;
+			}
 			r.store.add(instantiationService.createInstance(AiContributionFeature, annotatedDocuments.read(r)));
 		}));
 	}

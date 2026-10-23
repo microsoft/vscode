@@ -27,6 +27,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { handleVetos } from '../../../../platform/lifecycle/common/lifecycle.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { NotificationTelemetryId, NotificationActionTelemetryId } from '../../../../platform/notification/common/notificationTelemetry.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IRemoteAuthorityResolverService, RemoteAuthorityResolverError, RemoteAuthorityResolverErrorCode, ResolverResult, getRemoteAuthorityPrefix } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
@@ -70,7 +71,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	private readonly _onDidChangeExtensionsStatus = this._register(new Emitter<ExtensionIdentifier[]>());
 	public readonly onDidChangeExtensionsStatus = this._onDidChangeExtensionsStatus.event;
 
-	private readonly _onDidChangeExtensions = this._register(new Emitter<{ readonly added: ReadonlyArray<IExtensionDescription>; readonly removed: ReadonlyArray<IExtensionDescription> }>({ leakWarningThreshold: 400 }));
+	private readonly _onDidChangeExtensions = this._register(new Emitter<{ readonly added: ReadonlyArray<IExtensionDescription>; readonly removed: ReadonlyArray<IExtensionDescription> }>({ leakWarningThreshold: 400, leakWarningName: 'ExtensionService._onDidChangeExtensions' }));
 	public readonly onDidChangeExtensions = this._onDidChangeExtensions.event;
 
 	private readonly _onWillActivateByEvent = this._register(new Emitter<IWillActivateEvent>());
@@ -119,7 +120,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		@IRemoteExtensionsScannerService protected readonly _remoteExtensionsScannerService: IRemoteExtensionsScannerService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@IRemoteAuthorityResolverService protected readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		@IDialogService private readonly _dialogService: IDialogService,
+		@IDialogService protected readonly _dialogService: IDialogService,
 	) {
 		super();
 
@@ -321,6 +322,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		toRemove = toRemove.concat(result.removedDueToLooping);
 		if (result.removedDueToLooping.length > 0) {
 			this._notificationService.notify({
+				telemetry: NotificationTelemetryId.ExtensionDependencyLoop,
 				severity: Severity.Error,
 				message: nls.localize('looping', "The following extensions contain dependency loops and have been disabled: {0}", result.removedDueToLooping.map(e => `'${e.identifier.value}'`).join(', '))
 			});
@@ -570,6 +572,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		const result = this._registry.deltaExtensions(lock, toAdd, []);
 		if (result.removedDueToLooping.length > 0) {
 			this._notificationService.notify({
+				telemetry: NotificationTelemetryId.ExtensionDependencyLoop,
 				severity: Severity.Error,
 				message: nls.localize('looping', "The following extensions contain dependency loops and have been disabled: {0}", result.removedDueToLooping.map(e => `'${e.identifier.value}'`).join(', '))
 			});
@@ -925,11 +928,12 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			} else {
 				this._notificationService.prompt(Severity.Error, nls.localize('extensionService.crash', "Remote Extension host terminated unexpectedly 3 times within the last 5 minutes."),
 					[{
+						telemetryId: NotificationActionTelemetryId.RestartExtensionHost,
 						label: nls.localize('restart', "Restart Remote Extension Host"),
 						run: () => {
 							this._startExtensionHostsIfNecessary(false, Array.from(this._allRequestedActivateEvents.keys()));
 						}
-					}]
+					}], { telemetry: NotificationTelemetryId.RemoteExtensionHostCrashRepeated }
 				);
 			}
 		} catch (err) {

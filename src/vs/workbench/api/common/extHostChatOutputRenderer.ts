@@ -5,7 +5,7 @@
 
 import type * as vscode from 'vscode';
 import { CancellationToken } from '../../../base/common/cancellation.js';
-import { ExtHostChatOutputRendererShape, IMainContext, MainContext, MainThreadChatOutputRendererShape } from './extHost.protocol.js';
+import { ExtHostChatOutputRendererShape, type IChatOutputRenderContextDto, IMainContext, MainContext, MainThreadChatOutputRendererShape } from './extHost.protocol.js';
 import { Disposable } from './extHostTypes.js';
 import { ExtHostWebviews } from './extHostWebview.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
@@ -41,7 +41,7 @@ export class ExtHostChatOutputRenderer implements ExtHostChatOutputRendererShape
 		});
 	}
 
-	async $renderChatOutput(viewType: string, mime: string, valueData: VSBuffer, webviewHandle: string, token: CancellationToken): Promise<void> {
+	async $renderChatOutput(viewType: string, mime: string, valueData: VSBuffer, webviewHandle: string, context: IChatOutputRenderContextDto, token: CancellationToken): Promise<void> {
 		const entry = this._renderers.get(viewType);
 		if (!entry) {
 			throw new Error(`No chat output renderer registered for: ${viewType}`);
@@ -52,6 +52,6 @@ export class ExtHostChatOutputRenderer implements ExtHostChatOutputRendererShape
 			webview: extHostWebview,
 			onDidDispose: extHostWebview._onDidDispose,
 		});
-		return entry.renderer.renderChatOutput(Object.freeze({ mime, value: valueData.buffer }), chatOutputWebview, {}, token);
+		return entry.renderer.renderChatOutput(Object.freeze({ mime, value: valueData.buffer }), chatOutputWebview, Object.freeze(context), token);
 	}
 }

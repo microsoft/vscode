@@ -3,19 +3,113 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $ } from '../../../../../base/browser/dom.js';
+import { $, reset } from '../../../../../base/browser/dom.js';
 import { IRenderedMarkdown, MarkdownRenderOptions } from '../../../../../base/browser/markdownRenderer.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { type MarkedExtension, type Token, type Tokens } from '../../../../../base/common/marked/marked.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IMarkdownRenderer, IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import product from '../../../../../platform/product/common/product.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { AGENT_HOST_SCHEME } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SESSION_LINK_SCHEME } from '../../../../../platform/agentHost/common/openSessionLink.js';
 
-const _remoteImageDisallowed = () => false;
+const trustedChatImageSources = new Map([
+	['raw.githubusercontent.com', '/'],
+	['private-user-images.githubusercontent.com', '/'],
+	['avatars.githubusercontent.com', '/'],
+	['gist.github.com', '/assets/'],
+	['github.com', '/user-attachments/assets/'],
+]);
+
+/**
+ * Matches Copilot web's production image sources, restricted to HTTPS without credentials or non-default ports.
+ */
+function isRemoteImageAllowed(uri: URI): boolean {
+	try {
+		// Validate the browser URL after the same serialization used when rewriting image sources.
+		const url = new URL(uri.toString(true));
+		const trustedPath = trustedChatImageSources.get(url.hostname);
+		return url.protocol === `${Schemas.https}:`
+			&& !url.username && !url.password && !url.port
+			&& trustedPath !== undefined && url.pathname.startsWith(trustedPath);
+	} catch {
+		return false;
+	}
+}
+
+const nonPlainTextMarkdownSyntax = /[\\`*_[\]<>|&$]/;
+const gfmAutolink = /\b(?:https?:\/\/|www\.)/i;
+const gfmStrikethrough = /~~/;
+const blockMarkdownSyntax = /(^|\n)\s{0,3}(?:#{1,6}\s|>\s?|[-+]\s|\d+[.)]\s|---+\s*$)/;
+
+const literalSingleTildeExtension: MarkedExtension = {
+	extensions: [{
+		name: 'literalSingleTilde',
+		level: 'inline',
+		tokenizer: source => {
+			if (source[0] === '~' && source[1] !== '~') {
+				return { type: 'text', raw: '~', text: '~' };
+			}
+			return undefined;
+		},
+	}]
+};
+
+const htmlLineBreak = /^<br\s*\/?>$/i;
+
+function replaceHtmlLineBreaks(tokens: Token[]): void {
+	for (let i = 0; i < tokens.length; i++) {
+		const token = tokens[i];
+		if (token.type === 'html' && htmlLineBreak.test(token.raw)) {
+			tokens[i] = { type: 'br', raw: token.raw } satisfies Tokens.Br;
+		} else {
+			const children = (token as Tokens.Generic).tokens;
+			if (children) {
+				replaceHtmlLineBreaks(children);
+			}
+		}
+	}
+}
+
+/**
+ * GFM table cells cannot contain newlines, so `<br>` is the conventional way to break lines
+ * inside them. Chat renders without `supportHtml`, which would otherwise show the tag as text.
+ */
+const tableCellLineBreakExtension: MarkedExtension = {
+	walkTokens: token => {
+		if (token.type === 'table') {
+			const table = token as Tokens.Table;
+			for (const cell of [...table.header, ...table.rows.flat()]) {
+				replaceHtmlLineBreaks(cell.tokens);
+			}
+		}
+	}
+};
+
+const chatMarkedExtensions: readonly MarkedExtension[] = [literalSingleTildeExtension, tableCellLineBreakExtension];
+
+function renderPlainTextMarkdown(markdown: IMarkdownString, outElement?: HTMLElement): IRenderedMarkdown | undefined {
+	const value = markdown.value;
+	if (!value || value.includes('\n') || nonPlainTextMarkdownSyntax.test(value) || gfmAutolink.test(value) || gfmStrikethrough.test(value) || blockMarkdownSyntax.test(value)) {
+		return undefined;
+	}
+
+	const element = outElement ?? $('div');
+	element.classList.add('rendered-markdown');
+	reset(element, $('p', undefined, value.length > 100_000 ? `${value.substr(0, 100_000)}…` : value));
+	return {
+		element,
+		dispose: () => { }
+	};
+}
 
 export const allowedChatMarkdownHtmlTags = Object.freeze([
 	'b',
@@ -59,6 +153,26 @@ export const allowedChatMarkdownHtmlTags = Object.freeze([
 	'input', // Allowed for rendering checkboxes. Other types of inputs are removed and the inputs are always disabled
 ]);
 
+export function getChatMarkdownRenderOptions(options?: MarkdownRenderOptions): MarkdownRenderOptions {
+	return {
+		...options,
+		markedExtensions: [
+			...(options?.markedExtensions ?? []),
+			...chatMarkedExtensions.filter(extension => !options?.markedExtensions?.includes(extension)),
+		],
+		sanitizerConfig: {
+			replaceWithPlaintext: true,
+			allowedTags: {
+				override: allowedChatMarkdownHtmlTags,
+			},
+			...options?.sanitizerConfig,
+			allowedLinkSchemes: { augment: [product.urlProtocol, 'copilot-skill', Schemas.vscodeBrowser, AGENT_HOST_SCHEME, AGENT_HOST_SESSION_LINK_SCHEME] },
+			remoteImageIsAllowed: uri => isRemoteImageAllowed(uri)
+				|| (uri.scheme === AGENT_HOST_SCHEME && options?.sanitizerConfig?.remoteImageIsAllowed?.(uri) === true),
+		}
+	};
+}
+
 /**
  * This wraps the MarkdownRenderer and applies sanitizer options needed for chat content.
  */
@@ -69,21 +183,16 @@ export class ChatContentMarkdownRenderer implements IMarkdownRenderer {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
+		@ILabelService private readonly labelService: ILabelService,
 	) { }
 
 	render(markdown: IMarkdownString, options?: MarkdownRenderOptions, outElement?: HTMLElement): IRenderedMarkdown {
-		options = {
-			...options,
-			sanitizerConfig: {
-				replaceWithPlaintext: true,
-				allowedTags: {
-					override: allowedChatMarkdownHtmlTags,
-				},
-				...options?.sanitizerConfig,
-				allowedLinkSchemes: { augment: [product.urlProtocol, 'copilot-skill'] },
-				remoteImageIsAllowed: _remoteImageDisallowed,
-			}
-		};
+		const plainTextResult = renderPlainTextMarkdown(markdown, outElement);
+		if (plainTextResult) {
+			return plainTextResult;
+		}
+
+		options = getChatMarkdownRenderOptions(options);
 
 		const mdWithBody: IMarkdownString = (markdown && markdown.supportHtml) ?
 			{
@@ -91,7 +200,7 @@ export class ChatContentMarkdownRenderer implements IMarkdownRenderer {
 
 				// dompurify uses DOMParser, which strips leading comments. Wrapping it all in 'body' prevents this.
 				// The \n\n prevents marked.js from parsing the body contents as just text in an 'html' token, instead of actual markdown.
-				value: `<body>\n\n${markdown.value}</body>`,
+				value: `<body>\n\n${markdown.value}\n\n</body>`,
 			}
 			: markdown;
 		const result = this.markdownRendererService.render(mdWithBody, options, outElement);
@@ -113,7 +222,12 @@ export class ChatContentMarkdownRenderer implements IMarkdownRenderer {
 		// eslint-disable-next-line no-restricted-syntax
 		result.element.querySelectorAll('a').forEach((element) => {
 			if (element.title) {
-				const title = element.title;
+				let title = element.title;
+				if (title === element.dataset.href && title.startsWith(`${AGENT_HOST_SCHEME}:`)) {
+					const uri = URI.parse(title);
+					const label = this.labelService.getUriLabel(uri);
+					title = uri.fragment ? `${label}#${uri.fragment}` : label;
+				}
 				element.title = '';
 				store.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), element, title));
 			}

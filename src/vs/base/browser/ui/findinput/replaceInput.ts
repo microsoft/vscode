@@ -3,17 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from '../../dom.js';
 import { IKeyboardEvent } from '../../keyboardEvent.js';
 import { IMouseEvent } from '../../mouseEvent.js';
 import { IToggleStyles, Toggle } from '../toggle/toggle.js';
 import { IContextViewProvider } from '../contextview/contextview.js';
-import { IFindInputToggleOpts } from './findInputToggles.js';
+import { IFindInputToggleOpts, navigateToggles } from './findInputToggles.js';
 import { HistoryInputBox, IInputBoxStyles, IInputValidator, IMessage as InputBoxMessage } from '../inputbox/inputBox.js';
 import { Widget } from '../widget.js';
 import { Codicon } from '../../../common/codicons.js';
 import { Emitter, Event } from '../../../common/event.js';
-import { KeyCode } from '../../../common/keyCodes.js';
 import './findInput.css';
 import * as nls from '../../../../nls.js';
 import { IHistory } from '../../../common/history.js';
@@ -144,30 +142,7 @@ export class ReplaceInput extends Widget {
 		// Arrow-Key support to navigate between options
 		const indexes = [this.preserveCase.domNode];
 		this.onkeydown(this.domNode, (event: IKeyboardEvent) => {
-			if (event.equals(KeyCode.LeftArrow) || event.equals(KeyCode.RightArrow) || event.equals(KeyCode.Escape)) {
-				const index = indexes.indexOf(<HTMLElement>this.domNode.ownerDocument.activeElement);
-				if (index >= 0) {
-					let newIndex: number = -1;
-					if (event.equals(KeyCode.RightArrow)) {
-						newIndex = (index + 1) % indexes.length;
-					} else if (event.equals(KeyCode.LeftArrow)) {
-						if (index === 0) {
-							newIndex = indexes.length - 1;
-						} else {
-							newIndex = index - 1;
-						}
-					}
-
-					if (event.equals(KeyCode.Escape)) {
-						indexes[index].blur();
-						this.inputBox.focus();
-					} else if (newIndex >= 0) {
-						indexes[newIndex].focus();
-					}
-
-					dom.EventHelper.stop(event, true);
-				}
-			}
+			navigateToggles(event, this.domNode, () => indexes, () => this.inputBox.focus());
 		});
 
 
@@ -279,9 +254,5 @@ export class ReplaceInput extends Widget {
 	public set width(newWidth: number) {
 		this.inputBox.paddingRight = this.cachedOptionsWidth;
 		this.domNode.style.width = newWidth + 'px';
-	}
-
-	public override dispose(): void {
-		super.dispose();
 	}
 }

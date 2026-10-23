@@ -1,0 +1,738 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { type AgentFusionPhaseStatus, isPresentationOnlyToolCall, readToolCallMeta, toToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
+import { AgentSystemNotificationKind, type AgentFusionProgressStatus, readAgentSystemNotificationMeta, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
+import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
+import { readSessionSandboxPolicy, withSessionSandboxPolicy } from '../../common/meta/agentSandboxPolicyMeta.js';
+import { readSlashCommandResource, toSlashCommandResourceMeta } from '../../common/meta/agentSlashCommandOutputMeta.js';
+import { readChatInputState, withChatInputState } from '../../common/meta/agentHostChatInputState.js';
+import { createEditorInlineChatInstruction, createTerminalChatInstruction, readChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
+import { readAgentCustomizationMeta, toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
+import { readMcpRoutingServers, readMcpServerControllingSetting, readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin, withMcpRoutingServers, withMcpServerControllingSettingMeta, withMcpServerDisplayNameMeta, withMcpServerSourceMeta, withMcpServerSourcePluginMeta } from '../../common/meta/mcpCustomizationMeta.js';
+import { readSkillArgumentHint, withSkillArgumentHintMeta } from '../../common/meta/skillCustomizationMeta.js';
+import { getCommandArgumentHint, getCompletionAction, readCompletionAttachmentMeta, toCommandCompletionAttachmentMeta, toSkillCompletionAttachmentMeta } from '../../common/meta/agentCompletionAttachmentMeta.js';
+import { CustomizationType, MessageAttachmentKind, ToolCallStatus, hasReportedUsage, readSessionComparisonMetadata, readUsageInfoMeta, withSessionComparisonMetadata, type AgentCustomization, type ClientPluginCustomization, type SkillCustomization, type ToolCallState, type UsageInfo } from '../../common/state/sessionState.js';
+import { McpServerStatus, type McpServerCustomization, type SessionModelInfo, type SimpleMessageAttachment } from '../../common/state/protocol/state.js';
+import { createAgentModelByokMeta, readAgentModelByokIdentifier } from '../../common/agentModelByokMeta.js';
+import { createAgentModelSourceMeta, readAgentModelSourceId } from '../../common/agentModelSource.js';
+import { URI } from '../../../../base/common/uri.js';
+import { hasClientPluginMcpDefaultCwd, hasClientPluginMcpDefaultCwds, readClientPluginMcpDefaultCwd, toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
+
+/** Wraps a `_meta` bag in a minimal {@link ToolCallState} so the reader sees the right source type. */
+function toolCall(meta: Record<string, unknown> | undefined): ToolCallState {
+	return { status: ToolCallStatus.Streaming, toolCallId: 't', toolName: 'n', displayName: 'd', _meta: meta };
+}
+
+/** Wraps a `_meta` bag in a minimal {@link AgentCustomization}. */
+function agentCustomization(meta: Record<string, unknown> | undefined): AgentCustomization {
+	return { type: CustomizationType.Agent, id: 'a', uri: 'file:///a', name: 'n', _meta: meta };
+}
+
+/** Wraps a `_meta` bag in a minimal {@link SimpleMessageAttachment}. */
+function attachment(meta: Record<string, unknown> | undefined): SimpleMessageAttachment {
+	return { type: MessageAttachmentKind.Simple, label: 'l', _meta: meta };
+}
+
+suite('Agent host _meta readers', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('validates the explicit native tool input contract', () => {
+		const key = 'vscode.toolInputContract';
+		assert.deepStrictEqual([
+			readToolCallMeta(toolCall(toToolCallMeta({ [key]: 'copilot-cli-v1' })))[key],
+			...[undefined, null, {}, true, 'copilot', 'future-v2'].map(value => readToolCallMeta(toolCall({ [key]: value }))[key]),
+		], ['copilot-cli-v1', undefined, undefined, undefined, undefined, undefined, undefined]);
+	});
+
+	test('Copilot network restrictions round trip and reject malformed or absent metadata', () => {
+		const restrictions = { sandboxEnabled: true, allowNetwork: false, allowedDomains: ['example.com'], deniedDomains: [] };
+		const key = 'vscode.copilotSandboxNetworkRestrictions';
+		assert.deepStrictEqual([
+			readToolCallMeta(toolCall(toToolCallMeta({ [key]: restrictions })))[key],
+			readToolCallMeta(toolCall(undefined))[key],
+			readToolCallMeta(toolCall({ [key]: { ...restrictions, sandboxEnabled: 'true' } }))[key],
+			readToolCallMeta(toolCall({ [key]: { ...restrictions, deniedDomains: [5] } }))[key],
+		], [restrictions, undefined, undefined, undefined]);
+	});
+
+	test('validates slash command resource metadata', () => {
+		const resource = URI.parse('agenthost-content:///reports/sandbox-policy.md');
+		assert.deepStrictEqual([
+			readSlashCommandResource({ _meta: toSlashCommandResourceMeta(resource, true) }),
+			...[undefined, null, [], {}, { resource: 1, preview: true }, { resource: resource.toString(), preview: 'true' }, { resource: '/reports/policy.md', preview: true }]
+				.map(value => readSlashCommandResource({ _meta: { 'vscode.slashCommandResource': value } })),
+			readSlashCommandResource({}),
+		].map(value => value ? { resource: value.resource.toString(), preview: value.preview } : undefined), [
+			{ resource: resource.toString(), preview: true },
+			undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+			undefined,
+		]);
+	});
+
+	suite('session sandbox policy', () => {
+		const policies = [
+			undefined,
+			{ enabled: false },
+			{ enabled: true, allowBypass: false, allowOutbound: true, allowLocalNetwork: false, allowDevToolAccess: false, sandboxMcpServers: true, sandboxLspServers: true, failClosed: true },
+		];
+
+		test('removes legacy metadata when replacing or clearing the resolved policy', () => {
+			const meta = Object.freeze({
+				unrelated: true,
+				'vscode.sandboxPolicy': { enabled: true, allowOutbound: false },
+				'vscode.resolvedSandboxPolicy': { enabled: true, allowBypass: true },
+			});
+			assert.deepStrictEqual(
+				policies.map(policy => withSessionSandboxPolicy(meta, policy)),
+				policies.map(policy => ({ unrelated: true, 'vscode.resolvedSandboxPolicy': policy })),
+			);
+		});
+
+		test('round trips policies without existing metadata', () => {
+			assert.deepStrictEqual(
+				policies.map(policy => readSessionSandboxPolicy({ _meta: withSessionSandboxPolicy(undefined, policy) })),
+				policies,
+			);
+		});
+	});
+
+	suite('chat input state', () => {
+		test('validates restrictions and optional error fields', () => {
+			const states = [undefined, null, [], {}, { kind: 'checking' }, { kind: 'blocked', error: { errorType: 'locked', message: 'In use' } },
+				{ kind: 'blocked', error: { errorType: 1, message: 'In use' } },
+				{ kind: 'blocked', error: { errorType: 'locked', message: 'In use', stack: 1 } },
+				{ kind: 'blocked', error: { errorType: 'locked', message: 'In use', _meta: [] } }];
+			assert.deepStrictEqual(states.map(state => readChatInputState({ _meta: { 'vscode.chatInputState': { chat: state } } }, 'chat')), [
+				undefined, undefined, undefined, undefined, { kind: 'checking' }, { kind: 'blocked', error: { errorType: 'locked', message: 'In use' } }, undefined, undefined, undefined,
+			]);
+		});
+
+		test('clearing one chat preserves its sibling and unrelated metadata', () => {
+			const first = withChatInputState({ _meta: { unrelated: true } }, 'first', { kind: 'checking' });
+			const second = withChatInputState({ _meta: first }, 'second', { kind: 'checking' });
+			assert.deepStrictEqual(withChatInputState({ _meta: second }, 'first', undefined), {
+				unrelated: true, 'vscode.chatInputState': { second: { kind: 'checking' } },
+			});
+		});
+	});
+
+	test('reads bounded session comparison metadata', () => {
+		assert.deepStrictEqual(readSessionComparisonMetadata(withSessionComparisonMetadata(undefined, {
+			id: 'comparison',
+			role: 'attempt',
+			attemptIndex: 1,
+			attemptCount: 3,
+		})), {
+			id: 'comparison',
+			role: 'attempt',
+			attemptIndex: 1,
+			attemptCount: 3,
+		});
+		assert.strictEqual(readSessionComparisonMetadata({
+			'agentHost/sessionComparison': { id: 'comparison', role: 'attempt', attemptIndex: 3, attemptCount: 3 },
+		}), undefined);
+		assert.strictEqual(readSessionComparisonMetadata({
+			'agentHost/sessionComparison': {
+				id: 'comparison',
+				role: 'judge',
+				attemptCount: 3,
+			},
+		})?.role, 'judge');
+	});
+
+	test('validates registered MCP routing servers and preserves opaque chat metadata', () => {
+		const chat = 'ahp-chat://other-host/opaque-id';
+		const otherChat = 'ahp-chat://other-host/another-id';
+		const meta = withMcpRoutingServers(withMcpRoutingServers({ 'test.opaque': 'kept' }, otherChat, ['other']), chat, ['docs', 'mail']);
+		assert.deepStrictEqual({
+			roundTrip: readMcpRoutingServers(JSON.parse(JSON.stringify({ _meta: meta })), chat),
+			invalid: [undefined, null, 'docs', {}, ['docs', 1], ['']].map(value => readMcpRoutingServers({ _meta: { 'vscode.mcpRoutingServers': { [chat]: value } } }, chat)),
+			absent: readMcpRoutingServers(undefined, chat),
+			wrongChat: readMcpRoutingServers({ _meta: meta }, 'ahp-chat://other-host/missing'),
+			cleared: withMcpRoutingServers(meta, chat, []),
+		}, {
+			roundTrip: ['docs', 'mail'],
+			invalid: [[], [], [], [], [], []],
+			absent: [],
+			wrongChat: [],
+			cleared: { 'test.opaque': 'kept', 'vscode.mcpRoutingServers': { [otherChat]: ['other'], [chat]: [] } },
+		});
+	});
+
+	test('registered MCP routing servers are independent of mutable session metadata', () => {
+		const chat = 'ahp-chat://other-host/opaque-id';
+		const servers = ['docs'];
+		const session = { _meta: { 'vscode.mcpRoutingServers': { [chat]: servers } } };
+		const snapshot = readMcpRoutingServers(session, chat);
+		servers.push('mail');
+		assert.deepStrictEqual({
+			snapshot,
+			current: readMcpRoutingServers(session, chat),
+		}, {
+			snapshot: ['docs'],
+			current: ['docs', 'mail'],
+		});
+	});
+
+	test('validates MCP presentation metadata and preserves opaque entries', () => {
+		const server = (meta: Record<string, unknown> | undefined) => ({
+			type: CustomizationType.McpServer,
+			id: 'server',
+			uri: 'mcp-top-level:server',
+			name: 'server',
+			state: { kind: McpServerStatus.Ready },
+			_meta: meta,
+		} satisfies McpServerCustomization);
+		const opaque = { 'test.opaque': 'kept' };
+		const merged = withMcpServerDisplayNameMeta(withMcpServerSourceMeta(opaque, 'user'), ' Mail ');
+
+		assert.deepStrictEqual({
+			sources: [
+				...(['user', 'workspace', 'plugin', 'builtin', 'managed', 'account'] as const).map(source => readMcpServerSource(server(withMcpServerSourceMeta(undefined, source)))),
+				...[undefined, 'unknown', 1, {}, ['user']].map(source => readMcpServerSource(server({ 'agentHost.mcpServerSource': source }))),
+				readMcpServerSource(server(undefined)),
+			],
+			displayNames: [' Mail ', '', 'x'.repeat(513), 1].map(displayName => readMcpServerDisplayName(server({ 'vscode.mcpServerDisplayName': displayName }))),
+			merged,
+			unchanged: withMcpServerSourceMeta(opaque, undefined) === opaque,
+			cleared: withMcpServerSourceMeta(merged, undefined),
+		}, {
+			sources: ['user', 'workspace', 'plugin', 'builtin', 'managed', 'account', undefined, undefined, undefined, undefined, undefined, undefined],
+			displayNames: ['Mail', undefined, undefined, undefined],
+			merged: { 'test.opaque': 'kept', 'agentHost.mcpServerSource': 'user', 'vscode.mcpServerDisplayName': 'Mail' },
+			unchanged: true,
+			cleared: { 'test.opaque': 'kept', 'vscode.mcpServerDisplayName': 'Mail' },
+		});
+	});
+
+	test('validates MCP source plugins and controlling settings and removes them once they no longer apply', () => {
+		const customization = (meta: Record<string, unknown> | undefined): McpServerCustomization => ({
+			type: CustomizationType.McpServer,
+			id: 'server',
+			uri: 'mcp-top-level:server',
+			name: 'computer-use',
+			state: { kind: McpServerStatus.Ready },
+			_meta: meta,
+		});
+		const opaque = { 'test.opaque': 'kept' };
+		const recorded = withMcpServerControllingSettingMeta(withMcpServerSourcePluginMeta(opaque, 'computer-use'), 'chat.example.enabled');
+
+		assert.deepStrictEqual({
+			read: [readMcpServerSourcePlugin(customization(recorded)), readMcpServerControllingSetting(customization(recorded))],
+			invalidPlugins: [undefined, '', ' ', 1, {}].map(value => readMcpServerSourcePlugin(customization({ 'agentHost.mcpServerSourcePlugin': value }))),
+			invalidSettings: [undefined, '', 1, {}].map(value => readMcpServerControllingSetting(customization({ 'vscode.mcpServerControllingSetting': value }))),
+			recorded,
+			cleared: withMcpServerControllingSettingMeta(withMcpServerSourcePluginMeta(recorded, undefined), undefined),
+			emptied: withMcpServerSourcePluginMeta({ 'agentHost.mcpServerSourcePlugin': 'computer-use' }, undefined),
+			unchanged: withMcpServerSourcePluginMeta(opaque, undefined) === opaque && withMcpServerSourcePluginMeta(recorded, 'computer-use') === recorded,
+		}, {
+			read: ['computer-use', 'chat.example.enabled'],
+			invalidPlugins: [undefined, undefined, undefined, undefined, undefined],
+			invalidSettings: [undefined, undefined, undefined, undefined],
+			recorded: { 'test.opaque': 'kept', 'agentHost.mcpServerSourcePlugin': 'computer-use', 'vscode.mcpServerControllingSetting': 'chat.example.enabled' },
+			cleared: { 'test.opaque': 'kept' },
+			emptied: undefined,
+			unchanged: true,
+		});
+	});
+
+	test('validates skill argument hints and merges them into open metadata', () => {
+		const read = (meta: Record<string, unknown> | undefined) => readSkillArgumentHint({
+			type: CustomizationType.Skill,
+			id: 'skill',
+			uri: 'file:///skills/skill/SKILL.md',
+			name: 'skill',
+			_meta: meta,
+		} satisfies SkillCustomization);
+		const opaque = { 'test.opaque': 'kept' };
+
+		assert.deepStrictEqual({
+			hints: [
+				read(withSkillArgumentHintMeta(undefined, '<problem> [offline]')),
+				...[undefined, '', '  ', 1, {}, ['hint']].map(hint => read({ 'vscode.skill.argumentHint': hint })),
+				read(undefined),
+			],
+			merged: withSkillArgumentHintMeta(opaque, 'task'),
+			unchanged: [withSkillArgumentHintMeta(opaque, undefined) === opaque, withSkillArgumentHintMeta(opaque, ' ') === opaque],
+		}, {
+			hints: ['<problem> [offline]', undefined, undefined, undefined, undefined, undefined, undefined, undefined],
+			merged: { 'test.opaque': 'kept', 'vscode.skill.argumentHint': 'task' },
+			unchanged: [true, true],
+		});
+	});
+
+	suite('readToolCallMeta', () => {
+		test('returns empty when no _meta', () => {
+			assert.deepStrictEqual(readToolCallMeta(toolCall(undefined)), {});
+		});
+
+		test('validates the sandbox bypass flag', () => {
+			assert.deepStrictEqual(
+				[true, false, 'true', 1, undefined].map(value => readToolCallMeta(toolCall({ 'agentHost.sandboxBypass': value }))),
+				[{ 'agentHost.sandboxBypass': true }, { 'agentHost.sandboxBypass': false }, {}, {}, {}],
+			);
+		});
+
+		test('reads valid keys and drops wrong-typed / unknown keys', () => {
+			const result = readToolCallMeta(toolCall({
+				toolKind: 'terminal',
+				language: 'bash',
+				subagentDescription: 'Find files',
+				subagentAgentName: 'explore',
+				mcpServerName: 'srv',
+				mcpToolName: 'tool',
+				autoApproveBySetting: true,
+				ui: { resourceUri: 'ui://app', channel: 'mcp://c' },
+				language2: 123,            // unknown key, ignored
+				somethingElse: 5,          // unknown key, ignored
+			}));
+			assert.deepStrictEqual(result, {
+				toolKind: 'terminal',
+				language: 'bash',
+				subagentDescription: 'Find files',
+				subagentAgentName: 'explore',
+				mcpServerName: 'srv',
+				mcpToolName: 'tool',
+				autoApproveBySetting: true,
+				ui: { resourceUri: 'ui://app', channel: 'mcp://c' },
+			});
+		});
+
+		test('drops an invalid toolKind and a malformed ui bag', () => {
+			const result = readToolCallMeta(toolCall({ toolKind: 'nope', ui: { channel: 'mcp://c' } }));
+			assert.deepStrictEqual(result, {});
+		});
+
+		test('reads valid tool-search candidates and drops malformed corpora', () => {
+			const candidates = [{ name: 'everything-get-sum', description: 'Adds numbers' }];
+			assert.deepStrictEqual(readToolCallMeta(toolCall({ toolSearchCandidates: candidates })), { toolSearchCandidates: candidates });
+			assert.deepStrictEqual(readToolCallMeta(toolCall({ toolSearchCandidates: [{ name: 1, description: 'bad' }] })), {});
+			assert.deepStrictEqual(readToolCallMeta(toolCall({ toolSearchCandidates: 'bad' })), {});
+		});
+
+		test('toToolCallMeta round-trips and returns undefined when empty', () => {
+			assert.strictEqual(toToolCallMeta({}), undefined);
+			const wire = toToolCallMeta({ toolKind: 'search', language: undefined });
+			assert.deepStrictEqual(wire, { toolKind: 'search' });
+			assert.deepStrictEqual(readToolCallMeta(toolCall(wire)), { toolKind: 'search' });
+		});
+
+		test('reads a progress message and drops a non-string one', () => {
+			const wire = toToolCallMeta({ progressMessage: 'Searching' });
+			assert.deepStrictEqual({ wire, read: readToolCallMeta(toolCall(wire)), dropped: readToolCallMeta(toolCall({ progressMessage: 42 })) }, {
+				wire: { progressMessage: 'Searching' },
+				read: { progressMessage: 'Searching' },
+				dropped: {},
+			});
+		});
+
+		test('validates Fusion phase metadata and presentation-only classification', () => {
+			const phase = { fusionId: 'fusion', phaseId: 'phase', model: 'model', startedAt: 123, duration: 10 };
+			const statuses: AgentFusionPhaseStatus[] = ['running', 'succeeded', 'failed', 'cancelled'];
+			const invalid: readonly unknown[] = [undefined, null, '', 'completed', 'future', 1, true, {}, []];
+			assert.deepStrictEqual({
+				valid: statuses.map(status => readToolCallMeta(toolCall(toToolCallMeta({ toolKind: 'fusionPhase', fusionPhase: { ...phase, status } })))),
+				invalid: invalid.map(status => readToolCallMeta(toolCall({ fusionPhase: { ...phase, status } })).fusionPhase),
+				presentation: ['fusionPhase', 'terminal', 'subagent', 'search', 'read', 'future', undefined, null, 1]
+					.map(toolKind => isPresentationOnlyToolCall(toolCall({ toolKind }))),
+				phaseWithoutKind: isPresentationOnlyToolCall(toolCall({ fusionPhase: { ...phase, status: 'running' } })),
+			}, {
+				valid: statuses.map(status => ({ toolKind: 'fusionPhase', fusionPhase: { ...phase, status } })),
+				invalid: invalid.map(() => undefined),
+				presentation: [true, false, false, false, false, false, false, false, false],
+				phaseWithoutKind: false,
+			});
+		});
+	});
+
+	suite('readAgentSystemNotificationMeta', () => {
+		test('round trips Fusion statuses and drops malformed values', () => {
+			const statuses: AgentFusionProgressStatus[] = ['selected', 'completed', 'failed', 'cancelled', 'degraded'];
+			const invalid: readonly unknown[] = [undefined, null, '', 'running', 'future', 1, true, {}, []];
+			const empty = { kind: undefined, severity: undefined, workspaceKind: undefined, workspaceName: undefined, fusionStatus: undefined };
+			assert.deepStrictEqual({
+				valid: statuses.map(fusionStatus => readAgentSystemNotificationMeta({ _meta: toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.FusionProgress, fusionStatus }) })),
+				invalid: invalid.map(fusionStatus => readAgentSystemNotificationMeta({ _meta: { fusionStatus } })),
+			}, {
+				valid: statuses.map(fusionStatus => ({ ...empty, kind: AgentSystemNotificationKind.FusionProgress, fusionStatus })),
+				invalid: invalid.map(() => empty),
+			});
+		});
+
+		test('drops malformed Fusion model values', () => {
+			assert.deepStrictEqual({
+				emptyModel: readAgentSystemNotificationMeta({ _meta: { 'vscode.chat.fusionModel': '' } }).fusionModel,
+				invalidModel: readAgentSystemNotificationMeta({ _meta: { 'vscode.chat.fusionModel': 1 } }).fusionModel,
+			}, {
+				emptyModel: undefined,
+				invalidModel: undefined,
+			});
+		});
+	});
+
+	suite('readEphemeralSessionMeta', () => {
+		test('reads the namespaced flag and drops wrong-typed values', () => {
+			assert.deepStrictEqual(readEphemeralSessionMeta({ _meta: withEphemeralSessionMeta(undefined, true) }), { isEphemeral: true });
+			assert.deepStrictEqual(readEphemeralSessionMeta({ _meta: { 'vscode.chat.ephemeralSession': 'true' } }), {});
+			assert.deepStrictEqual(readEphemeralSessionMeta({ _meta: { unrelated: true } }), {});
+		});
+
+		test('preserves existing metadata when adding the flag', () => {
+			assert.deepStrictEqual(
+				withEphemeralSessionMeta({ existing: 'value' }, false),
+				{ existing: 'value', 'vscode.chat.ephemeralSession': false },
+			);
+		});
+	});
+
+	suite('readChatSurfaceMeta', () => {
+		test('reads terminal metadata with an optional shell type and drops malformed values', () => {
+			assert.deepStrictEqual(
+				readChatSurfaceMeta({ _meta: withChatSurfaceMeta(undefined, { surface: 'terminal', shellType: 'pwsh', osName: 'Windows' }) }),
+				{ surface: 'terminal', shellType: 'pwsh', osName: 'Windows' },
+			);
+			assert.deepStrictEqual(
+				readChatSurfaceMeta({ _meta: withChatSurfaceMeta(undefined, { surface: 'terminal', osName: 'Linux' }) }),
+				{ surface: 'terminal', osName: 'Linux' },
+			);
+			assert.strictEqual(readChatSurfaceMeta({ _meta: { 'vscode.chat.surface': { surface: 'editor', shellType: 'pwsh', osName: 'Windows' } } }), undefined);
+			assert.strictEqual(readChatSurfaceMeta({ _meta: { 'vscode.chat.surface': { surface: 'terminal', shellType: 1, osName: 'Windows' } } }), undefined);
+			assert.strictEqual(readChatSurfaceMeta({ _meta: { 'vscode.chat.surface': { surface: 'terminal', shellType: 'pwsh' } } }), undefined);
+			assert.strictEqual(readChatSurfaceMeta({ _meta: { unrelated: true } }), undefined);
+		});
+
+		test('preserves existing metadata when adding terminal metadata', () => {
+			assert.deepStrictEqual(
+				withChatSurfaceMeta({ existing: 'value' }, { surface: 'terminal', shellType: 'bash', osName: 'Linux' }),
+				{ existing: 'value', 'vscode.chat.surface': { surface: 'terminal', shellType: 'bash', osName: 'Linux' } },
+			);
+		});
+
+		test('reads and writes editor inline metadata', () => {
+			assert.deepStrictEqual(
+				readChatSurfaceMeta({ _meta: withChatSurfaceMeta(undefined, { surface: 'editorInline', languageId: 'typescript', targetUri: 'file:///workspace/inline.ts' }) }),
+				{ surface: 'editorInline', languageId: 'typescript', targetUri: 'file:///workspace/inline.ts' },
+			);
+			assert.deepStrictEqual(
+				readChatSurfaceMeta({ _meta: withChatSurfaceMeta(undefined, { surface: 'editorInline' }) }),
+				{ surface: 'editorInline' },
+			);
+			assert.strictEqual(readChatSurfaceMeta({ _meta: { 'vscode.chat.surface': { surface: 'editorInline', languageId: 1 } } }), undefined);
+			assert.deepStrictEqual(
+				readChatSurfaceMeta({ _meta: { 'vscode.chat.surface': { surface: 'editorInline', targetUri: 1 } } }),
+				{ surface: 'editorInline' },
+			);
+			assert.deepStrictEqual(
+				withChatSurfaceMeta({ existing: 'value' }, { surface: 'editorInline', languageId: 'typescript', targetUri: 'file:///workspace/inline.ts' }),
+				{ existing: 'value', 'vscode.chat.surface': { surface: 'editorInline', languageId: 'typescript', targetUri: 'file:///workspace/inline.ts' } },
+			);
+		});
+	});
+
+	suite('createTerminalChatInstruction', () => {
+		test('targets the active shell and OS when known, and keeps general guidance otherwise', () => {
+			const pwsh = createTerminalChatInstruction({ surface: 'terminal', shellType: 'pwsh', osName: 'Windows' });
+			const bash = createTerminalChatInstruction({ surface: 'terminal', shellType: 'bash', osName: 'Linux' });
+			const shellUnknown = createTerminalChatInstruction({ surface: 'terminal', osName: 'Linux' });
+			assert.deepStrictEqual({
+				pwshTargetsShellAndOs: pwsh.includes('targeting Windows') && pwsh.includes('active shell is pwsh'),
+				pwshHasPowerShellIdioms: pwsh.includes('Stop-Process'),
+				pwshOmitsFallbackRule: !pwsh.includes('Python or Perl'),
+				bashTargetsShellAndOs: bash.includes('targeting Linux') && bash.includes('active shell is bash'),
+				bashHasFallbackRule: bash.includes('Python or Perl'),
+				bashOmitsPowerShellIdioms: !bash.includes('Stop-Process'),
+				shellUnknownTargetsOs: shellUnknown.includes('targeting Linux'),
+				shellUnknownOmitsShellGuidance: !shellUnknown.includes('active shell') && !shellUnknown.includes('Python or Perl') && !shellUnknown.includes('Stop-Process'),
+				allRequireFencedCommands: [pwsh, bash, shellUnknown].every(instruction => instruction.includes('each command in its own fenced Markdown code block using triple backticks')),
+				allTagged: pwsh.startsWith('<terminal_chat>') && bash.endsWith('</terminal_chat>') && shellUnknown.endsWith('</terminal_chat>'),
+			}, {
+				pwshTargetsShellAndOs: true,
+				pwshHasPowerShellIdioms: true,
+				pwshOmitsFallbackRule: true,
+				bashTargetsShellAndOs: true,
+				bashHasFallbackRule: true,
+				bashOmitsPowerShellIdioms: true,
+				shellUnknownTargetsOs: true,
+				shellUnknownOmitsShellGuidance: true,
+				allRequireFencedCommands: true,
+				allTagged: true,
+			});
+		});
+	});
+
+	suite('createEditorInlineChatInstruction', () => {
+		test('targets the attached editor file and includes its language when known', () => {
+			const typescript = createEditorInlineChatInstruction({ surface: 'editorInline', languageId: 'typescript' });
+			const languageUnknown = createEditorInlineChatInstruction({ surface: 'editorInline' });
+			assert.deepStrictEqual({
+				typescript,
+				languageUnknown,
+			}, {
+				typescript: [
+					'<editor_inline_chat>',
+					'You specialize in focused inline edits. Make the requested change directly.',
+					'- Edit only the file attached as the current editor context. Do not create, delete, or modify other files.',
+					'- Make the smallest edit that satisfies the request; preserve surrounding style and indentation.',
+					'- Focus on the user\'s selected range when one is provided.',
+					'- The <editor_inline_context> block is current, authoritative source. When it contains enough context for the requested edit, edit directly without reading or viewing the file first.',
+					'- Avoid broad repository exploration or context-gathering unless required to resolve ambiguity.',
+					'- After making the edit, stop; do not run tests, builds, linters, or other verification, and never summarize the change.',
+					'- Produce the edit directly rather than explaining it or writing a tutorial.',
+					'- The file\'s language is typescript.',
+					'</editor_inline_chat>',
+				].join('\n'),
+				languageUnknown: [
+					'<editor_inline_chat>',
+					'You specialize in focused inline edits. Make the requested change directly.',
+					'- Edit only the file attached as the current editor context. Do not create, delete, or modify other files.',
+					'- Make the smallest edit that satisfies the request; preserve surrounding style and indentation.',
+					'- Focus on the user\'s selected range when one is provided.',
+					'- The <editor_inline_context> block is current, authoritative source. When it contains enough context for the requested edit, edit directly without reading or viewing the file first.',
+					'- Avoid broad repository exploration or context-gathering unless required to resolve ambiguity.',
+					'- After making the edit, stop; do not run tests, builds, linters, or other verification, and never summarize the change.',
+					'- Produce the edit directly rather than explaining it or writing a tutorial.',
+					'</editor_inline_chat>',
+				].join('\n'),
+			});
+		});
+	});
+
+	suite('readAgentCustomizationMeta', () => {
+		test('reads only explicit, bounded Ask metadata', () => {
+			assert.deepStrictEqual([
+				readAgentCustomizationMeta(agentCustomization(toAgentCustomizationMeta({ 'vscode.chatMode': 'ask' }))),
+				...[undefined, null, true, {}, 'agent', 'Ask'].map(value => readAgentCustomizationMeta(agentCustomization({ 'vscode.chatMode': value }))),
+			], [{ 'vscode.chatMode': 'ask' }, {}, {}, {}, {}, {}, {}]);
+		});
+
+		test('reads userInvocable, ignores garbage, round-trips', () => {
+			assert.deepStrictEqual(readAgentCustomizationMeta(agentCustomization(undefined)), {});
+			assert.deepStrictEqual(readAgentCustomizationMeta(agentCustomization({ userInvocable: 'yes' })), {});
+			assert.deepStrictEqual(readAgentCustomizationMeta(agentCustomization({ userInvocable: false })), { userInvocable: false });
+			assert.deepStrictEqual(readAgentCustomizationMeta({ ...agentCustomization({ userInvocable: true }), disableUserInvocation: true }), { userInvocable: false });
+			assert.strictEqual(toAgentCustomizationMeta({}), undefined);
+			assert.deepStrictEqual(toAgentCustomizationMeta({ userInvocable: true }), { userInvocable: true });
+		});
+	});
+
+	suite('readCompletionAttachmentMeta', () => {
+		test('classifies a command bag', () => {
+			assert.deepStrictEqual(
+				readCompletionAttachmentMeta(attachment({ command: 'rename', description: 'Rename this chat', argumentHint: 'New name' })),
+				{ kind: 'command', command: 'rename', description: 'Rename this chat', argumentHint: 'New name' }
+			);
+		});
+
+		test('classifies a skill bag, dropping wrong-typed optional fields', () => {
+			assert.deepStrictEqual(
+				readCompletionAttachmentMeta(attachment({ uri: 'file:///s/SKILL.md', name: 'mon', displayName: 'mon', description: 5 })),
+				{ kind: 'skill', uri: 'file:///s/SKILL.md', name: 'mon', displayName: 'mon' }
+			);
+		});
+
+		test('returns undefined for an unrecognized or empty bag', () => {
+			assert.strictEqual(readCompletionAttachmentMeta(attachment(undefined)), undefined);
+			assert.strictEqual(readCompletionAttachmentMeta(attachment({ foo: 'bar' })), undefined);
+			assert.strictEqual(readCompletionAttachmentMeta(attachment({ command: 5 })), undefined);
+		});
+
+		test('builders produce wire bags that round-trip', () => {
+			const cmd = toCommandCompletionAttachmentMeta({ command: 'rename' });
+			assert.deepStrictEqual(cmd, { command: 'rename' });
+			assert.deepStrictEqual(readCompletionAttachmentMeta(attachment(cmd)), { kind: 'command', command: 'rename' });
+
+			const cmdWithHint = toCommandCompletionAttachmentMeta({ command: 'rename', isSkill: true, argumentHint: 'New name', description: undefined });
+			assert.deepStrictEqual(cmdWithHint, { command: 'rename', isSkill: true, argumentHint: 'New name' });
+			assert.deepStrictEqual(readCompletionAttachmentMeta(attachment(cmdWithHint)), { kind: 'command', command: 'rename', isSkill: true, argumentHint: 'New name' });
+
+			const skill = toSkillCompletionAttachmentMeta({ uri: 'file:///s/SKILL.md', name: 'mon', displayName: 'mon', description: undefined });
+			assert.deepStrictEqual(skill, { uri: 'file:///s/SKILL.md', name: 'mon', displayName: 'mon' });
+			assert.deepStrictEqual(readCompletionAttachmentMeta(attachment(skill)), { kind: 'skill', uri: 'file:///s/SKILL.md', name: 'mon', displayName: 'mon' });
+
+			const skillWithHint = toSkillCompletionAttachmentMeta({ uri: 'file:///s/SKILL.md', name: 'mon', argumentHint: '<pr number>' });
+			assert.deepStrictEqual(skillWithHint, { uri: 'file:///s/SKILL.md', name: 'mon', argumentHint: '<pr number>' });
+			assert.deepStrictEqual(readCompletionAttachmentMeta(attachment(skillWithHint)), { kind: 'skill', uri: 'file:///s/SKILL.md', name: 'mon', argumentHint: '<pr number>' });
+			assert.strictEqual(getCommandArgumentHint(skillWithHint), '<pr number>');
+		});
+
+		test('getCommandArgumentHint reads the hint and ignores wrong-typed / absent bags', () => {
+			assert.strictEqual(getCommandArgumentHint({ argumentHint: 'New name' }), 'New name');
+			assert.strictEqual(getCommandArgumentHint({ argumentHint: 5 }), undefined);
+			assert.strictEqual(getCommandArgumentHint({ command: 'rename' }), undefined);
+			assert.strictEqual(getCommandArgumentHint(undefined), undefined);
+		});
+
+		test('classifies a command bag carrying an action and round-trips it', () => {
+			const wire = toCommandCompletionAttachmentMeta({
+				command: 'autopilot',
+				description: 'Run this request in Autopilot mode',
+				argumentHint: 'prompt',
+				action: { applyConfig: { mode: 'autopilot' } },
+			});
+			assert.deepStrictEqual(wire, {
+				command: 'autopilot',
+				description: 'Run this request in Autopilot mode',
+				argumentHint: 'prompt',
+				action: { applyConfig: { mode: 'autopilot' } },
+			});
+			assert.deepStrictEqual(readCompletionAttachmentMeta(attachment(wire)), {
+				kind: 'command',
+				command: 'autopilot',
+				description: 'Run this request in Autopilot mode',
+				argumentHint: 'prompt',
+				action: { applyConfig: { mode: 'autopilot' } },
+			});
+		});
+
+		test('getCompletionAction reads the action, dropping wrong-typed sub-fields and empty bags', () => {
+			assert.deepStrictEqual(getCompletionAction({ action: { applyConfig: { autoApprove: 'autoApprove', bad: 5 } } }), { applyConfig: { autoApprove: 'autoApprove' } });
+			assert.strictEqual(getCompletionAction({ action: { applyConfig: {} } }), undefined);
+			assert.strictEqual(getCompletionAction({ command: 'yolo' }), undefined);
+			assert.strictEqual(getCompletionAction(undefined), undefined);
+		});
+	});
+
+	suite('agent model BYOK identifier meta', () => {
+		/** Wraps a `_meta` bag in a minimal {@link SessionModelInfo}. */
+		function model(meta: Record<string, unknown> | undefined): SessionModelInfo {
+			return { id: 'm', provider: 'p', name: 'n', _meta: meta };
+		}
+
+		test('round-trips a model identifier through _meta', () => {
+			const meta = createAgentModelByokMeta('openrouter/OpenRouter 2/aion-labs/aion-3.0');
+			assert.deepStrictEqual(meta, { byokModelIdentifier: 'openrouter/OpenRouter 2/aion-labs/aion-3.0' });
+			assert.strictEqual(readAgentModelByokIdentifier(model(meta)), 'openrouter/OpenRouter 2/aion-labs/aion-3.0');
+		});
+
+		test('omits the bag entirely when there is no identifier', () => {
+			assert.strictEqual(createAgentModelByokMeta(undefined), undefined);
+			assert.strictEqual(readAgentModelByokIdentifier(model(undefined)), undefined);
+			assert.strictEqual(readAgentModelByokIdentifier(model({})), undefined);
+		});
+
+		test('ignores a wrong-typed identifier value', () => {
+			assert.strictEqual(readAgentModelByokIdentifier(model({ byokModelIdentifier: 42 })), undefined);
+		});
+	});
+
+	suite('agent model source meta', () => {
+		function model(meta: Record<string, unknown> | undefined): SessionModelInfo {
+			return { id: 'm', provider: 'p', name: 'n', _meta: meta };
+		}
+
+		test('round-trips a source id through _meta', () => {
+			const meta = createAgentModelSourceMeta('chatgptSubscription');
+			assert.deepStrictEqual(meta, { modelSourceId: 'chatgptSubscription' });
+			assert.strictEqual(readAgentModelSourceId(model(meta)), 'chatgptSubscription');
+		});
+
+		test('omits unknown sources and ignores invalid values', () => {
+			assert.strictEqual(createAgentModelSourceMeta(undefined), undefined);
+			assert.strictEqual(readAgentModelSourceId(model(undefined)), undefined);
+			assert.strictEqual(readAgentModelSourceId(model({ modelSourceId: 42 })), undefined);
+			assert.strictEqual(readAgentModelSourceId(model({ modelSourceId: '' })), undefined);
+		});
+	});
+
+	suite('usage info Auto mode resolution', () => {
+		function usage(autoModeResolved: unknown): UsageInfo {
+			return { _meta: { autoModeResolved } };
+		}
+
+		test('reads the selection reason only when it is a non-empty string', () => {
+			const selectionReason = 'Auto selected gpt-5.4-mini to prioritize cost efficiency, alongside model fit for this task.';
+			assert.deepStrictEqual([
+				readUsageInfoMeta(usage({ chosenModel: 'gpt-5.4-mini', selectionReason })).autoModeResolved,
+				readUsageInfoMeta(usage({ chosenModel: 'gpt-5.4-mini' })).autoModeResolved,
+				readUsageInfoMeta(usage({ chosenModel: 'gpt-5.4-mini', selectionReason: '  ' })).autoModeResolved,
+				readUsageInfoMeta(usage({ chosenModel: 'gpt-5.4-mini', selectionReason: 42 })).autoModeResolved,
+			], [
+				{ chosenModel: 'gpt-5.4-mini', selectionReason },
+				{ chosenModel: 'gpt-5.4-mini' },
+				{ chosenModel: 'gpt-5.4-mini' },
+				{ chosenModel: 'gpt-5.4-mini' },
+			]);
+		});
+	});
+
+	suite('usage info turn token totals', () => {
+		/** Wraps a `_meta` bag in a minimal {@link UsageInfo}. */
+		function usage(meta: Record<string, unknown> | undefined): UsageInfo {
+			return { _meta: meta };
+		}
+
+		test('reads well-formed per-model totals', () => {
+			const totals = [
+				{ model: 'gpt-5', inputTokens: 1200, cachedTokens: 800, outputTokens: 340 },
+				{ model: 'claude-sonnet-4.6', inputTokens: 40, cachedTokens: 0, outputTokens: 12 },
+			];
+			assert.deepStrictEqual(readUsageInfoMeta(usage({ turnTokenTotals: totals })).turnTokenTotals, totals);
+			assert.deepStrictEqual(readUsageInfoMeta(usage({ directTurnTokenTotals: totals })).directTurnTokenTotals, totals);
+			assert.deepStrictEqual(
+				readUsageInfoMeta(usage({ directCopilotUsage: { totalNanoAiu: 123 } })).directCopilotUsage,
+				{ totalNanoAiu: 123 },
+			);
+		});
+
+		test('drops rows that are not fully formed, and reports nothing when none survive', () => {
+			const meta = readUsageInfoMeta(usage({
+				turnTokenTotals: [
+					null,
+					'nope',
+					{ inputTokens: 1, cachedTokens: 0, outputTokens: 1 },
+					{ model: '', inputTokens: 1, cachedTokens: 0, outputTokens: 1 },
+					{ model: 'gpt-5', inputTokens: 'bad', cachedTokens: 0, outputTokens: 1 },
+					{ model: 'gpt-5', inputTokens: -1, cachedTokens: 0, outputTokens: 1 },
+					{ model: 'gpt-5', inputTokens: 1.5, cachedTokens: 0, outputTokens: 1 },
+					{ model: 'gpt-5', cachedTokens: 0, outputTokens: 1 },
+					{ model: 'gpt-5', inputTokens: 7, cachedTokens: 0, outputTokens: 3 },
+				],
+			}));
+			assert.deepStrictEqual(meta.turnTokenTotals, [{ model: 'gpt-5', inputTokens: 7, cachedTokens: 0, outputTokens: 3 }]);
+			assert.strictEqual(readUsageInfoMeta(usage({ turnTokenTotals: [{ model: 'gpt-5' }] })).turnTokenTotals, undefined);
+			assert.strictEqual(readUsageInfoMeta(usage({ turnTokenTotals: 'nope' })).turnTokenTotals, undefined);
+			assert.strictEqual(readUsageInfoMeta(usage({ directTurnTokenTotals: 'nope' })).directTurnTokenTotals, undefined);
+			assert.strictEqual(readUsageInfoMeta(usage({ directCopilotUsage: { totalNanoAiu: 'nope' } })).directCopilotUsage, undefined);
+			assert.strictEqual(readUsageInfoMeta(usage({})).turnTokenTotals, undefined);
+		});
+
+		test('totals alone do not make a usage report count as reported consumption', () => {
+			// Totals always accompany per-call tokens or credits, and treating them as
+			// consumption on their own would make the restore path skip merging the
+			// richer persisted usage over a token-less stub.
+			assert.strictEqual(hasReportedUsage(usage({ turnTokenTotals: [{ model: 'gpt-5', inputTokens: 7, cachedTokens: 0, outputTokens: 3 }] })), false);
+		});
+	});
+
+	suite('client plugin MCP default cwd meta', () => {
+		function plugin(meta: Record<string, unknown> | undefined): ClientPluginCustomization {
+			return { type: CustomizationType.Plugin, id: 'p', uri: 'file:///p', name: 'p', _meta: meta };
+		}
+
+		test('round-trips URI and primary-directory defaults', () => {
+			const primaryCwd = URI.file('/workspace');
+			const additionalCwd = URI.parse('vscode-remote://ssh-remote+host/workspace');
+			const meta = toClientPluginMcpDefaultCwdsMeta({ primary: null, additional: additionalCwd });
+			assert.strictEqual(hasClientPluginMcpDefaultCwds(plugin(meta)), true);
+			assert.strictEqual(hasClientPluginMcpDefaultCwd(plugin(meta), 'primary'), true);
+			assert.strictEqual(hasClientPluginMcpDefaultCwd(plugin(meta), 'missing'), false);
+			assert.strictEqual(readClientPluginMcpDefaultCwd(plugin(meta), 'primary', primaryCwd), primaryCwd);
+			assert.strictEqual(readClientPluginMcpDefaultCwd(plugin(meta), 'additional', primaryCwd)?.toString(), additionalCwd.toString());
+		});
+
+		test('ignores absent and malformed metadata', () => {
+			assert.strictEqual(readClientPluginMcpDefaultCwd(plugin(undefined), 'server', URI.file('/workspace')), undefined);
+			assert.strictEqual(hasClientPluginMcpDefaultCwds(plugin(undefined)), false);
+			assert.strictEqual(readClientPluginMcpDefaultCwd(plugin({ mcpDefaultCwds: { server: 42 } }), 'server', URI.file('/workspace')), undefined);
+			assert.strictEqual(readClientPluginMcpDefaultCwd(plugin({ mcpDefaultCwds: { server: 'relative/path' } }), 'server', URI.file('/workspace')), undefined);
+			assert.strictEqual(hasClientPluginMcpDefaultCwd(plugin({ mcpDefaultCwds: { server: 42 } }), 'server'), false);
+			assert.strictEqual(hasClientPluginMcpDefaultCwd(plugin({ mcpDefaultCwds: { server: 'relative/path' } }), 'server'), false);
+		});
+	});
+});

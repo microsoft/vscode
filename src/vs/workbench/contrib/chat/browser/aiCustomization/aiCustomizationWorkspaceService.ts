@@ -7,12 +7,11 @@ import { constObservable, derived, IObservable, observableFromEventOpts } from '
 import { URI } from '../../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { IAICustomizationWorkspaceService, AICustomizationManagementSection, IStorageSourceFilter } from '../../common/aiCustomizationWorkspaceService.js';
+import { IAICustomizationWorkspaceService, AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { IChatPromptSlashCommand, IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
-import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import {
 	GENERATE_AGENT_COMMAND_ID,
 	GENERATE_HOOK_COMMAND_ID,
@@ -25,12 +24,12 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 	declare readonly _serviceBrand: undefined;
 
 	readonly activeProjectRoot: IObservable<URI | undefined>;
+	readonly activeProjectLabel: IObservable<string | undefined>;
 
 	constructor(
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IPromptsService private readonly promptsService: IPromptsService,
-		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 	) {
 		const workspaceFolders = observableFromEventOpts(
 			{ owner: this },
@@ -41,6 +40,10 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 			const folders = workspaceFolders.read(reader);
 			return folders[0]?.uri;
 		});
+		this.activeProjectLabel = derived(reader => {
+			const folders = workspaceFolders.read(reader);
+			return folders[0]?.name;
+		});
 	}
 
 	getActiveProjectRoot(): URI | undefined {
@@ -49,34 +52,39 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 	}
 
 	readonly managementSections: readonly AICustomizationManagementSection[] = [
-		AICustomizationManagementSection.Agents,
+		AICustomizationManagementSection.Plugins,
+		AICustomizationManagementSection.Canvases,
+		AICustomizationManagementSection.McpServers,
 		AICustomizationManagementSection.Skills,
 		AICustomizationManagementSection.Instructions,
-		AICustomizationManagementSection.Prompts,
+		AICustomizationManagementSection.Agents,
 		AICustomizationManagementSection.Hooks,
-		AICustomizationManagementSection.McpServers,
-		AICustomizationManagementSection.Plugins,
+		AICustomizationManagementSection.Tools,
+		AICustomizationManagementSection.Prompts,
+		AICustomizationManagementSection.HarnessSettings,
 	];
 
-	getStorageSourceFilter(type: PromptsType): IStorageSourceFilter {
-		return this.harnessService.getStorageSourceFilter(type);
-	}
-
 	readonly isSessionsWindow = false;
+
+	readonly welcomePageFeatures = {
+		showGettingStartedBanner: true,
+	};
 
 	readonly hasOverrideProjectRoot = constObservable(false);
 	setOverrideProjectRoot(_root: URI): void { }
 	clearOverrideProjectRoot(): void { }
 
-	async commitFiles(_projectRoot: URI, _fileUris: URI[]): Promise<void> {
+	async commitFiles(_projectRoot: URI, _fileUris: URI[]): Promise<boolean> {
 		// No-op in core VS Code.
+		return true;
 	}
 
-	async deleteFiles(_projectRoot: URI, _fileUris: URI[]): Promise<void> {
+	async deleteFiles(_projectRoot: URI, _fileUris: URI[]): Promise<boolean> {
 		// No-op in core VS Code.
+		return true;
 	}
 
-	async generateCustomization(type: PromptsType): Promise<void> {
+	async generateCustomization(type: PromptsType, workspaceFolder?: URI): Promise<void> {
 		const commandIds: Partial<Record<PromptsType, string>> = {
 			[PromptsType.agent]: GENERATE_AGENT_COMMAND_ID,
 			[PromptsType.skill]: GENERATE_SKILL_COMMAND_ID,
@@ -86,7 +94,7 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 		};
 		const commandId = commandIds[type];
 		if (commandId) {
-			await this.commandService.executeCommand(commandId);
+			await this.commandService.executeCommand(commandId, workspaceFolder);
 		}
 	}
 

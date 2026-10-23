@@ -73,6 +73,9 @@ export interface IButton extends IDisposable {
 	set enabled(value: boolean);
 	set checked(value: boolean);
 
+	setTitle(title: string): void;
+	setAriaLabel(ariaLabel: string): void;
+
 	focus(): void;
 	hasFocus(): boolean;
 }
@@ -108,6 +111,7 @@ export class Button extends Disposable implements IButton {
 	protected _labelElement: HTMLElement | undefined;
 	protected _labelShortElement: HTMLElement | undefined;
 	private _hover: IManagedHover | undefined;
+	private _hoverStyleApplied = false;
 
 	private _onDidClick = this._register(new Emitter<Event>());
 	get onDidClick(): BaseEvent<Event> { return this._onDidClick.event; }
@@ -252,6 +256,7 @@ export class Button extends Disposable implements IButton {
 		this._element.style.backgroundColor = background || '';
 		this._element.style.color = foreground || '';
 		this._element.style.border = border ? `1px solid ${border}` : '';
+		this._hoverStyleApplied = hover;
 	}
 
 	get element(): HTMLElement {
@@ -344,6 +349,11 @@ export class Button extends Disposable implements IButton {
 		} else {
 			this._element.classList.add('disabled');
 			this._element.setAttribute('aria-disabled', String(true));
+			// Disabled buttons never show hover feedback, and the blur handler only resets
+			// it while enabled, so clear any hover style applied before disabling.
+			if (this._hoverStyleApplied) {
+				this.updateStyles(false);
+			}
 		}
 	}
 
@@ -377,6 +387,10 @@ export class Button extends Disposable implements IButton {
 		} else if (this._hover) {
 			this._hover.update(title);
 		}
+	}
+
+	setAriaLabel(ariaLabel: string): void {
+		this._element.setAttribute('aria-label', ariaLabel);
 	}
 
 	focus(): void {
@@ -434,7 +448,7 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 		this.element.appendChild(this.separatorContainer);
 
 		// Separator styles
-		const border = options.buttonBorder;
+		const border = options.secondary ? options.buttonSecondaryBorder : options.buttonBorder;
 		if (border) {
 			this.separatorContainer.style.borderTop = '1px solid ' + border;
 			this.separatorContainer.style.borderBottom = '1px solid ' + border;
@@ -495,6 +509,14 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 		return this.primaryButton.checked;
 	}
 
+	setTitle(title: string): void {
+		this.primaryButton.setTitle(title);
+	}
+
+	setAriaLabel(ariaLabel: string): void {
+		this.primaryButton.setAriaLabel(ariaLabel);
+	}
+
 	focus(): void {
 		this.primaryButton.focus();
 	}
@@ -552,6 +574,14 @@ export class ButtonWithDescription implements IButtonWithDescription {
 
 	get checked(): boolean {
 		return this._button.checked;
+	}
+
+	setTitle(title: string): void {
+		this._button.setTitle(title);
+	}
+
+	setAriaLabel(ariaLabel: string): void {
+		this._button.setAriaLabel(ariaLabel);
 	}
 
 	focus(): void {

@@ -1,0 +1,31 @@
+name: chat-lib tests (manual)
+
+# Pull requests run chat-lib through the chat-lib jobs in pr.yml. This workflow allows
+# running the same checks on demand, for example on a branch without a pull request.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: chat-lib-tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    # Distinct from the required pull request check names so manual runs never satisfy them.
+    name: chat-lib manual tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Test chat-lib
+        uses: ./.github/actions/test-chat-lib

@@ -82,7 +82,7 @@ suite('GlobalStateSync', () => {
 		const remoteUserData = await testObject.getRemoteUserData(null);
 		assert.deepStrictEqual(lastSyncUserData!.ref, remoteUserData.ref);
 		assert.deepStrictEqual(lastSyncUserData!.syncData, remoteUserData.syncData);
-		assert.deepStrictEqual(JSON.parse(lastSyncUserData!.syncData!.content).storage, { 'a': { version: 1, value: 'value1' } });
+		assert.deepStrictEqual(JSON.parse(lastSyncUserData!.syncData!.content).storage, { 'a': { version: 1, value: 'value1', scope: 0 } });
 	}));
 
 	test('first time sync - outgoing to server (no state)', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -97,7 +97,7 @@ suite('GlobalStateSync', () => {
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
 		const actual = parseGlobalState(content);
-		assert.deepStrictEqual(actual.storage, { 'globalState.argv.locale': { version: 1, value: 'en' }, 'a': { version: 1, value: 'value1' } });
+		assert.deepStrictEqual(actual.storage, { 'globalState.argv.locale': { version: 1, value: 'en' }, 'a': { version: 1, value: 'value1', scope: 0 } });
 	}));
 
 	test('first time sync - incoming from server (no state)', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -128,7 +128,7 @@ suite('GlobalStateSync', () => {
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
 		const actual = parseGlobalState(content);
-		assert.deepStrictEqual(actual.storage, { 'a': { version: 1, value: 'value1' }, 'b': { version: 1, value: 'value2' } });
+		assert.deepStrictEqual(actual.storage, { 'a': { version: 1, value: 'value1', scope: 0 }, 'b': { version: 1, value: 'value2', scope: 0 } });
 	}));
 
 	test('first time sync when storage exists - has conflicts', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -146,7 +146,7 @@ suite('GlobalStateSync', () => {
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
 		const actual = parseGlobalState(content);
-		assert.deepStrictEqual(actual.storage, { 'a': { version: 1, value: 'value1' } });
+		assert.deepStrictEqual(actual.storage, { 'a': { version: 1, value: 'value1', scope: 0 } });
 	}));
 
 	test('sync adding a storage value', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -164,7 +164,7 @@ suite('GlobalStateSync', () => {
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
 		const actual = parseGlobalState(content);
-		assert.deepStrictEqual(actual.storage, { 'a': { version: 1, value: 'value1' }, 'b': { version: 1, value: 'value2' } });
+		assert.deepStrictEqual(actual.storage, { 'a': { version: 1, value: 'value1', scope: 0 }, 'b': { version: 1, value: 'value2', scope: 0 } });
 	}));
 
 	test('sync updating a storage value', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -181,7 +181,7 @@ suite('GlobalStateSync', () => {
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
 		const actual = parseGlobalState(content);
-		assert.deepStrictEqual(actual.storage, { 'a': { version: 1, value: 'value2' } });
+		assert.deepStrictEqual(actual.storage, { 'a': { version: 1, value: 'value2', scope: 0 } });
 	}));
 
 	test('sync removing a storage value', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -200,7 +200,7 @@ suite('GlobalStateSync', () => {
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
 		const actual = parseGlobalState(content);
-		assert.deepStrictEqual(actual.storage, { 'a': { version: 1, value: 'value1' } });
+		assert.deepStrictEqual(actual.storage, { 'a': { version: 1, value: 'value1', scope: 0 } });
 	}));
 
 	test('sync profile state', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -221,7 +221,7 @@ suite('GlobalStateSync', () => {
 		const { content } = await testClient.read(testObject.resource, '1');
 		assert.ok(content !== null);
 		const actual = parseGlobalState(content);
-		assert.deepStrictEqual(actual.storage, { 'a': { version: 1, value: 'value1' } });
+		assert.deepStrictEqual(actual.storage, { 'a': { version: 1, value: 'value1', scope: 0 } });
 	}));
 
 	function parseGlobalState(content: string): IGlobalState {

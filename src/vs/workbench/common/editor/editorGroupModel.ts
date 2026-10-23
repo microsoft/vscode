@@ -188,7 +188,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 
 	//#region events
 
-	private readonly _onDidModelChange = this._register(new Emitter<IGroupModelChangeEvent>({ leakWarningThreshold: 500 /* increased for users with hundreds of inputs opened */ }));
+	private readonly _onDidModelChange = this._register(new Emitter<IGroupModelChangeEvent>({ leakWarningThreshold: 500, leakWarningName: 'EditorGroupModel._onDidModelChange' /* increased for users with hundreds of inputs opened */ }));
 	readonly onDidModelChange = this._onDidModelChange.event;
 
 	//#endregion

@@ -42,7 +42,7 @@ terminalDescription += terminalDescriptors;
 
 export const defaultTerminalFontSize = isMacintosh ? 12 : 14;
 
-const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
+export const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	[TerminalSettingId.SendKeybindingsToShell]: {
 		markdownDescription: localize('terminal.integrated.sendKeybindingsToShell', "Dispatches most keybindings to the terminal instead of the workbench, overriding {0}, which can be used alternatively for fine tuning.", '`#terminal.integrated.commandsToSkipShell#`'),
 		type: 'boolean',
@@ -122,7 +122,8 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 			localize('terminal.integrated.defaultLocation.view', "Create terminals in the terminal view")
 		],
 		default: 'view',
-		description: localize('terminal.integrated.defaultLocation', "Controls where newly created terminals will appear.")
+		description: localize('terminal.integrated.defaultLocation', "Controls where newly created terminals will appear."),
+		agentsWindow: { default: 'view', readOnly: true },
 	},
 	[TerminalSettingId.TabsFocusMode]: {
 		type: 'string',
@@ -133,6 +134,11 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		],
 		default: 'doubleClick',
 		description: localize('terminal.integrated.tabs.focusMode', "Controls whether focusing the terminal of a tab happens on double or single click.")
+	},
+	[TerminalSettingId.TabsAllowAgentCliTitle]: {
+		description: localize('terminal.integrated.tabs.allowAgentCliTitle', "Controls whether agentic CLIs (such as Claude Code, Codex, Command Code, GitHub Copilot CLI, and Gemini CLI) are allowed to set the terminal tab title via escape sequences. When disabled, the configured tab title template is used instead."),
+		type: 'boolean',
+		default: true,
 	},
 	[TerminalSettingId.MacOptionIsMeta]: {
 		description: localize('terminal.integrated.macOptionIsMeta', "Controls whether to treat the option key as the meta key in the terminal on macOS."),
@@ -173,6 +179,18 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	[TerminalSettingId.FontFamily]: {
 		markdownDescription: localize('terminal.integrated.fontFamily', "Controls the font family of the terminal. Defaults to {0}'s value.", '`#editor.fontFamily#`'),
 		type: 'string',
+	},
+	[TerminalSettingId.FontRendering]: {
+		markdownDescription: localize('terminal.integrated.fontRendering', "Controls how terminal text is antialiased on high-DPI displays."),
+		type: 'string',
+		enum: ['inherit', 'grayscale'],
+		markdownEnumDescriptions: [
+			localize('terminal.integrated.fontRendering.inherit', "Follow {0}.", '`#workbench.fontAliasing#`'),
+			localize('terminal.integrated.fontRendering.grayscale', "Use grayscale antialiasing, which can make text look sharper. With GPU acceleration, this may require **Developer: Reload Window** to take effect.")
+		],
+		default: 'inherit',
+		tags: ['experimental', 'advanced'],
+		included: isMacintosh
 	},
 	[TerminalSettingId.FontLigaturesEnabled]: {
 		markdownDescription: localize('terminal.integrated.fontLigatures.enabled', "Controls whether font ligatures are enabled in the terminal. Ligatures will only work if the configured {0} supports them.", `\`#${TerminalSettingId.FontFamily}#\``),
@@ -476,13 +494,19 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	},
 	[TerminalSettingId.WindowsUseConptyDll]: {
 		restricted: true,
-		markdownDescription: localize('terminal.integrated.windowsUseConptyDll', "Whether to use the experimental conpty.dll (v1.25.260303002) shipped with VS Code, instead of the one bundled with Windows."),
+		markdownDescription: localize('terminal.integrated.windowsUseConptyDll', "Whether to use the conpty.dll (v1.25.260303002) shipped with VS Code, instead of the one bundled with Windows."),
 		type: 'boolean',
-		tags: ['preview'],
-		default: false,
+		default: true,
+	},
+	[TerminalSettingId.WindowsReparentConsoleWindow]: {
+		restricted: true,
+		markdownDescription: localize('terminal.integrated.windowsReparentConsoleWindow', "Whether to make the window that shows a terminal the owner of its console window, so dialogs that console applications open, like sign-in prompts, appear in front of VS Code instead of behind it. Requires {0}.", `\`#${TerminalSettingId.WindowsUseConptyDll}#\``),
+		type: 'boolean',
+		default: true,
+		tags: ['advanced'],
 		experiment: {
 			mode: 'auto'
-		},
+		}
 	},
 	[TerminalSettingId.SplitCwd]: {
 		description: localize('terminal.integrated.splitCwd', "Controls the working directory a split terminal starts with."),
@@ -513,6 +537,7 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		default: 'on'
 	},
 	[TerminalSettingId.AllowedLinkSchemes]: {
+		restricted: true,
 		description: localize('terminal.integrated.allowedLinkSchemes', "An array of strings containing the URI schemes that the terminal is allowed to open links for. By default, only a small subset of possible schemes are allowed for security reasons."),
 		type: 'array',
 		items: {
@@ -722,73 +747,6 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 			configurationKeyValuePairs.push(['accessibility.signals.terminalBell', { value: { sound: enableBell ? 'on' : 'off', announcement } }]);
 			configurationKeyValuePairs.push([TerminalSettingId.EnableBell, { value: undefined }]);
 			configurationKeyValuePairs.push([TerminalSettingId.EnableVisualBell, { value: enableBell }]);
-			return configurationKeyValuePairs;
-		}
-	}]);
-
-Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
-	.registerConfigurationMigrations([{
-		key: TerminalContribSettingId.DeprecatedTerminalSandboxEnabled,
-		migrateFn: (value: boolean, valueAccessor) => {
-			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
-			if (value !== undefined && valueAccessor(TerminalContribSettingId.AgentSandboxEnabled) === undefined) {
-				configurationKeyValuePairs.push([TerminalContribSettingId.AgentSandboxEnabled, { value }]);
-			}
-			configurationKeyValuePairs.push([TerminalContribSettingId.DeprecatedTerminalSandboxEnabled, { value: undefined }]);
-			return configurationKeyValuePairs;
-		}
-	}, {
-		key: TerminalContribSettingId.DeprecatedTerminalSandboxNetwork,
-		migrateFn: (value: { allowedDomains?: string[]; deniedDomains?: string[] }, valueAccessor) => {
-			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
-			if (value?.allowedDomains !== undefined && valueAccessor(TerminalContribSettingId.AgentSandboxNetworkAllowedDomains) === undefined) {
-				configurationKeyValuePairs.push([TerminalContribSettingId.AgentSandboxNetworkAllowedDomains, { value: value.allowedDomains }]);
-			}
-			if (value?.deniedDomains !== undefined && valueAccessor(TerminalContribSettingId.AgentSandboxNetworkDeniedDomains) === undefined) {
-				configurationKeyValuePairs.push([TerminalContribSettingId.AgentSandboxNetworkDeniedDomains, { value: value.deniedDomains }]);
-			}
-			configurationKeyValuePairs.push([TerminalContribSettingId.DeprecatedTerminalSandboxNetwork, { value: undefined }]);
-			return configurationKeyValuePairs;
-		}
-	}, {
-		key: TerminalContribSettingId.DeprecatedTerminalSandboxNetworkAllowedDomains,
-		migrateFn: (value: string[], valueAccessor) => {
-			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
-			if (value !== undefined && valueAccessor(TerminalContribSettingId.AgentSandboxNetworkAllowedDomains) === undefined) {
-				configurationKeyValuePairs.push([TerminalContribSettingId.AgentSandboxNetworkAllowedDomains, { value }]);
-			}
-			configurationKeyValuePairs.push([TerminalContribSettingId.DeprecatedTerminalSandboxNetworkAllowedDomains, { value: undefined }]);
-			return configurationKeyValuePairs;
-		}
-	}, {
-		key: TerminalContribSettingId.DeprecatedTerminalSandboxNetworkDeniedDomains,
-		migrateFn: (value: string[], valueAccessor) => {
-			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
-			if (value !== undefined && valueAccessor(TerminalContribSettingId.AgentSandboxNetworkDeniedDomains) === undefined) {
-				configurationKeyValuePairs.push([TerminalContribSettingId.AgentSandboxNetworkDeniedDomains, { value }]);
-			}
-			configurationKeyValuePairs.push([TerminalContribSettingId.DeprecatedTerminalSandboxNetworkDeniedDomains, { value: undefined }]);
-			return configurationKeyValuePairs;
-		}
-	},
-	{
-		key: TerminalContribSettingId.DeprecatedTerminalSandboxLinuxFileSystem,
-		migrateFn: (value: { denyRead?: string[]; allowWrite?: string[]; denyWrite?: string[] }, valueAccessor) => {
-			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
-			if (value !== undefined && valueAccessor(TerminalContribSettingId.AgentSandboxLinuxFileSystem) === undefined) {
-				configurationKeyValuePairs.push([TerminalContribSettingId.AgentSandboxLinuxFileSystem, { value }]);
-			}
-			configurationKeyValuePairs.push([TerminalContribSettingId.DeprecatedTerminalSandboxLinuxFileSystem, { value: undefined }]);
-			return configurationKeyValuePairs;
-		}
-	}, {
-		key: TerminalContribSettingId.DeprecatedTerminalSandboxMacFileSystem,
-		migrateFn: (value: { denyRead?: string[]; allowWrite?: string[]; denyWrite?: string[] }, valueAccessor) => {
-			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
-			if (value !== undefined && valueAccessor(TerminalContribSettingId.AgentSandboxMacFileSystem) === undefined) {
-				configurationKeyValuePairs.push([TerminalContribSettingId.AgentSandboxMacFileSystem, { value }]);
-			}
-			configurationKeyValuePairs.push([TerminalContribSettingId.DeprecatedTerminalSandboxMacFileSystem, { value: undefined }]);
 			return configurationKeyValuePairs;
 		}
 	}]);

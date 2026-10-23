@@ -13,6 +13,7 @@ export class ChatElicitationRequestPart implements IChatElicitationRequest {
 	public readonly kind = 'elicitation2';
 	public state = observableValue('state', ElicitationState.Pending);
 	public acceptedResult?: Record<string, unknown>;
+	public keepActionsWhilePending = false;
 
 	private readonly _isHiddenValue = observableValue<boolean>('isHidden', false);
 	public readonly isHidden: IObservable<boolean> = this._isHiddenValue;
@@ -30,6 +31,7 @@ export class ChatElicitationRequestPart implements IChatElicitationRequest {
 		public readonly source?: ToolDataSource,
 		public readonly moreActions?: IAction[],
 		public readonly onHide?: () => void,
+		public readonly riskAssessment?: { toolId: string; parameters: unknown },
 	) {
 		if (reject) {
 			this.reject = async () => {

@@ -3,13 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './media/chatEditor.css';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { raceCancellationError } from '../../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { isCancellationError, onUnexpectedError } from '../../../../../../base/common/errors.js';
+import { Event } from '../../../../../../base/common/event.js';
+import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { isLocalAgentHostProviderDisabledByPolicy } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
 import * as nls from '../../../../../../nls.js';
 import { ITextResourceConfigurationService } from '../../../../../../editor/common/services/textResourceConfiguration.js';
 import { IContextKeyService, IScopedContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -26,14 +33,19 @@ import { EditorInput } from '../../../../../common/editor/editorInput.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../../../common/theme.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/layoutService.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { IChatModel, IChatModelInputState, IExportableChatData, ISerializableChatData } from '../../../common/model/chatModel.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
-import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
+import { ChatAgentLocation, ChatModeKind, IResolvedNewChatSessionType, SessionTypeSelectionReason } from '../../../common/constants.js';
 import { clearChatEditor } from '../../actions/chatClear.js';
+import { AgentHostSessionInputPills } from '../../agentSessions/agentHost/agentHostSessionInputPills.js';
 import { ChatEditorInput } from './chatEditorInput.js';
 import { ChatWidget } from '../../widget/chatWidget.js';
+import { IChatWidgetViewState, setModelPreservingInputTypedWhileLoading } from '../../chat.js';
+import { getChatSessionType, isUntitledChatSession } from '../../../common/model/chatUri.js';
+import { IChatOpen, IChatOpenDiagnosticsService } from '../../../common/chatOpenDiagnosticsService.js';
 
 export interface IChatEditorOptions extends IEditorOptions {
 	/**
@@ -42,6 +54,15 @@ export interface IChatEditorOptions extends IEditorOptions {
 	 * https://github.com/microsoft/vscode/pull/278476 as input state is stored on the model.
 	 */
 	modelInputState?: IChatModelInputState;
+	/**
+	 * Session type explicitly selected by the user when opening a new chat editor.
+	 * Non-local session types are already encoded in the editor resource, so this
+	 * currently preserves an explicit local selection when default/last-used
+	 * provider resolution would otherwise apply.
+	 */
+	explicitSessionType?: string;
+	/** Creation-only metadata describing why the new session type was selected. */
+	sessionTypeSelectionReason?: SessionTypeSelectionReason;
 	target?: { data: IExportableChatData | ISerializableChatData };
 	title?: {
 		preferred?: string;
@@ -49,9 +70,7 @@ export interface IChatEditorOptions extends IEditorOptions {
 	};
 }
 
-export interface IChatEditorViewState {
-	scrollTop: number;
-}
+export type IChatEditorViewState = IChatWidgetViewState;
 
 export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState> {
 	private static readonly VIEW_STATE_KEY = 'chatEditorViewState';
@@ -65,6 +84,16 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 		return this._scopedContextKeyService;
 	}
 
+	private _chatWithUnregisteredProvider: URI | undefined;
+	private readonly _providerReload = this._register(new MutableDisposable<DisposableStore>());
+	private readonly _openDiagnostics = this._register(new MutableDisposable<IChatOpen>());
+	private _providerReloadState: {
+		readonly input: ChatEditorInput;
+		readonly viewState: IChatWidgetViewState;
+		readonly inputState: ReturnType<ChatWidget['getInputState']>;
+		readonly intendedModel: IChatModel['inputModel']['intendedModel'];
+	} | undefined;
+
 	private dimension = new dom.Dimension(0, 0);
 	private _loadingContainer: HTMLElement | undefined;
 	private _editorContainer: HTMLElement | undefined;
@@ -75,19 +104,98 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChatService private readonly chatService: IChatService,
+		@IChatOpenDiagnosticsService private readonly chatOpenDiagnosticsService: IChatOpenDiagnosticsService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IEditorService editorService: IEditorService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 	) {
 		super(ChatEditorInput.EditorID, group, ChatEditor.VIEW_STATE_KEY, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService);
+		this._register(chatSessionsService.onDidChangeContentProviderSchemes(({ added, removed }) => {
+			const resource = this.widget?.viewModel?.sessionResource ?? this._providerReloadState?.input.sessionResource;
+			if (!resource || (resource.scheme !== 'agent-host-claude' && resource.scheme !== 'agent-host-codex')) {
+				return;
+			}
+			if (removed.includes(resource.scheme)) {
+				this._chatWithUnregisteredProvider = resource;
+			}
+			if (added.includes(resource.scheme) && isEqual(resource, this._chatWithUnregisteredProvider)) {
+				void this._reloadChatAfterPolicy(resource).catch(onUnexpectedError);
+			}
+		}));
 	}
 
-	private async clear() {
+	private async _reloadChatAfterPolicy(resource: URI): Promise<void> {
+		const input = this.input;
+		if (!(input instanceof ChatEditorInput)) {
+			return;
+		}
+		const model = this.widget.viewModel?.model ?? this.chatService.getSession(resource);
+		if (model && isLocalAgentHostProviderDisabledByPolicy(resource.scheme.slice('agent-host-'.length), this.configurationService)) {
+			if (this._providerReload.value) {
+				input.updateModel(model);
+				this._providerReload.clear();
+				this._providerReloadState = undefined;
+			}
+			return;
+		}
+
+		this._chatWithUnregisteredProvider = undefined;
+		this._providerReload.clear();
+		const cts = new CancellationTokenSource();
+		const store = new DisposableStore();
+		this._providerReload.value = store;
+		store.add(toDisposable(() => cts.dispose(true)));
+		const state = this._providerReloadState?.input === input ? this._providerReloadState : {
+			input,
+			viewState: this.widget.getViewState(),
+			inputState: this.widget.getInputState(),
+			intendedModel: model?.inputModel.intendedModel,
+		};
+		this._providerReloadState = state;
+		const { viewState, inputState, intendedModel } = state;
+		const released = model ? new Promise<void>(resolve => {
+			store.add(Event.once(Event.filter(this.chatService.onDidDisposeSession, event =>
+				event.reason === 'disposed' && event.sessionResources.some(disposed => isEqual(disposed, resource))))(() => resolve()));
+			store.add(cts.token.onCancellationRequested(() => resolve()));
+		}) : Promise.resolve();
+		input.releaseModel();
+		try {
+			await released;
+			if (cts.token.isCancellationRequested || this.input !== input) {
+				return;
+			}
+			this.showLoadingInChatWidget(nls.localize('chatEditor.loadingSession', "Loading..."));
+			store.add(toDisposable(() => this.hideLoadingInChatWidget()));
+			const resolved = await raceCancellationError(input.resolve(cts.token), cts.token);
+			if (!resolved || cts.token.isCancellationRequested || this.input !== input) {
+				return;
+			}
+			if (intendedModel) {
+				resolved.model.inputModel.setIntendedModel(intendedModel);
+			}
+			resolved.model.inputModel.setState({ ...inputState, permissionLevel: resolved.model.inputModel.state.get()?.permissionLevel });
+			this.updateModel(resolved.model);
+			this.widget.restoreViewState(viewState);
+		} catch (error) {
+			if (!isCancellationError(error)) {
+				throw error;
+			}
+		} finally {
+			if (this._providerReload.value === store) {
+				this._providerReload.clear();
+				this._providerReloadState = undefined;
+			}
+		}
+	}
+
+	private async clear(resolvedSessionType?: IResolvedNewChatSessionType) {
 		if (this.input) {
-			return this.instantiationService.invokeFunction(clearChatEditor, this.input as ChatEditorInput);
+			return this.instantiationService.invokeFunction(clearChatEditor, this.input as ChatEditorInput, resolvedSessionType);
 		}
 	}
 
@@ -106,9 +214,12 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 				undefined,
 				{
 					autoScroll: mode => mode !== ChatModeKind.Ask,
+					readOnlyBannerAtTop: true,
 					renderFollowups: true,
+					renderArtifactsWidget: false,
 					supportsFileReferences: true,
-					clear: () => this.clear(),
+					clear: resolvedSessionType => this.clear(resolvedSessionType),
+					enableFind: true,
 					rendererOptions: {
 						renderTextEditsAsSummary: (uri) => {
 							return true;
@@ -119,6 +230,7 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 					enableImplicitContext: true,
 					enableWorkingSet: 'explicit',
 					supportsChangingModes: true,
+					enableSessionStateIndicator: true,
 				},
 				{
 					listForeground: editorForeground,
@@ -130,7 +242,16 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 		this._register(this.widget.onDidSubmitAgent(() => {
 			this.group.pinEditor(this.input);
 		}));
+		this._register(this.widget.onDidChangeViewModel((e) => {
+			if (e.currentSessionResource && this.input instanceof ChatEditorInput) {
+				const newModel = this.chatService.getSession(e.currentSessionResource);
+				if (newModel) {
+					this.input.updateModel(newModel);
+				}
+			}
+		}));
 		this.widget.render(parent);
+		this._register(scopedInstantiationService.createInstance(AgentHostSessionInputPills, this.widget, 'auto'));
 		this.widget.setVisible(true);
 	}
 
@@ -151,8 +272,16 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 	}
 
 	override clearInput(): void {
-		this.widget.setModel(undefined);
+		this._providerReload.clear();
+		this._providerReloadState = undefined;
 		super.clearInput();
+		this.widget.setModel(undefined);
+		// Clear the bound-resource attribute while the rebind is in flight so
+		// test automation can wait for the next `updateModel` cycle to finish
+		// before acting on the editor.
+		if (this._editorContainer) {
+			delete this._editorContainer.dataset.boundChatResource;
+		}
 	}
 
 	private showLoadingInChatWidget(message: string): void {
@@ -199,48 +328,54 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 	}
 
 	override async setInput(input: ChatEditorInput, options: IChatEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-		// Show loading indicator early for non-local sessions to prevent layout shifts
-		let isContributedChatSession = false;
-		const chatSessionType = input.getSessionType();
-		if (chatSessionType !== localChatSessionType) {
-			const loadingMessage = nls.localize('chatEditor.loadingSession', "Loading...");
-			this.showLoadingInChatWidget(loadingMessage);
-		}
+		// Capture the input draft before the load window opens so text typed
+		// during loading is preserved when the model binds. See #325323.
+		const inputBeforeLoad = this.widget?.getInput() ?? '';
 
-		await super.setInput(input, options, context, token);
-		if (token.isCancellationRequested) {
-			this.hideLoadingInChatWidget();
-			return;
-		}
+		// Editors restored with the workbench, and new and imported chats, are not opened by the user.
+		const sessionResource = input.sessionResource;
+		const alreadyShown = input.hasResolvedModel;
+		const open = this._openDiagnostics.value = sessionResource && !isUntitledChatSession(sessionResource) && !options?.target && this.layoutService.isRestored()
+			? this.chatOpenDiagnosticsService.startOpen('editor', sessionResource, token, alreadyShown)
+			: undefined;
 
-		if (!this.widget) {
-			throw new Error('ChatEditor lifecycle issue: no editor widget');
-		}
+		try {
+			// Show loading indicator early for non-local sessions to prevent layout shifts
+			const chatSessionType = input.getSessionType();
+			if (chatSessionType !== localChatSessionType) {
+				const loadingMessage = nls.localize('chatEditor.loadingSession', "Loading...");
+				this.showLoadingInChatWidget(loadingMessage);
+			}
 
-		if (chatSessionType !== localChatSessionType) {
-			try {
-				await raceCancellationError(this.chatSessionsService.canResolveChatSession(input.resource.scheme), token);
-				const contributions = this.chatSessionsService.getAllChatSessionContributions();
-				const contribution = contributions.find(c => c.type === chatSessionType);
+			await super.setInput(input, options, context, token);
+			if (token.isCancellationRequested) {
+				this.hideLoadingInChatWidget();
+				return;
+			}
+			open?.mark('selectionHandled');
+			if (!this.widget) {
+				throw new Error('ChatEditor lifecycle issue: no editor widget');
+			}
+
+			const editorModel = await raceCancellationError(input.resolve(token), token);
+
+			if (!editorModel) {
+				throw new Error(`Failed to get model for chat editor. resource: ${input.sessionResource}`);
+			}
+
+			const resolvedType = getChatSessionType(editorModel.model.sessionResource);
+			let isContributedChatSession = false;
+			if (resolvedType !== localChatSessionType) {
+				await raceCancellationError(this.chatSessionsService.canResolveChatSession(resolvedType), token);
+				const contribution = this.chatSessionsService.getChatSessionContribution(resolvedType);
 				if (contribution) {
-					this.widget.lockToCodingAgent(contribution.name, contribution.displayName, contribution.type);
+					this.widget.lockToCodingAgent(contribution.name, contribution.displayName, contribution.type, contribution.agentHostProviderId);
 					isContributedChatSession = true;
 				} else {
 					this.widget.unlockFromCodingAgent();
 				}
-			} catch (error) {
-				this.hideLoadingInChatWidget();
-				throw error;
-			}
-		} else {
-			this.widget.unlockFromCodingAgent();
-		}
-
-		try {
-			const editorModel = await raceCancellationError(input.resolve(), token);
-
-			if (!editorModel) {
-				throw new Error(`Failed to get model for chat editor. resource: ${input.sessionResource}`);
+			} else {
+				this.widget.unlockFromCodingAgent();
 			}
 
 			// Hide loading state before updating model
@@ -252,31 +387,45 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 				editorModel.model.inputModel.setState(options.modelInputState);
 			}
 
-			this.updateModel(editorModel.model);
+			setModelPreservingInputTypedWhileLoading(this.widget, inputBeforeLoad, () => this.updateModel(editorModel.model));
 
 			const viewState = this.loadEditorViewState(input, context);
 			if (viewState) {
-				this._widget.scrollTop = viewState.scrollTop;
+				this._widget.restoreViewState(viewState);
 			}
 
 			if (isContributedChatSession && options?.title?.preferred && input.sessionResource) {
 				this.chatService.setChatSessionTitle(input.sessionResource, options.title.preferred);
 			}
+
+			// The loading indicator is hidden and the input usable; the editor's own progress ends with this call.
+			open?.complete(this.widget.visible && !this._editorContainer?.ownerDocument.hidden);
 		} catch (error) {
 			this.hideLoadingInChatWidget();
+			open?.fail(error);
 			throw error;
+		} finally {
+			open?.end();
 		}
 	}
 
 	private updateModel(model: IChatModel): void {
 		this.widget.setModel(model);
+		// Expose the bound chat resource on the DOM so test automation can
+		// synchronize with the post-rebind state without polling timeouts.
+		// Set AFTER `setModel` so observers see the attribute only once the
+		// widget is fully attached to the loaded model. Mirrors the same
+		// signal exposed by the Agents Window's `ChatView`.
+		if (this._editorContainer) {
+			this._editorContainer.dataset.boundChatResource = model.sessionResource.toString();
+		}
 	}
 
-	protected computeEditorViewState(_resource: URI): IChatEditorViewState | undefined {
-		if (!this._widget) {
+	protected computeEditorViewState(resource: URI): IChatEditorViewState | undefined {
+		if (!this._widget || !isEqual(this._widget.viewModel?.sessionResource, resource)) {
 			return undefined;
 		}
-		return { scrollTop: this._widget.scrollTop };
+		return this._widget.getViewState();
 	}
 
 	protected tracksEditorViewState(input: EditorInput): boolean {

@@ -1,0 +1,149 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-agent-merge > .chat-action-request-card .chat-agent-merge-row-icon.codicon {
+	flex: 0 0 auto;
+	width: var(--vscode-codiconFontSize-compact);
+	font-size: var(--vscode-codiconFontSize-compact);
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-agent-merge .chat-agent-merge-check-icon.codicon {
+	color: var(--vscode-errorForeground);
+}
+
+.chat-agent-merge .chat-agent-merge-pr {
+	display: flex;
+	align-items: center;
+	padding-top: var(--vscode-spacing-size40);
+	padding-bottom: var(--vscode-spacing-size40);
+	margin-inline: calc(var(--vscode-spacing-size60) - var(--vscode-spacing-size120));
+	min-width: 0;
+}
+
+.chat-agent-merge .chat-agent-merge-pr .chat-pill-button,
+.chat-agent-merge .chat-agent-merge-pr .chat-pill-label {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.chat-agent-merge .chat-agent-merge-pr .chat-pill-button {
+	max-width: 100%;
+}
+
+.chat-agent-merge .chat-agent-merge-section {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+}
+
+.chat-agent-merge .chat-agent-merge-section + .chat-agent-merge-section {
+	padding-top: var(--vscode-spacing-size80);
+}
+
+.chat-agent-merge .chat-agent-merge-section-title {
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-agent-merge .chat-agent-merge-comment {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr);
+	column-gap: var(--vscode-spacing-size60);
+	row-gap: var(--vscode-spacing-size20);
+	align-items: start;
+}
+
+.chat-agent-merge .chat-agent-merge-comment-icon.codicon,
+.chat-agent-merge .chat-agent-merge-comment-header {
+	line-height: var(--vscode-spacing-size200);
+}
+
+.chat-agent-merge .chat-agent-merge-comment-icon.codicon {
+	transform: translateY(1px);
+}
+
+.chat-agent-merge .chat-agent-merge-comment-header {
+	display: flex;
+	align-items: baseline;
+	gap: var(--vscode-spacing-size60);
+	min-width: 0;
+}
+
+.chat-agent-merge .chat-agent-merge-comment-author {
+	flex: 0 0 auto;
+	font-weight: var(--vscode-fontWeight-semiBold);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.chat-agent-merge .chat-agent-merge-comment-file,
+.chat-agent-merge .chat-agent-merge-comment-file-description {
+	font-size: var(--vscode-fontSize-label2);
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.chat-agent-merge .chat-agent-merge-comment-file {
+	flex: 0 0 auto;
+}
+
+.chat-agent-merge .chat-agent-merge-comment-file-description {
+	flex: 1 1 auto;
+	min-width: 0;
+	opacity: 0.8;
+}
+
+.chat-agent-merge .chat-agent-merge-link,
+.chat-agent-merge .chat-agent-merge-comment-body a,
+.chat-agent-merge .chat-agent-merge-comment-body a code {
+	cursor: pointer;
+	color: var(--vscode-textLink-foreground);
+	text-decoration: none;
+}
+
+.chat-agent-merge .chat-agent-merge-link:hover,
+.chat-agent-merge .chat-agent-merge-link:active,
+.chat-agent-merge .chat-agent-merge-comment-body a:hover,
+.chat-agent-merge .chat-agent-merge-comment-body a:active,
+.chat-agent-merge .chat-agent-merge-comment-body a:hover code,
+.chat-agent-merge .chat-agent-merge-comment-body a:active code {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
+}
+
+.chat-agent-merge .chat-agent-merge-comment-body {
+	grid-column: 2;
+	overflow-wrap: anywhere;
+	color: var(--vscode-foreground);
+}
+
+.chat-agent-merge .chat-agent-merge-comment-body > :first-child {
+	margin-top: 0;
+}
+
+.chat-agent-merge .chat-agent-merge-comment-body > :last-child {
+	margin-bottom: 0;
+}
+
+.chat-agent-merge .chat-agent-merge-check {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	min-width: 0;
+}
+
+.chat-agent-merge .chat-agent-merge-check-name {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}

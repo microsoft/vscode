@@ -11,9 +11,11 @@ import { existsSync } from 'fs';
 export const dirs = [
 	'',
 	'build',
+	'build/rspack',
 	'build/vite',
 	'extensions',
 	'extensions/configuration-editing',
+	'extensions/copilot',
 	'extensions/css-language-features',
 	'extensions/css-language-features/server',
 	'extensions/debug-auto-launch',
@@ -34,9 +36,8 @@ export const dirs = [
 	'extensions/json-language-features/server',
 	'extensions/markdown-language-features',
 	'extensions/markdown-math',
-	'extensions/media-preview',
 	'extensions/merge-conflict',
-	'extensions/mermaid-chat-features',
+	'extensions/mermaid-markdown-features',
 	'extensions/microsoft-authentication',
 	'extensions/notebook-renderers',
 	'extensions/npm',
@@ -57,10 +58,11 @@ export const dirs = [
 	'test/integration/browser',
 	'test/monaco',
 	'test/smoke',
-	'test/mcp',
+	'test/scenario',
 	'.vscode/extensions/vscode-selfhost-import-aid',
 	'.vscode/extensions/vscode-selfhost-test-provider',
 	'.vscode/extensions/vscode-extras',
+	'.vscode/extensions/vscode-pr-pinger',
 ];
 
 if (existsSync(`${import.meta.dirname}/../../.build/distro/npm`)) {

@@ -1,0 +1,66 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import * as vscode from 'vscode';
+import { getTsNativeExtension, tsNativeExtensionOldId } from '../commands/useTsgo';
+import { ExperimentationService } from '../experimentationService';
+import type { PluginManager } from '../tsServer/plugins.js';
+import { copilotChatExtensionId } from '../typescriptServiceClient.js';
+import { hasModifiedUnifiedConfig } from '../utils/configuration';
+
+const suggestTS7NoPluginsStorageKey = 'typescript.suggestTS7NoPlugins.dismissed';
+
+export async function suggestNativePreview(
+	context: vscode.ExtensionContext,
+	experimentationService: ExperimentationService,
+	pluginManager: PluginManager
+): Promise<void> {
+	if (context.globalState.get<boolean>(suggestTS7NoPluginsStorageKey)) {
+		return;
+	}
+
+	// Only show when the window is active
+	if (!vscode.window.state.active) {
+		return;
+	}
+
+	// Don't show if the TypeScript 7 extension is already installed,
+	// or if we have any settings indicating it was installed previously.
+	if (getTsNativeExtension() || hasModifiedUnifiedConfig('experimental.useTsgo', { fallbackSection: 'typescript' })) {
+		// Also don't prompt in the future.
+		await context.globalState.update(suggestTS7NoPluginsStorageKey, true);
+		return;
+	}
+
+	// TSServer plugins are not supported by TypeScript 7
+	if (pluginManager.plugins.some(plugin => plugin.extension.id.toLowerCase() !== copilotChatExtensionId)) {
+		return;
+	}
+
+	const inExperiment = await experimentationService.getTreatmentVariable('suggestTS7IfNoPlugins', false);
+	if (!inExperiment) {
+		return;
+	}
+
+	const install: vscode.MessageItem = { title: vscode.l10n.t("Install") };
+	const learnMore: vscode.MessageItem = { title: vscode.l10n.t("Learn More") };
+	const dismiss: vscode.MessageItem = { title: vscode.l10n.t("Don't Show Again") };
+
+	const selection = await vscode.window.showInformationMessage(
+		vscode.l10n.t("Try TypeScript 7 for significantly faster type checking and language features."),
+		{},
+		install,
+		learnMore,
+		dismiss,
+	);
+	// Don't show again
+	await context.globalState.update(suggestTS7NoPluginsStorageKey, true);
+
+	if (selection === install) {
+		await vscode.commands.executeCommand('workbench.extensions.installExtension', tsNativeExtensionOldId);
+	} else if (selection === learnMore) {
+		await vscode.env.openExternal(vscode.Uri.parse('https://aka.ms/typescript7'));
+	}
+}

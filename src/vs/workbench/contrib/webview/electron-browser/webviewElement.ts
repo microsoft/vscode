@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getWindow } from '../../../../base/browser/dom.js';
+import { isAuxiliaryWindow } from '../../../../base/browser/window.js';
 import { Delayer } from '../../../../base/common/async.js';
-import { VSBuffer, VSBufferReadableStream } from '../../../../base/common/buffer.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { consumeStream } from '../../../../base/common/stream.js';
 import { ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -19,9 +19,9 @@ import { INativeHostService } from '../../../../platform/native/common/native.js
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IRemoteAuthorityResolverService } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
 import { ITunnelService } from '../../../../platform/tunnel/common/tunnel.js';
-import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { FindInFrameOptions, IWebviewManagerService } from '../../../../platform/webview/common/webviewManagerService.js';
+import { FindInFrameOptions, IWebviewManagerService, WebviewWebContentsId, WebviewWindowId } from '../../../../platform/webview/common/webviewManagerService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import { WebviewThemeDataProvider } from '../browser/themeing.js';
 import { WebviewInitInfo } from '../browser/webview.js';
 import { WebviewElement } from '../browser/webviewElement.js';
@@ -35,6 +35,7 @@ export class ElectronWebviewElement extends WebviewElement {
 	private readonly _webviewKeyboardHandler: WindowIgnoreMenuShortcutsManager;
 
 	private _findStarted: boolean = false;
+	private _findSelectionRetained: boolean = false;
 	private _cachedHtmlContent: string | undefined;
 
 	private readonly _webviewMainService: IWebviewManagerService;
@@ -47,7 +48,6 @@ export class ElectronWebviewElement extends WebviewElement {
 		webviewThemeDataProvider: WebviewThemeDataProvider,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@ITunnelService tunnelService: ITunnelService,
-		@IFileService fileService: IFileService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@ILogService logService: ILogService,
@@ -57,11 +57,11 @@ export class ElectronWebviewElement extends WebviewElement {
 		@INativeHostService private readonly _nativeHostService: INativeHostService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
-		@IUriIdentityService uriIdentityService: IUriIdentityService,
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 	) {
 		super(initInfo, webviewThemeDataProvider,
 			configurationService, contextMenuService, notificationService, environmentService,
-			fileService, logService, remoteAuthorityResolverService, tunnelService, instantiationService, accessibilityService, uriIdentityService);
+			logService, remoteAuthorityResolverService, tunnelService, accessibilityService, instantiationService, remoteAgentService);
 
 		this._webviewKeyboardHandler = new WindowIgnoreMenuShortcutsManager(configurationService, mainProcessService, _nativeHostService);
 
@@ -69,7 +69,7 @@ export class ElectronWebviewElement extends WebviewElement {
 
 		if (initInfo.options.enableFindWidget) {
 			this._register(this.onDidHtmlChange((newContent) => {
-				if (this._findStarted && this._cachedHtmlContent !== newContent) {
+				if ((this._findStarted || this._findSelectionRetained) && this._cachedHtmlContent !== newContent) {
 					this.stopFind(false);
 					this._cachedHtmlContent = newContent;
 				}
@@ -82,6 +82,8 @@ export class ElectronWebviewElement extends WebviewElement {
 	}
 
 	override dispose(): void {
+		this.stopFind(false);
+
 		// Make sure keyboard handler knows it closed (#71800)
 		this._webviewKeyboardHandler.didBlur();
 
@@ -92,20 +94,11 @@ export class ElectronWebviewElement extends WebviewElement {
 		return `${Schemas.vscodeWebview}://${iframeId}`;
 	}
 
-	protected override streamToBuffer(stream: VSBufferReadableStream): Promise<ArrayBufferLike> {
-		// Join buffers from stream without using the Node.js backing pool.
-		// This lets us transfer the resulting buffer to the webview.
-		return consumeStream<VSBuffer, ArrayBufferLike>(stream, (buffers: readonly VSBuffer[]) => {
-			const totalLength = buffers.reduce((prev, curr) => prev + curr.byteLength, 0);
-			const ret = new ArrayBuffer(totalLength);
-			const view = new Uint8Array(ret);
-			let offset = 0;
-			for (const element of buffers) {
-				view.set(element.buffer, offset);
-				offset += element.byteLength;
-			}
-			return ret;
-		});
+	private get findTarget(): WebviewWebContentsId | WebviewWindowId {
+		const targetWindow = getWindow(this.element);
+		return isAuxiliaryWindow(targetWindow)
+			? { webContentsId: targetWindow.vscodeWindowId }
+			: { windowId: this._nativeHostService.windowId };
 	}
 
 	/**
@@ -125,7 +118,7 @@ export class ElectronWebviewElement extends WebviewElement {
 		} else {
 			// continuing the find, so set findNext to false
 			const options: FindInFrameOptions = { forward: !previous, findNext: false, matchCase: false };
-			this._webviewMainService.findInFrame({ windowId: this._nativeHostService.windowId }, this.id, value, options);
+			this._webviewMainService.findInFrame(this.findTarget, this.id, value, options).catch(onUnexpectedError);
 		}
 	}
 
@@ -143,8 +136,8 @@ export class ElectronWebviewElement extends WebviewElement {
 
 		this._iframeDelayer.trigger(() => {
 			this._findStarted = true;
-			this._webviewMainService.findInFrame({ windowId: this._nativeHostService.windowId }, this.id, value, options);
-		});
+			return this._webviewMainService.findInFrame(this.findTarget, this.id, value, options);
+		}).catch(onUnexpectedError);
 	}
 
 	public override stopFind(keepSelection?: boolean): void {
@@ -152,10 +145,13 @@ export class ElectronWebviewElement extends WebviewElement {
 			return;
 		}
 		this._iframeDelayer.cancel();
+		if (this._findStarted || (this._findSelectionRetained && !keepSelection)) {
+			this._webviewMainService.stopFindInFrame(this.findTarget, this.id, {
+				keepSelection
+			}).catch(onUnexpectedError);
+			this._findSelectionRetained = !!keepSelection;
+		}
 		this._findStarted = false;
-		this._webviewMainService.stopFindInFrame({ windowId: this._nativeHostService.windowId }, this.id, {
-			keepSelection
-		});
 		this._onDidStopFind.fire();
 	}
 

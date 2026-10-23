@@ -50,13 +50,13 @@ suite('Arrays', () => {
 
 	test('quickSelect', () => {
 
-		function assertMedian(expexted: number, data: number[], nth: number = Math.floor(data.length / 2)) {
+		function assertMedian(expected: number, data: number[], nth: number = Math.floor(data.length / 2)) {
 			const compare = (a: number, b: number) => a - b;
 			const actual1 = arrays.quickSelect(nth, data, compare);
-			assert.strictEqual(actual1, expexted);
+			assert.strictEqual(actual1, expected);
 
 			const actual2 = data.slice().sort(compare)[nth];
-			assert.strictEqual(actual2, expexted);
+			assert.strictEqual(actual2, expected);
 		}
 
 		assertMedian(5, [9, 1, 0, 2, 3, 4, 6, 8, 7, 10, 5]);
@@ -415,6 +415,16 @@ suite('Arrays', () => {
 				assert.deepStrictEqual(queue1.takeFromEndWhile(x => x > 5), [7, 6]);
 				assert.deepStrictEqual(queue1.takeFromEndWhile(x => x < 2), [1]);
 				assert.deepStrictEqual(queue1.takeFromEndWhile(x => true), [9, 8]);
+			});
+
+			test('takeWhile and takeFromEndWhile mixed', () => {
+				const queue1 = new arrays.ArrayQueue([1, 2, 3, 4, 5]);
+				assert.deepStrictEqual(queue1.takeFromEndWhile(x => x > 3), [4, 5]);
+				assert.deepStrictEqual(queue1.takeWhile(x => x > 0), [1, 2, 3]);
+
+				const queue2 = new arrays.ArrayQueue([1, 2, 3, 4, 5]);
+				assert.deepStrictEqual(queue2.takeWhile(x => x < 3), [1, 2]);
+				assert.deepStrictEqual(queue2.takeFromEndWhile(x => x > 0), [3, 4, 5]);
 			});
 		});
 

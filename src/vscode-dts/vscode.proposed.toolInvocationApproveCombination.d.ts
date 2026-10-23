@@ -10,13 +10,22 @@ declare module 'vscode' {
 	export interface LanguageModelToolConfirmationMessages {
 		/**
 		 * When set, a button will be shown allowing the user to approve this particular
-		 * combination of tool and arguments. The value is shown as the label for the
-		 * approval option.
+		 * combination of tool and arguments.
 		 *
-		 * For example, a tool that reads files could set this to `"Allow reading 'foo.txt'"`,
+		 * For example, a tool that reads files could set this to
+		 * `{ message: "Allow reading 'foo.txt'", arguments: JSON.stringify({ file: 'foo.txt' }) }`,
 		 * so that the user can approve that specific file without approving all invocations
 		 * of the tool.
 		 */
-		approveCombination?: string | MarkdownString;
+		approveCombination?: {
+			/**
+			 * The label shown for the approval option.
+			 */
+			message: string | MarkdownString;
+			/**
+			 * A string representation of the arguments that can be shown to the user.
+			 */
+			arguments?: string;
+		};
 	}
 }

@@ -12,9 +12,17 @@ import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/c
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID } from '../../../common/activity.js';
 import { IAction } from '../../../../base/common/actions.js';
-import { IsMainWindowFullscreenContext, IsCompactTitleBarContext, TitleBarStyleContext, TitleBarVisibleContext } from '../../../common/contextkeys.js';
+import { IsMainWindowFullscreenContext, IsCompactTitleBarContext, IsSessionsWindowContext, TitleBarStyleContext, TitleBarVisibleContext } from '../../../common/contextkeys.js';
 import { CustomTitleBarVisibility, TitleBarSetting, TitlebarStyle } from '../../../../platform/window/common/window.js';
 import { NotificationsPosition, NotificationsSettings } from '../../../common/notifications.js';
+
+/**
+ * Menu group for actions contributed to {@link MenuId.TitleBar} that should render
+ * **before** the layout controls (instead of trailing them like the default group).
+ * Use this group to surface a leading affordance that should remain visible even
+ * when layout controls are toggled off.
+ */
+export const TitleBarLeadingActionsGroup = '0_leading';
 
 // --- Context Menu Actions --- //
 
@@ -122,18 +130,21 @@ class ToggleCustomTitleBar extends Action2 {
 				{
 					id: MenuId.MenubarAppearanceMenu,
 					order: 6,
-					when: ContextKeyExpr.or(
-						ContextKeyExpr.and(
-							ContextKeyExpr.equals(TitleBarStyleContext.key, TitlebarStyle.NATIVE),
+					when: ContextKeyExpr.and(
+						IsSessionsWindowContext.negate(),
+						ContextKeyExpr.or(
 							ContextKeyExpr.and(
-								ContextKeyExpr.equals('config.workbench.layoutControl.enabled', false),
-								ContextKeyExpr.equals('config.window.commandCenter', false),
-								ContextKeyExpr.notEquals('config.workbench.editor.editorActionsLocation', 'titleBar'),
-								ContextKeyExpr.notEquals('config.workbench.activityBar.location', 'top'),
-								ContextKeyExpr.notEquals('config.workbench.activityBar.location', 'bottom')
-							)?.negate()
-						),
-						IsMainWindowFullscreenContext
+								ContextKeyExpr.equals(TitleBarStyleContext.key, TitlebarStyle.NATIVE),
+								ContextKeyExpr.and(
+									ContextKeyExpr.equals('config.workbench.layoutControl.enabled', false),
+									ContextKeyExpr.equals('config.window.commandCenter', false),
+									ContextKeyExpr.notEquals('config.workbench.editor.editorActionsLocation', 'titleBar'),
+									ContextKeyExpr.notEquals('config.workbench.activityBar.location', 'top'),
+									ContextKeyExpr.notEquals('config.workbench.activityBar.location', 'bottom')
+								)?.negate()
+							),
+							IsMainWindowFullscreenContext
+						)
 					),
 					group: '2_workbench_layout'
 				},

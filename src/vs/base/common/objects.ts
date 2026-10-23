@@ -24,8 +24,9 @@ export function deepFreeze<T>(obj: T): T {
 		return obj;
 	}
 	const stack: any[] = [obj];
-	while (stack.length > 0) {
-		const obj = stack.shift();
+	for (let index = 0; index < stack.length; index++) {
+		const obj = stack[index];
+		stack[index] = undefined;
 		Object.freeze(obj);
 		for (const key in obj) {
 			if (_hasOwnProperty.call(obj, key)) {
@@ -168,20 +169,77 @@ export function equals(one: any, other: any): boolean {
  *  "Uncaught TypeError: Converting circular structure to JSON"
  */
 export function safeStringify(obj: any): string {
-	const seen = new Set<any>();
-	return JSON.stringify(obj, (key, value) => {
-		if (isObject(value) || Array.isArray(value)) {
-			if (seen.has(value)) {
-				return '[Circular]';
-			} else {
-				seen.add(value);
+	// Track only current ancestors so shared sibling references are serialized in full.
+	const ancestors: unknown[] = [];
+	return JSON.stringify(obj, function (this: unknown, key: string, value: unknown) {
+		if (typeof value === 'object' && value !== null) {
+			// `this` is the object holding `key`, pop the subtrees that are already done
+			while (ancestors.length > 0 && ancestors[ancestors.length - 1] !== this) {
+				ancestors.pop();
 			}
+			if (ancestors.includes(value)) {
+				return '[Circular]';
+			}
+			ancestors.push(value);
 		}
 		if (typeof value === 'bigint') {
 			return `[BigInt ${value.toString()}]`;
 		}
 		return value;
 	});
+}
+
+/**
+ * Like `JSON.stringify`, but with deterministic ordering of object keys so that
+ * structurally equal inputs always produce the same string. Useful for cache
+ * keys derived from arbitrary object payloads.
+ *
+ * - Object keys are sorted at every level of nesting.
+ * - Properties whose value is `undefined` are omitted (matching `JSON.stringify`).
+ * - Circular references are replaced with the string `"[Circular]"` to avoid
+ *   throwing.
+ * - A top-level `undefined` returns the string `'undefined'`; any other
+ *   stringification failure returns the empty string.
+ */
+export function stableStringify(value: unknown): string {
+	if (value === undefined) {
+		return 'undefined';
+	}
+	try {
+		return _stableStringify(value, new WeakSet());
+	} catch {
+		return '';
+	}
+}
+
+function _stableStringify(value: unknown, seen: WeakSet<object>): string {
+	if (value === null || typeof value !== 'object') {
+		return JSON.stringify(value) ?? 'null';
+	}
+	if (seen.has(value as object)) {
+		return '"[Circular]"';
+	}
+	seen.add(value as object);
+
+	let result: string;
+	if (Array.isArray(value)) {
+		result = '[' + value.map(v => _stableStringify(v, seen)).join(',') + ']';
+	} else {
+		const keys = Object.keys(value as object).sort();
+		const parts: string[] = [];
+		for (const k of keys) {
+			const v = (value as Record<string, unknown>)[k];
+			if (v === undefined) {
+				continue;
+			}
+			parts.push(JSON.stringify(k) + ':' + _stableStringify(v, seen));
+		}
+		result = '{' + parts.join(',') + '}';
+	}
+
+	// Track only ancestors so shared sibling references are serialized in full.
+	seen.delete(value as object);
+	return result;
 }
 
 type obj = { [key: string]: any };

@@ -1,0 +1,817 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/**
+ * Agent Host integration tests using the real Copilot provider and a synthetic local LLM.
+ */
+
+import assert from 'assert';
+import { existsSync } from 'fs';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'fs/promises';
+import { tmpdir } from 'os';
+import { retry, timeout } from '../../../../../base/common/async.js';
+import { join } from '../../../../../base/common/path.js';
+import { isWindows } from '../../../../../base/common/platform.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { AgentHostCanvasesEnabledConfigKey } from '../../../common/agentHostSchema.js';
+import { hasKey } from '../../../../../base/common/types.js';
+import { ActionType, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatTurnStartedAction } from '../../../common/state/sessionActions.js';
+import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
+import { customizationId, CustomizationType, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus, ToolCallContributorKind, ToolResultContentType, type ClientPluginCustomization, type ISessionWithDefaultChat, type PluginCustomization, type RootState, type ToolDefinition, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
+import { ToolCallConfirmationReason } from '../../../common/state/protocol/channels-chat/state.js';
+import type { CanvasState } from '../../../common/state/protocol/channels-canvas/state.js';
+import type { SubscribeResult } from '../../../common/state/protocol/common/commands.js';
+import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
+import { AgentHostSessionReleaseRetryMsEnvVar, AgentHostSessionResidencyLimitEnvVar } from '../../../common/agentService.js';
+import { createProviderSession, dispatchTurn, type IAgentHostProviderTestConfig } from '../providerIntegrationTestHelpers.js';
+import { fetchSessionWithChat, getActionEnvelope, isActionNotification, IServerHandle, startRealServer, stopServer, TestProtocolClient, defaultChatChannel } from '../serverIntegrationTestHelpers.js';
+
+const COPILOT_CONFIG: IAgentHostProviderTestConfig = {
+	provider: 'copilotcli',
+	scheme: 'copilotcli',
+	githubToken: 'not-a-real-token',
+};
+const CANVAS_COPILOT_CONFIG: IAgentHostProviderTestConfig = {
+	...COPILOT_CONFIG,
+	sessionConfig: { [SessionConfigKey.AutoApprove]: 'autoApprove' },
+};
+
+const DETACHED_SHELL_SCENARIO_ID = 'detached-shell-idle-release';
+const DETACHED_SHELL_DELAY_MS = 6000;
+const STEERING_OWNER_SCENARIO_ID = 'steering-client-tool-owner';
+const STEERING_RESPONSE_DELAY_MS = 10_000;
+const CANVAS_SCENARIO_ID = 'model-opened-canvas';
+const CANVAS_EXTENSION_TURN_SCENARIO_ID = 'canvas-extension-turn';
+const PLUGIN_SIBLING_SCENARIO_ID = 'plugin-sibling-delegation';
+const PLUGIN_RESTRICTED_SIBLING_SCENARIO_ID = 'plugin-restricted-sibling-delegation';
+
+function quoteShellArgument(value: string): string {
+	return isWindows ? `'${value.replace(/'/g, '\'\'')}'` : `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
+suite('Agent Host Provider Integration — Copilot with Mock LLM', function () {
+
+	let server: IServerHandle;
+	let client: TestProtocolClient;
+	let suiteHome: string;
+	const createdSessions: string[] = [];
+	const tempDirs: string[] = [];
+
+	suiteSetup(async function () {
+		this.timeout(120_000);
+		suiteHome = await mkdtemp(`${tmpdir()}/test-mock-copilot-home-`);
+		server = await startRealServer({
+			mockLlm: true,
+			homeDir: suiteHome,
+			userDataDir: join(suiteHome, 'user-data'),
+			mockScenarios: [{
+				id: STEERING_OWNER_SCENARIO_ID,
+				definition: {
+					type: 'multi-turn',
+					turns: [
+						{
+							kind: 'content',
+							chunks: [
+								{ content: 'Initial response started.', delayMs: 0 },
+								{ content: ' Initial response finished.', delayMs: STEERING_RESPONSE_DELAY_MS },
+							],
+						},
+						{
+							kind: 'tool-calls',
+							toolCalls: [{
+								toolNamePattern: /^route_probe$/,
+								arguments: {},
+							}],
+						},
+						{ kind: 'content', chunks: [{ content: 'STEERING_CLIENT_RESULT', delayMs: 0 }] },
+					],
+				},
+			}, {
+				id: CANVAS_SCENARIO_ID,
+				definition: {
+					type: 'multi-turn',
+					turns: [
+						{
+							kind: 'tool-calls',
+							toolCalls: [{
+								toolNamePattern: /^open_canvas$/,
+								arguments: {
+									canvasId: 'proof-canvas',
+									instanceId: 'proof-instance',
+									input: { source: 'integration-test' },
+								},
+							}],
+						},
+						{ kind: 'content', chunks: [{ content: 'Canvas opened.', delayMs: 0 }] },
+					],
+				},
+			}, {
+				id: CANVAS_EXTENSION_TURN_SCENARIO_ID,
+				definition: {
+					type: 'multi-turn',
+					turns: [{ kind: 'content', chunks: [{ content: 'Canvas-originated request completed.', delayMs: 0 }] }],
+				},
+			}, {
+				id: PLUGIN_SIBLING_SCENARIO_ID,
+				definition: {
+					type: 'multi-turn',
+					turns: [
+						{
+							kind: 'tool-calls',
+							toolCalls: [{
+								toolNamePattern: /^task$/,
+								arguments: {
+									name: 'plugin-sibling',
+									description: 'Run the plugin sibling',
+									prompt: 'Complete the delegated task.',
+									agent_type: 'plugin-sibling',
+								},
+							}],
+						},
+						{ kind: 'content', chunks: [{ content: 'PLUGIN_PARENT_DONE', delayMs: 0 }] },
+					],
+				},
+			}, {
+				id: PLUGIN_RESTRICTED_SIBLING_SCENARIO_ID,
+				definition: {
+					type: 'multi-turn',
+					turns: [
+						{
+							kind: 'tool-calls',
+							toolCalls: [{
+								toolNamePattern: /^task$/,
+								arguments: {
+									name: 'plugin-restricted',
+									description: 'Run the restricted plugin sibling',
+									prompt: 'Complete the restricted delegated task.',
+									agent_type: 'plugin-restricted',
+								},
+							}],
+						},
+						{ kind: 'content', chunks: [{ content: 'PLUGIN_RESTRICTED_DONE', delayMs: 0 }] },
+					],
+				},
+			}],
+		});
+	});
+
+	suiteTeardown(async function () {
+		await stopServer(server);
+		await rm(suiteHome, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+	});
+
+	setup(async function () {
+		this.timeout(120_000);
+		client = new TestProtocolClient(server.port);
+		await client.connect();
+	});
+
+	teardown(async function () {
+		for (const session of createdSessions) {
+			try {
+				await client.call('disposeSession', { session }, 5000);
+			} catch { /* best-effort */ }
+		}
+		createdSessions.length = 0;
+		client.close();
+
+		for (const dir of tempDirs) {
+			try {
+				await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+			} catch { /* best-effort */ }
+		}
+		tempDirs.length = 0;
+	});
+
+	test('returns a hello response via mock LLM', async function () {
+		this.timeout(180_000);
+
+		const probeToken = 'MOCK_REQUEST_PROBE_12345';
+		const workspaceDir = await mkdtemp(`${tmpdir()}/test-mock-hello`);
+		tempDirs.push(workspaceDir);
+		const sessionUri = await createProviderSession(client, COPILOT_CONFIG, 'real-sdk-mock-hello', createdSessions, URI.file(workspaceDir));
+		dispatchTurn(client, sessionUri, 'turn-mock-hello', `Reply with exactly: ${probeToken}`, 1);
+		try {
+			await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'), 90_000);
+		} catch (err) {
+			console.error(`Failed to receive chat/turnComplete notification within timeout: ${err}, receivedNotifications: ${JSON.stringify(client.receivedNotifications())}, logMessages: ${server.mockLlm?.logMessages.join('\n') ?? 'no mockllm server'}`);
+			throw new Error(`Failed to receive chat/turnComplete notification within timeout: ${err}, receivedNotifications: ${JSON.stringify(client.receivedNotifications())}, logMessages: ${server.mockLlm?.logMessages.join('\n') ?? 'no mockllm server'}`);
+		}
+
+		assert.ok((server.mockLlm?.requestCount() ?? 0) >= 1, 'expected at least one request to the mock LLM');
+
+		const state = await fetchSessionWithChat(client, sessionUri);
+
+		const turn = state.turns.find(t => t.id === 'turn-mock-hello');
+		const markdownText = turn?.responseParts.map(p => p.kind === ResponsePartKind.Markdown ? p.content : '').join('\n') ?? ``;
+		assert.ok(markdownText.trim().length > 0, `expected non-empty assistant markdown; got: ${JSON.stringify(markdownText)}`);
+		assert.match(markdownText, new RegExp(`\\b${probeToken}\\b`, 'i'), `expected probe token in assistant markdown; got: ${JSON.stringify(markdownText)}`);
+	});
+
+	test('selected plugin agent delegates to a sibling from the same plugin', async function () {
+		this.timeout(180_000);
+
+		const workspaceDir = await mkdtemp(`${tmpdir()}/test-mock-plugin-subagents`);
+		tempDirs.push(workspaceDir);
+		const pluginDir = join(workspaceDir, 'plugin');
+		const parentAgentFile = join(pluginDir, 'agents', 'parent.agent.md');
+		const siblingAgentFile = join(pluginDir, 'agents', 'sibling.agent.md');
+		const restrictedAgentFile = join(pluginDir, 'agents', 'restricted.agent.md');
+		await Promise.all([
+			mkdir(join(pluginDir, '.plugin'), { recursive: true }),
+			mkdir(join(pluginDir, 'agents'), { recursive: true }),
+		]);
+		await Promise.all([
+			writeFile(join(pluginDir, '.plugin', 'plugin.json'), JSON.stringify({ name: 'Plugin Delegation' })),
+			writeFile(parentAgentFile, '---\nname: plugin-parent\ndescription: Delegates plugin work\n---\nDelegate work to plugin-sibling.'),
+			writeFile(siblingAgentFile, '---\nname: plugin-sibling\ndescription: Completes plugin work\n---\nComplete the delegated task.'),
+			writeFile(restrictedAgentFile, '---\nname: plugin-restricted\ndescription: Only runs when selected by the user\ninfer: false\n---\nComplete the restricted task.'),
+		]);
+
+		const clientId = 'real-sdk-plugin-subagents';
+		const sessionUri = await createProviderSession(client, COPILOT_CONFIG, clientId, createdSessions, URI.file(workspaceDir));
+		const pluginUri = URI.file(pluginDir).toString();
+		const pluginCustomization: ClientPluginCustomization = {
+			type: CustomizationType.Plugin,
+			id: customizationId(pluginUri),
+			uri: pluginUri as ProtocolURI,
+			name: 'Plugin Delegation',
+			nonce: '1',
+		};
+		client.dispatch({
+			channel: sessionUri,
+			clientSeq: 1,
+			action: {
+				type: ActionType.SessionActiveClientSet,
+				activeClient: { clientId, tools: [], customizations: [pluginCustomization] },
+			},
+		});
+		await client.waitForNotification(notification =>
+			isActionNotification(notification, ActionType.SessionActiveClientSet)
+			&& getActionEnvelope(notification).channel === sessionUri,
+			30_000,
+		);
+		const parentAgentUri = await retry(async () => {
+			const session = await fetchSessionWithChat(client, sessionUri);
+			const plugin = session.customizations?.find((customization): customization is PluginCustomization =>
+				customization.type === CustomizationType.Plugin && customization.uri === pluginUri
+			);
+			assert.deepStrictEqual(plugin?.children?.map(child => child.name).sort(), ['plugin-parent', 'plugin-restricted', 'plugin-sibling']);
+			const parent = plugin?.children?.find(child => child.name === 'plugin-parent');
+			assert.ok(parent);
+			return parent.uri;
+		}, 100, 300);
+
+		const chatUri = defaultChatChannel(sessionUri);
+		const delegate = async (clientSeq: number, turnId: string, scenarioId: string) => {
+			client.clearReceived();
+			const taskStarted = client.waitForNotification(notification =>
+				isActionNotification(notification, ActionType.ChatToolCallStart)
+				&& getActionEnvelope(notification).channel === chatUri
+				&& (getActionEnvelope(notification).action as ChatToolCallStartAction).toolName === 'task',
+				90_000,
+			);
+			client.dispatch({
+				channel: chatUri,
+				clientSeq,
+				action: {
+					type: ActionType.ChatTurnStarted,
+					turnId,
+					startedAt: new Date().toISOString(),
+					message: {
+						text: `[scenario:${scenarioId}] Delegate to the plugin sibling.`,
+						origin: { kind: MessageKind.User },
+						agent: { uri: parentAgentUri },
+					},
+				},
+			});
+			const startAction = getActionEnvelope(await taskStarted).action as ChatToolCallStartAction;
+			const completeNotification = await client.waitForNotification(notification =>
+				isActionNotification(notification, ActionType.ChatToolCallComplete)
+				&& getActionEnvelope(notification).channel === chatUri
+				&& (getActionEnvelope(notification).action as ChatToolCallCompleteAction).toolCallId === startAction.toolCallId,
+				90_000,
+			);
+			await client.waitForNotification(notification =>
+				isActionNotification(notification, ActionType.ChatTurnComplete)
+				&& getActionEnvelope(notification).channel === chatUri
+				&& (getActionEnvelope(notification).action as ChatTurnCompleteAction).turnId === turnId,
+				90_000,
+			);
+
+			const completeAction = getActionEnvelope(completeNotification).action as ChatToolCallCompleteAction;
+			const session = await fetchSessionWithChat(client, sessionUri);
+			const response = session.turns.find(turn => turn.id === turnId)?.responseParts
+				.filter(part => part.kind === ResponsePartKind.Markdown)
+				.map(part => part.content)
+				.join('');
+			return { taskSucceeded: completeAction.result.success, parentResponse: response };
+		};
+
+		assert.deepStrictEqual({
+			modelInvocable: await delegate(2, 'turn-plugin-subagent', PLUGIN_SIBLING_SCENARIO_ID),
+			modelRestricted: await delegate(3, 'turn-plugin-restricted-subagent', PLUGIN_RESTRICTED_SIBLING_SCENARIO_ID),
+		}, {
+			modelInvocable: {
+				taskSucceeded: true,
+				parentResponse: 'PLUGIN_PARENT_DONE',
+			},
+			modelRestricted: {
+				taskSucceeded: false,
+				parentResponse: 'PLUGIN_RESTRICTED_DONE',
+			},
+		});
+	});
+
+	test('loads a project extension through the client-resolved SDK before the model opens its canvas and projects extension-started turns', async function () {
+		this.timeout(180_000);
+		const workspaceDir = await mkdtemp(`${tmpdir()}/test-mock-canvas`);
+		tempDirs.push(workspaceDir);
+		const extensionDir = join(workspaceDir, '.github', 'extensions', 'proof-canvas');
+		await mkdir(extensionDir, { recursive: true });
+		await writeFile(join(extensionDir, 'extension.mjs'), `
+import { writeFileSync } from 'node:fs';
+import { createCanvas, joinSession } from '@github/copilot-sdk/extension';
+writeFileSync(new URL('./observed-environment.json', import.meta.url), JSON.stringify({ copilotHome: process.env.COPILOT_HOME ?? null }));
+let session;
+let requestedAgent = false;
+session = await joinSession({
+	canvases: [createCanvas({
+		id: 'proof-canvas',
+		displayName: 'Proof canvas',
+		description: 'Integration-test canvas.',
+		open: ({ instanceId }) => {
+			const dispose = session.on(event => {
+				if (requestedAgent || event.agentId || event.type !== 'session.idle') {
+					return;
+				}
+				requestedAgent = true;
+				dispose();
+				void session.send({
+					prompt: '[scenario:${CANVAS_EXTENSION_TURN_SCENARIO_ID}] Report that the canvas request completed.',
+					mode: 'enqueue'
+				}).catch(error => console.error(error));
+			});
+			return {
+				url: \`http://127.0.0.1:43119/\${instanceId}\`,
+				title: 'Proof canvas',
+				status: 'ready'
+			};
+		}
+	})]
+});
+`, 'utf8');
+
+		const setCanvasesEnabled = async (enabled: boolean, clientSeq: number) => {
+			client.dispatch({
+				channel: ROOT_STATE_URI,
+				clientSeq,
+				action: { type: ActionType.RootConfigChanged, config: { [AgentHostCanvasesEnabledConfigKey]: enabled } },
+			});
+			await client.waitForNotification(n =>
+				isActionNotification(n, ActionType.RootConfigChanged)
+				&& getActionEnvelope(n).origin?.clientSeq === clientSeq,
+			);
+		};
+		let previousCanvasesEnabled: boolean | undefined;
+		try {
+			const sessionUri = await createProviderSession(
+				client,
+				CANVAS_COPILOT_CONFIG,
+				'real-sdk-mock-canvas',
+				createdSessions,
+				URI.file(workspaceDir),
+				async () => {
+					const result = await client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
+					previousCanvasesEnabled = (result.snapshot!.state as RootState).config?.values[AgentHostCanvasesEnabledConfigKey] === true;
+					await setCanvasesEnabled(true, 1);
+				},
+			);
+			dispatchTurn(client, sessionUri, 'turn-mock-canvas', `[scenario:${CANVAS_SCENARIO_ID}] Open the available proof canvas.`, 2);
+			const startNotification = await client.waitForNotification(n =>
+				isActionNotification(n, ActionType.ChatToolCallStart)
+				&& (getActionEnvelope(n).action as ChatToolCallStartAction).toolName === 'open_canvas',
+				90_000,
+			);
+			const openCanvasStart = getActionEnvelope(startNotification).action as ChatToolCallStartAction;
+			const openCanvasCompleteNotification = await client.waitForNotification(n =>
+				isActionNotification(n, ActionType.ChatToolCallComplete)
+				&& (getActionEnvelope(n).action as ChatToolCallCompleteAction).toolCallId === openCanvasStart.toolCallId,
+				90_000,
+			);
+			const openCanvasComplete = getActionEnvelope(openCanvasCompleteNotification).action as ChatToolCallCompleteAction;
+			const canvasNotification = await client.waitForNotification(n =>
+				isActionNotification(n, ActionType.ChatCanvasesChanged)
+				&& getActionEnvelope(n).action.type === ActionType.ChatCanvasesChanged,
+				90_000,
+			);
+			const canvasAction = getActionEnvelope(canvasNotification).action;
+			assert.ok(canvasAction.type === ActionType.ChatCanvasesChanged);
+			const canvasReference = canvasAction.canvases?.[0];
+			assert.ok(canvasReference);
+			const snapshot = await client.call<SubscribeResult>('subscribe', { channel: canvasReference.resource });
+			const state = snapshot.snapshot?.state;
+			assert.ok(state && hasKey(state, { instanceId: true }));
+			const canvas: CanvasState = state;
+			await client.waitForNotification(n =>
+				isActionNotification(n, ActionType.ChatTurnComplete)
+				&& (getActionEnvelope(n).action as ChatTurnCompleteAction).turnId === 'turn-mock-canvas',
+				90_000,
+			);
+			const providerTurnStartedNotification = await client.waitForNotification(n => {
+				if (!isActionNotification(n, ActionType.ChatTurnStarted)) {
+					return false;
+				}
+				const action = getActionEnvelope(n).action as ChatTurnStartedAction;
+				return action.turnId !== 'turn-mock-canvas'
+					&& action.message.text.includes(`[scenario:${CANVAS_EXTENSION_TURN_SCENARIO_ID}]`);
+			}, 90_000);
+			const providerTurnStarted = getActionEnvelope(providerTurnStartedNotification).action as ChatTurnStartedAction;
+			const providerResponseNotification = await client.waitForNotification(n => {
+				if (!isActionNotification(n, ActionType.ChatResponsePart)) {
+					return false;
+				}
+				const action = getActionEnvelope(n).action as ChatResponsePartAction;
+				return action.turnId === providerTurnStarted.turnId
+					&& action.part.kind === ResponsePartKind.Markdown
+					&& action.part.content.includes('Canvas-originated request completed.');
+			}, 90_000);
+			const providerResponse = getActionEnvelope(providerResponseNotification).action as ChatResponsePartAction;
+			await client.waitForNotification(n =>
+				isActionNotification(n, ActionType.ChatTurnComplete)
+				&& (getActionEnvelope(n).action as ChatTurnCompleteAction).turnId === providerTurnStarted.turnId,
+				90_000,
+			);
+
+			assert.deepStrictEqual({
+				openCanvasSucceeded: openCanvasComplete.result.success,
+				canvas: { instanceId: canvas.instanceId, url: canvas.url },
+				referencesContainOnlyResource: canvasAction.canvases?.every(reference => Object.keys(reference).length === 1),
+				extensionEnvironment: JSON.parse(await readFile(join(extensionDir, 'observed-environment.json'), 'utf8')),
+				providerTurn: {
+					message: providerTurnStarted.message,
+					response: providerResponse.part.kind === ResponsePartKind.Markdown ? providerResponse.part.content : undefined,
+				},
+			}, {
+				openCanvasSucceeded: true,
+				canvas: { instanceId: 'proof-instance', url: 'http://127.0.0.1:43119/proof-instance' },
+				referencesContainOnlyResource: true,
+				extensionEnvironment: { copilotHome: URI.joinPath(URI.file(suiteHome), '.copilot').fsPath },
+				providerTurn: {
+					message: {
+						text: `[scenario:${CANVAS_EXTENSION_TURN_SCENARIO_ID}] Report that the canvas request completed.`,
+						origin: { kind: MessageKind.User },
+					},
+					response: 'Canvas-originated request completed.',
+				},
+			});
+		} finally {
+			if (previousCanvasesEnabled !== undefined) {
+				await setCanvasesEnabled(previousCanvasesEnabled, 3);
+			}
+		}
+	});
+
+	test('routes a client tool after steering to the client that sent the steering message', async function () {
+		this.timeout(180_000);
+		const originalClientId = 'steering-original-client';
+		const steeringClientId = 'steering-sender-client';
+		const workspaceDir = await mkdtemp(`${tmpdir()}/test-mock-steering-owner`);
+		tempDirs.push(workspaceDir);
+		const sessionUri = await createProviderSession(client, COPILOT_CONFIG, originalClientId, createdSessions, URI.file(workspaceDir));
+		const chatUri = defaultChatChannel(sessionUri);
+		const steeringClient = new TestProtocolClient(server.port);
+		const tools: ToolDefinition[] = [{
+			name: 'route_probe',
+			description: 'Returns the steering owner marker.',
+			inputSchema: { type: 'object', properties: {} },
+		}];
+		await steeringClient.connect();
+		try {
+			await steeringClient.call('initialize', {
+				channel: ROOT_STATE_URI,
+				protocolVersions: [PROTOCOL_VERSION],
+				clientId: steeringClientId,
+			});
+			await steeringClient.call('subscribe', { channel: sessionUri });
+			await steeringClient.call('subscribe', { channel: chatUri });
+
+			for (const [owner, clientId] of [[client, originalClientId], [steeringClient, steeringClientId]] as const) {
+				owner.dispatch({
+					channel: sessionUri,
+					clientSeq: 1,
+					action: {
+						type: ActionType.SessionActiveClientSet,
+						activeClient: { clientId, tools },
+					},
+				});
+				await client.waitForNotification(n => {
+					if (!isActionNotification(n, ActionType.SessionActiveClientSet)) {
+						return false;
+					}
+					const action = getActionEnvelope(n).action as { readonly activeClient: { readonly clientId: string } };
+					return action.activeClient.clientId === clientId;
+				}, 30_000);
+			}
+
+			dispatchTurn(client, sessionUri, 'turn-before-steering', `[scenario:${STEERING_OWNER_SCENARIO_ID}] Start the ownership test.`, 2);
+			await client.waitForNotification(n =>
+				isActionNotification(n, ActionType.ChatResponsePart)
+				&& (getActionEnvelope(n).action as ChatResponsePartAction).turnId === 'turn-before-steering'
+				&& (getActionEnvelope(n).action as ChatResponsePartAction).part.kind === ResponsePartKind.Markdown,
+				90_000,
+			);
+			assert.strictEqual(client.receivedNotifications(n =>
+				isActionNotification(n, ActionType.ChatTurnComplete)
+				&& (getActionEnvelope(n).action as { readonly turnId: string }).turnId === 'turn-before-steering',
+			).length, 0, 'steering must be submitted while the original turn is active');
+
+			steeringClient.dispatch({
+				channel: chatUri,
+				clientSeq: 2,
+				action: {
+					type: ActionType.ChatPendingMessageSet,
+					kind: PendingMessageKind.Steering,
+					id: 'steering-owner-message',
+					message: {
+						text: 'Now call route_probe exactly once and reply with only its exact result.',
+						origin: { kind: MessageKind.User },
+					},
+				},
+			});
+			await client.waitForNotification(n =>
+				isActionNotification(n, ActionType.ChatPendingMessageSet)
+				&& (getActionEnvelope(n).action as { readonly id: string }).id === 'steering-owner-message',
+				30_000,
+			);
+			const steeringTurnNotification = await client.waitForNotification(n =>
+				isActionNotification(n, ActionType.ChatTurnStarted)
+				&& (getActionEnvelope(n).action as ChatTurnStartedAction).queuedMessageId === 'steering-owner-message',
+				90_000,
+			);
+			const steeringTurn = getActionEnvelope(steeringTurnNotification).action as ChatTurnStartedAction;
+
+			const routeStartNotification = await client.waitForNotification(n =>
+				isActionNotification(n, ActionType.ChatToolCallStart)
+				&& (getActionEnvelope(n).action as ChatToolCallStartAction).toolName === 'route_probe',
+				90_000,
+			);
+			const routeStart = getActionEnvelope(routeStartNotification).action as ChatToolCallStartAction;
+			const routeReadyNotification = await client.waitForNotification(n =>
+				isActionNotification(n, ActionType.ChatToolCallReady)
+				&& (getActionEnvelope(n).action as ChatToolCallReadyAction).toolCallId === routeStart.toolCallId,
+				90_000,
+			);
+			const routeReady = getActionEnvelope(routeReadyNotification).action as ChatToolCallReadyAction;
+			let steeringClientSeq = 3;
+			if (!routeReady.confirmed) {
+				steeringClient.dispatch({
+					channel: chatUri,
+					clientSeq: steeringClientSeq++,
+					action: {
+						type: ActionType.ChatToolCallConfirmed,
+						turnId: routeStart.turnId,
+						toolCallId: routeStart.toolCallId,
+						approved: true,
+						confirmed: ToolCallConfirmationReason.UserAction,
+					},
+				});
+			}
+			steeringClient.dispatch({
+				channel: chatUri,
+				clientSeq: steeringClientSeq,
+				action: {
+					type: ActionType.ChatToolCallComplete,
+					turnId: routeStart.turnId,
+					toolCallId: routeStart.toolCallId,
+					result: {
+						success: true,
+						pastTenseMessage: 'Returned the steering owner marker',
+						content: [{ type: ToolResultContentType.Text, text: 'STEERING_CLIENT_RESULT' }],
+					},
+				},
+			});
+			await client.waitForNotification(n =>
+				isActionNotification(n, ActionType.ChatTurnComplete)
+				&& (getActionEnvelope(n).action as { readonly turnId: string }).turnId === routeStart.turnId,
+				90_000,
+			);
+
+			const state = await fetchSessionWithChat(client, sessionUri);
+			const completedSteeringTurn = state.turns.find(turn => turn.id === routeStart.turnId);
+			const response = completedSteeringTurn?.responseParts
+				.filter(part => part.kind === ResponsePartKind.Markdown)
+				.map(part => part.content)
+				.join('') ?? '';
+			assert.deepStrictEqual({
+				steeringContributor: routeStart.contributor,
+				steeringTurnId: steeringTurn.turnId,
+				routeTurnId: routeStart.turnId,
+				response: response.trim(),
+			}, {
+				steeringContributor: { kind: ToolCallContributorKind.Client, clientId: steeringClientId },
+				steeringTurnId: routeStart.turnId,
+				routeTurnId: routeStart.turnId,
+				response: 'STEERING_CLIENT_RESULT',
+			});
+		} finally {
+			steeringClient.close();
+		}
+	});
+});
+
+/**
+ * Idle-session release exercised against the real Copilot SDK and a mock LLM.
+ * The dedicated server uses a zero residency cap and short provider-veto retry
+ * so release is deterministic without changing production policy.
+ */
+suite('Agent Host Provider Integration — Copilot Idle Release', function () {
+
+	// Short enough that a post-unsubscribe wait reliably outlasts it, long
+	// enough that the intra-test subscribe calls in createProviderSession don't race it.
+	const RELEASE_RETRY_MS = 500;
+
+	let server: IServerHandle;
+	let client: TestProtocolClient;
+	let suiteHome: string;
+	let detachedCompletionMarker: string;
+	const createdSessions: string[] = [];
+	const tempDirs: string[] = [];
+
+	suiteSetup(async function () {
+		this.timeout(120_000);
+		suiteHome = await mkdtemp(`${tmpdir()}/test-mock-idle-release-home`);
+		detachedCompletionMarker = join(suiteHome, 'detached-shell-complete');
+		const detachedScript = join(suiteHome, 'detached-shell.js');
+		await writeFile(detachedScript, `setTimeout(() => require('fs').writeFileSync(${JSON.stringify(detachedCompletionMarker)}, 'done'), ${DETACHED_SHELL_DELAY_MS});`);
+		const command = `node ${quoteShellArgument(detachedScript)}`;
+		server = await startRealServer({
+			mockLlm: true,
+			homeDir: suiteHome,
+			userDataDir: join(suiteHome, 'user-data'),
+			env: {
+				[AgentHostSessionResidencyLimitEnvVar]: '0',
+				[AgentHostSessionReleaseRetryMsEnvVar]: String(RELEASE_RETRY_MS),
+			},
+			mockScenarios: [{
+				id: DETACHED_SHELL_SCENARIO_ID,
+				definition: {
+					type: 'multi-turn',
+					turns: [
+						{
+							kind: 'tool-calls',
+							toolCalls: [{
+								toolNamePattern: /^(bash|powershell)$/,
+								arguments: {
+									command,
+									description: 'Run detached shell release probe',
+									mode: 'async',
+									detach: true,
+									initial_wait: 30,
+								},
+							}],
+						},
+						{ kind: 'content', chunks: [{ content: 'Waiting for detached shell completion.', delayMs: 0 }] },
+					],
+				},
+			}],
+		});
+	});
+
+	suiteTeardown(async function () {
+		await stopServer(server);
+		await rm(suiteHome, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+	});
+
+	setup(async function () {
+		this.timeout(120_000);
+		client = new TestProtocolClient(server.port);
+		await client.connect();
+	});
+
+	teardown(async function () {
+		for (const session of createdSessions) {
+			try {
+				await client.call('disposeSession', { session }, 5000);
+			} catch { /* best-effort */ }
+		}
+		createdSessions.length = 0;
+		client.close();
+
+		for (const dir of tempDirs) {
+			try {
+				await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+			} catch { /* best-effort */ }
+		}
+		tempDirs.length = 0;
+	});
+
+	test('keeps a detached shell running after an idle session loses all subscribers (mock LLM)', async function () {
+		this.timeout(180_000);
+
+		const workspaceDir = await mkdtemp(`${tmpdir()}/test-mock-detached-release`);
+		tempDirs.push(workspaceDir);
+		const sessionUri = await createProviderSession(client, COPILOT_CONFIG, 'real-sdk-mock-detached-release', createdSessions, URI.file(workspaceDir));
+		const turnId = 'turn-detached-release';
+
+		dispatchTurn(client, sessionUri, turnId, `[scenario:${DETACHED_SHELL_SCENARIO_ID}] Start the detached shell.`, 1);
+		const readyNotification = await client.waitForNotification(n => {
+			if (!isActionNotification(n, 'chat/toolCallReady')) {
+				return false;
+			}
+			return !(getActionEnvelope(n).action as ChatToolCallReadyAction).confirmed;
+		}, 90_000);
+		const readyEnvelope = getActionEnvelope(readyNotification);
+		const readyAction = readyEnvelope.action as ChatToolCallReadyAction;
+		client.dispatch({
+			channel: readyEnvelope.channel,
+			clientSeq: 2,
+			action: {
+				type: ActionType.ChatToolCallConfirmed,
+				turnId: readyAction.turnId,
+				toolCallId: readyAction.toolCallId,
+				approved: true,
+				confirmed: ToolCallConfirmationReason.UserAction,
+			},
+		});
+		const completeNotification = await client.waitForNotification(n => isActionNotification(n, 'chat/toolCallComplete'), 90_000);
+		const completeAction = getActionEnvelope(completeNotification).action as ChatToolCallCompleteAction;
+		assert.match(JSON.stringify(completeAction.result), /detached background/);
+		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'), 90_000);
+
+		const idle = await fetchSessionWithChat(client, sessionUri);
+		assert.deepStrictEqual({
+			activeTurn: idle.activeTurn,
+			inProgress: (idle.status & SessionStatus.InProgress) !== 0,
+		}, {
+			activeTurn: undefined,
+			inProgress: false,
+		});
+
+		for (const channel of [defaultChatChannel(sessionUri), sessionUri]) {
+			client.notify('unsubscribe', { channel });
+		}
+		await timeout(RELEASE_RETRY_MS + 1000);
+
+		for (let attempt = 0; attempt < 150 && !existsSync(detachedCompletionMarker); attempt++) {
+			await timeout(100);
+		}
+		assert.strictEqual(await readFile(detachedCompletionMarker, 'utf8'), 'done');
+	});
+
+	test('releases an idle session and resumes it losslessly on re-subscribe (mock LLM)', async function () {
+		this.timeout(180_000);
+
+		const assistantMarkdown = (turns: ISessionWithDefaultChat['turns'], turnId: string): string =>
+			turns.find(t => t.id === turnId)?.responseParts.map(p => p.kind === ResponsePartKind.Markdown ? p.content : '').join('\n') ?? '';
+		// Project each turn onto its durable transcript content: the user message
+		// and the assistant's rendered markdown. Live-only or reconstructed fields
+		// (regenerated response-part ids, the internal turn id which is rebuilt
+		// from the SDK event log on restore, per-turn `usage` token telemetry that
+		// is not persisted) legitimately do not survive a restore-from-disk, so
+		// "lossless" is asserted over the transcript the user sees.
+		const transcript = (turns: ISessionWithDefaultChat['turns']) =>
+			turns.map(t => ({ message: t.message.text, markdown: assistantMarkdown(turns, t.id) }));
+
+		const workspaceDir = await mkdtemp(`${tmpdir()}/test-mock-release-resume`);
+		tempDirs.push(workspaceDir);
+		const sessionUri = await createProviderSession(client, COPILOT_CONFIG, 'real-sdk-mock-release', createdSessions, URI.file(workspaceDir));
+
+		// Drive one turn so the session has durable SDK state (a persisted event
+		// log) backed by a live SDK session that owns real per-session resources.
+		const firstProbe = 'MOCK_RELEASE_PROBE_1';
+		dispatchTurn(client, sessionUri, 'turn-release-1', `Reply with exactly: ${firstProbe}`, 1);
+		const firstResult = await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete') || isActionNotification(n, 'chat/error'), 90_000);
+		assert.strictEqual(getActionEnvelope(firstResult).action.type, ActionType.ChatTurnComplete, JSON.stringify(getActionEnvelope(firstResult).action));
+
+		const before = await fetchSessionWithChat(client, sessionUri);
+		assert.match(assistantMarkdown(before.turns, 'turn-release-1'), new RegExp(`\\b${firstProbe}\\b`, 'i'), 'first turn should have completed before release');
+
+		// Drop every subscriber. The zero-capacity server drops cached protocol
+		// state and releases the live SDK session while preserving its event log.
+		for (const channel of [defaultChatChannel(sessionUri), sessionUri]) {
+			client.notify('unsubscribe', { channel });
+		}
+		await timeout(RELEASE_RETRY_MS + 2000);
+
+		// Re-subscribe: the server restores the session from disk and the provider
+		// resumes the SDK session on demand. The restored transcript must match
+		// the pre-release view.
+		const after = await fetchSessionWithChat(client, sessionUri);
+		assert.deepStrictEqual(transcript(after.turns), transcript(before.turns), 'restored transcript must match the pre-release state');
+
+		// Drive a SECOND turn after the release/resume cycle. This is the key
+		// assertion: it proves the SDK session resumed cleanly rather than wedging
+		// the runtime — the exact failure mode idle release could introduce.
+		client.clearReceived();
+		const secondProbe = 'MOCK_RELEASE_PROBE_2';
+		dispatchTurn(client, sessionUri, 'turn-release-2', `Reply with exactly: ${secondProbe}`, 2);
+		const secondResult = await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete') || isActionNotification(n, 'chat/error'), 90_000);
+		assert.strictEqual(getActionEnvelope(secondResult).action.type, ActionType.ChatTurnComplete, JSON.stringify(getActionEnvelope(secondResult).action));
+
+		const final = await fetchSessionWithChat(client, sessionUri);
+		assert.match(assistantMarkdown(final.turns, 'turn-release-2'), new RegExp(`\\b${secondProbe}\\b`, 'i'), 'a follow-up turn must complete after the release/resume cycle');
+	});
+});

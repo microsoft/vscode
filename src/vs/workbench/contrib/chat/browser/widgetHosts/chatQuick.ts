@@ -274,7 +274,7 @@ class QuickChat extends Disposable {
 			const anonymous = this.chatEntitlementService.anonymousObs.read(reader);
 			const requestInProgress = this.chatService.requestInProgressObs.read(reader);
 
-			const showDisclaimer = !sentiment.installed && anonymous && !requestInProgress;
+			const showDisclaimer = !sentiment.completed && anonymous && !requestInProgress;
 			disclaimerElement.classList.toggle('hidden', !showDisclaimer);
 
 			if (showDisclaimer) {
@@ -377,7 +377,7 @@ class QuickChat extends Disposable {
 			}
 		}
 
-		const value = this.widget.getViewState();
+		const value = this.widget.getInputState();
 		if (value) {
 			widget.viewModel.model.inputModel.setState(value);
 		}
@@ -394,7 +394,7 @@ class QuickChat extends Disposable {
 	}
 
 	private updateModel(): void {
-		this.modelRef ??= this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { disableBackgroundKeepAlive: true });
+		this.modelRef ??= this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { disableBackgroundKeepAlive: true, debugOwner: 'ChatQuick#updateModel' });
 		const model = this.modelRef?.object;
 		if (!model) {
 			throw new Error('Could not start chat session');

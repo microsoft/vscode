@@ -1,0 +1,22 @@
+import json
+
+
+def create_rollout_specs(global_traffic_manager,templ, template_name, output_file_name, data, output_dir, validation_deployment):
+    environ = data["Environment"]
+    if templ.endswith(template_name):
+        f = open(templ, encoding='utf-8-sig')
+        final_json = json.loads(f.read())
+        for deploy_step in final_json["orchestratedsteps"]:
+            if(deploy_step["name"] == "deploy_cert_creation"):
+                deploy_step["actions"] = data["CertActions"] #To enable environment specific cert creation.
+        icm_str = open(f'BaseTemplates/ICMNotification/icmnotify.json', encoding='utf-8-sig')
+        icmjson = json.loads(icm_str.read())
+
+        if(global_traffic_manager == False and data["ICM"] == "True" and validation_deployment == False):
+            final_json["rolloutMetadata"]["notification"] = icmjson["notificationICM"]
+        else:
+            final_json["rolloutMetadata"]["notification"] = icmjson["notification"]
+        final_tmpl_str = json.dumps(final_json, indent=2, sort_keys=False)
+        finalstr = final_tmpl_str.replace("###Environment###", environ)
+        finalstr = finalstr.replace("###OutputDir###", output_dir)
+        print(output_file_name, finalstr)

@@ -7,6 +7,9 @@
 			"ES2024",
 			"DOM"
 		],
+		"types": [
+			"node"
+		],
 		"typeRoots": [
 			"./node_modules/@types"
 		]

@@ -3,141 +3,78 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
+import { CheckRun } from '../../../../../platform/github/common/core/checks.js';
+import { ApiRequestOptions } from '../../../../../platform/github/common/client/request.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 import { GitHubCheckConclusion, GitHubCheckStatus, GitHubCIOverallStatus, IGitHubCICheck } from '../../common/types.js';
 import { GitHubApiClient } from '../githubApiClient.js';
 
-//#region GitHub API response types
-
-interface IGitHubCheckRunResponse {
-	readonly id: number;
-	readonly name: string;
-	readonly status: string;
-	readonly conclusion: string | null;
-	readonly started_at: string | null;
-	readonly completed_at: string | null;
-	readonly details_url: string | null;
-}
-
-interface IGitHubCheckRunsListResponse {
-	readonly total_count: number;
-	readonly check_runs: readonly IGitHubCheckRunResponse[];
-}
-
-interface IGitHubCheckRunAnnotationResponse {
-	readonly path: string;
-	readonly start_line: number;
-	readonly end_line: number;
-	readonly annotation_level: string;
-	readonly message: string;
-	readonly title: string | null;
-}
-
-interface IGitHubCheckRunDetailResponse {
-	readonly id: number;
-	readonly name: string;
-	readonly details_url: string | null;
-	readonly app: {
-		readonly slug: string;
-	} | null;
-	readonly output: {
-		readonly title: string | null;
-		readonly summary: string | null;
-		readonly text: string | null;
-		readonly annotations_count: number;
-	};
-}
-
-//#endregion
-
-/**
- * Stateless fetcher for GitHub CI check data (check runs, check suites).
- * All methods return raw typed data with no caching or state.
- */
 export class GitHubPRCIFetcher {
+	constructor(readonly client: GitHubApiClient, private readonly _logService: ILogService) { }
 
-	constructor(
-		private readonly _apiClient: GitHubApiClient,
-	) { }
-
-	async getCheckRuns(owner: string, repo: string, ref: string): Promise<IGitHubCICheck[]> {
-		const data = await this._apiClient.request<IGitHubCheckRunsListResponse>(
-			'GET',
-			`/repos/${e(owner)}/${e(repo)}/commits/${e(ref)}/check-runs`,
-			'githubApi.getCheckRuns'
-		);
-		return data.check_runs.map(mapCheckRun);
+	getCheckRuns(owner: string, repo: string, ref: string, token?: CancellationToken, options?: ApiRequestOptions): Promise<readonly IGitHubCICheck[]> {
+		return this.client.withClient(async (client, signal) => {
+			const checks = await client.checks.listRuns({ owner, repo }, ref, signal, {
+				...options,
+				query: { page: 1, per_page: 100 },
+				maxPages: 100,
+			});
+			return checks.check_runs.map(mapCheckRun);
+		}, token);
 	}
 
-	/**
-	 * Get logs/output for a specific check run.
-	 *
-	 * Tries multiple sources in order:
-	 * 1. The check run's own output fields (title, summary, text) — set by the
-	 *    check run creator via the Checks API.
-	 * 2. Annotations attached to the check run.
-	 * 3. GitHub Actions job logs (only works for GitHub Actions workflows).
-	 */
-	async getCheckRunAnnotations(owner: string, repo: string, checkRunId: number): Promise<string> {
-		const sections: string[] = [];
-		let detail: IGitHubCheckRunDetailResponse | undefined;
+	rerunFailedJobs(owner: string, repo: string, runId: number, token?: CancellationToken): Promise<void> {
+		return this.client.withClient((client, signal) =>
+			client.actions.rerunFailedJobs({ owner, repo }, runId, signal), token);
+	}
 
-		// 1. Fetch check run detail for output fields
-		try {
-			detail = await this._apiClient.request<IGitHubCheckRunDetailResponse>(
-				'GET',
-				`/repos/${e(owner)}/${e(repo)}/check-runs/${checkRunId}`,
-				'githubApi.getCheckRunAnnotations'
-			);
-			const output = detail.output;
-			if (output.title) {
-				sections.push(`# ${output.title}`);
+	getCheckRunAnnotations(owner: string, repo: string, checkRunId: number, token?: CancellationToken): Promise<string> {
+		return this.client.withClient(async (client, signal) => {
+			const repository = { owner, repo };
+			const sections: string[] = [];
+			try {
+				const { output } = await client.checks.getRun(repository, checkRunId, signal);
+				if (output.title) {
+					sections.push(`# ${output.title}`);
+				}
+				if (output.summary) {
+					sections.push(output.summary);
+				}
+				if (output.text) {
+					sections.push(output.text);
+				}
+			} catch (error) {
+				if (signal.aborted || isCancellationError(error)) {
+					throw error;
+				}
+				this._logService.warn('[GitHubPRCIFetcher] Failed to read check output', error);
 			}
-			if (output.summary) {
-				sections.push(output.summary);
-			}
-			if (output.text) {
-				sections.push(output.text);
-			}
-		} catch {
-			// Ignore — output may not be available
-		}
-
-		// 2. Fetch annotations
-		try {
-			const annotations = await this._apiClient.request<readonly IGitHubCheckRunAnnotationResponse[]>(
-				'GET',
-				`/repos/${e(owner)}/${e(repo)}/check-runs/${checkRunId}/annotations`,
-				'githubApi.getCheckRunAnnotations.annotations'
-			);
-			if (annotations.length > 0) {
-				sections.push(
-					annotations.map(a =>
+			try {
+				const annotations = await client.checks.listAnnotations(repository, checkRunId, signal, {
+					query: { page: 1, per_page: 100 },
+					maxPages: 100,
+				});
+				if (annotations.length > 0) {
+					sections.push(annotations.map(a =>
 						`[${a.annotation_level}] ${a.path}:${a.start_line}${a.end_line !== a.start_line ? `-${a.end_line}` : ''} ${a.title ? `(${a.title}) ` : ''}${a.message}`
-					).join('\n')
-				);
+					).join('\n'));
+				}
+			} catch (error) {
+				if (signal.aborted || isCancellationError(error)) {
+					throw error;
+				}
+				this._logService.warn('[GitHubPRCIFetcher] Failed to read check annotations', error);
 			}
-		} catch {
-			// Ignore — annotations may not be available
-		}
-
-		if (sections.length > 0) {
-			return sections.join('\n\n');
-		}
-
-		return 'No output available for this check run.';
+			return sections.length > 0 ? sections.join('\n\n') : 'No output available for this check run.';
+		}, token);
 	}
 }
 
-//#region Helpers
-
-function e(value: string): string {
-	return encodeURIComponent(value);
-}
-
-function mapCheckRun(data: IGitHubCheckRunResponse): IGitHubCICheck {
+function mapCheckRun(data: CheckRun): IGitHubCICheck {
 	return {
-		id: data.id,
-		name: data.name,
+		id: data.id, name: data.name,
 		status: mapCheckStatus(data.status),
 		conclusion: data.conclusion ? mapCheckConclusion(data.conclusion) : undefined,
 		startedAt: data.started_at ?? undefined,
@@ -169,17 +106,13 @@ function mapCheckConclusion(conclusion: string): GitHubCheckConclusion {
 	}
 }
 
-/**
- * Compute an overall CI status from a list of check runs.
- */
+/** Computes an overall CI status from check runs. */
 export function computeOverallCIStatus(checks: readonly IGitHubCICheck[]): GitHubCIOverallStatus {
 	if (checks.length === 0) {
 		return GitHubCIOverallStatus.Neutral;
 	}
-
 	let hasFailure = false;
 	let hasPending = false;
-
 	for (const check of checks) {
 		if (check.status !== GitHubCheckStatus.Completed) {
 			hasPending = true;
@@ -191,7 +124,6 @@ export function computeOverallCIStatus(checks: readonly IGitHubCICheck[]): GitHu
 			hasFailure = true;
 		}
 	}
-
 	if (hasFailure) {
 		return GitHubCIOverallStatus.Failure;
 	}
@@ -200,5 +132,3 @@ export function computeOverallCIStatus(checks: readonly IGitHubCICheck[]): GitHu
 	}
 	return GitHubCIOverallStatus.Success;
 }
-
-//#endregion

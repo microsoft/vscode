@@ -5,7 +5,7 @@
 
 import { onUnexpectedExternalError } from '../../../../base/common/errors.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
-import { ISearchConfiguration, ISearchConfigurationProperties } from '../../../services/search/common/search.js';
+import { ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties } from '../../../services/search/common/search.js';
 import { SymbolKind, Location, ProviderResult, SymbolTag } from '../../../../editor/common/languages.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -19,6 +19,26 @@ import { isNumber } from '../../../../base/common/types.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { compare } from '../../../../base/common/strings.js';
 import { groupBy } from '../../../../base/common/arrays.js';
+import * as nls from '../../../../nls.js';
+import type { IConfigurationNode } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { AnythingQuickAccessProviderRunOptions } from '../../../../platform/quickinput/common/quickAccess.js';
+
+/**
+ * Supplies scoped file candidates while the Anything Quick Access provider retains query handling, scoring, sorting, and rendering.
+ */
+export interface IAnythingQuickAccessFileSearchDelegate {
+	search(filePattern: string, token: CancellationToken): Promise<ISearchComplete>;
+	getItemDescription?(resource: URI): string | undefined;
+}
+
+/**
+ * Run options specific to the Anything Quick Access provider.
+ */
+export interface IAnythingQuickAccessProviderRunOptions extends AnythingQuickAccessProviderRunOptions {
+	readonly filesOnly?: boolean;
+	readonly includeOpenToSideButton?: boolean;
+	readonly fileSearchDelegate?: IAnythingQuickAccessFileSearchDelegate;
+}
 
 export interface IWorkspaceSymbol {
 	name: string;
@@ -120,11 +140,11 @@ export async function getWorkspaceSymbols(query: string, token: CancellationToke
 }
 
 export interface IWorkbenchSearchConfigurationProperties extends ISearchConfigurationProperties {
-	quickOpen: {
-		includeSymbols: boolean;
-		includeHistory: boolean;
-		history: {
-			filterSortOrder: 'default' | 'recency';
+	quickOpen?: {
+		includeSymbols?: boolean;
+		includeHistory?: boolean;
+		history?: {
+			filterSortOrder?: 'default' | 'recency';
 		};
 	};
 }
@@ -148,8 +168,8 @@ export function getOutOfWorkspaceEditorResources(accessor: ServicesAccessor): UR
 	return resources as URI[];
 }
 
-// Supports patterns of <path><#|:|(><line><#|:|,><col?><:?>
-const LINE_COLON_PATTERN = /\s?[#:\(](?:line )?(\d*)(?:[#:,](\d*))?\)?:?\s*$/;
+// Supports patterns of <path><#|:|(><line><#|:|,><col?>> optionally followed by a range suffix <-<endLine><#|:|,><endCol?>>
+const LINE_COLON_PATTERN = /\s?[#:\(](?:line )?(\d*)(?:[#:,](\d*))?(?:-(\d*)(?:[#:,](\d*))?)?\)?:?\s*$/;
 
 export interface IFilterAndRange {
 	filter: string;
@@ -192,6 +212,20 @@ export function extractRangeFromFilter(filter: string, unless?: string[]): IFilt
 					endColumn: startColumn
 				};
 			}
+
+			// End Line Number (range selection, e.g. "20-40")
+			const endLineNumber = parseInt(patternMatch[3] ?? '', 10);
+			if (isNumber(endLineNumber)) {
+
+				// End Column Number (e.g. "20:3-40:5"), defaults to the start of the end line
+				const endColumn = parseInt(patternMatch[4] ?? '', 10);
+				range = {
+					startLineNumber: range.startLineNumber,
+					startColumn: range.startColumn,
+					endLineNumber: endLineNumber,
+					endColumn: isNumber(endColumn) ? endColumn : 1
+				};
+			}
 		}
 
 		// User has typed "something:" or "something#" without a line number, in this case treat as start of file
@@ -227,3 +261,11 @@ export interface NotebookPriorityInfo {
 	isFromSettings: boolean;
 	filenamePatterns: string[];
 }
+
+export const searchConfigurationNode: IConfigurationNode = {
+	id: 'search',
+	order: 13,
+	title: nls.localize('searchConfigurationTitle', "Search"),
+	type: 'object',
+	properties: {}
+};

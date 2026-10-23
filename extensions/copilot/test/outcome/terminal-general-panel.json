@@ -1,0 +1,1118 @@
+[
+	{
+		"name": "terminal (general) [panel] [bash] - copy file foo to bar/",
+		"requests": [
+			"d95e42060a2ec16f40ca08f67e6b7bd568b08347bc063ff86e862d41ccbb268d"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [bash] - copy file foo to bar/ (strict)",
+		"requests": [
+			"d95e42060a2ec16f40ca08f67e6b7bd568b08347bc063ff86e862d41ccbb268d"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [bash] - create a file called foo",
+		"requests": [
+			"9fa9cbc8ec020335228887ce2655261349f660ecebd953c7e7426da103462a9b"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [bash] - create a file called foo (strict)",
+		"requests": [
+			"9fa9cbc8ec020335228887ce2655261349f660ecebd953c7e7426da103462a9b"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [bash] - create a symlink",
+		"requests": [
+			"bbf9c50082d570152587f200cdf7a38d1fa1fa79cf39c8a1109d7cac78ecc38f"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [bash] - create a symlink (strict)",
+		"requests": [
+			"bbf9c50082d570152587f200cdf7a38d1fa1fa79cf39c8a1109d7cac78ecc38f"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [bash] - delete the foo.txt file",
+		"requests": [
+			"1545c6fc63e2d5ac6c4a7930baa83eaac31b8c3517e79628f91989ddeb89bbf0"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [bash] - delete the foo.txt file (strict)",
+		"requests": [
+			"1545c6fc63e2d5ac6c4a7930baa83eaac31b8c3517e79628f91989ddeb89bbf0"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [bash] - delete the foo/ dir",
+		"requests": [
+			"4cbeff5ad5faeecc94ba51ce1e3a575ad891dbaa1adde7c0381f7ba378f0991a"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [bash] - delete the foo/ dir (strict)",
+		"requests": [
+			"4cbeff5ad5faeecc94ba51ce1e3a575ad891dbaa1adde7c0381f7ba378f0991a"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [bash] - extract a tar file",
+		"requests": [
+			"1f841c8fa7a315adb788d592f8b881eb611a6b9fec2ab68a145b7580b8821984"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [bash] - extract a tar file (strict)",
+		"requests": [
+			"1f841c8fa7a315adb788d592f8b881eb611a6b9fec2ab68a145b7580b8821984"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [bash] - extract a zip file",
+		"requests": [
+			"9b17bdda56bfb81deb9157ce190f39aabbb347a8bc99f5d80c6211369e89244b"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [bash] - extract a zip file (strict)",
+		"requests": [
+			"9b17bdda56bfb81deb9157ce190f39aabbb347a8bc99f5d80c6211369e89244b"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [bash] - extract foo.tar",
+		"requests": [
+			"2e72dcd5e5e04cc70fa8db80b85d20af1afbf72c8f20d8df11cd698b2fb541e0"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [bash] - extract foo.tar (strict)",
+		"requests": [
+			"2e72dcd5e5e04cc70fa8db80b85d20af1afbf72c8f20d8df11cd698b2fb541e0"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [bash] - extract foo.tar to bar/",
+		"requests": [
+			"c74c62c395f98bf518982ea1b2f42878da4e48c91596e2b2e74f15ac70a76a66"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [bash] - extract foo.tar to bar/ (strict)",
+		"requests": [
+			"c74c62c395f98bf518982ea1b2f42878da4e48c91596e2b2e74f15ac70a76a66"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [bash] - extract foo.zip",
+		"requests": [
+			"62239d675945a9a19f6cf2b1a52db6deb98b5c6aa6ae12600fbb6d57fe32e3fe"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [bash] - extract foo.zip (strict)",
+		"requests": [
+			"62239d675945a9a19f6cf2b1a52db6deb98b5c6aa6ae12600fbb6d57fe32e3fe"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [bash] - go to the foo dir",
+		"requests": [
+			"daf6e3da646af08383a3c2a8c9c0ee8bd06b9b600356cd5b4eac874dfde3dbdf"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [bash] - go to the foo dir (strict)",
+		"requests": [
+			"daf6e3da646af08383a3c2a8c9c0ee8bd06b9b600356cd5b4eac874dfde3dbdf"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [bash] - how do i download a file",
+		"requests": [
+			"7c4fd2f500fa4d99cd1a9bcb253d9fc31929de1c068b8e33aaa75690ca1addfe"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [bash] - how do i download a file (strict)",
+		"requests": [
+			"7c4fd2f500fa4d99cd1a9bcb253d9fc31929de1c068b8e33aaa75690ca1addfe"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [bash] - how do i download a file using curl",
+		"requests": [
+			"13771fa3ba7552e62e05406fcb23f2ef544208a2f0e0deafda691d0fdbc6a807"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [bash] - how do i download a file using curl (strict)",
+		"requests": [
+			"13771fa3ba7552e62e05406fcb23f2ef544208a2f0e0deafda691d0fdbc6a807"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [bash] - kill process using port",
+		"requests": [
+			"6f71762bf764d9a5850257a73be304f7609fccd6bedaab6c6ac6c6cb254770ed"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [bash] - kill process using port (strict)",
+		"requests": [
+			"6f71762bf764d9a5850257a73be304f7609fccd6bedaab6c6ac6c6cb254770ed"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [bash] - kill the process using port 8123",
+		"requests": [
+			"bebe4f038daf1e23cc58037a8320b70a941bde8ae3f268bf00780312276afed9"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [bash] - kill the process using port 8123 (strict)",
+		"requests": [
+			"bebe4f038daf1e23cc58037a8320b70a941bde8ae3f268bf00780312276afed9"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [bash] - kill the visual studio code process",
+		"requests": [
+			"eb454c7f20de4491f7276f7465b280677d95b49466d1bd8109bd6d176c01f01d"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [bash] - kill the visual studio code process (strict)",
+		"requests": [
+			"eb454c7f20de4491f7276f7465b280677d95b49466d1bd8109bd6d176c01f01d"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [bash] - list files in directory",
+		"requests": [
+			"d4b0f19a09516387ac3f102a49a7594fea74cda83c302f53936979de1e42121f"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [bash] - list files in directory (strict)",
+		"requests": [
+			"d4b0f19a09516387ac3f102a49a7594fea74cda83c302f53936979de1e42121f"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [bash] - make a directory",
+		"requests": [
+			"b7f88d561998086be39e9abdbc053ef5e55ae01ec9f761042a3aa8795273a918"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [bash] - make a directory (strict)",
+		"requests": [
+			"b7f88d561998086be39e9abdbc053ef5e55ae01ec9f761042a3aa8795273a918"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [bash] - make a directory called foo",
+		"requests": [
+			"a1011108e6014033051f6869cc581cdcba6b49dcca91b47926084a80dba7eec4"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [bash] - make a directory called foo (strict)",
+		"requests": [
+			"a1011108e6014033051f6869cc581cdcba6b49dcca91b47926084a80dba7eec4"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [bash] - move file foo to bar/",
+		"requests": [
+			"a869ba2c146f47a97131d87d75d0656bbba4a365c98c1554ca1201066ad810c3"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [bash] - move file foo to bar/ (strict)",
+		"requests": [
+			"a869ba2c146f47a97131d87d75d0656bbba4a365c98c1554ca1201066ad810c3"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [bash] - print \"hello world\"",
+		"requests": [
+			"adc203578c7a21cbc61b181bf78ce290c402b269b4baae51e8c15606c2ecf435"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [bash] - print \"hello world\" (strict)",
+		"requests": [
+			"adc203578c7a21cbc61b181bf78ce290c402b269b4baae51e8c15606c2ecf435"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [bash] - print README.md",
+		"requests": [
+			"3fb5aa8bbf1e4950e3bf39b486f29b5aa5fa3aadaa4ed46404ac494ade6a7fa2"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [bash] - print README.md (strict)",
+		"requests": [
+			"3fb5aa8bbf1e4950e3bf39b486f29b5aa5fa3aadaa4ed46404ac494ade6a7fa2"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [bash] - print the directory",
+		"requests": [
+			"d14f6ae3f57b224421c88fe7b3893762a1f5035442022c8f77afb5dbd567c8dd"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [bash] - print the directory (strict)",
+		"requests": [
+			"d14f6ae3f57b224421c88fe7b3893762a1f5035442022c8f77afb5dbd567c8dd"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [fish] - copy file foo to bar/",
+		"requests": [
+			"38ca91478a664f63e90ade65fc9a5cf9797e8778905861b628412c86df550ea4"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [fish] - copy file foo to bar/ (strict)",
+		"requests": [
+			"38ca91478a664f63e90ade65fc9a5cf9797e8778905861b628412c86df550ea4"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [fish] - create a file called foo",
+		"requests": [
+			"65b7c1324e2bf9dd48dbda5f97f518dba1d068a65fa35b9fd1c2a09b3426a6d6"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [fish] - create a file called foo (strict)",
+		"requests": [
+			"65b7c1324e2bf9dd48dbda5f97f518dba1d068a65fa35b9fd1c2a09b3426a6d6"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [fish] - create a symlink",
+		"requests": [
+			"ffd7e1bfb1abbf583d9da184291218c4ae5e42d157ed48c6b048b2e9d7caa354"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [fish] - create a symlink (strict)",
+		"requests": [
+			"ffd7e1bfb1abbf583d9da184291218c4ae5e42d157ed48c6b048b2e9d7caa354"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [fish] - delete the foo.txt file",
+		"requests": [
+			"ec48ee06bdb231f191534388e090f655ba2fe568447585776bcef710e1976085"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [fish] - delete the foo.txt file (strict)",
+		"requests": [
+			"ec48ee06bdb231f191534388e090f655ba2fe568447585776bcef710e1976085"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [fish] - delete the foo/ dir",
+		"requests": [
+			"366dc571ea284a50716376e8d919ca9424ab69fbd688e41eb33c42296c093d34"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [fish] - delete the foo/ dir (strict)",
+		"requests": [
+			"366dc571ea284a50716376e8d919ca9424ab69fbd688e41eb33c42296c093d34"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [fish] - extract a tar file",
+		"requests": [
+			"59cc9fcadede760182075df91e868f0f228581ad4751f2af226359242872dda6"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [fish] - extract a tar file (strict)",
+		"requests": [
+			"59cc9fcadede760182075df91e868f0f228581ad4751f2af226359242872dda6"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [fish] - extract a zip file",
+		"requests": [
+			"6d64d25f168ac67083248e4697f40be0562df50f6ce2c275f7f73a57de797d07"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [fish] - extract a zip file (strict)",
+		"requests": [
+			"6d64d25f168ac67083248e4697f40be0562df50f6ce2c275f7f73a57de797d07"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [fish] - extract foo.tar",
+		"requests": [
+			"5ab6f3a2920cda6022c848bbd372ba57697f50416e00de7b83483f0be27db3ad"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [fish] - extract foo.tar (strict)",
+		"requests": [
+			"5ab6f3a2920cda6022c848bbd372ba57697f50416e00de7b83483f0be27db3ad"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [fish] - extract foo.tar to bar/",
+		"requests": [
+			"ced65a339a443c608d8a7c5266ee061b0b55c2078ba52967280c7f7ae8f35a70"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [fish] - extract foo.tar to bar/ (strict)",
+		"requests": [
+			"ced65a339a443c608d8a7c5266ee061b0b55c2078ba52967280c7f7ae8f35a70"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [fish] - extract foo.zip",
+		"requests": [
+			"8716137b180052076d6534baceb87a2220b310c991b05b2c4d182fa146cd0675"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [fish] - extract foo.zip (strict)",
+		"requests": [
+			"8716137b180052076d6534baceb87a2220b310c991b05b2c4d182fa146cd0675"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [fish] - go to the foo dir",
+		"requests": [
+			"69acf7aae860be1e02db362dc9d6613dc4c5b314755a292c90a15d800262db5d"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [fish] - go to the foo dir (strict)",
+		"requests": [
+			"69acf7aae860be1e02db362dc9d6613dc4c5b314755a292c90a15d800262db5d"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [fish] - how do i download a file",
+		"requests": [
+			"af5660138e391d7e70b99dc329d8738d65a3625db76240b1840dc409990ebd85"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [fish] - how do i download a file (strict)",
+		"requests": [
+			"af5660138e391d7e70b99dc329d8738d65a3625db76240b1840dc409990ebd85"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [fish] - how do i download a file using curl",
+		"requests": [
+			"37044d0df597785ed2a315d3f228837abc405333df00bdcb9efcee4343974e26"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [fish] - how do i download a file using curl (strict)",
+		"requests": [
+			"37044d0df597785ed2a315d3f228837abc405333df00bdcb9efcee4343974e26"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [fish] - kill process using port",
+		"requests": [
+			"920e820ea3434c430c427068ea593cd5cb28597dff8b0a5dedb557cd9f0ee7fb"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [fish] - kill process using port (strict)",
+		"requests": [
+			"920e820ea3434c430c427068ea593cd5cb28597dff8b0a5dedb557cd9f0ee7fb"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [fish] - kill the process using port 8123",
+		"requests": [
+			"a611d25690e8df58cfd0b36943b58102917df39479328fac5a6c4042bd3781f1"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [fish] - kill the process using port 8123 (strict)",
+		"requests": [
+			"a611d25690e8df58cfd0b36943b58102917df39479328fac5a6c4042bd3781f1"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [fish] - kill the visual studio code process",
+		"requests": [
+			"19058b4208f7bb12c9a2b45df99515da71ef29ba2d1fb68f9385222ab7c1d6b8"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [fish] - kill the visual studio code process (strict)",
+		"requests": [
+			"19058b4208f7bb12c9a2b45df99515da71ef29ba2d1fb68f9385222ab7c1d6b8"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [fish] - list files in directory",
+		"requests": [
+			"207270f71c3bc325fadd6e7c6582c154f0b8a9e483c0b03880a5e6099aa34554"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [fish] - list files in directory (strict)",
+		"requests": [
+			"207270f71c3bc325fadd6e7c6582c154f0b8a9e483c0b03880a5e6099aa34554"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [fish] - make a directory",
+		"requests": [
+			"de4e5c3ee4564769ba8a7203a5a45647f27280ecaab8cf9e770ae4a3eacdb788"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [fish] - make a directory (strict)",
+		"requests": [
+			"de4e5c3ee4564769ba8a7203a5a45647f27280ecaab8cf9e770ae4a3eacdb788"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [fish] - make a directory called foo",
+		"requests": [
+			"d2765bdefa30d7ea9ecfaf8ef8829d4df0e195f3c69605efd62a955ced78e7b1"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [fish] - make a directory called foo (strict)",
+		"requests": [
+			"d2765bdefa30d7ea9ecfaf8ef8829d4df0e195f3c69605efd62a955ced78e7b1"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [fish] - move file foo to bar/",
+		"requests": [
+			"e28805ae4b92a638a38440999ececf0d9065d9d07d88855e668bc924245d6639"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [fish] - move file foo to bar/ (strict)",
+		"requests": [
+			"e28805ae4b92a638a38440999ececf0d9065d9d07d88855e668bc924245d6639"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [fish] - print \"hello world\"",
+		"requests": [
+			"aff65f40d4305c82e92c9946c5fcc937364d9598fef925ddb21de99e6664f576"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [fish] - print \"hello world\" (strict)",
+		"requests": [
+			"aff65f40d4305c82e92c9946c5fcc937364d9598fef925ddb21de99e6664f576"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [fish] - print README.md",
+		"requests": [
+			"85a453f78eb5df297c8e1541a1e5f878ac333eb3a46af19fa0df7f6713d95878"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [fish] - print README.md (strict)",
+		"requests": [
+			"85a453f78eb5df297c8e1541a1e5f878ac333eb3a46af19fa0df7f6713d95878"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [fish] - print the directory",
+		"requests": [
+			"64f82c5b630eb34fbfbf594c55b75435b92d320bb5a9534962a3332bd3ab8841"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [fish] - print the directory (strict)",
+		"requests": [
+			"64f82c5b630eb34fbfbf594c55b75435b92d320bb5a9534962a3332bd3ab8841"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [powershell] - copy file foo to bar/",
+		"requests": [
+			"1e88f5cf11781025f88bfff14c72ff82bc2bebca0e44c8be6712e3d8d241596a"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [powershell] - copy file foo to bar/ (strict)",
+		"requests": [
+			"1e88f5cf11781025f88bfff14c72ff82bc2bebca0e44c8be6712e3d8d241596a"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [powershell] - create a file called foo",
+		"requests": [
+			"0a9ffadae8b64056f8b8fcb4614a701e32a2daed24d8b7c8d713b56c7ca252f0"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [powershell] - create a file called foo (strict)",
+		"requests": [
+			"0a9ffadae8b64056f8b8fcb4614a701e32a2daed24d8b7c8d713b56c7ca252f0"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [powershell] - create a symlink",
+		"requests": [
+			"bf9bfce0e9b1df2c23420ef869b5ed46df761532e7613b81643787b8690a72f7"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [powershell] - create a symlink (strict)",
+		"requests": [
+			"bf9bfce0e9b1df2c23420ef869b5ed46df761532e7613b81643787b8690a72f7"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [powershell] - delete the foo.txt file",
+		"requests": [
+			"c7c8c4643624a7add86952f9b0abfaf1a9fe5c2328d169d66483f2499ac660d3"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [powershell] - delete the foo.txt file (strict)",
+		"requests": [
+			"c7c8c4643624a7add86952f9b0abfaf1a9fe5c2328d169d66483f2499ac660d3"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [powershell] - delete the foo/ dir",
+		"requests": [
+			"51aaee75b4767f058c67210a5ca2bf88132d8afa360d3a6cae16bc39c3b03db2"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [powershell] - delete the foo/ dir (strict)",
+		"requests": [
+			"51aaee75b4767f058c67210a5ca2bf88132d8afa360d3a6cae16bc39c3b03db2"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [powershell] - extract a tar file",
+		"requests": [
+			"1dc12cc8de036a88841a2f4b4c1acb8ebd9944536882e0bcf4f5a952f01fde0e"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [powershell] - extract a tar file (strict)",
+		"requests": [
+			"1dc12cc8de036a88841a2f4b4c1acb8ebd9944536882e0bcf4f5a952f01fde0e"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [powershell] - extract a zip file",
+		"requests": [
+			"d1954b57568bcbac97d40edc522c520a669787609e9840ed5b934f756ad400b7"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [powershell] - extract a zip file (strict)",
+		"requests": [
+			"d1954b57568bcbac97d40edc522c520a669787609e9840ed5b934f756ad400b7"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [powershell] - extract foo.tar",
+		"requests": [
+			"2dd5f3e3d9230d8271903367b528b460614c60e2225620b47e79488892a49370"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [powershell] - extract foo.tar (strict)",
+		"requests": [
+			"2dd5f3e3d9230d8271903367b528b460614c60e2225620b47e79488892a49370"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [powershell] - extract foo.tar to bar/",
+		"requests": [
+			"f5635c54a1c927b4df25a18aa4b2fca04346b50b50a9193d6ddc454e9d07f174"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [powershell] - extract foo.tar to bar/ (strict)",
+		"requests": [
+			"f5635c54a1c927b4df25a18aa4b2fca04346b50b50a9193d6ddc454e9d07f174"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [powershell] - extract foo.zip",
+		"requests": [
+			"b52e1bdff0d105254e1c6ac88d0ff713fb1040835a9e2a331036edd6dbf1ffe4"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [powershell] - extract foo.zip (strict)",
+		"requests": [
+			"b52e1bdff0d105254e1c6ac88d0ff713fb1040835a9e2a331036edd6dbf1ffe4"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [powershell] - go to the foo dir",
+		"requests": [
+			"d32dcc7a33ae25ea95bc1ef7a27abf2c0c90ec1884cc49b66a8e2a144bfd6983"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [powershell] - go to the foo dir (strict)",
+		"requests": [
+			"d32dcc7a33ae25ea95bc1ef7a27abf2c0c90ec1884cc49b66a8e2a144bfd6983"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [powershell] - how do i download a file",
+		"requests": [
+			"f74e761d77cb3a868e38485dd618b700d28ef9ccb2ee64b1891d32bfc0a8e191"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [powershell] - how do i download a file (strict)",
+		"requests": [
+			"f74e761d77cb3a868e38485dd618b700d28ef9ccb2ee64b1891d32bfc0a8e191"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [powershell] - how do i download a file using curl",
+		"requests": [
+			"08c37b9c685926af9b55140a1a1e70cbfef5506a061ea700623d2bbc7783bb0c"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [powershell] - how do i download a file using curl (strict)",
+		"requests": [
+			"08c37b9c685926af9b55140a1a1e70cbfef5506a061ea700623d2bbc7783bb0c"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [powershell] - kill process using port",
+		"requests": [
+			"c57e1b5fc05e0ef92bffd6a23568aef52e744e690266860d16dcaf038ac15707"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [powershell] - kill process using port (strict)",
+		"requests": [
+			"c57e1b5fc05e0ef92bffd6a23568aef52e744e690266860d16dcaf038ac15707"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [powershell] - kill the process using port 8123",
+		"requests": [
+			"c13349801236e81b842b528cded81a0ea7710ecd23d2f4209f8271d774d10138"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [powershell] - kill the process using port 8123 (strict)",
+		"requests": [
+			"c13349801236e81b842b528cded81a0ea7710ecd23d2f4209f8271d774d10138"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [powershell] - kill the visual studio code process",
+		"requests": [
+			"24f89671756a1051bdb92e66ce1b038c26c68bd9b316a1e59afee21f1b9efab2"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [powershell] - kill the visual studio code process (strict)",
+		"requests": [
+			"24f89671756a1051bdb92e66ce1b038c26c68bd9b316a1e59afee21f1b9efab2"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [powershell] - list files in directory",
+		"requests": [
+			"c2179ede9536bffab2633865778bca4f49164d70f292e4091e404c7db36d13ce"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [powershell] - list files in directory (strict)",
+		"requests": [
+			"c2179ede9536bffab2633865778bca4f49164d70f292e4091e404c7db36d13ce"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [powershell] - make a directory",
+		"requests": [
+			"f2ebe31f455225f4c9bd9ca06dbd4b8f3f7a45d09d3e3e55aa60a38044aef22b"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [powershell] - make a directory (strict)",
+		"requests": [
+			"f2ebe31f455225f4c9bd9ca06dbd4b8f3f7a45d09d3e3e55aa60a38044aef22b"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [powershell] - make a directory called foo",
+		"requests": [
+			"6b6978365564f69bb514090820c2d90d8b87be89f9567ebb9bc9e0ab3b4dead2"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [powershell] - make a directory called foo (strict)",
+		"requests": [
+			"6b6978365564f69bb514090820c2d90d8b87be89f9567ebb9bc9e0ab3b4dead2"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [powershell] - move file foo to bar/",
+		"requests": [
+			"a971db6ef4a1fc78f18464ac2c0d637e2c8ac736ff9aa8eec2ee0d9b27a73d49"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [powershell] - move file foo to bar/ (strict)",
+		"requests": [
+			"a971db6ef4a1fc78f18464ac2c0d637e2c8ac736ff9aa8eec2ee0d9b27a73d49"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [powershell] - print \"hello world\"",
+		"requests": [
+			"1e14b0dda3e17a7b4fb09beff77c775193cf1d6590890bfd4dfd4b7aa53eb281"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [powershell] - print \"hello world\" (strict)",
+		"requests": [
+			"1e14b0dda3e17a7b4fb09beff77c775193cf1d6590890bfd4dfd4b7aa53eb281"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [powershell] - print README.md",
+		"requests": [
+			"051c07ec43564695e1aa9a7ada63991598d1e55b78cfb9af6d1d60fb9adb96d1"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [powershell] - print README.md (strict)",
+		"requests": [
+			"051c07ec43564695e1aa9a7ada63991598d1e55b78cfb9af6d1d60fb9adb96d1"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [powershell] - print the directory",
+		"requests": [
+			"1da82babc757fe60d6faf29641e17d5e123b5f0d9943e2641cd1293af2f22c6f"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [powershell] - print the directory (strict)",
+		"requests": [
+			"1da82babc757fe60d6faf29641e17d5e123b5f0d9943e2641cd1293af2f22c6f"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [zsh] - copy file foo to bar/",
+		"requests": [
+			"bfb22e86daf468ff6f0d69ea6b016a70f6080666bb803d85e755912725b7d823"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [zsh] - copy file foo to bar/ (strict)",
+		"requests": [
+			"bfb22e86daf468ff6f0d69ea6b016a70f6080666bb803d85e755912725b7d823"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [zsh] - create a file called foo",
+		"requests": [
+			"0a3e2946bd61cd9b7116c42e443762b3d3a609e5774e6f7546f009438081a5c4"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [zsh] - create a file called foo (strict)",
+		"requests": [
+			"0a3e2946bd61cd9b7116c42e443762b3d3a609e5774e6f7546f009438081a5c4"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [zsh] - create a symlink",
+		"requests": [
+			"a177118931aca4de29514b2d271c5c0e95130f84880c725cd38d535c9aeef927"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [zsh] - create a symlink (strict)",
+		"requests": [
+			"a177118931aca4de29514b2d271c5c0e95130f84880c725cd38d535c9aeef927"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [zsh] - delete the foo.txt file",
+		"requests": [
+			"9b7a95863ceeac2747b3b3cbc9f69a6ec092541d2ef0660aa032caf8501da0ab"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [zsh] - delete the foo.txt file (strict)",
+		"requests": [
+			"9b7a95863ceeac2747b3b3cbc9f69a6ec092541d2ef0660aa032caf8501da0ab"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [zsh] - delete the foo/ dir",
+		"requests": [
+			"2d107feceed791736dd5f11b40441b2bd25ef890f63c5dfa09174daf49a3ec99"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [zsh] - delete the foo/ dir (strict)",
+		"requests": [
+			"2d107feceed791736dd5f11b40441b2bd25ef890f63c5dfa09174daf49a3ec99"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [zsh] - extract a tar file",
+		"requests": [
+			"efa3364fee5885ee33bcf71eb3047ba2d840bcd88a94b5818c2470b2469e7c5a"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [zsh] - extract a tar file (strict)",
+		"requests": [
+			"efa3364fee5885ee33bcf71eb3047ba2d840bcd88a94b5818c2470b2469e7c5a"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [zsh] - extract a zip file",
+		"requests": [
+			"df085e42a6f207d83d1bd5be47fd8c551ed5794eed9a9888d9ef9d2d0cf808df"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [zsh] - extract a zip file (strict)",
+		"requests": [
+			"df085e42a6f207d83d1bd5be47fd8c551ed5794eed9a9888d9ef9d2d0cf808df"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [zsh] - extract foo.tar",
+		"requests": [
+			"a073329dcff65d98edf6bd5e9c4d42da15802538df2db367097d163f910edc70"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [zsh] - extract foo.tar (strict)",
+		"requests": [
+			"a073329dcff65d98edf6bd5e9c4d42da15802538df2db367097d163f910edc70"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [zsh] - extract foo.tar to bar/",
+		"requests": [
+			"3da984452ec22a2c49dc96470861ea245c9cb7e94a5c635d9c0de85419904e7b"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [zsh] - extract foo.tar to bar/ (strict)",
+		"requests": [
+			"3da984452ec22a2c49dc96470861ea245c9cb7e94a5c635d9c0de85419904e7b"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [zsh] - extract foo.zip",
+		"requests": [
+			"f6116603effe9546bcf0a07453c8b2728382556c8ef28189cc0294c9e4a6b467"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [zsh] - extract foo.zip (strict)",
+		"requests": [
+			"f6116603effe9546bcf0a07453c8b2728382556c8ef28189cc0294c9e4a6b467"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [zsh] - go to the foo dir",
+		"requests": [
+			"f8c5479d7f7b1f3883573133d1ec217db1919027a7cf21944456312b6a60498c"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [zsh] - go to the foo dir (strict)",
+		"requests": [
+			"f8c5479d7f7b1f3883573133d1ec217db1919027a7cf21944456312b6a60498c"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [zsh] - how do i download a file",
+		"requests": [
+			"cee89b4e9b587715df5b1bbc28f22c2c17fa8bd49e642ac4a522391a529d18cd"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [zsh] - how do i download a file (strict)",
+		"requests": [
+			"cee89b4e9b587715df5b1bbc28f22c2c17fa8bd49e642ac4a522391a529d18cd"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [zsh] - how do i download a file using curl",
+		"requests": [
+			"6eb646e3b949f304d21f2608c4135d831cf3541384e5e5d438c248a7407e0e37"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [zsh] - how do i download a file using curl (strict)",
+		"requests": [
+			"6eb646e3b949f304d21f2608c4135d831cf3541384e5e5d438c248a7407e0e37"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [zsh] - kill process using port",
+		"requests": [
+			"912961a8e3e462b43bdf7e9f711456391f683da67e59d2d9498af41972d17803"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [zsh] - kill process using port (strict)",
+		"requests": [
+			"912961a8e3e462b43bdf7e9f711456391f683da67e59d2d9498af41972d17803"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [zsh] - kill the process using port 8123",
+		"requests": [
+			"85241a79c56dd4f7636ed76102b590188e4697fa69b820075af50d4f413ee1d2"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [zsh] - kill the process using port 8123 (strict)",
+		"requests": [
+			"85241a79c56dd4f7636ed76102b590188e4697fa69b820075af50d4f413ee1d2"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [zsh] - kill the visual studio code process",
+		"requests": [
+			"b3bc154cc92d4309da2dd74be27ddc5262130ad733f3909dfe32c49982152d8c"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [zsh] - kill the visual studio code process (strict)",
+		"requests": [
+			"b3bc154cc92d4309da2dd74be27ddc5262130ad733f3909dfe32c49982152d8c"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [zsh] - list files in directory",
+		"requests": [
+			"b2dd1ec15c4809a9c343997624a25179080722a87fda950047ff45b7a97e22d2"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [zsh] - list files in directory (strict)",
+		"requests": [
+			"b2dd1ec15c4809a9c343997624a25179080722a87fda950047ff45b7a97e22d2"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [zsh] - make a directory",
+		"requests": [
+			"5d2e96b515826578ceb3e9f502c087f50cc8ee082f394bf0897bea4faa0081e1"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [zsh] - make a directory (strict)",
+		"requests": [
+			"5d2e96b515826578ceb3e9f502c087f50cc8ee082f394bf0897bea4faa0081e1"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [zsh] - make a directory called foo",
+		"requests": [
+			"9594a793c86fac41d9c9a3a5c5a379461d8d66ddfda7f41e839f463b209b6d15"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [zsh] - make a directory called foo (strict)",
+		"requests": [
+			"9594a793c86fac41d9c9a3a5c5a379461d8d66ddfda7f41e839f463b209b6d15"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [zsh] - move file foo to bar/",
+		"requests": [
+			"4c3b5ec2a4dafdb3595bbdc41173088f51a10297d1402f4041d84d813c40dee4"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [zsh] - move file foo to bar/ (strict)",
+		"requests": [
+			"4c3b5ec2a4dafdb3595bbdc41173088f51a10297d1402f4041d84d813c40dee4"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [zsh] - print \"hello world\"",
+		"requests": [
+			"beadd30ff52923ad4c26ae7a02e0578441bc84af5828499e99c43b68df9c1111"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [zsh] - print \"hello world\" (strict)",
+		"requests": [
+			"beadd30ff52923ad4c26ae7a02e0578441bc84af5828499e99c43b68df9c1111"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [zsh] - print README.md",
+		"requests": [
+			"c0a293d31891d00b6a6d65c84c25152f1a313a692fb8ac82e1732eba75e23eaf"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [zsh] - print README.md (strict)",
+		"requests": [
+			"c0a293d31891d00b6a6d65c84c25152f1a313a692fb8ac82e1732eba75e23eaf"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [zsh] - print the directory",
+		"requests": [
+			"85ebfd3e06500dba097596f51287a7e65676d9f98d5e41e6c47e31ecf83d18b6"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [zsh] - print the directory (strict)",
+		"requests": [
+			"85ebfd3e06500dba097596f51287a7e65676d9f98d5e41e6c47e31ecf83d18b6"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [zsh] - turn off the zsh git plugin",
+		"requests": [
+			"bba16587558015ef36585ea8fda0a97cab6dcd392c1119630eff6592eaf3b387"
+		]
+	},
+	{
+		"name": "terminal (general) [panel] [zsh] - turn off the zsh git plugin (strict)",
+		"requests": [
+			"bba16587558015ef36585ea8fda0a97cab6dcd392c1119630eff6592eaf3b387"
+		]
+	}
+]
