@@ -93,12 +93,13 @@ function makeAgentPluginService(plugins: readonly IAgentPlugin[] = [], profileEn
 	} as unknown as IAgentPluginService;
 }
 
-function makePlugin(uri: URI, options: { label?: string; enabled?: boolean; enablement?: ContributionEnablementState; agents?: number; mcpServers?: number } = {}): IAgentPlugin {
+function makePlugin(uri: URI, options: { label?: string; enabled?: boolean; enablement?: ContributionEnablementState; agents?: number; mcpServers?: number; copilotCliInstallation?: IAgentPlugin['copilotCliInstallation'] } = {}): IAgentPlugin {
 	const { label = 'Plugin', enabled = true, enablement = enabled ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile, agents = 0, mcpServers = 0 } = options;
 	return {
 		uri,
 		format: PluginFormat.Copilot,
 		label,
+		copilotCliInstallation: options.copilotCliInstallation,
 		enablement: observableValue('enablement', enablement),
 		hooks: observableValue('hooks', []),
 		commands: observableValue('commands', []),
@@ -449,6 +450,41 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 		assert.strictEqual(bundler.received.length, 0);
 		assert.deepStrictEqual(refs, []);
 	});
+
+	for (const withPromptFiles of [true, false]) {
+		test(`excludes SDK-managed plugins ${withPromptFiles ? 'discovered through prompt files' : 'without prompt-file hydration'}`, async () => {
+			const sdkPlugins = [true, false].map(enabled => makePlugin(URI.file(`/sdk/plugins/${enabled ? 'enabled' : 'disabled'}`), {
+				enabled,
+				mcpServers: 1,
+				copilotCliInstallation: { name: enabled ? 'enabled' : 'disabled', marketplace: 'example' },
+			}));
+			const clientPlugin = makePlugin(URI.file('/client/plugins/example'), { mcpServers: 1 });
+			const bundler = new FakeBundler();
+			const refs = await resolveCustomizationRefs(
+				makeFileService(),
+				makePromptsService(new Map(withPromptFiles ? [
+					[`${PromptsType.skill}/${PromptsStorage.plugin}`, [...sdkPlugins, clientPlugin].map(plugin =>
+						makePromptPath(URI.joinPath(plugin.uri, 'skills', 'example', 'SKILL.md'), PromptsType.skill, PromptsStorage.plugin)
+					)],
+				] : [])),
+				new FakeSyncProvider(),
+				makeAgentPluginService([...sdkPlugins, clientPlugin]),
+				makeMcpService(),
+				makeConfigurationResolverService(),
+				toBundlers(bundler),
+				SessionType.CopilotCLI,
+				undefined,
+			);
+
+			assert.deepStrictEqual({
+				refs: refs.map(ref => ref.uri),
+				bundles: bundler.received,
+			}, {
+				refs: [clientPlugin.uri.toString()],
+				bundles: [],
+			});
+		});
+	}
 
 	test('includes plugins that only contribute MCP servers', async () => {
 		const pluginUri = URI.file('/plugins/mcp-only');

@@ -240,7 +240,8 @@ function isStandaloneSkillOrAgent(file: ISyncableFile): boolean {
  * message.
  *
  * Every eligible local file is synced unless the user opted out. Files
- * belonging to installed plugins are de-duped to a single plugin ref;
+ * belonging to client-provided plugins are de-duped to a single plugin ref;
+ * SDK-managed installations are left to the provider's native discovery;
  * remaining loose files are bundled into a synthetic Open Plugin. Standalone
  * user and workspace skills and agents, together with the MCP servers that
  * VS Code forwards (user, workspace, or extension-contributed), go into a
@@ -268,6 +269,9 @@ export async function resolveCustomizationRefs(
 	const looseFiles: ISyncableFile[] = [];
 
 	const addPluginRef = (plugin: IAgentPlugin) => {
+		if (plugin.copilotCliInstallation) {
+			return;
+		}
 		const key = plugin.uri.toString();
 		if (!pluginRefs.has(key)) {
 			const promise = (async (): Promise<ClientPluginCustomization> => {
