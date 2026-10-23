@@ -12,6 +12,7 @@ import { getChatSessionType } from '../../common/model/chatUri.js';
 import { isAgentHostTarget, SessionType } from '../../common/chatSessionsService.js';
 import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { isCopilotAgentHostSessionType } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 
 export const AgentSessionChatContextMenu = new MenuId('AgentSessionChatContext');
 
@@ -79,6 +80,9 @@ export function getAgentSessionProviderName(provider: AgentSessionTarget): strin
 }
 
 export function getAgentSessionProviderIcon(provider: AgentSessionTarget): ThemeIcon {
+	if (isCopilotAgentHostSessionType(provider)) {
+		return Codicon.copilot;
+	}
 	switch (provider) {
 		case AgentSessionProviders.Local:
 			return Codicon.vm;

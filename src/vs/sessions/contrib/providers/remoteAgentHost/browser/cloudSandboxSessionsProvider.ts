@@ -87,9 +87,9 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 		return resolveCloudSandboxSessionConfig(connection, values, token);
 	}
 
-	protected override _adapterOptions() {
+	protected override _adapterOptions(agentProvider: string) {
 		return {
-			...super._adapterOptions(),
+			...super._adapterOptions(agentProvider),
 			preserveStatusWhenDisconnected: true,
 			useSessionTitleForDefaultChat: true,
 			isSessionTitlePlaceholder: (title: string, session: URI) => session.scheme === CLOUD_SANDBOX_SESSION_SCHEME && title === AgentSession.id(session),
