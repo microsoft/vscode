@@ -112,7 +112,7 @@ export const cacheWarmingJobs: Readonly<Record<string, ICacheWarmingJob>> = {
 const electronCachePaths: Readonly<Record<RunnerOs, string>> = {
 	Linux: '/home/cloudtest/.cache/electron',
 	macOS: '/Users/runner/Library/Caches/electron',
-	Windows: 'C:\\Users\\cloudtest\\AppData\\Local\\electron\\Cache',
+	Windows: 'C:\\Users\\runneradmin\\AppData\\Local\\electron\\Cache',
 };
 
 /**
