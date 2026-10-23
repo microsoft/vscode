@@ -981,7 +981,6 @@ export default defineConfig(
 				{
 					// Files should (only) be removed from the list once they no longer poll
 					'exclude': [
-						'src/vs/platform/agentHost/test/node/agentHostDebugLogs.test.ts',
 						'src/vs/sessions/contrib/layout/test/browser/chatLayoutOwnership.test.ts',
 						'src/vs/sessions/contrib/layout/test/browser/desktopLayoutController.test.ts',
 					]

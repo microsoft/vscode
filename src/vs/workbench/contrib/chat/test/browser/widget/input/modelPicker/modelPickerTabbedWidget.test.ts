@@ -442,12 +442,13 @@ suite('TabbedModelPicker', () => {
 			finish: () => finished = true,
 		};
 		const promotional = { ...models[0], metadata: { ...models[0].metadata, promo: { id: 'offer', discountPercent: 25, message: 'Temporary offer.' } } };
-		const { popup, picker, selections, values } = createPicker({ models: [createAutoModel(), createHydraFusionModel(), promotional, ...models.slice(1)], comparison });
+		const { popup, picker, selections, values } = createPicker({ models: [createAutoModel(), createHydraFusionModel(), promotional, ...models.slice(1)], comparison, showManageModels: true });
 		const hides: boolean[] = [];
 		disposables.add(picker.onDidHide(event => hides.push(event.finishedComparison)));
 		const searchAction = element(popup, '[data-id="search"]');
 		assert.deepStrictEqual({
 			actions: [...popup.querySelectorAll<HTMLElement>('.tabbed-action-list-tabbar > .tabbed-action-list-tabbar-action')].map(action => action.dataset.id),
+			addProvider: !!popup.querySelector('[data-id="addProvider"]'),
 			comparison: popup.querySelector('[data-id="comparison"]')?.getAttribute('aria-pressed'),
 			footer: element(popup, '.tabbed-action-list-footer .monaco-button').getAttribute('aria-label'),
 			search: {
@@ -456,6 +457,7 @@ suite('TabbedModelPicker', () => {
 			},
 		}, {
 			actions: ['comparison', 'search'],
+			addProvider: true,
 			comparison: 'false',
 			footer: 'Send Query to Multiple Models',
 			search: {
@@ -478,6 +480,7 @@ suite('TabbedModelPicker', () => {
 		const firstRow = element(popup, '.chat-model-picker-model');
 		assert.deepStrictEqual({
 			heading: popup.querySelector('.action-list-header-text')?.textContent,
+			addProvider: !!popup.querySelector('[data-id="addProvider"]'),
 			comparisonScope: element(popup, '.action-widget').classList.contains('model-picker-comparison'),
 			routing: listRows(popup).some(label => label === 'Auto' || label === 'HydraFusion'),
 			checks: offered('menuitemcheckbox'),
@@ -490,7 +493,7 @@ suite('TabbedModelPicker', () => {
 			accessible: firstRow.getAttribute('aria-label'),
 			hover: firstRow.getAttribute('title'),
 		}, {
-			heading: 'Select models.', comparisonScope: true, routing: false, checks: 3, checkboxes: 3, buttons: ['Done (disabled)', 'Configure Judge (disabled)'], status: '',
+			heading: 'Select models.', addProvider: false, comparisonScope: true, routing: false, checks: 3, checkboxes: 3, buttons: ['Done (disabled)', 'Configure Judge (disabled)'], status: '',
 			badge: '25% off', configuration: 'Low · 32K', details: 'First Details, Low · 32K',
 			accessible: 'First, 25% off, Effort Level: Low, Context: 32K',
 			hover: 'First · Low · 32K',
@@ -523,23 +526,28 @@ suite('TabbedModelPicker', () => {
 		button('Configure Judge').click();
 		assert.deepStrictEqual({
 			heading: popup.querySelector('.action-list-header-text')?.textContent,
+			addProvider: !!popup.querySelector('[data-id="addProvider"]'),
 			buttons: buttons(),
 			radios: offered('menuitemradio'),
 			checkboxes: popup.querySelectorAll('[role="menuitemcheckbox"], .chat-model-picker-comparison-checkbox').length,
-		}, { heading: 'Optional review.', buttons: ['Configure Attempts', 'Done', 'Configure Synthesis (disabled)'], radios: 3, checkboxes: 0 });
+		}, { heading: 'Optional review.', addProvider: false, buttons: ['Configure Attempts', 'Done', 'Configure Synthesis (disabled)'], radios: 3, checkboxes: 0 });
 		element(popup, '.chat-model-picker-model').click();
 		const judgeWithChoice = buttons();
 		button('Configure Synthesis').click();
 		assert.deepStrictEqual({
 			judgeWithChoice,
 			heading: popup.querySelector('.action-list-header-text')?.textContent,
+			addProvider: !!popup.querySelector('[data-id="addProvider"]'),
 			radios: offered('menuitemradio'),
 			buttons: buttons(),
-		}, { judgeWithChoice: ['Configure Attempts', 'Done', 'Configure Synthesis'], heading: 'Optional review.', radios: 3, buttons: ['Configure Judge', 'Done'] });
+		}, { judgeWithChoice: ['Configure Attempts', 'Done', 'Configure Synthesis'], heading: 'Optional review.', addProvider: false, radios: 3, buttons: ['Configure Judge', 'Done'] });
 		button('Configure Judge').click();
 		assert.strictEqual(popup.querySelector('.action-list-header-text')?.textContent, 'Optional review.');
 		button('Configure Attempts').click();
 		assert.strictEqual(popup.querySelector('.action-list-header-text')?.textContent, 'Select models.');
+		element(popup, '[data-id="comparison"]').click();
+		assert.strictEqual(element(popup, '[data-id="addProvider"]').getAttribute('aria-label'), 'Add Models...');
+		element(popup, '[data-id="comparison"]').click();
 		element(popup, '.chat-model-picker-model').click();
 		button('Configure Judge').click();
 		button('Done').click();
@@ -1630,7 +1638,7 @@ suite('TabbedModelPicker', () => {
 		const promotion = result.popup.querySelector('.chat-model-card-tier-promotion')?.textContent;
 		goBack(result.popup);
 		assert.deepStrictEqual({ badges, cardOnClick, rowAfter: rowBadge(), tiers, description, promotion, selections: result.selections, tier: result.values.get(providerFusion.identifier)?.tier }, {
-			badges: { row: '', card: '' },
+			badges: { row: 'Recommended', card: '' },
 			cardOnClick: '30% discount',
 			rowAfter: '30% discount',
 			tiers: ['Standard', 'High', 'Max'],
@@ -1641,21 +1649,27 @@ suite('TabbedModelPicker', () => {
 		});
 	});
 
-	test('Copilot Fusion leads on a row twice the height of the others, its discount badge in Fusion\'s style', () => {
+	test('Copilot Fusion leads on a row twice the height of the others, with a line saying what it does, its discount, or else Recommended, badge in Fusion\'s style', () => {
 		const rowOf = (popup: HTMLElement, label: string) => Array.from(popup.querySelectorAll<HTMLElement>('.chat-model-picker-model')).find(row => row.querySelector('.title')?.textContent === label)!;
 		const describe = (row: HTMLElement) => ({
 			height: dom.getWindow(row).getComputedStyle(row).height,
 			featured: row.classList.contains('chat-model-picker-featured'),
+			detail: row.querySelector('.detail')?.textContent,
 			badge: row.querySelector('.action-item-badge')?.textContent,
-			badgeStyle: ['fusion-discount', 'preview'].find(style => row.classList.contains(`chat-model-picker-badge-${style}`)),
+			badgeStyle: ['fusion', 'preview'].find(style => row.classList.contains(`chat-model-picker-badge-${style}`)),
 		});
 		const fusion = createPicker({ models: [...models, createFusionModel()], selectedModelId: models[0].identifier });
 		const fusionRows = { fusion: describe(rowOf(fusion.popup, copilotFusionName)), other: describe(rowOf(fusion.popup, 'First')) };
+		const fullPriceFusion = createFusionModel();
+		const fullPrice = createPicker({ models: [...models, { ...fullPriceFusion, metadata: { ...fullPriceFusion.metadata, autoModelDiscountPercent: undefined } }], selectedModelId: models[0].identifier });
+		const fullPriceRow = rowOf(fullPrice.popup, copilotFusionName);
 		const auto = createPicker({ models: [...models, createAutoModel()], selectedModelId: models[0].identifier });
-		assert.deepStrictEqual({ ...fusionRows, auto: describe(rowOf(auto.popup, 'Auto')) }, {
-			fusion: { height: '48px', featured: true, badge: '10% discount', badgeStyle: 'fusion-discount' },
-			other: { height: '24px', featured: false, badge: '', badgeStyle: undefined },
-			auto: { height: '24px', featured: false, badge: '10% discount', badgeStyle: 'preview' },
+		assert.deepStrictEqual({ ...fusionRows, fullPrice: describe(fullPriceRow), fullPriceAriaLabel: fullPriceRow.getAttribute('aria-label'), auto: describe(rowOf(auto.popup, 'Auto')) }, {
+			fusion: { height: '48px', featured: true, detail: 'Picks or combines the best models for your task', badge: '10% discount', badgeStyle: 'fusion' },
+			other: { height: '24px', featured: false, detail: '', badge: '', badgeStyle: undefined },
+			fullPrice: { height: '48px', featured: true, detail: 'Picks or combines the best models for your task', badge: 'Recommended', badgeStyle: 'fusion' },
+			fullPriceAriaLabel: 'Copilot Fusion, Recommended, Picks or combines the best models for your task, Effort Level: Standard',
+			auto: { height: '24px', featured: false, detail: '', badge: '10% discount', badgeStyle: 'preview' },
 		});
 	});
 

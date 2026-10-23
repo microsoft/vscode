@@ -115,12 +115,48 @@ suite('SessionCanvasRegistryService', () => {
 		};
 	}
 
-	test('activity bar hides available canvas types when the chat has no canvas', async () => {
+	test('activity bar offers the available canvas types while the chat has no canvas', async () => {
 		const harness = createHarness([{
 			canvasId: 'plan', extensionId: 'user:plan', extensionSource: 'user',
 			displayName: 'Plan', description: 'A plan canvas.', requiresInput: false,
 		}]);
 		await waitForState(harness.registryService.availableCanvases, canvases => canvases.length === 1);
+		const before = MenuRegistry.getMenuItems(Menus.SessionActivityBar);
+		const registration = store.add(registerSessionCanvasActions(harness.canvasService, harness.registryService, harness.contextService));
+		const getEntries = () => MenuRegistry.getMenuItems(Menus.SessionActivityBar).filter(item => !before.includes(item)).map(item => isISubmenuItem(item)
+			? `submenu:${item.submenu.id}:${typeof item.title === 'string' ? item.title : item.title.value}`
+			: `command:${item.command.id}`);
+		const getCanvasEntries = () => MenuRegistry.getMenuItems(Menus.SessionActivityBarCanvas).filter(isIMenuItem);
+		const getCanvasTitles = () => getCanvasEntries().map(item => `${item.group}:${typeof item.command.title === 'string' ? item.command.title : item.command.title.value}`);
+
+		const withoutCanvas = { entries: getEntries(), canvasEntries: getCanvasTitles() };
+		await CommandsRegistry.getCommand(getCanvasEntries()[0].command.id)?.handler(upcastPartial<ServicesAccessor>({}));
+		harness.canvases.set([{
+			resource: URI.parse('agent-host-canvas:/session/plan'), instanceId: 'plan',
+			title: 'Plan', source: URI.parse('https://example.com/plan'),
+		}], undefined);
+		const withCanvas = { entries: getEntries(), canvasEntries: getCanvasTitles() };
+		harness.canvases.set([], undefined);
+		const afterCanvasRemoved = { entries: getEntries(), canvasEntries: getCanvasTitles() };
+		registration.dispose();
+
+		assert.deepStrictEqual({
+			withoutCanvas,
+			opened: harness.opened.map(entry => entry.canvas.canvasId),
+			withCanvas,
+			afterCanvasRemoved,
+			afterDispose: { entries: getEntries(), canvasEntries: getCanvasTitles() },
+		}, {
+			withoutCanvas: { entries: [`submenu:${Menus.SessionActivityBarCanvas.id}:Canvas`], canvasEntries: ['1_available:Plan'] },
+			opened: ['plan'],
+			withCanvas: { entries: [`command:${Menus.SessionActivityBarCanvas.id}`], canvasEntries: ['navigation:Plan'] },
+			afterCanvasRemoved: { entries: [`submenu:${Menus.SessionActivityBarCanvas.id}:Canvas`], canvasEntries: ['1_available:Plan'] },
+			afterDispose: { entries: [], canvasEntries: [] },
+		});
+	});
+
+	test('activity bar shows no canvas entry when no canvas types are available', () => {
+		const harness = createHarness([]);
 		const before = MenuRegistry.getMenuItems(Menus.SessionActivityBar);
 		const registration = store.add(registerSessionCanvasActions(harness.canvasService, harness.registryService, harness.contextService));
 		const entries = MenuRegistry.getMenuItems(Menus.SessionActivityBar).filter(item => !before.includes(item));

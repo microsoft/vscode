@@ -127,7 +127,7 @@ import { ICodeReviewService } from '../../../../../sessions/contrib/codeReview/b
 import { createMockCodeReviewService } from './mockCodeReviewService.js';
 import { IChatEditingService } from '../../../../contrib/chat/common/editing/chatEditingService.js';
 import { IAgentSessionsService } from '../../../../contrib/chat/browser/agentSessions/agentSessionsService.js';
-import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureCondition } from '../fixtureUtils.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureCondition, waitForFixtureDomCondition } from '../fixtureUtils.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 
 // Ensure theme colors & widget CSS are loaded
@@ -2331,19 +2331,13 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			const selectedRow = resultRows[resultRows.length - 1];
 			(selectedRow?.querySelector<HTMLElement>('.customization-discovery-result-aside')
 				?? selectedRow?.querySelector<HTMLButtonElement>('.customization-discovery-result-primary'))?.click();
-			let detailContainer: HTMLElement | null = null;
-			let scrollHost: HTMLElement | null = null;
-			for (let attempt = 0; attempt < 40; attempt++) {
-				await timeout(50);
-				detailContainer = ctx.container.querySelector('.marketplace-detail-container');
-				scrollHost = detailContainer?.querySelector('.marketplace-detail-scrollable') ?? null;
-				const pluginPreviewReady = options.discoveryQuery !== 'figma'
-					|| !!detailContainer?.querySelector('.plugin-detail-readme-content h1');
-				if (detailContainer?.style.display !== 'none' && scrollHost && pluginPreviewReady) {
-					break;
-				}
-			}
+			const detailContainer = ctx.container.querySelector<HTMLElement>('.marketplace-detail-container');
+			const scrollHost = detailContainer?.querySelector<HTMLElement>('.marketplace-detail-scrollable') ?? null;
 			assert(detailContainer !== null && scrollHost !== null, 'Marketplace detail must render inside its page scroll host.');
+			// A plugin's README loads asynchronously, and the scrollbar it needs is revealed on a timer after the rescan.
+			const isReadmeReady = () => !!detailContainer.querySelector('.plugin-detail-readme-content h1')
+				&& scrollHost.querySelector('.scrollbar.vertical')?.classList.contains('invisible') === false;
+			await waitForFixtureDomCondition(detailContainer, () => detailContainer.style.display !== 'none' && (options.discoveryQuery !== 'figma' || isReadmeReady()), ctx.disposableStore);
 			if (options.customizationMarketplaceDetailState) {
 				const diagnostic = detailContainer.querySelector<HTMLElement>('.mcp-detail-diagnostic-card');
 				assert(Boolean(diagnostic?.textContent?.trim()), 'Marketplace failure detail must render its diagnostic banner.');
@@ -2366,6 +2360,12 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				'Marketplace detail text must be selectable.',
 			);
 			if (options.discoveryQuery === 'figma') {
+				// The editor rescans the scroll host when its ResizeObserver reports the shown detail, and again on the next animation frame.
+				await new Promise<void>(resolve => {
+					const observer = ctx.disposableStore.add(new DOM.DisposableResizeObserver('AICustomizationManagementEditorFixture.marketplaceDetail', () => resolve(), DOM.getWindow(scrollHost)));
+					ctx.disposableStore.add(observer.observe(scrollHost));
+				});
+				await new Promise<void>(resolve => DOM.getWindow(scrollHost).requestAnimationFrame(() => resolve()));
 				const scrollContent = scrollHost.querySelector<HTMLElement>('.marketplace-detail-editor-container');
 				if (!scrollContent) {
 					throw new Error('Marketplace detail scroll content did not render');
@@ -2518,11 +2518,11 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	} else if (options.migrationConfirmation === 'pluginMarketplaces') {
 		await waitForFixtureCondition(
 			() => [...ctx.container.querySelectorAll<HTMLElement>('.migration-tree-group-actions .migration-secondary-button')]
-				.some(button => button.getAttribute('aria-label') === 'Migrate: Plugin Marketplaces (User)'),
+				.some(button => button.getAttribute('aria-label') === 'Migrate...: Plugin Marketplaces (User)'),
 			'The plugin marketplace migration action did not render.',
 		);
 		const migrateButton = [...ctx.container.querySelectorAll<HTMLElement>('.migration-tree-group-actions .migration-secondary-button')]
-			.find(button => button.getAttribute('aria-label') === 'Migrate: Plugin Marketplaces (User)')!;
+			.find(button => button.getAttribute('aria-label') === 'Migrate...: Plugin Marketplaces (User)')!;
 		migrateButton.click();
 	} else if (options.migrationConfirmation === 'mcpWarning') {
 		const server: IMcpServerCustomizationMigrationCandidate = {
@@ -2585,24 +2585,20 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		}
 
 		if (options.pluginReadmeContent !== undefined) {
-			let pluginDetailScrollHost: HTMLElement | null = null;
-			let pluginDetailScrollContent: HTMLElement | null = null;
-			let overflowingCodeBlock: HTMLElement | null = null;
-			for (let attempt = 0; attempt < 40 && (!pluginDetailScrollHost || !pluginDetailScrollContent || !overflowingCodeBlock); attempt++) {
-				await timeout(50);
-				const pluginDetailView = ctx.container.querySelector<HTMLElement>('.plugin-detail-container');
-				const scrollHost = pluginDetailView?.querySelector<HTMLElement>('.plugin-detail-editor-scrollable');
-				const detailContainer = pluginDetailView?.querySelector<HTMLElement>('.plugin-detail-editor-container');
-				const codeBlock = detailContainer?.querySelector<HTMLElement>('div[data-code]');
-				if (pluginDetailView?.style.display !== 'none' && scrollHost && detailContainer && detailContainer.scrollHeight > detailContainer.clientHeight && codeBlock && codeBlock.scrollWidth > codeBlock.clientWidth) {
-					pluginDetailScrollHost = scrollHost;
-					pluginDetailScrollContent = detailContainer;
-					overflowingCodeBlock = codeBlock;
-				}
+			const pluginDetailView = ctx.container.querySelector<HTMLElement>('.plugin-detail-container');
+			const pluginDetailScrollHost = pluginDetailView?.querySelector<HTMLElement>('.plugin-detail-editor-scrollable');
+			const pluginDetailScrollContent = pluginDetailView?.querySelector<HTMLElement>('.plugin-detail-editor-container');
+			if (!pluginDetailView || !pluginDetailScrollHost || !pluginDetailScrollContent) {
+				throw new Error('Plugin detail did not render');
 			}
-			if (!pluginDetailScrollHost || !pluginDetailScrollContent || !overflowingCodeBlock) {
-				throw new Error('Overflowing plugin detail did not render');
-			}
+			// The README and its code blocks render asynchronously, and the scrollbar is revealed on a timer after the rescan.
+			await waitForFixtureDomCondition(pluginDetailView, () => {
+				const codeBlock = pluginDetailScrollContent.querySelector<HTMLElement>('div[data-code]');
+				return pluginDetailView.style.display !== 'none'
+					&& pluginDetailScrollContent.scrollHeight > pluginDetailScrollContent.clientHeight
+					&& !!codeBlock && codeBlock.scrollWidth > codeBlock.clientWidth
+					&& pluginDetailScrollHost.querySelector('.scrollbar.vertical')?.classList.contains('invisible') === false;
+			}, ctx.disposableStore);
 			const verticalScrollbar = pluginDetailScrollHost.querySelector<HTMLElement>('.scrollbar.vertical');
 			const scrollbarSlider = verticalScrollbar?.querySelector<HTMLElement>('.slider');
 			if (!verticalScrollbar || !scrollbarSlider) {
@@ -2792,7 +2788,7 @@ async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> 
 // Plugin Browse Mode — standalone widget with marketplace results
 // ============================================================================
 
-function makeInstalledPlugin(name: string, uri: URI, enablement: boolean | ContributionEnablementState, policyBlocked = false): IAgentPlugin {
+function makeInstalledPlugin(name: string, uri: URI, enablement: boolean | ContributionEnablementState, policyBlocked = false, fromMarketplace?: IMarketplacePlugin): IAgentPlugin {
 	const contributionName = name.toLowerCase().replace(/\s+/g, '-');
 	const enablementState = typeof enablement === 'boolean'
 		? (enablement ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile)
@@ -2801,6 +2797,7 @@ function makeInstalledPlugin(name: string, uri: URI, enablement: boolean | Contr
 		override readonly uri = uri;
 		override readonly format = PluginFormat.Copilot;
 		override readonly label = name;
+		override readonly fromMarketplace = fromMarketplace;
 		override readonly version = constObservable('1.0.0');
 		override readonly enablement = constObservable(enablementState);
 		override readonly policyBlocked = constObservable(policyBlocked);
@@ -2825,8 +2822,8 @@ function makeInstalledPlugin(name: string, uri: URI, enablement: boolean | Contr
 }
 
 const installedPlugins: IAgentPlugin[] = [
-	makeInstalledPlugin('Linear', URI.file('/workspace/.copilot/plugins/linear'), true),
-	makeInstalledPlugin('Sentry', URI.file('/workspace/.copilot/plugins/sentry'), true),
+	makeInstalledPlugin('Linear', URI.file('/workspace/.copilot/plugins/linear'), true, false, makeMarketplacePlugin('Linear', 'Issue tracking and project management integration', 'linear-plugin')),
+	makeInstalledPlugin('Sentry', URI.file('/home/dev/.vscode/agent-plugins/github.com/example/sentry-plugin'), true, false, makeMarketplacePlugin('Sentry', 'Error monitoring and performance tracing', 'sentry-plugin')),
 	makeInstalledPlugin('Datadog', URI.file('/workspace/.copilot/plugins/datadog'), true),
 	makeInstalledPlugin('Notion', URI.file('/workspace/.copilot/plugins/notion'), true),
 	makeInstalledPlugin('Confluence', URI.file('/workspace/.copilot/plugins/confluence'), true),

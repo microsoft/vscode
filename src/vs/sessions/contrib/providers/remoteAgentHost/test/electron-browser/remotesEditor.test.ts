@@ -29,6 +29,7 @@ import { RemotesEditor } from '../../electron-browser/remotesEditor.js';
 import '../../electron-browser/remotes.contribution.js';
 
 class TestRemotesModel extends Disposable implements IRemotesModel {
+	readonly environmentsEnabled = observableValue(this, false);
 	readonly remotes = observableValue<readonly ICustomizationRemote[]>(this, [
 		{ id: 'ssh:build', kind: 'ssh', name: 'Build server', detail: 'build.example.com', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.connected },
 	]);

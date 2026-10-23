@@ -338,6 +338,7 @@ export class ChatPillsRow extends Disposable {
 			horizontalScrollbarSize: 6,
 			scrollYToX: true,
 			vertical: ScrollbarVisibility.Hidden,
+			useShadows: false,
 		}));
 		this.element = this._scrollable.getDomNode();
 		this.element.classList.add('chat-pills-row');
@@ -362,10 +363,13 @@ export class ChatPillsRow extends Disposable {
 			this._mutationObserver = undefined;
 		}
 		this._register(this._scrollable.onScroll(event => {
+			this.element.classList.toggle('can-scroll-left', event.width > 0 && event.scrollLeft > 1);
+			this.element.classList.toggle('can-scroll-right', event.width > 0 && event.scrollLeft + event.width < event.scrollWidth - 1);
 			if (event.scrollLeftChanged) {
 				this._onDidChangeLayout.fire();
 			}
 		}));
+		this._register(addDisposableListener(this.content, EventType.SCROLL, () => this.scanDomNode()));
 		this._register(addDisposableListener(this.content, EventType.FOCUS_IN, event => {
 			if (isHTMLElement(event.target)) {
 				event.target.scrollIntoView({ block: 'nearest', inline: 'nearest' });

@@ -70,9 +70,11 @@ suite('SessionsChatAccessibilityHelp', () => {
 				const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiation)).provideContent();
 				assert.deepStrictEqual({
 					describesManage: content.includes('Choose Manage at the bottom of the Environment picker'),
+					describesWebSocketManagement: content.includes('configured WebSocket hosts, keep their per-entry Manage submenu'),
 					triggers: telemetry.triggers.filter(name => name === `config.${ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING}`),
 				}, {
 					describesManage: !isWeb && remotesEnabled && manageEnabled === true,
+					describesWebSocketManagement: !isWeb && remotesEnabled && manageEnabled === true,
 					triggers: !isWeb && remotesEnabled ? [`config.${ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING}`] : [],
 				});
 			});
@@ -94,12 +96,12 @@ suite('SessionsChatAccessibilityHelp', () => {
 			instantiationService.stub(IAgentWorkbenchLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Desktop, mainContainer: container });
 			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
 			assert.deepStrictEqual({
-				optIn: content.includes('Pull request and issue actions are off by default. Enable Show Pull Request and Issue Actions in the activity bar\'s context menu to show them in the side-pane group.'),
-				chatScope: content.includes('Open Pull Request and Open Issue are available for the active chat\'s references when a contributed opener is available for their links.'),
-				reuse: content.includes('Each action reveals an already-open matching editor, preferring the active editor, or opens the first supported reference if none is open.'),
-				checked: content.includes('A checked button means the editor is visible; activating it keeps the editor open and focuses it.'),
-				direct: content.includes('These actions open directly, without a dropdown or picker, even with multiple references.'),
-			}, { optIn: enabled, chatScope: enabled, reuse: enabled, checked: enabled, direct: enabled });
+				automatic: content.includes('The pull request action appears automatically in the side-pane group.'),
+				chatScope: content.includes('Open Pull Request is available for the active chat\'s pull requests when a contributed opener is available for their links.'),
+				reuse: content.includes('The action reveals an already-open matching editor or opens the first supported pull request if none is open.'),
+				checked: content.includes('A checked button means the pull request editor is visible; activating it collapses the side pane. Activate it again to reveal the editor.'),
+				direct: content.includes('The action opens directly, without a dropdown or picker, even with multiple pull requests. Issue actions are not shown in the activity bar; issue pills remain available above the chat input.'),
+			}, { automatic: enabled, chatScope: enabled, reuse: enabled, checked: enabled, direct: enabled });
 		});
 	}
 

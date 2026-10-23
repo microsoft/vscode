@@ -114,7 +114,7 @@ class ArtifactListTab extends Disposable {
 	private label = '';
 	private description = '';
 
-	constructor(select: (focus: 'tab' | 'list') => void, hoverService: IHoverService, hoverLifecycleOptions: IHoverLifecycleOptions) {
+	constructor(activate: (focus: 'tab' | 'list') => void, hoverService: IHoverService, hoverLifecycleOptions: IHoverLifecycleOptions) {
 		super();
 		this.button = this._register(new ButtonWithIcon(this.element, {
 			...defaultButtonStyles, secondary: true, small: true,
@@ -125,7 +125,7 @@ class ArtifactListTab extends Disposable {
 		this.button.element.id = generateUuid();
 		this.button.element.setAttribute('role', 'tab');
 		this.button.iconElement.setAttribute('aria-hidden', 'true');
-		this._register(this.button.onDidClick(event => select(event.type === EventType.KEY_DOWN ? 'tab' : 'list')));
+		this._register(this.button.onDidClick(event => activate(event.type === EventType.KEY_DOWN ? 'tab' : 'list')));
 		this._register(hoverService.setupDelayedHover(this.button.element, () => ({ content: this.label, style: HoverStyle.Pointer }), hoverLifecycleOptions));
 		this.info = this._register(new Button(this.element, {
 			...defaultButtonStyles, secondary: true,
@@ -140,20 +140,21 @@ class ArtifactListTab extends Disposable {
 		append(this.element, $('span.artifact-list-tab-focus', { 'aria-hidden': 'true' }));
 		this._register(addDisposableListener(this.element, EventType.CLICK, event => {
 			if (event.target === this.element) {
-				select('list');
+				activate('list');
 			}
 		}));
 		this._register(toDisposable(() => this.element.remove()));
 	}
 
-	update(data: IArtifactListViewData, list: HTMLElement, selected: boolean): void {
+	update(data: IArtifactListViewData, list: HTMLElement, selected: boolean, tabStop: boolean): void {
 		this.label = data.title;
 		this.button.label = data.title;
 		reset(this.button.iconElement, renderArtifactIcon(data.icon));
 		this.button.element.setAttribute('aria-controls', list.id);
 		this.button.element.setAttribute('aria-selected', String(selected));
+		this.button.element.setAttribute('aria-expanded', String(selected));
 		this.button.element.setAttribute('aria-description', data.description);
-		this.button.element.tabIndex = selected ? 0 : -1;
+		this.button.element.tabIndex = tabStop ? 0 : -1;
 		this.element.classList.toggle('selected', selected);
 		if (this.description !== data.description) {
 			this.infoHover.clear();
@@ -186,7 +187,9 @@ export class ArtifactStateLists extends Disposable {
 	private readonly hoverLifecycleOptions = { groupId: generateUuid() };
 	private readonly lists = this._register(new DisposableMap<string, ArtifactStateList>());
 	private data: readonly IArtifactListViewData[] = [];
-	private selectList: (id: string) => void = () => { };
+	private selected: string | undefined;
+	private tabStop: string | undefined;
+	private selectList: (id: string | undefined) => void = () => { };
 
 	constructor(private readonly hoverService: IHoverService, private readonly instantiationService: IInstantiationService) {
 		super();
@@ -201,13 +204,19 @@ export class ArtifactStateLists extends Disposable {
 					: keyboard.equals(KeyCode.Home) ? 0 : keyboard.equals(KeyCode.End) ? this.data.length - 1 : -1;
 			if (current >= 0 && next >= 0) {
 				EventHelper.stop(event, true);
-				this.select(this.data[next].id, 'tab');
+				// Arrow keys follow focus only while a list is expanded; collapsed tabs just move focus.
+				if (this.selected === undefined) {
+					this.showSelection(undefined, this.data[next].id);
+					this.focusTab(this.data[next].id);
+				} else {
+					this.select(this.data[next].id, 'tab');
+				}
 			}
 		}));
 		this._register(toDisposable(() => this.element.remove()));
 	}
 
-	update(data: readonly IArtifactListViewData[], selected: string | undefined, actions: readonly IArtifactActionViewData[], selectList: (id: string) => void): void {
+	update(data: readonly IArtifactListViewData[], selected: string | undefined, actions: readonly IArtifactActionViewData[], selectList: (id: string | undefined) => void): void {
 		this.data = data;
 		this.selectList = selectList;
 		const retained = new Set(data.map(list => list.id));
@@ -226,31 +235,44 @@ export class ArtifactStateLists extends Disposable {
 			if (!list) {
 				list = new ArtifactStateList(item, this.instantiationService, this.hoverService);
 				this.lists.set(item.id, list);
-				this.tabs.set(item.id, new ArtifactListTab(focus => this.select(item.id, focus), this.hoverService, this.hoverLifecycleOptions));
+				this.tabs.set(item.id, new ArtifactListTab(focus => this.activate(item.id, focus), this.hoverService, this.hoverLifecycleOptions));
 			} else {
 				list.update(item);
 			}
-			this.tabs.get(item.id)!.update(item, list.element, item.id === selected);
 		}
 		placeArtifactChildren(this.tabList, data.map(list => this.tabs.get(list.id)!.element));
 		placeArtifactChildren(this.listsContainer, data.map(list => this.lists.get(list.id)!.element));
+		this.showSelection(selected);
 		this.actions.update(actions);
 		this.header.hidden = !data.length;
-		this.listsContainer.hidden = !data.length;
 		this.element.hidden = !data.length && !actions.length;
 		this.element.classList.toggle('has-lists', data.length > 0);
+	}
+
+	private activate(id: string, focus: 'tab' | 'list'): void {
+		if (this.selected === id) {
+			this.showSelection(undefined, id);
+			this.selectList(undefined);
+			this.focusTab(id);
+		} else {
+			this.select(id, focus);
+		}
 	}
 
 	private select(id: string, focus: 'tab' | 'list'): void {
 		this.showSelection(id);
 		this.selectList(id);
 		if (focus === 'tab') {
-			const tab = this.tabs.get(id);
-			tab?.button.element.focus({ preventScroll: true });
-			tab?.element.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+			this.focusTab(id);
 		} else {
 			this.lists.get(id)?.focus(true);
 		}
+	}
+
+	private focusTab(id: string): void {
+		const tab = this.tabs.get(id);
+		tab?.button.element.focus({ preventScroll: true });
+		tab?.element.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 	}
 
 	focusList(id: string): void {
@@ -259,9 +281,18 @@ export class ArtifactStateLists extends Disposable {
 		this.lists.get(id)?.focus();
 	}
 
-	private showSelection(id: string): void {
+	/** Shows the expanded list, or collapses all lists when `id` is undefined, keeping one tab reachable with Tab. */
+	private showSelection(id: string | undefined, tabStop?: string): void {
+		const ids = new Set(this.data.map(list => list.id));
+		this.selected = id !== undefined && ids.has(id) ? id : undefined;
+		this.tabStop = this.selected ?? [tabStop, this.tabStop].find(candidate => candidate !== undefined && ids.has(candidate)) ?? this.data[0]?.id;
 		for (const item of this.data) {
-			this.tabs.get(item.id)!.update(item, this.lists.get(item.id)!.element, item.id === id);
+			this.tabs.get(item.id)!.update(item, this.lists.get(item.id)!.element, item.id === this.selected, item.id === this.tabStop);
+		}
+		this.listsContainer.hidden = !this.selected;
+		this.element.classList.toggle('lists-collapsed', !!this.data.length && !this.selected);
+		if (this.selected) {
+			this.lists.get(this.selected)!.layout();
 		}
 	}
 

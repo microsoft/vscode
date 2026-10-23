@@ -40,7 +40,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { QuickInputService } from '../../../../../platform/quickinput/browser/quickInputService.js';
-import { IConfirmation, IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IConfirmationResult, IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { chartsGreen, chartsPurple } from '../../../../../platform/theme/common/colors/chartsColors.js';
 import { IChatPillEntry, withChatPillHoverLabel } from '../../../../../workbench/browser/chatPills.js';
 import { IChatEntitlementService, IChatSentiment } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
@@ -432,7 +432,7 @@ suite('Artifact Integration Presentation', () => {
 				{ id: artifactViewKey('test', 'merge'), label: 'Merge', enabled: false, primary: false },
 			],
 			autopilot: [{ title: 'Autopilot', expanded: false, summary: '0 of 3 on', rules: ['Auto Fix CI', 'Address Comments Automatically', 'Merge Automatically'] }],
-			activities: [], selected: artifactViewKey('test', 'checks'),
+			activities: [], selected: undefined,
 			destinations: [[artifactViewKey('test', 'checks'), artifactViewKey('test', 'checks')], [artifactViewKey('test', 'comments'), artifactViewKey('test', 'comments')]], panels: 0,
 		});
 	});
@@ -504,6 +504,8 @@ suite('Artifact Integration Presentation', () => {
 		const b = f.artifact('other');
 		let panel = await open(f, a);
 		const initially = {
+			selected: panel.querySelector('[role="tab"][aria-selected="true"]')?.textContent,
+			listsHidden: panel.querySelector<HTMLElement>('.artifact-details-lists')?.hidden,
 			expanded: button(panel, 'Autopilot').getAttribute('aria-expanded'),
 			display: mainWindow.getComputedStyle(panel.querySelector('.artifact-autopilot-group .artifact-card-content')!).display,
 		};
@@ -516,8 +518,8 @@ suite('Artifact Integration Presentation', () => {
 		const other = { selected: panel.querySelector('[role="tab"][aria-selected="true"]')?.textContent, expanded: button(panel, 'Autopilot').getAttribute('aria-expanded') };
 		panel = await open(f, a);
 		assert.deepStrictEqual({ initially, remembered, other, switchedBack: button(panel, 'Autopilot').getAttribute('aria-expanded') }, {
-			initially: { expanded: 'false', display: 'none' }, remembered: { selected: 'Review threads', expanded: 'true' },
-			other: { selected: 'Checks', expanded: 'false' }, switchedBack: 'true',
+			initially: { selected: undefined, listsHidden: true, expanded: 'false', display: 'none' }, remembered: { selected: 'Review threads', expanded: 'true' },
+			other: { selected: undefined, expanded: 'false' }, switchedBack: 'true',
 		});
 	});
 
@@ -943,6 +945,8 @@ suite('Artifact Integration Presentation', () => {
 		a.details.checks.set({ ...a.details.checks.get(), items: [a.details.checks.get().items[0]] }, undefined);
 		a.details.comments.set({ ...a.details.comments.get(), items: [{ ...a.details.comments.get().items[0], label: comment }] }, undefined);
 		const panel = await open(f, a);
+		panel.querySelectorAll<HTMLElement>('[role="tab"]')[0].click();
+		await settle(f);
 		const checkRow = panel.querySelector<HTMLElement>('.monaco-list-row')!;
 		const check = { label: checkRow.querySelector('.artifact-details-item-label')?.textContent, height: checkRow.getBoundingClientRect().height, accessibleState: checkRow.getAttribute('aria-label') };
 		const hover = f.hovers.get(panel.querySelector<HTMLElement>('.artifact-details-item')!);
@@ -1777,6 +1781,9 @@ suite('Artifact Integration Presentation', () => {
 				actionsTop: panel.querySelector('.artifact-state-actions')!.getBoundingClientRect().top,
 				panelHeight: panel.getBoundingClientRect().height,
 			});
+			const collapsed = panel.querySelector<HTMLElement>('.artifact-details-lists')!.hidden;
+			tabs[0].click();
+			await settle(f);
 			const initial = bounds();
 			tabs[1].click();
 			await settle(f);
@@ -1788,12 +1795,12 @@ suite('Artifact Integration Presentation', () => {
 			button(panel, 'Fix CI').click();
 			await settle(f);
 			assert.deepStrictEqual({
-				labels: tabs.map(tab => tab.textContent), short, empty,
+				labels: tabs.map(tab => tab.textContent), collapsed, short, empty,
 				fixedHeight: initial.height > 0, visible: [...panel.querySelectorAll<HTMLElement>('[role="tabpanel"]')].filter(element => !element.hidden).map(element => element.getAttribute('aria-labelledby')),
 				actions,
 				invoked: a.invoked.map(action => action.actionId),
 			}, {
-				labels: ['Checks', 'Review threads'], short: { ...initial }, empty: { ...initial }, fixedHeight: true,
+				labels: ['Checks', 'Review threads'], collapsed: true, short: { ...initial }, empty: { ...initial }, fixedHeight: true,
 				visible: [tabs[1].id],
 				actions: [{ label: 'Fix CI', primary: true }, { label: 'Address Comments', primary: false }, { label: 'Merge', primary: false }],
 				invoked: ['fix'],
@@ -1805,22 +1812,39 @@ suite('Artifact Integration Presentation', () => {
 			const a = f.artifact();
 			const panel = await open(f, a);
 			const tabs = [...panel.querySelectorAll<HTMLElement>('[role="tab"]')];
+			const press = (key: string, keyCode: number) => getActiveElement()!.dispatchEvent(new KeyboardEvent('keydown', { key, keyCode, bubbles: true }));
+			const tabState = () => ({
+				focused: tabs.indexOf(getActiveElement() as HTMLElement), selected: tabs.findIndex(tab => tab.getAttribute('aria-selected') === 'true'),
+				expanded: tabs.map(tab => tab.getAttribute('aria-expanded')), tabStops: tabs.map(tab => tab.tabIndex),
+			});
 			tabs[0].focus();
+			press('ArrowRight', 39);
+			const collapsedArrow = tabState();
+			press('Enter', 13);
+			const expandedByEnter = tabState();
 			const selected: number[] = [];
 			for (const [key, keyCode] of [['ArrowRight', 39], ['Home', 36], ['End', 35]] as const) {
-				getActiveElement()!.dispatchEvent(new KeyboardEvent('keydown', { key, keyCode, bubbles: true }));
+				press(key, keyCode);
 				selected.push(tabs.findIndex(tab => tab.getAttribute('aria-selected') === 'true' && tab === getActiveElement()));
 			}
+			press('Enter', 13);
+			const collapsedByEnter = { ...tabState(), listsHidden: panel.querySelector<HTMLElement>('.artifact-details-lists')!.hidden };
 			const section = a.container.querySelectorAll<HTMLElement>('.artifact-pill-sections [role="button"]')[0];
 			section.click();
 			await settle(f);
 			section.click();
 			await settle(f);
 			assert.deepStrictEqual({
-				selected, tabStops: tabs.map(tab => tab.tabIndex),
+				collapsedArrow, expandedByEnter, selected, collapsedByEnter, tabStops: tabs.map(tab => tab.tabIndex),
 				listFocused: panel.querySelector('[role="tabpanel"]:not([hidden])')?.contains(getActiveElement()),
 				samePanel: panel === f.host.querySelector('.artifact-integration-panel'),
-			}, { selected: [1, 0, 1], tabStops: [0, -1], listFocused: true, samePanel: true });
+			}, {
+				collapsedArrow: { focused: 1, selected: -1, expanded: ['false', 'false'], tabStops: [-1, 0] },
+				expandedByEnter: { focused: 1, selected: 1, expanded: ['false', 'true'], tabStops: [-1, 0] },
+				selected: [0, 0, 1],
+				collapsedByEnter: { focused: 1, selected: -1, expanded: ['false', 'false'], tabStops: [-1, 0], listsHidden: true },
+				tabStops: [0, -1], listFocused: true, samePanel: true,
+			});
 		});
 
 		test('mouse tab activation focuses the first list item and keyboard focus outlines the whole tab', async () => {
@@ -1850,23 +1874,27 @@ suite('Artifact Integration Presentation', () => {
 			tabs[1].focus();
 			tabs[1].dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
 			const enterKeepsTabFocus = getActiveElement() === tabs[1];
+			tabs[0].parentElement!.dispatchEvent(new MouseEvent('click', { detail: 1, bubbles: true }));
 			a.details.comments.set({ ...a.details.comments.get(), items: [] }, undefined);
 			tabs[1].parentElement!.dispatchEvent(new MouseEvent('click', { detail: 1, bubbles: true }));
+			const emptyListFocused = getActiveElement() === panel.querySelector('[role="tabpanel"]:not([hidden])');
+			tabs[1].dispatchEvent(new MouseEvent('click', { detail: 1, bubbles: true }));
 			assert.deepStrictEqual({
-				keyboard, firstFocused, mouseRingHidden, enterKeepsTabFocus,
-				emptyListFocused: getActiveElement() === panel.querySelector('[role="tabpanel"]:not([hidden])'),
+				keyboard, firstFocused, mouseRingHidden, enterKeepsTabFocus, emptyListFocused,
+				collapsedByClick: {
+					selected: panel.querySelector('[role="tab"][aria-selected="true"]'),
+					visibleLists: panel.querySelectorAll('[role="tabpanel"]:not([hidden])').length,
+					tabFocused: getActiveElement() === tabs[1],
+				},
 			}, {
 				keyboard: { ringVisible: true, spansWholeTab: true, inside: true, radius: '4px', cursor: 'pointer', buttonOutline: 'none' },
 				firstFocused: true, mouseRingHidden: true, enterKeepsTabFocus: true, emptyListFocused: true,
+				collapsedByClick: { selected: null, visibleLists: 0, tabFocused: true },
 			});
 		});
 
 		test('tabbed automation master works while collapsed and preserves provider consent and revocation', async () => {
 			const f = fixture();
-			const confirmations: IConfirmation[] = [];
-			f.instantiation.stub(IDialogService, new class extends mock<IDialogService>() {
-				override async confirm(confirmation: IConfirmation) { confirmations.push(confirmation); return { confirmed: true }; }
-			}());
 			const a = f.artifact();
 			const panel = await open(f, a);
 			const master = panel.querySelector<HTMLButtonElement>('.artifact-card-heading [role="switch"]')!;
@@ -1881,9 +1909,9 @@ suite('Artifact Integration Presentation', () => {
 			await settle(f);
 			assert.deepStrictEqual({
 				enabled, disabled: master.getAttribute('aria-checked'), collapsed: panel.querySelector<HTMLElement>('.artifact-card-content')?.hidden,
-				confirmations: confirmations.length, configured: a.configured, actions: a.invoked,
+				configured: a.configured, actions: a.invoked,
 			}, {
-				enabled: 'true', disabled: 'false', collapsed: true, confirmations: 1,
+				enabled: 'true', disabled: 'false', collapsed: true,
 				configured: [
 					{ integrationId: 'test', revision: 4, values: { fix: true, reviews: true, merge: true } },
 					{ integrationId: 'test', revision: 5, values: { fix: false, reviews: false, merge: false } },
@@ -1965,12 +1993,8 @@ suite('Artifact Integration Presentation', () => {
 		test('tabbed bulk enablement uses the displayed enum choices without a policy picker', async () => {
 			const f = fixture();
 			let picks = 0;
-			const confirmations: IConfirmation[] = [];
 			f.instantiation.stub(IQuickInputService, new class extends mock<IQuickInputService>() {
 				override readonly pick: IQuickInputService['pick'] = async () => { picks++; return undefined; };
-			}());
-			f.instantiation.stub(IDialogService, new class extends mock<IDialogService>() {
-				override async confirm(confirmation: IConfirmation) { confirmations.push(confirmation); return { confirmed: true }; }
 			}());
 			const configured = [];
 			for (const [id, value, label] of [['default', 'always', 'Always'], ['prepared', 'ifUnchanged', 'When No Changes Were Made']]) {
@@ -1985,13 +2009,12 @@ suite('Artifact Integration Presentation', () => {
 				await settle(f);
 				configured.push({ value: picker.textContent, writes: a.configured, checked: panel.querySelector('.artifact-card-heading [role="switch"]')?.getAttribute('aria-checked') });
 			}
-			assert.deepStrictEqual({ picks, configured, confirmations: confirmations.map(confirmation => typeof confirmation.detail === 'string' && confirmation.detail.includes('Merge Automatically When Ready:')) }, {
+			assert.deepStrictEqual({ picks, configured }, {
 				picks: 0,
 				configured: [
 					{ value: 'Always', writes: [{ integrationId: 'test', revision: 4, values: { merge: 'always' } }], checked: 'true' },
 					{ value: 'When No Changes Were Made', writes: [{ integrationId: 'test', revision: 4, values: { merge: 'ifUnchanged' } }], checked: 'true' },
 				],
-				confirmations: [true, true],
 			});
 		});
 
@@ -2119,7 +2142,7 @@ suite('Artifact Integration Presentation', () => {
 			}, { states: [[true, true], [true, true], [true, true], [true, true]], sameTabs: true, pillSections: 0 });
 		});
 
-		test('tabbed lists retain tabs and controls across refresh and fall back when the selected list is removed', async () => {
+		test('tabbed lists retain tabs and controls across refresh and collapse when the selected list is removed', async () => {
 			const f = fixture();
 			const a = f.artifact();
 			const panel = await open(f, a);
@@ -2132,9 +2155,9 @@ suite('Artifact Integration Presentation', () => {
 			updateContribution(a, contribution => ({ ...contribution, view: { ...contribution.view, lists: contribution.view.lists?.filter(list => list.id !== 'comments') } }));
 			await settle(f);
 			assert.deepStrictEqual({
-				retained, tab: panel.querySelector('[role="tab"][aria-selected="true"]') === tabs[0],
+				retained, selected: panel.querySelector('[role="tab"][aria-selected="true"]'), tabStop: tabs[0].tabIndex,
 				visibleLists: panel.querySelectorAll('[role="tabpanel"]:not([hidden])').length,
-			}, { retained: true, tab: true, visibleLists: 1 });
+			}, { retained: true, selected: null, tabStop: 0, visibleLists: 0 });
 		});
 
 		test('tabbed preview has no empty list area for artifacts without lists', async () => {
@@ -2167,6 +2190,12 @@ suite('Artifact Integration Presentation', () => {
 					buttonShadow: mainWindow.getComputedStyle(tab.querySelector('[role="tab"]')!).boxShadow,
 				};
 			});
+			const widget = panel.querySelector<HTMLElement>('.artifact-tabbed-state-widget')!;
+			const widgetBorder = () => mainWindow.getComputedStyle(widget).borderTopStyle;
+			const collapsed = styles();
+			const collapsedBorder = widgetBorder();
+			tabs[0].querySelector<HTMLElement>('[role="tab"]')!.click();
+			await settle(f);
 			const first = styles();
 			tabs[1].querySelector<HTMLElement>('[role="tab"]')!.click();
 			await settle(f);
@@ -2174,12 +2203,17 @@ suite('Artifact Integration Presentation', () => {
 			const border = 'rgb(119, 119, 119)';
 			const active = { borders: [border, border, transparent, border], backgroundMatchesList: true, shadow: 'none', buttonShadow: 'none' };
 			const inactive = { borders: [transparent, transparent, border, transparent], backgroundMatchesList: false, shadow: 'none', buttonShadow: 'none' };
+			const closed = { borders: [transparent, transparent, transparent, transparent], backgroundMatchesList: false, shadow: 'none', buttonShadow: 'none' };
+			const closedAfterSeparator = { ...closed, borders: [transparent, transparent, transparent, border] };
 			assert.deepStrictEqual({
-				first, second: styles(),
+				collapsed, collapsedBorder, first, second: styles(), expandedBorder: widgetBorder(),
 				headerBorder: mainWindow.getComputedStyle(panel.querySelector('.artifact-tabbed-header')!).borderBottomWidth,
 				contentBorder: mainWindow.getComputedStyle(panel.querySelector('.artifact-tabbed-content')!).borderTopWidth,
 				contentBackground: mainWindow.getComputedStyle(panel.querySelector('.artifact-tabbed-content')!).backgroundColor,
-			}, { first: [active, inactive], second: [inactive, active], headerBorder: '0px', contentBorder: '0px', contentBackground: 'rgb(51, 51, 51)' });
+			}, {
+				collapsed: [closed, closedAfterSeparator], collapsedBorder: 'solid', first: [active, inactive], second: [inactive, active], expandedBorder: 'none',
+				headerBorder: '0px', contentBorder: '0px', contentBackground: 'rgb(51, 51, 51)',
+			});
 		});
 
 		test('D widgets use the existing dropdown palette and respect high-contrast borders', async () => {
@@ -2192,6 +2226,8 @@ suite('Artifact Integration Presentation', () => {
 			}
 			const a = f.artifact();
 			const panel = await open(f, a);
+			panel.querySelector<HTMLElement>('[role="tab"]')!.click();
+			await settle(f);
 			const surfaces = [...panel.querySelectorAll<HTMLElement>('.artifact-tabbed-content, .artifact-list-tab-item.selected, .artifact-autopilot-group')];
 			const colors = () => surfaces.map(element => {
 				const style = mainWindow.getComputedStyle(element);
@@ -2249,7 +2285,7 @@ suite('Artifact Integration Presentation', () => {
 					{ label: 'About Checks', description: 'Checks for the current revision.', tab: 'Checks', hover: 'Checks for the current revision.', centered: true, size: '12px', tabIndex: 0, circular: true, nestedInteractive: false },
 					{ label: 'About Review threads', description: 'Only unresolved comments from contributors.', tab: 'Review threads', hover: 'Only unresolved comments from contributors.', centered: true, size: '12px', tabIndex: 0, circular: true, nestedInteractive: false },
 				],
-				selected: 'Checks', hover: 'Only unresolved comments from contributors.', focusRetained: true,
+				selected: undefined, hover: 'Only unresolved comments from contributors.', focusRetained: true,
 			});
 		});
 
@@ -2275,12 +2311,12 @@ suite('Artifact Integration Presentation', () => {
 			}, { initial: [true, false], updated: 'Updated comment information.', hidden: [true, true], retained: true, focusReturned: true });
 		});
 
-		test('Autopilot confirms exactly the available rules and uses one provider configuration revision', async () => {
+		test('Autopilot enables exactly the available rules without confirmation and uses one provider configuration revision', async () => {
 			const f = fixture();
-			const confirmations: IConfirmation[] = [];
+			let confirmations = 0;
 			f.instantiation.stub(IDialogService, new class extends mock<IDialogService>() {
-				override async confirm(confirmation: IConfirmation) {
-					confirmations.push(confirmation);
+				override async confirm(): Promise<IConfirmationResult> {
+					confirmations++;
 					return { confirmed: true };
 				}
 			}());
@@ -2300,11 +2336,11 @@ suite('Artifact Integration Presentation', () => {
 			master.click();
 			await settle(f);
 			assert.deepStrictEqual({
-				confirmations: confirmations.map(confirmation => ({ message: confirmation.message, details: String(confirmation.detail).includes('Auto Fix CI') && !String(confirmation.detail).includes('Address Comments Automatically') })),
+				confirmations,
 				enabled, disabled: master.getAttribute('aria-checked'),
 				configured: a.configured, invoked: a.invoked,
 			}, {
-				confirmations: [{ message: 'Enable these Autopilot rules?', details: true }],
+				confirmations: 0,
 				enabled: 'true', disabled: 'false',
 				configured: [
 					{ integrationId: 'test', revision: 4, values: { fix: true, merge: true } },
@@ -2313,26 +2349,30 @@ suite('Artifact Integration Presentation', () => {
 			});
 		});
 
-		test('Autopilot partial enablement is explicit; cancellation and failed writes never fabricate saved consent', async () => {
+		test('Autopilot enablement is saved even when an outside click dismisses details right away', async () => {
 			const f = fixture();
-			let confirmed = false;
-			f.instantiation.stub(IDialogService, new class extends mock<IDialogService>() {
-				override async confirm() { return { confirmed }; }
-			}());
+			const a = f.artifact();
+			const panel = await open(f, a);
+			panel.querySelector<HTMLElement>('.artifact-card-heading [role="switch"]')!.click();
+			f.input.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
+			await settle(f);
+			assert.deepStrictEqual({ selected: f.controller.selected.get(), configured: a.configured, errors: f.errors, badge: automationBadge(a)?.textContent }, {
+				selected: undefined, configured: [{ integrationId: 'test', revision: 4, values: { fix: true, reviews: true, merge: true } }], errors: [], badge: '3',
+			});
+		});
+
+		test('Autopilot partial enablement is explicit and failed writes never fabricate saved consent', async () => {
+			const f = fixture();
 			const a = f.artifact();
 			updateContribution(a, contribution => ({ ...contribution, configuration: { ...contribution.configuration, values: { ...contribution.configuration.values, fix: true } } }));
 			const panel = await open(f, a);
 			const master = panel.querySelector<HTMLElement>('.artifact-card-heading [role="switch"]')!;
 			const before = master.getAttribute('aria-checked');
-			master.click();
-			await settle(f);
-			const cancelled = { state: master.getAttribute('aria-checked'), writes: a.configured.length };
-			confirmed = true;
 			a.setConfigureResult(Promise.reject(new Error('Consent revision changed')));
 			master.click();
 			await settle(f);
-			assert.deepStrictEqual({ before, cancelled, after: master.getAttribute('aria-checked'), summary: panel.querySelector('.artifact-autopilot-summary')?.textContent, errors: f.errors, invoked: a.invoked }, {
-				before: 'false', cancelled: { state: 'false', writes: 0 }, after: 'false', summary: '1 of 3 on',
+			assert.deepStrictEqual({ before, after: master.getAttribute('aria-checked'), summary: panel.querySelector('.artifact-autopilot-summary')?.textContent, errors: f.errors, invoked: a.invoked }, {
+				before: 'false', after: 'false', summary: '1 of 3 on',
 				errors: ['The artifact operation failed: Consent revision changed'], invoked: [],
 			});
 		});
@@ -2360,9 +2400,6 @@ suite('Artifact Integration Presentation', () => {
 
 		test('Autopilot scopes bulk consent to one provider even when providers reuse action and rule IDs', async () => {
 			const f = fixture();
-			f.instantiation.stub(IDialogService, new class extends mock<IDialogService>() {
-				override async confirm() { return { confirmed: true }; }
-			}());
 			const a = f.artifact();
 			const original = a.snapshot.get().contributions[0];
 			a.snapshot.set({ ...a.snapshot.get(), contributions: [original, { ...original, integrationId: 'second', label: 'Other Provider' }] }, undefined);
