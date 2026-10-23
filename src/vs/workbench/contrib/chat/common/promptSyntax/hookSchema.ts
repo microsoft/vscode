@@ -283,6 +283,7 @@ export const hookFileSchema: IJSONSchema = {
 		// VS Code / PascalCase format
 		properties: {
 			hooks: {
+				deprecationMessage: nls.localize('hookFile.localFormatDeprecated', 'The Local hook format is deprecated. Use the Copilot CLI format with "version": 1, camelCase event names, and "timeoutSec" instead of "timeout".'),
 				properties: vscodeHookProperties
 			}
 		}
@@ -292,18 +293,19 @@ export const hookFileSchema: IJSONSchema = {
 			label: nls.localize('hookFile.snippet.basic', 'Basic hook configuration'),
 			description: nls.localize('hookFile.snippet.basic.description', 'A basic hook configuration with common hooks'),
 			body: {
+				version: 1,
 				hooks: {
-					SessionStart: [
+					sessionStart: [
 						{
 							type: 'command',
 							command: '${1:echo "Session started" >> session.log}',
 						}
 					],
-					PreToolUse: [
+					preToolUse: [
 						{
 							type: 'command',
 							command: '${2:./scripts/validate.sh}',
-							timeout: 15
+							timeoutSec: 15
 						}
 					]
 				}
