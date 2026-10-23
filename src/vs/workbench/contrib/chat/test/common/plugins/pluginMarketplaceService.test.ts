@@ -804,13 +804,13 @@ suite('PluginMarketplaceService - Agent Plugin direct install probes', () => {
 			plugins: [
 				{ name: 'invalid-github', source: { source: 'github', repo: 'owner/..' } },
 				{ name: 'invalid-url', source: { source: 'url', url: 'https://example.com/a/../b.git' } },
-				{ name: 'valid', source: { source: 'github', repo: 'owner/plugin' } },
+				{ name: 'valid', source: { source: 'github', repo: 'owner/plugin' }, keywords: ['canvas', 42, 'dashboard'] },
 			],
 		}));
 		const service = createService(fileService);
 		const plugins = await service.readPluginsFromDirectory(repoDir, parseMarketplaceReference('owner/catalog')!);
-		assert.deepStrictEqual(plugins.map(plugin => ({ name: plugin.name, marketplaceName: plugin.marketplaceName })), [
-			{ name: 'valid', marketplaceName: 'catalog-sdk-name' },
+		assert.deepStrictEqual(plugins.map(plugin => ({ name: plugin.name, marketplaceName: plugin.marketplaceName, keywords: plugin.keywords })), [
+			{ name: 'valid', marketplaceName: 'catalog-sdk-name', keywords: ['canvas', 'dashboard'] },
 		]);
 	});
 
