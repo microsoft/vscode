@@ -191,4 +191,36 @@ describe('NextEditCache cursor distance check', () => {
 			assert(result?.edit, 'should serve cached edit when cursor is on the edit line');
 		});
 	});
+
+	describe('rejectedNextEdit', () => {
+		function cacheTwoEditsFromOneRequest() {
+			const source = makeSource();
+			// Later edits of a request are cached against the document as it would look after the earlier ones.
+			const afterFirst = new StringText(docContent.slice(0, editStartOffset) + 'REPLACED' + docContent.slice(editEndOffset));
+			const secondEditStart = afterFirst.value.indexOf('line8');
+			const secondEdit = new StringReplacement(new OffsetRange(secondEditStart, secondEditStart + 'line8'.length), 'OTHER');
+			const opts = { isFromCursorJump: false, modelTelemetry: testModelTelemetry, cursorOffset: lineStartOffset(5) };
+			const first = cache.setKthNextEdit(docId, docText, undefined, edit, 0, undefined, undefined, source, opts);
+			const second = cache.setKthNextEdit(docId, afterFirst, undefined, secondEdit, 1, undefined, undefined, source, opts);
+			return { source, first, second };
+		}
+
+		it('marks every cached edit of the request by default', () => {
+			const { source, first, second } = cacheTwoEditsFromOneRequest();
+
+			cache.rejectedNextEdit(source.headerRequestId);
+
+			assert(first?.rejected && second?.rejected);
+		});
+
+		it('marks only the given entry when one is passed', () => {
+			const { source, first, second } = cacheTwoEditsFromOneRequest();
+
+			assert(first, 'first edit should be cached');
+			cache.rejectedNextEdit(source.headerRequestId, first);
+
+			assert(first?.rejected);
+			assert(!second?.rejected);
+		});
+	});
 });

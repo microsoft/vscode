@@ -7,15 +7,17 @@ import assert from 'assert';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ONBOARDING_DEVELOPER_MODE_CONFIG, ONBOARDING_DEVELOPER_MODE_VARIATIONS_CONFIG } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { NullWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/test/common/nullAssignmentService.js';
-import { AgentHostSessionTypesAvailableContext, IsNewChatSessionContext, SessionHarnessPickerVisibleContext, SessionHasWorkspaceContext, SessionWorkspacePickerVisibleContext } from '../../../../common/contextkeys.js';
+import { AgentHostSessionTypesAvailableContext, IsNewChatSessionContext, SessionHarnessPickerVisibleContext, SessionHasWorkspaceContext, SessionsWelcomeVisibleContext, SessionWorkspacePickerVisibleContext } from '../../../../common/contextkeys.js';
 import { resolveNewSessionViewV2TourVariation } from '../../browser/newSessionViewV2TourVariation.js';
 import { createNewSessionViewV2Tour, NEW_SESSION_VIEW_V2_TOUR_ID } from '../../browser/tours/newSessionViewV2Tour.js';
 import { createAgentsWindowInvitationTour, AGENTS_WINDOW_INVITATION_TOUR_ID } from '../../browser/tours/agentsWindowInvitationTour.js';
 import { createNewSessionViewV3Tour } from '../../browser/tours/newSessionViewV3Tour.js';
-import { NEW_SESSION_ONBOARDING_SEEN_KEY } from '../../browser/tours/newSessionTour.js';
+import { createNewSessionTour, NEW_SESSION_ONBOARDING_SEEN_KEY } from '../../browser/tours/newSessionTour.js';
 import { createNewSessionViewTour } from '../../browser/tours/newSessionViewTour.js';
 
 suite('NewSessionViewV2Tour', () => {
@@ -95,6 +97,57 @@ suite('NewSessionViewV2Tour', () => {
 			scenarios.map(scenario => scenario.when?.keys().includes(IsNewChatSessionContext.key)),
 			[true, true],
 		);
+	});
+
+	test('blocks all new-session tours until the welcome dialog closes', () => {
+		const configurationService = new TestConfigurationService();
+		disposables.add(configurationService.onDidChangeConfigurationEmitter);
+		const contextKeyService = disposables.add(new ContextKeyService(configurationService));
+		ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+		IsNewChatSessionContext.bindTo(contextKeyService).set(true);
+		AgentHostSessionTypesAvailableContext.bindTo(contextKeyService).set(true);
+		const welcomeVisible = SessionsWelcomeVisibleContext.bindTo(contextKeyService);
+		const trigger = observableValue<boolean>(disposables, true);
+		const scenarios = [
+			createNewSessionTour(trigger),
+			createNewSessionViewTour(trigger),
+			createNewSessionViewV2Tour(trigger),
+			createNewSessionViewV3Tour(trigger, () => true),
+		];
+		const eligibility = () => Object.fromEntries(scenarios.map(scenario => [
+			scenario.id,
+			contextKeyService.contextMatchesRules(scenario.when),
+		]));
+
+		const beforeWelcome = eligibility();
+		welcomeVisible.set(true);
+		const duringWelcome = eligibility();
+		welcomeVisible.reset();
+
+		assert.deepStrictEqual({
+			beforeWelcome,
+			duringWelcome,
+			afterWelcome: eligibility(),
+		}, {
+			beforeWelcome: {
+				'sessions.onboarding.newSession': true,
+				'sessions.onboarding.newSessionView': true,
+				'sessions.onboarding.newSessionViewV2': true,
+				'sessions.onboarding.newSessionViewV3': true,
+			},
+			duringWelcome: {
+				'sessions.onboarding.newSession': false,
+				'sessions.onboarding.newSessionView': false,
+				'sessions.onboarding.newSessionViewV2': false,
+				'sessions.onboarding.newSessionViewV3': false,
+			},
+			afterWelcome: {
+				'sessions.onboarding.newSession': true,
+				'sessions.onboarding.newSessionView': true,
+				'sessions.onboarding.newSessionViewV2': true,
+				'sessions.onboarding.newSessionViewV3': true,
+			},
+		});
 	});
 
 	test('can be enabled by default without experiment gating', () => {

@@ -4739,7 +4739,7 @@ suite('CloudSandboxSessionsProvider discovery metadata', () => {
 					{ id, label },
 					{ id, label },
 					{ id, label },
-					{ id: 'teams', label: 'Teams' },
+					{ id: 'teams', label: 'Microsoft Teams' },
 				]);
 			}));
 		}

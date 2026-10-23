@@ -11,13 +11,15 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 
 /**
  * Service that owns the manual ordering of the sessions list's top-level
- * headers: top-level user-created groups and workspace sections relative to
- * each other. The groups service orders subgroups within their group.
+ * headers: top-level user-created groups relative to workspace sections, and to
+ * the date sections when grouping by date. The groups service orders subgroups
+ * within their group.
  *
  * The order is stored as one flat list of opaque identities (`group:<id>` for
- * groups, see `getSessionGroupSectionId`, and `workspace:<label>` for workspace
- * sections), from which the visible headers resolve their relative order. It is
- * purely local (persisted to profile storage) and not synced to providers.
+ * groups, see `getSessionGroupSectionId`, `workspace:<label>` for workspace
+ * sections, and `recent`/`older` for the date sections), from which the visible
+ * headers resolve their relative order. It is purely local (persisted to
+ * profile storage) and not synced to providers.
  * Identities the user has never moved fall back to a caller-provided default
  * order, so newly created groups / discovered workspaces appear in their
  * natural place until the user drags them.
