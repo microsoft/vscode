@@ -2978,7 +2978,6 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		// Date and environment grouping show chats with the other sessions instead of in a Chats section.
 		for (const grouping of [SessionsGrouping.Workspace, SessionsGrouping.Repository]) {
 			test(`caps the Chats section like a workspace until the user chooses otherwise (${grouping})`, () => {
 				const harness = createListHarness(disposables, Array.from({ length: 8 }, (_, index) =>
