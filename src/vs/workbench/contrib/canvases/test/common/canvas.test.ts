@@ -9,13 +9,14 @@ import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
-import { CanvasInput, ICanvas } from '../../common/canvas.js';
+import { CanvasInput, ICanvas, ICanvasContextService } from '../../common/canvas.js';
 
 suite('CanvasInput', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const contextService = upcastPartial<ICanvasContextService>({});
 	const editorGroupsService = upcastPartial<IEditorGroupsService>({
 		mainPart: upcastPartial<IEditorPart>({ windowId: 1 }),
-		getGroup: id => upcastPartial<IEditorGroup>({ windowId: id === 1 ? 1 : 2 }),
+		getGroup: id => upcastPartial<IEditorGroup>({ id, windowId: id === 1 ? 1 : 2 }),
 	});
 	const environmentService = (isSessionsWindow = false) => upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow });
 
@@ -32,7 +33,7 @@ suite('CanvasInput', () => {
 			session: URI.parse('agent-host-session:/session'),
 			chat: URI.parse('agent-host-chat:/session/main'),
 			canvas: URI.parse('agent-host-canvas:/preview'),
-		}, canvas('Preview'), editorGroupsService, environmentService()));
+		}, canvas('Preview'), editorGroupsService, environmentService(), contextService));
 		const labels: string[] = [];
 		store.add(input.onDidChangeLabel(() => labels.push(input.getName())));
 
@@ -51,6 +52,15 @@ suite('CanvasInput', () => {
 		});
 	});
 
+	test('allows movement into the auxiliary window groups its context service allows', () => {
+		const owner = { providerId: 'local', session: URI.parse('session:/owner'), chat: URI.parse('chat:/owner') };
+		const input = store.add(new CanvasInput({ ...owner, canvas: URI.parse('canvas:/preview') }, undefined, editorGroupsService, environmentService(), upcastPartial<ICanvasContextService>({
+			canPresentInGroup: (candidate, group) => candidate.chat.toString() === owner.chat.toString() && group.id === 2,
+		})));
+
+		assert.deepStrictEqual({ main: input.canMove(1, 1), allowed: input.canMove(1, 2), other: typeof input.canMove(1, 3) }, { main: true, allowed: true, other: 'string' });
+	});
+
 	test('allows main-window movement but rejects auxiliary windows', () => {
 		const input = store.add(new CanvasInput({
 			providerId: 'local',
@@ -62,7 +72,7 @@ suite('CanvasInput', () => {
 			instanceId: 'preview',
 			title: 'Preview',
 			source: URI.parse('https://example.test'),
-		}, editorGroupsService, environmentService()));
+		}, editorGroupsService, environmentService(), contextService));
 
 		assert.deepStrictEqual({ main: input.canMove(1, 1), auxiliary: typeof input.canMove(1, 2) }, { main: true, auxiliary: 'string' });
 	});
@@ -73,7 +83,7 @@ suite('CanvasInput', () => {
 			session: URI.parse('session:/owner'),
 			chat: URI.parse('chat:/owner'),
 			canvas: URI.parse('canvas:/preview'),
-		}, undefined, editorGroupsService, environmentService(isSessionsWindow))).getDescription());
+		}, undefined, editorGroupsService, environmentService(isSessionsWindow), contextService)).getDescription());
 
 		assert.deepStrictEqual(descriptions, [
 			'Closing this tab hides the canvas. Reopen it from its canvas pill or ask the agent to open it again.',
