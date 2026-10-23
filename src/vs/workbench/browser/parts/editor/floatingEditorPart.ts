@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/floatingEditorPart.css';
-import { $, addDisposableListener, append, Dimension, EventHelper, EventType, IDimension } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, Dimension, EventHelper, EventType, IDimension, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { ResizableHTMLElement } from '../../../../base/browser/ui/resizable/resizable.js';
 import { Action } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
@@ -46,6 +46,8 @@ export interface ICreateFloatingEditorPartResult {
  */
 export class FloatingEditorPart {
 
+	private static nextId = 1;
+
 	constructor(
 		private readonly editorPartsView: IEditorPartsView,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -57,6 +59,7 @@ export class FloatingEditorPart {
 
 	async create(label: string, options: IFloatingEditorPartOptions): Promise<ICreateFloatingEditorPartResult> {
 		const disposables = new DisposableStore();
+		const id = FloatingEditorPart.nextId++;
 
 		// Floats in the bottom right corner of the main window, and grows up and to the left when resized
 		const resizableElement = new ResizableHTMLElement();
@@ -75,7 +78,7 @@ export class FloatingEditorPart {
 			[IContextKeyService, partContextKeyService]
 		)));
 
-		const titleId = `floating-editor-title-${FloatingEditorPartImpl.nextId}`;
+		const titleId = `floating-editor-title-${id}`;
 		const editorPartContainer = append(resizableElement.domNode, $('.part.editor.floating-editor-part', {
 			role: 'region',
 			'aria-labelledby': titleId,
@@ -90,6 +93,7 @@ export class FloatingEditorPart {
 
 		const editorPart = disposables.add(partInstantiationService.createInstance(
 			FloatingEditorPartImpl,
+			id,
 			mainWindow.vscodeWindowId,
 			this.editorPartsView,
 			label,
@@ -138,7 +142,16 @@ export class FloatingEditorPart {
 			resizableElement.layout(editorPart.size.height, editorPart.size.width);
 			layoutEditorPart();
 		};
+
+		// While resizing, lay out the editor part at most once per animation frame
+		const scheduledLayout = disposables.add(new MutableDisposable());
+		const scheduleLayoutEditorPart = () => {
+			if (!scheduledLayout.value) {
+				scheduledLayout.value = scheduleAtNextAnimationFrame(mainWindow, () => layoutEditorPart());
+			}
+		};
 		const layoutEditorPart = () => {
+			scheduledLayout.clear();
 			const { width, height } = resizableElement.size;
 			const headerHeight = headerElement.offsetHeight;
 			const bounds = resizableElement.domNode.getBoundingClientRect();
@@ -150,9 +163,11 @@ export class FloatingEditorPart {
 			);
 		};
 		disposables.add(resizableElement.onDidResize(e => {
-			layoutEditorPart();
 			if (e.done) {
+				layoutEditorPart();
 				editorPart.updateSize(resizableElement.size);
+			} else {
+				scheduleLayoutEditorPart();
 			}
 		}));
 		disposables.add(this.layoutService.onDidLayoutMainContainer(() => layout()));
@@ -178,9 +193,6 @@ export class FloatingEditorPart {
 
 class FloatingEditorPartImpl extends EditorPart implements IFloatingEditorPart {
 
-	private static COUNTER = 1;
-	static get nextId(): number { return FloatingEditorPartImpl.COUNTER; }
-
 	private readonly _onWillClose = this._register(new Emitter<void>());
 	readonly onWillClose = this._onWillClose.event;
 
@@ -191,6 +203,7 @@ class FloatingEditorPartImpl extends EditorPart implements IFloatingEditorPart {
 	get size(): IDimension { return this._size; }
 
 	constructor(
+		id: number,
 		windowId: number,
 		editorPartsView: IEditorPartsView,
 		groupsLabel: string,
@@ -204,7 +217,6 @@ class FloatingEditorPartImpl extends EditorPart implements IFloatingEditorPart {
 		@IHostService hostService: IHostService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-		const id = FloatingEditorPartImpl.COUNTER++;
 		super(editorPartsView, `workbench.parts.floatingEditor.${id}`, groupsLabel, windowId, instantiationService, themeService, configurationService, storageService, layoutService, hostService, contextKeyService);
 
 		this._size = size ?? FloatingEditorPart.getDefaultSize(layoutService);
