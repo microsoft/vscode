@@ -246,6 +246,20 @@ suite('SSH Config Parsing', () => {
 			]);
 		});
 
+		test('collects certificate files', () => {
+			const output = [
+				'hostname example.com',
+				'certificatefile C:\\Users\\jp\\.ssh\\id_ecdsa_vault-cert.pub',
+				'certificatefile ~/.ssh/work-cert.pub',
+			].join('\n');
+
+			assert.deepStrictEqual(parseSSHGOutput(output).certificateFile, [
+				'C:\\Users\\jp\\.ssh\\id_ecdsa_vault-cert.pub',
+				'~/.ssh/work-cert.pub',
+			]);
+			assert.strictEqual(parseSSHGOutput('hostname example.com').certificateFile, undefined);
+		});
+
 		test('handles empty output', () => {
 			assert.deepStrictEqual(parseSSHGOutput(''), {
 				hostname: '',

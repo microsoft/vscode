@@ -54,6 +54,7 @@ export function tokenizeSSHPathList(value: string): { path: string; start: numbe
 export function parseSSHGOutput(stdout: string): ISSHResolvedConfig {
 	const map = new Map<string, string>();
 	const identityFiles: string[] = [];
+	const certificateFiles: string[] = [];
 	for (const line of stdout.split('\n')) {
 		const spaceIdx = line.indexOf(' ');
 		if (spaceIdx === -1) {
@@ -63,6 +64,8 @@ export function parseSSHGOutput(stdout: string): ISSHResolvedConfig {
 		const value = line.substring(spaceIdx + 1).trim();
 		if (key === 'identityfile') {
 			identityFiles.push(value);
+		} else if (key === 'certificatefile') {
+			certificateFiles.push(value);
 		} else {
 			map.set(key, value);
 		}
@@ -81,6 +84,7 @@ export function parseSSHGOutput(stdout: string): ISSHResolvedConfig {
 		user: map.get('user') || undefined,
 		port: parseInt(map.get('port') ?? '22', 10),
 		identityFile: identityFiles,
+		...(certificateFiles.length > 0 ? { certificateFile: certificateFiles } : {}),
 		identityAgent: map.get('identityagent') || undefined,
 		...(map.get('proxycommand') && map.get('proxycommand')?.toLowerCase() !== 'none' ? { proxyCommand: map.get('proxycommand') } : {}),
 		forwardAgent: map.get('forwardagent') === 'yes',

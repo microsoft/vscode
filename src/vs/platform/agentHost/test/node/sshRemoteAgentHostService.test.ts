@@ -19,6 +19,7 @@ import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.j
 import { AGENT_HOST_ENDPOINT_REGISTRY_SCHEMA_VERSION, type AgentHostEndpointAddress, type IAgentHostEndpointMetadata } from '../../common/agentHostEndpointRegistry.js';
 import { SSHAuthMethod, type ISSHAgentHostConfig, type ISSHConnectProgress, type ISSHEndpointSelection, type ISSHEndpointSelectionRequest, type ISSHKeyboardInteractivePrompt, type ISSHKeyboardInteractiveRequest, type ISSHResolvedConfig } from '../../common/sshRemoteAgentHost.js';
 import { SSHRemoteAgentHostMainService, makeAuthHandler, type SSHAuthAttempt } from '../../node/sshRemoteAgentHostService.js';
+import { ECDSA_CERTIFICATE, ECDSA_PUBLIC_KEY, ED25519_CERTIFICATE, ED25519_PUBLIC_KEY, openSSHPrivateKeyFor } from './sshCertificateFixtures.js';
 import type { AnyAuthMethod, AuthenticationType, ConnectConfig } from 'ssh2';
 
 const dataFolderName = '.vscode-insiders';
@@ -2248,6 +2249,112 @@ suite('SSHRemoteAgentHostMainService - _buildAuthAttempts', () => {
 		assert.strictEqual(await service.testGetAgentSocket(makeConfig({ identityAgent: 'none' })), undefined);
 		assert.strictEqual(await service.testGetAgentSocket(makeConfig({ identityAgent: 'SSH_AUTH_SOCK' })), WINDOWS_AGENT_PIPE);
 	});
+
+	test('certificate next to a default key is tried before the plain key, after the agent', async () => {
+		const key = openSSHPrivateKeyFor(ED25519_PUBLIC_KEY);
+		service.agentSock = '/tmp/ssh-agent.sock';
+		service.keyFiles.set('~/.ssh/id_ed25519', key);
+		service.keyFiles.set('~/.ssh/id_ed25519-cert.pub', ED25519_CERTIFICATE);
+
+		const attempts = await service.testBuildAuthAttempts(makeConfig({ authMethod: SSHAuthMethod.Agent }));
+
+		assert.deepStrictEqual(attempts, [
+			{ type: 'agent', username: 'testuser', agent: '/tmp/ssh-agent.sock' },
+			{ type: 'publickey', username: 'testuser', key, keyPath: '~/.ssh/id_ed25519', certificate: ED25519_CERTIFICATE, certificatePath: '~/.ssh/id_ed25519-cert.pub' },
+			{ type: 'publickey', username: 'testuser', key, keyPath: '~/.ssh/id_ed25519' },
+			{ type: 'keyboard-interactive', username: 'testuser' },
+		]);
+	});
+
+	test('CertificateFile entries are paired with the key they certify and mismatches are skipped', async () => {
+		const ed = openSSHPrivateKeyFor(ED25519_PUBLIC_KEY);
+		const ecdsa = openSSHPrivateKeyFor(ECDSA_PUBLIC_KEY);
+		service.keyFiles.set('~/.ssh/id_ed25519', ed);
+		service.keyFiles.set('~/.ssh/id_ecdsa', ecdsa);
+		service.keyFiles.set('/certs/vault-cert.pub', ECDSA_CERTIFICATE);
+		service.keyFiles.set('/certs/other-cert.pub', ED25519_CERTIFICATE);
+
+		const attempts = await service.testBuildAuthAttempts(makeConfig({
+			authMethod: SSHAuthMethod.Agent,
+			certificateFiles: ['/certs/vault-cert.pub', '/certs/other-cert.pub', '/certs/missing-cert.pub'],
+		}));
+
+		assert.deepStrictEqual(attempts, [
+			{ type: 'publickey', username: 'testuser', key: ed, keyPath: '~/.ssh/id_ed25519', certificate: ED25519_CERTIFICATE, certificatePath: '/certs/other-cert.pub' },
+			{ type: 'publickey', username: 'testuser', key: ed, keyPath: '~/.ssh/id_ed25519' },
+			{ type: 'publickey', username: 'testuser', key: ecdsa, keyPath: '~/.ssh/id_ecdsa', certificate: ECDSA_CERTIFICATE, certificatePath: '/certs/vault-cert.pub' },
+			{ type: 'publickey', username: 'testuser', key: ecdsa, keyPath: '~/.ssh/id_ecdsa' },
+			{ type: 'keyboard-interactive', username: 'testuser' },
+		]);
+	});
+
+	test('certificate for a non-OpenSSH key is paired through the key\'s .pub file', async () => {
+		const pemKey = Buffer.from('-----BEGIN EC PRIVATE KEY-----\nAAAA\n-----END EC PRIVATE KEY-----\n');
+		service.keyFiles.set('/keys/vault', pemKey);
+		service.keyFiles.set('/keys/vault.pub', ECDSA_PUBLIC_KEY);
+		service.keyFiles.set('/certs/wrong-cert.pub', ED25519_CERTIFICATE);
+		service.keyFiles.set('/keys/vault-cert.pub', ECDSA_CERTIFICATE);
+
+		const attempts = await service.testBuildAuthAttempts(makeConfig({
+			authMethod: SSHAuthMethod.KeyFile,
+			privateKeyPath: '/keys/vault',
+			certificateFiles: ['/certs/wrong-cert.pub'],
+		}));
+
+		assert.deepStrictEqual(attempts, [
+			{ type: 'publickey', username: 'testuser', key: pemKey, keyPath: '/keys/vault', certificate: ECDSA_CERTIFICATE, certificatePath: '/keys/vault-cert.pub' },
+			{ type: 'publickey', username: 'testuser', key: pemKey, keyPath: '/keys/vault' },
+		]);
+	});
+
+	test('without a public key only the conventional <key>-cert.pub is trusted', async () => {
+		const pemKey = Buffer.from('-----BEGIN EC PRIVATE KEY-----\nAAAA\n-----END EC PRIVATE KEY-----\n');
+		service.keyFiles.set('/keys/vault', pemKey);
+		service.keyFiles.set('/keys/vault-cert.pub', ECDSA_CERTIFICATE);
+		service.keyFiles.set('/certs/unverifiable-cert.pub', ED25519_CERTIFICATE);
+
+		const attempts = await service.testBuildAuthAttempts(makeConfig({
+			authMethod: SSHAuthMethod.KeyFile,
+			privateKeyPath: '/keys/vault',
+			certificateFiles: ['/certs/unverifiable-cert.pub', '/keys/vault-cert.pub'],
+		}));
+
+		assert.deepStrictEqual(attempts, [
+			{ type: 'publickey', username: 'testuser', key: pemKey, keyPath: '/keys/vault', certificate: ECDSA_CERTIFICATE, certificatePath: '/keys/vault-cert.pub' },
+			{ type: 'publickey', username: 'testuser', key: pemKey, keyPath: '/keys/vault' },
+		]);
+	});
+
+	test('encrypted key with a certificate yields encrypted certificate and plain attempts', async () => {
+		const key = openSSHPrivateKeyFor(ED25519_PUBLIC_KEY, 'aes256-ctr');
+		service.keyFiles.set('/keys/id_ed25519', key);
+		service.keyFiles.set('/keys/id_ed25519-cert.pub', ED25519_CERTIFICATE);
+
+		const attempts = await service.testBuildAuthAttempts(makeConfig({
+			authMethod: SSHAuthMethod.KeyFile,
+			privateKeyPath: '/keys/id_ed25519',
+		}));
+
+		assert.deepStrictEqual(attempts, [
+			{ type: 'publickey', username: 'testuser', key, keyPath: '/keys/id_ed25519', encrypted: true, certificate: ED25519_CERTIFICATE, certificatePath: '/keys/id_ed25519-cert.pub' },
+			{ type: 'publickey', username: 'testuser', key, keyPath: '/keys/id_ed25519', encrypted: true },
+		]);
+	});
+
+	test('files that are not certificates are ignored', async () => {
+		const key = openSSHPrivateKeyFor(ED25519_PUBLIC_KEY);
+		service.keyFiles.set('/keys/id_ed25519', key);
+		service.keyFiles.set('/keys/id_ed25519-cert.pub', ED25519_PUBLIC_KEY);
+
+		const attempts = await service.testBuildAuthAttempts(makeConfig({
+			authMethod: SSHAuthMethod.KeyFile,
+			privateKeyPath: '/keys/id_ed25519',
+		}));
+
+		assert.deepStrictEqual(attempts, [
+			{ type: 'publickey', username: 'testuser', key, keyPath: '/keys/id_ed25519' },
+		]);
+	});
 });
 
 suite('SSHRemoteAgentHostMainService - makeAuthHandler', () => {
@@ -2355,6 +2462,39 @@ suite('SSHRemoteAgentHostMainService - makeAuthHandler', () => {
 		handler(null, false, next => calls.push(next));
 
 		assert.deepStrictEqual(calls, [
+			{ type: 'publickey', username: 'u', key: KEY, passphrase: 'passphrase' },
+		]);
+	});
+
+	test('certificate attempts keep the certificate and strip internal metadata', () => {
+		const CERT = Buffer.from('cert');
+		const handler = makeAuthHandler([
+			{ type: 'publickey', username: 'u', key: KEY, keyPath: '~/.ssh/id_rsa', certificate: CERT, certificatePath: '~/.ssh/id_rsa-cert.pub' },
+		], new NullLogService());
+		const calls: Array<object | false> = [];
+		handler(null, false, next => calls.push(next));
+
+		assert.deepStrictEqual(calls, [{ type: 'publickey', username: 'u', key: KEY, certificate: CERT }]);
+	});
+
+
+	test('encrypted key passphrase is requested once for its certificate and plain attempts', () => {
+		const CERT = Buffer.from('cert');
+		const prompts: string[] = [];
+		const handler = makeAuthHandler([
+			{ type: 'publickey', username: 'u', key: KEY, keyPath: '~/.ssh/id_rsa', encrypted: true, certificate: CERT, certificatePath: '~/.ssh/id_rsa-cert.pub' },
+			{ type: 'publickey', username: 'u', key: KEY, keyPath: '~/.ssh/id_rsa', encrypted: true },
+		], new NullLogService(), undefined, (keyPath, finish) => {
+			prompts.push(keyPath);
+			finish('passphrase');
+		});
+		const calls: Array<object | false> = [];
+		handler(null, false, next => calls.push(next));
+		handler(['publickey'], false, next => calls.push(next));
+
+		assert.deepStrictEqual(prompts, ['~/.ssh/id_rsa']);
+		assert.deepStrictEqual(calls, [
+			{ type: 'publickey', username: 'u', key: KEY, certificate: CERT, passphrase: 'passphrase' },
 			{ type: 'publickey', username: 'u', key: KEY, passphrase: 'passphrase' },
 		]);
 	});

@@ -51,6 +51,8 @@ export interface ISSHAgentHostConfig {
 	readonly privateKeyPath?: string;
 	/** Raw IdentityAgent value from resolved SSH config; may be a socket path, `none`, `SSH_AUTH_SOCK`, or an environment reference. */
 	readonly identityAgent?: string;
+	/** `CertificateFile` paths from resolved SSH config; each is paired with the identity whose public key it certifies. */
+	readonly certificateFiles?: readonly string[];
 	/** Password string (when {@link authMethod} is Password). */
 	readonly password?: string;
 	/** Display name for this connection. */
@@ -276,6 +278,8 @@ export interface ISSHResolvedConfig {
 	readonly user: string | undefined;
 	readonly port: number;
 	readonly identityFile: string[];
+	/** `CertificateFile` paths, in configuration order. Omitted when none are configured. */
+	readonly certificateFile?: string[];
 	readonly identityAgent: string | undefined;
 	/** Command providing the raw SSH connection over standard input/output. */
 	readonly proxyCommand?: string;
