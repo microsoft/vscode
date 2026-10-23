@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { GitHubEnvironmentsAvailabilityTreatment, GitHubEnvironmentsAvailableContext } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
@@ -44,14 +44,14 @@ suite('Mission Control experiment availability', () => {
 			const { service, context, requests } = fixture(pending.p);
 			const initial = service.available.get();
 			await pending.complete(treatment);
-			await service.whenReady;
+			await timeout(0);
 			assert.deepStrictEqual({
 				initial,
 				available: service.available.get(),
 				context: context.getContextKeyValue(GitHubEnvironmentsAvailableContext.key),
 				requests,
 			}, {
-				initial: false, available: treatment !== false, context: treatment !== false,
+				initial: undefined, available: treatment !== false, context: treatment !== false,
 				requests: [GitHubEnvironmentsAvailabilityTreatment],
 			});
 		});
@@ -59,11 +59,11 @@ suite('Mission Control experiment availability', () => {
 
 	test('refetching assignments disables and restores availability', async () => {
 		const { service, refetch } = fixture(Promise.resolve(true));
-		await service.whenReady;
+		await timeout(0);
 		const states = [service.available.get()];
 		for (const value of [false, true]) {
 			refetch(Promise.resolve(value));
-			await service.whenReady;
+			await timeout(0);
 			states.push(service.available.get());
 		}
 		assert.deepStrictEqual(states, [true, false, true]);
@@ -72,23 +72,21 @@ suite('Mission Control experiment availability', () => {
 	test('a stale initial assignment cannot override a newer disablement', async () => {
 		const initial = new DeferredPromise<boolean | undefined>();
 		const { service, refetch } = fixture(initial.p);
-		const first = service.whenReady;
 		refetch(Promise.resolve(false));
-		await service.whenReady;
+		await timeout(0);
 		await initial.complete(true);
-		await first;
+		await timeout(0);
 		assert.strictEqual(service.available.get(), false);
 	});
 
 	test('assignment errors fail closed, are logged, and recover on refetch', async () => {
 		const pending = new DeferredPromise<boolean | undefined>();
 		const { service, refetch, errors } = fixture(pending.p);
-		const failed = assert.rejects(service.whenReady, /assignment failed/);
 		await pending.error(new Error('assignment failed'));
-		await failed;
+		await timeout(0);
 		const afterFailure = service.available.get();
 		refetch(Promise.resolve(true));
-		await service.whenReady;
+		await timeout(0);
 		assert.deepStrictEqual({ afterFailure, recovered: service.available.get(), errors: errors.length }, {
 			afterFailure: false, recovered: true, errors: 1,
 		});

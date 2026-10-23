@@ -51,7 +51,7 @@ suite('Mission Control inventory', () => {
 	function fixture(storage = store.add(new InMemoryStorageService()), initialAccount: string | undefined = firstAccount, built = true, extensionDevelopment = false) {
 		const instantiation = store.add(new TestInstantiationService());
 		const availability = observableValue('availability', true);
-		instantiation.stub(IMissionControlAvailabilityService, { available: availability, whenReady: Promise.resolve() });
+		instantiation.stub(IMissionControlAvailabilityService, { available: availability });
 		const accountChanged = store.add(new Emitter<string | undefined>());
 		const authenticationChanged = store.add(new Emitter<{ providerId: string; label: string; event: AuthenticationSessionsChangeEvent }>());
 		const sentimentChanged = store.add(new Emitter<void>());

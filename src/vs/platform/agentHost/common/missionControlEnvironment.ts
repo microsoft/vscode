@@ -20,8 +20,7 @@ export const IMissionControlAvailabilityService = createDecorator<IMissionContro
 /** Experiment availability is independent of, and takes precedence over, user configuration. */
 export interface IMissionControlAvailabilityService {
 	readonly _serviceBrand: undefined;
-	readonly available: IObservable<boolean>;
-	readonly whenReady: Promise<void>;
+	readonly available: IObservable<boolean | undefined>;
 }
 export const MissionControlUseLocalCredentialsSettingId = 'chat.agentHost.experimentalMissionControl.useLocalCredentials';
 /** Logical identity for host-side Mission Control wire logs, including failed handshakes. */

@@ -71,16 +71,10 @@ export class MissionControlSharingService extends Disposable implements IMission
 			return;
 		}
 		this._enabled = this._usesMissionControl() && this._configuration.getValue<boolean>(GitHubEnvironmentsEnabledSettingId) === true && this._storage.getBoolean(sharingStorageKey, StorageScope.APPLICATION, false);
-		let available = this._availabilityService.available.get();
 		this._register(autorun(reader => {
-			const next = this._availabilityService.available.read(reader);
-			if (next !== available) {
-				available = next;
-				if (!next) {
-					void this._withdraw().catch(error => this._reportWithdrawalError(error));
-				}
-				this._update.schedule();
-			}
+			this._availabilityService.available.read(reader);
+			this._generation++;
+			this._update.schedule();
 		}));
 		this._register(this._configuration.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AgentHostRemoteConnectionsSettingId)
@@ -229,12 +223,24 @@ export class MissionControlSharingService extends Disposable implements IMission
 	}
 
 	private async _withdraw(): Promise<void> {
-		this._generation++;
+		const generation = ++this._generation;
 		this._configured = false;
 		this._accountSessionIds.clear();
 		this.state.set('disabled', undefined);
-		if (this._accountId !== undefined) {
-			await this._agentHost.configureMissionControl?.(undefined, this._accountId);
+		let accountId = this._accountId;
+		if (accountId === undefined && await this._agentHost.getMissionControlEnvironmentId?.()) {
+			const providerId = this._product.defaultChatAgent?.provider?.default?.id ?? 'github';
+			const defaultAccount = await this._defaultAccountService.getDefaultAccount();
+			const sessions = await this._authentication.getSessions(providerId, undefined, undefined, true);
+			accountId = defaultAccount
+				? defaultAccount.authenticationProvider.id === providerId ? sessions.find(session => session.id === defaultAccount.sessionId)?.account.id : undefined
+				: new Set(sessions.map(session => session.account.id)).size === 1 ? sessions[0].account.id : undefined;
+			if (accountId === undefined) {
+				this._logService.warn('Cannot withdraw existing Mission Control sharing without an unambiguous signed-in owner');
+			}
+		}
+		if (accountId !== undefined && generation === this._generation && !this._store.isDisposed) {
+			await this._agentHost.configureMissionControl?.(undefined, accountId);
 		}
 	}
 
@@ -270,8 +276,12 @@ export class MissionControlSharingService extends Disposable implements IMission
 
 	private async _configure(interactive = false): Promise<void> {
 		const generation = this._generation;
-		await this._availabilityService.whenReady;
-		if (generation !== this._generation || !this._availabilityService.available.get() || !this._enabled || !this._usesMissionControl() || !this._configuration.getValue<boolean>(GitHubEnvironmentsEnabledSettingId) || this._entitlement.sentiment.hidden) {
+		const available = this._availabilityService.available.get();
+		if (available === false || available !== undefined && !this._configuration.getValue<boolean>(GitHubEnvironmentsEnabledSettingId)) {
+			await this._withdraw();
+			return;
+		}
+		if (!available || !this._enabled || !this._usesMissionControl() || this._entitlement.sentiment.hidden) {
 			return;
 		}
 		if (!this._configured) {

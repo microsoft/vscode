@@ -41,7 +41,10 @@ import { IRemoteTunnelStartOptions, promptToRenameRemoteTunnel, RemoteTunnelComm
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
-import { IActionListOptions } from '../../../../../platform/actionWidget/browser/actionList.js';
+import { ActionListItemKind, ActionListWidget, IActionListOptions } from '../../../../../platform/actionWidget/browser/actionList.js';
+import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { NullOpenerService } from '../../../../../platform/opener/test/common/nullOpenerService.js';
 
 class TestRemoteTunnelService extends mock<IRemoteTunnelService>() {
 	stops = 0;
@@ -161,7 +164,9 @@ suite('RemoteConnectionsActionViewItem', () => {
 	function fixture(backend: AgentHostRemoteConnectionsBackend = 'devTunnel', options: { quality?: IProductService['quality']; isChatInput?: boolean; precedingAction?: boolean } = { quality: 'insider' }) {
 		const instantiation = store.add(new TestInstantiationService());
 		const availability = observableValue('availability', true);
-		instantiation.stub(IMissionControlAvailabilityService, { available: availability, whenReady: Promise.resolve() });
+		instantiation.stub(IMissionControlAvailabilityService, { available: availability });
+		const openSettings = stub().resolves(undefined);
+		instantiation.stub(IPreferencesService, { openSettings });
 		const configuration = new TestRemoteConnectionsConfigurationService({ [AgentHostRemoteConnectionsSettingId]: backend, [GitHubEnvironmentsEnabledSettingId]: true });
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const update = stub(configuration, 'updateValue').callThrough();
@@ -243,7 +248,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 			return menuActions;
 		};
 
-		return { configuration, update, remoteTunnel, sharing, quickInput, notifications, executeCommand, run, action, viewItem, container, primary, dropdown, availability, openMenu, closeMenu: () => actionWidget.hide(), menuActions: () => menuActions, menuItems: () => menuItems, listOptions: () => listOptions };
+		return { configuration, update, remoteTunnel, sharing, quickInput, notifications, executeCommand, run, action, viewItem, container, primary, dropdown, availability, openMenu, closeMenu: () => actionWidget.hide(), menuActions: () => menuActions, menuItems: () => menuItems, listOptions: () => listOptions, instantiation, openSettings };
 	}
 
 	test('shows explanatory second lines and marks GitHub Environments as preview', () => {
@@ -294,6 +299,48 @@ suite('RemoteConnectionsActionViewItem', () => {
 			enabled: false,
 			detail: 'Disabled by your organization. Contact your administrator to enable GitHub Environments.',
 			icon: Codicon.briefcase,
+		});
+	});
+
+	test('the policy explanation and setting are keyboard reachable without activating sharing', async () => {
+		const { configuration, openMenu, listOptions, instantiation, openSettings, sharing } = fixture();
+		await configuration.updateValue(GitHubEnvironmentsEnabledSettingId, false);
+		stub(configuration, 'inspect').callThrough().withArgs(GitHubEnvironmentsEnabledSettingId).returns({ value: false, policyValue: false });
+		const actions = openMenu();
+		instantiation.set(IOpenerService, NullOpenerService);
+		const widget = store.add(instantiation.createInstance(
+			ActionListWidget<IActionWidgetDropdownAction>,
+			'testRemoteConnections', false,
+			actions.map(action => ({ kind: ActionListItemKind.Action, label: action.label, disabled: !action.enabled, item: action })),
+			{ onHide: () => { }, onSelect: () => assert.fail('Policy help must not select a connection method') },
+			undefined,
+			listOptions(),
+		));
+		document.body.appendChild(widget.domNode);
+		widget.domNode.appendChild(widget.footerContainer!);
+		store.add(toDisposable(() => widget.domNode.remove()));
+		widget.layout(320, 200);
+		widget.focus();
+		const list = widget.domNode.querySelector<HTMLElement>('.monaco-list')!;
+		const link = widget.footerContainer!.querySelector<HTMLElement>('.monaco-link')!;
+		const key = (target: HTMLElement, key: string, keyCode: number, shiftKey = false) => target.dispatchEvent(new KeyboardEvent('keydown', { key, keyCode, shiftKey, bubbles: true, cancelable: true }));
+		key(list, 'Tab', 9);
+		const tabFocus = document.activeElement === link;
+		key(link, 'Tab', 9, true);
+		const shiftTabFocus = document.activeElement === list;
+		key(list, 'Tab', 9);
+		key(link, 'Enter', 13);
+		assert.deepStrictEqual({
+			tabFocus, shiftTabFocus,
+			describedBy: list.getAttribute('aria-describedby') === widget.footerContainer!.id,
+			explanation: widget.footerContainer?.textContent,
+			opened: openSettings.args,
+			sharing: sharing.calls,
+		}, {
+			tabFocus: true, shiftTabFocus: true, describedBy: true,
+			explanation: 'GitHub Environments is disabled by your organization. Contact your administrator. View Setting',
+			opened: [[{ query: `@id:${GitHubEnvironmentsEnabledSettingId}` }]],
+			sharing: [],
 		});
 	});
 

@@ -28,6 +28,7 @@ import { CONFIGURATION_KEY_HOST_NAME, IRemoteTunnelService, INACTIVE_TUNNEL_MODE
 import { promptToRenameRemoteTunnel, RemoteTunnelCommandIds } from '../../remoteTunnel/electron-browser/remoteTunnel.contribution.js';
 import { IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
+import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 
 const TUNNEL_ACCESS_DOCS_URL = 'https://aka.ms/vscode-agent-tunnel-access';
 
@@ -62,7 +63,7 @@ class RemoteConnectionsDropdownActionViewItem extends ActionWidgetDropdownAction
 export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 
 	private readonly _primaryAction: ToggleRemoteConnectionsActionViewItem;
-	private readonly _dropdown: ActionWidgetDropdownActionViewItem | undefined;
+	private readonly _dropdown: ActionWidgetDropdownActionViewItem;
 	private _environmentName: string | undefined;
 	private _tunnelName: string | undefined;
 	private _namesLoaded = false;
@@ -79,6 +80,7 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 		@IMissionControlSharingService private readonly _missionControlSharingService: IMissionControlSharingService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IMissionControlAvailabilityService private readonly _availabilityService: IMissionControlAvailabilityService,
+		@IPreferencesService private readonly _preferencesService: IPreferencesService,
 	) {
 		super(undefined, action);
 
@@ -106,9 +108,7 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 	override set actionRunner(actionRunner: IActionRunner) {
 		super.actionRunner = actionRunner;
 		this._primaryAction.actionRunner = actionRunner;
-		if (this._dropdown) {
-			this._dropdown.actionRunner = actionRunner;
-		}
+		this._dropdown.actionRunner = actionRunner;
 	}
 
 	override get actionRunner(): IActionRunner {
@@ -118,18 +118,11 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 	override setActionContext(context: unknown): void {
 		super.setActionContext(context);
 		this._primaryAction.setActionContext(context);
-		this._dropdown?.setActionContext(context);
+		this._dropdown.setActionContext(context);
 	}
 
 	override render(container: HTMLElement): void {
 		const dropdown = this._dropdown;
-		if (!dropdown) {
-			this._primaryAction.render(container);
-			this.element = this._primaryAction.element;
-			this._updateTabStops();
-			return;
-		}
-
 		dropdown.render(container);
 		this.element = dropdown.element;
 		this._updateDropdownState();
@@ -137,32 +130,22 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 	}
 
 	override focus(_fromRight?: boolean): void {
-		if (this._dropdown) {
-			this._dropdown.focus();
-		} else {
-			this._primaryAction.focus();
-		}
+		this._dropdown.focus();
 	}
 
 	override blur(): void {
 		this._primaryAction.blur();
-		this._dropdown?.blur();
+		this._dropdown.blur();
 		this._updateTabStops();
 	}
 
 	override setFocusable(focusable: boolean): void {
-		if (this._dropdown) {
-			this._dropdown.setFocusable(focusable);
-		} else {
-			this._primaryAction.setFocusable(focusable);
-		}
+		this._dropdown.setFocusable(focusable);
 		this._updateTabStops();
 	}
 
 	protected override updateEnabled(): void {
-		if (this._dropdown) {
-			this._dropdown.action.enabled = this.isEnabled();
-		}
+		this._dropdown.action.enabled = this.isEnabled();
 		this._updateTabStops();
 	}
 
@@ -170,15 +153,12 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 		if (this._isChatInput) {
 			// Chat input controls keep a Tab stop independently of toolbar focus.
 			this._primaryAction.setFocusable(this.isEnabled());
-			this._dropdown?.setFocusable(this.isEnabled());
+			this._dropdown.setFocusable(this.isEnabled());
 		}
 	}
 
 	private _updateDropdownState(): void {
 		const dropdown = this._dropdown;
-		if (!dropdown) {
-			return;
-		}
 		const state = this._primaryAction.getState();
 		dropdown.action.enabled = this.isEnabled();
 		dropdown.action.tooltip = state.isSharing || state.isConnecting
@@ -209,6 +189,26 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 	}
 
 	private _getListOptions(): IActionListOptions {
+		if (this._configurationService.inspect<boolean>(GitHubEnvironmentsEnabledSettingId).policyValue === false && this._availabilityService.available.get()) {
+			const label = localize('remoteConnections.viewSetting', "View Setting");
+			return {
+				minWidth: 300,
+				maxWidth: 320,
+				wrapDetails: true,
+				footerText: localize('remoteConnections.policyFooter', "GitHub Environments is disabled by your organization. Contact your administrator. {0}", label),
+				footerAction: toAction({
+					id: 'remoteConnections.viewSetting',
+					label,
+					tooltip: localize('remoteConnections.viewManagedSetting', "View the Organization-Managed GitHub Environments Setting"),
+					run: async () => {
+						this._dropdown.hide();
+						await this._preferencesService.openSettings({ query: `@id:${GitHubEnvironmentsEnabledSettingId}` });
+					},
+				}),
+				widgetClassName: 'remote-connections-picker',
+				hideDefaultKeybindingTooltip: true,
+			};
+		}
 		const state = this._primaryAction.getState();
 		const usesGitHubEnvironment = isGitHubEnvironmentBackend(this._configurationService.getValue<AgentHostRemoteConnectionsBackend>(AgentHostRemoteConnectionsSettingId));
 		const name = usesGitHubEnvironment ? this._environmentName : state.tunnelName ?? this._tunnelName;
@@ -244,7 +244,7 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 		if (!this.isEnabled() || this._primaryAction.getState().isConnecting || githubEnvironment !== isGitHubEnvironmentBackend(this._configurationService.getValue<AgentHostRemoteConnectionsBackend>(AgentHostRemoteConnectionsSettingId))) {
 			return;
 		}
-		this._dropdown?.hide();
+		this._dropdown.hide();
 		try {
 			if (githubEnvironment) {
 				const name = await this._quickInputService.input({

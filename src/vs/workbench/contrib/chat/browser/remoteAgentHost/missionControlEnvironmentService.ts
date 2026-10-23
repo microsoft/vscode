@@ -121,7 +121,7 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 	get accountKey(): string | undefined { return this._accountKey; }
 	get enabled(): boolean {
 		return !this._entitlement.sentiment.hidden
-			&& this._availabilityService.available.get()
+			&& this._availabilityService.available.get() === true
 			&& this._configuration.getValue<boolean>(GitHubEnvironmentsEnabledSettingId) === true
 			&& this._configuration.getValue<boolean>('chat.disableAIFeatures') !== true
 			&& this._configuration.getValue<boolean>(RemoteAgentHostsEnabledSettingId) === true;

@@ -108,10 +108,12 @@ suite('Mission Control sharing service', () => {
 		userHome?: URI;
 		localSetting?: string;
 		localSettingConfig?: IConfigurationValue<boolean>;
+		available?: boolean | 'pending';
+		existingEnvironment?: string;
 	} = {}) {
 		const instantiation = store.add(new TestInstantiationService());
-		const availability = observableValue('availability', true);
-		instantiation.stub(IMissionControlAvailabilityService, { available: availability, whenReady: Promise.resolve() });
+		const availability = observableValue<boolean | undefined>('availability', options.available === 'pending' ? undefined : options.available ?? true);
+		instantiation.stub(IMissionControlAvailabilityService, { available: availability });
 		const configuration = options.configuration ?? new TestConfigurationService({
 			[AgentHostRemoteConnectionsSettingId]: options.backend ?? 'githubEnvironment',
 			[GitHubEnvironmentsEnabledSettingId]: true,
@@ -141,6 +143,7 @@ suite('Mission Control sharing service', () => {
 		instantiation.stub(IAgentHostService, new class extends mock<IAgentHostService>() {
 			override readonly onAgentHostStart = hostStarted.event;
 			override startAgentHost(): void { starts++; }
+			override async getMissionControlEnvironmentId(): Promise<string | undefined> { return options.existingEnvironment; }
 			override async configureMissionControl(missionControlOptions: IMissionControlOptions | undefined, withdrawingAccountId?: string): Promise<void> {
 				calls.push({ options: missionControlOptions, withdrawingAccountId });
 				await options.configure?.(missionControlOptions);
@@ -207,6 +210,34 @@ suite('Mission Control sharing service', () => {
 			override affectsConfiguration(section: string) { return section === AgentHostRemoteConnectionsSettingId; }
 		});
 	}
+
+	for (const available of [false, 'pending'] as const) {
+		test(`withdraws an existing same-owner registration after reload: ${available}`, () => runWithFakedTimers({}, async () => {
+			const { sharing, availability, calls } = fixture({ available, existingEnvironment: 'registered-host' });
+			await timeout(0);
+			if (available === 'pending') {
+				assert.deepStrictEqual(calls, []);
+				availability.set(false, undefined);
+				await timeout(0);
+			}
+			assert.deepStrictEqual({ state: sharing.state.get(), calls }, {
+				state: 'disabled',
+				calls: [{ options: undefined, withdrawingAccountId: session.account.id }],
+			});
+		}));
+	}
+
+	test('does not guess an owner for an existing registration with multiple signed-in accounts', () => runWithFakedTimers({}, async () => {
+		const { calls, logService } = fixture({
+			available: false, existingEnvironment: 'registered-host',
+			getSessions: async () => [session, { ...session, id: 'another-session', account: { id: 'another-account', label: 'Other' } }],
+		});
+		const warning = stub(logService, 'warn');
+		await timeout(0);
+		assert.deepStrictEqual({ calls, warning: warning.firstCall?.args[0] }, {
+			calls: [], warning: 'Cannot withdraw existing Mission Control sharing without an unambiguous signed-in owner',
+		});
+	}));
 
 	test('renaming while off persists the actual registration name without enabling sharing', () => runWithFakedTimers({}, async () => {
 		const first = fixture();
