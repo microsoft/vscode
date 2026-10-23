@@ -104,7 +104,7 @@ suite('Chat Accessibility Help', () => {
 		test(`documents the sharing toggle and backend selection (${type})`, () => {
 			const help = getAccessibilityHelpText(type, new MockKeybindingService(), false);
 			assert.deepStrictEqual({
-				backend: help.includes('single Remote Connections button opens a menu that offers Off, Dev Tunnels, and GitHub Environments'),
+				backend: help.includes('Remote Connections button opens a menu that offers Off, Dev Tunnels, and GitHub Environments when available'),
 				setting: help.includes('The preview setting chat.agentHost.remoteConnections selects the connection method'),
 				enabling: help.includes('Selecting a method updates the setting and enables sharing'),
 				disabling: help.includes('Selecting Off disables sharing'),
@@ -112,7 +112,7 @@ suite('Chat Accessibility Help', () => {
 				footer: help.includes('The footer shows the name used to identify this machine on other clients'),
 				rename: help.includes('press Tab to reach the name link in the footer') && help.includes('Renaming while Off does not enable sharing'),
 				directSetting: help.includes('Changing the setting directly turns sharing off'),
-				keyboard: help.includes('Enter or Space to enable or disable sharing'),
+				keyboard: help.includes('arrow keys in the title bar, Enter or Space to open it'),
 			}, {
 				backend: type !== 'inlineChat' && type !== 'quickChat',
 				setting: type !== 'inlineChat' && type !== 'quickChat',

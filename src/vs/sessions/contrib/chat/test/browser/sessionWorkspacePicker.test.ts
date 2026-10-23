@@ -643,6 +643,58 @@ suite('WorkspacePicker - Environment', () => {
 	const localEnvironment: ISessionCreationEnvironment = { id: 'local', kind: 'local', label: 'This Computer', icon: Codicon.deviceDesktop, providerIds: ['local-agent-host'] };
 	const containerEnvironment: ISessionCreationEnvironment = { ...localEnvironment, id: 'container:local', kind: 'container', label: 'Dev Container' };
 
+	for (const environment of [undefined, localEnvironment]) {
+		test(`separates workspace browse actions from container choices ${environment ? 'with' : 'before'} environment selection`, () => {
+			const providers = disposables.add(new MockSessionsProvidersService());
+			providers.setProviders([
+				{
+					...createMockProvider('local-agent-host', {
+						group: SESSION_WORKSPACE_GROUP_LOCAL,
+						browseActions: [
+							makeBrowseAction('local-agent-host', SESSION_WORKSPACE_GROUP_REMOTE, 'Dev Container Folders'),
+							makeBrowseAction('local-agent-host', SESSION_WORKSPACE_GROUP_GITHUB, 'Work in Repository...'),
+						],
+					}),
+					supportsLocalWorkspaces: true,
+				},
+				createMockProvider('agenthost-remote-1', {
+					group: SESSION_WORKSPACE_GROUP_REMOTE,
+					connectionStatus: observableValue('connection', RemoteAgentHostConnectionStatus.connected),
+				}),
+			]);
+			const enabled = observableValue('environmentPickerEnabled', true);
+			const picker = createTestPicker(disposables, providers, undefined, undefined, DispatchingWorkspacePicker, undefined, undefined, undefined, {
+				environment: constObservable(environment),
+				environmentPickerEnabled: enabled,
+				restoreFromSessions: false,
+				configuration: {
+					[UNIFIED_WORKSPACE_PICKER_SETTING]: true,
+					[DevContainerSamplesEnabledSettingId]: true,
+					[DevContainerAgentHostEnabledSettingId]: true,
+				},
+			});
+			assert.ok(picker instanceof DispatchingWorkspacePicker);
+			assert.deepStrictEqual(picker.getItems().map(item => item.kind === ActionListItemKind.Separator ? 'separator' : item.label), [
+				'Open Folder...',
+				'Work in Repository',
+				'separator',
+				'Dev Container Folders',
+				'Dev Container Sample',
+			]);
+			if (!environment) {
+				enabled.set(false, undefined);
+				assert.deepStrictEqual(picker.getItems().map(item => item.kind === ActionListItemKind.Separator ? 'separator' : item.label), [
+					'Open Folder...',
+					'Dev Container Folders',
+					'Work in Repository',
+					'Dev Container Sample',
+					'separator',
+					'Remote',
+				]);
+			}
+		});
+	}
+
 	function createEnvironmentPicker(environment: ISessionCreationEnvironment, availability?: (uri: URI) => Promise<boolean>, environmentFirst = constObservable(true)) {
 		const providers = disposables.add(new MockSessionsProvidersService());
 		providers.setProviders([
@@ -685,6 +737,103 @@ suite('WorkspacePicker - Environment', () => {
 			workspaceFirst: ['/agent-host/supported', '/agent-host/unsupported', '/remote/project'],
 			environmentFirstFolders: ['/agent-host/supported', '/agent-host/unsupported'],
 			restored: workspaceFirst,
+		});
+	});
+
+	test('keeps local-capable repository actions when any environment comes first', async () => {
+		const environment = observableValue<ISessionCreationEnvironment | undefined>('environment', undefined);
+		const remoteEnvironment: ISessionCreationEnvironment = {
+			id: 'remote', kind: 'remote', label: 'Remote', icon: Codicon.remote, providerIds: ['agenthost-remote-1'],
+		};
+		const providers = disposables.add(new MockSessionsProvidersService());
+		const localUri = URI.file('/agent-host/project');
+		const localBaseProvider = createMockProvider('local-agent-host');
+		const localProvider: ISessionsProvider = {
+			...localBaseProvider,
+			supportsLocalWorkspaces: true,
+			resolveWorkspace: uri => {
+				const workspace = localBaseProvider.resolveWorkspace(uri);
+				return workspace ? {
+					...workspace,
+					group: SESSION_WORKSPACE_GROUP_LOCAL,
+					folders: workspace.folders.map(folder => ({
+						...folder,
+						gitRepository: {
+							uri,
+							workTreeUri: uri,
+							baseBranchName: 'main',
+							gitHubInfo: constObservable({ owner: 'microsoft', repo: 'vscode' }),
+						},
+					})),
+				} : undefined;
+			},
+		};
+		const repositoryUri = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/microsoft/vscode/HEAD' });
+		const repositoryWorkspace: ISessionWorkspace = {
+			uri: URI.parse('https://github.com/microsoft/vscode'),
+			label: 'microsoft/vscode',
+			icon: Codicon.repo,
+			group: SESSION_WORKSPACE_GROUP_GITHUB,
+			folders: [{
+				root: repositoryUri,
+				workingDirectory: repositoryUri,
+				name: 'vscode',
+				description: undefined,
+				gitRepository: undefined,
+			}],
+			requiresWorkspaceTrust: false,
+			isVirtualWorkspace: true,
+		};
+		providers.setProviders([
+			localProvider,
+			{
+				...createMockProvider('default-copilot', {
+					browseActions: [{
+						...makeBrowseAction('default-copilot', SESSION_WORKSPACE_GROUP_GITHUB, 'Work in Repository...'),
+						run: async () => repositoryWorkspace,
+					}],
+				}),
+				supportsLocalWorkspaces: true,
+			},
+			createMockProvider('agenthost-remote-1', {
+				browseActions: [makeBrowseAction('agenthost-remote-1', SESSION_WORKSPACE_GROUP_REMOTE, 'Selected Remote Folder...')],
+			}),
+			createMockProvider('agenthost-remote-2', {
+				browseActions: [makeBrowseAction('agenthost-remote-2', SESSION_WORKSPACE_GROUP_REMOTE, 'Other Remote Folder...')],
+			}),
+		]);
+		const storage = disposables.add(new TestStorageService());
+		seedStorage(storage, [{ uri: localUri, providerId: localProvider.id, checked: false }]);
+		const picker = createTestPicker(disposables, providers, storage, undefined, DispatchingWorkspacePicker, {}, undefined, undefined, {
+			environment,
+			restoreFromSessions: false,
+			configuration: { [UNIFIED_WORKSPACE_PICKER_SETTING]: true },
+		});
+		assert.ok(picker instanceof DispatchingWorkspacePicker);
+		const actions = () => picker.getItems().filter(item => item.item?.browseActionIndex !== undefined).map(item => item.label);
+		const workspaceFirst = actions();
+		environment.set(localEnvironment, undefined);
+		const local = actions();
+		const repositoryItem = picker.getItems().find(item => item.label === 'Work in Repository')?.item;
+		assert.ok(repositoryItem);
+		const repositorySelected = await picker.dispatchItem(repositoryItem);
+		environment.set(remoteEnvironment, undefined);
+		const remote = actions();
+		environment.set(containerEnvironment, undefined);
+		const container = actions();
+
+		assert.deepStrictEqual({
+			workspaceFirst, local, remote, container, repositorySelected,
+			selectedFolder: picker.selectedFolderUri?.toString(),
+			selectedProvider: picker.selectedResolved?.providerId,
+		}, {
+			workspaceFirst: ['Open Folder...', 'Work in Repository', 'Selected Remote Folder', 'Other Remote Folder'],
+			local: ['Open Folder...', 'Work in Repository'],
+			remote: ['Work in Repository', 'Selected Remote Folder'],
+			container: ['Open Folder...', 'Work in Repository'],
+			repositorySelected: true,
+			selectedFolder: localUri.toString(),
+			selectedProvider: localProvider.id,
 		});
 	});
 

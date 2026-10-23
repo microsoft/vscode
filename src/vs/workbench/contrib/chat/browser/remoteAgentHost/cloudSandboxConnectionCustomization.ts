@@ -5,6 +5,7 @@
 
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { localize } from '../../../../../nls.js';
 import { AgentHostProtocolClient } from '../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
 import { AuthRequiredReason } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import {
@@ -18,6 +19,8 @@ import {
 import { IAgentHostAuthenticateRequest } from '../agentSessions/agentHost/agentHostAuth.js';
 import { IRemoteAgentHostConnectionCustomization } from './remoteAgentHostConnectionCustomization.js';
 import { createCloudSandboxSessionPreparation } from './cloudSandboxLegacySessionPreparation.js';
+
+export const CLOUD_SANDBOX_INPUT_PLACEHOLDER = localize('cloudSandbox.inputPlaceholder', "Chat with Copilot");
 
 /** Hosts whose protected resources may receive the user's GitHub identity token. */
 function isGitHubResource(resource: string): boolean {
