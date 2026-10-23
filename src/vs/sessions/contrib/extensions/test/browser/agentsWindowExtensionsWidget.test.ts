@@ -10,13 +10,14 @@ import { constObservable } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ILocalExtension } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
+import { IExtensionContributions } from '../../../../../platform/extensions/common/extensions.js';
 import { ExtensionState, IExtension, IExtensionsWorkbenchService } from '../../../../../workbench/contrib/extensions/common/extensions.js';
 import { IWorkbenchExtensionEnablementService } from '../../../../../workbench/services/extensionManagement/common/extensionManagement.js';
-import { IExtensionManifestPropertiesService } from '../../../../../workbench/services/extensions/common/extensionManifestPropertiesService.js';
+import { IExtensionManifestPropertiesService, SessionsWindowMissingFeature } from '../../../../../workbench/services/extensions/common/extensionManifestPropertiesService.js';
 import { IExtensionService } from '../../../../../workbench/services/extensions/common/extensions.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
-import { AgentsWindowExtensionGroup, AgentsWindowExtensionsWidget, groupAgentsWindowExtensions, IAgentsWindowExtensionsGroup } from '../../browser/agentsWindowExtensionsWidget.js';
+import { AgentsWindowExtensionGroup, AgentsWindowExtensionsWidget, getMissingFeaturesWarning, getSuggestedContributionLabels, groupAgentsWindowExtensions, IAgentsWindowExtensionsGroup } from '../../browser/agentsWindowExtensionsWidget.js';
 import { IAgentsWindowExtensionSuggestionsService } from '../../browser/agentsWindowExtensionSuggestions.js';
 
 interface ITestExtensionOptions {
@@ -103,6 +104,32 @@ suite('AgentsWindowExtensionsWidget', () => {
 				{ group: AgentsWindowExtensionGroup.Supported, entries: [] },
 				{ group: AgentsWindowExtensionGroup.Other, entries: [] },
 			],
+		});
+	});
+
+	test('names what suggested extensions contribute, once each and in a stable order', () => {
+		const labels = (contributes: Record<string, unknown>) => getSuggestedContributionLabels({ name: 'a', publisher: 'pub', version: '1.0.0', engines: { vscode: '*' }, contributes: contributes as IExtensionContributions });
+
+		assert.deepStrictEqual({
+			none: labels({ commands: [{}], views: { explorer: [{}] } }),
+			toolsOnce: labels({ languageModelToolSets: [{}], languageModelTools: [{}] }),
+			ordered: labels({ chatPlugins: [{}], chatSkills: [{}], mcpServerDefinitionProviders: [{}], chatPromptFiles: [{}], chatAgents: [{}], chatInstructions: [{}], languageModelTools: [{}] }),
+		}, {
+			none: [],
+			toolsOnce: ['Tools'],
+			ordered: ['Tools', 'MCP Servers', 'Skills', 'Agents', 'Instructions', 'Prompts', 'Plugins'],
+		});
+	});
+
+	test('warns about the features that the Agents window lacks', () => {
+		assert.deepStrictEqual({
+			none: getMissingFeaturesWarning([]),
+			one: getMissingFeaturesWarning([SessionsWindowMissingFeature.Views]),
+			several: getMissingFeaturesWarning([SessionsWindowMissingFeature.Views, SessionsWindowMissingFeature.Debugging, SessionsWindowMissingFeature.StatusBar, SessionsWindowMissingFeature.Walkthroughs]),
+		}, {
+			none: undefined,
+			one: 'Contributes views, which are not supported in the Agents window.',
+			several: 'Contributes views, debuggers, status bar items, walkthroughs, which are not supported in the Agents window.',
 		});
 	});
 

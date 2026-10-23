@@ -42,7 +42,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		[AGENTS_WINDOW_EXTENSION_SUGGESTIONS_SETTING]: {
 			type: 'boolean',
 			scope: ConfigurationScope.APPLICATION,
-			markdownDescription: localize('extensions.experimental.agentsWindowSuggestions', "When enabled, the Agents window suggests installed extensions that could be useful there, such as extensions that add tools, MCP servers, or syntax highlighting. The Extensions section of Agent Customizations lists them in a Suggested group, and its entry point shows a badge while they are disabled, until you open the section. Requires `#{0}#`.", EXTENSIONS_AGENTS_WINDOW_MANAGEMENT),
+			markdownDescription: localize('extensions.experimental.agentsWindowSuggestions', "When enabled, the Agents window suggests installed extensions that add AI features, such as tools, MCP servers, or skills. The Extensions section of Agent Customizations lists them in an AI Features group, and its entry point shows a badge while they are disabled, until you open the section. Requires `#{0}#`.", EXTENSIONS_AGENTS_WINDOW_MANAGEMENT),
 			default: product.quality !== 'stable',
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
@@ -50,8 +50,8 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		[EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE]: {
 			type: 'boolean',
 			scope: ConfigurationScope.APPLICATION,
-			markdownDescription: localize('extensions.experimental.agentsWindowAutoEnable', "When enabled, installed extensions that haven't declared support for the Agents window are enabled there automatically when they could be useful, such as extensions that add tools, MCP servers, or syntax highlighting, and don't rely on views, debugging, or other features that the Agents window doesn't have. You can still disable them from the Extensions section of Agent Customizations. Requires `#{0}#`.", EXTENSIONS_AGENTS_WINDOW_MANAGEMENT),
-			default: product.quality !== 'stable',
+			markdownDescription: localize('extensions.experimental.agentsWindowAutoEnable', "When enabled, installed extensions that haven't declared support for the Agents window are enabled there automatically when they add AI features, such as tools, MCP servers, or skills, and don't rely on views, debugging, or other features that the Agents window doesn't have. You can still disable them from the Extensions section of Agent Customizations. Requires `#{0}#`.", EXTENSIONS_AGENTS_WINDOW_MANAGEMENT),
+			default: false,
 			tags: ['experimental'],
 			// Takes effect on startup, so assignment changes do not start or stop extensions while the window is open.
 			experiment: { mode: 'startup' },
