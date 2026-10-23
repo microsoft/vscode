@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
+import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import * as dom from '../../../../base/browser/dom.js';
@@ -132,7 +133,7 @@ export interface INewChatComposerInputOptions {
 	 * contributes them; `false` renders none, and a function renders the host's own controls in
 	 * their place, so they are positioned like the provider's.
 	 */
-	readonly renderRepositoryControls?: boolean | ((container: HTMLElement) => IComposerRepositoryControls);
+	readonly renderRepositoryControls?: boolean | ((container: HTMLElement, hoverDelegate: IHoverDelegate) => IComposerRepositoryControls);
 	readonly sessionTypePickerOptions?: ISessionTypePickerOptions;
 	readonly supportsBackground?: boolean;
 	readonly sendButtonLabel?: IObservable<string | undefined>;
