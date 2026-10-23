@@ -366,11 +366,16 @@ jobs:
       agent_host_test_profile_reason: ${{ needs.changes.outputs.agent-host-test-profile-reason || 'Change detection unavailable' }}
 
   # On Windows, Agent Host E2E is the slowest part of the Electron job, so it runs in parallel
-  # with the integration tests on its own machine; reports as part of "Windows / Electron".
+  # with the integration tests on other machines; reports as part of "Windows / Electron". The
+  # six suites take twice as long on one 8-core larger runner as on the 1ES runners, so they run in two shards.
   windows-agent-host-e2e-tests:
-    name: Windows (run)
+    name: Windows (shard ${{ matrix.shard }}/${{ strategy.job-total }})
     needs: changes
     if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.agent-host-e2e == 'true') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     uses: ./.github/workflows/pr-win32-test.yml
     with:
       job_name: Agent-Host-E2E
@@ -379,6 +384,8 @@ jobs:
       integration_tests: false
       smoke_tests: false
       agent_host_e2e_tests: true
+      agent_host_e2e_shard_index: ${{ matrix.shard }}
+      agent_host_e2e_shard_total: ${{ strategy.job-total }}
       # The provider integration tests and the Agent Host E2E tests read the profile.
       agent_host_test_profile: ${{ needs.changes.outputs.agent-host-test-profile || 'full' }}
       agent_host_test_profile_reason: ${{ needs.changes.outputs.agent-host-test-profile-reason || 'Change detection unavailable' }}

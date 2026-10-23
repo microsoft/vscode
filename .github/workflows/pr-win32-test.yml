@@ -34,6 +34,14 @@ on:
         description: Whether to run the Agent Host E2E tests
         type: boolean
         default: false
+      agent_host_e2e_shard_index:
+        description: 1-based index of the Agent Host E2E shard to run
+        type: number
+        default: 1
+      agent_host_e2e_shard_total:
+        description: Number of shards the Agent Host E2E suites are split into
+        type: number
+        default: 1
       agent_host_test_profile:
         description: Agent Host test profile, 'pr' or 'full' (see .github/actions/detect-agent-host-e2e-changes)
         type: string
@@ -48,7 +56,7 @@ jobs:
     name: ${{ inputs.job_name }}
     runs-on: vscode-large-runners-windows-8-core
     env:
-      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (inputs.agent_host_e2e_tests && !inputs.integration_tests && '-agent-host-e2e') || (inputs.unit_tests && !inputs.integration_tests && '-unit') || (!inputs.unit_tests && !inputs.integration_tests && inputs.smoke_tests && '-smoke') || '' }}${{ inputs.smoke_shard_total > 1 && format('-shard{0}', inputs.smoke_shard_index) || '' }}
+      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (inputs.agent_host_e2e_tests && !inputs.integration_tests && '-agent-host-e2e') || (inputs.unit_tests && !inputs.integration_tests && '-unit') || (!inputs.unit_tests && !inputs.integration_tests && inputs.smoke_tests && '-smoke') || '' }}${{ inputs.agent_host_e2e_shard_total > 1 && format('-{0}', inputs.agent_host_e2e_shard_index) || '' }}${{ inputs.smoke_shard_total > 1 && format('-shard{0}', inputs.smoke_shard_index) || '' }}
       NPM_ARCH: x64
       VSCODE_ARCH: x64
       VSCODE_SKIP_PRELAUNCH: '1'
@@ -279,7 +287,7 @@ jobs:
         if: ${{ inputs.electron_tests && inputs.agent_host_e2e_tests }}
         timeout-minutes: 30
         shell: pwsh
-        run: .\scripts\test-agent-host-e2e.bat --tfs "Integration Tests"
+        run: .\scripts\test-agent-host-e2e.bat --tfs "Integration Tests"${{ inputs.agent_host_e2e_shard_total > 1 && format(' --shard {0}/{1}', inputs.agent_host_e2e_shard_index, inputs.agent_host_e2e_shard_total) || '' }}
         env:
           AGENT_HOST_TEST_PROFILE: ${{ inputs.agent_host_test_profile }}
           AGENT_HOST_TEST_PROFILE_REASON: ${{ inputs.agent_host_test_profile_reason }}

@@ -42,6 +42,11 @@ interface ISuite {
 	readonly file: string;
 }
 
+interface IShard {
+	readonly index: number;
+	readonly total: number;
+}
+
 interface IRunResult {
 	readonly suite: ISuite;
 	readonly succeeded: boolean;
@@ -93,10 +98,14 @@ async function main(): Promise<void> {
 	validateEnvironment();
 	const { getAgentHostTestProfile } = await import('../../../src/vs/platform/agentHost/test/node/agentHostTestProfile.ts');
 	console.log(`Agent Host test profile: ${getAgentHostTestProfile()} (${process.env['AGENT_HOST_TEST_PROFILE_REASON'] ?? 'default'})`);
-	const { jobs, storage, forwardedArgs } = parseArguments(process.argv.slice(2));
+	const { jobs, storage, shard, forwardedArgs } = parseArguments(process.argv.slice(2));
+	const selectedSuites = shard ? suites.filter((_, index) => index % shard.total === shard.index - 1) : suites;
+	if (shard) {
+		console.log(`Agent Host E2E shard ${shard.index}/${shard.total}: ${selectedSuites.map(suite => suite.label).join(', ')}`);
+	}
 	await prepareTestRuntime();
 	if (storage !== 'disk') {
-		runStoragePasses(storage, jobs, forwardedArgs);
+		runStoragePasses(storage, jobs, shard, forwardedArgs);
 		return;
 	}
 	const storageBacking = process.env['AGENT_HOST_E2E_STORAGE_BACKING'] ?? 'disk';
@@ -112,16 +121,17 @@ async function main(): Promise<void> {
 	}
 
 	const startedAt = process.hrtime.bigint();
-	const surfaceOutputs = prepareSurfaceOutputs();
+	const surfaceOutputs = prepareSurfaceOutputs(selectedSuites);
 	const results: IRunResult[] = [];
 	let nextSuite = 0;
 
-	const stopResourceDiagnostics = startResourceDiagnostics(jobs);
+	const workerCount = Math.min(jobs, selectedSuites.length);
+	const stopResourceDiagnostics = startResourceDiagnostics(workerCount);
 	try {
-		const workers = Array.from({ length: jobs }, async () => {
-			while (nextSuite < suites.length) {
+		const workers = Array.from({ length: workerCount }, async () => {
+			while (nextSuite < selectedSuites.length) {
 				const suiteIndex = nextSuite++;
-				const suite = suites[suiteIndex];
+				const suite = selectedSuites[suiteIndex];
 				results[suiteIndex] = await runSuite(suite, forwardedArgs, surfaceOutputs.get(suite.id));
 			}
 		});
@@ -136,7 +146,7 @@ async function main(): Promise<void> {
 	}
 
 	const durationSeconds = elapsedSeconds(startedAt);
-	console.log(`\nAgent Host E2E suites completed in ${durationSeconds.toFixed(1)}s (${jobs} parallel ${jobs === 1 ? 'worker' : 'workers'}).`);
+	console.log(`\nAgent Host E2E suites completed in ${durationSeconds.toFixed(1)}s (${workerCount} parallel ${workerCount === 1 ? 'worker' : 'workers'}).`);
 	for (const result of results) {
 		console.log(`  ${result.succeeded ? 'PASS' : 'FAIL'} ${result.suite.label}: ${result.durationSeconds.toFixed(1)}s`);
 	}
@@ -146,10 +156,10 @@ async function main(): Promise<void> {
 	}
 }
 
-function runStoragePasses(storage: 'tmpfs' | 'split', jobs: number, args: readonly string[]): void {
+function runStoragePasses(storage: 'tmpfs' | 'split', jobs: number, shard: IShard | undefined, args: readonly string[]): void {
 	const environment: NodeJS.ProcessEnv = { ...process.env, VSCODE_SKIP_PRELAUNCH: '1' };
 	delete environment.ELECTRON_RUN_AS_NODE;
-	const runnerArgs = [__filename, '--storage', 'disk', '--jobs', String(jobs)];
+	const runnerArgs = [__filename, '--storage', 'disk', '--jobs', String(jobs), ...(shard ? ['--shard', `${shard.index}/${shard.total}`] : [])];
 	const failedPasses: string[] = [];
 	const tmpfs = spawnSync('bash', [
 		join(__dirname, 'tmpfs.sh'),
@@ -244,9 +254,10 @@ function validateEnvironment(): void {
 	}
 }
 
-function parseArguments(args: readonly string[]): { jobs: number; storage: StorageMode; forwardedArgs: readonly string[] } {
+function parseArguments(args: readonly string[]): { jobs: number; storage: StorageMode; shard: IShard | undefined; forwardedArgs: readonly string[] } {
 	const forwardedArgs: string[] = [];
 	let requestedJobs: string | undefined = process.env['AGENT_HOST_E2E_JOBS'];
+	let requestedShard: string | undefined;
 	const linuxCI = process.platform === 'linux' && (process.env['CI'] === 'true' || process.env['TF_BUILD']?.toLowerCase() === 'true');
 	let requestedStorage = process.env['AGENT_HOST_E2E_STORAGE'] ?? (linuxCI ? 'split' : 'disk');
 
@@ -263,6 +274,13 @@ function parseArguments(args: readonly string[]): { jobs: number; storage: Stora
 			}
 		} else if (argument.startsWith('--jobs=')) {
 			requestedJobs = argument.slice('--jobs='.length);
+		} else if (argument === '--shard') {
+			requestedShard = args[++index];
+			if (!requestedShard) {
+				throw new Error('--shard requires a value');
+			}
+		} else if (argument.startsWith('--shard=')) {
+			requestedShard = argument.slice('--shard='.length);
 		} else {
 			forwardedArgs.push(argument);
 		}
@@ -285,7 +303,20 @@ function parseArguments(args: readonly string[]): { jobs: number; storage: Stora
 	if (requestedStorage !== 'disk' && process.platform !== 'linux') {
 		throw new Error('Agent Host tmpfs storage requires Linux');
 	}
-	return { jobs: Math.min(jobs, suites.length), storage: requestedStorage, forwardedArgs };
+	return { jobs: Math.min(jobs, suites.length), storage: requestedStorage, shard: requestedShard === undefined ? undefined : parseShard(requestedShard), forwardedArgs };
+}
+
+/**
+ * Parses a `--shard` value of the form `<index>/<total>`, e.g. `1/2`. Shards take the suites in turn.
+ */
+function parseShard(value: string): IShard {
+	const match = /^(?<index>\d+)\/(?<total>\d+)$/.exec(value.trim());
+	const index = Number(match?.groups?.index);
+	const total = Number(match?.groups?.total);
+	if (!match || index < 1 || index > total || total > suites.length) {
+		throw new Error(`Invalid Agent Host E2E shard: ${value}. Expected <index>/<total> with 1 <= index <= total <= ${suites.length}, for example 1/2.`);
+	}
+	return { index, total };
 }
 
 async function prepareTestRuntime(): Promise<void> {
@@ -415,7 +446,7 @@ function suiteArguments(args: readonly string[], suite: ISuite): readonly string
 	return result;
 }
 
-function prepareSurfaceOutputs(): ReadonlyMap<string, string> {
+function prepareSurfaceOutputs(selectedSuites: readonly ISuite[]): ReadonlyMap<string, string> {
 	if (process.env['AGENT_HOST_RECORD_PROTOCOL_SURFACE'] !== '1') {
 		return new Map();
 	}
@@ -425,7 +456,7 @@ function prepareSurfaceOutputs(): ReadonlyMap<string, string> {
 	const extension = extname(combinedOutput);
 	const stem = basename(combinedOutput, extension);
 	const outputs = new Map<string, string>();
-	for (const suite of suites) {
+	for (const suite of selectedSuites) {
 		const output = join(dirname(combinedOutput), `${stem}-${suite.id}${extension}`);
 		rmSync(output, { force: true });
 		outputs.set(suite.id, output);
