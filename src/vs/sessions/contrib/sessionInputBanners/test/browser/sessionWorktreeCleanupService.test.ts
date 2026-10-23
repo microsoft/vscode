@@ -394,6 +394,23 @@ suite('SessionWorktreeCleanupService', () => {
 		})), [{ label: 'unavailable', sizeBytes: ByteSize.GB, state: 'eligible' }]);
 	});
 
+	test('retains an archived worktree measurement failure instead of treating it as removed storage', async () => {
+		const archived = createSession('archived', oldDate(), SessionStatus.Completed, true);
+		let fail = false;
+		const service = disposables.add(createService([archived], true, () => {
+			if (fail) {
+				throw new Error('Permission denied');
+			}
+			return ByteSize.GB;
+		}));
+		await service.getWorktrees(14);
+		fail = true;
+		await service.refresh();
+		assert.deepStrictEqual((await service.getWorktrees(14)).map(worktree => ({
+			id: worktree.session.sessionId, failed: worktree.measurementFailed, size: worktree.sizeBytes,
+		})), [{ id: 'archived', failed: true, size: undefined }]);
+	});
+
 	test('active, pinned, running, and recent sessions are not eligible', async () => {
 		const old = oldDate();
 		const eligible = createSession('eligible', old);

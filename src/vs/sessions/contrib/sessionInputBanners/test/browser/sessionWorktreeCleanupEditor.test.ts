@@ -110,6 +110,18 @@ suite('SessionWorktreeCleanupEditor', () => {
 		}
 	});
 
+	test('keeps calculating rows visible and hides finished unknown storage', async () => {
+		const { container } = await openEditor([
+			createWorktree('unavailable', '/repos/app', 'unavailable'),
+			{ ...createWorktree('failed', '/repos/app', 'unavailable'), measurementFailed: true },
+			{ ...createWorktree('pending', '/repos/app', 'unavailable'), isMeasuring: true },
+		]);
+		assert.deepStrictEqual([...container.querySelectorAll('.session-worktree-cleanup-row:not(.header)')].map(row => ({
+			title: row.querySelector('a')?.textContent,
+			storage: row.lastElementChild?.textContent,
+		})), [{ title: 'pending', storage: 'Calculating…' }]);
+	});
+
 	test('shows a text-only settings heading and no configure actions', () => {
 		const { container } = createEditor();
 
@@ -185,7 +197,6 @@ suite('SessionWorktreeCleanupEditor', () => {
 				{ title: 'recent', workspace: 'app', disabled: null, reason: '', storage: '100B' },
 				{ title: 'active', workspace: 'app', disabled: 'true', reason: 'Active session', storage: '100B' },
 				{ title: 'running', workspace: 'other', disabled: 'true', reason: 'Running', storage: '100B' },
-				{ title: 'unmeasured', workspace: 'other', disabled: 'true', reason: 'Couldn\'t measure storage — refresh to retry', storage: 'Unknown' },
 			],
 		});
 	});
@@ -282,7 +293,7 @@ suite('SessionWorktreeCleanupEditor', () => {
 	});
 
 	test('disables every protected cleanup state and never includes it in cleanup', async () => {
-		const states: ISessionWorktree['cleanupState'][] = ['active', 'running', 'needsInput', 'pinned', 'recent', 'archived', 'untitled', 'error', 'unavailable'];
+		const states: ISessionWorktree['cleanupState'][] = ['active', 'running', 'needsInput', 'pinned', 'recent', 'archived', 'untitled', 'error'];
 		const { container, cleaned } = await openEditor([
 			createWorktree('eligible', '/repos/app'),
 			...states.map(state => createWorktree(state, '/repos/app', state)),

@@ -52,6 +52,7 @@ export interface ISessionWorktree {
 	readonly session: ISession;
 	readonly sizeBytes: number | undefined;
 	readonly isMeasuring?: boolean;
+	readonly measurementFailed?: boolean;
 	readonly worktreeCount: number;
 	readonly cleanupState: SessionWorktreeCleanupState;
 }
@@ -244,13 +245,15 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 		return Promise.all(worktreeSessions.map((session, index) => limiter.queue(async () => {
 			const worktreeCount = this._countWorktrees(session);
 			let sizeBytes: number | undefined;
+			let measurementFailed = false;
 			try {
 				sizeBytes = await getDiskUsage.call(this.sessionsManagementService, session, this._measurementCancellation.token);
 			} catch (error) {
+				measurementFailed = true;
 				this.logService.warn(`[SessionWorktreeCleanupService] Failed to measure worktree for session ${session.sessionId}`, error);
 			}
 			scannedWorktrees += worktreeCount;
-			measured[index] = { session, sizeBytes, worktreeCount, isMeasuring: false };
+			measured[index] = { session, sizeBytes, worktreeCount, isMeasuring: false, measurementFailed };
 			onProgress({ scannedWorktrees, totalWorktrees, worktrees: [...measured] });
 			return measured[index];
 		})));
@@ -465,7 +468,7 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 	}
 
 	private _filterWorktrees(worktrees: readonly ISessionWorktree[]): readonly ISessionWorktree[] {
-		return worktrees.filter(worktree => worktree.isMeasuring || !worktree.session.isArchived.get() || (worktree.sizeBytes !== undefined && worktree.sizeBytes > 0));
+		return worktrees.filter(worktree => worktree.isMeasuring || worktree.measurementFailed || !worktree.session.isArchived.get() || (worktree.sizeBytes !== undefined && worktree.sizeBytes > 0));
 	}
 
 	async cleanupWorktrees(selected: readonly ISessionWorktreeCleanupCandidate[]): Promise<boolean> {

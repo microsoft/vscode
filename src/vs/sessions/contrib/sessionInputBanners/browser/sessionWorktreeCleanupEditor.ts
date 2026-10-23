@@ -299,7 +299,8 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		const cutoff = Date.now() - this.minimumAgeDays * 24 * 60 * 60 * 1000;
 		return this.worktrees.filter(worktree => {
 			const workspace = worktree.session.workspace.get();
-			return (!this.selectedWorkspace || (workspace && extUri.getComparisonKey(workspace.uri) === this.selectedWorkspace))
+			return (worktree.isMeasuring || worktree.sizeBytes !== undefined)
+				&& (!this.selectedWorkspace || (workspace && extUri.getComparisonKey(workspace.uri) === this.selectedWorkspace))
 				&& (this.minimumAgeDays === 0 || worktree.session.updatedAt.get().getTime() <= cutoff);
 		});
 	}
