@@ -164,7 +164,6 @@ export class ChatCustomizationMigrationNotice extends Disposable {
 				this.migrationHint.set(undefined, undefined);
 				return;
 			}
-			this.migrationHint.set(undefined, undefined);
 			void this.refresh(currentContext, cancelOnDispose(reader.store));
 		}));
 		this._register(autorun(reader => {

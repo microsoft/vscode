@@ -4,8 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILifecycleService, ShutdownReason } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
+import { TestLifecycleService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { SessionsProvidersService } from '../../browser/sessionsProvidersService.js';
 import { ISessionsProvider } from '../../common/sessionsProvider.js';
 
@@ -16,8 +20,16 @@ suite('SessionsProvidersService', () => {
 		return upcastPartial<ISessionsProvider>({ id, order });
 	}
 
+	function createService() {
+		const instantiationService = store.add(new TestInstantiationService());
+		const lifecycleService = store.add(new TestLifecycleService());
+		instantiationService.stub(ILifecycleService, lifecycleService);
+		const service = store.add(instantiationService.createInstance(SessionsProvidersService));
+		return { service, lifecycleService };
+	}
+
 	test('separates logical providers from routable environment backends', () => {
-		const service = store.add(new SessionsProvidersService());
+		const { service } = createService();
 		const cloud = provider('cloud');
 		const local = provider('local', -1);
 		const first = provider('environment-1');
@@ -39,7 +51,7 @@ suite('SessionsProvidersService', () => {
 	});
 
 	test('keeps early backends unavailable until their owner registers and gates them on its lifetime', () => {
-		const service = store.add(new SessionsProvidersService());
+		const { service } = createService();
 		const cloud = provider('cloud');
 		const backend = provider('environment');
 		const events: { added: string[]; removed: string[] }[] = [];
@@ -80,7 +92,7 @@ suite('SessionsProvidersService', () => {
 	});
 
 	test('does not resurrect a backend disposed before its owner registers', () => {
-		const service = store.add(new SessionsProvidersService());
+		const { service } = createService();
 		const registration = store.add(service.registerSessionBackend('cloud', provider('environment')));
 		registration.dispose();
 		store.add(service.registerProvider(provider('cloud')));
@@ -91,7 +103,7 @@ suite('SessionsProvidersService', () => {
 	});
 
 	test('rejects duplicate routing IDs and nested backend ownership', () => {
-		const service = store.add(new SessionsProvidersService());
+		const { service } = createService();
 		store.add(service.registerSessionBackend('cloud', provider('environment')));
 		assert.throws(() => service.registerProvider(provider('environment')), /already registered/);
 		assert.throws(() => service.registerSessionBackend('cloud', provider('environment')), /already registered/);
@@ -100,5 +112,84 @@ suite('SessionsProvidersService', () => {
 		store.add(service.registerProvider(provider('cloud')));
 		assert.throws(() => service.registerSessionBackend('other', provider('cloud')), /already registered/);
 		assert.throws(() => service.registerSessionBackend('same', provider('same')), /logical sessions provider/);
+	});
+
+	test('continues notifying when shutdown is vetoed', () => {
+		const { service, lifecycleService } = createService();
+		const events: { added: string[]; removed: string[] }[] = [];
+		store.add(service.onDidChangeProviders(event => events.push({
+			added: event.added.map(provider => provider.id),
+			removed: event.removed.map(provider => provider.id),
+		})));
+		const owner = store.add(service.registerProvider(provider('cloud')));
+		store.add(lifecycleService.onBeforeShutdown(event => event.veto(true, 'test')));
+		let vetoed = false;
+		lifecycleService.fireBeforeShutdown({
+			reason: ShutdownReason.RELOAD,
+			veto: value => { vetoed = value === true; },
+			finalVeto: () => { },
+		});
+		const backend = store.add(service.registerSessionBackend('cloud', provider('environment')));
+		backend.dispose();
+		owner.dispose();
+
+		assert.deepStrictEqual({ vetoed, events }, {
+			vetoed: true,
+			events: [
+				{ added: ['cloud'], removed: [] },
+				{ added: ['environment'], removed: [] },
+				{ added: [], removed: ['environment'] },
+				{ added: [], removed: ['cloud'] },
+			],
+		});
+	});
+
+	for (const reason of [ShutdownReason.CLOSE, ShutdownReason.QUIT, ShutdownReason.RELOAD, ShutdownReason.LOAD]) {
+		test(`removes all providers and backends without notifying during shutdown (reason: ${reason})`, () => {
+			const { service, lifecycleService } = createService();
+			const registrations = store.add(new DisposableStore());
+			registrations.add(service.registerProvider(provider('cloud')));
+			const ids = Array.from({ length: 125 }, (_, index) => `host-${index}`);
+			for (const id of ids) {
+				registrations.add(service.registerProvider(provider(id)));
+				registrations.add(service.registerSessionBackend('cloud', provider(`${id}-backend`)));
+			}
+			let notifications = 0;
+			store.add(service.onDidChangeProviders(() => notifications++));
+
+			lifecycleService.willShutdown = true;
+			lifecycleService.fireShutdown(reason);
+			registrations.clear();
+
+			assert.deepStrictEqual({
+				notifications,
+				providers: service.getProviders({ includeSessionBackends: true }),
+				routable: ids.some(id => service.getProvider(id) || service.getProvider(`${id}-backend`)),
+			}, { notifications: 0, providers: [], routable: false });
+		});
+	}
+
+	test('keeps late registrations routable without notifying after shutdown is committed', () => {
+		const { service, lifecycleService } = createService();
+		store.add(service.registerSessionBackend('cloud', provider('early-backend')));
+		let notifications = 0;
+		store.add(service.onDidChangeProviders(() => notifications++));
+		lifecycleService.willShutdown = true;
+
+		const owner = store.add(service.registerProvider(provider('cloud')));
+		const backend = store.add(service.registerSessionBackend('cloud', provider('late-backend')));
+		const registered = service.getProviders({ includeSessionBackends: true }).map(provider => provider.id);
+		const routable = service.getProvider('late-backend')?.id;
+		backend.dispose();
+		owner.dispose();
+
+		assert.deepStrictEqual({
+			notifications, registered, routable,
+			remaining: service.getProviders({ includeSessionBackends: true }),
+			unavailableBackend: service.getProvider('early-backend'),
+		}, {
+			notifications: 0, registered: ['cloud', 'early-backend', 'late-backend'], routable: 'late-backend',
+			remaining: [], unavailableBackend: undefined,
+		});
 	});
 });

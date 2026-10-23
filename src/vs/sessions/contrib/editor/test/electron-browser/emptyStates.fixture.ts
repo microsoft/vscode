@@ -26,40 +26,44 @@ import { IQuickInputService, IQuickPick, IQuickPickItem } from '../../../../../p
 import { QuickInputService } from '../../../../../platform/quickinput/browser/quickInputService.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IOutlineModelService } from '../../../../../editor/contrib/documentSymbols/browser/outlineModel.js';
-import { createBrowserWelcome } from '../../../../contrib/browserView/browser/browserWelcome.js';
-import { IChatWidgetService, IQuickChatService } from '../../../../contrib/chat/browser/chat.js';
-import { IExternalUriOpenerService } from '../../../../contrib/externalUriOpener/common/externalUriOpenerService.js';
-import { NEW_UNTITLED_FILE_COMMAND_ID } from '../../../../contrib/files/browser/fileConstants.js';
-import '../../../../contrib/search/browser/searchQuickAccess.contribution.js';
-import { IDecorationsService } from '../../../../services/decorations/common/decorations.js';
-import { ICustomEditorLabelService } from '../../../../services/editor/common/customEditorLabelService.js';
-import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
-import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
-import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
-import { IHistoryService } from '../../../../services/history/common/history.js';
-import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
-import { INotebookDocumentService } from '../../../../services/notebook/common/notebookDocumentService.js';
-import { IOutlineService } from '../../../../services/outline/browser/outline.js';
-import { IPathService } from '../../../../services/path/common/pathService.js';
-import { IFileQuery, ISearchComplete, ISearchService } from '../../../../services/search/common/search.js';
-import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
-import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
-import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureCondition } from '../fixtureUtils.js';
+import { BrowserEditor } from '../../../../../workbench/contrib/browserView/electron-browser/browserEditor.js';
+import '../../../../../workbench/contrib/browserView/electron-browser/features/browserNavigationFeatures.js';
+import '../../../../../workbench/contrib/browserView/electron-browser/features/browserWelcomeFeature.js';
+import { BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
+import { TestLayoutService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { IChatWidgetService, IQuickChatService } from '../../../../../workbench/contrib/chat/browser/chat.js';
+import { IExternalUriOpenerService } from '../../../../../workbench/contrib/externalUriOpener/common/externalUriOpenerService.js';
+import { NEW_UNTITLED_FILE_COMMAND_ID } from '../../../../../workbench/contrib/files/browser/fileConstants.js';
+import '../../../../../workbench/contrib/search/browser/searchQuickAccess.contribution.js';
+import { IDecorationsService } from '../../../../../workbench/services/decorations/common/decorations.js';
+import { ICustomEditorLabelService } from '../../../../../workbench/services/editor/common/customEditorLabelService.js';
+import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
+import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
+import { IFilesConfigurationService } from '../../../../../workbench/services/filesConfiguration/common/filesConfigurationService.js';
+import { IHistoryService } from '../../../../../workbench/services/history/common/history.js';
+import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
+import { INotebookDocumentService } from '../../../../../workbench/services/notebook/common/notebookDocumentService.js';
+import { IOutlineService } from '../../../../../workbench/services/outline/browser/outline.js';
+import { IPathService } from '../../../../../workbench/services/path/common/pathService.js';
+import { IFileQuery, ISearchComplete, ISearchService } from '../../../../../workbench/services/search/common/search.js';
+import { ITextFileService } from '../../../../../workbench/services/textfile/common/textfiles.js';
+import { IWorkingCopyService } from '../../../../../workbench/services/workingCopy/common/workingCopyService.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureCondition } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 
-// eslint-disable-next-line local/code-import-patterns
 import { Menus } from '../../../../../sessions/browser/menus.js';
-// eslint-disable-next-line local/code-import-patterns
 import { EmptyFileEditor } from '../../../../../sessions/contrib/editor/browser/emptyFileEditor.js';
-// eslint-disable-next-line local/code-import-patterns
 import '../../../../../sessions/contrib/editor/browser/emptyFileEditor.contribution.js';
-// eslint-disable-next-line local/code-import-patterns
 import { EmptyFileEditorInput } from '../../../../../sessions/contrib/editor/browser/emptyFileEditorInput.js';
-// eslint-disable-next-line local/code-import-patterns
 import { SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING } from '../../../../../sessions/common/sessionConfig.js';
-// eslint-disable-next-line local/code-import-patterns
-import { renderSessionsEmptyState } from '../../../../../sessions/browser/parts/sessionsEmptyState.js';
-// eslint-disable-next-line local/code-import-patterns
+import { ChangesEmptyState } from '../../../../../sessions/contrib/changes/browser/changesEmptyState.js';
+import '../../../../../sessions/contrib/editor/electron-browser/browserEmptyState.contribution.js';
+import { FixtureKeybindingService } from '../../../../../sessions/test/browser/addTabFixtureUtils.js';
+import { NEW_FILE_TAB_COMMAND_ID } from '../../../../../sessions/common/sessionCommands.js';
+import { OpenEditorCommandId } from '../../../../../workbench/contrib/searchEditor/browser/constants.js';
 import '../../../../../sessions/browser/parts/media/editorPart.css';
 
 const FIXTURE_WIDTH = 600;
@@ -89,8 +93,8 @@ function createMockEditorGroup(): IEditorGroup {
 	}();
 }
 
-function prepareContainer(container: HTMLElement): HTMLElement {
-	container.style.width = `${FIXTURE_WIDTH}px`;
+function prepareContainer(container: HTMLElement, width = FIXTURE_WIDTH): HTMLElement {
+	container.style.width = `${width}px`;
 	container.style.height = `${FIXTURE_HEIGHT}px`;
 	container.style.position = 'relative';
 	container.style.overflow = 'hidden';
@@ -99,6 +103,7 @@ function prepareContainer(container: HTMLElement): HTMLElement {
 	const editorPart = dom.append(container, dom.$('.part.editor'));
 	editorPart.style.width = '100%';
 	editorPart.style.height = '100%';
+	editorPart.style.backgroundColor = 'var(--vscode-editor-background)';
 	return editorPart;
 }
 
@@ -218,8 +223,8 @@ async function renderFilesEmptyState(context: ComponentFixtureContext, searchVal
 	editor.create(editorPart);
 	editor.layout(new dom.Dimension(FIXTURE_WIDTH, FIXTURE_HEIGHT));
 	await waitForFixtureCondition(
-		() => container.querySelectorAll('.empty-file-editor-actions .monaco-button').length === 1,
-		'Files empty-state fixture did not render the New File action',
+		() => container.querySelectorAll('.empty-file-editor-actions .sessions-add-tab-watermark-entry').length === 2,
+		'Files empty-state fixture did not render its action rows',
 	);
 
 	if (searchValue) {
@@ -251,7 +256,7 @@ async function renderFilesEmptyState(context: ComponentFixtureContext, searchVal
 			() => {
 				const widget = container.querySelector<HTMLElement>('.quick-input-widget.quick-input-widget-overlay');
 				const pickerFilter = widget?.querySelector<HTMLElement>('.quick-input-filter');
-				const anchor = container.querySelector<HTMLElement>('.empty-file-editor-search-input .monaco-inputbox');
+				const anchor = container.querySelector<HTMLElement>('.empty-file-editor-search .monaco-inputbox');
 				if (!widget || !pickerFilter || !anchor
 					|| container.querySelectorAll('.quick-input-list .monaco-list-row').length < 4
 					|| container.querySelector('.quick-input-list .monaco-list-row')?.classList.contains('focused') !== true) {
@@ -283,61 +288,89 @@ async function renderFilesEmptyState(context: ComponentFixtureContext, searchVal
 	}
 }
 
-function renderBrowserEmptyState({ container }: ComponentFixtureContext): void {
-	const browserRoot = dom.append(prepareContainer(container), dom.$('.browser-root'));
-	browserRoot.style.position = 'relative';
-	browserRoot.style.width = '100%';
-	browserRoot.style.height = '100%';
-
-	const browserContainerWrapper = dom.append(browserRoot, dom.$('.browser-container-wrapper'));
-	browserContainerWrapper.style.position = 'relative';
-	browserContainerWrapper.style.width = '100%';
-	browserContainerWrapper.style.height = '100%';
-
-	const browserContainer = dom.append(browserContainerWrapper, dom.$('.browser-container'));
-	browserContainer.style.position = 'absolute';
-	browserContainer.style.inset = '0';
-
-	const placeholderContents = dom.append(browserContainer, dom.$('.browser-placeholder-contents'));
-	placeholderContents.style.position = 'relative';
-	placeholderContents.style.width = '100%';
-	placeholderContents.style.height = '100%';
-	placeholderContents.appendChild(createBrowserWelcome('Browser', 'Use Add Element to Chat to reference UI elements in chat prompts.'));
+function createEmptyStateServices({ disposableStore, theme }: ComponentFixtureContext) {
+	return createEditorServices(disposableStore, {
+		colorTheme: theme,
+		additionalServices: reg => {
+			registerWorkbenchServices(reg);
+			reg.define(IMenuService, MenuService);
+			reg.define(IContextKeyService, ContextKeyService);
+			reg.define(ILayoutService, TestLayoutService);
+			reg.defineInstance(IPreferencesService, new class extends mock<IPreferencesService>() { }());
+			reg.defineInstance(IKeybindingService, new FixtureKeybindingService([
+				{ id: BrowserViewCommandId.FocusUrlInput, title: 'Open Address...', icon: Codicon.link, keybinding: KeyMod.CtrlCmd | KeyCode.KeyL },
+				{ id: BrowserViewCommandId.ShowHistory, title: 'History', icon: Codicon.history, keybinding: KeyMod.CtrlCmd | KeyCode.KeyY },
+				{ id: NEW_FILE_TAB_COMMAND_ID, title: 'Open Files', icon: Codicon.files, keybinding: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyE },
+				{ id: OpenEditorCommandId, title: 'Search in Files', icon: Codicon.search, keybinding: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyF },
+			]));
+		},
+	});
 }
 
-function renderChangesEmptyState({ container }: ComponentFixtureContext): void {
-	const editorPart = prepareContainer(container);
+function renderBrowserEmptyState(context: ComponentFixtureContext, width = FIXTURE_WIDTH, focusHistory = false): void {
+	const editorPart = prepareContainer(context.container, width);
+	const instantiationService = createEmptyStateServices(context);
+	const editor = context.disposableStore.add(instantiationService.createInstance(BrowserEditor, createMockEditorGroup()));
+	editor.create(editorPart);
+	editor.layout(new dom.Dimension(width, FIXTURE_HEIGHT));
+	if (focusHistory) {
+		const rows = editorPart.querySelectorAll<HTMLElement>('.sessions-browser-empty-state .sessions-add-tab-watermark-entry');
+		if (rows.length !== 2) {
+			throw new Error('Expected Open Address and History action rows');
+		}
+		context.focus(rows[1]);
+	}
+}
+
+function renderChangesEmptyState(context: ComponentFixtureContext, width = FIXTURE_WIDTH): void {
+	const editorPart = prepareContainer(context.container, width);
 	editorPart.style.display = 'flex';
 	editorPart.style.alignItems = 'center';
 	editorPart.style.justifyContent = 'center';
-	renderSessionsEmptyState(editorPart, 'Changes', 'No changed files');
+	context.disposableStore.add(createEmptyStateServices(context).createInstance(ChangesEmptyState, editorPart));
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/emptyStates/' }, {
 	Files: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['A Files empty state is centered horizontally and positioned above the vertical midpoint. It has a semibold "Files" title, the secondary text "Select a file from the Files view", only a standalone icon-free Search files by name input, and a New File button with a file-add icon as the secondary action. The idle search input has no visible outer Quick Pick shell.'],
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['Open File aligns vertically with the main empty panel first action. The Search files by name input sits above the buttons, followed by New File, with no repeated heading or description.'],
 		render: renderFilesEmptyState,
 	}),
 	FilesWithSearchResults: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		deferPaint: true,
 		virtualTime: { enabled: false },
-		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['A Files empty state is centered horizontally and positioned above the vertical midpoint. It has a semibold "Files" title and the secondary text "Select a file from the Files view". A native anchored Quick Pick overlays the idle search input in exactly the same position and renders its standard input, compact file result rows without item action buttons, background, spacing, typography, and first-result selection feedback. The surface covers rather than moves the New File button behind it.'],
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['A native anchored Quick Pick overlays the centered file search field without moving it. Compact file result rows cover rather than move the Open File and New File action rows below.'],
 		render: context => renderFilesEmptyState(context, 'app'),
 	}),
 	Browser: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['A centered Browser empty state has a semibold "Browser" title directly above a secondary two-line description, with no globe icon.'],
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The address/search control remains in the normal full-width browser toolbar at the top. Open Address aligns vertically with the main empty panel first action, followed by History, without a repeated Browser heading or globe illustration.'],
 		render: renderBrowserEmptyState,
+	}),
+	BrowserNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderBrowserEmptyState(context, 240),
+	}),
+	BrowserHistoryFocused: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['Both Browser action rows and shortcut chips are fully visible, including the entire focus outline around the bottom History row.'],
+		render: context => renderBrowserEmptyState(context, FIXTURE_WIDTH, true),
 	}),
 	Changes: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['A centered Changes empty state has a semibold "Changes" title directly above the secondary text "No changed files", with no icon.'],
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['Open Files aligns vertically with the main empty panel first action. The No changed files status sits above it and Search in Files below it, without a repeated Changes heading.'],
 		render: renderChangesEmptyState,
+	}),
+	ChangesNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderChangesEmptyState(context, 240),
 	}),
 });

@@ -7,6 +7,7 @@ import assert from 'assert';
 import { $ } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../base/common/async.js';
+import { IAction, toAction } from '../../../base/common/actions.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
@@ -38,6 +39,7 @@ import { AgentWorkbenchLayout } from '../../browser/workbench.js';
 import { IChatSessionHistoryStatus } from '../../../platform/chat/common/chatSessionHistory.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../browser/parts/chatView.js';
 import { ChatGroupsView } from '../../browser/parts/chatGroupsView.js';
+import { ChatGroupView } from '../../browser/parts/chatGroupView.js';
 import { GRID_GAP_SASH_CLASS } from '../../browser/parts/gridGap.js';
 import { SessionDropTarget } from '../../browser/parts/sessionDropTarget.js';
 import { DraggedSessionIdentifier, SessionsDataTransfers } from '../../browser/dnd.js';
@@ -404,6 +406,22 @@ suite('Sessions - ChatGroupsView', () => {
 		assert.deepStrictEqual([before, view['_mainChatResource']], [true, undefined]);
 	});
 
+	test('clearing a chat group releases its activity action observation', async () => {
+		const { instantiationService, configurationService } = createHarness(disposables, true, true);
+		await configurationService.setUserConfiguration(SESSION_ACTIVITY_BAR_SETTING, true);
+		const group = disposables.add(instantiationService.createInstance(ChatGroupView));
+		let observations = 0;
+		const actions = derived<readonly IAction[]>(reader => {
+			observations++;
+			reader.store.add(toDisposable(() => observations--));
+			return [toAction({ id: 'test.chatAction', label: 'Chat Action', run: () => { } })];
+		});
+		group['_sessionActivityBar'].setChatActions(actions);
+		const before = observations;
+		group.setContext(undefined);
+		assert.deepStrictEqual({ before, after: observations }, { before: 1, after: 0 });
+	});
+
 	test('releases the main chat resource observable on disposal', () => {
 		const { view } = createHarness(disposables);
 		view.setSession(new TestActiveSession([createChat('main')]), options);
@@ -721,6 +739,28 @@ suite('Sessions - ChatGroupsView', () => {
 				sashes: 1,
 			},
 		});
+	});
+
+	test('expands a collapsed group when its chat becomes active without taking focus', async () => {
+		const { sessionsService, view } = createHarness(disposables);
+		const main = createChat('main');
+		const secondary = createChat('secondary');
+		const session = new TestActiveSession([main, secondary]);
+		sessionsService.activeSession.set(session, undefined);
+		view.setSession(session, options);
+		view.layout(800, 600, 0, 0, 4);
+		view.splitChatToSide(secondary.resource);
+		await timeout(0);
+
+		const grid = view['_grid']!;
+		const [mainGroup, secondaryGroup] = view['_groups'].map(group => group.view);
+		const collapseTolerance = 8;
+		const isMainCollapsed = () => grid.getViewSize(mainGroup).width <= mainGroup.minimumWidth + collapseTolerance;
+		grid.resizeView(secondaryGroup, { width: 800, height: 600 });
+		const collapsed = isMainCollapsed();
+		await sessionsService.openChat(session, main.resource);
+
+		assert.deepStrictEqual({ collapsed, mainCollapsed: isMainCollapsed() }, { collapsed: true, mainCollapsed: false });
 	});
 
 	test('uses split-chat gaps in both presentations and removes them at zero-gap density', async () => {
@@ -2283,28 +2323,123 @@ suite('Sessions - ChatGroupsView', () => {
 		});
 	});
 
-	test('a failed live snapshot stays quiet until composition and retries content without another connection', async () => {
+	for (const interactivity of [ChatInteractivity.DraftOnly, ChatInteractivity.Full]) {
+		test(`a failed live snapshot reveals recovery on input and keeps progress visible through retries (${interactivity})`, async () => {
+			const { chatViewFactory, sessionsProvidersService, view } = createHarness(disposables);
+			const provider = new TestAgentHostProvider();
+			sessionsProvidersService.provider = provider;
+			const chat = createChat('main');
+			chat.interactivity.set(interactivity, undefined);
+			const session = new TestActiveSession([chat], undefined, true, provider.id, { kind: 'connected' });
+			view.setSession(session, options);
+			const current = chatViewFactory.views.at(-1)!;
+			current.hasVisibleTranscriptContent.set(true, undefined);
+			current.isInputBlocked.set(true, undefined);
+			let retries = 0;
+			let pending = new DeferredPromise<boolean>();
+			const failure: IChatSessionHistoryStatus = {
+				kind: 'live', message: 'Couldn\'t reopen this conversation.',
+				action: {
+					label: 'Retry', run: async () => {
+						retries++;
+						current.historyStatus.set({ kind: 'live', isLoading: true, message: 'Reopening conversation...' }, undefined);
+						const success = await pending.p;
+						transaction(tx => {
+							current.historyStatus.set(success ? undefined : failure, tx);
+							if (success) {
+								current.isInputBlocked.set(false, tx);
+								chat.interactivity.set(ChatInteractivity.Full, tx);
+							}
+						});
+					},
+				},
+			};
+			current.historyStatus.set(failure, undefined);
+			const quiet = readBanner(view).visible;
+			current.onInput?.();
+			const afterInput = readBanner(view);
+			const link = view.element.querySelector<HTMLElement>('.session-readonly-banner-action:not([hidden]) .monaco-link')!;
+			link.focus();
+			link.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+			link.click();
+			const reopening = {
+				banner: readBanner(view),
+				progressIcon: !!view.element.querySelector('.session-readonly-banner-icon .codicon-sync'),
+				announcement: view.element.querySelector('.session-readonly-banner-announcement')?.textContent,
+				blocked: current.isInputBlocked.get(),
+			};
+			await pending.complete(false);
+			await timeout(0);
+			current.onInput?.();
+			const failedAgain = readBanner(view);
+			pending = new DeferredPromise<boolean>();
+			view.element.querySelector<HTMLElement>('.session-readonly-banner-action:not([hidden]) .monaco-link')!.click();
+			await pending.complete(true);
+			await timeout(0);
+			assert.deepStrictEqual({
+				quiet, afterInput, reopening, failedAgain, ready: readBanner(view).visible,
+				blocked: current.isInputBlocked.get(), retries, connects: provider.connectCalls,
+			}, {
+				quiet: false, afterInput: { visible: true, message: failure.message, action: 'Retry' },
+				reopening: {
+					banner: { visible: true, message: 'Reopening conversation...', action: undefined },
+					progressIcon: true, announcement: 'Reopening conversation...', blocked: true,
+				},
+				failedAgain: { visible: true, message: failure.message, action: 'Retry' },
+				ready: false, blocked: false, retries: 2, connects: 0,
+			});
+		});
+	}
+
+	test('remembers composition on a connected blocked chat before its live load status arrives', () => {
+		const { chatViewFactory, sessionsProvidersService, view } = createHarness(disposables);
+		const provider = new TestAgentHostProvider();
+		sessionsProvidersService.provider = provider;
+		const chat = createChat('main');
+		const session = new TestActiveSession([chat], undefined, true, provider.id, { kind: 'connected' });
+		view.setSession(session, options);
+		const current = chatViewFactory.views.at(-1)!;
+		current.hasVisibleTranscriptContent.set(true, undefined);
+		current.isInputBlocked.set(true, undefined);
+		current.onInput?.();
+		const beforeStatus = readBanner(view).visible;
+		current.historyStatus.set({
+			kind: 'live', message: 'Couldn\'t reopen this conversation.',
+			action: { label: 'Retry', run: async () => { } },
+		}, undefined);
+
+		assert.deepStrictEqual({ beforeStatus, failed: readBanner(view), connects: provider.connectCalls }, {
+			beforeStatus: false,
+			failed: { visible: true, message: 'Couldn\'t reopen this conversation.', action: 'Retry' },
+			connects: 0,
+		});
+	});
+
+	test('connection feedback hands off to conversation recovery after connecting', () => {
 		const { chatViewFactory, sessionsProvidersService, view } = createHarness(disposables);
 		const provider = new TestAgentHostProvider();
 		sessionsProvidersService.provider = provider;
 		const chat = createChat('main');
 		chat.interactivity.set(ChatInteractivity.DraftOnly, undefined);
-		const session = new TestActiveSession([chat], undefined, true, provider.id, { kind: 'connected' });
+		const session = new TestActiveSession([chat], undefined, true, provider.id, { kind: 'connecting' });
 		view.setSession(session, options);
 		const current = chatViewFactory.views.at(-1)!;
 		current.hasVisibleTranscriptContent.set(true, undefined);
-		let retries = 0;
-		current.historyStatus.set({
-			kind: 'live', message: 'Live content could not be loaded.',
-			action: { label: 'Retry', run: async () => { retries++; } },
-		}, undefined);
-		const quiet = readBanner(view).visible;
+		current.isInputBlocked.set(true, undefined);
 		current.onInput?.();
-		const afterInput = readBanner(view);
-		view.element.querySelector<HTMLElement>('.session-readonly-banner-action:not([hidden]) .monaco-link')!.click();
-		await timeout(0);
-		assert.deepStrictEqual({ quiet, afterInput, retries, connects: provider.connectCalls }, {
-			quiet: false, afterInput: { visible: true, message: 'Live content could not be loaded.', action: 'Retry' }, retries: 1, connects: 0,
+		const connecting = readBanner(view);
+		transaction(tx => {
+			session.remoteConnectionStatus?.set({ kind: 'connected' }, tx);
+			chat.interactivity.set(ChatInteractivity.Full, tx);
+			current.historyStatus.set({
+				kind: 'live', message: 'Couldn\'t reopen this conversation.',
+				action: { label: 'Retry', run: async () => { } },
+			}, tx);
+		});
+		assert.deepStrictEqual({ connecting, failed: readBanner(view), connects: provider.connectCalls }, {
+			connecting: { visible: true, message: 'Waiting for agent host connection...', action: undefined },
+			failed: { visible: true, message: 'Couldn\'t reopen this conversation.', action: 'Retry' },
+			connects: 0,
 		});
 	});
 

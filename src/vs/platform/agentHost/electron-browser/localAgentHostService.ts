@@ -61,6 +61,7 @@ import {
 	IAgentCustomizationInstallationReview,
 	IAgentCustomizationMarketplaceSearchRequest,
 	IAgentCustomizationMarketplaceSearchResult,
+	type IAgentExtensionInventory,
 	IAgentHostInspectInfo,
 	type IAgentHostDebugLogsArtifact,
 	IAgentHostManagementService,
@@ -593,6 +594,14 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._getManagementService().uninstallPlugin(provider, request, session, chat);
 	}
 
+	listAgentExtensions(session?: URI, chat?: URI): Promise<IAgentExtensionInventory> {
+		return this._getManagementService().listAgentExtensions(session, chat);
+	}
+
+	setAgentExtensionEnabled(extensionId: string, enabled: boolean, session?: URI, chat?: URI): Promise<void> {
+		return this._getManagementService().setAgentExtensionEnabled(extensionId, enabled, session, chat);
+	}
+
 	listSessionCanvases(session: URI, chat: URI): Promise<AgentCanvasDefinitionSnapshot> {
 		return this._getManagementService().listSessionCanvases(session, chat);
 	}
@@ -821,6 +830,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	getMissionControlEnvironmentId(): Promise<string | undefined> {
 		return this._getManagementService().getMissionControlEnvironmentId();
+	}
+
+	getMissionControlEnvironmentName(): Promise<string | undefined> {
+		return this._getManagementService().getMissionControlEnvironmentName();
 	}
 
 }

@@ -1255,6 +1255,9 @@
     "effort": "medium",
     "summary": "auto"
   },
+  "text": {
+    "verbosity": "medium"
+  },
   "store": false,
   "stream": true,
   "include": [

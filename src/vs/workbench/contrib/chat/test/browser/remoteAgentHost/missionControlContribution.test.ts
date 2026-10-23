@@ -16,8 +16,9 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/timeTrave
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostService, IMissionControlOptions } from '../../../../../../platform/agentHost/common/agentService.js';
 import { CloudSandboxEarlyPreparationSettingId, ICloudSandboxDraftPreparationService } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
-import { AgentHostRemoteConnectionsBackend, AgentHostRemoteConnectionsSettingId } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { AgentHostDefaultCloneDirectorySettingId, AgentHostRemoteConnectionsBackend, AgentHostRemoteConnectionsSettingId } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IConfigurationChangeEvent, IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationModelParser } from '../../../../../../platform/configuration/common/configurationModels.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../../platform/configuration/common/configurationRegistry.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -34,12 +35,15 @@ import { Registry } from '../../../../../../platform/registry/common/platform.js
 import { IWorkspaceContextService, toWorkspaceFolder, Workspace } from '../../../../../../platform/workspace/common/workspace.js';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { LOCAL_MACHINE_SCOPES } from '../../../../../services/configuration/common/configuration.js';
 import '../../../browser/remoteAgentHost/remoteAgentHost.contribution.js';
 import { MissionControlSharingService } from '../../../browser/remoteAgentHost/missionControlSharingService.js';
 import { CloudSandboxDraftPreparationService } from '../../../browser/remoteAgentHost/cloudSandboxDraftPreparationService.js';
 
 const remoteControlPolicyOverrideSetting = 'chat.agentHost.experimentalMissionControl.ignoreRemoteControlPolicy';
+const disableRepositoryMetadataSetting = 'chat.agentHost.experimentalMissionControl.disableRepositoryMetadata';
 const localCredentialSetting = 'chat.agentHost.experimentalMissionControl.useLocalCredentials';
+const gitDefaultCloneDirectorySetting = 'git.defaultCloneDirectory';
 const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
 const remoteConnectionsSetting = configurationProperties[AgentHostRemoteConnectionsSettingId];
 const remoteControlPolicyOverrideSettingRegistered = configurationProperties[remoteControlPolicyOverrideSetting] !== undefined;
@@ -105,7 +109,7 @@ suite('Mission Control sharing service', () => {
 		windows?: boolean;
 		userHome?: URI;
 		localSetting?: string;
-		localSettingConfig?: IConfigurationValue<boolean>;
+		localSettingConfig?: IConfigurationValue<boolean | string | null>;
 	} = {}) {
 		const instantiation = store.add(new TestInstantiationService());
 		const configuration = options.configuration ?? new TestConfigurationService({ [AgentHostRemoteConnectionsSettingId]: options.backend ?? 'githubEnvironment', ...removedSettings });
@@ -199,6 +203,59 @@ suite('Mission Control sharing service', () => {
 		});
 	}
 
+	test('renaming while off persists the actual registration name without enabling sharing', () => runWithFakedTimers({}, async () => {
+		const first = fixture();
+		await first.sharing.setEnvironmentName('  My workstation  ');
+		await timeout(0);
+		const disabledCalls = [...first.calls];
+		const restored = fixture({ storage: first.storage });
+		await timeout(0);
+		await restored.sharing.setEnabled(true);
+		assert.deepStrictEqual({
+			disabledCalls,
+			name: restored.sharing.environmentName.get(),
+			options: restored.calls.map(call => call.options),
+		}, { disabledCalls: [], name: 'My workstation', options: [{ ...expectedOptions, name: 'My workstation' }] });
+	}));
+
+	test('renaming an enabled environment withdraws and registers the new name while preserving sharing', () => runWithFakedTimers({}, async () => {
+		const { sharing, calls } = fixture();
+		await sharing.setEnabled(true);
+		await sharing.setEnvironmentName('New shared name');
+		await timeout(0);
+		assert.deepStrictEqual({ calls, state: sharing.state.get() }, {
+			calls: [
+				{ options: expectedOptions, withdrawingAccountId: undefined },
+				{ options: undefined, withdrawingAccountId: 'account' },
+				{ options: { ...expectedOptions, name: 'New shared name' }, withdrawingAccountId: undefined },
+			],
+			state: 'enabled',
+		});
+	}));
+
+	test('rejects blank and control-character names before changing persistence or registration', () => runWithFakedTimers({}, async () => {
+		const { sharing, calls } = fixture();
+		for (const name of ['', '  ', 'bad\nname', 'bad\u0000name']) {
+			await assert.rejects(sharing.setEnvironmentName(name), /without control characters/);
+		}
+		assert.deepStrictEqual({ calls, name: sharing.environmentName.get(), state: sharing.state.get() }, {
+			calls: [], name: undefined, state: 'disabled',
+		});
+	}));
+
+	test('a rename registration failure is reported and leaves sharing visibly disabled', () => runWithFakedTimers({}, async () => {
+		const { sharing } = fixture({
+			configure: async options => {
+				if (options?.name === 'Failing name') {
+					throw new Error('Rename registration failed');
+				}
+			},
+		});
+		await sharing.setEnabled(true);
+		await assert.rejects(sharing.setEnvironmentName('Failing name'), /Rename registration failed/);
+		assert.strictEqual(sharing.state.get(), 'disabled');
+	}));
+
 	test('registers a preview backend and default-off local credential setting without removed enablement settings', () => {
 		assert.deepStrictEqual({
 			removed: registeredMissionControlSettings,
@@ -225,9 +282,113 @@ suite('Mission Control sharing service', () => {
 		}));
 	}
 
+	test('registers the default clone directory as an untagged text setting excluded from settings sync', () => {
+		const setting = configurationProperties[AgentHostDefaultCloneDirectorySettingId];
+		assert.deepStrictEqual({
+			type: setting.type, default: setting.default, scope: setting.scope, restricted: setting.restricted, ignoreSync: setting.ignoreSync, tags: setting.tags,
+		}, { type: 'string', default: '', scope: ConfigurationScope.APPLICATION_MACHINE, restricted: true, ignoreSync: true, tags: undefined });
+	});
+
+	test('retains the local clone directory when remote-window scopes filter machine settings', () => runWithFakedTimers({}, async () => {
+		const local = new ConfigurationModelParser('local-settings', new NullLogService());
+		local.parseRaw({ [AgentHostDefaultCloneDirectorySettingId]: '~/agents' }, { scopes: LOCAL_MACHINE_SCOPES });
+		const { calls, sharing } = fixture({
+			localSetting: AgentHostDefaultCloneDirectorySettingId,
+			localSettingConfig: { userLocalValue: local.configurationModel.inspect<string>(AgentHostDefaultCloneDirectorySettingId).value },
+		});
+		await sharing.setEnabled(true);
+		await timeout(0);
+		assert.deepStrictEqual({
+			filteredValue: local.configurationModel.getValue(AgentHostDefaultCloneDirectorySettingId),
+			calls,
+		}, {
+			filteredValue: undefined,
+			calls: [{ options: { ...expectedOptions, cloneRoot: '~/agents' }, withdrawingAccountId: undefined }],
+		});
+	}));
+
+	for (const setting of [AgentHostDefaultCloneDirectorySettingId, gitDefaultCloneDirectorySetting]) {
+		for (const scenario of [
+			{ name: 'local user path', config: { userLocalValue: '~/code' }, cloneRoot: '~/code' },
+			{ name: 'application path', config: { applicationValue: '~/code' }, cloneRoot: '~/code' },
+			{ name: 'empty local value overrides application path', config: { applicationValue: '~/code', userLocalValue: '' }, cloneRoot: undefined },
+			{ name: 'null local value overrides application path', config: { applicationValue: '~/code', userLocalValue: null }, cloneRoot: undefined },
+			{ name: 'null application value', config: { applicationValue: null }, cloneRoot: undefined },
+			{ name: 'remote user path', config: { userRemoteValue: '~/code' }, cloneRoot: undefined },
+			{ name: 'workspace path', config: { workspaceValue: '~/code' }, cloneRoot: undefined },
+			{ name: 'workspace folder path', config: { workspaceFolderValue: '~/code' }, cloneRoot: undefined },
+		]) {
+			test(`uses only local ${setting} settings: ${scenario.name}`, () => runWithFakedTimers({}, async () => {
+				const { calls, sharing } = fixture({ localSetting: setting, localSettingConfig: scenario.config });
+				await sharing.setEnabled(true);
+				await timeout(0);
+				assert.deepStrictEqual(calls, [{
+					options: { ...expectedOptions, ...(scenario.cloneRoot ? { cloneRoot: scenario.cloneRoot } : {}) }, withdrawingAccountId: undefined,
+				}]);
+			}));
+		}
+
+		test(`changing ${setting} does not enable sharing`, () => runWithFakedTimers({}, async () => {
+			const { calls, configuration, sharing } = fixture();
+			await configuration.setUserConfiguration(setting, '~/code');
+			configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+				override affectsConfiguration(section: string) { return section === setting; }
+			}());
+			await timeout(0);
+			assert.deepStrictEqual({ calls, state: sharing.state.get() }, { calls: [], state: 'disabled' });
+		}));
+	}
+
+	for (const scenario of [
+		{ name: 'Agent Host overrides Git', host: '~/agents', git: '~/git', cloneRoot: '~/agents' },
+		{ name: 'empty Agent Host falls back to Git', host: '', git: '~/git', cloneRoot: '~/git' },
+		{ name: 'null Agent Host falls back to Git', host: null, git: '~/git', cloneRoot: '~/git' },
+		{ name: 'empty settings use home', host: '', git: '', cloneRoot: undefined },
+		{ name: 'null settings use home', host: null, git: null, cloneRoot: undefined },
+	]) {
+		test(`clone directory precedence: ${scenario.name}`, () => runWithFakedTimers({}, async () => {
+			const { calls, configuration, sharing } = fixture();
+			await configuration.setUserConfiguration(AgentHostDefaultCloneDirectorySettingId, scenario.host);
+			await configuration.setUserConfiguration(gitDefaultCloneDirectorySetting, scenario.git);
+			await sharing.setEnabled(true);
+			await timeout(0);
+			assert.deepStrictEqual(calls, [{
+				options: { ...expectedOptions, ...(scenario.cloneRoot ? { cloneRoot: scenario.cloneRoot } : {}) }, withdrawingAccountId: undefined,
+			}]);
+		}));
+	}
+
+	test('updates the clone root without withdrawing the registration and restores the default when cleared', () => runWithFakedTimers({}, async () => {
+		const { calls, configuration, sharing } = fixture();
+		await sharing.setEnabled(true);
+		await timeout(0);
+		for (const [setting, value] of [
+			[gitDefaultCloneDirectorySetting, '~/code'],
+			[AgentHostDefaultCloneDirectorySettingId, '~/agents'],
+			[gitDefaultCloneDirectorySetting, '~/new-code'],
+			[AgentHostDefaultCloneDirectorySettingId, ''],
+			[gitDefaultCloneDirectorySetting, null],
+		] as const) {
+			await configuration.setUserConfiguration(setting, value);
+			configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+				override affectsConfiguration(section: string) { return section === setting; }
+			}());
+			await timeout(0);
+		}
+		assert.deepStrictEqual(calls, [
+			{ options: expectedOptions, withdrawingAccountId: undefined },
+			{ options: { ...expectedOptions, cloneRoot: '~/code' }, withdrawingAccountId: undefined },
+			{ options: { ...expectedOptions, cloneRoot: '~/agents' }, withdrawingAccountId: undefined },
+			{ options: { ...expectedOptions, cloneRoot: '~/agents' }, withdrawingAccountId: undefined },
+			{ options: { ...expectedOptions, cloneRoot: '~/new-code' }, withdrawingAccountId: undefined },
+			{ options: expectedOptions, withdrawingAccountId: undefined },
+		]);
+	}));
+
 	for (const [setting, option] of [
 		[localCredentialSetting, 'useLocalCredentials'],
 		[remoteControlPolicyOverrideSetting, 'ignoreRemoteControlPolicy'],
+		[disableRepositoryMetadataSetting, 'disableRepositoryMetadata'],
 	] as const) {
 		for (const scenario of [
 			{ name: 'local user opt-in in Insiders', config: { value: false, userLocalValue: true }, enabled: true },
@@ -249,7 +410,7 @@ suite('Mission Control sharing service', () => {
 			}));
 		}
 
-		test(`withdraws the previous registration when ${option} changes and reconfigures`, () => runWithFakedTimers({}, async () => {
+		test(`reconfigures when ${option} changes`, () => runWithFakedTimers({}, async () => {
 			const { calls, configuration, sharing } = fixture();
 			await sharing.setEnabled(true);
 			await timeout(0);
@@ -262,9 +423,9 @@ suite('Mission Control sharing service', () => {
 			}
 			assert.deepStrictEqual(calls, [
 				{ options: expectedOptions, withdrawingAccountId: undefined },
-				{ options: undefined, withdrawingAccountId: 'account' },
+				...(option === 'disableRepositoryMetadata' ? [] : [{ options: undefined, withdrawingAccountId: 'account' }]),
 				{ options: { ...expectedOptions, [option]: true }, withdrawingAccountId: undefined },
-				{ options: undefined, withdrawingAccountId: 'account' },
+				...(option === 'disableRepositoryMetadata' ? [] : [{ options: undefined, withdrawingAccountId: 'account' }]),
 				{ options: expectedOptions, withdrawingAccountId: undefined },
 			]);
 		}));
