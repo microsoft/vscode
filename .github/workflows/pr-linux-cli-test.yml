@@ -34,7 +34,7 @@ jobs:
     # Skip this job rather than the calling job: a skipped job still reports
     # "<caller> / <job name>", which satisfies required status checks.
     if: ${{ inputs.affected }}
-    runs-on: ubuntu-24.04
+    runs-on: vscode-large-runners-ubuntu-8-core
     env:
       RUSTUP_TOOLCHAIN: ${{ inputs.rustup_toolchain }}
     steps:
