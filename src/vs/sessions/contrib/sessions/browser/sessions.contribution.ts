@@ -111,8 +111,8 @@ export const sessionsConfiguration = {
 		[SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING]: {
 			type: 'boolean',
 			tags: ['experimental', 'advanced'],
-			description: localize('sessions.list.externalApplicationBadge.showFrom', "Controls whether session application badges include the word 'From'."),
-			default: true,
+			description: localize('sessions.list.externalApplicationBadgeShowFrom', "Controls whether session application badges include the word 'From'."),
+			default: false,
 			experiment: { mode: 'auto' }
 		},
 		[SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING]: {
