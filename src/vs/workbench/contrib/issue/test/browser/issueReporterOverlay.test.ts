@@ -269,6 +269,39 @@ suite('IssueReporterOverlay', () => {
 		assert.deepStrictEqual({ dirty: overlay.hasUnsavedChanges(), closeVisible: overlay.getPanel().querySelector<HTMLElement>('.wizard-close-btn')?.style.display }, { dirty: true, closeVisible: 'none' });
 	});
 
+	for (const prefilled of [false, true]) {
+		test(`protects only edited text or attachments in a ${prefilled ? 'prefilled' : 'blank'} report`, () => {
+			const title = prefilled ? 'Initial title' : '';
+			const description = prefilled ? 'Initial description' : '';
+			const { overlay, container, setText, files, completeImport } = createReporter({ issueTitle: title, issueBody: description });
+			const dirty = [overlay.hasUnsavedChanges()];
+			overlay.updateModel({ versionInfo: { vscodeVersion: 'Loaded version', os: 'Loaded OS' } });
+			diagnosticControls(container, 'includeSystemInfo').checkbox.click();
+			dirty.push(overlay.hasUnsavedChanges());
+			overlay.setGeneratedTitle(`${title} edited`);
+			dirty.push(overlay.hasUnsavedChanges());
+			overlay.setGeneratedTitle(title);
+			dirty.push(overlay.hasUnsavedChanges());
+			setText(`${description} edited`);
+			dirty.push(overlay.hasUnsavedChanges());
+			setText(description);
+			dirty.push(overlay.hasUnsavedChanges());
+			paste(files, [new File(['file'], 'bundle.zip', { type: 'application/zip' })]);
+			dirty.push(overlay.hasUnsavedChanges());
+			completeImport(attachment);
+			dirty.push(overlay.hasUnsavedChanges());
+			files.querySelector<HTMLElement>('.wizard-screenshot-delete')!.click();
+			dirty.push(overlay.hasUnsavedChanges());
+			assert.deepStrictEqual(dirty, [false, false, true, false, true, false, true, true, false]);
+		});
+	}
+
+	test('does not mark an untouched prefill dirty solely because preview is preparing', () => {
+		const { overlay } = createReporter();
+		overlay.setUploading(true);
+		assert.deepStrictEqual({ pending: overlay.hasPendingOperations(), dirty: overlay.hasUnsavedChanges() }, { pending: true, dirty: false });
+	});
+
 	test('preserves native selection, ordinary paste and undo', () => {
 		const { editor, setSelection } = createReporter({ issueBody: 'before selected after' });
 		setSelection(7, 15);
@@ -947,7 +980,8 @@ suite('IssueReporterOverlay', () => {
 	});
 
 	test('source changes retain the product destination and repository changes invalidate previews', async () => {
-		const { overlay, container, data, preview, selectRepository } = createReporter({ additionalRepositories: ['owner/second', 'team/third'] });
+		const { overlay, container, data, preview, selectRepository, setText } = createReporter({ additionalRepositories: ['owner/second', 'team/third'] });
+		setText('User-edited report');
 		await selectRepository('owner/second');
 		container.querySelector<HTMLElement>('[data-source="marketplace"]')!.click();
 		const marketplace = resolveIssueReporterTarget(data, product)?.url;
@@ -991,6 +1025,25 @@ suite('IssueReporterOverlay', () => {
 		writeTab.click();
 		assert.deepStrictEqual({ text: editor.value, draft: data.issueBody, title: data.issueTitle, selection: [editor.selectionStart, editor.selectionEnd], rendered }, {
 			text: 'User draft\n### Extension template', draft: 'User draft\n### Extension template', title: 'Repository selection', selection: [2, 6], rendered: 'Extension template',
+		});
+	});
+
+	test('does not treat an automatically supplied extension template as a user edit', async () => {
+		const pending = new DeferredPromise<IssueReporterData | undefined>();
+		const extension = { id: 'publisher.extension', name: 'extension', displayName: 'Extension', publisher: 'publisher', version: '1', isTheme: false, isBuiltin: false, bugsUrl: 'https://github.com/publisher/extension/issues', repositoryUrl: undefined };
+		const { overlay, container, data, editor, setText } = createReporter({ issueTitle: '', issueBody: '', enabledExtensions: [extension] }, { resolveExtensionIssueData: () => pending.p });
+		container.querySelector<HTMLElement>('[data-source="extension"]')!.click();
+		const select = container.querySelector<HTMLSelectElement>('.wizard-extension-field select')!;
+		select.selectedIndex = 1;
+		select.dispatchEvent(new Event('change', { bubbles: true }));
+		await pending.complete({ ...data, issueTitle: 'Extension title', issueBody: 'Extension template' });
+		await timeout(0);
+		const automatic = { title: data.issueTitle, description: editor.value, dirty: overlay.hasUnsavedChanges() };
+		setText('User explanation');
+		const edited = overlay.hasUnsavedChanges();
+		setText('Extension template');
+		assert.deepStrictEqual({ automatic, edited, restored: overlay.hasUnsavedChanges() }, {
+			automatic: { title: 'Extension title', description: 'Extension template', dirty: false }, edited: true, restored: false,
 		});
 	});
 

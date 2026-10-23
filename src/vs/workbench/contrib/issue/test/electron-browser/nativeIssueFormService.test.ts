@@ -45,7 +45,7 @@ import { IUpdateService, StateType } from '../../../../../platform/update/common
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IUntypedEditorInput } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
-import { AuxiliaryWindowMode, IAuxiliaryWindow, IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from '../../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
+import { AuxiliaryWindowMode, BeforeAuxiliaryWindowUnloadEvent, IAuxiliaryWindow, IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from '../../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService, PreferredGroup } from '../../../../services/editor/common/editorService.js';
 import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
@@ -74,27 +74,27 @@ class TestNativeIssueFormService extends NativeIssueFormService {
 }
 
 class TestAuxiliaryWindow extends Disposable implements IAuxiliaryWindow {
-	private readonly willDispose = this._register(new Emitter<void>());
-	readonly onWillDispose = this.willDispose.event;
 	private readonly didLayout = this._register(new Emitter<Dimension>());
 	readonly onDidLayout = this.didLayout.event;
 	private readonly unloaded = this._register(new Emitter<void>());
 	readonly onUnload = this.unloaded.event;
 	readonly onWillLayout = Event.None;
-	readonly onBeforeUnload = Event.None;
+	private readonly beforeUnload = this._register(new Emitter<BeforeAuxiliaryWindowUnloadEvent>());
+	readonly onBeforeUnload: Event<BeforeAuxiliaryWindowUnloadEvent>;
 	readonly stylesReady = new DeferredPromise<void>();
 	readonly whenStylesHaveLoaded = this.stylesReady.p;
 	readonly container = $('div.monaco-workbench');
 	readonly frame = $<HTMLIFrameElement>('iframe');
 	readonly window: CodeWindow;
 	readonly document: Document;
-	handler: (() => Promise<boolean>) | undefined;
 	lastClose: Promise<boolean> | undefined;
 	closeCalls = 0;
 	disposeCalls = 0;
-	readonly registerCloseHandler;
+	blockNativeClose = false;
+	readonly vetoReasons: string[] = [];
+	private disposing = false;
 
-	constructor(id: number, supported: boolean, closeOnRegister: boolean) {
+	constructor(id: number, closeOnRegister: boolean) {
 		super();
 		mainWindow.document.body.appendChild(this.frame);
 		this._register(toDisposable(() => this.frame.remove()));
@@ -111,26 +111,50 @@ class TestAuxiliaryWindow extends Disposable implements IAuxiliaryWindow {
 			override readonly document = targetWindow.document;
 			override readonly vscodeWindowId = id;
 			override close = close;
+			override readonly addEventListener = (type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions): void => {
+				targetWindow.addEventListener(type, listener, options);
+			};
+			override readonly removeEventListener = (type: string, listener: EventListenerOrEventListenerObject, options?: boolean | EventListenerOptions): void => {
+				targetWindow.removeEventListener(type, listener, options);
+			};
+			override readonly dispatchEvent = (event: globalThis.Event): boolean => targetWindow.dispatchEvent(event);
 		}();
-		this.registerCloseHandler = supported ? (handler: () => Promise<boolean>) => {
-			assert.strictEqual(this.handler, undefined);
-			this.handler = handler;
+		this.onBeforeUnload = (listener, thisArgs, disposables) => {
+			const registration = this.beforeUnload.event(listener, thisArgs, disposables);
 			if (closeOnRegister) {
+				closeOnRegister = false;
 				close();
 			}
-			return toDisposable(() => { this.handler = undefined; });
-		} : undefined;
+			return registration;
+		};
 	}
 
+	get hasVetoListener(): boolean { return this.beforeUnload.hasListeners(); }
+
 	private async requestClose(): Promise<boolean> {
-		if (this.handler && !await this.handler()) {
+		if (this.blockNativeClose) {
+			return false;
+		}
+		let vetoed = false;
+		this.beforeUnload.fire({
+			veto: reason => {
+				if (reason) {
+					vetoed = true;
+					this.vetoReasons.push(reason);
+				}
+			}
+		});
+		if (vetoed) {
 			return false;
 		}
 		this.fireUnload();
 		return true;
 	}
 
-	fireUnload(): void { this.unloaded.fire(); }
+	fireUnload(): void {
+		this.unloaded.fire();
+		this.window.dispatchEvent(new mainWindow.Event('unload'));
+	}
 
 	updateOptions(): void { }
 	async setBounds(): Promise<void> { }
@@ -138,12 +162,19 @@ class TestAuxiliaryWindow extends Disposable implements IAuxiliaryWindow {
 	createState(): IAuxiliaryWindowOpenOptions { return {}; }
 
 	override dispose(): void {
-		this.disposeCalls++;
-		if (!this._store.isDisposed) {
-			this.willDispose.fire();
-			super.dispose();
+		if (this._store.isDisposed || this.disposing) {
+			return;
 		}
+		this.disposing = true;
+		this.disposeCalls++;
+		this.fireUnload();
+		super.dispose();
 	}
+}
+
+function editDraft(input: IssueReporterEditorInput): void {
+	input.descriptionInput.value += '\nUser edit';
+	input.descriptionInput.dispatchEvent(new InputEvent('input', { bubbles: true }));
 }
 
 suite('NativeIssueFormService reporter windows', () => {
@@ -173,7 +204,11 @@ suite('NativeIssueFormService reporter windows', () => {
 		});
 		instantiation.stub(IConfigurationService, configuration);
 		instantiation.stub(ILogService, new NullLogService());
-		const lifecycle = store.add(new TestLifecycleService());
+		const lifecycle = store.add(new class extends TestLifecycleService {
+			private readonly vetoed = this._register(new Emitter<void>());
+			override get onShutdownVeto(): Event<void> { return this.vetoed.event; }
+			fireVeto(): void { this.vetoed.fire(); }
+		}());
 		instantiation.stub(ILifecycleService, lifecycle);
 		const keybindings = new class extends MockKeybindingService {
 			bindings: { command: string; key: number }[] = [
@@ -200,10 +235,10 @@ suite('NativeIssueFormService reporter windows', () => {
 			createGate?: DeferredPromise<void>;
 			screenshotGate?: DeferredPromise<string | undefined>;
 			openError?: Error;
-			supported: boolean;
+			createError?: Error;
 			closeOnRegister: boolean;
 			onOpening?: (input: IssueReporterEditorInput, group: IEditorGroup) => void;
-		} = { confirm: true, supported: true, closeOnRegister: false };
+		} = { confirm: true, closeOnRegister: false };
 		instantiation.stub(IDialogService, {
 			confirm: async confirmation => {
 				confirmations.push(confirmation.message);
@@ -215,6 +250,12 @@ suite('NativeIssueFormService reporter windows', () => {
 		let osReads = 0;
 		instantiation.stub(INativeHostService, {
 			getOSProperties: async () => { osReads++; return { arch: 'test', release: 'test', type: 'test', platform: 'test', cpus: [] }; },
+			closeWindow: async options => {
+				const window = windows.find(window => window.window.vscodeWindowId === options?.targetWindowId);
+				assert.ok(window);
+				window.window.close();
+				await window.lastClose;
+			},
 		});
 		const focused: Window[] = [];
 		instantiation.stub(IHostService, { focus: async window => { focused.push(window); } });
@@ -276,7 +317,10 @@ suite('NativeIssueFormService reporter windows', () => {
 			open: async options => {
 				windowOptions.push(options);
 				await controls.createGate?.p;
-				const window = store.add(new TestAuxiliaryWindow(100 + windows.length, controls.supported, controls.closeOnRegister));
+				if (controls.createError) {
+					throw controls.createError;
+				}
+				const window = store.add(new TestAuxiliaryWindow(100 + windows.length, controls.closeOnRegister));
 				windows.push(window);
 				return window;
 			}
@@ -287,11 +331,17 @@ suite('NativeIssueFormService reporter windows', () => {
 		return {
 			service, controls, configuration, confirmations, confirmStarted, screenshotStarted, opens, main, windows, windowOptions, focused, source, instantiation, readonlyUpdates, writes, lifecycle, keybindings, previews,
 			shutdown: async (reason: ShutdownReason) => {
+				if (reason === ShutdownReason.QUIT) {
+					windows.forEach(window => window.blockNativeClose = true);
+				}
 				const vetos: (boolean | Promise<boolean>)[] = [];
 				lifecycle.fireBeforeShutdown({ reason, veto: value => { vetos.push(value); }, finalVeto: () => { throw new Error('Unexpected final veto'); } });
 				const vetoed = (await Promise.all(vetos)).some(Boolean);
 				if (!vetoed) {
 					lifecycle.fireShutdown(reason);
+				} else {
+					windows.forEach(window => window.blockNativeClose = false);
+					lifecycle.fireVeto();
 				}
 				return { vetoed, participants: vetos.length };
 			},
@@ -388,32 +438,51 @@ suite('NativeIssueFormService reporter windows', () => {
 	});
 
 	test('cancellation keeps the native draft and repeated discard requests share one decision', async () => {
-		const { service, controls, inputs, windows, confirmations, opens, main } = createService();
+		const { service, controls, inputs, windows, confirmations, confirmStarted, opens, main } = createService();
 		await service.openReporter(data());
-		const handler = windows[0].handler!;
+		editDraft(inputs()[0]);
 		controls.confirm = false;
-		const first = handler();
-		const repeated = handler();
-		const cancelled = await first;
+		controls.confirmGate = new DeferredPromise<void>();
+		windows[0].window.close();
+		windows[0].window.close();
+		await confirmStarted.p;
+		const pendingDecisions = confirmations.length;
+		await controls.confirmGate.complete();
+		await timeout(0);
+		const cancelled = await windows[0].lastClose;
 		const retained = !inputs()[0].isDisposed();
 		controls.confirm = true;
+		controls.confirmGate = undefined;
 		windows[0].window.close();
+		await timeout(0);
 		const closed = await windows[0].lastClose;
-		assert.deepStrictEqual({ shared: first === repeated, cancelled, retained, closed, disposed: inputs()[0].isDisposed(), confirmations, registered: !!windows[0].handler, opens: opens.length, editors: main.editors.length }, {
-			shared: true, cancelled: false, retained: true, closed: true, disposed: true, confirmations: ['Discard issue report?', 'Discard issue report?'], registered: false, opens: 0, editors: 0,
+		assert.deepStrictEqual({ pendingDecisions, cancelled, retained, closed, disposed: inputs()[0].isDisposed(), confirmations, registered: windows[0].hasVetoListener, opens: opens.length, editors: main.editors.length }, {
+			pendingDecisions: 1, cancelled: false, retained: true, closed: true, disposed: true, confirmations: ['Discard issue report?', 'Discard issue report?'], registered: false, opens: 0, editors: 0,
 		});
 	});
+
+	for (const prefilled of [false, true]) {
+		test(`closes an untouched ${prefilled ? 'prefilled' : 'blank'} report without a reporter veto or question`, async () => {
+			const { service, windows, inputs, confirmations } = createService();
+			await service.openReporter(data(prefilled ? {} : { issueTitle: '', issueBody: '' }));
+			windows[0].window.close();
+			assert.deepStrictEqual({ closed: await windows[0].lastClose, vetoes: windows[0].vetoReasons, confirmations, disposed: inputs()[0].isDisposed() }, {
+				closed: true, vetoes: [], confirmations: [], disposed: true,
+			});
+		});
+	}
 
 	for (const reason of [ShutdownReason.CLOSE, ShutdownReason.QUIT, ShutdownReason.RELOAD, ShutdownReason.LOAD]) {
 		for (const discard of [false, true]) {
 			test(`${discard ? 'discards' : 'retains'} the standalone draft for source shutdown reason ${reason}`, async () => {
 				const { service, controls, inputs, windows, confirmations, source, shutdown } = createService();
 				await service.openReporter(data());
+				editDraft(inputs()[0]);
 				controls.confirm = discard;
 				const result = await shutdown(reason);
 				assert.deepStrictEqual({
 					result, disposed: inputs()[0].isDisposed(), connected: windows[0].frame.isConnected,
-					registered: !!windows[0].handler, captureBars: source.querySelectorAll('.issue-reporter-floating-bar').length, confirmations,
+					registered: windows[0].hasVetoListener, captureBars: source.querySelectorAll('.issue-reporter-floating-bar').length, confirmations,
 				}, {
 					result: { vetoed: !discard, participants: 1 }, disposed: discard, connected: !discard,
 					registered: !discard, captureBars: discard ? 0 : 1, confirmations: ['Discard issue report?'],
@@ -435,6 +504,7 @@ suite('NativeIssueFormService reporter windows', () => {
 		const { service, lifecycle, shutdown, inputs, windows, source, confirmations, confirmStarted } = createService();
 		await service.openReporter(data());
 		const input = inputs()[0];
+		editDraft(input);
 		const cleanup = spy();
 		input.savedAttachments = [{ id: 'owned', kind: 'file', file: { filePath: '/owned/report.json', name: 'report.json', mimeType: 'application/json' } }];
 		input.registerImportedFile('/owned/report.json', toDisposable(cleanup));
@@ -446,7 +516,7 @@ suite('NativeIssueFormService reporter windows', () => {
 		const beforeVeto = { disposed: input.isDisposed(), connected: windows[0].frame.isConnected, cleanup: cleanup.callCount };
 		await otherVeto.complete(true);
 		const vetoed = await pending;
-		const afterVeto = { disposed: input.isDisposed(), registered: !!windows[0].handler, captureBars: source.querySelectorAll('.issue-reporter-floating-bar').length, cleanup: cleanup.callCount };
+		const afterVeto = { disposed: input.isDisposed(), registered: windows[0].hasVetoListener, captureBars: source.querySelectorAll('.issue-reporter-floating-bar').length, cleanup: cleanup.callCount };
 		participant.dispose();
 		const committed = await shutdown(ShutdownReason.QUIT);
 		assert.deepStrictEqual({ beforeVeto, vetoed, afterVeto, committed, disposed: input.isDisposed(), cleanup: cleanup.callCount, confirmations }, {
@@ -458,7 +528,58 @@ suite('NativeIssueFormService reporter windows', () => {
 		});
 	});
 
-	test('waits for a reporter being created before deciding source shutdown', async () => {
+	test('retains an edited draft when Close overlaps a Quit veto, while cancelling its old submission', async () => {
+		const { service, lifecycle, controls, windows, inputs, confirmStarted, confirmations, shutdown } = createService();
+		await service.openReporter(data());
+		const input = inputs()[0];
+		editDraft(input);
+		const signal = input.submissionSignal;
+		const description = input.descriptionInput.value;
+		const otherVeto = new DeferredPromise<boolean>();
+		store.add(lifecycle.onBeforeShutdown(event => event.veto(otherVeto.p, 'otherParticipant')));
+		controls.confirmGate = new DeferredPromise<void>();
+		windows[0].window.close();
+		await confirmStarted.p;
+		const quitting = shutdown(ShutdownReason.QUIT);
+		await controls.confirmGate.complete();
+		await timeout(0);
+		const afterDiscard = { disposed: input.isDisposed(), description: input.descriptionInput.value, oldSubmissionAborted: signal.aborted, nextSubmissionAborted: input.submissionSignal.aborted };
+		await otherVeto.complete(true);
+		const quitResult = await quitting;
+		controls.confirmGate = undefined;
+		controls.confirm = false;
+		windows[0].window.close();
+		await timeout(0);
+		assert.deepStrictEqual({ afterDiscard, quitResult, stillOpen: windows[0].frame.isConnected, disposed: input.isDisposed(), confirmations, closeVetoes: windows[0].vetoReasons.length }, {
+			afterDiscard: { disposed: false, description, oldSubmissionAborted: true, nextSubmissionAborted: false },
+			quitResult: { vetoed: true, participants: 2 }, stillOpen: true, disposed: false,
+			confirmations: ['Discard issue report?', 'Discard issue report?'], closeVetoes: 2,
+		});
+	});
+
+	for (const failure of ['creation', 'mount'] as const) {
+		test(`does not veto shutdown because reporter ${failure} failed while it was opening`, async () => {
+			const { service, instantiation, controls, windows, inputs, confirmations, shutdown } = createService();
+			controls.createGate = new DeferredPromise<void>();
+			const error = new Error(`${failure} failed`);
+			if (failure === 'creation') {
+				controls.createError = error;
+			} else {
+				instantiation.stubInstance(IssueReporterController, { setInput: () => { throw error; }, dispose: () => { } });
+			}
+			const opening = service.openReporter(data());
+			const rejected = assert.rejects(opening, error);
+			await timeout(0);
+			const quitting = shutdown(ShutdownReason.QUIT);
+			await controls.createGate.complete();
+			await rejected;
+			assert.deepStrictEqual({ quitting: await quitting, confirmations, disposed: inputs()[0].isDisposed(), openWindows: windows.filter(window => window.frame.isConnected).length }, {
+				quitting: { vetoed: false, participants: 1 }, confirmations: [], disposed: true, openWindows: 0,
+			});
+		});
+	}
+
+	test('waits for a reporter being created without vetoing an untouched draft', async () => {
 		const { service, controls, inputs, windows, shutdown } = createService();
 		controls.createGate = new DeferredPromise<void>();
 		controls.confirm = false;
@@ -467,8 +588,8 @@ suite('NativeIssueFormService reporter windows', () => {
 		const closing = shutdown(ShutdownReason.QUIT);
 		await controls.createGate.complete();
 		await opening;
-		assert.deepStrictEqual({ result: await closing, disposed: inputs()[0].isDisposed(), registered: !!windows[0].handler }, {
-			result: { vetoed: true, participants: 1 }, disposed: false, registered: true,
+		assert.deepStrictEqual({ result: await closing, disposed: inputs()[0].isDisposed(), registered: windows[0].hasVetoListener }, {
+			result: { vetoed: false, participants: 1 }, disposed: true, registered: false,
 		});
 	});
 
@@ -481,13 +602,15 @@ suite('NativeIssueFormService reporter windows', () => {
 	});
 
 	test('never touches unrelated main or auxiliary editors during close', async () => {
-		const { service, windows, main, addGroup, confirmations } = createService();
+		const { service, windows, main, addGroup, confirmations, inputs } = createService();
 		const other = store.add(new class extends EditorInput { override readonly typeId = 'unrelated'; override readonly resource = undefined; }());
 		main.editors.push(other);
 		const group = addGroup(20);
 		group.editors.push(other);
 		await service.openReporter(data());
+		editDraft(inputs()[0]);
 		windows[0].window.close();
+		await timeout(0);
 		await windows[0].lastClose;
 		assert.deepStrictEqual({ disposed: other.isDisposed(), main: main.editors[0] === other, auxiliary: group.editors[0] === other, confirmations }, {
 			disposed: false, main: true, auxiliary: true, confirmations: ['Discard issue report?'],
@@ -523,7 +646,7 @@ suite('NativeIssueFormService reporter windows', () => {
 		controls.closeOnRegister = true;
 		await service.openReporter(data());
 		assert.deepStrictEqual({ closed: await windows[0].lastClose, styled: windows[0].stylesReady.isSettled, confirmations, disposed: inputs()[0].isDisposed() }, {
-			closed: true, styled: false, confirmations: ['Discard issue report?'], disposed: true,
+			closed: true, styled: false, confirmations: [], disposed: true,
 		});
 	});
 
@@ -531,6 +654,7 @@ suite('NativeIssueFormService reporter windows', () => {
 		test(`coordinates another request with ${discard ? 'discard' : 'cancellation'}`, async () => {
 			const { service, controls, windows, inputs, confirmStarted } = createService();
 			await service.openReporter(data());
+			editDraft(inputs()[0]);
 			controls.confirmGate = new DeferredPromise<void>();
 			controls.confirm = discard;
 			windows[0].window.close();
@@ -545,20 +669,12 @@ suite('NativeIssueFormService reporter windows', () => {
 		});
 	}
 
-	test('rejects unsupported close ownership without mounting an editor', async () => {
-		const { service, controls, windows, inputs, opens } = createService();
-		controls.supported = false;
-		await assert.rejects(service.openReporter(data()), /safe close handling/);
-		await windows[0].lastClose;
-		assert.deepStrictEqual({ disposed: inputs()[0].isDisposed(), opens: opens.length, mounted: windows[0].container.children.length }, { disposed: true, opens: 0, mounted: 0 });
-	});
-
 	test('cleans failed form initialization and allows a fresh report', async () => {
 		const { service, instantiation, windows, inputs } = createService();
 		instantiation.stubInstance(IssueReporterController, { setInput: () => { throw new Error('Mount failed'); }, dispose: () => { } });
 		await assert.rejects(service.openReporter(data()), /Mount failed/);
 		await windows[0].lastClose;
-		assert.deepStrictEqual({ disposed: inputs()[0].isDisposed(), closeRegistered: !!windows[0].handler }, { disposed: true, closeRegistered: false });
+		assert.deepStrictEqual({ disposed: inputs()[0].isDisposed(), closeRegistered: windows[0].hasVetoListener }, { disposed: true, closeRegistered: false });
 	});
 
 	test('does not dispose a report already adopted by an editor after opening fails', async () => {
@@ -589,7 +705,7 @@ suite('NativeIssueFormService reporter windows', () => {
 		IssueReporterController.getAnyLiveInstance()!.getWizard()!.triggerCaptureScreenshot();
 		await screenshotStarted.p;
 		windows[0].window.close();
-		await windows[0].lastClose;
+		await timeout(0);
 		await controls.screenshotGate.complete(issueReporterImageFixture);
 		await timeout(0);
 		assert.deepStrictEqual({ disposed: inputs()[0].isDisposed(), attachments: inputs()[0].savedAttachments, writes, live: !!IssueReporterController.getAnyLiveInstance() }, {
@@ -614,7 +730,7 @@ suite('NativeIssueFormService reporter windows', () => {
 		await reading.p;
 		const pending = !!inputs()[0].hasPendingOperationsFn?.();
 		windows[0].window.close();
-		await windows[0].lastClose;
+		await timeout(0);
 		await bytes.complete(new ArrayBuffer(6));
 		await timeout(0);
 		assert.deepStrictEqual({ pending, disposed: inputs()[0].isDisposed(), attachments: inputs()[0].savedAttachments, writes }, {
@@ -636,12 +752,11 @@ suite('NativeIssueFormService reporter windows', () => {
 		});
 	});
 
-	test('service disposal closes a mounted auxiliary and rejects late close and capture operations', async () => {
+	test('service disposal closes a mounted auxiliary and ignores late capture work', async () => {
 		const { service, windows, inputs, source, controls, screenshotStarted, writes } = createService();
 		controls.screenshotGate = new DeferredPromise<string | undefined>();
 		await service.openReporter(data());
 		const wizard = IssueReporterController.getAnyLiveInstance()!.getWizard()!;
-		const handler = windows[0].handler!;
 		wizard.triggerCaptureScreenshot();
 		await screenshotStarted.p;
 		service.dispose();
@@ -650,14 +765,15 @@ suite('NativeIssueFormService reporter windows', () => {
 		await service.openReporter(data());
 		assert.deepStrictEqual({
 			disposed: inputs()[0].isDisposed(), connected: windows[0].frame.isConnected, disposals: windows[0].disposeCalls,
-			registered: !!windows[0].handler, captureBars: source.querySelectorAll('.issue-reporter-floating-bar').length,
-			lateClose: await handler(), live: !!IssueReporterController.getAnyLiveInstance(), windows: windows.length, writes,
-		}, { disposed: true, connected: false, disposals: 1, registered: false, captureBars: 0, lateClose: false, live: false, windows: 1, writes: [] });
+			registered: windows[0].hasVetoListener, captureBars: source.querySelectorAll('.issue-reporter-floating-bar').length,
+			live: !!IssueReporterController.getAnyLiveInstance(), windows: windows.length, writes,
+		}, { disposed: true, connected: false, disposals: 1, registered: false, captureBars: 0, live: false, windows: 1, writes: [] });
 	});
 
 	test('host-originated auxiliary disposal does not recursively dispose it or complete a pending close', async () => {
 		const { service, windows, inputs, source, controls, confirmStarted } = createService();
 		await service.openReporter(data());
+		editDraft(inputs()[0]);
 		controls.confirmGate = new DeferredPromise<void>();
 		windows[0].window.close();
 		await confirmStarted.p;
@@ -665,7 +781,7 @@ suite('NativeIssueFormService reporter windows', () => {
 		await controls.confirmGate.complete();
 		assert.deepStrictEqual({
 			closed: await windows[0].lastClose, disposed: inputs()[0].isDisposed(), disposals: windows[0].disposeCalls,
-			connected: windows[0].frame.isConnected, registered: !!windows[0].handler, captureBars: source.querySelectorAll('.issue-reporter-floating-bar').length,
+			connected: windows[0].frame.isConnected, registered: windows[0].hasVetoListener, captureBars: source.querySelectorAll('.issue-reporter-floating-bar').length,
 		}, { closed: false, disposed: true, disposals: 1, connected: false, registered: false, captureBars: 0 });
 	});
 
@@ -690,7 +806,7 @@ suite('NativeIssueFormService reporter windows', () => {
 		const { service, windows, inputs, source } = createService();
 		await service.openReporter(data());
 		windows[0].fireUnload();
-		const closed = { disposed: inputs()[0].isDisposed(), registered: !!windows[0].handler, connected: windows[0].frame.isConnected, captureBars: source.querySelectorAll('.issue-reporter-floating-bar').length };
+		const closed = { disposed: inputs()[0].isDisposed(), registered: windows[0].hasVetoListener, connected: windows[0].frame.isConnected, captureBars: source.querySelectorAll('.issue-reporter-floating-bar').length };
 		await service.openReporter(data());
 		assert.deepStrictEqual({ closed, windows: windows.length, newDisposed: inputs()[1].isDisposed() }, {
 			closed: { disposed: true, registered: false, connected: false, captureBars: 0 }, windows: 2, newDisposed: false,
@@ -714,6 +830,7 @@ suite('NativeIssueFormService reporter windows', () => {
 			return event.defaultPrevented;
 		});
 		controls.confirm = false;
+		editDraft(inputs()[0]);
 		const close = new KeyboardEvent('keydown', { key: 'w', keyCode: 87, bubbles: true, cancelable: true, ctrlKey: !isMacintosh, metaKey: isMacintosh });
 		editor.dispatchEvent(close);
 		await windows[0].lastClose;
@@ -725,7 +842,7 @@ suite('NativeIssueFormService reporter windows', () => {
 	test('does not isolate source-window or ordinary auxiliary-editor key events', async () => {
 		const { service, source } = createService();
 		await service.openReporter(data());
-		const ordinary = store.add(new TestAuxiliaryWindow(200, true, false));
+		const ordinary = store.add(new TestAuxiliaryWindow(200, false));
 		const dispatched: string[] = [];
 		store.add(addDisposableListener(mainWindow, 'keydown', () => dispatched.push('source')));
 		store.add(addDisposableListener(ordinary.document.defaultView!, 'keydown', () => dispatched.push('ordinary auxiliary')));

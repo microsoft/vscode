@@ -15,7 +15,7 @@ import { localize } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { abortOnDispose } from '../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 
 const issueReporterIcon = registerIcon('issue-reporter', Codicon.report, localize('issueReporterIcon', "Icon for the issue reporter editor."));
 
@@ -29,7 +29,36 @@ export class IssueReporterEditorInput extends EditorInput {
 	readonly descriptionInput = $<HTMLTextAreaElement>('textarea.wizard-description-input');
 	private descriptionScrollTop = 0;
 	readonly diagnosticsState: IIssueReporterDiagnosticsState = { included: {}, expanded: new Set() };
-	readonly submissionSignal = abortOnDispose(this._store);
+	private submissionController = new AbortController();
+	private initialTitle: string;
+	private initialDescription: string;
+
+	get submissionSignal(): AbortSignal {
+		return this.submissionController.signal;
+	}
+
+	cancelPendingSubmissions(): void {
+		this.submissionController.abort(new CancellationError());
+		if (!this.isDisposed()) {
+			this.submissionController = new AbortController();
+		}
+	}
+
+	get hasContentChanges(): boolean {
+		return (this.data?.issueTitle ?? '') !== this.initialTitle || this.descriptionInput.value !== this.initialDescription;
+	}
+
+	updateDefaultContent(update: () => void): void {
+		const titleUnchanged = (this.data?.issueTitle ?? '') === this.initialTitle;
+		const descriptionUnchanged = this.descriptionInput.value === this.initialDescription;
+		update();
+		if (titleUnchanged) {
+			this.initialTitle = this.data?.issueTitle ?? '';
+		}
+		if (descriptionUnchanged) {
+			this.initialDescription = this.descriptionInput.value;
+		}
+	}
 
 	attachDescriptionInput(container: HTMLElement): void {
 		if (this.descriptionInput.parentElement !== container) {
@@ -86,7 +115,10 @@ export class IssueReporterEditorInput extends EditorInput {
 	) {
 		super();
 		this.data = data;
-		this.descriptionInput.value = data?.issueBody ?? '';
+		this.initialTitle = data?.issueTitle ?? '';
+		this.initialDescription = data?.issueBody ?? '';
+		this.descriptionInput.value = this.initialDescription;
+		this._register(toDisposable(() => this.submissionController.abort(new CancellationError())));
 		this._register(addDisposableListener(this.descriptionInput, EventType.INPUT, () => {
 			if (this.data) {
 				this.data.issueBody = this.descriptionInput.value;
@@ -95,7 +127,7 @@ export class IssueReporterEditorInput extends EditorInput {
 		this._register(toDisposable(() => this.descriptionInput.remove()));
 
 		this.closeHandler = {
-			showConfirm: () => !!this.hasUserInputFn?.(),
+			showConfirm: () => this.hasUserInputFn?.() ?? (this.hasContentChanges || !!this.savedAttachments?.length),
 			confirm: async () => {
 				const { confirmed } = await this.dialogService.confirm({
 					message: localize('discardIssue', "Discard issue report?"),

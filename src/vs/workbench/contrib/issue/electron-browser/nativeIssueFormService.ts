@@ -19,7 +19,6 @@ import { DisposableMap, DisposableStore, MutableDisposable, toDisposable } from 
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { addDisposableListener, EventType } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { Event } from '../../../../base/common/event.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { AuxiliaryWindowMode, IAuxiliaryWindow, IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
@@ -44,34 +43,23 @@ class ReporterWindow extends DisposableStore {
 	closeOperation: Promise<boolean> | undefined;
 	confirmOperation: Promise<boolean> | undefined;
 	controller: IssueReporterController | undefined;
-	private auxiliaryWindowDisposing = false;
+	closeApproved = false;
 
 	constructor(readonly auxiliaryWindow: IAuxiliaryWindow, readonly input: IssueReporterEditorInput) {
 		super();
-		this.add(Event.once(auxiliaryWindow.onWillDispose)(() => { this.auxiliaryWindowDisposing = true; }));
 		this.add(input);
+		this.add(auxiliaryWindow);
 		this.add(toDisposable(() => {
 			void this.ready.complete();
 		}));
 	}
 
-	override dispose(): void {
-		if (this.isDisposed) {
-			return;
-		}
-		try {
-			super.dispose();
-		} finally {
-			if (!this.auxiliaryWindowDisposing) {
-				this.auxiliaryWindow.dispose();
-			}
-		}
-	}
 }
 
 export class NativeIssueFormService extends IssueFormService implements IIssueFormService {
 
 	private openingReporter: Promise<void> | undefined;
+	private shuttingDown = false;
 	private readonly reporterWindows = this._register(new DisposableMap<number, ReporterWindow>());
 
 	/**
@@ -104,19 +92,34 @@ export class NativeIssueFormService extends IssueFormService implements IIssueFo
 	) {
 		super(instantiationService, auxiliaryWindowService, menuService, contextKeyService, logService, dialogService, hostService, openerService, fileService, githubUploadService, editorService, clipboardService, gitHubService);
 		this._register(lifecycleService.onBeforeShutdown(event => {
+			this.shuttingDown = true;
 			if (this.reporterWindows.size || this.openingReporter) {
 				event.veto(this.vetoShutdown(), 'issueReporter');
 			}
 		}));
+		const resetShutdown = () => {
+			this.shuttingDown = false;
+			for (const window of this.reporterWindows.values()) {
+				window.closeApproved = false;
+			}
+		};
+		this._register(lifecycleService.onShutdownVeto(resetShutdown));
+		this._register(lifecycleService.onBeforeShutdownError(resetShutdown));
 		this._register(lifecycleService.onWillShutdown(() => this.reporterWindows.clearAndDisposeAll()));
 	}
 
 	private async vetoShutdown(): Promise<boolean> {
-		await this.openingReporter;
+		try {
+			await this.openingReporter;
+		} catch (error) {
+			// The opener reports this error; shutdown only protects drafts that survived it.
+			this.logService.trace('[IssueReporter] Opening failed while shutdown was waiting:', error);
+		}
 		for (const window of this.reporterWindows.values()) {
 			if (!await this.confirmReporterWindow(window)) {
 				return true;
 			}
+			window.input.cancelPendingSubmissions();
 		}
 		return false;
 	}
@@ -192,16 +195,33 @@ export class NativeIssueFormService extends IssueFormService implements IIssueFo
 				return;
 			}
 			auxiliaryWindow.container.style.opacity = '0';
-			if (!auxiliaryWindow.registerCloseHandler) {
-				throw new Error(localize('reporterWindowCloseUnsupported', "The issue reporter window could not be opened with safe close handling."));
-			}
 			reporterWindow = new ReporterWindow(auxiliaryWindow, input);
 			const windowId = auxiliaryWindow.window.vscodeWindowId;
 			this.reporterWindows.set(windowId, reporterWindow);
 			const window = reporterWindow;
-			window.add(Event.once(auxiliaryWindow.onWillDispose)(() => this.reporterWindows.deleteAndDispose(windowId)));
-			window.add(Event.once(auxiliaryWindow.onUnload)(() => window.auxiliaryWindow.dispose()));
-			window.add(auxiliaryWindow.registerCloseHandler(() => this.closeReporterWindow(window)));
+			window.add(addDisposableListener(auxiliaryWindow.window, EventType.UNLOAD, () => this.reporterWindows.deleteAndDispose(windowId), { once: true }));
+			const beforeUnloadListener = auxiliaryWindow.onBeforeUnload(event => {
+				if (window.isDisposed || input.isDisposed()) {
+					return;
+				}
+				if (window.closeApproved) {
+					window.closeApproved = false;
+					return;
+				}
+				if (input.closeHandler.showConfirm()) {
+					event.veto(localize('issueReporterUnsavedChanges', "The issue report has unsaved changes. Confirm whether to discard them to close the window."));
+					void this.closeReporterWindow(window).catch(error => {
+						this.logService.error('[IssueReporter] Close failed:', error);
+						void this.dialogService.error(localize('issueReporterCloseFailed', "The issue reporter could not be closed. Please try again."))
+							.catch(error => this.logService.error('[IssueReporter] Close error dialog failed:', error));
+					});
+				}
+			});
+			if (window.isDisposed) {
+				beforeUnloadListener.dispose();
+				return;
+			}
+			window.add(beforeUnloadListener);
 			void auxiliaryWindow.whenStylesHaveLoaded.then(() => {
 				if (!window.isDisposed) {
 					window.auxiliaryWindow.container.style.removeProperty('opacity');
@@ -226,8 +246,7 @@ export class NativeIssueFormService extends IssueFormService implements IIssueFo
 			auxiliaryWindow.layout();
 		} catch (error) {
 			if (auxiliaryWindow && reporterWindow) {
-				input.dispose();
-				auxiliaryWindow.window.close();
+				this.reporterWindows.deleteAndDispose(auxiliaryWindow.window.vscodeWindowId);
 			}
 			throw error;
 		} finally {
@@ -302,7 +321,17 @@ export class NativeIssueFormService extends IssueFormService implements IIssueFo
 		if (!await this.confirmReporterWindow(window) || window.isDisposed) {
 			return false;
 		}
-		window.input.dispose();
+		window.input.cancelPendingSubmissions();
+		if (this.shuttingDown) {
+			return false;
+		}
+		window.closeApproved = true;
+		try {
+			await this.nativeHostService.closeWindow({ targetWindowId: window.auxiliaryWindow.window.vscodeWindowId });
+		} catch (error) {
+			window.closeApproved = false;
+			throw error;
+		}
 		return true;
 	}
 

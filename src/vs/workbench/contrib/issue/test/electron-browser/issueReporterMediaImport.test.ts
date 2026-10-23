@@ -1045,6 +1045,8 @@ suite('Issue reporter media import lifecycle', () => {
 	for (const otherPane of ['retained', 'disposed'] as const) {
 		test(`rebinds input callbacks after a cached-pane roundtrip with the other pane ${otherPane}`, async () => {
 			const first = await createPane();
+			first.input.descriptionInput.value = 'User-edited description';
+			first.input.descriptionInput.dispatchEvent(new InputEvent('input', { bubbles: true }));
 			first.pane.getWizard()!.markPreviewOpened();
 			const second = await createPane(first.input, first.files);
 			second.pane.getWizard()!.markPreviewOpened();

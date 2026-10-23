@@ -82,7 +82,6 @@ export interface IAuxiliaryWindow extends IDisposable {
 
 	readonly onBeforeUnload: Event<BeforeAuxiliaryWindowUnloadEvent>;
 	readonly onUnload: Event<void>;
-	readonly onWillDispose: Event<void>;
 
 	readonly whenStylesHaveLoaded: Promise<void>;
 
@@ -96,9 +95,6 @@ export interface IAuxiliaryWindow extends IDisposable {
 	layout(): void;
 
 	createState(): IAuxiliaryWindowOpenOptions;
-
-	/** Runs after synchronous vetoes. Returning true approves the native close without further confirmation. */
-	registerCloseHandler?(close: () => Promise<boolean>): IDisposable;
 }
 
 const DEFAULT_AUX_WINDOW_DIMENSIONS = new Dimension(DEFAULT_AUX_WINDOW_SIZE.width, DEFAULT_AUX_WINDOW_SIZE.height);
@@ -173,7 +169,7 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 		}
 	}
 
-	protected handleBeforeUnload(e: BeforeUnloadEvent, confirmedClose = false): void {
+	private handleBeforeUnload(e: BeforeUnloadEvent): void {
 
 		// Check for veto from a listening component
 		let veto: string | undefined;
@@ -193,7 +189,7 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 		// Check for confirm before close setting
 		const confirmBeforeCloseSetting = this.configurationService.getValue<'always' | 'never' | 'keyboardOnly'>('window.confirmBeforeClose');
 		const confirmBeforeClose = confirmBeforeCloseSetting === 'always' || (confirmBeforeCloseSetting === 'keyboardOnly' && ModifierKeyEmitter.getInstance().isModifierPressed);
-		if (confirmBeforeClose && !confirmedClose) {
+		if (confirmBeforeClose) {
 			this.confirmBeforeClose(e);
 		}
 	}

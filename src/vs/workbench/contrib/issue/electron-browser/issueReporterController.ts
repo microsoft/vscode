@@ -198,7 +198,6 @@ export class IssueReporterController extends Disposable {
 		this.bindInputCallbacks(input, wizard);
 
 		this.inputDisposables.add(this.wizard.onDidClose(() => {
-			input.hasUserInputFn = undefined;
 			this.host.close();
 		}));
 

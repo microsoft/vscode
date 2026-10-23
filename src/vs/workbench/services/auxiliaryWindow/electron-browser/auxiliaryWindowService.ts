@@ -9,7 +9,7 @@ import { IWorkbenchLayoutService } from '../../layout/browser/layoutService.js';
 import { AuxiliaryWindow, AuxiliaryWindowMode, BrowserAuxiliaryWindowService, IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from '../browser/auxiliaryWindowService.js';
 import { ISandboxGlobals } from '../../../../base/parts/sandbox/electron-browser/globals.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { CodeWindow } from '../../../../base/browser/window.js';
@@ -27,21 +27,14 @@ import { isMacintosh } from '../../../../base/common/platform.js';
 import { assert } from '../../../../base/common/assert.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IRectangle } from '../../../../platform/window/common/window.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
 
 type NativeCodeWindow = CodeWindow & {
 	readonly vscode: ISandboxGlobals;
 };
 
-interface ICloseHandlerRegistration {
-	readonly close: () => Promise<boolean>;
-	state: 'idle' | 'pending' | 'approved';
-}
-
 export class NativeAuxiliaryWindow extends AuxiliaryWindow {
 
 	private skipUnloadConfirmation = false;
-	private closeHandler: ICloseHandlerRegistration | undefined;
 
 	private maximized = false;
 	private alwaysOnTop = false;
@@ -57,8 +50,7 @@ export class NativeAuxiliaryWindow extends AuxiliaryWindow {
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@ILogService private readonly logService: ILogService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
 	) {
 		super(window, container, stylesHaveLoaded, configurationService, hostService, environmentService, contextMenuService, layoutService);
 
@@ -113,74 +105,6 @@ export class NativeAuxiliaryWindow extends AuxiliaryWindow {
 		return this.nativeHostService.positionWindow(bounds, { targetWindowId: this.window.vscodeWindowId });
 	}
 
-	registerCloseHandler(close: () => Promise<boolean>): IDisposable {
-		if (this.closeHandler || this._store.isDisposed) {
-			throw new Error('An auxiliary window close handler is already registered or the window is disposed.');
-		}
-		const registration: ICloseHandlerRegistration = { close, state: 'idle' };
-		this.closeHandler = registration;
-		return toDisposable(() => {
-			if (this.closeHandler === registration) {
-				this.closeHandler = undefined;
-			}
-		});
-	}
-
-	protected override handleBeforeUnload(event: BeforeUnloadEvent): void {
-		const registration = this.closeHandler;
-		if (!registration) {
-			super.handleBeforeUnload(event);
-			return;
-		}
-		try {
-			if (registration.state === 'approved') {
-				registration.state = 'idle';
-				return;
-			}
-			if (registration.state === 'pending') {
-				this.preventUnload(event);
-				return;
-			}
-			super.handleBeforeUnload(event, true);
-			if (event.defaultPrevented) {
-				return;
-			}
-			this.preventUnload(event);
-			registration.state = 'pending';
-			void this.closeWithHandler(registration);
-		} catch (error) {
-			this.preventUnload(event);
-			registration.state = 'idle';
-			this.reportCloseError(error);
-		}
-	}
-
-	private async closeWithHandler(registration: ICloseHandlerRegistration): Promise<void> {
-		try {
-			const closed = await registration.close();
-			if (this.closeHandler !== registration || this._store.isDisposed) {
-				return;
-			}
-			if (!closed) {
-				registration.state = 'idle';
-				return;
-			}
-			registration.state = 'approved';
-			await this.nativeHostService.closeWindow({ targetWindowId: this.window.vscodeWindowId });
-		} catch (error) {
-			if (this.closeHandler === registration && !this._store.isDisposed) {
-				registration.state = 'idle';
-				this.reportCloseError(error);
-			}
-		}
-	}
-
-	private reportCloseError(error: unknown): void {
-		this.logService.error('[NativeAuxiliaryWindow] Close failed:', error);
-		void this.dialogService.error(localize('auxiliaryWindowCloseFailed', "The window could not be closed. Please try again."))
-			.catch(error => this.logService.error('[NativeAuxiliaryWindow] Close error dialog failed:', error));
-	}
-
 	protected override async handleVetoBeforeClose(e: BeforeUnloadEvent, veto: string): Promise<void> {
 		this.preventUnload(e);
 
@@ -216,7 +140,6 @@ export class NativeAuxiliaryWindow extends AuxiliaryWindow {
 			alwaysOnTop: this.alwaysOnTop
 		};
 	}
-
 }
 
 export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService {
@@ -231,7 +154,6 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 		@IHostService hostService: IHostService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@ILogService private readonly logService: ILogService,
 	) {
 		super(layoutService, dialogService, configurationService, telemetryService, hostService, environmentService, contextMenuService);
 	}
@@ -261,7 +183,7 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 	}
 
 	protected override createAuxiliaryWindow(targetWindow: CodeWindow, container: HTMLElement, stylesHaveLoaded: Barrier): AuxiliaryWindow {
-		return new NativeAuxiliaryWindow(targetWindow, container, stylesHaveLoaded, this.configurationService, this.nativeHostService, this.instantiationService, this.hostService, this.environmentService, this.dialogService, this.contextMenuService, this.layoutService, this.logService);
+		return new NativeAuxiliaryWindow(targetWindow, container, stylesHaveLoaded, this.configurationService, this.nativeHostService, this.instantiationService, this.hostService, this.environmentService, this.dialogService, this.contextMenuService, this.layoutService);
 	}
 }
 

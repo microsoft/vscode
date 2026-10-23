@@ -1086,12 +1086,14 @@ export class IssueReporterOverlay {
 		extension.uri = issueData.uri;
 		extension.privateUri = issueData.privateUri;
 		this.data.data = issueData.data;
-		if (issueData.issueTitle && !this.titleInput.value.trim()) {
-			this.titleInput.value = issueData.issueTitle;
-		}
-		if (issueData.issueBody && !this.descriptionInput.value.includes(issueData.issueBody)) {
-			this.insertDescriptionText(`${this.descriptionInput.value ? '\n' : ''}${issueData.issueBody}`, true);
-		}
+		this.input.updateDefaultContent(() => {
+			if (issueData.issueTitle && !this.titleInput.value.trim()) {
+				this.titleInput.value = issueData.issueTitle;
+			}
+			if (issueData.issueBody && !this.descriptionInput.value.includes(issueData.issueBody)) {
+				this.insertDescriptionText(`${this.descriptionInput.value ? '\n' : ''}${issueData.issueBody}`, true);
+			}
+		});
 		if (issueData.data) {
 			extension.extensionData = issueData.data;
 			this.model.update({ extensionData: issueData.data });
@@ -2347,13 +2349,16 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 	}
 
 	hasUnsavedChanges(): boolean {
+		if (!this.hasUserInput()) {
+			return false;
+		}
 		if (this.hasPendingOperations()) {
 			return true;
 		}
 		if (this.previewOpened && this.previewedDraftKey === this.getDraftKey()) {
 			return false;
 		}
-		return this.hasUserInput();
+		return true;
 	}
 
 	hasPendingOperations(): boolean {
@@ -2362,12 +2367,7 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 	}
 
 	private hasUserInput(): boolean {
-		return !!(
-			this.hasDescriptionContent() ||
-			this.titleInput.value.trim() ||
-			this.selectedIssueType !== undefined ||
-			this.getTotalAttachments() > 0
-		);
+		return this.input.hasContentChanges || this.getOccupiedAttachmentSlots() > 0;
 	}
 
 	markPreviewOpened(): void {
