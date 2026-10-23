@@ -246,7 +246,7 @@ suite('SessionWorktreeCleanupEditor', () => {
 			headingIcons: 0,
 			gears: 0,
 			configureActions: 0,
-			intro: 'Review all agent session worktrees, or filter by workspace and inactivity period. Inactive, unpinned sessions can be cleaned up to reclaim disk space, including recently used sessions. Any uncommitted changes are committed before the worktree is removed. Cleaning up a session marks it as done; you can restore the session later to recreate its worktree. Protected sessions are shown but cannot be selected.',
+			intro: 'Review all agent session worktrees, or filter by workspace and inactivity period. Inactive, unpinned sessions can be cleaned up to reclaim disk space, including recently used sessions. Active sessions and sessions waiting for input can be selected manually but are not selected by default. Any uncommitted changes are committed before the worktree is removed. Cleaning up a session marks it as done; you can restore the session later to recreate its worktree. Other protected sessions are shown but cannot be selected.',
 		});
 	});
 
@@ -305,7 +305,7 @@ suite('SessionWorktreeCleanupEditor', () => {
 			ages: [0],
 			rows: [
 				{ title: 'recent', workspace: 'app', disabled: null, reason: '', storage: '100B' },
-				{ title: 'active', workspace: 'app', disabled: 'true', reason: 'Active session', storage: '100B' },
+				{ title: 'active', workspace: 'app', disabled: null, reason: 'Active session', storage: '100B' },
 				{ title: 'running', workspace: 'other', disabled: 'true', reason: 'Running', storage: '100B' },
 			],
 		});
@@ -397,13 +397,39 @@ suite('SessionWorktreeCleanupEditor', () => {
 		assert.deepStrictEqual({
 			tableHidden: container.querySelector('.session-worktree-cleanup-list')?.classList.contains('hidden'),
 			emptyHidden: container.querySelector('.session-worktree-cleanup-empty')?.classList.contains('hidden'),
+			summary: container.querySelector('.session-worktree-cleanup-summary')?.textContent,
 			selectAllDisabled: container.querySelector('.header [role="checkbox"]')?.getAttribute('aria-disabled'),
 			cleanupDisabled: container.querySelector('.session-worktree-cleanup-action')?.getAttribute('aria-disabled'),
-		}, { tableHidden: false, emptyHidden: true, selectAllDisabled: 'true', cleanupDisabled: 'true' });
+		}, { tableHidden: false, emptyHidden: true, summary: '0 of 1 matching worktrees can be cleaned up.', selectAllDisabled: 'true', cleanupDisabled: 'true' });
 	});
 
-	test('disables every protected cleanup state and never includes it in cleanup', async () => {
-		const states: ISessionWorktree['cleanupState'][] = ['active', 'running', 'needsInput', 'pinned', 'recent', 'archived', 'untitled', 'error'];
+	test('allows manually selecting active sessions and sessions waiting for input', async () => {
+		const { container, cleaned } = await openEditor([
+			createWorktree('active', '/repos/app', 'active'),
+			createWorktree('needsInput', '/repos/app', 'needsInput'),
+			createWorktree('running', '/repos/app', 'running'),
+		]);
+		const rows = [...container.querySelectorAll('.session-worktree-cleanup-row:not(.header)')];
+		rows[0].querySelector<HTMLElement>('[role="checkbox"]')!.click();
+		rows[1].querySelector<HTMLElement>('[role="checkbox"]')!.click();
+		container.querySelector<HTMLElement>('.session-worktree-cleanup-action')!.click();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			summary: container.querySelector('.session-worktree-cleanup-summary')?.textContent,
+			disabled: rows.map(row => row.querySelector('[role="checkbox"]')?.getAttribute('aria-disabled')),
+			checked: rows.map(row => row.querySelector('[role="checkbox"]')?.getAttribute('aria-checked')),
+			cleaned,
+		}, {
+			summary: '2 of 3 matching worktrees can be cleaned up, reclaiming about 200B.',
+			disabled: [null, null, 'true'],
+			checked: ['true', 'true', 'false'],
+			cleaned: [['active', 'needsInput']],
+		});
+	});
+
+	test('disables every other protected cleanup state and never includes it in cleanup', async () => {
+		const states: ISessionWorktree['cleanupState'][] = ['running', 'pinned', 'recent', 'archived', 'untitled', 'error'];
 		const { container, cleaned } = await openEditor([
 			createWorktree('eligible', '/repos/app'),
 			...states.map(state => createWorktree(state, '/repos/app', state)),

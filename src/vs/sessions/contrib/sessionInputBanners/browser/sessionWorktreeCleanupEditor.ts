@@ -121,7 +121,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		const content = dom.append(this.container, dom.$('.session-worktree-cleanup-content'));
 
 		dom.append(content, dom.$('p.session-worktree-cleanup-intro', undefined,
-			localize('sessionWorktreeCleanup.filteredIntro', "Review all agent session worktrees, or filter by workspace and inactivity period. Inactive, unpinned sessions can be cleaned up to reclaim disk space, including recently used sessions. Any uncommitted changes are committed before the worktree is removed. Cleaning up a session marks it as done; you can restore the session later to recreate its worktree. Protected sessions are shown but cannot be selected.")));
+			localize('sessionWorktreeCleanup.filteredIntro', "Review all agent session worktrees, or filter by workspace and inactivity period. Inactive, unpinned sessions can be cleaned up to reclaim disk space, including recently used sessions. Active sessions and sessions waiting for input can be selected manually but are not selected by default. Any uncommitted changes are committed before the worktree is removed. Cleaning up a session marks it as done; you can restore the session later to recreate its worktree. Other protected sessions are shown but cannot be selected.")));
 		dom.append(content, dom.$('p', undefined,
 			dom.$('strong', undefined, localize('sessionWorktreeCleanup.reopen', "You can return to this editor at any time by running Open Worktree Cleanup from the Command Palette."))));
 
@@ -410,8 +410,9 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		this.tableDisposables.clear();
 		const visible = this.getVisibleWorktrees();
 		const eligible = visible.filter(worktree => worktree.cleanupState === 'eligible');
-		const reclaimableBytes = eligible.reduce((total, worktree) => total + (worktree.sizeBytes ?? 0), 0);
-		const eligibleWorktrees = eligible.reduce((total, worktree) => total + worktree.worktreeCount, 0);
+		const selectable = visible.filter(worktree => this.isManuallySelectable(worktree));
+		const reclaimableBytes = selectable.reduce((total, worktree) => total + (worktree.sizeBytes ?? 0), 0);
+		const selectableWorktrees = selectable.reduce((total, worktree) => total + worktree.worktreeCount, 0);
 		const totalWorktrees = visible.reduce((total, worktree) => total + worktree.worktreeCount, 0);
 		const isEmpty = visible.length === 0;
 		this.summaryRow?.classList.toggle('hidden', isEmpty);
@@ -424,10 +425,12 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 					? localize('sessionWorktreeCleanup.noWorktrees', "No worktrees to clean up.")
 					: localize('sessionWorktreeCleanup.noMatchingWorktrees', "No worktrees match the selected filters.");
 		}
-		const summary = localize('sessionWorktreeCleanup.matchingWorktreeSummary', "{0} of {1} matching worktrees can be cleaned up, reclaiming about {2}.", eligibleWorktrees, totalWorktrees, ByteSize.formatSize(reclaimableBytes));
+		const summary = reclaimableBytes > 0
+			? localize('sessionWorktreeCleanup.matchingWorktreeSummary', "{0} of {1} matching worktrees can be cleaned up, reclaiming about {2}.", selectableWorktrees, totalWorktrees, ByteSize.formatSize(reclaimableBytes))
+			: localize('sessionWorktreeCleanup.matchingWorktreeSummaryNoStorage', "{0} of {1} matching worktrees can be cleaned up.", selectableWorktrees, totalWorktrees);
 		const eligibilityDescription = localize(
 			'sessionWorktreeCleanup.filteredEligibilityDescription',
-			"Only sessions that are not active, running, waiting for input, pinned, already done, untitled, or in an error state can be selected. Storage must have been measured successfully. The filters limit the table and cleanup selection.",
+			"Active sessions and sessions waiting for input can be selected manually but are not selected by default. Running, pinned, already done, untitled, and error sessions cannot be selected. Storage must have been measured successfully. The filters limit the table and cleanup selection.",
 		);
 		dom.clearNode(this.summary);
 		dom.append(this.summary, dom.$('span', { role: 'status', 'aria-live': 'polite' }, summary));
@@ -539,7 +542,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		const title = worktree.session.title.get() || localize('sessionWorktreeCleanup.untitled', "Untitled session");
 		rendered.checkbox.setTitle(localize('sessionWorktreeCleanup.selectSession', "Select {0}", title));
 		rendered.checkbox.checked = this.selectedSessionIds.has(worktree.session.sessionId);
-		if (worktree.cleanupState === 'eligible') {
+		if (this.isManuallySelectable(worktree)) {
 			rendered.checkbox.enable();
 			rendered.checkbox.domNode.removeAttribute('aria-disabled');
 		} else {
@@ -628,8 +631,12 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 
 	private getSelected(): ISessionWorktreeCleanupCandidate[] {
 		return this.getVisibleWorktrees()
-			.filter((worktree): worktree is ISessionWorktree & { readonly sizeBytes: number } => worktree.cleanupState === 'eligible' && worktree.sizeBytes !== undefined && this.selectedSessionIds.has(worktree.session.sessionId))
+			.filter((worktree): worktree is ISessionWorktree & { readonly sizeBytes: number } => this.isManuallySelectable(worktree) && this.selectedSessionIds.has(worktree.session.sessionId))
 			.map(worktree => ({ session: worktree.session, sizeBytes: worktree.sizeBytes, worktreeCount: worktree.worktreeCount }));
+	}
+
+	private isManuallySelectable(worktree: ISessionWorktree): worktree is ISessionWorktree & { readonly sizeBytes: number } {
+		return worktree.sizeBytes !== undefined && (worktree.cleanupState === 'eligible' || worktree.cleanupState === 'active' || worktree.cleanupState === 'needsInput');
 	}
 
 	private async cleanupSelected(): Promise<void> {
