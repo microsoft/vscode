@@ -50,8 +50,8 @@ class OpenIssueAction extends Action2 {
 			f1: false,
 			menu: {
 				id: Menus.SessionActivityBar,
-				group: SessionActivityBarGroup.GitHub,
-				order: 1,
+				group: SessionActivityBarGroup.SidePanel,
+				order: 101,
 				when: sessionActivityBarChatActionContext(OpenIssueAction.ID),
 			},
 		});

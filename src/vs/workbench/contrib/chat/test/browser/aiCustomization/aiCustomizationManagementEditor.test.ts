@@ -1904,8 +1904,8 @@ suite('aiCustomizationManagementEditor', () => {
 			categories: [CustomizationMigrationCategoryId.PromptFiles],
 			categoryErrors: [{
 				id: CustomizationMigrationCategoryId.PluginMarketplaces,
-				label: 'Plugin marketplaces could not be checked',
-				description: 'Check the active agent connection, then try again.',
+				label: 'Couldn\'t load Copilot\'s plugin marketplaces',
+				description: 'Check the Copilot connection, then try again.',
 			}],
 		});
 		editor.editorPreviewDisposables.dispose();

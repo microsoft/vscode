@@ -1092,13 +1092,19 @@ export class AgentHostGitService implements IAgentHostGitService {
 		}
 	}
 
-	async commitTree(repositoryRoot: URI, treeOid: string, parentOid: string | undefined, message: string): Promise<string | undefined> {
+	async commitTree(repositoryRoot: URI, treeOid: string, parentOid: string | undefined, message: string, options?: { readonly useInternalIdentity?: boolean }): Promise<string | undefined> {
 		const args = ['commit-tree', treeOid];
 		if (parentOid) {
 			args.push('-p', parentOid);
 		}
 		args.push('-m', message);
-		const out = await this._runGit(repositoryRoot, args, { throwOnError: true });
+		const env = options?.useInternalIdentity ? {
+			GIT_AUTHOR_NAME: 'VS Code',
+			GIT_AUTHOR_EMAIL: 'vscode@localhost',
+			GIT_COMMITTER_NAME: 'VS Code',
+			GIT_COMMITTER_EMAIL: 'vscode@localhost',
+		} : undefined;
+		const out = await this._runGit(repositoryRoot, args, { throwOnError: true, ...(env ? { env } : {}) });
 		return out?.trim() || undefined;
 	}
 
