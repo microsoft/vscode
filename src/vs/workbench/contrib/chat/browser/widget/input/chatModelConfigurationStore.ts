@@ -156,12 +156,13 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 		if (this._presented?.modelId !== modelId) {
 			return undefined;
 		}
-		const properties = this.getModelConfigurationSchema(modelId)?.properties;
+		const schema = this.getModelConfigurationSchema(modelId);
 		const result: IStringDictionary<unknown> = {};
 		for (const [key, value] of Object.entries(this._presented.values)) {
-			const property = properties?.[key];
-			const index = property?.enum?.indexOf(value);
-			if (!property || property.readOnly || index === -1 || (index !== undefined && property.enumItemDisabled?.[index])) {
+			const property = schema?.properties?.[key];
+			// The same filter restores use (enum including disabled items, const, type, pattern, length and unsupported
+			// composites), plus host locks.
+			if (!property || property.readOnly || !Object.hasOwn(filterConfigurationToSchema({ [key]: value }, schema), key)) {
 				continue;
 			}
 			result[key] = value;

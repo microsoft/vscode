@@ -1516,6 +1516,24 @@ suite('ChatModelConfigurationStore', () => {
 		}, { captured: null, restored: null });
 	});
 
+	test('a presented value is validated with the full schema filter, not just the enum', () => {
+		// `const` narrows the advertised enum: High is listed but not accepted.
+		const constSchema: ILanguageModelConfigurationSchema = { properties: { thinkingEffort: { type: 'string', enum: ['low', 'high'], const: 'low' } } };
+		const service = {
+			onDidChangeLanguageModels: Event.None,
+			lookupLanguageModel: (_id: string) => ({ configurationSchema: constSchema } as ILanguageModelChatMetadata),
+			getModelConfiguration: (_id: string) => undefined,
+			setModelConfiguration: async (_id: string, _values: IStringDictionary<unknown>) => { },
+		} as unknown as ILanguageModelsService;
+		const editor = createStore(store.add(new InMemoryStorageService()), service);
+
+		editor.setPresentedConfiguration(MODEL, { thinkingEffort: 'high' });
+		const excluded = editor.getModelConfiguration(MODEL)?.thinkingEffort;
+		editor.setPresentedConfiguration(MODEL, { thinkingEffort: 'low' });
+
+		assert.deepStrictEqual({ excluded, accepted: editor.getModelConfiguration(MODEL)?.thinkingEffort }, { excluded: undefined, accepted: 'low' });
+	});
+
 	test('a presented value never overrides host-locked or unavailable choices', () => {
 		const control = createControllableService();
 		control.setSchema({ properties: { thinkingEffort: { enum: ['low', 'medium', 'high'], default: 'medium' } } }, ['thinkingEffort']);
