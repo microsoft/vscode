@@ -5,7 +5,25 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
-import { IgnoreFile } from '../../common/ignoreFile.js';
+import { IgnoreFile, parseGitIgnore } from '../../common/ignoreFile.js';
+
+/**
+ * Removes the indentation of the lines of an ignore file, which would
+ * otherwise be part of the patterns.
+ */
+function dedent(contents: string): string {
+	return contents.split('\n').map(line => line.trimStart()).join('\n');
+}
+
+/**
+ * Returns the paths that an ignore file at the root ignores. Paths that end
+ * with `/` are directories.
+ */
+function ignoredPaths(contents: string, paths: string[]): string[] {
+	const ignoreFile = new IgnoreFile(contents, '/');
+
+	return paths.filter(path => ignoreFile.isArbitraryPathIgnored(path.endsWith('/') ? path.slice(0, -1) : path, path.endsWith('/')));
+}
 
 function runAssert(input: string, ignoreFile: string, ignoreFileLocation: string, shouldMatch: boolean, traverse: boolean, ignoreCase: boolean) {
 	return (prefix: string) => {
@@ -255,7 +273,7 @@ suite('Parsing .gitignore files', () => {
 	});
 
 	test('real world example: vscode-js-debug', () => {
-		const i = `.cache/
+		const i = dedent(`.cache/
 			.profile/
 			.cdp-profile/
 			.headless-profile/
@@ -273,7 +291,7 @@ suite('Parsing .gitignore files', () => {
 			/testWorkspace/web/tmp
 			/testWorkspace/**/debug.log
 			/testWorkspace/webview/win/true/
-			*.cpuprofile`;
+			*.cpuprofile`);
 
 		const included = [
 			'/distro',
@@ -339,7 +357,7 @@ suite('Parsing .gitignore files', () => {
 	});
 
 	test('real world example: vscode', () => {
-		const i = `.DS_Store
+		const i = dedent(`.DS_Store
 			.cache
 			npm-debug.log
 			Thumbs.db
@@ -357,7 +375,7 @@ suite('Parsing .gitignore files', () => {
 			yarn-error.log
 			vscode.lsif
 			vscode.db
-			/.profile-oss`;
+			/.profile-oss`);
 
 		const included = [
 			'/inner/extensions/dist',
@@ -419,11 +437,11 @@ suite('Parsing .gitignore files', () => {
 	test('various advanced constructs found in popular repos', () => {
 		const runTest = ({ pattern, included, excluded }: { pattern: string; included: string[]; excluded: string[] }) => {
 			for (const include of included) {
-				assertNoIgnoreMatch(pattern, '/', include);
+				assertNoIgnoreMatch(dedent(pattern), '/', include);
 			}
 
 			for (const exclude of excluded) {
-				assertIgnoreMatch(pattern, '/', exclude);
+				assertIgnoreMatch(dedent(pattern), '/', exclude);
 			}
 		};
 
@@ -609,13 +627,108 @@ suite('Parsing .gitignore files', () => {
 		assertNoIgnoreMatch(f2, '/', '/Node_Modules/', false);
 		assertIgnoreMatch(f2, '/', '/Node_Modules/', true);
 
-		const f3 = `
+		const f3 = dedent(`
 			temp/*
 			!temp/keep
-		`;
+		`);
 		assertNoIgnoreMatch(f3, '/', '/TEMP/other', false);
 		assertIgnoreMatch(f3, '/', '/temp/KEEP', false);
 		assertIgnoreMatch(f3, '/', '/TEMP/other', true);
 		assertNoIgnoreMatch(f3, '/', '/TEMP/KEEP', true);
+	});
+
+	test('parses the lines of an ignore file', () => {
+		assert.deepStrictEqual(parseGitIgnore('# comment\n\n!/out/\nsrc/*.js\n**/foo\nbar\n'), [
+			{ negated: true, directoryOnly: true, anchored: true, glob: 'out' },
+			{ negated: false, directoryOnly: false, anchored: true, glob: 'src/*.js' },
+			{ negated: false, directoryOnly: false, anchored: true, glob: '**/foo' },
+			{ negated: false, directoryOnly: false, anchored: false, glob: 'bar' },
+		]);
+	});
+
+	test('only a leading ! negates a pattern and the last matching pattern decides', () => {
+		assert.deepStrictEqual({
+			exclamationMark: ignoredPaths('foo!bar\n', ['/foo!bar', '/foobar']),
+			escapedExclamationMark: ignoredPaths('\\!important\n', ['/!important', '/important']),
+			negationFirst: ignoredPaths('!a.txt\n*.txt\n', ['/a.txt', '/b.txt']),
+			ignoredAgain: ignoredPaths('*.txt\n!a.txt\na.txt\n', ['/a.txt', '/b.txt']),
+			reincludedFolder: ignoredPaths('/*\n!/src/\n', ['/src/', '/src/a', '/lib/', '/a']),
+			reincludedFolders: ignoredPaths('*\n!*/\n!keep.txt\n', ['/keep.txt', '/other.txt', '/dir/', '/dir/keep.txt', '/dir/other.txt']),
+		}, {
+			exclamationMark: ['/foo!bar'],
+			escapedExclamationMark: ['/!important'],
+			negationFirst: ['/a.txt', '/b.txt'],
+			ignoredAgain: ['/a.txt', '/b.txt'],
+			reincludedFolder: ['/lib/', '/a'],
+			reincludedFolders: ['/other.txt', '/dir/other.txt'],
+		});
+	});
+
+	test('matches whitespace, escapes and glob characters like git', () => {
+		assert.deepStrictEqual({
+			leadingSpace: ignoredPaths(' leading\n', ['/ leading', '/leading']),
+			trailingSpaces: ignoredPaths('trailing   \nescaped\\ \n', ['/trailing', '/trailing   ', '/escaped ', '/escaped']),
+			lineEndings: ignoredPaths('\uFEFFfirst\r\nsecond\r\n', ['/first', '/second']),
+			hash: ignoredPaths('\\#hash\n#comment\n', ['/#hash', '/comment']),
+			asterisk: ignoredPaths('\\*star\n', ['/*star', '/xstar']),
+			braces: ignoredPaths('{a,b}\n', ['/{a,b}', '/a', '/b']),
+			parentheses: ignoredPaths('file (1).txt\n', ['/file (1).txt', '/file 1.txt']),
+			backslashes: ignoredPaths('\\\\x\ny\\\n', ['/\\x', '/x', '/y']),
+			asterisks: ignoredPaths('a**b\n***/deep\n', ['/axb', '/ab', '/a/x/b', '/deep', '/x/y/deep']),
+		}, {
+			leadingSpace: ['/ leading'],
+			trailingSpaces: ['/trailing', '/escaped '],
+			lineEndings: ['/first', '/second'],
+			hash: ['/#hash'],
+			asterisk: ['/*star'],
+			braces: ['/{a,b}'],
+			parentheses: ['/file (1).txt'],
+			backslashes: ['/\\x'],
+			asterisks: ['/axb', '/ab', '/deep', '/x/y/deep'],
+		});
+	});
+
+	test('matches bracket expressions like git', () => {
+		assert.deepStrictEqual({
+			negated: ignoredPaths('[!a-c]\n[^x]y\n', ['/a', '/d', '/xy', '/zy']),
+			characterClass: ignoredPaths('*[[:digit:]].log\n', ['/a1.log', '/ab.log']),
+			closingBracket: ignoredPaths('[]a]\n[\\]]x\n', ['/]', '/a', '/]x', '/ax']),
+			reversedRange: ignoredPaths('[z-a]x\n', ['/zx', '/mx']),
+			unclosed: ignoredPaths('foo[\n', ['/foo', '/foo[']),
+		}, {
+			negated: ['/d', '/zy'],
+			characterClass: ['/a1.log'],
+			closingBracket: ['/]', '/a', '/]x'],
+			reversedRange: ['/zx'],
+			unclosed: [],
+		});
+	});
+
+	test('a trailing /** matches everything inside a folder', () => {
+		assert.deepStrictEqual({
+			reincluded: ignoredPaths('foo/**\n!foo/keep.txt\n', ['/foo/', '/foo/keep.txt', '/foo/other', '/foo/sub/x']),
+			// Without a later negation, the folder is skipped as a whole
+			skipped: ignoredPaths('build/**\n', ['/build', '/build/', '/build/x']),
+			folders: ignoredPaths('foo/**/\n', ['/foo/a/', '/foo/a/x', '/foo/file']),
+		}, {
+			reincluded: ['/foo/other', '/foo/sub/x'],
+			skipped: ['/build/', '/build/x'],
+			folders: ['/foo/a/', '/foo/a/x'],
+		});
+	});
+
+	test('patterns are relative to the location of the ignore file', () => {
+		const ignored = (location: string, paths: string[]) => {
+			const ignoreFile = new IgnoreFile('/build\nnode_modules\n', location);
+			return paths.filter(path => !ignoreFile.isPathIncludedInTraversal(path, true));
+		};
+
+		assert.deepStrictEqual({
+			withoutTrailingSlash: ignored('/repo', ['/repo/build', '/repo/a/node_modules', '/repo2/build', '/repo2/node_modules']),
+			globCharacters: ignored('/[repo] {1}/', ['/[repo] {1}/build', '/[repo] {1}/a/node_modules', '/r/build']),
+		}, {
+			withoutTrailingSlash: ['/repo/build', '/repo/a/node_modules'],
+			globCharacters: ['/[repo] {1}/build', '/[repo] {1}/a/node_modules'],
+		});
 	});
 });
