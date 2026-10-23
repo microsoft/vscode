@@ -12155,6 +12155,29 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		});
 
+		test('explicit session read works before the default chat is advertised', async () => {
+			const rawId = 'session-read-before-chat-catalog';
+			const sessionUri = AgentSession.uri('copilotcli', rawId);
+			agentHost.addSession(createSession(rawId, { status: ProtocolSessionStatus.Idle }));
+			const provider = createProvider(disposables, agentHost);
+			await timeout(0);
+			const session = provider.getSessions().find(session => AgentSession.id(session.resource.toString()) === rawId)!;
+
+			await provider.setSessionReadState(session.sessionId, true);
+
+			assert.deepStrictEqual({
+				isRead: session.isRead.get(),
+				actions: agentHost.dispatchedActions.map(dispatch => ({
+					channel: dispatch.channel,
+					type: dispatch.action.type,
+					isRead: dispatch.action.type === ActionType.SessionIsReadChanged ? dispatch.action.isRead : undefined,
+				})),
+			}, {
+				isRead: true,
+				actions: [{ channel: sessionUri.toString(), type: ActionType.SessionIsReadChanged, isRead: true }],
+			});
+		});
+
 		test('explicit session read marks every aggregate chat and the session read', async () => {
 			const provider = createProvider(disposables, agentHost);
 			const session = setupMultiChatSession(provider, 'default-chat-read');

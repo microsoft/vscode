@@ -1467,7 +1467,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 		if (item.sessionResource) {
 			const session = this.sessionsManagementService.getSession(item.sessionResource);
 			if (session) {
-				await this.sessionsManagementService.markRead(session);
+				await this.sessionsManagementService.setSessionReadState(session, true);
 			}
 		}
 
@@ -2152,7 +2152,7 @@ export class InboxNotificationsView extends AbstractCustomView {
 		if (item.sessionResource) {
 			const session = this.sessionsManagementService.getSession(item.sessionResource);
 			if (session) {
-				await this.sessionsManagementService.markRead(session);
+				await this.sessionsManagementService.setSessionReadState(session, true);
 			}
 		}
 
