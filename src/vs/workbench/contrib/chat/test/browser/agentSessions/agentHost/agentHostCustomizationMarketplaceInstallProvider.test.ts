@@ -88,8 +88,9 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 					return {
 						kind: 'page' as const,
 						items: [{
-							selectionId: 'selection', identifier: 'feed-resource', kind: 'mcp' as const, displayName: 'Figma',
-							installable: true, iconUrl: 'https://raw.githubusercontent.com/example/icons/main/figma.png', categories: ['build'],
+							selectionId: 'selection', identifier: 'feed-resource', kind: 'plugin' as const, displayName: 'Canvas Plugin',
+							installable: true, iconUrl: 'https://raw.githubusercontent.com/example/icons/main/canvas.png',
+							categories: ['build'], tags: ['canvas', 'canvas-only'],
 						}],
 					};
 				}
@@ -119,8 +120,8 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 				request: { query: '', mediaType: undefined, limit: 30, cursor: undefined, feedId },
 			})),
 			item: {
-				identifier: 'feed-resource', tags: ['build'], icon: 'https://raw.githubusercontent.com/example/icons/main/figma.png',
-				installation: { kind: 'providerCatalog', resourceKind: 'mcp', selectionId: 'selection', itemUrl: undefined, installable: true },
+				identifier: 'feed-resource', tags: ['canvas', 'canvas-only'], icon: 'https://raw.githubusercontent.com/example/icons/main/canvas.png',
+				installation: { kind: 'providerCatalog', resourceKind: 'plugin', selectionId: 'selection', itemUrl: undefined, installable: true },
 			},
 			recovery: 'signIn',
 		});

@@ -406,6 +406,7 @@ export interface IAgentCustomizationMarketplaceSearchItem {
 	readonly catalogIdentity?: string;
 	readonly iconUrl?: string;
 	readonly categories?: readonly string[];
+	readonly tags?: readonly string[];
 	readonly kind: 'skill' | 'mcp' | 'plugin';
 	readonly displayName: string;
 	readonly description?: string;

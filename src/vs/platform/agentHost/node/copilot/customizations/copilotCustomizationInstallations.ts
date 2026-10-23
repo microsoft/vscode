@@ -53,6 +53,13 @@ const pluginInstallationContract = {
 	requiredCapabilities: [...catalogContract.requiredCapabilities, 'agent-plugin-discovery', 'agent-plugin-confirmed-installation'],
 };
 
+function getCanvasCompatibilityTags(candidate: CatalogCandidate): readonly string[] {
+	if (candidate.kind !== 'plugin') {
+		return [];
+	}
+	return candidate.compatibilityTags?.filter(tag => tag === 'canvas' || tag === 'canvas-only') ?? [];
+}
+
 interface ISdkResult {
 	readonly kind: string;
 	readonly message?: string;
@@ -314,6 +321,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 					identifier: entry.identifier,
 					iconUrl: candidate.iconUrl,
 					categories: candidate.categories,
+					tags: getCanvasCompatibilityTags(candidate),
 				}];
 			}),
 		};
@@ -875,6 +883,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 			path: candidate.kind === 'plugin' ? candidate.source?.path : undefined,
 			itemUrl: candidate.kind !== 'plugin' && candidate.source.kind === 'url' ? candidate.source.url : undefined,
 			connectorIds: candidate.connectorIds,
+			tags: getCanvasCompatibilityTags(candidate),
 			installable: true,
 		};
 	}

@@ -949,6 +949,84 @@ suite('AICustomizationDiscoveryPage', () => {
 		}, { requests: 3, visible: ['mail-plugin'] });
 	});
 
+	test('canvas search uses plugin pages and filters explicit compatibility tags', async () => {
+		const fixture = createPage();
+		fixture.page.setSearchQuery('@type:canvas');
+		fixture.page.setVisible(true);
+		const cursor = { token: 'canvas-next-page' };
+		await fixture.requests[0].result.complete({
+			items: [
+				resource('description-only-canvas', {
+					description: 'A canvas workflow without compatibility metadata',
+					mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+				}),
+				resource('category-only-canvas', {
+					mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+					tags: ['Canvas'],
+				}),
+			],
+			nextCursor: cursor,
+		});
+		await waitForRequestCount(fixture.requests, 2);
+		await fixture.requests[1].result.complete({
+			items: [
+				resource('canvas-plugin', {
+					mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+					tags: ['canvas'],
+				}),
+				resource('canvas-only-plugin', {
+					mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+					tags: ['canvas-only'],
+				}),
+			],
+		});
+		await timeout(0);
+		const content = fixture.page.getAccessibilityContent();
+		const lines = content.split('\n');
+
+		assert.deepStrictEqual({
+			requests: fixture.requests.map(request => request.options),
+			canvas: lines.includes('canvas-plugin'),
+			canvasOnly: lines.includes('canvas-only-plugin'),
+			descriptionOnly: lines.includes('description-only-canvas'),
+			categoryOnly: lines.includes('category-only-canvas'),
+		}, {
+			requests: [
+				{ query: 'plugins', mediaType: undefined, sourceIds: undefined, pageSize: 24, cursor: undefined },
+				{ query: 'plugins', mediaType: undefined, sourceIds: undefined, pageSize: 24, cursor },
+			],
+			canvas: true,
+			canvasOnly: true,
+			descriptionOnly: false,
+			categoryOnly: false,
+		});
+	});
+
+	test('plugin search excludes canvas-only plugins but includes canvas-capable plugins', async () => {
+		const fixture = createPage();
+		fixture.page.setSearchQuery('@type:plugin');
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({
+			items: [
+				resource('ordinary-plugin', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin }),
+				resource('canvas-plugin', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, tags: ['canvas'] }),
+				resource('canvas-only-plugin', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, tags: ['canvas-only'] }),
+			],
+		});
+		await timeout(0);
+		const content = fixture.page.getAccessibilityContent();
+
+		assert.deepStrictEqual({
+			ordinary: content.includes('ordinary-plugin'),
+			canvas: content.includes('canvas-plugin'),
+			canvasOnly: content.includes('canvas-only-plugin'),
+		}, {
+			ordinary: true,
+			canvas: true,
+			canvasOnly: false,
+		});
+	});
+
 	test('plugin-only search finds a match after the first 24 filtered items', async () => {
 		const fixture = createPage();
 		fixture.page.setSearchQuery('@type:plugin mail');
