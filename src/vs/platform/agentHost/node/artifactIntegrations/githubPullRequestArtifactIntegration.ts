@@ -329,6 +329,7 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 	private readonly hostChanges;
 	private readonly checkpointWrites = new Sequencer();
 	private refreshedAutomationRevision: number | undefined;
+	private nextAutomationPollAt: number | undefined;
 
 	constructor(
 		private readonly resource: GitHubPullRequestArtifactResource,
@@ -880,13 +881,20 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 					scheduler.schedule();
 				}
 				if (!store.isDisposed && !poller.isScheduled()) {
-					poller.schedule();
+					schedulePoll();
 				}
 			}
 		};
 		const scheduler = store.add(new RunOnceScheduler(() => { void evaluate(); }, 50));
-		const poller = store.add(new RunOnceScheduler(() => { void evaluate(true); }, automationPollInterval));
-		poller.schedule();
+		const poller = store.add(new RunOnceScheduler(() => {
+			this.nextAutomationPollAt = Date.now() + automationPollInterval;
+			void evaluate(true);
+		}, automationPollInterval));
+		const schedulePoll = () => {
+			this.nextAutomationPollAt ??= Date.now() + automationPollInterval;
+			poller.schedule(Math.max(0, this.nextAutomationPollAt - Date.now()));
+		};
+		schedulePoll();
 		store.add(autorun(reader => {
 			this.resource.snapshot.read(reader);
 			this.resource.authenticationError.read(reader);

@@ -1066,7 +1066,7 @@ suite('GitHub pull request artifact integration', () => {
 		}, { prompts: 1, actions: [['fixCI', 'running']] });
 	}));
 
-	test('polls fresh state every 60 seconds without postponement by snapshot changes and stops when disabled', () => run(async store => {
+	test('polls fresh state every 60 seconds across core refresh reactivation and stops when disabled', () => run(async store => {
 		const base = createPullRequestArtifactSnapshot();
 		const f = await fixture(store, base);
 		const refreshTimes: number[] = [];
@@ -1074,8 +1074,10 @@ suite('GitHub pull request artifact integration', () => {
 		f.onRefresh(() => { refreshTimes.push(Date.now() - enabledAt); });
 		await f.model.configure(gitHubPullRequestArtifactIntegrationId, 0, { fixCI: true });
 		await timeout(30_000);
+		f.snapshot.set({ ...base, core: { ...base.core, status: 'loading', complete: false } }, undefined);
+		await timeout(1_000);
 		f.snapshot.set({ ...base }, undefined);
-		await timeout(29_999);
+		await timeout(28_999);
 		const beforeFirstPoll = [...refreshTimes];
 		await timeout(1);
 		const afterFirstPoll = [...refreshTimes];
@@ -1095,6 +1097,7 @@ suite('GitHub pull request artifact integration', () => {
 		const beforeSecondPoll = f.prompts.length;
 		await timeout(201);
 		const afterSecondPoll = { prompts: f.prompts.length, refreshedAt: refreshTimes[2] };
+		await f.finishPrompt();
 		await f.model.configure(gitHubPullRequestArtifactIntegrationId, 1, { fixCI: false });
 		const refreshCount = refreshTimes.length;
 		await timeout(61_000);
@@ -1111,17 +1114,42 @@ suite('GitHub pull request artifact integration', () => {
 	test('refresh invalidation does not loop when automation reactivates', () => run(async store => {
 		const base = createPullRequestArtifactSnapshot();
 		const f = await fixture(store, base);
-		let refreshes = 0;
+		const refreshTimes: number[] = [];
+		const enabledAt = Date.now();
 		f.onRefresh(async () => {
-			refreshes++;
+			refreshTimes.push(Date.now() - enabledAt);
 			f.snapshot.set({ ...base, core: { ...base.core, status: 'loading', complete: false } }, undefined);
 			await timeout(1);
 			f.snapshot.set(base, undefined);
 		});
 		await f.model.configure(gitHubPullRequestArtifactIntegrationId, 0, { fixCI: true });
-		await timeout(500);
+		await timeout(180_500);
 
-		assert.deepStrictEqual({ refreshes, prompts: f.prompts.length }, { refreshes: 1, prompts: 0 });
+		assert.deepStrictEqual({ refreshTimes, prompts: f.prompts.length }, { refreshTimes: [50, 60_000, 120_000, 180_000], prompts: 0 });
+	}));
+
+	test('polls immediately after an overdue core refresh and stops when disposed', () => run(async store => {
+		const base = createPullRequestArtifactSnapshot();
+		const f = await fixture(store, base);
+		const refreshTimes: number[] = [];
+		const enabledAt = Date.now();
+		f.onRefresh(() => { refreshTimes.push(Date.now() - enabledAt); });
+		await f.model.configure(gitHubPullRequestArtifactIntegrationId, 0, { fixCI: true });
+		await timeout(30_000);
+		f.snapshot.set({ ...base, core: { ...base.core, status: 'loading', complete: false } }, undefined);
+		await timeout(31_000);
+		const whileLoading = [...refreshTimes];
+		f.snapshot.set(base, undefined);
+		await timeout(59_999);
+		const beforeNextPoll = [...refreshTimes];
+		await timeout(1);
+		const afterNextPoll = [...refreshTimes];
+		f.service.dispose();
+		await timeout(61_000);
+
+		assert.deepStrictEqual({ whileLoading, beforeNextPoll, afterNextPoll, afterDisposal: refreshTimes }, {
+			whileLoading: [50], beforeNextPoll: [50, 61_000], afterNextPoll: [50, 61_000, 121_000], afterDisposal: [50, 61_000, 121_000],
+		});
 	}));
 
 	test('retries unresolved repair objectives with fresh state and a bounded attempt budget', () => run(async store => {
