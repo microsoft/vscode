@@ -37,6 +37,12 @@ export interface ICopilotProjectExtensionTrustState {
 	readonly contractions: number;
 }
 
+/** The scratch folder the host allocated a workspace-less chat, which must be a direct child of `root`, the chats folder. */
+export interface ICopilotScratchFolder {
+	readonly folder: URI;
+	readonly root: URI;
+}
+
 /** The worktree the host created as a session's working directory, and the repository whose trust it inherits. */
 export interface ICopilotCreatedWorktree {
 	readonly worktree: URI;
@@ -131,13 +137,14 @@ export class CopilotProjectExtensionLaunchPolicy {
 	}
 
 	/**
-	 * Admits project extensions under `directories` while the returned admission lives. `workspacelessRoot`, when it is
-	 * one of `directories`, is the host-allocated scratch folder of a workspace-less chat: its extensions launch without
-	 * workspace trust, as the agent itself created them. `createdWorktree`, when its worktree is one of `directories`, is
+	 * Admits project extensions under `directories` while the returned admission lives. `scratchFolder`, when its folder
+	 * is one of `directories`, is the host-allocated scratch folder of a workspace-less chat: its extensions launch without
+	 * workspace trust, as the agent itself created them, while it is a direct child of the chats folder both as given and
+	 * by canonical path, so a link there cannot exempt a folder elsewhere. `createdWorktree`, when its worktree is one of `directories`, is
 	 * the worktree the host created as the session's working directory: it inherits its repository's trust while it stays
 	 * a worktree of that repository by canonical path. Any other directory needs workspace trust of its own.
 	 */
-	async acquireAdmission(directories: readonly URI[], workspacelessRoot: URI | undefined, createdWorktree?: ICopilotCreatedWorktree): Promise<ICopilotProjectExtensionLaunchAdmission> {
+	async acquireAdmission(directories: readonly URI[], scratchFolder: ICopilotScratchFolder | undefined, createdWorktree?: ICopilotCreatedWorktree): Promise<ICopilotProjectExtensionLaunchAdmission> {
 		const roots: URI[] = [];
 		for (const directory of directories) {
 			const root = await this._canonicalFileUri(directory, `extension launch root '${directory.fsPath}'`);
@@ -147,12 +154,7 @@ export class CopilotProjectExtensionLaunchPolicy {
 			}
 		}
 
-		const canonicalWorkspacelessRoot = workspacelessRoot
-			? await this._canonicalFileUri(workspacelessRoot, `workspace-less extension root '${workspacelessRoot.fsPath}'`)
-			: undefined;
-		const admittedWorkspacelessRoot = canonicalWorkspacelessRoot && roots.some(root => isEqual(root, canonicalWorkspacelessRoot))
-			? canonicalWorkspacelessRoot
-			: undefined;
+		const admittedWorkspacelessRoot = scratchFolder ? await this._canonicalScratchFolder(scratchFolder, roots) : undefined;
 		if (admittedWorkspacelessRoot) {
 			this._workspacelessRoots.set(admittedWorkspacelessRoot, (this._workspacelessRoots.get(admittedWorkspacelessRoot) ?? 0) + 1);
 		}
@@ -185,6 +187,22 @@ export class CopilotProjectExtensionLaunchPolicy {
 			trustState,
 			dispose: () => lifetime.dispose(),
 		};
+	}
+
+	/** The canonical scratch folder, when it is one of the admitted `roots` and a direct child of the chats folder both as given and by canonical path. */
+	private async _canonicalScratchFolder({ folder, root }: ICopilotScratchFolder, roots: readonly URI[]): Promise<URI | undefined> {
+		if (!extUriBiasedIgnorePathCase.isEqual(extUriBiasedIgnorePathCase.dirname(folder), root)) {
+			return undefined;
+		}
+		const [canonicalFolder, canonicalRoot] = await Promise.all([
+			this._canonicalFileUri(folder, `workspace-less extension root '${folder.fsPath}'`),
+			this._canonicalFileUri(root, `workspace-less chats folder '${root.fsPath}'`),
+		]);
+		if (!canonicalFolder || !canonicalRoot || !roots.some(admitted => isEqual(admitted, canonicalFolder))
+			|| !extUriBiasedIgnorePathCase.isEqual(extUriBiasedIgnorePathCase.dirname(canonicalFolder), canonicalRoot)) {
+			return undefined;
+		}
+		return canonicalFolder;
 	}
 
 	/**
