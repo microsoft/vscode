@@ -2437,5 +2437,72 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(activationEvents[0].reason, GroupActivationReason.DEFAULT);
 	});
 
+	test('hideGroupTitle hides the title of the group until every caller has disposed', async function () {
+		const [part] = await createPart();
+		const group = part.activeGroup;
+		const describe = () => ({ hidden: !!group.element.querySelector(':scope > .title.hidden-title'), titleHeight: group.titleHeight.total });
+		const shown = describe();
+
+		const first = part.hideGroupTitle(group);
+		const second = part.hideGroupTitle(group.id);
+		const bothHolding = describe();
+		first.dispose();
+		first.dispose();
+		const secondHolding = describe();
+		second.dispose();
+
+		assert.deepStrictEqual({ shown: shown.hidden, bothHolding, secondHolding, released: describe() }, {
+			shown: false,
+			bothHolding: { hidden: true, titleHeight: 0 },
+			secondHolding: { hidden: true, titleHeight: 0 },
+			released: shown,
+		});
+	});
+
+	test('maximizeGroup maximizes the group and keeps the given groups visible', async function () {
+		const [part] = await createPart();
+		const group1 = part.activeGroup;
+		part.maximizeGroup(group1, []);
+		const singleGroup = part.hasMaximizedGroup();
+
+		const group2 = part.addGroup(group1, GroupDirection.RIGHT);
+		const group3 = part.addGroup(group2, GroupDirection.RIGHT);
+		part.maximizeGroup(group1, [group2.id]);
+		const isVisible = (group: typeof group1) => !!group.element.parentElement?.classList.contains('visible');
+
+		assert.deepStrictEqual({
+			singleGroup,
+			maximized: part.hasMaximizedGroup(),
+			visible: [group1, group2, group3].map(isVisible),
+			activeGroup: part.activeGroup === group1,
+		}, {
+			singleGroup: false,
+			maximized: true,
+			visible: [true, true, false],
+			activeGroup: true,
+		});
+	});
+
+	test('setViewColumnGroup sets the view column group until disposed, replaced or the group is removed', async function () {
+		const [part] = await createPart();
+		const group1 = part.activeGroup;
+		const group2 = part.addGroup(group1, GroupDirection.RIGHT);
+		const states = [part.viewColumnGroup?.id];
+
+		const first = part.setViewColumnGroup(group1);
+		states.push(part.viewColumnGroup?.id);
+		const second = part.setViewColumnGroup(group2);
+		states.push(part.viewColumnGroup?.id);
+		first.dispose(); // replaced, so it leaves the second
+		states.push(part.viewColumnGroup?.id);
+		part.removeGroup(group2);
+		states.push(part.viewColumnGroup?.id);
+		second.dispose();
+		part.setViewColumnGroup(group1).dispose();
+		states.push(part.viewColumnGroup?.id);
+
+		assert.deepStrictEqual(states, [undefined, group1.id, group2.id, group2.id, undefined, undefined]);
+	});
+
 	ensureNoDisposablesAreLeakedInTestSuite();
 });
