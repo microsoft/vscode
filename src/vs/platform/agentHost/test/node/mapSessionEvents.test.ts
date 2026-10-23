@@ -14,7 +14,7 @@ import { AgentSession, subagentChatTitle } from '../../common/agent.js';
 import { getErrorResponsePart, getTurnError, MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildSubagentSessionUri, type ResponsePart, type StringOrMarkdown, type ToolCallResponsePart, type ToolResultContent } from '../../common/state/sessionState.js';
 import { appendSdkToolResultContent, getSdkToolResultContent, getSdkToolResultText, mapSessionEvents as mapSessionEventsWithRouting, persistSdkToolResultResources, type IMapSessionEventsOptions } from '../../node/copilot/mapSessionEvents.js';
 import { toSessionEvents, type ISessionEvent } from './copilotTestEvents.js';
-import { fusionMainPassTestData as mainPass, fusionTestData as fusion, fusionTestEvent as event } from './copilotFusionTestEvents.js';
+import { fusionMainPassTestData as mainPass, fusionTestData as fusion, fusionTestEvent as event, interruptedCascadeTestEvents } from './copilotFusionTestEvents.js';
 import { AgentSystemNotificationKind, readAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { buildMcpResourceUri, buildToolResultResourceUri, parseMcpResourceUri, parseToolResultResourceUri } from '../../common/mcpResourceUri.js';
@@ -410,6 +410,40 @@ suite('mapSessionEvents — history replay', () => {
 				]);
 			});
 		}
+	}
+
+	for (const cancelledPhase of ['judge', 'repair'] as const) {
+		test(`restores the work an interrupted commit kept where the live turn showed it (cancelled ${cancelledPhase})`, async () => {
+			const { beforeAbort, afterAbort } = interruptedCascadeTestEvents(cancelledPhase);
+			// A partial phase's replay may lack its final turn end, and the cold restore of a stopped turn must not offer to resume it.
+			const lastTurnEnd = afterAbort.findLastIndex(e => e.type === 'assistant.turn_end');
+			const history = [...beforeAbort, ...afterAbort.filter((_, index) => cancelledPhase === 'judge' || index !== lastTurnEnd)].filter(e => !e.ephemeral);
+			const { turns, subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, history, { interruptedTurnError: { errorType: 'executionInterrupted', message: 'Interrupted' } });
+			const describe = (parts: readonly ResponsePart[]) => parts.map(part => part.kind === ResponsePartKind.ToolCall
+				? `${part.toolCall.toolCallId}: ${readToolCallMeta(part.toolCall).fusionPhase?.status ?? part.toolCall.status}`
+				: part.kind === ResponsePartKind.SystemNotification ? `milestone: ${readAgentSystemNotificationMeta(part).fusionStatus}`
+					: part.kind === ResponsePartKind.Markdown ? part.content : part.kind);
+			const phaseChat = (phaseId: string) => subagentTurnsByToolCallId.get(`fusion:fusion-1:${phaseId}`)?.map(turn => ({ state: turn.state, parts: describe(turn.responseParts) }));
+			assert.deepStrictEqual({
+				turns: turns.map(turn => ({ state: turn.state, parts: describe(turn.responseParts) })),
+				judge: phaseChat('judge'),
+				repair: phaseChat('repair'),
+			}, {
+				turns: [{
+					state: TurnState.Cancelled,
+					// The main pass's work stays before the passes that ran after it, and the interruption closes the turn.
+					parts: ['milestone: selected', 'Checking the parser', `tc-check: ${ToolCallStatus.Completed}`, 'The parser is fixed', ...(cancelledPhase === 'judge'
+						? ['fusion:fusion-1:judge: cancelled']
+						: ['fusion:fusion-1:judge: succeeded', 'fusion:fusion-1:repair: cancelled']), 'milestone: cancelled'],
+				}],
+				judge: cancelledPhase === 'judge' ? undefined : [{ state: TurnState.Complete, parts: ['**Score: 2/5**\n\nMisses empty input'] }],
+				// The tool the cancellation stopped never completed, so it is not shown as a success.
+				repair: cancelledPhase === 'judge' ? undefined : [{
+					state: TurnState.Cancelled,
+					parts: ['Fixing empty input', `tc-fix: ${ToolCallStatus.Completed}`, 'Waiting for the tests', `tc-wait: ${ToolCallStatus.Cancelled}`],
+				}],
+			});
+		});
 	}
 
 	test('restores an interrupted ephemeral phase with its duration and rejects its late events on the next turn', async () => {

@@ -15,8 +15,10 @@ const RUNTIME_LOCAL_MODEL_FLAG_KEYS = ['AUTO_LOCAL_ROUTING', 'WINML_LOCAL_MODELS
 const RUNTIME_LOCAL_MODELS_ENV_KEY = 'COPILOT_LOCAL_MODELS';
 /** Dynamic Auto tiers decide what Auto offers, so only `chat.copilot.dynamicAutoTiers.enabled` may turn them on. */
 const RUNTIME_DYNAMIC_AUTO_TIERS_KEYS = [DynamicAutoTiersFeatureFlag] as const;
-const STRIPPED_ENV_KEYS = new Set<string>([...HYDRAFUSION_ENV_KEYS, ...RUNTIME_LOCAL_MODEL_FLAG_KEYS, ...RUNTIME_DYNAMIC_AUTO_TIERS_KEYS, RUNTIME_LOCAL_MODELS_ENV_KEY]);
-const STRIPPED_FEATURE_FLAGS = new Set<string>([...HYDRAFUSION_ENV_KEYS, ...RUNTIME_LOCAL_MODEL_FLAG_KEYS, ...RUNTIME_DYNAMIC_AUTO_TIERS_KEYS]);
+/** Copilot CLI runtime flag that keeps a cancelled HydraFusion turn's work; only `chat.copilot.hydraFusion.interruptedCommit.enabled` may turn it on. */
+export const HydraFusionInterruptedCommitFeatureFlag = 'HYDRAFUSION_INTERRUPTED_COMMIT';
+const STRIPPED_ENV_KEYS = new Set<string>([...HYDRAFUSION_ENV_KEYS, ...RUNTIME_LOCAL_MODEL_FLAG_KEYS, ...RUNTIME_DYNAMIC_AUTO_TIERS_KEYS, HydraFusionInterruptedCommitFeatureFlag, RUNTIME_LOCAL_MODELS_ENV_KEY]);
+const STRIPPED_FEATURE_FLAGS = new Set<string>([...HYDRAFUSION_ENV_KEYS, ...RUNTIME_LOCAL_MODEL_FLAG_KEYS, ...RUNTIME_DYNAMIC_AUTO_TIERS_KEYS, HydraFusionInterruptedCommitFeatureFlag]);
 const ENABLED_FEATURE_FLAGS_ENV_KEY = 'COPILOT_CLI_ENABLED_FEATURE_FLAGS';
 const EXECUTION_SUBAGENT_ENV_KEYS = new Set([
 	'COPILOT_EXP_COPILOT_CLI_EXECUTION_SUBAGENT',

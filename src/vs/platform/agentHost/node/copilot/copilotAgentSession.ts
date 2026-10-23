@@ -39,7 +39,7 @@ import { ILogService, LogLevel } from '../../../log/common/log.js';
 import product from '../../../product/common/product.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { ICopilotHomeService } from '../../../environment/common/copilotHome.js';
-import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostHydraFusionEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, isCopilotHydraFusionModelId } from '../../common/copilotCliConfig.js';
+import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostHydraFusionInterruptedCommitSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, isCopilotHydraFusionModelId } from '../../common/copilotCliConfig.js';
 import { logSettingExperimentTrigger } from '../../../telemetry/common/experimentTrigger.js';
 import { withCustomizationEnablement } from '../../common/customizationEnablement.js';
 import { isAutoModeRoutingTier, isSupportedAutoModeTier } from '../../common/autoModeTiers.js';
@@ -116,7 +116,7 @@ import { buildMcpChannel, buildMcpTopLevelCustomizationId, getMcpServerCustomiza
 import { getSdkMcpServerEnablement, resolveCustomizationEnablement, targetForMcpServer } from '../shared/customizationEnablementGate.js';
 import { appendSdkToolResultContent, getSdkToolResultContent, getSdkToolResultText, mapSessionEvents, persistSdkToolResultResources } from './mapSessionEvents.js';
 import { withPermissionDiff } from '../../common/meta/agentPermissionRequestMeta.js';
-import { COPILOT_FUSION_PHASE_AGENT_NAME, CopilotFusionProgress, formatFusionReviewContent, getFusionPhaseToolCallId, isProvisionalFusionConversationEvent, type CopilotFusionEvent, type FusionPhasePresentation, type ICopilotFusionProgressUpdate } from './copilotFusionProgress.js';
+import { COPILOT_FUSION_PHASE_AGENT_NAME, CopilotFusionProgress, formatFusionReviewContent, getFusionPhaseToolCallId, isFusionCommitReplayEvent, isFusionCommitStartedEvent, isProvisionalFusionConversationEvent, type CopilotFusionEvent, type FusionPhasePresentation, type ICopilotFusionProgressUpdate } from './copilotFusionProgress.js';
 import { CopilotFusionRequestCorrelation, getFusionEventKey, getFusionEventSdkTurnId, isSyntheticUserMessage } from './copilotFusionEventIdentity.js';
 import { CopilotFusionMessageChunks, isLastAssistantMessageChunk } from './copilotFusionMessageChunks.js';
 import { addAttachmentDisplayKindToMimeType, addSimpleAttachmentDisplayKindToMimeType } from './copilotAttachmentUtils.js';
@@ -1302,6 +1302,12 @@ export class CopilotAgentSession extends Disposable {
 	private _developmentRecoverableError: { readonly turnId: string; remainingFailures: number; readonly totalFailures: number } | undefined;
 	private readonly _developmentErrorInjectionEnabled: boolean;
 	private _dropLateRootTurnEvents = false;
+	/**
+	 * Set while the runtime replays a Fusion commit that started after this session abandoned its turn
+	 * (`HYDRAFUSION_INTERRUPTED_COMMIT`). The client already ended that turn, and the replay's turn
+	 * boundaries must not open another one.
+	 */
+	private _discardingCancelledFusionCommit = false;
 	/**
 	 * Set when a root `session.error` ends the protocol turn. The SDK still emits
 	 * that failed execution's terminal `session.idle` afterwards, which can arrive
@@ -6298,6 +6304,41 @@ export class CopilotAgentSession extends Disposable {
 		this._mappedEventsMemo.clear();
 	}
 
+	/** Stops showing the aborted turn's late SDK events and ends the turns of its subagents. */
+	private _quarantineAbortedTurn(): void {
+		this._dropLateRootTurnEvents = true;
+		// Aborted children are not guaranteed to emit a terminal event before reuse.
+		for (const agentId of this._subagents.activeAgentIds) {
+			this._completeSubagentTurn(agentId);
+		}
+		this._subagentTaskCompletionSchedulers.clearAndDisposeAll();
+		this._subagentActivityRevisions.clear();
+		this._backgroundTaskStatusRevision++;
+	}
+
+	/**
+	 * The runtime stopped the turn without this session asking, as a remote command does. No client
+	 * cancels it, so it ends here the way a client cancellation followed by {@link abort} ends it.
+	 */
+	private _endTurnStoppedElsewhere(turn: CopilotTurn): void {
+		this._logService.info(`[Copilot:${this.sessionId}] Turn ${turn.id} was stopped outside this session; cancelling it`);
+		const childToolCallIds = [...this._fusionPhaseChats];
+		for (const agentId of this._subagents.activeAgentIds) {
+			const toolCallId = this._subagents.getToolCallId(agentId);
+			if (toolCallId) {
+				childToolCallIds.push(toolCallId);
+			}
+		}
+		for (const toolCallId of childToolCallIds) {
+			this._emitSubagentOutcome(toolCallId, { kind: 'cancelled', durationMs: undefined });
+		}
+		this._abortingTurn = turn;
+		this._quarantineAbortedTurn();
+		this._beginAbort();
+		this._emitAction({ type: ActionType.ChatTurnCancelled, turnId: turn.id, duration: turn.duration }, undefined, true);
+		this._refreshBackgroundTasks(true);
+	}
+
 	async abort(): Promise<void> {
 		this._logService.info(`[Copilot:${this.sessionId}] Aborting session...`);
 		const abortingTurn = this._currentTurn.value;
@@ -6305,18 +6346,15 @@ export class CopilotAgentSession extends Disposable {
 		const abortTarget = abortingTurn ?? resumingTurn;
 		this._abortingTurn = abortTarget;
 		if (abortTarget) {
+			if (this._fusionProgress.inFlight) {
+				// Cancelling a running HydraFusion workflow is where the runtime's interrupted commit takes effect.
+				this._reportSettingExperimentTrigger(AgentHostHydraFusionInterruptedCommitSettingId);
+			}
 			this._cancelFusionEvents(abortTarget.id);
 		}
 		let droppedBackgroundTaskReads = false;
 		if (abortingTurn || this._subagents.hasActiveAgents) {
-			this._dropLateRootTurnEvents = true;
-			// Aborted children are not guaranteed to emit a terminal event before reuse.
-			for (const agentId of this._subagents.activeAgentIds) {
-				this._completeSubagentTurn(agentId);
-			}
-			this._subagentTaskCompletionSchedulers.clearAndDisposeAll();
-			this._subagentActivityRevisions.clear();
-			this._backgroundTaskStatusRevision++;
+			this._quarantineAbortedTurn();
 			droppedBackgroundTaskReads = true;
 		}
 		const abortBarrier = this._abortBarrier ??= new DeferredPromise<void>();
@@ -9384,6 +9422,8 @@ export class CopilotAgentSession extends Disposable {
 			//    so a later idle can't complete it.
 			//  - if `turn` is the pending failed-turn continuation being aborted,
 			//    drop it before the provider starts.
+			//  - if `turn` is the aborted turn and the SDK already took its
+			//    message (HydraFusion routes before echoing it), drop it too.
 			//  - any other pending turn is a queued message started after the
 			//    abort; leave it open for its own non-abort idle.
 			if (e.data.aborted && (!abortingTurn || turn === abortingTurn)) {
@@ -9391,7 +9431,7 @@ export class CopilotAgentSession extends Disposable {
 					this._setManagedPluginActivity(undefined);
 				}
 				this._cancelActiveRepoInfoTelemetry();
-				if (turn.isRunning || turn === this._resumingTurnAwaitingProviderStart) {
+				if (turn.isRunning || turn === this._resumingTurnAwaitingProviderStart || (turn === abortingTurn && turn.sdkSendInvoked)) {
 					this._logService.trace(`[Copilot:${sessionId}] Idle from abort; tearing down cancelled turn ${turn.id}`);
 					if (turn.isRunning) {
 						this._reportToolCallDetails(turn, 'cancelled');
@@ -11114,6 +11154,25 @@ export class CopilotAgentSession extends Disposable {
 		this._surfaceProvisionalFusionToolCall(toolCallId, true);
 	}
 
+	/**
+	 * A Fusion commit that starts after this session abandoned its turn replays work the client
+	 * already cancelled: the cancelled turn cannot show it, and the next turn must not receive it.
+	 * The replay ends with the aborted run's idle, before the runtime starts another turn.
+	 */
+	private _trackCancelledFusionCommit(event: SessionEvent): void {
+		if (event.agentId) {
+			return;
+		}
+		if (isFusionCommitStartedEvent(event)) {
+			this._discardingCancelledFusionCommit = this._dropLateRootTurnEvents;
+			if (this._discardingCancelledFusionCommit) {
+				this._logService.trace(`[Copilot:${this.sessionId}] Discarding the replay of a Fusion commit that started after its turn was cancelled`);
+			}
+		} else if (event.type === 'session.idle' || (event.type === 'user.message' && !isSyntheticUserMessage(event))) {
+			this._discardingCancelledFusionCommit = false;
+		}
+	}
+
 	private _cancelFusionEvents(turnId = this._turnId): void {
 		this._requiresFusionEventOwnership = true;
 		if (turnId === this._turnId) {
@@ -11266,7 +11325,9 @@ export class CopilotAgentSession extends Disposable {
 		const wrapper = this._wrapper;
 		const sessionId = this.sessionId;
 
+		wrapper.setEventSuppression(event => this._discardingCancelledFusionCommit && isFusionCommitReplayEvent(event));
 		store.add(wrapper.onEvent(event => {
+			this._trackCancelledFusionCommit(event);
 			const ownerTurnId = event.type === 'session.fusion_resolved' ? this._fusionEventTurnIds.get(getFusionEventKey(event)) : undefined;
 			this._fusionRequestCorrelation.observe(event, ownerTurnId !== undefined && ownerTurnId !== this._turnId);
 		}));
@@ -11586,7 +11647,11 @@ export class CopilotAgentSession extends Disposable {
 		store.add(wrapper.onAbort(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Aborted: ${e.data.reason}`);
 			if (!e.agentId) {
-				this._cancelFusionEvents();
+				const turnStoppedElsewhere = !this._abortingTurn && (this._currentTurn.value?.isRunning || this._fusionProgress.inFlight) ? this._currentTurn.value : undefined;
+				if (turnStoppedElsewhere && this._fusionProgress.inFlight) {
+					this._reportSettingExperimentTrigger(AgentHostHydraFusionInterruptedCommitSettingId);
+				}
+				this._cancelFusionEvents(this._abortingTurn?.id);
 				const update = this._fusionProgress.interrupt(e.timestamp);
 				this._clearActivity();
 				if (!this._abortingTurn || this._abortingTurn === this._currentTurn.value) {
@@ -11594,6 +11659,9 @@ export class CopilotAgentSession extends Disposable {
 				}
 				if (update) {
 					this._emitFusionProgress(update, true);
+				}
+				if (turnStoppedElsewhere) {
+					this._endTurnStoppedElsewhere(turnStoppedElsewhere);
 				}
 				this._forgetFusionPhaseChats();
 			}

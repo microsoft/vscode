@@ -78,6 +78,7 @@ export class CopilotSessionWrapper extends Disposable {
 	private readonly _instanceId = generateUuid();
 	private readonly _lifetime = new StopWatch();
 	private _beforeDisconnect: (() => Promise<void>) | undefined;
+	private _isSuppressed: ((event: SessionEvent) => boolean) | undefined;
 
 	constructor(
 		readonly session: CopilotSession,
@@ -131,6 +132,11 @@ export class CopilotSessionWrapper extends Disposable {
 	/** Sets bounded, best-effort cleanup to run once before disconnecting the SDK session. */
 	setBeforeDisconnect(beforeDisconnect: () => Promise<void>): void {
 		this._beforeDisconnect = beforeDisconnect;
+	}
+
+	/** Withholds the events the predicate matches from the typed events; {@link onEvent} still delivers them. */
+	setEventSuppression(isSuppressed: ((event: SessionEvent) => boolean) | undefined): void {
+		this._isSuppressed = isSuppressed;
 	}
 
 	/** Runs pre-disconnect cleanup, then waits for the disconnect response or SDK shutdown. */
@@ -519,7 +525,7 @@ export class CopilotSessionWrapper extends Disposable {
 			onDidRemoveLastListener: () => this._handledEventTypes.delete(eventType),
 		}));
 		const unsubscribe = this.session.on(eventType, (data: SessionEventPayload<K>) => {
-			if (!isProvisionalFusionConversationEvent(data)) {
+			if (!isProvisionalFusionConversationEvent(data) && !this._isSuppressed?.(data)) {
 				emitter.fire(data);
 			}
 		});

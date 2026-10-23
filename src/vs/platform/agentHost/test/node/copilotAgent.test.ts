@@ -12939,10 +12939,11 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('strips inherited HydraFusion and dynamic Auto tier flags and preserves unrelated environment', () => {
+		test('strips inherited HydraFusion, interrupted commit and dynamic Auto tier flags and preserves unrelated environment', () => {
 			const env = createCopilotCliEnvironment({
-				COPILOT_CLI_ENABLED_FEATURE_FLAGS: 'COMPUTER_USE, HYDRAFUSION, HYDRAFUSION_ROLLOUT, HYDRAFUSION_PLAN_V2, hydrafusion_sticky_root, DYNAMIC_AUTO_TIERS',
+				COPILOT_CLI_ENABLED_FEATURE_FLAGS: 'COMPUTER_USE, HYDRAFUSION, HYDRAFUSION_ROLLOUT, HYDRAFUSION_PLAN_V2, hydrafusion_sticky_root, DYNAMIC_AUTO_TIERS, hydrafusion_interrupted_commit',
 				DYNAMIC_AUTO_TIERS: 'true',
+				HYDRAFUSION_INTERRUPTED_COMMIT: 'true',
 				HYDRAFUSION: 'true',
 				HYDRAFUSION_ROLLOUT: 'true',
 				HYDRAFUSION_PLAN_V2: 'true',
@@ -12953,6 +12954,7 @@ suite('CopilotAgent', () => {
 
 			assert.deepStrictEqual({
 				dynamicAutoTiers: env['DYNAMIC_AUTO_TIERS'],
+				hydraFusionInterruptedCommit: env['HYDRAFUSION_INTERRUPTED_COMMIT'],
 				hydraFusion: env['HYDRAFUSION'],
 				hydraFusionRollout: env['HYDRAFUSION_ROLLOUT'],
 				hydraFusionV2: env['HYDRAFUSION_PLAN_V2'],
@@ -12962,6 +12964,7 @@ suite('CopilotAgent', () => {
 				path: env['PATH'],
 			}, {
 				dynamicAutoTiers: undefined,
+				hydraFusionInterruptedCommit: undefined,
 				hydraFusion: undefined,
 				hydraFusionRollout: undefined,
 				hydraFusionV2: undefined,
@@ -13743,6 +13746,28 @@ suite('CopilotAgent', () => {
 				gate.complete();
 				await disposeAgent(agent);
 				setAdvertisedAutoModeTiers(undefined);
+			}
+		});
+
+		test('launches the runtime with HYDRAFUSION_INTERRUPTED_COMMIT only while opted in', async () => {
+			const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
+			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
+			const hasFlag = () => (getCreatedClientOptions(agent).at(-1)?.env?.['COPILOT_CLI_ENABLED_FEATURE_FLAGS'] ?? '').split(',').includes('HYDRAFUSION_INTERRUPTED_COMMIT');
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.listChatsToMigrate();
+				const byDefault = hasFlag();
+
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.HydraFusionInterruptedCommit]: true });
+				await agent.listChatsToMigrate();
+				const optedIn = hasFlag();
+
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.HydraFusionInterruptedCommit]: false });
+				await agent.listChatsToMigrate();
+
+				assert.deepStrictEqual({ byDefault, optedIn, optedOut: hasFlag(), stopCallCount: client.stopCallCount }, { byDefault: false, optedIn: true, optedOut: false, stopCallCount: 2 });
+			} finally {
+				await disposeAgent(agent);
 			}
 		});
 

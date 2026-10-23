@@ -102,6 +102,36 @@ export function isProvisionalFusionConversationEvent(event: SessionEvent): boole
 	}
 }
 
+/** The Fusion phase and commit an event is attributed to, whatever its type. */
+export function readFusionAttribution(event: SessionEvent): { readonly phaseId?: string; readonly commitId?: string } | undefined {
+	const fusion = (event.data as { readonly fusion?: unknown } | undefined)?.fusion;
+	if (!isObject(fusion)) {
+		return undefined;
+	}
+	const { phaseId, commitId } = fusion as { readonly phaseId?: unknown; readonly commitId?: unknown };
+	return {
+		phaseId: typeof phaseId === 'string' ? phaseId : undefined,
+		commitId: typeof commitId === 'string' && commitId.length > 0 ? commitId : undefined,
+	};
+}
+
+/** `session.fusion_commit_started`, which the SDK's typed event union does not list yet. */
+export function isFusionCommitStartedEvent(event: SessionEvent): boolean {
+	const type: string = event.type;
+	return type === 'session.fusion_commit_started';
+}
+
+/** The commit the runtime makes of a cancelled turn's work (`HYDRAFUSION_INTERRUPTED_COMMIT`). */
+export function isInterruptedFusionCommit(commitId: string): boolean {
+	return /:commit:interrupted:\d+$/.test(commitId);
+}
+
+/** An event a Fusion commit replays: a root turn boundary, or an event stamped with the commit. */
+export function isFusionCommitReplayEvent(event: SessionEvent): boolean {
+	return (!event.agentId && (event.type === 'assistant.turn_start' || event.type === 'assistant.turn_end'))
+		|| readFusionAttribution(event)?.commitId !== undefined;
+}
+
 export interface ICopilotFusionProgressUpdate {
 	readonly activity: string | undefined;
 	readonly part?: SystemNotificationResponsePart;
@@ -175,6 +205,11 @@ export class CopilotFusionProgress {
 		return this._phase ? getFusionPhaseToolCallId(this._phase.fusionId, this._phase.phaseId) : undefined;
 	}
 
+	/** Whether a workflow is running: routing, or a phase or its commit before the workflow ends. */
+	get inFlight(): boolean {
+		return this._inFlight;
+	}
+
 	getPhaseModel(toolCallId: string): string | undefined {
 		const toolCall = this._phaseTools.get(toolCallId);
 		return toolCall ? readToolCallMeta(toolCall).fusionPhase?.model : undefined;
@@ -204,6 +239,9 @@ export class CopilotFusionProgress {
 		this._inFlight = false;
 		this._interrupted = true;
 		const phase = this._phase ? this._updatePhase(this._phase, 'cancelled', timestamp) : undefined;
+		if (this._phase) {
+			this._record(`phase:${this._phase.fusionId}:${this._phase.phaseId}`);
+		}
 		this._activity = undefined;
 		this._phase = undefined;
 		if (this._fusionId) {
@@ -217,8 +255,11 @@ export class CopilotFusionProgress {
 	}
 
 	accept(event: CopilotFusionEvent): ICopilotFusionProgressUpdate | undefined {
-		if (event.agentId || this._interrupted) {
+		if (event.agentId) {
 			return undefined;
+		}
+		if (this._interrupted) {
+			return this._acceptCancelledPhase(event);
 		}
 		const data = event.data;
 		if (hasKey(data, { fusionId: true }) && typeof data.fusionId === 'string' && this._finishedFusions.has(data.fusionId)) {
@@ -327,6 +368,20 @@ export class CopilotFusionProgress {
 			}
 		}
 		return { part, phase, activity: this._activity };
+	}
+
+	/**
+	 * The runtime records how the interrupted phase ended after the abort. History has no running
+	 * phase to cancel, so this record is what shows the phase, and what its kept work belongs to.
+	 */
+	private _acceptCancelledPhase(event: CopilotFusionEvent): ICopilotFusionProgressUpdate | undefined {
+		if (event.type !== 'assistant.fusion_phase_failed' || event.data.status !== 'cancelled' || event.data.fusionId !== this._fusionId
+			|| !this._record(`phase:${event.data.fusionId}:${event.data.phaseId}`)) {
+			return undefined;
+		}
+		const phase = this._updatePhase(event.data, 'cancelled', event.timestamp, event.data.durationMs);
+		// The interruption milestone already reports the cancellation.
+		return { activity: undefined, phase: { ...phase, outcome: undefined } };
 	}
 
 	private _updatePhase(data: Pick<FusionPhase, 'fusionId' | 'phaseId' | 'phaseKind' | 'model'>, status: IFusionPhaseMeta['status'], timestamp: string | undefined, duration?: number, verdict?: string | null): NonNullable<ICopilotFusionProgressUpdate['phase']> {

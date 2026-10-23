@@ -105,7 +105,7 @@ import { deferCopilotSdkExecution, getDeferredCopilotSdkExecution } from './copi
 import { readCopilotSessionEvents, restoreStoredShellOutputsForChat } from './copilotSessionHistory.js';
 import { mapSessionEvents } from './mapSessionEvents.js';
 import { subagentChatUri } from '../../common/agentHostChatMinting.js';
-import { addCopilotSandboxPath, createCopilotCliEnvironment, setLocalModelRequestHandlerEnvironment } from './copilotCliEnvironment.js';
+import { addCopilotSandboxPath, createCopilotCliEnvironment, HydraFusionInterruptedCommitFeatureFlag, setLocalModelRequestHandlerEnvironment } from './copilotCliEnvironment.js';
 import { COMPUTER_USE_PLUGIN_RELEASE, CopilotComputerUsePlugin, getComputerUseHelperAppPath, readMacAppIcon } from './copilotComputerUsePlugin.js';
 import { CopilotComputerUsePermissionSetup } from './copilotComputerUsePermissionSetup.js';
 import { ILocalModelSetupService } from './localModelBridge/localModelSetupService.js';
@@ -1832,6 +1832,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._getExecutionSubagentModel(),
 			this._isDynamicAutoTiersEnabled(),
 			this._isComputerUseEnabled(),
+			this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusionInterruptedCommit) === true,
 		);
 	}
 
@@ -4106,6 +4107,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (startupConfig.dynamicAutoTiers) {
 				addCopilotFeatureFlag(env, DynamicAutoTiersFeatureFlag);
 				this._logService.info(`[Copilot] Enabled runtime feature flag ${DynamicAutoTiersFeatureFlag}`);
+			}
+
+			if (startupConfig.hydraFusionInterruptedCommit) {
+				addCopilotFeatureFlag(env, HydraFusionInterruptedCommitFeatureFlag);
+				this._logService.info(`[Copilot] Enabled runtime feature flag ${HydraFusionInterruptedCommitFeatureFlag}`);
 			}
 
 			// Identify VS Code's agent host traffic in CAPI

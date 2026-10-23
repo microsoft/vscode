@@ -34,6 +34,7 @@ export class CopilotAgentStartupConfig {
 		readonly dynamicAutoTiers = false,
 		/** `chat.agentHost.computerUse.enabled`: built-in plugins can only be registered before any session exists. */
 		readonly computerUse = false,
+		readonly hydraFusionInterruptedCommit = false,
 	) { }
 
 	equals(other: CopilotAgentStartupConfig): boolean {

@@ -90,6 +90,10 @@ export class FusionReplayState {
 			return;
 		}
 		if (eventTurn !== undefined && !this._pendingTurn && this._requestId !== undefined && this._cancelledRequestIds.has(this._requestId)) {
+			// The record of how the interrupted phase ended still belongs to the cancelled request.
+			if (event.type === 'assistant.fusion_phase_failed' && event.data.status === 'cancelled') {
+				this._append(this._progress.accept(event));
+			}
 			return;
 		}
 		const sdkTurnId = getFusionEventSdkTurnId(event);

@@ -59,7 +59,7 @@ import { toSlashCommandResourceMeta } from '../../common/meta/agentSlashCommandO
 import { mintedTestChatOwner } from '../common/mintedChatUri.js';
 import { createUnmanagedCopilotSettings, toSessionEvents } from './copilotTestEvents.js';
 import { computerUsePermissionSchema, TestComputerUseConfiguration } from './copilotComputerUseTestUtils.js';
-import { fusionMainPassTestData, fusionTestData } from './copilotFusionTestEvents.js';
+import { fusionMainPassTestData, fusionTestData, interruptedCascadeTestEvents } from './copilotFusionTestEvents.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
@@ -67,7 +67,7 @@ import { buildMcpResourceUri, buildToolResultResourceUri } from '../../common/mc
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { ActionType, isChatAction, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction, type SessionAction, type StateAction } from '../../common/state/sessionActions.js';
 import { TestChatOwnerRef } from './agentChatContextTestUtils.js';
-import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, createChatState, createSessionState, getInlineToolInput, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfoMeta } from '../../common/state/sessionState.js';
+import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, createChatState, createSessionState, getInlineToolInput, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfoMeta } from '../../common/state/sessionState.js';
 import { chatReducer, sessionReducer } from '../../common/state/sessionReducers.js';
 import { BackgroundWorkKind, TerminalClaimKind, type BackgroundWork, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { canStopBackgroundWork, toStoppableBackgroundWorkMeta } from '../../common/meta/agentHostBackgroundWorkStopMeta.js';
@@ -76,6 +76,7 @@ import { toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAtt
 import { STREAMING_TOOL_DISPLAY_INTERVAL_MS } from '../../common/streamingToolCallDisplay.js';
 import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type Customization, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
 import { CopilotAgentSession, type ICopilotCanvasHandoff, type ICopilotWorkingDirectoryChangeTransaction } from '../../node/copilot/copilotAgentSession.js';
+import { isFusionCommitStartedEvent } from '../../node/copilot/copilotFusionProgress.js';
 import { CopilotComputerUsePermissionSetup } from '../../node/copilot/copilotComputerUsePermissionSetup.js';
 import { AgentHostMacAccessibilityTrustService } from '../../node/agentHostMacAccessibilityTrustService.js';
 import { CopilotSandboxCertificate } from '../../node/copilot/copilotSandboxCertificate.js';
@@ -116,7 +117,7 @@ import { buildCopilotSystemNotification, getCopilotSubagentDisplayNames } from '
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpSamplingAllowedServersConfigKey, AgentHostMcpToolRoutingEnabledConfigKey } from '../../common/agentHostSchema.js';
-import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostHydraFusionEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey } from '../../common/copilotCliConfig.js';
+import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostHydraFusionInterruptedCommitSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey } from '../../common/copilotCliConfig.js';
 import { setAdvertisedAutoModeTiers } from '../../common/autoModeTiers.js';
 import { TestExperimentTriggerTelemetryService } from '../../../telemetry/test/common/experimentTriggerTestUtils.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
@@ -21243,6 +21244,132 @@ Use the attached image as context.
 			mockSession.fire('session.idle', { aborted: true });
 			session.resetTurnState('next-turn');
 			assert.deepStrictEqual(signals.flatMap(signal => signal.kind === 'subagent_started' || signal.kind === 'subagent_completed' ? [signal.kind] : []), ['subagent_started']);
+		});
+
+		const fireSessionEvent = (mockSession: MockCopilotSession, event: SessionEvent) => {
+			if (isFusionCommitStartedEvent(event)) {
+				mockSession.fireRaw(event);
+				return;
+			}
+			const { type, data, ...envelope } = event;
+			mockSession.fire(type, data as never, envelope as never);
+		};
+		const signalSummary = (signals: readonly AgentSignal[]) => signals.map(signal => signal.kind === 'action'
+			? `${signal.parentToolCallId ? `${signal.parentToolCallId} ` : ''}${signal.action.type}${hasKey(signal.action, { turnId: true }) ? ` ${signal.action.turnId}` : ''}`
+			: `${signal.kind}${signal.kind === 'subagent_started' || signal.kind === 'subagent_completed' ? ` ${signal.toolCallId}` : ''}`);
+
+		for (const nextTurn of [false, true]) {
+			test(`an interrupted commit replayed after the client cancelled the turn reaches neither that turn nor the next (next turn ${nextTurn ? 'sent' : 'not sent'})`, async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				const { beforeAbort, afterAbort } = interruptedCascadeTestEvents('repair');
+				session.resetTurnState('turn-1');
+				for (const event of beforeAbort) {
+					fireSessionEvent(mockSession, event);
+				}
+				const live = fusionTranscript(signals);
+				// `session.abort()` returns only after the runtime replayed the commits.
+				const abortRelease = new DeferredPromise<void>();
+				mockSession.abortGate = abortRelease.p;
+				const aborting = session.abort();
+				if (nextTurn) {
+					session.resetTurnState('turn-2');
+				}
+				const afterCancel = signals.length;
+				for (const event of afterAbort) {
+					fireSessionEvent(mockSession, event);
+				}
+				abortRelease.complete();
+				await aborting;
+				const current = session['_currentTurn'].value;
+				const currentTurn = current && { id: current.id, state: current.state };
+				const beforeNextRun = signals.length;
+				if (nextTurn) {
+					// The next message's own run still shows its workflow.
+					mockSession.fire('user.message', { content: 'Next request', turnId: 'sdk-next' });
+					mockSession.fire('session.fusion_resolved', { ...fusionTestData.resolved, fusionId: 'fusion-2', turnId: 'sdk-next' });
+				}
+
+				assert.deepStrictEqual({
+					live,
+					afterCancel: signalSummary(signals.slice(afterCancel, beforeNextRun)),
+					currentTurn,
+					nextRun: signalSummary(signals.slice(beforeNextRun)),
+				}, {
+					live: [
+						'root: Checking the parser',
+						'root: tool tc-check',
+						'subagent_started fusion:fusion-1:judge',
+						'fusion:fusion-1:judge: **Score: 2/5**\n\nMisses empty input',
+						'subagent_started fusion:fusion-1:repair',
+						'fusion:fusion-1:repair: Fixing empty input',
+						'fusion:fusion-1:repair: tool tc-fix',
+						'fusion:fusion-1:repair: Waiting for the tests',
+						'fusion:fusion-1:repair: tool tc-wait',
+					],
+					// The cancelled phase's tile is closed for the cancelled turn; nothing the commit replays is shown.
+					afterCancel: nextTurn ? [] : [ActionType.SessionActivityChanged, `${ActionType.ChatToolCallComplete} turn-1`],
+					// A message sent meanwhile still waits for its own run; the cancelled turn is gone.
+					currentTurn: nextTurn ? { id: 'turn-2', state: 'pending' } : undefined,
+					nextRun: nextTurn ? [`${ActionType.ChatResponsePart} turn-2`, ActionType.SessionActivityChanged] : [],
+				});
+			});
+		}
+
+		test('a turn the runtime stopped without being asked ends as cancelled, and its interrupted commit is discarded', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			const { beforeAbort, afterAbort } = interruptedCascadeTestEvents('repair');
+			session.resetTurnState('turn-1');
+			for (const event of beforeAbort) {
+				fireSessionEvent(mockSession, event);
+			}
+			const beforeStop = signals.length;
+			for (const event of afterAbort) {
+				fireSessionEvent(mockSession, event.type === 'abort' ? { ...event, data: { reason: 'remote_command' } } : event);
+			}
+			const state = reduceTurnSignals(signals.filter(signal => signal.kind !== 'action' || !signal.parentToolCallId), 'turn-1');
+
+			assert.deepStrictEqual({
+				afterStop: signalSummary(signals.slice(beforeStop)),
+				turn: { state: state.turns.at(-1)?.state, active: !!state.activeTurn },
+				currentTurn: session['_currentTurn'].value,
+			}, {
+				afterStop: [
+					ActionType.SessionActivityChanged,
+					`${ActionType.ChatToolCallComplete} turn-1`,
+					`fusion:fusion-1:judge ${ActionType.ChatTurnCancelled} turn-1`,
+					`fusion:fusion-1:repair ${ActionType.ChatTurnCancelled} turn-1`,
+					`${ActionType.ChatTurnCancelled} turn-1`,
+				],
+				turn: { state: TurnState.Cancelled, active: false },
+				currentTurn: undefined,
+			});
+		});
+
+		test('cancelling a running HydraFusion workflow reports the interrupted commit experiment trigger in both arms', async () => {
+			const treatment = `config.${AgentHostHydraFusionInterruptedCommitSettingId}`;
+			const results: Record<string, { readonly afterOrdinaryAbort: readonly string[]; readonly afterFusionAbort: readonly string[] }> = {};
+			for (const enabled of [true, false]) {
+				const telemetryService = new TestExperimentTriggerTelemetryService();
+				const { session, mockSession } = await createAgentSession(disposables, {
+					telemetryService,
+					rootValues: { [CopilotCliConfigKey.HydraFusion]: true, [CopilotCliConfigKey.HydraFusionInterruptedCommit]: enabled, [CopilotCliVSCodeAssignmentContextKey]: 'assignment-context' },
+				});
+				session.resetTurnState('ordinary-turn');
+				mockSession.fire('user.message', { content: 'Ordinary request' });
+				await session.abort();
+				mockSession.fire('session.idle', { aborted: true });
+				const afterOrdinaryAbort = [...telemetryService.triggers].filter(trigger => trigger === treatment);
+				session.resetTurnState('fusion-turn');
+				mockSession.fire('user.message', { content: 'Fusion request' });
+				mockSession.fire('session.fusion_route_started', fusionTestData.routeStarted);
+				await session.abort();
+				results[enabled ? 'treatment' : 'control'] = { afterOrdinaryAbort, afterFusionAbort: telemetryService.triggers.filter(trigger => trigger === treatment) };
+			}
+
+			assert.deepStrictEqual(results, {
+				treatment: { afterOrdinaryAbort: [], afterFusionAbort: [treatment] },
+				control: { afterOrdinaryAbort: [], afterFusionAbort: [treatment] },
+			});
 		});
 
 		test('a root session error closes Fusion phase chats, and a resumed phase reopens its chat', async () => {

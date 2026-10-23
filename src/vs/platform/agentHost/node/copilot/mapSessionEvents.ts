@@ -16,14 +16,14 @@ import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { getToolCallDurationMs, readToolCallMeta, toToolCallMeta, type IToolCallUiMeta, type ToolKind } from '../../common/meta/agentToolCallMeta.js';
 import { IFileEditRecord, ISessionDatabase, IToolResultResource, MAX_TOOL_RESULT_RESOURCE_BYTES } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, type ContentRef, type MessageAttachment } from '../../common/state/protocol/state.js';
-import { createErrorResponsePart, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type AgentSelection, type ErrorInfo, type Message, type ModelSelection, type ResponsePart, type StringOrMarkdown, type TerminalCommandResult, type ToolCallCompletedState, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
+import { createErrorResponsePart, MessageKind, ResponsePartKind, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type AgentSelection, type ErrorInfo, type Message, type ModelSelection, type ResponsePart, type StringOrMarkdown, type TerminalCommandResult, type ToolCallCompletedState, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { CopilotToolName, getInvocationMessage, getPastTenseMessage, getSdkImageGenerationMetadata, getToolIntention, getShellLanguage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolSummaryInputContract, isEditTool, isHiddenTool, isTaskCompleteTool, synthesizeSkillToolCall, type ToolAgentNameResolver } from './copilotToolDisplay.js';
 import { imageGenerationToolMetaKey } from '../../common/meta/agentImageGenerationMeta.js';
-import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
+import { AgentSystemNotificationKind, readAgentSystemNotificationMeta, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { buildSessionDbUri } from '../../common/sessionDbUri.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
 import { buildCopilotSystemNotification, getCopilotSubagentDisplayNames } from './copilotSystemNotification.js';
-import { COPILOT_FUSION_PHASE_AGENT_NAME, formatFusionReviewContent, getFusionPhaseToolCallId, isCopilotFusionEvent, getFusionPhasePresentation, isProvisionalFusionConversationEvent } from './copilotFusionProgress.js';
+import { COPILOT_FUSION_PHASE_AGENT_NAME, formatFusionReviewContent, getFusionPhaseToolCallId, isCopilotFusionEvent, getFusionPhasePresentation, isInterruptedFusionCommit, isProvisionalFusionConversationEvent, readFusionAttribution } from './copilotFusionProgress.js';
 import { FusionReplayState } from './copilotFusionReplay.js';
 import { isInterAgentUserMessage, isSyntheticUserMessage } from './copilotFusionEventIdentity.js';
 import { CopilotFusionMessageChunks } from './copilotFusionMessageChunks.js';
@@ -664,9 +664,33 @@ export async function mapSessionEvents(
 		}
 	};
 
+	/** Where each inline (main or first) pass of the current turn showed its work, so work an interrupted commit keeps returns there. */
+	const inlinePhaseAnchors = new Map<string, number>();
+	let interruptedInlineReplay: { readonly builder: ITurnBuilder; readonly phaseId: string; readonly start: number } | undefined;
+	const placeInterruptedInlineReplay = (): void => {
+		const replay = interruptedInlineReplay;
+		interruptedInlineReplay = undefined;
+		const anchor = replay ? inlinePhaseAnchors.get(replay.phaseId) : undefined;
+		if (!replay || anchor === undefined || replay.builder !== parentBuilder || replay.start < anchor) {
+			return;
+		}
+		const moved = replay.builder.responseParts.splice(replay.start);
+		replay.builder.responseParts.splice(anchor, 0, ...moved);
+		for (const [phaseId, index] of inlinePhaseAnchors) {
+			if (phaseId === replay.phaseId || index > anchor) {
+				inlinePhaseAnchors.set(phaseId, index + moved.length);
+			}
+		}
+	};
+
 	const flushParent = (): void => {
 		if (!parentBuilder) {
 			return;
+		}
+		placeInterruptedInlineReplay();
+		inlinePhaseAnchors.clear();
+		if (parentTurnState === TurnState.Cancelled) {
+			moveFusionInterruptionToEnd(parentBuilder.responseParts);
 		}
 		turns.push(finalizeTurn(parentBuilder, parentTurnState));
 		parentBuilder = undefined;
@@ -732,7 +756,17 @@ export async function mapSessionEvents(
 			continue;
 		}
 		currentEventTimestamp = readEventTimestamp(e);
+		placeInterruptedInlineReplay();
 		if (isCopilotFusionEvent(e)) {
+			if (parentBuilder && !e.agentId && (e.type === 'assistant.fusion_phase_completed' || e.type === 'assistant.fusion_phase_failed')) {
+				if (getFusionPhasePresentation(e.data.phaseKind) === 'inline') {
+					if (!inlinePhaseAnchors.has(e.data.phaseId)) {
+						inlinePhaseAnchors.set(e.data.phaseId, parentBuilder.responseParts.length);
+					}
+				} else if (e.data.status === 'cancelled') {
+					subagentTurnStates.set(getFusionPhaseToolCallId(e.data.fusionId, e.data.phaseId), TurnState.Cancelled);
+				}
+			}
 			fusionReplay.observe(e, { requestActive: rootRequestActive, hasTurn: !!parentBuilder });
 			if (parentBuilder && fusionReplay.drain(parentBuilder.responseParts)) {
 				touch(parentBuilder);
@@ -750,10 +784,17 @@ export async function mapSessionEvents(
 			parentBuilder = pendingSkillBuilder;
 			pendingSkillBuilder = undefined;
 		}
+		const replayed = !e.agentId && parentBuilder ? readFusionAttribution(e) : undefined;
+		if (parentBuilder && replayed?.commitId && replayed.phaseId && isInterruptedFusionCommit(replayed.commitId) && inlinePhaseAnchors.has(replayed.phaseId)) {
+			interruptedInlineReplay = { builder: parentBuilder, phaseId: replayed.phaseId, start: parentBuilder.responseParts.length };
+		}
 		switch (e.type) {
 			case 'assistant.turn_start':
 				if (e.agentId) {
 					recordSubagentModel(resolveParentToolCallId(e.agentId, undefined), e.data.model);
+				} else if (parentBuilder && parentTurnTerminated && parentTurnState === TurnState.Cancelled) {
+					// A Fusion commit replays the cancelled turn's boundaries after its abort; they do not resume it.
+					touch(parentBuilder);
 				} else {
 					if (parentBuilder && parentTurnState === TurnState.Error) {
 						const waitingStartedAt = parentBuilder.waitingStartedAt === undefined ? undefined : Date.parse(parentBuilder.waitingStartedAt);
@@ -944,7 +985,7 @@ export async function mapSessionEvents(
 					if (!parentToolCallId && d.turnId && d.toolRequests.some(request => request.name === CopilotToolName.ImageGeneration)) {
 						builder.imageGenerationSdkTurnId = d.turnId;
 					}
-					appendFallbackToolRequests(builder, d.toolRequests, parentToolCallId);
+					appendFallbackToolRequests(builder, d.toolRequests, parentToolCallId, readFusionAttribution(e)?.commitId !== undefined);
 				}
 				break;
 			}
@@ -1125,6 +1166,7 @@ export async function mapSessionEvents(
 		}
 	}
 
+	placeInterruptedInlineReplay();
 	if (options && !(options instanceof URI) && options.interruptedTurnError && parentBuilder && rootRequestActive && parentTurnState !== TurnState.Error) {
 		parentBuilder.responseParts.push(createErrorResponsePart(options.interruptedTurnError, true));
 		parentTurnState = TurnState.Error;
@@ -1139,7 +1181,7 @@ export async function mapSessionEvents(
 
 	return { turns: linkFusionPhaseChats(turns, subagentTurns, sessionUriStr), subagentTurnsByToolCallId: subagentTurns };
 
-	function appendFallbackToolRequests(builder: ITurnBuilder, toolRequests: readonly AssistantMessageToolRequest[], parentToolCallId: string | undefined): void {
+	function appendFallbackToolRequests(builder: ITurnBuilder, toolRequests: readonly AssistantMessageToolRequest[], parentToolCallId: string | undefined, committedFusionReplay: boolean): void {
 		for (const request of toolRequests) {
 			const completion = completionsByCallId.get(request.toolCallId);
 			if (completion && toolInfoByCallId.has(request.toolCallId)) {
@@ -1165,7 +1207,7 @@ export async function mapSessionEvents(
 				}
 				continue;
 			}
-			builder.responseParts.push(makeCompletedToolCallPart(
+			const part = makeCompletedToolCallPart(
 				completion ?? { toolCallId: request.toolCallId, success: true },
 				info,
 				sessionUriStr,
@@ -1179,8 +1221,31 @@ export async function mapSessionEvents(
 				workingDirectory,
 				resolveAgentName,
 				binaryAssets,
-			));
+			);
+			// A Fusion commit keeps a tool the cancellation stopped without ever completing it.
+			builder.responseParts.push(!completion && committedFusionReplay && toolInfoByCallId.has(request.toolCallId) ? toCancelledToolCallPart(part) : part);
 		}
+	}
+}
+
+/** Shows a tool call that never finished the way a cancelled turn leaves it. */
+function toCancelledToolCallPart(part: ResponsePart): ResponsePart {
+	if (part.kind !== ResponsePartKind.ToolCall || part.toolCall.status !== ToolCallStatus.Completed) {
+		return part;
+	}
+	const { toolCallId, toolName, displayName, intention, contributor, invocationMessage, toolInput, _meta } = part.toolCall;
+	return {
+		kind: ResponsePartKind.ToolCall,
+		toolCall: { status: ToolCallStatus.Cancelled, toolCallId, toolName, displayName, intention, contributor, invocationMessage, toolInput, _meta, reason: ToolCallCancellationReason.Skipped },
+	};
+}
+
+/** A cancelled Fusion turn's interruption milestone closes the turn, after the work its interrupted commit kept. */
+function moveFusionInterruptionToEnd(parts: ResponsePart[]): void {
+	const isInterruption = (part: ResponsePart) => part.kind === ResponsePartKind.SystemNotification && readAgentSystemNotificationMeta(part).fusionStatus === 'cancelled';
+	const interruption = parts.filter(isInterruption);
+	if (interruption.length > 0) {
+		parts.splice(0, parts.length, ...parts.filter(part => !isInterruption(part)), ...interruption);
 	}
 }
 

@@ -80,6 +80,8 @@ export const enum CopilotCliConfigKey {
 	HydraFusionMultiRoot = 'hydraFusionMultiRoot',
 	/** Launch the runtime with `DYNAMIC_AUTO_TIERS`, so Auto's tiers (including HydraFusion ones) come from the service. Startup key; off by default. */
 	DynamicAutoTiers = 'dynamicAutoTiers',
+	/** Launch the runtime with `HYDRAFUSION_INTERRUPTED_COMMIT`, so a cancelled HydraFusion turn keeps its phases' work in the conversation. Startup key; off by default. */
+	HydraFusionInterruptedCommit = 'hydraFusionInterruptedCommit',
 	/** Enable Copilot Memory for Copilot SDK sessions. Off by default. */
 	Memory = 'memory',
 	/** Store Copilot Memory in the repository instead of GitHub's cloud memory service. Off by default; requires {@link Memory}. */
@@ -152,6 +154,8 @@ export const AgentHostHydraFusionEnabledSettingId = 'chat.copilot.hydraFusion.en
  */
 export type AgentHostHydraFusionSettingValue = boolean | 'v2' | 'multiRoot';
 export const AgentHostDynamicAutoTiersEnabledSettingId = 'chat.copilot.dynamicAutoTiers.enabled';
+
+export const AgentHostHydraFusionInterruptedCommitSettingId = 'chat.copilot.hydraFusion.interruptedCommit.enabled';
 
 export const AgentHostCopilotMemoryEnabledSettingId = 'chat.copilot.memory.enabled';
 
@@ -384,6 +388,12 @@ export const copilotCliConfigSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.dynamicAutoTiers.title', "Dynamic Auto Tiers"),
 		description: localize('agentHost.config.dynamicAutoTiers.description', "When enabled, Auto's \"Optimize for\" tiers come from the Copilot service instead of the built-in list. Takes effect when the Copilot runtime restarts."),
+		default: false,
+	}),
+	[CopilotCliConfigKey.HydraFusionInterruptedCommit]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.hydraFusionInterruptedCommit.title', "HydraFusion Interrupted Commit"),
+		description: localize('agentHost.config.hydraFusionInterruptedCommit.description', "When enabled, a cancelled HydraFusion request keeps the work its passes already did in the conversation. Takes effect when the Copilot runtime restarts."),
 		default: false,
 	}),
 	[CopilotCliConfigKey.Memory]: schemaProperty<boolean>({
