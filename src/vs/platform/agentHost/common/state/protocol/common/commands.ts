@@ -216,6 +216,16 @@ export interface ClientCapabilities {
 	 * App-bearing tool calls as ordinary MCP tool calls.
 	 */
 	mcpApps?: Record<string, never>;
+	/**
+	 * Client understands source-qualified model catalogs and preserves exact
+	 * `ModelSelection.modelSourceId` values across every selection-bearing path.
+	 * Hosts MUST NOT expose ambiguous-by-bare-ID catalogs without this capability.
+	 * Clients MUST also check `AgentCapabilities.modelSourceSelection` before
+	 * sending a qualified selection; negotiating a protocol version is insufficient.
+	 *
+	 * @see {@link /specification/root-channel#model-sources-and-selection | Model sources and selection}
+	 */
+	modelSourceSelection?: Record<string, never>;
 }
 
 /**

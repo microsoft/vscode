@@ -50,7 +50,7 @@ export interface RootState {
  * @category Root State
  */
 export interface AgentInfo {
-	/** Agent provider ID (e.g. `'copilot'`) */
+	/** Agent harness ID (e.g. `'copilot'`), not a model source or account ID. */
 	provider: string;
 	/** Human-readable name */
 	displayName: string;
@@ -90,6 +90,16 @@ export interface AgentInfo {
 	 * id.
 	 */
 	capabilities?: AgentCapabilities;
+	/**
+	 * Model sources exposed by this agent harness, including sources with
+	 * no currently available models. Together with {@link models}, this is one
+	 * atomic catalog, replaced by `root/agentsChanged`. IDs MUST be unique within
+	 * this agent; every model's `modelSourceId` MUST reference an entry here.
+	 * Absence preserves legacy discovery without inventing source identity.
+	 *
+	 * @see {@link /specification/root-channel#model-sources-and-selection | Model sources and selection}
+	 */
+	modelSources?: ModelSourceInfo[];
 }
 
 /**
@@ -122,6 +132,13 @@ export interface AgentCapabilities {
 	 * {@link CreateSessionParams.workingDirectories}.
 	 */
 	multipleWorkingDirectories?: MultipleWorkingDirectoriesCapability;
+	/**
+	 * The agent preserves and enforces exact source-qualified model selections.
+	 * Clients MUST also declare `ClientCapabilities.modelSourceSelection`
+	 * before sending a `ModelSelection.modelSourceId`. Protocol version
+	 * negotiation alone does not establish support.
+	 */
+	modelSourceSelection?: Record<string, never>;
 }
 
 /**
@@ -192,12 +209,27 @@ export interface MultipleWorkingDirectoriesCapability {
 }
 
 /**
+ * An independently selectable source of model access exposed by one agent
+ * harness. IDs are opaque and stable within that host and harness, not global
+ * identities, authorization proof, account or billing identities, or inherently
+ * telemetry-safe values. Selection does not establish per-call usage provenance.
+ *
+ * @category Root State
+ */
+export interface ModelSourceInfo {
+	/** Opaque source identifier. MUST NOT be derived from the display name. */
+	id: string;
+	/** Human-readable label; not an identifier and not necessarily unique. */
+	displayName: string;
+}
+
+/**
  * @category Root State
  */
 export interface SessionModelInfo {
-	/** Model identifier */
+	/** Raw model identifier; different model sources may expose the same ID. */
 	id: string;
-	/** Agent provider that owns this model. Matches {@link AgentInfo.provider}. */
+	/** Owning agent harness. Matches {@link AgentInfo.provider}, not a model source. */
 	provider: string;
 	/** Human-readable model name */
 	name: string;
@@ -234,17 +266,26 @@ export interface SessionModelInfo {
 	 * recognize.
 	 */
 	vendor?: string;
+	/**
+	 * Source of this model within the owning agent's {@link AgentInfo.modelSources}.
+	 * The pair `(modelSourceId, id)` MUST be unique within that agent's catalog.
+	 * If a raw ID appears more than once, every such row MUST be qualified.
+	 * Absence is legacy, unqualified identity; it does not name a default source.
+	 */
+	modelSourceId?: string;
 }
 
 /**
- * A model selection: the chosen model ID together with any model-specific
- * configuration values whose keys correspond to the model's
- * {@link SessionModelInfo.configSchema}.
+ * A model selection: the raw model ID, an optional exact model source, and
+ * configuration values whose keys correspond to {@link SessionModelInfo.configSchema}.
+ * A qualified selection is never a preference: hosts MUST preserve the pair
+ * or explicitly fail, never strip the qualifier or fall back to another source.
+ * This selection is not per-call usage provenance.
  *
  * @category Root State
  */
 export interface ModelSelection {
-	/** Model identifier */
+	/** Raw model identifier, unchanged by source qualification or UI keys. */
 	id: string;
 	/**
 	 * Model-specific configuration values. Values are JSON primitives: most
@@ -252,6 +293,13 @@ export interface ModelSelection {
 	 * produce numbers or booleans, which are carried through as-is.
 	 */
 	config?: Record<string, JsonPrimitive>;
+	/**
+	 * Exact model source ID in the owning agent's advertised catalog.
+	 * Requires both client and agent `modelSourceSelection` capabilities.
+	 * MUST survive messages, drafts, queued work, persistence and replay.
+	 * Absence retains genuinely unqualified legacy selection behavior.
+	 */
+	modelSourceId?: string;
 }
 
 // ─── Root Config Types ───────────────────────────────────────────────────────

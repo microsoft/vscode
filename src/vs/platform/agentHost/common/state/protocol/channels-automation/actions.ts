@@ -16,6 +16,10 @@ import type { AutomationDefinition, AutomationDisableCondition, AutomationEntry,
  *
  * Omitted fields are unchanged. Supplied arrays and objects replace their
  * corresponding values in full; they are not merged recursively.
+ * The host MUST validate the resulting definition's qualified model ownership
+ * under {@link AutomationSessionTemplate.provider}. Replacing `session` while
+ * omitting its provider MUST NOT erase or rebind the owner of a retained
+ * qualified selection.
  *
  * @category Automation Actions
  */
