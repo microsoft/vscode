@@ -14,11 +14,11 @@ The Rust code knows TypeScript, JavaScript, npm and git, and nothing about this 
 
 - `modules`: the files to analyze (`src/**/*.ts`); every other file is an opaque node.
 - `pathAliases`: non-relative specifiers that name repository files (`vs/` is `src/vs/`).
-- `tests`: the unit and integration test files.
-- `runEverything`: files outside the module graph that every unit test depends on, such as the test runners, the transpile pipeline, compiler options, runtime versions and the unit test job definitions, by the reason the plan reports. Changes to ripple or its configuration also run everything.
+- `tests`: the unit and integration test files, and the folders next to a test file that the test reads by a path it computes, with the modules that compute it (`__snapshots__`, read through `snapshot.ts`).
+- `runEverything`: files outside the module graph that every unit test depends on, such as the test runners, the transpile pipeline and its npm packages (`build/package*.json`), compiler options, runtime versions and the unit test job definitions, by the reason the plan reports. Changes to ripple or its configuration also run everything.
 - `packages`: npm packages that build or run every test (`toolchain`), npm scripts the unit test jobs run (`testScripts`), and `package.json` fields no test reads (`ignoredFields`).
 - `injectedGlobals`: files the test runners expose as globals (`globalThis._VSCODE_PRODUCT_JSON` is `product.json`).
-- `pure` and `implicitMethods`: the repository's conventions that refine the analysis: functions and objects whose calls have no side effects (`localize`, `URI`), and methods called without naming them (`dispose`).
+- `pure`, `implicitMethods` and `moduleLoaders`: the repository's conventions that refine the analysis: functions and objects whose calls have no side effects (`localize`, `URI`), methods called without naming them (`dispose`), and functions that load the module or package their first argument names, like `require` (`importAMDNodeModule`).
 
 The configuration is strict: unknown fields are errors. Glob patterns use `*` within a path segment and `**` across segments, and patterns starting with `!` exclude.
 
@@ -34,11 +34,11 @@ The configuration is strict: unknown fields are errors. Glob patterns use `*` wi
    - Mutable module state depends on the load-time code that writes or mutates it: assignments and updates, property writes and `delete`, calls of methods that may mutate their receiver (any but known read-only ones such as `map` or `slice`), and values passed to calls. Writes in the functions, constructors and methods that load-time code calls count as writes of that code. A write to `X.member` is a write to that member.
    - Members as separate nodes: enum members, `const` object literal properties, namespace exports and static class members are reached through explicit `X.member` references; instance methods are gated by name (see below). The parent's hash records the order of its properties, enum members, namespace members and static fields, which decides enumeration and initialization order; moving methods changes nothing. Members with the same name, such as a getter and its setter, are one dependency. A static or object literal member that uses `this` or `super` depends on the sibling that `this.name` names, or else on its class or object.
    - Load-time effects: a declaration is pinned to its module initializer only if loading it has effects outside the module: calling or constructing an import or unknown global, or calling an impure local function, constructor or member, found by a small fixpoint. Constructing a class runs its constructor, instance fields, superclass and the methods they call through `this`, not its other methods. Methods of local values without tracked members, pure globals and functions, and dead `if (CONST_FALSE)` blocks do not count.
-   - Path strings: relative or starting with a path alias (worker entry points, fixture folders), or naming an existing repository file or folder from the root (such as a grammar a test reads, `'extensions/json/syntaxes/JSON.tmLanguage.json'`). Also dynamic imports, `require`, and the globals the test runners inject.
+   - Path strings: relative or starting with a path alias (worker entry points, fixture folders), or naming an existing repository file or folder from the root (such as a grammar a test reads, `'extensions/json/syntaxes/JSON.tmLanguage.json'`). Also dynamic imports, `require` and the configured module loaders, and the globals the test runners inject.
 3. **Link** all modules into one graph (about 160k nodes and 500k edges for this repository), with npm packages and injected globals as nodes of their own. The whole tree analyzes in about 0.5 s and links in about 0.1 s on an 18-core machine.
 4. **Select.** Changed nodes are the declarations whose hash changed between the two snapshots, plus:
    - npm packages whose resolved version changed, from a field-level diff of `package.json` and a reverse-dependency closure over `package-lock.json`, and injected globals whose file changed;
-   - files under folders that tests read by path (fixtures);
+   - files under folders that tests read by path (fixtures), or under a data folder next to tests that load its reader module (snapshots);
    - module initializers that start loading a module with global load-time effects they did not load before.
 
    A reverse traversal gives the candidate tests; each candidate is then confirmed by a forward traversal that only enters an instance method once the traversal has seen its name used (`x.send()`, `{ send } = x`, `'send'`). This keeps a test that merely constructs a large service from depending on every one of its methods.
@@ -85,9 +85,9 @@ Selection works per declaration, so what an edit selects depends on what it chan
   | Selection | Mean | Median | p90 | Selects nothing |
   | --- | --- | --- | --- | --- |
   | Today: everything | 100% | 100% | 100% | 0% |
-  | File-level imports, including types | 21.3% | 7.8% | 66.5% | 13.7% |
-  | File-level runtime loads | 13.2% | 2.8% | 40.1% | 13.7% |
-  | **ripple, declaration-level** | **9.0%** | **1.9%** | **24.1%** | **14.7%** |
+  | File-level imports, including types | 21.3% | 7.8% | 66.5% | 13.6% |
+  | File-level runtime loads | 13.2% | 2.8% | 40.1% | 13.6% |
+  | **ripple, declaration-level** | **9.0%** | **1.9%** | **24.1%** | **14.5%** |
 
   16 of the 708 commits needed everything: 12 changed the unit test job definitions, 2 the test runners, 1 the transpiler and 1 `.npmrc`.
 - **Recall on real CI failures.** 75 pull request runs with failing Linux unit test jobs (Oct 17 to 20): the failing test files were taken from the job logs and checked against what ripple selects for the pull request's own change. Of 36 failures caused by the pull request, ripple selected 34. The two misses were tests that only passed because other test files had leaked registrations into a global registry earlier in the same process; the pull request (a test-only change) stopped the leak. Two further Linux-only misses were timing flakes unrelated to their change. A test failing on 31 unrelated branches at the same time (a broken `main`) was correctly not attributed to those pull requests.

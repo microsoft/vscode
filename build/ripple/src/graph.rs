@@ -222,12 +222,20 @@ impl<'s> Linker<'s> {
 			if code * 2 > range.len() && range.len() > 30 {
 				return Res::None;
 			}
-			let d = self.dirs.len() as u32;
-			self.dirs.push(p.into());
-			self.dir_index.insert(p.into(), d);
-			return Res::Dir(d);
+			return Res::Dir(self.dir(p));
 		}
 		Res::None
+	}
+
+	/// The id of a directory read by path.
+	fn dir(&mut self, p: &str) -> u32 {
+		if let Some(&d) = self.dir_index.get(p) {
+			return d;
+		}
+		let d = self.dirs.len() as u32;
+		self.dirs.push(p.into());
+		self.dir_index.insert(p.into(), d);
+		d
 	}
 
 	fn resolve_specifier(&mut self, from: &str, spec: &str) -> Res {
@@ -561,6 +569,29 @@ impl Graph {
 			}
 			loads[f as usize] = targets.into_boxed_slice();
 		}
+		// Modules that load a module, transitively, by the module they load.
+		let loaders = Csr::reverse(n, &load_edges);
+		// Tests read the data folders next to them, such as snapshots, by a path they compute
+		// through a reader module: a test reads them if it loads a reader. Without readers in the
+		// snapshot, every test next to the folder reads it.
+		for (name, readers) in &config.test_data_folders {
+			let roots: Vec<u32> = readers.iter().filter_map(|r| snap.find(r)).collect();
+			let reads = if roots.is_empty() {
+				vec![true; n]
+			} else {
+				loaders.reach(roots)
+			};
+			for (f, e) in snap.entries.iter().enumerate() {
+				if !e.role.is_test() || !reads[f] {
+					continue;
+				}
+				let dir = e.path.rsplit_once('/').map_or("", |(d, _)| d);
+				let folder = format!("{dir}/{name}");
+				if !snap.under(&folder).is_empty() {
+					dir_refs.push((linker.dir(&folder), base[f], f as u32));
+				}
+			}
+		}
 		// Style sheets change the document of every test that loads them.
 		let roots = (0..n as u32).filter(|&f| {
 			let e = &snap.entries[f as usize];
@@ -568,7 +599,7 @@ impl Graph {
 				.as_ref()
 				.map_or(e.path.ends_with(".css"), |facts| facts.global_effects)
 		});
-		let effectful = Csr::reverse(n, &load_edges).reach(roots);
+		let effectful = loaders.reach(roots);
 		let total = linker.next as usize;
 		let mut gate = vec![0u64; total];
 		let mut uses: Vec<(u32, u64)> = Vec::new();

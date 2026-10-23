@@ -91,7 +91,8 @@ fn weight<S: AsRef<str>>(snap: &Snapshot, files: impl Iterator<Item = S>) -> f64
 		.map(|i| &snap.entries[i as usize])
 		.filter(|e| e.role == Role::UnitTest)
 		.map(|e| e.facts.as_ref().map_or(1, |f| f.tests.max(1)) as f64)
-		.sum()
+		// Not `sum()`: an empty float sum is -0.0, which prints as "-0.0%".
+		.fold(0.0, |total, w| total + w)
 }
 
 fn main() -> Result<()> {
@@ -722,5 +723,11 @@ mod tests {
 				"unexpected argument 'origin/main'"
 			]
 		);
+	}
+
+	#[test]
+	fn no_selected_work_is_zero() {
+		let share = weight(&Snapshot::default(), std::iter::empty::<&str>());
+		assert_eq!(format!("{:.1}%", share * 100.0), "0.0%");
 	}
 }

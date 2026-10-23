@@ -55,15 +55,19 @@ struct File {
 	pure: Pure,
 	#[serde(default)]
 	implicit_methods: Vec<String>,
+	#[serde(default)]
+	module_loaders: Vec<String>,
 }
 
 #[derive(Default, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 struct Tests {
 	#[serde(default)]
 	unit: Vec<String>,
 	#[serde(default)]
 	integration: Vec<String>,
+	#[serde(default)]
+	data_folders: BTreeMap<String, Vec<String>>,
 }
 
 #[derive(Default, Deserialize)]
@@ -137,6 +141,10 @@ pub struct Config {
 	pure_objects: HashSet<String>,
 	/// Methods called without their name at the call site.
 	pub implicit_methods: Vec<String>,
+	/// Folders next to a test file that the test reads by a path it computes, by folder name, with
+	/// the modules that read them.
+	pub test_data_folders: Vec<(String, Vec<String>)>,
+	module_loaders: HashSet<String>,
 }
 
 impl Config {
@@ -167,6 +175,8 @@ impl Config {
 			pure_functions: file.pure.functions.into_iter().collect(),
 			pure_objects: file.pure.objects.into_iter().collect(),
 			implicit_methods: file.implicit_methods,
+			test_data_folders: file.tests.data_folders.into_iter().collect(),
+			module_loaders: file.module_loaders.into_iter().collect(),
 		})
 	}
 
@@ -212,6 +222,11 @@ impl Config {
 
 	pub fn is_pure_object(&self, name: &str) -> bool {
 		self.pure_objects.contains(name)
+	}
+
+	/// Whether calls of a function load the module or package that their first argument names.
+	pub fn is_module_loader(&self, name: &str) -> bool {
+		self.module_loaders.contains(name)
 	}
 
 	pub fn is_injected_global(&self, name: &str) -> bool {
@@ -283,12 +298,13 @@ pub fn for_tests() -> &'static Config {
 			r#"{
 				"modules": ["src/**/*.ts"],
 				"pathAliases": { "lib/": "src/lib/" },
-				"tests": { "unit": ["src/**/test/**/*.test.ts"], "integration": ["src/**/*.integrationTest.ts"] },
+				"tests": { "unit": ["src/**/test/**/*.test.ts"], "integration": ["src/**/*.integrationTest.ts"], "dataFolders": { "__snapshots__": ["src/app/test/snapshot.ts"] } },
 				"runEverything": { "test runner": ["test/**", "!test/**/*.md"] },
 				"packages": { "toolchain": ["mocha"], "testScripts": ["install", "test"], "ignoredFields": ["build"] },
 				"injectedGlobals": { "_PACKAGE": "package.json", "_PRODUCT": "product.json" },
 				"pure": { "functions": ["localize"], "objects": ["URI"] },
 				"implicitMethods": ["dispose"],
+				"moduleLoaders": ["loadModule"],
 			}"#,
 		)
 		.unwrap()

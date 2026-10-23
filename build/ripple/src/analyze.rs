@@ -1387,11 +1387,17 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 				}
 			}
 			AstKind::CallExpression(c) => {
-				if let Expression::Identifier(callee) = &c.callee {
-					let name = callee.name.as_str();
-					if name == "test" || name == "it" {
+				let callee = match c.callee.get_inner_expression() {
+					Expression::Identifier(id) => Some((id.name.as_str(), true)),
+					Expression::StaticMemberExpression(m) => {
+						Some((m.property.name.as_str(), false))
+					}
+					_ => None,
+				};
+				if let Some((name, direct)) = callee {
+					if direct && (name == "test" || name == "it") {
 						facts.tests += 1;
-					} else if name == "require" {
+					} else if (direct && name == "require") || config.is_module_loader(name) {
 						if let Some(Argument::StringLiteral(s)) = c.arguments.first() {
 							dynamic.push((c.span.start, js_str(&s.value)));
 						}

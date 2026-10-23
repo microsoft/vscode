@@ -989,4 +989,91 @@ mod tests {
 			vec![TEST_READ.0]
 		);
 	}
+
+	#[test]
+	fn data_folders_select_the_tests_next_to_them_that_load_a_reader() {
+		let test = |p: &'static str| {
+			(
+				p,
+				"import { assertSnapshot } from './snapshot.js';\ntest('a', () => assertSnapshot(1));\n",
+			)
+		};
+		let files = [
+			(
+				"src/app/test/snapshot.ts",
+				"export function assertSnapshot(v) { return v; }\n",
+			),
+			test("src/app/test/a.test.ts"),
+			test("src/app/test/b.test.ts"),
+			("src/app/test/plain.test.ts", "test('a', () => 1);\n"),
+			(
+				"src/app/test/nested/c.test.ts",
+				"import { assertSnapshot } from '../snapshot.js';\ntest('a', () => assertSnapshot(1));\n",
+			),
+			("src/app/test/__snapshots__/a_title.0.snap", "1"),
+			("src/app/other/__snapshots__/x.snap", "1"),
+		];
+		let with = |path: &str, content: &'static str| -> Vec<(&'static str, &'static str)> {
+			files
+				.iter()
+				.map(|&(p, c)| (p, if p == path { content } else { c }))
+				.collect()
+		};
+		let added: Vec<(&str, &str)> = files
+			.iter()
+			.copied()
+			.chain([("src/app/test/nested/__snapshots__/c.snap", "1")])
+			.collect();
+		assert_eq!(
+			(
+				selected(
+					&files,
+					&with("src/app/test/__snapshots__/a_title.0.snap", "2")
+				),
+				selected(&files, &added),
+				selected(&files, &with("src/app/other/__snapshots__/x.snap", "2")),
+			),
+			(
+				vec![
+					"src/app/test/a.test.ts".to_owned(),
+					"src/app/test/b.test.ts".to_owned()
+				],
+				vec!["src/app/test/nested/c.test.ts".to_owned()],
+				vec![]
+			)
+		);
+	}
+
+	#[test]
+	fn module_loader_calls_depend_on_the_package() {
+		let snap = snapshot(&[
+			(
+				"src/app/lib.ts",
+				"export function load() { return loadModule('pkg-x', 'lib/x.js'); }\nexport function other() { return amd.loadModule('pkg-y', 'y.js'); }\n",
+			),
+			(
+				"src/app/test/a.test.ts",
+				"import { load } from '../lib.js';\ntest('a', () => load());\n",
+			),
+			(
+				"src/app/test/b.test.ts",
+				"import { other } from '../lib.js';\ntest('b', () => other());\n",
+			),
+		]);
+		let graph = Graph::build(&snap, for_tests());
+		let tests_of = |package: &str| {
+			let mut tests = HashSet::new();
+			dependent_tests(&snap, &graph, &[graph.packages[package]], &mut tests);
+			let mut tests: Vec<String> = tests.iter().map(|t| t.to_string()).collect();
+			tests.sort();
+			tests
+		};
+		assert_eq!(
+			(tests_of("pkg-x"), tests_of("pkg-y")),
+			(
+				vec!["src/app/test/a.test.ts".to_owned()],
+				vec!["src/app/test/b.test.ts".to_owned()]
+			)
+		);
+	}
 }

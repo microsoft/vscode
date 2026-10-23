@@ -28,7 +28,15 @@
 		],
 		"integration": [
 			"src/**/*.integrationTest.ts"
-		]
+		],
+		// Folders next to a test file that the test reads by a path it computes, with the modules that
+		// compute it: a change in such a folder selects the tests next to it that load one of those
+		// modules. Snapshot tests store their snapshots in __snapshots__.
+		"dataFolders": {
+			"__snapshots__": [
+				"src/vs/base/test/common/snapshot.ts"
+			]
+		}
 	},
 
 	// Files outside the module graph that every unit test depends on, by the reason the plan reports:
@@ -50,13 +58,16 @@
 			"test/unit/**",
 			"!test/unit/**/*.md"
 		],
-		// `npm run gulp transpile-client-esbuild` runs build/next through these files.
+		// `npm run gulp transpile-client-esbuild` runs build/next through these files, with the npm
+		// packages of build/package.json, such as esbuild.
 		"transpiler": [
 			"build/gulpfile.ts",
 			"build/lib/esbuild.ts",
 			"build/lib/compilation.ts",
 			"build/lib/gulp/**",
-			"build/next/**"
+			"build/next/**",
+			"build/package.json",
+			"build/package-lock.json"
 		],
 		"compiler options": [
 			"src/tsconfig*"
@@ -81,17 +92,16 @@
 	},
 
 	"packages": {
-		// npm packages that build or run every test: a version change runs every unit test.
+		// Packages of package.json that build or run every test: a version change runs every unit
+		// test. (Electron's version is a runtime version above, and the transpiler's packages come
+		// from build/package.json.)
 		"toolchain": [
-			"electron",
-			"esbuild",
 			"mocha",
 			"playwright",
 			"playwright-core",
 			"@playwright/test",
 			"typescript",
 			"@typescript/native",
-			"jsdom",
 			"source-map-support",
 			"@vscode/test-web",
 			"@vscode/test-electron",
@@ -148,5 +158,13 @@
 	// (such as `toString`, `then` and iterators): code that reaches a class also reaches these methods.
 	"implicitMethods": [
 		"dispose"
+	],
+
+	// Functions whose first argument names a module or npm package that they load, like `require`:
+	// a call depends on that module, so a version change of the package selects the code calling
+	// them.
+	"moduleLoaders": [
+		"importAMDNodeModule",
+		"resolveAmdNodeModulePath"
 	]
 }
