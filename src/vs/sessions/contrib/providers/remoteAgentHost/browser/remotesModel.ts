@@ -60,11 +60,12 @@ export interface IRemotesModel extends IDisposable {
 }
 
 export function getVisibleRemoteKinds(operatingSystem: OperatingSystem, environmentsEnabled = false): readonly RemoteKind[] {
-	return [
+	const kinds: RemoteKind[] = [
 		...(operatingSystem === OperatingSystem.Windows ? ['wsl' as const] : []),
 		'ssh', 'tunnel',
 		...(environmentsEnabled ? ['environment' as const] : []),
 	];
+	return kinds.sort((a, b) => remoteKindLabels[a].localeCompare(remoteKindLabels[b]));
 }
 
 type RemoteTarget =

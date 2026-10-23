@@ -145,7 +145,7 @@ suite('RemotesWidget', () => {
 				tables: 1,
 				trees: 0,
 				columns: ['', 'Name', 'Address', 'Connection', ''],
-				roots: operatingSystem === OperatingSystem.Windows ? ['WSL', 'SSH', 'Tunnels'] : ['SSH', 'Tunnels'],
+				roots: operatingSystem === OperatingSystem.Windows ? ['SSH', 'Tunnels', 'WSL'] : ['SSH', 'Tunnels'],
 				switches: 0,
 				checkboxes: 0,
 				accessibleWSL: operatingSystem === OperatingSystem.Windows,
@@ -153,6 +153,16 @@ suite('RemotesWidget', () => {
 			});
 		});
 	}
+
+	test('orders enabled sections alphabetically in the table and accessible view', () => {
+		const { widget, parent, model } = createWidget(OperatingSystem.Windows);
+		model.environmentsEnabled.set(true, undefined);
+		const headings = ['Environments', 'SSH', 'Tunnels', 'WSL'];
+		assert.deepStrictEqual({
+			table: [...parent.querySelectorAll('.remotes-group-row .remotes-name')].map(element => element.textContent),
+			accessible: widget.getAccessibilityContent().split('\n').filter(line => headings.includes(line)),
+		}, { table: headings, accessible: headings });
+	});
 
 	test('aligns compact rows under resizable column headers', () => {
 		const { parent } = createWidget();
@@ -544,7 +554,7 @@ suite('RemotesWidget', () => {
 		const guidance = widget.getAccessibilityContent().includes('No environments available.');
 		model.environmentsEnabled.set(false, undefined);
 		assert.deepStrictEqual({ hidden, shown, settings, guidance, disabled: groups() }, {
-			hidden: ['SSH', 'Tunnels'], shown: ['SSH', 'Tunnels', 'Environments'],
+			hidden: ['SSH', 'Tunnels'], shown: ['Environments', 'SSH', 'Tunnels'],
 			settings: [{ query: GitHubEnvironmentsEnabledSettingId }], guidance: true, disabled: ['SSH', 'Tunnels'],
 		});
 	});
@@ -638,12 +648,12 @@ suite('RemotesWidget', () => {
 			documentation,
 			accessibleGuidance: widget.getAccessibilityContent().includes('SSH Setup Guide: https://aka.ms/vscode-agent-ssh'),
 		}, {
-			labels: ['No WSL 2 distributions found.', 'No SSH hosts configured.', 'No tunnels found for this account.'],
+			labels: ['No SSH hosts configured.', 'No tunnels found for this account.', 'No WSL 2 distributions found.'],
 			counts: ['0', '0', '0'],
 			documentation: [
-				'https://aka.ms/vscode-remote/wsl/install-wsl',
 				'https://aka.ms/vscode-agent-ssh',
 				'https://aka.ms/vscode-agent-tunnel',
+				'https://aka.ms/vscode-remote/wsl/install-wsl',
 			],
 			accessibleGuidance: true,
 		});
