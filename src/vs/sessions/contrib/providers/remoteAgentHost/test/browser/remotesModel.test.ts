@@ -67,6 +67,7 @@ suite('RemotesModel', () => {
 		const logEntries: { message: string; args: readonly unknown[] }[] = [];
 		let wslDiscoveryCalls = 0;
 		let sshDiscovery: () => Promise<string[]> = async () => ['build', 'build'];
+		let tunnelDiscovery: () => Promise<ITunnelInfo[]> = async () => [tunnel];
 		instantiationService.stub(IStorageService, storage);
 		instantiationService.stub(IConfigurationService, configuration);
 		instantiationService.stub(ILogService, new class extends NullLogService {
@@ -111,7 +112,7 @@ suite('RemotesModel', () => {
 			onDidChangeTunnels: Event.None,
 			getCachedTunnels: () => tunnels,
 			getAuthProvider: async () => 'github',
-			listTunnels: async () => [tunnel],
+			listTunnels: () => tunnelDiscovery(),
 			isTunnelDismissed: id => dismissed.has(id),
 			clearTunnelDismissal: id => { dismissed.delete(id); },
 			cacheTunnel: (value, authProvider) => { tunnels = [{ ...value, authProvider }]; },
@@ -182,6 +183,7 @@ suite('RemotesModel', () => {
 			failConnection: (error: Error) => { connectionFailure = error; },
 			renameInputs, setRenameInput: (value: string | undefined) => { renameInput = value; }, setDisplayName,
 			getWSLDiscoveryCalls: () => wslDiscoveryCalls, setSSHDiscovery: (discovery: () => Promise<string[]>) => { sshDiscovery = discovery; },
+			setTunnelDiscovery: (discovery: () => Promise<ITunnelInfo[]>) => { tunnelDiscovery = discovery; },
 		};
 	}
 
@@ -239,6 +241,56 @@ suite('RemotesModel', () => {
 			failedKinds: ['ssh'], kinds: ['ssh', 'wsl', 'tunnel'],
 			logEntries: [{ message: '[Remotes] ssh discovery failed', args: [error] }],
 		});
+	});
+
+	test('successful refresh replaces discovered rows and removes obsolete connection targets', async () => {
+		const { model, setSSHDiscovery, setTunnelDiscovery } = setup();
+		await model.refresh(CancellationToken.None);
+		setSSHDiscovery(async () => ['replacement']);
+		setTunnelDiscovery(async () => []);
+		await model.refresh(CancellationToken.None);
+		assert.deepStrictEqual(model.remotes.get().map(remote => remote.id), ['ssh:replacement', 'wsl:Ubuntu']);
+		await assert.rejects(model.setConnected('ssh:build', true), /no longer available/);
+		await assert.rejects(model.setConnected('tunnel:laptop', true), /no longer available/);
+	});
+
+	test('refresh retains registered remotes even when discovery no longer finds them', async () => {
+		const { model, setSSHDiscovery, setTunnelDiscovery } = setup();
+		await model.refresh(CancellationToken.None);
+		await model.setConnected('ssh:build', true);
+		await model.setConnected('tunnel:laptop', true);
+		setSSHDiscovery(async () => []);
+		setTunnelDiscovery(async () => []);
+		await model.refresh(CancellationToken.None);
+		assert.deepStrictEqual(model.remotes.get().map(({ id, canRemove }) => ({ id, canRemove })), [
+			{ id: 'ssh:build', canRemove: true },
+			{ id: 'wsl:Ubuntu', canRemove: true },
+			{ id: 'tunnel:laptop', canRemove: true },
+		]);
+	});
+
+	test('a failed source retains its discovery rows while successful sources are pruned', async () => {
+		const { model, setSSHDiscovery, setTunnelDiscovery } = setup();
+		await model.refresh(CancellationToken.None);
+		setSSHDiscovery(async () => { throw new Error('SSH discovery failed'); });
+		setTunnelDiscovery(async () => []);
+		const failedKinds = await model.refresh(CancellationToken.None);
+		assert.deepStrictEqual({ failedKinds, ids: model.remotes.get().map(remote => remote.id) }, {
+			failedKinds: ['ssh'], ids: ['ssh:build', 'wsl:Ubuntu'],
+		});
+	});
+
+	test('a canceled discovery does not prune the last successful snapshot', async () => {
+		const { model, setSSHDiscovery } = setup();
+		await model.refresh(CancellationToken.None);
+		const deferred = new DeferredPromise<string[]>();
+		setSSHDiscovery(() => deferred.p);
+		const cancellation = store.add(new CancellationTokenSource());
+		const refresh = model.refresh(cancellation.token);
+		cancellation.cancel();
+		await deferred.complete([]);
+		await refresh;
+		assert.deepStrictEqual(model.remotes.get().map(remote => remote.id), ['ssh:build', 'wsl:Ubuntu', 'tunnel:laptop']);
 	});
 
 	test('does not publish canceled discovery results', async () => {

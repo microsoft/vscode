@@ -241,13 +241,18 @@ suite('Dev Container Agent Host Service', () => {
 			store.add(new TestInstantiationService()), store.add(new TestRemoteAgentHostService()), providers, storage,
 		));
 		const restoredWorkspaces = restored.getWorkspaces().map(workspace => ({ name: workspace.name, uri: workspace.workspaceUri.toString() }));
+		const availabilityChanges: { workspaces: number; providers: number }[] = [];
+		store.add(restored.onDidChangeAvailability(() => availabilityChanges.push({
+			workspaces: restored.getWorkspaces().length, providers: providers.getProviders().length,
+		})));
 		await restored.removeWorkspace(workspaceUri);
 		assert.deepStrictEqual({
-			added, restoredWorkspaces, removed: restored.getWorkspaces(), providers: providers.getProviders().length,
+			added, restoredWorkspaces, removed: restored.getWorkspaces(), providers: providers.getProviders().length, availabilityChanges,
 		}, {
 			added: { workspaces: [{ uri: workspaceUri.toString(), name: 'Project' }], providers: 1 },
 			restoredWorkspaces: [{ uri: workspaceUri.toString(), name: 'Project' }],
 			removed: [], providers: 0,
+			availabilityChanges: [{ workspaces: 0, providers: 0 }],
 		});
 	});
 

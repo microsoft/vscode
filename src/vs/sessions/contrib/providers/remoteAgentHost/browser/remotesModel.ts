@@ -113,6 +113,11 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			try {
 				const targets = await task();
 				if (!token.isCancellationRequested && !this._store.isDisposed && this.enabled) {
+					for (const [id, target] of this.targets) {
+						if (target.kind === kind) {
+							this.targets.delete(id);
+						}
+					}
 					for (const target of targets) {
 						this.targets.set(this.getId(target), target);
 					}
