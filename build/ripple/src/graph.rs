@@ -104,6 +104,21 @@ const BUILTINS: &[&str] = &[
 	"zlib",
 ];
 
+/// The npm package that a module specifier such as `@scope/pkg/sub` loads: none for paths, URLs
+/// and Node.js built-in modules.
+pub fn package_name(spec: &str) -> Option<String> {
+	if spec.starts_with(['.', '/']) || spec.starts_with("node:") || spec.contains("://") {
+		return None;
+	}
+	let mut segments = spec.split('/');
+	let name = match (spec.starts_with('@'), segments.next(), segments.next()) {
+		(true, Some(scope), Some(pkg)) => format!("{scope}/{pkg}"),
+		(false, Some(pkg), _) => pkg.to_owned(),
+		_ => return None,
+	};
+	(!BUILTINS.contains(&name.as_str())).then_some(name)
+}
+
 /// A computed path: the directory it starts in, and the static start and end of the path in it.
 type DataPattern = (Box<str>, Box<str>, Box<str>);
 
@@ -219,18 +234,9 @@ impl<'s> Linker<'s> {
 	}
 
 	fn package(&mut self, spec: &str) -> Res {
-		if spec.starts_with("node:") {
+		let Some(name) = package_name(spec) else {
 			return Res::None;
-		}
-		let mut segments = spec.split('/');
-		let name = match (spec.starts_with('@'), segments.next(), segments.next()) {
-			(true, Some(scope), Some(pkg)) => format!("{scope}/{pkg}"),
-			(false, Some(pkg), _) => pkg.to_owned(),
-			_ => return Res::None,
 		};
-		if BUILTINS.contains(&name.as_str()) {
-			return Res::None;
-		}
 		if let Some(&id) = self.packages.get(&name) {
 			return Res::Pkg(id);
 		}
@@ -546,6 +552,8 @@ pub struct Graph {
 	pub globals: HashMap<String, u32>,
 	/// Modules loaded by each entry's initializer.
 	pub loads: Vec<Box<[u32]>>,
+	/// npm packages loaded by each entry's initializer, in load order.
+	pub package_loads: Vec<Box<[Box<str>]>>,
 	/// Loading the entry has effects outside of it, directly or through modules it loads.
 	pub effectful: Vec<bool>,
 	/// Name ids of the methods code calls without naming them (see `IMPLICIT_METHODS`).
@@ -579,6 +587,7 @@ impl Graph {
 			next,
 		};
 		let mut loads: Vec<Box<[u32]>> = vec![Box::new([]); n];
+		let mut package_loads: Vec<Box<[Box<str>]>> = vec![Box::new([]); n];
 		let mut load_edges: Vec<(u32, u32)> = Vec::new();
 		let mut dir_refs: Vec<(u32, u32, u32)> = Vec::new();
 		let mut data_dir_refs: Vec<(u32, u32, u32)> = Vec::new();
@@ -650,6 +659,7 @@ impl Graph {
 				}
 			}
 			let mut targets = Vec::new();
+			let mut packages = Vec::new();
 			for &spec in &facts.loads {
 				match linker.spec_res(f, spec) {
 					Res::File(t) => {
@@ -657,11 +667,15 @@ impl Graph {
 						targets.push(t);
 						load_edges.push((f, t));
 					}
-					Res::Pkg(p) => edges.push((b, p)),
+					Res::Pkg(p) => {
+						edges.push((b, p));
+						packages.extend(package_name(&facts.specs[spec as usize].specifier));
+					}
 					_ => {}
 				}
 			}
 			loads[f as usize] = targets.into_boxed_slice();
+			package_loads[f as usize] = packages.into_iter().map(String::into_boxed_str).collect();
 		}
 		// Modules that load a module, transitively, by the module they load.
 		let loaders = Csr::reverse(n, &load_edges);
@@ -684,12 +698,14 @@ impl Graph {
 				}
 			}
 		}
-		// Style sheets change the document of every test that loads them.
+		// Style sheets change the document of every test that loads them. npm packages are not
+		// analyzed, so loading one counts as an effect.
 		let roots = (0..n as u32).filter(|&f| {
 			let e = &snap.entries[f as usize];
-			e.facts
-				.as_ref()
-				.map_or(e.path.ends_with(".css"), |facts| facts.global_effects)
+			!package_loads[f as usize].is_empty()
+				|| e.facts
+					.as_ref()
+					.map_or(e.path.ends_with(".css"), |facts| facts.global_effects)
 		});
 		let effectful = loaders.reach(roots);
 		let total = linker.next as usize;
@@ -746,6 +762,7 @@ impl Graph {
 			data_dirs,
 			globals,
 			loads,
+			package_loads,
 			effectful,
 			implicit: IMPLICIT_METHODS
 				.iter()

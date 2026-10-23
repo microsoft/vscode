@@ -159,6 +159,7 @@ jobs:
           done
 
       - name: Download unit test plan
+        id: download-plan
         if: ${{ inputs.unit_tests && inputs.unit_test_selection }}
         # Without a plan (Detect Changes only uploads one when the selection applies), the unit test
         # steps below run every unit test. A pattern, unlike a name, downloads nothing instead of
@@ -168,6 +169,12 @@ jobs:
         with:
           pattern: unit-test-plan
           path: .build/unit-test-plan
+
+      # A failed download (such as a digest mismatch, reported after extracting) can leave a partial
+      # plan behind: without one, the unit test steps below run every unit test.
+      - name: Discard a failed unit test plan download
+        if: ${{ steps.download-plan.outcome == 'failure' }}
+        run: rm -rf .build/unit-test-plan
 
       - name: 🧪 Run unit tests (Electron)
         if: ${{ inputs.electron_tests && inputs.unit_tests && (hashFiles('.build/unit-test-plan/plan.json') == '' || hashFiles('.build/unit-test-plan/unit.txt') != '') }}

@@ -58,6 +58,9 @@
 			"build/lib/compilation.ts",
 			"build/lib/gulp/**",
 			"build/next/**",
+			// Inputs of the Dev Tunnels web bundle, which packaging builds, not the transpile step.
+			"!build/next/devTunnelsWebEntry.js",
+			"!build/next/devTunnelsShims/**",
 			"build/package.json",
 			"build/package-lock.json"
 		],
@@ -84,24 +87,12 @@
 	},
 
 	"packages": {
-		// Packages of package.json that build or run every test: a version change runs every unit
-		// test. (Electron's version is a runtime version above, and the transpiler's packages come
-		// from build/package.json.)
-		"toolchain": [
-			"mocha",
-			"playwright",
-			"playwright-core",
-			"@playwright/test",
-			"typescript",
-			"@typescript/native",
-			"source-map-support",
-			"@vscode/test-web",
-			"@vscode/test-electron",
-			"mocha-junit-reporter",
-			"mocha-multi-reporters",
-			"minimist",
-			"glob"
-		],
+		// Packages of package.json that build or run every test but that no `runEverything` script
+		// above loads, such as a command line tool a test job runs: a version change runs every unit
+		// test. ripple finds the packages that those scripts load itself (such as mocha and the test
+		// runners' web server), with the packages they depend on (such as playwright through
+		// @playwright/test).
+		"toolchain": [],
 		// npm scripts that install, build or run the unit tests in CI, with their `pre` and `post`
 		// hooks: changing one runs every unit test. Changing any other script affects no test.
 		"testScripts": [

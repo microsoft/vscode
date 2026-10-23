@@ -16,39 +16,92 @@ use crate::analyze::{FileFacts, analyze};
 use crate::config::Config;
 use crate::deps::DepImpact;
 use crate::git::{BlobReader, Change, ls_tree};
-use crate::graph::{Entry, Graph, Scratch, Snapshot};
+use crate::graph::{Entry, Graph, Scratch, Snapshot, package_name};
 
 /// The impact of `package.json` and `package-lock.json` changes, if any.
 pub fn dependency_impact(
 	config: &Config,
 	repo: &Path,
+	head: &Snapshot,
 	changes: &[Change],
 ) -> Result<Option<DepImpact>> {
+	const LOCKFILE: &str = "package-lock.json";
 	let manifests: Vec<&Change> = changes
 		.iter()
-		.filter(|c| c.path == "package.json" || c.path == "package-lock.json")
+		.filter(|c| c.path == "package.json" || c.path == LOCKFILE)
 		.collect();
 	if manifests.is_empty() {
 		return Ok(None);
 	}
 	let mut reader = BlobReader::new(repo)?;
-	let mut read = |oid: &Option<String>| -> Result<Option<String>> {
-		Ok(match oid {
-			Some(oid) => Some(String::from_utf8(reader.read(oid)?)?),
-			None => None,
-		})
-	};
+	let mut read = |oid: &str| -> Result<String> { Ok(String::from_utf8(reader.read(oid)?)?) };
 	let mut impact = DepImpact::default();
-	for c in manifests {
-		let (before, after) = (read(&c.old)?, read(&c.new)?);
+	for c in &manifests {
+		let before = c.old.as_deref().map(&mut read).transpose()?;
+		let after = c.new.as_deref().map(&mut read).transpose()?;
 		if c.path == "package.json" {
 			impact.add_package_json(config, before.as_deref(), after.as_deref());
 		} else {
 			impact.add_lockfile(before.as_deref(), after.as_deref());
 		}
 	}
-	impact.finish(config);
+	if !impact.affects_packages() {
+		impact.finish(config, &HashMap::new());
+		return Ok(Some(impact));
+	}
+	if impact.changes_installation() && !manifests.iter().any(|c| c.path == LOCKFILE) {
+		if let Some(i) = head.find(LOCKFILE) {
+			impact.add_unchanged_lockfile(&read(&head.entries[i as usize].oid)?);
+		}
+	}
+	let runners = runner_packages(config, head, &mut read)?;
+	if std::env::var_os("RIPPLE_DEBUG").is_some() {
+		let mut reasons: Vec<&String> = runners.values().collect();
+		reasons.sort();
+		for reason in reasons {
+			eprintln!("{reason}");
+		}
+	}
+	impact.finish(config, &runners);
 	Ok(Some(impact))
+}
+
+/// The npm packages that the scripts every unit test depends on (`runEverything`) load, such as
+/// the test runners' web server: a change to one of them runs every unit test. Each package has the
+/// reason to report.
+fn runner_packages(
+	config: &Config,
+	snap: &Snapshot,
+	read: &mut impl FnMut(&str) -> Result<String>,
+) -> Result<HashMap<String, String>> {
+	let mut packages = HashMap::new();
+	for e in &snap.entries {
+		let script = [".js", ".mjs", ".cjs", ".ts", ".mts", ".cts"]
+			.iter()
+			.any(|x| e.path.ends_with(x))
+			&& !e.path.ends_with(".d.ts");
+		let Some(reason) = script.then(|| config.run_everything(&e.path)).flatten() else {
+			continue;
+		};
+		let facts = analyze(&e.path, &read(&e.oid)?, config);
+		if facts.error {
+			anyhow::bail!("{}: cannot find the npm packages it loads", e.path);
+		}
+		for spec in &facts.specs {
+			if spec.type_only
+				|| spec.root || spec.data.is_some()
+				|| config.resolve_alias(&spec.specifier).is_some()
+			{
+				continue;
+			}
+			if let Some(name) = package_name(&spec.specifier) {
+				packages
+					.entry(name.clone())
+					.or_insert_with(|| format!("{reason} package '{name}' ({})", e.path));
+			}
+		}
+	}
+	Ok(packages)
 }
 
 pub struct Engine<'c> {
@@ -269,7 +322,12 @@ pub fn changed_nodes(
 					&effectful_loads(base, bg, bi),
 					&effectful_loads(head, hg, hi),
 				);
-				if !loads_base.is_empty() || !loads_head.is_empty() {
+				// npm packages are not analyzed: loading another one, or the same ones in another order,
+				// changes what loading the module does.
+				if !loads_base.is_empty()
+					|| !loads_head.is_empty()
+					|| bg.package_loads[bi] != hg.package_loads[hi]
+				{
 					base_seeds.push(bg.base[bi]);
 					head_seeds.push(hg.base[hi]);
 				}
@@ -382,7 +440,7 @@ pub fn select(
 			.run_everything(p)
 			.map(|reason| format!("{reason} ({p})"))
 	});
-	let deps = dependency_impact(config, repo, changes)?;
+	let deps = dependency_impact(config, repo, head, changes)?;
 	let mut packages = 0;
 	if let Some(deps) = &deps {
 		run_all = run_all.or_else(|| deps.run_all.clone());
@@ -577,6 +635,64 @@ mod tests {
 			TEST_A,
 		];
 		assert_eq!(selected(&base, &head), vec!["src/app/test/a.test.ts"]);
+	}
+
+	#[test]
+	fn packages_of_the_files_every_test_depends_on_run_everything() {
+		let files = [
+			(
+				"test/runner.js",
+				"const server = require('server');\nconst { x } = require('@scope/tool/sub');\nrequire('./local.js');\nrequire('fs');\nimport('dynamic');\n",
+			),
+			("test/types.ts", "import type { T } from 'types-only';\n"),
+			("test/README.md", "require('docs')\n"),
+			("src/lib/a.ts", "import 'not-a-runner';\n"),
+		];
+		let contents: HashMap<String, &str> = files
+			.iter()
+			.map(|(_, c)| (format!("{:016x}", xxh3_64(c.as_bytes())), *c))
+			.collect();
+		let packages = runner_packages(for_tests(), &snapshot(&files), &mut |oid| {
+			Ok(contents[oid].to_owned())
+		})
+		.unwrap();
+		let mut packages: Vec<(String, String)> = packages.into_iter().collect();
+		packages.sort();
+		let reason = |p: &str| {
+			(
+				p.to_owned(),
+				format!("test runner package '{p}' (test/runner.js)"),
+			)
+		};
+		assert_eq!(
+			packages,
+			vec![reason("@scope/tool"), reason("dynamic"), reason("server")]
+		);
+	}
+
+	#[test]
+	fn loading_npm_packages_counts_as_an_effect() {
+		let setup = ("src/app/setup.ts", "import 'polyfill';\n");
+		let case = |before: &str, after: &str| -> Vec<String> {
+			let lib = |imports: &str| format!("{imports}export const a = 1;\n");
+			let (before, after) = (lib(before), lib(after));
+			selected(
+				&[("src/app/lib.ts", &before), setup, TEST_A],
+				&[("src/app/lib.ts", &after), setup, TEST_A],
+			)
+		};
+		let a = || vec!["src/app/test/a.test.ts".to_owned()];
+		assert_eq!(
+			(
+				case("", "import 'polyfill';\n"),
+				case("import 'polyfill';\n", ""),
+				case("import 'a';\nimport 'b';\n", "import 'b';\nimport 'a';\n"),
+				// A module that loads a package.
+				case("", "import './setup.js';\n"),
+				case("import 'polyfill';\n", "import 'polyfill';\n// comment\n"),
+			),
+			(a(), a(), a(), a(), vec![])
+		);
 	}
 
 	#[test]
@@ -842,6 +958,44 @@ mod tests {
 				&[keys, member]
 			),
 			vec![keys.0]
+		);
+	}
+
+	#[test]
+	fn properties_that_a_later_spread_or_computed_key_can_overwrite_depend_on_the_object() {
+		let imported = (
+			"src/app/test/imported.test.ts",
+			"import { values } from '../lib.js';\ntest('a', () => values.a);\n",
+		);
+		let local = (
+			"src/app/test/local.test.ts",
+			"import { readA } from '../lib.js';\ntest('a', () => readA());\n",
+		);
+		let lib = |(overrides, values): (&str, &str)| {
+			format!(
+				"const k = 'a';\nconst overrides = {overrides};\nexport const values = {values};\nexport function readA() {{ return values.a; }}\n"
+			)
+		};
+		let case = |before, after| selected_by_lib(&lib(before), &lib(after), &[imported, local]);
+		let both = || vec![imported.0.to_owned(), local.0.to_owned()];
+		assert_eq!(
+			(
+				case(
+					("{}", "{ a: 1, ...{ a: 2 } }"),
+					("{}", "{ a: 1, ...{ a: 3 } }")
+				),
+				case(
+					("{ a: 2 }", "{ a: 1, ...overrides }"),
+					("{ a: 3 }", "{ a: 1, ...overrides }")
+				),
+				case(("{}", "{ a: 1, [k]: 2 }"), ("{}", "{ a: 1, [k]: 3 }")),
+				// The properties after the last spread keep their own dependencies.
+				case(
+					("{}", "{ ...{ b: 0 }, a: 1, c: 2 }"),
+					("{}", "{ ...{ b: 0 }, a: 1, c: 3 }")
+				),
+			),
+			(both(), both(), both(), vec![])
 		);
 	}
 

@@ -516,7 +516,17 @@ fn member_list(decl: &Declaration, config: &Config) -> Vec<Member> {
 				&d.id,
 				d.init.as_ref().and_then(|e| object_literal(e, config)),
 			) {
-				for p in &o.properties {
+				// A spread or a computed key can overwrite the properties before it: those stay with
+				// the object, so reading one depends on all of it.
+				let start = o
+					.properties
+					.iter()
+					.rposition(|p| match p {
+						ObjectPropertyKind::SpreadProperty(_) => true,
+						ObjectPropertyKind::ObjectProperty(p) => p.computed,
+					})
+					.map_or(0, |i| i + 1);
+				for p in &o.properties[start..] {
 					if let ObjectPropertyKind::ObjectProperty(p) = p {
 						if !p.computed {
 							if let Some(name) = p

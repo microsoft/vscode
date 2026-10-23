@@ -40,6 +40,16 @@ pub struct DepImpact {
 	pub packages: HashSet<String>,
 	/// A `package.json` field that code can read at runtime changed.
 	pub package_json: bool,
+	/// Packages installed differently: a new resolved version or install script permission. The
+	/// packages that depend on them are affected too.
+	installed: HashSet<String>,
+	/// The packages that depend on a package, by name, from the lockfiles read.
+	dependents: HashMap<String, HashSet<String>>,
+}
+
+/// The name of the package at a lockfile path such as `node_modules/a/node_modules/@scope/b`.
+fn name_of(path: &str) -> Option<String> {
+	path.rsplit_once("node_modules/").map(|(_, n)| n.to_owned())
 }
 
 fn changed_keys(a: Option<&Map<String, Value>>, b: Option<&Map<String, Value>>) -> Vec<String> {
@@ -73,7 +83,7 @@ impl DepImpact {
 						.skip(1)
 						.find(|(_, c)| *c == '@')
 						.map_or(dep.as_str(), |(i, _)| &dep[..i]);
-					self.packages.insert(name.to_owned());
+					self.installed.insert(name.to_owned());
 				}
 			} else if key == "scripts" {
 				for script in changed_keys(a[&key].as_object(), b[&key].as_object()) {
@@ -100,7 +110,8 @@ impl DepImpact {
 		}
 	}
 
-	/// Adds every package whose resolved version changed, and everything that depends on it.
+	/// Adds every package whose resolved version changed. `finish` adds the packages that depend on
+	/// them.
 	pub fn add_lockfile(&mut self, before: Option<&str>, after: Option<&str>) {
 		let (a, b) = (parse(before), parse(after));
 		let empty = Map::new();
@@ -108,8 +119,6 @@ impl DepImpact {
 			a["packages"].as_object().unwrap_or(&empty),
 			b["packages"].as_object().unwrap_or(&empty),
 		);
-		let name_of = |path: &str| path.rsplit_once("node_modules/").map(|(_, n)| n.to_owned());
-		let mut queue: VecDeque<String> = VecDeque::new();
 		for path in pa.keys().chain(pb.keys()) {
 			if path.is_empty() {
 				continue;
@@ -124,49 +133,73 @@ impl DepImpact {
 				})
 			};
 			if fields(pa) != fields(pb) {
-				if let Some(name) = name_of(path) {
-					queue.push_back(name);
-				}
+				self.installed.extend(name_of(path));
 			}
 		}
-		// Reverse dependencies by name, from both versions of the lockfile.
-		let mut dependents: HashMap<String, HashSet<String>> = HashMap::new();
-		for packages in [pa, pb] {
-			for (path, entry) in packages {
-				let Some(name) = name_of(path) else { continue };
-				for field in ["dependencies", "optionalDependencies", "peerDependencies"] {
-					if let Some(deps) = entry[field].as_object() {
-						for dep in deps.keys() {
-							dependents
-								.entry(dep.clone())
-								.or_default()
-								.insert(name.clone());
-						}
+		self.add_dependents(pa);
+		self.add_dependents(pb);
+	}
+
+	/// Whether packages are installed differently, so that `finish` needs to know which packages
+	/// depend on them.
+	pub fn changes_installation(&self) -> bool {
+		!self.installed.is_empty()
+	}
+
+	/// Whether the change affects any package.
+	pub fn affects_packages(&self) -> bool {
+		!self.installed.is_empty() || !self.packages.is_empty()
+	}
+
+	/// Reads which packages depend on which from a lockfile that did not change: `package.json`
+	/// can change how a package is installed (`allowScripts`) without changing the lockfile.
+	pub fn add_unchanged_lockfile(&mut self, lockfile: &str) {
+		if let Some(packages) = parse(Some(lockfile))["packages"].as_object() {
+			self.add_dependents(packages);
+		}
+	}
+
+	fn add_dependents(&mut self, packages: &Map<String, Value>) {
+		for (path, entry) in packages {
+			let Some(name) = name_of(path) else { continue };
+			for field in ["dependencies", "optionalDependencies", "peerDependencies"] {
+				if let Some(deps) = entry[field].as_object() {
+					for dep in deps.keys() {
+						self.dependents
+							.entry(dep.clone())
+							.or_default()
+							.insert(name.clone());
 					}
 				}
 			}
 		}
+	}
+
+	/// Adds the packages that depend on the ones installed differently, and runs every unit test for
+	/// a toolchain package or for a package in `runners`: the packages loaded by files that every
+	/// unit test depends on, with the reason to report.
+	pub fn finish(&mut self, config: &Config, runners: &HashMap<String, String>) {
+		let mut queue: VecDeque<String> = self.installed.drain().collect();
 		let mut seen: HashSet<String> = HashSet::new();
 		while let Some(name) = queue.pop_front() {
 			if !seen.insert(name.clone()) {
 				continue;
 			}
-			if let Some(ds) = dependents.get(&name) {
+			if let Some(ds) = self.dependents.get(&name) {
 				queue.extend(ds.iter().cloned());
 			}
 		}
 		self.packages.extend(seen);
-	}
-
-	pub fn finish(&mut self, config: &Config) {
 		if self.run_all.is_none() {
-			if let Some(p) = self
-				.packages
-				.iter()
-				.find(|p| config.toolchain.contains(p.as_str()))
-			{
-				self.run_all = Some(format!("toolchain package '{p}'"));
-			}
+			let mut packages: Vec<&String> = self.packages.iter().collect();
+			packages.sort();
+			self.run_all = packages.into_iter().find_map(|p| {
+				if config.toolchain.contains(p.as_str()) {
+					Some(format!("toolchain package '{p}'"))
+				} else {
+					runners.get(p).cloned()
+				}
+			});
 		}
 	}
 }
@@ -184,7 +217,7 @@ mod tests {
 			Some(r#"{"scripts":{"a":"1"},"dependencies":{"x":"1","y":"1"}}"#),
 			Some(r#"{"scripts":{"a":"2"},"dependencies":{"x":"2","y":"1"}}"#),
 		);
-		i.finish(for_tests());
+		i.finish(for_tests(), &HashMap::new());
 		assert_eq!(
 			(i.run_all, i.packages.into_iter().collect::<Vec<_>>()),
 			(None, vec!["x".to_owned()])
@@ -200,7 +233,7 @@ mod tests {
 				Some(r#"{"scripts":{}}"#),
 				Some(&format!(r#"{{"scripts":{{"{script}":"x"}}}}"#)),
 			);
-			i.finish(for_tests());
+			i.finish(for_tests(), &HashMap::new());
 			assert_eq!(i.run_all, Some(format!("package.json script '{script}'")));
 		}
 	}
@@ -223,11 +256,78 @@ mod tests {
 	fn lockfile_changes_propagate_to_dependents() {
 		let before = r#"{"packages":{"":{},"node_modules/pty":{"version":"1","dependencies":{"addon":"^1"}},"node_modules/addon":{"version":"1"},"node_modules/other":{"version":"1"}}}"#;
 		let after = r#"{"packages":{"":{},"node_modules/pty":{"version":"1","dependencies":{"addon":"^1"}},"node_modules/addon":{"version":"2"},"node_modules/other":{"version":"1"}}}"#;
+		let affected = |package_json: bool| {
+			let mut i = DepImpact::default();
+			i.add_lockfile(Some(before), Some(after));
+			// A bump usually changes package.json too.
+			if package_json {
+				i.add_package_json(
+					for_tests(),
+					Some(r#"{"dependencies":{"addon":"^1"}}"#),
+					Some(r#"{"dependencies":{"addon":"^2"}}"#),
+				);
+			}
+			i.finish(for_tests(), &HashMap::new());
+			let mut p: Vec<String> = i.packages.into_iter().collect();
+			p.sort();
+			p
+		};
+		let expected = vec!["addon".to_owned(), "pty".to_owned()];
+		assert_eq!(
+			(affected(false), affected(true)),
+			(expected.clone(), expected)
+		);
+	}
+
+	#[test]
+	fn install_script_changes_propagate_to_dependents_of_the_unchanged_lockfile() {
+		let lockfile = r#"{"packages":{"":{},"node_modules/ws":{"version":"8","peerDependencies":{"bufferutil":"^4"}},"node_modules/bufferutil":{"version":"4"},"node_modules/other":{"version":"1"}}}"#;
 		let mut i = DepImpact::default();
-		i.add_lockfile(Some(before), Some(after));
+		i.add_package_json(
+			for_tests(),
+			Some(r#"{"allowScripts":{"bufferutil@4.1.0":true}}"#),
+			Some(r#"{"allowScripts":{"bufferutil@4.1.0":false}}"#),
+		);
+		i.add_unchanged_lockfile(lockfile);
+		i.finish(for_tests(), &HashMap::new());
 		let mut p: Vec<String> = i.packages.into_iter().collect();
 		p.sort();
-		assert_eq!(p, vec!["addon".to_owned(), "pty".to_owned()]);
+		assert_eq!(p, vec!["bufferutil".to_owned(), "ws".to_owned()]);
+	}
+
+	#[test]
+	fn declaring_an_installed_dependency_does_not_affect_its_dependents() {
+		// mocha already installs js-yaml: declaring it changes neither package.
+		let lockfile = r#"{"packages":{"":{},"node_modules/mocha":{"version":"1","dependencies":{"js-yaml":"^4"}},"node_modules/js-yaml":{"version":"4"}}}"#;
+		let mut i = DepImpact::default();
+		i.add_package_json(
+			for_tests(),
+			Some(r#"{"devDependencies":{}}"#),
+			Some(r#"{"devDependencies":{"js-yaml":"^4"}}"#),
+		);
+		i.add_lockfile(Some(lockfile), Some(lockfile));
+		i.finish(for_tests(), &HashMap::new());
+		assert_eq!(
+			(i.run_all, i.packages.into_iter().collect::<Vec<_>>()),
+			(None, vec!["js-yaml".to_owned()])
+		);
+	}
+
+	#[test]
+	fn packages_of_files_every_test_depends_on_run_everything() {
+		let before = r#"{"packages":{"":{},"node_modules/server":{"version":"1","dependencies":{"mime":"^1"}},"node_modules/mime":{"version":"1"}}}"#;
+		let after = r#"{"packages":{"":{},"node_modules/server":{"version":"1","dependencies":{"mime":"^1"}},"node_modules/mime":{"version":"2"}}}"#;
+		let runners = HashMap::from([(
+			"server".to_owned(),
+			"test runner package 'server' (test/runner.js)".to_owned(),
+		)]);
+		let mut i = DepImpact::default();
+		i.add_lockfile(Some(before), Some(after));
+		i.finish(for_tests(), &runners);
+		assert_eq!(
+			i.run_all.as_deref(),
+			Some("test runner package 'server' (test/runner.js)")
+		);
 	}
 
 	#[test]
@@ -238,7 +338,7 @@ mod tests {
 			Some(r#"{"devDependencies":{"mocha":"1"}}"#),
 			Some(r#"{"devDependencies":{"mocha":"2"}}"#),
 		);
-		i.finish(for_tests());
+		i.finish(for_tests(), &HashMap::new());
 		assert!(i.run_all.is_some());
 	}
 }
