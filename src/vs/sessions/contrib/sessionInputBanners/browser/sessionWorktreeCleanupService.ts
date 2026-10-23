@@ -6,10 +6,11 @@
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Limiter, raceCancellationError, RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { CancellationError } from '../../../../base/common/errors.js';
+import { CancellationError, getErrorMessage } from '../../../../base/common/errors.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
+import type { IAgentHostWorktreeCleanupStatus } from '../../../../platform/agentHost/common/agentHostWorktreeCleanup.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ByteSize } from '../../../../platform/files/common/files.js';
@@ -56,6 +57,8 @@ export interface ISessionWorktree {
 	readonly measurementFailed?: boolean;
 	readonly worktreeCount: number;
 	readonly cleanupState: SessionWorktreeCleanupState;
+	readonly cleanupStatus?: IAgentHostWorktreeCleanupStatus;
+	readonly cleanupStatusError?: string;
 }
 
 type IMeasuredSessionWorktree = Omit<ISessionWorktree, 'cleanupState'>;
@@ -270,7 +273,20 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 			measurementFailed = true;
 			this.logService.warn(`[SessionWorktreeCleanupService] Failed to measure worktree for session ${session.sessionId}`, error);
 		}
-		return { session, sizeBytes, worktreeCount: this._countWorktrees(session), isMeasuring: false, measurementFailed };
+		let cleanupStatus: IAgentHostWorktreeCleanupStatus | undefined;
+		let cleanupStatusError: string | undefined;
+		if (session.isArchived.get()) {
+			try {
+				cleanupStatus = await this.sessionsManagementService.sessionWorktreeCleanup?.(session, false);
+			} catch (error) {
+				if (token.isCancellationRequested) {
+					throw error;
+				}
+				cleanupStatusError = getErrorMessage(error);
+				this.logService.warn(`[SessionWorktreeCleanupService] Failed to read cleanup status for session ${session.sessionId}`, error);
+			}
+		}
+		return { session, sizeBytes, worktreeCount: this._countWorktrees(session), isMeasuring: false, measurementFailed, cleanupStatus, cleanupStatusError };
 	}
 
 	async refreshPendingCleanup(sessionIds: readonly string[], minimumAgeDays: number, onUpdate?: (worktrees: readonly ISessionWorktree[]) => void, token = CancellationToken.None): Promise<readonly ISessionWorktree[]> {
@@ -550,7 +566,14 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 		}, async progress => {
 			let completedWorktrees = 0;
 			for (const candidate of selected) {
-				await this.sessionsManagementService.archiveSession(candidate.session);
+				if (candidate.session.isArchived.get()) {
+					const result = await this.sessionsManagementService.sessionWorktreeCleanup?.(candidate.session, true);
+					if (!result) {
+						throw new Error(localize('worktreeCleanup.retryUnavailable', "Retrying worktree cleanup is unavailable for this session."));
+					}
+				} else {
+					await this.sessionsManagementService.archiveSession(candidate.session);
+				}
 				completedWorktrees += candidate.worktreeCount;
 				progress.report({
 					increment: candidate.worktreeCount / worktreeCount * 100,

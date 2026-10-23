@@ -618,6 +618,42 @@ suite('SessionWorktreeCleanupService', () => {
 		]);
 	});
 
+	test('retries leftover worktrees without archiving or restoring their sessions', async () => {
+		const archived = createSession('archived', oldDate(), SessionStatus.Completed, true);
+		const calls: boolean[] = [];
+		const service = disposables.add(createService([archived], true, () => 100, undefined, undefined, undefined, undefined, undefined, undefined, Event.None, {
+			dialogService: upcastPartial<IDialogService>({ confirm: async () => ({ confirmed: true }) }),
+			onArchive: async () => { throw new Error('Must not archive again'); },
+			onCleanup: async (_session, retry) => { calls.push(retry); return { state: retry ? 'pending' : 'failed', message: retry ? undefined : 'permission denied' }; },
+		}));
+		const before = (await service.getWorktrees(0))[0].cleanupStatus;
+		await service.cleanupWorktrees([{ session: archived, sizeBytes: 100, worktreeCount: 1 }]);
+		assert.deepStrictEqual({ before, calls, archived: archived.isArchived.get() }, {
+			before: { state: 'failed', message: 'permission denied' },
+			calls: [false, true],
+			archived: true,
+		});
+	});
+
+	test('reports unsupported cleanup retry rather than pretending cleanup started', async () => {
+		const archived = createSession('archived', oldDate(), SessionStatus.Completed, true);
+		const service = disposables.add(createService([archived], true, () => 100, undefined, undefined, undefined, undefined, undefined, undefined, Event.None, {
+			dialogService: upcastPartial<IDialogService>({ confirm: async () => ({ confirmed: true }) }),
+		}));
+		await assert.rejects(service.cleanupWorktrees([{ session: archived, sizeBytes: 100, worktreeCount: 1 }]), /unavailable/);
+	});
+
+	test('does not confuse a cleanup status request error with an unsupported host or removal failure', async () => {
+		const archived = createSession('archived', oldDate(), SessionStatus.Completed, true);
+		const service = disposables.add(createService([archived], true, () => 100, undefined, undefined, undefined, undefined, undefined, undefined, Event.None, {
+			onCleanup: async () => { throw new Error('host disconnected'); },
+		}));
+		const worktree = (await service.getWorktrees(0))[0];
+		assert.deepStrictEqual({ status: worktree.cleanupStatus, error: worktree.cleanupStatusError, size: worktree.sizeBytes }, {
+			status: undefined, error: 'host disconnected', size: 100,
+		});
+	});
+
 	test('reports cleanup scheduling progress after each archived session', async () => {
 		const archived: string[] = [];
 		const progressService = new TestProgressService();
@@ -940,6 +976,7 @@ function createService(
 		readonly progressService?: IProgressService;
 		readonly dialogService?: IDialogService;
 		readonly onArchive?: (session: ISession) => Promise<void>;
+		readonly onCleanup?: ISessionsManagementService['sessionWorktreeCleanup'];
 		readonly onDidArchiveSession?: Event<ISession>;
 	} = {},
 ): SessionWorktreeCleanupService {
@@ -948,6 +985,7 @@ function createService(
 			getSessions: () => sessions,
 			getSessionWorktreeDiskUsage: async (session, token) => sizeForSession(session, token),
 			archiveSession: async session => overrides.onArchive?.(session),
+			sessionWorktreeCleanup: overrides.onCleanup,
 			onDidArchiveSession: overrides.onDidArchiveSession ?? Event.None,
 			onDidChangeSessions,
 		}),

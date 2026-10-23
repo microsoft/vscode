@@ -765,6 +765,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._requireClient().measureWorktreeDiskUsage(root, token);
 	}
 
+	sessionWorktreeCleanup(session: URI, retry: boolean) {
+		return this._requireClient().sessionWorktreeCleanup(session, retry);
+	}
+
 	resourceMkdir(params: ResourceMkdirParams): Promise<ResourceMkdirResult> {
 		return this._requireClient().resourceMkdir(params);
 	}

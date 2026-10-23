@@ -7196,6 +7196,17 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._setSessionArchived(sessionId, false);
 	}
 
+	async sessionWorktreeCleanup(sessionId: string, retry: boolean) {
+		this._assertSessionAvailable(sessionId);
+		const rawId = this._sessionKeyFromChatId(sessionId);
+		const session = rawId ? this._sessionCache.get(rawId) : undefined;
+		const connection = this.connection;
+		if (retry && (!session || !connection?.sessionWorktreeCleanup)) {
+			throw new Error(localize('worktreeCleanupUnavailable', "Connect to this session's host to retry worktree cleanup."));
+		}
+		return session && connection?.sessionWorktreeCleanup?.(session.backendUri, retry);
+	}
+
 	async archiveChat(sessionId: string, chatResource: URI): Promise<void> {
 		await this._setChatArchived(sessionId, chatResource, true);
 	}
