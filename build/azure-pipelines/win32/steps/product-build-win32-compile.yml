@@ -17,6 +17,10 @@ parameters:
   - name: VSCODE_PRIVILEGED_CONNECTIONS
     type: boolean
     default: true
+  # CI test jobs only build the agent SDK in one job (see ../product-build-win32-ci.yml)
+  - name: VSCODE_BUILD_AGENT_SDK
+    type: boolean
+    default: true
 
 steps:
   - template: product-build-win32-setup.yml@self
@@ -41,10 +45,11 @@ steps:
   - powershell: node build/npm/electronTypes.ts
     displayName: Prepare Electron types
 
-  - template: ../../common/agent-sdk-produce.yml@self
-    parameters:
-      vscodePlatform: win32
-      VSCODE_PRIVILEGED_CONNECTIONS: ${{ parameters.VSCODE_PRIVILEGED_CONNECTIONS }}
+  - ${{ if eq(parameters.VSCODE_BUILD_AGENT_SDK, true) }}:
+    - template: ../../common/agent-sdk-produce.yml@self
+      parameters:
+        vscodePlatform: win32
+        VSCODE_PRIVILEGED_CONNECTIONS: ${{ parameters.VSCODE_PRIVILEGED_CONNECTIONS }}
 
   - template: ../../common/dictation-runtime-produce.yml@self
     parameters:
