@@ -4831,7 +4831,10 @@ suite('Sessions - SessionsList', () => {
 			};
 			rerenderedInput?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
 			list.beginRenameGroup(group.id);
-			const restartedValue = container.querySelector<HTMLInputElement>('.session-group-input input')?.value;
+			const restartedInput = container.querySelector<HTMLInputElement>('.session-group-input input');
+			const restartedValue = restartedInput?.value;
+			// Close the editor so teardown does not commit it on blur.
+			restartedInput?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
 
 			assert.deepStrictEqual({ rerenderState, restartedValue }, {
 				rerenderState: {
