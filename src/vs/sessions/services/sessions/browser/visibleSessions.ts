@@ -287,6 +287,7 @@ export class VisibleSession extends Disposable implements IActiveSession {
 	get worktreePending() { return this._session.worktreePending; }
 	get isQuickChat() { return this._session.isQuickChat; }
 	get isAutomation() { return this._session.isAutomation; }
+	get isChatpad() { return this._session.isChatpad; }
 	get isExternal() { return this._session.isExternal; }
 	get remoteConnectionStatus() { return this._session.remoteConnectionStatus; }
 	get createdBySession() { return this._session.createdBySession; }
@@ -343,6 +344,7 @@ class ResourceOverrideSession implements ISession {
 	get worktreePending() { return this._session.worktreePending; }
 	get isQuickChat() { return this._session.isQuickChat; }
 	get isAutomation() { return this._session.isAutomation; }
+	get isChatpad() { return this._session.isChatpad; }
 	get isExternal() { return this._session.isExternal; }
 	get remoteConnectionStatus() { return this._session.remoteConnectionStatus; }
 	get createdBySession() { return this._session.createdBySession; }

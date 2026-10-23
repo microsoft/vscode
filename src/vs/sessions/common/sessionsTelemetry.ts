@@ -106,9 +106,9 @@ export function logSessionComparisonAttemptCompleted(telemetryService: ITelemetr
 	telemetryService.publicLog2<SessionComparisonAttemptCompletedEvent, SessionComparisonAttemptCompletedClassification>('agents/sessionComparisonAttemptCompleted', data);
 }
 
-/** Counts non-archived, non-automation sessions shown in the primary Sessions list. */
+/** Counts non-archived sessions shown in the primary Sessions list: not automation runs nor the Chatpad chat. */
 export function getNonArchivedSessionListCount(sessions: readonly ISession[]): number {
-	return sessions.filter(session => !session.isArchived.get() && !(session.isAutomation?.get() ?? false)).length;
+	return sessions.filter(session => !session.isArchived.get() && !(session.isAutomation?.get() ?? false) && !(session.isChatpad?.get() ?? false)).length;
 }
 
 type SessionsListCompactViewStateEvent = {

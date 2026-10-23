@@ -36,6 +36,7 @@ import type { RemoteAgentHostConnectionStatus } from '../../../../../platform/ag
 import { AgentHostTransportFailureReason } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { supportsAgentHostArtifactRemoval, supportsAgentHostCreateChatWorkspace } from '../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { supportsAgentHostSessionImport } from '../../../../../platform/agentHost/common/meta/agentHostSessionImportMeta.js';
+import { supportsAgentHostChatpad, withChatpadSessionMeta } from '../../../../../platform/agentHost/common/meta/agentHostChatpadMeta.js';
 import { supportsAgentHostSessionMove } from '../../../../../platform/agentHost/common/meta/agentHostSessionMoveMeta.js';
 import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizationEnablement } from '../../../../../platform/agentHost/common/customizationEnablement.js';
 import { readCodexAccountInfo } from '../../../../../platform/agentHost/common/codexAccount.js';
@@ -64,7 +65,7 @@ import { AgentCustomization, ChangesSummary, type ChatConfigState, ChatInteracti
 import { isActionKnownToVersion } from '../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { ActionType, isChatAction, isSessionAction, NotificationType, type SessionSummaryChanges } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_SESSION_NOT_FOUND, ProtocolError } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { AgentCapabilities, AgentInfo, buildChatUri, buildSubagentChatUri, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, isChatInSessionReadAggregate, isSessionChatArchived, isSessionStatusArchived, isSessionStatusRead, readSessionCreationReference, readSessionEhcliAdoptable, readFolderGitHubState, readFolderScopeGitState, readSessionExternal, parseSessionGitHubData, readSessionGitHubData, readSessionGitState, readWorkingDirectoryKey, readWorkingDirectoryKeys, readWorkingDirectoryScopeId, readWorkingDirectoryScopeIds, withMigratedSessionGitHubState, withSessionGitHubData, readSessionMultiRootMetadata, readSessionScratchFolders, readSessionSourceControlState, readSessionWorkspaceless, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionMeta, SessionSourceControlOutcome, StateComponents, withSessionCreationReference, withSessionExternal, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ChatState, type ChatSummary, type ISessionCreationReference as IProtocolSessionCreationReference, type ISessionGitHubState, type ISessionGitState, type ISessionMultiRootMetadata } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { AgentCapabilities, AgentInfo, buildChatUri, buildSubagentChatUri, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, isChatInSessionReadAggregate, isSessionChatArchived, isSessionStatusArchived, isSessionStatusRead, readSessionCreationReference, readSessionEhcliAdoptable, readFolderGitHubState, readFolderScopeGitState, readSessionExternal, parseSessionGitHubData, readSessionGitHubData, readSessionGitState, readWorkingDirectoryKey, readWorkingDirectoryKeys, readWorkingDirectoryScopeId, readWorkingDirectoryScopeIds, withMigratedSessionGitHubState, withSessionGitHubData, readSessionMultiRootMetadata, readSessionScratchFolders, readSessionSourceControlState, readSessionChatpad, readSessionWorkspaceless, withSessionChatpad, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionMeta, SessionSourceControlOutcome, StateComponents, withSessionCreationReference, withSessionExternal, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ChatState, type ChatSummary, type ISessionCreationReference as IProtocolSessionCreationReference, type ISessionGitHubState, type ISessionGitState, type ISessionMultiRootMetadata } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
@@ -101,7 +102,7 @@ import { IArtifactModel } from '../../../../../platform/artifactIntegrations/com
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import type { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
-import { IAutomationSessionConfiguration, IChatMovedEvent, ISessionChatMoveDestination, SessionMoveRefusedError, IDeleteChatOptions, type INestedChatFolderInfo, type INestedChatWorkspace, type INestedChatWorkspaceSupport, NestedChatWorkspaceError, type IForkChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionPermissionOption, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IAutomationSessionConfiguration, IChatMovedEvent, ISessionChatMoveDestination, SessionMoveRefusedError, IDeleteChatOptions, type INestedChatFolderInfo, type INestedChatWorkspace, type INestedChatWorkspaceSupport, NestedChatWorkspaceError, type IForkChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionPermissionOption, ISessionsProviderCreateSessionOptions, type ISessionsProviderChatpad, ISessionWorktreeConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
 import { AgentHostChatMoveTracker } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostChatMoveTracker.js';
 import type { AgentChatMoveDestination } from '../../../../../platform/agentHost/common/agentHostChatMove.js';
 import { toChatMoveError } from './agentHostChatMoveErrors.js';
@@ -1341,6 +1342,8 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	readonly workspace: ISettableObservable<ISessionWorkspace | undefined>;
 	readonly isQuickChat: IObservable<boolean>;
 	readonly isAutomation = observableValue('isAutomation', false);
+	/** Set once the session is known to be the host's Chatpad chat; a session never stops being it. */
+	readonly isChatpad: ISettableObservable<boolean>;
 	readonly isExternal: IObservable<boolean>;
 	readonly remoteConnectionStatus: IObservable<SessionRemoteConnectionStatus> | undefined;
 	readonly createdBySession: IObservable<ISessionCreationReference | undefined>;
@@ -1555,6 +1558,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this.harness = harness === 'copilotcli' ? 'copilot' : harness;
 		this.environment = _options.environment;
 		this._isQuickChat = observableValue('isQuickChat', readSessionWorkspaceless(metadata._meta));
+		this.isChatpad = observableValue('isChatpad', readSessionChatpad(metadata._meta));
 		this.icon = _options.icon;
 		this.createdAt = new Date(metadata.startTime);
 		this.title = observableValue('title', metadata.summary || `Session ${rawId.substring(0, 8)}`);
@@ -2751,18 +2755,28 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this.isAutomation.set(isAutomation, undefined);
 	}
 
+	/** Records that this session is the host's Chatpad chat. See {@link isChatpad}. */
+	setIsChatpad(): void {
+		this.isChatpad.set(true, undefined);
+	}
+
 	/** Records that this session runs with worktree isolation. See {@link worktreePending}. */
 	setWorktreeIsolation(isolated: boolean): void {
 		this._worktreeIsolation.set(isolated, undefined);
 	}
 
 	private _syncQuickChatFromMeta(tx: ITransaction): boolean {
+		// The Chatpad chat works without a workspace too, so it stays a quick chat as well.
+		const becameChatpad = !this.isChatpad.get() && readSessionChatpad(this._meta);
+		if (becameChatpad) {
+			this.isChatpad.set(true, tx);
+		}
 		const workspaceless = this.discoveryMetadata?.workspaceless;
 		const isQuickChat = workspaceless === undefined
 			? readSessionWorkspaceless(this._meta)
 			: !this._project && (workspaceless || readSessionWorkspaceless(this._meta));
 		if (this._isQuickChat.get() === isQuickChat) {
-			return false;
+			return becameChatpad;
 		}
 		this._isQuickChat.set(isQuickChat, tx);
 		return true;
@@ -4308,6 +4322,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	readonly onDidMoveChat: Event<IChatMovedEvent> = this._chatMoveTracker.onDidMoveChat;
 	protected readonly _sessionCache: Map<string, AgentHostSessionAdapter> = new ChatMoveTrackingSessionCache(this._chatMoveTracker);
 	private readonly _sessionKeysByResource = new ResourceMap<string>();
+	/** The cache key of the Chatpad chat. The host doesn't list it, so it is kept from eviction. */
+	private _chatpadSession: string | undefined;
 
 	protected _refreshSessionWorkspaces(): void {
 		const changed: ISession[] = [];
@@ -7045,6 +7061,78 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 	}
 
+	async getChatpad(): Promise<ISessionsProviderChatpad | undefined> {
+		const connection = this.connection;
+		if (!connection?.getChatpad || !supportsAgentHostChatpad(connection.initializeResult.get())) {
+			return undefined;
+		}
+		let chatpad = await connection.getChatpad();
+		if (!chatpad) {
+			await this._createChatpadSession(connection);
+			chatpad = await connection.getChatpad();
+			if (!chatpad) {
+				throw new Error(localize('chatpadUnavailable', "The Chatpad is unavailable."));
+			}
+		}
+		const session = this._ensureChatpadSession(chatpad.session, chatpad.provider);
+		return { note: this.mapWorkingDirectoryUri(chatpad.note), session };
+	}
+
+	/**
+	 * The cached session of the Chatpad chat `backendSession`, seeded into the cache when missing: the host doesn't
+	 * list the Chatpad chat. It is kept from eviction, and typed as the Chatpad chat.
+	 */
+	private _ensureChatpadSession(backendSession: URI, provider: string | undefined): AgentHostSessionAdapter {
+		let session = this._findSessionByBackendUri(backendSession);
+		if (!session) {
+			const now = Date.now();
+			session = this._ensureSessionInCache({
+				session: backendSession,
+				provider: provider ?? AgentSession.provider(backendSession) ?? this.sessionTypes[0]?.id,
+				startTime: now,
+				modifiedTime: now,
+				_meta: withSessionChatpad(undefined),
+			});
+		}
+		session.setIsChatpad();
+		this._chatpadSession = session.backendUri.toString();
+		return session;
+	}
+
+	/** Creates a session without a workspace that the host makes the Chatpad chat, unless it has one already. */
+	private async _createChatpadSession(connection: IAgentConnection): Promise<void> {
+		const sessionType = this.sessionTypes[0];
+		if (!sessionType) {
+			throw new Error(this._noAgentsErrorMessage());
+		}
+		this._validateBeforeCreate(sessionType);
+		const backendSession = AgentSession.uri(this._backendSessionScheme(sessionType.id), generateUuid());
+		await connection.createSession({
+			provider: sessionType.id,
+			session: backendSession,
+			_meta: withChatpadSessionMeta(undefined),
+		});
+	}
+
+	async appendToChatpad(text: string): Promise<void> {
+		const connection = this.connection;
+		if (!connection?.appendToChatpad || !supportsAgentHostChatpad(connection.initializeResult.get())) {
+			throw new Error(localize('chatpadUnavailable', "The Chatpad is unavailable."));
+		}
+		// The note is in the Chatpad chat's folder, so the chat has to exist first.
+		await this.getChatpad();
+		await connection.appendToChatpad(text);
+	}
+
+	private _findSessionByBackendUri(backendUri: URI): AgentHostSessionAdapter | undefined {
+		for (const cached of this._sessionCache.values()) {
+			if (isEqual(cached.backendUri, backendUri)) {
+				return cached;
+			}
+		}
+		return undefined;
+	}
+
 	canMoveSessionUnder(sessionId: string): boolean {
 		const rawId = this._sessionKeyFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
@@ -9264,6 +9352,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * protect a session that exists but that the host has not materialized yet.
 	 */
 	protected _isSessionEvictable(rawId: string): boolean {
+		if (rawId === this._chatpadSession) {
+			return false;
+		}
 		const cached = this._sessionCache.get(rawId);
 		return !cached || !this._isAgentDisabledByPolicy(cached.agentProvider);
 	}

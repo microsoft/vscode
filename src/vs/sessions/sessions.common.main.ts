@@ -505,6 +505,7 @@ import './contrib/configuration/browser/configuration.contribution.js';
 import './contrib/browserView/browser/sessionBrowserView.contribution.js';
 import './contrib/editor/browser/editor.contribution.js';
 import './contrib/chatWindow/browser/chatWindow.contribution.js';
+import './contrib/chatpad/browser/chatpad.contribution.js';
 import './contrib/extensions/browser/extensions.contribution.js';
 
 import './contrib/terminal/browser/sessionsTerminalContribution.js';
