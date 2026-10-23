@@ -277,7 +277,13 @@ export class NativeIssueFormService extends IssueFormService implements IIssueFo
 					(resolved.commandId === 'undo' || resolved.commandId === 'redo' || resolved.commandId === 'editor.action.selectAll')) {
 					// macOS menu shortcuts can reach the form without a native browser editing action.
 					event.preventDefault();
-					target.ownerDocument.execCommand(resolved.commandId === 'editor.action.selectAll' ? 'selectAll' : resolved.commandId);
+					if (resolved.commandId === 'undo') {
+						target.ownerDocument.execCommand('undo');
+					} else if (resolved.commandId === 'redo') {
+						target.ownerDocument.execCommand('redo');
+					} else {
+						target.ownerDocument.execCommand('selectAll');
+					}
 					return;
 				}
 			}
