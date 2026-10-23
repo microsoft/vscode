@@ -125,6 +125,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
+			experiment: { mode: 'auto' },
 		},
 		[CloudSandboxEarlyPreparationSettingId]: {
 			type: 'boolean',

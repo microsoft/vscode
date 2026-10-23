@@ -16,7 +16,7 @@ import { joinPath } from '../../../../../../base/common/resources.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostService, IMissionControlOptions } from '../../../../../../platform/agentHost/common/agentService.js';
-import { CloudSandboxEarlyPreparationSettingId, ICloudSandboxDraftPreparationService } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CloudSandboxAutoConnectOnOpenSettingId, CloudSandboxEarlyPreparationSettingId, CloudSandboxEnabledSettingId, ICloudSandboxDraftPreparationService } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { AgentHostDefaultCloneDirectorySettingId, AgentHostRemoteConnectionsBackend, AgentHostRemoteConnectionsSettingId, GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, MissionControlUseLocalCredentialsSettingId } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IConfigurationChangeEvent, IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { ConfigurationModelParser } from '../../../../../../platform/configuration/common/configurationModels.js';
@@ -71,23 +71,32 @@ const expectedOptions: IMissionControlOptions = {
 	useLocalCredentials: true,
 };
 
-suite('Cloud sandbox preparation configuration', () => {
+suite('Cloud sandbox configuration', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('registers one shared service and a default-off application experiment setting', () => {
-		const setting = configurationProperties[CloudSandboxEarlyPreparationSettingId];
+	test('registers one shared preparation service and experiment-configurable application settings', () => {
 		const services = new Map(getSingletonServiceDescriptors());
 
 		assert.deepStrictEqual({
-			type: setting.type,
-			default: setting.default,
-			scope: setting.scope,
-			restricted: setting.restricted,
-			experiment: setting.experiment,
+			settings: [CloudSandboxEnabledSettingId, CloudSandboxAutoConnectOnOpenSettingId, CloudSandboxEarlyPreparationSettingId].map(id => {
+				const setting = configurationProperties[id];
+				return {
+					id,
+					type: setting.type,
+					default: setting.default,
+					scope: setting.scope,
+					restricted: setting.restricted,
+					experiment: setting.experiment,
+				};
+			}),
 			service: services.get(ICloudSandboxDraftPreparationService)?.ctor,
 		}, {
-			type: 'boolean', default: false, scope: ConfigurationScope.APPLICATION,
-			restricted: true, experiment: { mode: 'auto' }, service: CloudSandboxDraftPreparationService,
+			settings: [
+				{ id: CloudSandboxEnabledSettingId, type: 'boolean', default: false, scope: ConfigurationScope.APPLICATION, restricted: false, experiment: { mode: 'auto' } },
+				{ id: CloudSandboxAutoConnectOnOpenSettingId, type: 'boolean', default: true, scope: ConfigurationScope.APPLICATION, restricted: false, experiment: { mode: 'auto' } },
+				{ id: CloudSandboxEarlyPreparationSettingId, type: 'boolean', default: false, scope: ConfigurationScope.APPLICATION, restricted: true, experiment: { mode: 'auto' } },
+			],
+			service: CloudSandboxDraftPreparationService,
 		});
 	});
 });
