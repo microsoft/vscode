@@ -16,6 +16,7 @@ import { NullLogService } from '../../../../../../../platform/log/common/log.js'
 import { IManagedSettingsService, ManagedSettingsData, NullManagedSettingsService } from '../../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
 import { ChatInputPart } from '../../../../browser/widget/input/chatInputPart.js';
+import { ChatMode } from '../../../../common/chatModes.js';
 import { extractSchemaDefaults, filterConfigurationToSchema } from '../../../../browser/widget/input/chatModelConfigurationLogic.js';
 import { ChatModelConfigurationStore, PresentedConfigurationSource, presentedUnderlyingValueKey } from '../../../../browser/widget/input/chatModelConfigurationStore.js';
 import { renderModelConfigurationButton } from '../../../../browser/widget/input/modelPicker/modelPickerConfiguration.js';
@@ -1175,6 +1176,8 @@ suite('ChatModelConfigurationStore', () => {
 		store.add(editor.onDidChange(modelId => changes.push(modelId)));
 		const input: ChatInputPart = Object.assign(Object.create(ChatInputPart.prototype), {
 			_modelConfigStore: editor,
+			// A built-in mode: no custom agent pins apply to the restoration.
+			_currentModeObservable: observableValue('test.mode', ChatMode.Agent),
 			_requestProgrammaticLanguageModel: async () => true,
 		});
 

@@ -1619,6 +1619,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	public requestModelByIdentifier(identifier: string, configuration?: IStringDictionary<unknown>): Promise<boolean> {
+		let recorded = false;
 		// An earlier request's explicitly chosen effort (e.g. when editing it) outranks the agent's effort pin for
 		// this conversation, so the overlay doesn't hide the restored value. Not a durable preference.
 		if (this._currentModeObservable.get().reasoningEffort?.get()) {
@@ -1627,11 +1628,28 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				return configuration?.[key] !== undefined && source !== PresentedConfigurationSource && source !== 'default' && source !== 'managed';
 			});
 			if (explicitKeys.length > 0) {
+				const before = this._agentPinOverrides.get();
 				this._recordAgentPinOverride({ configKeys: explicitKeys });
+				recorded = this._agentPinOverrides.get() !== before;
 			}
 		}
 		this.restoreModelConfiguration(identifier, configuration, false);
-		return this._requestProgrammaticLanguageModel(() => this.getModels().find(model => model.identifier === identifier));
+		// The request's model likewise outranks the agent's model pin, recorded before it applies (as for authored
+		// requests) so restores and reloads keep it.
+		const result = this._requestProgrammaticLanguageModel(() => {
+			const model = this.getModels().find(model => model.identifier === identifier);
+			if (model) {
+				this._modePreferredModelPending = false;
+				recorded = this._recordModelOverrideIfNotPinned(model) || recorded;
+			}
+			return model;
+		});
+		return result.then(applied => {
+			if (applied && recorded) {
+				this._syncInputStateToModel();
+			}
+			return applied;
+		});
 	}
 
 	public requestModelByQualifiedName(qualifiedModelNames: readonly string[]): Promise<boolean> {

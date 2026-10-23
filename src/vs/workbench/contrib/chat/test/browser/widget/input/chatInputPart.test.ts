@@ -368,6 +368,29 @@ suite('ChatInputPart', () => {
 			});
 		});
 
+		test('editing an earlier request restores its model over the agent\'s re-armed model pin, through later restores', async () => {
+			const result = createInputPart({
+				mode: { id: 'agent' },
+				modes: [{ id: 'reviewer', pin: ['Claude Haiku 4.5 (copilot)'] }, { id: 'agent' }],
+				models: () => [pickerModel, pinnedModel, otherModel],
+				selected: pickerModel,
+			});
+			result.inputPart.setChatMode('reviewer', true, true);
+			const pinned = result.selectedModel;
+
+			// The edited request ran on another model (`chat.editRequests: input` restores it by identifier).
+			await result.inputPart.requestModelByIdentifier(otherModel.identifier);
+			const captured = result.inputPart.getCurrentInputState().agentPinOverrides;
+			result.inputPart._syncFromModel(restoredState('agent', pickerModel), session);
+			result.inputPart._syncFromModel(restoredState('reviewer', otherModel, { agentPinOverrides: captured }), session);
+
+			assert.deepStrictEqual({ pinned, captured, selected: result.selectedModel }, {
+				pinned: pinnedModel,
+				captured: { modeId: 'reviewer', model: true },
+				selected: otherModel,
+			});
+		});
+
 		test('re-selecting the pinned model, as configuration changes do, is not an override', () => {
 			const result = createInputPart({
 				mode: { id: 'reviewer', pin: ['Claude Haiku 4.5 (copilot)'] },
