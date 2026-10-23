@@ -84,7 +84,7 @@
     "stylelint": "node build/stylelint.ts",
     "playwright-install": "npm exec playwright install",
     "compile-extensions-build": "npm run gulp compile-extensions-build",
-    "hygiene": "npm run gulp hygiene",
+    "hygiene": "npm run gulp -- hygiene",
     "core-ci": "npm run gulp core-ci",
     "perf": "node scripts/code-perf.js",
     "perf:css": "node .github/skills/auto-perf-optimize/scripts/workbench-css-performance.mts",
