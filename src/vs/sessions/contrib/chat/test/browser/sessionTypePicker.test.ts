@@ -135,6 +135,14 @@ class TestSessionTypePicker extends SessionTypePicker {
 	get offeredSessionTypeIds(): readonly string[] {
 		return this._folderSessionTypes.map(type => type.sessionType.id);
 	}
+
+	get offeredSessionTypes(): readonly { readonly providerId: string; readonly id: string; readonly label: string }[] {
+		return this._folderSessionTypes.map(type => ({
+			providerId: type.providerId,
+			id: type.sessionType.id,
+			label: type.sessionType.label,
+		}));
+	}
 }
 
 interface ITestPickerServices {
@@ -233,6 +241,40 @@ suite('SessionTypePicker', () => {
 			}, { label: 'Copilot', icon: true, pick: { providerId: 'cloud', sessionTypeId: id } });
 		});
 	}
+
+	test('shows the local fallback harness choices without Cloud presentation', () => {
+		const localProvider = upcastPartial<ISessionsProvider>({
+			id: 'local',
+			label: 'This Computer',
+			sessionTypes: [
+				sessionType('local', 'copilot', 'Copilot').sessionType,
+				sessionType('local', 'claude', 'Claude').sessionType,
+			],
+		});
+		session.set(createFakeQuickChatSession('local', 'copilot'), undefined);
+		const picker = createPicker(disposables, session, management, storage, {
+			providerId: constObservable('local'),
+			allowedProviders: constObservable(['cloud', 'local']),
+			presentation: constObservable(undefined),
+		}, { isVisible: false, hide: () => { }, show: () => { } }, [], { providers: [localProvider] });
+		const container = document.createElement('div');
+		picker.render(container);
+
+		assert.deepStrictEqual({
+			offered: picker.offeredSessionTypes,
+			label: container.querySelector('.sessions-chat-dropdown-label')?.textContent,
+			ariaDisabled: container.querySelector('[role="button"]')?.getAttribute('aria-disabled'),
+			visible: picker.isVisible.get(),
+		}, {
+			offered: [
+				{ providerId: 'local', id: 'copilot', label: 'Copilot' },
+				{ providerId: 'local', id: 'claude', label: 'Claude' },
+			],
+			label: 'Copilot',
+			ariaDisabled: 'false',
+			visible: true,
+		});
+	});
 
 	test('filters Automation targets to available hosts without affecting ordinary session choices', () => {
 		management.setSessionTypes([

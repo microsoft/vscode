@@ -684,6 +684,7 @@ suite('NewChatWidget', () => {
 				_pickedEnvironment: picked,
 				_session: constObservable({ sessionId: 'draft', providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionType: 'copilot', isCreated: constObservable(false) }),
 				_workspaceOptOutEnabled: constObservable(false),
+				_workspaceOptOutTarget: constObservable(undefined),
 				_preferredDevContainerFolderUri: undefined as URI | undefined,
 				_pendingPreferredUpgrade: cancellable('cancelUpgrade'),
 				_newSessionCreation: cancellable('cancelCreation'),
@@ -903,17 +904,80 @@ suite('NewChatWidget', () => {
 			});
 		});
 
-		test('switching from Cloud without a workspace starts a local quick chat', async () => {
+		test('switching from Cloud without a workspace keeps a local quick chat', async () => {
 			const state = createFolderlessHarness();
 			await state.select(cloud);
 			const inCloud = state.session.get()?.providerId;
 			await state.select(local);
 			assert.deepStrictEqual({ inCloud, providerId: state.session.get()?.providerId }, {
-				inCloud: undefined, providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+				inCloud: LOCAL_AGENT_HOST_PROVIDER_ID, providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
 			});
 		});
 
-		for (const environment of [cloud, container]) {
+		test('selecting Cloud without a workspace keeps Cloud selected and chats on This Computer when Cloud has no quick-chat harness', async () => {
+			const state = createFolderlessHarness();
+			await state.select(cloud);
+			state.widget.selectNoWorkspace();
+			assert.deepStrictEqual({
+				providerId: state.session.get()?.providerId,
+				environment: state.picked.get()?.id,
+				noWorkspaceSelected: state.noWorkspaceSelected,
+				opened: state.opened,
+			}, {
+				providerId: LOCAL_AGENT_HOST_PROVIDER_ID, environment: 'cloud', noWorkspaceSelected: true,
+				opened: [{ providerId: LOCAL_AGENT_HOST_PROVIDER_ID }, { providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionTypeId: 'copilotcli' }],
+			});
+		});
+
+		test('selecting Cloud without a workspace starts a Cloud quick chat when Cloud supports quick chats', async () => {
+			const state = createFolderlessHarness();
+			const cloudTarget = { providerId: 'cloud', sessionType: { ...state.localTarget.sessionType, id: 'cloud-sandbox' } };
+			state.targets.set([state.remoteTarget, state.localTarget, cloudTarget], undefined);
+			await state.select(cloud);
+			assert.deepStrictEqual({
+				providerId: state.session.get()?.providerId,
+				sessionType: state.session.get()?.sessionType,
+				environment: state.picked.get()?.id,
+				noWorkspaceSelected: state.noWorkspaceSelected,
+				opened: state.opened,
+			}, {
+				providerId: 'cloud', sessionType: 'cloud-sandbox', environment: 'cloud', noWorkspaceSelected: true,
+				opened: [{ providerId: 'cloud' }],
+			});
+		});
+
+		test('keeps an existing local Cloud fallback valid when Cloud quick chat becomes available', async () => {
+			const state = createFolderlessHarness();
+			await state.select(cloud);
+			const session = state.session.get();
+			assert.ok(session);
+			const isCloudQuickChatFallback = Reflect.get(NewChatWidget.prototype, '_isCloudQuickChatFallback') as
+				(this: NewChatWidget, environment: ISessionCreationEnvironment, session: ISession, reader?: IReader) => boolean;
+			const beforeCloudTarget = isCloudQuickChatFallback.call(state.widget, cloud, session);
+			state.targets.set([
+				state.remoteTarget,
+				state.localTarget,
+				{ providerId: 'cloud', sessionType: { ...state.localTarget.sessionType, id: 'cloud-sandbox' } },
+			], undefined);
+			const afterCloudTarget = isCloudQuickChatFallback.call(state.widget, cloud, session);
+			const canSendWithoutWorkspace = derived(reader => canSendRequestToWorkspace.call(state.widget, session, cloud, reader)).get();
+
+			assert.deepStrictEqual({
+				beforeCloudTarget,
+				afterCloudTarget,
+				canSendWithoutWorkspace,
+				providerId: state.session.get()?.providerId,
+				environment: state.picked.get()?.id,
+			}, {
+				beforeCloudTarget: true,
+				afterCloudTarget: true,
+				canSendWithoutWorkspace: true,
+				providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+				environment: 'cloud',
+			});
+		});
+
+		for (const environment of [container]) {
 			test(`explicit quick-chat selection leaves ${environment.kind} while automatic restoration stays scoped`, async () => {
 				const state = createFolderlessHarness();
 				await state.select(environment);
@@ -1003,7 +1067,7 @@ suite('NewChatWidget', () => {
 			}, {
 				preferred: { providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionTypeId: 'copilotcli' },
 				fallback: { providerId: LOCAL_AGENT_HOST_PROVIDER_ID },
-				unsupported: undefined, cloud: undefined, container: undefined,
+				unsupported: undefined, cloud: { providerId: LOCAL_AGENT_HOST_PROVIDER_ID }, container: undefined,
 			});
 		});
 
@@ -2013,6 +2077,20 @@ suite('NewChatWidget', () => {
 				{ description: 'Start without a backing workspace', isSelected: false },
 				{ description: 'Start without a backing workspace', isSelected: true },
 			]);
+	});
+
+	test('offers No workspace in Cloud but not in a Dev Container', () => {
+		const options = (['cloud', 'container'] as const).map(kind => getNoWorkspaceOption.call({
+			_environment: constObservable<ISessionCreationEnvironment>({ id: kind, kind, label: kind, icon: Codicon.cloud, providerIds: [kind] }),
+			_useConsolidatedRemoteWorkspaces: constObservable(true),
+			_isWorkspacePickerQuickChat: constObservable(false),
+			_session: constObservable(undefined),
+			sessionsProvidersService: { getProviders: () => [] },
+			sessionsManagementService: { isQuickChatTargetAvailable: () => true },
+			selectNoWorkspace: () => { },
+		})?.description);
+
+		assert.deepStrictEqual(options, isWeb ? [undefined, undefined] : ['Start without a backing workspace', undefined]);
 	});
 
 	test('offers quick chat providers as a host submenu and forwards the selection', async () => {
