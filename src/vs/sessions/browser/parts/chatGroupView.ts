@@ -101,9 +101,10 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 
 	private _insets = NO_GRID_EDGE_INSETS;
 
-	get minimumWidth() { return ChatGroupView.MINIMUM_WIDTH + this._insets.left + this._insets.right; }
+	// In a chat window, which sizes its chat itself, down to only its input, the grid of its one group sets no minimum.
+	get minimumWidth() { return this._hostOptions ? 0 : ChatGroupView.MINIMUM_WIDTH + this._insets.left + this._insets.right; }
 	readonly maximumWidth = Number.POSITIVE_INFINITY;
-	get minimumHeight() { return ChatGroupView.MINIMUM_HEIGHT + this._insets.top + this._insets.bottom; }
+	get minimumHeight() { return this._hostOptions ? 0 : ChatGroupView.MINIMUM_HEIGHT + this._insets.top + this._insets.bottom; }
 	readonly maximumHeight = Number.POSITIVE_INFINITY;
 
 	private readonly _onDidChange = this._register(new Emitter<IViewSize | undefined>());

@@ -600,6 +600,12 @@ export interface IFloatingEditorPart extends IEditorPart {
 	readonly onDidChangeSize: Event<IDimension>;
 
 	/**
+	 * Resizes the part to its default size, within the main window. This does
+	 * not fire {@link onDidChangeSize}, which is for sizes the user resized to.
+	 */
+	resetSize(): void;
+
+	/**
 	 * Changes the title shown in the header of the part, which is also
 	 * its accessible name.
 	 */

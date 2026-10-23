@@ -17,7 +17,7 @@ import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../../workbench
 import { EditorExtensions } from '../../../../workbench/common/editor.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { ChatWindowContext, ChatWindowDockableContext, ChatWindowDockedContext, ChatWindowHasEditorContext, ChatWindowLayout, ChatWindowLayoutContext, ChatWindowSplitLayoutContext, IChatWindowService } from '../../../services/chatWindow/browser/chatWindowService.js';
+import { ChatWindowContext, ChatWindowDockableContext, ChatWindowDockedContext, ChatWindowDockedResizedContext, ChatWindowHasEditorContext, ChatWindowLayout, ChatWindowLayoutContext, ChatWindowSplitLayoutContext, IChatWindowService } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { ChatWindowChatEditor, ChatWindowChatInput } from './chatWindowEditor.js';
 import { ChatWindowService } from './chatWindowService.js';
 import './openChatInWindow.js';
@@ -266,6 +266,39 @@ MenuRegistry.appendMenuItem(Menus.ChatWindowTitleLayout, {
 	order: chatWindowDockButtonOrder,
 	when: ChatWindowDockedContext,
 	isHiddenByDefault: true,
+});
+
+// Docked: back to the size it opens with by default, after the user resized it.
+registerAction2(class ResetChatWindowDockedSizeAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.chatWindow.resetDockedSize',
+			title: localize2('chatWindowResetDockedSize', "Reset Size"),
+			category: SessionsCategories.Sessions,
+			icon: Codicon.screenNormal,
+			f1: true,
+			precondition: ContextKeyExpr.and(InChatWindowContext, ChatWindowDockedContext, ChatWindowDockedResizedContext),
+			menu: [{
+				id: Menus.ChatWindowLayout,
+				group: ChatWindowLayoutMenuGroup.window,
+				order: 1,
+				when: ChatWindowDockedContext,
+			}, {
+				id: Menus.ChatWindowTitleLayout,
+				group: 'navigation',
+				order: chatWindowDockButtonOrder + 1,
+				when: ChatWindowDockedContext,
+				isHiddenByDefault: true,
+			}],
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		const window = accessor.get(IChatWindowService).getActiveWindow();
+		if (window?.docked) {
+			window.resetSize();
+		}
+	}
 });
 
 // The keyboard's way to do what dragging the chat all the way down below the editor, or back up, does.

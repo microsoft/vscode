@@ -21,7 +21,7 @@ import { IEditorService } from '../../../../workbench/services/editor/common/edi
 import { ITitleService } from '../../../../workbench/services/title/browser/titleService.js';
 import { Menus } from '../../../browser/menus.js';
 import { TitlebarPart } from '../../../browser/parts/titlebarPart.js';
-import { CHAT_WINDOW_TEXT_EDITOR, ChatWindowContext, ChatWindowDockableContext, ChatWindowDockedContext, ChatWindowDockedOpenContext, ChatWindowEditorViewTypeContext, ChatWindowHasEditorContext, ChatWindowLayout, ChatWindowLayoutContext, ChatWindowSplitLayout, ChatWindowSplitLayoutContext, IChatWindow, IChatWindowContent, IChatWindowEditor, IChatWindowEditorArea, IChatWindowKind, IChatWindowOpenOptions, IChatWindowService } from '../../../services/chatWindow/browser/chatWindowService.js';
+import { CHAT_WINDOW_TEXT_EDITOR, ChatWindowContext, ChatWindowDockableContext, ChatWindowDockedContext, ChatWindowDockedOpenContext, ChatWindowDockedResizedContext, ChatWindowEditorViewTypeContext, ChatWindowHasEditorContext, ChatWindowLayout, ChatWindowLayoutContext, ChatWindowSplitLayout, ChatWindowSplitLayoutContext, IChatWindow, IChatWindowContent, IChatWindowEditor, IChatWindowEditorArea, IChatWindowKind, IChatWindowOpenOptions, IChatWindowService } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
@@ -64,6 +64,7 @@ class ChatWindow implements IChatWindow {
 		private readonly _session: ISettableObservable<IActiveSession | undefined>,
 		private readonly _service: ChatWindowService,
 		private readonly _close: () => boolean,
+		private readonly _resetSize: () => void = () => { },
 	) {
 		this._content = observableValue(this, content);
 		this.content = this._content;
@@ -94,6 +95,10 @@ class ChatWindow implements IChatWindow {
 		if (this.editorGroup && this.state.layout.get() === ChatWindowLayout.ChatOnly) {
 			this.state.showBoth();
 		}
+	}
+
+	resetSize(): void {
+		this._resetSize();
 	}
 
 	setEditor(editor: IChatWindowEditor): Promise<void> {
@@ -218,6 +223,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		let floatingPart: IFloatingEditorPart | undefined;
 		let chatGroup: IEditorGroup | undefined;
 		let close: () => boolean;
+		let resetSize: (() => void) | undefined;
 		if (docked) {
 			floatingPart = await this._editorGroupsService.createFloatingEditorPart({
 				title: content.title?.get() ?? kind.title,
@@ -229,7 +235,17 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			part = floatingPart;
 			const dockedPart = floatingPart;
 			close = () => dockedPart.close();
-			windowDisposables.add(floatingPart.onDidChangeSize(size => defaults.setDockedSize(size)));
+			const resizedContext = ChatWindowDockedResizedContext.bindTo(this._editorGroupsService.getScopedInstantiationService(floatingPart).invokeFunction(accessor => accessor.get(IContextKeyService)));
+			resizedContext.set(!!defaults.getDockedSize());
+			windowDisposables.add(floatingPart.onDidChangeSize(size => {
+				defaults.setDockedSize(size);
+				resizedContext.set(true);
+			}));
+			resetSize = () => {
+				dockedPart.resetSize();
+				defaults.setDockedSize(undefined);
+				resizedContext.set(false);
+			};
 			chatGroup = (await this._editorService.openEditor(input, { pinned: true }, floatingPart.activeGroup))?.group ?? floatingPart.activeGroup;
 		} else {
 			// Not compact: a compact window sends editors opened next to it to the main window. Kept out of working sets,
@@ -264,7 +280,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		const editorGroup = content.editor || content.editorArea ? part.addGroup(chatGroup, GroupDirection.UP) : undefined;
 		// One editor is kept in its group; an editor area takes the editors opened from the chat window.
 		editorGroup?.lock(!!content.editor);
-		const window = new ChatWindow(state, part, chatGroup, editorGroup, content, sessionObs, this, close);
+		const window = new ChatWindow(state, part, chatGroup, editorGroup, content, sessionObs, this, close, resetSize);
 		windowDisposables.add(autorun(reader => editorViewTypeContext.set(window.content.read(reader).editor?.viewType ?? '')));
 		windowDisposables.add(toDisposable(() => this._remove(window)));
 		Event.once(part.onWillDispose)(() => windowDisposables.dispose());

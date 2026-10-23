@@ -56,8 +56,12 @@ export class ChatWindowDefaults {
 		return typeof value?.width === 'number' && typeof value.height === 'number' && value.width > 0 && value.height > 0 ? { width: value.width, height: value.height } : undefined;
 	}
 
-	setDockedSize(size: { readonly width: number; readonly height: number }): void {
-		this._storageService.store(`${this._prefix}.dockedSize`, JSON.stringify({ width: Math.round(size.width), height: Math.round(size.height) }), StorageScope.PROFILE, StorageTarget.USER);
+	setDockedSize(size: { readonly width: number; readonly height: number } | undefined): void {
+		if (size) {
+			this._storageService.store(`${this._prefix}.dockedSize`, JSON.stringify({ width: Math.round(size.width), height: Math.round(size.height) }), StorageScope.PROFILE, StorageTarget.USER);
+		} else {
+			this._storageService.remove(`${this._prefix}.dockedSize`, StorageScope.PROFILE);
+		}
 	}
 }
 

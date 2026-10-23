@@ -138,6 +138,8 @@ export interface IChatWindow {
 	toggleConversation(): void;
 	/** Shows its editor, as last arranged with the chat, when only the chat shows. */
 	showEditor(): void;
+	/** Docked: resizes it to its default size, which its kind then opens with too. */
+	resetSize(): void;
 	/** Shows the resource of its one editor with another editor, such as as text; see {@link IChatWindowEditor.viewType}. */
 	setEditor(editor: IChatWindowEditor): Promise<void>;
 	/**
@@ -203,6 +205,9 @@ export const ChatWindowSplitLayoutContext = new RawContextKey<string>('sessions.
 
 /** The editor that the one editor of the chat window shows its resource with; see {@link IChatWindowEditor.viewType}. */
 export const ChatWindowEditorViewTypeContext = new RawContextKey<string>('sessions.chatWindowEditorViewType', '', localize('chatWindowEditorViewType', "The editor the one editor of the chat window shows its resource with, such as the text editor or a custom editor."));
+
+/** Whether the docked chat window was resized from its default size. */
+export const ChatWindowDockedResizedContext = new RawContextKey<boolean>('sessions.chatWindowDockedResized', false, localize('chatWindowDockedResized', "Whether the docked chat window was resized from its default size."));
 
 /** Whether the chat window shows an editor, or an editor area, beside its chat. */
 export const ChatWindowHasEditorContext = new RawContextKey<boolean>('sessions.chatWindowHasEditor', false, localize('chatWindowHasEditor', "Whether the chat window shows an editor beside its chat."));

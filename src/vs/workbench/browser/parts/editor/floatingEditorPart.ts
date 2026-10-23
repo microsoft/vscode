@@ -156,6 +156,7 @@ export class FloatingEditorPart {
 			}
 		}));
 		disposables.add(this.layoutService.onDidLayoutMainContainer(() => layout()));
+		disposables.add(editorPart.onDidResetSize(() => layout()));
 		layout();
 
 		disposables.add(Event.once(editorPart.onWillClose)(() => disposables.dispose()));
@@ -211,6 +212,15 @@ class FloatingEditorPartImpl extends EditorPart implements IFloatingEditorPart {
 
 	setTitle(title: string): void {
 		this.titleElement.textContent = title;
+	}
+
+	private readonly _onDidResetSize = this._register(new Emitter<void>());
+	/** Fired when the part is reset to its default size, which its layout then applies. */
+	readonly onDidResetSize = this._onDidResetSize.event;
+
+	resetSize(): void {
+		this._size = FloatingEditorPart.getDefaultSize(this.layoutService);
+		this._onDidResetSize.fire();
 	}
 
 	/** Records the size the user resized the part to. */
