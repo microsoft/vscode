@@ -185,7 +185,7 @@ export class NewChatInSessionWidget extends Disposable {
 			petHostPreferred: _options.petHostPreferred,
 			getChatPetPlatformElements: () => this._workspaceControls.getChatPetPlatformElements(),
 			onDidChangeChatPetPlatform: this._workspaceControls.onDidChangeChatPetPlatform,
-			renderRepositoryControls: (container, hoverDelegate) => this._workspaceControls.renderRepositoryControls(container, hoverDelegate),
+			renderRepositoryControls: container => this._workspaceControls.renderRepositoryControls(container),
 			supportsBackground: true,
 			voiceRoutesWhileSessionActive: true,
 			useExperimentalLayout: this._useExperimentalComposerLayout,
@@ -208,10 +208,9 @@ export class NewChatInSessionWidget extends Disposable {
 		// host can't give a nested chat its own workspace: then the composer is unchanged.
 		const workspacePickerContainer = dom.append(chatWidgetContent, dom.$('.new-session-workspace-picker-container'));
 		const row = dom.append(workspacePickerContainer, dom.$('.sessions-workspace-category-picker'));
-		this._workspaceControls.renderFolderPicker(row, this._newChatInput.pickerHoverDelegate);
+		this._workspaceControls.renderFolderPicker(row);
 		const sessionOptionsRow = this._register(new SessionOptionsRow(row, workspacePickerContainer, {
 			user: 'NewChatInSessionWidget.sessionOptions',
-			hoverDelegate: this._newChatInput.pickerHoverDelegate,
 			useExperimentalLayout: this._useExperimentalComposerLayout,
 			screenReaderOptimized: this._screenReaderOptimized,
 			expanded: this._sessionOptionsExpanded,

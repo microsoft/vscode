@@ -94,7 +94,6 @@ import { ExtensionsScannerService } from '../../../platform/extensionManagement/
 import { ISSHRemoteAgentHostMainService, SSH_REMOTE_AGENT_HOST_CHANNEL } from '../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { SSHRemoteAgentHostMainService } from '../../../platform/agentHost/node/sshRemoteAgentHostService.js';
 import { DEV_CONTAINER_AGENT_HOST_CHANNEL, IDevContainerAgentHostMainService } from '../../../platform/agentHost/common/devContainerAgentHost.js';
-import { createDevContainerAgentHostChannel } from '../../../platform/agentHost/common/devContainerAgentHostIpc.js';
 import { DevContainerAgentHostMainService } from '../../../platform/agentHost/node/devContainerAgentHostService.js';
 import { IWSLRemoteAgentHostMainService, WSL_REMOTE_AGENT_HOST_CHANNEL } from '../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { WSLRemoteAgentHostMainService } from '../../../platform/agentHost/node/wslRemoteAgentHostService.js';
@@ -527,7 +526,9 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 
 		// Dev Container Agent Host
 		// Deliver inspection facts before a rejected connect RPC disposes its listeners.
-		const devContainerAgentHostChannel = createDevContainerAgentHostChannel(accessor.get(IDevContainerAgentHostMainService), this._store);
+		const devContainerAgentHostChannel = ProxyChannel.fromService(accessor.get(IDevContainerAgentHostMainService), this._store, {
+			unbufferedEvents: ['onDidChangeSandboxSupport'],
+		});
 		this.server.registerChannel(DEV_CONTAINER_AGENT_HOST_CHANNEL, devContainerAgentHostChannel);
 
 		// WSL Remote Agent Host

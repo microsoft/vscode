@@ -66,10 +66,6 @@ export class CustomizationToggle extends Disposable {
 		this.applyState();
 	}
 
-	focus(): void {
-		this.control.domNode.focus();
-	}
-
 	private handleChange(checked: boolean): void {
 		this.state = checked;
 		this._onChange.fire(checked);

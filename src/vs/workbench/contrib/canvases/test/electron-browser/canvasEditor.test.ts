@@ -371,12 +371,12 @@ suite('CanvasEditor', () => {
 			[
 				'User-initiated HTTP and HTTPS links that request a new tab or window open outside the canvas.',
 				'Closing the tab hides this canvas. Reopen it from its canvas pill or ask the agent to open it again.',
-				'To close the canvas itself, which also notifies the canvas extension that provides it, use Close Canvas from its canvas pill.',
+				'To close the canvas itself, which also notifies the extension that provides it, use Close Canvas from its canvas pill.',
 			],
 			[
 				'User-initiated HTTP and HTTPS links that request a new tab or window open outside the canvas.',
 				'Closing the tab hides this canvas. Use the Add Tab menu in the editor toolbar, then Canvas, to open any available canvas or reopen a hidden canvas.',
-				'To close the canvas itself, which also notifies the canvas extension that provides it, use Close Canvas from its canvas pill.',
+				'To close the canvas itself, which also notifies the extension that provides it, use Close Canvas from its canvas pill.',
 			],
 		]);
 	});

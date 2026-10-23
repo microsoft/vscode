@@ -55,7 +55,6 @@ export const enum AccessibilityVerbositySettingId {
 	CustomizationMigrations = 'accessibility.verbosity.customizationMigrations',
 	McpServerConfiguration = 'accessibility.verbosity.mcpServerConfiguration',
 	CustomizationDiscovery = 'accessibility.verbosity.customizationDiscovery',
-	Remotes = 'accessibility.verbosity.remotes',
 	InlineChat = 'accessibility.verbosity.inlineChat',
 	TerminalInlineChat = 'accessibility.verbosity.terminalChat',
 	TerminalChatOutput = 'accessibility.verbosity.terminalChatOutput',
@@ -80,7 +79,6 @@ export const enum AccessibilityVerbositySettingId {
 	SessionsChanges = 'accessibility.verbosity.sessionsChanges',
 	EmptyFileEditorSearch = 'accessibility.verbosity.emptyFileEditorSearch',
 	SessionsListNotification = 'accessibility.verbosity.sessionsListNotification',
-	SessionsGetStarted = 'accessibility.verbosity.sessionsGetStarted',
 	SessionCanvas = 'accessibility.verbosity.sessionCanvas',
 	ChatQuestionCarousel = 'accessibility.verbosity.chatQuestionCarousel',
 	Survey = 'accessibility.verbosity.survey',
@@ -177,10 +175,6 @@ const configuration: IConfigurationNode = {
 			description: localize('verbosity.customizationDiscovery.description', "Provide information about how to access accessibility help when discovering customizations."),
 			...baseVerbosityProperty
 		},
-		[AccessibilityVerbositySettingId.Remotes]: {
-			description: localize('verbosity.remotes.description', "Provide information about how to access accessibility help when managing remotes."),
-			...baseVerbosityProperty
-		},
 		[AccessibilityVerbositySettingId.InlineChat]: {
 			description: localize('verbosity.interactiveEditor.description', 'Provide information about how to access the inline editor chat accessibility help menu and alert with hints that describe how to use the feature when the input is focused.'),
 			...baseVerbosityProperty
@@ -272,10 +266,6 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityVerbositySettingId.SessionsListNotification]: {
 			description: localize('verbosity.sessionsListNotification', "Provide information about how to access accessibility help for the Undo notice in the sessions list."),
-			...baseVerbosityProperty
-		},
-		[AccessibilityVerbositySettingId.SessionsGetStarted]: {
-			description: localize('verbosity.sessionsGetStarted', "Provide information about how to access accessibility help for the Get Started checklist in the Sessions view."),
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.SessionCanvas]: {

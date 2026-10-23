@@ -5,7 +5,6 @@
 
 import * as DOM from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
-import { HoverStyle } from '../../../../base/browser/ui/hover/hover.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { ISelectBoxOptions, SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
 import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
@@ -153,7 +152,6 @@ export class AutomationTriggerEditor extends Disposable {
 			this.updateEventLabel();
 			this.controls.add(this.hoverService.setupDelayedHover(button.element, () => ({
 				content: automationTriggerSummary(this.state.cloudTrigger!.triggers) ?? '',
-				style: HoverStyle.Pointer,
 			})));
 			this.controls.add(button.onDidClick(() => this.pickEvents(choices)));
 		} else {

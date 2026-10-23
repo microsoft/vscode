@@ -17,7 +17,6 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { generateUuid } from '../../../../base/common/uuid.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { localize } from '../../../../nls.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
@@ -61,7 +60,6 @@ export class NewSessionPromptOptionsWidget extends Disposable {
 	private _inputValue = '';
 	private _selectedOptionId: string | undefined;
 	private _selecting = false;
-	private readonly _hoverLifecycleOptions = { groupId: generateUuid() };
 
 	constructor(
 		private readonly _container: HTMLElement,
@@ -173,7 +171,7 @@ export class NewSessionPromptOptionsWidget extends Disposable {
 				content: hoverContent,
 				style: HoverStyle.Pointer,
 				position: { hoverPosition: HoverPosition.BELOW },
-			}, this._hoverLifecycleOptions));
+			}));
 			button.element.classList.add('new-session-prompt-option');
 			button.checked = false;
 			button.element.classList.toggle('has-title-detail', !!option.titleDetail);

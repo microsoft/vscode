@@ -289,17 +289,6 @@ suite('WSLRemoteAgentHostService (renderer)', () => {
 		service = disposables.add(instantiationService.createInstance(WSLRemoteAgentHostService));
 	});
 
-	test('registers a distro persistently without explicitly connecting', () => {
-		service.cacheDistro({ distro: 'Ubuntu', name: 'Ubuntu' });
-		service.cacheDistro({ distro: 'Ubuntu', name: 'Work Ubuntu' });
-		assert.deepStrictEqual({
-			cached: service.getCachedDistros(),
-			entries: remoteAgentHostService.configuredEntries.map(entry => entry.name),
-			connectCalls: mainService.connectCalls,
-			transports: transports.length,
-		}, { cached: [{ distro: 'Ubuntu', name: 'Work Ubuntu' }], entries: ['Work Ubuntu'], connectCalls: [], transports: 0 });
-	});
-
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
 

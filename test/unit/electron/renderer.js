@@ -290,38 +290,23 @@ async function loadTests(opts) {
 		await perTestCoverage?.startTest();
 	});
 
-	teardown(async function () {
+	teardown(async () => {
 		await perTestCoverage?.finishTest(currentTest.file, currentTest.fullTitle());
-
-		const failures = [];
 
 		// should not have unexpected output
 		if (_testsWithUnexpectedOutput && !opts.dev) {
-			failures.push('Error: Unexpected console output in test run. Please ensure no console.[log|error|info|warn] usage in tests or runtime errors.');
+			assert.ok(false, 'Error: Unexpected console output in test run. Please ensure no console.[log|error|info|warn] usage in tests or runtime errors.');
 		}
 
 		// should not have unexpected errors
 		const errors = _unexpectedErrors.concat(_loaderErrors);
 		if (errors.length) {
+			const msg = [];
 			for (const error of errors) {
 				console.error(`Error: Test run should not have unexpected errors:\n${error}`);
+				msg.push(String(error));
 			}
-			failures.push(`Error: Test run should not have unexpected errors:\n${errors.map(String).join('\n')}`);
-		}
-
-		// judge the next test on its own,
-		// including the console.error calls
-		// above
-		_testsWithUnexpectedOutput = false;
-		_unexpectedErrors.length = 0;
-		_loaderErrors.length = 0;
-
-		if (failures.length) {
-			// there are no actual and expected values to diff
-			const error = Object.assign(new assert.AssertionError({ message: failures.join('\n') }), { showDiff: false });
-
-			// fail the test that just ran instead of this hook: when a root-level hook fails, mocha skips every remaining test
-			/** @type {Mocha.Hook} */ (this.test).error(error);
+			assert.ok(false, `Error: Test run should not have unexpected errors:\n${msg.join('\n')}`);
 		}
 	});
 

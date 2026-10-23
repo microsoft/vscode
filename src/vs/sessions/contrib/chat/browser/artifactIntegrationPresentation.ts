@@ -7,7 +7,6 @@ import './media/artifactIntegrations.css';
 import { $, append, isAncestorOfActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { HoverStyle } from '../../../../base/browser/ui/hover/hover.js';
 import { Action } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
@@ -125,7 +124,6 @@ export class ArtifactIntegrationPresentation extends Disposable {
 }
 
 class ArtifactIntegrationPill extends ChatPillActionViewItem {
-	private readonly hoverLifecycleOptions = { groupId: generateUuid() };
 	private sections: ArtifactButtons | undefined;
 
 	constructor(
@@ -141,11 +139,10 @@ class ArtifactIntegrationPill extends ChatPillActionViewItem {
 	protected override get buttonModifierClass(): string { return 'chat-dropdown-pill-button'; }
 
 	protected override renderContent(): void {
-		this.sections = this._register(new ArtifactButtons(append(this.element!, $('.chat-pill-sections.artifact-pill-sections')), this.hoverService, 'pill', this.hoverLifecycleOptions));
+		this.sections = this._register(new ArtifactButtons(append(this.element!, $('.chat-pill-sections.artifact-pill-sections')), this.hoverService, 'pill'));
 		this._register(this.hoverService.setupDelayedHover(this.button!.element, () => ({
 			content: this.mainDescription(),
-			style: HoverStyle.Pointer,
-		}), this.hoverLifecycleOptions));
+		})));
 		this._register(autorun(reader => {
 			const snapshot = this.presentation.snapshot.read(reader);
 			const host = this.presentation.detailsHost;

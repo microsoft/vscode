@@ -208,7 +208,6 @@ class AICustomizationFileRenderer implements ITreeRenderer<IAICustomizationFileI
 		private readonly menuService: IMenuService,
 		private readonly contextKeyService: IContextKeyService,
 		private readonly instantiationService: IInstantiationService,
-		private readonly hoverService: IHoverService,
 	) { }
 
 	renderTemplate(container: HTMLElement): IFileTemplateData {
@@ -257,7 +256,7 @@ class AICustomizationFileRenderer implements ITreeRenderer<IAICustomizationFileI
 
 		// Set tooltip with name and description
 		const tooltip = item.description ? `${item.name} - ${item.description}` : item.name;
-		templateData.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(templateData.container, { content: tooltip }));
+		templateData.container.title = tooltip;
 
 		// Build context for menu actions
 		const context = {
@@ -688,7 +687,7 @@ export class AICustomizationViewPane extends ViewPane {
 			[
 				new AICustomizationCategoryRenderer(),
 				new AICustomizationGroupRenderer(),
-				new AICustomizationFileRenderer(this.menuService, this.contextKeyService, this.instantiationService, this.hoverService),
+				new AICustomizationFileRenderer(this.menuService, this.contextKeyService, this.instantiationService),
 			],
 			this.dataSource,
 			{

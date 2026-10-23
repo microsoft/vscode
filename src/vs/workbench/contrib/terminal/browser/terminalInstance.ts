@@ -552,17 +552,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._containerReadyBarrier = new AutoOpenBarrier(Constants.WaitForContainerThreshold);
 		this._attachBarrier = new AutoOpenBarrier(1000);
-		this._register(toDisposable(() => {
-			this._containerReadyBarrier.open();
-			this._attachBarrier.open();
-		}));
 		this._xtermReadyPromise = this._createXterm();
 		this._xtermReadyPromise.then(async () => {
 			// Wait for a period to allow a container to be ready
 			await this._containerReadyBarrier.wait();
-			if (this.isDisposed) {
-				return;
-			}
 
 			// Resolve the executable ahead of time if shell integration is enabled, this should not
 			// be done for custom PTYs as that would cause extension Pseudoterminal-based terminals
@@ -1409,9 +1402,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	async focusWhenReady(force?: boolean): Promise<void> {
 		await this._xtermReadyPromise;
 		await this._attachBarrier.wait();
-		if (!this.isDisposed) {
-			this.focus(force);
-		}
+		this.focus(force);
 	}
 
 	async sendText(text: string, shouldExecute: boolean, forceBracketedPasteMode?: boolean): Promise<void> {

@@ -42,7 +42,6 @@ import { ContextKeyExpr, IContextKeyService } from '../../../../platform/context
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -641,7 +640,6 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 		super(undefined, action, options);
 		this.branchPicker = this._register(instantiationService.createInstance(BranchPicker, {
 			user: 'automationBranchPicker',
-			hoverDelegate: options?.hoverDelegate,
 			slotClassName: 'automation-form-branch-picker-slot',
 			triggerClassName: 'automation-form-branch-slot',
 			labelClassName: 'automation-form-branch-name',
@@ -1736,9 +1734,7 @@ export function renderForm(
 		usesCombinedConfigPicker.set(!!session && sessionsManagementService.usesCombinedNewSessionConfigPicker(session));
 	}));
 
-	const pickerHoverDelegate = disposables.add(createInstantHoverDelegate());
 	const targetToolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, targetContainer, Menus.AutomationsDialogTargetToolbar, {
-		hoverDelegate: pickerHoverDelegate,
 		ariaLabel: localize('automation.form.targetOptions', "Automation target options"),
 		telemetrySource: 'automations.dialog',
 		hiddenItemStrategy: HiddenItemStrategy.NoHide,
@@ -1752,12 +1748,12 @@ export function renderForm(
 			if (action.id === AUTOMATIONS_HARNESS_CHIP_ACTION_ID) {
 				return new AutomationPickerActionViewItem(action, container => {
 					container.classList.add('automation-harness-picker');
-					sessionTypePicker.render(container, { hoverDelegate: itemOptions.hoverDelegate });
+					sessionTypePicker.render(container);
 				}, undefined, itemOptions);
 
 			}
 			if (action.id === AUTOMATIONS_WORKSPACE_PICKER_ACTION_ID) {
-				return new AutomationPickerActionViewItem(action, container => workspacePicker.render(container, itemOptions.hoverDelegate), undefined, itemOptions);
+				return new AutomationPickerActionViewItem(action, container => workspacePicker.render(container), undefined, itemOptions);
 			}
 			if (action.id === AUTOMATIONS_ISOLATION_GROUP_ACTION_ID) {
 				return instantiationService.createInstance(
@@ -1856,7 +1852,6 @@ export function renderForm(
 		sessionControlsContainer,
 		scopedInstantiationService,
 		localize('automation.form.sessionControls', "Session controls"),
-		pickerHoverDelegate,
 	));
 	const sessionControlsLayout = disposables.add(new ChatInputPickerResponsiveLayout('AutomationDialog.sessionControls', sessionControlsContainer, {
 		getItems: () => getAutomationToolbarResponsiveItems(sessionControlsToolbar),
@@ -2025,13 +2020,12 @@ export function renderForm(
 		localize('automation.owner.repositoryActionDescription', "This automation will act as Copilot."),
 	];
 	const ownerIndex = state.ownership === 'repository' ? 1 : 0;
-	const ownerHoverLifecycleOptions = { groupId: generateUuid() };
 	const ownerInfoHover = disposables.add(new MutableDisposable<IDisposable>());
 	const updateOwnerInfo = (index: number) => {
 		const description = ownerActionDescriptions[index];
 		ownerRow.setAttribute('aria-description', description);
 		ownerInfoHover.clear();
-		ownerInfoHover.value = customizations?.hoverService.setupDelayedHover(ownerInfo, { content: description, style: HoverStyle.Pointer }, ownerHoverLifecycleOptions);
+		ownerInfoHover.value = customizations?.hoverService.setupDelayedHover(ownerInfo, { content: description });
 	};
 	updateOwnerInfo(ownerIndex);
 	const ownerControl = DOM.append(ownerRow, $('.automation-owner-control'));
@@ -2047,7 +2041,7 @@ export function renderForm(
 			: ownerDescriptions[index];
 		element.setAttribute('aria-description', description);
 		if (customizations) {
-			disposables.add(customizations.hoverService.setupDelayedHover(element, { content: description, style: HoverStyle.Pointer }, ownerHoverLifecycleOptions));
+			disposables.add(customizations.hoverService.setupDelayedHover(element, { content: description }));
 		}
 	}
 	setRepositoryWarningVisible(ownerIndex === 1);
@@ -2379,13 +2373,13 @@ export class AutomationCustomizationSelection extends Disposable {
 			const label = DOM.append(text, $('span.automation-customization-label', { id: `automation-customization-${index}` }, choice.label));
 			checkbox.domNode.setAttribute('aria-labelledby', label.id);
 			if (this.hoverService) {
-				this.rows.add(this.hoverService.setupDelayedHoverAtMouse(label, { content: choice.label }));
+				this.rows.add(this.hoverService.setupDelayedHover(label, { content: choice.label }));
 			}
 			if (choice.description) {
 				const description = DOM.append(text, $('span.automation-customization-description', { id: `automation-customization-description-${index}` }, choice.description));
 				checkbox.domNode.setAttribute('aria-describedby', description.id);
 				if (this.hoverService) {
-					this.rows.add(this.hoverService.setupDelayedHoverAtMouse(description, { content: choice.description }));
+					this.rows.add(this.hoverService.setupDelayedHover(description, { content: choice.description }));
 				}
 			}
 			if (choice.outdated) {

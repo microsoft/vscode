@@ -48,9 +48,6 @@ import { IConfigurationService } from '../../../platform/configuration/common/co
 import { getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording } from '../../../platform/chat/common/sessionArchiveActions.js';
 import { getSessionToolbarSecondaryActionsPosition, getSessionChatAncestors } from './sessionHeaderBar.js';
 import { SessionStatusIcon } from '../sessionStatusIcon.js';
-import { HoverStyle } from '../../../base/browser/ui/hover/hover.js';
-import { createInstantHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { generateUuid } from '../../../base/common/uuid.js';
 
 interface IChatTab {
 	readonly chat: IChat;
@@ -112,8 +109,6 @@ export interface IChatCompositeBarDelegate {
  */
 export class ChatCompositeBar extends Disposable {
 
-	private readonly _hoverDelegate = this._register(createInstantHoverDelegate());
-	private readonly _tabHoverLifecycleOptions = { groupId: generateUuid() };
 	private readonly _container: HTMLElement;
 	private readonly _tabsRow: HTMLElement;
 	private readonly _tabsContainer: HTMLElement;
@@ -199,7 +194,6 @@ export class ChatCompositeBar extends Disposable {
 		const sessionToolbarContainer = $('.chat-composite-bar-toolbar');
 		this._sessionActionsContainer.appendChild(sessionToolbarContainer);
 		this._sessionToolbar = this._register(this._instantiationService.createInstance(MenuWorkbenchToolBar, sessionToolbarContainer, Menus.SessionBarToolbar, {
-			hoverDelegate: this._hoverDelegate,
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			menuOptions: { shouldForwardArgs: true },
 			getSecondaryActionsPosition: getSessionToolbarSecondaryActionsPosition,
@@ -415,7 +409,7 @@ export class ChatCompositeBar extends Disposable {
 		tab.appendChild(inputContainer);
 
 		// Delayed hover showing the full chat title (useful when the title is truncated)
-		this._tabDisposables.add(this._hoverService.setupDelayedHover(tab, () => ({ content: titlePath, style: HoverStyle.Pointer }), this._tabHoverLifecycleOptions));
+		this._tabDisposables.add(this._hoverService.setupDelayedHover(tab, () => ({ content: titlePath })));
 		this._tabDisposables.add(addDisposableListener(tab, EventType.MOUSE_ENTER, () => {
 			this._connectedTabOverflowEdge.classList.toggle('connected-tab-hovered', tab.classList.contains('active'));
 		}));
@@ -469,7 +463,6 @@ export class ChatCompositeBar extends Disposable {
 			const actionsContainer = $('.chat-composite-bar-tab-actions');
 			tab.appendChild(actionsContainer);
 			tabToolbar = this._tabDisposables.add(this._instantiationService.createInstance(MenuWorkbenchToolBar, actionsContainer, Menus.SessionChatTab, {
-				hoverDelegate: this._hoverDelegate,
 				hiddenItemStrategy: HiddenItemStrategy.Ignore,
 				menuOptions: { args: [session, chat] },
 				toolbarOptions: { primaryGroup: () => true },

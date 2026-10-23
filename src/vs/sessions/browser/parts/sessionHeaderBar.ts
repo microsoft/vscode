@@ -33,7 +33,6 @@ import { IConfigurationService } from '../../../platform/configuration/common/co
 import { createSessionActionViewItemProvider } from '../sessionActionViewItem.js';
 import { CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
-import { HoverStyle } from '../../../base/browser/ui/hover/hover.js';
 
 export function getSessionChatAncestors(session: IActiveSession, chat: IChat | undefined, reader: IReader): readonly string[] {
 	const ancestors: string[] = [];
@@ -164,7 +163,7 @@ export class SessionHeaderBar extends Disposable {
 		this._titleTextEl = $('span.chat-composite-bar-session-title-text');
 		this._titleEl.appendChild(this._titleTextEl);
 		this._titleLabel = this._register(new IconLabel(this._titleTextEl));
-		this._register(hoverService.setupDelayedHover(this._titleEl, () => ({ content: this._titlePath, style: HoverStyle.Pointer })));
+		this._register(hoverService.setupDelayedHover(this._titleEl, () => ({ content: this._titlePath })));
 
 		// Click the title to start an inline rename. Click is preferred over
 		// mousedown so that initiating a drag from the title doesn't also

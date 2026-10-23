@@ -49,6 +49,8 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 	private _pendingEntryHideSessionKey: string | undefined;
 	private _replacementDraftKey: string | undefined;
 	private _pendingSidePaneOpenHideSessionKey: string | undefined;
+	private _detailHiddenTransiently = false;
+	private _detailHiddenByEditor = false;
 	private _activeQuickChatKey: string | undefined;
 	private _pendingEditorRestoreKey: string | undefined;
 	private _changingVisibility = false;
@@ -95,7 +97,6 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 	}
 
 	private _applyOwnerComposition(state: { readonly editor: boolean; readonly auxiliaryBar: boolean }): void {
-		this._detailPanel.resetTransientVisibility();
 		const sidePaneVisible = this._layoutService.isSidePaneVisible();
 		const suppression = this._layoutService.suppressEditorPartAutoVisibility();
 		this._changingVisibility = true;
@@ -123,7 +124,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 		}
 		this._ctx.compositionStore.set(ownerKey, {
 			editor: this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow),
-			auxiliaryBar: this._detailPanel.intendedVisible,
+			auxiliaryBar: this._layoutService.isVisible(Parts.AUXILIARYBAR_PART),
 		});
 	}
 
@@ -546,7 +547,6 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 	// --- Detail panel ----------------------------------------------------------------------
 
 	private _registerDetailPanel(): void {
-		const layoutRestored = observableSignalFromEvent(this, this._ctx.onDidEndSessionLayoutRestore);
 		const activeEditorObs = observableFromEvent(
 			this,
 			this._editorService.onDidActiveEditorChange,
@@ -562,18 +562,12 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 			this._layoutService.onDidChangeEditorMaximized,
 			() => this._layoutService.isEditorMaximized(),
 		);
-		const detailVisibleObs = observableFromEvent(
-			this,
-			this._layoutService.onDidChangePartVisibility,
-			() => this._layoutService.isVisible(Parts.AUXILIARYBAR_PART),
-		);
 		let previousActiveEditor: EditorInput | undefined;
 		let previousEditorPartVisible = false;
 		let previousEditorSessionKey: string | undefined;
 
 		this._register(
 			autorun((reader) => {
-				layoutRestored.read(reader);
 				const activeSession = this._sessionsService.activeSession.read(reader);
 				if (!activeSession) {
 					previousActiveEditor = undefined;
@@ -608,12 +602,20 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 					editorPartVisible,
 					workspace,
 				);
-				if (target === DetailPanelTarget.EditorHidden && activeEditor && isChangesEditorInput(activeEditor, this._sessionChangesService)) {
-					detailVisibleObs.read(reader);
-				}
 				const revealOnly = this._multipleLayoutOwnersVisible(reader);
 				this._syncDetailVisibility(target, revealOnly, emptyFilesShown);
 				this._detailPanel.sync(target);
+			}),
+		);
+		this._register(
+			this._layoutService.onDidChangePartVisibility((event) => {
+				if (
+					event.partId === Parts.AUXILIARYBAR_PART &&
+					event.source !== 'resize'
+				) {
+					this._detailHiddenTransiently = false;
+					this._detailHiddenByEditor = false;
+				}
 			}),
 		);
 	}
@@ -625,7 +627,9 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 	): void {
 		const detailVisible = this._layoutService.isVisible(Parts.AUXILIARYBAR_PART);
 		if (emptyFilesShown && !detailVisible) {
-			this._detailPanel.setHiddenTransiently(false);
+			this._detailHiddenTransiently = false;
+			this._detailHiddenByEditor = false;
+			this._layoutService.setAuxiliaryBarHiddenForResize(false);
 			return;
 		}
 		if (
@@ -645,19 +649,23 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 				(hiddenByEditor || !revealOnly) &&
 				detailVisible
 			) {
-				this._detailPanel.setHiddenTransiently(true, hiddenByEditor);
+				this._detailHiddenTransiently = true;
+				this._detailHiddenByEditor = hiddenByEditor;
+				this._layoutService.setAuxiliaryBarHiddenForResize(true);
 			}
 			return;
 		}
 
 		if (
-			!this._detailPanel.hiddenTransiently ||
-			(revealOnly && !this._detailPanel.hiddenByEditor) ||
+			!this._detailHiddenTransiently ||
+			(revealOnly && !this._detailHiddenByEditor) ||
 			!this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)
 		) {
 			return;
 		}
-		this._detailPanel.setHiddenTransiently(false);
+		this._detailHiddenTransiently = false;
+		this._detailHiddenByEditor = false;
+		this._layoutService.setAuxiliaryBarHiddenForResize(false);
 	}
 
 	private _computeTarget(
@@ -685,9 +693,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 		}
 
 		if (isChangesEditorInput(activeEditor, this._sessionChangesService)) {
-			return editorPartVisible && !this._detailPanel.hasChangesDetails.read(reader)
-				? DetailPanelTarget.EditorHidden
-				: DetailPanelTarget.ChangesForced;
+			return DetailPanelTarget.ChangesForced;
 		}
 
 		switch (getFilesDetailsState(activeEditor, workspace)) {

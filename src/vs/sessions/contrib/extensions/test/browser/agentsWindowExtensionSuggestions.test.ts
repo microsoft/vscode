@@ -87,7 +87,6 @@ suite('AgentsWindowExtensionSuggestions', () => {
 			anExtension('grammar', { contributes: { grammars: [{}] } }),
 			anExtension('markdown', { contributes: { 'markdown.markdownItPlugins': true } }),
 			anExtension('enabled', { contributes: { languageModelTools: [{}] }, enablementState: EnablementState.EnabledWorkspace }),
-			anExtension('enabledAutomatically', { contributes: { languageModelTools: [{}] }, enablementState: EnablementState.EnabledGlobally }),
 			anExtension('commandsOnly', { contributes: { commands: [{}] } }),
 			anExtension('themeOnly', { contributes: { themes: [{}] } }),
 			anExtension('noTools', { contributes: { languageModelTools: [] } }),
@@ -100,7 +99,7 @@ suite('AgentsWindowExtensionSuggestions', () => {
 
 		assert.deepStrictEqual(
 			extensions.filter(extension => isAgentsWindowExtensionSuggestion(extension, candidate => supported.has(candidate.identifier.id))).map(extension => extension.identifier.id),
-			['pub.tools', 'pub.mcp', 'pub.grammar', 'pub.markdown', 'pub.enabled', 'pub.enabledAutomatically'],
+			['pub.tools', 'pub.mcp', 'pub.grammar', 'pub.markdown', 'pub.enabled'],
 		);
 	});
 

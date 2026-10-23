@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import * as sinon from 'sinon';
 import * as dom from '../../../../../base/browser/dom.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
@@ -2309,7 +2308,7 @@ suite('Sessions - Chat View', () => {
 		assert.deepStrictEqual({
 			beforeChat,
 			chat: inputOptions?.chat?.get()?.resource.toString(),
-			repositoryControls: typeof renderRepositoryControls === 'function' ? renderRepositoryControls(dom.$('div'), getDefaultHoverDelegate('element')) : renderRepositoryControls,
+			repositoryControls: typeof renderRepositoryControls === 'function' ? renderRepositoryControls(dom.$('div')) : renderRepositoryControls,
 			petPlatform: inputOptions?.getChatPetPlatformElements?.(),
 		}, { beforeChat: undefined, chat: 'chat:/composer', repositoryControls, petPlatform: [petPlatform] });
 	});

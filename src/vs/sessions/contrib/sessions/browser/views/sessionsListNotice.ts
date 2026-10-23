@@ -15,13 +15,8 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import '../media/sessionsListNotice.css';
 
-/** Where a notice renders: above the sessions tree, or below it. */
-export type SessionsListNoticePlacement = 'top' | 'bottom';
-
 export interface ISessionsListNoticeHost {
 	readonly container: HTMLElement;
-	/** Lays out the sessions tree again after the notice changes its height. */
-	relayout(): void;
 	readonly onDidChangeVisibility: Event<boolean>;
 	readonly onDidOpenSession: Event<URI>;
 	revealSession(resource: URI): IDisposable & { readonly targetId: string; open(token: CancellationToken): Promise<boolean> };
@@ -31,15 +26,15 @@ export interface ISessionsListNoticeHost {
 }
 
 type NoticeFactory = (instantiation: IInstantiationService, host: ISessionsListNoticeHost) => IDisposable;
-const factories: { readonly factory: NoticeFactory; readonly placement: SessionsListNoticePlacement }[] = [];
+const factories: NoticeFactory[] = [];
 
-/** Notices contribute through this slot without the list importing their owners. */
-export function registerSessionsListNotice(factory: NoticeFactory, placement: SessionsListNoticePlacement = 'bottom'): void {
-	factories.push({ factory, placement });
+/** Provider-owned notices contribute through this slot without provider imports in the list. */
+export function registerSessionsListNotice(factory: NoticeFactory): void {
+	factories.push(factory);
 }
 
-export function createSessionsListNotices(instantiation: IInstantiationService, hosts: Record<SessionsListNoticePlacement, ISessionsListNoticeHost>): IDisposable[] {
-	return factories.map(({ factory, placement }) => factory(instantiation, hosts[placement]));
+export function createSessionsListNotices(instantiation: IInstantiationService, host: ISessionsListNoticeHost): IDisposable[] {
+	return factories.map(factory => factory(instantiation, host));
 }
 
 export interface ISessionsListNoticeOptions {

@@ -5,9 +5,7 @@
 
 import { $, getActiveElement, isHTMLElement, reset } from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
-import { HoverStyle, IHoverLifecycleOptions } from '../../../../base/browser/ui/hover/hover.js';
 import { Disposable, DisposableMap, toDisposable } from '../../../../base/common/lifecycle.js';
-import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { renderArtifactIcon } from '../../../../platform/artifactIntegrations/browser/artifactDetailsList.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
@@ -27,7 +25,7 @@ export class ArtifactButtons extends Disposable {
 	private orderedButtons: readonly ArtifactButton[] = [];
 	private focusable = true;
 
-	constructor(readonly element: HTMLElement, private readonly hoverService: IHoverService, private readonly kind: 'action' | 'pill' | 'quiet' = 'action', private readonly hoverLifecycleOptions: IHoverLifecycleOptions = { groupId: generateUuid() }) {
+	constructor(readonly element: HTMLElement, private readonly hoverService: IHoverService, private readonly kind: 'action' | 'pill' | 'quiet' = 'action') {
 		super();
 		element.setAttribute('role', 'group');
 	}
@@ -46,7 +44,7 @@ export class ArtifactButtons extends Disposable {
 		for (const item of items) {
 			let slot = this.buttons.get(item.id);
 			if (!slot) {
-				slot = new ArtifactButton(this.element, item, this.hoverService, this.kind, this.hoverLifecycleOptions);
+				slot = new ArtifactButton(this.element, item, this.hoverService, this.kind);
 				this.buttons.set(item.id, slot);
 			}
 			slot.update(item);
@@ -94,7 +92,7 @@ export class ArtifactButtons extends Disposable {
 class ArtifactButton extends Disposable {
 	readonly button: Button;
 
-	constructor(container: HTMLElement, private value: IArtifactButton, hoverService: IHoverService, private readonly kind: 'action' | 'pill' | 'quiet', hoverLifecycleOptions: IHoverLifecycleOptions) {
+	constructor(container: HTMLElement, private value: IArtifactButton, hoverService: IHoverService, private readonly kind: 'action' | 'pill' | 'quiet') {
 		super();
 		this.button = this._register(kind === 'pill' ? createChatPillButton(container) : new Button(container, {
 			...defaultButtonStyles, secondary: kind !== 'action' || !value.primary, small: true,
@@ -108,7 +106,7 @@ class ArtifactButton extends Disposable {
 			}
 			this.value.run(this.button.element);
 		}));
-		this._register(hoverService.setupDelayedHover(this.button.element, () => ({ content: this.value.description ?? this.value.label, style: HoverStyle.Pointer }), hoverLifecycleOptions));
+		this._register(hoverService.setupDelayedHover(this.button.element, () => ({ content: this.value.description ?? this.value.label })));
 	}
 
 	get reachable(): boolean {

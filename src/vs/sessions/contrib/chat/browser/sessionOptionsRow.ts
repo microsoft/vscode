@@ -79,7 +79,7 @@ export class SessionOptionsRow extends Disposable {
 		this.repositoryControlsHost = dom.append(sessionOptions, dom.$('.new-chat-repository-controls-host'));
 		const toggle = this.toggle = this._register(new Button(row, {
 			...defaultButtonStyles,
-			hoverDelegate: options.hoverDelegate ?? getDefaultHoverDelegate('element'),
+			hoverDelegate: options.hoverDelegate ?? getDefaultHoverDelegate('mouse'),
 			buttonBackground: undefined,
 			buttonHoverBackground: undefined,
 			buttonForeground: undefined,
