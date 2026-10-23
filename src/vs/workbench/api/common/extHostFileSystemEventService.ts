@@ -35,8 +35,12 @@ export interface FileSystemWatcherCreateOptions {
  * because of `files.watcherExcludeGitIgnore`, relative to that folder.
  */
 interface IGitIgnoreWatcherExcludes {
-	readonly onDidChange: Event<URI>;
 	get(folder: URI): readonly string[];
+
+	/**
+	 * Calls `callback` whenever the patterns of `folder` change.
+	 */
+	onDidChange(folder: URI, callback: () => void): Disposable;
 }
 
 class FileSystemWatcher implements vscode.FileSystemWatcher {
@@ -284,11 +288,7 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 
 		watch();
 
-		const listener = gitIgnoreWatcherExcludes.onDidChange(changedFolder => {
-			if (fileSystemInfo.extUri.isEqual(changedFolder, folder.uri)) {
-				watch();
-			}
-		});
+		const listener = gitIgnoreWatcherExcludes.onDidChange(folder.uri, watch);
 
 		return Disposable.from({
 			dispose: () => {
@@ -356,7 +356,10 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 	private readonly _onFileSystemEvent = new Emitter<LazyRevivedFileSystemEvents>();
 
 	private readonly _gitIgnoreWatcherExcludes = new ResourceMap<readonly string[]>();
-	private readonly _onDidChangeGitIgnoreWatcherExcludes = new Emitter<URI>();
+
+	// Many watchers use the patterns (one per file that TypeScript watches), so
+	// they are tracked in sets that can be updated in constant time
+	private readonly _gitIgnoreWatcherExcludesCallbacks = new ResourceMap<Set<() => void>>();
 
 	private readonly _onDidRenameFile = new Emitter<vscode.FileRenameEvent>();
 	private readonly _onDidCreateFile = new Emitter<vscode.FileCreateEvent>();
@@ -381,8 +384,23 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 
 	createFileSystemWatcher(workspace: IExtHostWorkspace, configProvider: ExtHostConfigProvider, fileSystemInfo: ExtHostFileSystemInfo, extension: IExtensionDescription, globPattern: vscode.GlobPattern, options: FileSystemWatcherCreateOptions): vscode.FileSystemWatcher {
 		const gitIgnoreWatcherExcludes: IGitIgnoreWatcherExcludes = {
-			onDidChange: this._onDidChangeGitIgnoreWatcherExcludes.event,
-			get: folder => this._gitIgnoreWatcherExcludes.get(folder) ?? []
+			get: folder => this._gitIgnoreWatcherExcludes.get(folder) ?? [],
+			onDidChange: (folder, callback) => {
+				let callbacks = this._gitIgnoreWatcherExcludesCallbacks.get(folder);
+				if (!callbacks) {
+					callbacks = new Set();
+					this._gitIgnoreWatcherExcludesCallbacks.set(folder, callbacks);
+				}
+				callbacks.add(callback);
+
+				const folderCallbacks = callbacks;
+				return new Disposable(() => {
+					folderCallbacks.delete(callback);
+					if (folderCallbacks.size === 0 && this._gitIgnoreWatcherExcludesCallbacks.get(folder) === folderCallbacks) {
+						this._gitIgnoreWatcherExcludesCallbacks.delete(folder);
+					}
+				});
+			}
 		};
 
 		return new FileSystemWatcher(this._mainContext, configProvider, fileSystemInfo, workspace, extension, this._onFileSystemEvent.event, gitIgnoreWatcherExcludes, typeConverter.GlobPattern.from(globPattern), options);
@@ -400,7 +418,9 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 			this._gitIgnoreWatcherExcludes.delete(folderUri);
 		}
 
-		this._onDidChangeGitIgnoreWatcherExcludes.fire(folderUri);
+		for (const callback of [...this._gitIgnoreWatcherExcludesCallbacks.get(folderUri) ?? []]) {
+			callback();
+		}
 	}
 
 	//--- file operations

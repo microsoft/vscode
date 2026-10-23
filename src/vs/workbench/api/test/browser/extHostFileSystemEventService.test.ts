@@ -189,6 +189,7 @@ suite('ExtHostFileSystemEventService', () => {
 		service.$acceptGitIgnoreWatcherExcludes(folder, []);
 		log.push('-- disposed');
 		watchers.forEach(watcher => watcher.dispose());
+		service.$acceptGitIgnoreWatcherExcludes(folder, ['out/**/*']);
 
 		assert.deepStrictEqual(log, [
 			'watch /workspace recursive=true excludes=[]',
