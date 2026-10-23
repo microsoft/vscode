@@ -2344,7 +2344,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const workspacelessRoot = scratchFolder && extUriBiasedIgnorePathCase.isEqual(extUriBiasedIgnorePathCase.dirname(scratchFolder), workspacelessChatsRoot(this._environmentService.userHome))
 			? scratchFolder
 			: undefined;
-		return this._projectExtensionLaunchPolicy.acquireAdmission(session.extensionLaunchDirectories, workspacelessRoot);
+		return this._projectExtensionLaunchPolicy.acquireAdmission(session.extensionLaunchDirectories, workspacelessRoot, session.worktreeRepository);
 	}
 
 	// ---- auth ---------------------------------------------------------------

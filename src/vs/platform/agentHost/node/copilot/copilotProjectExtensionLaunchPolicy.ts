@@ -14,6 +14,7 @@ import { basename, dirname, extUriBiasedIgnorePathCase, isEqual } from '../../..
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../log/common/log.js';
 import { AgentHostWorkspaceTrustConfigKey, IAgentHostWorkspaceTrust, platformRootSchema } from '../../common/agentHostSchema.js';
+import { isWorktreeUnderRepository } from '../../common/worktreePaths.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 
 /** How the effective workspace trust changed: it may now allow launches it refused, refuse launches it allowed, or both. */
@@ -47,10 +48,13 @@ type CopilotExtensionSource = 'project' | 'user' | 'plugin' | 'session';
  * launch request names no session, so the decision is host-wide: an extension launches only from a folder that a live
  * session admits and that VS Code workspace trust, mirrored into the root configuration, covers, both compared by
  * canonical path. Without trust information every launch is refused; with workspace trust disabled, all are allowed.
+ * A worktree the host created for a session inherits its repository's trust, as the runtime's own trust grant does.
  */
 export class CopilotProjectExtensionLaunchPolicy {
 	private readonly _admittedRoots = new ResourceMap<number>();
 	private readonly _workspacelessRoots = new ResourceMap<number>();
+	/** Admitted worktrees the host created, with the repository whose trust they inherit, by canonical worktree and repository. */
+	private readonly _inheritingWorktrees = new Map<string, { readonly worktree: URI; readonly repository: URI; count: number }>();
 	private _trust = this._readTrust();
 	private _trustGeneration = 0;
 	private _trustState: ICopilotProjectExtensionTrustState = { expansions: 0, contractions: 0 };
@@ -123,15 +127,20 @@ export class CopilotProjectExtensionLaunchPolicy {
 	/**
 	 * Admits project extensions under `directories` while the returned admission lives. `workspacelessRoot`, when it is
 	 * one of `directories`, is the host-allocated scratch folder of a workspace-less chat: its extensions launch without
-	 * workspace trust, as the agent itself created them.
+	 * workspace trust, as the agent itself created them. `worktreeRepository` is the repository whose trust a worktree
+	 * the host created for the session inherits; it applies only to directories that are worktrees of that repository.
 	 */
-	async acquireAdmission(directories: readonly URI[], workspacelessRoot: URI | undefined): Promise<ICopilotProjectExtensionLaunchAdmission> {
+	async acquireAdmission(directories: readonly URI[], workspacelessRoot: URI | undefined, worktreeRepository?: URI): Promise<ICopilotProjectExtensionLaunchAdmission> {
 		const roots: URI[] = [];
+		const worktrees: URI[] = [];
 		for (const directory of directories) {
 			const root = await this._canonicalFileUri(directory, `extension launch root '${directory.fsPath}'`);
 			if (root) {
 				roots.push(root);
 				this._admittedRoots.set(root, (this._admittedRoots.get(root) ?? 0) + 1);
+				if (worktreeRepository && isWorktreeUnderRepository(directory, worktreeRepository)) {
+					worktrees.push(root);
+				}
 			}
 		}
 
@@ -145,6 +154,20 @@ export class CopilotProjectExtensionLaunchPolicy {
 			this._workspacelessRoots.set(admittedWorkspacelessRoot, (this._workspacelessRoots.get(admittedWorkspacelessRoot) ?? 0) + 1);
 		}
 
+		const repository = worktrees.length && worktreeRepository
+			? await this._canonicalFileUri(worktreeRepository, `worktree repository '${worktreeRepository.fsPath}'`)
+			: undefined;
+		const inheritingKeys = repository ? worktrees.map(worktree => {
+			const key = `${worktree.toString()}\n${repository.toString()}`;
+			const existing = this._inheritingWorktrees.get(key);
+			if (existing) {
+				existing.count++;
+			} else {
+				this._inheritingWorktrees.set(key, { worktree, repository, count: 1 });
+			}
+			return key;
+		}) : [];
+
 		const trustState = this._trustState;
 		const lifetime = toDisposable(() => {
 			for (const root of roots) {
@@ -152,6 +175,12 @@ export class CopilotProjectExtensionLaunchPolicy {
 			}
 			if (admittedWorkspacelessRoot) {
 				this._releaseReference(this._workspacelessRoots, admittedWorkspacelessRoot);
+			}
+			for (const key of inheritingKeys) {
+				const entry = this._inheritingWorktrees.get(key);
+				if (entry && --entry.count <= 0) {
+					this._inheritingWorktrees.delete(key);
+				}
 			}
 		});
 		return {
@@ -215,7 +244,8 @@ export class CopilotProjectExtensionLaunchPolicy {
 			const generation = this._trustGeneration;
 			const roots = await this._trustedRoots(trust);
 			if (generation === this._trustGeneration) {
-				return roots.some(root => extUriBiasedIgnorePathCase.isEqualOrParent(resource, root));
+				const isTrusted = (candidate: URI) => roots.some(root => extUriBiasedIgnorePathCase.isEqualOrParent(candidate, root));
+				return isTrusted(resource) || [...this._inheritingWorktrees.values()].some(({ worktree, repository }) => extUriBiasedIgnorePathCase.isEqualOrParent(resource, worktree) && isTrusted(repository));
 			}
 		}
 	}
