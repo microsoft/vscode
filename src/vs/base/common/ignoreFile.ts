@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as glob from '../../../../base/common/glob.js';
-import { startsWithIgnoreCase } from '../../../../base/common/strings.js';
+import * as glob from './glob.js';
+import { startsWithIgnoreCase } from './strings.js';
 
 export class IgnoreFile {
 
@@ -80,7 +80,7 @@ export class IgnoreFile {
 	}
 
 	private gitignoreLinesToExpression(lines: string[], dirPath: string, trimForExclusions: boolean): glob.ParsedExpression {
-		const includeLines = lines.map(line => this.gitignoreLineToGlob(line, dirPath));
+		const includeLines = lines.map(line => gitIgnoreLineToGlob(line, dirPath));
 
 		const includeExpression: glob.IExpression = Object.create(null);
 		for (const line of includeLines) {
@@ -136,24 +136,33 @@ export class IgnoreFile {
 
 		return isPathIgnored;
 	}
+}
 
-	private gitignoreLineToGlob(line: string, dirPath: string): string {
-		const firstSep = line.indexOf('/');
-		if (firstSep === -1 || firstSep === line.length - 1) {
-			line = '**/' + line;
-		} else {
-			if (firstSep === 0) {
-				if (dirPath.slice(-1) === '/') {
-					line = line.slice(1);
-				}
-			} else {
-				if (dirPath.slice(-1) !== '/') {
-					line = '/' + line;
-				}
+/**
+ * Converts a single `.gitignore` pattern line into a glob pattern.
+ *
+ * Patterns without a separator, or with only a trailing one, match at any
+ * depth and become `**`-prefixed globs. All other patterns are anchored to
+ * `dirPath`, the folder that contains the ignore file.
+ *
+ * The line must already be trimmed and must not be a comment or a negation.
+ */
+export function gitIgnoreLineToGlob(line: string, dirPath: string): string {
+	const firstSep = line.indexOf('/');
+	if (firstSep === -1 || firstSep === line.length - 1) {
+		line = '**/' + line;
+	} else {
+		if (firstSep === 0) {
+			if (dirPath.slice(-1) === '/') {
+				line = line.slice(1);
 			}
-			line = dirPath + line;
+		} else {
+			if (dirPath.slice(-1) !== '/') {
+				line = '/' + line;
+			}
 		}
-
-		return line;
+		line = dirPath + line;
 	}
+
+	return line;
 }

@@ -13,7 +13,7 @@ import { ResourceSet } from '../../../../base/common/map.js';
 import { basename, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { FileType, IFileService } from '../../../../platform/files/common/files.js';
-import { IgnoreFile } from './ignoreFile.js';
+import { IgnoreFile } from '../../../../base/common/ignoreFile.js';
 import { IFileQuery, IFolderQuery, ISearchComplete, ISearchResultProvider, ITextQuery, isFilePatternMatch, QueryGlobTester } from './search.js';
 
 interface IFileSearchCache extends IDisposable {

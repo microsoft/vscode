@@ -11,7 +11,7 @@ import { ICommonQueryProps, IFileMatch, IFileQueryProps, IFolderQuery, IPatternI
 import * as paths from '../../../../base/common/path.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { getFileResults } from '../common/getFileResults.js';
-import { IgnoreFile } from '../common/ignoreFile.js';
+import { IgnoreFile } from '../../../../base/common/ignoreFile.js';
 import { createRegExp } from '../../../../base/common/strings.js';
 import { Promises } from '../../../../base/common/async.js';
 import { ExtUri } from '../../../../base/common/resources.js';
