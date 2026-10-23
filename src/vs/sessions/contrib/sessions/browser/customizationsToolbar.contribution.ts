@@ -39,7 +39,7 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 import { SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { CanvasesEnabledSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { IAICustomizationMcpServerCountService } from './customizationMcpServerCount.js';
-import { OPEN_AI_CUSTOMIZATIONS_COMMAND_ID } from './customizationsConstants.js';
+import { IOpenAICustomizationsCommandOptions, OPEN_AI_CUSTOMIZATIONS_COMMAND_ID } from './customizationsConstants.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { getExtensionSuggestionsBadgeDescription, IAgentsWindowExtensionSuggestionsService } from '../../extensions/browser/agentsWindowExtensionSuggestions.js';
 
@@ -196,7 +196,7 @@ export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 	},
 ];
 
-async function openCustomizationOverviewPage(editorService: IEditorService, harnessService: ICustomizationHarnessService, sessionsService: ISessionsService): Promise<void> {
+async function openCustomizationOverviewPage(editorService: IEditorService, harnessService: ICustomizationHarnessService, sessionsService: ISessionsService, options?: IOpenAICustomizationsCommandOptions): Promise<void> {
 	const session = sessionsService.activeSession.get();
 	if (session) {
 		harnessService.setActiveSession(session.resource);
@@ -206,7 +206,11 @@ async function openCustomizationOverviewPage(editorService: IEditorService, harn
 	input.setTargetLabels(harnessService.getActiveDescriptor().label, session?.workspace.get()?.folders[0]?.name);
 	const pane = await editorService.openEditor(input, { pinned: true });
 	if (pane instanceof AICustomizationManagementEditor) {
-		pane.showWelcomePage();
+		if (options?.migration) {
+			await pane.startCustomizationMigration();
+		} else {
+			pane.showWelcomePage();
+		}
 	}
 }
 
@@ -409,11 +413,12 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 					}
 				});
 			}
-			async run(accessor: ServicesAccessor): Promise<void> {
+			async run(accessor: ServicesAccessor, options?: IOpenAICustomizationsCommandOptions): Promise<void> {
 				await openCustomizationOverviewPage(
 					accessor.get(IEditorService),
 					accessor.get(ICustomizationHarnessService),
 					accessor.get(ISessionsService),
+					options,
 				);
 			}
 		}));

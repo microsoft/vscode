@@ -73,7 +73,9 @@ import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, ty
 import { sessionReducer, chatReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { INotificationService, NoOpNotification, Severity } from '../../../../../../platform/notification/common/notification.js';
+import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IProgress, IProgressNotificationOptions, IProgressService, IProgressStep } from '../../../../../../platform/progress/common/progress.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
@@ -923,6 +925,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		},
 	};
 	instantiationService.stub(IAccessibilitySignalService, accessibilitySignalService as IAccessibilitySignalService);
+	instantiationService.stub(IAccessibilityService, new TestAccessibilityService());
 
 	const agentHostService = new MockAgentHostService();
 	disposables.add(toDisposable(() => agentHostService.dispose()));
@@ -1024,6 +1027,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	});
 	instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
 		override error(): void { }
+		override prompt() { return new NoOpNotification(); }
 	});
 	instantiationService.stub(IConfigurationService, {
 		onDidChangeConfiguration: Event.None,
@@ -22894,6 +22898,8 @@ suite('AgentHostChatContribution', () => {
 
 	suite('mcp authentication', () => {
 
+		teardown(() => sinon.restore());
+
 		// An MCP server customization stuck in the auth-required state. Empty
 		// `authorization_servers` keeps the auto-grant probe off the network so it
 		// resolves to "not authenticated" and the server stays pending.
@@ -23172,6 +23178,91 @@ suite('AgentHostChatContribution', () => {
 			const prompts = await runTurn(sessionHandler, agentHostService, chatAgentService, resource, seq, { customizations: [authRequiredCustomization()] });
 			assert.deepStrictEqual(prompts.map(prompt => prompt.servers.read(undefined).map(server => server.id)), [['/mcp-1']]);
 		}));
+
+		test('uses an actionable notification instead of an inline hint in screen reader mode', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const customizationService = new NullAgentHostCustomizationService();
+			const authenticate = sinon.stub(customizationService, 'authenticateMcpServer');
+			authenticate.onFirstCall().resolves(false);
+			authenticate.onSecondCall().resolves(true);
+			const { sessionHandler, agentHostService, chatAgentService, instantiationService } = createContribution(disposables, { customizationServiceOverride: customizationService });
+			const accessibilityService = instantiationService.get(IAccessibilityService);
+			sinon.stub(accessibilityService, 'isScreenReaderOptimized').returns(true);
+			const notification = new NoOpNotification();
+			const close = sinon.spy(notification, 'close');
+			const prompt = sinon.stub(instantiationService.get(INotificationService), 'prompt').returns(notification);
+			const resource = URI.from({ scheme: 'agent-host-copilot', path: '/mcp-auth-screen-reader' });
+			const seq = { v: 1 };
+			const prompts = await runTurn(sessionHandler, agentHostService, chatAgentService, resource, seq, { customizations: [authRequiredCustomization()] });
+			await runTurn(sessionHandler, agentHostService, chatAgentService, resource, seq);
+			const [severity, message, choices, options] = prompt.firstCall.args;
+			await choices[0].run();
+			const closedAfterFailedAuthentication = close.called;
+			await choices[0].run();
+
+			assert.deepStrictEqual({
+				inlinePrompts: prompts.length,
+				notifications: prompt.callCount,
+				severity,
+				message,
+				actions: choices.map(choice => choice.label),
+				keepOpen: choices[0].keepOpen,
+				sticky: options?.sticky,
+				authentication: authenticate.args.map(([session, id]) => [session.toString(), id]),
+				closedAfterFailedAuthentication,
+				closed: close.calledOnce,
+			}, {
+				inlinePrompts: 0,
+				notifications: 1,
+				severity: Severity.Info,
+				message: 'The MCP server GitHub MCP requires authentication.',
+				actions: ['Authenticate'],
+				keepOpen: true,
+				sticky: true,
+				authentication: [[resource.toString(), '/mcp-1'], [resource.toString(), '/mcp-1']],
+				closedAfterFailedAuthentication: false,
+				closed: true,
+			});
+		}));
+
+		for (const change of ['authenticated', 'disabled', 'removed', 'routing registered', 'session disposed'] as const) {
+			test(`closes the screen reader authentication notification when the server is ${change}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const changed = disposables.add(new Emitter<void>());
+				const customizationService = new NullAgentHostCustomizationService();
+				sinon.stub(customizationService, 'onDidChangeCustomizations').value(changed.event);
+				const server = upcastPartial<ReturnType<IAgentHostCustomizationService['getMcpServers']>[number]>({
+					id: '/mcp-1', name: 'GitHub MCP', enabled: true, status: McpServerStatus.AuthRequired,
+				});
+				const getServers = sinon.stub(customizationService, 'getMcpServers').returns([server]);
+				const { sessionHandler, agentHostService, chatAgentService, instantiationService } = createContribution(disposables, { customizationServiceOverride: customizationService });
+				sinon.stub(instantiationService.get(IAccessibilityService), 'isScreenReaderOptimized').returns(true);
+				const notification = new NoOpNotification();
+				const close = sinon.spy(notification, 'close');
+				const prompt = sinon.stub(instantiationService.get(INotificationService), 'prompt').returns(notification);
+				await runTurn(sessionHandler, agentHostService, chatAgentService, URI.from({ scheme: 'agent-host-copilot', path: '/mcp-auth-notification-close' }), { v: 1 }, {
+					customizations: [authRequiredCustomization()],
+					routingChanges: change === 'routing registered' ? [['GitHub MCP']] : undefined,
+				});
+				const closedAfterTurn = close.called;
+				if (change === 'session disposed') {
+					sessionHandler.dispose();
+				} else if (change !== 'routing registered') {
+					getServers.returns(change === 'removed' ? [] : [
+						{ ...server, enabled: change !== 'disabled', status: change === 'authenticated' ? McpServerStatus.Ready : McpServerStatus.AuthRequired },
+					]);
+					changed.fire();
+				}
+
+				assert.deepStrictEqual({
+					notifications: prompt.callCount,
+					closedAfterTurn,
+					closed: close.calledOnce,
+				}, {
+					notifications: 1,
+					closedAfterTurn: change === 'routing registered',
+					closed: true,
+				});
+			}));
+		}
 
 		test('surfaces an authentication prompt when MCP tool routing is enabled but no routing tool is registered', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {

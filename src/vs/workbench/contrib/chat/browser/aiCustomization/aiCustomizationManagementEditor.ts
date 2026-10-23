@@ -108,6 +108,8 @@ import { FileSystemProviderCapabilities, IFileService } from '../../../../../pla
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { NotificationTelemetryId } from '../../../../../platform/notification/common/notificationTelemetry.js';
+import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
@@ -502,6 +504,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private customizationMigrationResultsSettled = false;
 	private customizationMigrationInProgress = false;
 	private customizationMigrationWritesInProgress = false;
+	private activeCustomizationMigration: { readonly categoryId: CustomizationMigrationCategoryId; readonly storage: PromptsStorage } | undefined;
 
 	private readonly editorDisposables = this._register(new DisposableStore());
 	private _editorContentChanged = false;
@@ -547,6 +550,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IFileService private readonly fileService: IFileService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IProgressService private readonly progressService: IProgressService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
@@ -1920,50 +1924,52 @@ export class AICustomizationManagementEditor extends EditorPane {
 				return;
 			}
 			const deleteOriginalFiles = confirmed.checkboxChecked !== false;
-			const result = await this.runCustomizationMigration(files, targetFolders, deleteOriginalFiles);
-			this.customizationMigrationTelemetryService.migrationCompleted(
-				category.migrationType,
-				files.length,
-				result.migratedCount,
-				result.failedCustomizationFileNames.length,
-				result.failureReasons,
-				migrationFlowId,
-			);
-			if (result.failedCustomizationFileNames.length > 0) {
-				if (result.nameConflicts.length > 0) {
-					this.notificationService.error(this.getCustomizationMigrationNameConflictMessage(result.nameConflicts));
+			await this.runCustomizationMigrationWithProgress(category, files, async () => {
+				const result = await this.runCustomizationMigration(files, targetFolders, deleteOriginalFiles);
+				this.customizationMigrationTelemetryService.migrationCompleted(
+					category.migrationType,
+					files.length,
+					result.migratedCount,
+					result.failedCustomizationFileNames.length,
+					result.failureReasons,
+					migrationFlowId,
+				);
+				if (result.failedCustomizationFileNames.length > 0) {
+					if (result.nameConflicts.length > 0) {
+						this.notificationService.error(this.getCustomizationMigrationNameConflictMessage(result.nameConflicts));
+					}
+					const otherFailedFileNames = result.failures
+						.filter(failure => failure.reasons.some(reason => reason !== FileCustomizationMigrationFailureReason.TargetAlreadyExists))
+						.map(failure => failure.sourceFileName);
+					if (otherFailedFileNames.length > 0) {
+						const displayedFileNames = otherFailedFileNames.slice(0, 3);
+						this.notificationService.error(category.getFailedMessage(displayedFileNames, otherFailedFileNames.length - displayedFileNames.length));
+					}
 				}
-				const otherFailedFileNames = result.failures
-					.filter(failure => failure.reasons.some(reason => reason !== FileCustomizationMigrationFailureReason.TargetAlreadyExists))
-					.map(failure => failure.sourceFileName);
-				if (otherFailedFileNames.length > 0) {
-					const displayedFileNames = otherFailedFileNames.slice(0, 3);
-					this.notificationService.error(category.getFailedMessage(displayedFileNames, otherFailedFileNames.length - displayedFileNames.length));
+				if (result.migratedCount === 0) {
+					if (result.failedCustomizationFileNames.length === 0) {
+						this.notificationService.warn(category.noFilesMigratedMessage);
+					}
+					return;
 				}
-			}
-			if (result.migratedCount === 0) {
-				if (result.failedCustomizationFileNames.length === 0) {
-					this.notificationService.warn(category.noFilesMigratedMessage);
+				if (result.failedCustomizationFileNames.length === 0 && result.migratedCount === files.length && settingsToClear.length > 0) {
+					try {
+						await this.clearConfiguredLocationSettings(settingsToClear);
+					} catch (error) {
+						this.notificationService.error(localize('customizationMigrationClearSettingsFailed', "Customizations were migrated, but the custom location settings could not be cleared: {0}", getErrorMessage(error)));
+					}
 				}
-				return;
-			}
-			if (result.failedCustomizationFileNames.length === 0 && result.migratedCount === files.length && settingsToClear.length > 0) {
-				try {
-					await this.clearConfiguredLocationSettings(settingsToClear);
-				} catch (error) {
-					this.notificationService.error(localize('customizationMigrationClearSettingsFailed', "Customizations were migrated, but the custom location settings could not be cleared: {0}", getErrorMessage(error)));
+				if (deleteOriginalFiles) {
+					const migratedFiles = result.migratedSources.flatMap(source => files.filter(file => file.storage === source.storage && isEqual(file.uri, source.uri)));
+					this.markCustomizationMigrationsCompleted(category, migratedFiles);
+					await this.refreshCustomizationMigrationInfo();
 				}
-			}
-			if (deleteOriginalFiles) {
-				const migratedFiles = result.migratedSources.flatMap(source => files.filter(file => file.storage === source.storage && isEqual(file.uri, source.uri)));
-				this.markCustomizationMigrationsCompleted(category, migratedFiles);
-				await this.refreshCustomizationMigrationInfo();
-			}
-			const unsupportedKeys = result.unsupportedHeaderKeys.join(', ');
-			this.notificationService.info(unsupportedKeys && category.getMigratedWithReviewMessage
-				? category.getMigratedWithReviewMessage(result.migratedCount, unsupportedKeys)
-				: category.getMigratedMessage(result.migratedCount));
-			this.showCustomizationMigrationDashboard();
+				const unsupportedKeys = result.unsupportedHeaderKeys.join(', ');
+				this.notificationService.info(unsupportedKeys && category.getMigratedWithReviewMessage
+					? category.getMigratedWithReviewMessage(result.migratedCount, unsupportedKeys)
+					: category.getMigratedMessage(result.migratedCount));
+				this.showCustomizationMigrationDashboard();
+			});
 		} finally {
 			this.customizationMigrationInProgress = false;
 			this.renderCustomizationMigrationDashboardState();
@@ -1991,44 +1997,46 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return;
 		}
 
-		this.customizationMigrationWritesInProgress = true;
-		let result: IMcpServerCustomizationMigrationResult;
-		try {
-			result = await this.customizationMigrationService.migrateMcpServers(sessionResource, servers);
-		} finally {
-			await timeout(0);
-			this.customizationMigrationWritesInProgress = false;
-		}
-		this.customizationMigrationTelemetryService.migrationCompleted(
-			category.migrationType,
-			servers.length,
-			result.migratedCount,
-			result.failures.length,
-			result.failures.map(failure => failure.reason),
-			migrationFlowId,
-		);
-		const migratedServers = servers.filter(server => !result.failures.some(failure => failure.id === server.id && isEqual(failure.sourceUri, server.sourceUri)));
-		if (result.migratedCount > 0) {
-			this.markCustomizationMigrationsCompleted(category, migratedServers);
-		}
-		await this.refreshCustomizationMigrationInfo();
-
-		for (const failure of result.failures) {
-			if (failure.error) {
-				onUnexpectedError(failure.error);
+		await this.runCustomizationMigrationWithProgress(category, servers, async () => {
+			this.customizationMigrationWritesInProgress = true;
+			let result: IMcpServerCustomizationMigrationResult;
+			try {
+				result = await this.customizationMigrationService.migrateMcpServers(sessionResource, servers);
+			} finally {
+				await timeout(0);
+				this.customizationMigrationWritesInProgress = false;
 			}
-		}
-		if (result.failures.length > 0) {
-			const message = category.getMcpServerFailureMessage?.(result.failures)
-				?? category.getFailedMessage(result.failures.slice(0, 3).map(failure => failure.name), Math.max(0, result.failures.length - 3));
-			this.notificationService.error(message);
-		}
-		if (result.migratedCount > 0) {
-			this.notificationService.info(category.getMigratedMessage(result.migratedCount));
-			this.showCustomizationMigrationDashboard();
-		} else if (result.failures.length === 0) {
-			this.notificationService.warn(category.noFilesMigratedMessage);
-		}
+			this.customizationMigrationTelemetryService.migrationCompleted(
+				category.migrationType,
+				servers.length,
+				result.migratedCount,
+				result.failures.length,
+				result.failures.map(failure => failure.reason),
+				migrationFlowId,
+			);
+			const migratedServers = servers.filter(server => !result.failures.some(failure => failure.id === server.id && isEqual(failure.sourceUri, server.sourceUri)));
+			if (result.migratedCount > 0) {
+				this.markCustomizationMigrationsCompleted(category, migratedServers);
+			}
+			await this.refreshCustomizationMigrationInfo();
+
+			for (const failure of result.failures) {
+				if (failure.error) {
+					onUnexpectedError(failure.error);
+				}
+			}
+			if (result.failures.length > 0) {
+				const message = category.getMcpServerFailureMessage?.(result.failures)
+					?? category.getFailedMessage(result.failures.slice(0, 3).map(failure => failure.name), Math.max(0, result.failures.length - 3));
+				this.notificationService.error(message);
+			}
+			if (result.migratedCount > 0) {
+				this.notificationService.info(category.getMigratedMessage(result.migratedCount));
+				this.showCustomizationMigrationDashboard();
+			} else if (result.failures.length === 0) {
+				this.notificationService.warn(category.noFilesMigratedMessage);
+			}
+		});
 	}
 
 	private async migrateSelectedPluginMarketplaces(
@@ -2052,44 +2060,72 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return;
 		}
 
-		this.customizationMigrationWritesInProgress = true;
-		let result: IPluginMarketplaceCustomizationMigrationResult;
-		try {
-			result = await this.customizationMigrationService.migratePluginMarketplaces(sessionResource, marketplaces);
-		} finally {
-			await timeout(0);
-			this.customizationMigrationWritesInProgress = false;
-		}
-		this.customizationMigrationTelemetryService.migrationCompleted(
-			category.migrationType,
-			marketplaces.length,
-			result.migratedCount,
-			result.failures.length,
-			result.failures.map(failure => failure.reason),
-			migrationFlowId,
-		);
-		const migratedMarketplaces = marketplaces.filter(marketplace => !result.failures.some(failure => failure.canonicalId === marketplace.canonicalId));
-		if (migratedMarketplaces.length > 0) {
-			this.markCustomizationMigrationsCompleted(category, migratedMarketplaces);
-		}
-		await this.refreshCustomizationMigrationInfo();
-
-		for (const failure of result.failures) {
-			if (failure.error) {
-				onUnexpectedError(failure.error);
+		await this.runCustomizationMigrationWithProgress(category, marketplaces, async () => {
+			this.customizationMigrationWritesInProgress = true;
+			let result: IPluginMarketplaceCustomizationMigrationResult;
+			try {
+				result = await this.customizationMigrationService.migratePluginMarketplaces(sessionResource, marketplaces);
+			} finally {
+				await timeout(0);
+				this.customizationMigrationWritesInProgress = false;
 			}
-		}
-		if (result.failures.length > 0) {
-			this.notificationService.error(category.getFailedMessage(
-				result.failures.slice(0, 3).map(failure => failure.name),
-				Math.max(0, result.failures.length - 3),
-			));
-		}
-		if (result.migratedCount > 0) {
-			this.notificationService.info(category.getMigratedMessage(result.migratedCount));
-			this.showCustomizationMigrationDashboard();
-		} else if (result.failures.length === 0) {
-			this.notificationService.warn(category.noFilesMigratedMessage);
+			this.customizationMigrationTelemetryService.migrationCompleted(
+				category.migrationType,
+				marketplaces.length,
+				result.migratedCount,
+				result.failures.length,
+				result.failures.map(failure => failure.reason),
+				migrationFlowId,
+			);
+			const migratedMarketplaces = marketplaces.filter(marketplace => !result.failures.some(failure => failure.canonicalId === marketplace.canonicalId));
+			if (migratedMarketplaces.length > 0) {
+				this.markCustomizationMigrationsCompleted(category, migratedMarketplaces);
+			}
+			await this.refreshCustomizationMigrationInfo();
+
+			for (const failure of result.failures) {
+				if (failure.error) {
+					onUnexpectedError(failure.error);
+				}
+			}
+			if (result.failures.length > 0) {
+				this.notificationService.error(category.getFailedMessage(
+					result.failures.slice(0, 3).map(failure => failure.name),
+					Math.max(0, result.failures.length - 3),
+				));
+			}
+			if (result.migratedCount > 0) {
+				this.notificationService.info(category.getMigratedMessage(result.migratedCount));
+				this.showCustomizationMigrationDashboard();
+			} else if (result.failures.length === 0) {
+				this.notificationService.warn(category.noFilesMigratedMessage);
+			}
+		});
+	}
+
+	private async runCustomizationMigrationWithProgress<T>(
+		category: ICustomizationMigrationCategory,
+		customizations: readonly CustomizationMigrationCandidate[],
+		task: () => Promise<T>,
+	): Promise<T> {
+		const activeMigration = {
+			categoryId: category.id,
+			storage: customizations[0].storage,
+		};
+		this.activeCustomizationMigration = activeMigration;
+		this.renderCustomizationMigrationDashboardState();
+		try {
+			return await this.progressService.withProgress({
+				location: ProgressLocation.Notification,
+				telemetry: NotificationTelemetryId.CustomizationMigration,
+				title: category.getProgressTitle(customizations.length),
+				cancellable: false,
+			}, task);
+		} finally {
+			if (this.activeCustomizationMigration === activeMigration) {
+				this.activeCustomizationMigration = undefined;
+			}
+			this.renderCustomizationMigrationDashboardState();
 		}
 	}
 
@@ -2331,7 +2367,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const actionState = this.getMigrationItemActionState(item);
 		const migrate = disposables.add(new Action(
 			'customizationMigration.migrateItem',
-			localize('migrateThisCustomization', "Migrate This Item"),
+			localize('migrateThisCustomization', "Migrate This Item..."),
 			undefined,
 			actionState.canMigrate,
 			() => this.migrateMigrationItem(item),
@@ -2552,6 +2588,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		});
 		return {
 			scopes,
+			migrationInProgress: this.activeCustomizationMigration !== undefined,
 			recoveries: this.agentMigrationRecoveries.map(({ manifest }) => this.getAgentMigrationRecoveryDashboardItem(manifest)),
 			supportsAgentMigration: !isRemoteAgentHostTarget(this.harnessService.activeHarness.get())
 				&& this.getAllMigrationCandidates().some(candidate => !isPluginMarketplaceCustomizationMigrationCandidate(candidate)),
@@ -2708,6 +2745,13 @@ export class AICustomizationManagementEditor extends EditorPane {
 		});
 		const selectedCount = candidates.filter(candidate => this.isCustomizationSelectedForMigration(candidate)).length;
 		const destination = this.getMigrationCategoryDestination(id, candidates, storage);
+		const migrationInProgress = this.activeCustomizationMigration?.categoryId === id
+			&& this.activeCustomizationMigration.storage === storage;
+		const migrationState = {
+			migrationInProgress,
+			migrateDisabled: this.customizationMigrationInProgress || selectedCount === 0,
+			...(migrationInProgress ? { actionLabel: localize('migrationInProgressAction', "Migrating...") } : {}),
+		};
 		switch (id) {
 			case CustomizationMigrationCategoryId.PromptFiles:
 				return {
@@ -2716,7 +2760,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 					description: category.preMigrationConsequences ?? '',
 					countLabel: count === 1 ? localize('migrationChecklistOnePrompt', "1 prompt") : localize('migrationChecklistPromptsCount', "{0} prompts", count),
 					highRisk: true,
-					migrateDisabled: this.customizationMigrationInProgress || selectedCount === 0,
+					...migrationState,
 					selectedCount,
 					...destination,
 					items,
@@ -2729,7 +2773,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 						? localize('migrationChecklistUserMcpDescription', "Move eligible user servers to mcp-config.json in Copilot home.")
 						: localize('migrationChecklistMcpDescription', "Move eligible workspace servers to the root .mcp.json."),
 					countLabel: count === 1 ? localize('migrationChecklistOneMcpServer', "1 server") : localize('migrationChecklistMcpServers', "{0} servers", count),
-					migrateDisabled: this.customizationMigrationInProgress || selectedCount === 0,
+					...migrationState,
 					selectedCount,
 					...destination,
 					items,
@@ -2740,11 +2784,13 @@ export class AICustomizationManagementEditor extends EditorPane {
 					id, count,
 					label: this.getMigrationDashboardCategoryLabel(id),
 					description: localize('migrationChecklistPluginMarketplacesDescription', "Migrate plugin marketplaces to Copilot settings while keeping them available to the Local agent."),
-					actionLabel: localize('migratePluginMarketplaces', "Migrate"),
+					actionLabel: migrationInProgress
+						? localize('migrationInProgressAction', "Migrating...")
+						: localize('migratePluginMarketplaces', "Migrate..."),
 					countLabel: count === 1
 						? localize('migrationChecklistOnePluginMarketplace', "1 marketplace")
 						: localize('migrationChecklistPluginMarketplacesCount', "{0} marketplaces", count),
-					migrateDisabled: this.customizationMigrationInProgress || selectedCount === 0,
+					...migrationState,
 					selectedCount,
 					...destination,
 					items,
@@ -2764,7 +2810,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 					label: this.getMigrationDashboardCategoryLabel(id),
 					description: localize('migrationChecklistUserDataDescription', "Move agents and instructions to shared locations so they remain available to supported agent experiences."),
 					countLabel: counts.join(' · '),
-					migrateDisabled: this.customizationMigrationInProgress || selectedCount === 0,
+					...migrationState,
 					selectedCount,
 					...destination,
 					items,
@@ -2778,7 +2824,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 					countLabel: count === 1
 						? localize('migrationChecklistOneConfiguredLocationCustomization', "1 customization")
 						: localize('migrationChecklistConfiguredLocationCustomizationsCount', "{0} customizations", count),
-					migrateDisabled: this.customizationMigrationInProgress || selectedCount === 0,
+					...migrationState,
 					selectedCount,
 					...destination,
 					items,
@@ -5488,7 +5534,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			ariaLabel: localize('migrateCustomization', "Migrate customization"),
 		}));
 		migrate.element.classList.add('migration-detail-action');
-		migrate.label = localize('migrate', "Migrate");
+		migrate.label = localize('migrate', "Migrate...");
 		this.editorDisposables.add(migrate.onDidClick(() => {
 			void this.migrateCurrentMigrationDetail().catch(error => this.notificationService.error(
 				localize('migrateCustomizationFailed', "Could not migrate the customization: {0}", getErrorMessage(error))

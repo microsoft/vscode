@@ -141,6 +141,13 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		return this._runMutation(() => this._agentService.uninstallPlugin!(provider, request, session, chat));
 	}
 
+	listPluginInstallations(provider: AgentProvider, session?: URI, chat?: URI) {
+		if (!this._agentService.listPluginInstallations) {
+			throw new Error('Agent Host plugin installation inventory is unavailable');
+		}
+		return this._agentService.listPluginInstallations(provider, session, chat);
+	}
+
 	listAgentExtensions(session?: URI, chat?: URI): Promise<IAgentExtensionInventory> {
 		if (!this._agentService.listAgentExtensions) {
 			throw new Error('Copilot extension inventory is unavailable.');
