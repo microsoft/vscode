@@ -250,7 +250,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	}, {
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['External sessions are mixed with the regular session and show a rounded "From [application]" badge after the title.'],
+		expectedVisualDescriptions: ['External sessions are mixed with the regular session and show a rounded application badge after the title.'],
 	}),
 	SessionsList_ExternalApplicationBadgeDetails: defineSessionsListFixture({
 		sessions: EXTERNAL_SESSIONS.filter(session => !session.isArchived),
@@ -261,7 +261,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		},
 	}, {
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['External sessions are mixed with the regular session and show a rounded "From [application]" badge as the first item in the details row.'],
+		expectedVisualDescriptions: ['External sessions are mixed with the regular session and show a rounded application badge as the first item in the details row.'],
 	}),
 	SessionsList_ExternalApplicationBadgeQuickChat: defineSessionsListFixture({
 		sessions: EXTERNAL_QUICK_CHAT_SESSIONS,
@@ -272,7 +272,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		},
 	}, {
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['External chats without a workspace render as compact single-line rows and show a rounded "From [application]" badge after the title. The regular chat has no badge.'],
+		expectedVisualDescriptions: ['External chats without a workspace render as compact single-line rows and show a rounded application badge after the title. The regular chat has no badge.'],
 	}),
 	SessionsList_ExternalApplicationBadgeQuickChatDetails: defineSessionsListFixture({
 		sessions: EXTERNAL_QUICK_CHAT_SESSIONS,
@@ -283,19 +283,19 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		},
 	}, {
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['External chats without a workspace have no details row, so they show a rounded "From [application]" badge after the title. The regular chat has no badge.'],
+		expectedVisualDescriptions: ['External chats without a workspace have no details row, so they show a rounded application badge after the title. The regular chat has no badge.'],
 	}),
-	SessionsList_ExternalApplicationBadgeWithoutFrom: defineSessionsListFixture({
+	SessionsList_ExternalApplicationBadgeWithFrom: defineSessionsListFixture({
 		sessions: EXTERNAL_SESSIONS.filter(session => !session.isArchived),
 		view: { height: 270 },
 		settings: {
 			[SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING]: false,
 			[SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING]: ExternalSessionApplicationBadgeMode.Title,
-			[SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING]: false,
+			[SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING]: true,
 		},
 	}, {
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['External sessions show a rounded application badge after the title without the "From" prefix.'],
+		expectedVisualDescriptions: ['External sessions show a rounded "From [application]" badge after the title.'],
 	}),
 	SessionsList_ExternalApplicationBadgeLongLabel: defineSessionsListFixture({
 		sessions: [

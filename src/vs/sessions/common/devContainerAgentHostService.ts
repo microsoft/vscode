@@ -83,4 +83,9 @@ export interface IDevContainerAgentHostService {
 	getSandboxSupported?(workspaceUri: URI): boolean | undefined;
 	showLog(workspaceUri: URI): Promise<void>;
 	disconnect(workspaceUri: URI): Promise<void>;
+	/** Register a source workspace without starting its container or connecting. */
+	addWorkspace(workspaceUri: URI, name: string): void;
+	/** Forget a location and disconnect its transport without deleting its container. */
+	removeWorkspace(workspaceUri: URI): Promise<void>;
+	getWorkspaces(): readonly { readonly workspaceUri: URI; readonly name: string }[];
 }

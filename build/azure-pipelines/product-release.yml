@@ -45,6 +45,8 @@ steps:
 
   - script: npm ci
     workingDirectory: build
+    # A transient registry error here fails the release after ApproveRelease (477747, 478020).
+    retryCountOnTaskFailure: 3
     displayName: Install build dependencies
 
   - pwsh: |

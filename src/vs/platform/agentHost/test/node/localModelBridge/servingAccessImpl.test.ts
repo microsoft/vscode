@@ -8,7 +8,6 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { DOWN_MARK_MS, LOAD_TIMEOUT_MS, QUEUE_TIMEOUT_MS } from '../../../node/copilot/localModelBridge/shim/constants.js';
 import { LocalModelServingError, type IDirectFamilyLookup, type IServingIdentity, type IServingLease, type IServingSlot, type IServingSnapshot } from '../../../node/copilot/localModelBridge/shim/servingAccess.js';
 import { ServingAccess, type IServingAccessHost } from '../../../node/copilot/localModelBridge/shim/servingAccessImpl.js';
-import { settle } from './fakeLlamaServer.js';
 import { createServingSnapshot, FakeClock, MAI_IDENTITY, EXAMPLE_IDENTITY } from './fakeServingAccess.js';
 
 class FakeHost implements IServingAccessHost {
@@ -155,7 +154,7 @@ suite('localModel serving access (§5.8.1, §5.10)', () => {
 	});
 
 	test('ensureStarted loads a stopped active model, waits for a swap to the requested family and never swaps', async () => {
-		const { host, access } = create();
+		const { clock, host, access } = create();
 		host.active = createServingSnapshot({ server: 'stopped', endpoint: undefined, props: undefined });
 		host.onStart = async () => { host.active = createServingSnapshot(); };
 		const started = await access.ensureStarted(MAI_IDENTITY.familyId, new AbortController().signal);
@@ -164,7 +163,8 @@ suite('localModel serving access (§5.8.1, §5.10)', () => {
 		host.swap = { familyId: EXAMPLE_IDENTITY.familyId, settled: new Promise<void>(resolve => finishSwap = resolve) };
 		const waiting = access.ensureStarted(EXAMPLE_IDENTITY.familyId, new AbortController().signal);
 		const inactive = await access.ensureStarted('other-local', new AbortController().signal).then(() => 'served', (error: LocalModelServingError) => `${error.code}: ${error.message}`);
-		await settle();
+		// Waiting for the swap, or for a start, arms the load deadline.
+		await clock.whenTimerDue(LOAD_TIMEOUT_MS);
 		const startsDuringSwap = [...host.starts];
 		host.active = createServingSnapshot({ identity: EXAMPLE_IDENTITY, displayName: 'Example Coder' });
 		host.swap = undefined;
@@ -188,7 +188,7 @@ suite('localModel serving access (§5.8.1, §5.10)', () => {
 
 		host.onStart = () => new Promise<void>(() => { });
 		const slow = access.ensureStarted(MAI_IDENTITY.familyId, new AbortController().signal).then(() => 'served', (error: LocalModelServingError) => error.code);
-		await settle();
+		await clock.whenTimerDue(LOAD_TIMEOUT_MS);
 		clock.advance(LOAD_TIMEOUT_MS);
 		const abort = new AbortController();
 		const aborted = access.ensureStarted(MAI_IDENTITY.familyId, abort.signal).then(() => 'served', (error: unknown) => String(error));
