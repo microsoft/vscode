@@ -136,6 +136,7 @@ import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgent
 import { ILanguageModelToolsService, IToolData, IToolResult, stringifyPromptTsxPart, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { IChatWidgetService } from '../../chat.js';
 import { AgentHostLocalModelSupport } from './agentHostLocalModelSupport.js';
+import { resolveAgentHostToolResultImage } from './agentHostToolResultImages.js';
 import { getComputerUseActivationCardText, getComputerUseSetupCardText, IComputerUseSetupService } from './computerUseSetup.js';
 import { getAgentSessionProviderIcon } from '../agentSessions.js';
 import { IAgentCustomizationScope, IAgentHostActiveClientService } from './agentHostActiveClientService.js';
@@ -8431,10 +8432,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	resolveChatResponseUri(sessionResource: URI, href: string, kind: 'link' | 'image'): string {
 		const session = this._resolveSessionUri(sessionResource);
+		const chatUri = this._getChatURIOrDefault(sessionResource, session);
 		const directory = kind === 'image'
-			? this._getSessionState(session.toString(), this._getChatURIOrDefault(sessionResource, session))?.workingDirectories?.[0]
+			? this._getSessionState(session.toString(), chatUri)?.workingDirectories?.[0]
 			: undefined;
-		return rewriteAgentHostLinkTarget(href, this._config.connectionAuthority, this._config.connection.resourceUris, directory ? URI.parse(directory) : undefined);
+		const resolve = (target: string) => rewriteAgentHostLinkTarget(target, this._config.connectionAuthority, this._config.connection.resourceUris, directory ? URI.parse(directory) : undefined);
+		const resolved = resolve(href);
+		const chat = chatUri === this._getRawSessionState(session.toString())?.defaultChat
+			? this._getDefaultChatState(session.toString())
+			: chatUri ? this._getAdditionalChatState(chatUri) : undefined;
+		return (kind === 'image' ? resolveAgentHostToolResultImage(chat, resolved, resolve) : undefined) ?? resolved;
 	}
 
 	/**

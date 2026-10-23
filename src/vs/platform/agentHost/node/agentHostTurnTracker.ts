@@ -44,6 +44,16 @@ const MAX_HANG_CHECK_WINDOWS = 6;
 /** Sentinel `lastActivityKind` for a turn that never produced any activity. */
 export const TURN_ACTIVITY_NONE = 'none';
 
+/**
+ * A HydraFusion phase chat presents part of its root turn: the root turn owns the
+ * phase's model calls, cost and duration, and `agentHost.fusionPhaseCompleted` reports
+ * the phase itself. Its tracked turn only gives tool-call and input-request telemetry
+ * the phase's model and kind, so it is never reported as a turn or watched for hangs.
+ */
+function isPresentationOnlyTurn(timing: { readonly subagentKind: AgentSubagentKind | undefined }): boolean {
+	return timing.subagentKind === 'fusionPhase';
+}
+
 /** Identity of a tool call that has started but not yet completed. */
 interface IInFlightToolCall {
 	readonly toolId: string;
@@ -757,6 +767,10 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 		if (!timing) {
 			return false;
 		}
+		if (isPresentationOnlyTurn(timing)) {
+			this._disposeTurn(key, timing);
+			return true;
+		}
 		// Close the open stage first so its duration is sampled no later than
 		// `totalTime`. A turn can end mid-stage (a failed checkpoint, a cancel
 		// during model selection), and sampling the other way round lets a clock
@@ -922,6 +936,10 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 	}
 
 	private _armHangWatchdog(key: string): void {
+		const timing = this._turnTimings.get(key);
+		if (timing && isPresentationOnlyTurn(timing)) {
+			return;
+		}
 		this._hangWatchdogs.set(key, disposableTimeout(() => this._onHangWatchdogFired(key), TURN_HANG_THRESHOLD_MS));
 	}
 

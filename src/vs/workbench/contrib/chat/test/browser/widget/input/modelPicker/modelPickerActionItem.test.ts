@@ -12,7 +12,7 @@ import { Emitter, Event } from '../../../../../../../../base/common/event.js';
 import { isMarkdownString } from '../../../../../../../../base/common/htmlContent.js';
 import { ResolvedKeybinding } from '../../../../../../../../base/common/keybindings.js';
 import { toDisposable } from '../../../../../../../../base/common/lifecycle.js';
-import { constObservable, observableValue } from '../../../../../../../../base/common/observable.js';
+import { constObservable, IObservable, observableValue } from '../../../../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
 import { IActionWidgetService } from '../../../../../../../../platform/actionWidget/browser/actionWidget.js';
@@ -71,7 +71,7 @@ suite('ModelPickerActionItem', () => {
 	 * name followed by its thinking effort / context size readout. By default the
 	 * name has no icon, so it keeps its label even when the picker is compact.
 	 */
-	function renderPicker(model: ILanguageModelChatMetadataAndIdentifier, options: { readonly compact?: boolean; readonly minimal?: boolean; readonly comparison?: IModelPickerComparison; readonly comparisonKeybindingLabel?: string; readonly itemWidth?: number; readonly models?: readonly ILanguageModelChatMetadataAndIdentifier[]; readonly showModelIcon?: boolean; readonly configurationService?: TestConfigurationService } = {}) {
+	function renderPicker(model: ILanguageModelChatMetadataAndIdentifier, options: { readonly compact?: boolean; readonly minimal?: boolean; readonly comparison?: IModelPickerComparison; readonly comparisonBusy?: IObservable<boolean>; readonly comparisonKeybindingLabel?: string; readonly itemWidth?: number; readonly models?: readonly ILanguageModelChatMetadataAndIdentifier[]; readonly showModelIcon?: boolean; readonly configurationService?: TestConfigurationService } = {}) {
 		const models = options.models ? [...options.models] : [model];
 		let modelReads = 0;
 		const modelsChanged = disposables.add(new Emitter<string>());
@@ -101,6 +101,7 @@ suite('ModelPickerActionItem', () => {
 		const currentModel = observableValue<ILanguageModelChatMetadataAndIdentifier | undefined>('currentModel', model);
 		const delegate: IModelPickerDelegate = {
 			comparison: options.comparison,
+			comparisonBusy: options.comparisonBusy,
 			currentModel,
 			setModel: () => { },
 			setModelProgrammatically: () => { },
@@ -367,6 +368,37 @@ suite('ModelPickerActionItem', () => {
 			icons: 1,
 			ariaLabel: 'Models, First, First Max',
 			hover: 'Models • First, First Max',
+		});
+	});
+
+	test('composer replaces the compare icon with progress in the same compact control', () => {
+		const busy = observableValue('comparisonBusy', false);
+		const { domNode, item } = renderPicker(createModel('First'), {
+			compact: true,
+			showModelIcon: true,
+			comparisonBusy: busy,
+			comparison: upcastPartial<IModelPickerComparison>({
+				available: constObservable(true),
+				summary: constObservable('3 Attempts'),
+				state: constObservable(undefined),
+			}),
+		});
+		const state = () => ({
+			compare: domNode.querySelectorAll('.model-picker-name > .codicon-compare').length,
+			loading: domNode.querySelectorAll('.model-picker-name > .codicon-loading-compact').length,
+			busy: domNode.classList.contains('comparison-busy'),
+			minimumWidth: item.minimumWidth,
+			ariaLabel: domNode.querySelector('.model-picker-name')?.getAttribute('aria-label'),
+		});
+		const idle = state();
+		busy.set(true, undefined);
+		const sending = state();
+		busy.set(false, undefined);
+
+		assert.deepStrictEqual({ idle, sending, settled: state() }, {
+			idle: { compare: 1, loading: 0, busy: false, minimumWidth: 22, ariaLabel: 'Models, 3 Attempts' },
+			sending: { compare: 0, loading: 1, busy: true, minimumWidth: 22, ariaLabel: 'Models, 3 Attempts' },
+			settled: { compare: 1, loading: 0, busy: false, minimumWidth: 22, ariaLabel: 'Models, 3 Attempts' },
 		});
 	});
 

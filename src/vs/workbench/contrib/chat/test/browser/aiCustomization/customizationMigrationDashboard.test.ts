@@ -478,20 +478,26 @@ suite('CustomizationMigrationDashboard', () => {
 			...overview(),
 			categoryErrors: [{
 				id: CustomizationMigrationCategoryId.PluginMarketplaces,
-				label: 'Plugin marketplaces could not be checked',
-				description: 'Check the active agent connection, then try again.',
+				label: 'Couldn\'t load Copilot\'s plugin marketplaces',
+				description: 'Check the Copilot connection, then try again.',
 			}],
 		});
 
-		button(parent, 'Retry loading Plugin marketplaces could not be checked').click();
+		button(parent, 'Retry loading Couldn\'t load Copilot\'s plugin marketplaces').click();
 
+		const error = parent.querySelector('.migration-category-error');
+		const retryParent = error?.querySelector('[aria-label="Retry loading Couldn\'t load Copilot\'s plugin marketplaces"]')?.parentElement;
 		assert.deepStrictEqual({
-			error: parent.querySelector('.migration-category-error')?.textContent,
+			title: error?.querySelector('h2')?.textContent?.trim(),
+			description: error?.querySelector('p')?.textContent?.trim(),
+			hasRetryActionsContainer: retryParent?.classList.contains('migration-category-error-actions'),
 			hasPromptMigration: parent.textContent?.includes('Convert Prompt to Skills (Workspace)'),
 			retried,
 			telemetryActions,
 		}, {
-			error: 'Plugin marketplaces could not be checkedCheck the active agent connection, then try again.Retry',
+			title: 'Couldn\'t load Copilot\'s plugin marketplaces',
+			description: 'Check the Copilot connection, then try again.',
+			hasRetryActionsContainer: true,
 			hasPromptMigration: true,
 			retried: [CustomizationMigrationCategoryId.PluginMarketplaces],
 			telemetryActions: ['retryClicked:pluginMarketplaces'],

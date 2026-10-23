@@ -104,14 +104,24 @@ suite('Chat Accessibility Help', () => {
 		test(`documents the sharing toggle and backend selection (${type})`, () => {
 			const help = getAccessibilityHelpText(type, new MockKeybindingService(), false);
 			assert.deepStrictEqual({
-				backend: help.includes('Select Remote Connection Method dropdown chooses Dev Tunnels or GitHub Environments'),
+				backend: help.includes('single Remote Connections button opens a menu that offers Off, Dev Tunnels, and GitHub Environments'),
 				setting: help.includes('The preview setting chat.agentHost.remoteConnections selects the connection method'),
-				explicitOptIn: help.includes('Selecting a method does not enable sharing; changing it turns sharing off'),
+				enabling: help.includes('Selecting a method updates the setting and enables sharing'),
+				disabling: help.includes('Selecting Off disables sharing'),
+				remembered: help.includes('without changing the preferred method'),
+				footer: help.includes('The footer shows the name used to identify this machine on other clients'),
+				rename: help.includes('press Tab to reach the name link in the footer') && help.includes('Renaming while Off does not enable sharing'),
+				directSetting: help.includes('Changing the setting directly turns sharing off'),
 				keyboard: help.includes('Enter or Space to enable or disable sharing'),
 			}, {
 				backend: type !== 'inlineChat' && type !== 'quickChat',
 				setting: type !== 'inlineChat' && type !== 'quickChat',
-				explicitOptIn: type !== 'inlineChat' && type !== 'quickChat',
+				enabling: type !== 'inlineChat' && type !== 'quickChat',
+				disabling: type !== 'inlineChat' && type !== 'quickChat',
+				remembered: type !== 'inlineChat' && type !== 'quickChat',
+				footer: type !== 'inlineChat' && type !== 'quickChat',
+				rename: type !== 'inlineChat' && type !== 'quickChat',
+				directSetting: type !== 'inlineChat' && type !== 'quickChat',
 				keyboard: type !== 'inlineChat' && type !== 'quickChat',
 			});
 		});

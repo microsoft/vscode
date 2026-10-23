@@ -350,10 +350,26 @@ export function requiresCopilotAgentHost(service: IManagedSettingsService, confi
 
 let managedModelValueCallback: ((policyData: IPolicyData) => ManagedSettingValue | undefined) | undefined;
 
-/** Trim a managed-settings model value, treating a blank/whitespace-only string as unset. */
+/**
+ * Copilot Fusion is the Copilot runtime's name for the virtual Auto model, so a managed `fusion` default selects
+ * Auto (github/copilot-agent-runtime#28619). Other values pass through unchanged.
+ */
+const COPILOT_FUSION_MODEL_ALIAS = 'fusion';
+
+/**
+ * Normalizes a managed default-model value: trims it, treats a blank or whitespace-only value as unset, and
+ * maps the Copilot Fusion alias to `auto`.
+ */
+export function normalizeManagedModelId(value: string | undefined): string | undefined {
+	const trimmed = value?.trim();
+	if (!trimmed) {
+		return undefined;
+	}
+	return trimmed.toLowerCase() === COPILOT_FUSION_MODEL_ALIAS ? 'auto' : trimmed;
+}
+
 function normalizeModelValue(value: ManagedSettingValue | undefined): string | undefined {
-	const trimmed = typeof value === 'string' ? value.trim() : undefined;
-	return trimmed ? trimmed : undefined;
+	return typeof value === 'string' ? normalizeManagedModelId(value) : undefined;
 }
 
 /**
