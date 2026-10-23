@@ -248,8 +248,7 @@ export class AgentHostSessionMoveUnsupportedError extends Error {
 }
 export const appendToChatpadParamsValidator = vObj({ text: vString() });
 
-/** The host's Chatpad. `note` is a host file URI; `session` is absent until a Chatpad chat exists. */
-/** The Chatpad: its note and chat together, or neither when there is no Chatpad chat. */
+/** The Chatpad: its note, a host file URI, and its chat together, or neither when there is no Chatpad chat. */
 export interface IAgentHostChatpadDto {
 	readonly note?: string;
 	readonly session?: string;
