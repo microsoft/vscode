@@ -2518,11 +2518,11 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	} else if (options.migrationConfirmation === 'pluginMarketplaces') {
 		await waitForFixtureCondition(
 			() => [...ctx.container.querySelectorAll<HTMLElement>('.migration-tree-group-actions .migration-secondary-button')]
-				.some(button => button.getAttribute('aria-label') === 'Migrate: Plugin Marketplaces (User)'),
+				.some(button => button.getAttribute('aria-label') === 'Migrate...: Plugin Marketplaces (User)'),
 			'The plugin marketplace migration action did not render.',
 		);
 		const migrateButton = [...ctx.container.querySelectorAll<HTMLElement>('.migration-tree-group-actions .migration-secondary-button')]
-			.find(button => button.getAttribute('aria-label') === 'Migrate: Plugin Marketplaces (User)')!;
+			.find(button => button.getAttribute('aria-label') === 'Migrate...: Plugin Marketplaces (User)')!;
 		migrateButton.click();
 	} else if (options.migrationConfirmation === 'mcpWarning') {
 		const server: IMcpServerCustomizationMigrationCandidate = {
