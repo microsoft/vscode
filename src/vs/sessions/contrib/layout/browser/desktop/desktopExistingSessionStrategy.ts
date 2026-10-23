@@ -64,9 +64,6 @@ const toggleMultiDiffEditorFileListContext = ContextKeyExpr.and(MainEditorAreaVi
 export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 
 	private _managedTabs: DesktopDockedTabsCoordinator | undefined;
-	private _detailHiddenTransiently = false;
-	private _detailHiddenByEditor = false;
-	private _changingDetailTransiently = false;
 
 	constructor(
 		ctx: IDesktopLayoutContext,
@@ -92,7 +89,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 		const activeEditor = this._editorService.activeEditor;
 		if (nowVisible && this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)
 			&& activeEditor && isChangesEditorInput(activeEditor, this._sessionChangesService)
-			&& !this._detailPanel.hasChanges.get()) {
+			&& !this._detailPanel.hasChangesDetails.get()) {
 			return false;
 		}
 		this._layoutService.setPartHidden(!nowVisible, Parts.AUXILIARYBAR_PART);
@@ -230,7 +227,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 			if (e.partId !== Parts.EDITOR_PART && e.partId !== Parts.AUXILIARYBAR_PART) {
 				return;
 			}
-			if (togglingSidePane || (e.partId === Parts.AUXILIARYBAR_PART && this._changingDetailTransiently)) {
+			if (togglingSidePane || (e.partId === Parts.AUXILIARYBAR_PART && this._detailPanel.changingVisibility)) {
 				return;
 			}
 			this._captureExistingProfileIfApplicable();
@@ -259,7 +256,10 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 		if (!ownerKey) {
 			return;
 		}
-		this._ctx.compositionStore.setPreHide(ownerKey, this._layoutService.captureSidePaneComposition());
+		this._ctx.compositionStore.setPreHide(ownerKey, {
+			editor: this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow),
+			auxiliaryBar: this._detailPanel.intendedVisible,
+		});
 	}
 
 	private _correctToggleReopen(e: ISidePaneToggleEvent): void {
@@ -345,7 +345,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 		}
 		const state = {
 			editorVisible: this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow),
-			auxiliaryBarVisible: this._layoutService.isVisible(Parts.AUXILIARYBAR_PART),
+			auxiliaryBarVisible: this._detailPanel.intendedVisible,
 		};
 
 		if (this._ctx.chatLayoutActive()) {
@@ -360,6 +360,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 	}
 
 	private _apply(state: { readonly editorVisible: boolean; readonly auxiliaryBarVisible: boolean }, revealOnly = false, revealSavedComposition = false): void {
+		this._detailPanel.resetTransientVisibility();
 		const sidePaneVisible = this._layoutService.isSidePaneVisible();
 		const suppression = this._layoutService.suppressEditorPartAutoVisibility();
 		try {
@@ -437,8 +438,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 			if (isWorkspaceConversion) {
 				pendingSessionKey = undefined;
 				pendingOutgoingEditor = undefined;
-				this._detailHiddenTransiently = false;
-				this._detailHiddenByEditor = false;
+				this._detailPanel.resetTransientVisibility();
 			}
 
 			const activeEditor = activeEditorObs.read(reader);
@@ -485,20 +485,12 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 			pendingOutgoingEditor = undefined;
 			layoutRestored.trigger(undefined);
 		}));
-		this._register(this._layoutService.onDidChangePartVisibility(event => {
-			if (event.partId === Parts.AUXILIARYBAR_PART && event.source !== 'resize') {
-				this._detailHiddenTransiently = false;
-				this._detailHiddenByEditor = false;
-			}
-		}));
 	}
 
 	private _syncDetailVisibility(target: DetailPanelTarget, revealOnly: boolean, emptyFilesShown: boolean): void {
 		const detailVisible = this._layoutService.isVisible(Parts.AUXILIARYBAR_PART);
 		if (emptyFilesShown && !detailVisible) {
-			this._detailHiddenTransiently = false;
-			this._detailHiddenByEditor = false;
-			this._setDetailHiddenTransiently(false);
+			this._detailPanel.setHiddenTransiently(false);
 			return;
 		}
 		if (this._ctx.isRestoringSessionLayout || target === DetailPanelTarget.Preserve) {
@@ -508,28 +500,15 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 		if (target === DetailPanelTarget.Hidden || target === DetailPanelTarget.EditorHidden || target === DetailPanelTarget.FilesHidden) {
 			const hiddenByEditor = target === DetailPanelTarget.EditorHidden || target === DetailPanelTarget.FilesHidden;
 			if ((hiddenByEditor || !revealOnly) && detailVisible) {
-				this._detailHiddenTransiently = true;
-				this._detailHiddenByEditor = hiddenByEditor;
-				this._setDetailHiddenTransiently(true);
+				this._detailPanel.setHiddenTransiently(true, hiddenByEditor);
 			}
 			return;
 		}
 
-		if (!this._detailHiddenTransiently || (revealOnly && !this._detailHiddenByEditor) || !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+		if (!this._detailPanel.hiddenTransiently || (revealOnly && !this._detailPanel.hiddenByEditor) || !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
 			return;
 		}
-		this._detailHiddenTransiently = false;
-		this._detailHiddenByEditor = false;
-		this._setDetailHiddenTransiently(false);
-	}
-
-	private _setDetailHiddenTransiently(hidden: boolean): void {
-		this._changingDetailTransiently = true;
-		try {
-			this._layoutService.setAuxiliaryBarHiddenForResize(hidden);
-		} finally {
-			this._changingDetailTransiently = false;
-		}
+		this._detailPanel.setHiddenTransiently(false);
 	}
 
 	private _computeTarget(reader: IReader | undefined, activeEditor: EditorInput | undefined, mainPartEmpty: boolean, editorMaximized: boolean, editorPartVisible: boolean, workspace: ISessionWorkspace): DetailPanelTarget {
@@ -550,7 +529,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 		}
 
 		if (isChangesEditorInput(activeEditor, this._sessionChangesService)) {
-			return editorPartVisible && !this._detailPanel.hasChanges.read(reader)
+			return editorPartVisible && !this._detailPanel.hasChangesDetails.read(reader)
 				? DetailPanelTarget.EditorHidden
 				: DetailPanelTarget.ChangesForced;
 		}

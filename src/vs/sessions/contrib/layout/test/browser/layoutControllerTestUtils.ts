@@ -43,6 +43,9 @@ import { TestStorageService } from '../../../../../workbench/test/common/workben
 import { ILifecycleService } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { IChangesViewService } from '../../../changes/common/changesViewService.js';
 import { ISessionEditorWorkingSetService, SessionEditorWorkingSetService } from '../../common/sessionEditorWorkingSet.js';
+import { IGitHubService } from '../../../github/browser/githubService.js';
+import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubPullRequestCIModel.js';
+import { IGitHubCICheck } from '../../../github/common/types.js';
 
 type SidePaneComposition = { readonly editor: boolean; readonly auxiliaryBar: boolean };
 
@@ -214,6 +217,7 @@ export interface ITestLayoutHarness {
 	activeSessionObs: ISettableObservable<IActiveSession | undefined>;
 	selectedChangesObs: ISettableObservable<readonly ISessionFileChange[] | undefined>;
 	changesetLoadingObs: ISettableObservable<boolean>;
+	ciChecksObs: ISettableObservable<readonly IGitHubCICheck[]>;
 	visibleSessionsObs: ISettableObservable<readonly (IActiveSession | undefined)[]>;
 	additionalShownChatsObs: ISettableObservable<number>;
 	onDidChangeSessions: Emitter<ISessionsChangeEvent>;
@@ -343,6 +347,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		activeSessionObs: observableValue<IActiveSession | undefined>('activeSession', undefined),
 		selectedChangesObs: observableValue<readonly ISessionFileChange[] | undefined>('selectedChanges', undefined),
 		changesetLoadingObs: observableValue('changesetLoading', false),
+		ciChecksObs: observableValue<readonly IGitHubCICheck[]>('ciChecks', []),
 		visibleSessionsObs: observableValue<readonly (IActiveSession | undefined)[]>('visibleSessions', []),
 		additionalShownChatsObs: observableValue('additionalShownChats', 0),
 		onDidChangeSessions: store.add(new Emitter<ISessionsChangeEvent>()),
@@ -510,6 +515,11 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		override readonly activeSessionChangesObs = derived(reader => harness.selectedChangesObs.read(reader)
 			?? harness.activeSessionObs.read(reader)?.activeChat.read(reader).changes.read(reader) ?? []);
 		override setChangesetId(): void { }
+	});
+	instaService.stub(IGitHubService, new class extends mock<IGitHubService>() {
+		override activeSessionPullRequestCIObs = constObservable(new class extends mock<GitHubPullRequestCIModel>() {
+			override readonly checks = harness.ciChecksObs;
+		}());
 	});
 	instaService.stub(ILifecycleService, new class extends mock<ILifecycleService>() {
 		// Resolves only when a test opts in via `activateAux`, so the desktop
