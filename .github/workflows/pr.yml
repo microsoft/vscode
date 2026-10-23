@@ -114,12 +114,6 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # Hygiene and ESLint run first so that their errors fail the job within about a minute.
-      # --continue-on-error reports both when both fail. ESLint stays out of the compilation
-      # checks so that its worker memory doesn't overlap theirs.
-      - name: Hygiene & ESLint
-        run: npm exec -- npm-run-all2 -lp --continue-on-error "hygiene -- --changed-since $PR_BASE_SHA" "eslint -- --changed-since $PR_BASE_SHA"
-
       - name: Prepare Electron types
         run: node build/npm/electronTypes.ts
 
@@ -150,6 +144,12 @@ jobs:
           npm run markdown-editor-package-json-check
           npm --prefix extensions/markdown-language-features run test-markdown-editor-package-json
           npm --prefix extensions/markdown-language-features run test-markdown-editor-clipboard
+
+      # Hygiene and ESLint check only the changed files, so they take seconds and fail the job
+      # before the compilation checks start. --continue-on-error reports both when both fail.
+      # ESLint stays out of the compilation checks so that its worker memory doesn't overlap theirs.
+      - name: Hygiene & ESLint
+        run: npm exec -- npm-run-all2 -lp --continue-on-error "hygiene -- --changed-since $PR_BASE_SHA" "eslint -- --changed-since $PR_BASE_SHA"
 
       # core-ci-pr skips the minified bundles that only the product build uses.
       - name: Compile
