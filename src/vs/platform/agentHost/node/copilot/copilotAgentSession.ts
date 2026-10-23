@@ -287,6 +287,22 @@ interface ICopilotStreamingToolCall {
 	displayedMessage: string | undefined;
 }
 
+interface ICopilotHeldClientToolCall {
+	readonly ready: DeferredPromise<boolean>;
+	readonly abortToken: CancellationToken;
+	readonly turn: CopilotTurn | undefined;
+	agentId?: string;
+	start?: (failure?: string) => void;
+	progress?: () => void;
+	completed?: boolean;
+}
+
+interface ICopilotClientToolReplacement {
+	readonly toolNames: Set<string>;
+	readonly calls: Map<string, ICopilotHeldClientToolCall>;
+	accepted?: boolean;
+}
+
 interface IMcpRoutingProxy {
 	readonly server: ICopilotMcpRoutingServer;
 }
@@ -1827,6 +1843,7 @@ export class CopilotAgentSession extends Disposable {
 	/** Contributions successfully applied to the SDK session. */
 	private _appliedSnapshot: IActiveClientSnapshot;
 	private _clientToolConfiguration: ICopilotClientToolConfiguration | undefined;
+	private _pendingClientToolReplacement: ICopilotClientToolReplacement | undefined;
 	private readonly _appliedPluginSources: ReadonlySet<string>;
 	private readonly _appliedPluginDirectories: readonly URI[];
 	private readonly _projectedMcpServerLaunchEnablement: ReadonlyMap<string, boolean>;
@@ -3283,6 +3300,7 @@ export class CopilotAgentSession extends Disposable {
 	 * response part. The turn becomes `running` on the first SDK event.
 	 */
 	resetTurnState(turnId: string, senderClientId?: string, clientType = AgentHostClientType.Unknown, clientContext = createUnknownAgentHostClientTelemetryContext(clientType), providerInitiated = false): void {
+		this._cancelHeldClientToolCalls(false);
 		this._clearPendingFusionEvents();
 		this._fusionRequestCorrelation.clear();
 		this._fusionTurnCancelled = false;
@@ -3443,6 +3461,7 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private _clearActiveTurn(): void {
 		const turn = this._currentTurn.value;
+		this._cancelHeldClientToolCalls(false);
 		this._clearPendingFusionEvents();
 		this._hasFusionRootTurnBoundary = false;
 		this._fusionProgress.reset();
@@ -3687,16 +3706,94 @@ export class CopilotAgentSession extends Disposable {
 		if (!configuration) {
 			throw new Error('Client tool configuration is unavailable');
 		}
-		const replacement = this._buildClientSdkTools(tools, configuration.toolSearchActive, configuration.hostToolNames);
+		const pending: ICopilotClientToolReplacement = { toolNames: new Set(), calls: new Map() };
+		const replacement = this._buildClientSdkTools(tools, configuration.toolSearchActive, configuration.hostToolNames, pending);
+		for (const tool of tools) {
+			const applied = appliedByName.get(tool.name);
+			if (replacement.clientToolNames.has(tool.name) && (!applied || !structuralToolsEqual([tool], [applied]))) {
+				pending.toolNames.add(tool.name);
+			}
+		}
 		const resolved = configuration.resolve(tools, replacement.tools);
 		if (!equals(configuration.sessionConfig, resolved.sessionConfig)) {
 			throw new Error('Client tools require a session configuration refresh');
 		}
-		await configuration.replaceTools(this._wrapper.session, resolved.tools);
-		this._appliedSnapshot = { ...this._appliedSnapshot, tools };
-		this._applyClientSdkTools(replacement);
+		this._pendingClientToolReplacement = pending;
+		try {
+			await configuration.replaceTools(this._wrapper.session, resolved.tools);
+			this._appliedSnapshot = { ...this._appliedSnapshot, tools };
+			this._applyClientSdkTools(replacement);
+			pending.accepted = true;
+		} finally {
+			pending.accepted ??= false;
+			this._pendingClientToolReplacement = undefined;
+			// Publish starts with accepted routing before handlers and permission callbacks resume.
+			for (const [toolCallId, call] of pending.calls) {
+				const current = this._isHeldClientToolCallCurrent(call);
+				if (current && !call.completed) {
+					call.start?.(pending.accepted ? undefined : localize('copilot.clientToolReplacementFailed', "Client tool configuration replacement failed."));
+					if (pending.accepted) {
+						call.progress?.();
+					}
+				} else {
+					this._streamingToolDisplaySchedulers.deleteAndDispose(toolCallId);
+					this._streamingToolCalls.delete(toolCallId);
+				}
+				call.ready.complete(pending.accepted && current && !call.completed);
+			}
+			pending.calls.clear();
+		}
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
+		}
+	}
+
+	private _holdClientToolCall(toolName: string, toolCallId: string, agentId?: string, replacement = this._pendingClientToolReplacement): ICopilotHeldClientToolCall | undefined {
+		if (!replacement || replacement.accepted !== undefined || !replacement.toolNames.has(this._clientToolName(toolName)) || this._activeToolCalls.has(toolCallId)) {
+			return undefined;
+		}
+		let call = replacement.calls.get(toolCallId);
+		if (!call) {
+			call = { ready: new DeferredPromise<boolean>(), abortToken: this._abortToken, turn: this._currentTurn.value };
+			replacement.calls.set(toolCallId, call);
+		}
+		call.agentId ??= agentId;
+		return call;
+	}
+
+	private _waitForClientToolReplacement(toolName: string, toolCallId: string, replacement = this._pendingClientToolReplacement): Promise<boolean> | undefined {
+		if (replacement?.accepted !== false) {
+			replacement = this._pendingClientToolReplacement ?? replacement;
+		}
+		if (!replacement || !replacement.toolNames.has(this._clientToolName(toolName)) || this._activeToolCalls.has(toolCallId)) {
+			return undefined;
+		}
+		if (replacement.accepted !== undefined) {
+			return replacement.accepted ? undefined : Promise.resolve(false);
+		}
+		const call = this._holdClientToolCall(toolName, toolCallId, undefined, replacement)!;
+		return this._waitForHeldClientToolCall(call);
+	}
+
+	private async _waitForHeldClientToolCall(call: ICopilotHeldClientToolCall): Promise<boolean> {
+		const accepted = await raceCancellation(call.ready.p, call.abortToken, false);
+		return accepted && this._isHeldClientToolCallCurrent(call);
+	}
+
+	private _isHeldClientToolCallCurrent(call: ICopilotHeldClientToolCall): boolean {
+		return !this._store.isDisposed && !call.abortToken.isCancellationRequested
+			&& (call.turn === this._currentTurn.value || call.agentId !== undefined);
+	}
+
+	private _cancelHeldClientToolCalls(includeSubagents = true): void {
+		for (const call of this._pendingClientToolReplacement?.calls.values() ?? []) {
+			if (!includeSubagents && call.agentId !== undefined) {
+				continue;
+			}
+			call.completed = true;
+			call.start = undefined;
+			call.progress = undefined;
+			call.ready.complete(false);
 		}
 	}
 
@@ -3771,7 +3868,7 @@ export class CopilotAgentSession extends Disposable {
 		return result.tools;
 	}
 
-	private _buildClientSdkTools(definitions: readonly ToolDefinition[], toolSearchActive: boolean, hostToolNames?: ReadonlySet<string>) {
+	private _buildClientSdkTools(definitions: readonly ToolDefinition[], toolSearchActive: boolean, hostToolNames?: ReadonlySet<string>, replacement?: ICopilotClientToolReplacement) {
 		const reservedHostToolNames = hostToolNames ?? new Set(this._getServerToolDefinitions().map(tool => tool.name));
 		const mcpRoutingProxies = new Map<string, IMcpRoutingProxy>();
 		const proxyTools = toolSearchActive ? this._createMcpRoutingProxyTools(mcpRoutingProxies) : [];
@@ -3793,6 +3890,12 @@ export class CopilotAgentSession extends Disposable {
 					skipPermission: true,
 					handler: this._guarded(async (args: Record<string, unknown>, invocation) => {
 						try {
+							const pending = this._waitForClientToolReplacement(invocation.toolName, invocation.toolCallId, replacement ?? this._pendingClientToolReplacement);
+							if (pending && !await pending) {
+								return this._pendingClientToolCalls.hasBufferedResult(invocation.toolCallId)
+									? this._pendingClientToolCalls.register(invocation.toolCallId)
+									: this._toolSearchFailure('Tool call cancelled: client tool replacement was not applied');
+							}
 							this._surfaceUnobservedClientToolStart(invocation);
 							const candidates = this._toToolSearchCandidates(invocation.availableTools);
 							const tracked = this._activeToolCalls.get(invocation.toolCallId);
@@ -3824,6 +3927,12 @@ export class CopilotAgentSession extends Disposable {
 				handler: this._guarded(async (_args: Record<string, unknown>, invocation) => {
 					const { toolCallId } = invocation;
 					try {
+						const pending = this._waitForClientToolReplacement(invocation.toolName, toolCallId, replacement ?? this._pendingClientToolReplacement);
+						if (pending && !await pending) {
+							return this._pendingClientToolCalls.hasBufferedResult(toolCallId)
+								? this._pendingClientToolCalls.register(toolCallId)
+								: this._toolSearchFailure('Tool call cancelled: client tool replacement was not applied');
+						}
 						this._surfaceUnobservedClientToolStart(invocation);
 						return await this._pendingClientToolCalls.register(toolCallId);
 					} catch (error) {
@@ -7257,6 +7366,12 @@ export class CopilotAgentSession extends Disposable {
 				this._logService.warn(`[Copilot:${this.sessionId}] Permission request without toolCallId, auto-denying: kind=${request.kind}`);
 				return attributePermissionResult({ kind: 'reject' }, 'host_policy');
 			}
+			if (request.kind === 'custom-tool') {
+				const pending = this._waitForClientToolReplacement(request.toolName, toolCallId);
+				if (pending && !await pending) {
+					return attributePermissionResult({ kind: 'reject' }, 'host_policy');
+				}
+			}
 			if (this._unroutableSubagentToolCallIds.delete(toolCallId)) {
 				this._logService.error(`[Copilot:${this.sessionId}] Rejecting permission request for unroutable subagent tool call: toolCallId=${toolCallId}, kind=${request.kind}`);
 				return attributePermissionResult({ kind: 'reject' }, 'unattended_fallback');
@@ -8945,6 +9060,9 @@ export class CopilotAgentSession extends Disposable {
 			this._streamingToolCalls.set(e.data.toolCallId, streaming);
 
 			const toolName = streaming.toolName;
+			if (toolName && this._holdClientToolCall(toolName, e.data.toolCallId, e.agentId)) {
+				return;
+			}
 			if (!toolName || isHiddenTool(toolName) || isTaskCompleteTool(toolName) || this._clientToolNames.has(this._clientToolName(toolName))) {
 				return;
 			}
@@ -8969,8 +9087,15 @@ export class CopilotAgentSession extends Disposable {
 			this._scheduleStreamingToolCallDisplay(e.data.toolCallId);
 		}));
 
-		const handleToolStart = (e: SessionEventPayload<'tool.execution_start'>): void => {
+		const handleToolStart = (e: SessionEventPayload<'tool.execution_start'>, replacementFailure?: string): void => {
 			if (!e.agentId && this._shouldDropLateRootTurnEvent('tool.execution_start')) {
+				return;
+			}
+			const held = replacementFailure === undefined ? this._holdClientToolCall(e.data.toolName, e.data.toolCallId, e.agentId) : undefined;
+			if (held) {
+				if (!held.completed) {
+					held.start ??= failure => handleToolStart(e, failure);
+				}
 				return;
 			}
 			const toolTitle = this._currentTurn.value?.toolTitles.get(e.data.toolCallId) ?? e.data.toolTitle;
@@ -9016,9 +9141,9 @@ export class CopilotAgentSession extends Disposable {
 			}
 			const parentToolCallId = streamed?.parentToolCallId ?? this._parentToolCallIdForSubagentEvent(e) ?? this._fusionPhaseParentToolCallId(e.agentId, e.data.fusion);
 			const clientToolName = this._clientToolName(e.data.toolName);
-			const isClientTool = this._clientToolNames.has(clientToolName);
+			const isClientTool = replacementFailure !== undefined || this._clientToolNames.has(clientToolName);
 			const isToolSearch = this._isToolSearchActive() && e.data.toolName === RUNTIME_TOOL_SEARCH_TOOL_NAME;
-			const contributor = this._getToolCallContributor(e.data.toolName, mcpServerName);
+			const contributor = replacementFailure === undefined ? this._getToolCallContributor(e.data.toolName, mcpServerName) : undefined;
 			const intention = getToolIntention(e.data.toolName, parameters, intentionSummary);
 			this._activeToolCalls.set(e.data.toolCallId, {
 				turnId: this._turnId,
@@ -9100,13 +9225,11 @@ export class CopilotAgentSession extends Disposable {
 				}, parentToolCallId);
 			}
 
-			// No client is connected to run this client tool. Fail it
-			// immediately instead of leaving it pending until the
-			// server-side disconnect timeout fires. We emit the completion
-			// ourselves and drop the active-tool entry so the SDK's own
-			// tool.execution_complete for this id is suppressed.
-			if (isClientTool && !contributor && !isToolSearch) {
-				this._logService.warn(`[Copilot:${sessionId}] Client tool '${e.data.toolName}' started with no connected client matching its advertised definition; failing it immediately.`);
+			// Failed replacements and calls without a matching client must settle without client execution.
+			if (replacementFailure !== undefined || (isClientTool && !contributor && !isToolSearch)) {
+				this._logService.warn(replacementFailure
+					? `[Copilot:${sessionId}] Failing held client tool '${e.data.toolName}': ${replacementFailure}`
+					: `[Copilot:${sessionId}] Client tool '${e.data.toolName}' started with no connected client matching its advertised definition; failing it immediately.`);
 				this._reportToolApprovalIfNoPermission(e.data.toolCallId);
 				this._toolApprovalRecords.delete(e.data.toolCallId);
 				this._activeToolCalls.delete(e.data.toolCallId);
@@ -9128,13 +9251,13 @@ export class CopilotAgentSession extends Disposable {
 					result: {
 						success: false,
 						pastTenseMessage: `${displayName} failed`,
-						error: { message: `No client with the advertised tool definition was connected to run ${displayName}` },
+						error: { message: replacementFailure ?? `No client with the advertised tool definition was connected to run ${displayName}` },
 					},
 				}, parentToolCallId);
 				this._pendingClientToolCalls.respondOrBuffer(e.data.toolCallId, {
-					textResultForLlm: `No client with the advertised tool definition was connected to run ${displayName}.`,
+					textResultForLlm: replacementFailure ?? `No client with the advertised tool definition was connected to run ${displayName}.`,
 					resultType: 'failure',
-					error: 'No matching client connected',
+					error: replacementFailure ?? 'No matching client connected',
 				});
 				return;
 			}
@@ -9181,6 +9304,17 @@ export class CopilotAgentSession extends Disposable {
 
 		const handleToolComplete = (e: SessionEventPayload<'tool.execution_complete'>): void => {
 			this._approvedDuplicablePermissionSignatures.delete(e.data.toolCallId);
+			const held = this._pendingClientToolReplacement?.calls.get(e.data.toolCallId);
+			if (held) {
+				if (!held.completed && this._isHeldClientToolCallCurrent(held)) {
+					held.start?.(e.data.error?.message ?? localize('copilot.clientToolReplacementEnded', "Tool call ended before client tool configuration replacement completed."));
+				}
+				held.completed = true;
+				held.start = undefined;
+				held.progress = undefined;
+				held.ready.complete(false);
+				return;
+			}
 			const tracked = this._activeToolCalls.get(e.data.toolCallId);
 			if (!tracked) {
 				this._unroutableSubagentToolCallIds.delete(e.data.toolCallId);
@@ -11244,7 +11378,7 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private _surfaceUnobservedClientToolStart(invocation: ToolInvocation): void {
 		const { toolCallId } = invocation;
-		if (this._activeToolCalls.has(toolCallId) || this._surfaceProvisionalFusionToolCall(toolCallId) || this._fusionProgress.runningPhaseToolCallId === undefined) {
+		if (this._pendingClientToolCalls.hasBufferedResult(toolCallId) || this._activeToolCalls.has(toolCallId) || this._surfaceProvisionalFusionToolCall(toolCallId) || this._fusionProgress.runningPhaseToolCallId === undefined) {
 			return;
 		}
 		const args = invocation.arguments;
@@ -11834,8 +11968,15 @@ export class CopilotAgentSession extends Disposable {
 			appendShellOutput(e.data.toolCallId, () => this._nonPtyShellTerminals.appendChunk(e.data.toolCallId, e.data));
 		}));
 
-		store.add(wrapper.onToolProgress(e => {
+		const handleToolProgress = (e: SessionEventPayload<'tool.execution_progress'>): void => {
 			this._logService.trace(`[Copilot:${sessionId}] Tool progress: ${e.data.toolCallId} - ${e.data.progressMessage}`);
+			const held = this._pendingClientToolReplacement?.calls.get(e.data.toolCallId);
+			if (held) {
+				if (!held.completed) {
+					held.progress = () => handleToolProgress(e);
+				}
+				return;
+			}
 			const tracked = this._activeToolCalls.get(e.data.toolCallId);
 			if (tracked?.toolName !== CopilotToolName.ImageGeneration) {
 				return;
@@ -11858,7 +11999,8 @@ export class CopilotAgentSession extends Disposable {
 				content: tracked.content,
 				_meta: toToolCallMeta(tracked.meta),
 			}, parentToolCallId);
-		}));
+		};
+		store.add(wrapper.onToolProgress(handleToolProgress));
 
 		store.add(wrapper.onSkillInvoked(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Skill invoked: ${e.data.name} (${e.data.path})`);
@@ -12044,6 +12186,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _cancelPendingClientToolCalls(): void {
+		this._cancelHeldClientToolCalls();
 		this._pendingClientToolCalls.denyAll({ textResultForLlm: 'Tool call cancelled: session ended', resultType: 'failure', error: 'Session ended' });
 	}
 }

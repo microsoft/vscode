@@ -24725,7 +24725,11 @@ Use the attached image as context.
 
 		test('client tool replacements commit definitions and routing only after SDK success and remain retryable', async () => {
 			const activeClientToolSet = activeClientToolSetWith('client');
-			const { session, runtime, mockSession, signals } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientToolSet });
+			const { session, runtime, mockSession, signals, onProgress } = await createAgentSession(disposables, {
+				clientSnapshot: snapshot, activeClientToolSet,
+				configValues: { [SessionConfigKey.AutoApprove]: 'autoApprove' },
+			});
+			await session.syncPermissionMode('turn-start');
 			runtime.configureClientTools!(clientToolConfiguration(false, new Set(['host_tool'])));
 			const definitions: ToolDefinition[] = [{
 				name: 'replacement',
@@ -24735,12 +24739,25 @@ Use the attached image as context.
 			activeClientToolSet.set('client', definitions);
 			const gate = new DeferredPromise<void>();
 			mockSession.setToolsGate = gate.p;
+			const executed: string[] = [];
+			disposables.add(onProgress(signal => {
+				if (signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallReady && signal.action.contributor?.kind === ToolCallContributorKind.Client) {
+					executed.push(signal.action.toolCallId);
+					session.handleClientToolCallComplete(signal.action.toolCallId, {
+						success: true, pastTenseMessage: 'Replacement completed',
+						content: [{ type: ToolResultContentType.Text, text: 'replacement result' }],
+					});
+				}
+			}));
 			const updating = session.updateClientTools(definitions);
 			const before = session.appliedSnapshot.tools;
+			mockSession.fire('assistant.tool_call_delta', { toolCallId: 'not-yet-applied', toolName: 'replacement', inputDelta: '{"query":"test"}' });
 			mockSession.fire('tool.execution_start', { toolCallId: 'not-yet-applied', toolName: 'replacement', arguments: { query: 'test' } });
+			const result = invokeClientToolHandler(mockSession.setToolsCalls[0][0], 'not-yet-applied', { query: 'test' });
+			const beforeAcceptance = { actions: getActions(signals), executed: [...executed] };
 			gate.complete();
 			await updating;
-			mockSession.fire('tool.execution_start', { toolCallId: 'updated', toolName: 'replacement', arguments: { query: 'test' } });
+			const completed = await result;
 			const afterSuccess = session.appliedSnapshot.tools;
 			mockSession.setToolsError = new Error('replacement rejected');
 			await assert.rejects(session.updateClientTools([]), /replacement rejected/);
@@ -24751,20 +24768,289 @@ Use the attached image as context.
 
 			assert.deepStrictEqual({
 				before,
+				beforeAcceptance,
 				afterSuccess,
 				afterFailure,
 				afterRemoval: session.appliedSnapshot.tools,
 				updates: mockSession.setToolsCalls.map(tools => tools.map(({ name, description, parameters }) => ({ name, description, parameters }))),
 				contributors: getActions(signals).flatMap(action => action.type === ActionType.ChatToolCallStart ? [action.contributor] : []),
+				readyContributors: getActions(signals).flatMap(action => action.type === ActionType.ChatToolCallReady ? [action.contributor] : []),
+				executed,
+				result: { resultType: completed.resultType, textResultForLlm: completed.textResultForLlm },
 			}, {
 				before: snapshot.tools,
+				beforeAcceptance: { actions: [], executed: [] },
 				afterSuccess: definitions,
 				afterFailure: definitions,
 				afterRemoval: [],
 				updates: [[{ name: 'replacement', description: 'Updated description', parameters: definitions[0].inputSchema }], [], []],
-				contributors: [undefined, { kind: ToolCallContributorKind.Client, clientId: 'client' }],
+				contributors: [{ kind: ToolCallContributorKind.Client, clientId: 'client' }],
+				readyContributors: [{ kind: ToolCallContributorKind.Client, clientId: 'client' }],
+				executed: ['not-yet-applied'],
+				result: { resultType: 'success', textResultForLlm: 'replacement result' },
 			});
 		});
+
+		test('same-name client tool replacement holds new calls while existing and unchanged handlers finish', async () => {
+			const activeClientToolSet = activeClientToolSetWith('old-client');
+			const { session, runtime, mockSession, signals, onProgress } = await createAgentSession(disposables, {
+				clientSnapshot: snapshot, activeClientToolSet,
+				configValues: { [SessionConfigKey.AutoApprove]: 'autoApprove' },
+			});
+			await session.syncPermissionMode('turn-start');
+			const [originalTool] = runtime.createClientSdkTools();
+			runtime.configureClientTools!(clientToolConfiguration());
+			mockSession.fire('tool.execution_start', { toolCallId: 'original', toolName: 'my_tool', arguments: {} });
+			const originalResult = invokeClientToolHandler(originalTool, 'original');
+			const unchanged = { name: 'unchanged' };
+			const additions = [...snapshot.tools, unchanged];
+			activeClientToolSet.set('old-client', additions);
+			await session.updateClientTools(additions);
+			const unchangedTool = mockSession.setToolsCalls[0].find(tool => tool.name === 'unchanged')!;
+			const definitions: ToolDefinition[] = [{
+				...snapshot.tools[0],
+				inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] },
+			}, unchanged];
+			activeClientToolSet.set('old-client', [unchanged]);
+			activeClientToolSet.set('new-client', definitions);
+			const executed: string[] = [];
+			disposables.add(onProgress(signal => {
+				if (signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallReady) {
+					executed.push(signal.action.toolCallId);
+					session.handleClientToolCallComplete(signal.action.toolCallId, {
+						success: true, pastTenseMessage: 'Completed',
+						content: [{ type: ToolResultContentType.Text, text: signal.action.toolCallId }],
+					});
+				}
+			}));
+			const gate = new DeferredPromise<void>();
+			mockSession.setToolsGate = gate.p;
+			const updating = session.updateClientTools(definitions);
+			mockSession.fire('assistant.tool_call_delta', { toolCallId: 'replacement', toolName: 'my_tool', inputDelta: '{"query":"new"}' });
+			mockSession.fire('tool.execution_start', { toolCallId: 'replacement', toolName: 'my_tool', arguments: { query: 'new' } });
+			const replacementTool = mockSession.setToolsCalls[1].find(tool => tool.name === 'my_tool')!;
+			const replacementResult = invokeClientToolHandler(replacementTool, 'replacement', { query: 'new' });
+			mockSession.fire('tool.execution_start', { toolCallId: 'unchanged-call', toolName: 'unchanged', arguments: {} });
+			const unchangedResult = await invokeClientToolHandler(unchangedTool, 'unchanged-call');
+			session.handleClientToolCallComplete('original', {
+				success: true, pastTenseMessage: 'Original completed',
+				content: [{ type: ToolResultContentType.Text, text: 'original' }],
+			});
+			const completedOriginal = await originalResult;
+			const beforeAcceptance = [...executed];
+			gate.complete();
+			await updating;
+			const completedReplacement = await replacementResult;
+			assert.deepStrictEqual({
+				beforeAcceptance,
+				executed,
+				contributors: getActions(signals).flatMap(action => action.type === ActionType.ChatToolCallStart ? [[action.toolCallId, action.contributor]] : []),
+				results: [completedOriginal, unchangedResult, completedReplacement].map(result => [result.resultType, result.textResultForLlm]),
+			}, {
+				beforeAcceptance: ['unchanged-call'],
+				executed: ['unchanged-call', 'replacement'],
+				contributors: [
+					['original', { kind: ToolCallContributorKind.Client, clientId: 'old-client' }],
+					['unchanged-call', { kind: ToolCallContributorKind.Client, clientId: 'old-client' }],
+					['replacement', { kind: ToolCallContributorKind.Client, clientId: 'new-client' }],
+				],
+				results: [['success', 'original'], ['success', 'unchanged-call'], ['success', 'replacement']],
+			});
+		});
+
+		for (const toolName of ['added', 'my_tool']) {
+			test(`rejected client tool replacement fails held ${toolName} calls and remains retryable`, async () => {
+				const activeClientToolSet = activeClientToolSetWith('client');
+				const { session, runtime, mockSession, signals } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientToolSet });
+				runtime.configureClientTools!(clientToolConfiguration());
+				const definitions: ToolDefinition[] = [{ name: toolName, inputSchema: { type: 'object', properties: { query: { type: 'string' } } } }];
+				activeClientToolSet.set('client', definitions);
+				const gate = new DeferredPromise<void>();
+				mockSession.setToolsGate = gate.p;
+				mockSession.setToolsError = new Error('replacement rejected');
+				const updating = assert.rejects(session.updateClientTools(definitions), /replacement rejected/);
+				const tool = mockSession.setToolsCalls[0][0];
+				mockSession.fire('tool.execution_start', { toolCallId: 'rejected', toolName, arguments: { query: 'test' } });
+				const result = invokeClientToolHandler(tool, 'rejected', { query: 'test' });
+				const permission = runtime.handlePermissionRequest({ kind: 'custom-tool', toolCallId: 'rejected', toolName });
+				gate.complete();
+				await updating;
+				const completed = await result;
+				const lateHandler = await invokeClientToolHandler(tool, 'late-rejected', { query: 'test' });
+				const afterRejection = session.appliedSnapshot.tools;
+				mockSession.setToolsError = undefined;
+				await session.updateClientTools(definitions);
+				assert.deepStrictEqual({
+					afterRejection,
+					applied: session.appliedSnapshot.tools,
+					results: [completed.resultType, lateHandler.resultType],
+					permission: (await permission).kind,
+					lifecycle: getActions(signals)
+						.filter(action => action.type === ActionType.ChatToolCallStart || action.type === ActionType.ChatToolCallReady || action.type === ActionType.ChatToolCallComplete)
+						.map(action => ({
+							type: action.type,
+							contributor: action.type === ActionType.ChatToolCallStart || action.type === ActionType.ChatToolCallReady ? action.contributor : undefined,
+							success: action.type === ActionType.ChatToolCallComplete ? action.result.success : undefined,
+						})),
+					updates: mockSession.setToolsCalls.map(tools => tools.map(tool => tool.name)),
+				}, {
+					afterRejection: snapshot.tools,
+					applied: definitions,
+					results: ['failure', 'failure'],
+					permission: 'reject',
+					lifecycle: [
+						{ type: ActionType.ChatToolCallStart, contributor: undefined, success: undefined },
+						{ type: ActionType.ChatToolCallReady, contributor: undefined, success: undefined },
+						{ type: ActionType.ChatToolCallComplete, contributor: undefined, success: false },
+					],
+					updates: [[toolName], [toolName]],
+				});
+			});
+		}
+
+		test('client tool replacement holds permissions arriving before the start until accepted routing is ready', async () => {
+			const activeClientToolSet = activeClientToolSetWith('client');
+			const { session, runtime, mockSession, signals, waitForSignal } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientToolSet });
+			runtime.configureClientTools!(clientToolConfiguration());
+			const definitions = [{ name: 'added' }];
+			activeClientToolSet.set('client', definitions);
+			const gate = new DeferredPromise<void>();
+			mockSession.setToolsGate = gate.p;
+			const updating = session.updateClientTools(definitions);
+			const permission = runtime.handlePermissionRequest({ kind: 'custom-tool', toolCallId: 'held-permission', toolName: 'added' });
+			mockSession.fire('tool.execution_start', { toolCallId: 'held-permission', toolName: 'added', arguments: {} });
+			const beforeAcceptance = [...signals];
+			gate.complete();
+			await updating;
+			const confirmation = await waitForSignal(signal => signal.kind === 'pending_confirmation');
+			session.respondToPermissionRequest('held-permission', false);
+			assert.deepStrictEqual({
+				beforeAcceptance,
+				contributor: confirmation.kind === 'pending_confirmation' ? confirmation.state.contributor : undefined,
+				starts: getActions(signals).flatMap(action => action.type === ActionType.ChatToolCallStart ? [action.contributor] : []),
+				permission: (await permission).kind,
+			}, {
+				beforeAcceptance: [],
+				contributor: { kind: ToolCallContributorKind.Client, clientId: 'client' },
+				starts: [{ kind: ToolCallContributorKind.Client, clientId: 'client' }],
+				permission: 'reject',
+			});
+		});
+
+		for (const ending of ['abort', 'dispose', 'discard', 'next turn'] as const) {
+			test(`held client tool replacement callbacks settle on ${ending} without late starts`, async () => {
+				const activeClientToolSet = activeClientToolSetWith('client');
+				const { session, runtime, mockSession, signals } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientToolSet });
+				session.resetTurnState('original-turn');
+				runtime.configureClientTools!(clientToolConfiguration());
+				const definitions = [{ name: 'added' }];
+				activeClientToolSet.set('client', definitions);
+				const gate = new DeferredPromise<void>();
+				mockSession.setToolsGate = gate.p;
+				const updating = session.updateClientTools(definitions);
+				mockSession.fire('tool.execution_start', { toolCallId: 'cancelled', toolName: 'added', arguments: {} });
+				const result = invokeClientToolHandler(mockSession.setToolsCalls[0][0], 'cancelled');
+				const permission = runtime.handlePermissionRequest({ kind: 'custom-tool', toolCallId: 'cancelled', toolName: 'added' });
+				try {
+					if (ending === 'abort') {
+						await session.abort();
+					} else if (ending === 'dispose') {
+						session.dispose();
+					} else if (ending === 'discard') {
+						session.discardActiveTurn();
+					} else {
+						session.resetTurnState('next-turn');
+					}
+					const completed = await result;
+					const denied = await permission;
+					gate.complete();
+					await updating;
+					assert.deepStrictEqual({
+						result: completed.resultType,
+						permission: denied.kind,
+						lifecycle: getActions(signals).filter(action =>
+							action.type === ActionType.ChatToolCallStart || action.type === ActionType.ChatToolCallReady || action.type === ActionType.ChatToolCallComplete),
+						applied: session.appliedSnapshot.tools,
+					}, { result: 'failure', permission: 'reject', lifecycle: [], applied: definitions });
+				} finally {
+					gate.complete();
+					await updating;
+				}
+			});
+		}
+
+		test('a terminal event for a held client tool replacement settles its handler before SDK acceptance', async () => {
+			const activeClientToolSet = activeClientToolSetWith('client');
+			const { session, runtime, mockSession, signals } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientToolSet });
+			runtime.configureClientTools!(clientToolConfiguration());
+			const definitions = [{ name: 'added' }];
+			activeClientToolSet.set('client', definitions);
+			const gate = new DeferredPromise<void>();
+			mockSession.setToolsGate = gate.p;
+			const updating = session.updateClientTools(definitions);
+			mockSession.fire('tool.execution_start', { toolCallId: 'ended', toolName: 'added', arguments: {} });
+			const result = invokeClientToolHandler(mockSession.setToolsCalls[0][0], 'ended');
+			mockSession.fire('tool.execution_complete', { toolCallId: 'ended', success: false, error: { message: 'Runtime stopped the call' } });
+			const completed = await result;
+			const beforeAcceptance = getActions(signals);
+			gate.complete();
+			await updating;
+			assert.deepStrictEqual({
+				result: { resultType: completed.resultType, textResultForLlm: completed.textResultForLlm },
+				unchanged: getActions(signals),
+				contributors: beforeAcceptance.flatMap(action => action.type === ActionType.ChatToolCallReady ? [action.contributor] : []),
+				completions: beforeAcceptance.flatMap(action => action.type === ActionType.ChatToolCallComplete ? [action.result.success] : []),
+			}, {
+				result: { resultType: 'failure', textResultForLlm: 'Runtime stopped the call' },
+				unchanged: beforeAcceptance,
+				contributors: [undefined],
+				completions: [false],
+			});
+		});
+
+		for (const toolName of [SEMANTIC_SEARCH_TOOL_NAME, CLIENT_TOOL_SEARCH_REFERENCE_NAME]) {
+			test(`client tool replacement releases ${toolName} handlers without a permission callback`, async () => {
+				const activeClientToolSet = activeClientToolSetWith('client');
+				const { session, runtime, mockSession, signals, onProgress } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientToolSet });
+				runtime.createClientSdkTools(true);
+				runtime.configureClientTools!(clientToolConfiguration(true));
+				const definitions = [...snapshot.tools, { name: toolName }];
+				activeClientToolSet.set('client', definitions);
+				const gate = new DeferredPromise<void>();
+				mockSession.setToolsGate = gate.p;
+				disposables.add(onProgress(signal => {
+					if (signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallReady && signal.action.toolCallId === 'held-search') {
+						session.handleClientToolCallComplete('held-search', {
+							success: true, pastTenseMessage: 'Searched',
+							content: [{ type: ToolResultContentType.Text, text: '[]' }],
+						});
+					}
+				}));
+				const updating = session.updateClientTools(definitions);
+				const sdkName = toolName === CLIENT_TOOL_SEARCH_REFERENCE_NAME ? RUNTIME_TOOL_SEARCH_TOOL_NAME : toolName;
+				const tool = mockSession.setToolsCalls[0].find(tool => tool.name === sdkName)!;
+				mockSession.fire('assistant.tool_call_delta', { toolCallId: 'held-search', toolName: sdkName, inputDelta: '{"query":"test"}' });
+				mockSession.fire('tool.execution_start', { toolCallId: 'held-search', toolName: sdkName, arguments: { query: 'test' } });
+				const result = invokeClientToolHandler(tool, 'held-search', { query: 'test' });
+				const beforeAcceptance = getActions(signals);
+				gate.complete();
+				await updating;
+				const completed = await result;
+				assert.deepStrictEqual({
+					beforeAcceptance,
+					result: completed.resultType,
+					lifecycle: getActions(signals).flatMap(action =>
+						action.type === ActionType.ChatToolCallStart || action.type === ActionType.ChatToolCallReady ? [[action.type, action.contributor]] : []),
+				}, {
+					beforeAcceptance: [],
+					result: 'success',
+					lifecycle: [
+						[ActionType.ChatToolCallStart, { kind: ToolCallContributorKind.Client, clientId: 'client' }],
+						[ActionType.ChatToolCallReady, { kind: ToolCallContributorKind.Client, clientId: 'client' }],
+					],
+				});
+			});
+		}
 
 		for (const activity of ['turn', 'subagent'] as const) {
 			test(`client tool removal and rename apply during an active ${activity} without aborting or disconnecting`, async () => {
