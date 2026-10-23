@@ -508,6 +508,13 @@ export function getCompletedResponseCollapseEndIndex(content: ReadonlyArray<ICha
 	return finalResponseStartIndex;
 }
 
+/** Match the list's nearest-pixel measurement for image responses so refreshes do not shift them. */
+function roundChatItemHeight(element: ChatTreeItem, height: number): number {
+	const hasImageGeneration = isResponseVM(element) && element.response.value.some(part =>
+		(part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && isImageGenerationToolInvocation(part));
+	return hasImageGeneration ? Math.round(height) : Math.ceil(height);
+}
+
 /** How a freshly measured row height should be reconciled against the tree's known height. */
 export type ChatItemHeightUpdateKind = 'none' | 'fire' | 'scheduleInitial' | 'deferReMeasure';
 
@@ -1051,8 +1058,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		template.lastMeasuredHeight = height;
-		const normalizedHeight = Math.ceil(height);
 		const element = template.currentElement;
+		const normalizedHeight = roundChatItemHeight(element, height);
 		this.updateWorkingProgressRounding(template, height);
 		const update = reconcileChatItemHeight(
 			normalizedHeight,
@@ -1092,7 +1099,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (!progress) {
 			return;
 		}
-		const rounding = `${Math.ceil(measuredHeight) - measuredHeight}px`;
+		const rounding = `${roundChatItemHeight(template.currentElement, measuredHeight) - measuredHeight}px`;
 		if (progress.domNode.style.getPropertyValue('--chat-response-height-rounding') !== rounding) {
 			progress.domNode.style.setProperty('--chat-response-height-rounding', rounding);
 		}

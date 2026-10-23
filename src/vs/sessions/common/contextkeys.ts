@@ -8,6 +8,10 @@ import { ContextKeyExpr, RawContextKey } from '../../platform/contextkey/common/
 import { AuxiliaryBarFocusContext, EditorAreaFocusContext } from '../../workbench/common/contextkeys.js';
 import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from './sessionConfig.js';
 
+export function sessionActivityBarChatActionContext(commandId: string): RawContextKey<boolean> {
+	return new RawContextKey<boolean>(`sessionActivityBar.chatAction.${commandId}`, false);
+}
+
 //#region < --- Active Session --- >
 
 export const IsNewChatSessionContext = new RawContextKey<boolean>('isNewChatSession', true);

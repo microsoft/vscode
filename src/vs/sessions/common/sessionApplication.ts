@@ -7,8 +7,16 @@ import { uppercaseFirstLetter } from '../../base/common/strings.js';
 import { localize } from '../../nls.js';
 import type { ISessionApplication } from '../services/sessions/common/session.js';
 
+export const UNKNOWN_SESSION_APPLICATION_ID = 'unknown';
+
 export function getSessionApplication(name: string, title?: string): ISessionApplication {
 	switch (name) {
+		// Generic task event types do not identify the creating application, including in older caches.
+		case 'agent_tasks_api':
+		case 'agent_tasks_public_api':
+		case 'api_call_received':
+		case 'unknown':
+			return { id: UNKNOWN_SESSION_APPLICATION_ID, label: localize('application.unknown', "Unknown") };
 		case 'vscode':
 		case 'copilot-vscode':
 		case 'vscode-editor-window':

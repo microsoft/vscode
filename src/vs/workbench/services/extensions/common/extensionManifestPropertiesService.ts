@@ -37,6 +37,60 @@ const SESSIONS_WINDOW_ALLOWED_CONTRIBUTION_POINTS: ReadonlySet<keyof IExtensionC
 	'languages',
 ]);
 
+/**
+ * Contribution points that make an extension worth enabling in the sessions window.
+ */
+const SESSIONS_WINDOW_SUGGESTED_CONTRIBUTION_POINTS: ReadonlySet<string> = new Set([
+	// Agent capabilities and customizations, which the sessions window forwards to its agents.
+	'languageModelTools',
+	'languageModelToolSets',
+	'mcpServerDefinitionProviders',
+	'chatSkills',
+	'chatAgents',
+	'chatInstructions',
+	'chatPromptFiles',
+	'chatPlugins',
+	// Reviewing the files and changes that agents produce.
+	'grammars',
+	'customEditors',
+	'notebooks',
+	'notebookRenderer',
+	'markdown.markdownItPlugins',
+	'markdown.previewScripts',
+	'markdown.previewStyles',
+]);
+
+/**
+ * Contribution points that rely on features the sessions window lacks, so the extension might not behave well there.
+ */
+const SESSIONS_WINDOW_WARNING_SIGN_CONTRIBUTION_POINTS: ReadonlySet<string> = new Set([
+	// There is no Activity Bar, and the sidebar and panel only host views of the sessions window.
+	'viewsContainers',
+	'views',
+	'viewsWelcome',
+	// Debugging is not available.
+	'debuggers',
+	'breakpoints',
+	'debugVisualizers',
+	// There is no Status Bar.
+	'statusBarItems',
+	// There is no Getting Started page.
+	'walkthroughs',
+]);
+
+function getContributedPoints(manifest: IExtensionManifest, points: ReadonlySet<string>): string[] {
+	return Object.entries(manifest.contributes ?? {})
+		.filter(([point, value]) => points.has(point) && (Array.isArray(value) ? value.length > 0 : !!value))
+		.map(([point]) => point);
+}
+
+/**
+ * Returns the contribution points of an extension that make it worth enabling in the sessions window.
+ */
+export function getSessionsWindowSuggestedContributions(manifest: IExtensionManifest): string[] {
+	return getContributedPoints(manifest, SESSIONS_WINDOW_SUGGESTED_CONTRIBUTION_POINTS);
+}
+
 export interface IExtensionManifestPropertiesService {
 	readonly _serviceBrand: undefined;
 
@@ -48,6 +102,12 @@ export interface IExtensionManifestPropertiesService {
 	canExecuteOnWorkspace(manifest: IExtensionManifest): boolean;
 	canExecuteOnWeb(manifest: IExtensionManifest): boolean;
 	canExecuteOnSessionsWindow(manifest: IExtensionManifest, isBuiltin?: boolean): boolean;
+	/**
+	 * Whether an extension that doesn't support the sessions window can be enabled there automatically: it contributes
+	 * something that is useful in the sessions window and nothing that relies on features the sessions window lacks,
+	 * and neither its author nor the user has declared that it doesn't support the sessions window.
+	 */
+	canAutoEnableOnSessionsWindow(manifest: IExtensionManifest, isBuiltin?: boolean): boolean;
 
 	getExtensionKind(manifest: IExtensionManifest): ExtensionKind[];
 	getUserConfiguredExtensionKind(extensionIdentifier: IExtensionIdentifier): ExtensionKind[] | undefined;
@@ -127,6 +187,17 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 		// Only allow extensions that contribute to themes and other declarative, non-executing contribution points
 		const contributionPoints = Object.keys(manifest.contributes || {}) as Array<keyof IExtensionContributions>;
 		return contributionPoints.every(point => SESSIONS_WINDOW_ALLOWED_CONTRIBUTION_POINTS.has(point));
+	}
+
+	canAutoEnableOnSessionsWindow(manifest: IExtensionManifest, isBuiltin: boolean = false): boolean {
+		// Built-in extensions are curated by the product.
+		if (isBuiltin || this.canExecuteOnSessionsWindow(manifest, isBuiltin)) {
+			return false;
+		}
+		if (manifest.capabilities?.agentsWindow?.supported === false || this.getConfiguredSessionsWindowSupport(manifest) === false) {
+			return false;
+		}
+		return getSessionsWindowSuggestedContributions(manifest).length > 0 && getContributedPoints(manifest, SESSIONS_WINDOW_WARNING_SIGN_CONTRIBUTION_POINTS).length === 0;
 	}
 
 	prefersExecuteOnUI(manifest: IExtensionManifest): boolean {

@@ -31,7 +31,7 @@ import { ITelemetryService } from '../../../../../../../platform/telemetry/commo
 import { COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_ID, isCopilotHydraFusionModelId } from '../../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
 import { COPILOT_VENDOR_ID, getLanguageModelProviderDisplayName, IModelControlEntry, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isUserProvidedModel } from '../../../../common/languageModels.js';
-import { SessionType } from '../../../../common/chatSessionsService.js';
+import { getAddModelsUnavailableReason, SessionType } from '../../../../common/chatSessionsService.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
 import { getLanguageModelDisplayNameWithSubscriptionSource } from '../../../../common/languageModelSourcePresentation.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
@@ -42,6 +42,7 @@ import { GitHubPaths, IDefaultAccountService } from '../../../../../../../platfo
 import { IUpdateService } from '../../../../../../../platform/update/common/update.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkbenchEnvironmentService } from '../../../../../../services/environment/common/environmentService.js';
 import { getCompactCodicon } from '../../../chatIcons.js';
 import { renderChatInputPickerSplit } from '../chatInputPickerActionItem.js';
 import { createManageModelsAction, getModelPickerControlModels, shouldShowManageModelsAction } from './modelPickerItems.js';
@@ -203,11 +204,13 @@ export class ModelPickerWidget extends Disposable {
 		@IStorageService private readonly _storageService: IStorageService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 		if (this._delegate.comparison) {
 			this._register(autorun(reader => {
 				this._delegate.comparison?.summary.read(reader);
+				this._delegate.comparisonBusy?.read(reader);
 				if (!this._delegate.comparison?.available.read(reader)) {
 					this._tabbedPicker.value?.hide();
 				}
@@ -758,6 +761,7 @@ export class ModelPickerWidget extends Disposable {
 		const presentation = this._delegate.getPresentationOptions();
 		const canShowManageModelsAction = presentation.showManageModelsAction && shouldShowManageModelsAction(this._entitlementService);
 		const manageModelsAction = canShowManageModelsAction ? createManageModelsAction(this._commandService, this._delegate.getSessionType?.()) : undefined;
+		const manageModelsDisabledReason = manageModelsAction ? getAddModelsUnavailableReason(this._delegate.getSessionType?.(), this._environmentService.remoteAuthority) : undefined;
 		const logModelPickerInteraction = (interaction: ChatModelPickerInteraction) => {
 			this._telemetryService.publicLog2<ChatModelPickerInteractionEvent, ChatModelPickerInteractionClassification>('chat.modelPickerInteraction', { interaction });
 		};
@@ -801,6 +805,7 @@ export class ModelPickerWidget extends Disposable {
 			configurationAccess: this._delegate.modelConfiguration ?? this._languageModelsService,
 			isUBB: !!this._entitlementService.quotas.usageBasedBilling,
 			showManageModels: !!manageModelsAction && !restrictedMode,
+			manageModelsDisabledReason,
 			providerPlaceholders: placeholders,
 			unavailableContext: {
 				show: presentation.showUnavailableFeatured,
@@ -857,6 +862,7 @@ export class ModelPickerWidget extends Disposable {
 
 		models ??= this._delegate.getModels();
 		const comparisonSummary = this._delegate.comparison?.summary.get();
+		const comparisonBusy = !!comparisonSummary && (this._delegate.comparisonBusy?.get() ?? false);
 		const routingTier = !comparisonSummary && this._selectedModel ? this._getRoutingTier(this._selectedModel, models) : undefined;
 		const shownModel = routingTier?.shownModel ?? this._selectedModel;
 		const displayName = shownModel ? getLanguageModelDisplayNameWithSubscriptionSource(shownModel) : undefined;
@@ -877,7 +883,7 @@ export class ModelPickerWidget extends Disposable {
 		const nameChildren: (HTMLElement | string)[] = [];
 		const compact = this._compact?.get() ?? false;
 		const minimal = this._minimal?.get() ?? false;
-		const modelIcon = comparisonSummary ? Codicon.compare : shownModel
+		const modelIcon = comparisonBusy ? Codicon.loadingCompact : comparisonSummary ? Codicon.compare : shownModel
 			? (this._delegate.getPresentationOptions().showModelIcon
 				? getCompactModelPickerIcon(shownModel)
 				: shownModel.metadata.statusIcon ? getCompactCodicon(shownModel.metadata.statusIcon) : undefined)
@@ -919,6 +925,7 @@ export class ModelPickerWidget extends Disposable {
 		// icon to collapse to, the name keeps its label and stays a regular chip.
 		this._domNode.classList.toggle('compact', compact && !showModelLabel);
 		this._domNode.classList.toggle('icon-only', !showModelLabel && !configVisible);
+		this._domNode.classList.toggle('comparison-busy', comparisonBusy);
 
 		// Aria — name the control "Models" to match the visible label; the comma
 		// separates the control name from its current value / state.

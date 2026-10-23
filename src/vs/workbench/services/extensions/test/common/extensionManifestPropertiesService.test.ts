@@ -9,12 +9,12 @@ import { isWeb } from '../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY, ExtensionUntrustedWorkspaceSupportType, IExtensionManifest } from '../../../../../platform/extensions/common/extensions.js';
+import { EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY, ExtensionUntrustedWorkspaceSupportType, IExtensionContributions, IExtensionManifest } from '../../../../../platform/extensions/common/extensions.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IWorkspaceTrustEnablementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
-import { EXTENSIONS_SUPPORT_AGENTS_WINDOW, ExtensionManifestPropertiesService } from '../../common/extensionManifestPropertiesService.js';
+import { EXTENSIONS_SUPPORT_AGENTS_WINDOW, ExtensionManifestPropertiesService, getSessionsWindowSuggestedContributions } from '../../common/extensionManifestPropertiesService.js';
 import { TestProductService, TestWorkspaceTrustEnablementService } from '../../../../test/common/workbenchTestServices.js';
 
 suite('ExtensionManifestPropertiesService - ExtensionKind', () => {
@@ -201,6 +201,48 @@ suite('ExtensionManifestPropertiesService - SessionsWindowSupport', () => {
 			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ capabilities: { agentsWindow: { supported: false } }, contributes: { themes: [] } })),
 			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ main: './out/extension.js', capabilities: { agentsWindow: { supported: true } }, contributes: { views: {} } }), true),
 		], [false, true, true]);
+	});
+
+	test('automatically enables extensions that contribute something useful and nothing that relies on missing features', async () => {
+		await testConfigurationService.setUserConfiguration(EXTENSIONS_SUPPORT_AGENTS_WINDOW, { 'pub.configuredUnsupported': false });
+		testObject = createTestObject();
+		const extension = (name: string, contributes: Record<string, unknown>, properties: Partial<IExtensionManifest> = {}) =>
+			getExtensionManifest({ name, main: './out/extension.js', contributes: contributes as IExtensionContributions, ...properties });
+		const manifests = [
+			extension('tools', { languageModelTools: [{}] }),
+			extension('mcp', { commands: [{}], mcpServerDefinitionProviders: [{}] }),
+			extension('markdownPlugin', { 'markdown.markdownItPlugins': true }),
+			extension('toolsWithViews', { languageModelTools: [{}], views: { explorer: [{}] } }),
+			extension('grammarWithDebugger', { grammars: [{}], debuggers: [{}] }),
+			extension('toolsWithStatusBarItem', { languageModelTools: [{}], statusBarItems: { item: {} } }),
+			extension('commandsOnly', { commands: [{}] }),
+			extension('noTools', { languageModelTools: [] }),
+			extension('declaredUnsupported', { languageModelTools: [{}] }, { capabilities: { agentsWindow: { supported: false } } }),
+			extension('configuredUnsupported', { languageModelTools: [{}] }),
+			getExtensionManifest({ name: 'supported', contributes: { grammars: [{ language: 'a' }] } }),
+		];
+
+		assert.deepStrictEqual({
+			user: Object.fromEntries(manifests.map(manifest => [manifest.name, testObject.canAutoEnableOnSessionsWindow(manifest)])),
+			builtin: testObject.canAutoEnableOnSessionsWindow(manifests[0], true),
+			suggestedContributions: getSessionsWindowSuggestedContributions(manifests[1]),
+		}, {
+			user: {
+				tools: true,
+				mcp: true,
+				markdownPlugin: true,
+				toolsWithViews: false,
+				grammarWithDebugger: false,
+				toolsWithStatusBarItem: false,
+				commandsOnly: false,
+				noTools: false,
+				declaredUnsupported: false,
+				configuredUnsupported: false,
+				supported: false,
+			},
+			builtin: false,
+			suggestedContributions: ['mcpServerDefinitionProviders'],
+		});
 	});
 });
 

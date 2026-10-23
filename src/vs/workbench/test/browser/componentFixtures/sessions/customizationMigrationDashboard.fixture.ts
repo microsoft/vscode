@@ -119,8 +119,13 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	MigrationsMarketplaceError: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['A marketplace-specific error card appears above otherwise usable migration groups with an error icon, localized guidance, and a Retry button.'],
+		expectedVisualDescriptions: ['A compact marketplace-specific error card appears above the yellow prompt-to-skill warning and otherwise usable migration groups. Both cards keep their icons beside their title and description, and the Retry button is content-sized at the trailing edge.'],
 		render: ctx => renderDashboard(ctx, 860, 'marketplaceError'),
+	}),
+	MigrationsMarketplaceErrorNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['In a narrow dashboard, the marketplace error icon stays beside its wrapped title and description while the content-sized Retry button moves below the text. The yellow prompt-to-skill warning below keeps its icon beside the wrapped warning text.'],
+		render: ctx => renderDashboard(ctx, 360, 'marketplaceError'),
 	}),
 	MigrationsMcpWarnings: defineComponentFixture({
 		labels: { kind: 'screenshot' },
@@ -136,6 +141,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 async function renderDashboard(ctx: ComponentFixtureContext, width: number, state: 'overview' | 'tooltip' | 'partial' | 'disabled' | 'ignored' | 'loading' | 'error' | 'zero' | 'marketplaceError' | 'mcpWarnings'): Promise<void> {
 	const { container, disposableStore, theme } = ctx;
+	container.classList.add('ai-customization-management-editor');
 	const dashboardContainer = state === 'tooltip' ? DOM.append(container, DOM.$('.customization-migration-dashboard-fixture')) : container;
 	container.style.width = `${state === 'tooltip' ? width + 300 : width}px`;
 	const height = width < 500 ? 1000 : 740;
@@ -209,8 +215,8 @@ async function renderDashboard(ctx: ComponentFixtureContext, width: number, stat
 			...model,
 			categoryErrors: [{
 				id: CustomizationMigrationCategoryId.PluginMarketplaces,
-				label: 'Plugin marketplaces could not be checked',
-				description: 'Check the active agent connection, then try again.',
+				label: 'Couldn\'t load Copilot\'s plugin marketplaces',
+				description: 'Check the Copilot connection, then try again.',
 			}],
 		};
 	} else if (state === 'mcpWarnings') {

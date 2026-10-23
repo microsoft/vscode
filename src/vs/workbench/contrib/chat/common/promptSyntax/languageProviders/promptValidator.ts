@@ -30,6 +30,7 @@ import { IPathService } from '../../../../../services/path/common/pathService.js
 import { ICustomizationHarnessService } from '../../customizationHarnessService.js';
 import { getAgentFileModelReasoningEfforts, resolveAgentFileModelIdentifier, resolveAgentFileModelIdentifiers, resolveAgentFileModels } from './promptModelResolver.js';
 import { getEffectiveAgentFileToolAvailability, resolveAgentFileToolIdentifiers, resolveAgentFileTools } from './promptToolResolver.js';
+import { getEffectiveAgentFileSkillAvailability, resolveAgentFileSkillIdentifiers, resolveAgentFileSkills } from './promptSkillResolver.js';
 
 export const MARKERS_OWNER_ID = 'prompts-diagnostics-provider';
 
@@ -401,6 +402,7 @@ export class PromptValidator {
 		this.validateGithubPermissions(attributes, report, false);
 		this.validateCopilotMcpServers(attributes, report);
 		await this.validateCopilotTools(attributes, target, report);
+		await this.validateCopilotSkills(attributes, target, report);
 	}
 
 	private async validateCopilotTools(attributes: IHeaderAttribute[], target: Target, report: (markers: IMarkerData) => void): Promise<void> {
@@ -443,6 +445,45 @@ export class PromptValidator {
 			} else if (availability === 'unavailable') {
 				report(toMarker(
 					localize('promptValidator.copilotToolUnavailable', "Tool '{0}' is recognized but currently unavailable for the matching GitHub Copilot harness.", item.value),
+					item.range,
+					MarkerSeverity.Hint,
+					[MarkerTag.Unnecessary],
+				));
+			}
+		}
+	}
+
+	private async validateCopilotSkills(attributes: IHeaderAttribute[], target: Target, report: (markers: IMarkerData) => void): Promise<void> {
+		const attribute = attributes.find(attr => attr.key === PromptHeaderAttributes.skills);
+		if (!attribute || attribute.value.type !== 'sequence') {
+			return;
+		}
+		const catalogue = await resolveAgentFileSkills(target, this.customizationHarnessService, this.logService, CancellationToken.None);
+		if (!catalogue.isResolved) {
+			return;
+		}
+		for (const item of attribute.value.items) {
+			if (item.type !== 'scalar') {
+				continue;
+			}
+			const availability = getEffectiveAgentFileSkillAvailability(resolveAgentFileSkillIdentifiers(item.value, catalogue.skills));
+			if (!availability) {
+				report(toMarker(
+					localize('promptValidator.copilotSkillUnknown', "Skill '{0}' is not recognized by the matching GitHub Copilot harness.", item.value),
+					item.range,
+					MarkerSeverity.Hint,
+					[MarkerTag.Unnecessary],
+				));
+			} else if (availability === 'disabled') {
+				report(toMarker(
+					localize('promptValidator.copilotSkillDisabled', "Skill '{0}' is recognized but disabled for the matching GitHub Copilot harness.", item.value),
+					item.range,
+					MarkerSeverity.Hint,
+					[MarkerTag.Unnecessary],
+				));
+			} else if (availability === 'unavailable') {
+				report(toMarker(
+					localize('promptValidator.copilotSkillUnavailable', "Skill '{0}' is recognized but currently unavailable for the matching GitHub Copilot harness.", item.value),
 					item.range,
 					MarkerSeverity.Hint,
 					[MarkerTag.Unnecessary],

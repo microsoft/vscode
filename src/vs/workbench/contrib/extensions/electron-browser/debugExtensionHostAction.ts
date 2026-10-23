@@ -37,7 +37,10 @@ async function getExtensionHostPort(
 	dialogService: IDialogService,
 	productService: IProductService,
 ): Promise<number | undefined> {
-	const inspectPorts = await extensionService.getInspectPorts(ExtensionHostKind.LocalProcess, false);
+	// Try to enable the inspector on the running extension host (same as profiling does)
+	// so that debugging does not require a restart. Only fall back to restarting with
+	// `--inspect-extensions` if the inspector could not be enabled.
+	const inspectPorts = await extensionService.getInspectPorts(ExtensionHostKind.LocalProcess, true);
 	if (inspectPorts.length === 0) {
 		const res = await dialogService.confirm({
 			message: nls.localize('restart1', "Debug Extensions"),
