@@ -207,6 +207,36 @@ suite('SessionWorktreeCleanupEditor', () => {
 		}, { checked: [['first', 'second'], ['second']], rows: ['existing'] });
 	}));
 
+	test('keeps row order stable while cleanup measurements shrink', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const first = { ...createWorktree('first', '/repos/app'), sizeBytes: 300 };
+		const second = { ...createWorktree('second', '/repos/app'), sizeBytes: 200 };
+		const existing = { ...createWorktree('existing', '/repos/app', 'archived'), sizeBytes: 100 };
+		let archived = false;
+		let checks = 0;
+		const { editor, container } = createEditor({
+			getWorktrees: async () => archived
+				? [{ ...first, cleanupState: 'archived' }, { ...second, cleanupState: 'archived' }, existing]
+				: [first, second, existing],
+			cleanupWorktrees: async () => { archived = true; return true; },
+			refreshPendingCleanup: async () => ++checks === 1
+				? [{ ...first, sizeBytes: 50, cleanupState: 'archived' }, { ...second, cleanupState: 'archived' }, existing]
+				: [{ ...second, cleanupState: 'archived' }, existing],
+		});
+		await editor.setInput(disposables.add(new SessionWorktreeCleanupEditorInput()), undefined, {}, CancellationToken.None);
+		await timeout(0);
+		container.querySelector<HTMLElement>('.session-worktree-cleanup-action')!.click();
+		await timeout(2_100);
+		const rowsAfterShrink = [...container.querySelectorAll('.session-worktree-cleanup-session-link')].map(link => link.textContent);
+		await timeout(4_100);
+		assert.deepStrictEqual({
+			rowsAfterShrink,
+			rowsAfterRemoval: [...container.querySelectorAll('.session-worktree-cleanup-session-link')].map(link => link.textContent),
+		}, {
+			rowsAfterShrink: ['first', 'second', 'existing'],
+			rowsAfterRemoval: ['second', 'existing'],
+		});
+	}));
+
 	test('stops showing active progress when cleanup has not completed after repeated checks', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const worktree = createWorktree('first', '/repos/app');
 		let archived = false;

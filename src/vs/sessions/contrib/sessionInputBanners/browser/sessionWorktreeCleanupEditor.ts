@@ -82,6 +82,8 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 	private worktrees: readonly ISessionWorktree[] = [];
 	private selectedSessionIds = new Set<string>();
 	private readonly cleaningSessionIds = new Map<string, number>();
+	private displayedSessionIds: readonly string[] = [];
+	private pinnedDisplayOrder: ReadonlyMap<string, number> | undefined;
 	private renderVersion = 0;
 	private loadToken = CancellationToken.None;
 	private updateMeasuredWorktrees: ((worktrees: readonly ISessionWorktree[]) => void) | undefined;
@@ -218,11 +220,15 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		this.tableDisposables.clear();
 		this.tableHeader?.remove();
 		this.tableHeader = undefined;
+		this.pinnedDisplayOrder = undefined;
 		super.clearInput();
 	}
 
-	private async load(forceRefresh = false): Promise<void> {
+	private async load(forceRefresh = false, preserveDisplayOrder = false): Promise<void> {
 		const version = ++this.renderVersion;
+		if (!preserveDisplayOrder) {
+			this.pinnedDisplayOrder = undefined;
+		}
 		this.pendingCleanupScheduler.cancel();
 		this.loadDisposables.clear();
 		const cancellation = new CancellationTokenSource();
@@ -462,7 +468,21 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		dom.append(header, dom.$('span', { role: 'columnheader' }, localize('sessionWorktreeCleanup.lastUsedColumn', "Last Used")));
 		dom.append(header, dom.$('span', { role: 'columnheader' }, localize('sessionWorktreeCleanup.storageColumn', "Storage")));
 
-		const sortedVisible = [...visible].sort((a, b) => (b.sizeBytes ?? -1) - (a.sizeBytes ?? -1));
+		const sortedVisible = [...visible].sort((a, b) => {
+			const aPinnedIndex = this.pinnedDisplayOrder?.get(a.session.sessionId);
+			const bPinnedIndex = this.pinnedDisplayOrder?.get(b.session.sessionId);
+			if (aPinnedIndex !== undefined || bPinnedIndex !== undefined) {
+				if (aPinnedIndex === undefined) {
+					return 1;
+				}
+				if (bPinnedIndex === undefined) {
+					return -1;
+				}
+				return aPinnedIndex - bPinnedIndex;
+			}
+			return (b.sizeBytes ?? -1) - (a.sizeBytes ?? -1);
+		});
+		this.displayedSessionIds = sortedVisible.map(worktree => worktree.session.sessionId);
 		const visibleIds = new Set(sortedVisible.map(worktree => worktree.session.sessionId));
 		for (const [sessionId, rendered] of this.renderedRows) {
 			if (!visibleIds.has(sessionId)) {
@@ -601,6 +621,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 			rendered.element.remove();
 		}
 		this.renderedRows.clear();
+		this.displayedSessionIds = [];
 	}
 
 	private getCleanupStateLabel(state: Exclude<SessionWorktreeCleanupState, 'eligible'>): string {
@@ -642,12 +663,14 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 	private async cleanupSelected(): Promise<void> {
 		try {
 			const selected = this.getSelected();
+			const displayOrder = new Map(this.displayedSessionIds.map((sessionId, index) => [sessionId, index]));
 			if (await this.cleanupService.cleanupWorktrees(selected)) {
 				this.pendingCleanupDelay = 2_000;
+				this.pinnedDisplayOrder = displayOrder;
 				for (const candidate of selected) {
 					this.cleaningSessionIds.set(candidate.session.sessionId, Date.now());
 				}
-				await this.load();
+				await this.load(false, true);
 			}
 		} catch (error) {
 			this.notificationService.error(error);
