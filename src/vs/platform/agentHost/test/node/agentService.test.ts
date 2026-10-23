@@ -7438,7 +7438,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('with the real schema, a chat\'s own approvals and mode are validated, persisted and read through its chain, and an older client\'s session edit stays under them', async () => {
+		test('with the real schema, a chat\'s own approvals and mode are validated, persisted and read through its chain, and an older client\'s session edit changes only the default chat', async () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new class extends MockAgent {
 				override async createChat(): Promise<void> { }
@@ -7481,8 +7481,8 @@ suite('AgentService (node dispatcher)', () => {
 			}, {
 				results: ['applied', 'Session configuration \'isolation\' cannot be set for a chat.', 'applied', 'applied'],
 				session: ['plan', 'assisted'],
-				// The default chat's own mode shadows the older client's session edit; its approvals follow the session.
-				defaultChat: ['autopilot', 'assisted'],
+				// A session edit is the default chat's too: it replaces the default chat's own mode.
+				defaultChat: ['plan', 'assisted'],
 				peer: ['plan', 'autoApprove'],
 				subagent: ['plan', 'autoApprove'],
 				persisted: { [SessionConfigKey.Mode]: 'plan', [SessionConfigKey.AutoApprove]: 'autoApprove' },
