@@ -523,8 +523,9 @@ export interface IEditorPart extends IEditorGroupsContainer {
 	 * Hides the title of a group of the part: its tabs, or the
 	 * label of its editor, and its actions, so its editor fills it.
 	 * For a group whose editor shows its own chrome, while other
-	 * groups of the part show tabs. Shows the title again when the
-	 * returned disposable is disposed.
+	 * groups of the part show tabs. Shows the title again once the
+	 * returned disposable, and those of other calls for the group,
+	 * are disposed.
 	 */
 	hideGroupTitle(group: IEditorGroup | GroupIdentifier): IDisposable;
 

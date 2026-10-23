@@ -236,14 +236,7 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 	}
 
 	hideGroupTitle(group: IEditorGroupView | GroupIdentifier): IDisposable {
-		const groupView = this.assertGroupView(group);
-		groupView.setTitleHidden(true);
-
-		return toDisposable(() => {
-			if (!groupView.disposed) {
-				groupView.setTitleHidden(false);
-			}
-		});
+		return this.assertGroupView(group).hideTitle();
 	}
 
 	private top = 0;
