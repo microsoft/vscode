@@ -37,6 +37,8 @@ RUN_FILE=""
 RUN_GLOB=""
 GREP_PATTERN=""
 SUITE_FILTER=""
+NODE_ONLY=false
+EXTENSION_HOST_ONLY=false
 HELP=false
 AGENT_HOST_E2E_GLOB="**/agentHost/test/node/e2e/{providers/*AgentHostE2E,conformance/*}.integrationTest.js"
 
@@ -70,6 +72,14 @@ while [[ $# -gt 0 ]]; do
 			SUITE_FILTER="$2"
 			shift 2
 			;;
+		--node-only)
+			NODE_ONLY=true
+			shift
+			;;
+		--extension-host-only)
+			EXTENSION_HOST_ONLY=true
+			shift
+			;;
 		*)
 			EXTRA_ARGS+=("$1")
 			shift
@@ -97,6 +107,9 @@ if $HELP; then
 	echo "--suite selects which extension host test suites to run."
 	echo "Node.js integration tests are skipped when this option is used."
 	echo ""
+	echo "--node-only and --extension-host-only run only one of the two kinds of tests,"
+	echo "for example to run them on separate machines."
+	echo ""
 	echo "Options:"
 	echo "  --build                      use the out-build directory for node.js and JSON tests"
 	echo "  --run <file>                  run tests from a specific file (src/ path)"
@@ -104,6 +117,8 @@ if $HELP; then
 	echo "  --grep, -g, -f <pattern>      filter test cases by name (matched against test titles)"
 	echo "  --suite <pattern>             run only matching extension host test suites"
 	echo "                                supports comma-separated list and glob patterns"
+	echo "  --node-only                   run only the node.js integration tests"
+	echo "  --extension-host-only         run only the extension host tests"
 	echo "  --help, -h                    show this help"
 	echo ""
 	echo "Available suites: $KNOWN_SUITES"
@@ -195,7 +210,7 @@ fi
 
 # Unit tests
 
-if [[ -z "$SUITE_FILTER" ]]; then
+if [[ -z "$SUITE_FILTER" ]] && ! $EXTENSION_HOST_ONLY; then
 	start_suite "node.js integration tests"
 	node --input-type=module -e "import { getAgentHostTestProfile } from './src/vs/platform/agentHost/test/node/agentHostTestProfile.ts'; console.log('Agent Host test profile:', getAgentHostTestProfile(), '(' + (process.env.AGENT_HOST_TEST_PROFILE_REASON ?? 'default') + ')');"
 	if [[ -z "$RUN_GLOB" && -z "$RUN_FILE" ]]; then
@@ -207,9 +222,9 @@ if [[ -z "$SUITE_FILTER" ]]; then
 fi
 
 # Skip extension host tests when a non-suite filter is active
-if [[ -z "$SUITE_FILTER" ]] && $HAS_FILTER; then
+if [[ -z "$SUITE_FILTER" ]] && ($HAS_FILTER || $NODE_ONLY); then
 	echo ""
-	echo "Filter active, skipping extension host tests."
+	echo "Filter or --node-only active, skipping extension host tests."
 	rm -rf -- "$VSCODEUSERDATADIR"
 	exit 0
 fi
