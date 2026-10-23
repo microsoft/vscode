@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { Dimension } from '../../../../base/browser/dom.js';
+import { timeout } from '../../../../base/common/async.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -85,6 +86,34 @@ suite('DiffEditorWidget2', () => {
 			}
 		});
 	}
+
+	test('setModel disposes the view model it created once that model is replaced', async () => {
+		const services = new ServiceCollection();
+		services.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() { }());
+		services.set(IEditorProgressService, new class extends mock<IEditorProgressService>() {
+			override show() { return emptyProgressRunner; }
+		}());
+		services.set(IDiffProviderFactoryService, new TestDiffProviderFactoryService());
+		const instantiationService = createCodeEditorServices(disposables, services);
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+		const original = disposables.add(instantiateTextModel(instantiationService, 'a\nb'));
+		const modified = disposables.add(instantiateTextModel(instantiationService, 'a\nc'));
+		const widget = disposables.add(instantiationService.createInstance(DiffEditorWidget, container, {
+			renderGutterMenu: false,
+			useInlineViewWhenSpaceIsLimited: false,
+		}, {
+			originalEditor: { contributions: [] },
+			modifiedEditor: { contributions: [] },
+		}));
+
+		widget.setModel({ original, modified });
+		widget.setModel(null);
+		// The widget releases the previous view model in a timeout. If the view model is not
+		// disposed after that, ensureNoDisposablesAreLeakedInTestSuite fails this test.
+		await timeout(0);
+	});
 
 	suite('width based layout', () => {
 		test('commits temporary inline when smoothly enlarging from automatic inline', () => {

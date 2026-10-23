@@ -573,6 +573,9 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 			: ('model' in model) ? RefCounted.create(model).createNewRef(this)
 				: RefCounted.create(this.createViewModel(model), this);
 		this.setDiffModel(vm);
+		// setDiffModel takes its own reference. Releasing this one lets a view model created
+		// here be disposed once it is replaced. A view model passed in stays with its caller.
+		vm?.dispose();
 	}
 
 	setDiffModel(viewModel: RefCounted<IDiffEditorViewModel> | null, tx?: ITransaction): void {
