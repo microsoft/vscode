@@ -129,13 +129,6 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 			this.renderRows();
 		}));
 
-		const refreshButton = this.editorDisposables.add(new Button(controls, { ...defaultButtonStyles, secondary: true }));
-		refreshButton.label = localize('sessionWorktreeCleanup.refresh', "Refresh");
-		this.editorDisposables.add(refreshButton.onDidClick(() => {
-			void this.cleanupService.refresh().catch(error => this.notificationService.error(error));
-			void this.load();
-		}));
-
 		const summaryRow = this.summaryRow = dom.append(content, dom.$('.session-worktree-cleanup-summary-row'));
 		this.summary = dom.append(summaryRow, dom.$('.session-worktree-cleanup-summary'));
 		this.cleanupButton = this.editorDisposables.add(new Button(summaryRow, defaultButtonStyles));
@@ -154,6 +147,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 
 	override async setInput(input: SessionWorktreeCleanupEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
+		void this.cleanupService.refresh().catch(error => this.notificationService.error(error));
 		void this.load();
 	}
 
@@ -416,7 +410,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 			case 'archived': return localize('sessionWorktreeCleanup.archived', "Cleanup pending or blocked");
 			case 'untitled': return localize('sessionWorktreeCleanup.untitledState', "Untitled");
 			case 'error': return localize('sessionWorktreeCleanup.error', "Session error");
-			case 'unavailable': return localize('sessionWorktreeCleanup.unavailable', "Couldn't measure storage — refresh to retry");
+			case 'unavailable': return localize('sessionWorktreeCleanup.unavailable', "Couldn't measure storage");
 		}
 	}
 

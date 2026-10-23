@@ -39,7 +39,7 @@ suite('SessionWorktreeCleanupEditor', () => {
 		const updateValue = stub(configuration, 'updateValue').callsFake((key, value) => configuration.setUserConfiguration(key, value));
 		disposables.add({ dispose: () => updateValue.restore() });
 		instantiationService.stub(IConfigurationService, configuration);
-		instantiationService.stub(ISessionWorktreeCleanupService, upcastPartial<ISessionWorktreeCleanupService>(cleanupService));
+		instantiationService.stub(ISessionWorktreeCleanupService, upcastPartial<ISessionWorktreeCleanupService>({ refresh: async () => { }, ...cleanupService }));
 		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({}));
 		const editor = disposables.add(instantiationService.createInstance(SessionWorktreeCleanupEditor, new TestEditorGroupView(1)));
 		const container = dom.append(mainWindow.document.body, dom.$('div'));
@@ -120,6 +120,20 @@ suite('SessionWorktreeCleanupEditor', () => {
 			title: row.querySelector('a')?.textContent,
 			storage: row.lastElementChild?.textContent,
 		})), [{ title: 'pending', storage: 'Calculating…' }]);
+	});
+
+	test('requests fresh measurements on opening without a refresh button', async () => {
+		const calls: string[] = [];
+		const { editor, container } = createEditor({
+			refresh: async () => { calls.push('refresh'); },
+			getWorktrees: async () => { calls.push('load'); return []; },
+		});
+		await editor.setInput(disposables.add(new SessionWorktreeCleanupEditorInput()), undefined, {}, CancellationToken.None);
+		await timeout(0);
+		assert.deepStrictEqual({
+			calls,
+			buttons: [...container.querySelectorAll('.session-worktree-cleanup-controls .monaco-button')].map(button => button.textContent),
+		}, { calls: ['refresh', 'load'], buttons: [] });
 	});
 
 	test('shows a text-only settings heading and no configure actions', () => {
