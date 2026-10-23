@@ -8947,10 +8947,6 @@ export class CopilotAgentSession extends Disposable {
 				}, parentToolCallId);
 			}
 
-			if (mcpServerName) {
-				this._attachActiveMcpToolCallsToPendingAuthentication(mcpServerName);
-			}
-
 			// No client is connected to run this client tool. Fail it
 			// immediately instead of leaving it pending until the
 			// server-side disconnect timeout fires. We emit the completion
@@ -9018,6 +9014,10 @@ export class CopilotAgentSession extends Disposable {
 				tracked.pendingImageReady = ready;
 			} else {
 				this._emitAction(ready, parentToolCallId);
+			}
+
+			if (mcpServerName) {
+				this._attachActiveMcpToolCallsToPendingAuthentication(mcpServerName);
 			}
 		};
 		this._surfaceProvisionalFusionToolStart = handleToolStart;

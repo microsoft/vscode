@@ -30281,17 +30281,21 @@ Use the attached image as context.
 				} as SessionEventPayload<'tool.execution_start'>['data']);
 			}
 
-			const beforeResolve = getActions(signals)
-				.filter(action => action.type === ActionType.ChatToolCallStart || action.type === ActionType.ChatToolCallAuthRequired)
-				.map(action => action.type === ActionType.ChatToolCallStart
-					? { type: action.type, turnId: action.turnId, toolCallId: action.toolCallId }
-					: action);
+			const beforeResolve = reduceTurnSignals(signals, 'turn-auth').activeTurn?.responseParts
+				.filter(part => part.kind === ResponsePartKind.ToolCall)
+				.map(part => ({
+					toolCallId: part.toolCall.toolCallId,
+					status: part.toolCall.status,
+					...(part.toolCall.status === ToolCallStatus.AuthRequired ? { auth: part.toolCall.auth } : {}),
+				}));
 			const resolved = await session.resolveMcpAuthentication({
 				resource: 'https://api.githubcopilot.com/mcp/',
 				scopes: ['repo', 'notifications'],
 				token: 'token',
 			});
 			const authResult = await authPromise;
+			const resolvedPart = reduceTurnSignals(signals, 'turn-auth').activeTurn?.responseParts
+				.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === 'tool-github');
 			const afterResolve = getActions(signals)
 				.filter(action => action.type === ActionType.ChatToolCallAuthResolved)
 				.map(action => action.type === ActionType.ChatToolCallAuthResolved ? action : undefined);
@@ -30300,16 +30304,12 @@ Use the attached image as context.
 				beforeResolve,
 				resolved,
 				authResult,
+				afterResolveStatus: resolvedPart?.kind === ResponsePartKind.ToolCall ? resolvedPart.toolCall.status : undefined,
 				afterResolve,
 			}, {
 				beforeResolve: [{
-					type: ActionType.ChatToolCallStart,
-					turnId: 'turn-auth',
 					toolCallId: 'tool-github',
-				}, {
-					type: ActionType.ChatToolCallAuthRequired,
-					turnId: 'turn-auth',
-					toolCallId: 'tool-github',
+					status: ToolCallStatus.AuthRequired,
 					auth: {
 						reason: McpAuthRequiredReason.InsufficientScope,
 						resource: {
@@ -30322,12 +30322,12 @@ Use the attached image as context.
 						description: 'insufficient_scope',
 					},
 				}, {
-					type: ActionType.ChatToolCallStart,
-					turnId: 'turn-auth',
 					toolCallId: 'tool-slack',
+					status: ToolCallStatus.Running,
 				}],
 				resolved: true,
 				authResult: { kind: 'token', accessToken: 'token' },
+				afterResolveStatus: ToolCallStatus.Running,
 				afterResolve: [{
 					type: ActionType.ChatToolCallAuthResolved,
 					turnId: 'turn-auth',
