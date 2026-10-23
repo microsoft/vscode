@@ -487,23 +487,23 @@ suite('CustomizationMigrationService', () => {
 			participants: {
 				type: CustomizationMigrationType.ChatParticipants,
 				items: [
-					{ id: 'review', name: '@review', sourceLabel: 'Review Extension' },
-					{ id: 'another-review', name: '@review', sourceLabel: 'Review Extension' },
+					{ id: 'review', name: '@review', sourceLabel: 'Review Extension', storage: PromptsStorage.extension, extensionId: 'example.review' },
+					{ id: 'another-review', name: '@review', sourceLabel: 'Review Extension', storage: PromptsStorage.extension, extensionId: 'example.review' },
 				],
 			},
 			toolSets: {
 				type: CustomizationMigrationType.ToolSets,
 				items: [
-					{ id: 'user', name: 'user', sourceLabel: 'review.toolsets.jsonc', sourceUri: userFile },
-					{ id: 'extension', name: 'extension', sourceLabel: 'Review Extension', sourceUri: undefined },
+					{ id: 'user', name: 'user', sourceLabel: 'review.toolsets.jsonc', sourceUri: userFile, storage: PromptsStorage.user, extensionId: undefined },
+					{ id: 'extension', name: 'extension', sourceLabel: 'Review Extension', sourceUri: undefined, storage: PromptsStorage.extension, extensionId: 'example.review' },
 				],
 			},
 			hint: {
-				message: '4 user customizations need an update to keep working.',
+				message: '4 customizations need an update to keep working.',
 				counts: [{ type: CustomizationMigrationType.ChatParticipants, count: 2 }, { type: CustomizationMigrationType.ToolSets, count: 2 }],
 			},
 			mixedHint: {
-				message: '1 workspace and 4 user customizations need an update to keep working.',
+				message: '5 customizations need an update to keep working.',
 				counts: [{ type: CustomizationMigrationType.PromptFiles, count: 1 }, { type: CustomizationMigrationType.ChatParticipants, count: 2 }, { type: CustomizationMigrationType.ToolSets, count: 2 }],
 			},
 			local: { type: CustomizationMigrationType.ChatParticipants, items: [] },

@@ -281,7 +281,7 @@ suite('aiCustomizationManagementEditor', () => {
 		migrationShortcutContainer: HTMLElement | undefined;
 		migrationShortcutButton: HTMLButtonElement | undefined;
 		migrationShortcutCount: HTMLElement | undefined;
-		migrationDashboard: { element: HTMLElement } | undefined;
+		migrationDashboard: { element: HTMLElement; getGuidanceDetailAccessibilityContent(): string | undefined } | undefined;
 		layoutSidebar(width: number, height: number): void;
 		updateSidebarMigrationShortcut(): void;
 		startCustomizationMigration(categoryId?: CustomizationMigrationCategoryId, migrationFlowId?: string): Promise<void>;
@@ -1709,8 +1709,8 @@ suite('aiCustomizationManagementEditor', () => {
 		}));
 		store.add(editor.editorPreviewDisposables);
 		editor.guidanceMigrations = [
-			{ type: CustomizationMigrationType.ChatParticipants, items: [{ id: 'review', name: '@review', sourceLabel: 'Review Extension' }] },
-			{ type: CustomizationMigrationType.ToolSets, items: [{ id: 'tools', name: 'reviewTools', sourceLabel: 'Review Extension' }] },
+			{ type: CustomizationMigrationType.ChatParticipants, items: [{ id: 'review', name: '@review', sourceLabel: 'Review Extension', storage: PromptsStorage.extension, extensionId: 'example.review' }] },
+			{ type: CustomizationMigrationType.ToolSets, items: [{ id: 'tools', name: 'reviewTools', sourceLabel: 'Review Extension', storage: PromptsStorage.extension, extensionId: 'example.review' }] },
 		];
 		editor.dialogService = { confirm: async () => ({ confirmed: true }) };
 		editor.quickInputService = { pick: async items => items };
@@ -1720,11 +1720,11 @@ suite('aiCustomizationManagementEditor', () => {
 		const dashboard = document.body.appendChild($('div'));
 		store.add(toDisposable(() => dashboard.remove()));
 		const focused = dashboard.appendChild($('button'));
-		editor.migrationDashboard = { element: dashboard };
+		editor.migrationDashboard = { element: dashboard, getGuidanceDetailAccessibilityContent: () => undefined };
 		focused.focus();
 		const accessibleContent = editor.getMigrationAccessibilityContent();
 		editor.migrationDashboard = undefined;
-		await editor.ignoreMigrationCategory(CustomizationMigrationCategoryId.ChatParticipants, PromptsStorage.user);
+		await editor.ignoreMigrationCategory(CustomizationMigrationCategoryId.ChatParticipants, PromptsStorage.extension);
 		const ignored = editor.getCustomizationMigrationDashboardOverview();
 		await editor.restoreIgnoredMigrationCategories();
 		const restored = editor.getCustomizationMigrationDashboardOverview();
@@ -1736,15 +1736,15 @@ suite('aiCustomizationManagementEditor', () => {
 			executableCandidates: [...editor.customizationsByMigrationCategory.values()].flat(),
 			selectionSize: editor.selectedCustomizationMigrationItems.size,
 			accessibleGuidance: accessibleContent?.includes('@review, source Review Extension. Documentation-only migration guidance.'),
-			accessibleLinks: accessibleContent?.includes('Learn More: https://aka.ms/vscode-migrate-customizations/tool-sets'),
+			accessibleLinks: accessibleContent?.includes('Learn More: https://code.visualstudio.com/docs/agent-customization/migrate-customizations#_replace-tool-sets'),
 			ignoredGroups: ignored.scopes.flatMap(scope => scope.categories.map(category => category.id)),
 			hasIgnoredGroups: ignored.hasIgnoredGroups,
 			restored: restored.scopes.flatMap(scope => scope.categories.map(category => category.id)),
 			restoredIgnoredState: restored.hasIgnoredGroups,
 		}, {
 			groups: [
-				{ id: CustomizationMigrationCategoryId.ChatParticipants, count: 1, url: 'https://aka.ms/vscode-migrate-customizations/chat-participants', destination: undefined },
-				{ id: CustomizationMigrationCategoryId.ToolSets, count: 1, url: 'https://aka.ms/vscode-migrate-customizations/tool-sets', destination: undefined },
+				{ id: CustomizationMigrationCategoryId.ChatParticipants, count: 1, url: 'https://code.visualstudio.com/docs/agent-customization/migrate-customizations#_replace-chat-participants', destination: undefined },
+				{ id: CustomizationMigrationCategoryId.ToolSets, count: 1, url: 'https://code.visualstudio.com/docs/agent-customization/migrate-customizations#_replace-tool-sets', destination: undefined },
 			],
 			agentMigration: false,
 			executableCandidates: [],
@@ -2216,6 +2216,12 @@ suite('aiCustomizationManagementEditor', () => {
 		let hasSecret = true;
 		const computedWithSecret: boolean[] = [];
 		editor.customizationMigrationService.computeMigration = async (_session, type) => {
+			if (type === CustomizationMigrationType.ChatParticipants || type === CustomizationMigrationType.ToolSets) {
+				return { type, items: [] };
+			}
+			if (type === CustomizationMigrationType.PluginMarketplaces) {
+				return { type, candidates: [] };
+			}
 			if (type !== CustomizationMigrationType.McpServers) {
 				return { type, files: [], candidates: [] };
 			}
@@ -3130,7 +3136,7 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.viewMode = 'migration';
 		const dashboard = document.body.appendChild(document.createElement('div'));
 		const focusedElement = dashboard.appendChild(document.createElement('button'));
-		editor.migrationDashboard = { element: dashboard };
+		editor.migrationDashboard = { element: dashboard, getGuidanceDetailAccessibilityContent: () => undefined };
 		focusedElement.focus();
 
 		assert.strictEqual(

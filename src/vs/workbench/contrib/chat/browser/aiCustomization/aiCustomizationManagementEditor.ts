@@ -142,6 +142,7 @@ import { IViewsService } from '../../../../services/views/common/viewsService.js
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { showNoFoldersDialog } from '../promptSyntax/pickers/askForPromptSourceFolder.js';
+import { showExtensionsWithIdsCommandId } from '../../../extensions/browser/extensionsActions.js';
 
 const $ = DOM.$;
 const CUSTOMIZATION_MIGRATION_IGNORED_GROUPS_STORAGE_KEY = 'chat.customizationMigration.ignoredGroups';
@@ -1136,6 +1137,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 				openCustomization: (item, storage) => {
 					void this.openMigrationCustomization(item, storage);
 				},
+				openGuidanceSource: item => {
+					void this.openMigrationGuidanceSource(item);
+				},
 			},
 		));
 		this.renderCustomizationMigrationDashboardState();
@@ -1840,7 +1844,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 				count: candidates.length,
 			});
 		}
-		for (const category of this.getGuidanceMigrationCategories()) {
+		for (const category of this.getAllGuidanceMigrationCategories()) {
 			summaries.push({
 				id: category.id,
 				label: category.label,
@@ -1866,9 +1870,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		const candidates = homepageMigrationCategories.flatMap(id => this.getMigrationCandidates(getCustomizationMigrationCategory(id))
 			.filter(candidate => !this.isMigrationCategoryIgnored(id, candidate.storage)));
-		const count = candidates.length + this.getGuidanceMigrationCategories().reduce((count, category) => count + category.count, 0);
+		const count = candidates.length + this.getAllGuidanceMigrationCategories().reduce((count, category) => count + category.count, 0);
 		const hasPendingMigrations = this.pluginMarketplaceMigrationDiscoveryError !== undefined
-			|| this.getGuidanceMigrationCategories(true).length > 0
+			|| this.getAllGuidanceMigrationCategories(true).length > 0
 			|| homepageMigrationCategories.some(id => this.getMigrationCandidates(getCustomizationMigrationCategory(id)).length > 0);
 		const enabled = isAgentHostTarget(this.harnessService.activeHarness.get())
 			&& homepageMigrationCategories.some(id => this.isMigrationCategoryEnabled(getCustomizationMigrationCategory(id)))
@@ -2310,6 +2314,19 @@ export class AICustomizationManagementEditor extends EditorPane {
 		await this.showEmbeddedMcpDetail(detail, { kind: 'migration' }, { item, storage });
 	}
 
+	private async openMigrationGuidanceSource(item: ICustomizationMigrationDashboardItem): Promise<void> {
+		if (item.resource) {
+			await this.editorService.openEditor({
+				resource: item.resource,
+				options: { pinned: true },
+			});
+			return;
+		}
+		if (item.extensionId) {
+			await this.commandService.executeCommand(showExtensionsWithIdsCommandId, [item.extensionId]);
+		}
+	}
+
 	private setMigrationDashboardItemSelected(item: ICustomizationMigrationDashboardItem, selected: boolean): void {
 		const match = this.findMigrationCandidate(item);
 		if (match) {
@@ -2486,13 +2503,21 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (!this.migrationDashboard || !DOM.isAncestorOfActiveElement(this.migrationDashboard.element)) {
 			return undefined;
 		}
+		const guidanceDetail = this.migrationDashboard.getGuidanceDetailAccessibilityContent();
+		if (guidanceDetail) {
+			return guidanceDetail;
+		}
 		const overview = this.getCustomizationMigrationDashboardOverview();
 		return [
 			localize('migrationAccessibleTitle', "Customization migrations"),
 			...overview.scopes.flatMap(scope => scope.categories.map(category => [
 				localize('migrationAccessibleCategory', "{0} ({1}): {2}. {3}{4}",
 					category.label,
-					scope.storage === PromptsStorage.local ? localize('migrationAccessibleWorkspace', "Workspace") : localize('migrationAccessibleUser', "User"),
+					scope.storage === PromptsStorage.local
+						? localize('migrationAccessibleWorkspace', "Workspace")
+						: scope.storage === PromptsStorage.extension
+							? localize('migrationAccessibleExtensions', "Extensions")
+							: localize('migrationAccessibleUser', "User"),
 					category.countLabel,
 					category.highRisk ? localize('migrationAccessibleHighRisk', "High risk. ") : '',
 					category.description),
@@ -2534,14 +2559,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 		].join('\n\n');
 	}
 
-	private getGuidanceMigrationCategories(includeIgnored = false): ICustomizationMigrationDashboardCategory[] {
+	private getGuidanceMigrationCategories(storage: PromptsStorage.user | PromptsStorage.extension, includeIgnored = false): ICustomizationMigrationDashboardCategory[] {
 		if (!isAgentHostTarget(this.harnessService.activeHarness.get())
 			|| !this.configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationsMigrationEnabled)) {
 			return [];
 		}
 		return customizationMigrationGuidance.flatMap(category => {
 			const migration = this.guidanceMigrations.find(migration => migration.type === category.migrationType);
-			if (!migration?.items.length || !includeIgnored && this.isMigrationCategoryIgnored(category.id, PromptsStorage.user)) {
+			const items = migration?.items.filter(item => item.storage === storage) ?? [];
+			if (!items.length || !includeIgnored && this.isMigrationCategoryIgnored(category.id, storage)) {
 				return [];
 			}
 			return [{
@@ -2549,24 +2575,38 @@ export class AICustomizationManagementEditor extends EditorPane {
 				label: category.label,
 				description: category.description,
 				learnMoreUrl: category.learnMoreUrl,
-				count: migration.items.length,
-				countLabel: migration.items.length === 1
+				count: items.length,
+				countLabel: items.length === 1
 					? localize('migrationGuidanceOneItem', "1 customization")
-					: localize('migrationGuidanceItems', "{0} customizations", migration.items.length),
-				items: migration.items.map(item => ({
+					: localize('migrationGuidanceItems', "{0} customizations", items.length),
+				items: items.map(item => ({
 					id: `${category.id}:${item.id}`,
 					label: item.name,
 					sourceLabel: item.sourceUri ? this.labelService.getUriLabel(item.sourceUri, { relative: true }) : item.sourceLabel,
-					scopeLabel: localize('migrationUserScope', "User"),
+					scopeLabel: storage === PromptsStorage.extension
+						? localize('migrationExtensionScope', "Extension")
+						: localize('migrationUserScope', "User"),
+					resource: item.sourceUri,
+					extensionId: item.extensionId,
 				})),
 			}];
 		});
+	}
+
+	private getAllGuidanceMigrationCategories(includeIgnored = false): ICustomizationMigrationDashboardCategory[] {
+		return [
+			...this.getGuidanceMigrationCategories(PromptsStorage.user, includeIgnored),
+			...this.getGuidanceMigrationCategories(PromptsStorage.extension, includeIgnored),
+		];
 	}
 
 	private getCustomizationMigrationDashboardOverview(): ICustomizationMigrationDashboardOverview {
 		const storages = [PromptsStorage.user];
 		if (this.workspaceService.activeProjectRoot.get()) {
 			storages.push(PromptsStorage.local);
+		}
+		if (this.guidanceMigrations.some(migration => migration.items.some(item => item.storage === PromptsStorage.extension))) {
+			storages.push(PromptsStorage.extension);
 		}
 		const scopes = storages.map(storage => {
 			const categories = homepageMigrationCategories.flatMap(id => {
@@ -2576,8 +2616,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 				const candidates = this.getMigrationCandidates(getCustomizationMigrationCategory(id), storage);
 				return candidates.length ? [this.getHomepageMigrationCategory(id, candidates, storage)] : [];
 			});
-			if (storage === PromptsStorage.user) {
-				categories.push(...this.getGuidanceMigrationCategories());
+			if (storage === PromptsStorage.user || storage === PromptsStorage.extension) {
+				categories.push(...this.getGuidanceMigrationCategories(storage));
 			}
 			return {
 				storage,
@@ -2829,9 +2869,14 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private getMigrationScopeLabel(storage: PromptsStorage): string {
-		return storage === PromptsStorage.user
-			? localize('migrationChecklistProfile', "Your profile")
-			: this.workspaceService.activeProjectLabel.get() || localize('migrationChecklistWorkspace', "Workspace");
+		switch (storage) {
+			case PromptsStorage.user:
+				return localize('migrationChecklistProfile', "Your profile");
+			case PromptsStorage.extension:
+				return localize('migrationChecklistExtensions', "Extensions");
+			default:
+				return this.workspaceService.activeProjectLabel.get() || localize('migrationChecklistWorkspace', "Workspace");
+		}
 	}
 
 	private getMigrationCategoryDestination(
@@ -2881,7 +2926,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	private getMigrationGroupIgnoreKey(id: CustomizationMigrationCategoryId, storage: PromptsStorage): string {
 		const harness = this.harnessService.activeHarness.get();
-		if (storage === PromptsStorage.user) {
+		if (storage !== PromptsStorage.local) {
 			return `${harness}:${storage}:${id}`;
 		}
 		const project = this.workspaceService.activeProjectRoot.get();
@@ -2903,8 +2948,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private getIgnoredMigrationGroups(): readonly { readonly id: CustomizationMigrationCategoryId; readonly storage: PromptsStorage; readonly key: string; readonly label: string }[] {
 		const ignoredKeys = this.getIgnoredMigrationGroupKeys();
 		const storages = this.workspaceService.activeProjectRoot.get()
-			? [PromptsStorage.user, PromptsStorage.local]
-			: [PromptsStorage.user];
+			? [PromptsStorage.user, PromptsStorage.extension, PromptsStorage.local]
+			: [PromptsStorage.user, PromptsStorage.extension];
 		return storages.flatMap(storage => [...homepageMigrationCategories, ...customizationMigrationGuidance.map(category => category.id)].flatMap(id => {
 			const key = this.getMigrationGroupIgnoreKey(id, storage);
 			if (!ignoredKeys.has(key)) {
@@ -2912,7 +2957,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 			}
 			const scope = storage === PromptsStorage.local
 				? localize('migrationWorkspaceScope', "Workspace")
-				: localize('migrationUserScope', "User");
+				: storage === PromptsStorage.extension
+					? localize('migrationExtensionsScope', "Extensions")
+					: localize('migrationUserScope', "User");
 			const label = localize('ignoredMigrationGroup', "{0} ({1})", this.getMigrationDashboardCategoryLabel(id), scope);
 			return [{ id, storage, key, label }];
 		}));

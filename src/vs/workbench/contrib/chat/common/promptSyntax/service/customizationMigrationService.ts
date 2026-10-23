@@ -31,6 +31,8 @@ export interface ICustomizationMigrationGuidanceItem {
 	readonly name: string;
 	readonly sourceLabel: string;
 	readonly sourceUri?: URI;
+	readonly storage: PromptsStorage.user | PromptsStorage.extension;
+	readonly extensionId?: string;
 }
 
 export interface GuidanceCustomizationMigration {

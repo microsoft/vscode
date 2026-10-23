@@ -88,6 +88,8 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 							id: agent.id,
 							name: `@${agent.name}`,
 							sourceLabel: agent.extensionDisplayName || agent.extensionId.value,
+							storage: PromptsStorage.extension,
+							extensionId: agent.extensionId.value,
 						})),
 				};
 			case CustomizationMigrationType.ToolSets:
@@ -101,6 +103,8 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 							name: toolSet.referenceName,
 							sourceLabel: toolSet.source.label,
 							sourceUri: toolSet.source.type === 'user' ? toolSet.source.file : undefined,
+							storage: toolSet.source.type === 'user' ? PromptsStorage.user : PromptsStorage.extension,
+							extensionId: toolSet.source.type === 'extension' ? toolSet.source.extensionId.value : undefined,
 						})),
 				};
 			case CustomizationMigrationType.UserData: {
@@ -244,14 +248,19 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 		const migratableMcpServerCount = mcpServerMigration.candidates.length;
 		const workspaceCount = fileCandidates.filter(candidate => candidate.storage === PromptsStorage.local).length
 			+ mcpServerMigration.candidates.filter(candidate => candidate.storage === PromptsStorage.local).length;
+		const userGuidanceCount = toolSetsMigration.items.filter(item => item.storage === PromptsStorage.user).length;
+		const extensionGuidanceCount = chatParticipantsMigration.items.length
+			+ toolSetsMigration.items.filter(item => item.storage === PromptsStorage.extension).length;
 		const userCount = fileCandidates.filter(candidate => candidate.storage === PromptsStorage.user).length
 			+ mcpServerMigration.candidates.filter(candidate => candidate.storage === PromptsStorage.user).length
 			+ pluginMarketplacesMigration.candidates.length
-			+ chatParticipantsMigration.items.length
-			+ toolSetsMigration.items.length;
-		return workspaceCount + userCount > 0 ? {
+			+ userGuidanceCount;
+		const totalCount = workspaceCount + userCount + extensionGuidanceCount;
+		return totalCount > 0 ? {
 			migrationFlowId: this.generateMigrationFlowId(),
-			message: this.getMigrationHintMessage(workspaceCount, userCount),
+			message: extensionGuidanceCount > 0
+				? this.getGenericMigrationHintMessage(totalCount)
+				: this.getMigrationHintMessage(workspaceCount, userCount),
 			counts: [
 				{ type: CustomizationMigrationType.UserData, count: userDataMigration.files.length },
 				{ type: CustomizationMigrationType.PromptFiles, count: promptFilesMigration.files.length },
@@ -262,6 +271,12 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 				{ type: CustomizationMigrationType.ToolSets, count: toolSetsMigration.items.length },
 			].filter(({ count }) => count > 0),
 		} : undefined;
+	}
+
+	private getGenericMigrationHintMessage(count: number): string {
+		return count === 1
+			? localize('customizationMigrationHintCountSingular', "{0} customization needs an update to keep working.", count)
+			: localize('customizationMigrationHintCountPlural', "{0} customizations need an update to keep working.", count);
 	}
 
 	private getMigrationHintMessage(workspaceCount: number, userCount: number): string {

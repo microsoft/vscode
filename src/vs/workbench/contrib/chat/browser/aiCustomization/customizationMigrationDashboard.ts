@@ -13,6 +13,7 @@ import { IObjectTreeElement, ObjectTreeElementCollapseState } from '../../../../
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { basename } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -45,6 +46,7 @@ export interface ICustomizationMigrationDashboardItem {
 	readonly mcpServerId?: string;
 	readonly candidateKey?: string;
 	readonly selected?: boolean;
+	readonly extensionId?: string;
 }
 
 export interface ICustomizationMigrationDashboardDestination {
@@ -114,6 +116,7 @@ export interface ICustomizationMigrationDashboardCallbacks {
 	readonly deleteAgentMigrationRecovery: (recovery: ICustomizationMigrationDashboardRecovery) => void;
 	readonly retryCategory: (id: CustomizationMigrationCategoryId) => void;
 	readonly openCustomization: (item: ICustomizationMigrationDashboardItem, storage: PromptsStorage) => void;
+	readonly openGuidanceSource: (item: ICustomizationMigrationDashboardItem) => void;
 	readonly onDidChangeContent?: () => void;
 }
 
@@ -137,6 +140,7 @@ interface IMigrationItemEntry extends ICustomizationMigrationDashboardItem {
 	readonly storage: PromptsStorage;
 	readonly groupKey: string;
 	readonly readOnly?: boolean;
+	readonly learnMoreUrl?: string;
 	selected: boolean;
 }
 
@@ -222,13 +226,14 @@ class MigrationItemRenderer implements IListRenderer<IMigrationItemEntry, IMigra
 		templateData.elementDisposables.clear();
 		templateData.label.textContent = element.label;
 		const manualReview = element.manualReviewReason !== undefined;
-		templateData.container.classList.toggle('manual-review', manualReview);
+		const reviewable = manualReview || element.readOnly === true;
+		templateData.container.classList.toggle('manual-review', reviewable);
 		templateData.checkboxContainer.style.visibility = element.readOnly ? 'hidden' : '';
 		templateData.checkbox.domNode.tabIndex = manualReview || element.readOnly ? -1 : 0;
 		templateData.checkbox.domNode.setAttribute('aria-hidden', String(manualReview || !!element.readOnly));
 		templateData.checkbox.checked = element.selected;
 		templateData.checkbox.domNode.setAttribute('aria-label', localize('selectMigrationItem', "Select {0} for migration", element.label));
-		templateData.reviewButton.element.style.display = manualReview ? '' : 'none';
+		templateData.reviewButton.element.style.display = reviewable ? '' : 'none';
 		templateData.reviewButton.element.setAttribute('aria-label', localize('reviewMigrationItemAriaLabel', "Review {0}", element.label));
 		templateData.moreButton.element.setAttribute('aria-label', localize('migrationItemActions', "More actions for {0}", element.label));
 		templateData.moreButton.element.style.display = element.readOnly ? 'none' : '';
@@ -274,6 +279,9 @@ export class CustomizationMigrationDashboard extends Disposable {
 	private readonly migrationGroups = new Map<string, IMigrationGroupEntry>();
 	private readonly migrateButtons = new Map<string, Button>();
 	private pendingFocus: string | typeof focusPreferredTarget | undefined;
+	private pendingTreeFocus: IMigrationItemEntry | undefined;
+	private guidanceDetail: IMigrationItemEntry | undefined;
+	private lastOverview: ICustomizationMigrationDashboardOverview | undefined;
 	private allMigrationsComplete = false;
 	private layoutTree: (() => void) | undefined;
 	private availableHeight = 0;
@@ -290,6 +298,7 @@ export class CustomizationMigrationDashboard extends Disposable {
 	}
 
 	showLoading(title: string, description: string, retry?: () => void): void {
+		this.guidanceDetail = undefined;
 		this.allMigrationsComplete = false;
 		const activeElement = DOM.getActiveElement();
 		if (this.element.contains(activeElement)) {
@@ -315,7 +324,22 @@ export class CustomizationMigrationDashboard extends Disposable {
 	}
 
 	showOverview(overview: ICustomizationMigrationDashboardOverview): void {
-		const focusedKey = this.pendingFocus ?? this.getFocusedKey();
+		this.lastOverview = overview;
+		const openDetail = this.guidanceDetail && this.findGuidanceItem(overview, this.guidanceDetail);
+		if (openDetail) {
+			const focusedKey = this.getFocusedKey();
+			this.showGuidanceDetail(openDetail, false);
+			if (focusedKey) {
+				this.focusTargets.get(focusedKey)?.focus();
+			}
+			return;
+		}
+		const leavingGuidance = this.guidanceDetail;
+		const treeFocusTarget = this.pendingTreeFocus
+			?? (leavingGuidance && this.element.contains(DOM.getActiveElement()) ? leavingGuidance : undefined);
+		this.pendingTreeFocus = undefined;
+		this.guidanceDetail = undefined;
+		const focusedKey = treeFocusTarget ? undefined : this.pendingFocus ?? this.getFocusedKey();
 		this.pendingFocus = undefined;
 		const migrationGroups = this.getMigrationGroups(overview);
 		const categoryErrors = overview.categoryErrors ?? [];
@@ -340,14 +364,16 @@ export class CustomizationMigrationDashboard extends Disposable {
 		);
 
 		this.renderCategoryErrors(page, categoryErrors);
+		let focusTreeItem: ((item: IMigrationItemEntry) => boolean) | undefined;
 		if (migrationGroups.length) {
 			this.renderMigrationWarnings(page, migrationGroups);
-			this.renderMigrationTree(page, migrationGroups);
+			focusTreeItem = this.renderMigrationTree(page, migrationGroups);
 		} else if (categoryErrors.length === 0) {
 			DOM.append(page, $('p.migration-empty', {}, overview.hasIgnoredGroups
 				? localize('noActiveMigrations', "No active migrations. Restore ignored migrations to review them.")
 				: localize('noMigrations', "No migrations are needed.")));
 		}
+
 		if (overview.recoveries?.length) {
 			this.renderRecoveries(page, overview.recoveries);
 		}
@@ -357,11 +383,151 @@ export class CustomizationMigrationDashboard extends Disposable {
 		if (this.allMigrationsComplete) {
 			return;
 		}
-		if (focusedKey === focusPreferredTarget) {
+		if (treeFocusTarget) {
+			if (!focusTreeItem?.(treeFocusTarget)) {
+				this.focus();
+			}
+		} else if (focusedKey === focusPreferredTarget) {
 			this.focus();
 		} else if (focusedKey) {
 			(this.focusTargets.get(focusedKey) ?? this.focusTargets.get('title'))?.focus();
 		}
+	}
+
+	/**
+	 * Shows a read-only guidance item with the same header, back affordance and migration warning card
+	 * as the other customization migration details.
+	 */
+	showGuidanceDetail(item: IMigrationItemEntry, focus = true): void {
+		this.allMigrationsComplete = false;
+		this.prepareRender();
+		this.guidanceDetail = item;
+		const content = this.getGuidanceDetailContent(item);
+		const page = DOM.append(this.element, $('.migration-page.migration-guidance-detail'));
+		const header = DOM.append(page, $('.editor-header.migration-guidance-detail-header'));
+
+		const back = DOM.append(header, $<HTMLButtonElement>('button.editor-back-button'));
+		back.type = 'button';
+		const backLabel = localize('backToMigrations', "Back to migrations");
+		back.setAttribute('aria-label', backLabel);
+		const backIcon = DOM.append(back, $('span.editor-action-button-icon'));
+		backIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.arrowLeft));
+		backIcon.setAttribute('aria-hidden', 'true');
+		this.hover(back, backLabel);
+		this.renderDisposables.add(DOM.addDisposableListener(back, DOM.EventType.CLICK, () => this.closeGuidanceDetail()));
+		this.focusTargets.set('guidanceBack', back);
+
+		const info = DOM.append(header, $('.editor-item-info'));
+		DOM.append(info, $('.editor-item-name', { role: 'heading', 'aria-level': '1' }, item.label));
+		const source = DOM.append(info, $<HTMLAnchorElement>('a.editor-item-path.source-link'));
+		source.classList.toggle('provenance', !item.resource);
+		source.textContent = content.sourceLabel;
+		source.href = '#';
+		source.setAttribute('aria-label', content.sourceAriaLabel);
+		this.hover(source, content.sourceAriaLabel);
+		this.renderDisposables.add(DOM.addDisposableListener(source, DOM.EventType.CLICK, event => {
+			event.preventDefault();
+			this.callbacks.openGuidanceSource(item);
+		}));
+		this.focusTargets.set('guidanceSource', source);
+
+		const card = DOM.append(page, $('section.mcp-detail-diagnostic-card.migration.warning.migration-guidance-card'));
+		const cardHeader = DOM.append(card, $('.mcp-detail-diagnostic-header'));
+		const icon = DOM.append(cardHeader, $('.mcp-detail-diagnostic-icon'));
+		icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.warning));
+		icon.setAttribute('aria-hidden', 'true');
+		DOM.append(cardHeader, $('.mcp-detail-diagnostic-summary', {}, content.summary));
+		const details = DOM.append(card, $('.mcp-detail-diagnostic-details'));
+		DOM.append(details, $('p.mcp-detail-diagnostic-message', {}, content.reason));
+		DOM.append(details, $('p.mcp-detail-diagnostic-message', {}, content.guidance));
+		let learnMore: HTMLAnchorElement | undefined;
+		if (item.learnMoreUrl) {
+			const url = item.learnMoreUrl;
+			learnMore = DOM.append(details, $<HTMLAnchorElement>('a.mcp-detail-migration-link', {}, content.learnMoreLabel));
+			learnMore.href = url;
+			this.renderDisposables.add(DOM.addDisposableListener(learnMore, DOM.EventType.CLICK, event => {
+				event.preventDefault();
+				void this.openerService.open(url);
+			}));
+			this.focusTargets.set('guidanceLearnMore', learnMore);
+		}
+
+		this.callbacks.onDidChangeContent?.();
+		if (focus) {
+			// The guidance link is the page's primary action.
+			(learnMore ?? back).focus();
+		}
+	}
+
+	getGuidanceDetailAccessibilityContent(): string | undefined {
+		const item = this.guidanceDetail;
+		if (!item) {
+			return undefined;
+		}
+		const content = this.getGuidanceDetailContent(item);
+		return [
+			item.label,
+			localize('migrationGuidanceSourceWithValue', "Source: {0}", item.sourceLabel),
+			content.summary,
+			content.reason,
+			content.guidance,
+			...(item.learnMoreUrl ? [localize('migrationAccessibleGuidanceLink', "{0}: {1}", content.learnMoreLabel, item.learnMoreUrl)] : []),
+		].join('\n\n');
+	}
+
+	private getGuidanceDetailContent(item: IMigrationItemEntry): { readonly summary: string; readonly reason: string; readonly guidance: string; readonly learnMoreLabel: string; readonly sourceLabel: string; readonly sourceAriaLabel: string } {
+		const sourceLabel = item.resource ? basename(item.resource) : item.sourceLabel;
+		const sourceAriaLabel = item.resource
+			? localize('openGuidanceSourceFile', "Open {0}", sourceLabel)
+			: localize('viewContributingExtensionAriaLabel', "View the extension that contributes {0}", item.label);
+		if (item.categoryId === CustomizationMigrationCategoryId.ToolSets) {
+			return {
+				summary: localize('replaceToolSet', "Replace Tool Set"),
+				reason: localize('toolSetMigrationManualReviewReason', "Tool sets are deprecated and are not supported by the Copilot harness."),
+				guidance: item.storage === PromptsStorage.user
+					? localize('toolSetMigrationManualReviewGuidance', "Move the tool selection, not the file. Configure supported tools directly in a custom agent or the Tools tab, or use an agent plugin for a shared workflow.")
+					: localize('extensionToolSetMigrationManualReviewGuidance', "Ask the extension publisher to replace this tool set with supported tools, a custom agent, or an agent plugin."),
+				learnMoreLabel: localize('learnHowToReplaceToolSets', "Learn how to replace tool sets"),
+				sourceLabel,
+				sourceAriaLabel,
+			};
+		}
+		return {
+			summary: localize('replaceChatParticipant', "Replace Chat Participant"),
+			reason: localize('chatParticipantMigrationManualReviewReason', "Chat participants are deprecated and are not supported by the Copilot harness."),
+			guidance: localize('chatParticipantMigrationManualReviewGuidance', "Ask the extension publisher whether it provides an agent plugin, MCP server, or extension tools. Use a custom agent when the integration needs an ongoing specialist role."),
+						learnMoreLabel: localize('learnHowToReplaceChatParticipants', "Learn how to replace chat participants"),
+						sourceLabel,
+			sourceAriaLabel,
+		};
+	}
+
+	private closeGuidanceDetail(): void {
+		const item = this.guidanceDetail;
+		this.guidanceDetail = undefined;
+		if (!this.lastOverview) {
+			return;
+		}
+		this.pendingTreeFocus = item;
+		this.showOverview(this.lastOverview);
+	}
+
+	/** Returns the refreshed guidance item that is open in the detail, if the refreshed overview still contains it. */
+	private findGuidanceItem(overview: ICustomizationMigrationDashboardOverview, item: IMigrationItemEntry): IMigrationItemEntry | undefined {
+		for (const scope of overview.scopes) {
+			if (scope.storage !== item.storage) {
+				continue;
+			}
+			for (const category of scope.categories) {
+				const refreshed = category.id === item.categoryId && category.learnMoreUrl
+					? category.items.find(candidate => candidate.id === item.id)
+					: undefined;
+				if (refreshed) {
+					return { ...item, ...refreshed, learnMoreUrl: category.learnMoreUrl };
+				}
+			}
+		}
+		return undefined;
 	}
 
 	private renderCategoryErrors(parent: HTMLElement, errors: readonly ICustomizationMigrationDashboardCategoryError[]): void {
@@ -551,7 +717,8 @@ export class CustomizationMigrationDashboard extends Disposable {
 		DOM.append(details, $('p.mcp-detail-diagnostic-message', {}, promptMigration.category.description));
 	}
 
-	private renderMigrationTree(parent: HTMLElement, groups: ReturnType<CustomizationMigrationDashboard['getMigrationGroups']>): void {
+	/** Renders the migration tree and returns a function that moves keyboard focus to a rendered item. */
+	private renderMigrationTree(parent: HTMLElement, groups: ReturnType<CustomizationMigrationDashboard['getMigrationGroups']>): (item: IMigrationItemEntry) => boolean {
 		const treeContainer = DOM.append(parent, $('.migration-tree.customization-tree-container'));
 		const groupRenderer = new CustomizationGroupHeaderRenderer<IMigrationGroupEntry>(
 			'migrationGroupHeader',
@@ -632,7 +799,9 @@ export class CustomizationMigrationDashboard extends Disposable {
 			const groupId = `${category.id}:${scope.storage}`;
 			const scopeLabel = scope.storage === PromptsStorage.local
 				? localize('migrationWorkspaceScope', "Workspace")
-				: localize('migrationUserScope', "User");
+				: scope.storage === PromptsStorage.extension
+					? localize('migrationExtensionsScope', "Extensions")
+					: localize('migrationUserScope', "User");
 			const label = localize('migrationGroupWithScope', "{0} ({1})", category.label, scopeLabel);
 			const items: IMigrationItemEntry[] = category.items.map(item => ({
 				...item,
@@ -641,6 +810,7 @@ export class CustomizationMigrationDashboard extends Disposable {
 				storage: scope.storage,
 				groupKey: groupId,
 				readOnly: !!category.learnMoreUrl,
+				learnMoreUrl: category.learnMoreUrl,
 				selected: !category.learnMoreUrl && item.selected !== false,
 			}));
 			const element: IMigrationGroupEntry = {
@@ -715,6 +885,16 @@ export class CustomizationMigrationDashboard extends Disposable {
 		}));
 		tree.setChildren(null, children);
 		layoutTree();
+		return item => {
+			const entry = treeGroups.find(group => group.element.groupKey === item.groupKey)?.items.find(candidate => candidate.id === item.id);
+			if (!entry || this.collapsedMigrationGroups.has(entry.groupKey)) {
+				return false;
+			}
+			tree.reveal(entry);
+			tree.setFocus([entry]);
+			tree.domFocus();
+			return true;
+		};
 	}
 
 	private getMigrationGroupIcon(id: CustomizationMigrationCategoryId): ThemeIcon {
@@ -798,7 +978,9 @@ export class CustomizationMigrationDashboard extends Disposable {
 	}
 
 	private openMigrationItem(entry: IMigrationItemEntry): void {
-		if (!entry.readOnly) {
+		if (entry.readOnly) {
+			this.showGuidanceDetail(entry);
+		} else {
 			this.callbacks.openCustomization(entry, entry.storage);
 		}
 	}

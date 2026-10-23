@@ -29,14 +29,14 @@ export const customizationMigrationGuidance = [
 		migrationType: CustomizationMigrationType.ChatParticipants,
 		label: localize('migrationChatParticipants', "Chat Participants"),
 		description: localize('migrationChatParticipantsDescription', "Extension chat participants cannot be migrated automatically. Learn how to replace them with supported customizations."),
-		learnMoreUrl: 'https://aka.ms/vscode-migrate-customizations/chat-participants',
+		learnMoreUrl: 'https://code.visualstudio.com/docs/agent-customization/migrate-customizations#_replace-chat-participants',
 	},
 	{
 		id: CustomizationMigrationCategoryId.ToolSets,
 		migrationType: CustomizationMigrationType.ToolSets,
 		label: localize('migrationToolSets', "Tool Sets"),
 		description: localize('migrationToolSetsDescription', "User-defined and extension-contributed tool sets cannot be migrated automatically. Learn how to replace them with supported customizations."),
-		learnMoreUrl: 'https://aka.ms/vscode-migrate-customizations/tool-sets',
+		learnMoreUrl: 'https://code.visualstudio.com/docs/agent-customization/migrate-customizations#_replace-tool-sets',
 	},
 ] as const;
 

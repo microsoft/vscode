@@ -10,6 +10,7 @@ import {
 } from '../../../../contrib/chat/browser/aiCustomization/customizationMigrationDashboard.js';
 import { PromptsStorage } from '../../../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import * as DOM from '../../../../../base/browser/dom.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { HoverService } from '../../../../../platform/hover/browser/hoverService.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
@@ -181,25 +182,71 @@ async function renderDashboard(ctx: ComponentFixtureContext, width: number, stat
 	});
 	let model = overview();
 	if (state === 'guidance' || state === 'guidanceOnly') {
+		const toolSetGuidance = customizationMigrationGuidance.find(category => category.id === CustomizationMigrationCategoryId.ToolSets)!;
+		const participantGuidance = customizationMigrationGuidance.find(category => category.id === CustomizationMigrationCategoryId.ChatParticipants)!;
 		model = {
 			...model,
 			manualReviewItems: [],
-			scopes: model.scopes.map(scope => {
-				const categories = scope.storage === PromptsStorage.user
-					? customizationMigrationGuidance.map(category => ({
-						...category,
+			scopes: [
+				{
+					storage: PromptsStorage.user,
+					label: 'Your profile',
+					count: 1,
+					hasConfigurableDestinations: false,
+					categories: [{
+						...toolSetGuidance,
 						count: 1,
 						countLabel: '1 customization',
 						items: [{
-							id: category.id,
-							label: category.id === CustomizationMigrationCategoryId.ChatParticipants ? '@code-review' : 'review-tools',
+							id: 'tool-set',
+							label: 'review-tools',
 							scopeLabel: 'User',
-							sourceLabel: category.id === CustomizationMigrationCategoryId.ChatParticipants ? 'Code Review Extension' : '~/.config/Code/User/prompts/review.toolsets.jsonc',
+							sourceLabel: '~/.config/Code/User/prompts/review.toolsets.jsonc',
+							resource: URI.file('/profile/prompts/review.toolsets.jsonc'),
 						}],
-					}))
-					: scope.categories.filter(category => state === 'guidance' && category.id === CustomizationMigrationCategoryId.McpServers);
-				return { ...scope, categories, count: categories.reduce((total, category) => total + category.count, 0), hasConfigurableDestinations: false };
-			}),
+					}],
+				},
+				{
+					storage: PromptsStorage.extension,
+					label: 'Extensions',
+					count: 2,
+					hasConfigurableDestinations: false,
+					categories: [
+						{
+							...participantGuidance,
+							count: 1,
+							countLabel: '1 customization',
+							items: [{
+								id: 'participant',
+								label: '@code-review',
+								scopeLabel: 'Extension',
+								sourceLabel: 'Code Review Extension',
+								extensionId: 'example.code-review',
+							}],
+						},
+						{
+							...toolSetGuidance,
+							count: 1,
+							countLabel: '1 customization',
+							items: [{
+								id: 'extension-tool-set',
+								label: 'deployment-tools',
+								scopeLabel: 'Extension',
+								sourceLabel: 'Deployment Extension',
+								extensionId: 'example.deployment',
+							}],
+						},
+					],
+				},
+				...(state === 'guidance' ? model.scopes
+					.filter(scope => scope.storage === PromptsStorage.local)
+					.map(scope => ({
+						...scope,
+						categories: scope.categories.filter(category => category.id === CustomizationMigrationCategoryId.McpServers),
+						count: scope.categories.filter(category => category.id === CustomizationMigrationCategoryId.McpServers).reduce((total, category) => total + category.count, 0),
+						hasConfigurableDestinations: false,
+					})) : []),
+			],
 		};
 	}
 	if (state === 'zero') {
@@ -290,6 +337,7 @@ async function renderDashboard(ctx: ComponentFixtureContext, width: number, stat
 		deleteAgentMigrationRecovery: () => { },
 		retryCategory: () => { },
 		openCustomization: () => { },
+		openGuidanceSource: () => { },
 	}));
 	if (state === 'loading') {
 		dashboard.showLoading('Migrations', 'Loading migrations');
