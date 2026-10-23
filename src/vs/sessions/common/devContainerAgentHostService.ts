@@ -47,6 +47,7 @@ export interface IDevContainerAgentHostConnection {
 	readonly repository?: IDevContainerRepository;
 	readonly sandboxSupported?: boolean;
 	readonly defaultDirectory?: string;
+	readonly resolveClientCertificates?: () => Promise<readonly string[] | undefined>;
 }
 
 /** Creates a Dev Container and connects to its Agent Host. */

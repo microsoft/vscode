@@ -428,6 +428,9 @@ function _ahpReplacer(this: unknown, _key: string, value: unknown): unknown {
 		if ((value.method === 'channel/frame' || value.method === 'tcp/data') && isRecord(value.params)) {
 			return { ...value, params: { ...value.params, data: '<redacted channel payload>' } };
 		}
+		if (value.method === 'vscode/setClientCertificates' && isRecord(value.params)) {
+			return { ...value, params: { ...value.params, certificates: '<redacted>' } };
+		}
 		if (value.method === 'authenticate' && isRecord(value.params) && value.params.token !== undefined
 			&& value.params.token !== '<redacted>' && value.params.token !== '[REDACTED]') {
 			return { ...value, params: { ...value.params, token: '<redacted>' } };

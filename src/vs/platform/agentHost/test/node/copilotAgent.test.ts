@@ -1356,6 +1356,14 @@ class RecordingReleaseOTelService implements IAgentHostOTelService {
 
 class TestProxyResolver implements IAgentHostProxyResolver {
 	declare readonly _serviceBrand: undefined;
+	clientCertificates: readonly string[] = [];
+	setClientCertificates(_clientId: string, certificates: readonly string[]): void {
+		this.clientCertificates = certificates;
+		this._onDidChangeConfiguration.fire();
+	}
+	async loadCertificates(): Promise<string[]> {
+		return [...this.clientCertificates];
+	}
 	private readonly _onDidRegisterConnection = new Emitter<void>();
 	readonly onDidRegisterConnection = this._onDidRegisterConnection.event;
 	private readonly _onDidChangeConfiguration = new Emitter<void>();
@@ -7157,7 +7165,7 @@ suite('CopilotAgent', () => {
 				[AgentHostProxyConfigKey.NoProxy]: ['legacy.example'],
 				[AgentHostProxyConfigKey.ProxyKerberosServicePrincipal]: 'HTTP/legacy.example',
 			});
-			const watermark = agent as unknown as { _appliedProxy: string; _appliedNoProxy: string; _appliedProxyKerberosSpn: string };
+			const watermark = agent as unknown as { _appliedProxyState: { proxy: string; noProxy: string; kerberosSpn: string; certificates: readonly string[] } };
 			const session = AgentSession.uri('copilotcli', 'scoped-proxy-watermark');
 			const chat = defaultChatUri(session);
 			const directory = URI.file(process.cwd());
@@ -7176,7 +7184,7 @@ suite('CopilotAgent', () => {
 				await agent.chats.prepareTurn!(chat, 'turn', [directory], { ...exactChatContext(session, chat, session), credentials });
 				const scopedOptions = options.find(options => options.gitHubToken !== undefined)!;
 				assert.deepStrictEqual({
-					proxy: watermark._appliedProxy, noProxy: watermark._appliedNoProxy, kerberos: watermark._appliedProxyKerberosSpn,
+					proxy: watermark._appliedProxyState.proxy, noProxy: watermark._appliedProxyState.noProxy, kerberos: watermark._appliedProxyState.kerberosSpn,
 					scopedProxy: scopedOptions.env?.HTTPS_PROXY, scopedNoProxy: scopedOptions.env?.NO_PROXY,
 					legacyStops: clients[0].stopCallCount,
 				}, {
@@ -12621,6 +12629,38 @@ suite('CopilotAgent', () => {
 				});
 			} finally {
 				await disposeAgent(agent);
+			}
+		});
+
+		test('passes only client certificates to the Copilot runtime and refreshes them without changing the AH environment', async () => {
+			const directory = await fs.mkdtemp(join(os.tmpdir(), 'copilot-client-certificates-'));
+			const environmentBefore = { ...process.env };
+			const client = new TestCopilotClient([]);
+			const proxyResolver = new TestProxyResolver();
+			proxyResolver.clientCertificates = ['CLIENT CA'];
+			const { agent, instantiationService } = createTestAgentContext(disposables, { copilotClient: client, proxyResolver });
+			const environmentService = instantiationService.invokeFunction(accessor => accessor.get(INativeEnvironmentService));
+			const environmentStub = stub(environmentService, 'userDataPath').value(directory);
+			try {
+				await agent.listChatsToMigrate();
+				const firstPath = getCreatedClientOptions(agent).at(-1)?.env?.NODE_EXTRA_CA_CERTS;
+				assert.ok(firstPath);
+				const firstContent = await fs.readFile(firstPath, 'utf8');
+				proxyResolver.setClientCertificates('client', ['UPDATED CLIENT CA']);
+				await proxyRefresh(agent);
+				await agent.listChatsToMigrate();
+				const secondPath = getCreatedClientOptions(agent).at(-1)?.env?.NODE_EXTRA_CA_CERTS;
+				assert.ok(secondPath);
+				assert.deepStrictEqual({
+					firstContent,
+					secondContent: await fs.readFile(secondPath, 'utf8'),
+					distinctBundles: firstPath !== secondPath,
+					environmentUnchanged: JSON.stringify(process.env) === JSON.stringify(environmentBefore),
+				}, { firstContent: 'CLIENT CA', secondContent: 'UPDATED CLIENT CA', distinctBundles: true, environmentUnchanged: true });
+			} finally {
+				await disposeAgent(agent);
+				environmentStub.restore();
+				await fs.rm(directory, { recursive: true, force: true });
 			}
 		});
 

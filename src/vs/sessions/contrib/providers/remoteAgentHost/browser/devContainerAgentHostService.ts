@@ -176,7 +176,7 @@ class DevContainerConnectionFactory extends Disposable implements IRemoteAgentHo
 				AgentHostProtocolClient,
 				entry.connection.address,
 				connection.transportFactory,
-				{ clientInfo: agentsWindowAgentHostClientInfo, reconnectPolicy: getEntryTypeConfig(RemoteAgentHostEntryType.DevContainer).reconnect },
+				{ clientInfo: agentsWindowAgentHostClientInfo, reconnectPolicy: getEntryTypeConfig(RemoteAgentHostEntryType.DevContainer).reconnect, resolveClientCertificates: connection.resolveClientCertificates },
 			);
 			staged.initialConnection = undefined;
 			staged.sandboxSupported = connection.sandboxSupported;

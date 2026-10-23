@@ -6,6 +6,9 @@
 import { createChatUriError } from '../common/agentHostChatMinting.js';
 import { sandboxCertificateInstallationCapability, sandboxCertificateRemovalCapability, sandboxCertificateRotationCapability } from '../common/meta/agentSandboxCertificate.js';
 import { InstallSandboxCertificateExtensionMethod, RemoveSandboxCertificateExtensionMethod, RotateSandboxCertificateExtensionMethod, sandboxCertificateParamsValidator } from '../common/sandboxCertificateProtocol.js';
+import { SetClientCertificatesExtensionMethod, setClientCertificatesParamsValidator } from '../common/clientCertificatesProtocol.js';
+import { AgentHostClientCertificatesCapabilityMetaKey } from '../common/meta/agentHostClientCertificatesMeta.js';
+import { IAgentHostProxyResolver } from './agentHostProxyResolver.js';
 import { disposableTimeout, raceCancellationError, raceTimeout, SequencerByKey } from '../../../base/common/async.js';
 import { cancelOnDispose, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { lstat, realpath, stat } from 'fs/promises';
@@ -717,6 +720,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		@IDevContainerAgentHostMainService private readonly _devContainerService: IDevContainerAgentHostMainService,
 		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
+		@IAgentHostProxyResolver private readonly _proxyResolver: IAgentHostProxyResolver,
 	) {
 		super();
 		let tcpBudget = ProtocolServerHandler._tcpBudgets.get(_agentService);
@@ -1111,6 +1115,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 							&& !transport.relayPassive,
 						),
 						...(transport.relayClientId === undefined && !transport.relayPassive ? { [AgentHostWorktreeDiskUsageCapabilityMetaKey]: true } : {}),
+						...(transport.relayClientId === undefined && !transport.relayPassive ? { [AgentHostClientCertificatesCapabilityMetaKey]: true } : {}),
 						...(this._config.allowExtensionMethods !== false && this._agentService.installSandboxCertificate && transport.relayClientId === undefined && !transport.relayPassive
 							? { [sandboxCertificateInstallationCapability]: true } : {}),
 						...(this._config.allowExtensionMethods !== false && this._agentService.rotateSandboxCertificate && transport.relayClientId === undefined && !transport.relayPassive
@@ -1994,6 +1999,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				&& record.lastSeenAt < cutoff) {
 				record.disconnectTimeouts.dispose();
 				this._clients.delete(clientId);
+				this._proxyResolver.setClientCertificates(this._managedSettingsContributionId(clientId), []);
 				this._baselineDebt.delete(clientId);
 			}
 		}
@@ -3623,6 +3629,18 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	private _handleExtensionRequest(client: IConnectedClient, method: string, params: unknown): Promise<unknown> | undefined {
+		if (method === SetClientCertificatesExtensionMethod && !this._config.relayRoots && !this._config.relayRootMeta && client.transport.relayClientId === undefined && !client.transport.relayPassive) {
+			const validated = setClientCertificatesParamsValidator.validate(params);
+			if (validated.error) {
+				return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error.message));
+			}
+			try {
+				this._proxyResolver.setClientCertificates(this._managedSettingsContributionId(client.clientId), validated.content.certificates);
+			} catch {
+				return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Invalid client CA certificate'));
+			}
+			return Promise.resolve();
+		}
 		if ((method === MeasureWorktreeDiskUsageExtensionMethod || method === CancelWorktreeDiskUsageExtensionMethod)
 			&& !this._config.relayRoots && !this._config.relayRootMeta && client.transport.relayClientId === undefined && !client.transport.relayPassive) {
 			if (method === MeasureWorktreeDiskUsageExtensionMethod) {
@@ -4425,6 +4443,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	override dispose(): void {
 		for (const [clientId, record] of this._clients) {
 			this._managedSettingsService.removeClient(this._managedSettingsContributionId(clientId));
+			this._proxyResolver.setClientCertificates(this._managedSettingsContributionId(clientId), []);
 			if (record.state === 'active') {
 				for (const connection of [...record.connections]) {
 					const subscriptionCount = connection.subscriptions.size;

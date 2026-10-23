@@ -192,6 +192,9 @@ export function createTestAgentHostWorktreeIsolation(overrides: Partial<IAgentHo
 export function createTestAgentHostProxyResolver(fetchFn: typeof globalThis.fetch = globalThis.fetch): IAgentHostProxyResolver {
 	return {
 		_serviceBrand: undefined,
+		clientCertificates: [],
+		setClientCertificates: () => { },
+		loadCertificates: async () => [],
 		onDidRegisterConnection: Event.None,
 		onDidChangeConfiguration: Event.None,
 		register: () => Disposable.None,

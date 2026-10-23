@@ -36,6 +36,8 @@ export interface IDevContainerAgentHostConnectResult {
 	readonly repository?: IDevContainerRepository;
 	/** Whether the actual container has the Docker options needed for nested sandboxing. */
 	readonly sandboxSupported?: boolean;
+	/** Only desktop-local containers may receive the connecting client's trust roots. */
+	readonly forwardClientCertificates?: boolean;
 }
 
 /** One chunk of output from a Dev Container CLI process. */

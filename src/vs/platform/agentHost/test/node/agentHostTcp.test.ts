@@ -39,6 +39,7 @@ import { authenticateAgentHostTransport } from '../../node/agentHostTransportAut
 import { MockDevContainerService } from '../common/mockDevContainerService.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 import { AgentHostClientConnectionKind } from '../../common/agentHostTelemetry.js';
+import { createTestAgentHostProxyResolver } from './agentServiceTestUtils.js';
 
 class RecordingLogService extends NullLogService {
 	readonly warnings: string[] = [];
@@ -130,7 +131,7 @@ suite('AHP windowed TCP', function () {
 			const connections = store.add(new Emitter<IProtocolTransport>());
 			store.add(new ProtocolServerHandler(service, state, { onConnection: connections.event, address: 'test', dispose() { } }, {},
 				store.add(new AgentHostFileSystemProvider()), log, NullTelemetryService,
-				managedSettings, clientConnections, devContainers, NullAgentHostOTelService, createTestChatOwnershipService(state)));
+				managedSettings, clientConnections, devContainers, NullAgentHostOTelService, createTestChatOwnershipService(state), createTestAgentHostProxyResolver()));
 			return connections;
 		}
 		const primaryListener = listener();

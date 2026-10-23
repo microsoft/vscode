@@ -5,6 +5,7 @@
 
 import { LogLevel as ProxyLogLevel, ProxyAgentParams, createFetchPatch, createProxyAuthorizationLookup, createProxyResolver, createWebSocketPatch, loadSystemCertificates, type Log as ProxyLog } from '@vscode/proxy-agent';
 import { getCACertificates } from 'tls';
+import { X509Certificate } from 'crypto';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { equals } from '../../../base/common/objects.js';
@@ -61,6 +62,10 @@ export interface IAgentHostProxyResolver {
 
 	readonly onDidRegisterConnection: Event<void>;
 	readonly onDidChangeConfiguration: Event<void>;
+	readonly clientCertificates: readonly string[];
+
+	setClientCertificates(clientId: string, certificates: readonly string[]): void;
+	loadCertificates(): Promise<string[]>;
 
 	/** Register a renderer connection. Disposing the result removes it. */
 	register(clientId: string, connection: IAgentHostClientProxyConnection): IDisposable;
@@ -94,6 +99,8 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 	private readonly _configurationListener = this._register(new MutableDisposable());
 
 	private readonly _connections = new Map<string, IAgentHostClientProxyConnection>();
+	private readonly _certificatesByClient = new Map<string, readonly string[]>();
+	private _clientCertificates: readonly string[] = [];
 	private _configurationValues: Record<string, unknown> = {};
 	private _proxyResolver: { readonly params: ProxyAgentParams; readonly resolver: ReturnType<typeof createProxyResolver> } | undefined;
 	private _fetch: typeof globalThis.fetch | undefined;
@@ -116,6 +123,32 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 
 	getConfigurationValue<T>(key: AgentHostProxyConfigurationKey): T | undefined {
 		return this._configurationService.getRootValue(agentHostProxyConfigSchema, key) as T | undefined;
+	}
+
+	get clientCertificates(): readonly string[] {
+		return this._clientCertificates;
+	}
+
+	setClientCertificates(clientId: string, certificates: readonly string[]): void {
+		const validated = certificates.map(certificate => new X509Certificate(certificate).toString());
+		if (validated.length) {
+			this._certificatesByClient.set(clientId, validated);
+		} else {
+			this._certificatesByClient.delete(clientId);
+		}
+		const combined = [...new Set([...this._certificatesByClient.values()].flat())].sort();
+		if (equals(combined, this._clientCertificates)) {
+			return;
+		}
+		this._clientCertificates = Object.freeze(combined);
+		this._proxyResolver = undefined;
+		this._fetch = undefined;
+		this._webSocket = undefined;
+		this._onDidChangeConfiguration.fire();
+	}
+
+	async loadCertificates(): Promise<string[]> {
+		return [...await loadAgentHostCertificates(this._logService), ...this._clientCertificates];
 	}
 
 	private _readConfigurationValues(): Record<string, unknown> {
@@ -177,7 +210,7 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 				addCertificatesV1: () => true,
 				addCertificatesV2: () => false,
 				loadSystemCertificatesFromNode: () => systemCertificatesNodeDefault,
-				loadAdditionalCertificates: () => loadAgentHostCertificates(this._logService),
+				loadAdditionalCertificates: () => this.loadCertificates(),
 				log: proxyLog,
 				getLogLevel: () => {
 					switch (this._logService.getLevel()) {
