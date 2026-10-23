@@ -960,7 +960,11 @@ suite('NewChatWidget', () => {
 				{ providerId: 'cloud', sessionType: { ...state.localTarget.sessionType, id: 'cloud-sandbox' } },
 			], undefined);
 			const afterCloudTarget = isCloudQuickChatFallback.call(state.widget, cloud, session);
-			const canSendWithoutWorkspace = derived(reader => canSendRequestToWorkspace.call(state.widget, session, cloud, reader)).get();
+			const canSendHarness: ICanSendRequestToWorkspaceHarness = {
+				_workspacePicker: upcastPartial<WorkspacePicker>({ selectedFolderUri: undefined }),
+				sessionsProvidersService: { getProviders: () => [] },
+			};
+			const canSendWithoutWorkspace = derived(reader => canSendRequestToWorkspace.call(canSendHarness, session, cloud, reader)).get();
 
 			assert.deepStrictEqual({
 				beforeCloudTarget,
