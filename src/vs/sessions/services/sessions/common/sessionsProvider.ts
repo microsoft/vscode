@@ -5,10 +5,12 @@
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
-import { IDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable } from '../../../../base/common/observable.js';
+import { IDisposable, IReference } from '../../../../base/common/lifecycle.js';
+import { IObservable, IReader } from '../../../../base/common/observable.js';
+import { IArtifactModel } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
 import { ResolveSessionConfigResult } from '../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IChatSendRequestOptions } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -17,7 +19,7 @@ import { ILanguageModelChatMetadataAndIdentifier, type IModelConfigurationAccess
 import { ModelIdentifierResolution } from '../../../../workbench/contrib/chat/common/modelSelection.js';
 import { IAutomationSessionTemplate } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationUnavailableReasonCode, IAutomationProviderConfiguration, IAutomationStore } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
-import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionEnvironment, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection } from './session.js';
+import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionEnvironment, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, type SessionCanvasDefinitionSnapshot } from './session.js';
 
 /**
  * Event fired when sessions change within a provider.
@@ -65,6 +67,56 @@ export interface ISessionChangesetOperationInvokedEvent {
  */
 export class SessionMoveRefusedError extends Error {
 	constructor(message: string) {
+		super(message);
+	}
+}
+
+/** The workspace chosen for a new nested chat. */
+export type INestedChatWorkspace =
+	| { readonly kind: 'folder'; readonly folder: URI; readonly isolation: 'folder' }
+	| { readonly kind: 'folder'; readonly folder: URI; readonly isolation: 'worktree'; readonly baseBranch: string | undefined }
+	| { readonly kind: 'scratch' };
+
+/** What the composer may offer for a new nested chat in a session. */
+export interface INestedChatWorkspaceSupport {
+	/** The session's own folder (its default chat's primary folder, excluding scratch folders); `undefined` for a workspace-less session. */
+	readonly sessionFolder: URI | undefined;
+	/** Whether the agent gives a chat its own folder (agent capability `multipleWorkingDirectories`). */
+	readonly multipleFolders: boolean;
+	/** Folder browse actions of this provider (same host), for "Browse…". */
+	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
+}
+
+/** Folder facts for the nested composer's isolation and branch pickers. */
+export interface INestedChatFolderInfo {
+	/** Whether the host offers isolation `'worktree'` for this folder (a git repository). */
+	readonly supportsWorktree: boolean;
+	/** The branch a new worktree is based on by default. */
+	readonly defaultBranch: string | undefined;
+}
+
+/**
+ * Why a nested chat could not be given the chosen workspace, in a message for the user.
+ * `notSupported`: the provider, host, or agent cannot give it that workspace. `refused`: the host refused the
+ * request, or the chat already started.
+ */
+export class NestedChatWorkspaceError extends Error {
+
+	static notSupported(): NestedChatWorkspaceError {
+		return new NestedChatWorkspaceError('notSupported', localize('nestedChatWorkspace.notSupported', "This agent can't give a nested session its own folder."));
+	}
+
+	/** `reason` is the host's message; only its first line is shown, without an `Error:` prefix or stack. */
+	static refused(workspaceLabel: string, reason: string): NestedChatWorkspaceError {
+		const shown = reason.split(/\r?\n/, 1)[0].replace(/^(?:Error:\s*)+/, '').replace(/\s+at\s+\S+\s+\(.*$/, '').trim();
+		return new NestedChatWorkspaceError('refused', localize('nestedChatWorkspace.refused', "The nested session could not be created in {0}: {1}", workspaceLabel, shown));
+	}
+
+	static alreadyStarted(): NestedChatWorkspaceError {
+		return new NestedChatWorkspaceError('refused', localize('nestedChatWorkspace.alreadyStarted', "The nested session already started, so its workspace can't change."));
+	}
+
+	constructor(readonly kind: 'notSupported' | 'refused', message: string) {
 		super(message);
 	}
 }
@@ -444,6 +496,9 @@ export interface ISessionsProvider {
 	 */
 	createNewSession(workspaceUri: URI, sessionTypeId: string, options?: ISessionsProviderCreateSessionOptions): ISession;
 
+	/** Prepare provider resources for a nonempty, unsent draft without publishing or submitting it. */
+	prepareNewSessionWhileComposing?(sessionId: string): void;
+
 	/**
 	 * Asynchronously replace a draft before its first chat is created.
 	 * Providers use this to materialize execution environments that can change
@@ -511,9 +566,10 @@ export interface ISessionsProvider {
 
 	/** Remove a recorded artifact without changing independent session associations. */
 	removeSessionArtifact?(sessionId: string, artifactId: string): Promise<void>;
+	acquireArtifactIntegration?(sessionId: string, artifactId: string): Promise<IReference<IArtifactModel>>;
 
-	/** List canvas types registered in one live chat. */
-	listCanvases?(sessionId: string, chatResource: URI): Promise<readonly ISessionCanvasDefinition[]>;
+	/** List canvas types registered in one live chat. After returning `undefined`, republish the chat's canvases when an authoritative snapshot is available. */
+	listCanvases?(sessionId: string, chatResource: URI): Promise<SessionCanvasDefinitionSnapshot>;
 
 	/** Open or focus one stable instance of a registered canvas type. */
 	openCanvas?(sessionId: string, chatResource: URI, canvas: ISessionCanvasDefinition, instanceId: string): Promise<void>;
@@ -682,6 +738,28 @@ export interface ISessionsProvider {
 	 * @param prompt Optional prompt to initialize the new chat with.
 	 */
 	createNewChat(sessionId: string, prompt?: string): Promise<IChat>;
+
+	/**
+	 * What the composer may offer for a new nested chat in the session. Cheap and synchronous; tracked by `reader`,
+	 * so a derived re-evaluates when the host, agent, or session state behind it changes.
+	 * `undefined` when the composer must not offer workspace choices (a host without nested chat workspaces, a
+	 * provider or session without multiple chats, an archived or unknown session, or a provider that is not an
+	 * agent host).
+	 */
+	getNestedChatWorkspaceSupport(sessionId: string, reader: IReader | undefined): INestedChatWorkspaceSupport | undefined;
+
+	/** Resolves the isolation and branch facts of `folder` for a new nested chat in the session. */
+	resolveNestedChatFolder(sessionId: string, folder: URI, token: CancellationToken): Promise<INestedChatFolderInfo>;
+
+	/** Branch names of the repository of `folder` matching `query` (may be empty). */
+	getNestedChatBranches(sessionId: string, folder: URI, query: string, token: CancellationToken): Promise<readonly string[]>;
+
+	/**
+	 * Gives `chat`, an untitled peer chat of the session that has not sent a request, the chosen workspace;
+	 * `prompt` names a new worktree. Rejects with a {@link NestedChatWorkspaceError} when the workspace cannot be
+	 * applied (the host refused, or the chat already started), leaving the chat as it was.
+	 */
+	applyNestedChatWorkspace(sessionId: string, chat: URI, workspace: INestedChatWorkspace, prompt: string): Promise<void>;
 
 	/**
 	 * Fork an existing chat into a new chat within the same session, seeded

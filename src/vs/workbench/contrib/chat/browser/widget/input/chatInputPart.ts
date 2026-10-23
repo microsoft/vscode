@@ -160,7 +160,7 @@ import { ChatArtifactsWidget } from '../chatArtifactsWidget.js';
 import { handleTerminalCommandPaste, isTerminalCommandInput, isTerminalCommandPaste as isTerminalCommandPasteContent } from '../../chatTerminalCommandPaste.js';
 import { ChatDynamicVariableModel } from '../../attachments/chatDynamicVariables.js';
 import { ChatDragAndDrop } from '../chatDragAndDrop.js';
-import { getChatPetPillPlatformTop, getChatPetStackPlatformTop } from '../chatPetWidget.js';
+import { getChatPetStackPlatform, IChatPetPlatform } from '../chatPetWidget.js';
 import { ChatFollowups } from './chatFollowups.js';
 import { IChatInputNotificationContext, IChatInputNotificationService } from './chatInputNotificationService.js';
 import { ChatGoalBannerWidget } from './chatGoalBannerWidget.js';
@@ -274,10 +274,11 @@ export interface IChatInputStyles {
 	listShadow?: string;
 }
 
-/** A dynamic set of elements that can act as raised platforms for the chat pet. */
+/** Raised pet surfaces and an optional container whose edge replaces its inset controls. */
 export interface IChatPetHorizontalPlatformProvider {
 	readonly onDidChange: Event<void>;
 	getElements(): readonly HTMLElement[];
+	getBaseElement?(): HTMLElement | undefined;
 }
 
 export interface IChatInputPartOptions {
@@ -390,7 +391,11 @@ export interface IChatInputHostModelSelection extends IChatInputNotificationMode
  * session provider, takes part in submitting the input.
  */
 export interface IChatInputHostSubmit {
-	/** Whether the host currently allows submitting, in addition to the input's own checks. */
+	/**
+	 * Whether the host currently allows submitting, in addition to the input's own
+	 * checks. The host also decides whether its session's options are valid, so
+	 * the input does not check them.
+	 */
 	readonly canSubmit: IObservable<boolean>;
 	/** Whether the host has content to send even when the input is empty, such as feedback it sends along. */
 	readonly hasContent?: IObservable<boolean>;
@@ -702,7 +707,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	/** Arbitrates which notice occupies the area above this input. */
 	readonly noticeHost = this._register(new ChatInputNoticeHost(() => this.focus()));
 
-	/** Registers raised platforms that occupy only part of the input width. */
+	/** Registers raised platforms associated with this input. */
 	registerChatPetHorizontalPlatformProvider(provider: IChatPetHorizontalPlatformProvider): IDisposable {
 		this._chatPetHorizontalPlatformProviders.add(provider);
 		const store = new DisposableStore();
@@ -716,23 +721,40 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	getChatPetPlatformTop(petCenterX?: number): number {
-		if (petCenterX !== undefined) {
-			const pillBounds: DOMRect[] = [];
-			for (const provider of this._chatPetHorizontalPlatformProviders) {
-				for (const element of provider.getElements()) {
-					pillBounds.push(element.getBoundingClientRect());
-				}
+		const stack = getChatPetStackPlatform(this.container, this.inputContainer, this.persistentContentContainer);
+		if (petCenterX === undefined) {
+			return stack.top;
+		}
+		return this.getChatPetPlatforms()
+			.filter(platform => petCenterX >= platform.left && petCenterX <= platform.right)
+			.reduce((top, platform) => Math.min(top, platform.top), stack.top);
+	}
+
+	getChatPetPlatforms(): readonly IChatPetPlatform[] {
+		const platforms = [getChatPetStackPlatform(this.container, this.inputContainer, this.persistentContentContainer)];
+		const inputTop = this.inputContainer.getBoundingClientRect().top;
+		const elements = new Set<HTMLElement>();
+		const containers: HTMLElement[] = [];
+		for (const provider of this._chatPetHorizontalPlatformProviders) {
+			for (const element of provider.getElements()) {
+				elements.add(element);
 			}
-			const pillTop = getChatPetPillPlatformTop(
-				petCenterX,
-				pillBounds
-			);
-			if (pillTop !== undefined) {
-				return pillTop;
+			const baseElement = provider.getBaseElement?.();
+			if (baseElement) {
+				containers.push(baseElement);
+				elements.add(baseElement);
 			}
 		}
-		// Skips the persistent content, which floats above the input part rather than sitting in the stack.
-		return getChatPetStackPlatformTop(this.container, this.inputContainer, this.persistentContentContainer);
+		for (const element of elements) {
+			if (!element.checkVisibility({ checkVisibilityCSS: true }) || containers.some(container => container !== element && container.contains(element))) {
+				continue;
+			}
+			const bounds = element.getBoundingClientRect();
+			if (bounds.width > 0 && bounds.height > 0 && bounds.top <= inputTop) {
+				platforms.push({ left: bounds.left, right: bounds.right, top: bounds.top, element, isDefault: containers.includes(element) });
+			}
+		}
+		return platforms;
 	}
 
 	readonly height = observableValue<number>(this, 0);
@@ -871,6 +893,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private readonly _modelSelectionController: ChatInputModelSelectionController;
 	private readonly _currentLanguageModel: IObservable<ILanguageModelChatMetadataAndIdentifier | undefined>;
 	private readonly _modelSelectionRuntime: IChatInputModelSelectionRuntime;
+
+	/**
+	 * The last result of {@link getAllMergedModels}, with the contributed vendors it was merged for.
+	 * Cleared when the models or the persisted cache change.
+	 */
+	private _mergedModels: { readonly vendors: string; readonly models: readonly ILanguageModelChatMetadataAndIdentifier[] } | undefined;
 
 	/**
 	 * Per-editor store of each model's configuration (e.g. context size, thinking
@@ -1094,6 +1122,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
 	) {
 		super();
+		// Registered before anything else here, so every listener below reads the models after the change.
+		// Vendors coming and going are caught by `getAllMergedModels` comparing the vendors it merged for.
+		this._register(Event.any<unknown>(
+			this.languageModelsService.onDidChangeLanguageModels,
+			this.storageService.onDidChangeValue(StorageScope.APPLICATION, CachedLanguageModelsKey, this._store),
+		)(() => this._mergedModels = undefined));
 		remoteAgentService.getEnvironment().then(environment => {
 			if (this._store.isDisposed) {
 				return;
@@ -2124,13 +2158,25 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * Get all models merged from live and cache, without session/mode filtering.
 	 * This is the canonical source for the full model pool, including cached models
 	 * that bridge startup races when live models haven't loaded yet.
+	 *
+	 * Read for every row of the model picker, so the merge is kept until one of its inputs
+	 * changes. Returns a fresh array, which callers may sort or filter in place.
 	 */
 	private getAllMergedModels(): ILanguageModelChatMetadataAndIdentifier[] {
+		const contributedVendors = new Set(this.languageModelsService.getVendors().map(v => v.vendor));
+		// Context keys decide which vendors are contributed, and they change without a model event.
+		const vendors = [...contributedVendors].join('\n');
+		if (this._mergedModels?.vendors !== vendors) {
+			this._mergedModels = { vendors, models: this.computeMergedModels(contributedVendors) };
+		}
+		return [...this._mergedModels.models];
+	}
+
+	private computeMergedModels(contributedVendors: Set<string>): ILanguageModelChatMetadataAndIdentifier[] {
 		const cachedModels = this.storageService.getObject<ILanguageModelChatMetadataAndIdentifier[]>(CachedLanguageModelsKey, StorageScope.APPLICATION, []);
 		const liveModels = this.languageModelsService.getLanguageModelIds()
 			.map(modelId => ({ identifier: modelId, metadata: this.languageModelsService.lookupLanguageModel(modelId)! }));
 
-		const contributedVendors = new Set(this.languageModelsService.getVendors().map(v => v.vendor));
 		const resolvedVendors = new Set<string>();
 		for (const v of contributedVendors) {
 			if (this.languageModelsService.hasResolvedVendor(v)) {
@@ -2807,7 +2853,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return [];
 		}
 
-		const allOptionsValid = sessionResource ? this.areAllOptionsValid(sessionResource, visibleOptionGroups) : true;
+		// A host that submits for itself decides whether its session's options are valid.
+		const allOptionsValid = this.options.hostSubmit || !sessionResource ? true : this.areAllOptionsValid(sessionResource, visibleOptionGroups);
 
 		this.chatSessionHasOptions.set(true);
 		this.chatSessionOptionsValid.set(allOptionsValid);
@@ -5197,7 +5244,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						},
 						keepEnabled: derived(r => sessionKeep.read(r)?.enabled.read(r) ?? true),
 						undo: derived(r => this._sessionFileChanges.read(r)?.undo.read(r)),
-					}));
+					}, () => this.focus()));
 					this.chatEditingSessionWidgetContainer.appendChild(workingSet.domNode);
 					this._sessionWorkingSet = workingSet;
 					store.add(workingSet.onDidFocus(() => this._onDidFocus.fire()));

@@ -16,7 +16,6 @@ import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { ISessionSummaryHoverService } from '../../../../workbench/contrib/chat/browser/agentSessions/sessionSummaryHoverService.js';
-import { IPreferencesService } from '../../../../workbench/services/preferences/common/preferences.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
@@ -48,7 +47,6 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@ISessionSummaryHoverService sessionSummaryHoverService: ISessionSummaryHoverService,
 		@ILabelService labelService: ILabelService,
-		@IPreferencesService preferencesService: IPreferencesService,
 	) {
 		super();
 		this._register(openerService.registerOpener({
@@ -73,7 +71,7 @@ export class OpenSessionLinkOpenerContribution extends Disposable implements IWo
 		this._register(sessionSummaryHoverService.registerProvider({
 			provideSessionSummaryHoverData: async resource => {
 				const session = this._findSessionForLink(resource);
-				return session ? getSessionSummaryHoverData(session, sessionsProvidersService, openerService, labelService, preferencesService) : undefined;
+				return session ? getSessionSummaryHoverData(session, sessionsProvidersService, openerService, labelService) : undefined;
 			},
 		}));
 	}

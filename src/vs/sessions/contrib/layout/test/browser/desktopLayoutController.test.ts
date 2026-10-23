@@ -13,13 +13,18 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { constObservable, ISettableObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
-import { MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { ActiveEditorContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
 import { StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { ViewContainerLocation } from '../../../../../workbench/common/views.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
@@ -27,8 +32,9 @@ import { DesktopChangesEditorTransitionContext, DesktopChangesTabAvailableContex
 import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { CustomEditorInput } from '../../../../../workbench/contrib/customEditor/browser/customEditorInput.js';
 import { FileEditorInput } from '../../../../../workbench/contrib/files/browser/editors/fileEditorInput.js';
-import { MultiDiffEditorInput } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
 import { WebviewInput } from '../../../../../workbench/contrib/webviewPanel/browser/webviewEditorInput.js';
+import { MultiDiffEditor } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
+import { multiDiffEditorExperimentalFileListSetting, MultiDiffEditorFileListAvailableContext, observableMultiDiffEditorFileListVisible } from '../../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
 import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { DiffEditorInput } from '../../../../../workbench/common/editor/diffEditorInput.js';
@@ -67,12 +73,21 @@ suite('DesktopLayoutController', () => {
 		return fileEditor;
 	}
 
-	function makeDiffEditor(): DiffEditorInput {
-		return Object.create(DiffEditorInput.prototype) as DiffEditorInput;
+	function makeDiffEditor(path: string): DiffEditorInput {
+		const original = store.add(new TestStubEditorInput(URI.file(path).with({ scheme: 'git' })));
+		const modified = makeFileEditor(path);
+		const editor = Object.create(DiffEditorInput.prototype) as DiffEditorInput;
+		Object.defineProperties(editor, {
+			original: { value: original },
+			modified: { value: modified },
+			secondary: { value: original },
+			primary: { value: modified },
+		});
+		return editor;
 	}
 
-	function makeMultiDiffEditor(): MultiDiffEditorInput {
-		return Object.create(MultiDiffEditorInput.prototype) as MultiDiffEditorInput;
+	function makeChangesEditor(sessionResource: URI): TestStubEditorInput {
+		return store.add(new TestStubEditorInput(harness.sessionChangesService.getChangesEditorResource(sessionResource)));
 	}
 
 	function makeWebviewEditor(viewType: string, providerId?: string): WebviewInput {
@@ -440,17 +455,18 @@ suite('DesktopLayoutController', () => {
 		});
 	});
 
-	test('[desktop] maps diff editors to Changes and workspace file editors to Files', async () => {
+	test('[desktop] maps managed Changes editors to Changes and workspace file and diff editors to Files', async () => {
 		createDesktopController({ activateAux: true });
 		await timeout(0);
 
-		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
+		const session = makeSession(URI.parse('session:1'));
+		harness.activeSessionObs.set(session, undefined);
 		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
 		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
 		await timeout(0);
 
 		const openedContainers: (string | undefined)[] = [];
-		for (const editor of [makeDiffEditor(), makeMultiDiffEditor(), makeFileEditor('/repo/file.ts')]) {
+		for (const editor of [makeChangesEditor(session.resource), makeDiffEditor('/repo/file.ts'), makeFileEditor('/repo/file.ts')]) {
 			harness.openedViewContainers = [];
 			harness.activeEditorInput = editor;
 			harness.onDidActiveEditorChange.fire();
@@ -460,7 +476,7 @@ suite('DesktopLayoutController', () => {
 
 		assert.deepStrictEqual(openedContainers, [
 			CHANGES_VIEW_CONTAINER_ID,
-			CHANGES_VIEW_CONTAINER_ID,
+			SESSIONS_FILES_CONTAINER_ID,
 			SESSIONS_FILES_CONTAINER_ID,
 		]);
 	});
@@ -518,7 +534,8 @@ suite('DesktopLayoutController', () => {
 		createDesktopController({ activateAux: true });
 		await timeout(0);
 
-		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
+		const session = makeSession(URI.parse('session:1'));
+		harness.activeSessionObs.set(session, undefined);
 		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
 		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: true });
 		harness.activeEditorInput = makeFileEditor();
@@ -527,7 +544,7 @@ suite('DesktopLayoutController', () => {
 
 		harness.layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
 		harness.openedViewContainers = [];
-		harness.activeEditorInput = makeDiffEditor();
+		harness.activeEditorInput = makeChangesEditor(session.resource);
 		harness.onDidActiveEditorChange.fire();
 		await timeout(0);
 
@@ -1520,6 +1537,45 @@ suite('DesktopLayoutController', () => {
 		});
 	});
 
+	test('[desktop] Toggle Details toggles the file list of a multi diff editor instead of the details', () => {
+		createDesktopController();
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+		const configurationService = new TestConfigurationService({ [multiDiffEditorExperimentalFileListSetting]: true });
+		const createGroup = (activeEditorId: string): IEditorGroup => {
+			const scopedContextKeyService = store.add(new ContextKeyService(configurationService));
+			MainEditorAreaVisibleContext.bindTo(scopedContextKeyService).set(true);
+			ActiveEditorContext.bindTo(scopedContextKeyService).set(activeEditorId);
+			// A group keeps the key of a multi diff editor pane that is no longer active.
+			MultiDiffEditorFileListAvailableContext.bindTo(scopedContextKeyService).set(true);
+			return new class extends mock<IEditorGroup>() {
+				override readonly scopedContextKeyService = scopedContextKeyService;
+			};
+		};
+		const multiDiffEditorGroup = createGroup(MultiDiffEditor.ID);
+		const textEditorGroup = createGroup('workbench.editors.files.textFileEditor');
+		const activeEditorPane = { group: multiDiffEditorGroup };
+		harness.instaService.stub(IEditorService, 'activeEditorPane', activeEditorPane);
+		harness.instaService.stub(IEditorGroupsService, 'getGroup', (groupId: number) => groupId === 2 ? multiDiffEditorGroup : undefined);
+		const fileListVisible = observableMultiDiffEditorFileListVisible({}, configurationService, harness.storageService, store);
+		const handler = CommandsRegistry.getCommand(TOGGLE_DETAILS_COMMAND_ID)?.handler;
+		assert.ok(handler, 'Toggle Details command should be registered');
+		const toggle = (activeGroup: IEditorGroup, ...args: unknown[]) => {
+			activeEditorPane.group = activeGroup;
+			handler(harness.instaService, ...args);
+			return { fileListVisible: fileListVisible.get(), detailsVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART) };
+		};
+
+		assert.deepStrictEqual({
+			multiDiffEditorActive: toggle(multiDiffEditorGroup),
+			textEditorActive: toggle(textEditorGroup),
+			multiDiffEditorGroupToolbar: toggle(textEditorGroup, URI.file('/repo/changes'), { groupId: 2 }),
+		}, {
+			multiDiffEditorActive: { fileListVisible: false, detailsVisible: false },
+			textEditorActive: { fileListVisible: false, detailsVisible: true },
+			multiDiffEditorGroupToolbar: { fileListVisible: true, detailsVisible: true },
+		});
+	});
+
 	test('[D7 desktop] contributes Toggle Details after Maximize with the editor title layout actions', () => {
 		createDesktopController();
 
@@ -1541,6 +1597,7 @@ suite('DesktopLayoutController', () => {
 			hasToggled: !!items[0].command.toggled,
 			gatedOnEditorArea: when.includes(MainEditorAreaVisibleContext.key),
 			gatedOnDockedDetails: when.includes(HasDockedDetailsContext.key),
+			gatedOnMultiDiffEditorFileList: when.includes(MultiDiffEditorFileListAvailableContext.key),
 		}, {
 			group: 'navigation',
 			icon: Codicon.listSelection.id,
@@ -1549,6 +1606,7 @@ suite('DesktopLayoutController', () => {
 			hasToggled: true,
 			gatedOnEditorArea: true,
 			gatedOnDockedDetails: true,
+			gatedOnMultiDiffEditorFileList: true,
 		});
 	});
 
@@ -2115,6 +2173,55 @@ suite('DesktopLayoutController', () => {
 			changesActive: !!harness.activeEditorInput?.resource && isEqual(harness.activeEditorInput.resource, changesResource),
 		}, { hasChangesTab: true, hasFilesTab: true, changesActiveBeforeChanges: false, changesActive: true });
 	});
+
+	for (const editorVisible of [false, true]) {
+		for (const replaceEventFirst of [false, true]) {
+			test(`[managed tabs / submit] a resource-replace submit keeps the draft's tabs (Editor visible=${editorVisible}, replace event first=${replaceEventFirst})`, async () => {
+				createDesktopController({ activateAux: true, workspaceFolders: [{ uri: URI.file('/repo') }] });
+				await settle();
+				const layoutService = harness.instaService.get(IAgentWorkbenchLayoutService);
+				const state = () => ({
+					editorVisible: layoutService.isVisible(Parts.EDITOR_PART, mainWindow),
+					detailVisible: layoutService.isVisible(Parts.AUXILIARYBAR_PART),
+					hasChangesTab: hasChangesTab(),
+					hasFilesTab: hasFilesTab(),
+				});
+
+				const draft = makeSession(URI.parse('session:draft'), { status: SessionStatus.Untitled, isCreated: false });
+				harness.activeSessionObs.set(draft, undefined);
+				harness.visibleSessionsObs.set([draft], undefined);
+				await settle();
+				if (editorVisible) {
+					layoutService.setPartHidden(false, Parts.EDITOR_PART);
+					await settle();
+				}
+				const beforeSubmit = state();
+
+				const committed = makeSession(URI.parse('session:committed'), { status: SessionStatus.InProgress });
+				const switchToCommitted = () => {
+					transaction(tx => {
+						(draft.isCreated as ISettableObservable<boolean>).set(true, tx);
+						harness.activeSessionObs.set(committed, tx);
+					});
+					harness.visibleSessionsObs.set([committed], undefined);
+				};
+				if (replaceEventFirst) {
+					harness.onDidReplaceSession.fire({ from: draft, to: committed });
+					switchToCommitted();
+				} else {
+					switchToCommitted();
+					harness.onDidReplaceSession.fire({ from: draft, to: committed });
+				}
+				await settle();
+
+				assert.deepStrictEqual({ beforeSubmit, afterSubmit: state(), emptyWorkingSetApplies: harness.applyWorkingSetCalls.filter(workingSet => workingSet === 'empty').length }, {
+					beforeSubmit: { editorVisible, detailVisible: true, hasChangesTab: true, hasFilesTab: true },
+					afterSubmit: { editorVisible, detailVisible: true, hasChangesTab: true, hasFilesTab: true },
+					emptyWorkingSetApplies: 0,
+				});
+			});
+		}
+	}
 
 	test('[managed tabs / session switch] does not leak a superseded submit\'s "activate Changes" intent onto the switched-to session', async () => {
 		createDesktopController({ activateAux: true });

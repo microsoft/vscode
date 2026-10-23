@@ -126,6 +126,7 @@ suite('TerminalChatService', () => {
 		const source: IChatTerminalOutputSource = {
 			onDidChange: Event.None,
 			output: 'output',
+			outputPosition: { generation: 0, start: 0 },
 			hasExited: false,
 			exitCode: undefined,
 		};

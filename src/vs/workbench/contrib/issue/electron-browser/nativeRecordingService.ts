@@ -3,35 +3,46 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { mainWindow } from '../../../../base/browser/window.js';
+import { TimeoutTimer } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
+import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
-import { IRecordingData, IRecordingService, RecordingState } from '../browser/recordingService.js';
+import { IRecordingData, IRecordingService, RecordingState, ScreenCapturePermissionStatus } from '../browser/recordingService.js';
 
 const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024; // 100 MB — GitHub upload limit
 const SIZE_LIMIT_THRESHOLD = 0.9; // Stop at 90% to account for chunk overshoot
+const RECORDING_OPERATION_TIMEOUT = 10_000;
 
 export class NativeRecordingService extends Disposable implements IRecordingService {
 	readonly _serviceBrand: undefined;
-	// MediaRecorder + getDisplayMedia may be absent if the renderer is run with reduced
-	// APIs (e.g. some test/runtime configurations); derive support from feature detection
-	// so startRecording can early-reject rather than blowing up with ReferenceError.
-	readonly isSupported = typeof MediaRecorder !== 'undefined'
-		&& typeof navigator !== 'undefined'
-		&& !!navigator.mediaDevices?.getDisplayMedia;
+	get isSupported(): boolean {
+		return !!this.getMediaDevices()?.getDisplayMedia && this.getSupportedFormats().length > 0;
+	}
 
 	private _state = RecordingState.Idle;
 	private readonly _onDidChangeState = this._register(new Emitter<RecordingState>());
 	readonly onDidChangeState: Event<RecordingState> = this._onDidChangeState.event;
+	private readonly _onDidFailRecording = this._register(new Emitter<Error>());
+	readonly onDidFailRecording = this._onDidFailRecording.event;
 
 	private mediaRecorder: MediaRecorder | undefined;
+	private recorderStopped = false;
 	private mediaStream: MediaStream | undefined;
 	private chunks: Blob[] = [];
 	private bytesRecorded = 0;
 	private stoppedBySize = false;
 	private startTime = 0;
+	private generation = 0;
+	private starting = false;
+	private startCompletion: { resolve(): void; reject(error: Error): void } | undefined;
+	private stopCompletion: { resolve(): void; reject(error: Error): void } | undefined;
+	private stopPromise: Promise<IRecordingData | undefined> | undefined;
+	private readonly operationTimeout = this._register(new TimeoutTimer());
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
@@ -39,22 +50,42 @@ export class NativeRecordingService extends Disposable implements IRecordingServ
 	) {
 		super();
 
-		this._register(toDisposable(() => this.cleanup()));
+		this._register(toDisposable(() => this.discardRecording()));
 	}
 
-	getScreenCapturePermissionStatus(): Promise<'not-determined' | 'granted' | 'denied' | 'restricted' | 'unknown'> {
+	getScreenCapturePermissionStatus(): Promise<ScreenCapturePermissionStatus> {
 		return this.nativeHostService.getMediaAccessStatus('screen');
 	}
 
-	openScreenCapturePermissionSettings(): void {
+	requestScreenCapturePermission(): Promise<boolean> {
+		return this.nativeHostService.requestScreenCaptureAccess();
+	}
+
+	async openScreenCapturePermissionSettings(): Promise<void> {
 		if (isMacintosh) {
 			// Deep-link to the Screen Recording pane in macOS Privacy & Security.
-			void this.nativeHostService.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture');
+			await this.nativeHostService.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture');
 		}
 	}
 
 	get state(): RecordingState {
 		return this._state;
+	}
+
+	protected getMediaRecorderConstructor(): typeof MediaRecorder | undefined {
+		return typeof MediaRecorder === 'undefined' ? undefined : MediaRecorder;
+	}
+
+	protected getMediaDevices(): MediaDevices | undefined {
+		return typeof navigator === 'undefined' ? undefined : navigator.mediaDevices;
+	}
+
+	protected canPlayType(mimeType: string): boolean {
+		return mainWindow.document.createElement('video').canPlayType(mimeType) !== '';
+	}
+
+	private isFormatSupported(MediaRecorder: typeof globalThis.MediaRecorder, mimeType: string): boolean {
+		return MediaRecorder.isTypeSupported(mimeType) && this.canPlayType(mimeType);
 	}
 
 	private setState(state: RecordingState): void {
@@ -66,13 +97,14 @@ export class NativeRecordingService extends Disposable implements IRecordingServ
 
 	getSupportedFormats(): { mimeType: string; label: string; extension: string }[] {
 		const formats: { mimeType: string; label: string; extension: string }[] = [];
-		if (typeof MediaRecorder !== 'undefined') {
-			if (MediaRecorder.isTypeSupported('video/mp4')) {
+		const MediaRecorder = this.getMediaRecorderConstructor();
+		if (MediaRecorder) {
+			if (this.isFormatSupported(MediaRecorder, 'video/mp4')) {
 				formats.push({ mimeType: 'video/mp4', label: 'MP4', extension: 'mp4' });
 			}
-			if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9')) {
+			if (this.isFormatSupported(MediaRecorder, 'video/webm;codecs=vp9')) {
 				formats.push({ mimeType: 'video/webm;codecs=vp9', label: 'WebM', extension: 'webm' });
-			} else if (MediaRecorder.isTypeSupported('video/webm')) {
+			} else if (this.isFormatSupported(MediaRecorder, 'video/webm')) {
 				formats.push({ mimeType: 'video/webm', label: 'WebM', extension: 'webm' });
 			}
 		}
@@ -80,174 +112,232 @@ export class NativeRecordingService extends Disposable implements IRecordingServ
 	}
 
 	async startRecording(preferredMimeType?: string): Promise<void> {
-		if (!this.isSupported) {
-			throw new Error('Recording is not supported in this environment (MediaRecorder / getDisplayMedia unavailable).');
+		if (this._store.isDisposed) {
+			throw new CancellationError();
 		}
-		if (this._state === RecordingState.Recording) {
-			throw new Error('Recording already in progress.');
+		const MediaRecorder = this.getMediaRecorderConstructor();
+		const mediaDevices = this.getMediaDevices();
+		const supportedFormats = this.getSupportedFormats();
+		if (!MediaRecorder || !mediaDevices?.getDisplayMedia || !supportedFormats.length) {
+			throw new Error(localize('recordingUnsupported', "Screen recording is not supported in this environment."));
+		}
+		if (this.starting || this.stopPromise || this._state === RecordingState.Recording) {
+			throw new Error(localize('recordingInProgress', "A recording is already in progress."));
 		}
 
 		this.cleanup();
-
-		// Use getDisplayMedia — on Electron desktop the main process handler
-		// auto-selects the screen containing the VS Code window via
-		// desktopCapturer.getSources() (cached for subsequent recordings).
-		try {
-			this.mediaStream = await navigator.mediaDevices.getDisplayMedia({
-				video: true,
-				audio: false,
-			});
-		} catch (err) {
-			this.logService.error('[RecordingService] Failed to get display media:', err);
-			throw new Error('Failed to start recording. The user may have cancelled the source picker.');
-		}
-
-		// Select mime type: prefer caller's choice, fall back to best available
-		let mimeType: string;
-		if (preferredMimeType && MediaRecorder.isTypeSupported(preferredMimeType)) {
-			mimeType = preferredMimeType;
-		} else if (MediaRecorder.isTypeSupported('video/mp4')) {
-			mimeType = 'video/mp4';
-		} else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9')) {
-			mimeType = 'video/webm;codecs=vp9';
-		} else {
-			mimeType = 'video/webm';
-		}
-
-		this.chunks = [];
-		this.bytesRecorded = 0;
-		this.stoppedBySize = false;
-		this.startTime = Date.now();
+		this.setState(RecordingState.Idle);
+		const generation = this.generation;
+		this.starting = true;
 
 		try {
-			this.mediaRecorder = new MediaRecorder(this.mediaStream, {
-				mimeType,
-				videoBitsPerSecond: 2_500_000, // 2.5 Mbps — good quality, reasonable file size
-			});
-		} catch (err) {
-			this.logService.error('[RecordingService] Failed to create MediaRecorder:', err);
-			this.stopTracks();
-			throw new Error('Failed to create media recorder.');
-		}
+			// The main-process display-media handler selects the screen containing the requesting window.
+			const stream = await mediaDevices.getDisplayMedia({ video: true, audio: false });
+			if (generation !== this.generation) {
+				this.releaseStream(stream);
+				throw new CancellationError();
+			}
+			this.mediaStream = stream;
+			if (!stream.getVideoTracks().some(track => track.readyState === 'live')) {
+				throw new Error(localize('recordingNoLiveTrack', "No live screen capture source is available. Try recording again."));
+			}
 
-		this.mediaRecorder.ondataavailable = e => {
-			if (e.data && e.data.size > 0) {
-				if (this.stoppedBySize) {
+			const mimeType = preferredMimeType && this.isFormatSupported(MediaRecorder, preferredMimeType) ? preferredMimeType : supportedFormats[0].mimeType;
+			const recorder = this.mediaRecorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 2_500_000 });
+
+			recorder.ondataavailable = e => {
+				if (this.mediaRecorder !== recorder || !e.data?.size) {
 					return;
 				}
-				// Always accept the current chunk, then check if we've hit the limit.
-				// This means the file may overshoot by up to one 1000ms chunk,
-				// which is small enough for the 100 MB GitHub limit.
 				this.chunks.push(e.data);
 				this.bytesRecorded += e.data.size;
-				if (this.bytesRecorded >= MAX_FILE_SIZE_BYTES * SIZE_LIMIT_THRESHOLD && this._state === RecordingState.Recording) {
-					this.logService.info('[RecordingService] Max file size reached, stopping recording.');
+				if (!this.stoppedBySize && this.bytesRecorded >= MAX_FILE_SIZE_BYTES * SIZE_LIMIT_THRESHOLD && recorder.state === 'recording') {
 					this.stoppedBySize = true;
-					this.mediaRecorder?.stop();
-				}
-			}
-		};
-
-		// If the user stops sharing via the browser/OS UI, treat it as stop
-		this.mediaRecorder.onstop = () => {
-			// Only move to Stopped if we were Recording (avoid double transition)
-			if (this._state === RecordingState.Recording) {
-				this.stopTracks();
-				this.setState(RecordingState.Stopped);
-			}
-		};
-
-		// Also handle the stream ending externally (user clicked "Stop sharing")
-		for (const track of this.mediaStream.getTracks()) {
-			track.onended = () => {
-				if (this._state === RecordingState.Recording && this.mediaRecorder?.state === 'recording') {
-					this.mediaRecorder.stop();
+					this.stopRecorder(recorder);
 				}
 			};
-		}
-
-		this.mediaRecorder.start(1000); // 1-second timeslice for size tracking
-		this.setState(RecordingState.Recording);
-	}
-
-	async stopRecording(): Promise<IRecordingData | undefined> {
-		if (this._state !== RecordingState.Recording && this._state !== RecordingState.Stopped) {
-			return undefined;
-		}
-
-		// If still recording, stop the recorder and wait for it to finish
-		if (this._state === RecordingState.Recording && this.mediaRecorder?.state === 'recording') {
-			const recorder = this.mediaRecorder;
-			await new Promise<void>(resolve => {
-				// Replace onstop entirely so the original "external stop" handler doesn't
-				// emit setState(Stopped) here. That event would re-enter the auto-stop
-				// listener (IssueReporterEditorPane) and recursively call stopRecording.
-				// Explicit stops own the state transitions themselves and end with
-				// setState(Idle) below, which still satisfies the IRecordingService
-				// contract by emitting the terminal Idle transition.
-				recorder.onstop = () => {
+			recorder.onstop = () => {
+				if (this.mediaRecorder !== recorder) {
+					return;
+				}
+				this.operationTimeout.cancel();
+				this.recorderStopped = true;
+				this.stopTracks();
+				if (this.startCompletion) {
+					this.startCompletion.reject(new Error(localize('recordingEndedBeforeStart', "Screen capture ended before recording could start. Try again.")));
+				} else if (this.stopCompletion) {
+					this.stopCompletion.resolve();
+				} else if (this._state === RecordingState.Recording) {
+					this.setState(RecordingState.Stopped);
+				}
+			};
+			recorder.onerror = event => this.handleRecordingError(recorder, event.error);
+			for (const track of stream.getTracks()) {
+				track.onended = () => this.stopRecorder(recorder);
+			}
+			await new Promise<void>((resolve, reject) => {
+				this.startCompletion = { resolve, reject };
+				this.operationTimeout.cancelAndSet(() => reject(new Error(localize('recordingStartTimeout', "Screen recording did not start. Try again."))), RECORDING_OPERATION_TIMEOUT);
+				recorder.onstart = () => {
+					if (this.mediaRecorder !== recorder) {
+						return;
+					}
+					this.operationTimeout.cancel();
+					this.startCompletion = undefined;
 					resolve();
 				};
-				// Flush any buffered data before stopping
-				recorder.requestData();
-				recorder.stop();
+				recorder.start(1000);
 			});
+			if (generation !== this.generation) {
+				throw new CancellationError();
+			}
+			if (recorder.state !== 'recording' || !stream.getVideoTracks().some(track => track.readyState === 'live')) {
+				throw new Error(localize('recordingEndedDuringStart', "Screen capture ended while starting the recording. Try again."));
+			}
+			this.starting = false;
+			this.startTime = Date.now();
+			this.setState(RecordingState.Recording);
+		} catch (error) {
+			const cancelled = generation !== this.generation;
+			if (!cancelled) {
+				this.discardRecording();
+			}
+			if (cancelled || isCancellationError(error)) {
+				throw new CancellationError();
+			}
+			this.logService.error('[RecordingService] Failed to start recording:', error);
+			throw new Error(localize('recordingStartFailed', "Unable to start screen recording. Try again."), { cause: error });
 		}
+	}
 
-		this.stopTracks();
-
-		if (this.chunks.length === 0) {
-			this.setState(RecordingState.Idle);
-			return undefined;
+	stopRecording(): Promise<IRecordingData | undefined> {
+		if (this.stopPromise) {
+			return this.stopPromise;
 		}
-
-		const mimeType = this.mediaRecorder?.mimeType ?? 'video/webm';
-		const blob = new Blob(this.chunks, { type: mimeType });
-		const durationMs = Date.now() - this.startTime;
-
-		const data: IRecordingData = {
-			blob,
-			mimeType,
-			durationMs,
-			sizeBytes: blob.size,
-			stoppedBySize: this.stoppedBySize,
+		if (this.starting) {
+			this.discardRecording();
+			return Promise.resolve(undefined);
+		}
+		if (this._state !== RecordingState.Recording && this._state !== RecordingState.Stopped) {
+			return Promise.resolve(undefined);
+		}
+		const promise = this.finishRecording();
+		this.stopPromise = promise;
+		const clear = () => {
+			if (this.stopPromise === promise) {
+				this.stopPromise = undefined;
+			}
 		};
+		void promise.then(clear, clear);
+		return promise;
+	}
 
-		this.chunks = [];
-		this.mediaRecorder = undefined;
-		this.setState(RecordingState.Idle);
+	private async finishRecording(): Promise<IRecordingData | undefined> {
+		const generation = this.generation;
+		const recorder = this.mediaRecorder;
+		try {
+			if (recorder && !this.recorderStopped) {
+				await new Promise<void>((resolve, reject) => {
+					this.stopCompletion = { resolve, reject };
+					this.operationTimeout.cancelAndSet(() => reject(new Error(localize('recordingStopTimeout', "Screen recording did not finish. Try recording again."))), RECORDING_OPERATION_TIMEOUT);
+					if (recorder.state !== 'inactive') {
+						recorder.requestData();
+						this.stopRecorder(recorder);
+					}
+				});
+			}
+			if (generation !== this.generation) {
+				return undefined;
+			}
+			if (!this.chunks.length) {
+				throw new Error(localize('recordingEmpty', "No video was captured. Try recording again."));
+			}
+			const mimeType = recorder?.mimeType ?? 'video/webm';
+			const blob = new Blob(this.chunks, { type: mimeType });
+			return {
+				blob, mimeType, durationMs: Date.now() - this.startTime,
+				sizeBytes: blob.size, stoppedBySize: this.stoppedBySize,
+			};
+		} finally {
+			if (generation === this.generation) {
+				this.discardRecording();
+			}
+		}
+	}
 
-		return data;
+	private stopRecorder(recorder: MediaRecorder): void {
+		if (this.mediaRecorder !== recorder || recorder.state === 'inactive') {
+			return;
+		}
+		try {
+			recorder.stop();
+		} catch (error) {
+			this.handleRecordingError(recorder, error);
+		}
+	}
+
+	private handleRecordingError(recorder: MediaRecorder, cause: unknown): void {
+		if (this.mediaRecorder !== recorder) {
+			return;
+		}
+		this.logService.error('[RecordingService] Recorder failed:', cause);
+		const error = new Error(localize('recordingInterrupted', "Screen recording failed. Try recording again."), { cause });
+		if (this.startCompletion) {
+			this.startCompletion.reject(error);
+		} else if (this.stopCompletion) {
+			this.stopCompletion.reject(error);
+		} else {
+			this.discardRecording();
+			this._onDidFailRecording.fire(error);
+		}
 	}
 
 	discardRecording(): void {
-		if (this.mediaRecorder) {
-			// Clear handlers BEFORE stop() so any final ondataavailable fired after stop()
-			// does not append a chunk that we'd then have to GC explicitly.
-			this.mediaRecorder.ondataavailable = null;
-			this.mediaRecorder.onstop = null;
-			if (this._state === RecordingState.Recording && this.mediaRecorder.state === 'recording') {
-				this.mediaRecorder.stop();
-			}
-		}
 		this.cleanup();
 		this.setState(RecordingState.Idle);
+	}
+
+	private releaseStream(stream: MediaStream): void {
+		for (const track of stream.getTracks()) {
+			track.onended = null;
+			track.stop();
+		}
 	}
 
 	private stopTracks(): void {
 		if (this.mediaStream) {
-			for (const track of this.mediaStream.getTracks()) {
-				track.stop();
-			}
+			this.releaseStream(this.mediaStream);
 			this.mediaStream = undefined;
 		}
 	}
 
 	private cleanup(): void {
+		this.generation++;
+		this.starting = false;
+		this.operationTimeout.cancel();
+		this.startCompletion?.reject(new CancellationError());
+		this.startCompletion = undefined;
+		this.stopCompletion?.resolve();
+		this.stopCompletion = undefined;
+		const recorder = this.mediaRecorder;
+		this.mediaRecorder = undefined;
+		this.recorderStopped = false;
+		if (recorder) {
+			recorder.onstart = null;
+			recorder.ondataavailable = null;
+			recorder.onstop = null;
+			recorder.onerror = null;
+			if (recorder.state !== 'inactive') {
+				try {
+					recorder.stop();
+				} catch (error) {
+					this.logService.error('[RecordingService] Failed to stop recorder:', error);
+				}
+			}
+		}
 		this.stopTracks();
 		this.chunks = [];
 		this.bytesRecorded = 0;
 		this.stoppedBySize = false;
-		this.mediaRecorder = undefined;
 	}
 }

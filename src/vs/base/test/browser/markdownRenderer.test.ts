@@ -123,8 +123,8 @@ suite('MarkdownRenderer', () => {
 			await Promise.resolve();
 			const source = image.getAttribute('src');
 			result.dispose();
-			assert.deepStrictEqual({ before, source, read, disposed }, {
-				before: null, source: 'data:image/png;base64,AA==', read: [resource.toString()], disposed: true,
+			assert.deepStrictEqual({ before, source, resource: image.getAttribute('data-src'), read, disposed }, {
+				before: null, source: 'data:image/png;base64,AA==', resource: resource.toString(), read: [resource.toString()], disposed: true,
 			});
 		});
 
@@ -354,7 +354,7 @@ suite('MarkdownRenderer', () => {
 				return;
 			}
 			const result: HTMLElement = store.add(renderMarkdown({ value: `![image](file:///images/cat.gif)` })).element;
-			assertNodeEquals(result, '<div><p><img src="vscode-file://vscode-app/images/cat.gif" alt="image"></p></div>');
+			assertNodeEquals(result, '<div><p><img src="vscode-file://vscode-app/images/cat.gif" alt="image" data-src="file:///images/cat.gif"></p></div>');
 		});
 	});
 
@@ -866,7 +866,7 @@ suite('MarkdownRenderer', () => {
 			mds.appendMarkdown(`<img src="file:///images/cat.gif">`);
 
 			const result = store.add(renderMarkdown(mds)).element;
-			assert.strictEqual(result.innerHTML, `<img src="vscode-file://vscode-app/images/cat.gif">`);
+			assert.strictEqual(result.innerHTML, `<img src="vscode-file://vscode-app/images/cat.gif" data-src="file:///images/cat.gif">`);
 		});
 
 		test('Should only allow checkbox inputs', () => {

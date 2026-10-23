@@ -7,12 +7,15 @@ import './media/automationDialog.css';
 import * as DOM from '../../../../base/browser/dom.js';
 import { ButtonBar, IButton } from '../../../../base/browser/ui/button/button.js';
 import { Dialog } from '../../../../base/browser/ui/dialog/dialog.js';
+import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { getErrorMessage, isCancellationError } from '../../../../base/common/errors.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { isWindows } from '../../../../base/common/platform.js';
+import { equals } from '../../../../base/common/objects.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -114,6 +117,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 
 		const state: IFormState = {
 			name: initial?.name ?? '',
+			ownership: initial?.ownership ?? 'user',
 			interval: initialSchedule?.interval ?? 'daily',
 			hour: initialSchedule?.scheduleHour ?? 9,
 			minute: initialSchedule?.scheduleMinute ?? 0,
@@ -129,6 +133,9 @@ export class AutomationDialogService implements IAutomationDialogService {
 			enabled: initial?.enabled ?? true,
 			timeZone: initial?.schedule.timeZone,
 			timezoneOffset,
+			cloudTrigger: existing?.schedule.interval === 'custom' ? existing.cloudTrigger : undefined,
+			initialActorWritePermission: existing?.cloudTrigger?.requireActorWritePermission,
+			triggerExternalResource: existing?.externalResource,
 		};
 
 		const validation: IValidationState = { nameError: undefined, promptError: undefined, folderError: undefined, sessionTypeError: undefined, branchError: undefined };
@@ -151,6 +158,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 		let focusSaveError: () => void = () => { };
 		let getFocusableElements: () => readonly HTMLElement[] = () => [];
 		let focusFirst: () => void = () => { };
+		let setRepositoryWarningVisible: (visible: boolean) => void = () => { };
 		let saveInProgress = false;
 		const saveCancellation = disposables.add(new MutableDisposable<CancellationTokenSource>());
 		const completion = new DeferredPromise<IAutomationDialogResult | undefined>();
@@ -184,7 +192,9 @@ export class AutomationDialogService implements IAutomationDialogService {
 				const patch: IUpdateAutomationOptions = {
 					name: state.name,
 					prompt,
-					schedule,
+					...(!state.cloudTrigger && (existing.schedule.timeZone !== 'UTC' || state.interval !== initialSchedule?.interval || state.hour !== initialSchedule?.scheduleHour
+						|| state.minute !== initialSchedule?.scheduleMinute || state.day !== initialSchedule?.scheduleDay) ? { schedule } : {}),
+					...(state.cloudTrigger && !state.triggerReadOnly && !equals(state.cloudTrigger, existing.cloudTrigger) ? { cloudTrigger: state.cloudTrigger } : {}),
 					target,
 					...(sessionConfigurationCapture.kind === 'captured' ? {
 						sessionTemplate: sessionTemplate ?? null,
@@ -195,9 +205,11 @@ export class AutomationDialogService implements IAutomationDialogService {
 				return { kind: 'update', id: existing.id, value: patch };
 			}
 			const create: ICreateAutomationOptions = {
+				...(this.automationService.getProviderConfiguration?.(state.providerId) && state.ownership === 'repository' ? { ownership: state.ownership } : {}),
 				name: state.name.trim() ? state.name : deriveAutomationName(prompt),
 				prompt,
 				schedule,
+				...(state.timeZone === 'UTC' && state.cloudTrigger ? { cloudTrigger: state.cloudTrigger } : {}),
 				target,
 				...(sessionTemplate
 					? { sessionTemplate }
@@ -332,6 +344,18 @@ export class AutomationDialogService implements IAutomationDialogService {
 				renderFooter: container => {
 					container.classList.add('dialog-buttons', 'automation-dialog-footer-actions');
 					container.parentElement?.classList.add('dialog-buttons-row', 'automation-dialog-footer-row');
+					if (!isEdit || state.ownership === 'repository') {
+						const repositoryWarning = DOM.append(container, $('.automation-owner-warning', { role: 'status', 'aria-live': 'polite' }));
+						DOM.append(repositoryWarning, renderIcon(Codicon.warning)).setAttribute('aria-hidden', 'true');
+						DOM.append(repositoryWarning, $('span', undefined, isEdit
+							? localize('automation.owner.repositoryEditWarning', "This automation is visible to everyone with repository access, and can be edited by anyone with write access.")
+							: localize('automation.owner.repositoryCreateWarning', "This automation will be visible to everyone with repository access, and can be edited by anyone with write access.")));
+						setRepositoryWarningVisible = visible => {
+							repositoryWarning.classList.toggle('visible', visible);
+							repositoryWarning.setAttribute('aria-hidden', String(!visible));
+						};
+						setRepositoryWarningVisible(state.ownership === 'repository');
+					}
 					const buttonBar = disposables.add(new ButtonBar(container));
 					const createSaveButton = () => {
 						saveButton = buttonBar.addButton(defaultButtonStyles);
@@ -365,7 +389,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 					const scrollable = DOM.append(container, $('.automation-dialog-scrollable'));
 					const formPane = DOM.append(scrollable, $('.automation-form-pane'));
 					const form = DOM.append(formPane, $('.automation-form'));
-					const handle = renderForm(form, state, disposables, validation, () => revalidate(), this.instantiationService, this.contextKeyService, this.contextViewService, this.configurationService, this.layoutService, this.logService, this.sessionsManagementService, this.workspaceTrustRequestService, initial?.prompt ?? '', initialTarget, initialSessionConfiguration, allowedProviders, providerId => this.automationService.getProviderConfiguration?.(providerId), isEdit, { service: this.automationService, hoverService: this.hoverService, existingId: existing?.id }, error => this.notificationService.error(error), this.quickInputService);
+					const handle = renderForm(form, state, disposables, validation, () => revalidate(), this.instantiationService, this.contextKeyService, this.contextViewService, this.configurationService, this.layoutService, this.logService, this.sessionsManagementService, this.workspaceTrustRequestService, initial?.prompt ?? '', initialTarget, initialSessionConfiguration, allowedProviders, providerId => this.automationService.getProviderConfiguration?.(providerId), isEdit, { service: this.automationService, hoverService: this.hoverService, existingId: existing?.id }, error => this.notificationService.error(error), this.quickInputService, setRepositoryWarningVisible);
 					getPrompt = handle.getPrompt;
 					getSessionConfiguration = handle.getSessionConfiguration;
 					getBranch = handle.getBranch;
@@ -409,7 +433,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 						updateSaveButtonState(saveButton, state, validation, form, getPrompt, getBranch, this.sessionsManagementService, providerAvailable, existing?.target.providerId, isEdit);
 						handle.showTargetValidationError(validation.sessionTypeError);
 						handle.showScheduleValidationError(validation.scheduleError);
-						const blocked = handle.getSaveBlockedReason(validation.sessionTypeError);
+						const blocked = handle.getSaveBlockedReason(validation.sessionTypeError, validation.scheduleError);
 						if (saveButton && blocked?.message !== saveBlockedMessage) {
 							saveBlockedMessage = blocked?.message;
 							saveBlockedHover.value = blocked ? this.hoverService.setupDelayedHover(saveButton.element, { content: blocked.message }) : undefined;

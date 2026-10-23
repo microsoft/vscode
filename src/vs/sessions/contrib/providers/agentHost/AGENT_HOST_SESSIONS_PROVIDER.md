@@ -153,6 +153,8 @@ A VS Code host can also move a session whose default chat is its only chat under
 
 The provider moves individual chats with AHP `moveChat` through `canMoveChat` and `moveChat`: only a chat whose `ChatSummary.movable` the host set can be a source, and the destination (a position in its own session, another session of the provider, or a new session) is resolved to host resources from the provider's recorded sessions and chats, never from client URIs. A host refusal (`AgentChatMoveRefusal`) rejects with a user-facing explanation instead of the host's diagnostic message.
 
+Workspace-less sessions are not excluded from moves or from nested chats. The host lists the internal scratch folders of a session (the workspace-less primary and each nested chat's own folder, including one moved into a workspace session) in the summary's `_meta['vscode.scratchFolders']`. The provider reads it once per `_meta` change and never shows a scratch folder or uses one as a root: session and chat workspaces, the Changes scope roots and workspace trust leave them out, and a chat with a folder of its own in a quick chat gets a workspace of that folder. A host without the key keeps the earlier presentation. A workspace-less refusal is explained from summaries: a chat sharing its scratch folder with another chat of its session, or a chat without a folder.
+
 ## Draft and send lifecycle
 
 `NewSession` represents an untitled draft before the backend session is committed.

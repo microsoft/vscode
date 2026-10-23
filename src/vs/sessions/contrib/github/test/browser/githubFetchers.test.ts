@@ -38,6 +38,7 @@ class MockApiClient extends mock<GitHubApiClient>() {
 	private readonly account = upcastPartial<IGitHubAccountClient>({
 		repositories: upcastPartial<IGitHubAccountClient['repositories']>({
 			listForAuthenticatedUser: (_signal, options) => this.respond('repositories.listForAuthenticatedUser', options),
+			compare: (repository, base, head, _signal, options) => this.respond('repositories.compare', repository, base, head, options),
 		}),
 		users: upcastPartial<IGitHubAccountClient['users']>({
 			getAuthenticated: () => this.respond('users.getAuthenticated'),
@@ -209,7 +210,7 @@ suite('GitHubRecentUserWorkFetcher', () => {
 		}, {
 			reviewThreads: [{ isResolved: false, latestCommentAt: '2026-08-07T10:00:00Z' }],
 			calls: [
-				{ method: 'pullRequests.get', args: [{ owner: 'o', name: 'r' }, 3] },
+				{ method: 'pullRequests.get', args: [{ owner: 'o', repo: 'r' }, 3] },
 				{ method: 'reviews.listThreadSummaries', args: ['PR_3', { query: { first: 100 }, maxPages: 100 }] },
 			],
 		});
@@ -233,7 +234,7 @@ suite('GitHubRecentUserWorkFetcher', () => {
 			calls: mockApi.calls,
 		}, {
 			linkedIssues: [1],
-			calls: [{ method: 'issues.getClosingPullRequestCounts', args: [{ owner: 'o', name: 'r' }, [1, 2]] }],
+			calls: [{ method: 'issues.getClosingPullRequestCounts', args: [{ owner: 'o', repo: 'r' }, [1, 2]] }],
 		});
 	});
 });
@@ -386,9 +387,9 @@ suite('GitHubPullRequestContextFetcher', () => {
 				}],
 			},
 			calls: [
-				{ method: 'pullRequests.get', args: [{ owner: 'owner', name: 'repo' }, 42] },
+				{ method: 'pullRequests.get', args: [{ owner: 'owner', repo: 'repo' }, 42] },
 				...['pullRequests.listFiles', 'issues.listComments', 'reviews.listComments'].map(method => ({
-					method, args: [{ owner: 'owner', name: 'repo' }, 42, { query: { page: 1, per_page: 100 }, maxPages: 100 }],
+					method, args: [{ owner: 'owner', repo: 'repo' }, 42, { query: { page: 1, per_page: 100 }, maxPages: 100 }],
 				})),
 			],
 		});
@@ -540,7 +541,7 @@ suite('GitHubPRFetcher', () => {
 				{ id: 'thread-b', comments: [{ id: 200, inReplyToId: undefined }] },
 			],
 			calls: [
-				{ method: 'pullRequests.get', args: [{ owner: 'owner', name: 'repo' }, 1, { priority: 'background' }] },
+				{ method: 'pullRequests.get', args: [{ owner: 'owner', repo: 'repo' }, 1, { priority: 'background' }] },
 				{ method: 'reviews.listThreads', args: ['PR_1', { priority: 'background', query: { first: 100, commentsFirst: 100 }, maxPages: 100 }] },
 				{ method: 'reviews.listThreadComments', args: ['thread-a', { priority: 'background', query: { first: 100, after: 'comment-100' }, maxPages: 99 }] },
 			],
@@ -599,7 +600,7 @@ suite('GitHubPRFetcher', () => {
 
 		assert.deepStrictEqual(mockApi.calls, [{
 			method: 'reviews.create',
-			args: [{ owner: 'owner', name: 'repo' }, 1, {
+			args: [{ owner: 'owner', repo: 'repo' }, 1, {
 				commit_id: 'abc123',
 				comments: [{
 					body: 'Please update this.',
@@ -654,7 +655,7 @@ suite('GitHubPRFetcher', () => {
 			{ id: 2, nodeId: 'PRR_2', author: { login: 'other', avatarUrl: '' }, state: 'CHANGES_REQUESTED', submittedAt: '2024-01-02T00:00:00Z' },
 		]);
 		assert.deepStrictEqual(mockApi.calls, [{
-			method: 'reviews.list', args: [{ owner: 'owner', name: 'repo' }, 1, { query: { page: 1, per_page: 100 }, maxPages: 100 }],
+			method: 'reviews.list', args: [{ owner: 'owner', repo: 'repo' }, 1, { query: { page: 1, per_page: 100 }, maxPages: 100 }],
 		}]);
 	});
 
@@ -690,7 +691,7 @@ suite('GitHubPRFetcher', () => {
 				submittedAt: undefined,
 			},
 			calls: [{
-				method: 'reviews.list', args: [{ owner: 'owner', name: 'repo' }, 1, { query: { page: 1, per_page: 100 }, maxPages: 100 }],
+				method: 'reviews.list', args: [{ owner: 'owner', repo: 'repo' }, 1, { query: { page: 1, per_page: 100 }, maxPages: 100 }],
 			}],
 		});
 	});
@@ -728,7 +729,7 @@ suite('GitHubPRFetcher', () => {
 				patch: '@@ -1 +1 @@\n-old\n+new',
 			},
 			calls: [{
-				method: 'pullRequests.listFiles', args: [{ owner: 'owner', name: 'repo' }, 1, { query: { page: 1, per_page: 100 }, maxPages: 100 }],
+				method: 'pullRequests.listFiles', args: [{ owner: 'owner', repo: 'repo' }, 1, { query: { page: 1, per_page: 100 }, maxPages: 100 }],
 			}],
 		});
 	});
@@ -739,6 +740,65 @@ suite('GitHubPRFetcher', () => {
 			mockApi.setNextError(error);
 
 			await assert.rejects(fetcher[method]('owner', 'repo', 1), candidate => candidate === error);
+		});
+	}
+
+	test('getChanges diffs the changed files from the merge base to the head commit', async () => {
+		const pullRequest = { title: 'Open changes', base: { ref: 'main', sha: 'base-tip' }, head: { sha: 'head-sha' }, changed_files: 1 };
+		mockApi.setResponses(
+			pullRequest,
+			{ merge_base_commit: { sha: 'merge-base' } },
+			[{ filename: 'src/new.ts', previous_filename: 'src/old.ts', status: 'renamed', additions: 1, deletions: 2 }],
+			pullRequest,
+		);
+
+		const changes = await fetcher.getChanges('owner', 'repo', 7);
+
+		assert.deepStrictEqual({
+			changes,
+			calls: mockApi.calls.map(call => call.method === 'repositories.compare' ? call : { method: call.method }),
+			mutableRequestOptions: mockApi.calls.filter(call => call.method !== 'repositories.compare').map(call => call.args.at(-1)),
+		}, {
+			changes: {
+				title: 'Open changes',
+				baseRef: 'main',
+				baseSha: 'merge-base',
+				headSha: 'head-sha',
+				totalFileCount: 1,
+				files: [{ filename: 'src/new.ts', previous_filename: 'src/old.ts', status: 'renamed', additions: 1, deletions: 2, patch: undefined }],
+			},
+			calls: [
+				{ method: 'pullRequests.get' },
+				{ method: 'repositories.compare', args: [{ owner: 'owner', repo: 'repo' }, 'base-tip', 'head-sha', { query: { per_page: 1 } }] },
+				{ method: 'pullRequests.listFiles' },
+				{ method: 'pullRequests.get' },
+			],
+			mutableRequestOptions: [
+				{ noCache: true },
+				{ noCache: true, query: { page: 1, per_page: 100 }, maxPages: 100 },
+				{ noCache: true },
+			],
+		});
+	});
+
+	for (const change of ['head', 'base', 'baseRef'] as const) {
+		test(`getChanges rejects a file list loaded while the pull request's ${change} changes`, async () => {
+			const pullRequest = { title: 'Open changes', base: { ref: 'main', sha: 'base-tip' }, head: { sha: 'head-1' }, changed_files: 1 };
+			mockApi.setResponses(
+				pullRequest,
+				{ merge_base_commit: { sha: 'merge-base' } },
+				[{ filename: 'new-head-file.ts', status: 'added', additions: 1, deletions: 0 }],
+				{
+					...pullRequest,
+					head: { sha: change === 'head' ? 'head-2' : pullRequest.head.sha },
+					base: {
+						ref: change === 'baseRef' ? 'release' : pullRequest.base.ref,
+						sha: change === 'base' ? 'new-base-tip' : pullRequest.base.sha,
+					},
+				},
+			);
+
+			await assert.rejects(fetcher.getChanges('owner', 'repo', 7), /Pull request #7 changed while loading its files/);
 		});
 	}
 
@@ -817,7 +877,7 @@ suite('GitHubPullRequestsFetcher', () => {
 			hasNextPage: true,
 		});
 		assert.deepStrictEqual(mockApi.calls, [{
-			method: 'pullRequests.listConnection', args: [{ owner: 'microsoft', name: 'vscode' }, { query: { first: 100, after: undefined } }],
+			method: 'pullRequests.listConnection', args: [{ owner: 'microsoft', repo: 'vscode' }, { query: { first: 100, after: undefined } }],
 		}]);
 	});
 
@@ -871,7 +931,7 @@ suite('GitHubPRCIFetcher', () => {
 		await fetcher.getCheckRuns('o', 'r', 'head', CancellationToken.None, { priority: 'visible' });
 		assert.deepStrictEqual(mockApi.calls, [{
 			method: 'checks.listRuns',
-			args: [{ owner: 'o', name: 'r' }, 'head', { priority: 'visible', query: { page: 1, per_page: 100 }, maxPages: 100 }],
+			args: [{ owner: 'o', repo: 'r' }, 'head', { priority: 'visible', query: { page: 1, per_page: 100 }, maxPages: 100 }],
 		}]);
 	});
 
@@ -904,7 +964,7 @@ suite('GitHubPRCIFetcher', () => {
 				detailsUrl: undefined,
 			}],
 			calls: [{
-				method: 'checks.listRuns', args: [{ owner: 'owner', name: 'repo' }, 'abc123', { query: { page: 1, per_page: 100 }, maxPages: 100 }],
+				method: 'checks.listRuns', args: [{ owner: 'owner', repo: 'repo' }, 'abc123', { query: { page: 1, per_page: 100 }, maxPages: 100 }],
 			}],
 		});
 	});
@@ -919,8 +979,8 @@ suite('GitHubPRCIFetcher', () => {
 		assert.deepStrictEqual({ result, calls: mockApi.calls }, {
 			result: '[failure] src/a.ts:10 (TS2345) type error\n[warning] src/b.ts:5-8 unused var',
 			calls: [
-				{ method: 'checks.getRun', args: [{ owner: 'owner', name: 'repo' }, 1] },
-				{ method: 'checks.listAnnotations', args: [{ owner: 'owner', name: 'repo' }, 1, { query: { page: 1, per_page: 100 }, maxPages: 100 }] },
+				{ method: 'checks.getRun', args: [{ owner: 'owner', repo: 'repo' }, 1] },
+				{ method: 'checks.listAnnotations', args: [{ owner: 'owner', repo: 'repo' }, 1, { query: { page: 1, per_page: 100 }, maxPages: 100 }] },
 			],
 		});
 	});
@@ -931,7 +991,7 @@ suite('GitHubPRCIFetcher', () => {
 		await fetcher.rerunFailedJobs('myOwner', 'myRepo', 12345);
 
 		assert.deepStrictEqual(mockApi.calls, [{
-			method: 'actions.rerunFailedJobs', args: [{ owner: 'myOwner', name: 'myRepo' }, 12345],
+			method: 'actions.rerunFailedJobs', args: [{ owner: 'myOwner', repo: 'myRepo' }, 12345],
 		}]);
 	});
 });

@@ -9,10 +9,11 @@ import { useFakeTimers } from 'sinon';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { isLinux } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { PluginFormat, type IMcpServerDefinition } from '../../../agentPlugins/common/pluginParsers.js';
+import { PluginFormat, type IMcpServerDefinition, type IParsedRule } from '../../../agentPlugins/common/pluginParsers.js';
 import type { IFileService } from '../../../files/common/files.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
@@ -21,7 +22,7 @@ import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import type { TerminalSandboxEngine } from '../../../sandbox/common/terminalSandboxEngine.js';
 import { type ITelemetryService, TelemetryConfiguration, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostTelemetryLevelConfigKey, platformSessionSchema, type SchemaValues } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceTrustConfigKey, platformSessionSchema, type IAgentHostWorkspaceTrust, type SchemaValues } from '../../common/agentHostSchema.js';
 import type { IAgentHostManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
 import { toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { readSessionSandboxState } from '../../common/meta/agentSandboxStateMeta.js';
@@ -29,7 +30,7 @@ import { ISessionDataService } from '../../common/sessionDataService.js';
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
 import type { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { reasoningEffortLevels } from '../../common/reasoningEffort.js';
-import { autoModeTiers, setAdvertisedAutoModeTiers } from '../../common/autoModeTiers.js';
+import { autoModeTiers, isAutoAdvertisedAsFusion, setAdvertisedAutoModeTiers } from '../../common/autoModeTiers.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import { CustomizationType, McpServerStatus, type ClientPluginCustomization, type ModelSelection } from '../../common/state/protocol/state.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
@@ -50,7 +51,7 @@ import type { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import type { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
 import { CopilotSessionSandbox } from '../../node/copilot/copilotSessionSandbox.js';
 import type { SandboxConfig, SandboxNetworkPolicy } from '../../node/copilot/sandboxConfigForSdk.js';
-import { composeByokSessionConfig, CopilotSessionLauncher, filterClientToolNames, findLocalModelDirectFamily, getCopilotAutoTier, getCopilotReasoningEffort, isCopilotReasoningEffort, mergeByokSessionConfig, synthesizeByokSessionConfig, withLocalModelSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
+import { composeByokSessionConfig, CopilotSessionLauncher, filterClientToolNames, findLocalModelDirectFamily, getCopilotAutoTier, getCopilotReasoningEffort, getCopilotWorkingDirectoryTrust, isCopilotReasoningEffort, mergeByokSessionConfig, synthesizeByokSessionConfig, withLocalModelSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import { createUnmanagedCopilotSettings } from './copilotTestEvents.js';
 import { buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
 import type { IAgentHostSessionOpenTelemetry } from '../../node/agentHostSessionOpenTelemetry.js';
@@ -69,7 +70,8 @@ const testRuntime: ICopilotSessionRuntime = {
 	handleMcpAuthRequest: async () => { throw new Error('Unexpected MCP auth request'); },
 	requestUnsandboxedCommandConfirmation: async () => false,
 	handlePreToolUse: async () => { },
-	handlePostToolUse: async () => { },
+	handlePostToolUse: async () => undefined,
+	handlePostToolUseFailure: () => undefined,
 	handleUserPromptSubmitted: () => undefined,
 	createClientSdkTools: () => [],
 	createServerSdkTools: () => [],
@@ -80,7 +82,8 @@ const testWorkingDirectory = URI.file(process.cwd());
 const disabledWorkflowTools = ['builtin:run_dynamic_workflow', 'builtin:dynamic_workflows_manage'];
 const alwaysDisabledTools = [...disabledWorkflowTools, 'builtin:semantic_code_search'];
 const defaultDisabledTools = [...alwaysDisabledTools, 'builtin:search_code_subagent'];
-const catalogInstallationFeatureFlags = { CATALOG_SEARCH: true, AGENT_FINDER_SKILL_INSTALL: true };
+const catalogInstallationFeatureFlags = { CATALOG_SEARCH: true, AGENT_FINDER_PLUGIN_INSTALL: true, AGENT_FINDER_SKILL_INSTALL: true };
+const emptyAgentCatalog: Pick<CopilotSession['rpc']['agent'], 'list'> = { list: async () => ({ agents: [] }) };
 function reportManagedSettings(config: ResumeSessionConfig | undefined): void {
 	config?.onEvent?.({
 		id: 'policy', parentId: null, timestamp: '2026-01-01T00:00:00Z',
@@ -225,7 +228,6 @@ suite('CopilotSessionLauncher customization policy session', () => {
 			enableSessionStore: captured?.enableSessionStore,
 			infiniteSessions: captured?.infiniteSessions,
 			memory: captured?.memory,
-			remoteSession: captured?.remoteSession,
 			managedSettings: captured?.managedSettings,
 			featureFlags: captured?.featureFlags,
 			gitHubToken: captured?.gitHubToken,
@@ -243,7 +245,6 @@ suite('CopilotSessionLauncher customization policy session', () => {
 			enableSessionStore: false,
 			infiniteSessions: { enabled: false },
 			memory: { enabled: false },
-			remoteSession: 'off',
 			managedSettings: { permissions },
 			featureFlags: {
 				...catalogInstallationFeatureFlags,
@@ -404,6 +405,75 @@ suite('CopilotSessionLauncher customization policy session', () => {
 	});
 });
 
+suite('CopilotSessionLauncher agent catalog readiness', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const kind of ['create', 'resume'] as const) {
+		for (const fail of [false, true]) {
+			test(`${kind} ${fail ? 'disconnects and rejects failed discovery' : 'waits for discovery before exposing the session'}`, async () => {
+				const started = new DeferredPromise<void>();
+				const catalog = new DeferredPromise<{ agents: [] }>();
+				const calls: string[] = [];
+				const failure = new Error('Agent catalog unavailable');
+				const agent = new class extends mock<CopilotSession['rpc']['agent']>() {
+					override readonly list = async () => {
+						calls.push('catalog');
+						started.complete();
+						return catalog.p;
+					};
+				};
+				const options = new class extends mock<CopilotSession['rpc']['options']>() {
+					override readonly update = async () => {
+						calls.push('options');
+						return { success: true };
+					};
+				};
+				const session = new class extends mock<CopilotSession>() {
+					override readonly sessionId = 'catalog-readiness';
+					override get rpc() {
+						return new class extends mock<CopilotSession['rpc']>() {
+							override readonly agent = agent;
+							override readonly options = options;
+						};
+					}
+					override readonly on: CopilotSession['on'] = () => () => { };
+					override async disconnect() {
+						calls.push('disconnect');
+					}
+				};
+				const base = {
+					client: returningSession(session), sessionId: session.sessionId,
+					workingDirectory: testWorkingDirectory, resolvedAgentName: undefined,
+					snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
+					activeClientToolSet: new ActiveClientToolSet(), shellManager: undefined,
+					githubCredentials: CopilotGitHubSessionCredentials.fromToken('token'),
+				};
+				const plan: CopilotSessionLaunchPlan = kind === 'create'
+					? { ...base, kind, model: undefined }
+					: { ...base, kind, fallback: { model: undefined } };
+				const opening = createTestLauncher().launch(plan, testRuntime);
+				const outcome = fail ? assert.rejects(opening, failure) : opening.then(wrapper => store.add(wrapper));
+				try {
+					await started.p;
+					assert.deepStrictEqual(calls, ['catalog']);
+					if (fail) {
+						catalog.error(failure);
+					} else {
+						catalog.complete({ agents: [] });
+					}
+					await outcome;
+					assert.deepStrictEqual(calls, fail ? ['catalog', 'disconnect'] : ['catalog', 'options', 'options']);
+				} finally {
+					if (!catalog.isSettled) {
+						catalog.complete({ agents: [] });
+					}
+					await outcome;
+				}
+			});
+		}
+	}
+});
+
 suite('CopilotSessionLauncher sandbox policy', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -423,6 +493,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 			on: () => () => { },
 			disconnect: async () => { disconnected = true; },
 			rpc: {
+				agent: emptyAgentCatalog,
 				commands: {
 					invoke: async ({ input }: { input: string }) => {
 						commands.push(input);
@@ -475,7 +546,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 		} as unknown as CopilotClient;
 		const shared = {
 			client, extensionSdkPath: '/copilot-sdk', sessionId: 'sess-1', workingDirectory: testWorkingDirectory,
-			resolvedAgentName: undefined, snapshot: { tools: [], plugins: [], mcpServers: {} },
+			resolvedAgentName: undefined, snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 			activeClientToolSet: new ActiveClientToolSet(), shellManager: undefined, githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
 		};
 		const plan: CopilotSessionLaunchPlan = kind === 'create'
@@ -1356,6 +1427,7 @@ suite('CopilotSessionLauncher Connectors', () => {
 				on: () => () => { },
 				disconnect: async () => { },
 				rpc: {
+					agent: emptyAgentCatalog,
 					options: { update: async () => ({ success: true }) },
 					connectors: {
 						getCapabilities: async () => {
@@ -1415,7 +1487,7 @@ suite('CopilotSessionLauncher Connectors', () => {
 				sessionId: 'connector-session',
 				workingDirectory: testWorkingDirectory,
 				resolvedAgentName: undefined,
-				snapshot: { tools: [], plugins: [], mcpServers: {} },
+				snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 				activeClientToolSet: new ActiveClientToolSet(),
 				shellManager: undefined,
 				githubCredentials: CopilotGitHubSessionCredentials.fromToken('connector-token'),
@@ -1460,7 +1532,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 			const configs: SessionConfig[] = [];
 			const session = {
 				sessionId: 'tool-profile', on: () => () => { }, disconnect: async () => { },
-				rpc: { options: { update: async () => ({ success: true }) } },
+				rpc: { agent: emptyAgentCatalog, options: { update: async () => ({ success: true }) } },
 			} as unknown as CopilotSession;
 			const client = {
 				createSession: async (config: SessionConfig) => { configs.push(config); reportManagedSettings(config); return session; },
@@ -1473,7 +1545,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 			}, logService);
 			const wrapper = await launcher.launch({
 				kind: 'create', client, sessionId: 'tool-profile', model: undefined, workingDirectory: testWorkingDirectory,
-				resolvedAgentName: undefined, snapshot: { tools: [], plugins: [], mcpServers: {} },
+				resolvedAgentName: undefined, snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 				activeClientToolSet: new ActiveClientToolSet(), shellManager: undefined,
 				githubCredentials: scoped
 					? CopilotGitHubSessionCredentials.fromCredential({ resource: 'https://api.github.com', token: 'scoped', expiresAt: undefined, revision: 1 })
@@ -1506,7 +1578,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 			sessionId: 'scoped-session',
 			on: () => () => { },
 			disconnect: async () => { },
-			rpc: { options: { update: async () => ({ success: true }) } },
+			rpc: { agent: emptyAgentCatalog, options: { update: async () => ({ success: true }) } },
 		} as unknown as CopilotSession;
 		const client = {
 			createSession: async (config: SessionConfig) => { configs.push(config); reportManagedSettings(config); return session; },
@@ -1514,13 +1586,15 @@ suite('CopilotSessionLauncher shared session config', () => {
 			rpc: { managedSettings: createUnmanagedCopilotSettings(), sandbox: { proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() { }, getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
 		} as unknown as CopilotClient;
 		const permissions: IAgentHostManagedSettingsPermissions = { disableBypassPermissionsMode: 'disable', deny: ['Shell'] };
-		const launcher = createTestLauncher(permissions, { [AgentHostMcpConnectorsEnabledConfigKey]: true, [AgentHostByokModelsEnabledConfigKey]: true, [AgentHostSessionSyncEnabledConfigKey]: true });
+		const launcher = createTestLauncher(permissions, { [AgentHostMcpConnectorsEnabledConfigKey]: true, [AgentHostByokModelsEnabledConfigKey]: true });
 		let byokResolutions = 0;
 		launcher.resolveByokSessionConfig = async () => { byokResolutions++; return { providers: [], models: [] }; };
 		const pluginDirectory = URI.joinPath(testWorkingDirectory, 'scoped-plugin');
 		const basePlan = {
 			client, sessionId: 'scoped-session', workingDirectory: testWorkingDirectory, resolvedAgentName: undefined,
 			snapshot: {
+				discoveredAgents: [],
+				additionalRootInstructions: [],
 				tools: [],
 				plugins: [{
 					format: PluginFormat.Copilot, pluginDir: pluginDirectory, hooks: [], mcpServers: [], agents: [], skills: [], instructions: [],
@@ -1550,7 +1624,6 @@ suite('CopilotSessionLauncher shared session config', () => {
 			environment: config.systemMessage?.mode === 'customize' ? config.systemMessage.sections?.environment_context : undefined,
 			sessionStore: config.enableSessionStore,
 			oauthStorage: config.mcpOAuthTokenStorage,
-			remoteSession: config.remoteSession,
 			connectors: config.featureFlags?.CONNECTORS,
 			tools: config.availableTools, excludedTools: config.excludedTools,
 			providers: config.providers, models: config.models, managedSettings: config.managedSettings,
@@ -1561,7 +1634,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 			skipCustomInstructions: undefined, onDemandInstructions: undefined, hostGit: undefined, sessionTelemetry: undefined,
 			coauthor: undefined, builtinSkills: undefined, localAgents: undefined,
 			environment: undefined,
-			sessionStore: true, oauthStorage: 'in-memory', remoteSession: 'export',
+			sessionStore: true, oauthStorage: 'in-memory',
 			tools: [...COPILOT_DEFAULT_AVAILABLE_TOOLS],
 			excludedTools: [...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
 			providers: [], models: [], managedSettings: { permissions },
@@ -1625,7 +1698,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 			sessionId: 'session-1',
 			on: () => () => { },
 			disconnect: async () => { },
-			rpc: { options: { update: async () => ({ success: true }) } },
+			rpc: { agent: emptyAgentCatalog, options: { update: async () => ({ success: true }) } },
 		} as unknown as CopilotSession;
 		const client = {
 			createSession: async (config: Parameters<CopilotClient['createSession']>[0]) => {
@@ -1651,6 +1724,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 		const syntheticPluginDir = URI.file('/tmp/vscode-synced-customizations');
 		const skillUri = URI.joinPath(pluginDir, 'skills', 'user-skill', 'SKILL.md');
 		const instructionUri = URI.joinPath(pluginDir, 'rules', 'user.instructions.md');
+		const additionalInstructionUri = URI.file('/additional/.github/instructions/secondary.instructions.md');
 		const plugin: ICopilotPluginInfo = {
 			format: PluginFormat.Copilot,
 			hooks: [],
@@ -1710,7 +1784,17 @@ suite('CopilotSessionLauncher shared session config', () => {
 			sessionId: 'session-1',
 			workingDirectory: testWorkingDirectory,
 			resolvedAgentName: undefined,
-			snapshot: { tools: [], plugins: [plugin, syntheticPlugin], mcpServers: {} },
+			snapshot: {
+				tools: [],
+				plugins: [plugin, syntheticPlugin],
+				discoveredAgents: [],
+				additionalRootInstructions: [{
+					uri: additionalInstructionUri,
+					name: 'secondary',
+					customization: { type: CustomizationType.Rule, id: additionalInstructionUri.toString(), uri: additionalInstructionUri.toString(), name: 'secondary' },
+				} satisfies IParsedRule],
+				mcpServers: {},
+			},
 			disabledRootMcpServers: ['github', 'azure'],
 			activeClientToolSet: new ActiveClientToolSet(),
 			shellManager: undefined,
@@ -1754,8 +1838,8 @@ suite('CopilotSessionLauncher shared session config', () => {
 					return compatible.imageGeneration;
 				}),
 			}, {
-				createImage: [{ enabled: true }, { enabled: true }],
-				resumeImage: [{ enabled: true }],
+				createImage: [{ enabled: true, watermark: false }, { enabled: true, watermark: false }],
+				resumeImage: [{ enabled: true, watermark: false }],
 			});
 
 			assert.deepStrictEqual({
@@ -1847,7 +1931,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 			}, {
 				createClientName: 'vscode-agent-host',
 				createInteractiveUser: true,
-				createImageGeneration: { enabled: true },
+				createImageGeneration: { enabled: true, watermark: false },
 				createCustomAgents: buildCopilotBuiltinAgents(basePlan.snapshot.tools),
 				createGitHubMcpToolConfig: { disableFormDeferral: true },
 				createPluginDirectories: [pluginDir.fsPath, syntheticPluginDir.fsPath],
@@ -1861,7 +1945,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				},
 				createSkillDirectories: [],
 				createMcpOAuthTokenStorage: 'in-memory',
-				createInstructionDirectories: [URI.joinPath(pluginDir, 'rules').fsPath],
+				createInstructionDirectories: [URI.joinPath(pluginDir, 'rules').fsPath, URI.file('/additional/.github/instructions').fsPath],
 				createDisabledMcpServers: ['azure', 'disabled-workspace-server', 'github'],
 				createHasExitPlanHandler: true,
 				createAskUserVariant: 'elicitation',
@@ -1882,7 +1966,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				createLocalMemoryStore: true,
 				resumeClientName: 'vscode-agent-host',
 				resumeInteractiveUser: true,
-				resumeImageGeneration: { enabled: true },
+				resumeImageGeneration: { enabled: true, watermark: false },
 				resumeCustomAgents: buildCopilotBuiltinAgents(basePlan.snapshot.tools),
 				resumeGitHubMcpToolConfig: { disableFormDeferral: true },
 				resumePluginDirectories: [pluginDir.fsPath, syntheticPluginDir.fsPath],
@@ -1896,7 +1980,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				},
 				resumeSkillDirectories: [],
 				resumeMcpOAuthTokenStorage: 'in-memory',
-				resumeInstructionDirectories: [URI.joinPath(pluginDir, 'rules').fsPath],
+				resumeInstructionDirectories: [URI.joinPath(pluginDir, 'rules').fsPath, URI.file('/additional/.github/instructions').fsPath],
 				resumeDisabledMcpServers: ['azure', 'disabled-workspace-server', 'github'],
 				resumeHasExitPlanHandler: true,
 				resumeAskUserVariant: 'elicitation',
@@ -1917,7 +2001,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumeLocalMemoryStore: true,
 				ephemeralMemory: { enabled: false },
 				ephemeralInteractiveUser: true,
-				ephemeralImageGeneration: { enabled: true },
+				ephemeralImageGeneration: { enabled: true, watermark: false },
 				ephemeralCustomAgents: [],
 				ephemeralAskUserVariant: 'elicitation',
 				ephemeralDetachLongLivedServices: true,
@@ -1967,15 +2051,20 @@ suite('CopilotSessionLauncher shared session config', () => {
 			configValues['vscode.imageGenerationEnabled'] = false;
 			for (const enabled of [undefined, false, true]) {
 				configValues[CopilotCliConfigKey.ImageGeneration] = enabled;
-				const createdWithSetting: CopilotSessionWrapper = sessions.add(await launcher.launch(createPlan, testRuntime));
-				const resumedWithSetting: CopilotSessionWrapper = sessions.add(await launcher.launch(resumePlan, testRuntime));
-				assert.deepStrictEqual({
-					launch: [createdWithSetting.launchImageGenerationEnabled, resumedWithSetting.launchImageGenerationEnabled],
-					config: [createConfigs.at(-1)?.imageGeneration, resumeConfigs.at(-1)?.imageGeneration],
-				}, {
-					launch: [enabled === true, enabled === true],
-					config: [{ enabled: enabled === true }, { enabled: enabled === true }],
-				});
+				for (const watermark of [undefined, false, true]) {
+					configValues[CopilotCliConfigKey.ImageGenerationWatermark] = watermark;
+					const createdWithSetting: CopilotSessionWrapper = sessions.add(await launcher.launch(createPlan, testRuntime));
+					const resumedWithSetting: CopilotSessionWrapper = sessions.add(await launcher.launch(resumePlan, testRuntime));
+					assert.deepStrictEqual({
+						launch: [createdWithSetting.launchImageGenerationEnabled, resumedWithSetting.launchImageGenerationEnabled],
+						watermark: [createdWithSetting.launchImageGenerationWatermark, resumedWithSetting.launchImageGenerationWatermark],
+						config: [createConfigs.at(-1)?.imageGeneration, resumeConfigs.at(-1)?.imageGeneration],
+					}, {
+						launch: [enabled === true, enabled === true],
+						watermark: [watermark === true, watermark === true],
+						config: [{ enabled: enabled === true, watermark: watermark === true }, { enabled: enabled === true, watermark: watermark === true }],
+					});
+				}
 			}
 		} finally {
 			sessions.dispose();
@@ -1989,6 +2078,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 			on: () => () => { },
 			disconnect: async () => { },
 			rpc: {
+				agent: emptyAgentCatalog,
 				options: { update: async () => ({ success: true }) },
 				gitHubAuth: {
 					setCredentials: async () => ({ success: true, copilotUserResolved: true }),
@@ -2043,7 +2133,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				sessionId: 'session-1',
 				workingDirectory: testWorkingDirectory,
 				resolvedAgentName: undefined,
-				snapshot: { tools: [], plugins: [], mcpServers: {} },
+				snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 				activeClientToolSet: new ActiveClientToolSet(),
 				shellManager: undefined,
 				githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
@@ -2082,7 +2172,7 @@ suite('CopilotSessionLauncher local index', () => {
 				sessionId: 'session-1',
 				on: () => () => { },
 				disconnect: async () => { },
-				rpc: { options: { update: async () => ({ success: true }) } },
+				rpc: { agent: emptyAgentCatalog, options: { update: async () => ({ success: true }) } },
 			} as unknown as CopilotSession;
 			const client = new class extends mock<CopilotSessionLaunchPlan['client']>() {
 				override readonly rpc = { ...new class extends mock<CopilotSessionLaunchPlan['client']['rpc']>() { }(), managedSettings: createUnmanagedCopilotSettings() };
@@ -2104,7 +2194,7 @@ suite('CopilotSessionLauncher local index', () => {
 				sessionId: 'session-1',
 				workingDirectory: testWorkingDirectory,
 				resolvedAgentName: undefined,
-				snapshot: { tools: [], plugins: [], mcpServers: {} },
+				snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 				activeClientToolSet: new ActiveClientToolSet(),
 				shellManager: undefined,
 				githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
@@ -2132,7 +2222,7 @@ suite('CopilotSessionLauncher ExP assignment context', () => {
 				sessionId: 'session-1',
 				on: () => () => { },
 				disconnect: async () => { },
-				rpc: { options: { update: async () => ({ success: true }) } },
+				rpc: { agent: emptyAgentCatalog, options: { update: async () => ({ success: true }) } },
 			} as unknown as CopilotSession;
 			const client = new class extends mock<CopilotSessionLaunchPlan['client']>() {
 				override readonly rpc = { ...new class extends mock<CopilotSessionLaunchPlan['client']['rpc']>() { }(), managedSettings: createUnmanagedCopilotSettings() };
@@ -2154,7 +2244,7 @@ suite('CopilotSessionLauncher ExP assignment context', () => {
 				sessionId: 'session-1',
 				workingDirectory: testWorkingDirectory,
 				resolvedAgentName: undefined,
-				snapshot: { tools: [], plugins: [], mcpServers: {} },
+				snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 				activeClientToolSet: new ActiveClientToolSet(),
 				shellManager: undefined,
 				githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
@@ -2180,13 +2270,13 @@ suite('CopilotSessionLauncher canvas config', () => {
 				sessionId: 'session-1',
 				on: () => () => { },
 				disconnect: async () => { },
-				rpc: { options: { update: async () => ({ success: true }) } },
+				rpc: { agent: emptyAgentCatalog, options: { update: async () => ({ success: true }) } },
 			} as unknown as CopilotSession),
 			sessionId: 'session-1',
 			model: undefined,
 			workingDirectory: testWorkingDirectory,
 			resolvedAgentName: undefined,
-			snapshot: { tools: [], plugins: [], mcpServers: {} },
+			snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 			activeClientToolSet: new ActiveClientToolSet(),
 			shellManager: undefined,
 			githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
@@ -2201,7 +2291,7 @@ suite('CopilotSessionLauncher canvas config', () => {
 			sessionId: 'session-1',
 			on: () => () => { },
 			disconnect: async () => { },
-			rpc: { options: { update: async () => ({ success: true }) } },
+			rpc: { agent: emptyAgentCatalog, options: { update: async () => ({ success: true }) } },
 		} as unknown as CopilotSession;
 		const client = {
 			createSession: async (config: Parameters<CopilotClient['createSession']>[0]) => {
@@ -2220,7 +2310,7 @@ suite('CopilotSessionLauncher canvas config', () => {
 			model: undefined,
 			workingDirectory: testWorkingDirectory,
 			resolvedAgentName: undefined,
-			snapshot: { tools: [], plugins: [], mcpServers: {} },
+			snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 			activeClientToolSet: new ActiveClientToolSet(),
 			shellManager: undefined,
 			githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
@@ -2252,7 +2342,7 @@ suite('CopilotSessionLauncher canvas config', () => {
 			sessionId: 'session-1',
 			on: () => () => { },
 			disconnect: async () => { },
-			rpc: { options: { update: async () => ({ success: true }) } },
+			rpc: { agent: emptyAgentCatalog, options: { update: async () => ({ success: true }) } },
 		} as unknown as CopilotSession;
 		const client = {
 			createSession: async (config: Parameters<CopilotClient['createSession']>[0]) => {
@@ -2270,7 +2360,7 @@ suite('CopilotSessionLauncher canvas config', () => {
 			model: undefined,
 			workingDirectory: testWorkingDirectory,
 			resolvedAgentName: undefined,
-			snapshot: { tools: [], plugins: [], mcpServers: {} },
+			snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 			activeClientToolSet: new ActiveClientToolSet(),
 			shellManager: undefined,
 			githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
@@ -2314,7 +2404,7 @@ suite('CopilotSessionLauncher resume fallback', () => {
 			sessionId: 'session-1',
 			on: () => () => { },
 			disconnect: async () => { },
-			rpc: { options: { update: async () => ({ success: true }) } },
+			rpc: { agent: emptyAgentCatalog, options: { update: async () => ({ success: true }) } },
 		} as unknown as CopilotSession;
 		const client = {
 			createSession: async (config: ResumeSessionConfig) => {
@@ -2337,7 +2427,7 @@ suite('CopilotSessionLauncher resume fallback', () => {
 				sessionId: 'session-1',
 				workingDirectory: testWorkingDirectory,
 				resolvedAgentName: undefined,
-				snapshot: { tools: [], plugins: [], mcpServers: {} },
+				snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 				activeClientToolSet: new ActiveClientToolSet(),
 				shellManager: undefined,
 				githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
@@ -2482,6 +2572,7 @@ suite('CopilotSessionLauncher execution subagent', () => {
 				toolUpdates.push(tools.map(tool => tool.name));
 			},
 			rpc: {
+				agent: emptyAgentCatalog,
 				options: { update: async () => ({ success: true }) },
 				tools: {
 					getBuiltinDescriptors: async () => {
@@ -2506,7 +2597,7 @@ suite('CopilotSessionLauncher execution subagent', () => {
 			sessionId: session.sessionId,
 			workingDirectory: testWorkingDirectory,
 			resolvedAgentName: undefined,
-			snapshot: { tools: hasClientTool ? [{ name: 'executionSubagent' }, { name: 'clientRead' }] : [], plugins: [], mcpServers: {} },
+			snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: hasClientTool ? [{ name: 'executionSubagent' }, { name: 'clientRead' }] : [], plugins: [], mcpServers: {} },
 			activeClientToolSet: new ActiveClientToolSet(),
 			shellManager: undefined,
 			githubCredentials: CopilotGitHubSessionCredentials.fromToken('token'),
@@ -2631,7 +2722,7 @@ suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 			sessionId: 'session-1',
 			on: () => () => { },
 			disconnect: async () => { },
-			rpc: { options: { update: async (options: unknown) => { updates.push(options); return { success: true }; } } },
+			rpc: { agent: emptyAgentCatalog, options: { update: async (options: unknown) => { updates.push(options); return { success: true }; } } },
 		} as unknown as CopilotSession;
 		// Enablement is required for every session regardless of managed rules, so
 		// anything short of success would fail the launch — the success path is what
@@ -2644,7 +2735,7 @@ suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 			sessionId: 'session-1',
 			workingDirectory: testWorkingDirectory,
 			resolvedAgentName: undefined,
-			snapshot: { tools: [], plugins: [], mcpServers: {} },
+			snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 			activeClientToolSet: new ActiveClientToolSet(),
 			shellManager: undefined,
 			githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
@@ -2666,7 +2757,7 @@ suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 			sessionId: 'session-1',
 			on: () => () => { },
 			disconnect: async () => { disconnected = true; },
-			rpc: { options: { update: async () => ({ success: false }) } },
+			rpc: { agent: emptyAgentCatalog, options: { update: async () => ({ success: false }) } },
 		} as unknown as CopilotSession;
 		const launcher = createTestLauncher({ deny: ['Shell(rm -rf *)'] });
 		const plan: CopilotSessionLaunchPlan = {
@@ -2676,7 +2767,7 @@ suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 			sessionId: 'session-1',
 			workingDirectory: testWorkingDirectory,
 			resolvedAgentName: undefined,
-			snapshot: { tools: [], plugins: [], mcpServers: {} },
+			snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 			activeClientToolSet: new ActiveClientToolSet(),
 			shellManager: undefined,
 			githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
@@ -2694,7 +2785,7 @@ suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 			sessionId: 'session-1',
 			on: () => () => { },
 			disconnect: async () => { disconnected = true; },
-			rpc: { options: { update: async () => ({ success: false }) } },
+			rpc: { agent: emptyAgentCatalog, options: { update: async () => ({ success: false }) } },
 		} as unknown as CopilotSession;
 		// No client-bridged rules. `IAgentHostManagedSettingsService` only carries the
 		// legacy VS Code settings bridge, so an enterprise session governed solely by
@@ -2707,7 +2798,7 @@ suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 			sessionId: 'session-1',
 			workingDirectory: testWorkingDirectory,
 			resolvedAgentName: undefined,
-			snapshot: { tools: [], plugins: [], mcpServers: {} },
+			snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 			activeClientToolSet: new ActiveClientToolSet(),
 			shellManager: undefined,
 			githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
@@ -2728,7 +2819,7 @@ suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 			sessionId: 'session-1',
 			on: () => () => { },
 			disconnect: async () => { disconnected = true; },
-			rpc: { options: { update: async () => { throw new Error('connection closed'); } } },
+			rpc: { agent: emptyAgentCatalog, options: { update: async () => { throw new Error('connection closed'); } } },
 		} as unknown as CopilotSession;
 		const launcher = createTestLauncher();
 		const plan: CopilotSessionLaunchPlan = {
@@ -2738,7 +2829,7 @@ suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 			sessionId: 'session-1',
 			workingDirectory: testWorkingDirectory,
 			resolvedAgentName: undefined,
-			snapshot: { tools: [], plugins: [], mcpServers: {} },
+			snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 			activeClientToolSet: new ActiveClientToolSet(),
 			shellManager: undefined,
 			githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
@@ -2757,7 +2848,7 @@ suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 				sessionId: 'session-1',
 				on: () => () => { },
 				disconnect: async () => { },
-				rpc: { options: { update: async (options: unknown) => { updates.push(options); return { success: true }; } } },
+				rpc: { agent: emptyAgentCatalog, options: { update: async (options: unknown) => { updates.push(options); return { success: true }; } } },
 			} as unknown as CopilotSession;
 			const launcher = createTestLauncher();
 			const model: ModelSelection = { id: 'gpt-5.6-sol', config: {} };
@@ -2767,7 +2858,7 @@ suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 				sessionId: 'session-1',
 				workingDirectory: testWorkingDirectory,
 				resolvedAgentName: undefined,
-				snapshot: { tools: [], plugins: [], mcpServers: {} },
+				snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 				activeClientToolSet: new ActiveClientToolSet(),
 				shellManager: undefined,
 				githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
@@ -2965,27 +3056,28 @@ suite('getCopilotAutoTier', () => {
 
 	test('under Fusion, runs Efficiency as Balance only while the provider accepts Balance', () => {
 		const log = new NullLogService();
-		const configurationService = { getRootValue: (_schema: unknown, key: string) => key === CopilotCliConfigKey.Fusion ? true : undefined } as Parameters<typeof resolveCopilotAutoTier>[1];
+		const configurationService = { getRootValue: () => undefined } as Parameters<typeof resolveCopilotAutoTier>[1];
 		const resolve = () => resolveCopilotAutoTier({ id: 'auto', config: { tier: 'efficiency' } }, configurationService, log, 'session');
 		let withBalance, withoutBalance;
 		try {
-			setAdvertisedAutoModeTiers(['efficiency', 'balance']);
+			setAdvertisedAutoModeTiers(['efficiency', 'balance', 'hydrafusion'], true);
 			withBalance = resolve();
-			setAdvertisedAutoModeTiers(['efficiency', 'hydrafusion']);
+			setAdvertisedAutoModeTiers(['efficiency', 'hydrafusion'], true);
 			withoutBalance = resolve();
 		} finally {
 			setAdvertisedAutoModeTiers(undefined);
 		}
-		assert.deepStrictEqual({ withBalance, withoutBalance, builtIn: resolve() }, { withBalance: 'balance', withoutBalance: undefined, builtIn: 'balance' });
+		// Without provider tiers that present Auto as Fusion, Efficiency stays Efficiency.
+		assert.deepStrictEqual({ withBalance, withoutBalance, builtIn: resolve() }, { withBalance: 'balance', withoutBalance: undefined, builtIn: 'efficiency' });
 	});
 
 	test('under Fusion, an Efficiency override the provider cannot run as Balance still takes precedence over the picker', () => {
 		const configurationService = {
-			getRootValue: (_schema: unknown, key: string) => key === CopilotCliConfigKey.Fusion ? true : key === CopilotCliConfigKey.AutoModeTierOverride ? 'efficiency' : undefined,
+			getRootValue: (_schema: unknown, key: string) => key === CopilotCliConfigKey.AutoModeTierOverride ? 'efficiency' : undefined,
 		} as Parameters<typeof resolveCopilotAutoTier>[1];
 		let tier;
 		try {
-			setAdvertisedAutoModeTiers(['efficiency', 'hydrafusion']);
+			setAdvertisedAutoModeTiers(['efficiency', 'hydrafusion'], true);
 			tier = resolveCopilotAutoTier({ id: 'auto', config: { tier: 'hydrafusion' } }, configurationService, new NullLogService(), 'session');
 		} finally {
 			setAdvertisedAutoModeTiers(undefined);
@@ -3016,24 +3108,46 @@ suite('getCopilotAutoTier', () => {
 		);
 	});
 
-	test('resolves an Efficiency preference or override to Balance under Fusion', () => {
+	test('resolves an Efficiency preference or override to Balance only when the provider\'s tiers present Auto as Fusion', () => {
 		const log = new NullLogService();
-		const configOf = (fusion: boolean, autoModeTierOverride?: string): Pick<IAgentConfigurationService, 'getRootValue'> => ({
+		const configOf = (autoModeTierOverride?: string): Pick<IAgentConfigurationService, 'getRootValue'> => ({
 			getRootValue: (schema, key) => {
-				const value = copilotCliConfigSchema.values({ [CopilotCliConfigKey.Fusion]: fusion, autoModeTierOverride })[key];
+				const value = copilotCliConfigSchema.values({ autoModeTierOverride })[key];
 				return schema.validate(key, value) ? value : undefined;
 			},
 		});
-		assert.deepStrictEqual(
-			[
-				resolveCopilotAutoTier({ id: 'auto', config: { tier: 'efficiency' } }, configOf(true), log, 's1'),
-				resolveCopilotAutoTier({ id: 'auto', config: { tier: 'intelligence' } }, configOf(true), log, 's1'),
-				resolveCopilotAutoTier({ id: 'auto', config: { tier: 'efficiency' } }, configOf(false), log, 's1'),
-				resolveCopilotAutoTier({ id: 'auto' }, configOf(true, 'efficiency'), log, 's1'),
-				resolveCopilotAutoTier({ id: 'auto' }, configOf(false, 'efficiency'), log, 's1'),
-			],
-			['balance', 'intelligence', 'efficiency', 'balance', 'efficiency']
-		);
+		const resolveAll = (providerTiers: string[] | undefined, fusion: boolean) => {
+			try {
+				setAdvertisedAutoModeTiers(providerTiers, fusion);
+				return [
+					resolveCopilotAutoTier({ id: 'auto', config: { tier: 'efficiency' } }, configOf(), log, 's1'),
+					resolveCopilotAutoTier({ id: 'auto', config: { tier: 'intelligence' } }, configOf(), log, 's1'),
+					resolveCopilotAutoTier({ id: 'auto' }, configOf('efficiency'), log, 's1'),
+				];
+			} finally {
+				setAdvertisedAutoModeTiers(undefined);
+			}
+		};
+		const isAutoAdvertisedAsFusionWith = (providerTiers: string[], fusion: boolean) => {
+			try {
+				setAdvertisedAutoModeTiers(providerTiers, fusion);
+				return isAutoAdvertisedAsFusion();
+			} finally {
+				setAdvertisedAutoModeTiers(undefined);
+			}
+		};
+		const providerTiers = ['efficiency', 'balance', 'intelligence'];
+		assert.deepStrictEqual({
+			fusion: resolveAll(providerTiers, true),
+			providerTiersWithoutFusion: resolveAll(providerTiers, false),
+			noProviderTiers: resolveAll(undefined, true),
+			noRunnableProviderTiers: isAutoAdvertisedAsFusionWith([], true),
+		}, {
+			fusion: ['balance', 'intelligence', 'balance'],
+			providerTiersWithoutFusion: ['efficiency', 'intelligence', 'efficiency'],
+			noProviderTiers: ['efficiency', 'intelligence', 'efficiency'],
+			noRunnableProviderTiers: false,
+		});
 	});
 });
 
@@ -3172,7 +3286,7 @@ suite('CopilotSessionLauncher resume config', () => {
 	async function buildResumeConfig(
 		launcher: CopilotSessionLauncher,
 		model: ModelSelection | undefined,
-		snapshot: CopilotSessionLaunchPlan['snapshot'] = { tools: [], plugins: [], mcpServers: {} },
+		snapshot: CopilotSessionLaunchPlan['snapshot'] = { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 		createClientSdkTools: ICopilotSessionRuntime['createClientSdkTools'] = () => [],
 	): Promise<{ model?: string; reasoningEffort?: string; contextTier?: string; availableTools?: string[]; excludedTools?: string[]; excludedBuiltinAgents?: string[]; modelCapabilities?: Record<string, unknown>; toolSearch?: { enabled: boolean }; enableExperimentalMode?: boolean; featureFlags?: Record<string, boolean>; memory?: { enabled: boolean } }> {
 		const plan = {
@@ -3216,7 +3330,7 @@ suite('CopilotSessionLauncher resume config', () => {
 			sessionId: 'sess-1',
 			workingDirectory: URI.file('/workspace'),
 			resolvedAgentName: undefined,
-			snapshot: { tools: [], plugins: [], mcpServers: {} },
+			snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 			activeClientToolSet: new ActiveClientToolSet(),
 			shellManager: undefined,
 			githubCredentials: CopilotGitHubSessionCredentials.fromToken('token'),
@@ -3234,12 +3348,46 @@ suite('CopilotSessionLauncher resume config', () => {
 		});
 	});
 
-	test('enables experimental mode with HydraFusion or Fusion opt-in', async () => {
+	test('launches with the Computer Use activation tools the runtime offers, except for ephemeral chats', async () => {
+		const store = disposables.add(new DisposableStore());
+		const launcher = createLauncher(store, {});
+		const activationTool = { name: 'enable_computer_use', description: 'Ask the user to turn on Computer Use.', parameters: { type: 'object', properties: {} }, handler: async () => ({ textResultForLlm: '', resultType: 'success' as const }) };
+		let offers = 0;
+		const build = async (isEphemeral: boolean) => (await (launcher as unknown as { _buildSessionConfig(plan: unknown, runtime: unknown, onManagedSettingsResolved: () => void): Promise<{ config: ResumeSessionConfig }> })._buildSessionConfig({
+			kind: 'resume',
+			client: { rpc: { managedSettings: createUnmanagedCopilotSettings() }, createSession: async () => { throw new Error('unused'); }, resumeSession: async () => { throw new Error('unused'); } },
+			extensionSdkPath: '/copilot-sdk',
+			sessionId: 'sess-1',
+			workingDirectory: URI.file('/workspace'),
+			resolvedAgentName: undefined,
+			snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
+			activeClientToolSet: new ActiveClientToolSet(),
+			shellManager: undefined,
+			githubCredentials: CopilotGitHubSessionCredentials.fromToken('token'),
+			fallback: { model: { id: 'gpt-5' } },
+			isEphemeral,
+		}, {
+			createClientSdkTools: () => [],
+			createServerSdkTools: () => [],
+			createComputerUseActivationTools: async () => { offers++; return [activationTool]; },
+		}, () => { })).config;
+		assert.deepStrictEqual({
+			durable: (await build(false)).tools?.map(tool => tool.name),
+			ephemeral: (await build(true)).tools?.map(tool => tool.name),
+			offers,
+		}, {
+			durable: ['enable_computer_use'],
+			ephemeral: [],
+			offers: 1,
+		});
+	});
+
+	test('enables experimental mode with HydraFusion or dynamic Auto tiers opt-in', async () => {
 		const store = disposables.add(new DisposableStore());
 		const enabled = await buildResumeConfig(createLauncher(store, { hydraFusion: true }), { id: 'hydrafusion' });
 		const v2 = await buildResumeConfig(createLauncher(store, { hydraFusion: true, hydraFusionV2: true }), { id: 'hydrafusion' });
 		const v2WithoutHydraFusion = await buildResumeConfig(createLauncher(store, { hydraFusionV2: true }), { id: 'gpt-5' });
-		const fusion = await buildResumeConfig(createLauncher(store, { [CopilotCliConfigKey.Fusion]: true, hydraFusion: false, hydraFusionV2: false }), { id: 'auto' });
+		const fusion = await buildResumeConfig(createLauncher(store, { [CopilotCliConfigKey.DynamicAutoTiers]: true, hydraFusion: false, hydraFusionV2: false }), { id: 'auto' });
 		const disabled = await buildResumeConfig(createLauncher(store, { hydraFusion: false }), { id: 'gpt-5' });
 		const notOptedIn = await buildResumeConfig(createLauncher(store, {}), { id: 'gpt-5' });
 		const connectors = await buildResumeConfig(createLauncher(store, { [AgentHostMcpConnectorsEnabledConfigKey]: true }), { id: 'gpt-5' });
@@ -3309,7 +3457,7 @@ suite('CopilotSessionLauncher resume config', () => {
 		const store = disposables.add(new DisposableStore());
 		const configs = {
 			v2: await buildResumeConfig(createLauncher(store, { hydraFusion: true, hydraFusionV2: true, [CopilotCliConfigKey.HydraFusionMultiRoot]: true }), { id: 'hydrafusion' }),
-			fusion: await buildResumeConfig(createLauncher(store, { [CopilotCliConfigKey.Fusion]: true, [CopilotCliConfigKey.HydraFusionMultiRoot]: true }), { id: 'auto' }),
+			fusion: await buildResumeConfig(createLauncher(store, { [CopilotCliConfigKey.DynamicAutoTiers]: true, [CopilotCliConfigKey.HydraFusionMultiRoot]: true }), { id: 'auto' }),
 			v1: await buildResumeConfig(createLauncher(store, { hydraFusion: true, [CopilotCliConfigKey.HydraFusionMultiRoot]: true }), { id: 'hydrafusion' }),
 			withoutHydraFusion: await buildResumeConfig(createLauncher(store, { [CopilotCliConfigKey.HydraFusionMultiRoot]: true }), { id: 'gpt-5' }),
 			notOptedIn: await buildResumeConfig(createLauncher(store, { hydraFusion: true, hydraFusionV2: true }), { id: 'hydrafusion' }),
@@ -3421,8 +3569,8 @@ suite('CopilotSessionLauncher resume config', () => {
 
 	test('exposes only the client semantic-search override', async () => {
 		const store = new DisposableStore();
-		const snapshot = { tools: [{ name: SEMANTIC_SEARCH_TOOL_NAME }], plugins: [], mcpServers: {} };
-		const disabled = await buildResumeConfig(createLauncher(store, {}), undefined, { tools: [], plugins: [], mcpServers: {} });
+		const snapshot = { discoveredAgents: [], additionalRootInstructions: [], tools: [{ name: SEMANTIC_SEARCH_TOOL_NAME }], plugins: [], mcpServers: {} };
+		const disabled = await buildResumeConfig(createLauncher(store, {}), undefined, { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} });
 		const enabled = await buildResumeConfig(createLauncher(store, {}), undefined, snapshot);
 		const filtered = await buildResumeConfig(
 			createLauncher(store, { modelCapabilityOverrides: { '*': { excludedTools: [`custom:${SEMANTIC_SEARCH_TOOL_NAME}`] } } }),
@@ -3566,6 +3714,8 @@ suite('CopilotSessionLauncher resume config', () => {
 	test('tool search gates on the flag, model support, and the family alias', async () => {
 		const store = new DisposableStore();
 		const searchSnapshot = {
+			discoveredAgents: [],
+			additionalRootInstructions: [],
 			tools: [{ name: CLIENT_TOOL_SEARCH_REFERENCE_NAME, description: 'Search tools', inputSchema: { type: 'object' as const, properties: {} } }],
 			plugins: [],
 			mcpServers: {},
@@ -3609,6 +3759,8 @@ suite('CopilotSessionLauncher resume config', () => {
 			}),
 			model,
 			{
+				discoveredAgents: [],
+				additionalRootInstructions: [],
 				tools: [{ name: CLIENT_TOOL_SEARCH_REFERENCE_NAME, description: 'Search tools', inputSchema: { type: 'object', properties: {} } }],
 				plugins: [],
 				mcpServers: {},
@@ -3640,6 +3792,7 @@ suite('CopilotSessionLauncher auto tier', () => {
 			on: () => () => { },
 			disconnect: async () => { },
 			rpc: {
+				agent: emptyAgentCatalog,
 				options: { update: async () => ({ success: true }) },
 			},
 		} as unknown as CopilotSession;
@@ -3666,7 +3819,7 @@ suite('CopilotSessionLauncher auto tier', () => {
 			sessionId: 'session-1',
 			workingDirectory: testWorkingDirectory,
 			resolvedAgentName: undefined,
-			snapshot: { tools: [], plugins: [], mcpServers: {} },
+			snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 			activeClientToolSet: new ActiveClientToolSet(),
 			shellManager: undefined,
 			githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
@@ -3735,4 +3888,130 @@ suite('CopilotSessionLauncher auto tier', () => {
 			});
 		});
 	}
+});
+
+suite('CopilotSessionLauncher working directory trust', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const folder = URI.file('/repos/project');
+	const trusted = (...uris: URI[]): IAgentHostWorkspaceTrust => ({ enabled: true, trustedUris: uris.map(uri => uri.toString()) });
+
+	/**
+	 * Launches a session and returns, per SDK call, the `trustWorkingDirectory`
+	 * it was opened with (`'absent'` when the field is left out), plus the
+	 * grant the session wrapper recorded.
+	 */
+	async function trustFor(kind: 'create' | 'resume' | 'fallback', trust: IAgentHostWorkspaceTrust | undefined, plan?: Partial<Pick<CopilotSessionLaunchPlan, 'workingDirectory' | 'workspaceless' | 'worktreeRepository'>>): Promise<{ calls: string[]; recorded: string | undefined }> {
+		const calls: string[] = [];
+		const record = (config: object | undefined) => calls.push(config && Object.hasOwn(config, 'trustWorkingDirectory') ? String((config as SessionConfig).trustWorkingDirectory) : 'absent');
+		const session = {
+			sessionId: 'session-1',
+			on: () => () => { },
+			disconnect: async () => { },
+			rpc: {
+				agent: emptyAgentCatalog,
+				options: { update: async () => ({ success: true }) },
+			},
+		} as unknown as CopilotSession;
+		const client: CopilotSessionLaunchPlan['client'] = {
+			rpc: { managedSettings: createUnmanagedCopilotSettings(), account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() { }, getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
+			createSession: async config => {
+				record(config);
+				return session;
+			},
+			resumeSession: async (_sessionId, config) => {
+				record(config);
+				if (kind === 'fallback') {
+					throw Object.assign(new Error('Session has no events'), { code: -32603 });
+				}
+				return session;
+			},
+		};
+		const launcher = createTestLauncher(undefined, { [AgentHostWorkspaceTrustConfigKey]: trust });
+		const base = {
+			client,
+			extensionSdkPath: '/copilot-sdk',
+			sessionId: 'session-1',
+			workingDirectory: folder,
+			resolvedAgentName: undefined,
+			snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
+			activeClientToolSet: new ActiveClientToolSet(),
+			shellManager: undefined,
+			githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
+			...plan,
+		};
+		const launchPlan: CopilotSessionLaunchPlan = kind === 'create'
+			? { ...base, kind: 'create', model: undefined }
+			: { ...base, workingDirectory: base.workingDirectory ?? folder, kind: 'resume', fallback: { model: undefined } };
+
+		const sessions = new DisposableStore();
+		try {
+			const wrapper = sessions.add(await launcher.launch(launchPlan, testRuntime));
+			return { calls, recorded: wrapper.launchWorkingDirectoryTrust };
+		} finally {
+			sessions.dispose();
+			await launcher.disposeByokProxyHandle();
+		}
+	}
+
+	test('grants session trust on create only for a trusted working directory', async () => {
+		assert.deepStrictEqual({
+			trustedFolder: await trustFor('create', trusted(folder)),
+			trustedParent: await trustFor('create', trusted(URI.file('/repos'))),
+			trustDisabled: await trustFor('create', { enabled: false, trustedUris: [] }),
+			untrustedFolder: await trustFor('create', trusted(URI.file('/repos/other'))),
+			siblingWithSharedPrefix: await trustFor('create', trusted(URI.file('/repos/proj'))),
+			noTrustSnapshot: await trustFor('create', undefined),
+		}, {
+			trustedFolder: { calls: ['session'], recorded: 'session' },
+			trustedParent: { calls: ['session'], recorded: 'session' },
+			trustDisabled: { calls: ['session'], recorded: 'session' },
+			untrustedFolder: { calls: ['absent'], recorded: undefined },
+			siblingWithSharedPrefix: { calls: ['absent'], recorded: undefined },
+			noTrustSnapshot: { calls: ['absent'], recorded: undefined },
+		});
+	});
+
+	test('never grants trust on resume, but grants it when an empty session falls back to create', async () => {
+		assert.deepStrictEqual({
+			resume: await trustFor('resume', trusted(folder)),
+			fallback: await trustFor('fallback', trusted(folder)),
+		}, {
+			resume: { calls: ['absent'], recorded: undefined },
+			fallback: { calls: ['absent', 'session'], recorded: 'session' },
+		});
+	});
+
+	test('grants no trust to workspace-less, folderless, or non-file working directories, even with trust disabled', async () => {
+		const disabled: IAgentHostWorkspaceTrust = { enabled: false, trustedUris: [] };
+		assert.deepStrictEqual({
+			workspaceless: await trustFor('create', disabled, { workspaceless: true }),
+			noWorkingDirectory: await trustFor('create', disabled, { workingDirectory: undefined }),
+			virtual: await trustFor('create', disabled, { workingDirectory: URI.from({ scheme: 'vscode-vfs', path: '/repos/project' }) }),
+		}, {
+			workspaceless: { calls: ['absent'], recorded: undefined },
+			noWorkingDirectory: { calls: ['absent'], recorded: undefined },
+			virtual: { calls: ['absent'], recorded: undefined },
+		});
+	});
+
+	test('a created worktree inherits the trust of its repository', async () => {
+		const worktree = URI.file('/repos/project.worktrees/agents-task');
+		assert.deepStrictEqual({
+			trustedRepository: await trustFor('create', trusted(folder), { workingDirectory: worktree, worktreeRepository: folder }),
+			untrustedRepository: await trustFor('create', trusted(URI.file('/repos/other')), { workingDirectory: worktree, worktreeRepository: folder }),
+			notCreatedByVSCode: await trustFor('create', trusted(folder), { workingDirectory: worktree }),
+			notUnderRepositoryWorktrees: await trustFor('create', trusted(folder), { workingDirectory: URI.file('/elsewhere/agents-task'), worktreeRepository: folder }),
+		}, {
+			trustedRepository: { calls: ['session'], recorded: 'session' },
+			untrustedRepository: { calls: ['absent'], recorded: undefined },
+			notCreatedByVSCode: { calls: ['absent'], recorded: undefined },
+			notUnderRepositoryWorktrees: { calls: ['absent'], recorded: undefined },
+		});
+	});
+
+	test('matches trusted folders ignoring path case except on Linux', () => {
+		assert.strictEqual(getCopilotWorkingDirectoryTrust({ workingDirectory: URI.file('/Repos/Project') }, trusted(folder)), isLinux ? undefined : 'session');
+	});
 });

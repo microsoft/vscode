@@ -674,4 +674,158 @@ suite('AgentHostWorktreeCleanupService', () => {
 			});
 		});
 	});
+
+	suite('scratch folders', () => {
+
+		const NOW = 10_000_000;
+		let root: string;
+
+		setup(async () => {
+			root = await fs.mkdtemp(join(tmpdir(), 'agent-host-scratch-'));
+		});
+
+		teardown(async () => {
+			await fs.rm(root, { recursive: true, force: true });
+		});
+
+		async function allocate(database: AgentHostDatabase, name: string, state: 'allocating' | 'removing', requestedAt: number, create = true): Promise<string> {
+			const path = join(root, name);
+			if (create) {
+				await fs.mkdir(path);
+			}
+			const folder = URI.file(path).toString();
+			await database.insertScratchFolder({ folder, chatUri: `chat://${name}`, provider: 'copilotcli', requestedAt });
+			if (state === 'removing') {
+				await sql(database, `UPDATE scratch_folders SET state = 'removing' WHERE folder = ?`, [folder]);
+			}
+			return folder;
+		}
+
+		async function rows(database: AgentHostDatabase): Promise<string[]> {
+			return (await database.listScratchFolders()).map(row => `${URI.parse(row.folder).path.split('/').pop()}:${row.state}:${row.attempts}:${row.nextAttemptAt}`);
+		}
+
+		async function exists(name: string): Promise<boolean> {
+			return fs.stat(join(root, name)).then(() => true, () => false);
+		}
+
+		test('a pass removes the folder and the row of a removing scratch folder', async () => {
+			const { database, cleanup } = create({ now: () => NOW });
+			await allocate(database, 'gone', 'removing', 1);
+			await cleanup.runPass();
+
+			assert.deepStrictEqual({ rows: await rows(database), exists: await exists('gone') }, { rows: [], exists: false });
+		});
+
+		test('a removing folder that a live session still lists is kept', async () => {
+			const { database, cleanup } = create({ now: () => NOW });
+			const folder = await allocate(database, 'inUse', 'removing', 1);
+			await database.registerSessionV2(SESSION.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			await database.importSessionState(SESSION.toString(), {
+				importVersion: 1, importedAt: 1, folders: [], chats: [], legacyMirrorBase: '{}', launchDirsBackfilled: true,
+				values: { [SESSION_WORKING_DIRECTORIES_KEY]: JSON.stringify([folder]) },
+			});
+			await cleanup.runPass();
+
+			assert.deepStrictEqual({ rows: await rows(database), exists: await exists('inUse') }, { rows: ['inUse:removing:0:0'], exists: true });
+		});
+
+		test('a removing folder that a live chat works inside is kept with the chat\'s files', async () => {
+			const { database, cleanup } = create({ now: () => NOW });
+			const folder = await allocate(database, 'parent', 'removing', 1);
+			await fs.mkdir(join(root, 'parent', 'sub'));
+			await fs.writeFile(join(root, 'parent', 'sub', 'notes.md'), 'kept');
+			await database.registerSessionV2(SESSION.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			await database.registerChatCatalogV2(SESSION.toString(), {
+				defaultChat: { chat: `${SESSION.toString()}/default`, order: 0 },
+				peers: [{ chat: 'ahp-chat:/live', order: 1, workingDirectories: [`${folder}/sub`] }],
+				privateDescendants: [],
+			});
+			await cleanup.runPass();
+
+			assert.deepStrictEqual({ rows: await rows(database), file: await fs.readFile(join(root, 'parent', 'sub', 'notes.md'), 'utf8') }, { rows: ['parent:removing:0:0'], file: 'kept' });
+		});
+
+		test('an allocating folder that is not in flight is reclaimed at any age, an in-flight one is kept', async () => {
+			const { database, cleanup } = create({ now: () => NOW });
+			await allocate(database, 'crashed', 'allocating', NOW);
+			const inFlight = await allocate(database, 'inFlight', 'allocating', 1);
+			const tracking = cleanup.trackScratchAllocation(inFlight);
+			await cleanup.runPass();
+			const whileInFlight = { rows: await rows(database), crashed: await exists('crashed'), inFlight: await exists('inFlight') };
+			tracking.dispose();
+			await cleanup.runPass();
+
+			assert.deepStrictEqual({ whileInFlight, after: { rows: await rows(database), inFlight: await exists('inFlight') } }, {
+				whileInFlight: { rows: ['inFlight:allocating:0:0'], crashed: false, inFlight: true },
+				after: { rows: [], inFlight: false },
+			});
+		});
+
+		test('an allocating folder that a chat lists becomes owned and is kept', async () => {
+			const { database, cleanup } = create({ now: () => NOW });
+			const folder = await allocate(database, 'published', 'allocating', 1);
+			await database.registerSessionV2(SESSION.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			await database.importSessionState(SESSION.toString(), {
+				importVersion: 1, importedAt: 1, folders: [], chats: [], legacyMirrorBase: '{}', launchDirsBackfilled: true,
+				values: { [SESSION_WORKING_DIRECTORIES_KEY]: JSON.stringify([folder]) },
+			});
+			await cleanup.runPass();
+
+			assert.deepStrictEqual({ rows: await rows(database), exists: await exists('published') }, { rows: ['published:owned:0:0'], exists: true });
+		});
+
+		test('an owned folder is never removed', async () => {
+			const { database, cleanup } = create({ now: () => NOW });
+			await allocate(database, 'owned', 'allocating', 1);
+			await database.markScratchFolderOwned(URI.file(join(root, 'owned')).toString());
+			await cleanup.runPass();
+
+			assert.deepStrictEqual({ rows: await rows(database), exists: await exists('owned') }, { rows: ['owned:owned:0:0'], exists: true });
+		});
+
+		test('a failed removal counts the attempt with a backoff and keeps the row, until the backoff elapsed', async () => {
+			let now = NOW;
+			const { database, cleanup } = create({ backoffMs: 100, maxBackoffMs: 500, now: () => now, removeScratchFolder: async () => { throw new Error('removal failed'); } });
+			const folder = URI.file(join(root, 'child')).toString();
+			await database.insertScratchFolder({ folder, chatUri: 'chat://child', provider: 'copilotcli', requestedAt: 1 });
+			await sql(database, `UPDATE scratch_folders SET state = 'removing' WHERE folder = ?`, [folder]);
+			await cleanup.runPass();
+			const afterFailure = await rows(database);
+			now += 50;
+			await cleanup.runPass();
+			const beforeBackoffElapsed = await rows(database);
+			now += 100;
+			await cleanup.runPass();
+
+			assert.deepStrictEqual({ afterFailure, beforeBackoffElapsed, afterRetry: await rows(database) }, {
+				afterFailure: [`child:removing:1:${NOW + 100}`],
+				beforeBackoffElapsed: [`child:removing:1:${NOW + 100}`],
+				afterRetry: [`child:removing:2:${NOW + 150 + 200}`],
+			});
+		});
+
+		test('a failed removal of an allocating folder is retried by the scheduled pass', async () => {
+			let now = NOW;
+			let failRemoval = true;
+			const { database, cleanup } = create({
+				now: () => now, debounceMs: 0, backoffMs: 1,
+				removeScratchFolder: async path => {
+					if (failRemoval) {
+						throw new Error('removal failed');
+					}
+					await fs.rm(path, { recursive: true, force: true });
+				}
+			});
+			const folder = URI.file(join(root, 'child')).toString();
+			await database.insertScratchFolder({ folder, chatUri: 'chat://child', provider: 'copilotcli', requestedAt: 1 });
+			await cleanup.runPass();
+			const failed = await rows(database);
+			failRemoval = false;
+			now += 10;
+			await cleanup.runPass();
+
+			assert.deepStrictEqual({ failed, after: await rows(database) }, { failed: [`child:allocating:1:${NOW + 1}`], after: [] });
+		});
+	});
 });

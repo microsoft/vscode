@@ -454,7 +454,7 @@ export class AgentHostModePicker extends AgentHostSessionEnumPicker {
 	}
 
 	protected override _watchActionItems(items: readonly IActionListItem<IAgentHostSessionEnumPickerItem | IAction>[]): IDisposable {
-		return this._permissionPicker.watchSandboxToggle(items);
+		return this._permissionDelegate.isModePickerCombined.get() ? this._permissionPicker.watchActionItems(items) : this._permissionPicker.watchSandboxToggle(items);
 	}
 
 	protected override _getAccessibilityProvider(): Partial<IListAccessibilityProvider<IActionListItem<IAgentHostSessionEnumPickerItem | IAction>>> {

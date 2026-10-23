@@ -112,6 +112,7 @@ export class ChatImageGenerationBatchPart extends Disposable implements IChatCon
 	private readonly loading = this._register(new MutableDisposable<IDisposable>());
 	/** The loading square while {@link loading} shows it, which a reveal grows from. */
 	private loadingLine: HTMLElement | undefined;
+	private loadingSurface: MutableDisposable<GlyphSurface> | undefined;
 	private readonly previewWidget = this._register(new MutableDisposable<ChatResourceGroupWidget>());
 	private readonly layoutAfterResize = this._register(new MutableDisposable<IDisposable>());
 	private readonly thumbnailItems = this._register(new DisposableMap<string, IThumbnail>());
@@ -325,6 +326,9 @@ export class ChatImageGenerationBatchPart extends Disposable implements IChatCon
 				const thumbnail = item;
 				const store = thumbnail.imageStore.value = new DisposableStore();
 				const image = dom.append(thumbnail.button.element, dom.$<HTMLImageElement>('img', { alt: '', draggable: false }));
+				// Browsers can paint a loaded image before dispatching its load event, which shapes the tile,
+				// so show it from that event rather than letterboxed in the square placeholder.
+				image.hidden = true;
 				thumbnail.image = image;
 				thumbnail.icon.hidden = true;
 				store.add(toDisposable(() => {
@@ -343,10 +347,14 @@ export class ChatImageGenerationBatchPart extends Disposable implements IChatCon
 					this.layoutThumbnails();
 				};
 				store.add(dom.addDisposableListener(image, dom.EventType.LOAD, () => {
-					if (!store.isDisposed && image.naturalWidth > 0 && image.naturalHeight > 0) {
+					if (store.isDisposed) {
+						return;
+					}
+					if (image.naturalWidth > 0 && image.naturalHeight > 0) {
 						this.viewState.imageDimensions.set(slot.part!.uri, { width: image.naturalWidth, height: image.naturalHeight });
 						this.layoutThumbnails();
 					}
+					image.hidden = false;
 				}));
 				store.add(dom.addDisposableListener(image, dom.EventType.ERROR, showError));
 				void this.loadThumbnail(slot.part, image, store, showError);
@@ -468,10 +476,12 @@ export class ChatImageGenerationBatchPart extends Disposable implements IChatCon
 					const store = this.loading.value = new DisposableStore();
 					const placeholder = dom.append(this.preview, dom.$('.chat-image-generation-placeholder', { 'aria-hidden': 'true' }));
 					const line = this.loadingLine = dom.append(placeholder, dom.$('.chat-image-generation-line'));
-					store.add(this.instantiationService.createInstance(GlyphSurface, line));
+					const surface = this.loadingSurface = store.add(new MutableDisposable<GlyphSurface>());
+					surface.value = this.instantiationService.createInstance(GlyphSurface, line);
 					store.add(toDisposable(() => {
 						placeholder.remove();
 						this.loadingLine = undefined;
+						this.loadingSurface = undefined;
 					}));
 				}
 			} else {
@@ -481,8 +491,8 @@ export class ChatImageGenerationBatchPart extends Disposable implements IChatCon
 		}
 		const reveal = allowReveal && !!this.loading.value;
 		const revealSize = reveal ? this.loadingLine?.getBoundingClientRect().width || undefined : undefined;
-		this.loading.clear();
 		if (this.previewKey === selected.key) {
+			this.loading.clear();
 			return;
 		}
 		this.clearPreview();
@@ -490,9 +500,10 @@ export class ChatImageGenerationBatchPart extends Disposable implements IChatCon
 		const widget = this.previewWidget.value = this.instantiationService.createInstance(ChatResourceGroupWidget, [selected.part], {
 			imagePresentation: 'inline',
 			showImageInHover: false,
-			imageReveal: reveal ? { container: this.domNode, size: revealSize } : undefined,
+			imageReveal: reveal ? { container: this.domNode, size: revealSize, takeSurface: () => this.loadingSurface?.clearAndLeak() } : undefined,
 			imageDimensions: this.viewState.imageDimensions,
 		});
+		this.loading.clear();
 		const gallery = dom.append(this.preview, dom.$('.chat-generated-image-result', undefined, widget.domNode));
 		gallery.classList.add('chat-image-generation-batch-selected');
 		this._onDidChangeHeight.fire();

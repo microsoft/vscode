@@ -86,7 +86,7 @@ suite('ConfigurationDefaultOverridesContribution', () => {
 
 	// Builds the contribution without running its constructor so that `processExperimentalSettings`
 	// can be driven directly, resolving treatments from the given (mutable) record.
-	function createTestContribution(treatments: Record<string, string | number | boolean | undefined>): TestContribution {
+	function createTestContribution(treatments: Record<string, unknown>): TestContribution {
 		const contribution = Object.create(ConfigurationDefaultOverridesContribution.prototype) as TestContribution;
 		contribution._store = store.add(new DisposableStore());
 		contribution.processedExperimentalSettings = new Set();
@@ -131,6 +131,149 @@ suite('ConfigurationDefaultOverridesContribution', () => {
 			}
 		}
 	};
+
+	const arraySetting = 'test.arrayExperimentalSetting';
+	const arrayConfiguration: IConfigurationNode = {
+		properties: {
+			[arraySetting]: {
+				type: 'array',
+				items: { type: 'string' },
+				default: [],
+				scope: ConfigurationScope.APPLICATION,
+				experiment: { mode: 'auto' },
+			}
+		}
+	};
+
+	test('decodes and refetches array experiment defaults while preserving explicit empty user settings', async () => {
+		const treatments: Record<string, unknown> = {};
+		const contribution = createTestContribution(treatments);
+		configurationRegistry.registerConfiguration(arrayConfiguration);
+		try {
+			const fileService = store.add(new FileService(contribution.logService));
+			store.add(fileService.registerProvider('test-experiments', store.add(new InMemoryFileSystemProvider())));
+			const settingsResource = URI.from({ scheme: 'test-experiments', path: '/settings.json' });
+			await fileService.writeFile(settingsResource, VSBuffer.fromString(JSON.stringify({ [arraySetting]: [] })));
+			const configurationService = store.add(new ConfigurationService(settingsResource, fileService, new NullPolicyService(), contribution.logService));
+			await configurationService.initialize();
+
+			const cases = [
+				{ treatment: undefined, defaultValue: [], assigned: false, overrides: 0 },
+				{ treatment: '[]', defaultValue: [], assigned: true, overrides: 0 },
+				{ treatment: '["owner/first"]', defaultValue: ['owner/first'], assigned: true, overrides: 1 },
+				{ treatment: '["owner/first"]', defaultValue: ['owner/first'], assigned: true, overrides: 1 },
+				{ treatment: '["team/second"]', defaultValue: ['team/second'], assigned: true, overrides: 1 },
+				{ treatment: undefined, defaultValue: [], assigned: false, overrides: 0 },
+				{ treatment: ['owner/native'], defaultValue: ['owner/native'], assigned: true, overrides: 1 },
+				{ treatment: '[]', defaultValue: [], assigned: true, overrides: 1 },
+			];
+			const results = [];
+			for (const { treatment } of cases) {
+				treatments[`config.${arraySetting}`] = treatment;
+				await contribution.processExperimentalSettings([arraySetting], results.length > 0);
+				const { defaultValue, userValue, value } = configurationService.inspect<string[]>(arraySetting);
+				results.push({
+					defaultValue, userValue, value,
+					assigned: contribution.experimentalSettingsService.hasAssignment(arraySetting),
+					overrides: contribution.registeredExperimentalDefaults.size,
+				});
+			}
+			assert.deepStrictEqual(results, cases.map(({ defaultValue, assigned, overrides }) => ({
+				defaultValue, userValue: [], value: [], assigned, overrides,
+			})));
+		} finally {
+			configurationRegistry.deregisterDefaultConfigurations([...contribution.registeredExperimentalDefaults.values()]);
+			configurationRegistry.deregisterConfigurations([arrayConfiguration]);
+		}
+	});
+
+	test('logs invalid array treatments and removes stale defaults without discarding assignment metadata', async () => {
+		const treatments: Record<string, unknown> = {};
+		const contribution = createTestContribution(treatments);
+		const errors: unknown[][] = [];
+		contribution.logService = new class extends NullLogService {
+			override error(...args: unknown[]): void { errors.push(args); }
+		}();
+		configurationRegistry.registerConfiguration(arrayConfiguration);
+		try {
+			const invalidTreatments = ['["private/repo"', '{"repository":"private/repo"}', '"private/repo"', 'null', 'true', '1', { repository: 'private/repo' }, null, true, 1];
+			const results = [];
+			for (const treatment of invalidTreatments) {
+				treatments[`config.${arraySetting}`] = '["owner/first"]';
+				await contribution.processExperimentalSettings([arraySetting], true);
+				treatments[`config.${arraySetting}`] = treatment;
+				await contribution.processExperimentalSettings([arraySetting], true);
+				results.push({
+					default: configurationRegistry.getConfigurationProperties()[arraySetting].default,
+					source: configurationRegistry.getConfigurationProperties()[arraySetting].defaultValueSource,
+					assigned: contribution.experimentalSettingsService.hasAssignment(arraySetting),
+					overrides: contribution.registeredExperimentalDefaults.size,
+					errors: errors.splice(0),
+				});
+			}
+			assert.deepStrictEqual(results, invalidTreatments.map(() => ({
+				default: [], source: undefined, assigned: true, overrides: 0,
+				errors: [['ConfigurationService#processExperimentalSettings', arraySetting, 'Expected an array or a JSON-encoded array treatment.']],
+			})));
+		} finally {
+			configurationRegistry.deregisterDefaultConfigurations([...contribution.registeredExperimentalDefaults.values()]);
+			configurationRegistry.deregisterConfigurations([arrayConfiguration]);
+		}
+	});
+
+	test('preserves scalar treatments including JSON-looking strings for non-array settings', async () => {
+		const values = [
+			['boolean', false, true],
+			['number', 0, 42],
+			['string', 'control', '["owner/repo"]'],
+			['string', 'control', '{"repository":"owner/repo"}'],
+		] as const;
+		const properties = Object.fromEntries(values.map(([type, defaultValue], index) => [`test.scalarTreatment${index}`, {
+			type, default: defaultValue, experiment: { mode: 'auto' as const },
+		}]));
+		const scalarConfiguration: IConfigurationNode = { properties };
+		const contribution = createTestContribution(Object.fromEntries(Object.keys(properties).map((key, index) => [`config.${key}`, values[index][2]])));
+		configurationRegistry.registerConfiguration(scalarConfiguration);
+		try {
+			await contribution.processExperimentalSettings(Object.keys(properties), false);
+			assert.deepStrictEqual(Object.keys(properties).map(key => configurationRegistry.getConfigurationProperties()[key].default), values.map(([, , treatment]) => treatment));
+		} finally {
+			configurationRegistry.deregisterDefaultConfigurations([...contribution.registeredExperimentalDefaults.values()]);
+			configurationRegistry.deregisterConfigurations([scalarConfiguration]);
+		}
+	});
+
+	test('retries invalid startup array treatments until a valid value resolves, then latches it', async () => {
+		const key = 'test.startupArrayExperimentalSetting';
+		const startupConfiguration: IConfigurationNode = {
+			properties: { [key]: { type: 'array', default: [], experiment: { mode: 'startup' } } },
+		};
+		const treatments: Record<string, unknown> = {};
+		const contribution = createTestContribution(treatments);
+		configurationRegistry.registerConfiguration(startupConfiguration);
+		try {
+			const results = [];
+			for (const treatment of [undefined, 'not JSON', '["owner/first"]', '["team/second"]', undefined]) {
+				treatments[`config.${key}`] = treatment;
+				await contribution.processExperimentalSettings([key], results.length > 0);
+				results.push({
+					default: configurationRegistry.getConfigurationProperties()[key].default,
+					pending: contribution.pendingStartupExperimentalSettings.has(key),
+					assigned: contribution.experimentalSettingsService.hasAssignment(key),
+				});
+			}
+			assert.deepStrictEqual(results, [
+				{ default: [], pending: true, assigned: false },
+				{ default: [], pending: true, assigned: true },
+				{ default: ['owner/first'], pending: false, assigned: true },
+				{ default: ['owner/first'], pending: false, assigned: true },
+				{ default: ['owner/first'], pending: false, assigned: true },
+			]);
+		} finally {
+			configurationRegistry.deregisterDefaultConfigurations([...contribution.registeredExperimentalDefaults.values()]);
+			configurationRegistry.deregisterConfigurations([startupConfiguration]);
+		}
+	});
 
 	test('applies and refetches hidden experiments through configuration change events', async () => {
 		const key = 'test.hiddenAutoExperiment';

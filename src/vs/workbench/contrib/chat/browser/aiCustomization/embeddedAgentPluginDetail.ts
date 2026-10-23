@@ -98,7 +98,7 @@ export async function loadPluginReadme(
 			fetchedUri = URI.parse(`https://raw.githubusercontent.com/${githubBlobMatch.groups['owner']}/${githubBlobMatch.groups['repo']}/${githubBlobMatch.groups['rest']}`);
 		}
 		const context = await requestService.request({ type: 'GET', url: fetchedUri.toString(), callSite: 'aiCustomizationPluginDetail.fetchReadme' }, CancellationToken.None);
-		return { content: await asTextOrError(context) ?? '', baseUri: fetchedUri };
+		return { content: await asTextOrError(context) ?? '', baseUri: readmeUri };
 	}
 	throw new Error(`Unsupported plugin README URI scheme: ${readmeUri.scheme}`);
 }

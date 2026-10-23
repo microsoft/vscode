@@ -22,7 +22,7 @@ import { NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolat
 import { TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { createTestSessionStateStore } from './chatMetadataTestHelpers.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
-import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { createLiveChatOwnership, createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 class EnablementSessionDatabase extends TestSessionDatabase {
 	metadataLoad: Promise<string | undefined> | undefined;
@@ -694,6 +694,31 @@ suite('AgentHostCustomizationEnablementService', () => {
 		state.dispatchServerAction(session, { type: ActionType.SessionWorkingDirectorySet, directory: workspace.toString() });
 		const directoryState = service.getWorkingDirectoryState(session);
 		assert.deepStrictEqual(directoryState.kind === 'directory' ? { kind: directoryState.kind, uri: directoryState.uri.toString() } : directoryState, { kind: 'directory', uri: workspace.toString() });
+	});
+
+	test('an unmarked session whose default chat is in a recorded scratch folder is workspace-less', () => {
+		state.deleteSession(session);
+		state.createSession(makeSummary(session, [workspace.toString()]));
+		const defaultChat = buildDefaultChatUri(session);
+		const store = createTestSessionStateStore(new AgentHostDatabase(':memory:'), sessionData);
+		const chatEntry = (folder: string) => ({ isDefault: true, storage: undefined, title: undefined, titleSource: undefined, isRead: undefined, workingDirectories: undefined, launchWorkingDirectories: [folder], changes: undefined });
+		const chatFolders: string[] = [];
+		store.peek = () => ({
+			session,
+			authority: 2 as const,
+			revision: 1,
+			values: new Map(),
+			folders: new Map(),
+			chats: new Map(chatFolders.map(folder => [defaultChat, chatEntry(folder)])),
+		});
+		const chatAware = disposables.add(new AgentHostCustomizationEnablementService(storage, state, new NullLogService(), worktree, createLiveChatOwnership(() => undefined, () => defaultChat), store));
+
+		chatFolders.push(workspace.toString());
+		const regularFolder = chatAware.getWorkingDirectoryState(session);
+		state.setScratchFolder(workspace.toString(), true);
+		const scratchFolder = chatAware.getWorkingDirectoryState(session);
+
+		assert.deepStrictEqual({ regularFolder: regularFolder.kind === 'directory' ? regularFolder.uri.toString() : regularFolder.kind, scratchFolder }, { regularFolder: workspace.toString(), scratchFolder: { kind: 'workspaceless' } });
 	});
 
 	test('queues a workspace replacement while the working directory is pending and applies it when registered', () => {

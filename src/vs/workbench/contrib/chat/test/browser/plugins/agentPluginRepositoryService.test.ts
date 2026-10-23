@@ -733,6 +733,39 @@ suite('AgentPluginRepositoryService', () => {
 		assert.strictEqual(clonedRef, 'marketplace');
 	});
 
+	for (const sourceDescriptor of [
+		{ kind: PluginSourceKind.GitHub, repo: 'owner/repo', path: 'plugins/test' },
+		{ kind: PluginSourceKind.GitUrl, url: 'https://example.com/repo.git', path: 'plugins/test' },
+	] satisfies IPluginSourceDescriptor[]) {
+		for (const sha of [undefined, 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0']) {
+			test(`clones ${sourceDescriptor.kind} sources at ${sha ? 'the pinned SHA instead of the ref' : 'the requested ref'}`, async () => {
+				const calls: { operation: string; revision: string | undefined }[] = [];
+				const service = createService(async () => false, undefined, {
+					cloneRepository: async (_url, _directory, ref) => { calls.push({ operation: 'clone', revision: ref }); },
+					checkoutCommit: async (_directory, commit) => { calls.push({ operation: 'checkoutCommit', revision: commit }); },
+					checkout: async (_directory, ref) => { calls.push({ operation: 'checkout', revision: ref }); },
+				});
+				const plugin = {
+					...createPlugin('microsoft/vscode', 'plugins/test'),
+					sourceDescriptor: { ...sourceDescriptor, ref: 'main', sha },
+				};
+
+				const installUri = await service.ensurePluginSource(plugin);
+
+				assert.deepStrictEqual({
+					calls,
+					installPath: installUri.path,
+				}, {
+					calls: [
+						{ operation: 'clone', revision: sha ?? 'main' },
+						{ operation: sha ? 'checkoutCommit' : 'checkout', revision: sha ?? 'main' },
+					],
+					installPath: service.getPluginSourceInstallUri(plugin.sourceDescriptor).path,
+				});
+			});
+		}
+	}
+
 	test('concurrent ensureRepository calls for the same marketplace clone only once', async () => {
 		let cloneCount = 0;
 		const instantiationService = store.add(new TestInstantiationService());
