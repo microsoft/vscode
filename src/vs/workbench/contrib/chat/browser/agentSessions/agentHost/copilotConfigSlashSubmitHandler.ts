@@ -19,7 +19,6 @@ import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWor
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { applyAgentHostSubmitConfig } from './applyAgentHostSubmitConfig.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { IAgentHostChatAgentConfigService } from './agentHostChatAgentConfig.js';
 
 export interface ICopilotConfigSlashSubmitResolution {
 	readonly applyConfig: Readonly<Record<string, string>>;
@@ -44,7 +43,6 @@ export class CopilotConfigSlashSubmitHandlerContribution extends Disposable impl
 		@IAgentHostSessionWorkingDirectoryResolver private readonly _workingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IAgentHostChatAgentConfigService private readonly _chatAgentConfigService: IAgentHostChatAgentConfigService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IStorageService private readonly _storageService: IStorageService,
 	) {
@@ -70,7 +68,6 @@ export class CopilotConfigSlashSubmitHandlerContribution extends Disposable impl
 			workingDirectoryResolver: this._workingDirectoryResolver,
 			workspaceContextService: this._workspaceContextService,
 			configurationService: this._configurationService,
-			chatAgentConfigService: this._chatAgentConfigService,
 			dialogService: this._dialogService,
 			storageService: this._storageService,
 		});

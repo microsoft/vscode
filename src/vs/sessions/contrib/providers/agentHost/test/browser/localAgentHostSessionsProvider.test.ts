@@ -104,7 +104,6 @@ import { TestPathService } from '../../../../../../workbench/test/browser/workbe
 import type { CanvasState } from '../../../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
 import { buildOpenSessionLinkForChat } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 import { requireMintedTestChatOwner } from '../../../../../../platform/agentHost/test/common/mintedChatUri.js';
-import { AgentHostChatAgentConfigService, IAgentHostChatAgentConfigService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostChatAgentConfig.js';
 
 // ---- Mock IAgentHostService -------------------------------------------------
 
@@ -838,8 +837,6 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 		override readonly activeSession: IObservable<IActiveSession | undefined> = activeSessionObs;
 		override readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = visibleSessionsObs;
 	}());
-	// The real service: chats on another agent than their session's resolve its config through the mock connection.
-	instantiationService.set(IAgentHostChatAgentConfigService, disposables.add(new AgentHostChatAgentConfigService(new NullLogService())));
 	instantiationService.stub(IAgentHostActiveClientService, new class extends mock<IAgentHostActiveClientService>() {
 		override areScopeRootsEqual = (first: readonly URI[] | undefined, second: readonly URI[]) =>
 			first !== undefined && first.length === second.length && first.every((root, index) => extUriIgnorePathCase.isEqual(root, second[index]));
@@ -15938,37 +15935,32 @@ suite('LocalAgentHostSessionsProvider', () => {
 		return { provider, chat, peer, summary, peerSummary, state, setChatState, show, visibleSessions, sessionUri: AgentSession.uri('copilotcli', rawId).toString() };
 	}
 
-	test('a chat backed by another agent renders and writes its config against its agent\'s resolved config', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('a chat backed by another agent renders and writes its config against its own schema from its state', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const { provider, peer, peerSummary, state, show } = perChatSession('own-schema', true, { withoutChatState: true });
 		const otherPeerSummary: ChatSummary = { ...peerSummary, provider: 'otheragent' };
 		const sessionState = state();
 		agentHost.setSessionState('own-schema', 'copilotcli', { ...sessionState, chats: sessionState.chats.map(summary => summary.resource === peer ? otherPeerSummary : summary) });
-		// The chat agent's config: only its `chatMutable` properties apply to the chat.
-		const agentSchema: SessionConfigState['schema'] = {
+		// The host publishes the chat agent's chat-settable schema on the chat.
+		const ownSchema: SessionConfigState['schema'] = {
 			type: 'object',
 			properties: {
 				effort: { type: 'string', title: 'Effort', enum: ['low', 'medium', 'high'], default: 'medium', chatMutable: true },
 				verbose: { type: 'boolean', title: 'Verbose', default: false, chatMutable: true },
-				workspace: { type: 'string', title: 'Workspace', sessionMutable: true },
 			},
 		};
-		const sessionAgentHandler = agentHost.resolveSessionConfigHandler;
-		agentHost.resolveSessionConfigHandler = request => request.provider === 'otheragent'
-			? { schema: agentSchema, values: { effort: 'medium', verbose: false, workspace: 'shared' } }
-			: sessionAgentHandler?.(request) ?? agentHost.resolveSessionConfigResult;
 		await timeout(0);
 		const session = provider.getSessions().find(s => s.title.get() === 'own-schema')!;
 		await waitForSessionConfig(provider, session, c => !!c);
 		const peerResource = session.chats.get().find(chat => chat.harness === 'otheragent')!.resource;
 		show(session, peerResource);
+		const requestsBefore = agentHost.resolveSessionConfigRequests.length;
 		const configBefore = provider.getSessionConfig(session.sessionId, peerResource);
 		const resolvingBefore = provider.isSessionConfigResolving(session.sessionId, peerResource).get();
-		agentHost.setChatState(peer, { ...otherPeerSummary, turns: [], config: { values: { effort: 'high' } } });
+		agentHost.setChatState(peer, { ...otherPeerSummary, turns: [], config: { schema: ownSchema, values: { effort: 'high' } } });
 		await timeout(0);
 
 		const config = provider.getSessionConfig(session.sessionId, peerResource);
 		await assert.rejects(provider.setSessionConfigValue(session.sessionId, peerResource, 'isolation', 'folder'), /not writable/);
-		await assert.rejects(provider.setSessionConfigValue(session.sessionId, peerResource, 'workspace', 'other'), /not writable/);
 		agentHost.dispatchedActions.length = 0;
 		await provider.setSessionConfigValue(session.sessionId, peerResource, 'effort', 'low');
 
@@ -15976,54 +15968,45 @@ suite('LocalAgentHostSessionsProvider', () => {
 			configBefore,
 			resolvingBefore,
 			resolvingAfter: provider.isSessionConfigResolving(session.sessionId, peerResource).get(),
-			agentRequests: agentHost.resolveSessionConfigRequests.filter(request => request.provider === 'otheragent').length,
+			resolveRequests: agentHost.resolveSessionConfigRequests.length - requestsBefore,
 			config,
 			dispatched: agentHost.dispatchedActions.map(({ channel, action }) => ({ channel, action })),
 		}, {
-			// Nothing (never the session agent's settings) until the chat agent's config resolves.
+			// Never the session agent's settings while the chat's state is unknown.
 			configBefore: undefined,
 			resolvingBefore: true,
 			resolvingAfter: false,
-			agentRequests: 1,
-			config: { schema: { type: 'object', properties: { effort: agentSchema.properties.effort, verbose: agentSchema.properties.verbose } }, values: { effort: 'high', verbose: false } },
+			resolveRequests: 0,
+			config: { schema: ownSchema, values: { effort: 'high', verbose: false } },
 			dispatched: [{ channel: peer, action: { type: ActionType.ChatConfigChanged, config: { effort: 'low' } } }],
 		});
 	}));
 
-	test('a chat backed by another agent shows no settings when its agent\'s config fails to resolve', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		const { provider, peer, peerSummary, state, show } = perChatSession('own-schema-failed', true, { withoutChatState: true });
-		const otherPeerSummary: ChatSummary = { ...peerSummary, provider: 'otheragent' };
-		const sessionState = state();
-		agentHost.setSessionState('own-schema-failed', 'copilotcli', { ...sessionState, chats: sessionState.chats.map(summary => summary.resource === peer ? otherPeerSummary : summary) });
-		await timeout(0);
-		const session = provider.getSessions().find(s => s.title.get() === 'own-schema-failed')!;
-		await waitForSessionConfig(provider, session, c => !!c);
-		const peerResource = session.chats.get().find(chat => chat.harness === 'otheragent')!.resource;
-		show(session, peerResource);
-		agentHost.setChatState(peer, { ...otherPeerSummary, turns: [], config: { values: { effort: 'high' } } });
-		agentHost.failResolveSessionConfig = true;
-		provider.getSessionConfig(session.sessionId, peerResource);
-		await timeout(0);
-
-		assert.deepStrictEqual({
-			config: provider.getSessionConfig(session.sessionId, peerResource),
-			resolving: provider.isSessionConfigResolving(session.sessionId, peerResource).get(),
-		}, { config: undefined, resolving: false });
-	}));
-
-	test('a chat on its session\'s agent never resolves an agent config of its own', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		const { provider, show } = perChatSession('same-agent', true);
+	test('a chat on its session\'s agent has the session\'s session-wide values and its own values, or their defaults, for what it may set', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const { provider, peer, peerSummary, show } = perChatSession('same-agent', true);
 		await timeout(0);
 		const session = provider.getSessions().find(s => s.title.get() === 'same-agent')!;
 		await waitForSessionConfig(provider, session, c => !!c);
 		const peerResource = session.chats.get().find(chat => chat.resource.toString() !== session.mainChat.get().resource.toString())!.resource;
 		show(session, peerResource);
 		const requestsBefore = agentHost.resolveSessionConfigRequests.length;
-		provider.getSessionConfig(session.sessionId, peerResource);
-		provider.isSessionConfigResolving(session.sessionId, peerResource).get();
+		// The peer's values set nothing: a property it may set falls back to its default, not the session's value.
+		agentHost.setChatState(peer, { ...peerSummary, turns: [], config: { values: {} } });
+		await timeout(0);
+		const unset = provider.getSessionConfig(session.sessionId, peerResource)?.values;
+		agentHost.setChatState(peer, { ...peerSummary, turns: [], config: { values: { autoApprove: 'autoApprove', isolation: 'folder' } } });
 		await timeout(0);
 
-		assert.deepStrictEqual({ requests: agentHost.resolveSessionConfigRequests.slice(requestsBefore) }, { requests: [] });
+		assert.deepStrictEqual({
+			unset,
+			set: provider.getSessionConfig(session.sessionId, peerResource)?.values,
+			resolveRequests: agentHost.resolveSessionConfigRequests.length - requestsBefore,
+		}, {
+			unset: { isolation: 'worktree' },
+			// `isolation` is session-wide: the chat's value for it never applies.
+			set: { isolation: 'worktree', autoApprove: 'autoApprove' },
+			resolveRequests: 0,
+		});
 	}));
 
 	test('a visible session\'s active chat keeps its config subscription until it is no longer visible, and held resolving observables follow it', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -16137,13 +16120,14 @@ suite('LocalAgentHostSessionsProvider', () => {
 		]);
 	}));
 
-	test('a chat reads and writes the properties it may set for itself, leaving the session\'s own config', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		const { provider, chat, summary, sessionUri, show } = perChatSession('per-chat', true);
+	test('a peer chat writes what it may set to itself, while the main chat\'s writes go to the session, which the host applies to the default chat', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const { provider, chat, peer, summary, sessionUri, show } = perChatSession('per-chat', true);
 		await timeout(0);
 		const session = provider.getSessions().find(s => s.title.get() === 'per-chat')!;
 		const chatResource = session.mainChat.get().resource;
+		const peerResource = session.resource.with({ fragment: peer });
 		await waitForSessionConfig(provider, session, c => !!c);
-		show(session);
+		show(session, chatResource, peerResource);
 		await waitForSessionConfig(provider, session, c => c?.values.autoApprove === 'autoApprove');
 		const read = provider.getSessionConfig(session.sessionId, chatResource)?.values;
 		let changes = 0;
@@ -16154,20 +16138,22 @@ suite('LocalAgentHostSessionsProvider', () => {
 		agentHost.dispatchedActions.length = 0;
 		await provider.setSessionConfigValue(session.sessionId, chatResource, 'autoApprove', 'autoApprove');
 		await provider.setSessionConfigValue(session.sessionId, chatResource, 'isolation', 'folder');
+		await provider.setSessionConfigValue(session.sessionId, peerResource, 'autoApprove', 'autoApprove');
 
 		assert.deepStrictEqual({
 			read,
 			own: provider.getSessionOwnConfig(session.sessionId)?.values,
 			afterHostChange,
-			dispatched: agentHost.dispatchedActions.map(({ channel, action }) => ({ channel, action })),
+			dispatched: agentHost.dispatchedActions.filter(({ action }) => action.type === ActionType.SessionConfigChanged || action.type === ActionType.ChatConfigChanged).map(({ channel, action }) => ({ channel, action })),
 		}, {
 			read: { autoApprove: 'autoApprove', isolation: 'worktree' },
-			// The session's own values change only through the session write.
-			own: { autoApprove: 'default', isolation: 'folder' },
+			own: { autoApprove: 'autoApprove', isolation: 'folder' },
 			afterHostChange: { values: { autoApprove: 'default', isolation: 'worktree' }, changes: 1 },
+			// Never a write to the default chat itself.
 			dispatched: [
-				{ channel: chat, action: { type: ActionType.ChatConfigChanged, config: { autoApprove: 'autoApprove' } } },
+				{ channel: sessionUri, action: { type: ActionType.SessionConfigChanged, config: { autoApprove: 'autoApprove' } } },
 				{ channel: sessionUri, action: { type: ActionType.SessionConfigChanged, config: { isolation: 'folder' } } },
+				{ channel: peer, action: { type: ActionType.ChatConfigChanged, config: { autoApprove: 'autoApprove' } } },
 			],
 		});
 	}));

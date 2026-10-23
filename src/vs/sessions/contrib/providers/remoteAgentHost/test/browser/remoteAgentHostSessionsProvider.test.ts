@@ -79,8 +79,6 @@ import { MockLabelService } from '../../../../../../workbench/services/label/tes
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { extUri } from '../../../../../../base/common/resources.js';
 import { INewSessionComposerService, NewSessionComposerService } from '../../../../chat/browser/newSessionComposerService.js';
-import { IAgentHostChatAgentConfigService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostChatAgentConfig.js';
-import { NullAgentHostChatAgentConfigService } from '../../../../../../workbench/contrib/chat/test/browser/agentSessions/testAgentHostChatAgentConfigService.js';
 
 // ---- Mock connection --------------------------------------------------------
 
@@ -389,7 +387,6 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 		override readonly activeSession = overrides?.activeSession ?? constObservable<IActiveSession | undefined>(undefined);
 		override readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = constObservable<readonly (IActiveSession | undefined)[]>([]);
 	}());
-	instantiationService.set(IAgentHostChatAgentConfigService, new NullAgentHostChatAgentConfigService());
 	instantiationService.stub(IAgentHostActiveClientService, new class extends mock<IAgentHostActiveClientService>() {
 		override acquireScope = (_sessionType: string, _roots: readonly URI[]) => ({
 			customizations: constObservable([]),

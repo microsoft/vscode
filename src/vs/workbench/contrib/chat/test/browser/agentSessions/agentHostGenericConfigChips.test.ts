@@ -52,8 +52,6 @@ import { AgentHostInitialSessionConfig, retrySessionConfigSubscriptionOnCreation
 import { IAgentHostNewSessionFolderService } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
-import { IAgentHostChatAgentConfigService } from '../../../browser/agentSessions/agentHost/agentHostChatAgentConfig.js';
-import { NullAgentHostChatAgentConfigService } from './testAgentHostChatAgentConfigService.js';
 
 function createSubscription<T>(): IAgentSubscription<T> {
 	return {
@@ -77,6 +75,7 @@ suite('AgentHostGenericConfigChips', () => {
 		const restarted = disposables.add(new Emitter<void>());
 		const exited = disposables.add(new Emitter<number>());
 		const agentHost = new class extends mock<IAgentHostService>() {
+			override readonly initializeResult = constObservable(undefined);
 			override readonly onAgentHostStart = restarted.event;
 			override readonly onAgentHostExit = exited.event;
 			override readonly onDidNotification = Event.None;
@@ -108,7 +107,6 @@ suite('AgentHostGenericConfigChips', () => {
 		instantiation.set(IAgentHostConnectionsService, connections);
 		instantiation.set(IAgentHostService, agentHost);
 		instantiation.set(ILogService, new NullLogService());
-		instantiation.set(IAgentHostChatAgentConfigService, new NullAgentHostChatAgentConfigService());
 		instantiation.stub(IAgentHostUntitledProvisionalSessionService, {
 			onDidChange: Event.None, get: () => undefined,
 			getOrCreate: async (...args) => { provisionalRequests.push(args); return undefined; },
@@ -285,6 +283,7 @@ suite('AgentHostGenericConfigChips', () => {
 				}({ 'chat.agentHost.claudeAgent.enabled': false, 'chat.agentHost.codexAgent.enabled': false });
 				disposables.add(configuration.onDidChangeConfigurationEmitter);
 				const agentHost = new class extends mock<IAgentHostService>() {
+					override readonly initializeResult = constObservable(undefined);
 					override readonly onAgentHostStart = Event.None;
 					override readonly onAgentHostExit = Event.None;
 					override readonly onDidNotification = Event.None;
@@ -346,6 +345,7 @@ suite('AgentHostGenericConfigChips', () => {
 		const acquired: string[] = [];
 		const released: string[] = [];
 		const agentHostService = new class extends mock<IAgentHostService>() {
+			override readonly initializeResult = constObservable(undefined);
 			declare readonly _serviceBrand: undefined;
 			override readonly onDidNotification = Event.None;
 			override readonly onAgentHostStart = Event.None;
@@ -409,6 +409,7 @@ suite('AgentHostInitialSessionConfig', () => {
 		const answers: DeferredPromise<ResolveSessionConfigResult>[] = [];
 		const errors: unknown[] = [];
 		const makeConnection = (name: string) => new class extends mock<IAgentConnection>() {
+			override readonly initializeResult = constObservable(undefined);
 			override resolveSessionConfig(): Promise<ResolveSessionConfigResult> {
 				requests.push(name);
 				const answer = new DeferredPromise<ResolveSessionConfigResult>();
@@ -490,6 +491,7 @@ suite('AgentHostGenericConfigChips - remote sessions', () => {
 			},
 		};
 		const connection = new class extends mock<IAgentConnection>() {
+			override readonly initializeResult = constObservable(undefined);
 			override readonly onDidNotification = Event.None;
 			acquired = 0;
 			released = 0;
@@ -534,6 +536,7 @@ suite('AgentHostGenericConfigChips - remote sessions', () => {
 		}
 		remoteConnections.set('host-two', secondHost.connection);
 		const ambient = new class extends mock<IAgentHostService>() {
+			override readonly initializeResult = constObservable(undefined);
 			override readonly onAgentHostStart = Event.None;
 			override readonly onAgentHostExit = Event.None;
 			override readonly resourceUris = identityAgentHostResourceUriMapper;
@@ -603,7 +606,6 @@ suite('AgentHostGenericConfigChips - remote sessions', () => {
 		instantiationService.set(IDialogService, new TestDialogService());
 		instantiationService.set(IStorageService, store.add(new TestStorageService()));
 		instantiationService.stub(IPreferencesService, {});
-		instantiationService.set(IAgentHostChatAgentConfigService, new NullAgentHostChatAgentConfigService());
 		instantiationService.stub(IAgentHostSessionWorkingDirectoryResolver, { resolve: () => undefined });
 		instantiationService.stub(IWorkspaceContextService, { getWorkspace: () => ({ id: 'test', folders: [] }) });
 		instantiationService.stub(IAgentHostNewSessionFolderService, { getFolder: () => undefined, getDefaultFolder: () => undefined });
@@ -796,6 +798,7 @@ suite('AgentHostGenericConfigChips - remote sessions', () => {
 				return subscribeCalls === 1 ? initial.p : { resource: resource.toString(), state, fromSeq: 0 };
 			}, () => { }));
 			const connection = new class extends mock<IAgentConnection>() {
+				override readonly initializeResult = constObservable(undefined);
 				override readonly onDidNotification = notifications.event;
 				override getSubscription<T extends StateComponents>(kind: T, resource: URI, owner: string): IReference<IAgentSubscription<ComponentToState[T]>> {
 					return manager.getSubscription(kind, resource, owner);
@@ -840,6 +843,7 @@ suite('AgentHostGenericConfigChips - remote sessions', () => {
 			onDidError: errors.event,
 		};
 		const connection = new class extends mock<IAgentConnection>() {
+			override readonly initializeResult = constObservable(undefined);
 			override readonly onDidNotification = notifications.event;
 		}();
 		let retries = 0;

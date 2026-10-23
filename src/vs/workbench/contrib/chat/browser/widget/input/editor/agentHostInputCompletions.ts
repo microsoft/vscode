@@ -35,7 +35,6 @@ import { IAgentHostSessionWorkingDirectoryResolver } from '../../../agentSession
 import { IAgentHostUntitledProvisionalSessionService } from '../../../agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { AgentHostInputCompletionsBase } from './agentHostInputCompletionsBase.js';
 import { getPromptSlashCommandFilterText } from './chatInputCompletionUtils.js';
-import { IAgentHostChatAgentConfigService } from '../../../agentSessions/agentHost/agentHostChatAgentConfig.js';
 /**
  * Completion provider that delegates `@`-mention (and other server-defined)
  * completions to the agent host for AHP-backed chat sessions.
@@ -67,7 +66,6 @@ export class AgentHostInputCompletions extends AgentHostInputCompletionsBase<ICh
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
 		@IAgentHostUntitledProvisionalSessionService private readonly _provisionalService: IAgentHostUntitledProvisionalSessionService,
-		@IAgentHostChatAgentConfigService private readonly _chatAgentConfigService: IAgentHostChatAgentConfigService,
 	) {
 		super(languageFeaturesService, chatSessionsService);
 
@@ -108,10 +106,9 @@ export class AgentHostInputCompletions extends AgentHostInputCompletionsBase<ICh
 				workingDirectoryResolver: accessor.get(IAgentHostSessionWorkingDirectoryResolver),
 				workspaceContextService: accessor.get(IWorkspaceContextService),
 				configurationService: accessor.get(IConfigurationService),
-				chatAgentConfigService: this._chatAgentConfigService,
 			};
 			const applied = await applyAgentHostCompletionAction(arg.action, dialogService, storageService, async config => { await applyAgentHostSessionConfigChange(sessionResource, config, services); },
-				getAgentHostSessionConfig(sessionResource, this._provisionalService, this._connectionsService, this._chatAgentConfigService));
+				getAgentHostSessionConfig(sessionResource, this._provisionalService, this._connectionsService));
 			if (applied && arg.reference) {
 				arg.widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.addReference({
 					id: arg.reference.id,
@@ -189,7 +186,7 @@ export class AgentHostInputCompletions extends AgentHostInputCompletionsBase<ICh
 				const action = getCompletionAction(attachment._meta);
 				if (action) {
 					const resource = widget.viewModel?.model.sessionResource;
-					const config = resource ? getAgentHostSessionConfig(resource, this._provisionalService, this._connectionsService, this._chatAgentConfigService) : undefined;
+					const config = resource ? getAgentHostSessionConfig(resource, this._provisionalService, this._connectionsService) : undefined;
 					if (isPolicyBlockedCompletionAction(action, this._configurationService, config)) {
 						return undefined;
 					}

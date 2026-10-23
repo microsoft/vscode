@@ -25,7 +25,7 @@ import { SessionConfigKey } from '../../../../../../platform/agentHost/common/se
 import { isSessionConfigWritable, validateChatPickerConfigWrite } from '../../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { SessionState, StateComponents, type SessionConfigState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { createAgentHostChatAgentConfigReader, dispatchAgentHostConfigChange, getAgentHostBackendChat, getAgentHostChatConfig, readAgentHostChatSandboxState } from './applyAgentHostSessionConfig.js';
+import { dispatchAgentHostConfigChange, getAgentHostBackendChat, getAgentHostChatConfig, readAgentHostChatSandboxState } from './applyAgentHostSessionConfig.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
@@ -34,7 +34,6 @@ import { IChatEntitlementService } from '../../../../../services/chat/common/cha
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IChatWidgetService } from '../../chat.js';
 import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotificationService } from '../../widget/input/chatInputNotificationService.js';
-import { IAgentHostChatAgentConfigService } from './agentHostChatAgentConfig.js';
 
 type CertificateOperation = 'install' | 'rotate' | 'remove';
 
@@ -82,7 +81,6 @@ export class AgentHostSandboxNotification extends Disposable {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IAgentHostEnablementService private readonly _enablementService: IAgentHostEnablementService,
 		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
-		@IAgentHostChatAgentConfigService private readonly _chatAgentConfigService: IAgentHostChatAgentConfigService,
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
@@ -175,7 +173,7 @@ export class AgentHostSandboxNotification extends Disposable {
 	private _readChat(state: SessionState): { readonly chat: string | undefined; readonly config: SessionConfigState | undefined } {
 		const chat = getAgentHostBackendChat(this._sessionResource, state);
 		const connection = this._connectionsService.resolveSessionResource(this._sessionResource)?.connection;
-		return { chat, config: getAgentHostChatConfig(state, chat, chat => connection?.getSubscriptionUnmanaged(StateComponents.Chat, URI.parse(chat))?.value, createAgentHostChatAgentConfigReader(this._chatAgentConfigService, connection, state)) };
+		return { chat, config: getAgentHostChatConfig(state, chat, chat => connection?.getSubscriptionUnmanaged(StateComponents.Chat, URI.parse(chat))?.value, connection?.initializeResult.get()?.protocolVersion) };
 	}
 
 	private _canDisableSandboxing(state: SessionState | Error | undefined): boolean {

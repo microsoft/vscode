@@ -74,8 +74,6 @@ import { resetShownWarnings } from '../../../common/chatPermissionWarnings.js';
 import { IOpenSettingsOptions, IPreferencesService } from '../../../../../services/preferences/common/preferences.js';
 import '../../../browser/agentSessions/agentHost/media/agentHostChatInputPicker.css';
 import '../../../browser/widget/media/chat.css';
-import { NullAgentHostChatAgentConfigService } from './testAgentHostChatAgentConfigService.js';
-import { IAgentHostChatAgentConfigService } from '../../../browser/agentSessions/agentHost/agentHostChatAgentConfig.js';
 
 suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -209,8 +207,8 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		instantiationService.set(ILogService, store.add(new class extends NullLogService {
 			override error(message: string | Error): void { logErrors.push(message); }
 		}()));
-		instantiationService.set(IAgentHostChatAgentConfigService, new NullAgentHostChatAgentConfigService());
 		const connection = instantiationService.stub(IAgentHostService, {
+			initializeResult: constObservable(undefined),
 			onAgentHostStart: onAgentHostStart.event,
 			onAgentHostExit: Event.None,
 			getNetworkDiagnosticsInfo: () => {
@@ -646,6 +644,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 
 	function createRemoteConnection(getHostInfo: () => Promise<IAgentHostNetworkDiagnosticsInfo>) {
 		return new class extends mock<IAgentConnection>() {
+			override readonly initializeResult = constObservable(undefined);
 			diagnosticsRequests = 0;
 			readonly writes: { channel: string; action: Parameters<IAgentConnection['dispatch']>[1] }[] = [];
 			override getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> {
@@ -1717,6 +1716,7 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 			override viewModel: IChatViewModel | undefined;
 		}();
 		const connection = new class extends mock<IAgentHostService>() {
+			override readonly initializeResult = constObservable(undefined);
 			override readonly onAgentHostStart = Event.None;
 			override readonly onAgentHostExit = Event.None;
 			override async getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> {
@@ -1753,7 +1753,6 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 			}(),
 			new class extends mock<IPreferencesService>() { }(),
 			store.add(new NullLogService()),
-			new NullAgentHostChatAgentConfigService(),
 			new class extends mock<IAgentHostConnectionsService>() {
 				override readonly ambientConnection = connection;
 				override readonly onDidChangeSessionResolution = Event.None;
