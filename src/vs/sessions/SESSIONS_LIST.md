@@ -149,7 +149,7 @@ A collapsed session row uses the provider's aggregate status without inspecting 
 
 ## Persistence
 
-List presentation state is profile-scoped user state. This includes grouping, sorting, filtering, section and nested-session collapse, the show more or show less choice of each capped workspace, repository, or environment section and custom group, pins, custom groups with their nesting, automatic-section parents and mixed child order, manual sort keys, and top-level section order. A nested session starts expanded, and the user's later collapse or expansion choice persists across list and window recreation. Storage keys are private implementation details; other components change list state through the owning service API.
+List presentation state is profile-scoped user state. This includes grouping, sorting, filtering, section and nested-session collapse, the show more or show less choice of each capped workspace, repository, or environment section, the Chats section, and custom group, pins, custom groups with their nesting, automatic-section parents and mixed child order, manual sort keys, and top-level section order. A nested session starts expanded, and the user's later collapse or expansion choice persists across list and window recreation. Storage keys are private implementation details; other components change list state through the owning service API.
 
 ## Change policy
 
