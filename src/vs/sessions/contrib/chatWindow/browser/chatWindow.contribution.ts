@@ -9,15 +9,17 @@ import { localize, localize2 } from '../../../../nls.js';
 import { ILocalizedString } from '../../../../platform/action/common/action.js';
 import { Action2, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../../workbench/browser/editor.js';
 import { EditorExtensions } from '../../../../workbench/common/editor.js';
+import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { CHAT_WINDOW_TOGGLE_EDITOR_COMMAND_ID, ChatWindowContext, ChatWindowDockableContext, ChatWindowDockedContext, ChatWindowDockedResizedContext, ChatWindowHasEditorContext, ChatWindowLayout, ChatWindowLayoutContext, ChatWindowSplitLayoutContext, IChatWindowService } from '../../../services/chatWindow/browser/chatWindowService.js';
+import { CHAT_WINDOWS_ENABLED_SETTING, CHAT_WINDOW_TOGGLE_EDITOR_COMMAND_ID, ChatWindowContext, ChatWindowDockableContext, ChatWindowDockedContext, ChatWindowDockedResizedContext, ChatWindowHasEditorContext, ChatWindowLayout, ChatWindowLayoutContext, ChatWindowSplitLayoutContext, IChatWindowService } from '../../../services/chatWindow/browser/chatWindowService.js';
 import { ChatWindowChatEditor, ChatWindowChatInput } from './chatWindowEditor.js';
 import { ChatWindowService } from './chatWindowService.js';
 import './chatWindowActivityBar.js';
@@ -30,10 +32,25 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	[new SyncDescriptor(ChatWindowChatInput)],
 );
 
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	properties: {
+		[CHAT_WINDOWS_ENABLED_SETTING]: {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
+			description: localize('sessions.chatWindows.enabled', "Controls whether chats of the Agents window can be opened in windows of their own, and whether the chat windows that were open are restored at startup. Turning it off hides the actions that open chat windows; the chat windows that are open stay until closed."),
+		},
+	}
+});
+
 const TOGGLE_CHAT_WINDOW_DOCKED_COMMAND_ID = 'sessions.chatWindow.toggleDocked';
 
 /** Within a chat window: the kind is set, and not empty. Outside chat windows it is not set at all. */
 const InChatWindowContext = ContextKeyExpr.has(ChatWindowContext.key);
+
+/** Chat windows, like the chat, hide when AI features are disabled. */
+const ChatWindowMenuContext = ChatContextKeys.enabled;
 
 /** A layout of chat windows, as chosen from the Command Palette or their Layout menu. */
 interface IChatWindowLayoutChoice {
@@ -102,13 +119,13 @@ const chatWindowLayoutMenu = { submenu: Menus.ChatWindowLayout, title: localize2
 const ChatWindowHasLayoutMenuContext = ContextKeyExpr.or(ChatWindowHasEditorContext, ChatWindowDockableContext);
 // The Layout menu ends the layout actions, after the buttons the user chose to show.
 const CHAT_WINDOW_LAYOUT_MENU_ORDER = 100;
-MenuRegistry.appendMenuItem(Menus.ChatWindowTitleBarLayout, { ...chatWindowLayoutMenu, order: CHAT_WINDOW_LAYOUT_MENU_ORDER, when: ContextKeyExpr.and(InChatWindowContext, ChatWindowDockedContext.negate(), ChatWindowHasLayoutMenuContext) });
-MenuRegistry.appendMenuItem(Menus.ChatWindowTitleLayout, { ...chatWindowLayoutMenu, order: CHAT_WINDOW_LAYOUT_MENU_ORDER, when: ContextKeyExpr.and(ChatWindowDockedContext, ChatWindowHasLayoutMenuContext) });
+MenuRegistry.appendMenuItem(Menus.ChatWindowTitleBarLayout, { ...chatWindowLayoutMenu, order: CHAT_WINDOW_LAYOUT_MENU_ORDER, when: ContextKeyExpr.and(ChatWindowMenuContext, InChatWindowContext, ChatWindowDockedContext.negate(), ChatWindowHasLayoutMenuContext) });
+MenuRegistry.appendMenuItem(Menus.ChatWindowTitleLayout, { ...chatWindowLayoutMenu, order: CHAT_WINDOW_LAYOUT_MENU_ORDER, when: ContextKeyExpr.and(ChatWindowMenuContext, ChatWindowDockedContext, ChatWindowHasLayoutMenuContext) });
 
 /** Where the button of a layout action shows: in the title bar of a chat window of its own, or the header of a docked one. */
 const chatWindowLayoutButtonMenus = [
-	{ menu: Menus.ChatWindowTitleBarLayout, when: ContextKeyExpr.and(InChatWindowContext, ChatWindowDockedContext.negate())! },
-	{ menu: Menus.ChatWindowTitleLayout, when: ChatWindowDockedContext },
+	{ menu: Menus.ChatWindowTitleBarLayout, when: ContextKeyExpr.and(ChatWindowMenuContext, InChatWindowContext, ChatWindowDockedContext.negate())! },
+	{ menu: Menus.ChatWindowTitleLayout, when: ContextKeyExpr.and(ChatWindowMenuContext, ChatWindowDockedContext)! },
 ] as const;
 
 /** A pane of a chat window that can be shown or hidden: the chat, or the editor. One of them always shows. */
@@ -157,7 +174,7 @@ for (const toggle of chatWindowPaneToggles) {
 					id: Menus.ChatWindowLayout,
 					group: ChatWindowLayoutMenuGroup.panes,
 					order: toggle.order,
-					when: ChatWindowHasEditorContext,
+					when: ContextKeyExpr.and(ChatWindowMenuContext, ChatWindowHasEditorContext),
 				}],
 			});
 		}
@@ -194,7 +211,7 @@ for (const toggle of chatWindowPaneToggles) {
 // one of them is hidden. Its button, which the user can show, swaps its icon likewise.
 const TOGGLE_CHAT_WINDOW_ARRANGEMENT_COMMAND_ID = 'sessions.chatWindow.toggleArrangement';
 const ChatWindowBothShownContext = ContextKeyExpr.or(ChatWindowLayoutContext.isEqualTo(ChatWindowLayout.EditorAboveChat), ChatWindowLayoutContext.isEqualTo(ChatWindowLayout.SideBySide));
-const ChatWindowArrangementContext = ContextKeyExpr.and(InChatWindowContext, ChatWindowHasEditorContext, ChatWindowDockedContext.negate());
+const ChatWindowArrangementContext = ContextKeyExpr.and(ChatWindowMenuContext, InChatWindowContext, ChatWindowHasEditorContext, ChatWindowDockedContext.negate());
 registerAction2(class ToggleChatWindowArrangementAction extends Action2 {
 	constructor() {
 		super({
@@ -246,26 +263,26 @@ registerAction2(class ToggleChatWindowDockedAction extends Action2 {
 MenuRegistry.appendMenuItem(Menus.ChatWindowLayout, {
 	command: { id: TOGGLE_CHAT_WINDOW_DOCKED_COMMAND_ID, title: localize2('dockChatWindow', "Dock to Main Window") },
 	group: ChatWindowLayoutMenuGroup.window,
-	when: ContextKeyExpr.and(ChatWindowDockableContext, ChatWindowDockedContext.negate()),
+	when: ContextKeyExpr.and(ChatWindowMenuContext, ChatWindowDockableContext, ChatWindowDockedContext.negate()),
 });
 MenuRegistry.appendMenuItem(Menus.ChatWindowLayout, {
 	command: { id: TOGGLE_CHAT_WINDOW_DOCKED_COMMAND_ID, title: localize2('undockChatWindow', "Move to New Window") },
 	group: ChatWindowLayoutMenuGroup.window,
-	when: ChatWindowDockedContext,
+	when: ContextKeyExpr.and(ChatWindowMenuContext, ChatWindowDockedContext),
 });
 const chatWindowDockButtonOrder = chatWindowArrangementButtonOrder + 1;
 MenuRegistry.appendMenuItem(Menus.ChatWindowTitleBarLayout, {
 	command: { id: TOGGLE_CHAT_WINDOW_DOCKED_COMMAND_ID, title: localize2('dockChatWindow', "Dock to Main Window"), icon: Codicon.layoutSidebarRightDock },
 	group: 'navigation',
 	order: chatWindowDockButtonOrder,
-	when: ContextKeyExpr.and(InChatWindowContext, ChatWindowDockableContext, ChatWindowDockedContext.negate()),
+	when: ContextKeyExpr.and(ChatWindowMenuContext, InChatWindowContext, ChatWindowDockableContext, ChatWindowDockedContext.negate()),
 	isHiddenByDefault: true,
 });
 MenuRegistry.appendMenuItem(Menus.ChatWindowTitleLayout, {
 	command: { id: TOGGLE_CHAT_WINDOW_DOCKED_COMMAND_ID, title: localize2('undockChatWindow', "Move to New Window"), icon: Codicon.openInWindow },
 	group: 'navigation',
 	order: chatWindowDockButtonOrder,
-	when: ChatWindowDockedContext,
+	when: ContextKeyExpr.and(ChatWindowMenuContext, ChatWindowDockedContext),
 	isHiddenByDefault: true,
 });
 
@@ -283,12 +300,12 @@ registerAction2(class ResetChatWindowDockedSizeAction extends Action2 {
 				id: Menus.ChatWindowLayout,
 				group: ChatWindowLayoutMenuGroup.window,
 				order: 1,
-				when: ChatWindowDockedContext,
+				when: ContextKeyExpr.and(ChatWindowMenuContext, ChatWindowDockedContext),
 			}, {
 				id: Menus.ChatWindowTitleLayout,
 				group: 'navigation',
 				order: chatWindowDockButtonOrder + 1,
-				when: ChatWindowDockedContext,
+				when: ContextKeyExpr.and(ChatWindowMenuContext, ChatWindowDockedContext),
 				isHiddenByDefault: true,
 			}],
 		});

@@ -223,6 +223,9 @@ export interface IChatWindowTerminalHost {
 }
 
 /** The kind of the chat window, by its {@link IChatWindowKind.id}, or empty outside chat windows. */
+/** The setting that enables opening chats in windows of their own, and restoring them. */
+export const CHAT_WINDOWS_ENABLED_SETTING = 'sessions.chatWindows.enabled';
+
 export const ChatWindowContext = new RawContextKey<string>('sessions.chatWindow', '', localize('chatWindow', "The kind of the chat window, or empty outside chat windows."));
 
 /** Whether the chat window is docked in the main window, rather than in a window of its own. */
