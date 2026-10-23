@@ -688,6 +688,89 @@ suite('WorkspacePicker - Environment', () => {
 		});
 	});
 
+	test('omits redundant environment labels in folder rows and triggers only for the selected environment', () => {
+		const providers = disposables.add(new MockSessionsProvidersService());
+		const base = createMockProvider('agenthost-remote-1', { group: SESSION_WORKSPACE_GROUP_REMOTE });
+		providers.setProviders([{
+			...base,
+			resolveWorkspace: uri => {
+				const workspace = base.resolveWorkspace(uri);
+				return workspace && {
+					...workspace, label: 'workday [benbox1]',
+					folders: workspace.folders.map(folder => ({ ...folder, name: 'workday' })),
+				};
+			},
+		}]);
+		const environment = observableValue<ISessionCreationEnvironment | undefined>('environment', {
+			id: base.id, kind: 'remote', label: 'benbox1', icon: Codicon.remote, providerIds: [base.id],
+		});
+		const folderUri = URI.from({ scheme: AGENT_HOST_SCHEME, authority: 'benbox1', path: '/remote/workday' });
+		const storage = disposables.add(new TestStorageService());
+		seedStorage(storage, [{ uri: folderUri, providerId: base.id, checked: false }]);
+		const picker = createTestPicker(disposables, providers, storage, undefined, DispatchingWorkspacePicker, {}, undefined, undefined, {
+			environment, restoreFromSessions: false,
+			configuration: { [UNIFIED_WORKSPACE_PICKER_SETTING]: true },
+		});
+		assert.ok(picker instanceof DispatchingWorkspacePicker);
+		const container = document.createElement('div');
+		picker.renderCategoryTriggers(container, [{
+			label: 'Workspace', ariaLabel: 'Choose a workspace', reflectsWorkspace: true, icon: Codicon.project,
+		}]);
+		picker.setSelectedWorkspace(folderUri, { fireEvent: false, providerId: base.id });
+		const snapshot = () => ({
+			items: picker.getItems().filter(item => item.item?.folderUri).map(item => item.label),
+			label: container.querySelector('.sessions-chat-dropdown-label')?.textContent,
+			ariaLabel: container.querySelector('.action-label')?.getAttribute('aria-label'),
+		});
+		const scoped = snapshot();
+		environment.set(undefined, undefined);
+		const unscoped = snapshot();
+		environment.set(localEnvironment, undefined);
+		assert.deepStrictEqual({ scoped, unscoped, otherEnvironment: snapshot() }, {
+			scoped: { items: ['workday'], label: 'workday', ariaLabel: 'Workspace: workday' },
+			unscoped: { items: ['workday [benbox1]'], label: 'workday [benbox1]', ariaLabel: 'Workspace: workday [benbox1]' },
+			otherEnvironment: { items: [], label: 'workday [benbox1]', ariaLabel: 'Workspace: workday [benbox1]' },
+		});
+	});
+
+	test('omits redundant browse environment descriptions while preserving status and other descriptions', () => {
+		const states = [];
+		for (const scoped of [false, true]) {
+			for (const hostDescription of [undefined, 'Online']) {
+				const providerId = 'agenthost-remote-1';
+				const providers = disposables.add(new MockSessionsProvidersService());
+				providers.setProviders([{
+					...createMockProvider(providerId, {
+						group: SESSION_WORKSPACE_GROUP_REMOTE,
+						connectionStatus: observableValue('connection', RemoteAgentHostConnectionStatus.connected),
+						hostDescription: hostDescription === undefined ? undefined : constObservable(hostDescription),
+						browseActions: [
+							{ ...makeBrowseAction(providerId, SESSION_WORKSPACE_GROUP_REMOTE, 'Folders'), description: 'benbox1' },
+							{ ...makeBrowseAction(providerId, SESSION_WORKSPACE_GROUP_REMOTE, 'Other'), description: 'Useful description' },
+						],
+					}),
+					label: 'benbox1',
+				}]);
+				const picker = createTestPicker(disposables, providers, undefined, undefined, DispatchingWorkspacePicker, {}, undefined, undefined, {
+					environment: constObservable(scoped ? { id: providerId, kind: 'remote', label: 'benbox1', icon: Codicon.remote, providerIds: [providerId] } : undefined),
+					restoreFromSessions: false,
+					configuration: { [UNIFIED_WORKSPACE_PICKER_SETTING]: true },
+				});
+				assert.ok(picker instanceof DispatchingWorkspacePicker);
+				picker.setDirectFilter(SESSION_WORKSPACE_GROUP_REMOTE);
+				states.push(picker.getItems().filter(item => item.item?.browseActionIndex !== undefined).map(item => ({
+					label: item.label, description: item.description,
+				})));
+			}
+		}
+		assert.deepStrictEqual(states, [
+			[{ label: 'Folders', description: 'benbox1' }, { label: 'Other', description: 'Useful description' }],
+			[{ label: 'Folders', description: 'benbox1 · Online' }, { label: 'Other', description: 'Useful description · Online' }],
+			[{ label: 'Folders', description: undefined }, { label: 'Other', description: 'Useful description' }],
+			[{ label: 'Folders', description: 'Online' }, { label: 'Other', description: 'Useful description · Online' }],
+		]);
+	});
+
 	test('resolves a directly supported environment workspace only once', () => {
 		const providers = disposables.add(new MockSessionsProvidersService());
 		const base = createMockProvider('local-agent-host');
@@ -1136,6 +1219,9 @@ suite('WorkspacePicker - Connection Status', () => {
 					hosts: consolidated
 						? items.find(item => item.label === 'Remote')?.filterItems?.map(item => item.label) ?? []
 						: items.filter(item => item.label?.startsWith('Provider ')).map(item => item.label),
+					hostIcons: consolidated
+						? items.find(item => item.label === 'Remote')?.filterItems?.map(item => item.group?.icon?.id) ?? []
+						: items.filter(item => item.label?.startsWith('Provider ')).map(item => item.group?.icon?.id),
 				};
 			};
 			const states = [snapshot()];
@@ -1146,6 +1232,7 @@ suite('WorkspacePicker - Connection Status', () => {
 			const offline = {
 				workspaces: [tunnel.id], browse: ['Browse Tunnel'],
 				hosts: [consolidated ? `Manage ${tunnel.label}` : tunnel.label],
+				hostIcons: [Codicon.remote.id],
 			};
 			assert.deepStrictEqual({
 				states, retainedSessions: environment.getSessions().length,
@@ -1154,6 +1241,7 @@ suite('WorkspacePicker - Connection Status', () => {
 				states: [offline, {
 					workspaces: [environment.id, tunnel.id], browse: ['Browse Environment', 'Browse Tunnel'],
 					hosts: [environment, tunnel].map(provider => consolidated ? `Manage ${provider.label}` : provider.label),
+					hostIcons: [Codicon.remote.id, Codicon.remote.id],
 				}, offline],
 				retainedSessions: 1, recentsUnchanged: true,
 			});
@@ -1391,9 +1479,9 @@ suite('WorkspacePicker - Connection Status', () => {
 				{ label: 'Manage Provider agenthost-wsl', ariaLabel: 'Provider agenthost-wsl, Online · 2 active sessions' },
 			],
 			unifiedSubmenu: [
-				{ label: 'Manage Provider agenthost-tunnel-one', icon: Codicon.cloud.id },
-				{ label: 'Manage Provider agenthost-tunnel-two', icon: Codicon.cloud.id },
-				{ label: 'Manage Provider agenthost-tunnel-idle', icon: Codicon.cloud.id },
+				{ label: 'Manage Provider agenthost-tunnel-one', icon: Codicon.remote.id },
+				{ label: 'Manage Provider agenthost-tunnel-two', icon: Codicon.remote.id },
+				{ label: 'Manage Provider agenthost-tunnel-idle', icon: Codicon.remote.id },
 				{ label: 'Manage Provider agenthost-ssh', icon: Codicon.remote.id },
 				{ label: 'Manage Provider agenthost-wsl', icon: Codicon.remote.id },
 			],
@@ -5297,6 +5385,7 @@ suite('AutomationsWorkspacePicker', () => {
 				const workspace = provider.resolveWorkspace(uri);
 				return workspace && {
 					...workspace,
+					description: 'C:\\src',
 					folders: workspace.folders.map(folder => ({
 						...folder,
 						gitRepository: {
@@ -5325,7 +5414,7 @@ suite('AutomationsWorkspacePicker', () => {
 			pickWorkspace: async () => { pickCount++; return repository; },
 			getWorkspaceTarget: uri => extUri.isEqual(uri, folder) || extUri.isEqual(uri, repository)
 				? privateTarget
-				: constObservable({ disabledReason: 'Private GitHub repository required.', isPublicRepository: extUri.isEqual(uri, publicFolder) }),
+				: constObservable({ disabledReason: 'Cloud automations cannot be managed for this repository.', isRepository: extUri.isEqual(uri, publicFolder) }),
 		}));
 		picker.setCloudMode(cloudMode);
 		const rows = () => picker.getItems().filter(row => row.kind === ActionListItemKind.Action)
@@ -5366,18 +5455,85 @@ suite('AutomationsWorkspacePicker', () => {
 			waitedForLocalFolder: true,
 			populated: [
 				{ label: 'local/private', icon: 'repo', disabled: false, description: undefined, reason: undefined, hover: undefined },
-				{ label: 'local/public', icon: 'repo', disabled: true, description: '$(info)', reason: 'Cloud automations require a private GitHub repository. This repository is public.', hover: 'Cloud automations require a private GitHub repository. This repository is public.' },
-				{ label: 'local/other-git', icon: 'repo', disabled: true, description: '$(info)', reason: 'Private GitHub repository required.', hover: 'Private GitHub repository required.' },
+				{ label: 'local/public', icon: 'repo', disabled: true, description: '$(info)', reason: 'Cloud automations cannot be managed for this repository.', hover: 'Cloud automations cannot be managed for this repository.' },
+				{ label: 'local/other-git', icon: 'repo', disabled: true, description: '$(info)', reason: 'Cloud automations cannot be managed for this repository.', hover: 'Cloud automations cannot be managed for this repository.' },
 				{ label: 'Add repository', icon: 'github', disabled: false, description: undefined, reason: undefined, hover: undefined },
 			],
 			rejectedSelections: undefined,
 			selectedPrivateFolder: folder.toString(),
-			errors: ['Private GitHub repository required.', 'Private GitHub repository required.'],
+			errors: ['Cloud automations cannot be managed for this repository.', 'Cloud automations cannot be managed for this repository.'],
 			pickCount: 1, selected: repository.toString(),
-			publicAriaLabel: 'local/public, unavailable. Cloud automations require a private GitHub repository. This repository is public.',
-			mobilePublicRow: { icon: 'folder', description: 'Cloud automations require a private GitHub repository. This repository is public.', disabled: true },
+			publicAriaLabel: 'local/public, C:\\src, unavailable. Cloud automations cannot be managed for this repository.',
+			mobilePublicRow: { icon: 'folder', description: 'Cloud automations cannot be managed for this repository.', disabled: true },
 			localFolders: [folder, publicFolder, otherGitFolder, plainFolder].map(uri => uri.toString()).sort(),
 			localOffersGitHub: false,
+		});
+	});
+
+	test('cloud mode visually disambiguates duplicate repository names without local paths', () => {
+		const providersService = disposables.add(new MockSessionsProvidersService());
+		const provider = createMockProvider('local-1', { group: SESSION_WORKSPACE_GROUP_LOCAL });
+		const github = createMockProvider('github');
+		const first = URI.file('/local/one/shared');
+		const second = URI.file('/local/two/shared');
+		providersService.setProviders([{
+			...provider,
+			getSessionTypes: () => [{ id: 'cloud-agent', label: 'Cloud', icon: Codicon.cloud, authRequirement: SessionTypeAuthRequirement.None }],
+			resolveWorkspace: uri => {
+				const resolved = provider.resolveWorkspace(uri);
+				return resolved && {
+					...resolved,
+					label: 'shared',
+					description: uri.fsPath,
+					folders: resolved.folders.map(folder => ({
+						...folder,
+						name: 'shared',
+						gitRepository: { uri, workTreeUri: undefined, baseBranchName: undefined, gitHubInfo: constObservable(undefined), isRepository: constObservable(true) },
+					})),
+				};
+			},
+		}, {
+			...github,
+			resolveWorkspace: uri => uri.scheme === GITHUB_REMOTE_FILE_SCHEME ? github.resolveWorkspace(uri) : undefined,
+		}]);
+		const storage = disposables.add(new TestStorageService());
+		seedStorage(storage, [first, second].map(uri => ({ uri, providerId: provider.id, checked: false })));
+		const picker = createTestPicker(disposables, providersService, storage, undefined, TestAutomationsWorkspacePicker,
+			undefined, undefined, undefined, { restoreFromSessions: false, canRestoreWorkspace: () => false });
+		assert.ok(picker instanceof TestAutomationsWorkspacePicker);
+		const cloudMode = observableValue('cloudMode', true);
+		picker.setCloudConfiguration(constObservable<IAutomationProviderConfiguration>({
+			sessionTypes: ['cloud-agent'], description: '', timeZone: 'UTC', targetChangeDisabledReason: '',
+			tools: constObservable<AutomationToolCatalog>({ kind: 'ready', groups: [] }), loadTools: () => { },
+			pickWorkspace: async () => undefined,
+			getWorkspaceTarget: uri => constObservable({
+				workspace: extUri.isEqual(uri, first) ? URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/owner-one/shared/HEAD' }) : undefined,
+				disabledReason: extUri.isEqual(uri, second) ? 'Cloud automations cannot be managed for this repository.' : undefined,
+				isRepository: true,
+				repositoryLabel: extUri.isEqual(uri, first) ? 'owner-one/shared' : 'owner-two/shared',
+			}),
+		}));
+		picker.setCloudMode(cloudMode);
+		const desktop = picker.getItems().filter(row => row.kind === ActionListItemKind.Action && row.label === 'shared').map(row => ({
+			label: row.label,
+			description: typeof row.description === 'string' ? row.description : row.description?.value,
+			tooltip: row.tooltip,
+			ariaDescription: row.ariaDescription,
+		}));
+		const mobile = buildMobileWorkspacePickerRows(picker.getMobileItems().filter(row => row.kind === ActionListItemKind.Action && row.label === 'shared'), () => { })
+			.map(row => ({ label: row.sheetItem.label, description: row.sheetItem.description, disabled: row.sheetItem.disabled }));
+		assert.deepStrictEqual({ desktop, mobile }, {
+			desktop: [
+				{ label: 'shared', description: 'owner-one/shared', tooltip: 'owner-one/shared', ariaDescription: 'owner-one/shared' },
+				{
+					label: 'shared', description: '$(info) owner-two/shared', tooltip: 'owner-two/shared. Cloud automations cannot be managed for this repository.',
+					ariaDescription: 'owner-two/shared. Cloud automations cannot be managed for this repository.',
+				},
+			],
+			mobile: [
+				{ label: 'shared', description: 'owner-one/shared', disabled: false },
+				{ label: 'shared', description: 'owner-two/shared. Cloud automations cannot be managed for this repository.', disabled: true },
+			],
 		});
 	});
 
@@ -5474,18 +5630,18 @@ suite('AutomationsWorkspacePicker', () => {
 			return picker;
 		};
 		const repository = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/owner/app/HEAD' });
-		const publicReason = 'Cloud automations require a private GitHub repository. This repository is public.';
+		const publicReason = 'Cloud automations require a supported repository on GitHub.com.';
 		const cases = [
 			{
 				name: 'enabled and disabled rows with the same name', folders: [
 					{ uri: URI.file('/local/org-a/app'), target: { workspace: repository } },
-					{ uri: URI.file('/local/org-b/app'), target: { isPublicRepository: true } },
+					{ uri: URI.file('/local/org-b/app'), target: { isRepository: true } },
 				]
 			},
 			{
 				name: 'disabled rows with the same name', folders: [
-					{ uri: URI.file('/local/org-a/app'), target: { isPublicRepository: true } },
-					{ uri: URI.file('/local/org-b/app'), target: { isPublicRepository: true } },
+					{ uri: URI.file('/local/org-a/app'), target: { isRepository: true } },
+					{ uri: URI.file('/local/org-b/app'), target: { isRepository: true } },
 				]
 			},
 			{ name: 'no repositories', folders: [] },
@@ -5507,19 +5663,19 @@ suite('AutomationsWorkspacePicker', () => {
 			{
 				name: 'enabled and disabled rows with the same name',
 				rows: [
-					{ ariaLabel: 'app, /local/org-a', hover: '/local/org-a', disabled: false },
-					{ ariaLabel: `app, /local/org-b, unavailable. ${publicReason}`, hover: `/local/org-b — ${publicReason}`, disabled: true },
+					{ ariaLabel: 'app, /local/org-a', hover: undefined, disabled: false },
+					{ ariaLabel: `app, /local/org-b, unavailable. ${publicReason}`, hover: publicReason, disabled: true },
 				],
-				mobileDescriptions: ['/local/org-a', `/local/org-b — ${publicReason}`],
+				mobileDescriptions: [undefined, publicReason],
 				mobileFirst: addRepository,
 			},
 			{
 				name: 'disabled rows with the same name',
 				rows: [
-					{ ariaLabel: `app, /local/org-a, unavailable. ${publicReason}`, hover: `/local/org-a — ${publicReason}`, disabled: true },
-					{ ariaLabel: `app, /local/org-b, unavailable. ${publicReason}`, hover: `/local/org-b — ${publicReason}`, disabled: true },
+					{ ariaLabel: `app, /local/org-a, unavailable. ${publicReason}`, hover: publicReason, disabled: true },
+					{ ariaLabel: `app, /local/org-b, unavailable. ${publicReason}`, hover: publicReason, disabled: true },
 				],
-				mobileDescriptions: [`/local/org-a — ${publicReason}`, `/local/org-b — ${publicReason}`],
+				mobileDescriptions: [publicReason, publicReason],
 				mobileFirst: addRepository,
 			},
 			{ name: 'no repositories', rows: [], mobileDescriptions: [], mobileFirst: addRepository },
@@ -5652,7 +5808,7 @@ suite('AutomationsWorkspacePicker', () => {
 		});
 	}
 
-	test('Add repository rejects a non-private repository and rechecks eligibility at selection', async () => {
+	test('Add repository rejects an unmanageable repository and rechecks eligibility at selection', async () => {
 		const providersService = disposables.add(new MockSessionsProvidersService());
 		const provider = createMockProvider('github');
 		const folderUri = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/owner/project/HEAD' });
@@ -5662,7 +5818,7 @@ suite('AutomationsWorkspacePicker', () => {
 		const picker = createTestPicker(disposables, providersService, storage, undefined, TestAutomationsWorkspacePicker,
 			undefined, undefined, undefined, { restoreFromSessions: false, canRestoreWorkspace: () => false });
 		assert.ok(picker instanceof TestAutomationsWorkspacePicker);
-		const target = observableValue<IAutomationWorkspaceTarget>('target', { disabledReason: 'The repository must be private.' });
+		const target = observableValue<IAutomationWorkspaceTarget>('target', { disabledReason: 'Cloud automations cannot be managed for this repository.' });
 		picker.setCloudConfiguration(constObservable<IAutomationProviderConfiguration>({
 			sessionTypes: ['cloud-agent'], description: '', timeZone: 'UTC', targetChangeDisabledReason: '', tools: constObservable<AutomationToolCatalog>({ kind: 'ready', groups: [] }), loadTools: () => { },
 			pickWorkspace: async () => folderUri,
@@ -5678,14 +5834,14 @@ suite('AutomationsWorkspacePicker', () => {
 			icon: disabledRepository?.group?.icon?.id,
 			disabled: disabledRepository?.disabled,
 			reason: disabledRepository?.ariaDescription,
-		}, { icon: 'repo', disabled: true, reason: 'The repository must be private.' });
+		}, { icon: 'repo', disabled: true, reason: 'Cloud automations cannot be managed for this repository.' });
 		await picker.select('Add repository');
 		target.set({ workspace: folderUri }, undefined);
 		const enabled = picker.getItems().find(row => row.item?.folderUri)?.disabled;
 		target.set({ disabledReason: 'Repository access changed.' }, undefined);
 		await picker.select('Add repository');
 		assert.deepStrictEqual({ enabled, errors, selected: picker.selectedFolderUri }, {
-			enabled: false, errors: ['The repository must be private.', 'Repository access changed.'], selected: undefined,
+			enabled: false, errors: ['Cloud automations cannot be managed for this repository.', 'Repository access changed.'], selected: undefined,
 		});
 		target.set({ workspace: folderUri }, undefined);
 		assert.strictEqual(picker.getItems().find(row => row.item?.folderUri)?.group?.icon?.id, 'repo');
@@ -6990,6 +7146,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 
 	test('matches local and cloud workspaces for the same GitHub repository', () => {
 		const localRepositoryUri = URI.file('/local/vscode');
+		const gitHubInfo = observableValue<{ owner: string; repo: string } | undefined>('gitHubInfo', undefined);
 		const githubRepositoryUri = URI.parse('github-remote-file://github/microsoft/vscode/HEAD');
 		const otherRepositoryUri = URI.parse('github-remote-file://github/microsoft/other/HEAD');
 		const localBaseProvider = createMockProvider('local');
@@ -7006,7 +7163,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 							uri,
 							workTreeUri: uri,
 							baseBranchName: 'main',
-							gitHubInfo: constObservable({ owner: 'microsoft', repo: 'vscode' }),
+							gitHubInfo,
 						},
 					})),
 				} : undefined;
@@ -7026,13 +7183,21 @@ suite('WorkspacePicker - Tab discovery', () => {
 		const picker = createTestablePicker(disposables, providersService, true);
 		picker.setSelectedWorkspace(localRepositoryUri, { fireEvent: false, persist: false });
 
-		assert.deepStrictEqual({
-			sameRepository: picker.matchesSelectedWorkspace(githubProvider.resolveWorkspace(githubRepositoryUri)!),
-			otherRepository: picker.matchesSelectedWorkspace(githubProvider.resolveWorkspace(otherRepositoryUri)!),
-		}, {
-			sameRepository: true,
-			otherRepository: false,
-		});
+		const matches: { sameRepository: boolean; otherRepository: boolean }[] = [];
+		disposables.add(autorun(reader => {
+			matches.push({
+				sameRepository: picker.matchesSelectedWorkspace(githubProvider.resolveWorkspace(githubRepositoryUri)!, reader),
+				otherRepository: picker.matchesSelectedWorkspace(githubProvider.resolveWorkspace(otherRepositoryUri)!, reader),
+			});
+		}));
+		gitHubInfo.set({ owner: 'microsoft', repo: 'vscode' }, undefined);
+		gitHubInfo.set({ owner: 'microsoft', repo: 'other' }, undefined);
+
+		assert.deepStrictEqual(matches, [
+			{ sameRepository: false, otherRepository: false },
+			{ sameRepository: true, otherRepository: false },
+			{ sameRepository: false, otherRepository: true },
+		]);
 	});
 
 	test('caps recent workspaces at ten for either new picker setting', () => {

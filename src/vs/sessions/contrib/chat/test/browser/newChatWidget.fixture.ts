@@ -18,6 +18,7 @@ import { extUri } from '../../../../../base/common/resources.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Range } from '../../../../../editor/common/core/range.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
@@ -44,6 +45,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { IRequestService } from '../../../../../platform/request/common/request.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IChatTipProvider, IChatTipService } from '../../../../../workbench/contrib/chat/browser/chatTipService.js';
+import { IChatPetService } from '../../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../../../../workbench/contrib/chat/browser/speechToText/chatSpeechToTextService.js';
 import { IMicCaptureService } from '../../../../../workbench/contrib/chat/browser/voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../../../../workbench/contrib/chat/browser/voiceClient/ttsPlaybackService.js';
@@ -73,7 +75,8 @@ import { IWorkbenchLayoutService } from '../../../../../workbench/services/layou
 import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { ISearchService } from '../../../../../workbench/services/search/common/search.js';
-import { FixtureMenuService, registerChatFixtureServices } from '../../../../../workbench/test/browser/componentFixtures/chat/chatFixtureUtils.js';
+import { FixtureMenuService, FixtureMotionAccessibilityService, registerChatFixtureServices } from '../../../../../workbench/test/browser/componentFixtures/chat/chatFixtureUtils.js';
+import { assertChatPetInScreenshot, configureChatPetFixtureFileRoot, FixtureChatPetService } from '../../../../../workbench/test/browser/componentFixtures/chat/chatPetFixtureUtils.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, waitForFixtureCondition } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { activeSessionViewBackground } from '../../../../common/theme.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
@@ -208,6 +211,9 @@ interface INewChatWidgetFixtureOptions {
 	readonly unifiedWorkspacePicker?: boolean;
 	readonly collapsedSessionOptionsShowIcons?: boolean;
 	readonly welcomePhrases?: boolean;
+	readonly petEnabled?: boolean;
+	readonly petHorizontalPosition?: number;
+	readonly petLandingTarget?: 'visibleOptions' | 'welcome';
 	readonly connectorRecommendations?: boolean;
 	readonly connectorRecommendationsSetting?: boolean;
 	readonly connectorPrompt?: string;
@@ -419,6 +425,9 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		unifiedWorkspacePicker = experimentalComposerLayout,
 		collapsedSessionOptionsShowIcons = false,
 		welcomePhrases = false,
+		petEnabled = false,
+		petHorizontalPosition,
+		petLandingTarget,
 		connectorRecommendations = false,
 		connectorRecommendationsSetting = connectorRecommendations,
 		connectorPrompt,
@@ -429,6 +438,9 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		dismissConnector = false,
 		focusConnectorRecommendations = false,
 	} = options;
+	if (petEnabled) {
+		configureChatPetFixtureFileRoot(disposableStore);
+	}
 	const hasChatBackground = chatBackground !== undefined;
 	const feedbackItems: readonly IAgentFeedback[] = Array.from({ length: commentCount }, (_, index) => ({
 		id: `feedback-${index}`,
@@ -492,6 +504,13 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		colorTheme: context.theme,
 		additionalServices: reg => {
 			registerChatFixtureServices(reg);
+			if (petEnabled) {
+				reg.defineInstance(IAccessibilityService, new FixtureMotionAccessibilityService(container, disposableStore));
+				reg.defineInstance(IChatPetService, disposableStore.add(new FixtureChatPetService({
+					enabled: true,
+					horizontalPosition: petHorizontalPosition,
+				})));
+			}
 			reg.defineInstance(IActionViewItemService, actionViewItems);
 			reg.define(IChatService, FixtureComposerChatService);
 			reg.defineInstance(ILanguageModelToolsService, disposableStore.add(new MockLanguageModelToolsService()));
@@ -1392,6 +1411,64 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			view.prefillInput(editedInput);
 		}
 	}
+	if (petEnabled) {
+		await waitForFixtureCondition(() => {
+			const button = view.element.querySelector<HTMLElement>('.chat-pet-button:not(.hidden)');
+			const image = button?.querySelector<HTMLImageElement>('.chat-pet-sprite:not(.hidden) img[src]');
+			return !!button && !!image?.complete && image.naturalWidth > 0;
+		}, 'The chat pet did not finish rendering.');
+		const image = view.element.querySelector<HTMLImageElement>('.chat-pet-sprite:not(.hidden) img[src]');
+		await image?.decode();
+		if (petLandingTarget) {
+			const pet = view.element.querySelector<HTMLElement>('.chat-pet-button:not(.hidden)');
+			const target = view.element.querySelector<HTMLElement>(petLandingTarget === 'welcome'
+				? '.new-session-welcome-message-title'
+				: '.new-chat-session-options');
+			assert(!!pet && !!target);
+			const petBounds = pet.getBoundingClientRect();
+			const targetBounds = target.getBoundingClientRect();
+			const pointerId = 1;
+			const targetX = targetBounds.left + targetBounds.width / 2;
+			const targetY = targetBounds.top - petBounds.height / 2 - 24;
+			pet.dispatchEvent(new targetWindow.PointerEvent('pointerdown', {
+				clientX: petBounds.left + petBounds.width / 2,
+				clientY: petBounds.top + petBounds.height / 2,
+				button: 0,
+				buttons: 1,
+				pointerId,
+				bubbles: true,
+			}));
+			pet.dispatchEvent(new targetWindow.PointerEvent('pointermove', {
+				clientX: targetX,
+				clientY: targetY,
+				buttons: 1,
+				pointerId,
+				bubbles: true,
+			}));
+			await new Promise<void>(resolve => targetWindow.setTimeout(resolve, 200));
+			pet.dispatchEvent(new targetWindow.PointerEvent('pointermove', {
+				clientX: targetX,
+				clientY: targetY,
+				buttons: 1,
+				pointerId,
+				bubbles: true,
+			}));
+			await new Promise<void>(resolve => targetWindow.setTimeout(resolve, 100));
+			pet.dispatchEvent(new targetWindow.PointerEvent('pointerup', {
+				clientX: targetX,
+				clientY: targetY,
+				button: 0,
+				buttons: 0,
+				pointerId,
+				bubbles: true,
+			}));
+			await waitForFixtureCondition(
+				() => Math.abs(pet.getBoundingClientRect().bottom - target.getBoundingClientRect().top) < 1,
+				`The chat pet did not collide with the ${petLandingTarget} platform.`,
+			);
+		}
+		assertChatPetInScreenshot(view.element);
+	}
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
@@ -1513,6 +1590,42 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['The experimental new-session composer places workspace, worktree, branch, and harness controls in one row above the chat input. Inside the input, the Agent picker appears before the model picker, and mode and permissions remain available.'],
 		render: context => renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, experimentalComposerLayout: true }),
+	}),
+	NewSessionPetOnInput: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['At its default right-side position, the VS Code pet rests on the visible chat input because the shorter workspace and session-options strip does not extend beneath it.'],
+		render: context => renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, experimentalComposerLayout: true, petEnabled: true }),
+	}),
+	NewSessionPetOnInputNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['In a narrow composer with session options collapsed, the right-side VS Code pet rests on the visible chat input rather than floating on empty space beyond the short workspace strip.'],
+		render: context => renderNewChatWidget(context, { width: 420, height: 560, withWorkspace: true, withControlPickers: true, expandSessionOptions: false, experimentalComposerLayout: true, petEnabled: true }),
+	}),
+	NewSessionPetOnVisibleOptions: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		virtualTime: { enabled: false },
+		expectedVisualDescriptions: ['When horizontally positioned over the visible workspace and session-options strip, the VS Code pet rests on that raised surface.'],
+		render: context => renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, experimentalComposerLayout: true, petEnabled: true, petHorizontalPosition: 0.4, petLandingTarget: 'visibleOptions' }),
+	}),
+	NewSessionPetBelowWelcome: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The VS Code pet stays on its current composer surface beneath the welcome heading; the heading platform stays hidden until a downward collision occurs.'],
+		render: context => renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, experimentalComposerLayout: true, welcomePhrases: true, petEnabled: true, petHorizontalPosition: 0.5 }),
+	}),
+	NewSessionPetPhysics: defineComponentFixture({
+		virtualTime: { enabled: false },
+		render: context => {
+			context.container.classList.remove('disable-animations');
+			context.container.classList.add('monaco-enable-motion');
+			return renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, experimentalComposerLayout: true, welcomePhrases: true, petEnabled: true });
+		},
+	}),
+	NewSessionPetOnWelcome: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		virtualTime: { enabled: false },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The VS Code pet rests above the centered “Let’s ship something” welcome heading on a short rounded platform directly beneath its feet.'],
+		render: context => renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, experimentalComposerLayout: true, welcomePhrases: true, petEnabled: true, petHorizontalPosition: 0.5, petLandingTarget: 'welcome' }),
 	}),
 	NewSessionExperimentalComposerBackground: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },

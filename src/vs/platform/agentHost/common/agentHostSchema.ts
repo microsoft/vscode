@@ -470,13 +470,6 @@ export const AgentHostDisableRepoInfoTelemetryConfigKey = 'disableRepoInfoTeleme
 /** VS Code setting forwarded into {@link AgentHostDisableRepoInfoTelemetryConfigKey}. */
 export const DISABLE_REPO_INFO_TELEMETRY_SETTING_ID = 'chat.advanced.debug.disableRepoInfoTelemetry';
 
-/**
- * Root config key forwarded from the renderer when VS Code's
- * `chat.sessionSync.enabled` setting changes. Controls the `remote` flag
- * passed to the copilot-sdk `CopilotClientOptions`.
- */
-export const AgentHostSessionSyncEnabledConfigKey = 'sessionSyncEnabled';
-
 /** Whether extension-provided BYOK models are enabled. */
 export const AgentHostByokModelsEnabledConfigKey = 'byokModelsEnabled';
 /** Shared default for the root config and mirrored workbench setting. */
@@ -553,7 +546,7 @@ export const AgentHostAutoReplyAnswer = 'The user is not available to answer you
 
 export const AgentHostWorkspaceTrustConfigKey = 'workspaceTrust';
 
-interface IAgentHostWorkspaceTrust {
+export interface IAgentHostWorkspaceTrust {
 	readonly enabled: boolean;
 	readonly trustedUris: readonly string[];
 }
@@ -890,12 +883,6 @@ export const platformRootSchema = createSchema({
 		title: localize('agentHost.config.editTelemetryEnabled.title', "Edit Telemetry"),
 		description: localize('agentHost.config.editTelemetryEnabled.description', "Whether edit attribution telemetry is enabled for Agent Host sessions."),
 		default: true,
-	}),
-	[AgentHostSessionSyncEnabledConfigKey]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.sessionSyncEnabled.title', "Session Sync"),
-		description: localize('agentHost.config.sessionSyncEnabled.description', "Whether remote session sync is enabled for the copilot-sdk CLI."),
-		default: false,
 	}),
 	[AgentHostByokModelsEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',

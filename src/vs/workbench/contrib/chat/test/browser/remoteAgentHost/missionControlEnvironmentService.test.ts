@@ -35,6 +35,17 @@ function host(id: string, name = 'Machine', status = 'online'): IMissionControlE
 suite('Mission Control inventory', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('passes independently authenticated recipient keys to connection admission', async () => {
+		const context = fixture();
+		const keys = [{ key_id: 'key', public_key: 'public', use: 'auth-token', algorithm: 'x25519-sealedbox' }];
+		context.setEnvironment(Promise.resolve({ id: 'remote', status: 'online', encryption_keys: keys }));
+		await context.service.refresh(CancellationToken.None);
+		await context.service.connect('remote', CancellationToken.None);
+		assert.deepStrictEqual(context.calls.connects, [{
+			environmentId: 'remote', name: 'Machine', environmentKind: 'user-local', trustedEncryptionKeys: keys,
+		}]);
+	});
+
 	function fixture(storage = store.add(new InMemoryStorageService()), initialAccount: string | undefined = firstAccount, built = true, extensionDevelopment = false) {
 		const instantiation = store.add(new TestInstantiationService());
 		const accountChanged = store.add(new Emitter<string | undefined>());
@@ -375,12 +386,13 @@ suite('Mission Control inventory', () => {
 		});
 	});
 
-	test('offline hosts never mint credentials, wake compute or create sessions', async () => {
+	test('offline hosts never mint credentials, wake compute or create sessions, and stop being listed as online', async () => {
 		const { service, calls, setEnvironment } = fixture();
 		await service.refresh(CancellationToken.None);
 		setEnvironment(Promise.resolve({ id: 'remote', status: 'offline' }));
 		await assert.rejects(service.connect('remote', CancellationToken.None), /Start its owning application/);
-		assert.deepStrictEqual({ lookups: calls.lookups, connects: calls.connects }, { lookups: ['remote'], connects: [] });
+		assert.deepStrictEqual({ lookups: calls.lookups, connects: calls.connects, statuses: service.hosts.get().map(host => host.status) },
+			{ lookups: ['remote'], connects: [], statuses: ['offline'] });
 	});
 
 	test('local display names never replace the remote default name on connection', async () => {

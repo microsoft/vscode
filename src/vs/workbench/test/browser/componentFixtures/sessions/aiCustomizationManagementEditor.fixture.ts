@@ -22,7 +22,7 @@ import { Range } from '../../../../../editor/common/core/range.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
-import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceBrowseSection, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceMediaType, CustomizationMarketplaceQueryProgressCallback, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceBrowseSection, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IConfirmation, IConfirmationResult, IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
@@ -89,6 +89,7 @@ import { IPluginMarketplaceService, IMarketplacePlugin, MarketplaceType, PluginS
 import { IMarketplaceReference, MarketplaceReferenceKind } from '../../../../contrib/chat/common/plugins/marketplaceReference.js';
 import { IPluginInstallService } from '../../../../contrib/chat/common/plugins/pluginInstallService.js';
 import { AICustomizationManagementEditor, CopilotConnectorDetailOpenResult } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
+import { aiCustomizationManagementSectionRegistry } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementSectionRegistry.js';
 import { IAICustomizationItemSource, IAICustomizationListItem } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationItemSource.js';
 import { AICustomizationItemsModel, IAICustomizationItemsModel, ItemsModelSection } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
 import { createWorkbenchMcpServerDetailInput, EmbeddedMcpServerDetail, IMcpServerDetailInput } from '../../../../contrib/chat/browser/aiCustomization/embeddedMcpServerDetail.js';
@@ -1159,7 +1160,7 @@ interface IRenderEditorOptions {
 	readonly curatedFeedsEnabled?: boolean;
 	readonly otherSourceEnabled?: boolean;
 	readonly toggleMarketplaceVisibility?: boolean;
-	readonly customizationMarketplaceState?: 'ready' | 'empty' | 'error' | 'loading' | 'loadingMore';
+	readonly customizationMarketplaceState?: 'ready' | 'empty' | 'error' | 'loading' | 'loadingMore' | 'partialLoading' | 'cachedRefresh';
 	readonly customizationMarketplaceInstallationState?: 'mixed' | 'missing' | 'error';
 	readonly customizationMarketplaceDetailState?: 'missing' | 'error' | 'unavailable';
 	readonly useRealConnectorInstallService?: boolean;
@@ -1410,13 +1411,23 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 						sections: curatedMarketplaceSections,
 					};
 				}
-				override async query(query: ICustomizationMarketplaceQuery): Promise<ICustomizationMarketplacePage> {
+				override async query(query: ICustomizationMarketplaceQuery, _token: CancellationToken, onProgress?: CustomizationMarketplaceQueryProgressCallback): Promise<ICustomizationMarketplacePage> {
 					customizationMarketplaceQueryCount++;
 					assert(sourceEnabled(), 'A fixture with no enabled sources must not query the catalog.');
 					const pageSize = query.pageSize ?? 24;
 					const createCursor = (offset: number) => ({ token: String(offset) });
 					switch (options.customizationMarketplaceState) {
 						case 'loading': return new DeferredPromise<ICustomizationMarketplacePage>().p;
+						case 'partialLoading':
+						case 'cachedRefresh': {
+							onProgress?.({
+								page: { items: marketplaceResources.slice(0, 6) },
+								completedSourceIds: ['testSource'],
+								cachedSourceIds: options.customizationMarketplaceState === 'cachedRefresh' ? ['testSource'] : [],
+								totalSourceCount: 4,
+							});
+							return new DeferredPromise<ICustomizationMarketplacePage>().p;
+						}
 						case 'loadingMore': {
 							const resources = options.discoveryQuery?.includes('@type:plugin')
 								? marketplaceResources.filter(resource => resource.mediaType === CustomizationMarketplaceMediaType.CopilotPlugin || resource.mediaType === CustomizationMarketplaceMediaType.ClaudePlugin)
@@ -2308,7 +2319,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	if (options.customizationMarketplaceState === 'loading' || options.customizationMarketplaceState === 'loadingMore') {
 		const progress = ctx.container.querySelector<HTMLElement>('.customization-discovery-progress');
 		assert(progress !== null && progress.offsetHeight > 0, 'Discover must always reserve space for its progress bar.');
-		assert([...ctx.container.querySelectorAll('.customization-discovery-state')].every(state => state.textContent === ''), 'Loading must not insert status text above Discover content.');
+		assert([...ctx.container.querySelectorAll('.customization-discovery-state')].every(state => state.closest('[hidden]') || state.textContent === ''), 'Loading must not insert status text above visible Discover content.');
 		if (options.customizationMarketplaceState === 'loading') {
 			assert(progress.querySelector('.monaco-progress-container.active') !== null, 'Initial loading must show the shared progress bar.');
 			const track = progress.querySelector<HTMLElement>('.monaco-progress-container');
@@ -3318,6 +3329,40 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
+	// Sessions variant whose contributed section shows a badge in the navigation list.
+	SessionsContributedSectionBadge: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		render: ctx => {
+			ctx.disposableStore.add(aiCustomizationManagementSectionRegistry.register({
+				id: AICustomizationManagementSection.Extensions,
+				label: 'Extensions',
+				icon: Codicon.extensions,
+				description: 'Choose which installed extensions run in the Agents window.',
+				supportsHarness: () => true,
+				getBadge: () => constObservable('Some installed extensions can be enabled in the Agents window.'),
+				create: () => ({ dispose: () => { } }),
+			}));
+			return renderEditor(ctx, {
+				sessionResource: localSessionResource,
+				isSessionsWindow: true,
+				selectedSection: AICustomizationManagementSection.Agents,
+				availableHarnesses: [
+					createVSCodeHarnessDescriptor(),
+				],
+				managementSections: [
+					AICustomizationManagementSection.Plugins,
+					AICustomizationManagementSection.McpServers,
+					AICustomizationManagementSection.Skills,
+					AICustomizationManagementSection.Instructions,
+					AICustomizationManagementSection.Agents,
+					AICustomizationManagementSection.Hooks,
+					AICustomizationManagementSection.Tools,
+					AICustomizationManagementSection.Extensions,
+				],
+			});
+		},
+	}),
+
 	// Sessions Skills tab showing UI Integration badges on built-in skills
 	SessionsSkillsTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
@@ -4023,6 +4068,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	DiscoverCopilotConnector: defineComponentFixture({
 		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		expectedVisualDescriptions: ['Discover shows Work IQ Mail as an available MCP resource from Copilot Connectors with a Connect action.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
@@ -4184,6 +4230,26 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			sessionResource: localSessionResource,
 			marketplaceVisibilityEnabled: true,
 			customizationMarketplaceState: 'loading',
+		}),
+	}),
+
+	DiscoverPartialLoading: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['Browse renders available customization cards immediately while a quiet status reports that one of four sources has loaded and the shared progress bar remains active.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			marketplaceVisibilityEnabled: true,
+			customizationMarketplaceState: 'partialLoading',
+		}),
+	}),
+
+	DiscoverCachedRefresh: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['Browse reuses cached customization cards immediately while a quiet status reports background source refresh progress and the shared progress bar remains active.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			marketplaceVisibilityEnabled: true,
+			customizationMarketplaceState: 'cachedRefresh',
 		}),
 	}),
 

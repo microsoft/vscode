@@ -41,6 +41,7 @@ import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, isReques
 import { PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../common/promptTimeline.js';
 import { ChatAccessibilityProvider } from '../accessibility/chatAccessibilityProvider.js';
 import { ChatTreeItem, IChatAccessibilityService, IChatCodeBlockInfo, IChatContextMenuActionContext, IChatFileTreeInfo, IChatListItemRendererOptions } from '../chat.js';
+import { resolveResponseSelection } from '../responseSelectionResolver.js';
 import { CodeBlockPart } from './chatContentParts/codeBlockPart.js';
 import { ChatCollapsibleContentPart } from './chatContentParts/chatCollapsibleContentPart.js';
 import { ChatListDelegate, ChatListItemRenderer, IChatListItemTemplate, IChatRendererDelegate } from './chatListRenderer.js';
@@ -879,6 +880,8 @@ export class ChatListWidget extends Disposable {
 		const targetContext = getChatContextMenuTargetContext(e.browserEvent.target);
 		const linkTarget = targetContext.linkTarget;
 		const hasAvailableEditors = linkTarget ? shouldShowChatLinkOpenWith(URI.parse(linkTarget), this.fileService, this.editorResolverService) : false;
+		const selection = resolveResponseSelection({ domNode: this._container, getElementFromNode: node => this.getElementFromNode(node) });
+		const responseSelection = selection?.response === selected ? selection : undefined;
 
 		const scopedContextKeyService = this.contextKeyService.createOverlay([
 			[ChatContextKeys.isResponse.key, isResponseVM(selected)],
@@ -887,11 +890,13 @@ export class ChatListWidget extends Disposable {
 			[ChatContextKeys.contextMenuIsBackground.key, targetContext.isBackground],
 			[ChatContextKeys.contextMenuHasLink.key, !!linkTarget],
 			[ChatContextKeys.contextMenuHasAvailableEditors.key, hasAvailableEditors],
+			[ChatContextKeys.contextMenuHasResponseSelection.key, !!responseSelection],
 		]);
 		const actionContext: IChatContextMenuActionContext = {
 			$chatContextMenu: true,
 			item: selected,
 			linkTarget,
+			responseSelection,
 		};
 		this.contextMenuService.showContextMenu({
 			menuId: MenuId.ChatContext,

@@ -236,6 +236,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		// when the model changes, or trying to make the model immutable and swap out one content part for a new one based on user actions in the view.
 		// Note that `node.replaceWith` is used to ensure order is preserved when an mpc app is present.
 		const partStore = this._register(new DisposableStore());
+		const imageResultPart = this._register(new MutableDisposable<ChatGeneratedImageResultSubPart>());
 		let subPartDomNode: HTMLElement = document.createElement('div');
 		this.domNode.appendChild(subPartDomNode);
 
@@ -248,8 +249,6 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				this.subPart.setShowAnimation(!this.imageGenerationProgressSuppressed);
 				return;
 			}
-			partStore.clear();
-			this.subPart = undefined;
 			const error = hasToolInvocationError(toolInvocation);
 			this.domNode.classList.toggle('chat-tool-call-error', !!error);
 			this.renderedGeneratedImageResult = shouldRenderGeneratedImageResult(toolInvocation.toolSpecificData?.kind, IChatToolInvocation.isComplete(toolInvocation));
@@ -262,10 +261,19 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				? getGeneratedImageResultSnapshot(imageBatch) : [];
 			if (toolInvocation.presentation === ToolInvocationPresentation.Hidden
 				|| (toolInvocation.presentation === ToolInvocationPresentation.HiddenAfterComplete && IChatToolInvocation.isComplete(toolInvocation))) {
+				partStore.clear();
+				imageResultPart.clear();
+				this.subPart = undefined;
 				this._isVisible.set(false, undefined);
 				return;
 			}
 
+			// Let the reveal claim the painted loading surface before disposing its previous owner.
+			const resultDetails = IChatToolInvocation.resultDetails(toolInvocation);
+			imageResultPart.value = !context.inImageGenerationBatch && this.renderedGeneratedImageResult && isToolResultInputOutputDetails(resultDetails) && !resultDetails.isError
+				? this.instantiationService.createInstance(ChatGeneratedImageResultSubPart, toolInvocation, context, imageReveal)
+				: undefined;
+			partStore.clear();
 			const subPart = this.subPart = partStore.add(this.createToolInvocationSubPart());
 			if (subPart instanceof ChatImageGenerationToolProgressPart) {
 				partStore.add(subPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
@@ -276,9 +284,8 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			subPartDomNode.replaceWith(this.subPart.domNode);
 			subPartDomNode = this.subPart.domNode;
 
-			const resultDetails = IChatToolInvocation.resultDetails(toolInvocation);
-			if (!context.inImageGenerationBatch && this.renderedGeneratedImageResult && isToolResultInputOutputDetails(resultDetails) && !resultDetails.isError) {
-				const imageResult = partStore.add(this.instantiationService.createInstance(ChatGeneratedImageResultSubPart, toolInvocation, context, imageReveal));
+			const imageResult = imageResultPart.value;
+			if (imageResult) {
 				this.subPart.domNode.appendChild(imageResult.domNode);
 				partStore.add(imageResult.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 			}

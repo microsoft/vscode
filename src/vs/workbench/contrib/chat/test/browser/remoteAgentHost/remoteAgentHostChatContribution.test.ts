@@ -162,19 +162,14 @@ suite('Remote Agent Host silent MCP authentication', () => {
 		assert.strictEqual(context.opened.length, 0);
 	});
 
-	test('seals remembered MCP credentials through the user-local connection customization', async () => {
-		const sealed: AuthenticateParams[] = [];
+	test('forwards remembered MCP credentials to the user-local protocol sealing boundary', async () => {
 		const customization = createCloudSandboxConnectionCustomization('cloudsandbox:remote',
-			new class extends mock<ICloudSandboxAgentHostService>() { }(), true, async params => {
-				sealed.push(params);
-				return { ...params, token: 'copilot-sealed.v1.mcp.ciphertext' };
-			});
+			new class extends mock<ICloudSandboxAgentHostService>() { }(), true);
 		const context = fixture(customization);
 		const authenticated = await context.authenticate(request);
-		assert.deepStrictEqual({ authenticated, sealed, sent: context.sent, silent: context.sessionOptions }, {
+		assert.deepStrictEqual({ authenticated, sent: context.sent, silent: context.sessionOptions }, {
 			authenticated: true,
-			sealed: [{ target: request.target, resource: 'https://docs.example/mcp', scopes: ['read'], token: 'docs-token' }],
-			sent: [{ target: request.target, resource: 'https://docs.example/mcp', scopes: ['read'], token: 'copilot-sealed.v1.mcp.ciphertext' }],
+			sent: [{ target: request.target, resource: 'https://docs.example/mcp', scopes: ['read'], token: 'docs-token' }],
 			silent: [true],
 		});
 	});

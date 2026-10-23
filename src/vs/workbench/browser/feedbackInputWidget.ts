@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/agentFeedbackEditorInput.css';
-import { IContextMenuProvider } from '../../../../base/browser/contextmenu.js';
-import { addStandardDisposableListener, ModifierKeyEmitter } from '../../../../base/browser/dom.js';
-import { status as announceStatus } from '../../../../base/browser/ui/aria/aria.js';
-import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
-import { ActionWithDropdownActionViewItem } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
-import { Action } from '../../../../base/common/actions.js';
-import { Codicon } from '../../../../base/common/codicons.js';
-import { ResolvedKeybinding } from '../../../../base/common/keybindings.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import './media/feedbackInputWidget.css';
+import { IContextMenuProvider } from '../../base/browser/contextmenu.js';
+import { addStandardDisposableListener, ModifierKeyEmitter } from '../../base/browser/dom.js';
+import { status as announceStatus } from '../../base/browser/ui/aria/aria.js';
+import { ActionBar } from '../../base/browser/ui/actionbar/actionbar.js';
+import { ActionWithDropdownActionViewItem } from '../../base/browser/ui/dropdown/dropdownActionViewItem.js';
+import { Action } from '../../base/common/actions.js';
+import { Codicon } from '../../base/common/codicons.js';
+import { ResolvedKeybinding } from '../../base/common/keybindings.js';
+import { ThemeIcon } from '../../base/common/themables.js';
+import { Emitter, Event } from '../../base/common/event.js';
+import { Disposable, DisposableStore } from '../../base/common/lifecycle.js';
 
 export interface IFeedbackInputWidgetAction {
 	readonly label: string;
@@ -48,7 +48,7 @@ export type IFeedbackInputWidgetOptions = IFeedbackInputWidgetBaseOptions & ({
 
 /**
  * Reusable auto-sizing textarea + action bar shared by the editor "Add
- * Feedback" overlay and the Agents-window response-selection "Ask Question"
+ * Feedback" overlay and the chat response-selection "Ask Question"
  * affordance. Positioning and hosting (overlay widget vs. absolute DOM child)
  * are left to the caller; this only owns the DOM structure, sizing and input.
  */

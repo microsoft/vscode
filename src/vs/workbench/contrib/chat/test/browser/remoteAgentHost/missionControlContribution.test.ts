@@ -41,6 +41,7 @@ import { MissionControlSharingService } from '../../../browser/remoteAgentHost/m
 import { CloudSandboxDraftPreparationService } from '../../../browser/remoteAgentHost/cloudSandboxDraftPreparationService.js';
 
 const remoteControlPolicyOverrideSetting = 'chat.agentHost.experimentalMissionControl.ignoreRemoteControlPolicy';
+const disableRepositoryMetadataSetting = 'chat.agentHost.experimentalMissionControl.disableRepositoryMetadata';
 const localCredentialSetting = 'chat.agentHost.experimentalMissionControl.useLocalCredentials';
 const gitDefaultCloneDirectorySetting = 'git.defaultCloneDirectory';
 const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
@@ -202,6 +203,59 @@ suite('Mission Control sharing service', () => {
 		});
 	}
 
+	test('renaming while off persists the actual registration name without enabling sharing', () => runWithFakedTimers({}, async () => {
+		const first = fixture();
+		await first.sharing.setEnvironmentName('  My workstation  ');
+		await timeout(0);
+		const disabledCalls = [...first.calls];
+		const restored = fixture({ storage: first.storage });
+		await timeout(0);
+		await restored.sharing.setEnabled(true);
+		assert.deepStrictEqual({
+			disabledCalls,
+			name: restored.sharing.environmentName.get(),
+			options: restored.calls.map(call => call.options),
+		}, { disabledCalls: [], name: 'My workstation', options: [{ ...expectedOptions, name: 'My workstation' }] });
+	}));
+
+	test('renaming an enabled environment withdraws and registers the new name while preserving sharing', () => runWithFakedTimers({}, async () => {
+		const { sharing, calls } = fixture();
+		await sharing.setEnabled(true);
+		await sharing.setEnvironmentName('New shared name');
+		await timeout(0);
+		assert.deepStrictEqual({ calls, state: sharing.state.get() }, {
+			calls: [
+				{ options: expectedOptions, withdrawingAccountId: undefined },
+				{ options: undefined, withdrawingAccountId: 'account' },
+				{ options: { ...expectedOptions, name: 'New shared name' }, withdrawingAccountId: undefined },
+			],
+			state: 'enabled',
+		});
+	}));
+
+	test('rejects blank and control-character names before changing persistence or registration', () => runWithFakedTimers({}, async () => {
+		const { sharing, calls } = fixture();
+		for (const name of ['', '  ', 'bad\nname', 'bad\u0000name']) {
+			await assert.rejects(sharing.setEnvironmentName(name), /without control characters/);
+		}
+		assert.deepStrictEqual({ calls, name: sharing.environmentName.get(), state: sharing.state.get() }, {
+			calls: [], name: undefined, state: 'disabled',
+		});
+	}));
+
+	test('a rename registration failure is reported and leaves sharing visibly disabled', () => runWithFakedTimers({}, async () => {
+		const { sharing } = fixture({
+			configure: async options => {
+				if (options?.name === 'Failing name') {
+					throw new Error('Rename registration failed');
+				}
+			},
+		});
+		await sharing.setEnabled(true);
+		await assert.rejects(sharing.setEnvironmentName('Failing name'), /Rename registration failed/);
+		assert.strictEqual(sharing.state.get(), 'disabled');
+	}));
+
 	test('registers a preview backend and default-off local credential setting without removed enablement settings', () => {
 		assert.deepStrictEqual({
 			removed: registeredMissionControlSettings,
@@ -334,6 +388,7 @@ suite('Mission Control sharing service', () => {
 	for (const [setting, option] of [
 		[localCredentialSetting, 'useLocalCredentials'],
 		[remoteControlPolicyOverrideSetting, 'ignoreRemoteControlPolicy'],
+		[disableRepositoryMetadataSetting, 'disableRepositoryMetadata'],
 	] as const) {
 		for (const scenario of [
 			{ name: 'local user opt-in in Insiders', config: { value: false, userLocalValue: true }, enabled: true },
@@ -355,7 +410,7 @@ suite('Mission Control sharing service', () => {
 			}));
 		}
 
-		test(`withdraws the previous registration when ${option} changes and reconfigures`, () => runWithFakedTimers({}, async () => {
+		test(`reconfigures when ${option} changes`, () => runWithFakedTimers({}, async () => {
 			const { calls, configuration, sharing } = fixture();
 			await sharing.setEnabled(true);
 			await timeout(0);
@@ -368,9 +423,9 @@ suite('Mission Control sharing service', () => {
 			}
 			assert.deepStrictEqual(calls, [
 				{ options: expectedOptions, withdrawingAccountId: undefined },
-				{ options: undefined, withdrawingAccountId: 'account' },
+				...(option === 'disableRepositoryMetadata' ? [] : [{ options: undefined, withdrawingAccountId: 'account' }]),
 				{ options: { ...expectedOptions, [option]: true }, withdrawingAccountId: undefined },
-				{ options: undefined, withdrawingAccountId: 'account' },
+				...(option === 'disableRepositoryMetadata' ? [] : [{ options: undefined, withdrawingAccountId: 'account' }]),
 				{ options: expectedOptions, withdrawingAccountId: undefined },
 			]);
 		}));

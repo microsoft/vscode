@@ -18,7 +18,7 @@ import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { autorun, constObservable, derived, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
 import { Selection } from '../../../../../editor/common/core/selection.js';
@@ -72,6 +72,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 import { SharedChatInputComposer } from '../../browser/sharedChatInputComposer.js';
 import { INewChatComposerInputOptions } from '../../browser/newChatComposerInput.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
@@ -1318,6 +1319,7 @@ suite('Sessions - Chat View', () => {
 			_updateWidgetLockState: () => { },
 			_setLoading: (value: boolean) => loading.push(value),
 			_layoutChatWidget: () => { },
+			_selectionSideChatController: { setChat: () => { } },
 			showProgressWhile: (promise: Promise<void>) => completions.push(promise),
 			_widget: {
 				getInput: () => inputState.inputText,
@@ -2262,7 +2264,7 @@ suite('Sessions - Chat View', () => {
 		assert.strictEqual(isVisible.get(), false);
 	});
 
-	test('configures the peer chat composer with its own repository controls and pet platform', () => {
+	test('configures the peer chat composer with its own chat, repository controls and pet platform', () => {
 		let inputOptions: INewChatComposerInputOptions | undefined;
 		const repositoryControls = { visible: constObservable(true), dispose: () => { } };
 		const petPlatform = dom.$('a.action-label');
@@ -2277,10 +2279,12 @@ suite('Sessions - Chat View', () => {
 				return input;
 			}) as IInstantiationService['createInstance'];
 		}();
+		// Another chat of the session is active, such as one open in another group.
+		const activeChat = upcastPartial<IChat>({ resource: URI.parse('chat:/active-elsewhere') });
 		const sessionsService = new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable<IActiveSession | undefined>(undefined);
+			override readonly activeSession = constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ sessionId: 'session', activeChat: constObservable(activeChat) }));
 		}();
-		disposables.add(new NewChatInSessionWidget(
+		const widget = disposables.add(new NewChatInSessionWidget(
 			{},
 			new TestConfigurationService(),
 			instantiationService,
@@ -2293,13 +2297,20 @@ suite('Sessions - Chat View', () => {
 			sessionsService,
 			disposables.add(new InMemoryStorageService()),
 			new TestAccessibilityService(),
+			new class extends mock<IFileService>() { }(),
 		));
+		const beforeChat = inputOptions?.chat?.get();
+		const view: NewChatView = Object.assign(Object.create(NewChatView.prototype), { _widget: widget });
+		const viewChat = upcastPartial<IChat>({ resource: URI.parse('chat:/composer') });
+		view.setChat(viewChat);
 
 		const renderRepositoryControls = inputOptions?.renderRepositoryControls;
 		assert.deepStrictEqual({
+			beforeChat,
+			chat: inputOptions?.chat?.get()?.resource.toString(),
 			repositoryControls: typeof renderRepositoryControls === 'function' ? renderRepositoryControls(dom.$('div')) : renderRepositoryControls,
 			petPlatform: inputOptions?.getChatPetPlatformElements?.(),
-		}, { repositoryControls, petPlatform: [petPlatform] });
+		}, { beforeChat: undefined, chat: 'chat:/composer', repositoryControls, petPlatform: [petPlatform] });
 	});
 
 	test('positions peer chat content for centered attachment growth', () => {
@@ -4382,6 +4393,7 @@ suite('Sessions - Chat View', () => {
 		const progressDelays: (number | undefined)[] = [];
 		const loadingStates: boolean[] = [];
 		const boundModels: (string | undefined)[] = [];
+		const selectionBindings: { resource: URI | undefined; readOnly: boolean }[] = [];
 		const onDidDisposeSession = disposables.add(new Emitter<{ readonly sessionResources: readonly URI[]; readonly reason: 'cleared' | 'disposed' }>());
 		const viewStore = disposables.add(new DisposableStore());
 		const view: {
@@ -4415,6 +4427,9 @@ suite('Sessions - Chat View', () => {
 			_saveCurrentViewState: () => { },
 			_updateWidgetLockState: () => { },
 			_layoutChatWidget: () => { },
+			_selectionSideChatController: {
+				setChat: (resource: URI | undefined, isReadOnly: IObservable<boolean>) => selectionBindings.push({ resource, readOnly: isReadOnly.get() }),
+			},
 			showProgressWhile: (_promise: Promise<void>, delay?: number) => progressDelays.push(delay),
 			_widget: {
 				getInput: () => '',
@@ -4438,7 +4453,7 @@ suite('Sessions - Chat View', () => {
 			view._reloadChatForReplacedProvider(['remote-agent']);
 		};
 		const release = (resource: URI) => onDidDisposeSession.fire({ sessionResources: [resource], reason: 'disposed' });
-		return { open, attach, reload, release, dispose: () => viewStore.dispose(), requests, progressDelays, loadingStates, boundModels };
+		return { open, attach, reload, release, dispose: () => viewStore.dispose(), requests, progressDelays, loadingStates, boundModels, selectionBindings };
 	}
 
 	test('shows loading progress within 100ms of opening a chat', () => {
@@ -4465,17 +4480,18 @@ suite('Sessions - Chat View', () => {
 
 	test('shows loading progress across a provider reload until the reloaded model attaches', async () => {
 		const resource = URI.parse('remote-agent:/session');
-		const { open, attach, reload, release, progressDelays, loadingStates, boundModels } = createLoadingFeedbackView();
+		const { open, attach, reload, release, progressDelays, loadingStates, boundModels, selectionBindings } = createLoadingFeedbackView();
 		open(resource);
 		await attach(0, resource);
 		reload();
 		release(resource);
 		await timeout(0);
 		await attach(1, resource);
-		assert.deepStrictEqual({ progressDelays, loadingStates, boundModels }, {
+		assert.deepStrictEqual({ progressDelays, loadingStates, boundModels, selectionBindings }, {
 			progressDelays: [100, 100, 100],
 			loadingStates: [true, false, true, true, false],
 			boundModels: ['/session', undefined, '/session'],
+			selectionBindings: [{ resource: undefined, readOnly: true }],
 		});
 	});
 

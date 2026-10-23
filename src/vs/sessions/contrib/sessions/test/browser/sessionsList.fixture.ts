@@ -1054,6 +1054,13 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['The Customizations navigation row has no total-count badge and shows a small warning dot beside its label.'],
 	}),
+	SessionsList_CustomizationsExtensionSuggestionsAvailable: defineSessionsListFixture({
+		sessions: [{ id: 'suggestions', title: 'Review the generated diagrams', workspace: 'vscode', minutesAgo: 5 }],
+		header: { navigationShortcuts: true, customizationsCount: 8, customizationExtensionSuggestionsAvailable: true },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The Customizations navigation row has no total-count badge and shows a small activity badge dot, not a warning dot, beside its label.'],
+	}),
 	SessionsList_LightweightNewButton: defineSessionsListFixture({
 		sessions: [],
 		header: { newSessionButtonStyle: 'lightweight' },

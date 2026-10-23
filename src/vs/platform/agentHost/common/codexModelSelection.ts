@@ -7,7 +7,7 @@ import type { CodexModelProvider } from './agentHostTelemetry.js';
 import type { ModelSelection } from './state/sessionState.js';
 
 const CODEX_MODEL_SELECTION_PREFIX = '@provider=';
-const CODEX_COPILOT_MODEL_PROVIDER = 'vscode-proxy';
+export const CODEX_COPILOT_MODEL_PROVIDER = 'vscode-proxy';
 
 export function toCodexModelSelectionId(modelProvider: string, modelId: string): string {
 	return `${CODEX_MODEL_SELECTION_PREFIX}${encodeURIComponent(modelProvider)}:${encodeURIComponent(modelId)}`;
@@ -33,5 +33,5 @@ export function parseCodexModelSelection(selection: ModelSelection): { readonly 
 
 /** Bounds the provider actually used at dispatch; legacy model IDs are not evidence. */
 export function toCodexModelProvider(provider: string | undefined): CodexModelProvider {
-	return provider === 'openai' ? 'openai' : provider === 'vscode-proxy' ? 'copilot' : provider ? 'other' : 'unknown';
+	return provider === 'openai' ? 'openai' : provider === CODEX_COPILOT_MODEL_PROVIDER ? 'copilot' : provider ? 'other' : 'unknown';
 }

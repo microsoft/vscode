@@ -7,7 +7,7 @@
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
@@ -20,6 +20,7 @@ import { ChatState } from '../../../../../platform/agentHost/common/state/sessio
 import { IReplayedSession, IReplayedTaskHistory } from '../../../../../platform/agentHost/common/taskEventReplay.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { activeTurnToProgress, messageToRequestOrigin, messageToVariableData, rewriteAgentHostLinkTarget, turnsToHistory } from '../agentSessions/agentHost/stateToProgressAdapter.js';
+import { resolveAgentHostToolResultImage } from '../agentSessions/agentHost/agentHostToolResultImages.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem } from '../../common/chatSessionsService.js';
 import { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM } from '../../common/constants.js';
 
@@ -50,8 +51,12 @@ export class ReadOnlyChatSession extends Disposable implements IChatSession {
 		readonly history: readonly IChatSessionHistoryItem[],
 		readonly title: string | undefined,
 		readonly isReadOnly: IObservable<boolean>,
+		onDispose?: () => void,
 	) {
 		super();
+		if (onDispose) {
+			this._register(toDisposable(onDispose));
+		}
 	}
 
 	override dispose(): void {
@@ -64,7 +69,7 @@ export class ReadOnlyChatSession extends Disposable implements IChatSession {
 export class CloudSandboxReadOnlySessionHandler extends Disposable implements IChatSessionContentProvider {
 
 	private readonly _isReadOnly = constObservable(true);
-	private readonly _workingDirectories = new ResourceMap<URI | undefined>();
+	private readonly _chatContexts = new ResourceMap<{ chat: ChatState | undefined; directory: URI | undefined }>();
 
 	constructor(
 		private readonly _config: ICloudSandboxReadOnlyConfig,
@@ -72,6 +77,7 @@ export class CloudSandboxReadOnlySessionHandler extends Disposable implements IC
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
+		this._register(toDisposable(() => this._chatContexts.clear()));
 	}
 
 	async provideChatSessionContent(sessionResource: URI, token: CancellationToken, diagnosticId?: string, onCachedSession?: (session: IChatSession) => void, hasHistory = false): Promise<IChatSession> {
@@ -124,6 +130,7 @@ export class CloudSandboxReadOnlySessionHandler extends Disposable implements IC
 			throw new Error(localize('cloudSandbox.incompleteHistoryRefresh', "The latest recorded conversation is unavailable or incomplete."));
 		}
 		if (!session) {
+			this._chatContexts.delete(sessionResource);
 			// A newly created task may not have recorded a conversation yet.
 			this._logService.warn(`${LOG_PREFIX} No persisted history for session ${sessionId} in task ${taskId} (replayed sessions: [${replayed?.sessions.map(s => s.session).join(', ') ?? 'none'}]); opening an empty read-only session.`);
 			return new ReadOnlyChatSession(sessionResource, [], undefined, this._isReadOnly);
@@ -134,7 +141,8 @@ export class CloudSandboxReadOnlySessionHandler extends Disposable implements IC
 			throw new Error(localize('cloudSandbox.chatHistoryMissing', "Recorded history for this conversation is unavailable."));
 		}
 		const directory = (chat?.workingDirectories ?? session.state.workingDirectories)?.[0];
-		this._workingDirectories.set(sessionResource, directory ? URI.parse(directory) : undefined);
+		const context = { chat, directory: directory ? URI.parse(directory) : undefined };
+		this._chatContexts.set(sessionResource, context);
 		const history: IChatSessionHistoryItem[] = chat
 			? turnsToHistory(URI.parse(session.session), chat.turns, this._config.agentId, this._config.connectionAuthority)
 			: [];
@@ -182,10 +190,17 @@ export class CloudSandboxReadOnlySessionHandler extends Disposable implements IC
 		const title = chatResource === session.defaultChat
 			? session.state.title
 			: session.state.chats.find(summary => summary.resource === chatResource)?.title;
-		return new ReadOnlyChatSession(sessionResource, history, title && !isCloudSandboxPlaceholderTitle(title, sessionResource) ? title : undefined, this._isReadOnly);
+		return new ReadOnlyChatSession(sessionResource, history, title && !isCloudSandboxPlaceholderTitle(title, sessionResource) ? title : undefined, this._isReadOnly, () => {
+			if (this._chatContexts.get(sessionResource) === context) {
+				this._chatContexts.delete(sessionResource);
+			}
+		});
 	}
 
 	resolveChatResponseUri(resource: URI, href: string, kind: 'link' | 'image'): string {
-		return rewriteAgentHostLinkTarget(href, this._config.connectionAuthority, undefined, kind === 'image' ? this._workingDirectories.get(resource) : undefined);
+		const context = this._chatContexts.get(resource);
+		const resolve = (target: string) => rewriteAgentHostLinkTarget(target, this._config.connectionAuthority, undefined, kind === 'image' ? context?.directory : undefined);
+		const resolved = resolve(href);
+		return (kind === 'image' ? resolveAgentHostToolResultImage(context?.chat, resolved, resolve) : undefined) ?? resolved;
 	}
 }

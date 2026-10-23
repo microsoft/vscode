@@ -49,7 +49,7 @@ import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { readImageGenerationToolMetadata } from '../../common/meta/agentImageGenerationMeta.js';
 import { readMcpRoutingServers, readMcpServerConnectorName, readMcpServerControllingSetting, readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin, withMcpRoutingServers } from '../../common/meta/mcpCustomizationMeta.js';
 import type { ComputerUsePermission } from '../../common/computerUse.js';
-import { readComputerUseSetupCard } from '../../common/meta/computerUse.js';
+import { getComputerUseActivationAnswers, readComputerUseActivationCard, readComputerUseSetupCard } from '../../common/meta/computerUse.js';
 import { agentModelCallMetaKey, readAgentModelCallDiagnostics } from '../../common/meta/agentModelCallMeta.js';
 import { readAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
 import { agentModelConfigurationReportKey, readAgentModelConfigurationReport } from '../../common/agentModelConfiguration.js';
@@ -84,6 +84,7 @@ import { COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY } from '../../node/copilot/
 import { SessionDataService } from '../../node/sessionDataService.js';
 import type { ICopilotMcpServerInfo } from '../../node/copilot/copilotAgent.js';
 import { CopilotGitHubCredentials, CopilotGitHubSessionCredentials } from '../../node/copilot/copilotGitHubCredentials.js';
+import { GENERATED_IMAGE_PRESENTATION_CONTEXT } from '../../node/copilot/copilotGeneratedImages.js';
 import { AhpErrorCodes, AuthenticateTargetKind } from '../../common/state/sessionProtocol.js';
 import { CopilotGitHubTelemetryForwarder } from '../../node/copilot/copilotGitHubTelemetryForwarder.js';
 import { ShellManager } from '../../node/copilot/copilotShellTools.js';
@@ -114,7 +115,7 @@ import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js'
 import { buildCopilotSystemNotification, getCopilotSubagentDisplayNames } from '../../node/copilot/copilotSystemNotification.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpSamplingAllowedServersConfigKey, AgentHostMcpToolRoutingEnabledConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpSamplingAllowedServersConfigKey, AgentHostMcpToolRoutingEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostHydraFusionEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey } from '../../common/copilotCliConfig.js';
 import { setAdvertisedAutoModeTiers } from '../../common/autoModeTiers.js';
 import { TestExperimentTriggerTelemetryService } from '../../../telemetry/test/common/experimentTriggerTestUtils.js';
@@ -175,6 +176,7 @@ class MockCopilotSession {
 	onCanvasListOpen: (() => void) | undefined;
 	extensionReloadCalls = 0;
 	extensionReloadError: Error | undefined;
+	extensionReconcileCalls = 0;
 	readonly eventLogReadRequests: Parameters<CopilotSession['rpc']['eventLog']['read']>[0][] = [];
 	eventLogReadGate: Promise<void> | undefined;
 	readonly sendRequests: unknown[] = [];
@@ -230,6 +232,9 @@ class MockCopilotSession {
 	readonly commandListCalls: unknown[] = [];
 	readonly commandInvokeCalls: Array<{ name: string; input?: string }> = [];
 	readonly pluginInstallCalls: Array<{ source: string }> = [];
+	readonly pluginEnableCalls: Array<{ names: string[] }> = [];
+	/** Runs after `rpc.plugins.enable` records a call; it may throw to fail the call. */
+	onPluginEnable?: () => void;
 	pluginInstallGate: Promise<void> | undefined;
 	onPluginInstall: (() => void) | undefined;
 	readonly managedPluginRetryCalls: unknown[] = [];
@@ -537,11 +542,17 @@ class MockCopilotSession {
 				}
 				return { extensions };
 			},
+			enable: async () => { },
+			disable: async () => { },
 			reload: async () => {
 				this.extensionReloadCalls++;
 				if (this.extensionReloadError) {
 					throw this.extensionReloadError;
 				}
+			},
+			reconcile: async () => {
+				this.extensionReconcileCalls++;
+				return { extensions: this.extensions };
 			},
 		},
 		canvas: {
@@ -701,7 +712,10 @@ class MockCopilotSession {
 			},
 			uninstall: async () => { throw new Error('Not implemented'); },
 			update: async () => { throw new Error('Not implemented'); },
-			enable: async () => { throw new Error('Not implemented'); },
+			enable: async (params: { names: string[] }) => {
+				this.pluginEnableCalls.push(params);
+				this.onPluginEnable?.();
+			},
 			disable: async () => { throw new Error('Not implemented'); },
 			reload: async () => ({ plugins: [], errors: [] }),
 			marketplaces: {
@@ -1257,6 +1271,8 @@ function toPermissionRequest(request: TestPermissionRequest): PermissionRequest 
 
 function createPluginSnapshot(...pluginDirectories: URI[]): IActiveClientSnapshot {
 	return {
+		discoveredAgents: [],
+		additionalRootInstructions: [],
 		tools: [],
 		plugins: pluginDirectories.map(pluginDir => ({
 			format: PluginFormat.Copilot,
@@ -1276,6 +1292,13 @@ type TestCopilotSessionRuntime = Omit<ICopilotSessionRuntime, 'handlePermissionR
 	handleAttributedPermissionRequest(request: TestPermissionRequest, invocation?: Parameters<PermissionHandler>[1]): ReturnType<ICopilotSessionRuntime['handlePermissionRequest']>;
 	createClientSdkTools(toolSearchActive?: boolean, hostToolNames?: ReadonlySet<string>): ReturnType<ICopilotSessionRuntime['createClientSdkTools']>;
 };
+
+interface ITestSessionConfiguration {
+	setConfigValue(key: string, value: unknown): void;
+	setRootValue(key: string, value: unknown): void;
+	fireRootConfigChange(): void;
+	fireSessionConfigChange(config: Record<string, unknown>, session?: string): void;
+}
 
 async function createAgentSession(disposables: DisposableStore, options?: {
 	copilotHome?: string;
@@ -1354,8 +1377,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	resolvedAgentName?: string;
 	initializeEnablementSession?: (session: string) => Promise<void>;
 	beforeLaunch?: (rootValues: Record<string, unknown>) => void;
-	/** Delivers launch-time SDK events before the session wrapper is attached. */
-	duringLaunch?: (runtime: ICopilotSessionRuntime) => void;
+	/** Delivers SDK events and configuration changes before the session wrapper is attached. */
+	duringLaunch?: (runtime: ICopilotSessionRuntime, configuration: ITestSessionConfiguration) => void | Promise<void>;
 	/** BYOK providers and models the SDK session launches with. */
 	launchByokConfig?: ICopilotByokSessionConfig;
 	/** BYOK providers and models the launcher currently resolves. */
@@ -1377,6 +1400,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	onSessionCreated?: (session: CopilotAgentSession) => void;
 	/** The shared Computer Use permission setup the agent hands to the session. */
 	computerUsePermissionSetup?: () => CopilotComputerUsePermissionSetup | undefined;
+	/** The client's plugins, as `plugins.list` reports them. */
+	getInstalledPlugins?: () => Promise<Awaited<ReturnType<CopilotClient['rpc']['plugins']['list']>>['plugins']>;
 }): Promise<{
 	session: CopilotAgentSession;
 	runtime: TestCopilotSessionRuntime;
@@ -1394,13 +1419,9 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	chatConfigUpdates: ReadonlyArray<{ chat: string; patch: Record<string, unknown> }>;
 	rootConfigUpdates: ReadonlyArray<Record<string, unknown>>;
 	sandboxResults: Array<boolean | string>;
-	setConfigValue: (key: string, value: unknown) => void;
-	setRootValue: (key: string, value: unknown) => void;
-	fireRootConfigChange: () => void;
-	fireSessionConfigChange: (config: Record<string, unknown>, session?: string) => void;
 	dispatchSessionAction: (action: StateAction) => void;
 	storageService: IAgentHostStorageService;
-}> {
+} & ITestSessionConfiguration> {
 	const progressEmitter = disposables.add(new Emitter<AgentSignal>());
 	const signals: AgentSignal[] = options?.signals ?? [];
 	const waiters: { predicate: (signal: AgentSignal) => boolean; deferred: DeferredPromise<AgentSignal> }[] = [];
@@ -1445,7 +1466,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		sessionId: 'test-session-1',
 		workingDirectory: options?.workingDirectory,
 		resolvedAgentName: options?.resolvedAgentName,
-		snapshot: options?.clientSnapshot ?? { tools: [], plugins: [], mcpServers: {} },
+		snapshot: options?.clientSnapshot ?? { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 		shellManager: options?.shellManager,
 		githubCredentials: options?.githubCredentials ?? CopilotGitHubSessionCredentials.fromToken(options?.githubToken),
 		isEphemeral: options?.isEphemeral,
@@ -1478,8 +1499,11 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			if (options?.captureRuntime) {
 				options.captureRuntime.current = runtime;
 			}
-			options?.duringLaunch?.(runtime);
-			return new CopilotSessionWrapper(mockSession as unknown as CopilotSession, options?.canvasRuntimeEnabled ?? true, options?.launchByokConfig ?? {}, imageGenerationEnabled, imageGenerationWatermark, logService);
+			const duringLaunch = options?.duringLaunch?.(runtime, configuration);
+			if (duringLaunch) {
+				await duringLaunch;
+			}
+			return new CopilotSessionWrapper(mockSession as unknown as CopilotSession, options?.canvasRuntimeEnabled ?? true, options?.launchByokConfig ?? {}, imageGenerationEnabled, imageGenerationWatermark, undefined, logService);
 		},
 		resolveByokSessionConfig: async () => options?.resolveByokSessionConfig?.() ?? {},
 	};
@@ -1564,6 +1588,12 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	const rootConfigUpdates: Record<string, unknown>[] = [];
 	const rootConfigEmitter = disposables.add(new Emitter<void>());
 	const sessionConfigEmitter = disposables.add(new Emitter<{ session: string; config: Record<string, unknown>; origin: { clientId: string; clientSeq: number } | undefined }>());
+	const configuration: ITestSessionConfiguration = {
+		setConfigValue: (key, value) => { configValues[key] = value; },
+		setRootValue: (key, value) => { rootValues[key] = value; },
+		fireRootConfigChange: () => rootConfigEmitter.fire(),
+		fireSessionConfigChange: (config, session = sessionUri.toString()) => sessionConfigEmitter.fire({ session, config, origin: { clientId: 'test', clientSeq: 1 } }),
+	};
 	const customizationEnablementEmitter = disposables.add(new Emitter<{ sessions: readonly string[] }>());
 	const fakeConfigurationService: IAgentConfigurationService = {
 		_serviceBrand: undefined,
@@ -1744,6 +1774,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			subagentTaskCompletionDelay: options?.subagentTaskCompletionDelay ?? 0,
 			telemetryContext: () => options?.telemetryContext,
 			computerUsePermissionSetup: options?.computerUsePermissionSetup,
+			getInstalledPlugins: options?.getInstalledPlugins,
 		},
 	));
 	options?.onSessionCreated?.(session);
@@ -1780,10 +1811,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		chatConfigUpdates,
 		rootConfigUpdates,
 		sandboxResults,
-		setConfigValue: (key, value) => { configValues[key] = value; },
-		setRootValue: (key, value) => { rootValues[key] = value; },
-		fireRootConfigChange: () => rootConfigEmitter.fire(),
-		fireSessionConfigChange: (config, session = sessionUri.toString()) => sessionConfigEmitter.fire({ session, config, origin: { clientId: 'test', clientSeq: 1 } }),
+		...configuration,
 		dispatchSessionAction: action => {
 			stateManager.dispatchServerAction(sessionUri.toString(), action);
 			if (action.type === ActionType.SessionCustomizationsChanged) {
@@ -2352,6 +2380,29 @@ suite('CopilotAgentSession', () => {
 			}, {
 				configTarget: first.toString(),
 				published: [`${ActionType.SessionCustomizationRemoved} ${first.toString()}`, `${ActionType.SessionActivityChanged} ${second.toString()}`],
+			});
+		});
+
+		test('configures the running process for its current owner once its launch owner ended by moving it under another session', async () => {
+			const ended = AgentSession.uri('copilot', 'owner-ended');
+			const current = AgentSession.uri('copilot', 'owner-current');
+			const owner = disposables.add(new TestChatOwnerRef(ended));
+			const logService = new CapturingLogService();
+			// Only the current owner has config: the launch owner ended with the move, leaving its values to the chat.
+			const { session, mockSession } = await createAgentSession(disposables, {
+				sessionUri: current, owner, logService,
+				configValues: { [SessionConfigKey.AutoApprove]: 'default' },
+				chatConfigValues: { [SessionConfigKey.AutoApprove]: 'assisted', [SessionConfigKey.Mode]: 'autopilot' },
+			});
+			owner.set(current);
+			await session.syncPermissionMode('config-change');
+
+			assert.deepStrictEqual({
+				permissionModes: mockSession.permissionModeSetCalls,
+				logs: logService.infos.map(entry => entry.message).filter(message => message.includes('Syncing permission mode')),
+			}, {
+				permissionModes: ['assisted'],
+				logs: ['[Copilot:test-session-1] Syncing permission mode: source=config-change, agentMode=autopilot, configuredLevel=assisted, sdkMode=assisted, previousSdkMode=unknown, globalAutoApprove=false'],
 			});
 		});
 
@@ -3644,6 +3695,35 @@ suite('CopilotAgentSession', () => {
 		session.dispose();
 	});
 
+	test('lists live extensions', async () => {
+		const { session } = await createAgentSession(disposables, {
+			configureMockSession: mock => {
+				mock.extensions.push(
+					{ id: 'project:preview', name: 'Preview extension', source: 'project', status: 'running' },
+					{ id: 'user:future', name: 'Future extension', source: 'user', status: 'paused' as never },
+					{ id: 'session:preview', name: 'Session extension', source: 'session', status: 'running' },
+					{ id: 'future:preview', name: 'Unsupported extension', source: 'future' as never, status: 'running' },
+					{ id: '', name: 'Malformed extension', source: 'project', status: 'running' },
+				);
+			},
+		});
+
+		const extensions = await session.listExtensions();
+
+		assert.deepStrictEqual(extensions, [{
+			id: 'project:preview',
+			name: 'Preview extension',
+			source: 'project',
+			status: 'running',
+		}, {
+			id: 'user:future',
+			name: 'Future extension',
+			source: 'user',
+			status: 'unknown',
+		}]);
+		session.dispose();
+	});
+
 	suite('canvas definition registry stability', () => {
 		test('withholds transient registry listings until extension reload settles', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables, {
@@ -4483,9 +4563,16 @@ suite('CopilotAgentSession', () => {
 		session.dispose();
 	});
 
+	test('reconciles extension membership through the live SDK session', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		await session.reconcileExtensions();
+		assert.strictEqual(mockSession.extensionReconcileCalls, 1);
+		session.dispose();
+	});
+
 	suite('CopilotSessionWrapper', () => {
 		function createWrapper(mockSession: MockCopilotSession, logService: ILogService = new NullLogService()): CopilotSessionWrapper {
-			return disposables.add(new CopilotSessionWrapper(mockSession as unknown as CopilotSession, true, {}, false, false, logService));
+			return disposables.add(new CopilotSessionWrapper(mockSession as unknown as CopilotSession, true, {}, false, false, undefined, logService));
 		}
 
 		function lifecycleMessages(entries: CapturingLogService['infos']): string[] {
@@ -12675,6 +12762,121 @@ suite('CopilotAgentSession', () => {
 		});
 
 		for (const platform of ['linux', 'win32'] as const) {
+			for (const source of ['root', 'chat'] as const) {
+				test(`permission config changes during SDK initialization apply the latest ${source} settings before sending on ${platform}`, async () => {
+					const logService = new CapturingLogService();
+					const sandbox = { enabled: AgentSandboxEnabledValue.On, allowNetwork: false };
+					let sdkSession: MockCopilotSession;
+					let launchUpdates: readonly unknown[] = [];
+					const { session, mockSession } = await createAgentSession(disposables, {
+						platform,
+						logService,
+						rootValues: { [AgentHostSandboxConfigKey.Sandbox]: sandbox },
+						configValues: { [SessionConfigKey.AutoApprove]: 'autoApprove' },
+						duringLaunch: async (runtime, configuration) => {
+							for (const enabled of ['off', 'on']) {
+								if (source === 'root') {
+									configuration.setRootValue(AgentHostSandboxConfigKey.Sandbox, { ...sandbox, enabled });
+									configuration.setRootValue(AgentHostGlobalAutoApproveEnabledConfigKey, enabled === 'off');
+									configuration.fireRootConfigChange();
+								} else {
+									configuration.setConfigValue(SessionConfigKey.SandboxEnabled, enabled);
+									configuration.fireSessionConfigChange({ [SessionConfigKey.SandboxEnabled]: enabled });
+								}
+							}
+							configuration.setConfigValue(SessionConfigKey.AutoApprove, 'default');
+							configuration.fireSessionConfigChange({ [SessionConfigKey.AutoApprove]: 'default' });
+							await runtime.applyLaunchSandbox(sdkSession as unknown as CopilotSession);
+							launchUpdates = [...sdkSession.sandboxConfigUpdates];
+						},
+						configureMockSession: value => { sdkSession = value; },
+					});
+
+					await session.send('hello', undefined, 'turn-1');
+
+					assert.deepStrictEqual({
+						errors: logService.errors,
+						launchUpdates,
+						updates: mockSession.sandboxConfigUpdates,
+						permissionModes: mockSession.permissionModeSetCalls,
+						operations: mockSession.operationLog.filter(operation => ['options.update:sandbox', 'permissions.setMode', 'send'].includes(operation)),
+					}, {
+						errors: [],
+						launchUpdates: [expectedSessionSandboxConfig(platform, sandbox)],
+						updates: [expectedSessionSandboxConfig(platform, sandbox)],
+						permissionModes: ['manual'],
+						operations: ['options.update:sandbox', 'permissions.setMode', 'send'],
+					});
+				});
+
+				test(`permission config changes during SDK initialization serialize ${source} updates with launch sandbox application on ${platform}`, async () => {
+					const logService = new CapturingLogService();
+					const applying = new DeferredPromise<void>();
+					const release = new DeferredPromise<void>();
+					const sandbox = { enabled: AgentSandboxEnabledValue.On, allowNetwork: true };
+					let sdkSession: MockCopilotSession;
+					let activeUpdates = 0;
+					let maxActiveUpdates = 0;
+					const { session, mockSession } = await createAgentSession(disposables, {
+						platform,
+						logService,
+						rootValues: { [AgentHostSandboxConfigKey.Sandbox]: sandbox },
+						configureMockSession: value => {
+							sdkSession = value;
+							value.sandboxConfigUpdateGate = release.p;
+							const update = value.rpc.options.update;
+							value.rpc.options.update = async params => {
+								if (params.sandboxConfig === undefined) {
+									return update(params);
+								}
+								activeUpdates++;
+								maxActiveUpdates = Math.max(maxActiveUpdates, activeUpdates);
+								try {
+									const result = update(params);
+									void applying.complete();
+									return await result;
+								} finally {
+									activeUpdates--;
+								}
+							};
+						},
+						duringLaunch: async (runtime, configuration) => {
+							const launch = runtime.applyLaunchSandbox(sdkSession as unknown as CopilotSession);
+							await applying.p;
+							try {
+								if (source === 'root') {
+									configuration.setRootValue(AgentHostSandboxConfigKey.Sandbox, { ...sandbox, allowNetwork: false });
+									configuration.fireRootConfigChange();
+								} else {
+									configuration.setConfigValue(SessionConfigKey.SandboxEnabled, 'off');
+									configuration.fireSessionConfigChange({ [SessionConfigKey.SandboxEnabled]: 'off' });
+								}
+							} finally {
+								await release.complete();
+							}
+							await launch;
+						},
+					});
+
+					await session.send('hello', undefined, 'turn-1');
+
+					assert.deepStrictEqual({
+						errors: logService.errors,
+						maxActiveUpdates,
+						updates: mockSession.sandboxConfigUpdates,
+						operations: mockSession.operationLog.filter(operation => ['options.update:sandbox', 'send'].includes(operation)),
+					}, {
+						errors: [],
+						maxActiveUpdates: 1,
+						updates: [
+							expectedSessionSandboxConfig(platform, sandbox),
+							source === 'root' ? expectedSessionSandboxConfig(platform, { ...sandbox, allowNetwork: false }) : { enabled: false },
+						],
+						operations: ['options.update:sandbox', 'options.update:sandbox', 'send'],
+					});
+				});
+			}
+
 			for (const peerChat of [false, true]) {
 				test(`applies an idle ${peerChat ? 'peer' : 'default'} session sandbox toggle before the next prompt on ${platform}`, async () => {
 					const sessionUri = AgentSession.uri('copilotcli', 'test-session-1');
@@ -14308,7 +14510,7 @@ Use the attached image as context.
 			const telemetryService = new CapturingTelemetryService();
 			const { session, mockSession } = await createAgentSession(disposables, {
 				telemetryService,
-				clientSnapshot: { tools: [{ name: 'grep' }], plugins: [], mcpServers: {} },
+				clientSnapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [{ name: 'grep' }], plugins: [], mcpServers: {} },
 			});
 			session.resetTurnState('turn-original');
 			await session.send('hello agent', undefined, 'turn-original');
@@ -16142,6 +16344,8 @@ Use the attached image as context.
 			function samplingSnapshot(configuration: IMcpServerConfiguration, pluginSource?: URI): IActiveClientSnapshot {
 				const uri = pluginSource ? URI.joinPath(pluginSource, '.mcp.json') : undefined;
 				return {
+					discoveredAgents: [],
+					additionalRootInstructions: [],
 					tools: [],
 					mcpServers: pluginSource ? {} : { 'test-server': configuration },
 					plugins: pluginSource && uri ? [{
@@ -19571,6 +19775,45 @@ Use the attached image as context.
 			});
 		});
 
+		test('reports one agentHost.fusionPhaseCompleted per phase from the runtime phase record', async () => {
+			const telemetryService = new CapturingTelemetryService();
+			const { session, mockSession } = await createAgentSession(disposables, { telemetryService });
+			session.resetTurnState('fusion-turn');
+			mockSession.fire('session.fusion_resolved', { ...fusionTestData.resolved, syntheticModel: 'hydrafusion-max' });
+			const judge = { phaseId: 'phase-judge', phaseKind: 'judge', role: 'judge', conversationScope: 'review', model: 'gpt-6-sol' } as const;
+			mockSession.fire('assistant.fusion_phase_started', { ...fusionTestData.started, ...judge });
+			mockSession.fire('assistant.fusion_phase_completed', {
+				...fusionTestData.phaseCompleted, ...judge, verdict: 'reject', durationMs: 6500,
+				usage: { requestCount: 1, inputTokens: 1964, outputTokens: 295, cachedTokens: 0, cacheWriteTokens: 1961, totalNanoAiu: 785_850_000 },
+			});
+			mockSession.fire('assistant.fusion_phase_started', { ...fusionTestData.started, phaseId: 'phase-repair', model: 'gpt-6-astra' });
+			mockSession.fire('assistant.fusion_phase_failed', { ...fusionTestData.phaseFailed, phaseId: 'phase-repair', model: 'gpt-6-astra', degradedToPhaseId: 'phase-fallback' });
+			// Repeated terminal records, and records after the workflow finished, must not add rows or usage.
+			mockSession.fire('assistant.fusion_phase_completed', { ...fusionTestData.phaseCompleted, ...judge });
+			mockSession.fire('assistant.fusion_phase_failed', { ...fusionTestData.phaseFailed, phaseId: 'phase-repair', model: 'gpt-6-astra' });
+			mockSession.fire('session.fusion_completed', fusionTestData.completed);
+			mockSession.fire('assistant.fusion_phase_completed', { ...fusionTestData.phaseCompleted, phaseId: 'phase-after-finish' });
+			// A phase that finishes after cancellation belongs to no live turn.
+			mockSession.fire('abort', { reason: 'user_initiated' });
+			mockSession.fire('assistant.fusion_phase_completed', { ...fusionTestData.phaseCompleted, phaseId: 'phase-late' });
+
+			const phaseFields = ['turnId', 'fusionId', 'tier', 'pattern', 'phaseKind', 'role', 'conversationScope', 'presentation', 'status', 'failureReason', 'degraded', 'model', 'reasoningEffort', 'durationMs', 'requestCount', 'inputTokens', 'outputTokens', 'cachedTokens', 'cacheWriteTokens', 'nanoAiu'];
+			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'agentHost.fusionPhaseCompleted').map(event => {
+				const data = event.data as Record<string, unknown>;
+				return Object.fromEntries(phaseFields.map(field => [field, data[field]]));
+			}), [{
+				turnId: 'fusion-turn', fusionId: 'fusion-1', tier: 'hydrafusionMax', pattern: 'cascade',
+				phaseKind: 'judge', role: 'judge', conversationScope: 'review', presentation: 'childChat',
+				status: 'succeeded', failureReason: undefined, degraded: false, model: 'gpt-6-sol', reasoningEffort: undefined,
+				durationMs: 6500, requestCount: 1, inputTokens: 1964, outputTokens: 295, cachedTokens: 0, cacheWriteTokens: 1961, nanoAiu: 785_850_000,
+			}, {
+				turnId: 'fusion-turn', fusionId: 'fusion-1', tier: 'hydrafusionMax', pattern: 'cascade',
+				phaseKind: 'repair', role: 'solver', conversationScope: 'root', presentation: 'childChat',
+				status: 'failed', failureReason: 'provider_error', degraded: true, model: 'gpt-6-astra', reasoningEffort: undefined,
+				durationMs: 1000, requestCount: 1, inputTokens: 10, outputTokens: 4, cachedTokens: 0, cacheWriteTokens: undefined, nanoAiu: 100,
+			}]);
+		});
+
 		test('reports runtime execution exposure in every model arm regardless of the enablement default, not for child turns', async () => {
 			const results: Record<string, { beforeParentTurn: readonly string[]; afterParentTurn: readonly string[] }> = {};
 			for (const [name, enabled, model] of [
@@ -21242,7 +21485,7 @@ Use the attached image as context.
 				sessionUri,
 				chatChannelUri: peerChatUri,
 				resource: peerChatUri,
-				clientSnapshot: { tools: [{ name: 'grep' }, { name: 'edit' }], plugins: [], mcpServers: {} },
+				clientSnapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [{ name: 'grep' }, { name: 'edit' }], plugins: [], mcpServers: {} },
 			});
 			session.resetTurnState('turn-tool-details');
 			await session.send('hello agent', undefined, 'turn-tool-details');
@@ -21321,7 +21564,7 @@ Use the attached image as context.
 			const telemetryService = new CapturingTelemetryService();
 			const { session, mockSession, signals } = await createAgentSession(disposables, {
 				telemetryService,
-				clientSnapshot: { tools: [{ name: 'grep' }], plugins: [], mcpServers: {} },
+				clientSnapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [{ name: 'grep' }], plugins: [], mcpServers: {} },
 			});
 			session.resetTurnState('turn-split-message');
 			await session.send('hello agent', undefined, 'turn-split-message');
@@ -21355,7 +21598,7 @@ Use the attached image as context.
 			const telemetryService = new CapturingTelemetryService();
 			const { session, mockSession, signals } = await createAgentSession(disposables, {
 				telemetryService,
-				clientSnapshot: { tools: [{ name: 'grep' }], plugins: [], mcpServers: {} },
+				clientSnapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [{ name: 'grep' }], plugins: [], mcpServers: {} },
 			});
 			session.resetTurnState('turn-synthetic-read');
 			await session.send('hello agent', undefined, 'turn-synthetic-read');
@@ -21535,6 +21778,8 @@ Use the attached image as context.
 			const { runtime, mockSession } = await createAgentSession(disposables, {
 				telemetryService,
 				clientSnapshot: {
+					discoveredAgents: [],
+					additionalRootInstructions: [],
 					tools: [{ name: CLIENT_TOOL_SEARCH_REFERENCE_NAME, description: 'Search tools', inputSchema: { type: 'object', properties: {} } }],
 					plugins: [],
 					mcpServers: {},
@@ -23591,6 +23836,123 @@ Use the attached image as context.
 		});
 	});
 
+	suite('Computer Use activation', () => {
+
+		async function createActivationSession(options?: { readonly settingEnabled?: boolean; readonly enabled?: boolean; readonly mode?: string; readonly activeTurn?: boolean; readonly githubCredentials?: CopilotGitHubSessionCredentials }) {
+			const plugin = { name: 'computer-use', marketplace: '', source: 'builtin', enabled: options?.enabled ?? false };
+			let pluginListGate = Promise.resolve();
+			const harness = await createAgentSession(disposables, {
+				rootValues: { [AgentHostComputerUseEnabledConfigKey]: options?.settingEnabled ?? true },
+				configValues: options?.mode ? { [SessionConfigKey.Mode]: options.mode } : undefined,
+				githubCredentials: options?.githubCredentials,
+				getInstalledPlugins: async () => {
+					await pluginListGate;
+					return [{ ...plugin }];
+				},
+				configureMockSession: m => {
+					m.onPluginEnable = () => { plugin.enabled = true; };
+				},
+			});
+			if (options?.activeTurn !== false) {
+				harness.session.resetTurnState('turn-computer-use');
+			}
+			/** Holds the runtime's plugin list until `gate` settles. */
+			const holdPluginList = (gate: Promise<void>) => { pluginListGate = gate; };
+			return { ...harness, holdPluginList };
+		}
+
+		function activationRequests(signals: readonly AgentSignal[]) {
+			return getActions(signals).flatMap(action => action.type === ActionType.ChatInputRequested && readComputerUseActivationCard(action.request) ? [action.request] : []);
+		}
+
+		test('asks in a card, turns Computer Use on after Turn On, and stops offering the tool once it is on', async () => {
+			const { session, runtime, mockSession, waitForSignal } = await createActivationSession();
+			const [tool] = await runtime.createComputerUseActivationTools!();
+			const result = invokeClientToolHandler(tool, 'tc-activate', { reason: 'Open Calculator' });
+			const request = getInputRequest(await waitForSignal(signal => isAction(signal, ActionType.ChatInputRequested)));
+			session.respondToUserInputRequest(request.id, ChatInputResponseKind.Accept, getComputerUseActivationAnswers('turnOn'));
+			assert.deepStrictEqual({
+				card: readComputerUseActivationCard(request),
+				result: await result,
+				enableCalls: mockSession.pluginEnableCalls,
+				toolsAfter: (await runtime.createComputerUseActivationTools!()).length,
+			}, {
+				card: { reason: 'Open Calculator' },
+				result: { resultType: 'success', textResultForLlm: 'Computer Use is on. Its tools, from the computer-use MCP server, are available now.' },
+				enableCalls: [{ names: ['computer-use'] }],
+				toolsAfter: 0,
+			});
+		});
+
+		test('offers the tool only while VS Code offers Computer Use and the user hasn\'t turned it on', async () => {
+			const offered = async (options: { readonly settingEnabled?: boolean; readonly enabled?: boolean; readonly githubCredentials?: CopilotGitHubSessionCredentials }) => (await (await createActivationSession(options)).runtime.createComputerUseActivationTools!()).map(tool => tool.name);
+			assert.deepStrictEqual({
+				off: await offered({}),
+				on: await offered({ enabled: true }),
+				settingOff: await offered({ settingEnabled: false }),
+				scopedCredentials: await offered({ githubCredentials: CopilotGitHubSessionCredentials.fromCredential({ resource: 'https://api.github.com', token: 'scoped', expiresAt: undefined, revision: 1 }) }),
+			}, {
+				off: ['enable_computer_use'],
+				on: [],
+				settingOff: [],
+				scopedCredentials: [],
+			});
+		});
+
+		test('answers without a card when policy turns Computer Use off or no one can answer', async () => {
+			const blocked = await createActivationSession();
+			const [blockedTool] = await blocked.runtime.createComputerUseActivationTools!();
+			const resolved = { source: 'server' as const, serverManaged: true, deviceManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: ['features'], settings: { features: { computerUse: false } } };
+			blocked.runtime.onSessionEvent?.({ type: 'session.managed_settings_resolved', id: 'policy', timestamp: new Date().toISOString(), parentId: null, ephemeral: true, data: resolved });
+			const autopilot = await createActivationSession({ mode: 'autopilot' });
+			const [autopilotTool] = await autopilot.runtime.createComputerUseActivationTools!();
+			assert.deepStrictEqual({
+				blocked: (await invokeClientToolHandler(blockedTool, 'tc-blocked', { reason: 'Open Calculator' })).textResultForLlm,
+				autopilot: (await invokeClientToolHandler(autopilotTool, 'tc-autopilot', { reason: 'Open Calculator' })).textResultForLlm,
+				cards: activationRequests([...blocked.signals, ...autopilot.signals]).length,
+			}, {
+				blocked: 'The user\'s organization turned off Computer Use, so it can\'t be turned on. Continue without it.',
+				autopilot: 'Computer Use is off, and no one can turn it on while this chat runs unattended. Continue without it, and tell the user they can turn it on with /computer on.',
+				cards: 0,
+			});
+		});
+
+		test('cancels the card when the turn is aborted', async () => {
+			const { session, runtime, signals, mockSession, waitForSignal } = await createActivationSession();
+			const [tool] = await runtime.createComputerUseActivationTools!();
+			const result = invokeClientToolHandler(tool, 'tc-activate', { reason: 'Open Calculator' });
+			await waitForSignal(signal => isAction(signal, ActionType.ChatInputRequested));
+			await session.abort();
+			assert.deepStrictEqual({ cards: activationRequests(signals).length, result: (await result).textResultForLlm, enableCalls: mockSession.pluginEnableCalls }, {
+				cards: 1,
+				result: 'The request to turn on Computer Use was cancelled.',
+				enableCalls: [],
+			});
+		});
+
+		test('shows no card outside a running turn, also when the turn stops while the plugin is checked', async () => {
+			const idle = await createActivationSession({ activeTurn: false });
+			const [idleTool] = await idle.runtime.createComputerUseActivationTools!();
+			const stopping = await createActivationSession();
+			const [stoppingTool] = await stopping.runtime.createComputerUseActivationTools!();
+			const pluginList = new DeferredPromise<void>();
+			stopping.holdPluginList(pluginList.p);
+			const stoppingResult = invokeClientToolHandler(stoppingTool, 'tc-stopping', { reason: 'Open Calculator' });
+			await stopping.session.abort();
+			pluginList.complete();
+			const unattended = 'Computer Use is off, and no one can turn it on while this chat runs unattended. Continue without it, and tell the user they can turn it on with /computer on.';
+			assert.deepStrictEqual({
+				idle: (await invokeClientToolHandler(idleTool, 'tc-idle', { reason: 'Open Calculator' })).textResultForLlm,
+				stopping: (await stoppingResult).textResultForLlm,
+				cards: activationRequests([...idle.signals, ...stopping.signals]).length,
+			}, {
+				idle: unattended,
+				stopping: unattended,
+				cards: 0,
+			});
+		});
+	});
+
 	suite('Computer Use permission setup', () => {
 
 		async function createComputerUseSession(options?: { readonly source?: 'builtin' | 'user'; readonly withSetup?: boolean; readonly mode?: string; readonly activeTurn?: boolean }) {
@@ -23636,7 +23998,7 @@ Use the attached image as context.
 			mockSession.fire('tool.execution_start', { toolCallId: 'tc-window', toolName: 'get_window_state', mcpServerName: 'computer-use' });
 			const first = permissionPrompt(runtime);
 			const setupId = configuration.status?.setups[0]?.id ?? '';
-			configuration.send({ setupId, round: 1, action: 'request', permission: 'accessibility' });
+			configuration.send({ setupId, round: 1, action: 'allow', permission: 'accessibility' });
 			const firstResult = await first;
 			const second = permissionPrompt(runtime, ['screenRecording']);
 			configuration.send({ setupId, round: 2, action: 'recheck' });
@@ -23725,7 +24087,7 @@ Use the attached image as context.
 				permissions: configuration.status?.permissions.map(permission => permission.state),
 				actions: inputActions(signals).map(action => action.type === 'requested' ? action.setup : action.response),
 			}, {
-				setup: [{ state: 'ended', error: 'unsupportedPrompt' }],
+				setup: [{ state: 'ended', error: undefined }],
 				permissions: ['granted', 'notGranted'],
 				actions: [true, ChatInputResponseKind.Cancel, false],
 			});
@@ -23738,7 +24100,7 @@ Use the attached image as context.
 				await session[cancellation]();
 				assert.deepStrictEqual({ result: await result, setup: configuration.status?.setups.map(candidate => ({ state: candidate.state, error: candidate.error?.code })) }, {
 					result: { action: 'cancel' },
-					setup: [{ state: 'ended', error: 'notWaiting' }],
+					setup: [{ state: 'ended', error: undefined }],
 				});
 			});
 		}
@@ -23839,6 +24201,8 @@ Use the attached image as context.
 			const { session } = await createAgentSession(disposables, {
 				captureRuntime: capturedRuntime,
 				clientSnapshot: {
+					discoveredAgents: [],
+					additionalRootInstructions: [],
 					tools: [],
 					plugins: [{
 						format: PluginFormat.Copilot,
@@ -23921,7 +24285,7 @@ Use the attached image as context.
 			assert.strictEqual(entry.args[0], '[Copilot:test-session-1] Failed in onPostToolUse: tool=edit');
 		});
 
-		test('saves generated images, gives the agent each path and preserves pending Undo context', async () => {
+		test('saves generated images without asking the agent to display or register them again and preserves pending Undo context', async () => {
 			const capturedRuntime: { current?: ICopilotSessionRuntime } = {};
 			const fileEditCoordinator = disposables.add(new AgentHostFileEditCoordinator());
 			const sessionDirectory = URI.file('/mock-state-home/.copilot/session-state/test-session-1');
@@ -23954,13 +24318,42 @@ Use the attached image as context.
 			const otherToolResult = await capturedRuntime.current!.handlePostToolUse(hookInput('view'));
 
 			assert.deepStrictEqual({ imageResult, imageResultAfterUndo, otherToolResult, saved: storedFileContents.get(image.toString()) }, {
-				imageResult: { modifiedResult: { resultType: 'success', textResultForLlm: `Image generated successfully.\nimage_id: ${imageId}\npath: ${image.fsPath}` } },
+				imageResult: {
+					modifiedResult: { resultType: 'success', textResultForLlm: `Image generated successfully.\nimage_id: ${imageId}\npath: ${image.fsPath}` },
+					additionalContext: GENERATED_IMAGE_PRESENTATION_CONTEXT,
+				},
 				imageResultAfterUndo: {
 					modifiedResult: { resultType: 'success', textResultForLlm: `Image generated successfully.\nimage_id: ${imageId}\npath: ${image.fsPath}` },
-					additionalContext: describeDiscardedFileEdits(discarded),
+					additionalContext: `${GENERATED_IMAGE_PRESENTATION_CONTEXT}\n\n${describeDiscardedFileEdits(discarded)}`,
 				},
 				otherToolResult: undefined,
 				saved: 'synthetic image bytes',
+			});
+		});
+
+		test('keeps generated image presentation guidance when the session folder is gone, but not for failed or empty results', async () => {
+			const capturedRuntime: { current?: ICopilotSessionRuntime } = {};
+			await createAgentSession(disposables, { captureRuntime: capturedRuntime, fileContents: {} });
+			const bytes = Buffer.from('synthetic image bytes');
+			const imageId = `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
+			const toolResult = {
+				resultType: 'success' as const,
+				textResultForLlm: `Image generated successfully.\nimage_id: ${imageId}`,
+				contents: [{ type: 'image', data: bytes.toString('base64'), mimeType: 'image/png' }],
+				structuredContent: { imageGeneration: { images: [{ contentIndex: 0, mimeType: 'image/png', imageId }] } },
+			};
+			const hook = {
+				sessionId: 'test-session-1', timestamp: new Date(0), workingDirectory: '/tmp', toolName: 'image_generation', toolArgs: {},
+			};
+
+			assert.deepStrictEqual({
+				success: await capturedRuntime.current!.handlePostToolUse({ ...hook, toolResult }),
+				failure: await capturedRuntime.current!.handlePostToolUse({ ...hook, toolResult: { ...toolResult, resultType: 'failure' } }),
+				empty: await capturedRuntime.current!.handlePostToolUse({ ...hook, toolResult: { resultType: 'success', textResultForLlm: 'No image was returned.' } }),
+			}, {
+				success: { additionalContext: GENERATED_IMAGE_PRESENTATION_CONTEXT },
+				failure: undefined,
+				empty: undefined,
 			});
 		});
 	});
@@ -23970,6 +24363,8 @@ Use the attached image as context.
 	suite('client tool calls', () => {
 
 		const snapshot: IActiveClientSnapshot = {
+			discoveredAgents: [],
+			additionalRootInstructions: [],
 			tools: [{
 				name: 'my_tool',
 				description: 'A test tool',
@@ -24024,6 +24419,8 @@ Use the attached image as context.
 
 		test('semantic search overrides the built-in tool and is deferred', async () => {
 			const semanticSearchSnapshot: IActiveClientSnapshot = {
+				discoveredAgents: [],
+				additionalRootInstructions: [],
 				tools: [{
 					name: SEMANTIC_SEARCH_TOOL_NAME,
 					description: 'Semantically searches the workspace',
@@ -24065,6 +24462,8 @@ Use the attached image as context.
 
 		test('semantic search becomes ready without an SDK permission callback', async () => {
 			const semanticSearchSnapshot: IActiveClientSnapshot = {
+				discoveredAgents: [],
+				additionalRootInstructions: [],
 				tools: [{
 					name: SEMANTIC_SEARCH_TOOL_NAME,
 					description: 'Semantically searches the workspace',
@@ -24400,6 +24799,8 @@ Use the attached image as context.
 
 		async function createToolSearchSession(autoApprove: boolean) {
 			const toolSearchSnapshot: IActiveClientSnapshot = {
+				discoveredAgents: [],
+				additionalRootInstructions: [],
 				tools: [{ name: 'toolSearch', description: 'Search tools', inputSchema: { type: 'object', properties: { query: { type: 'string' } } } }],
 				plugins: [],
 				mcpServers: {},
@@ -24426,6 +24827,8 @@ Use the attached image as context.
 				headers: { Authorization: 'secret-token' },
 			} satisfies IMcpServerConfiguration;
 			const toolSearchSnapshot: IActiveClientSnapshot = {
+				discoveredAgents: [],
+				additionalRootInstructions: [],
 				tools: [{ name: 'toolSearch', description: 'Search tools', inputSchema: { type: 'object', properties: { query: { type: 'string' } } } }],
 				plugins: [],
 				mcpServers: { docs: configuration },
@@ -24648,6 +25051,8 @@ Use the attached image as context.
 		});
 
 		const globalMcpRoutingSnapshot: IActiveClientSnapshot = {
+			discoveredAgents: [],
+			additionalRootInstructions: [],
 			tools: [{ name: 'toolSearch', description: 'Search tools', inputSchema: { type: 'object', properties: { query: { type: 'string' } } } }],
 			plugins: [],
 			mcpServers: {},
@@ -24736,6 +25141,8 @@ Use the attached image as context.
 				getUserMcpServers: async () => Object.fromEntries(['user', 'root', 'explicit', 'disabled-root', 'disabled-plugin'].map(name => [name, userConfiguration])),
 				disabledRootMcpServers: ['disabled-root'],
 				clientSnapshot: {
+					discoveredAgents: [],
+					additionalRootInstructions: [],
 					tools: globalMcpRoutingSnapshot.tools,
 					plugins: [plugin],
 					mcpServers: { root: configuration('root'), explicit: configuration('root'), 'disabled-root': configuration('root') },
@@ -25255,6 +25662,8 @@ Use the attached image as context.
 
 		test('tool search loads host-runnable tools named in the query once its client disconnects', async () => {
 			const toolSearchSnapshot: IActiveClientSnapshot = {
+				discoveredAgents: [],
+				additionalRootInstructions: [],
 				tools: [
 					{ name: 'toolSearch', description: 'Search tools', inputSchema: { type: 'object', properties: { query: { type: 'string' } } } },
 					{ name: 'screenshotPage', description: 'Capture an image of the browser page', inputSchema: { type: 'object', properties: {} } },
@@ -25319,6 +25728,8 @@ Use the attached image as context.
 
 		test('tool search keeps a disconnect failure and answers the next search on the host', async () => {
 			const toolSearchSnapshot: IActiveClientSnapshot = {
+				discoveredAgents: [],
+				additionalRootInstructions: [],
 				tools: [
 					{ name: 'toolSearch', description: 'Search tools', inputSchema: { type: 'object', properties: { query: { type: 'string' } } } },
 					{ name: 'screenshotPage', description: 'Capture an image of the browser page', inputSchema: { type: 'object', properties: {} } },
@@ -25388,6 +25799,8 @@ Use the attached image as context.
 
 		test('tool-search override follows the launch-time decision', async () => {
 			const toolSearchSnapshot: IActiveClientSnapshot = {
+				discoveredAgents: [],
+				additionalRootInstructions: [],
 				tools: [
 					{ name: 'toolSearch', description: 'Search tools', inputSchema: { type: 'object', properties: {} } },
 					{ name: 'my_tool', description: 'Regular tool', inputSchema: { type: 'object', properties: {} } },
@@ -25411,6 +25824,8 @@ Use the attached image as context.
 
 		test('agent-coordination client tools auto-ready with a tailored invocation message', async () => {
 			const agentSnapshot: IActiveClientSnapshot = {
+				discoveredAgents: [],
+				additionalRootInstructions: [],
 				tools: [{ name: 'list_agents', description: 'List agents', inputSchema: { type: 'object', properties: {} } }],
 				plugins: [],
 				mcpServers: {},
@@ -26085,6 +26500,8 @@ Use the attached image as context.
 					inputSchema: { type: 'object', properties: { prompt: { type: 'string' }, title: { type: 'string' } }, required: ['prompt', 'title'] },
 				};
 				const clientSnapshot: IActiveClientSnapshot = {
+					discoveredAgents: [],
+					additionalRootInstructions: [],
 					tools: [{
 						name: 'create_session', description: 'App child creation',
 						inputSchema: { type: 'object', properties: { kickoff: { type: 'object', properties: { prompt: { type: 'string' } } } } },
@@ -26127,7 +26544,7 @@ Use the attached image as context.
 					name: 'create_session', description: 'App child creation',
 					inputSchema: { type: 'object', properties: { kickoff: { type: 'string' } } },
 				};
-				const clientSnapshot: IActiveClientSnapshot = { tools: [clientDefinition], plugins: [], mcpServers: {} };
+				const clientSnapshot: IActiveClientSnapshot = { discoveredAgents: [], additionalRootInstructions: [], tools: [clientDefinition], plugins: [], mcpServers: {} };
 				const activeClientToolSet = new ActiveClientToolSet();
 				activeClientToolSet.set('connected-app', clientSnapshot.tools);
 				const { session, runtime, mockSession, signals, waitForSignal } = await createAgentSession(disposables, {
@@ -26173,7 +26590,7 @@ Use the attached image as context.
 				]);
 				const { runtime } = await createAgentSession(disposables, {
 					serverToolHost,
-					clientSnapshot: { tools: [{ name: CLIENT_TOOL_SEARCH_REFERENCE_NAME }], plugins: [], mcpServers: {} },
+					clientSnapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [{ name: CLIENT_TOOL_SEARCH_REFERENCE_NAME }], plugins: [], mcpServers: {} },
 				});
 				runtime.createClientSdkTools(toolSearchActive);
 				const deferrals = () => runtime.createServerSdkTools().map(({ name, defer }) => ({ name, defer }));
@@ -26205,6 +26622,8 @@ Use the attached image as context.
 					persist: () => { },
 				})]);
 				const clientSnapshot: IActiveClientSnapshot = {
+					discoveredAgents: [],
+					additionalRootInstructions: [],
 					tools: [{ name: CLIENT_TOOL_SEARCH_REFERENCE_NAME, description: 'Search tools', inputSchema: { type: 'object', properties: { query: { type: 'string' } } } }],
 					plugins: [],
 					mcpServers: {},
@@ -27311,6 +27730,8 @@ Use the attached image as context.
 			const serverName = 'context7';
 			const { session, mockSession } = await createAgentSession(disposables, {
 				clientSnapshot: {
+					discoveredAgents: [],
+					additionalRootInstructions: [],
 					tools: [], plugins: [],
 					mcpServers: { [serverName]: { type: McpServerType.REMOTE, url: 'https://mcp.example.com/context7' } },
 				},
@@ -27934,6 +28355,8 @@ Use the attached image as context.
 			const enableGate = new DeferredPromise<void>();
 			const { session, mockSession } = await createAgentSession(disposables, {
 				clientSnapshot: {
+					discoveredAgents: [],
+					additionalRootInstructions: [],
 					tools: [], plugins: [],
 					mcpServers: { [serverName]: { type: McpServerType.REMOTE, url: 'https://mcp.example.com/azure' } },
 				},
@@ -28058,6 +28481,8 @@ Use the attached image as context.
 			let desiredEnabled = false;
 			const { session, mockSession } = await createAgentSession(disposables, {
 				clientSnapshot: {
+					discoveredAgents: [],
+					additionalRootInstructions: [],
 					tools: [], plugins: [],
 					mcpServers: { [serverName]: { type: McpServerType.REMOTE, url: 'https://mcp.example.com/azure' } },
 				},
@@ -28103,6 +28528,8 @@ Use the attached image as context.
 			const id = 'mcp-top-level:copilotcli:test-session-1:azure';
 			const { session, mockSession } = await createAgentSession(disposables, {
 				clientSnapshot: {
+					discoveredAgents: [],
+					additionalRootInstructions: [],
 					tools: [], plugins: [],
 					mcpServers: { [serverName]: { type: McpServerType.REMOTE, url: 'https://mcp.example.com/azure' } },
 				},
@@ -28151,6 +28578,8 @@ Use the attached image as context.
 			}];
 			const { session, mockSession, dispatchSessionAction } = await createAgentSession(disposables, {
 				clientSnapshot: {
+					discoveredAgents: [],
+					additionalRootInstructions: [],
 					tools: [],
 					plugins: [{
 						format: PluginFormat.Copilot,
@@ -28208,6 +28637,8 @@ Use the attached image as context.
 			let desiredEnabled = true;
 			const { session, mockSession } = await createAgentSession(disposables, {
 				clientSnapshot: {
+					discoveredAgents: [],
+					additionalRootInstructions: [],
 					tools: [], plugins: [],
 					mcpServers: { [serverName]: { type: McpServerType.REMOTE, url: 'https://mcp.example.com/slack' } },
 				},
@@ -28778,6 +29209,8 @@ Use the attached image as context.
 			}];
 			const { session, runtime, waitForSignal } = await createAgentSession(disposables, {
 				clientSnapshot: {
+					discoveredAgents: [],
+					additionalRootInstructions: [],
 					tools: [],
 					plugins: [{
 						format: PluginFormat.Copilot,
@@ -30545,6 +30978,8 @@ Use the attached image as context.
 				const { session, mockSession, waitForSignal } = await createAgentSession(disposables, {
 					resume,
 					clientSnapshot: {
+						discoveredAgents: [],
+						additionalRootInstructions: [],
 						tools: [],
 						mcpServers: {},
 						plugins: [{
@@ -31048,7 +31483,7 @@ Use the attached image as context.
 				});
 				const { session, mockSession } = await createAgentSession(disposables, {
 					sessionUri, resource, chatChannelUri: chat, telemetryService,
-					clientSnapshot: { tools: [{ name: 'grep' }], plugins: [], mcpServers: {} },
+					clientSnapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [{ name: 'grep' }], plugins: [], mcpServers: {} },
 				});
 				session.resetTurnState('turn-chat');
 				await session.send('hello', undefined, 'turn-chat');
@@ -31464,6 +31899,19 @@ Use the attached image as context.
 				mockSession.operationLog.indexOf('options.update:sandbox') < mockSession.operationLog.indexOf('options.update:shell'),
 				JSON.stringify(mockSession.operationLog),
 			);
+		});
+
+		test('applies the session script of the chat\'s current owner once its launch owner ended by moving it under another session', async () => {
+			const ended = AgentSession.uri('copilot', 'owner-ended');
+			const current = AgentSession.uri('copilot', 'owner-current');
+			const owner = disposables.add(new TestChatOwnerRef(ended));
+			// Only the current owner has config: the launch owner ended with the move.
+			const { session, mockSession } = await createEnabledSession({ sessionUri: current, owner, configValues: { [SessionConfigKey.ShellInitScripts]: [initScript] } });
+			owner.set(current);
+
+			await session.send('go', undefined, 'turn-1', 'interactive');
+
+			assert.deepStrictEqual(mockSession.shellInitScriptUpdates.map(update => (update as unknown[]).length), [1]);
 		});
 
 		test('does not apply a session script while the host flag is off', async () => {

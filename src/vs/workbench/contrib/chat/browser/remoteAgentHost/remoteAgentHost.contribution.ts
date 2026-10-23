@@ -55,7 +55,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				localize('remoteConnections.devTunnel', "Allow remote connections through a secure Dev Tunnel from VS Code or a browser."),
 				localize('remoteConnections.githubEnvironment', "Register this machine as a GitHub environment for remote agent access (preview). Remote clients receive trusted-owner access to sessions, tools, and workspace resources. Session actions are mirrored to GitHub for catalog and history storage. Conversation content is not end-to-end encrypted."),
 			],
-			description: localize('remoteConnections', "Choose the connection method used by Allow Remote Connections. In VS Code Insiders and Code - OSS, the dropdown next to the button updates this setting. Selecting a method does not enable sharing. Changing the method turns sharing off."),
+			description: localize('remoteConnections', "Choose the connection method used by Allow Remote Connections. In VS Code Insiders and Code - OSS, selecting a method in the Remote Connections menu updates this setting and enables sharing. Selecting Off disables sharing without changing the preferred method. Changing this setting directly turns sharing off."),
 			default: 'devTunnel',
 			scope: ConfigurationScope.APPLICATION,
 			restricted: true,

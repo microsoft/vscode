@@ -49,8 +49,6 @@ export interface IChatMoveEligibility extends IChatMoveStructuralEligibility {
 	readonly converting: boolean;
 	/** It works in an additional worktree recorded for it that a chat staying in its session also uses ({@link AgentChatMoveRefusal.WorktreeFolder}). */
 	readonly worktreeFolder: boolean;
-	/** It or a descendant runs Agent Merge for a folder of its session ({@link AgentChatMoveRefusal.AgentMergeOwner}). */
-	readonly agentMergeOwner: boolean;
 	/** Its session's legacy chat catalog can't be converted for now: its conversion is parked ({@link AgentChatMoveRefusal.LegacyCatalog}). */
 	readonly legacyCatalog: boolean;
 }
@@ -78,7 +76,6 @@ export function isChatMovable(eligibility: IChatMoveEligibility): boolean {
 		&& !eligibility.workspaceless
 		&& !eligibility.converting
 		&& !eligibility.worktreeFolder
-		&& !eligibility.agentMergeOwner
 		&& !eligibility.legacyCatalog;
 }
 
@@ -100,6 +97,7 @@ export const enum AgentChatMoveRefusal {
 	ConversionInProgress = 'conversionInProgress',
 	WorktreeFolder = 'worktreeFolder',
 	Workspaceless = 'workspaceless',
+	/** Only older hosts: a chat that runs Agent Merge now moves with it. */
 	AgentMergeOwner = 'agentMergeOwner',
 	DestinationSingleFolder = 'destinationSingleFolder',
 	LegacyCatalog = 'legacyCatalog',

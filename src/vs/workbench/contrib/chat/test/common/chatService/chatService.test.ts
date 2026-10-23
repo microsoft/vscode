@@ -73,7 +73,7 @@ import { ChatModel, IChatModel, ISerializableChatData, ISerializableChatModelInp
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatSessionOperationLog } from '../../../common/model/chatSessionOperationLog.js';
 import { IChatSessionIndex } from '../../../common/model/chatSessionStore.js';
-import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
+import { getChatSessionType, LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { ChatViewModel, isPendingDividerVM, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatAgentService, IChatAgent, IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
@@ -3525,6 +3525,51 @@ suite('ChatService', () => {
 		]);
 	});
 
+	test('native peer side chats invoke their own participant rather than the default extension participant', async () => {
+		const sessionType = 'agent-host-copilot';
+		const sessionsService = new MockChatSessionsService();
+		sessionsService.setContributions([{ type: sessionType, name: 'Native', displayName: 'Native', description: 'Native' }]);
+		testDisposables.add(sessionsService.registerChatSessionContentProvider(sessionType, {
+			provideChatSessionContent: async sessionResource => ({
+				sessionResource, history: [], onWillDispose: Event.None, dispose: () => { },
+			}),
+		}));
+		instantiationService.stub(IChatSessionsService, sessionsService);
+		const invoked: { agentId: string; resource: string; message: string }[] = [];
+		testDisposables.add(chatAgentService.registerAgent('extension-default', { ...getAgentData('extension-default'), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation('extension-default', {
+			async invoke(request) {
+				invoked.push({ agentId: request.agentId, resource: request.sessionResource.toString(), message: request.message });
+				return {};
+			},
+		}));
+		testDisposables.add(chatAgentService.registerAgent(sessionType, getAgentData(sessionType)));
+		testDisposables.add(chatAgentService.registerAgentImplementation(sessionType, {
+			async invoke(request) {
+				invoked.push({ agentId: request.agentId, resource: request.sessionResource.toString(), message: request.message });
+				return {};
+			},
+		}));
+		const service = createChatService();
+		for (const fragment of ['first-side-chat', 'second-side-chat']) {
+			const resource = URI.from({ scheme: sessionType, path: '/source-session', fragment });
+			const reference = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(reference);
+			testDisposables.add(reference);
+			const result = await service.sendRequest(resource, 'Remember the source context', {
+				location: ChatAgentLocation.Chat,
+				agentIdSilent: getChatSessionType(resource),
+			});
+			ChatSendResult.assertSent(result);
+			await result.data.responseCompletePromise;
+		}
+		assert.deepStrictEqual(invoked, ['first-side-chat', 'second-side-chat'].map(fragment => ({
+			agentId: sessionType,
+			resource: `${sessionType}:/source-session#${fragment}`,
+			message: 'Remember the source context',
+		})));
+	});
+
 	test('sendRequest with agentIdSilent passes agent host session capabilities to the request parser', async () => {
 		const sessionType = 'agent-host-copilot';
 		const sessionResource = URI.from({ scheme: sessionType, path: '/session-silent' });
@@ -3907,6 +3952,7 @@ suite('ChatService', () => {
 		const remoteScheme = 'remote-streaming-test';
 
 		interface IProvidedSessionOptions {
+			readonly agent?: IChatAgentImplementation;
 			readonly progressObs?: ISettableObservable<IChatProgress[]>;
 			readonly isCompleteObs?: ISettableObservable<boolean>;
 			readonly isReadOnly?: ISettableObservable<boolean>;
@@ -3929,7 +3975,7 @@ suite('ChatService', () => {
 			instantiationService.stub(IChatSessionsService, mockSessionsService);
 
 			testDisposables.add(chatAgentService.registerAgent(remoteScheme, { ...getAgentData(remoteScheme), isDefault: true }));
-			testDisposables.add(chatAgentService.registerAgentImplementation(remoteScheme, { async invoke() { return {}; } }));
+			testDisposables.add(chatAgentService.registerAgentImplementation(remoteScheme, opts.agent ?? { async invoke() { return {}; } }));
 
 			let history = opts.history ?? [{ type: 'request', prompt: 'hello', participant: remoteScheme }];
 			const onDidChangeHistory = opts.onDidChangeHistory;
@@ -5418,6 +5464,67 @@ suite('ChatService', () => {
 				localPreserved: true,
 			});
 		});
+
+		for (const draft of ['', 'A newer draft']) {
+			test(`a rejected request retains its prompt and error across history refresh without replacing ${draft ? 'a newer' : 'an empty'} draft`, async () => {
+				const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
+				const invoked = new DeferredPromise<void>();
+				const rejection = new DeferredPromise<never>();
+				const history: IChatSessionHistoryItem[] = [
+					{ type: 'request', id: 'accepted', prompt: 'Accepted request', participant: remoteScheme },
+					{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString('Original response') }], participant: remoteScheme },
+				];
+				const { resource } = setupRemoteProvider({
+					history,
+					onDidChangeHistory: changes.event,
+					agent: {
+						invoke: () => {
+							invoked.complete();
+							return rejection.p;
+						},
+					},
+				});
+				const service = createChatServiceWithFrozenHistoryClock();
+				instantiationService.stub(IChatService, service);
+				const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+				assert.ok(ref);
+				testDisposables.add(ref);
+				const model = ref.object;
+				const viewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+				const sent = await service.sendRequest(resource, 'Keep this rejected prompt', { agentIdSilent: remoteScheme });
+				assert.ok(ChatSendResult.isSent(sent));
+				await invoked.p;
+				const response = await sent.data.responseCreatedPromise;
+				const attachments: IChatRequestVariableEntry[] = draft
+					? [{ kind: 'file', id: 'new-draft-file', name: 'draft.ts', value: URI.file('/workspace/draft.ts') }]
+					: [];
+				model.inputModel.setState({ inputText: draft, attachments });
+				const message = 'Your message could not be sent: The host cannot accept this request.';
+				await rejection.error(new Error(message));
+				await sent.data.responseCompletePromise;
+				changes.fire([
+					history[0],
+					{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString('Refreshed response') }], participant: remoteScheme },
+				]);
+				await waitForResponse(model, 'accepted', 'Refreshed response');
+
+				assert.deepStrictEqual({
+					items: viewModel.getItems().map(item => isRequestVM(item) ? item.messageText : isResponseVM(item) ? item.errorDetails?.message ?? item.response.toString() : 'pending'),
+					responsePreserved: model.getRequests().at(-1)?.response === response,
+					complete: response?.isComplete,
+					active: model.hasActiveRequest.get(),
+					draft: model.inputModel.state.get()?.inputText,
+					attachments: model.inputModel.state.get()?.attachments,
+				}, {
+					items: ['Accepted request', 'Refreshed response', 'Keep this rejected prompt', message],
+					responsePreserved: true,
+					complete: true,
+					active: false,
+					draft,
+					attachments,
+				});
+			});
+		}
 
 		test('passive history removes absent restored turns without removing local turns', async () => {
 			const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
