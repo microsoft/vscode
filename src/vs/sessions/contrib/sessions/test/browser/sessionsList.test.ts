@@ -5258,6 +5258,96 @@ suite('Sessions - SessionsList', () => {
 				afterSubgroupMove: ['Triage', '  Flaky', '  Perf', 'Release work', '  Docs', '  Hotfixes'],
 			});
 		});
+
+		/**
+		 * Renders Release work and Triage, without sessions, with a session in each
+		 * of Recent, Older, and Archived, grouped by date with the real group and order services.
+		 */
+		function renderByDate(sectionOrder?: readonly string[]) {
+			const now = Date.now();
+			const sessions = [
+				createTestSession('Fresh', { createdAt: new Date(now - 60_000) }).session,
+				createTestSession('Stale', { createdAt: new Date(now - 30 * 24 * 60 * 60_000) }).session,
+				createTestSession('Finished', { createdAt: new Date(now - 120_000), isArchived: true }).session,
+			];
+			const harness = createListHarness(disposables, sessions);
+			const storageService = harness.instantiationService.get(IStorageService);
+			storageService.store('sessionsListControl.groups', JSON.stringify({ groups: [release, triage], membership: {} }), StorageScope.PROFILE, StorageTarget.USER);
+			if (sectionOrder) {
+				storageService.store('sessionsListControl.sectionOrder', JSON.stringify({ order: sectionOrder, promoted: [] }), StorageScope.PROFILE, StorageTarget.USER);
+			}
+			const orderService = harness.store.add(new SessionSectionOrderService(storageService));
+			const groupsService = harness.store.add(new SessionGroupsService(storageService, upcastPartial<ISessionsManagementService>({
+				onDidChangeSessions: Event.None,
+				onDidDeleteSession: Event.None,
+				onDidArchiveSession: Event.None,
+				onWillSendRequest: Event.None,
+				onDidReplaceNewDraftSession: Event.None,
+				onDidReplaceSession: Event.None,
+				onDidStartSession: Event.None,
+				onDidDiscardNewSession: Event.None,
+				onDidMoveChat: Event.None,
+				getSessions: () => sessions,
+				getInFlightNewSessionRequests: () => [],
+				getSession: () => undefined,
+			}), orderService));
+			harness.instantiationService.stub(ISessionSectionOrderService, orderService);
+			harness.instantiationService.stub(ISessionGroupsService, groupsService);
+			const container = harness.createContainer(400, 800);
+			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(800, 400);
+			list.setExcludeArchived(false);
+			const headers = () => [...container.querySelectorAll<HTMLElement>('.monaco-list-row')]
+				.sort((a, b) => parseFloat(a.style.top) - parseFloat(b.style.top))
+				.filter(row => row.querySelector('.session-group, .session-section'))
+				.map(labelOf);
+			return { container, list, groupsService, headers };
+		}
+
+		test('drops a group between and below the date sections, drawing the line below an expanded section\'s rows', () => {
+			const { container, list, groupsService, headers } = renderByDate();
+			const drag = (source: string, target: string, fraction: number) => {
+				const targetRow = rowOf(container, target);
+				let feedback: string[] = [];
+				dragRow(rowOf(container, source), targetRow, fraction, () => {
+					feedback = [...targetRow.parentElement!.querySelectorAll<HTMLElement>('.monaco-list-row')]
+						.filter(row => /drop-target/.test(row.className))
+						.map(row => `${labelOf(row)}: ${[...row.classList].filter(name => name.startsWith('drop-target')).join(' ')}`);
+				});
+				return { drop: `${source} onto ${target} at ${fraction}`, feedback, headers: headers() };
+			};
+
+			const initial = headers();
+			const drops = [
+				drag('Triage', 'Older', 0.1),
+				drag('Release work', 'Older', 0.9),
+				drag('Release work', 'Recent', 0.9),
+			];
+			// Garbage-collecting the order after a group change keeps the date sections in it.
+			groupsService.createGroup('Docs');
+			list.update(true);
+
+			assert.deepStrictEqual({ initial, drops, afterNewGroup: headers() }, {
+				initial: ['Release work', 'Triage', 'Recent', 'Older', 'Archived'],
+				drops: [
+					{ drop: 'Triage onto Older at 0.1', feedback: ['Older: drop-target-before'], headers: ['Release work', 'Recent', 'Triage', 'Older', 'Archived'] },
+					// Older starts collapsed below Recent, so the line after it is drawn above Archived.
+					{ drop: 'Release work onto Older at 0.9', feedback: ['Archived: drop-target-before'], headers: ['Recent', 'Triage', 'Older', 'Release work', 'Archived'] },
+					{ drop: 'Release work onto Recent at 0.9', feedback: ['Triage: drop-target-before'], headers: ['Recent', 'Release work', 'Triage', 'Older', 'Archived'] },
+				],
+				afterNewGroup: ['Docs', 'Recent', 'Release work', 'Triage', 'Older', 'Archived'],
+			});
+		});
+
+		test('keeps Recent above Older when a reorder in another grouping mode swapped them in the stored order', () => {
+			const { headers } = renderByDate(['group:triage', 'older', 'group:release', 'recent']);
+
+			assert.deepStrictEqual(headers(), ['Triage', 'Recent', 'Release work', 'Older', 'Archived']);
+		});
 	});
 
 	suite('section collapse persistence', () => {
