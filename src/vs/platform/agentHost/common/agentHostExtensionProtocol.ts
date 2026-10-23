@@ -99,8 +99,13 @@ export const SetChatWorkspaceExtensionMethod = 'vscode/setChatWorkspace';
  * `vscode.chatpadSession` `createSession` flag becomes that chat. Advertised by `vscode.chatpad`.
  */
 export const GetChatpadExtensionMethod = 'vscode/getChatpad';
-/** Appends text to the Chatpad note as typed, without running a turn. Advertised by `vscode.chatpad`. */
+/**
+ * Appends text to the Chatpad note as typed, without running a turn. The text must not be blank or longer than
+ * {@link AppendToChatpadMaxTextLength}. Advertised by `vscode.chatpad`.
+ */
 export const AppendToChatpadExtensionMethod = 'vscode/appendToChatpad';
+/** The longest text, in UTF-16 code units, that {@link AppendToChatpadExtensionMethod} appends at once. */
+export const AppendToChatpadMaxTextLength = 64 * 1024;
 export const ReadSavedChatExtensionMethod = 'vscode/readSavedChat';
 export const CompleteSavedChatContinuationExtensionMethod = 'vscode/completeSavedChatContinuation';
 export const ReportAgentHostFirstResponseExtensionMethod = 'vscode/reportAgentHostFirstResponse';

@@ -28,3 +28,12 @@ export function readChatpadSessionMeta(meta: Record<string, unknown> | undefined
 export function withChatpadSessionMeta(meta: Record<string, unknown> | undefined): Record<string, unknown> {
 	return { ...meta, [AgentHostChatpadSessionMetaKey]: true };
 }
+
+/** Returns `createSession` metadata without the Chatpad chat's type; `meta` itself when it has none. */
+export function withoutChatpadSessionMeta<T extends Record<string, unknown>>(meta: T | undefined): T | undefined {
+	if (!meta || !Object.hasOwn(meta, AgentHostChatpadSessionMetaKey)) {
+		return meta;
+	}
+	const { [AgentHostChatpadSessionMetaKey]: _chatpad, ...rest } = meta;
+	return rest as T;
+}
