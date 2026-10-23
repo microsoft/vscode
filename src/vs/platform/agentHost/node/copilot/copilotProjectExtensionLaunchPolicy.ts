@@ -72,7 +72,11 @@ export class CopilotProjectExtensionLaunchPolicy {
 	private _trustState: ICopilotProjectExtensionTrustState = { expansions: 0, contractions: 0 };
 	/** Canonical trusted roots of the current trust, by trusted URI. Only resolved roots are kept, so a missing one is retried. */
 	private readonly _canonicalTrustedRoots = new Map<string, Promise<URI | undefined>>();
-	/** Project extensions whose latest launch was allowed, by requested entrypoint path. */
+	/**
+	 * Project extension launches this policy allowed, by requested entrypoint and canonical module. The policy is shared by
+	 * every session, and a later decision for the same entrypoint says nothing about instances already running, so a
+	 * record is dropped only once no live session admits its module.
+	 */
 	private readonly _allowedLaunches = new Map<string, { readonly module: URI; readonly extensionName: string }>();
 
 	constructor(
@@ -120,11 +124,11 @@ export class CopilotProjectExtensionLaunchPolicy {
 	async reconciliationFor(change: ICopilotProjectExtensionTrustChange): Promise<ICopilotProjectExtensionTrustReconciliation> {
 		const revokedExtensionNames = new Set<string>();
 		if (change.contracted) {
-			for (const [modulePath, launch] of [...this._allowedLaunches]) {
+			for (const [key, launch] of [...this._allowedLaunches]) {
 				if (!this._isAdmitted(launch.module)) {
 					// No live session admits it, so no session runs it.
-					if (this._allowedLaunches.get(modulePath) === launch) {
-						this._allowedLaunches.delete(modulePath);
+					if (this._allowedLaunches.get(key) === launch) {
+						this._allowedLaunches.delete(key);
 					}
 					continue;
 				}
@@ -232,8 +236,6 @@ export class CopilotProjectExtensionLaunchPolicy {
 
 		let launchModulePath = modulePath;
 		if (source === 'project') {
-			// Until this decision allows it again, the extension is not running under trust that might be revoked.
-			this._allowedLaunches.delete(modulePath);
 			const module = await this._canonicalFileUri(URI.file(modulePath));
 			if (!module || basename(module) !== 'extension.mjs') {
 				this._logService.trace(`[Copilot] Project extension launch denied because its entrypoint could not be resolved: ${modulePath}`);
@@ -248,7 +250,7 @@ export class CopilotProjectExtensionLaunchPolicy {
 				return {};
 			}
 			// The runtime names a project extension after the folder it discovered, which a symlink may resolve elsewhere.
-			this._allowedLaunches.set(modulePath, { module, extensionName: basename(dirname(URI.file(modulePath))) });
+			this._allowedLaunches.set(`${modulePath}\n${module.toString()}`, { module, extensionName: basename(dirname(URI.file(modulePath))) });
 			launchModulePath = module.fsPath;
 		}
 
