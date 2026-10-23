@@ -38,7 +38,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { QuickInputService } from '../../../../../platform/quickinput/browser/quickInputService.js';
-import { IConfirmation, IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IConfirmationResult, IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { chartsGreen, chartsPurple } from '../../../../../platform/theme/common/colors/chartsColors.js';
 import { IChatPillEntry, withChatPillHoverLabel } from '../../../../../workbench/browser/chatPills.js';
 import { IChatEntitlementService, IChatSentiment } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
@@ -1809,10 +1809,6 @@ suite('Artifact Integration Presentation', () => {
 
 		test('tabbed automation master works while collapsed and preserves provider consent and revocation', async () => {
 			const f = fixture();
-			const confirmations: IConfirmation[] = [];
-			f.instantiation.stub(IDialogService, new class extends mock<IDialogService>() {
-				override async confirm(confirmation: IConfirmation) { confirmations.push(confirmation); return { confirmed: true }; }
-			}());
 			const a = f.artifact();
 			const panel = await open(f, a);
 			const master = panel.querySelector<HTMLButtonElement>('.artifact-card-heading [role="switch"]')!;
@@ -1827,9 +1823,9 @@ suite('Artifact Integration Presentation', () => {
 			await settle(f);
 			assert.deepStrictEqual({
 				enabled, disabled: master.getAttribute('aria-checked'), collapsed: panel.querySelector<HTMLElement>('.artifact-card-content')?.hidden,
-				confirmations: confirmations.length, configured: a.configured, actions: a.invoked,
+				configured: a.configured, actions: a.invoked,
 			}, {
-				enabled: 'true', disabled: 'false', collapsed: true, confirmations: 1,
+				enabled: 'true', disabled: 'false', collapsed: true,
 				configured: [
 					{ integrationId: 'test', revision: 4, values: { fix: true, reviews: true, merge: true } },
 					{ integrationId: 'test', revision: 5, values: { fix: false, reviews: false, merge: false } },
@@ -1911,12 +1907,8 @@ suite('Artifact Integration Presentation', () => {
 		test('tabbed bulk enablement uses the displayed enum choices without a policy picker', async () => {
 			const f = fixture();
 			let picks = 0;
-			const confirmations: IConfirmation[] = [];
 			f.instantiation.stub(IQuickInputService, new class extends mock<IQuickInputService>() {
 				override readonly pick: IQuickInputService['pick'] = async () => { picks++; return undefined; };
-			}());
-			f.instantiation.stub(IDialogService, new class extends mock<IDialogService>() {
-				override async confirm(confirmation: IConfirmation) { confirmations.push(confirmation); return { confirmed: true }; }
 			}());
 			const configured = [];
 			for (const [id, value, label] of [['default', 'always', 'Always'], ['prepared', 'ifUnchanged', 'When No Changes Were Made']]) {
@@ -1931,13 +1923,12 @@ suite('Artifact Integration Presentation', () => {
 				await settle(f);
 				configured.push({ value: picker.textContent, writes: a.configured, checked: panel.querySelector('.artifact-card-heading [role="switch"]')?.getAttribute('aria-checked') });
 			}
-			assert.deepStrictEqual({ picks, configured, confirmations: confirmations.map(confirmation => typeof confirmation.detail === 'string' && confirmation.detail.includes('Merge Automatically When Ready:')) }, {
+			assert.deepStrictEqual({ picks, configured }, {
 				picks: 0,
 				configured: [
 					{ value: 'Always', writes: [{ integrationId: 'test', revision: 4, values: { merge: 'always' } }], checked: 'true' },
 					{ value: 'When No Changes Were Made', writes: [{ integrationId: 'test', revision: 4, values: { merge: 'ifUnchanged' } }], checked: 'true' },
 				],
-				confirmations: [true, true],
 			});
 		});
 
@@ -2221,12 +2212,12 @@ suite('Artifact Integration Presentation', () => {
 			}, { initial: [true, false], updated: 'Updated comment information.', hidden: [true, true], retained: true, focusReturned: true });
 		});
 
-		test('Autopilot confirms exactly the available rules and uses one provider configuration revision', async () => {
+		test('Autopilot enables exactly the available rules without confirmation and uses one provider configuration revision', async () => {
 			const f = fixture();
-			const confirmations: IConfirmation[] = [];
+			let confirmations = 0;
 			f.instantiation.stub(IDialogService, new class extends mock<IDialogService>() {
-				override async confirm(confirmation: IConfirmation) {
-					confirmations.push(confirmation);
+				override async confirm(): Promise<IConfirmationResult> {
+					confirmations++;
 					return { confirmed: true };
 				}
 			}());
@@ -2246,11 +2237,11 @@ suite('Artifact Integration Presentation', () => {
 			master.click();
 			await settle(f);
 			assert.deepStrictEqual({
-				confirmations: confirmations.map(confirmation => ({ message: confirmation.message, details: String(confirmation.detail).includes('Auto Fix CI') && !String(confirmation.detail).includes('Address Comments Automatically') })),
+				confirmations,
 				enabled, disabled: master.getAttribute('aria-checked'),
 				configured: a.configured, invoked: a.invoked,
 			}, {
-				confirmations: [{ message: 'Enable these Autopilot rules?', details: true }],
+				confirmations: 0,
 				enabled: 'true', disabled: 'false',
 				configured: [
 					{ integrationId: 'test', revision: 4, values: { fix: true, merge: true } },
@@ -2259,26 +2250,30 @@ suite('Artifact Integration Presentation', () => {
 			});
 		});
 
-		test('Autopilot partial enablement is explicit; cancellation and failed writes never fabricate saved consent', async () => {
+		test('Autopilot enablement is saved even when an outside click dismisses details right away', async () => {
 			const f = fixture();
-			let confirmed = false;
-			f.instantiation.stub(IDialogService, new class extends mock<IDialogService>() {
-				override async confirm() { return { confirmed }; }
-			}());
+			const a = f.artifact();
+			const panel = await open(f, a);
+			panel.querySelector<HTMLElement>('.artifact-card-heading [role="switch"]')!.click();
+			f.input.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
+			await settle(f);
+			assert.deepStrictEqual({ selected: f.controller.selected.get(), configured: a.configured, errors: f.errors, badge: automationBadge(a)?.textContent }, {
+				selected: undefined, configured: [{ integrationId: 'test', revision: 4, values: { fix: true, reviews: true, merge: true } }], errors: [], badge: '3',
+			});
+		});
+
+		test('Autopilot partial enablement is explicit and failed writes never fabricate saved consent', async () => {
+			const f = fixture();
 			const a = f.artifact();
 			updateContribution(a, contribution => ({ ...contribution, configuration: { ...contribution.configuration, values: { ...contribution.configuration.values, fix: true } } }));
 			const panel = await open(f, a);
 			const master = panel.querySelector<HTMLElement>('.artifact-card-heading [role="switch"]')!;
 			const before = master.getAttribute('aria-checked');
-			master.click();
-			await settle(f);
-			const cancelled = { state: master.getAttribute('aria-checked'), writes: a.configured.length };
-			confirmed = true;
 			a.setConfigureResult(Promise.reject(new Error('Consent revision changed')));
 			master.click();
 			await settle(f);
-			assert.deepStrictEqual({ before, cancelled, after: master.getAttribute('aria-checked'), summary: panel.querySelector('.artifact-autopilot-summary')?.textContent, errors: f.errors, invoked: a.invoked }, {
-				before: 'false', cancelled: { state: 'false', writes: 0 }, after: 'false', summary: '1 of 3 on',
+			assert.deepStrictEqual({ before, after: master.getAttribute('aria-checked'), summary: panel.querySelector('.artifact-autopilot-summary')?.textContent, errors: f.errors, invoked: a.invoked }, {
+				before: 'false', after: 'false', summary: '1 of 3 on',
 				errors: ['The artifact operation failed: Consent revision changed'], invoked: [],
 			});
 		});
@@ -2306,9 +2301,6 @@ suite('Artifact Integration Presentation', () => {
 
 		test('Autopilot scopes bulk consent to one provider even when providers reuse action and rule IDs', async () => {
 			const f = fixture();
-			f.instantiation.stub(IDialogService, new class extends mock<IDialogService>() {
-				override async confirm() { return { confirmed: true }; }
-			}());
 			const a = f.artifact();
 			const original = a.snapshot.get().contributions[0];
 			a.snapshot.set({ ...a.snapshot.get(), contributions: [original, { ...original, integrationId: 'second', label: 'Other Provider' }] }, undefined);
