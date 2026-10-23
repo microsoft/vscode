@@ -4268,10 +4268,10 @@ suite('CopilotAgent', () => {
 			await fs.mkdir(dirname(modulePath.fsPath), { recursive: true });
 			await fs.mkdir(repository.fsPath, { recursive: true });
 			await fs.writeFile(modulePath.fsPath, '');
-			const launches = async (worktreeRepository: URI | undefined) => {
+			const launches = async (createdWorktree: { worktree: URI; repository: URI } | undefined) => {
 				const admission = await internals._acquireProjectExtensionLaunchAdmission({
 					workspacelessFolder: undefined,
-					worktreeRepository,
+					createdWorktree,
 					extensionLaunchDirectories: [worktree],
 				} as unknown as CopilotAgentSession);
 				try {
@@ -4283,7 +4283,7 @@ suite('CopilotAgent', () => {
 
 			try {
 				assert.deepStrictEqual({
-					hostCreatedWorktree: await launches(repository),
+					hostCreatedWorktree: await launches({ worktree, repository }),
 					worktreeWithoutInheritance: await launches(undefined),
 				}, {
 					hostCreatedWorktree: true,

@@ -14,7 +14,7 @@ import { basename, dirname, extUriBiasedIgnorePathCase, isEqual } from '../../..
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../log/common/log.js';
 import { AgentHostWorkspaceTrustConfigKey, IAgentHostWorkspaceTrust, platformRootSchema } from '../../common/agentHostSchema.js';
-import { isWorktreeUnderRepository } from '../../common/worktreePaths.js';
+import { getWorktreesRoot, isWorktreeUnderRepository } from '../../common/worktreePaths.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 
 /** How the effective workspace trust changed: it may now allow launches it refused, refuse launches it allowed, or both. */
@@ -37,6 +37,12 @@ export interface ICopilotProjectExtensionTrustState {
 	readonly contractions: number;
 }
 
+/** The worktree the host created as a session's working directory, and the repository whose trust it inherits. */
+export interface ICopilotCreatedWorktree {
+	readonly worktree: URI;
+	readonly repository: URI;
+}
+
 export interface ICopilotProjectExtensionLaunchAdmission extends IDisposable {
 	readonly trustState: ICopilotProjectExtensionTrustState;
 }
@@ -53,7 +59,7 @@ type CopilotExtensionSource = 'project' | 'user' | 'plugin' | 'session';
 export class CopilotProjectExtensionLaunchPolicy {
 	private readonly _admittedRoots = new ResourceMap<number>();
 	private readonly _workspacelessRoots = new ResourceMap<number>();
-	/** Admitted worktrees the host created, with the repository whose trust they inherit, by canonical worktree and repository. */
+	/** Admitted worktrees the host created as a session's working directory, with the repository whose trust they inherit. */
 	private readonly _inheritingWorktrees = new Map<string, { readonly worktree: URI; readonly repository: URI; count: number }>();
 	private _trust = this._readTrust();
 	private _trustGeneration = 0;
@@ -127,20 +133,17 @@ export class CopilotProjectExtensionLaunchPolicy {
 	/**
 	 * Admits project extensions under `directories` while the returned admission lives. `workspacelessRoot`, when it is
 	 * one of `directories`, is the host-allocated scratch folder of a workspace-less chat: its extensions launch without
-	 * workspace trust, as the agent itself created them. `worktreeRepository` is the repository whose trust a worktree
-	 * the host created for the session inherits; it applies only to directories that are worktrees of that repository.
+	 * workspace trust, as the agent itself created them. `createdWorktree`, when its worktree is one of `directories`, is
+	 * the worktree the host created as the session's working directory: it inherits its repository's trust while it stays
+	 * a worktree of that repository by canonical path. Any other directory needs workspace trust of its own.
 	 */
-	async acquireAdmission(directories: readonly URI[], workspacelessRoot: URI | undefined, worktreeRepository?: URI): Promise<ICopilotProjectExtensionLaunchAdmission> {
+	async acquireAdmission(directories: readonly URI[], workspacelessRoot: URI | undefined, createdWorktree?: ICopilotCreatedWorktree): Promise<ICopilotProjectExtensionLaunchAdmission> {
 		const roots: URI[] = [];
-		const worktrees: URI[] = [];
 		for (const directory of directories) {
 			const root = await this._canonicalFileUri(directory, `extension launch root '${directory.fsPath}'`);
 			if (root) {
 				roots.push(root);
 				this._admittedRoots.set(root, (this._admittedRoots.get(root) ?? 0) + 1);
-				if (worktreeRepository && isWorktreeUnderRepository(directory, worktreeRepository)) {
-					worktrees.push(root);
-				}
 			}
 		}
 
@@ -154,19 +157,16 @@ export class CopilotProjectExtensionLaunchPolicy {
 			this._workspacelessRoots.set(admittedWorkspacelessRoot, (this._workspacelessRoots.get(admittedWorkspacelessRoot) ?? 0) + 1);
 		}
 
-		const repository = worktrees.length && worktreeRepository
-			? await this._canonicalFileUri(worktreeRepository, `worktree repository '${worktreeRepository.fsPath}'`)
-			: undefined;
-		const inheritingKeys = repository ? worktrees.map(worktree => {
-			const key = `${worktree.toString()}\n${repository.toString()}`;
-			const existing = this._inheritingWorktrees.get(key);
+		const inheritance = createdWorktree ? await this._canonicalInheritance(createdWorktree, roots) : undefined;
+		const inheritingKey = inheritance ? `${inheritance.worktree.toString()}\n${inheritance.repository.toString()}` : undefined;
+		if (inheritance && inheritingKey) {
+			const existing = this._inheritingWorktrees.get(inheritingKey);
 			if (existing) {
 				existing.count++;
 			} else {
-				this._inheritingWorktrees.set(key, { worktree, repository, count: 1 });
+				this._inheritingWorktrees.set(inheritingKey, { ...inheritance, count: 1 });
 			}
-			return key;
-		}) : [];
+		}
 
 		const trustState = this._trustState;
 		const lifetime = toDisposable(() => {
@@ -176,17 +176,35 @@ export class CopilotProjectExtensionLaunchPolicy {
 			if (admittedWorkspacelessRoot) {
 				this._releaseReference(this._workspacelessRoots, admittedWorkspacelessRoot);
 			}
-			for (const key of inheritingKeys) {
-				const entry = this._inheritingWorktrees.get(key);
-				if (entry && --entry.count <= 0) {
-					this._inheritingWorktrees.delete(key);
-				}
+			const entry = inheritingKey ? this._inheritingWorktrees.get(inheritingKey) : undefined;
+			if (inheritingKey && entry && --entry.count <= 0) {
+				this._inheritingWorktrees.delete(inheritingKey);
 			}
 		});
 		return {
 			trustState,
 			dispose: () => lifetime.dispose(),
 		};
+	}
+
+	/**
+	 * The canonical worktree and repository of `createdWorktree`, when its worktree is one of the admitted `roots` and,
+	 * both as given and by canonical path, a worktree under its repository's `<repo>.worktrees` folder.
+	 */
+	private async _canonicalInheritance({ worktree, repository }: ICopilotCreatedWorktree, roots: readonly URI[]): Promise<ICopilotCreatedWorktree | undefined> {
+		if (!isWorktreeUnderRepository(worktree, repository)) {
+			return undefined;
+		}
+		const [canonicalWorktree, canonicalRepository, canonicalWorktreesRoot] = await Promise.all([
+			this._canonicalFileUri(worktree, `created worktree '${worktree.fsPath}'`),
+			this._canonicalFileUri(repository, `worktree repository '${repository.fsPath}'`),
+			this._canonicalFileUri(getWorktreesRoot(repository), `worktrees folder of '${repository.fsPath}'`),
+		]);
+		if (!canonicalWorktree || !canonicalRepository || !canonicalWorktreesRoot || !roots.some(root => isEqual(root, canonicalWorktree))
+			|| !extUriBiasedIgnorePathCase.isEqualOrParent(canonicalWorktree, canonicalWorktreesRoot) || extUriBiasedIgnorePathCase.isEqual(canonicalWorktree, canonicalWorktreesRoot)) {
+			return undefined;
+		}
+		return { worktree: canonicalWorktree, repository: canonicalRepository };
 	}
 
 	async resolveLaunch(modulePath: string, source: CopilotExtensionSource, extensionBootstrapPath: string) {
