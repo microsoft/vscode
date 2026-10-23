@@ -22,7 +22,7 @@ import { Range } from '../../../../../editor/common/core/range.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
-import { CustomizationMarketplaceMediaType, CustomizationMarketplaceQueryProgressCallback, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceBrowseSection, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceMediaType, CustomizationMarketplaceQueryProgressCallback, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceBrowseSection, ICustomizationMarketplaceBrowseSectionsProgress, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IConfirmation, IConfirmationResult, IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
@@ -1311,6 +1311,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	const languageServiceRef: { value: ILanguageService | undefined } = { value: undefined };
 	let customizationMarketplaceQueryCount = 0;
 	let customizationMarketplacePrimaryQueryCount = 0;
+	const browseHomeReady = new DeferredPromise<void>();
 	let marketplaceConfiguration: TestConfigurationService | undefined;
 	const customizationMarketplaceInstallChanged = ctx.disposableStore.add(new Emitter<void>());
 	const getFixtureInstallationTarget = (resource: ICustomizationMarketplaceResource): CustomizationMarketplaceInstallationTarget => resource.installation?.kind === 'copilotConnector'
@@ -1403,16 +1404,23 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 					{ id: 'additionalSource', displayName: 'Additional Feed', enablementSetting: 'test.marketplace.other.enabled', requiresMarketplaceVisibility: true },
 					CustomizationMarketplaceSources.CopilotConnectors,
 				];
-				override async getBrowseSections(query: Pick<ICustomizationMarketplaceQuery, 'sourceIds'>) {
+				override getBrowseSections(query: Pick<ICustomizationMarketplaceQuery, 'sourceIds'>, _token: CancellationToken, onProgress?: (progress: ICustomizationMarketplaceBrowseSectionsProgress) => void) {
 					if (!options.curatedFeedsEnabled || query.sourceIds && !query.sourceIds.includes('testSource')) {
-						return undefined;
+						return Promise.resolve(undefined);
 					}
-					return {
+					const result = {
 						sourceId: 'testSource',
 						sections: curatedMarketplaceSections,
 					};
+					onProgress?.({
+						result,
+						completedSectionCount: curatedMarketplaceSections.length,
+						cachedSectionCount: 0,
+						totalSectionCount: curatedMarketplaceSections.length,
+					});
+					return Promise.resolve(result);
 				}
-				override async query(query: ICustomizationMarketplaceQuery, _token: CancellationToken, onProgress?: CustomizationMarketplaceQueryProgressCallback): Promise<ICustomizationMarketplacePage> {
+				override query(query: ICustomizationMarketplaceQuery, _token: CancellationToken, onProgress?: CustomizationMarketplaceQueryProgressCallback): Promise<ICustomizationMarketplacePage> {
 					customizationMarketplaceQueryCount++;
 					if (query.pageSize !== 4 || query.sourceIds?.length !== 1 || query.query || query.mediaType || query.cursor) {
 						customizationMarketplacePrimaryQueryCount++;
@@ -1438,10 +1446,10 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 								: marketplaceResources;
 							return query.cursor
 								? new DeferredPromise<ICustomizationMarketplacePage>().p
-								: { items: resources.slice(0, 2), total: resources.length, nextCursor: createCursor(2) };
+								: Promise.resolve({ items: resources.slice(0, 2), total: resources.length, nextCursor: createCursor(2) });
 						}
-						case 'error': throw new Error('The catalog is temporarily unavailable. Try again later.');
-						case 'empty': return { items: [], total: 0 };
+						case 'error': return Promise.reject(new Error('The catalog is temporarily unavailable. Try again later.'));
+						case 'empty': return Promise.resolve({ items: [], total: 0 });
 					}
 					const text = query.query?.toLowerCase() ?? '';
 					const resources = marketplaceResources.filter(resource =>
@@ -1449,11 +1457,23 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 						&& (!query.sourceIds || query.sourceIds.includes(resource.sourceId))
 						&& (!text || `${resource.displayName} ${resource.description} ${resource.tags.join(' ')}`.toLowerCase().includes(text)));
 					const offset = Number(query.cursor?.token ?? 0);
-					return {
+					const page = {
 						items: resources.slice(offset, offset + pageSize),
 						total: resources.length,
 						nextCursor: offset + pageSize < resources.length ? createCursor(offset + pageSize) : undefined,
 					};
+					onProgress?.({
+						page,
+						completedSourceIds: this.sources.map(source => source.id),
+						cachedSourceIds: [],
+						totalSourceCount: this.sources.length,
+					});
+					const response = Promise.resolve(page);
+					if (query.pageSize === 4 && query.sourceIds?.[0] === 'otherSource') {
+						// Signal after the query consumer's promise continuation has rendered the final source shelf.
+						void response.then(() => queueMicrotask(() => browseHomeReady.complete()));
+					}
+					return response;
 				}
 			}());
 			if (options.useRealConnectorInstallService) {
@@ -2020,18 +2040,8 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		editor.selectSectionById(options.selectedSection);
 	}
 	editor.setVisible(true);
-	if (options.curatedFeedsEnabled) {
-		const expectedSectionCount = curatedMarketplaceSections.length + (options.copilotConnectorsEnabled ? 1 : 0);
-		await waitForFixtureCondition(
-			() => ctx.container.querySelectorAll('.customization-discovery-section').length >= expectedSectionCount,
-			'Curated Browse sections did not render.',
-		);
-	}
-	if (options.clearDiscoveryQuery) {
-		await waitForFixtureCondition(
-			() => ctx.container.querySelector('.customization-discovery-section.featured') !== null,
-			'Featured Browse items did not render before searching.',
-		);
+	if (options.curatedFeedsEnabled || options.clearDiscoveryQuery) {
+		await browseHomeReady.p;
 	}
 	assert(ctx.container.querySelector<HTMLButtonElement>('.sidebar-home-button')?.title === (discoverEnabled ? 'Back to Customizations' : 'Back to overview'), 'Home tooltip must describe the active surface.');
 	if (options.selectedSection === AICustomizationManagementSection.McpServers && options.marketplaceVisibilityEnabled === false) {
@@ -2327,7 +2337,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			editor.getWelcomePage()?.setSearchQuery('');
 			await Promise.resolve();
 			assert(resultList.hidden, 'Clearing Discover search must hide the results list.');
-			assert(ctx.container.querySelector('.customization-discovery-section.featured') !== null, 'Clearing Discover search must restore featured items immediately.');
+			assert(ctx.container.querySelector('.customization-discovery-section') !== null, 'Clearing Discover search must restore Browse sections immediately.');
 		}
 	}
 
@@ -4062,7 +4072,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	DiscoverClearedSearch: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['Clearing the search restores the featured customization cards immediately and the source picker defaults to All Sources.'],
+		expectedVisualDescriptions: ['Clearing the search restores the Browse source sections immediately and the source picker defaults to All Sources.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			marketplaceVisibilityEnabled: true,
