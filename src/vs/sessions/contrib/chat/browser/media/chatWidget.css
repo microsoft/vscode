@@ -918,6 +918,7 @@
 	overflow: hidden;
 }
 
+.sessions-chat-picker-slot[hidden],
 .sessions-chat-picker-slot .action-label.hidden {
 	display: none;
 }

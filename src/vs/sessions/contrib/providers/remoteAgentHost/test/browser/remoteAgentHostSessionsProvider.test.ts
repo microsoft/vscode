@@ -84,6 +84,7 @@ import { INewSessionComposerService, NewSessionComposerService } from '../../../
 
 class MockAgentConnection extends mock<IAgentConnection>() {
 	override measureWorktreeDiskUsage?: IAgentConnection['measureWorktreeDiskUsage'];
+	override sessionWorktreeCleanup?: IAgentConnection['sessionWorktreeCleanup'];
 	actionListenerCount = 0;
 	private readonly _onDidAction = new Emitter<ActionEnvelope>({
 		onDidAddListener: () => this.actionListenerCount++,
@@ -542,6 +543,32 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			});
 		});
 	}
+
+	test('retries worktree cleanup through the owning connection without changing archive state', async () => {
+		const calls: { session: string; retry: boolean }[] = [];
+		connection.sessionWorktreeCleanup = async (session, retry) => {
+			calls.push({ session: session.toString(), retry });
+			return { state: retry ? 'pending' : 'failed', message: retry ? undefined : 'git failed' };
+		};
+		connection.addSession(createSession('cleanup', {
+			project: { uri: URI.file('/repo'), displayName: 'repo' },
+			workingDirectory: URI.file('/repo.worktrees/cleanup'),
+		}));
+		const provider = createProvider(disposables, connection);
+		await timeout(0);
+		const session = provider.getSessions()[0];
+		const before = session.isArchived.get();
+		const status = await provider.sessionWorktreeCleanup(session.sessionId, false);
+		await provider.sessionWorktreeCleanup(session.sessionId, true);
+		assert.deepStrictEqual({ status, calls, unchanged: before === session.isArchived.get() }, {
+			status: { state: 'failed', message: 'git failed' },
+			calls: [
+				{ session: AgentSession.uri('copilotcli', 'cleanup').toString(), retry: false },
+				{ session: AgentSession.uri('copilotcli', 'cleanup').toString(), retry: true },
+			],
+			unchanged: true,
+		});
+	});
 
 	suite('Copilot head-branch PR metadata', () => {
 		const backend = URI.parse('ahp-session://tenant/opaque-session');
