@@ -140,11 +140,12 @@ export class RemotesWidget extends Disposable {
 			{ id: 'gutter', label: '', weight: 0, minimumWidth: 28, maximumWidth: 28 },
 			{ id: 'name', label: localize('remotes.nameColumn', "Name"), weight: 0.35, minimumWidth: 160 },
 			{ id: 'address', label: localize('remotes.addressColumn', "Address"), weight: 0.45, minimumWidth: 160 },
-			{ id: 'connection', label: localize('remotes.connectionColumn', "Connection"), weight: 0.2, minimumWidth: 112 },
-			{ id: 'actions', label: '', weight: 0, minimumWidth: 104, maximumWidth: 104 },
+			{ id: 'connection', label: localize('remotes.connectionColumn', "Connection"), weight: 0.2, minimumWidth: 136 },
+			{ id: 'actions', label: '', weight: 0, minimumWidth: 72, maximumWidth: 72 },
 		] as const;
 		const renderers = columnDefinitions.map(column => new RemotesTableRenderer(
 			column.id, (entry, action) => this.runRowAction(entry, action),
+			() => this.table.domFocus(),
 			instantiationService, hoverService, openerService,
 		));
 		const columns = columnDefinitions.map((column, index) => ({
@@ -231,8 +232,8 @@ export class RemotesWidget extends Disposable {
 		} else if (entry.type === 'remote') {
 			if (action === 'connect') {
 				void this.setConnected(entry.remote.id, !RemoteAgentHostConnectionStatus.isConnected(entry.remote.connectionStatus));
-			} else if (action === 'rename' || action === 'remove') {
-				void this.manageRemote(entry.remote.id, action);
+			} else if (action === 'rename') {
+				void this.renameRemote(entry.remote.id);
 			}
 		}
 	}
@@ -375,14 +376,14 @@ export class RemotesWidget extends Disposable {
 		this.layout();
 	}
 
-	private async manageRemote(id: string, action: 'rename' | 'remove'): Promise<void> {
+	private async renameRemote(id: string): Promise<void> {
 		if (this.pendingActions.has(id) || this.pendingConnections.has(id)) {
 			return;
 		}
 		this.pendingActions.add(id);
 		this.render();
 		try {
-			await this.model[action](id);
+			await this.model.rename(id);
 		} catch (error) {
 			if (!isCancellationError(error)) {
 				this.notificationService.error(error);
@@ -394,7 +395,7 @@ export class RemotesWidget extends Disposable {
 				const active = dom.getActiveElement();
 				const activeRow = dom.isHTMLElement(active) && this.domNode.contains(active) ? active.closest<HTMLElement>('[data-remote-id]') : undefined;
 				const index = this.rows.findIndex(row => row.id === id);
-				if (action === 'rename' && activeRow && activeRow.dataset.remoteId !== id && index >= 0) {
+				if (activeRow && activeRow.dataset.remoteId !== id && index >= 0) {
 					this.table.setFocus([index]);
 					this.table.domFocus();
 				}
@@ -423,8 +424,9 @@ export class RemotesWidget extends Disposable {
 	}
 
 	private getRemoteAriaLabel(remote: ICustomizationRemote): string {
-		return localize('remotes.accessibleRow', "{0}. Address: {1}. Connection: {2}", remote.name,
-			remote.unavailableReason ?? remote.detail, getConnectionLabel(remote, this.pendingConnections.get(remote.id)));
+		const label = localize('remotes.accessibleRow', "{0}. Address: {1}. Connection: {2}", remote.name,
+			remote.detail, getConnectionLabel(remote, this.pendingConnections.get(remote.id)));
+		return remote.unavailableReason ? localize('remotes.accessibleUnavailableRow', "{0}. {1}", label, remote.unavailableReason) : label;
 	}
 
 	private getRefreshWarning(kind: RemoteKind): string | undefined {
