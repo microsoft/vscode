@@ -22,13 +22,14 @@ import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.j
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE, IExtensionManifest } from '../../../../platform/extensions/common/extensions.js';
+import { ExtensionIdentifier, EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE, IExtensionManifest } from '../../../../platform/extensions/common/extensions.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { WorkbenchObjectTree } from '../../../../platform/list/browser/listService.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { IAICustomizationManagementSectionWidget } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementSectionRegistry.js';
@@ -48,6 +49,20 @@ const $ = DOM.$;
 const EXTENSION_ROW_HEIGHT = 52;
 const GROUP_HEADER_TEMPLATE_ID = 'agentsWindowExtensionsGroupHeader';
 const EXTENSION_ROW_TEMPLATE_ID = 'agentsWindowExtensionRow';
+
+type AgentsWindowExtensionEnablementChangedEvent = {
+	extensionId: string;
+	enabled: boolean;
+	aiFeatures: string;
+};
+
+type AgentsWindowExtensionEnablementChangedClassification = {
+	owner: 'alexr00';
+	comment: 'Logged when the user enables or disables an extension in the Agents window from the Extensions section of Agent Customizations, to learn which extensions users choose to run there.';
+	extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the extension.' };
+	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the user enabled or disabled the extension.' };
+	aiFeatures: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The comma-separated contribution points, from a fixed list, that add AI features to the Agents window, or empty when the extension has none.' };
+};
 
 export const enum AgentsWindowExtensionGroup {
 	Suggested = 'suggested',
@@ -339,6 +354,7 @@ export class AgentsWindowExtensionsWidget extends Disposable implements IAICusto
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IAgentsWindowExtensionSuggestionsService private readonly extensionSuggestionsService: IAgentsWindowExtensionSuggestionsService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IContextViewService contextViewService: IContextViewService,
 		@IHoverService hoverService: IHoverService,
 		@IExtensionService extensionService: IExtensionService,
@@ -563,6 +579,12 @@ export class AgentsWindowExtensionsWidget extends Disposable implements IAICusto
 		try {
 			// The Agents window has a dedicated workspace, so workspace enablement only applies to the Agents window.
 			await this.extensionsWorkbenchService.setEnablement(extension, enabled ? EnablementState.EnabledWorkspace : EnablementState.DisabledWorkspace);
+			this.telemetryService.publicLog2<AgentsWindowExtensionEnablementChangedEvent, AgentsWindowExtensionEnablementChangedClassification>('agentsWindowExtensionEnablementChanged', {
+				extensionId: ExtensionIdentifier.toKey(extension.identifier.id),
+				enabled,
+				// Sorted like the suggested contributions of agentsWindowAutoEnableCandidateEnabled, so the events can be joined.
+				aiFeatures: extension.local ? getSessionsWindowSuggestedContributions(extension.local.manifest).sort().join(',') : '',
+			});
 			status(this.isEnabled(extension)
 				? localize('agentsWindowExtensions.enabledStatus', "{0} enabled in the Agents window", extension.displayName)
 				: localize('agentsWindowExtensions.disabledStatus', "{0} disabled in the Agents window", extension.displayName));
