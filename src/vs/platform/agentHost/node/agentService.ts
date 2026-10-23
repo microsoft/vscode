@@ -6273,6 +6273,14 @@ export class AgentService extends Disposable implements IAgentService {
 		return provider.listPluginInstallations(session, chat);
 	}
 
+	async setPluginEnabled(providerId: AgentProvider, plugin: string, enabled: boolean): Promise<void> {
+		const provider = this._providerService.getProvider(providerId);
+		if (!provider?.setPluginEnabled) {
+			throw new Error(`Plugin enablement is unavailable for provider '${providerId}'.`);
+		}
+		await provider.setPluginEnabled(plugin, enabled);
+	}
+
 	async listSessionCanvases(session: URI, chat: URI): Promise<AgentCanvasDefinitionSnapshot> {
 		this._assertCanvasesEnabled();
 		await this._restoreSessionChat(session, chat, 'Canvas operation');

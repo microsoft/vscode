@@ -11,7 +11,7 @@ import { PluginFormat } from '../../../../../../platform/agentPlugins/common/plu
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { ContributionEnablementState, IEnablementModel, isContributionEnabled } from '../../../common/enablement.js';
 import { AgentPluginCollisionEnablementModel, AgentPluginEnablementService, getCanonicalAgentPluginCollisionGroups, getSortedAgentPlugins, IDiscoveredAgentPlugins, isAgentPluginBlockedByPolicy, isAgentPluginForceEnabledByPolicy } from '../../../common/plugins/agentPluginEnablement.js';
-import { AgentPluginDiscoveryPriority, IAgentPlugin } from '../../../common/plugins/agentPluginService.js';
+import { AgentPluginDiscoveryPriority, IAgentPlugin, setAgentPluginEnablement } from '../../../common/plugins/agentPluginService.js';
 import { IMarketplacePlugin, MarketplaceType, parseMarketplaceReference, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
 import { TestUserDataProfileService } from '../../../../../test/common/workbenchTestServices.js';
 
@@ -163,6 +163,42 @@ suite('AgentPlugin enablement', () => {
 			fromMarketplace,
 		};
 	}
+
+	test('persists runtime enablement before the local decision and leaves workspace overrides local', async () => {
+		const service = store.add(new AgentPluginEnablementService(store.add(new InMemoryStorageService()), new TestUserDataProfileService()));
+		const plugin = makePlugin(URI.file('/plugins/direct'), 'direct');
+		service.setDefaultEnabled(plugin.uri.toString(), false);
+		const calls: { enabled: boolean; local: ContributionEnablementState }[] = [];
+		plugin.setEnabled = async enabled => { calls.push({ enabled, local: service.readEnabled(plugin.uri.toString()) }); };
+		await setAgentPluginEnablement(plugin, service, ContributionEnablementState.EnabledProfile);
+		await setAgentPluginEnablement(plugin, service, ContributionEnablementState.DisabledWorkspace);
+		await setAgentPluginEnablement(plugin, service, ContributionEnablementState.DisabledProfile);
+		assert.deepStrictEqual({ calls, local: service.readEnabled(plugin.uri.toString()) }, {
+			calls: [
+				{ enabled: true, local: ContributionEnablementState.DisabledProfile },
+				{ enabled: false, local: ContributionEnablementState.DisabledWorkspace },
+			],
+			local: ContributionEnablementState.DisabledProfile,
+		});
+	});
+
+	test('does not publish local success when runtime enablement fails', async () => {
+		const service = store.add(new AgentPluginEnablementService(store.add(new InMemoryStorageService()), new TestUserDataProfileService()));
+		const plugin = makePlugin(URI.file('/plugins/direct'), 'direct');
+		service.setDefaultEnabled(plugin.uri.toString(), false);
+		plugin.setEnabled = async () => { throw new Error('runtime refused'); };
+		await assert.rejects(setAgentPluginEnablement(plugin, service, ContributionEnablementState.EnabledProfile), /runtime refused/);
+		assert.strictEqual(service.readEnabled(plugin.uri.toString()), ContributionEnablementState.DisabledProfile);
+	});
+
+	test('does not invoke the runtime for policy-managed plugins', async () => {
+		const service = store.add(new AgentPluginEnablementService(store.add(new InMemoryStorageService()), new TestUserDataProfileService()));
+		let calls = 0;
+		const plugin = { ...makePlugin(URI.file('/plugins/managed'), 'managed'), policyEnablement: observableValue('policy', false) };
+		plugin.setEnabled = async () => { calls++; };
+		await assert.rejects(setAgentPluginEnablement(plugin, service, ContributionEnablementState.EnabledProfile), /managed by your organization/);
+		assert.strictEqual(calls, 0);
+	});
 
 	function makeMarketplacePlugin(): IMarketplacePlugin {
 		const marketplaceReference = parseMarketplaceReference('microsoft/vscode-team-kit');

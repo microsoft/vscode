@@ -14,6 +14,7 @@ import { ContributionEnablementState, IEnablementModel } from '../enablement.js'
 import { IAutomationBlueprint } from '../automations/automationBlueprint.js';
 import { HookType } from '../promptSyntax/hookTypes.js';
 import { IMarketplacePlugin } from './pluginMarketplaceService.js';
+import { localize } from '../../../../../nls.js';
 
 export const IAgentPluginService = createDecorator<IAgentPluginService>('agentPluginService');
 
@@ -69,6 +70,8 @@ export interface IAgentPlugin {
 	readonly policyBlocked?: IObservable<boolean>;
 	/** Removes this plugin from its discovery source (config or installed storage). */
 	remove?(): Promise<boolean>;
+	/** Persists global enablement through the runtime that owns this installation. */
+	setEnabled?(enabled: boolean): Promise<void>;
 	readonly hooks: IObservable<readonly IAgentPluginHook[]>;
 	readonly commands: IObservable<readonly IAgentPluginCommand[]>;
 	readonly skills: IObservable<readonly IAgentPluginSkill[]>;
@@ -86,6 +89,17 @@ export interface IAgentPluginService {
 	readonly _serviceBrand: undefined;
 	readonly plugins: IObservable<readonly IAgentPlugin[]>;
 	readonly enablementModel: IEnablementModel;
+}
+
+/** Commits global runtime enablement before publishing the client's decision; workspace overrides stay local. */
+export async function setAgentPluginEnablement(plugin: IAgentPlugin, model: IEnablementModel, state: ContributionEnablementState): Promise<void> {
+	if (plugin.policyEnablement?.get() !== undefined || plugin.policyBlocked?.get()) {
+		throw new Error(localize('pluginEnablementManaged', "Plugin '{0}' is managed by your organization.", plugin.label));
+	}
+	if (state === ContributionEnablementState.EnabledProfile || state === ContributionEnablementState.DisabledProfile) {
+		await plugin.setEnabled?.(state === ContributionEnablementState.EnabledProfile);
+	}
+	model.setEnabled(plugin.uri.toString(), state);
 }
 
 export interface IAgentPluginDiscovery extends IDisposable {

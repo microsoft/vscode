@@ -303,6 +303,10 @@ function isSamplingContent(value: unknown): value is { text?: unknown; content?:
 	return isObject(value);
 }
 
+function isPluginReloadResult(value: unknown): value is { errors?: unknown } {
+	return isObject(value);
+}
+
 function getSamplingContentCharacterCount(content: unknown): number {
 	if (Array.isArray(content)) {
 		return content.reduce((total: number, block: unknown) => total + getSamplingContentCharacterCount(block), 0);
@@ -1100,7 +1104,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	async installPlugin(source: string): Promise<void> {
-		await installCopilotPlugin(this._wrapper.session.rpc.plugins, reason => this._reloadPlugins(reason), source);
+		await installCopilotPlugin(this._wrapper.session.rpc.plugins, reason => this.reloadPlugins(reason), source);
 	}
 
 	/**
@@ -1122,7 +1126,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	async uninstallPlugin(name: string, directSourceId?: string): Promise<void> {
-		await uninstallCopilotPlugin(this._wrapper.session.rpc.plugins, reason => this._reloadPlugins(reason), name, directSourceId);
+		await uninstallCopilotPlugin(this._wrapper.session.rpc.plugins, reason => this.reloadPlugins(reason), name, directSourceId);
 	}
 
 	addPluginMarketplace(source: string) {
@@ -1134,14 +1138,23 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	async removePluginMarketplace(name: string, force?: boolean) {
-		return removeCopilotPluginMarketplace(this._wrapper.session.rpc.plugins, reason => this._reloadPlugins(reason), name, force);
+		return removeCopilotPluginMarketplace(this._wrapper.session.rpc.plugins, reason => this.reloadPlugins(reason), name, force);
 	}
 
 	/** Reloads installed plugins into the live SDK session, which can restart its MCP servers. */
-	private async _reloadPlugins(reason: CopilotPluginReloadReason): Promise<void> {
+	async reloadPlugins(reason: CopilotPluginReloadReason): Promise<void> {
 		this._logService.info(`[Copilot:${this.sessionId}] Reloading plugins: reason=${reason}`);
 		this._recordRuntimeMutation('customizationsChanged');
-		await this._wrapper.session.rpc.plugins.reload();
+		// The SDK declares void, but runtimes can return partial reload failures.
+		const result: unknown = await this._wrapper.session.rpc.plugins.reload();
+		if (isPluginReloadResult(result) && result.errors !== undefined) {
+			if (!Array.isArray(result.errors) || !result.errors.every(isString)) {
+				throw new Error(localize('copilot.pluginReloadInvalid', "The runtime returned an invalid plugin reload result."));
+			}
+			if (result.errors.length) {
+				throw new Error(localize('copilot.pluginReloadFailed', "Plugin reload failed: {0}", result.errors.join('; ')));
+			}
+		}
 	}
 
 	async refreshPluginMarketplaces(name?: string) {
@@ -2085,7 +2098,7 @@ export class CopilotAgentSession extends Disposable {
 		const sandboxPolicyDisplay = this._instantiationService.createInstance(CopilotSandboxPolicyDisplay, this.sessionId, this._storageUri);
 		this._slashCommandProvider = new CopilotSlashCommandProvider(
 			() => this._wrapper.session.rpc.commands.list({ includeBuiltins: true, includeSkills: true, includeClientCommands: true }).then(c => c.commands),
-			{ getCommandHandler: command => sandboxPolicyDisplay.getHandler(command) ?? getCopilotCustomizationCommandHandler(command, { api: this._wrapper.session.rpc.plugins, reload: reason => this._reloadPlugins(reason) }, options.getInstalledPlugins) },
+			{ getCommandHandler: command => sandboxPolicyDisplay.getHandler(command) ?? getCopilotCustomizationCommandHandler(command, { api: this._wrapper.session.rpc.plugins, reload: reason => this.reloadPlugins(reason) }, options.getInstalledPlugins) },
 			this._logService,
 		);
 		this._onDidSessionProgress = options.onDidSessionProgress;

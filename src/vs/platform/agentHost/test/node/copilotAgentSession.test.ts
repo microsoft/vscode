@@ -234,6 +234,7 @@ class MockCopilotSession {
 	readonly commandInvokeCalls: Array<{ name: string; input?: string }> = [];
 	readonly pluginInstallCalls: Array<{ source: string }> = [];
 	readonly pluginEnableCalls: Array<{ names: string[] }> = [];
+	pluginReloadErrors: string[] = [];
 	/** Runs after `rpc.plugins.enable` records a call; it may throw to fail the call. */
 	onPluginEnable?: () => void;
 	pluginInstallGate: Promise<void> | undefined;
@@ -718,7 +719,7 @@ class MockCopilotSession {
 				this.onPluginEnable?.();
 			},
 			disable: async () => { throw new Error('Not implemented'); },
-			reload: async () => ({ plugins: [], errors: [] }),
+			reload: async () => ({ plugins: [], errors: this.pluginReloadErrors }),
 			marketplaces: {
 				add: async (params: { source: string }) => {
 					this.pluginMarketplaceAddCalls.push(params);
@@ -8640,6 +8641,12 @@ suite('CopilotAgentSession', () => {
 			activity: ['Installing plugin…', undefined],
 			installCalls: [{ source: 'elasticsearch@awesome-copilot' }],
 		});
+	});
+
+	test('reports plugin extension reload failures returned by the SDK', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		mockSession.pluginReloadErrors = ['extension reload failed: provider unavailable'];
+		await assert.rejects(session.reloadPlugins('enablement'), /Plugin reload failed: extension reload failed: provider unavailable/);
 	});
 
 	test('does not show activity when a plugin command completes within the delay', () => runWithFakedTimers({}, async () => {
