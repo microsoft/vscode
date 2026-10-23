@@ -7,7 +7,10 @@ import { uppercaseFirstLetter } from '../../base/common/strings.js';
 import { localize } from '../../nls.js';
 import type { ISessionApplication } from '../services/sessions/common/session.js';
 
+export const UNKNOWN_SESSION_APPLICATION_ID = 'unknown';
+
 type KnownSessionApplicationId =
+	| typeof UNKNOWN_SESSION_APPLICATION_ID
 	| 'vscode'
 	| 'github/cli'
 	| 'github/autopilot'
@@ -42,6 +45,13 @@ export function getSessionApplication(name: string, title?: string): ISessionApp
 
 function getKnownSessionApplicationId(name: string): KnownSessionApplicationId | undefined {
 	switch (name) {
+		// Generic task event types do not identify the creating application, including in older caches.
+		case 'agent_tasks_api':
+		case 'agent_tasks_public_api':
+		case 'api_call_received':
+		case 'unknown_graphql_event':
+		case 'unknown':
+			return UNKNOWN_SESSION_APPLICATION_ID;
 		case 'vscode':
 		case 'copilot-vscode':
 		case 'vscode-editor-window':
@@ -66,7 +76,6 @@ function getKnownSessionApplicationId(name: string): KnownSessionApplicationId |
 		case 'chat':
 		case 'legacy_chat':
 		case 'copilot-chat-spec-task':
-		case 'api_call_received':
 		case 'issues_agent_assignment':
 		case 'sub_issue_added':
 		case 'agent_merge':
@@ -124,6 +133,8 @@ function getKnownSessionApplicationId(name: string): KnownSessionApplicationId |
 
 function getKnownSessionApplicationLabel(id: KnownSessionApplicationId): string {
 	switch (id) {
+		case UNKNOWN_SESSION_APPLICATION_ID:
+			return localize('application.unknown', "Unknown");
 		case 'vscode':
 			return localize('application.vscode', "VS Code");
 		case 'github/cli':

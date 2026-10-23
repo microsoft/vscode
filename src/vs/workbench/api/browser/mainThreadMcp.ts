@@ -19,6 +19,7 @@ import { IDialogService, IPromptButton } from '../../../platform/dialogs/common/
 import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
 import { LogLevel } from '../../../platform/log/common/log.js';
 import { IAllowedMcpServersService } from '../../../platform/mcp/common/mcpManagement.js';
+import { McpServerPolicyValues } from '../../../platform/mcp/common/allowedMcpServers.js';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
 import { ISecretStorageService } from '../../../platform/secrets/common/secrets.js';
 import { IWorkbenchMcpGatewayService } from '../../contrib/mcp/common/mcpGatewayService.js';
@@ -45,6 +46,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 	private readonly _servers = new Map<number, ExtHostMcpServerLaunch>();
 	private readonly _serverDefinitions = new Map<number, McpServerDefinition>();
 	private readonly _serverRequestUrls = new Map<number, Set<string>>();
+	private readonly _serverPolicyValues = new Map<number, McpServerPolicyValues>();
 	private readonly _serverAuthTracking = new McpServerAuthTracker();
 	private readonly _proxy: Proxied<ExtHostMcpShape>;
 	private readonly _collectionDefinitions = this._register(new DisposableMap<string, {
@@ -80,7 +82,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 					continue;
 				}
 				for (const url of urls) {
-					const allowed = this._allowedMcpServersService.isServerAllowed({ name: definition.label, url });
+					const allowed = this._allowedMcpServersService.isServerAllowed({ name: definition.label, url, policyValues: this._serverPolicyValues.get(id) });
 					if (allowed !== true) {
 						this.$onDidChangeState(id, { state: McpConnectionState.Kind.Error, message: allowed.value });
 						proxy.$stopMcp(id);
@@ -115,6 +117,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 				const ser = await proxy.$expandEnvironmentVariables(McpServerLaunch.toSerialized(launch), serverDefinition.environmentVariableExpansion);
 				return McpServerLaunch.fromSerialized(ser);
 			},
+			resolvePolicyVariables: values => proxy.$resolveMcpPolicyVariables(values),
 			start: (_collection, serverDefiniton, resolveLaunch, options) => {
 				const id = ++this._serverIdCounter;
 				const launch = new ExtHostMcpServerLaunch(
@@ -124,6 +127,9 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 				);
 				this._servers.set(id, launch);
 				this._serverDefinitions.set(id, serverDefiniton);
+				if (options?.policyValues) {
+					this._serverPolicyValues.set(id, options.policyValues);
+				}
 				if (resolveLaunch.type === McpServerTransportType.HTTP) {
 					this._serverRequestUrls.set(id, new Set([resolveLaunch.uri.toString(true)]));
 				}
@@ -233,7 +239,13 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 			throw new CancellationError();
 		}
 
-		const allowed = this._allowedMcpServersService.isServerAllowed({ name: definition.label, url });
+		const values = this._allowedMcpServersService.getServerPolicyVariableValues();
+		const policyValues = values.length ? await this._proxy.$resolveMcpPolicyVariables(values) : {};
+		if (!this._serverDefinitions.has(id)) {
+			throw new CancellationError();
+		}
+		this._serverPolicyValues.set(id, policyValues);
+		const allowed = this._allowedMcpServersService.isServerAllowed({ name: definition.label, url, policyValues });
 		if (allowed !== true) {
 			return allowed.value;
 		}
@@ -254,6 +266,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 			this._servers.delete(id);
 			this._serverDefinitions.delete(id);
 			this._serverRequestUrls.delete(id);
+			this._serverPolicyValues.delete(id);
 			this._serverAuthTracking.untrack(id);
 		}
 	}
@@ -623,6 +636,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		this._servers.clear();
 		this._serverDefinitions.clear();
 		this._serverRequestUrls.clear();
+		this._serverPolicyValues.clear();
 		this._serverAuthTracking.clear();
 		super.dispose();
 	}

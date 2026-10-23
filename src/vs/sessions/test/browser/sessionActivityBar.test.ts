@@ -11,22 +11,31 @@ import { retry, timeout } from '../../../base/common/async.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { toAction } from '../../../base/common/actions.js';
+import { derived, observableValue } from '../../../base/common/observable.js';
 import { AnchorAlignment } from '../../../base/common/layout.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
+import { IHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegate.js';
+import { getBaseLayerHoverDelegate, setBaseLayerHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegate2.js';
 import { mock, upcastPartial } from '../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
-import { IMenu, IMenuChangeEvent, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from '../../../platform/actions/common/actions.js';
+import { IMenu, IMenuActionOptions, IMenuChangeEvent, IMenuService, MenuId, MenuItemAction, MenuRegistry, SubmenuItemAction } from '../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
+import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyService } from '../../../platform/contextkey/browser/contextKeyService.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextMenuMenuDelegate, IContextMenuService, IContextViewService } from '../../../platform/contextview/browser/contextView.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { ChatViewSessionActivityBar, SessionActivityBar } from '../../browser/parts/sessionActivityBar.js';
-import { SessionActivityBarGroup } from '../../browser/menus.js';
+import { Menus, SessionActivityBarGroup } from '../../browser/menus.js';
+import { TogglePanelAction } from '../../../workbench/browser/parts/panel/panelActions.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../browser/workbench.js';
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../common/sessionConfig.js';
+import { TOGGLE_SIDE_PANEL_COMMAND_ID } from '../../common/sessionCommands.js';
+import { sessionActivityBarChatActionContext } from '../../common/contextkeys.js';
 import { ISessionActivityBarActivityService, SessionActivityBarActivityService } from '../../services/activity/common/sessionActivityBarActivityService.js';
 import { IconBadge, NumberBadge } from '../../../workbench/services/activity/common/activity.js';
 import { TestContextViewService } from './testContextViewService.js';
@@ -40,6 +49,9 @@ interface ITestEntry {
 	readonly submenu?: readonly { readonly id: string; readonly title: string }[];
 	/** The menu group, `navigation` by default. */
 	readonly group?: string;
+	/** Whether the entry is checked, as when the side pane shows its editor. */
+	readonly checked?: boolean;
+	readonly when?: ContextKeyExpression;
 }
 
 const changes: ITestEntry = { id: 'test.changes', title: 'Changes', icon: Codicon.gitCompare };
@@ -77,22 +89,36 @@ suite('Sessions - Session Activity Bar', () => {
 			override isScreenReaderOptimized(): boolean { return false; }
 		});
 
+		const createEntryAction = (entry: ITestEntry, options: IMenuActionOptions | undefined) => {
+			if (!entry.checked) {
+				return instantiationService.createInstance(MenuItemAction, { id: entry.id, title: entry.title, icon: entry.icon }, undefined, options, undefined, undefined);
+			}
+			// The entry's toggled condition holds, as when the side pane shows its editor.
+			const contextKeyService = new class extends mock<IContextKeyService>() {
+				override contextMatchesRules(rules: ContextKeyExpression | undefined): boolean { return !!rules?.evaluate({ getValue: () => undefined }); }
+			};
+			return instantiationService.invokeFunction(accessor => new MenuItemAction({ id: entry.id, title: entry.title, icon: entry.icon, toggled: ContextKeyExpr.true() }, undefined, options, undefined, undefined, contextKeyService, accessor.get(ICommandService)));
+		};
+
 		let entries = initialEntries;
 		let createdMenu: IMenu | undefined;
 		const onDidChangeMenu = testStore.add(new Emitter<IMenuChangeEvent>());
 		instantiationService.stub(IMenuService, new class extends mock<IMenuService>() {
-			override createMenu(): IMenu {
+			override createMenu(_id: MenuId, contextKeyService: IContextKeyService): IMenu {
 				const menu: IMenu = {
 					onDidChange: onDidChangeMenu.event,
 					dispose: () => { },
 					getActions: options => {
 						const groups = new Map<string, (MenuItemAction | SubmenuItemAction)[]>();
 						for (const entry of entries) {
+							if (entry.when && !contextKeyService.contextMatchesRules(entry.when)) {
+								continue;
+							}
 							const group = entry.group ?? 'navigation';
 							groups.set(group, [...groups.get(group) ?? [], entry.submenu
 								? new SubmenuItemAction({ submenu: MenuId.for(entry.id), title: entry.title, icon: entry.icon }, undefined, entry.submenu.map(item =>
 									instantiationService.createInstance(MenuItemAction, { id: item.id, title: item.title }, undefined, options, undefined, undefined)))
-								: instantiationService.createInstance(MenuItemAction, { id: entry.id, title: entry.title, icon: entry.icon }, undefined, options, undefined, undefined)]);
+								: createEntryAction(entry, options)]);
 						}
 						return [...groups];
 					},
@@ -124,6 +150,7 @@ suite('Sessions - Session Activity Bar', () => {
 
 		const configurationService = new TestConfigurationService({ [SESSION_ACTIVITY_BAR_SETTING]: true });
 		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IContextKeyService, testStore.add(instantiationService.createInstance(ContextKeyService)));
 
 		const activityService = testStore.add(new SessionActivityBarActivityService());
 		instantiationService.stub(ISessionActivityBarActivityService, activityService);
@@ -153,7 +180,7 @@ suite('Sessions - Session Activity Bar', () => {
 			},
 			setEnabled: (enabled: boolean) => {
 				configurationService.setUserConfiguration(SESSION_ACTIVITY_BAR_SETTING, enabled);
-				configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: (key: string) => key === SESSION_ACTIVITY_BAR_SETTING }));
+				configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectedKeys: new Set([SESSION_ACTIVITY_BAR_SETTING]), affectsConfiguration: (key: string) => key === SESSION_ACTIVITY_BAR_SETTING }));
 			},
 		};
 	}
@@ -161,6 +188,78 @@ suite('Sessions - Session Activity Bar', () => {
 	function key(target: Element, keyCode: number, key: string): void {
 		target.dispatchEvent(new KeyboardEvent('keydown', { key, keyCode, bubbles: true, cancelable: true }));
 	}
+
+	test('does not subscribe to chat actions while the activity bar is disabled', () => {
+		const { activityBar, setEnabled } = createActivityBar(store, [browser]);
+		let subscriptions = 0;
+		const actions = derived(reader => {
+			subscriptions++;
+			reader.store.add(toDisposable(() => subscriptions--));
+			return [];
+		});
+		setEnabled(false);
+		activityBar.setChatActions(actions);
+		const disabled = subscriptions;
+		setEnabled(true);
+		const enabled = subscriptions;
+		setEnabled(false);
+		assert.deepStrictEqual({ disabled, enabled, disabledAgain: subscriptions }, { disabled: 0, enabled: 1, disabledAgain: 0 });
+	});
+
+	test('scopes chat actions to their bar and refreshes their labels and callbacks', async () => {
+		const id = 'test.pullRequest';
+		const entry = { id, title: 'Open Pull Request', icon: Codicon.gitPullRequest, group: SessionActivityBarGroup.SidePanel, when: sessionActivityBarChatActionContext(id) };
+		const first = createActivityBar(store, [browser, entry]);
+		const second = createActivityBar(store, [browser, entry]);
+		const opened: number[] = [];
+		const action = (number: number) => toAction({ id, label: `Open Pull Request #${number}`, class: ThemeIcon.asClassName(Codicon.gitPullRequest), run: () => { opened.push(number); } });
+		const original = action(1);
+		let originalIdReads = 0;
+		Object.defineProperty(original, 'id', { get: () => { originalIdReads++; return id; } });
+		const actions = observableValue('actions', [original]);
+		first.activityBar.setChatActions(actions);
+		first.label('Open Pull Request').click();
+		key(first.label('Open Pull Request'), 35, 'End');
+		actions.set([action(2)], undefined);
+		originalIdReads = 0;
+		const focusPreserved = getActiveElement() === first.label('Open Pull Request');
+		key(first.label('Open Pull Request'), 13, 'Enter');
+		first.label('Open Pull Request').dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+		key(first.label('Open Pull Request'), 32, ' ');
+		first.label('Open Pull Request').dispatchEvent(new KeyboardEvent('keyup', { key: ' ', keyCode: 32, bubbles: true, cancelable: true }));
+		const updated = first.label('Open Pull Request').getAttribute('aria-label');
+		const otherBar = !!second.activityBar.element.querySelector('.action-label[aria-label^="Open Pull Request"]');
+		first.setEnabled(false);
+		first.setEnabled(true);
+		const restored = !!first.label('Open Pull Request');
+		first.activityBar.setChatActions(undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual({ opened, originalIdReads, updated, otherBar, restored, focusPreserved, cleared: !!first.label('Open Pull Request'), commands: first.ran }, {
+			opened: [1, 2, 2], originalIdReads: 0, updated: 'Open Pull Request #2', otherBar: false, restored: true, focusPreserved: true, cleared: false, commands: [],
+		});
+	});
+
+	test('keeps chat actions directly clickable when checked without adding dropdowns', () => {
+		const id = 'test.issue';
+		const { activityBar, label } = createActivityBar(store, [{
+			id, title: 'Issues', icon: Codicon.issues, group: SessionActivityBarGroup.SidePanel, when: sessionActivityBarChatActionContext(id),
+		}]);
+		const ran: number[] = [];
+		const action = (number: number, checked: boolean) => toAction({ id, label: 'Issues', checked, class: ThemeIcon.asClassName(Codicon.issues), run: () => { ran.push(number); } });
+		const actions = observableValue('actions', [action(1, false)]);
+		activityBar.setChatActions(actions);
+		const primary = label('Issues');
+		primary.click();
+		actions.set([action(2, true)], undefined);
+		const checked = { css: primary.classList.contains('checked'), pressed: primary.getAttribute('aria-pressed'), sameElement: primary === label('Issues') };
+		primary.click();
+		assert.deepStrictEqual({
+			ran, checked, noDropdown: !activityBar.element.querySelector('.dropdown-action-container'),
+		}, {
+			ran: [1, 2], checked: { css: true, pressed: 'true', sameElement: true }, noDropdown: true,
+		});
+	});
 
 	test('shows icon-only entries while enabled and has entries, outside the phone layout', () => {
 		const { root, activityBar, setEntries, setEnabled } = createActivityBar(store, [changes, browser, canvas]);
@@ -640,6 +739,22 @@ suite('Sessions - Session Activity Bar', () => {
 		});
 	});
 
+	test('shows the hover of the next entry instantly once one has shown, like the workbench activity bar', () => {
+		const previous = getBaseLayerHoverDelegate();
+		const delegates = new Set<IHoverDelegate>();
+		setBaseLayerHoverDelegate({ ...previous, setupManagedHover: (delegate, ...args) => { delegates.add(delegate); return previous.setupManagedHover(delegate, ...args); } });
+		store.add(toDisposable(() => setBaseLayerHoverDelegate(previous)));
+		createActivityBar(store, [changes, browser]);
+
+		// All entries share one delegate.
+		assert.strictEqual(delegates.size, 1);
+		const [delegate] = delegates;
+		const firstDelay = delegate.delay;
+		delegate.onDidHideHover?.();
+
+		assert.deepStrictEqual({ firstDelayed: firstDelay !== 0, nextDelay: delegate.delay }, { firstDelayed: true, nextDelay: 0 });
+	});
+
 	test('runs an entry when clicked', async () => {
 		const { label, ran } = createActivityBar(store, [changes, browser]);
 
@@ -647,6 +762,33 @@ suite('Sessions - Session Activity Bar', () => {
 		await timeout(0);
 
 		assert.deepStrictEqual(ran, ['test.browser']);
+	});
+
+	test('shows a checked entry as pressed and hides what it shows when it is clicked or activated by keyboard', async () => {
+		const files: ITestEntry = { id: 'test.files', title: 'Files', icon: Codicon.files, group: SessionActivityBarGroup.SidePanel, checked: true };
+		const terminal: ITestEntry = { id: 'test.terminal', title: 'Terminal', icon: Codicon.terminal, group: SessionActivityBarGroup.Panel, checked: true };
+		// The entries' groups determine what they hide, as registered in the menu.
+		for (const entry of [files, terminal]) {
+			store.add(MenuRegistry.appendMenuItem(Menus.SessionActivityBar, { command: { id: entry.id, title: entry.title }, group: entry.group }));
+		}
+		const { label, ran } = createActivityBar(store, [files, { ...browser, group: SessionActivityBarGroup.SidePanel }, terminal]);
+
+		const state = (title: string) => ({ checked: label(title).classList.contains('checked'), pressed: label(title).getAttribute('aria-pressed') });
+		const before = { files: state('Files'), browser: state('Browser'), terminal: state('Terminal') };
+		for (const title of ['Files', 'Browser', 'Terminal']) {
+			label(title).click();
+			await timeout(0);
+		}
+		key(label('Files'), 36, 'Home');
+		key(label('Files'), 13, 'Enter');
+		// The action bar runs the focused entry when Enter is released.
+		label('Files').dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+		await timeout(0);
+
+		assert.deepStrictEqual({ before, ran }, {
+			before: { files: { checked: true, pressed: 'true' }, browser: { checked: false, pressed: null }, terminal: { checked: true, pressed: 'true' } },
+			ran: [TOGGLE_SIDE_PANEL_COMMAND_ID, 'test.browser', TogglePanelAction.ID, TOGGLE_SIDE_PANEL_COMMAND_ID],
+		});
 	});
 
 	test('opens the Canvas submenu to the left on hover, click, and keyboard, and runs its items', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

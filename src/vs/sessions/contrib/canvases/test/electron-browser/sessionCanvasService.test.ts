@@ -30,7 +30,7 @@ import { IEditorService } from '../../../../../workbench/services/editor/common/
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IChat, ISessionCanvas, ISessionCapabilities } from '../../../../services/sessions/common/session.js';
+import { IChat, ISessionCanvas, ISessionCanvasDefinition, ISessionCapabilities } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, IChatDeletedEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionEditorWorkingSetOwner, SessionEditorWorkingSetService } from '../../../layout/common/sessionEditorWorkingSet.js';
 import { ISessionCanvasRegistryService } from '../../common/sessionCanvas.js';
@@ -76,9 +76,21 @@ suite('SessionCanvasService', () => {
 		const sessionsService = upcastPartial<ISessionsService>({ activeSession });
 		const sessionChanges = store.add(new Emitter<ISessionsChangeEvent>());
 		const chatDeleted = store.add(new Emitter<IChatDeletedEvent>());
+		const definition: ISessionCanvasDefinition = {
+			canvasId: 'preview',
+			extensionId: 'user:preview',
+			extensionSource: 'user',
+			extensionName: 'Preview',
+			displayName: 'Preview',
+			description: 'Interactive preview.',
+			requiresInput: false,
+		};
+		const definitionOpens: { canvas: ISessionCanvasDefinition; instanceId: string }[] = [];
 		const sessionsManagementService = upcastPartial<ISessionsManagementService>({
 			onDidChangeSessions: sessionChanges.event,
 			onDidDeleteChat: chatDeleted.event,
+			listCanvases: async () => [definition],
+			openCanvas: async (_session, _chat, canvas, instanceId) => { definitionOpens.push({ canvas, instanceId }); },
 		});
 		const opened: CanvasInput[] = [];
 		const openOptions: unknown[] = [];
@@ -153,7 +165,7 @@ suite('SessionCanvasService', () => {
 		const setFindEditorsHandler = (handler: (resource: URI) => readonly IEditorIdentifier[]) => findEditorsHandler = handler;
 		const setCloseEditorsHandler = (handler: () => Promise<void>) => closeEditorsHandler = handler;
 		const setCreateBrowserModelHandler = (handler: (url: string, openSource: string | undefined) => Promise<IBrowserViewModel>) => createBrowserModelHandler = handler;
-		return { activeChat, activeSession, canvas, canvasService, canvases, chat, chatDeleted, chats, closeSettled, editorWorkingSetService, isArchived, opened, openOptions, openSettled, session, sessionChanges, get closeCount() { return closeCount; }, setCanvasesEnabled, setCloseEditorsHandler, setCreateBrowserModelHandler, setFindEditorsHandler, setOpenEditorHandler };
+		return { activeChat, activeSession, canvas, canvasService, canvases, chat, chatDeleted, chats, closeSettled, contextService, definition, definitionOpens, editorWorkingSetService, isArchived, opened, openOptions, openSettled, session, sessionChanges, get closeCount() { return closeCount; }, setCanvasesEnabled, setCloseEditorsHandler, setCreateBrowserModelHandler, setFindEditorsHandler, setOpenEditorHandler };
 	}
 
 	function owner(session: IActiveSession, chatResource?: URI): ISessionEditorWorkingSetOwner {
@@ -164,6 +176,31 @@ suite('SessionCanvasService', () => {
 		const { openOptions } = createHarness();
 
 		assert.deepStrictEqual(openOptions, [{ pinned: true, revealIfOpened: true, preserveFocus: false }]);
+	});
+
+	test('projects active-chat Canvas definitions through the shared context', async () => {
+		const harness = createHarness();
+		const context = harness.contextService.contexts.get()[0];
+		assert.ok(context.definitionProvider);
+		let changeCount = 0;
+		store.add(context.definitionProvider.onDidChangeDefinitions(() => changeCount++));
+		const definitions = await context.definitionProvider.listCanvases();
+		assert.ok(definitions);
+		await context.definitionProvider.openCanvas(definitions[0], 'preview-instance');
+		const beforeChange = changeCount;
+		harness.canvases.set([], undefined);
+
+		assert.deepStrictEqual({
+			frontendSessionResource: harness.contextService.getFrontendSessionResource(context.owner)?.toString(),
+			definitions,
+			definitionOpens: harness.definitionOpens,
+			definitionsChanged: changeCount > beforeChange,
+		}, {
+			frontendSessionResource: harness.session.resource.toString(),
+			definitions: [harness.definition],
+			definitionOpens: [{ canvas: harness.definition, instanceId: 'preview-instance' }],
+			definitionsChanged: true,
+		});
 	});
 
 	test('registers live canvas inputs for retention across Details-only layout collapse', async () => {
@@ -550,8 +587,8 @@ suite('SessionCanvasService', () => {
 			{ resource: URI.parse('agent-host-canvas:/logs-numbered'), instanceId: undefined, title: 'Logs', source: URI.parse('https://example.test/logs-numbered') },
 			{ resource: URI.parse('agent-host-canvas:/logs-semantic'), instanceId: '1', title: 'Logs', source: URI.parse('https://example.test/logs-semantic') },
 		];
-		const { canvasService, canvases: canvasStates, opened } = createHarness(true, canvases);
-		const registration = store.add(registerSessionCanvasActions(canvasService, emptyRegistryService));
+		const { canvasService, canvases: canvasStates, contextService, opened } = createHarness(true, canvases);
+		const registration = store.add(registerSessionCanvasActions(canvasService, emptyRegistryService, contextService));
 		for (const input of [...opened]) {
 			input.dispose();
 		}
@@ -567,7 +604,7 @@ suite('SessionCanvasService', () => {
 			.filter(item => item.submenu === Menus.SessionsEditorTabsBarAddTabCanvas);
 		const getActivityBarSubmenus = () => MenuRegistry.getMenuItems(Menus.SessionActivityBar)
 			.filter(isISubmenuItem)
-			.filter(item => item.submenu === Menus.SessionsEditorTabsBarAddTabCanvas);
+			.filter(item => item.submenu === Menus.SessionActivityBarCanvas);
 		const items = getItems();
 		const submenus = getSubmenus();
 		const activityBarSubmenus = getActivityBarSubmenus();

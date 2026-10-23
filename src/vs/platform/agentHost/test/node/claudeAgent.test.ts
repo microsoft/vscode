@@ -5962,10 +5962,14 @@ suite('ClaudeAgent', () => {
 			startupCount: sdk.startupCallCount,
 			firstMcp: !!sdk.capturedStartupOptions[0].mcpServers,
 			secondMcpToolNames: lastBuild?.toolNames,
+			rebuildResume: sdk.capturedStartupOptions[1]?.resume,
+			rebuildSessionId: sdk.capturedStartupOptions[1]?.sessionId,
 		}, {
 			startupCount: 2,
 			firstMcp: true,
 			secondMcpToolNames: ['echo'],
+			rebuildResume: sessionId,
+			rebuildSessionId: undefined,
 		});
 	});
 
@@ -6204,10 +6208,14 @@ suite('ClaudeAgent', () => {
 			startupCount: sdk.startupCallCount,
 			firstSnapshot: sdk.createSdkMcpServerCalls[0]?.toolNames,
 			lastSnapshot: sdk.createSdkMcpServerCalls.at(-1)?.toolNames,
+			rebuildResume: sdk.capturedStartupOptions[1]?.resume,
+			rebuildSessionId: sdk.capturedStartupOptions[1]?.sessionId,
 		}, {
 			startupCount: 2,
 			firstSnapshot: ['first'],
 			lastSnapshot: ['second'],
+			rebuildResume: undefined,
+			rebuildSessionId: sessionId,
 		});
 	});
 
@@ -6248,9 +6256,13 @@ suite('ClaudeAgent', () => {
 		assert.deepStrictEqual({
 			startupCount: sdk.startupCallCount,
 			lastSnapshot: sdk.createSdkMcpServerCalls.at(-1)?.toolNames,
+			rebuildResume: sdk.capturedStartupOptions[1]?.resume,
+			rebuildSessionId: sdk.capturedStartupOptions[1]?.sessionId,
 		}, {
 			startupCount: 2,
 			lastSnapshot: ['resumed'],
+			rebuildResume: sessionId,
+			rebuildSessionId: undefined,
 		});
 	});
 
@@ -8325,41 +8337,49 @@ suite('ClaudeAgent (Phase 9 — runtime mutation surface)', () => {
 	});
 
 
-	test('abortSession on a materialized session cancels the in-flight turn and leaves the session reusable', async () => {
-		const ctx = createTestContext(disposables);
-		await ctx.agent.authenticate('https://api.github.com', 'tok');
-		await tick();
-		const created = await createSession(ctx.agent, { workingDirectories: [URI.file('/workspace')], model: { id: 'claude-opus-4.6' } });
-		const sid = created.sdkSessionId;
+	for (const initialized of [false, true]) {
+		test(`abortSession ${initialized ? 'after' : 'before'} SDK initialization cancels the turn and leaves the session reusable`, async () => {
+			const ctx = createTestContext(disposables);
+			await ctx.agent.authenticate('https://api.github.com', 'tok');
+			const created = await createSession(ctx.agent, { workingDirectories: [URI.file('/workspace')], model: { id: 'claude-opus-4.6' } });
+			const sid = created.sdkSessionId;
 
-		// Block the FakeQuery at index 0 so the first turn never completes.
-		const stall = new DeferredPromise<void>();
-		ctx.sdk.queryAdvance = async (i) => { if (i === 0) { await stall.p; } };
-		ctx.sdk.nextQueryMessages = [makeSystemInitMessage(sid), makeResultSuccess(sid)];
+			const reached = new DeferredPromise<void>();
+			const stall = new DeferredPromise<void>();
+			ctx.sdk.queryAdvance = async i => {
+				if (i === (initialized ? 1 : 0)) {
+					reached.complete();
+					await stall.p;
+				}
+			};
+			ctx.sdk.nextQueryMessages = [makeSystemInitMessage(sid), makeResultSuccess(sid)];
 
-		const inFlight = ctx.agent.chats.sendMessage(defaultChatUri(created.session), 'hi', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
-		await tick();
+			const inFlight = ctx.agent.chats.sendMessage(defaultChatUri(created.session), 'hi', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
+			await reached.p;
 
-		await ctx.agent.chats.abort(defaultChatUri(created.session), chatContext(defaultChatUri(created.session)));
-		await assert.rejects(inFlight, (err: unknown) => isCancellationError(err));
+			await ctx.agent.chats.abort(defaultChatUri(created.session), chatContext(defaultChatUri(created.session)));
+			await assert.rejects(inFlight, (err: unknown) => isCancellationError(err));
 
-		// Unblock the (now-aborted) iterator so it terminates cleanly.
-		ctx.sdk.queryAdvance = undefined;
-		stall.complete();
-		await tick();
+			ctx.sdk.queryAdvance = undefined;
+			stall.complete();
+			await tick();
 
-		// Next sendMessage rebuilds via resume mode.
-		const startupBefore = ctx.sdk.startupCallCount;
-		ctx.sdk.nextQueryMessages = [makeSystemInitMessage(sid), makeResultSuccess(sid)];
-		await ctx.agent.chats.sendMessage(defaultChatUri(created.session), 'next', undefined, undefined, 'turn-2', undefined, undefined, chatContext(defaultChatUri(created.session)));
+			const startupBefore = ctx.sdk.startupCallCount;
+			ctx.sdk.nextQueryMessages = [makeSystemInitMessage(sid), makeResultSuccess(sid)];
+			await ctx.agent.chats.sendMessage(defaultChatUri(created.session), 'next', undefined, undefined, 'turn-2', undefined, undefined, chatContext(defaultChatUri(created.session)));
 
-		assert.strictEqual(ctx.sdk.startupCallCount, startupBefore + 1, 'rebind called startup again');
-		const resumeOpts = ctx.sdk.capturedStartupOptions[ctx.sdk.startupCallCount - 1];
-		assert.deepStrictEqual({
-			resume: resumeOpts.resume,
-			sessionId: resumeOpts.sessionId,
-		}, { resume: sid, sessionId: undefined });
-	});
+			const options = ctx.sdk.capturedStartupOptions.at(-1);
+			assert.deepStrictEqual({
+				startups: ctx.sdk.startupCallCount - startupBefore,
+				resume: options?.resume,
+				sessionId: options?.sessionId,
+			}, {
+				startups: 1,
+				resume: initialized ? sid : undefined,
+				sessionId: initialized ? undefined : sid,
+			});
+		});
+	}
 
 	test('abortSession denies any parked permission requests so the SDK canUseTool callback unwinds with deny instead of leaving stale UI behind', async () => {
 		const ctx = createTestContext(disposables);

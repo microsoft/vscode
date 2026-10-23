@@ -95,6 +95,9 @@ export const Menus = {
 	SessionsEditorTabsBarAddTab: new MenuId('SessionsEditorTabsBarAddTab'),
 	SessionsEditorTabsBarAddTabCanvas: new MenuId('SessionsEditorTabsBarAddTabCanvas'),
 	EmptyFileEditorActions: new MenuId('SessionsEmptyFileEditorActions'),
+	EmptySearchEditorActions: new MenuId('SessionsEmptySearchEditorActions'),
+	EmptyBrowserEditorActions: new MenuId('SessionsEmptyBrowserEditorActions'),
+	EmptyChangesActions: new MenuId('SessionsEmptyChangesActions'),
 	/**
 	 * The Add Tab actions listed in place of the watermark in an empty editor
 	 * group. A subset of {@link SessionsEditorTabsBarAddTab}, which still backs
@@ -109,6 +112,7 @@ export const Menus = {
 	 * panel toggle after the terminal leave the title bar while the activity bar shows its layout actions.
 	 */
 	SessionActivityBar: new MenuId('SessionActivityBar'),
+	SessionActivityBarCanvas: new MenuId('SessionActivityBarCanvas'),
 	/** The Session Activity Bar's context menu, shown after the activity bar's own entry actions. */
 	SessionActivityBarContext: new MenuId('SessionActivityBarContext'),
 	ChangesFilesView: new MenuId('SessionsChangesFilesView'),
@@ -138,4 +142,6 @@ export const SessionActivityBarGroup = {
 	SidePanel: '1_sidePanel',
 	/** The terminal, followed by the panel toggle. */
 	Panel: '2_panel',
+	/** Links to the active chat's pull requests and issues. */
+	GitHub: '3_github',
 } as const;

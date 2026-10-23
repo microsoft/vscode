@@ -300,6 +300,13 @@ export const EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY = 'extensions.experiment
  */
 export const EXTENSIONS_AGENTS_WINDOW_MANAGEMENT = 'extensions.experimental.agentsWindowManagement';
 
+/**
+ * Enables extensions in the Agents window automatically when they contribute something useful there and nothing
+ * that relies on features the Agents window lacks. Users can still disable them. Requires
+ * {@link EXTENSIONS_AGENTS_WINDOW_MANAGEMENT}.
+ */
+export const EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE = 'extensions.experimental.agentsWindowAutoEnable';
+
 export const ALL_EXTENSION_KINDS: readonly ExtensionKind[] = ['ui', 'workspace', 'web'];
 
 export type LimitedWorkspaceSupportType = 'limited';

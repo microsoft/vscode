@@ -95,7 +95,8 @@ export class CloudSandboxSessionFeed extends Disposable {
 						void ready.complete();
 					} else if (envelope.type === 'system' && envelope.event === 'disconnected') {
 						disconnected(true);
-					} else if (envelope.type === 'message' && envelope.group === connection.group) {
+					} else if (envelope.type === 'message' && (envelope.from === 'server' || envelope.group === connection.group)) {
+						// WPS server-published messages omit the group even when sent to a group.
 						const data = parse.jsonObject(envelope.data);
 						if (data.type !== 'task.changed') {
 							return;

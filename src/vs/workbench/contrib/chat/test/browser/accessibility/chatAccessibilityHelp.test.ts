@@ -15,6 +15,16 @@ import { isResponseSelectionSupported } from '../../../browser/chat.js';
 suite('Chat Accessibility Help', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('documents the shared picker and startup lock for Cloud drafts', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), false);
+		assert.deepStrictEqual({
+			cloud: help.includes('or a new Cloud session'),
+			keyboard: help.includes('Tab reaches separate Mode and Permissions buttons'),
+			locked: help.includes('Cloud draft choices are locked while the first request starts the session'),
+			focus: help.includes('Escape closes the picker and returns focus to the button that opened it'),
+		}, { cloud: true, keyboard: true, locked: true, focus: true });
+	});
+
 	test('documents side questions and concurrent responses in both windows but not inline or quick chat', () => {
 		assert.deepStrictEqual([
 			getAccessibilityHelpText('panelChat', new MockKeybindingService(), true),
@@ -104,14 +114,24 @@ suite('Chat Accessibility Help', () => {
 		test(`documents the sharing toggle and backend selection (${type})`, () => {
 			const help = getAccessibilityHelpText(type, new MockKeybindingService(), false);
 			assert.deepStrictEqual({
-				backend: help.includes('Select Remote Connection Method dropdown chooses Dev Tunnels or GitHub Environments'),
+				backend: help.includes('Remote Connections button opens a menu that offers Off, Dev Tunnels, and GitHub Environments when available'),
 				setting: help.includes('The preview setting chat.agentHost.remoteConnections selects the connection method'),
-				explicitOptIn: help.includes('Selecting a method does not enable sharing; changing it turns sharing off'),
-				keyboard: help.includes('Enter or Space to enable or disable sharing'),
+				enabling: help.includes('Selecting a method updates the setting and enables sharing'),
+				disabling: help.includes('Selecting Off disables sharing'),
+				remembered: help.includes('without changing the preferred method'),
+				footer: help.includes('The footer shows the name used to identify this machine on other clients'),
+				rename: help.includes('press Tab to reach the name link in the footer') && help.includes('Renaming while Off does not enable sharing'),
+				directSetting: help.includes('Changing the setting directly turns sharing off'),
+				keyboard: help.includes('arrow keys in the title bar, Enter or Space to open it'),
 			}, {
 				backend: type !== 'inlineChat' && type !== 'quickChat',
 				setting: type !== 'inlineChat' && type !== 'quickChat',
-				explicitOptIn: type !== 'inlineChat' && type !== 'quickChat',
+				enabling: type !== 'inlineChat' && type !== 'quickChat',
+				disabling: type !== 'inlineChat' && type !== 'quickChat',
+				remembered: type !== 'inlineChat' && type !== 'quickChat',
+				footer: type !== 'inlineChat' && type !== 'quickChat',
+				rename: type !== 'inlineChat' && type !== 'quickChat',
+				directSetting: type !== 'inlineChat' && type !== 'quickChat',
 				keyboard: type !== 'inlineChat' && type !== 'quickChat',
 			});
 		});
@@ -759,6 +779,8 @@ suite('Chat Accessibility Help', () => {
 			panelChat: getAccessibilityHelpText('panelChat', keybindingService, true).includes('left and right arrow keys to move between pills'),
 			agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes('<keybinding:editor.action.showContextMenu>'),
 			pullRequestFilter: getAccessibilityHelpText('agentView', keybindingService, true).includes('Pull Requests Options'),
+			pullRequestChangesInSessions: getAccessibilityHelpText('agentView', keybindingService, true, true).includes('Open Pull Request Changes row action'),
+			pullRequestChangesInEditor: getAccessibilityHelpText('agentView', keybindingService, true).includes('Open Pull Request Changes row action'),
 			copyActions: getAccessibilityHelpText('agentView', keybindingService, true).includes('its context menu offers the item\'s copy actions'),
 			filterPersistence: getAccessibilityHelpText('agentView', keybindingService, true).includes('remembered across sessions'),
 			filterRecovery: getAccessibilityHelpText('agentView', keybindingService, true).includes('any other pill\'s context menu or the toolbar context menu'),
@@ -778,6 +800,8 @@ suite('Chat Accessibility Help', () => {
 			panelChat: true,
 			agentView: true,
 			pullRequestFilter: true,
+			pullRequestChangesInSessions: true,
+			pullRequestChangesInEditor: false,
 			copyActions: true,
 			filterPersistence: true,
 			filterRecovery: true,

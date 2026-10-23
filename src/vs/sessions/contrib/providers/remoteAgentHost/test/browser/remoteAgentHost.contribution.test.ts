@@ -740,10 +740,9 @@ suite('Remote agent host provider ownership', () => {
 suite('Remote Agent Host chat session contribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('advertises target-only delegation', () => {
-		const address = 'test-host';
+	function registerAgent(address: string, provider: string): IChatSessionsExtensionPoint | undefined {
 		const agent: AgentInfo = {
-			provider: 'copilot',
+			provider,
 			displayName: 'Copilot',
 			description: 'test',
 			models: [],
@@ -766,6 +765,11 @@ suite('Remote Agent Host chat session contribution', () => {
 			() => harness._registerAgent(address, connection, agent, 'Test Host'),
 			/Stop after registering the chat session contribution/
 		);
+		return registeredContribution;
+	}
+
+	test('advertises target-only delegation', () => {
+		const registeredContribution = registerAgent('test-host', 'copilot');
 		assert.deepStrictEqual(registeredContribution && {
 			type: registeredContribution.type,
 			displayName: registeredContribution.displayName,
@@ -777,5 +781,14 @@ suite('Remote Agent Host chat session contribution', () => {
 			canDelegate: true,
 			supportsDelegation: false,
 		});
+	});
+
+	test('uses the Copilot input placeholder only for sandbox Copilot sessions', () => {
+		assert.deepStrictEqual([
+			registerAgent('cloudsandbox:test-host', 'copilot')?.inputPlaceholder,
+			registerAgent('cloudsandbox:test-host', 'other-agent')?.inputPlaceholder,
+			registerAgent('test-host', 'copilot')?.inputPlaceholder,
+			registerAgent('test-host', 'other-agent')?.inputPlaceholder,
+		], ['Chat with Copilot', undefined, undefined, undefined]);
 	});
 });

@@ -31,7 +31,17 @@ class SessionPickerActionViewItem extends ActionViewItem {
 	}
 }
 
-/** Hosts a custom picker label while retaining standard toolbar activation and hovers. */
+const SESSION_PICKER_ID_ATTRIBUTE = 'data-session-picker-id';
+
+/** The stable id of the picker hosted in `container` by {@link createSessionPickerToolbar}, if any. */
+export function getSessionPickerId(container: HTMLElement): string | undefined {
+	return container.getAttribute(SESSION_PICKER_ID_ATTRIBUTE) ?? undefined;
+}
+
+/**
+ * Hosts a custom picker label while retaining standard toolbar activation and hovers.
+ * Marks `container` with the picker's `id`, see {@link getSessionPickerId}.
+ */
 export function createSessionPickerToolbar(
 	store: DisposableStore,
 	container: HTMLElement,
@@ -42,6 +52,7 @@ export function createSessionPickerToolbar(
 	hoverDelegate?: IHoverDelegate,
 	tooltipProvider?: () => string,
 ): { trigger: HTMLElement; action: Action } {
+	container.setAttribute(SESSION_PICKER_ID_ATTRIBUTE, id);
 	const action = store.add(new Action(id, label, undefined, true, run));
 	let item: SessionPickerActionViewItem;
 	const toolbar = store.add(instantiationService.createInstance(WorkbenchToolBar, container, {
