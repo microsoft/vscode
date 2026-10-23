@@ -202,8 +202,11 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 	}
 
 	private protectedResourceCache: IMarketplaceProtectedResourceCache | undefined;
+	private serviceIndexUrl: string | undefined;
+	private resourceTokenAccount: { readonly id: string; readonly serviceIndexUrl: string } | undefined;
 
 	protected override async doGetAccount(serviceIndexUrl: string): Promise<IExtensionGalleryAccount | undefined> {
+		this.serviceIndexUrl = serviceIndexUrl;
 		if (!this.protectedResourceCache || this.protectedResourceCache.serviceIndexUrl !== serviceIndexUrl) {
 			this.protectedResourceCache = { serviceIndexUrl };
 		}
@@ -226,6 +229,10 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 		const resourceSession = await this.getResourceSession(session, protectedResource);
 		if (!resourceSession) {
 			return {};
+		}
+		if (this.accountStatus === ExtensionGalleryAccountStatus.Eligible
+			&& this.serviceIndexUrl === serviceIndexUrl && this.readPreferredAccountId() === session.account.id) {
+			this.resourceTokenAccount = { id: session.account.id, serviceIndexUrl };
 		}
 		const expiresAfter = resourceSession.expiresAfter;
 		if (expiresAfter === undefined || !Number.isFinite(expiresAfter) || expiresAfter <= 0) {
@@ -284,6 +291,7 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 	 * treated here as simply having no session.
 	 */
 	private async getResourceSession(session: AuthenticationSession, protectedResource: IMarketplaceProtectedResource): Promise<AuthenticationSession | undefined> {
+		const serviceIndexUrl = this.serviceIndexUrl;
 		if (!this.hasResourceScopes(protectedResource.scopes)) {
 			return undefined;
 		}
@@ -295,6 +303,13 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 			return sessions.at(0);
 		} catch (error) {
 			this.logService.error('[Marketplace] Unable to acquire a resource-scoped marketplace token', error);
+			// A failed renewal must not preserve credentials belonging to another account or gallery.
+			if (this.accountStatus === ExtensionGalleryAccountStatus.Eligible
+				&& this.resourceTokenAccount?.id === session.account.id
+				&& this.resourceTokenAccount.serviceIndexUrl === serviceIndexUrl
+				&& this.serviceIndexUrl === serviceIndexUrl && this.readPreferredAccountId() === session.account.id) {
+				this.setAccountStatus(ExtensionGalleryAccountStatus.Unknown);
+			}
 			return undefined;
 		}
 	}
