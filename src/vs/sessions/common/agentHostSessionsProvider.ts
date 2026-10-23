@@ -411,11 +411,10 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	setAgent?(sessionId: string, agent: ISessionAgentRef | undefined): void;
 
 	/**
-	 * Returns the agent-host annotations channel for a session so that
-	 * sessions-layer features (e.g. agent feedback) can subscribe to and
-	 * dispatch annotation actions against the session's
-	 * `<sessionUri>/annotations` channel. Returns `undefined` when the
-	 * session is unknown or the host connection is unavailable.
+	 * Returns the host-advertised annotations channel for a session so that
+	 * sessions-layer features can subscribe to and dispatch annotation actions.
+	 * Returns `undefined` when no channel is advertised, the session is unknown
+	 * or unavailable by policy, or the host connection is unavailable.
 	 */
 	getFeedbackAnnotationsChannel(sessionId: string): { readonly connection: IAgentConnection; readonly annotationsUri: URI } | undefined;
 

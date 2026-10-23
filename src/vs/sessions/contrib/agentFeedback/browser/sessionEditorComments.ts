@@ -5,13 +5,20 @@
 
 import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { URI } from '../../../../base/common/uri.js';
-import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackReply } from './agentFeedbackModel.js';
+import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackReply, ISessionAnnotation } from './agentFeedbackModel.js';
 import { ICodeReviewSuggestion, IPRReviewComment, IPRReviewState, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 import { IFeedbackPullRequest } from '../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 
 export const enum SessionEditorCommentSource {
 	AgentFeedback = 'agentFeedback',
 	PRReview = 'prReview',
+	Annotation = 'annotation',
+}
+
+export interface ISessionEditorCommentReply {
+	readonly text: string;
+	readonly author?: IAgentFeedbackReply['author'];
+	readonly isMarkdown?: boolean;
 }
 
 export interface ISessionEditorComment {
@@ -19,21 +26,25 @@ export interface ISessionEditorComment {
 	readonly sourceId: string;
 	readonly source: SessionEditorCommentSource;
 	/** Origin of this comment, used to render its type label. */
-	readonly kind: AgentFeedbackKind;
+	readonly kind?: AgentFeedbackKind;
 	readonly sessionResource: URI;
 	readonly resourceUri: URI;
 	readonly range: IRange;
 	readonly text: string;
+	readonly isMarkdown?: boolean;
+	readonly annotation?: ISessionAnnotation['annotation'];
+	readonly annotationsUri?: URI;
+	readonly canEdit?: boolean;
+	readonly isFileLevel?: boolean;
 	readonly suggestion?: ICodeReviewSuggestion;
 	readonly sourcePRReviewCommentId?: string;
 	readonly sourcePullRequest?: IFeedbackPullRequest;
 	readonly canConvertToAgentFeedback: boolean;
 	/**
 	 * Replies that belong to the same comment thread as this comment. They
-	 * talk about the same code region as {@link text}. Only set for agent
-	 * feedback comments today.
+	 * talk about the same code region as {@link text}.
 	 */
-	readonly replies?: readonly IAgentFeedbackReply[];
+	readonly replies?: readonly ISessionEditorCommentReply[];
 	/**
 	 * Lifecycle state of this comment. Only set for agent feedback comments.
 	 */
@@ -50,8 +61,9 @@ export function getSessionEditorComments(
 	prReviewState?: IPRReviewState,
 	visibleResolvedFeedbackIds?: ReadonlySet<string>,
 	includeRawPRReviewComments = true,
+	nativeComments: readonly ISessionEditorComment[] = [],
 ): readonly ISessionEditorComment[] {
-	const comments: ISessionEditorComment[] = [];
+	const comments: ISessionEditorComment[] = [...nativeComments];
 
 	// Prefer the Agent Host annotation so the agent and editor share one representation.
 	const mirroredPRCommentIds = new Set<string>();
@@ -111,6 +123,32 @@ export function getSessionEditorComments(
 
 	comments.sort(compareSessionEditorComments);
 	return comments;
+}
+
+export function getNativeAnnotationEditorComments(sessionResource: URI, annotations: readonly ISessionAnnotation[], canEdit: boolean): readonly ISessionEditorComment[] {
+	return annotations.map(({ annotation, annotationsUri, resourceUri }) => {
+		const [first, ...replies] = annotation.entries;
+		const range = annotation.range;
+		return {
+			id: toSessionEditorCommentId(SessionEditorCommentSource.Annotation, annotation.id),
+			sourceId: annotation.id,
+			source: SessionEditorCommentSource.Annotation,
+			sessionResource,
+			resourceUri,
+			range: range ? new Range(range.start.line + 1, range.start.character + 1, range.end.line + 1, range.end.character + 1) : new Range(1, 1, 1, 1),
+			isFileLevel: range === undefined,
+			text: typeof first.text === 'string' ? first.text : first.text.markdown,
+			isMarkdown: typeof first.text !== 'string',
+			replies: replies.map(entry => ({
+				text: typeof entry.text === 'string' ? entry.text : entry.text.markdown,
+				isMarkdown: typeof entry.text !== 'string',
+			})),
+			annotation,
+			annotationsUri,
+			canEdit,
+			canConvertToAgentFeedback: false,
+		};
+	});
 }
 
 export function compareSessionEditorComments(a: ISessionEditorComment, b: ISessionEditorComment): number {
@@ -200,7 +238,7 @@ export function fromSessionEditorCommentId(id: string): { readonly source: Sessi
 		return undefined;
 	}
 	const source = id.slice(0, separatorIndex);
-	if (source !== SessionEditorCommentSource.AgentFeedback && source !== SessionEditorCommentSource.PRReview) {
+	if (source !== SessionEditorCommentSource.AgentFeedback && source !== SessionEditorCommentSource.PRReview && source !== SessionEditorCommentSource.Annotation) {
 		return undefined;
 	}
 	return { source, sourceId: id.slice(separatorIndex + 1) };

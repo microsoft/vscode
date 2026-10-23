@@ -18,7 +18,7 @@ import { AgentFeedbackEditorWidgetContribution } from '../../browser/agentFeedba
 import { ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { ICodeReviewService, ICodeReviewSuggestion } from '../../../codeReview/browser/codeReviewService.js';
 import { createMockCodeReviewService } from '../../../../../workbench/test/browser/componentFixtures/sessions/mockCodeReviewService.js';
-import { ISessionEditorComment, SessionEditorCommentSource } from '../../browser/sessionEditorComments.js';
+import { getNativeAnnotationEditorComments, ISessionEditorComment, SessionEditorCommentSource } from '../../browser/sessionEditorComments.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISession, ISessionFileChange } from '../../../../services/sessions/common/session.js';
 
@@ -106,6 +106,8 @@ function createPRReviewComment(id: string, text: string, startLineNumber: number
 function createMockAgentFeedbackService(): IAgentFeedbackService {
 	return new class extends mock<IAgentFeedbackService>() {
 		override readonly onDidChangeFeedback = Event.None;
+		override readonly onDidChangeAnnotations = Event.None;
+		override getNativeAnnotationComments() { return []; }
 		override readonly onDidChangeFeedbackVisibility = Event.None;
 		override readonly onDidChangeNavigation = Event.None;
 		override readonly onDidChangeFeedbackScope = Event.None;
@@ -267,20 +269,22 @@ function renderViaContribution(context: ComponentFixtureContext, code: string, c
 
 	ensureTokenColorMap();
 
-	const feedback: readonly IAgentFeedback[] = comments.map(comment => ({
+	const feedback: readonly IAgentFeedback[] = comments.filter(comment => comment.source !== SessionEditorCommentSource.Annotation).map(comment => ({
 		id: comment.sourceId,
 		text: comment.text,
 		resourceUri: comment.resourceUri,
 		range: comment.range,
 		sessionResource: comment.sessionResource,
 		suggestion: comment.suggestion,
-		kind: comment.kind,
-		replies: comment.replies,
+		kind: comment.kind ?? AgentFeedbackKind.UserReview,
+		replies: comment.replies?.map(reply => ({ text: reply.text, author: reply.author ?? 'user' })),
 		state: comment.state ?? AgentFeedbackState.Accepted,
 	}));
 
 	const agentFeedbackService = new class extends mock<IAgentFeedbackService>() {
 		override readonly onDidChangeFeedback = Event.None;
+		override readonly onDidChangeAnnotations = Event.None;
+		override getNativeAnnotationComments() { return comments.filter(comment => comment.source === SessionEditorCommentSource.Annotation); }
 		override readonly onDidChangeFeedbackVisibility = Event.None;
 		override readonly onDidChangeNavigation = Event.None;
 		override readonly onDidChangeFeedbackScope = Event.None;
@@ -416,6 +420,35 @@ const longFileFeedback = [
 ];
 
 export default defineThemedFixtureGroup({ path: 'sessions/agentFeedback/' }, {
+	NativeFileComment: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderWidget(context, {
+			commentItems: getNativeAnnotationEditorComments(sessionResource, [{
+				annotationsUri: URI.parse('review-channel:/example'),
+				resourceUri: fileResource,
+				annotation: {
+					id: 'native', origin: { session: 'session-store:/example' }, resource: fileResource.toString(), resolved: false,
+					entries: [{ id: 'opening', text: 'Keep **literal text** and <angle brackets>.\nThis comment covers the whole file.' }, { id: 'reply', text: { markdown: 'A **Markdown** reply with `code`.' } }],
+				},
+			}], true),
+			expanded: true,
+		}),
+	}),
+	ResolvedNativeComment: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderWidget(context, {
+			commentItems: getNativeAnnotationEditorComments(sessionResource, [{
+				annotationsUri: URI.parse('review-channel:/example'),
+				resourceUri: fileResource,
+				annotation: {
+					id: 'resolved', origin: { session: 'session-store:/example' }, resource: fileResource.toString(), resolved: true,
+					range: { start: { line: 1, character: 0 }, end: { line: 2, character: 1 } },
+					entries: [{ id: 'opening', text: 'This thread can be reopened without changing its entries.' }],
+				},
+			}], true),
+			expanded: true,
+		}),
+	}),
 	CollapsedSingleComment: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: context => renderWidget(context, {

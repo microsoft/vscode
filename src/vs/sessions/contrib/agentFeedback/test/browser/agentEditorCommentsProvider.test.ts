@@ -12,9 +12,53 @@ import { IPlanReviewFeedbackService } from '../../../../../workbench/contrib/cha
 import { AgentEditorCommentsBridge } from '../../../../../workbench/services/agentEditorComments/common/agentEditorComments.js';
 import { AgentEditorCommentsProviderContribution } from '../../browser/agentEditorCommentsProvider.js';
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
+import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
+import { getNativeAnnotationEditorComments } from '../../browser/sessionEditorComments.js';
 
 suite('AgentEditorCommentsProviderContribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('custom editors receive native entries as text without converting the thread to feedback', () => {
+		const resource = URI.parse('file:///document.md');
+		const sessionResource = URI.parse('session-store:/opaque');
+		const changed = store.add(new Emitter<URI>());
+		const deleted: string[] = [];
+		const native = getNativeAnnotationEditorComments(sessionResource, [{
+			annotationsUri: URI.parse('review-channel:/opaque'),
+			resourceUri: resource,
+			annotation: {
+				id: 'native:thread', origin: { session: sessionResource.toString() }, resource: resource.toString(), resolved: true,
+				entries: [{ id: 'opening', text: 'Plain **literal**' }, { id: 'reply', text: { markdown: '**Markdown** reply' } }],
+			},
+		}], true);
+		const feedbackService = new class extends mock<IAgentFeedbackService>() {
+			override readonly onDidChangeFeedback = Event.None;
+			override readonly onDidChangeAnnotations = changed.event;
+			override readonly onDidChangeFeedbackVisibility = Event.None;
+			override readonly onDidChangeFeedbackScope = Event.None;
+			override readonly onDidRevealSessionComment = Event.None;
+			override getFeedbackSessionResource() { return sessionResource; }
+			override getFeedback() { return []; }
+			override getNativeAnnotationComments() { return native; }
+			override getVisibleResolvedFeedbackIds() { return new Set<string>(); }
+			override async removeAnnotation(_sessionResource: URI, id: string) { deleted.push(id); }
+		}();
+		const bridge = store.add(new AgentEditorCommentsBridge());
+		store.add(new AgentEditorCommentsProviderContribution(feedbackService, new class extends mock<IPlanReviewFeedbackService>() {
+			override readonly onDidChangePlanReviewScope = Event.None;
+		}(), bridge, new TestNotificationService()));
+		let updates = 0;
+		store.add(bridge.onDidChangeComments(() => updates++));
+		changed.fire(sessionResource);
+		bridge.deleteComment(resource, native[0].id);
+		assert.deepStrictEqual({
+			comments: bridge.getComments(resource).map(comment => ({ id: comment.id, body: comment.body })),
+			relatedFeedback: bridge.getComments(resource, true), deleted, updates,
+		}, {
+			comments: [{ id: 'annotation:native:thread', body: 'Resolved Comment\n\nPlain **literal**\n\nMarkdown reply' }],
+			relatedFeedback: [], deleted: ['native:thread'], updates: 1,
+		});
+	});
 
 	test('related plan feedback includes only accepted agent feedback', () => {
 		const planUri = URI.parse('file:///plan.md');
@@ -23,6 +67,8 @@ suite('AgentEditorCommentsProviderContribution', () => {
 		const range = { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 2 };
 		const feedbackService = new class extends mock<IAgentFeedbackService>() {
 			override readonly onDidChangeFeedback = Event.None;
+			override readonly onDidChangeAnnotations = Event.None;
+			override getNativeAnnotationComments() { return []; }
 			override readonly onDidChangeFeedbackVisibility = Event.None;
 			override readonly onDidChangeFeedbackScope = Event.None;
 			override readonly onDidRevealSessionComment = Event.None;
@@ -44,7 +90,7 @@ suite('AgentEditorCommentsProviderContribution', () => {
 			override readonly onDidChangePlanReviewScope = Event.None;
 		}();
 		const bridge = store.add(new AgentEditorCommentsBridge());
-		store.add(new AgentEditorCommentsProviderContribution(feedbackService, planReviewFeedbackService, bridge));
+		store.add(new AgentEditorCommentsProviderContribution(feedbackService, planReviewFeedbackService, bridge, new TestNotificationService()));
 
 		assert.deepStrictEqual(
 			{
@@ -71,6 +117,8 @@ suite('AgentEditorCommentsProviderContribution', () => {
 		let scopeAvailable = false;
 		const feedbackService = new class extends mock<IAgentFeedbackService>() {
 			override readonly onDidChangeFeedback = Event.None;
+			override readonly onDidChangeAnnotations = Event.None;
+			override getNativeAnnotationComments() { return []; }
 			override readonly onDidChangeFeedbackVisibility = Event.None;
 			override readonly onDidChangeFeedbackScope = onDidChangeFeedbackScope.event;
 			override readonly onDidRevealSessionComment = onDidRevealSessionComment.event;
@@ -90,7 +138,7 @@ suite('AgentEditorCommentsProviderContribution', () => {
 			override readonly onDidChangePlanReviewScope = Event.None;
 		}();
 		const bridge = store.add(new AgentEditorCommentsBridge());
-		store.add(new AgentEditorCommentsProviderContribution(feedbackService, planReviewFeedbackService, bridge));
+		store.add(new AgentEditorCommentsProviderContribution(feedbackService, planReviewFeedbackService, bridge, new TestNotificationService()));
 
 		const events: string[] = [];
 		store.add(bridge.onDidChangeComments(() => events.push(`comments:${bridge.getCommentIds(resource).join(',')}`)));
@@ -114,6 +162,8 @@ suite('AgentEditorCommentsProviderContribution', () => {
 		const removedFeedbackIds: string[] = [];
 		const feedbackService = new class extends mock<IAgentFeedbackService>() {
 			override readonly onDidChangeFeedback = Event.None;
+			override readonly onDidChangeAnnotations = Event.None;
+			override getNativeAnnotationComments() { return []; }
 			override readonly onDidChangeFeedbackVisibility = Event.None;
 			override readonly onDidChangeFeedbackScope = Event.None;
 			override readonly onDidRevealSessionComment = Event.None;
@@ -139,7 +189,7 @@ suite('AgentEditorCommentsProviderContribution', () => {
 			override readonly onDidChangePlanReviewScope = Event.None;
 		}();
 		const bridge = store.add(new AgentEditorCommentsBridge());
-		store.add(new AgentEditorCommentsProviderContribution(feedbackService, planReviewFeedbackService, bridge));
+		store.add(new AgentEditorCommentsProviderContribution(feedbackService, planReviewFeedbackService, bridge, new TestNotificationService()));
 
 		bridge.deleteComment(resource, 'agentFeedback:resolved');
 

@@ -31,6 +31,12 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
+import { AccessibleViewType } from '../../../../platform/accessibility/browser/accessibleView.js';
+import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { AgentFeedbackAccessibility } from './agentFeedbackAccessibility.js';
+
+AccessibleViewRegistry.register(new AgentFeedbackAccessibility(AccessibleViewType.Help));
+AccessibleViewRegistry.register(new AgentFeedbackAccessibility(AccessibleViewType.View));
 /**
  * Sets the `hasActiveSessionAgentFeedback` context key to true when the
  * currently active session has pending agent feedback items.

@@ -1528,6 +1528,30 @@ suite('AgentHostProtocolClient', () => {
 		}]);
 	});
 
+	test('listSessions preserves advertised annotation channels without deriving missing ones', async () => {
+		const { client, transport } = createClient();
+		const annotations = { resource: 'review-channel://tenant/comments/opaque', annotationCount: 0, entryCount: 0 };
+		const listing = client.listSessions();
+		const sent = transport.sentMessages[0] as JsonRpcRequest;
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: sent.id,
+			result: {
+				items: [annotations, undefined].map((annotations, index) => ({
+					resource: `session-store://tenant/session-${index}`,
+					provider: 'other-agent',
+					title: 'Session',
+					status: SessionStatus.Idle,
+					createdAt: new Date(1000).toISOString(),
+					modifiedAt: new Date(2000).toISOString(),
+					...(annotations ? { annotations } : {}),
+				})),
+			},
+		});
+
+		assert.deepStrictEqual((await listing).map(session => session.annotations), [annotations, undefined]);
+	});
+
 	test('listSessions preserves legacy chat archive flags without requiring them on current summaries', async () => {
 		const { client, transport } = createClient();
 		const listing = client.listSessions();

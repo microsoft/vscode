@@ -10,9 +10,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { ActionType, NotificationType, type ActionEnvelope, type INotification } from '../../common/state/sessionActions.js';
+import { ActionType, NotificationType, type ActionEnvelope, type ClientAnnotationsAction, type INotification, type SessionSummaryChangedParams } from '../../common/state/sessionActions.js';
 import { ChangesetStatus, ChatInputQuestionKind, ChatInputResponseKind, ChatInteractivity, ChatOriginKind, MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, buildSubagentSessionUriPrefix, createErrorResponsePart, isSessionStatusRead, isSubagentSession, mergeSessionWithDefaultChat, parseSubagentSessionUri, readHostBuildInfo, readSessionEhcliAdoptable, withSessionEhcliAdoptable, withSessionGitHubState, withSessionGitState, type ChatState, type MarkdownResponsePart, type SessionState, type Turn } from '../../common/state/sessionState.js';
-import { type SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import { BackgroundWorkKind, type BackgroundShellWork } from '../../common/state/protocol/channels-chat/state.js';
 import { AgentHostStateManager, ChatRemovalReason, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { deriveLegacyDefaultChat } from '../../common/agentHostLegacyDefaultChat.js';
@@ -26,6 +25,7 @@ import { supportsRemoteSessions } from '../../common/meta/agentRemoteSessionMeta
 import { collectAgentHostResources } from '../../node/agentHostResources.js';
 import { buildCanvasUri } from '../../common/canvasUri.js';
 import type { CanvasState } from '../../common/state/protocol/channels-canvas/state.js';
+import type { Annotation, AnnotationsState } from '../../common/state/protocol/channels-annotations/state.js';
 
 suite('AgentHostStateManager', () => {
 
@@ -871,6 +871,191 @@ suite('AgentHostStateManager', () => {
 		}, {
 			parent: undefined,
 			subagent: undefined,
+		});
+	});
+
+	suite('annotations advertisement', () => {
+		const annotationsUri = buildAnnotationsUri(sessionUri);
+		const annotation: Annotation = {
+			id: 'comment',
+			origin: { session: sessionUri },
+			resource: 'file:///repo/file.ts',
+			resolved: false,
+			entries: [{ id: 'opening', text: 'A native annotation' }],
+		};
+		const empty = { resource: annotationsUri, annotationCount: 0, entryCount: 0 };
+
+		test('new sessions advertise an empty subscribable channel in snapshots and the catalog', () => {
+			const notifications: INotification[] = [];
+			disposables.add(manager.onDidEmitNotification(notification => notifications.push(notification)));
+			const state = manager.createSession(makeSessionSummary());
+
+			assert.deepStrictEqual({
+				created: state.annotations,
+				snapshot: (manager.getSnapshot(sessionUri)?.state as SessionState).annotations,
+				summary: manager.getSessionSummary(sessionUri)?.annotations,
+				listed: manager.prepareSessionSummariesForListing([makeSessionSummary()])[0].annotations,
+				added: notifications.filter(notification => notification.type === NotificationType.SessionAdded).map(notification => notification.summary.annotations),
+				channel: manager.getSnapshot(annotationsUri)?.state,
+			}, {
+				created: empty,
+				snapshot: empty,
+				summary: empty,
+				listed: empty,
+				added: [empty],
+				channel: { annotations: [] },
+			});
+		});
+
+		test('annotation and entry mutations update total counts without changing earlier snapshots', () => {
+			manager.createSession(makeSessionSummary());
+			const initial = manager.getSnapshot(sessionUri)?.state as SessionState;
+			const changes: SessionSummaryChangedParams[] = [];
+			disposables.add(manager.onDidEmitNotification(notification => {
+				if (notification.type === NotificationType.SessionSummaryChanged) {
+					changes.push(notification);
+				}
+			}));
+			const second: Annotation = {
+				...annotation,
+				id: 'second',
+				resolved: true,
+				entries: [{ id: 'first', text: 'First' }, { id: 'second', text: { markdown: '**Second**' } }],
+			};
+			const actions: { action: ClientAnnotationsAction; counts: [number, number]; notify: boolean }[] = [
+				{ action: { type: ActionType.AnnotationsSet, annotation }, counts: [1, 1], notify: true },
+				{ action: { type: ActionType.AnnotationsEntrySet, annotationId: annotation.id, entry: { id: 'reply', text: 'Reply' } }, counts: [1, 2], notify: true },
+				{ action: { type: ActionType.AnnotationsEntrySet, annotationId: annotation.id, entry: { id: 'reply', text: 'Edited reply' } }, counts: [1, 2], notify: false },
+				{ action: { type: ActionType.AnnotationsUpdated, annotationId: annotation.id, resolved: true }, counts: [1, 2], notify: false },
+				{ action: { type: ActionType.AnnotationsSet, annotation: second }, counts: [2, 4], notify: true },
+				{ action: { type: ActionType.AnnotationsSet, annotation }, counts: [2, 3], notify: true },
+				{ action: { type: ActionType.AnnotationsEntryRemoved, annotationId: second.id, entryId: 'second' }, counts: [2, 2], notify: true },
+				{ action: { type: ActionType.AnnotationsRemoved, annotationId: 'missing' }, counts: [2, 2], notify: false },
+				{ action: { type: ActionType.AnnotationsRemoved, annotationId: annotation.id }, counts: [1, 1], notify: true },
+				{ action: { type: ActionType.AnnotationsRemoved, annotationId: second.id }, counts: [0, 0], notify: true },
+			];
+			const snapshots: SessionState[] = [];
+			for (const [index, { action }] of actions.entries()) {
+				if (index % 2 === 0) {
+					manager.dispatchServerAction(annotationsUri, action);
+				} else {
+					manager.dispatchClientAction(annotationsUri, action, { clientId: 'annotations-client', clientSeq: index });
+				}
+				snapshots.push(manager.getSnapshot(sessionUri)?.state as SessionState);
+				manager.flushPendingSessionSummaries();
+			}
+			const expectedSummary = ([annotationCount, entryCount]: [number, number]) => ({ resource: annotationsUri, annotationCount, entryCount });
+
+			assert.deepStrictEqual({
+				initial: initial.annotations,
+				snapshots: snapshots.map(snapshot => snapshot.annotations),
+				changes: changes.map(change => ({ session: change.session, changes: change.changes })),
+				listed: manager.prepareSessionSummariesForListing([makeSessionSummary()])[0].annotations,
+			}, {
+				initial: empty,
+				snapshots: actions.map(({ counts }) => expectedSummary(counts)),
+				changes: actions.filter(({ notify }) => notify).map(({ counts }) => ({ session: sessionUri, changes: { annotations: expectedSummary(counts) } })),
+				listed: empty,
+			});
+		});
+
+		test('coalesces summary changes and ignores rejected annotation writes', () => {
+			manager.createSession(makeSessionSummary());
+			const changes: SessionSummaryChangedParams[] = [];
+			disposables.add(manager.onDidEmitNotification(notification => {
+				if (notification.type === NotificationType.SessionSummaryChanged) {
+					changes.push(notification);
+				}
+			}));
+			manager.dispatchServerAction(annotationsUri, { type: ActionType.AnnotationsSet, annotation });
+			manager.dispatchServerAction(annotationsUri, { type: ActionType.AnnotationsEntrySet, annotationId: annotation.id, entry: { id: 'reply', text: 'Reply' } });
+			manager.flushPendingSessionSummaries();
+			manager.rejectClientAction(annotationsUri, { type: ActionType.AnnotationsRemoved, annotationId: annotation.id }, { clientId: 'rejected-client', clientSeq: 1 }, 'Rejected');
+			manager.flushPendingSessionSummaries();
+
+			assert.deepStrictEqual({
+				changes: changes.map(change => change.changes),
+				summary: manager.getSessionSummary(sessionUri)?.annotations,
+			}, {
+				changes: [{ annotations: { resource: annotationsUri, annotationCount: 1, entryCount: 2 } }],
+				summary: { resource: annotationsUri, annotationCount: 1, entryCount: 2 },
+			});
+		});
+
+		for (const restoreAnnotationsFirst of [false, true]) {
+			test(`restoration publishes known counts without treating unloaded annotations as empty (annotations first=${restoreAnnotationsFirst})`, () => {
+				const state: AnnotationsState = { annotations: [annotation] };
+				if (restoreAnnotationsFirst) {
+					manager.restoreAnnotations(sessionUri, state);
+				}
+				manager.restoreSession(makeSessionSummary(), [], creationTimeChatStorageResource);
+				const beforeAnnotations = (manager.getSnapshot(sessionUri)?.state as SessionState).annotations;
+				if (!restoreAnnotationsFirst) {
+					manager.restoreAnnotations(sessionUri, state);
+				}
+				const expected = { resource: annotationsUri, annotationCount: 1, entryCount: 1 };
+
+				assert.deepStrictEqual({
+					beforeAnnotations,
+					snapshot: (manager.getSnapshot(sessionUri)?.state as SessionState).annotations,
+					listed: manager.prepareSessionSummariesForListing([makeSessionSummary()])[0].annotations,
+					channel: manager.getSnapshot(annotationsUri)?.state,
+				}, {
+					beforeAnnotations: restoreAnnotationsFirst ? expected : undefined,
+					snapshot: expected,
+					listed: expected,
+					channel: state,
+				});
+			});
+		}
+
+		test('eviction preserves known counts over stale summaries until annotations are loaded again', () => {
+			manager.createSession(makeSessionSummary());
+			manager.dispatchServerAction(annotationsUri, { type: ActionType.AnnotationsSet, annotation });
+			manager.removeSession(sessionUri);
+			manager.disposeSessionAnnotations(sessionUri);
+			const staleSummary = { ...makeSessionSummary(), annotations: empty };
+			const listed = manager.prepareSessionSummariesForListing([staleSummary])[0];
+			const restored = manager.restoreSession(staleSummary, [], creationTimeChatStorageResource);
+			const expected = { resource: annotationsUri, annotationCount: 1, entryCount: 1 };
+
+			assert.deepStrictEqual({
+				listed: listed.annotations,
+				restored: restored.annotations,
+				annotations: manager.getAnnotationsState(annotationsUri),
+			}, {
+				listed: expected,
+				restored: expected,
+				annotations: undefined,
+			});
+		});
+
+		test('cold annotation reads and writes update catalog counts without restoring the session', () => {
+			const initial = manager.prepareSessionSummariesForListing([makeSessionSummary()])[0];
+			const changes: SessionSummaryChangedParams[] = [];
+			disposables.add(manager.onDidEmitNotification(notification => {
+				if (notification.type === NotificationType.SessionSummaryChanged) {
+					changes.push(notification);
+				}
+			}));
+			manager.restoreAnnotations(sessionUri, { annotations: [annotation] });
+			const restored = manager.prepareSessionSummariesForListing([makeSessionSummary()])[0];
+			manager.dispatchServerAction(annotationsUri, { type: ActionType.AnnotationsRemoved, annotationId: annotation.id });
+			const cleared = manager.prepareSessionSummariesForListing([makeSessionSummary()])[0];
+
+			assert.deepStrictEqual({
+				initial: initial.annotations,
+				restored: restored.annotations,
+				cleared: cleared.annotations,
+				changes: changes.map(change => change.changes.annotations),
+				session: manager.getSessionState(sessionUri),
+			}, {
+				initial: undefined,
+				restored: { resource: annotationsUri, annotationCount: 1, entryCount: 1 },
+				cleared: empty,
+				changes: [{ resource: annotationsUri, annotationCount: 1, entryCount: 1 }, empty],
+				session: undefined,
+			});
 		});
 	});
 
@@ -3598,6 +3783,27 @@ suite('AgentHostStateManager', () => {
 			}));
 			manager.promoteChats(sessionUri, { ...makeSessionSummary(promoted), defaultChat: peer }, undefined, [peer]);
 			assert.deepStrictEqual({ announced, defaultChat: manager.getSessionState(promoted)?.defaultChat }, { announced: [false], defaultChat: peer });
+		});
+
+		test('promoted sessions advertise a subscribable annotations channel before notification', () => {
+			const { peer } = setupTwoSessions();
+			const promoted = URI.from({ scheme: 'copilot', path: '/promoted' }).toString();
+			const annotationsUri = buildAnnotationsUri(promoted);
+			const empty = { resource: annotationsUri, annotationCount: 0, entryCount: 0 };
+			const announced: INotification[] = [];
+			disposables.add(manager.onDidEmitNotification(notification => {
+				if (notification.type === NotificationType.SessionAdded && notification.summary.resource === promoted) {
+					assert.deepStrictEqual(manager.getSnapshot(annotationsUri)?.state, { annotations: [] });
+					announced.push(notification);
+				}
+			}));
+			manager.promoteChats(sessionUri, { ...makeSessionSummary(promoted), defaultChat: peer }, undefined, [peer]);
+			assert.deepStrictEqual({
+				state: manager.getSessionState(promoted)?.annotations,
+				summary: manager.getSessionSummary(promoted)?.annotations,
+				listed: manager.prepareSessionSummariesForListing([makeSessionSummary(promoted)])[0].annotations,
+				announced: announced.map(notification => notification.type === NotificationType.SessionAdded ? notification.summary.annotations : undefined),
+			}, { state: empty, summary: empty, listed: empty, announced: [empty] });
 		});
 
 		test('a deleted chat is removed for good', () => {

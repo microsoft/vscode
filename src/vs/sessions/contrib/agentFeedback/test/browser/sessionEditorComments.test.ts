@@ -7,7 +7,8 @@ import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { getResourceEditorComments, getSessionEditorComments, groupNearbySessionEditorComments, hasAcceptedAgentFeedbackComments, SessionEditorCommentSource } from '../../browser/sessionEditorComments.js';
+import { fromSessionEditorCommentId, getNativeAnnotationEditorComments, getResourceEditorComments, getSessionEditorComments, groupNearbySessionEditorComments, hasAcceptedAgentFeedbackComments, SessionEditorCommentSource } from '../../browser/sessionEditorComments.js';
+import { Annotation } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { AgentFeedbackKind, AgentFeedbackState } from '../../browser/agentFeedbackService.js';
 import { IPRReviewState, PRReviewStateKind } from '../../../codeReview/browser/codeReviewService.js';
 
@@ -15,9 +16,48 @@ suite('SessionEditorComments', () => {
 	const session = URI.parse('test://session/1');
 	const fileA = URI.parse('file:///a.ts');
 	const fileB = URI.parse('file:///b.ts');
+	const annotationsUri = URI.parse('review-channel:/opaque');
 	const pullRequest = { owner: 'owner', repo: 'repo', number: 1, uri: URI.parse('https://github.com/owner/repo/pull/1') };
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('native comments preserve file anchors, entry formats, resolution and unknown authorship', () => {
+		const annotation: Annotation = {
+			id: 'thread:opaque', resource: 'file:///host/a.ts', origin: { session: 'session-store:/opaque', chat: 'conversation:/review', turnId: 'turn' },
+			resolved: true, entries: [{ id: 'first', text: 'Plain **literal** text' }, { id: 'second', text: { markdown: '**Markdown**' } }],
+			_meta: { 'example.opaque': true },
+		};
+		const native = getNativeAnnotationEditorComments(session, [{ annotation, annotationsUri, resourceUri: fileA }], false);
+		const comments = getSessionEditorComments(session, [], undefined, undefined, true, native);
+		assert.deepStrictEqual({
+			comments,
+			accepted: hasAcceptedAgentFeedbackComments(comments),
+			parsed: fromSessionEditorCommentId(comments[0].id),
+		}, {
+			comments: [{
+				id: 'annotation:thread:opaque', sourceId: annotation.id, source: SessionEditorCommentSource.Annotation,
+				sessionResource: session, resourceUri: fileA, range: new Range(1, 1, 1, 1), isFileLevel: true,
+				text: 'Plain **literal** text', isMarkdown: false, replies: [{ text: '**Markdown**', isMarkdown: true }],
+				annotation, annotationsUri, canEdit: false, canConvertToAgentFeedback: false,
+			}],
+			accepted: false,
+			parsed: { source: SessionEditorCommentSource.Annotation, sourceId: annotation.id },
+		});
+	});
+
+	test('native ranges are converted only for display and sort alongside feedback', () => {
+		const annotation: Annotation = {
+			id: 'same-id', origin: { session: 'session-store:/opaque' }, resource: 'file:///host/a.ts', resolved: false,
+			range: { start: { line: 4, character: 2 }, end: { line: 6, character: 8 } }, entries: [{ id: 'first', text: 'Native' }],
+		};
+		const comments = getSessionEditorComments(session, [
+			{ id: 'same-id', text: 'Feedback', resourceUri: fileA, range: new Range(9, 1, 9, 1), sessionResource: session, kind: AgentFeedbackKind.UserReview, state: AgentFeedbackState.Accepted },
+		], undefined, undefined, true, getNativeAnnotationEditorComments(session, [{ annotation, annotationsUri, resourceUri: fileA }], true));
+		assert.deepStrictEqual(comments.map(comment => ({ id: comment.id, range: comment.range, file: comment.isFileLevel })), [
+			{ id: 'annotation:same-id', range: new Range(5, 3, 7, 9), file: false },
+			{ id: 'agentFeedback:same-id', range: new Range(9, 1, 9, 1), file: undefined },
+		]);
+	});
 
 	test('merges and sorts feedback and PR review comments by resource and range', () => {
 		const prState: IPRReviewState = {

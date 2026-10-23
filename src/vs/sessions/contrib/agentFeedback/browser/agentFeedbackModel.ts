@@ -7,6 +7,14 @@ import type { URI } from '../../../../base/common/uri.js';
 import type { IRange } from '../../../../editor/common/core/range.js';
 import type { AgentFeedbackAuthorValue, IFeedbackPullRequest } from '../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import type { ICodeReviewSuggestion } from '../../codeReview/browser/codeReviewService.js';
+import type { Annotation } from '../../../../platform/agentHost/common/state/sessionState.js';
+
+/** Native annotation state with a client-local file URI for navigation. */
+export interface ISessionAnnotation {
+	readonly annotation: Annotation;
+	readonly annotationsUri: URI;
+	readonly resourceUri: URI;
+}
 
 /**
  * Core agent-feedback model types.

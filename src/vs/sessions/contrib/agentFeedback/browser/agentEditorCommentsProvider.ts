@@ -14,6 +14,10 @@ import { IAgentFeedbackService } from './agentFeedbackService.js';
 import { getSessionEditorComments, fromSessionEditorCommentId, SessionEditorCommentSource } from './sessionEditorComments.js';
 import { IPlanReviewFeedbackService } from '../../../../workbench/contrib/chat/browser/planReviewFeedback/planReviewFeedbackService.js';
 import { AgentFeedbackState } from './agentFeedbackModel.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { localize } from '../../../../nls.js';
 
 /**
  * Registers a provider with the workbench {@link IAgentEditorCommentsBridge}
@@ -37,9 +41,10 @@ export class AgentEditorCommentsProviderContribution extends Disposable implemen
 		@IAgentFeedbackService private readonly _agentFeedbackService: IAgentFeedbackService,
 		@IPlanReviewFeedbackService planReviewFeedbackService: IPlanReviewFeedbackService,
 		@IAgentEditorCommentsBridge bridge: IAgentEditorCommentsBridge,
+		@INotificationService private readonly _notificationService: INotificationService,
 	) {
 		super();
-		const onDidChangeComments = Event.any(this._agentFeedbackService.onDidChangeFeedback, this._agentFeedbackService.onDidChangeFeedbackVisibility, this._agentFeedbackService.onDidChangeFeedbackScope);
+		const onDidChangeComments = Event.any(this._agentFeedbackService.onDidChangeFeedback, this._agentFeedbackService.onDidChangeAnnotations, this._agentFeedbackService.onDidChangeFeedbackVisibility, this._agentFeedbackService.onDidChangeFeedbackScope);
 		this.onDidChangeComments = Event.signal(onDidChangeComments);
 		this._register(bridge.registerProvider(this));
 		this._register(this._agentFeedbackService.onDidRevealSessionComment(event => {
@@ -71,11 +76,20 @@ export class AgentEditorCommentsProviderContribution extends Disposable implemen
 			this._agentFeedbackService.getFeedback(sessionResource),
 			undefined,
 			this._agentFeedbackService.getVisibleResolvedFeedbackIds(sessionResource),
+			false,
+			this._agentFeedbackService.getNativeAnnotationComments(sessionResource),
 		);
 		for (const comment of sessionComments) {
 			if ((includeRelated && comment.source === SessionEditorCommentSource.AgentFeedback && comment.state === AgentFeedbackState.Accepted)
 				|| (!includeRelated && isEqual(comment.resourceUri, resource))) {
-				comments.push({ id: comment.id, resource: comment.resourceUri, range: comment.range, body: comment.text });
+				// The custom-editor bridge supports a single text body, not rich threads.
+				const body = comment.annotation
+					? [
+						...(comment.annotation.resolved ? [localize('resolvedAnnotation', "Resolved Comment")] : []),
+						...[comment, ...comment.replies ?? []].map(entry => entry.isMarkdown ? renderAsPlaintext(new MarkdownString(entry.text)) : entry.text),
+					].join('\n\n')
+					: comment.text;
+				comments.push({ id: comment.id, resource: comment.resourceUri, range: comment.range, body });
 			}
 		}
 		return comments;
@@ -91,6 +105,8 @@ export class AgentEditorCommentsProviderContribution extends Disposable implemen
 			this._agentFeedbackService.getFeedback(sessionResource),
 			undefined,
 			this._agentFeedbackService.getVisibleResolvedFeedbackIds(sessionResource),
+			false,
+			this._agentFeedbackService.getNativeAnnotationComments(sessionResource),
 		)
 			.filter(comment => includeRelated || isEqual(comment.resourceUri, resource))
 			.map(comment => comment.id);
@@ -109,9 +125,16 @@ export class AgentEditorCommentsProviderContribution extends Disposable implemen
 		if (!sessionResource) {
 			return;
 		}
-		// Only agent feedback comments are surfaced to (and thus deletable from)
-		// custom editors; see `getComments`.
 		const parsed = fromSessionEditorCommentId(id);
+		if (parsed?.source === SessionEditorCommentSource.Annotation) {
+			const comment = this._agentFeedbackService.getNativeAnnotationComments(sessionResource).find(comment => comment.id === id);
+			if (!comment?.annotationsUri) {
+				this._notificationService.error(localize('annotationUnavailable', "This annotation is no longer available."));
+				return;
+			}
+			void this._agentFeedbackService.removeAnnotation(sessionResource, parsed.sourceId, comment.annotationsUri).catch(error => this._notificationService.error(error));
+			return;
+		}
 		if (parsed?.source !== SessionEditorCommentSource.AgentFeedback) {
 			return;
 		}

@@ -69,6 +69,7 @@ export class SessionsChangesAccessibilityHelp implements IAccessibleViewImplemen
 		content.push(localize('sessionsChanges.createPR', "For Agent Host sessions, Create PR opens a form with generated, editable title and description, a draft checkbox, and merge options. The form appears while generation is in progress and preserves anything you type. Use Tab to navigate and Escape to dismiss while keeping your text. Cancel discards your text."));
 		content.push(localize('sessionsChanges.diffView', "Use Diff View in the editor title area's More Actions menu to select inline, side-by-side, or automatic layout. The Toggle Preferred Diff View command switches between inline and automatic layout{0}.", '<keybinding:toggle.diff.renderSideBySide>'));
 		content.push(localize('sessionsChanges.editorWordWrap', "Use Word Wrap in the editor title area's More Actions menu to control word wrapping independently for code and multi-diff editors in the Agents window."));
+		content.push(localize('sessionsChanges.comments', "Session comments appear beside their code, or at the top of the file for file-level comments. Use Go to Next Feedback Comment and Go to Previous Feedback Comment to navigate them. Native comments support replies, editing, resolving or reopening, and deletion without submitting feedback or updating GitHub. Focus a comment widget to open its accessibility help or Accessible View."));
 
 		return new AccessibleContentProvider(
 			AccessibleViewProviderId.SessionsChanges,

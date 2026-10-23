@@ -32,7 +32,7 @@ import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider
 import { AnnotationsAgentFeedbackItemsBackend, IAgentFeedbackItemsBackend, InMemoryAgentFeedbackItemsBackend } from './agentFeedbackItemsBackend.js';
 import { ATTACHMENT_ID_PREFIX, createAgentFeedbackVariableEntry } from './agentFeedbackAttachmentEntry.js';
 import { AgentFeedbackKind, AgentFeedbackState, type IAgentFeedback } from './agentFeedbackModel.js';
-import { SessionEditorCommentSource, toSessionEditorCommentId } from './sessionEditorComments.js';
+import { getNativeAnnotationEditorComments, ISessionEditorComment, SessionEditorCommentSource, toSessionEditorCommentId } from './sessionEditorComments.js';
 import { whenChatWidgetForSession } from '../../chat/browser/chatWidgetUtils.js';
 
 // --- Types --------------------------------------------------------------------
@@ -131,6 +131,7 @@ export interface IAgentFeedbackService {
 	readonly _serviceBrand: undefined;
 
 	readonly onDidChangeFeedback: Event<IAgentFeedbackChangeEvent>;
+	readonly onDidChangeAnnotations: Event<URI>;
 	readonly onDidChangeFeedbackVisibility: Event<URI>;
 	readonly onDidChangeNavigation: Event<URI>;
 	readonly onDidRevealSessionComment: Event<IAgentFeedbackCommentRevealEvent>;
@@ -205,6 +206,12 @@ export interface IAgentFeedbackService {
 	 * Get all feedback items for a session.
 	 */
 	getFeedback(sessionResource: URI): readonly IAgentFeedback[];
+	/** Native comments never participate in feedback acceptance, submission, or PR synchronization. */
+	getNativeAnnotationComments(sessionResource: URI): readonly ISessionEditorComment[];
+	setAnnotationResolved(sessionResource: URI, annotationId: string, resolved: boolean, annotationsUri: URI): Promise<void>;
+	removeAnnotation(sessionResource: URI, annotationId: string, annotationsUri: URI): Promise<void>;
+	addAnnotationReply(sessionResource: URI, annotationId: string, entryId: string, text: string, annotationsUri: URI): Promise<void>;
+	updateAnnotationEntry(sessionResource: URI, annotationId: string, entryId: string, text: string, annotationsUri: URI): Promise<void>;
 	/** Whether feedback for this session is owned by an Agent Host annotations channel. */
 	isAgentHostSession(sessionResource: URI): boolean;
 
@@ -322,6 +329,8 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 
 	private readonly _onDidChangeFeedback = this._store.add(new Emitter<IAgentFeedbackChangeEvent>());
 	readonly onDidChangeFeedback = this._onDidChangeFeedback.event;
+	private readonly _onDidChangeAnnotations = this._register(new Emitter<URI>());
+	readonly onDidChangeAnnotations = this._onDidChangeAnnotations.event;
 	private readonly _onDidChangeFeedbackVisibility = this._store.add(new Emitter<URI>());
 	readonly onDidChangeFeedbackVisibility = this._onDidChangeFeedbackVisibility.event;
 	private readonly _onDidChangeNavigation = this._store.add(new Emitter<URI>());
@@ -487,6 +496,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		if (!this._annotationsBackend) {
 			this._annotationsBackend = this._register(this._instantiationService.createInstance(AnnotationsAgentFeedbackItemsBackend));
 			this._register(this._annotationsBackend.onDidChangeItems(resource => this._handleBackendChange(resource)));
+			this._register(this._annotationsBackend.onDidChangeAnnotations(resource => this._onDidChangeAnnotations.fire(resource)));
 		}
 		return this._annotationsBackend;
 	}
@@ -736,6 +746,30 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 
 	getFeedback(sessionResource: URI): readonly IAgentFeedback[] {
 		return this._backendForSession(sessionResource).getItems(sessionResource);
+	}
+
+	getNativeAnnotationComments(sessionResource: URI): readonly ISessionEditorComment[] {
+		if (!this.isAgentHostSession(sessionResource)) {
+			return [];
+		}
+		const backend = this._getAnnotationsBackend();
+		return getNativeAnnotationEditorComments(sessionResource, backend.getNativeAnnotations(sessionResource), backend.canEditAnnotations(sessionResource));
+	}
+
+	async setAnnotationResolved(sessionResource: URI, annotationId: string, resolved: boolean, annotationsUri: URI): Promise<void> {
+		await this._getAnnotationsBackend().setAnnotationResolved(sessionResource, annotationId, resolved, annotationsUri);
+	}
+
+	async removeAnnotation(sessionResource: URI, annotationId: string, annotationsUri: URI): Promise<void> {
+		await this._getAnnotationsBackend().removeAnnotation(sessionResource, annotationId, annotationsUri);
+	}
+
+	async addAnnotationReply(sessionResource: URI, annotationId: string, entryId: string, text: string, annotationsUri: URI): Promise<void> {
+		await this._getAnnotationsBackend().addAnnotationReply(sessionResource, annotationId, entryId, text, annotationsUri);
+	}
+
+	async updateAnnotationEntry(sessionResource: URI, annotationId: string, entryId: string, text: string, annotationsUri: URI): Promise<void> {
+		await this._getAnnotationsBackend().updateAnnotationEntry(sessionResource, annotationId, entryId, text, annotationsUri);
 	}
 
 	showFeedbackInEditor(sessionResource: URI, feedbackIds: readonly string[]): void {

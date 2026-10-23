@@ -60,6 +60,7 @@ export class AgentFeedbackEditorWidgetContribution extends Disposable implements
 
 		const rebuildSignal = observableSignalFromEvent(this, Event.any(
 			this._agentFeedbackService.onDidChangeFeedback,
+			this._agentFeedbackService.onDidChangeAnnotations,
 			this._agentFeedbackService.onDidChangeFeedbackVisibility,
 			this._agentFeedbackService.onDidChangeFeedbackScope,
 			this._editor.onDidChangeModel,
@@ -98,6 +99,11 @@ export class AgentFeedbackEditorWidgetContribution extends Disposable implements
 	private _rebuildWidgets(
 		prReviewState: IPRReviewState | undefined = this._sessionResource ? this._codeReviewService.getPRReviewState(this._sessionResource).get() : undefined,
 	): void {
+		const expandedCommentIds = new Set(this._widgets.filter(widget => widget.isExpanded).flatMap(widget => widget.getCommentIds()));
+		const activeElement = this._editor.getDomNode()?.ownerDocument.activeElement;
+		const focusedCommentIds = activeElement
+			? this._widgets.find(widget => widget.getDomNode().contains(activeElement))?.getCommentIds()
+			: undefined;
 		this._clearWidgets();
 
 		if (!this._sessionResource) {
@@ -115,9 +121,14 @@ export class AgentFeedbackEditorWidgetContribution extends Disposable implements
 			prReviewState,
 			this._agentFeedbackService.getVisibleResolvedFeedbackIds(this._sessionResource),
 			shouldIncludeRawPRReviewComments(this._agentFeedbackService, this._sessionResource),
+			this._agentFeedbackService.getNativeAnnotationComments(this._sessionResource),
 		);
 		const fileComments = this._getCommentsForModel(model.uri, comments);
 		if (fileComments.length === 0) {
+			this._pruneOrphanedComposerDrafts();
+			if (focusedCommentIds) {
+				this._editor.focus();
+			}
 			return;
 		}
 
@@ -142,6 +153,12 @@ export class AgentFeedbackEditorWidgetContribution extends Disposable implements
 			}));
 
 			widget.layout(group[0].range.startLineNumber);
+			if (group.some(comment => expandedCommentIds.has(comment.id))) {
+				widget.expand();
+			}
+			if (group.some(comment => focusedCommentIds?.includes(comment.id))) {
+				widget.getDomNode().focus({ preventScroll: true });
+			}
 			widget.restoreComposerFocus();
 		}
 
@@ -229,6 +246,7 @@ export class AgentFeedbackEditorWidgetContribution extends Disposable implements
 			this._codeReviewService.getPRReviewState(this._sessionResource).get(),
 			this._agentFeedbackService.getVisibleResolvedFeedbackIds(this._sessionResource),
 			shouldIncludeRawPRReviewComments(this._agentFeedbackService, this._sessionResource),
+			this._agentFeedbackService.getNativeAnnotationComments(this._sessionResource),
 		);
 		const bearing = this._agentFeedbackService.getNavigationBearing(this._sessionResource, comments);
 		if (bearing.activeIdx < 0) {

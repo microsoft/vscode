@@ -19,7 +19,7 @@ import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { buildAnnotationsUri, isAnnotationsUri, parseAnnotationsUri } from '../common/annotationsUri.js';
 import { AgentHostChangesetStateCache, type IAgentHostChangesetStateRetentionOptions } from './agentHostChangesetStateCache.js';
-import { ChangesSummary, ChatInteractivity, type ChatOrigin, type SessionChatSummary } from '../common/state/protocol/state.js';
+import { ChangesSummary, ChatInteractivity, type AnnotationsSummary, type ChatOrigin, type SessionChatSummary } from '../common/state/protocol/state.js';
 import { arrayEquals, structuralEquals } from '../../../base/common/equals.js';
 import { canvasReducer } from '../common/state/protocol/channels-canvas/reducer.js';
 import type { CanvasState } from '../common/state/protocol/channels-canvas/state.js';
@@ -122,6 +122,14 @@ export function legacyPeerChatStorage(peer: string): string {
 
 function registrationParentChat(origin: ChatOrigin | undefined): string | undefined {
 	return origin?.kind === ChatOriginKind.Tool ? origin.chat : undefined;
+}
+
+function summarizeAnnotations(session: URI, state: AnnotationsState): AnnotationsSummary {
+	return {
+		resource: buildAnnotationsUri(session),
+		annotationCount: state.annotations.length,
+		entryCount: state.annotations.reduce((count, annotation) => count + annotation.entries.length, 0),
+	};
 }
 
 interface IRestoredChatState {
@@ -308,6 +316,7 @@ class SessionSummaryNotifier extends Disposable {
 		if (current.modifiedAt !== lastNotified.modifiedAt) { changes.modifiedAt = current.modifiedAt; }
 		if (current.project !== lastNotified.project) { changes.project = current.project; }
 		if (current.changes !== lastNotified.changes) { changes.changes = current.changes; }
+		if (!equals(current.annotations, lastNotified.annotations)) { changes.annotations = current.annotations; }
 		if (current.workingDirectories !== lastNotified.workingDirectories) { changes.workingDirectories = current.workingDirectories; }
 		if (!equals(current.chats, lastNotified.chats)) { changes.chats = current.chats; }
 		if (current.defaultChat !== lastNotified.defaultChat) {
@@ -535,6 +544,7 @@ export class AgentHostStateManager extends Disposable {
 		if (readEphemeralSessionMeta(summary).isEphemeral) {
 			return;
 		}
+		summary = this._withAnnotationsSummary(summary);
 		this._summaryNotifier.announce(summary.resource, summary);
 		this._publishedSessionSummaries.add(summary.resource);
 		this._addedSessionSummaries.add(summary.resource);
@@ -1177,7 +1187,10 @@ export class AgentHostStateManager extends Disposable {
 			return existing.state;
 		}
 
-		const state = createSessionState(summary);
+		const state = createSessionState({
+			...summary,
+			annotations: summarizeAnnotations(key, this._annotations.get(buildAnnotationsUri(key)) ?? { annotations: [] }),
+		});
 		const defaultChat = summary.defaultChat;
 		const entry = this._newEntry(state, defaultChat, summary, SessionUse.UnusedDraft);
 		this._sessionStates.set(key, entry);
@@ -1386,7 +1399,7 @@ export class AgentHostStateManager extends Disposable {
 	prepareSessionSummariesForListing(summaries: readonly SessionSummary[]): SessionSummary[] {
 		const result: SessionSummary[] = [];
 		for (const listed of summaries) {
-			const summary = withAgentSessionGitHubReferences(listed);
+			const summary = this._withAnnotationsSummary(withAgentSessionGitHubReferences(listed));
 			const wasPublished = this._publishedSessionSummaries.has(summary.resource);
 			if (wasPublished) {
 				if (this._summaryNotifier.isDirty(summary.resource)) {
@@ -1418,6 +1431,7 @@ export class AgentHostStateManager extends Disposable {
 			project: current.project ?? listed.project,
 			workingDirectories: current.workingDirectories ?? listed.workingDirectories,
 			changes: current.changes ?? listed.changes,
+			annotations: current.annotations ?? listed.annotations,
 			chats: current.chats ?? listed.chats,
 			defaultChat: current.defaultChat ?? listed.defaultChat,
 			...(meta !== undefined ? { _meta: meta } : {}),
@@ -1523,7 +1537,7 @@ export class AgentHostStateManager extends Disposable {
 	private _registerRestoredSession(summary: SessionSummary & { readonly defaultChat: URI }, chatStorageResource: (session: URI, chat: URI, defaultChat: URI) => string, registerDefaultChat: (session: URI, defaultChat: URI, storageResource: string) => void): SessionState {
 		const key = summary.resource;
 		const state: SessionState = {
-			...createSessionState(summary),
+			...createSessionState(this._withAnnotationsSummary(summary)),
 			lifecycle: SessionLifecycle.Ready,
 		};
 		const defaultChat = summary.defaultChat;
@@ -1952,7 +1966,10 @@ export class AgentHostStateManager extends Disposable {
 			const entry = this._chatEntries.get(chat)!;
 			return entry.state ? chatSummaryFromState(entry.state) : entry.summary;
 		});
-		const state = createSessionState(summary);
+		const state = createSessionState({
+			...summary,
+			annotations: summarizeAnnotations(target, this._annotations.get(buildAnnotationsUri(target)) ?? { annotations: [] }),
+		});
 		state.lifecycle = SessionLifecycle.Ready;
 		if (config) {
 			state.config = config;
@@ -2550,6 +2567,32 @@ export class AgentHostStateManager extends Disposable {
 	/** Restores a session's annotations before serving its first snapshot. */
 	restoreAnnotations(session: URI, state: AnnotationsState): void {
 		this._annotations.set(buildAnnotationsUri(session), state);
+		this._updateAnnotationsSummary(session, state);
+	}
+
+	/** Cold listings retain known counts without loading annotation bodies or inventing zero counts. */
+	private _withAnnotationsSummary(summary: SessionSummary): SessionSummary {
+		const state = this._annotations.get(buildAnnotationsUri(summary.resource));
+		const annotations = state
+			? summarizeAnnotations(summary.resource, state)
+			: this._summaryNotifier.getAnnounced(summary.resource)?.annotations ?? summary.annotations;
+		return annotations ? { ...summary, annotations } : summary;
+	}
+
+	private _updateAnnotationsSummary(session: URI, state: AnnotationsState): void {
+		const annotations = summarizeAnnotations(session, state);
+		const entry = this._sessionStates.get(session);
+		if (entry) {
+			if (!equals(entry.state.annotations, annotations)) {
+				entry.state = { ...entry.state, annotations };
+				this._summaryNotifier.markDirty(session);
+			}
+		} else {
+			const announced = this._summaryNotifier.getAnnounced(session);
+			if (announced && !equals(announced.annotations, annotations)) {
+				this._summaryNotifier.applyAnnouncedChanges(session, { annotations });
+			}
+		}
 	}
 
 	/** Returns the current annotations state for a channel, when materialized. */
@@ -2874,6 +2917,10 @@ export class AgentHostStateManager extends Disposable {
 			const newState = annotationsReducer(state, annotationsAction, this._log);
 			if (newState !== state) {
 				this._annotations.set(key, newState);
+				const owner = parseAnnotationsUri(key);
+				if (owner) {
+					this._updateAnnotationsSummary(owner.sessionUri, newState);
+				}
 			}
 			resultingState = newState;
 		}

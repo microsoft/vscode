@@ -139,6 +139,8 @@ function createAgentFeedbackService(feedback: readonly IAgentFeedback[] = [], fe
 	const session = createFixtureSession();
 	return new class extends mock<IAgentFeedbackService>() {
 		override readonly onDidChangeFeedback = Event.None;
+		override readonly onDidChangeAnnotations = Event.None;
+		override getNativeAnnotationComments() { return []; }
 		override readonly onDidChangeFeedbackVisibility = Event.None;
 		override readonly onDidChangeNavigation = Event.None;
 		override readonly onDidChangeFeedbackScope = Event.None;

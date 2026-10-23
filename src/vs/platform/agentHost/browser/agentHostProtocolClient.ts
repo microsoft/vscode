@@ -2570,6 +2570,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				workingDirectory: typeof s.workingDirectories?.[0] === 'string' ? this._toClientUri(URI.parse(s.workingDirectories[0])) : undefined,
 				workingDirectories: s.workingDirectories?.map(d => this._toClientUri(URI.parse(d))),
 				changes: s.changes,
+				...(s.annotations !== undefined ? { annotations: s.annotations } : {}),
 				...(model ? { model } : {}),
 				chats: s.chats?.map(chat => ({
 					chat: URI.parse(chat.resource),
