@@ -2978,7 +2978,7 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		for (const grouping of [SessionsGrouping.Workspace, SessionsGrouping.Date]) {
+		for (const grouping of [SessionsGrouping.Workspace, SessionsGrouping.Repository]) {
 			test(`caps the Chats section like a workspace until the user chooses otherwise (${grouping})`, () => {
 				const harness = createListHarness(disposables, Array.from({ length: 8 }, (_, index) =>
 					createTestSession(`chat-${index}`, { isQuickChat: true, createdAt: new Date(Date.now() - index * 1000) }).session));
