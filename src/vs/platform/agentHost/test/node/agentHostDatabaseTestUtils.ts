@@ -15,7 +15,7 @@ import { CompatibleAgentHostDatabase } from '../../node/compatibleAgentHostDatab
  * machine's disk is slow to sync. Restarts and old builds are modelled by reopening the file, which needs no
  * durability, so test databases drop it.
  */
-const testDatabaseOptions: IAgentHostDatabaseOptions = { nonDurableForTests: true };
+const testDatabaseOptions: IAgentHostDatabaseOptions = { durable: false };
 
 /** An {@link AgentHostDatabase} for tests: see {@link testDatabaseOptions}. */
 export class NonDurableAgentHostDatabase extends AgentHostDatabase {
