@@ -45,6 +45,7 @@ export const AICustomizationManagementSection = {
 	Automations: 'automations',
 	McpServers: 'mcpServers',
 	Plugins: 'plugins',
+	Canvases: 'canvases',
 	Models: 'models',
 	Tools: 'tools',
 	Extensions: 'extensions',
@@ -64,6 +65,7 @@ export interface IAICustomizationMarketplaceOpenTarget {
 /** Command IDs for the AI Customizations Management Editor. */
 export const AICustomizationManagementCommands = {
 	OpenEditor: 'aiCustomization.openManagementEditor',
+	ShowPlugin: 'aiCustomizationManagement.showPlugin',
 	OpenMarketplace: 'aiCustomization.openMarketplace',
 	CreateNewAgent: 'aiCustomization.createNewAgent',
 	CreateNewSkill: 'aiCustomization.createNewSkill',

@@ -916,7 +916,7 @@ suite('CloudSandboxSessionHandler', () => {
 		await assert.rejects(handler.provideChatSessionContent(resource, CancellationToken.None), isCancellationError);
 	});
 
-	test('a failed live load retains history and a retry promotes the original session', async () => {
+	test('a failed live load retains history and stays blocked through retries until the original session becomes live', async () => {
 		let prompts = 0;
 		const notificationService = new class extends TestNotificationService {
 			override prompt(...args: Parameters<INotificationService['prompt']>) {
@@ -924,26 +924,48 @@ suite('CloudSandboxSessionHandler', () => {
 				return super.prompt(...args);
 			}
 		}();
-		const handler = createHandler(undefined, notificationService);
+		let historyReads = 0;
+		const handler = createHandler(async () => { historyReads++; return recordedHistory(); }, notificationService);
 		const session = await handler.provideChatSessionContent(resource, CancellationToken.None);
 		const initialHistory = session.history;
 		const live = store.add(new LiveSession());
 		let attempts = 0;
+		let pending = new DeferredPromise<IChatSession>();
 		handler.setLiveProvider({
-			provideChatSessionContent: async () => {
-				if (++attempts === 1) {
-					throw new Error('Live history unavailable');
-				}
-				return live;
+			provideChatSessionContent: () => {
+				attempts++;
+				return pending.p;
 			},
 		});
-		const status = await waitForState(session.historyStatus!, status => status?.kind === 'live');
-		const afterFailure = { retained: session.history === initialHistory, readOnly: session.isReadOnly?.get(), kind: status?.kind };
-		await status!.action!.run();
+		const initialStatus = session.historyStatus?.get();
+		await pending.error(new Error('Live history unavailable'));
+		const status = await waitForState(session.historyStatus!, status => status?.kind === 'live' && !status.isLoading);
+		const inputState = () => ({
+			retained: session.history === initialHistory, readOnly: session.isReadOnly?.get(), blocked: session.isInputBlocked?.get(),
+			message: session.historyStatus?.get()?.message, action: session.historyStatus?.get()?.action?.label,
+		});
+		const afterFailure = inputState();
+		pending = new DeferredPromise<IChatSession>();
+		const retry = status!.action!.run();
+		const retrying = inputState();
+		await pending.error(new Error('Live history still unavailable'));
+		await retry;
+		const afterRetryFailure = inputState();
+		pending = new DeferredPromise<IChatSession>();
+		const retryAgain = session.historyStatus!.get()!.action!.run();
+		await pending.complete(live);
+		await retryAgain;
 		assert.deepStrictEqual({
-			afterFailure, attempts, prompts, readOnly: session.isReadOnly?.get(),
+			initialStatus, afterFailure, retrying, afterRetryFailure, attempts, historyReads, prompts,
+			readOnly: session.isReadOnly?.get(), blocked: session.isInputBlocked?.get(), status: session.historyStatus?.get(),
 			same: await sharesContent(handler, session),
-		}, { afterFailure: { retained: true, readOnly: true, kind: 'live' }, attempts: 2, prompts: 0, readOnly: false, same: true });
+		}, {
+			initialStatus: undefined,
+			afterFailure: { retained: true, readOnly: true, blocked: true, message: 'Couldn\'t reopen this conversation.', action: 'Retry' },
+			retrying: { retained: true, readOnly: true, blocked: true, message: 'Reopening conversation...', action: undefined },
+			afterRetryFailure: { retained: true, readOnly: true, blocked: true, message: 'Couldn\'t reopen this conversation.', action: 'Retry' },
+			attempts: 3, historyReads: 1, prompts: 0, readOnly: false, blocked: false, status: undefined, same: true,
+		});
 	});
 
 	test('disposal releases the live session and completes an active turn', async () => {

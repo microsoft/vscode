@@ -46,7 +46,7 @@ import { ILogService, NullLogService } from '../../../../../platform/log/common/
 import { IQuickInputHideEvent, IQuickInputService, IQuickTree, IQuickTreeItem, QuickInputHideReason } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
-import { IDelayedHoverOptions, IHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
+import { IHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultDialogStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { createWorkbenchDialogOptions } from '../../../../../workbench/browser/parts/dialogs/dialog.js';
@@ -120,6 +120,13 @@ suite('Automation dialog creation', () => {
 		let refresh: () => Promise<void> = async () => { };
 		const hovers: string[] = [];
 		const delayedHovers = new Map<HTMLElement, () => string>();
+		const setupDelayedHover: IHoverService['setupDelayedHover'] = (target, options) => {
+			delayedHovers.set(target, () => {
+				const content = (typeof options === 'function' ? options() : options).content;
+				return typeof content === 'string' ? content : String(content);
+			});
+			return toDisposable(() => delayedHovers.delete(target));
+		};
 		// A fresh object keeps these fakes off the shared NullHoverService used by other suites.
 		instantiationService.stub(IHoverService, {
 			...NullHoverService,
@@ -127,13 +134,8 @@ suite('Automation dialog creation', () => {
 				hovers.push(typeof options.content === 'string' ? options.content : String(options.content));
 				return undefined;
 			},
-			setupDelayedHover: (target: HTMLElement, options: IDelayedHoverOptions | (() => IDelayedHoverOptions)) => {
-				delayedHovers.set(target, () => {
-					const content = (typeof options === 'function' ? options() : options).content;
-					return typeof content === 'string' ? content : String(content);
-				});
-				return toDisposable(() => delayedHovers.delete(target));
-			},
+			setupDelayedHover,
+			setupDelayedHoverAtMouse: setupDelayedHover,
 		});
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
 			automationSession: constObservable(undefined),
@@ -2531,7 +2533,7 @@ suite('Automation dialog creation', () => {
 			const selection = disposables.add(new AutomationCustomizationSelection(
 				container,
 				upcastPartial<IAutomationService>({ getCustomizationChoices: async () => choices.p }),
-				upcastPartial<IHoverService>({ setupDelayedHover: () => toDisposable(() => { }) }),
+				NullHoverService,
 				new NullLogService(),
 				undefined,
 				triggerFields,
@@ -2574,7 +2576,7 @@ suite('Automation dialog creation', () => {
 						return result.p;
 					},
 				}),
-				upcastPartial<IHoverService>({ setupDelayedHover: () => toDisposable(() => { }) }),
+				NullHoverService,
 				new NullLogService(),
 				'existing',
 			));
@@ -2618,7 +2620,7 @@ suite('Automation dialog creation', () => {
 						return result.p;
 					},
 				}),
-				upcastPartial<IHoverService>({ setupDelayedHover: () => toDisposable(() => { }) }),
+				NullHoverService,
 				new NullLogService(),
 			));
 			selection.updateTarget({ kind: 'workspace', folderUri: FOLDER, providerId: 'host', sessionTypeId: 'one', isolation: { kind: 'folder' } });
@@ -3773,6 +3775,7 @@ suite('Automation branch picker', () => {
 		const sessionTypesChanged = disposables.add(new Emitter<void>());
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IActionWidgetService, actionWidgetService);
+		instantiationService.stub(IHoverService, NullHoverService);
 		instantiationService.stub(IGitService, upcastPartial<IGitService>({
 			openRepository: async folder => {
 				openRepositoryAttempts++;

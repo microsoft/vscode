@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
-import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 
 const WIDTH_TOLERANCE = 1;
 
@@ -44,7 +44,10 @@ export function isChatInputPickerResponsiveState(candidate: object | undefined):
 export class ChatInputPickerResponsiveLayout extends Disposable {
 
 	private readonly _mutationObserver: MutationObserver;
+	private readonly _scheduledLayout = this._register(new MutableDisposable());
 	private _isLayouting = false;
+	/** The {@link _getLayoutKey key} recorded when the last layout pass finished. */
+	private _lastLayoutKey: string | undefined;
 
 	constructor(
 		name: string,
@@ -54,15 +57,43 @@ export class ChatInputPickerResponsiveLayout extends Disposable {
 		super();
 
 		const targetWindow = dom.getWindow(_element);
-		const resizeObserver = this._register(new dom.DisposableResizeObserver(name, () => this.layout(), targetWindow));
+		// Resize notifications arrive at most once per frame, before paint, so lay out right away.
+		const resizeObserver = this._register(new dom.DisposableResizeObserver(name, () => this._layout(true), targetWindow));
 		this._register(resizeObserver.observe(_element));
 
-		this._mutationObserver = new targetWindow.MutationObserver(() => this.layout());
+		this._mutationObserver = new targetWindow.MutationObserver(() => this._scheduleLayout());
 		this._observeMutations();
 		this._register(toDisposable(() => this._mutationObserver.disconnect()));
 	}
 
+	/**
+	 * Lays out the lane immediately. Unlike passes triggered by the lane's own
+	 * resize and mutation observers, this always runs, so callers can react to
+	 * changes the observers cannot see, such as ancestor styles that change the
+	 * pickers' widths.
+	 */
 	layout(): void {
+		this._layout(false);
+	}
+
+	/**
+	 * Every pass forces several synchronous layouts while it expands and
+	 * recompacts the pickers. Mutations often arrive in bursts, or leave the
+	 * lane exactly as the last pass did (for example, a toolbar re-rendering
+	 * identical actions), so run at most one mutation-triggered pass per
+	 * animation frame, and skip it when nothing it depends on has changed.
+	 */
+	private _scheduleLayout(): void {
+		if (this._scheduledLayout.value) {
+			return;
+		}
+		this._scheduledLayout.value = dom.runAtThisOrScheduleAtNextAnimationFrame(dom.getWindow(this._element), () => {
+			this._scheduledLayout.clear();
+			this._layout(true);
+		});
+	}
+
+	private _layout(skipIfUnchanged: boolean): void {
 		if (this._isLayouting || !this._element.isConnected) {
 			return;
 		}
@@ -72,6 +103,11 @@ export class ChatInputPickerResponsiveLayout extends Disposable {
 			return;
 		}
 
+		if (skipIfUnchanged && this._lastLayoutKey === this._getLayoutKey(availableWidth)) {
+			return;
+		}
+
+		this._scheduledLayout.clear();
 		this._isLayouting = true;
 		this._mutationObserver.disconnect();
 		try {
@@ -103,9 +139,35 @@ export class ChatInputPickerResponsiveLayout extends Disposable {
 				}
 			}
 		} finally {
+			this._lastLayoutKey = this._getLayoutKey(availableWidth);
 			this._observeMutations();
 			this._isLayouting = false;
 		}
+	}
+
+	/**
+	 * Describes everything a pass depends on: the width it lays out against,
+	 * the lane's computed font (which stands in for inherited styles that resize
+	 * its contents), the lane's markup including its own attributes (such as an
+	 * inline gap), and each item's state (including items rendered outside the
+	 * lane, such as overflowed actions). A pass expands every item before
+	 * compacting, so starting a new pass from the state a previous pass ended
+	 * in, against the same width, produces that same state again.
+	 */
+	private _getLayoutKey(availableWidth: number): string {
+		const items = this._delegate.getItems().map(item => [
+			item.isCompact(),
+			item.isMinimal?.() ?? false,
+			item.element && !this._element.contains(item.element) ? item.element.outerHTML : '',
+		]);
+		return JSON.stringify([
+			availableWidth,
+			dom.getWindow(this._element).getComputedStyle(this._element).font,
+			this._delegate.hasOverflow?.() ?? false,
+			this._delegate.isCompactionEnabled?.() ?? true,
+			this._element.outerHTML,
+			items,
+		]);
 	}
 
 	areAllItemsCompact(): boolean {

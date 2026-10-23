@@ -65,6 +65,15 @@ export class UITest {
 	}
 
 	/**
+	 * Copies the app's logs next to the screenshots. The reason for a product-side failure (such as
+	 * an extension that fails to install) is only in those logs, in a user data dir that the test
+	 * deletes afterwards. Call it after the app has closed, so its logs are complete.
+	 */
+	public captureAppLogs() {
+		this.context.captureLogs(path.join(this.userDataDir, 'logs'));
+	}
+
+	/**
 	 * Validate the results of the UI test actions.
 	 */
 	public validate() {

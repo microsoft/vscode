@@ -208,7 +208,7 @@ suite('Sessions - Session Activity Bar', () => {
 
 	test('scopes chat actions to their bar and refreshes their labels and callbacks', async () => {
 		const id = 'test.pullRequest';
-		const entry = { id, title: 'Open Pull Request', icon: Codicon.gitPullRequest, group: SessionActivityBarGroup.GitHub, when: sessionActivityBarChatActionContext(id) };
+		const entry = { id, title: 'Open Pull Request', icon: Codicon.gitPullRequest, group: SessionActivityBarGroup.SidePanel, when: sessionActivityBarChatActionContext(id) };
 		const first = createActivityBar(store, [browser, entry]);
 		const second = createActivityBar(store, [browser, entry]);
 		const opened: number[] = [];
@@ -237,6 +237,27 @@ suite('Sessions - Session Activity Bar', () => {
 
 		assert.deepStrictEqual({ opened, originalIdReads, updated, otherBar, restored, focusPreserved, cleared: !!first.label('Open Pull Request'), commands: first.ran }, {
 			opened: [1, 2, 2], originalIdReads: 0, updated: 'Open Pull Request #2', otherBar: false, restored: true, focusPreserved: true, cleared: false, commands: [],
+		});
+	});
+
+	test('keeps chat actions directly clickable when checked without adding dropdowns', () => {
+		const id = 'test.issue';
+		const { activityBar, label } = createActivityBar(store, [{
+			id, title: 'Issues', icon: Codicon.issues, group: SessionActivityBarGroup.SidePanel, when: sessionActivityBarChatActionContext(id),
+		}]);
+		const ran: number[] = [];
+		const action = (number: number, checked: boolean) => toAction({ id, label: 'Issues', checked, class: ThemeIcon.asClassName(Codicon.issues), run: () => { ran.push(number); } });
+		const actions = observableValue('actions', [action(1, false)]);
+		activityBar.setChatActions(actions);
+		const primary = label('Issues');
+		primary.click();
+		actions.set([action(2, true)], undefined);
+		const checked = { css: primary.classList.contains('checked'), pressed: primary.getAttribute('aria-pressed'), sameElement: primary === label('Issues') };
+		primary.click();
+		assert.deepStrictEqual({
+			ran, checked, noDropdown: !activityBar.element.querySelector('.dropdown-action-container'),
+		}, {
+			ran: [1, 2], checked: { css: true, pressed: 'true', sameElement: true }, noDropdown: true,
 		});
 	});
 

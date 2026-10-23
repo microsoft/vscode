@@ -51,6 +51,7 @@ import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgent
 import { IAgentHostSessionWorkingDirectoryResolver } from '../agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { commitChatSession } from '../chatSessions/chatSessionCommit.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
+import { CLOUD_SANDBOX_INPUT_PLACEHOLDER } from './cloudSandboxConnectionCustomization.js';
 import { CloudSandboxModels } from './cloudSandboxModels.js';
 import { CloudSandboxRepositoryPicker } from './cloudSandboxRepositoryPicker.js';
 import { createCloudSandboxDraftOptionGroups, createCloudSandboxSessionConfig, readCloudSandboxDraftConfig, resolveCloudSandboxSessionConfig } from './cloudSandboxSessionConfig.js';
@@ -315,6 +316,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 				name: localize('cloudSandbox.sessionName', "Cloud"),
 				displayName: localize('cloudSandbox.sessionName', "Cloud"),
 				description: localize('cloudSandbox.creationDescription', "Run the agent in a new cloud sandbox."),
+				inputPlaceholder: CLOUD_SANDBOX_INPUT_PLACEHOLDER,
 				sessionListGroup: SessionType.CopilotCloud,
 				hideFromSessionTypePicker: false,
 				when: ChatContextKeys.enabled.key,
@@ -428,6 +430,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 			name: localize('cloudSandbox.sessionName', "Cloud"),
 			displayName: localize('cloudSandbox.sessionName', "Cloud"),
 			description: env.name,
+			inputPlaceholder: CLOUD_SANDBOX_INPUT_PLACEHOLDER,
 			sessionListGroup: SessionType.CopilotCloud,
 			hideFromSessionTypePicker: true,
 			when: ChatContextKeys.enabled.key,

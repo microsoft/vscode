@@ -201,7 +201,7 @@ export class PermissionPicker extends Disposable {
 		if (this._delegate.getPermissionLevelHover) {
 			this._renderDisposables.add(this.hoverService.setupDelayedHover(trigger, () => {
 				const meta = this._getPermissionLevelMeta(this._currentLevel);
-				return { content: this._getTriggerHover(this._currentLevel, meta) };
+				return { content: this._getTriggerHover(this._currentLevel, meta), appearance: { showPointer: true } };
 			}));
 		}
 
