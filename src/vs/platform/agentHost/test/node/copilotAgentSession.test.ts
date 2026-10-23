@@ -29595,7 +29595,7 @@ Use the attached image as context.
 				const launchReconcile = new DeferredPromise<ICopilotConnectorServers | undefined>();
 				const { session, mockSession } = await createAgentSession(disposables, {
 					rootValues,
-					duringLaunch: runtime => runtime.adoptLaunchConnectorReconcile(launchReconcile.p),
+					duringLaunch: runtime => { runtime.adoptLaunchConnectorReconcile(launchReconcile.p); },
 					configureMockSession: mock => {
 						mock.mcpListResult = { servers: [{ name: 'connector-mail', status: 'connected', source: 'managed' }] };
 					},
@@ -29637,7 +29637,7 @@ Use the attached image as context.
 					const launchReconcile = new DeferredPromise<ICopilotConnectorServers | undefined>();
 					const { session, mockSession } = await createAgentSession(disposables, {
 						rootValues,
-						duringLaunch: runtime => runtime.adoptLaunchConnectorReconcile(launchReconcile.p),
+						duringLaunch: runtime => { runtime.adoptLaunchConnectorReconcile(launchReconcile.p); },
 					});
 					let sendSettled = false;
 					const sending = session.send('hello', undefined, 'turn-1').then(() => { sendSettled = true; });
@@ -29669,7 +29669,7 @@ Use the attached image as context.
 					const launchReconcile = new DeferredPromise<ICopilotConnectorServers | undefined>();
 					const { session, runtime, waitForSignal } = await createAgentSession(disposables, {
 						rootValues,
-						duringLaunch: runtime => runtime.adoptLaunchConnectorReconcile(launchReconcile.p),
+						duringLaunch: runtime => { runtime.adoptLaunchConnectorReconcile(launchReconcile.p); },
 						configureMockSession: mock => {
 							mock.mcpListResult = { servers: [{ name: 'mail', status: 'connected' }, { name: 'calendar', status: 'connected' }] };
 						},
@@ -29713,7 +29713,7 @@ Use the attached image as context.
 				const launchReconcile = new DeferredPromise<ICopilotConnectorServers | undefined>();
 				const { session, mockSession } = await createAgentSession(disposables, {
 					rootValues,
-					duringLaunch: runtime => runtime.adoptLaunchConnectorReconcile(launchReconcile.p),
+					duringLaunch: runtime => { runtime.adoptLaunchConnectorReconcile(launchReconcile.p); },
 				});
 				const notifications: string[] = [];
 				disposables.add(session.onMcpNotification(notification => notifications.push(notification.method)));
@@ -30185,7 +30185,7 @@ Use the attached image as context.
 			const resource = 'https://api.github.com';
 			const launchReconcile = new DeferredPromise<ICopilotConnectorServers | undefined>();
 			const { session, runtime, waitForSignal } = await createAgentSession(disposables, {
-				duringLaunch: runtime => runtime.adoptLaunchConnectorReconcile(launchReconcile.p),
+				duringLaunch: runtime => { runtime.adoptLaunchConnectorReconcile(launchReconcile.p); },
 				configureMockSession: mock => {
 					mock.mcpListResult = { servers: [{ name: runtimeServerId, status: 'needs-auth', source: 'managed', url: resource }] };
 				},

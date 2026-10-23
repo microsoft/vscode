@@ -4226,7 +4226,7 @@ export class CopilotAgentSession extends Disposable {
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
 				}
-				wrapper = await this._sessionLauncher.launch(this._launchPlan, this._createRuntimeAdapter(launchCancellation.token, reconcile => launchConnectorReconcile = reconcile));
+				wrapper = await this._sessionLauncher.launch(this._launchPlan, this._createRuntimeAdapter(launchCancellation.token, reconcile => { launchConnectorReconcile = reconcile; }));
 			} finally {
 				cancellation.dispose();
 				launchCancellation.dispose();
