@@ -189,6 +189,7 @@ export const SessionsListFocusedChatItemContext = new RawContextKey<boolean>('se
 /** Whether the focused session item currently belongs to a user group. */
 export const SessionItemInGroupContext = new RawContextKey<boolean>('sessionItem.inGroup', false);
 export const SessionItemInExternalSectionContext = new RawContextKey<boolean>('sessionItem.inExternalSection', false);
+export const SessionItemIsCloudContext = new RawContextKey<boolean>('sessionItem.isCloud', false);
 export const SessionItemCanImportContext = new RawContextKey<boolean>('sessionItem.canImport', false);
 export const SessionSectionTypeContext = new RawContextKey<string>('sessionSection.type', '');
 export const SessionSectionHasGitHubRepositoryContext = new RawContextKey<boolean>('sessionSection.hasGitHubRepository', false);
@@ -1684,6 +1685,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore |
 			}));
 		}
 		SessionItemInExternalSectionContext.bindTo(template.contextKeyService).set(this.options.isRenderedInExternalSection?.(element) ?? false);
+		SessionItemIsCloudContext.bindTo(template.contextKeyService).set(element.environment === 'cloud');
 		const canImportContext = SessionItemCanImportContext.bindTo(template.contextKeyService);
 
 		// Pinned & archived styling — reactive

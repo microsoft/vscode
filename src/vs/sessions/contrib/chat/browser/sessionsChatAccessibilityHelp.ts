@@ -262,8 +262,8 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		const promoteNewChatAction = SessionsListPromoteNewChatActionContext.getValue(accessor.get(IContextKeyService)) ?? SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT;
 		content.push(promoteNewChatAction
 			? archiveActionWording === ChatSessionArchiveActionWording.MarkAsDone
-				? localize('sessionsChat.sessionsListPromotedNewChatDoneActions', "For sessions that support multiple chats, the session row toolbar offers New Nested Session before Mark as Done. Open the session's context menu to pin or unpin it.")
-				: localize('sessionsChat.sessionsListPromotedNewChatArchiveActions', "For sessions that support multiple chats, the session row toolbar offers New Nested Session before Archive. Open the session's context menu to pin or unpin it.")
+				? localize('sessionsChat.sessionsListPromotedNewChatDoneActions', "For non-cloud sessions that support multiple chats, the session row toolbar offers New Nested Session before Mark as Done. Open the session's context menu to pin or unpin it.")
+				: localize('sessionsChat.sessionsListPromotedNewChatArchiveActions', "For non-cloud sessions that support multiple chats, the session row toolbar offers New Nested Session before Archive. Open the session's context menu to pin or unpin it.")
 			: archiveActionWording === ChatSessionArchiveActionWording.MarkAsDone
 				? localize('sessionsChat.sessionsListDefaultDoneActions', "The session row toolbar offers Pin or Unpin before Mark as Done. For sessions that support multiple chats, open the session's context menu to start a new chat.")
 				: localize('sessionsChat.sessionsListDefaultArchiveActions', "The session row toolbar offers Pin or Unpin before Archive. For sessions that support multiple chats, open the session's context menu to start a new chat."));
