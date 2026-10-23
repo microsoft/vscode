@@ -5,6 +5,9 @@
 
 import { $, append } from '../../../../../base/browser/dom.js';
 import { Event } from '../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { toAction } from '../../../../../base/common/actions.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { autorun, constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -29,6 +32,7 @@ import { IconBadge } from '../../../../../workbench/services/activity/common/act
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { FixtureContextViewService, FixtureKeybindingService, FixtureMenuService, fixtureBrowser, fixtureCanvas, fixtureChanges, fixtureFiles, fixtureTerminal, fixtureTogglePanel, fixtureToggleSidePanel, IFixtureEntry } from '../../../../test/browser/addTabFixtureUtils.js';
 import { SessionActivityBarGroup } from '../../../../browser/menus.js';
+import { OPEN_PULL_REQUEST_ACTION_ID } from '../../../github/common/types.js';
 import { ExternalSessionBanner } from '../../browser/externalSessionBanner.js';
 import '../../browser/media/chatView.css';
 import '../../../../browser/parts/media/chatCompositeBar.css';
@@ -53,6 +57,8 @@ interface IFixtureOptions {
 	readonly dragBy?: number;
 	/** Badges the Changes entry, as new changes do. */
 	readonly newChanges?: boolean;
+	readonly githubReferenceCount?: number;
+	readonly githubChecked?: boolean;
 }
 
 // The tab entries share the side panel toggle's group; the terminal shares the panel toggle's.
@@ -90,6 +96,9 @@ export default defineThemedFixtureGroup({ path: 'sessions/sessionActivityBar/' }
 	AtBottom: activityBarFixture({ dragBy: 2000 }),
 	SubmenuOpen: activityBarFixture({ openSubmenu: true }, highContrastThemes),
 	NewChanges: activityBarFixture({ newChanges: true }, highContrastThemes),
+	GitHubReferences: activityBarFixture({ githubReferenceCount: 1 }, highContrastThemes),
+	MultipleGitHubReferences: activityBarFixture({ githubReferenceCount: 2 }, highContrastThemes),
+	CheckedGitHubReferences: activityBarFixture({ githubReferenceCount: 2, githubChecked: true }, highContrastThemes),
 });
 
 const HEIGHT = 500;
@@ -126,7 +135,10 @@ async function renderActivityBar(context: ComponentFixtureContext, options: IFix
 	const { container, disposableStore, theme } = context;
 	const { renderChatWidget } = await import('../../../../../workbench/test/browser/componentFixtures/chat/chatWidget.fixture.js');
 	const width = options.width ?? 640;
-	const entries = options.entries ?? workspaceChatEntries;
+	const githubEntries: readonly IFixtureEntry[] = options.githubReferenceCount ? [
+		{ id: OPEN_PULL_REQUEST_ACTION_ID, title: 'Open Pull Request', icon: Codicon.gitPullRequest, group: SessionActivityBarGroup.SidePanel },
+	] : [];
+	const entries = [...(options.entries ?? workspaceChatEntries), ...githubEntries];
 	container.style.width = `${width}px`;
 	container.style.height = `${HEIGHT}px`;
 	container.classList.add('agent-sessions-workbench');
@@ -154,6 +166,8 @@ async function renderActivityBar(context: ComponentFixtureContext, options: IFix
 	if (options.newChanges) {
 		disposableStore.add(activityService.showActivity(fixtureChanges.id, { badge: new IconBadge(Codicon.circleFilled, () => 'New changes') }));
 	}
+	const contextViewService = new FixtureContextViewService(container);
+	disposableStore.add(toDisposable(() => contextViewService.hideContextView()));
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: theme,
 		additionalServices: reg => {
@@ -161,7 +175,7 @@ async function renderActivityBar(context: ComponentFixtureContext, options: IFix
 			reg.defineInstance(IMenuService, menuService);
 			reg.defineInstance(ISessionActivityBarActivityService, activityService);
 			reg.defineInstance(IKeybindingService, new FixtureKeybindingService(entries));
-			reg.defineInstance(IContextViewService, new FixtureContextViewService(container));
+			reg.defineInstance(IContextViewService, contextViewService);
 			reg.defineInstance(IConfigurationService, new TestConfigurationService({
 				[SESSION_ACTIVITY_BAR_SETTING]: options.enabled ?? true,
 				[SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING]: true,
@@ -180,6 +194,13 @@ async function renderActivityBar(context: ComponentFixtureContext, options: IFix
 
 	const areaHeight = HEIGHT - HEADER_HEIGHT;
 	const activityBar = disposableStore.add(instantiationService.createInstance(ChatViewSessionActivityBar, chatGroup));
+	activityBar.setChatActions(constObservable(githubEntries.map(entry => toAction({
+		id: entry.id,
+		label: options.githubReferenceCount === 1 ? `${entry.title} #42: Improve the activity bar` : `${entry.title} (${options.githubReferenceCount})`,
+		class: ThemeIcon.asClassName(entry.icon),
+		checked: options.githubChecked,
+		run: () => { },
+	}))));
 	activityBar.layout(HEADER_HEIGHT, areaHeight);
 	const reservedWidth = activityBar.reservedWidth.get();
 

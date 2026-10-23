@@ -18,6 +18,8 @@ import { IConfigurationChangeEvent, IConfigurationService } from '../../../../..
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { ILifecycleService } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
+import { TestLifecycleService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IAgentHostGroup } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvider } from '../../../sessions/common/sessionsProvider.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService, SessionsProvidersService } from '../../../sessions/browser/sessionsProvidersService.js';
@@ -135,7 +137,9 @@ suite('AgentHostFilterService', () => {
 	});
 
 	test('groups internal cloud backends without exposing them as logical providers', () => {
-		const providers = store.add(new SessionsProvidersService());
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ILifecycleService, store.add(new TestLifecycleService()));
+		const providers = store.add(instantiationService.createInstance(SessionsProvidersService));
 		const owner = store.add(providers.registerProvider(upcastPartial<ISessionsProvider>({ id: 'cloud', order: 0 })));
 		const first = new StubRemoteProvider('environment-1', 'First task', RemoteAgentHostConnectionStatus.connected, SANDBOX_GROUP);
 		const second = new StubRemoteProvider('environment-2', 'Second task', RemoteAgentHostConnectionStatus.disconnected, SANDBOX_GROUP);

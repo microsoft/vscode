@@ -58,7 +58,7 @@ import { NEW_SESSION_ACTION_ID, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../.
 import { ArchiveChatAction, ArchiveSessionAction } from '../../browser/views/sessionsViewActions.js';
 import { createTestSession, TestCommandService } from './sessionsListTestUtils.js';
 import { INewSessionComposerService, NewSessionComposerService } from '../../../chat/browser/newSessionComposerService.js';
-import { ISessionSection, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID } from '../../browser/views/sessionsList.js';
+import { ISessionSection, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, SessionItemIsCloudContext } from '../../browser/views/sessionsList.js';
 import { ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
 import { WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.js';
 import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, DETACH_CHAT_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
@@ -109,7 +109,7 @@ suite('Sessions - Actions', () => {
 				title: 'New Nested Session',
 				group: 'navigation',
 				order: 1,
-				when: 'sessionSupportsMultipleChats && sessionsListPromoteNewChatAction && !sessionIsArchived && !sessionItem.inExternalSection',
+				when: 'sessionSupportsMultipleChats && sessionsListPromoteNewChatAction && !sessionIsArchived && !sessionItem.inExternalSection && !sessionItem.isCloud',
 			},
 			contextMenu: {
 				title: 'New Nested Session',
@@ -118,6 +118,35 @@ suite('Sessions - Actions', () => {
 				when: 'sessionSupportsMultipleChats && !sessionIsArchived && !sessionItem.inExternalSection',
 			},
 		});
+	});
+
+	test('hides only the inline New Nested Session action for cloud sessions', () => {
+		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		contextKeyService.createKey('sessionSupportsMultipleChats', true);
+		const isCloud = SessionItemIsCloudContext.bindTo(contextKeyService);
+		const promoteNewChatAction = SessionsListPromoteNewChatActionContext.bindTo(contextKeyService);
+		const hasAction = (menuId: MenuId) => MenuRegistry.getMenuItems(menuId)
+			.filter(isIMenuItem)
+			.some(item => item.command.id === 'sessions.chatCompositeBar.addChat' && contextKeyService.contextMatchesRules(item.when));
+		const snapshots = [];
+		for (const promoted of [false, true]) {
+			promoteNewChatAction.set(promoted);
+			for (const cloud of [false, true]) {
+				isCloud.set(cloud);
+				snapshots.push({
+					promoted,
+					cloud,
+					toolbar: hasAction(Menus.SessionItemToolbar),
+					contextMenu: hasAction(Menus.SessionItemContextMenu),
+				});
+			}
+		}
+		assert.deepStrictEqual(snapshots, [
+			{ promoted: false, cloud: false, toolbar: false, contextMenu: true },
+			{ promoted: false, cloud: true, toolbar: false, contextMenu: true },
+			{ promoted: true, cloud: false, toolbar: true, contextMenu: true },
+			{ promoted: true, cloud: true, toolbar: false, contextMenu: true },
+		]);
 	});
 
 	test('swaps the primary session row action when New Chat is promoted', () => {
@@ -141,7 +170,7 @@ suite('Sessions - Actions', () => {
 				contextMenu: snapshot(Menus.SessionItemContextMenu),
 			}, {
 				toolbar: [
-					{ id: 'sessions.chatCompositeBar.addChat', group: 'navigation', order: 1, when: 'sessionSupportsMultipleChats && sessionsListPromoteNewChatAction && !sessionIsArchived && !sessionItem.inExternalSection' },
+					{ id: 'sessions.chatCompositeBar.addChat', group: 'navigation', order: 1, when: 'sessionSupportsMultipleChats && sessionsListPromoteNewChatAction && !sessionIsArchived && !sessionItem.inExternalSection && !sessionItem.isCloud' },
 					{ id: ARCHIVE_SESSION_COMMAND_ID, group: 'navigation', order: 2, when: '!sessionIsArchived' },
 					{ id: 'sessionsViewPane.pinSession', group: 'navigation', order: 1, when: '!sessionIsArchived && !sessionItem.isPinned && !sessionsListPromoteNewChatAction' },
 					{ id: 'sessionsViewPane.unpinSession', group: 'navigation', order: 1, when: 'sessionItem.isPinned && !sessionIsArchived && !sessionsListPromoteNewChatAction' },

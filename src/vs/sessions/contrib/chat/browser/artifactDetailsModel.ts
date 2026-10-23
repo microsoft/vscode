@@ -215,7 +215,7 @@ export class ArtifactDetailsModel extends Disposable {
 		}
 		const autopilot = this.autopilot.data.read(reader);
 		const activities = this.activities.data.read(reader);
-		const selectedList = lists.some(list => list.id === this.presentation.viewState.selectedList) ? this.presentation.viewState.selectedList : lists[0]?.id;
+		const selectedList = lists.some(list => list.id === this.presentation.viewState.selectedList) ? this.presentation.viewState.selectedList : undefined;
 		return {
 			title, resource: snapshot.artifact.resource, icon: main ? getArtifactThemeIcon(main.icon) : entry?.icon,
 			titleDescription: main?.description ?? '', description, message, lists, selectedList, stateActions, generalActions, autopilot, activities, sections,

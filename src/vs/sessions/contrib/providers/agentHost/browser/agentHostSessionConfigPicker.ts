@@ -39,7 +39,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { defaultCheckboxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import type { ResolveSessionConfigResult, SessionConfigPropertySchema, SessionConfigSchema, SessionConfigValueItem } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { getSessionApprovalProperty, getSessionConfigPresentationKey, getSessionWorkspaceProperties, isSessionConfigWritable, writeSessionIsolation } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
+import { getSessionApprovalProperty, getSessionConfigPresentationKey, getSessionWorkspaceProperties, isHiddenSessionConfigProperty, isSessionConfigWritable, writeSessionIsolation } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ChatConfiguration, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { maybeConfirmElevatedPermissionLevel } from '../../../../../workbench/contrib/chat/common/chatPermissionWarnings.js';
@@ -120,7 +120,7 @@ export interface IConfigPickerItem {
 
 export function getConfigIcon(property: string, value: unknown | undefined, hasUncommittedChanges = false): ThemeIcon | undefined {
 	if (property === SessionConfigKey.Isolation) {
-		if (value === 'folder') {
+		if (value === 'folder' || value === 'workspace') {
 			return Codicon.folder;
 		}
 		if (value === 'worktree') {
@@ -379,6 +379,9 @@ function applyAutoApproveFiltering(
 }
 
 function isRenderableSessionConfigProperty(property: string, schema: SessionConfigPropertySchema, configSchema: SessionConfigSchema, isNewSession: boolean): boolean {
+	if (isHiddenSessionConfigProperty(property)) {
+		return false;
+	}
 	const presentation = getSessionConfigPresentationKey(property, configSchema);
 	if (schema.type !== 'boolean' && (schema.type !== 'string' || (!schema.enumDynamic && !schema.enum?.length && presentation !== 'newBranch'))) {
 		return false;
@@ -524,7 +527,7 @@ class ConfigCheckboxControl extends Disposable {
 
 		if (this._tooltip !== tooltip) {
 			this._tooltip = tooltip;
-			this._hover.value = tooltip ? this._hoverService.setupDelayedHover(this._row, { content: tooltip }) : undefined;
+			this._hover.value = tooltip ? this._hoverService.setupDelayedHover(this._row, { content: tooltip, appearance: { showPointer: true } }) : undefined;
 		}
 	}
 
@@ -631,7 +634,13 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			if (!isAgentHostProvider(provider) || this._providerListeners.has(provider.id)) {
 				continue;
 			}
-			this._providerListeners.set(provider.id, provider.onDidChangeSessionConfig(() => this._renderConfigPickers()));
+			// Re-rendering replaces the chips, so a change in any other session
+			// would detach a chip mid-click and the click would be lost.
+			this._providerListeners.set(provider.id, provider.onDidChangeSessionConfig(sessionId => {
+				if (sessionId === this._session.get()?.sessionId) {
+					this._renderConfigPickers();
+				}
+			}));
 		}
 	}
 
@@ -959,7 +968,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		dom.clearNode(trigger);
 
 		const presentation = this._presentationProperty(sessionId, property);
-		const icon = getConfigIcon(presentation, value === 'workspace' ? 'folder' : value);
+		const icon = getConfigIcon(presentation, value);
 		const iconElement = icon
 			? dom.append(trigger, renderIcon(icon))
 			: undefined;
@@ -1577,7 +1586,7 @@ class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 				id: registerId(isolationProperty, item, !!isolationSchema?.enumDynamic),
 				label: item.label,
 				description: item.description,
-				icon: getConfigIcon(SessionConfigKey.Isolation, item.value === 'workspace' ? 'folder' : item.value),
+				icon: getConfigIcon(SessionConfigKey.Isolation, item.value),
 				checked: item.value === isolationValue,
 				sectionTitle: index === 0 ? (isolationSchema?.title ?? localize('mobileAgentHostSessionConfig.repoSheet.isolationSection', "Isolation")) : undefined,
 			});
@@ -1933,7 +1942,12 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 			if (!isAgentHostProvider(provider) || this._providerListeners.has(provider.id)) {
 				continue;
 			}
-			this._providerListeners.set(provider.id, provider.onDidChangeSessionConfig(() => this._refreshRepositoryMenuItems(actionViewItemService)));
+			// Menu items are derived only from visible sessions; refreshing them recreates the repository pickers.
+			this._providerListeners.set(provider.id, provider.onDidChangeSessionConfig(sessionId => {
+				if (this._sessionsService.visibleSessions.get().some(session => session?.sessionId === sessionId)) {
+					this._refreshRepositoryMenuItems(actionViewItemService);
+				}
+			}));
 		}
 	}
 

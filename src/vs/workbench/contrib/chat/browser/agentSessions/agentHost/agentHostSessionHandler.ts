@@ -29,6 +29,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { getOlderHostSubagentChatUri } from '../../../../../../platform/agentHost/browser/agentHostOlderHostCompatibility.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { newAgentHostChatUri, newAgentHostSessionUri } from '../../../../../../platform/agentHost/common/agentHostSessionIdentity.js';
 import { getAgentHostChatId } from '../../../../../../platform/agentHost/common/agentHostChatIdentity.js';
 import { IChatSideChatOrigin, IChatSideChatSelection } from '../../../common/chatSideChatService.js';
@@ -83,7 +84,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { SAVE_SANDBOX_PATH } from '../../../../../../platform/agentHost/common/sandboxPathGrant.js';
 import { saveSandboxPathGrant } from './agentHostSandboxPathGrant.js';
-import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { INotificationService, Severity } from '../../../../../../platform/notification/common/notification.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { packErrorForTelemetry } from '../../../../../../platform/telemetry/common/errorTelemetry.js';
@@ -136,6 +137,7 @@ import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgent
 import { ILanguageModelToolsService, IToolData, IToolResult, stringifyPromptTsxPart, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { IChatWidgetService } from '../../chat.js';
 import { AgentHostLocalModelSupport } from './agentHostLocalModelSupport.js';
+import { resolveAgentHostToolResultImage } from './agentHostToolResultImages.js';
 import { getComputerUseActivationCardText, getComputerUseSetupCardText, IComputerUseSetupService } from './computerUseSetup.js';
 import { getAgentSessionProviderIcon } from '../agentSessions.js';
 import { IAgentCustomizationScope, IAgentHostActiveClientService } from './agentHostActiveClientService.js';
@@ -1345,6 +1347,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 */
 	private readonly _clientToolRetainCounts = new Map<string, number>();
 	private readonly _surfacedMcpAuthServers = new ResourceMap<Set<string>>();
+	private readonly _mcpAuthNotifications = this._register(new DisposableResourceMap<DisposableMap<string, IDisposable>>());
 	private readonly _pendingMcpAutoAuthentication = new Map<string, Promise<boolean>>();
 	/** Turn IDs dispatched by this client, used to distinguish server-originated turns. */
 	private readonly _clientDispatchedTurnIds = new Set<string>();
@@ -1452,6 +1455,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@ITextFileService textFileService: ITextFileService,
 		@IComputerUseSetupService private readonly _computerUseSetupService: IComputerUseSetupService,
 		@IChatSessionReviewPreferencesService reviewPreferences: IChatSessionReviewPreferencesService,
@@ -1980,6 +1984,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					this._draftSyncSubscriptions.deleteAndDispose(sessionResource);
 					this._serverTurnWatchers.deleteAndDispose(sessionResource);
 					this._mcpAuthWatchers.deleteAndDispose(sessionResource);
+					this._mcpAuthNotifications.deleteAndDispose(sessionResource);
 					this._retainedOutputTerminals.deleteAndDispose(sessionResource);
 					this._releaseSessionInputNeeded(sessionResource);
 					this._pendingHistoryTurns.delete(sessionResource);
@@ -3656,21 +3661,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}, request.hideFromTranscript),
 		};
 		this._ensureTurnStopWatch(turnChannel, turnId);
-		onFailureStage('dispatchTurn');
-		this._config.connection.dispatch(turnChannel, turnAction);
-
-		// Ensure the snapshot controller records a sentinel checkpoint for this
-		// request so it appears in requestDisablement even if the turn
-		// produces no file edits.
-		this._ensureSnapshotController(request.sessionResource)
-			?.ensureRequestCheckpoint(request.requestId);
 
 		// Wait for the turn to reach a terminal state. The observable graph
 		// installed below drives all progress emission via the `progress`
 		// sink and resolves the promise from `onTurnEnded`. Cancellation is
 		// surfaced through the same path: the observer disposes itself when
 		// `cancellationToken` fires, then calls `onTurnEnded(undefined)`.
-		onFailureStage('observeTurn');
 		const resourceOpens: Promise<void>[] = [];
 		let resourceOpenError: Error | undefined;
 		const openResponseResource = async ({ resource, preview }: ISlashCommandResource): Promise<void> => {
@@ -3690,6 +3686,24 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		};
 		return new Promise<Turn | undefined>((resolve, reject) => {
 			const store = this._createTurnObservation(resolve);
+			const finish = () => {
+				this._turnObservations.deleteAndDispose(store);
+				this._clientDispatchedTurnIds.delete(turnId);
+				this._completeSessionTurn(session, request.sessionResource, turnId);
+			};
+			// Listen before dispatch, including while the subscription buffers incoming actions.
+			store.add(this._config.connection.onDidAction(envelope => {
+				if (envelope.channel !== turnChannel
+					|| envelope.action.type !== ActionType.ChatTurnStarted
+					|| envelope.action.turnId !== turnId
+					|| envelope.origin?.clientId !== this._config.connection.clientId
+					|| !envelope.rejectionReason) {
+					return;
+				}
+				reject(new Error(localize('agentHost.turnRejected', "Your message could not be sent: {0}", envelope.rejectionReason)));
+				this._clearTurnStopWatch(turnChannel, turnId);
+				finish();
+			}));
 			const cancelSub = store.add(cancellationToken.onCancellationRequested(() => {
 				cancelSub.dispose();
 				this._logService.info(`[AgentHost] Cancellation requested for ${session.toString()}, dispatching turnCancelled`);
@@ -3700,39 +3714,51 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				}, turnChannel);
 			}));
 
-			store.add(this._observeTurn({
-				backendSession: session,
-				sessionResource: request.sessionResource,
-				chatURI,
-				turnId,
-				sink: progress,
-				cancellationToken,
-				suppressErrorMarkdown: true,
-				onResponseText,
-				onOpenResponseResource: request.message.trimStart().startsWith('/')
-					? resource => {
-						resourceOpens.push(openResponseResource(resource).catch(error => {
-							resourceOpenError = error instanceof Error ? error : new Error(String(error));
-							this._logService.error('[AgentHost] Failed to open slash command resource', resourceOpenError);
-						}));
-					}
-					: undefined,
-				onTurnEnded: async (lastTurn) => {
-					try {
-						await raceCancellation(Promise.all(resourceOpens), cancellationToken);
-						if (resourceOpenError) {
-							throw resourceOpenError;
+			try {
+				onFailureStage('dispatchTurn');
+				this._config.connection.dispatch(turnChannel, turnAction);
+				if (store.isDisposed) {
+					return;
+				}
+				this._ensureSnapshotController(request.sessionResource)
+					?.ensureRequestCheckpoint(request.requestId);
+				onFailureStage('observeTurn');
+				store.add(this._observeTurn({
+					backendSession: session,
+					sessionResource: request.sessionResource,
+					chatURI,
+					turnId,
+					sink: progress,
+					cancellationToken,
+					suppressErrorMarkdown: true,
+					onResponseText,
+					onOpenResponseResource: request.message.trimStart().startsWith('/')
+						? resource => {
+							resourceOpens.push(openResponseResource(resource).catch(error => {
+								resourceOpenError = error instanceof Error ? error : new Error(String(error));
+								this._logService.error('[AgentHost] Failed to open slash command resource', resourceOpenError);
+							}));
 						}
-						resolve(lastTurn);
-					} catch (error) {
-						reject(error);
-					} finally {
-						this._turnObservations.deleteAndDispose(store);
-						this._clientDispatchedTurnIds.delete(turnId);
-						this._completeSessionTurn(session, request.sessionResource, turnId);
-					}
-				},
-			}));
+						: undefined,
+					onTurnEnded: async (lastTurn) => {
+						try {
+							await raceCancellation(Promise.all(resourceOpens), cancellationToken);
+							if (resourceOpenError) {
+								throw resourceOpenError;
+							}
+							resolve(lastTurn);
+						} catch (error) {
+							reject(error);
+						} finally {
+							finish();
+						}
+					},
+				}));
+			} catch (error) {
+				reject(error);
+				this._clearTurnStopWatch(turnChannel, turnId);
+				finish();
+			}
 		});
 	}
 
@@ -4401,15 +4427,23 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				if (routingServers.includes(server.name)) {
 					surfaced.delete(server.id);
 					ownedIds.delete(server.id);
+					this._mcpAuthNotifications.get(opts.sessionResource)?.deleteAndDispose(server.id);
 				}
 			}
 			const currentRunId = ++runId;
 			this._filterAutoGrantedMcpAuthentication(opts.sessionResource, pendingAuth.filter(server => !routingServers.includes(server.name))).then(servers => {
-				if (currentRunId !== runId) {
+				if (currentRunId !== runId || store.isDisposed) {
 					return;
 				}
 				const surfaced = this._getSurfacedMcpAuthServers(opts.sessionResource);
 				const newServers = servers.filter(server => !surfaced.has(server.id));
+				if (this._accessibilityService.isScreenReaderOptimized()) {
+					for (const server of newServers) {
+						surfaced.add(server.id);
+						this._showMcpAuthNotification(opts.sessionResource, server);
+					}
+					return;
+				}
 				if (!newServers.length && (!part || part.isUsed)) {
 					return;
 				}
@@ -4436,6 +4470,40 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}));
 	}
 
+	private _showMcpAuthNotification(sessionResource: URI, server: IChatMcpAuthenticationRequiredServer): void {
+		let notifications = this._mcpAuthNotifications.get(sessionResource);
+		if (!notifications) {
+			notifications = new DisposableMap<string, IDisposable>();
+			this._mcpAuthNotifications.set(sessionResource, notifications);
+		}
+		const liveServer = this._customizationService.getMcpServers(sessionResource).find(candidate => candidate.id === server.id);
+		const label = liveServer ? getMcpServerDisplayLabel(liveServer) : server.name;
+		let authenticating = false;
+		const notification = this._notificationService.prompt(
+			Severity.Info,
+			localize('agentHost.mcpAuthenticationRequired', "The MCP server {0} requires authentication.", label),
+			[{
+				label: localize('agentHost.mcpAuthenticate', "Authenticate"),
+				keepOpen: true,
+				run: async () => {
+					if (authenticating) {
+						return;
+					}
+					authenticating = true;
+					try {
+						if (await this._customizationService.authenticateMcpServer(sessionResource, server.id)) {
+							notification.close();
+						}
+					} finally {
+						authenticating = false;
+					}
+				},
+			}],
+			{ sticky: true },
+		);
+		notifications.set(server.id, toDisposable(() => notification.close()));
+	}
+
 	private _getSurfacedMcpAuthServers(sessionResource: URI): Set<string> {
 		let surfaced = this._surfacedMcpAuthServers.get(sessionResource);
 		if (!surfaced) {
@@ -4446,6 +4514,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	private _reconcileSurfacedMcpAuthServers(): void {
+		for (const [sessionResource, notifications] of this._mcpAuthNotifications) {
+			const pending = new Set(this._customizationService.getMcpServers(sessionResource)
+				.filter(server => server.enabled && (server.status === McpServerStatus.AuthRequired || server.status === McpServerStatus.Starting))
+				.map(server => server.id));
+			for (const id of notifications.keys()) {
+				if (!pending.has(id)) {
+					notifications.deleteAndDispose(id);
+				}
+			}
+		}
 		for (const [sessionResource, surfaced] of this._surfacedMcpAuthServers) {
 			if (surfaced.size === 0) {
 				continue;
@@ -7388,8 +7466,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					return undefined;
 				}
 				if (!resolution) {
-					// Auto was picked, but the router has not answered yet.
-					return { kind: 'autoModeResolution' };
+					// Router has not answered yet; Fusion's HydraFusion tiers never do.
+					return lookupModel(fallbackRawModelId)?.model.autoModelFusion ? undefined : { kind: 'autoModeResolution' };
 				}
 				const localRouted = localTurn(usage)?.routed;
 				if (localRouted) {
@@ -8443,10 +8521,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	resolveChatResponseUri(sessionResource: URI, href: string, kind: 'link' | 'image'): string {
 		const session = this._resolveSessionUri(sessionResource);
+		const chatUri = this._getChatURIOrDefault(sessionResource, session);
 		const directory = kind === 'image'
-			? this._getSessionState(session.toString(), this._getChatURIOrDefault(sessionResource, session))?.workingDirectories?.[0]
+			? this._getSessionState(session.toString(), chatUri)?.workingDirectories?.[0]
 			: undefined;
-		return rewriteAgentHostLinkTarget(href, this._config.connectionAuthority, this._config.connection.resourceUris, directory ? URI.parse(directory) : undefined);
+		const resolve = (target: string) => rewriteAgentHostLinkTarget(target, this._config.connectionAuthority, this._config.connection.resourceUris, directory ? URI.parse(directory) : undefined);
+		const resolved = resolve(href);
+		const chat = chatUri === this._getRawSessionState(session.toString())?.defaultChat
+			? this._getDefaultChatState(session.toString())
+			: chatUri ? this._getAdditionalChatState(chatUri) : undefined;
+		return (kind === 'image' ? resolveAgentHostToolResultImage(chat, resolved, resolve) : undefined) ?? resolved;
 	}
 
 	/**

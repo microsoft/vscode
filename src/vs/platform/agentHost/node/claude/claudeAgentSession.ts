@@ -773,7 +773,7 @@ export class ClaudeAgentSession extends Disposable {
 						permissionMode: liveMode,
 						canUseTool: ctx.canUseTool,
 						onElicitation: ctx.onElicitation,
-						isResume: true,
+						isResume: ctx.isResume || pipeline.isResumed,
 						resumeSessionAt: this._pendingResumeSessionAt,
 						mcpServers: rebuildMcp,
 						deniedMcpServers: rebuildDeniedMcpServers,
@@ -788,7 +788,7 @@ export class ClaudeAgentSession extends Disposable {
 					rebuildTransport,
 					data => this._logService.error(`[Claude SDK stderr] ${data}`),
 				);
-				this._logService.info(`[Claude] session ${this.sessionId}: resume rebuild agent=${rebuildOptions.agent ?? '(none)'}`);
+				this._logService.info(`[Claude] session ${this.sessionId}: rebuild isResume=${!!rebuildOptions.resume} agent=${rebuildOptions.agent ?? '(none)'}`);
 				rebuildWarm = await this._sdkService.startup({ options: rebuildOptions });
 				// Rebuild succeeded with the anchor applied — clear it so it
 				// isn't re-applied. A throw above keeps it staged (handled in the

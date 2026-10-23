@@ -533,6 +533,7 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 			}));
 			this._lastContentLayout = undefined;
 		}
+		this._standaloneSessionActivityBar?.setChatActions(standaloneView?.activityBarActions);
 		this._standaloneSessionActivityBar?.setActive(this._isActive && this._isVisible && !!standaloneView);
 	}
 

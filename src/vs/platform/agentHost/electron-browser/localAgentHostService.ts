@@ -594,6 +594,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._getManagementService().uninstallPlugin(provider, request, session, chat);
 	}
 
+	listPluginInstallations(provider: string, session?: URI, chat?: URI) {
+		return this._getManagementService().listPluginInstallations(provider, session, chat);
+	}
+
 	listAgentExtensions(session?: URI, chat?: URI): Promise<IAgentExtensionInventory> {
 		return this._getManagementService().listAgentExtensions(session, chat);
 	}
@@ -830,6 +834,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	getMissionControlEnvironmentId(): Promise<string | undefined> {
 		return this._getManagementService().getMissionControlEnvironmentId();
+	}
+
+	getMissionControlEnvironmentName(): Promise<string | undefined> {
+		return this._getManagementService().getMissionControlEnvironmentName();
 	}
 
 }

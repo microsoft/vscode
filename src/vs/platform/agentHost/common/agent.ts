@@ -291,6 +291,14 @@ export interface IAgentPluginUninstallRequest {
 	readonly directSourceId?: string;
 }
 
+/** Provider-owned persisted installation, not a session-effective or client-provided plugin. */
+export interface IAgentPluginInstallation extends IAgentPluginUninstallRequest {
+	readonly version?: string;
+	readonly description?: string;
+	readonly verifiedSource?: { readonly repository: string; readonly revision: string };
+	readonly iconUrl?: string;
+}
+
 export type AgentExtensionMode = 'disabled' | 'load_only' | 'load_and_augment' | 'unknown';
 export type AgentExtensionSource = 'user' | 'project' | 'plugin';
 export type AgentExtensionStatus = 'running' | 'disabled' | 'failed' | 'starting' | 'unknown';
@@ -1713,6 +1721,8 @@ export interface IAgent {
 	/** Refresh live Connector state, optionally reinitializing only the named Connector. */
 	refreshConnectorSessions?(forceConnectorName?: string): Promise<void>;
 
+	/** List SDK-owned installations, excluding runtime-only and client-provided plugins. */
+	listPluginInstallations?(session?: URI, chat?: URI): Promise<readonly IAgentPluginInstallation[]>;
 	/** Uninstall a plugin through the provider that owns its installation state. */
 	uninstallPlugin?(request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void>;
 

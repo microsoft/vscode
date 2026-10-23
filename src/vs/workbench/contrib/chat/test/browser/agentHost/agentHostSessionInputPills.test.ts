@@ -890,7 +890,7 @@ suite('AgentHostSessionInputPills', () => {
 		const summarizedClose = harness.persistentContent.querySelector('.chat-pill-promoted-action');
 		const dropdown = harness.dropdown('2 Canvases');
 		dropdown.find(item => item.label === dashboard.title)?.select();
-		await dropdown.find(item => item.label === dashboard.title)?.toolbarActions[0]?.run();
+		await dropdown.find(item => item.label === dashboard.title)?.toolbarActions.find(action => action.label === 'Close Canvas Dashboard')?.run();
 		harness.showModel(upcastPartial<IChatModel>({}));
 
 		assert.deepStrictEqual({
@@ -909,7 +909,7 @@ suite('AgentHostSessionInputPills', () => {
 			offersToggle: true,
 			summarizedClose: null,
 			dropdown: ['Canvases', 'Preview', 'Dashboard'],
-			closeActions: ['Close Canvas Preview', 'Close Canvas Dashboard'],
+			closeActions: ['Pin Preview', 'Close Canvas Preview', 'Pin Dashboard', 'Close Canvas Dashboard'],
 			commands: [{ id: REVEAL_CANVAS_COMMAND_ID, args: [{ ...owner, canvas: dashboard.resource }] }],
 			closed: [preview.resource.toString(), dashboard.resource.toString()],
 			withoutCanvasContext: [],
@@ -1998,8 +1998,10 @@ suite('AgentHostSessionInputPills', () => {
 				hoverText: 'microsoft/vscodeon Sep 1Live pull request 332982 #332982OpenLive pull request bodymain←feature@pr-author opened this pull request',
 				actionLabels: [
 					'Copy Pull Request URL',
+					'Pin Live pull request 332982',
 					'Remove Artifact Chat: unify Agent Host status pills across chat surfaces from Session',
 					'Copy Pull Request URL',
+					'Pin Live pull request 335387',
 					'Remove Artifact sessions: preserve recorded issue titles in pills from Session',
 				],
 			},
@@ -3696,12 +3698,16 @@ suite('AgentHostSessionInputPills', () => {
 			empty: false,
 			dropdownActionLabels: [
 				'Copy Commit URL',
+				'Pin Commit',
 				'Remove Reference Commit from Session',
 				'Copy Website URL',
+				'Pin Preview',
 				'Remove Reference Preview from Session',
 				'Copy Path',
+				'Pin README.md',
 				'Remove Reference README from Session',
 				'Copy URI',
+				'Pin Chat settings',
 				'Remove Reference Chat settings from Session',
 			],
 			dropdownFooterActionLabels: ['Copy Hash', 'Copy Relative Path'],

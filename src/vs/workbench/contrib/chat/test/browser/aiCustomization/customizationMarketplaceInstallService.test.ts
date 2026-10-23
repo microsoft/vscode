@@ -836,6 +836,49 @@ suite('CustomizationMarketplaceInstallService', () => {
 		});
 	});
 
+	test('associates SDK plugin records without client discovery or an installed filesystem URI', async () => {
+		const candidate = resource({
+			identifier: 'featured-plugin',
+			mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+			installation: { kind: 'providerPlugin', name: 'demo', marketplace: 'marketplace', marketplaceSource: 'owner/catalog' },
+		});
+		const recorded: IRecordedCustomizationMarketplaceResource = {
+			installationId: 'sdk-plugin',
+			resource: {
+				...candidate,
+				identifier: 'sdk-marketplace-plugin',
+				installation: { kind: 'configuredPlugin', name: 'demo', marketplace: 'marketplace' },
+			},
+			state: { kind: 'installed', target: { kind: 'plugin', name: 'demo' } },
+		};
+		const removed: IRecordedCustomizationMarketplaceResource[] = [];
+		const provider = new class implements ICustomizationMarketplaceInstallProvider {
+			readonly onDidChange = Event.None;
+			getInstallations() { return Promise.resolve(removed.length ? [] : [recorded]); }
+			install(): Promise<void> { throw new Error('Unexpected install'); }
+			repair(): Promise<void> { throw new Error('Unexpected repair'); }
+			async uninstall(_session: URI, installation: IRecordedCustomizationMarketplaceResource) { removed.push(installation); }
+		}();
+		const fixture = await createFixture({ enabled: true, installProvider: provider });
+		await timeout(0);
+		const state = fixture.service.getInstallState(candidate);
+		const association = fixture.service.installations.get().findByResource(candidate);
+		await fixture.service.uninstall(candidate);
+		assert.deepStrictEqual({
+			state,
+			association: association?.installationId,
+			removed: removed.map(item => item.installationId),
+			localPlugins: fixture.installedPlugins.get().length,
+			after: fixture.service.getInstallState(candidate).kind,
+		}, {
+			state: { kind: 'installed', target: { kind: 'plugin', name: 'demo' } },
+			association: 'sdk-plugin',
+			removed: ['sdk-plugin'],
+			localPlugins: 0,
+			after: 'available',
+		});
+	});
+
 	test('treats provider inventory absence as authoritative over Local plugin and MCP discovery', async () => {
 		const provider = new class implements ICustomizationMarketplaceInstallProvider {
 			readonly onDidChange = Event.None;

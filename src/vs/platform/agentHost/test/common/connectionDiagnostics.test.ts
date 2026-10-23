@@ -139,6 +139,18 @@ suite('Connection diagnostic evidence', () => {
 		}, { outcomes: ['started', 'failed'], sameOperation: true, error: 'Failed with token=[redacted]' });
 	});
 
+	test('high-volume lifecycle observations do not evict connection evidence', () => {
+		const buffer = new ConnectionDiagnosticBuffer();
+		buffer.record('connection', { operationId: 'connect', timestamp: 0, phase: 'transport.connect', outcome: 'succeeded' });
+		for (let i = 0; i < 300; i++) {
+			for (const phase of ['session.snapshot', 'chat.binding', 'turn.submit']) {
+				buffer.record('connection', { operationId: String(i), timestamp: i, phase, outcome: 'info' });
+			}
+		}
+		buffer.record('connection', { operationId: 'failure', timestamp: 301, phase: 'session.snapshot', outcome: 'failed' });
+		assert.deepStrictEqual(buffer.getEvents().map(event => event.operationId), ['connect', 'failure']);
+	});
+
 	test('bounds event retention without changing chronological order', () => {
 		const buffer = new ConnectionDiagnosticBuffer();
 		for (let i = 0; i < 205; i++) {

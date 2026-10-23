@@ -398,6 +398,7 @@ type AgentHostLegacyMigrationEvent = IAgentHostCopilotSkuTelemetry & {
 	workingDirectoryCount: number;
 	errorMessage: string | undefined;
 	reason: string;
+	hostLaunchKind: AgentHostLaunchKind;
 };
 
 type AgentHostLegacyMigrationClassification = IAgentHostCopilotSkuClassification & {
@@ -431,6 +432,7 @@ type AgentHostLegacyMigrationClassification = IAgentHostCopilotSkuClassification
 	workingDirectoryCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of working directories associated with the migrated session.' };
 	errorMessage: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'Error message when the migration failed; absent for migrated/skipped outcomes.' };
 	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Provider adoption reason (including markerUnavailable), settingDisabled for a frozen-off host, or unknown. This is separate from the stage and exception that may fail after adoption.' };
+	hostLaunchKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'How the agent host was launched: vscode_main_process (local desktop host) or vscode_cli (a host spawned by a VS Code server, e.g. for a remote window), so local and remote migration can be compared.' };
 	owner: 'vijayupadya';
 	comment: 'Tracks one-time adopt-on-open migration of legacy extension-host Copilot CLI sessions into the agent host to measure attempt, success, failure, and skipped rates.';
 };
@@ -973,6 +975,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private readonly _sessionRegistry: AgentSessionRegistry;
 	private readonly _orchestratorDatabase: IAgentHostDatabase;
+	private readonly _hostLaunchKind: AgentHostLaunchKind;
 
 	/** Settles once the recorded scratch folders are known to the state manager, which per-chat workspace-less decisions read. */
 	private readonly _scratchFoldersLoaded: Promise<void>;
@@ -1189,6 +1192,7 @@ export class AgentService extends Disposable implements IAgentService {
 	) {
 		super();
 		this.artifactIntegrations = collaborators.artifactIntegrations;
+		this._hostLaunchKind = options.hostLaunchKind ?? AgentHostLaunchKind.Unknown;
 		this.artifactIntegrationClients = collaborators.artifactIntegrationClients;
 		this._authService = core.authenticationService;
 		this._orchestratorDatabase = core.orchestratorDatabase;
@@ -6259,6 +6263,14 @@ export class AgentService extends Disposable implements IAgentService {
 			throw new Error(`Plugin uninstall is unavailable for provider '${providerId}'.`);
 		}
 		await provider.uninstallPlugin(request, session, chat);
+	}
+
+	listPluginInstallations(providerId: AgentProvider, session?: URI, chat?: URI) {
+		const provider = this._providerService.getProvider(providerId);
+		if (!provider?.listPluginInstallations) {
+			throw new Error(`Plugin installation inventory is unavailable for provider '${providerId}'.`);
+		}
+		return provider.listPluginInstallations(session, chat);
 	}
 
 	async listSessionCanvases(session: URI, chat: URI): Promise<AgentCanvasDefinitionSnapshot> {
@@ -13209,6 +13221,7 @@ export class AgentService extends Disposable implements IAgentService {
 			errorCode: getErrorCode(extra.error),
 			errorMessage: getTelemetryMigrationErrorMessage(extra.error, session),
 			reason: extra.reason ?? 'unknown',
+			hostLaunchKind: this._hostLaunchKind,
 		};
 		if (extra.error !== undefined || diagnostics?.errorMessage !== undefined) {
 			this._telemetryService.publicLogError2<AgentHostLegacyMigrationEvent, AgentHostLegacyMigrationClassification>('agentHost.legacyCopilotCliMigration', data);

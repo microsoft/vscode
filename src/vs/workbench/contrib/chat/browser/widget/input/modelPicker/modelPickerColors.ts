@@ -13,14 +13,14 @@ import { foreground, registerColor } from '../../../../../../../platform/theme/c
 export const chatFusionBadgeGradientStart = registerColor(
 	'chat.fusionBadgeGradientStart',
 	{ dark: '#94f6ed', light: '#94f6ed', hcDark: Color.transparent, hcLight: Color.transparent },
-	localize('chat.fusionBadgeGradientStart', "Start color of the gradient behind the Copilot Fusion discount badge in the model picker."));
+	localize('chat.fusionBadgeGradientStart', "Start color of the gradient behind the Copilot Fusion badge (discount or Recommended) in the model picker."));
 
 export const chatFusionBadgeGradientEnd = registerColor(
 	'chat.fusionBadgeGradientEnd',
 	{ dark: '#a685f3', light: '#a685f3', hcDark: Color.transparent, hcLight: Color.transparent },
-	localize('chat.fusionBadgeGradientEnd', "End color of the gradient behind the Copilot Fusion discount badge in the model picker."));
+	localize('chat.fusionBadgeGradientEnd', "End color of the gradient behind the Copilot Fusion badge (discount or Recommended) in the model picker."));
 
 export const chatFusionBadgeForeground = registerColor(
 	'chat.fusionBadgeForeground',
 	{ dark: '#1f1f1f', light: '#1f1f1f', hcDark: foreground, hcLight: foreground },
-	localize('chat.fusionBadgeForeground', "Foreground color of the Copilot Fusion discount badge in the model picker."));
+	localize('chat.fusionBadgeForeground', "Foreground color of the Copilot Fusion badge (discount or Recommended) in the model picker."));
