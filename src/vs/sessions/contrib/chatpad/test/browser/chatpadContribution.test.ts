@@ -20,6 +20,7 @@ import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.j
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { AppendToChatpadMaxTextLength } from '../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
@@ -148,6 +149,25 @@ suite('Chatpad contribution', () => {
 
 		assert.deepStrictEqual({ localCalls, remoteCalls, opened: opened.length, messages }, {
 			localCalls: ['getChatpad', 'getChatpad', 'append:typed'], remoteCalls: [], opened: 1, messages: [],
+		});
+	});
+
+	test('the append input rejects blank text and text beyond the host cap', async () => {
+		providers = [localProvider([])];
+		setProviderKey(true);
+		let validate: ((value: string) => Promise<string | undefined | null>) | undefined;
+		instantiationService.stub(IQuickInputService, { input: async (options: { validateInput?: (value: string) => Promise<string | undefined | null> }) => { validate = options.validateInput; return undefined; } } as Partial<IQuickInputService>);
+
+		await runCommand('sessions.appendToChatpad');
+
+		assert.deepStrictEqual({
+			blank: await validate!('  '),
+			ok: await validate!('x'.repeat(AppendToChatpadMaxTextLength)),
+			tooLong: await validate!('x'.repeat(AppendToChatpadMaxTextLength + 1)),
+		}, {
+			blank: 'Enter text to append.',
+			ok: undefined,
+			tooLong: `The text is too long to append: at most ${AppendToChatpadMaxTextLength} characters fit at once.`,
 		});
 	});
 
