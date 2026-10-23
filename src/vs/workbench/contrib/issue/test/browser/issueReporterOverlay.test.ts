@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { spy } from 'sinon';
+import { spy, stub } from 'sinon';
 import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
 import { addDisposableListener } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
@@ -18,11 +18,14 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { ITreeViewsDnDService } from '../../../../../editor/common/services/treeViewsDndService.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextViewDelegate, IContextViewService, IOpenContextView } from '../../../../../platform/contextview/browser/contextView.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -78,6 +81,7 @@ suite('IssueReporterOverlay', () => {
 	} = {}) {
 		const instantiation = workbenchInstantiationService(undefined, store);
 		instantiation.stub(IConfigurationService, new TestConfigurationService({ 'editor.fontFamily': 'monospace', 'editor.fontSize': 28 }));
+		instantiation.stub(IClipboardService, { writeText: async () => { } });
 		instantiation.stub(IUserInteractionService, new UserInteractionService());
 		const hovers = new Map<HTMLElement, string>();
 		instantiation.stub(IHoverService, {
@@ -924,9 +928,58 @@ suite('IssueReporterOverlay', () => {
 			assert.deepStrictEqual({
 				primary: feedback.textContent, rawInStatus: feedback.textContent?.includes('422'), collapsed: !details.open, hidden: details.hidden,
 				label: details.querySelector('summary')?.textContent, details: details.querySelector('pre')?.textContent,
-			}, { primary: message, rawInStatus: false, collapsed: true, hidden: false, label: 'Technical details', details: raw });
+				selectable: mainWindow.getComputedStyle(details.querySelector('pre')!).userSelect,
+			}, { primary: message, rawInStatus: false, collapsed: true, hidden: false, label: 'Technical details', details: raw, selectable: 'text' });
 			overlay.setAttachmentUploadError(undefined);
 			assert.deepStrictEqual({ hidden: details.hidden, details: details.querySelector('pre')?.textContent, primary: feedback.textContent }, { hidden: true, details: '', primary: '' });
+		});
+
+		test('copies the current technical details with keyboard activation without changing the draft', async () => {
+			const { overlay, container, instantiation } = createReporter();
+			const copied = new DeferredPromise<string>();
+			const write = stub(instantiation.get(IClipboardService), 'writeText').callsFake(text => copied.complete(text));
+			store.add(toDisposable(() => write.restore()));
+			overlay.setAttachmentUploadError('Upload rejected.', 'Previous error');
+			const raw = 'Policy request failed 422:\n{"message":"Invalid content type"}';
+			overlay.setAttachmentUploadError('Upload rejected.', raw);
+			const details = container.querySelector<HTMLDetailsElement>('.wizard-attachment-error-details')!;
+			details.open = true;
+			const button = details.querySelector<HTMLElement>('.monaco-button');
+			assert.ok(button);
+			button.focus();
+			button.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+			assert.deepStrictEqual({
+				copied: await copied.p,
+				details: details.querySelector('pre')?.textContent,
+				label: button.textContent,
+				role: button.getAttribute('role'),
+				dirty: overlay.hasUnsavedChanges(),
+			}, { copied: raw, details: raw, label: 'Copy', role: 'button', dirty: false });
+		});
+
+		test('reports a technical-details copy failure without replacing the upload error', async () => {
+			const { overlay, container, instantiation, feedback } = createReporter();
+			const failed = new DeferredPromise<string>();
+			const error = new Error('Clipboard unavailable');
+			const write = stub(instantiation.get(IClipboardService), 'writeText').rejects(error);
+			store.add(toDisposable(() => write.restore()));
+			const notify = stub(instantiation.get(INotificationService), 'error').callsFake(message => { void failed.complete(String(message)); });
+			store.add(toDisposable(() => notify.restore()));
+			const log = spy(instantiation.get(ILogService), 'error');
+			store.add(toDisposable(() => log.restore()));
+			const raw = 'Policy request failed 422';
+			overlay.setAttachmentUploadError('Upload rejected.', raw);
+			const details = container.querySelector<HTMLDetailsElement>('.wizard-attachment-error-details')!;
+			details.open = true;
+			const button = details.querySelector<HTMLElement>('.monaco-button');
+			assert.ok(button);
+			button.click();
+			assert.deepStrictEqual({
+				notification: await failed.p,
+				loggedError: log.lastCall.args.at(-1),
+				primary: feedback.textContent,
+				details: details.querySelector('pre')?.textContent,
+			}, { notification: 'Could not copy technical details: Clipboard unavailable', loggedError: error, primary: 'Upload rejected.', details: raw });
 		});
 
 		test('keeps failed uploads visible beside attachments and preserves the draft', () => {

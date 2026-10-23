@@ -248,7 +248,9 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 						signal.throwIfAborted();
 						const contentHash = await hashAsync(fileContent.value);
 						signal.throwIfAborted();
-						filesToProcess.push({ attachment, key: `file:${file.filePath}:${contentHash}`, name: file.name, bytes: fileContent.value.buffer, contentType: file.mimeType });
+						// GitHub's upload policy accepts bare MIME types, not recorder codec parameters.
+						const contentType = file.mimeType.split(';', 1)[0].trim().toLowerCase();
+						filesToProcess.push({ attachment, key: `file:${file.filePath}:${contentHash}`, name: file.name, bytes: fileContent.value.buffer, contentType });
 					}
 				}
 

@@ -410,6 +410,41 @@ suite('IssueFormService', () => {
 		assert.deepStrictEqual({ openedPreview, fileReads, mediaUploads, opened }, { openedPreview: false, fileReads: [], mediaUploads: [], opened: [] });
 	});
 
+	for (const [name, mimeType, contentType] of [
+		['vscode-recording.mp4', 'video/mp4;codecs=avc1', 'video/mp4'],
+		['vscode-recording.webm', 'video/webm;codecs=vp9', 'video/webm'],
+		['imported.mp4', ' VIDEO/MP4 ; codecs="avc1.42E01E,mp4a.40.2"', 'video/mp4'],
+		['notes.txt', 'text/plain; charset=utf-8', 'text/plain'],
+	]) {
+		test(`uploads ${mimeType} with a bare MIME type for the upload policy`, async () => {
+			const file = { filePath: `/owned/${name}`, name, mimeType };
+			const contents = new Uint8Array([0, 255, 42, 10]);
+			const { service, host, data, controls, payloads, uploadErrors } = createSubmissionService(false, false, {
+				attachments: [attachedFile(file)],
+				contents,
+			});
+			controls.upload = async () => {
+				if (payloads.at(-1)?.contentType !== contentType) {
+					throw new Error('Policy request failed 422: {"message":"Validation Failed","errors":[{"resource":"RepositoryFile","code":"custom","field":"content_type","message":"content_type is not included in the list"}]}');
+				}
+			};
+
+			const result = await service.submitIssue(host, data, 'Captured recording', 'Description');
+
+			assert.deepStrictEqual({
+				result,
+				payloads,
+				storedMimeType: file.mimeType,
+				error: uploadErrors.at(-1),
+			}, {
+				result: true,
+				payloads: [{ name, contentType, bytes: [...contents] }],
+				storedMimeType: mimeType,
+				error: undefined,
+			});
+		});
+	}
+
 	test('uploads original generic bytes, MIME and filename with an escaped Markdown link', async () => {
 		const name = 'bundle [a](b)\\&<x>.zip';
 		const { service, host, data, payloads, opened } = createSubmissionService(false, false, {

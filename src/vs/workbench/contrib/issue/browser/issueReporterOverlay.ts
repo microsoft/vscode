@@ -25,10 +25,12 @@ import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { isRemoteDiagnosticError } from '../../../../platform/diagnostics/common/diagnostics.js';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles, defaultKeybindingLabelStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import product from '../../../../platform/product/common/product.js';
@@ -180,6 +182,8 @@ export class IssueReporterOverlay {
 		@ILogService private readonly logService: ILogService,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IClipboardService private readonly clipboardService: IClipboardService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		this._hideToolbarInScreenshots = initialHideToolbar;
 		const hasStandaloneExtensionData = !!data.data && !data.extensionId;
@@ -292,7 +296,22 @@ export class IssueReporterOverlay {
 		this.attachmentErrorDetails = append(page, $('details.wizard-attachment-error-details'));
 		this.attachmentErrorDetails.hidden = true;
 		append(this.attachmentErrorDetails, $('summary')).textContent = localize('attachmentErrorDetails', "Technical details");
+		const copyDetailsButton = this.disposables.add(new Button(this.attachmentErrorDetails, { ...defaultButtonStyles, secondary: true }));
+		copyDetailsButton.element.classList.add('wizard-copy-error-details');
+		copyDetailsButton.element.setAttribute('aria-label', localize('copyAttachmentErrorDetails', "Copy technical details"));
+		copyDetailsButton.label = localize('copy', "Copy");
 		this.attachmentErrorDetailText = append(this.attachmentErrorDetails, $('pre'));
+		this.disposables.add(copyDetailsButton.onDidClick(async () => {
+			try {
+				await this.clipboardService.writeText(this.attachmentErrorDetailText.textContent ?? '');
+				if (!this.disposed) {
+					status(localize('attachmentErrorDetailsCopied', "Technical details copied."));
+				}
+			} catch (error) {
+				this.logService.error('[IssueReporter] Failed to copy technical details:', error);
+				this.notificationService.error(localize('copyAttachmentErrorDetailsFailed', "Could not copy technical details: {0}", toErrorMessage(error)));
+			}
+		}));
 		this.updateScreenshotThumbnails();
 	}
 

@@ -554,11 +554,18 @@ label/control gap, so the buttons must not add their own margin. */
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 }
 
+.issue-reporter-wizard .wizard-copy-error-details {
+	width: fit-content;
+	margin-top: var(--vscode-spacing-size80);
+}
+
 .issue-reporter-wizard .wizard-attachment-error-details pre {
 	white-space: pre-wrap;
 	overflow-wrap: anywhere;
 	max-height: 12em;
 	overflow: auto;
+	user-select: text;
+	-webkit-user-select: text;
 }
 
 .issue-reporter-wizard .wizard-screenshot-card {

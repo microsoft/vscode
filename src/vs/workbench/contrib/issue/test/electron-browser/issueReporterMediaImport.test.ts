@@ -21,6 +21,7 @@ import { ipcRenderer } from '../../../../../base/parts/sandbox/electron-browser/
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -231,6 +232,7 @@ suite('Issue reporter media import lifecycle', () => {
 
 	async function createPane(input = createInput(), files = new MediaFileService(), recording?: IRecordingService, filesConfigurationService: IFilesConfigurationService = NullFilesConfigurationService) {
 		const instantiation = workbenchInstantiationService(undefined, store);
+		instantiation.stub(IClipboardService, { writeText: async () => { } });
 		instantiation.stub(IConfigurationService, new TestConfigurationService({ 'editor.editContext': false }));
 		instantiation.stub(IUserInteractionService, new UserInteractionService());
 		for (const dependency of _util.getServiceDependencies(IssueReporterController as typeof IssueReporterController & _util.DI_TARGET_OBJ)) {
