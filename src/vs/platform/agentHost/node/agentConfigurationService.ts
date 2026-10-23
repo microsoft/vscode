@@ -782,7 +782,8 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		const own = this._ownChatValues(chat) ?? {};
 		const complete = this.getCompleteChatConfigValues(session, own);
 		const patch = Object.fromEntries(Object.entries(complete).filter(([key, value]) => !Object.hasOwn(own, key) || !equals(own[key], value)));
-		if (Object.keys(patch).length === 0) {
+		// Every chat of a session with config publishes its config, even with no values.
+		if (Object.keys(patch).length === 0 && this._stateManager.getChatConfig(chat) !== undefined) {
 			return;
 		}
 		const action = { type: ActionType.ChatConfigChanged as const, config: patch };
@@ -818,7 +819,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		const next = { ...inheritedValues, ...own };
 		const current = this._stateManager.getChatConfig(chat)?.values;
 		this._inheritedChatKeys.set(chat, new Set(Object.keys(inheritedValues)));
-		if (equals(current ?? {}, next)) {
+		if (current && equals(current, next)) {
 			return;
 		}
 		const action = { type: ActionType.ChatConfigChanged as const, config: next, replace: true };
