@@ -261,7 +261,9 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 			if (recursive) {
 				opts = { recursive, excludes: [...excludes, ...gitIgnoreExcludes], includes, filter };
 			} else {
-				const allIncludes = [...includes ?? [], ...gitIgnoreExcludes.map(exclude => normalizeWatcherPattern(folder.uri.fsPath, exclude))];
+				// The patterns are relative to the workspace folder, which an
+				// explicit base preserves even for patterns that start with `**`
+				const allIncludes = [...includes ?? [], ...gitIgnoreExcludes.map(pattern => ({ base: folder.uri.fsPath, pattern }))];
 
 				// Still ignore watch request if there are actually no configured
 				// exclude rules, because in that case our default recursive watcher

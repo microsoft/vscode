@@ -184,7 +184,7 @@ suite('ExtHostFileSystemEventService', () => {
 		];
 
 		log.push('-- excluded');
-		service.$acceptGitIgnoreWatcherExcludes(folder, ['out', 'out/**']);
+		service.$acceptGitIgnoreWatcherExcludes(folder, ['out/**/*', '**/legacy/**']);
 		log.push('-- cleared');
 		service.$acceptGitIgnoreWatcherExcludes(folder, []);
 		log.push('-- disposed');
@@ -194,8 +194,8 @@ suite('ExtHostFileSystemEventService', () => {
 			'watch /workspace recursive=true excludes=[]',
 			'watch /workspace/src recursive=true excludes=[]',
 			'-- excluded',
-			'watch /workspace recursive=true excludes=[out,out/**]',
-			`watch /workspace/out recursive=false excludes=[] includes=[${folder.fsPath}:out,${folder.fsPath}:out/**]`,
+			'watch /workspace recursive=true excludes=[out/**/*,**/legacy/**]',
+			`watch /workspace/out recursive=false excludes=[] includes=[${folder.fsPath}:out/**/*,${folder.fsPath}:**/legacy/**]`,
 			'-- cleared',
 			'watch /workspace recursive=true excludes=[]',
 			'unwatch /workspace/out',
