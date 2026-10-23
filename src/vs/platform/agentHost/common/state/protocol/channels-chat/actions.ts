@@ -887,9 +887,9 @@ export interface ChatIsArchivedChangedAction {
  * Config values set on a chat changed.
  *
  * Merges `config` into the chat's
- * {@link ChatConfigState | `ChatState.config`} values, or sets the complete
- * values when `replace` is `true`; keys missing after a replace take the
- * effective schema's `default`. Only properties with `chatMutable: true` in
+ * {@link ChatConfigState | `ChatState.config`} values, or replaces them when
+ * `replace` is `true`; keys missing after a replace take their property's
+ * `default`. Only properties with `chatMutable: true` in
  * the effective schema may be set.
  *
  * @category Chat Actions
