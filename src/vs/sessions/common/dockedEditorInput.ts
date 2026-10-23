@@ -26,5 +26,5 @@ export abstract class DockedEditorInput extends EditorInput {
  * it is closable like any other editor, whether or not the editor part of the main window is visible.
  */
 export function isOpenInAuxiliaryEditorPart(editorGroupsService: IEditorGroupsService, editor: EditorInput): boolean {
-	return editorGroupsService.parts.some(part => part !== editorGroupsService.mainPart && part.groups.some(group => group.contains(editor, { strictEqual: true })));
+	return editorGroupsService.parts.some(part => part !== editorGroupsService.mainPart && part.groups.some(group => group.contains(editor, { strictEquals: true })));
 }
