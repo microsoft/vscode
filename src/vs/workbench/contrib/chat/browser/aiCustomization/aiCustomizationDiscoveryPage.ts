@@ -268,6 +268,14 @@ function getCatalogType(resource: ICustomizationMarketplaceResource): 'skill' | 
 	}
 }
 
+function isCanvasMarketplaceResource(resource: ICustomizationMarketplaceResource): boolean {
+	return getCatalogType(resource) === 'plugin' && resource.tags.some(tag => tag === 'canvas' || tag === 'canvas-only');
+}
+
+function isCanvasOnlyMarketplaceResource(resource: ICustomizationMarketplaceResource): boolean {
+	return getCatalogType(resource) === 'plugin' && resource.tags.includes('canvas-only');
+}
+
 function getSectionForCatalogType(type: 'skill' | 'mcp' | 'plugin'): AICustomizationManagementSection {
 	switch (type) {
 		case 'skill': return AICustomizationManagementSection.Skills;
@@ -1061,7 +1069,9 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				},
 				accessibilityProvider: {
 					getAriaLabel: entry => this.getEntryAriaLabel(entry),
-					getWidgetAriaLabel: () => localize('customizationDiscovery.resultsLabel', "Customization search results"),
+					getWidgetAriaLabel: () => this.isCanvasOnlyQuery()
+						? localize('customizationDiscovery.canvasResultsLabel', "Canvas extension search results")
+						: localize('customizationDiscovery.resultsLabel', "Customization search results"),
 				},
 				keyboardNavigationLabelProvider: {
 					getKeyboardNavigationLabel: entry => entry.kind === 'loading' ? undefined : entry.kind === 'installed' ? entry.name : entry.resource.displayName,
@@ -1367,6 +1377,16 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		));
 		plugins.checked = this.query.types.has('plugin');
 
+		const canvases = this.searchActionDisposables.add(new Action(
+			'customizationDiscovery.filter.canvas',
+			localize('customizationDiscovery.filterCanvases', "Canvas"),
+			undefined,
+			true,
+			() => this.setQuery(this.query.withType('canvas', !this.query.types.has('canvas'))),
+		));
+		canvases.checked = this.query.types.has('canvas');
+		canvases.tooltip = localize('customizationDiscovery.filterCanvasesDescription', "Agent-driven workflow interfaces.");
+
 		const skills = this.searchActionDisposables.add(new Action(
 			'customizationDiscovery.filter.skill',
 			localize('customizationDiscovery.filterSkills', "Skills"),
@@ -1379,7 +1399,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		actions.push(new SubmenuAction(
 			'customizationDiscovery.filter',
 			localize('customizationDiscovery.filter', "Filter Customizations..."),
-			[installed, new Separator(), mcp, plugins, skills],
+			[installed, new Separator(), mcp, plugins, canvases, skills],
 			ThemeIcon.asClassName(Codicon.filter),
 		));
 		this.searchToolbar.setActions(actions);
@@ -1532,7 +1552,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		const items = [...this.installedItems, ...this.providerPlugins];
 		const marketplaceInstallations = this.installService.installations.get();
 		return items
-			.filter(item => this.matchesType(item.type))
+			.filter(item => this.matchesInstalledItem(item, marketplaceInstallations))
 			.filter(item => {
 				if (!this.selectedSourceId) {
 					return true;
@@ -1548,13 +1568,30 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			.sort((a, b) => a.name.localeCompare(b.name));
 	}
 
-	private matchesType(type: DiscoveryItemType): boolean {
+	private matchesInstalledItem(item: IInstalledDiscoveryItem, installations: ICustomizationMarketplaceInstallationSnapshot): boolean {
 		if (this.query.types.size === 0) {
 			return true;
 		}
+		const resource = item.catalogResource ?? getInstalledItemMarketplaceRecord(item, installations)?.resource;
+		return item.type === 'skill' && this.query.types.has('skill')
+			|| item.type === 'mcp' && this.query.types.has('mcp')
+			|| item.type === 'plugin' && this.query.types.has('plugin') && !resource?.tags.includes('canvas-only')
+			|| resource !== undefined && this.query.types.has('canvas') && isCanvasMarketplaceResource(resource);
+	}
+
+	private matchesMarketplaceResource(resource: ICustomizationMarketplaceResource): boolean {
+		if (this.query.types.size === 0) {
+			return true;
+		}
+		const type = getCatalogType(resource);
 		return type === 'skill' && this.query.types.has('skill')
 			|| type === 'mcp' && this.query.types.has('mcp')
-			|| type === 'plugin' && this.query.types.has('plugin');
+			|| type === 'plugin' && this.query.types.has('plugin') && !isCanvasOnlyMarketplaceResource(resource)
+			|| this.query.types.has('canvas') && isCanvasMarketplaceResource(resource);
+	}
+
+	private isCanvasOnlyQuery(): boolean {
+		return this.query.types.size === 1 && this.query.types.has('canvas');
 	}
 
 	private shouldQueryCatalog(): boolean {
@@ -1644,10 +1681,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			return true;
 		});
 		this.noteBrowseFirstContent();
-		return this.catalogItems.some(item => {
-			const type = getCatalogType(item);
-			return type !== undefined && this.matchesType(type);
-		});
+		return this.catalogItems.some(item => this.matchesMarketplaceResource(item));
 	}
 
 	private noteBrowseFirstContent(): void {
@@ -1799,11 +1833,13 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				: undefined;
 			let catalogError: Error | undefined;
 			try {
-				const backfill = !this.query.isEmpty() && this.query.types.size > 0 && getCatalogMediaType(this.query.types) === undefined;
+				const backfill = !this.query.isEmpty() && this.query.types.size > 0
+					&& (getCatalogMediaType(this.query.types) === undefined || this.query.types.has('canvas'));
+				const catalogQuery = this.query.text || (this.query.types.has('canvas') ? 'plugins' : undefined);
 				let hasMatchingCatalogItem = false;
 				for (let pageCount = 0; pageCount < (backfill ? maxFilteredCatalogPagesPerLoad : 1); pageCount++) {
 					const page = await this.marketplaceService.query({
-						query: this.query.text || undefined,
+						query: catalogQuery,
 						mediaType: getCatalogMediaType(this.query.types),
 						sourceIds: this.selectedSourceId ? [this.selectedSourceId] : undefined,
 						pageSize: this.query.isEmpty() && !this.selectedSourceId ? browseCatalogPageSize : catalogPageSize,
@@ -1938,10 +1974,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	}
 
 	private hasMatchingCatalogItems(): boolean {
-		return this.catalogItems.some(item => {
-			const type = getCatalogType(item);
-			return type !== undefined && this.matchesType(type);
-		});
+		return this.catalogItems.some(item => this.matchesMarketplaceResource(item));
 	}
 
 	private isCatalogPending(): boolean {
@@ -2024,7 +2057,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		const matching = [...resources.values()].filter(resource => {
 			const type = getCatalogType(resource);
 			return !!type
-				&& this.matchesType(type)
+				&& this.matchesMarketplaceResource(resource)
 				&& (!this.selectedSourceId || resource.sourceId === this.selectedSourceId)
 				&& (!query || [resource.displayName, resource.description, getTypeLabel(type), this.getMarketplaceSourceLabel(resource.sourceId)].some(value => normalizedName(value).includes(query)));
 		});
@@ -2127,7 +2160,9 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		} else if (entries.length === 0 && !this.sourceWarnings.hasInlinePrompts) {
 			this.resultStatus.textContent = this.filteredBackfillLimitReached
 				? localize('customizationDiscovery.moreResultsPossible', "More catalog results may match this search.")
-				: localize('customizationDiscovery.noResults', "No customizations match this search.");
+				: this.isCanvasOnlyQuery()
+					? localize('customizationDiscovery.noCanvasResults', "No canvas extensions match this search.")
+					: localize('customizationDiscovery.noResults', "No customizations match this search.");
 		} else {
 			this.resultStatus.textContent = '';
 		}
@@ -2136,7 +2171,9 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		}
 		if (!catalogPending && !this.errorMessage) {
 			this.announce([
-				localize('customizationDiscovery.resultCount', "{0} customizations found.", resultCount),
+				this.isCanvasOnlyQuery()
+					? localize('customizationDiscovery.canvasResultCount', "{0} canvas extensions found.", resultCount)
+					: localize('customizationDiscovery.resultCount', "{0} customizations found.", resultCount),
 				this.sourceWarnings.getAccessibilityContent(),
 			].filter(Boolean).join('\n'));
 		}
@@ -2875,8 +2912,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			return !marketplace || !recordedInstallations.has(marketplace);
 		});
 		const available = visibleSearchResources.filter(({ resource }) => {
-			const type = getCatalogType(resource);
-			return type && this.matchesType(type) && !hasInstallationTarget(this.getInstallState(resource));
+			return this.matchesMarketplaceResource(resource) && !hasInstallationTarget(this.getInstallState(resource));
 		});
 		const sourceSectionIds = new Set(this.sourceSections.map(section => section.id));
 		const marketplaceContent = browseSections?.length
