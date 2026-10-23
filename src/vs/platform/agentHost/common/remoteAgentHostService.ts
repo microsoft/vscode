@@ -132,6 +132,12 @@ export namespace RemoteAgentHostConnectionStatus {
 /** Configuration key for the list of WebSocket remote agent host addresses. */
 export const RemoteAgentHostsSettingId = 'chat.remoteAgentHosts';
 
+/**
+ * Configuration key for WebSocket remote agent hosts that a workspace connects to
+ * in addition to {@link RemoteAgentHostsSettingId}. Only honored in trusted workspaces.
+ */
+export const WorkspaceRemoteAgentHostsSettingId = 'chat.workspaceRemoteAgentHosts';
+
 /** Configuration key to enable remote agent host connections. */
 export const RemoteAgentHostsEnabledSettingId = 'chat.remoteAgentHostsEnabled';
 
@@ -665,6 +671,23 @@ export function getEntryTypeConfig(type: RemoteAgentHostEntryType): IRemoteAgent
 
 export function getEntryAddress(entry: IRemoteAgentHostEntry): string {
 	return getEntryTypeConfig(entry.connection.type).address(entry.connection);
+}
+
+/** Parses a raw WebSocket remote agent host setting value, skipping malformed and legacy SSH entries. */
+export function parseWebSocketRemoteAgentHostEntries(raw: unknown): IRemoteAgentHostEntry[] {
+	if (!Array.isArray(raw)) {
+		return [];
+	}
+	return raw
+		.filter(isRawRemoteAgentHostEntry)
+		.filter(entry => !isLegacySshRawEntry(entry))
+		.map(entry => WEBSOCKET_ENTRY_TYPE_CONFIG.fromRaw(entry));
+}
+
+/** Normalized addresses of the hosts configured in {@link WorkspaceRemoteAgentHostsSettingId}. */
+export function getWorkspaceRemoteAgentHostAddresses(configurationService: IConfigurationService): ReadonlySet<string> {
+	const entries = parseWebSocketRemoteAgentHostEntries(configurationService.getValue(WorkspaceRemoteAgentHostsSettingId));
+	return new Set(entries.map(entry => normalizeRemoteAgentHostAddress(getEntryAddress(entry))));
 }
 
 export function remoteAgentHostLogOutputChannelId(address: string): string {

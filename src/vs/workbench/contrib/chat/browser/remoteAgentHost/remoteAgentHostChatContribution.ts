@@ -15,7 +15,7 @@ import { AgentHostProtocolClient } from '../../../../../platform/agentHost/brows
 import { IAgentHostAdvertisedAuthenticationResolver } from '../../../../../platform/agentHost/common/agentHostAdvertisedAuthentication.js';
 import { type AgentProvider, type AuthenticateParams, type AuthenticateResult } from '../../../../../platform/agentHost/common/agent.js';
 import { type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
-import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, getEntryAddress } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, WorkspaceRemoteAgentHostsSettingId, getEntryAddress, getWorkspaceRemoteAgentHostAddresses } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { type ProtectedResourceMetadata } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { type AgentInfo, type RootState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { AuthRequiredReason, NotificationType, type INotification } from '../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -32,6 +32,8 @@ import { AgentHostDownloadProgress } from '../agentSessions/agentHost/agentHostD
 import { IAgentHostActiveClientService } from '../agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostSessionWorkingDirectoryResolver, RequestedWorkingDirectory } from '../agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { AgentCustomizationItemProvider } from '../agentSessions/agentHost/agentCustomizationItemProvider.js';
+import { AgentHostSessionListController } from '../agentSessions/agentHost/agentHostSessionListController.js';
+import { AgentHostSessionListStore } from '../agentSessions/agentHost/agentHostSessionListStore.js';
 import { Target } from '../../common/promptSyntax/promptTypes.js';
 import { readAgentModelCatalogStatus } from '../../../../../platform/agentHost/common/agentModelCatalogStatus.js';
 import { ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSessionsService } from '../../common/chatSessionsService.js';
@@ -122,6 +124,8 @@ class ConnectionState extends Disposable {
 	readonly authRecovery: AgentHostAuthenticationRecovery;
 	readonly authenticationPending: ISettableObservable<boolean>;
 	prepareSession: RemoteAgentHostSessionPreparation | undefined;
+	/** Set for hosts whose sessions the editor window lists itself. */
+	sessionList: AgentHostSessionListStore | undefined;
 
 	constructor(
 		address: string,
@@ -181,6 +185,12 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 
 		this._register(this._remoteAgentHostService.onDidChangeConnections(() => this._reconcile()));
 		this._register(this._remoteAgentHostService.onDidChangeDisplayName(() => this._reconcile()));
+		// A host may already be connected through the user setting when the workspace starts listing it.
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(WorkspaceRemoteAgentHostsSettingId)) {
+				this._reconcile();
+			}
+		}));
 		this._register(this._defaultAccountService.onDidChangeDefaultAccount(() => this._authenticateAllConnections()));
 		this._register(this._authenticationService.onDidRegisterAuthenticationProvider(() => this._authenticateAllConnections()));
 		this._register(this._authenticationService.onDidChangeSessions(event => {
@@ -225,7 +235,8 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	}
 
 	private _reconcileConnections(): void {
-		const currentConnections = this._remoteAgentHostService.connections.filter(connection => this._isSessionsWindow || isCloudSandboxConnectionAddress(connection.address));
+		const workspaceHosts = getWorkspaceRemoteAgentHostAddresses(this._configurationService);
+		const currentConnections = this._remoteAgentHostService.connections.filter(connection => this._isSessionsWindow || isCloudSandboxConnectionAddress(connection.address) || workspaceHosts.has(connection.address));
 		const connectedAddresses = new Set(
 			currentConnections
 				.filter(c => RemoteAgentHostConnectionStatus.isConnected(c.status) && c.clientId !== undefined)
@@ -324,6 +335,11 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		const authority = agentHostAuthority(address);
 		store.add(this._agentHostFileSystemService.registerAuthority(authority, connection));
 
+		// The Agents window and the cloud sandbox contribution list their own sessions.
+		if (!this._isSessionsWindow && !isCloudSandboxConnectionAddress(address)) {
+			connState.sessionList = store.add(this._instantiationService.createInstance(AgentHostSessionListStore, connection, { filterToWorkspace: false, connectionAuthority: authority }));
+		}
+
 		// React to root state changes (agent discovery)
 		store.add(connection.rootState.onDidChange(rootState => {
 			this._handleRootStateChange(address, connection, rootState);
@@ -418,6 +434,13 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			return workingDirectory;
 		};
 		const isNewSession = (sessionResource: URI): boolean => this._workingDirectoryResolver.isNewSession(sessionResource);
+
+		if (connState.sessionList) {
+			const listController = agentStore.add(this._instantiationService.createInstance(AgentHostSessionListController, sessionType, agent.provider, connState.sessionList, hostLabel, sanitized, false));
+			agentStore.add(this._chatSessionsService.registerChatSessionItemController(sessionType, listController));
+			// Local workspace folders do not exist on the host, so let it choose the directory.
+			agentStore.add(this._workingDirectoryResolver.registerResolver(sessionType, () => null, sessionResource => listController.isNewSession(sessionResource)));
+		}
 
 		// Chat session contribution
 		agentStore.add(this._chatSessionsService.registerChatSessionContribution({

@@ -20,7 +20,7 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { ILabelService, type ResourceLabelFormatter } from '../../../label/common/label.js';
 import { AgentsWindowRemoteAgentHostService, EditorWindowRemoteAgentHostService, RemoteAgentHostService } from '../../browser/remoteAgentHostServiceImpl.js';
 import { InitialAuthenticationError, type IAgentHostProtocolClientOptions } from '../../browser/agentHostProtocolClient.js';
-import { addSSHRemoteAgentHostEntry, addWebSocketRemoteAgentHostEntry, getEntryAddress, getEntryTypeConfig, parseRemoteAgentHostInput, removeWebSocketRemoteAgentHostEntry, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, type IRawRemoteAgentHostEntry, type IRemoteAgentHostConnectionFactory, type IRemoteAgentHostConnectOptions, type IRemoteAgentHostCreatedConnection, type IRemoteAgentHostEntry, type IRemoteAgentHostProtocolClient, type RemoteAgentHostConnectionObserver } from '../../common/remoteAgentHostService.js';
+import { addSSHRemoteAgentHostEntry, addWebSocketRemoteAgentHostEntry, getEntryAddress, getEntryTypeConfig, parseRemoteAgentHostInput, removeWebSocketRemoteAgentHostEntry, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, WorkspaceRemoteAgentHostsSettingId, type IRawRemoteAgentHostEntry, type IRemoteAgentHostConnectionFactory, type IRemoteAgentHostConnectOptions, type IRemoteAgentHostCreatedConnection, type IRemoteAgentHostEntry, type IRemoteAgentHostProtocolClient, type RemoteAgentHostConnectionObserver } from '../../common/remoteAgentHostService.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../common/agentHostUri.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../storage/common/storage.js';
@@ -215,6 +215,7 @@ class TestConfigurationService {
 	readonly onDidChangeConfiguration = this._onDidChangeConfiguration.event;
 
 	private _entries: IRawRemoteAgentHostEntry[] = [];
+	private _workspaceEntries: IRawRemoteAgentHostEntry[] = [];
 	private _enabled = true;
 	private _autoConnect = true;
 	updateValueCalls = 0;
@@ -225,6 +226,9 @@ class TestConfigurationService {
 		}
 		if (key === RemoteAgentHostAutoConnectSettingId) {
 			return this._autoConnect;
+		}
+		if (key === WorkspaceRemoteAgentHostsSettingId) {
+			return this._workspaceEntries;
 		}
 		return this._entries;
 	}
@@ -273,6 +277,13 @@ class TestConfigurationService {
 		this._enabled = enabled;
 		this._onDidChangeConfiguration.fire({
 			affectsConfiguration: (key: string) => key === RemoteAgentHostsEnabledSettingId,
+		});
+	}
+
+	setWorkspaceEntries(entries: IRawRemoteAgentHostEntry[]): void {
+		this._workspaceEntries = entries;
+		this._onDidChangeConfiguration.fire({
+			affectsConfiguration: (key: string) => key === WorkspaceRemoteAgentHostsSettingId,
 		});
 	}
 
@@ -532,6 +543,32 @@ suite('RemoteAgentHostService', () => {
 			sandboxConnections: 1,
 			connections: [[address, 'connected']],
 			settings: [{ name: 'Updated host', address: 'ws://updated:8080', connectionToken: undefined }],
+		});
+	});
+
+	test('editor window dials WebSocket hosts listed in workspace settings', async () => {
+		service.dispose();
+		configService.setEntries([{ name: 'User host', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://user:8080' } }]);
+		service = disposables.add(instantiationService.createInstance(EditorWindowRemoteAgentHostService));
+		configService.setWorkspaceEntries([{ name: 'Workspace host', address: 'ws://workspace:8080', connectionToken: 'tkn' }]);
+		await waitForCreatedClients(1);
+		createdClients[0].connectDeferred.complete();
+		await waitForConnected();
+		const configuredEntries = service.configuredEntries;
+		const connected = service.connections.map(connection => connection.address);
+
+		configService.setWorkspaceEntries([]);
+
+		assert.deepStrictEqual({
+			configuredEntries,
+			connected,
+			afterRemoval: service.connections.map(connection => connection.address),
+			clientInfos: createdClientInfos,
+		}, {
+			configuredEntries: [{ name: 'Workspace host', connectionToken: 'tkn', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'workspace:8080' } }],
+			connected: ['workspace:8080'],
+			afterRemoval: [],
+			clientInfos: [editorWindowAgentHostClientInfo],
 		});
 	});
 
