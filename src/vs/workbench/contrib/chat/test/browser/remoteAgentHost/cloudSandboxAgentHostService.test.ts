@@ -263,6 +263,40 @@ suite('CloudSandboxAgentHostService', () => {
 
 	teardown(() => sinon.restore());
 
+	test('forwards user-local reporting scope through initial credentials and factory recovery', () => runWithFakedTimers({}, async () => {
+		const environmentId = generateUuid();
+		const sessionId = generateUuid();
+		const connectionId = generateUuid();
+		const fixture = createService(store, [{ kind: 'token', token: clientToken(undefined, connectionId) }]);
+		fixture.service.connectThroughFactory = true;
+		const connecting = fixture.service.connect({ environmentId, sessionId, name: 'private host name', environmentKind: 'user-local' }, CancellationToken.None);
+		await fixture.started;
+		fixture.settle();
+		await connecting;
+		fixture.instantiationService.stubInstance(AgentHostProtocolClient, new class extends mock<AgentHostProtocolClient>() {
+			override readonly onDidConnectionDiagnostic = Event.None;
+			override readonly onDidAction = Event.None;
+			override getConnectionDiagnosticState() { return {}; }
+		}());
+		const spy = sinon.spy(fixture.instantiationService, 'createInstance');
+		const created = await fixture.getFactory().createConnection(fixture.entries()[0], { userInitiated: true });
+		assert.ok(created.transportDisposable);
+		store.add(created.transportDisposable);
+		const options = spy.getCalls().find(call => call.args[0] === AgentHostProtocolClient)?.args[3] as IAgentHostProtocolClientOptions;
+		assert.ok(options.prepareReconnect);
+		await options.prepareReconnect();
+		created.transportDisposable.dispose();
+		fixture.service.dispose();
+		assert.deepStrictEqual({
+			requests: fixture.requests.map(entry => [entry.method, entry.request.environmentId, entry.request.sessionId, entry.request.environmentKind]),
+			lifecycle: fixture.lifecycleEvents,
+			userLocalOutcome: fixture.events.filter(event => event.eventName === 'userLocalRelayConnectionOutcome').map(event => event.data?.outcome),
+		}, {
+			requests: [['connect', environmentId, sessionId, 'user-local'], ['reconnect', environmentId, sessionId, 'user-local']],
+			lifecycle: [], userLocalOutcome: ['success'],
+		});
+	}));
+
 	test('user-local hosts seal identity credentials after the handshake without requiring a broker envelope', async () => {
 		const key = { key_id: 'GpLyOFLckI0', public_key: 'pOCSkrZRwni5dyxWn1+puxPZBrRqtoyd+dwrRAn4ogk=', algorithm: 'x25519-sealedbox', use: 'auth-token' as const };
 		const fixture = createService(store, [{ kind: 'token', token: clientToken(undefined) }]);

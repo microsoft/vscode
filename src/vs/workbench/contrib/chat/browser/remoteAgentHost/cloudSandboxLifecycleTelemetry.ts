@@ -7,7 +7,7 @@ import { isCancellationError } from '../../../../../base/common/errors.js';
 import { generateUuid, isUUID } from '../../../../../base/common/uuid.js';
 import { getConnectionDiagnosticError, getGitHubRequestId, type IConnectionDiagnosticEvent, type IConnectionDiagnosticState } from '../../../../../platform/agentHost/common/connectionDiagnostics.js';
 import { getConnectionTelemetryError, type ConnectionTelemetryErrorClassification, type IConnectionTelemetryError } from '../../../../../platform/agentHost/common/connectionTelemetry.js';
-import { type CloudSandboxTaskCreationPath } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { cloudSandboxTaskCreationPaths, type CloudSandboxTaskCreationPath, type ICloudSandboxConnectionRequest } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 
 const phases = [
@@ -31,15 +31,19 @@ const failurePoints = [
 const recoveryActions = ['attempting', 'waiting', 'deferred', 'acquired', 'recovered', 'stopped', 'cancelled', 'superseded'] as const;
 const refreshStopReasons = ['permanentError', 'consecutiveFailures', 'environmentWaking', 'unusableToken'] as const;
 const connectionStates = ['connecting', 'connected', 'reconnecting', 'incompatible', 'closed'] as const;
+const outcomes = ['started', 'succeeded', 'failed', 'cancelled', 'observed', 'rejected', 'waking'] as const;
+const preparationSteps = ['started', 'receipt', 'reservationFailed', 'sendWait', 'handoff', 'sendBlocked', 'sendWithoutReservation', 'sendFallback', 'releaseRequested', 'released', 'releaseFailed', 'submitted'] as const;
 const MAX_DIAGNOSTIC_DURATION_MS = 7 * 24 * 60 * 60_000;
 
 export type CloudSandboxLifecyclePhase = typeof phases[number];
 export type CloudSandboxLifecycleFailurePoint = typeof failurePoints[number];
 export type CloudSandboxRefreshStopReason = typeof refreshStopReasons[number];
-export type CloudSandboxLifecycleOutcome = 'started' | 'succeeded' | 'failed' | 'cancelled' | 'observed' | 'rejected' | 'waking';
-export type CloudSandboxPreparationStep = 'started' | 'receipt' | 'reservationFailed' | 'sendWait' | 'handoff' | 'sendBlocked' | 'sendWithoutReservation' | 'sendFallback' | 'releaseRequested' | 'released' | 'releaseFailed' | 'submitted';
+export type CloudSandboxLifecycleOutcome = typeof outcomes[number];
+export type CloudSandboxPreparationStep = typeof preparationSteps[number];
 
 export interface ICloudSandboxLifecycleContext extends IConnectionDiagnosticState {
+	/** Local-only reporting scope. It is never part of the uploaded event. */
+	readonly environmentKind?: ICloudSandboxConnectionRequest['environmentKind'];
 	readonly environmentId?: string;
 	readonly agentSessionId?: string;
 	readonly taskId?: string;
@@ -73,7 +77,9 @@ export interface ICloudSandboxLifecycleEvent extends ICloudSandboxLifecycleConte
 	readonly hostErrorType?: string;
 }
 
-type LifecycleEvent = Omit<ICloudSandboxLifecycleEvent, 'error' | 'timestamp' | 'hostErrorType'> & IConnectionTelemetryError & {
+type LifecycleEvent = Omit<ICloudSandboxLifecycleEvent, 'error' | 'timestamp' | 'hostErrorType' | 'environmentKind' | 'phase' | 'outcome'> & IConnectionTelemetryError & {
+	phase: CloudSandboxLifecyclePhase | 'unknown';
+	outcome: CloudSandboxLifecycleOutcome | 'unknown';
 	schemaVersion: number;
 	eventId: string;
 	observerId: string;
@@ -91,8 +97,8 @@ type LifecycleClassification = ConnectionTelemetryErrorClassification & {
 	eventId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Random event identity for deduplicating uploads.' };
 	observerId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Random reporter lifetime identity; not an account or environment.' };
 	sequence: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Reporter-local ordering; not a cross-machine clock.' };
-	phase: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Allowlisted client-observed lifecycle operation.' };
-	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Operation start/result or a passive observation. Missing results remain unknown.' };
+	phase: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Allowlisted client-observed lifecycle operation; invalid supplied values become unknown.' };
+	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Allowlisted operation start/result or passive observation. Invalid supplied values become unknown, never success.' };
 	operationId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Client operation UUID pairing start/result, including before backend identity exists.' };
 	parentOperationId?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Enclosing client operation UUID, when known.' };
 	observedAtUnixMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Client observation time in Unix milliseconds, distinct from upload time.' };
@@ -182,6 +188,9 @@ export class CloudSandboxLifecycleTelemetry {
 	}
 
 	record(event: ICloudSandboxLifecycleEvent): void {
+		if (event.environmentKind === 'user-local') {
+			return;
+		}
 		const ids = {
 			operationId: uuid(event.operationId),
 			parentOperationId: uuid(event.parentOperationId),
@@ -204,11 +213,12 @@ export class CloudSandboxLifecycleTelemetry {
 			schemaVersion: 1, eventId: generateUuid(), observerId: this.observerId, sequence: ++this.sequence,
 			...ids,
 			operationId: ids.operationId ?? generateUuid(),
-			phase: event.phase, outcome: event.outcome,
+			phase: phases.find(phase => phase === event.phase) ?? 'unknown',
+			outcome: outcomes.find(outcome => outcome === event.outcome) ?? 'unknown',
 			observedAtUnixMs: event.timestamp !== undefined && Number.isFinite(event.timestamp) ? event.timestamp : Date.now(),
 			durationMs: event.durationMs !== undefined && Number.isFinite(event.durationMs) ? Math.max(0, event.durationMs) : undefined,
-			taskCreationPath: event.taskCreationPath,
-			preparationStep: event.preparationStep,
+			taskCreationPath: event.taskCreationPath === undefined ? undefined : cloudSandboxTaskCreationPaths.find(path => path === event.taskCreationPath) ?? 'unknown',
+			preparationStep: preparationSteps.find(step => step === event.preparationStep),
 			sessionState: event.sessionState === 'creating' || event.sessionState === 'ready' || event.sessionState === 'failed' ? event.sessionState : undefined,
 			failurePoint: failurePoints.find(value => value === event.failurePoint),
 			recoveryAction: recoveryActions.find(value => value === event.recoveryAction),
@@ -287,6 +297,7 @@ export class CloudSandboxLifecycleOperation {
 		this.finished = true;
 		this.telemetry.record({
 			...this.context, ...context, phase: this.phase, operationId: this.id, outcome,
+			environmentKind: this.context.environmentKind ?? context.environmentKind,
 			durationMs: Date.now() - this.startedAt, error, statusCode,
 		});
 	}

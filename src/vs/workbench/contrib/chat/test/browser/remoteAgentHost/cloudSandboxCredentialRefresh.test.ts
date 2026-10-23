@@ -441,13 +441,14 @@ suite('CloudSandboxCredentialRefresher recovery', () => {
 		initialToken: ICloudSandboxClientToken,
 		step: () => CloudSandboxConnectResult | Promise<CloudSandboxConnectResult>,
 		state = new CloudSandboxCredentialRefreshState(),
+		request: ICloudSandboxConnectionRequest = { environmentId: 'env_1', sessionId: 'session-1' },
 	) {
 		const credentials = new ScriptedCredentialsService(step);
 		const creds: ICloudSandboxCreds = { token: initialToken };
 		const telemetry = new RecordingTelemetry();
 		const refresher = store.add(new CloudSandboxCredentialRefresher(
 			'cloudsandbox:env_1',
-			{ environmentId: 'env_1', sessionId: 'session-1' },
+			request,
 			'client-1',
 			creds,
 			state,
@@ -456,6 +457,71 @@ suite('CloudSandboxCredentialRefresher recovery', () => {
 			new NullLogService(),
 		));
 		return { refresher, credentials, creds, telemetry };
+	}
+
+	for (const scenario of ['authentication', 'retry', 'permanentError', 'wakingLimit', 'invalidExpiry', 'cancelledWait'] as const) {
+		test(`user-local ${scenario} preserves credential behavior and stop aggregates without lifecycle events`, () => runWithFakedTimers({ useFakeTimers: true, startTime: START_TIME }, async () => {
+			const observations = [];
+			const reportedPhases = [];
+			for (const environmentKind of [undefined, 'user-local'] as const) {
+				let attempts = 0;
+				const state = new CloudSandboxCredentialRefreshState();
+				if (scenario === 'wakingLimit') {
+					state.unhealthyCycles = 9;
+				}
+				const request: ICloudSandboxConnectionRequest = { environmentId: '00000000-0000-4000-8000-000000000001', sessionId: '00000000-0000-4000-8000-000000000002', environmentKind };
+				const { refresher, credentials, telemetry, creds } = createRefresher(tokenExpiringIn(40, Date.now(), { encrypted_github_token: SEALED_TOKEN }), () => {
+					attempts++;
+					if (scenario === 'permanentError') {
+						throw new CloudSandboxRequestError(403, 'private account rejected');
+					}
+					if (scenario === 'wakingLimit') {
+						return { kind: 'waking', waking: { retryAfterSeconds: 45 } };
+					}
+					if (scenario === 'invalidExpiry') {
+						return { kind: 'token', token: tokenExpiringIn(-1, Date.now()) };
+					}
+					if ((scenario === 'retry' || scenario === 'cancelledWait') && attempts === 1) {
+						throw new CloudSandboxRequestError(503, 'private request failed');
+					}
+					return { kind: 'token', token: tokenExpiringIn(40, Date.now(), { access_token: 'private-fresh-token', encrypted_github_token: 'copilot-sealed.v1.key-1.new' }) };
+				}, state, request);
+				if (scenario === 'authentication') {
+					await refresher.refreshAuthenticationCredentials();
+				} else {
+					await assert.rejects(refresher.refreshConnectionCredentials(), /could not be refreshed|usable future expiry/);
+					if (scenario === 'retry') {
+						const recovery = refresher.refreshConnectionCredentials();
+						await timeout(30_000);
+						await recovery;
+					} else if (scenario === 'cancelledWait') {
+						const cancelled = assert.rejects(refresher.refreshConnectionCredentials(), isCancellationError);
+						refresher.dispose();
+						await cancelled;
+					}
+				}
+				refresher.dispose();
+				reportedPhases.push(telemetry.lifecycleEvents.map(event => event.phase));
+				observations.push({
+					calls: credentials.callCount, stopped: state.stopped, failures: state.unhealthyCycles, aggregate: telemetry.stops,
+					refreshed: creds.token.access_token === 'private-fresh-token',
+					scopeForwarded: credentials.requests.every(entry => entry.request.environmentKind === environmentKind),
+					reported: telemetry.lifecycleEvents.length > 0,
+					forbidden: /private|copilot-sealed|environmentKind|user-local|wps\.example|public_key/.test(JSON.stringify(telemetry.lifecycleEvents)),
+				});
+			}
+			assert.deepStrictEqual({
+				observations,
+				coveredPhase: reportedPhases[0].includes(scenario === 'authentication' ? 'credentials.authentication' : scenario === 'retry' || scenario === 'cancelledWait' ? 'credentials.retryWait' : scenario === 'permanentError' || scenario === 'wakingLimit' ? 'credentials.stopped' : 'credentials.acquire'),
+				userLocalPhases: reportedPhases[1],
+			}, {
+				observations: [
+					{ ...observations[0], reported: true, scopeForwarded: true, forbidden: false },
+					{ ...observations[0], reported: false, scopeForwarded: true, forbidden: false },
+				],
+				coveredPhase: true, userLocalPhases: [],
+			});
+		}));
 	}
 
 	test('reuses still-valid credentials without a refresh, even inside the refresh lead time', () => runWithFakedTimers({ useFakeTimers: true, startTime: START_TIME }, async () => {

@@ -496,16 +496,16 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	}
 
 	async connect(request: ICloudSandboxConnectionRequest, token: CancellationToken): Promise<CloudSandboxConnectResult> {
-		return this._connectRequest('connect', request.environmentId, token, {
+		return this._connectRequest('connect', request, token, {
 			...(request.sessionId && { session_id: request.sessionId }),
-		}, request.onRequest);
+		});
 	}
 
 	async reconnect(request: ICloudSandboxConnectionRequest, clientId: string, token: CancellationToken): Promise<CloudSandboxConnectResult> {
-		return this._connectRequest('reconnect', request.environmentId, token, {
+		return this._connectRequest('reconnect', request, token, {
 			client_id: clientId,
 			...(request.sessionId && { session_id: request.sessionId }),
-		}, request.onRequest);
+		});
 	}
 
 	async getEnvironment(environmentId: string, token: CancellationToken): Promise<ICloudSandboxEnvironment> {
@@ -1285,13 +1285,13 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	/** Shared handler for the `connect`/`reconnect` endpoints (200 token or 202 waking). */
 	private async _connectRequest(
 		action: CloudSandboxEnvironmentAction,
-		environmentId: string,
+		request: ICloudSandboxConnectionRequest,
 		token: CancellationToken,
 		searchParams: Record<string, string>,
-		onRequest?: ICloudSandboxConnectionRequest['onRequest'],
 	): Promise<CloudSandboxConnectResult> {
+		const { environmentId, environmentKind, onRequest } = request;
 		const operation = this._telemetry.lifecycle.start(action === 'connect' ? 'credentials.connect' : 'credentials.refresh', {
-			environmentId, agentSessionId: searchParams.session_id, connectionId: searchParams.client_id,
+			environmentKind, environmentId, agentSessionId: searchParams.session_id, connectionId: searchParams.client_id,
 		});
 		let failurePoint: CloudSandboxLifecycleFailurePoint = 'credentials.request';
 		try {

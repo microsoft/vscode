@@ -15,7 +15,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
 import { IRequestContext, type IHeaders, type IRequestOptions } from '../../../../../../base/parts/request/common/request.js';
-import { CLOUD_SANDBOX_AGENT_SLUG, CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID, CloudSandboxAuthenticationRequiredError, CloudSandboxRequestError, type ICloudSandboxAuthenticationTarget, type ICloudSandboxClientToken, type ICloudSandboxPreparedAuthentication, type ICloudSandboxSealTokenRequest } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CLOUD_SANDBOX_AGENT_SLUG, CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID, CloudSandboxAuthenticationRequiredError, CloudSandboxRequestError, type ICloudSandboxAuthenticationTarget, type ICloudSandboxClientToken, type ICloudSandboxConnectionRequest, type ICloudSandboxPreparedAuthentication, type ICloudSandboxSealTokenRequest } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { MessageKind, SessionStatus } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ActionType, type StateAction } from '../../../../../../platform/agentHost/common/state/protocol/common/actions.js';
 import { COPILOT_INTEGRATION_ID } from '../../../../../../platform/endpoint/common/licenseAgreement.js';
@@ -1342,6 +1342,57 @@ suite('CloudSandboxApiService connection credentials', () => {
 				to_host: `${groupPrefix}.to-host`,
 			},
 		};
+	}
+
+	for (const action of ['connect', 'reconnect'] as const) {
+		for (const response of ['token', 'waking', 'httpError', 'incomplete', 'networkError', 'cancelled'] as const) {
+			test(`${action} excludes user-local lifecycle reporting for ${response} without changing requests or aggregates`, async () => {
+				const environmentId = generateUuid();
+				const sessionId = generateUuid();
+				const connectionId = generateUuid();
+				const observations = [];
+				for (const environmentKind of [undefined, 'user-local'] as const) {
+					const source = store.add(new CancellationTokenSource());
+					const progress: string[] = [];
+					const wire: { path: string; query: string; data: IRequestOptions['data'] }[] = [];
+					const { service, lifecycleEvents, requestOutcomes } = createService(store, {
+						tasks: [], repositories: new Map(),
+						onRequest: (url, _token, options) => {
+							wire.push({ path: url.pathname, query: url.search, data: options.data });
+							if (response === 'networkError') {
+								throw new Error('private-person@example.invalid request failed');
+							}
+							if (response === 'cancelled') {
+								source.cancel();
+								throw new CancellationError();
+							}
+							return response === 'token' ? jsonResponse(clientToken(connectionId))
+								: response === 'waking' ? jsonResponse({}, 202, { 'retry-after': '45' })
+									: response === 'httpError' ? jsonResponse({ message: 'private chat content' }, 403)
+										: jsonResponse({ access_token: 'private-token' });
+						},
+					});
+					const scopedRequest: ICloudSandboxConnectionRequest = { environmentId, sessionId, environmentKind, onRequest: event => progress.push(event) };
+					const pending = action === 'connect' ? service.connect(scopedRequest, source.token) : service.reconnect(scopedRequest, connectionId, source.token);
+					let result: 'token' | 'waking' | 'rejected';
+					if (response === 'token' || response === 'waking') {
+						result = (await pending).kind;
+					} else {
+						await assert.rejects(pending);
+						result = 'rejected';
+					}
+					observations.push({
+						result, wire, progress, requestOutcomes,
+						reported: lifecycleEvents.length > 0,
+						forbidden: /private|relay-token|relay\.example|environmentKind|user-local/.test(JSON.stringify(lifecycleEvents)),
+					});
+				}
+				assert.deepStrictEqual(observations, [
+					{ ...observations[0], reported: true, forbidden: false },
+					{ ...observations[0], reported: false, forbidden: false },
+				]);
+			});
+		}
 	}
 
 	test('allows thirty seconds for connection requests while keeping environment reads at ten seconds', async () => {

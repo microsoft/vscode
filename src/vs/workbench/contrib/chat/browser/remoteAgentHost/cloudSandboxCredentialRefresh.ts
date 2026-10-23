@@ -127,6 +127,7 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 
 	private get _lifecycleContext(): ICloudSandboxLifecycleContext {
 		return {
+			environmentKind: this._request.environmentKind,
 			environmentId: this._request.environmentId, agentSessionId: this._request.sessionId, connectionId: this._clientId,
 			consecutiveFailures: this._refreshState.unhealthyCycles,
 		};

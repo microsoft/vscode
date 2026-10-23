@@ -29,6 +29,19 @@ class RecordingTelemetry extends mock<ITelemetryService>() {
 suite('CloudSandboxLifecycleTelemetry', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('user-local reporting scope suppresses all operation phases and cannot be cleared by completion metadata', () => {
+		const sink = new RecordingTelemetry();
+		const telemetry = new CloudSandboxLifecycleTelemetry(sink);
+		const context = { environmentKind: 'user-local' as const, environmentId: generateUuid(), agentSessionId: generateUuid(), connectionId: generateUuid() };
+		for (const phase of ['credentials.connect', 'credentials.refresh', 'credentials.acquire', 'credentials.retryWait', 'credentials.authentication', 'credentials.stopped'] as const) {
+			const operation = telemetry.start(phase, context);
+			operation.bind({ environmentKind: undefined, serverRequestId: 'ABCD:1234:5678:90AB:CDEF' });
+			operation.complete('failed', { environmentKind: undefined }, new Error('private host failure'));
+			telemetry.record({ ...context, phase, outcome: 'failed', operationId: generateUuid() });
+		}
+		assert.deepStrictEqual(sink.events, []);
+	});
+
 	test('pairs pre-identity operations with later binding without rewriting the start', () => runWithFakedTimers({}, async () => {
 		const sink = new RecordingTelemetry();
 		const telemetry = new CloudSandboxLifecycleTelemetry(sink);
@@ -130,6 +143,34 @@ suite('CloudSandboxLifecycleTelemetry', () => {
 			getCloudSandboxLifecycleSessionId('ahp-session:/opaque-session'),
 			getCloudSandboxLifecycleSessionId(`ahp-session:/${id}?token=private`),
 		], [id, id, id, undefined, undefined]);
+	});
+
+	test('revalidates every free-text metadata field and serializes only the explicit payload allowlist', () => {
+		const sink = new RecordingTelemetry();
+		const telemetry = new CloudSandboxLifecycleTelemetry(sink);
+		const sensitive = 'private-person@example.invalid /Users/private-person/repo private chat content';
+		const event: ICloudSandboxLifecycleEvent = { phase: 'turn.complete', outcome: 'failed', operationId: generateUuid() };
+		Object.assign(event, {
+			phase: sensitive, outcome: sensitive, preparationStep: sensitive, taskCreationPath: sensitive, sessionState: sensitive,
+			failurePoint: sensitive, recoveryAction: sensitive, refreshStopReason: sensitive, connectionState: sensitive,
+			hostErrorType: sensitive, environmentId: sensitive, agentSessionId: sensitive, taskId: sensitive, relatedTaskId: sensitive,
+			connectionId: sensitive, attemptId: sensitive, chatId: sensitive, requestId: sensitive, parentOperationId: sensitive, serverRequestId: sensitive,
+			prompt: sensitive, message: sensitive, title: sensitive, repoNwo: sensitive, workingDirectory: sensitive, token: sensitive,
+			error: { name: sensitive, code: sensitive, message: sensitive, stack: sensitive, statusCode: 403, response: { body: sensitive }, cause: { message: sensitive } },
+		});
+		telemetry.record(event);
+		const serialized = validateTelemetryData(sink.events[0]);
+		assert.deepStrictEqual({
+			properties: Object.keys(serialized.properties).sort(),
+			metadata: [serialized.properties.phase, serialized.properties.outcome, serialized.properties.taskCreationPath, serialized.properties.hostErrorKind, serialized.properties.errorCategory],
+			omitted: serialized.measurements.omittedCorrelationFields,
+			forbiddenText: /private-person|private chat content|example\.invalid|\/Users\/|Bearer/.test(JSON.stringify(serialized)),
+			forbiddenKeys: ['environmentKind', 'prompt', 'message', 'title', 'repoNwo', 'workingDirectory', 'token', 'error', 'stack', 'hostErrorType'].filter(key => Object.hasOwn(serialized.properties, key)),
+		}, {
+			properties: ['errorCategory', 'eventId', 'hostErrorKind', 'observerId', 'omittedCorrelationFieldNames', 'operationId', 'outcome', 'phase', 'taskCreationPath'],
+			metadata: ['unknown', 'unknown', 'unknown', 'unknown', 'authorization'],
+			omitted: 10, forbiddenText: false, forbiddenKeys: [],
+		});
 	});
 
 	test('actionable metadata uses fixed values, bounded measurements and no raw host errors', () => {

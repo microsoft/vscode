@@ -7,7 +7,7 @@ import { IntervalTimer } from '../../../../../base/common/async.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../../base/common/map.js';
 import { generateUuid, isUUID } from '../../../../../base/common/uuid.js';
-import { CloudSandboxRequestError, type CloudSandboxTaskCreationPath, type ICloudSandboxConnectOptions, type ICloudSandboxCreatedSession, type ICloudSandboxCreateSessionRequest } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CloudSandboxRequestError, cloudSandboxTaskCreationPaths, type CloudSandboxTaskCreationPath, type ICloudSandboxConnectOptions, type ICloudSandboxCreatedSession, type ICloudSandboxCreateSessionRequest } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { type ConnectionDiagnosticRequestKind, IConnectionDiagnosticEvent, type IConnectionDiagnosticState } from '../../../../../platform/agentHost/common/connectionDiagnostics.js';
 import { getConnectionTelemetryError, type ConnectionTelemetryErrorClassification, type IConnectionTelemetryError } from '../../../../../platform/agentHost/common/connectionTelemetry.js';
 import { RemoteAgentHostConnectionObserver } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -57,16 +57,7 @@ export function getCloudSandboxTaskCreationPath(request: ICloudSandboxCreateSess
 }
 
 function normalizeTaskCreationPath(value: CloudSandboxTaskCreationPath | undefined): CloudSandboxTaskCreationPath {
-	switch (value) {
-		case 'newEnvironment':
-		case 'existingEnvironment':
-		case 'reservationClaimed':
-		case 'reservationFallback':
-		case 'reservationUnconfirmed':
-			return value;
-		default:
-			return 'unknown';
-	}
+	return cloudSandboxTaskCreationPaths.find(path => path === value) ?? 'unknown';
 }
 
 export interface ICloudSandboxConnectionTelemetry extends IDisposable {
