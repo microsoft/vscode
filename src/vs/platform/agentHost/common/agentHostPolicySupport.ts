@@ -116,6 +116,8 @@ export const agentHostPolicySupport: Readonly<Record<string, IAgentHostPolicySup
 	ChatAgentExtensionTools: { status: 'enforced' },
 	// Browser tools reach Agent Host through the same filtered client tool list.
 	BrowserChatTools: { status: 'enforced' },
+	// Gates Canvas UI and mirrors runtime enablement for new and resumed sessions.
+	ChatCanvasesEnabled: { status: 'enforced' },
 	// Blocks the Agents window. In the editor it only switches the chat mode; Agent Host session targets
 	// remain available. Not yet tracked.
 	ChatAgentMode: { status: 'partial' },
